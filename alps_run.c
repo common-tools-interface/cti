@@ -109,7 +109,7 @@ findAprunInv(pid_t aprunPid)
 }
 
 pid_t
-launchAprun_barrier(char **aprun_argv)
+launchAprun_barrier(char **aprun_argv, int redirectOutput, int stdout_fd, int stderr_fd)
 {
         aprunInv_t *    myapp;
         aprunInv_t *    newapp;
@@ -153,7 +153,7 @@ launchAprun_barrier(char **aprun_argv)
         
         // create the argv array for the actual aprun exec
         // figure out the length of the argv array
-        // this is the number of args in the aprun_argv array passed to us plus 2 for the -P w,r argument
+        // this is the number of args in the aprun_argv array passed to us plus 2 for the -P w,r argument and 2 for aprun and null term
                 
         // iterate through the aprun_argv array
         tmp = aprun_argv;
@@ -163,7 +163,7 @@ launchAprun_barrier(char **aprun_argv)
         }
                 
         // allocate the new argv array. Need additional entry for null terminator
-        if ((my_argv = calloc(aprun_argc+3, sizeof(char *))) == (void *)0)
+        if ((my_argv = calloc(aprun_argc+4, sizeof(char *))) == (void *)0)
         {
                 // calloc failed
                 free(myapp);
@@ -172,18 +172,10 @@ launchAprun_barrier(char **aprun_argv)
                 
         // add the initial aprun argv
         my_argv[0] = strdup(APRUN);
-                
-        // set the argv array for aprun
-        // here we expect the final argument to be the program we wish to start
-        // and we need to add our -P r,w argument before this happens
-        for (i=1; i < aprun_argc; i++)
-        {
-                my_argv[i] = strdup(aprun_argv[i-1]);
-        }
         
         // Add the -P r,w args
-        my_argv[i++] = strdup("-P");
-                
+        my_argv[1] = strdup("-P");
+        
         // determine length of the fds
         j = aprunPipeR[0];
         do{
@@ -194,10 +186,10 @@ launchAprun_barrier(char **aprun_argv)
         do{
                 ++fd_len;
         } while (j/=10);
-                
+        
         // need a final char for comma and null terminator
         fd_len += 2;
-                
+        
         // allocate space for the buffer including the terminating zero
         if ((pipefd_buf = malloc(sizeof(char)*fd_len)) == (void *)0)
         {
@@ -212,15 +204,20 @@ launchAprun_barrier(char **aprun_argv)
                 free(my_argv);
                 return 0;
         }
-                
+        
         // write the buffer
         snprintf(pipefd_buf, fd_len, "%d,%d", aprunPipeW[1], aprunPipeR[0]);
-                
-        my_argv[i++] = pipefd_buf;
-                
-        // add the final program argument
-        my_argv[i++] = strdup(aprun_argv[aprun_argc-1]);
-                
+        
+        my_argv[2] = pipefd_buf;
+        
+        // set the argv array for aprun
+        // here we expect the final argument to be the program we wish to start
+        // and we need to add our -P r,w argument before this happens
+        for (i=3; i < aprun_argc+3; i++)
+        {
+                my_argv[i] = strdup(aprun_argv[i-3]);
+        }
+        
         // add the null terminator
         my_argv[i++] = (char *)NULL;
         
@@ -248,6 +245,22 @@ launchAprun_barrier(char **aprun_argv)
                 // close unused ends of pipe
                 close(aprunPipeR[1]);
                 close(aprunPipeW[0]);
+                
+                // redirect stdout/stderr if directed
+                if (redirectOutput)
+                {
+                        // dup2 stdout
+                        if (dup2(stdout_fd, STDOUT_FILENO) < 0)
+                        {
+                                fprintf(stderr, "Unable to redirect aprun stdout.\n");
+                        }
+                        
+                        // dup2 stderr
+                        if (dup2(stderr_fd, STDERR_FILENO) < 0)
+                        {
+                                fprintf(stderr, "Unable to redirect aprun stderr.\n");
+                        }
+                }
 
                 // exec aprun
                 execvp(APRUN, my_argv);

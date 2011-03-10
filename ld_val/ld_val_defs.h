@@ -25,7 +25,7 @@
 #define LIBAUDIT_ENV    "LD_VAL_LIBRARY"
 #define LD_AUDIT        "LD_AUDIT"
 
-#define KEYFILE         "/tmp"
+#define KEYFILE         "/proc/cray_xt"
 #define ID_A            'A'
 #define ID_B            'B'
 #define CTL_CHANNEL_SIZE 1

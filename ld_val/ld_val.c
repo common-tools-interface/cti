@@ -316,6 +316,7 @@ ld_val(char *executable)
         int pid;
         int rec = 0;
         char *old_audit;
+        char *tmp_audit;
         char *audit_location;
         char *libstr;
         char **rtn;
@@ -365,7 +366,13 @@ ld_val(char *executable)
         num_alloc = BLOCK_SIZE;
         
         // get and set the LD_AUDIT environment variable.
-        old_audit = strdup(getenv(LD_AUDIT));
+        if ((tmp_audit = getenv(LD_AUDIT)) != (char *)NULL)
+        {
+                old_audit = strdup(tmp_audit);
+        } else
+        {
+                old_audit = (char *)NULL;
+        }
         
         // get the location of the audit library
         audit_location = strdup(getenv(LIBAUDIT_ENV));

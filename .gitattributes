@@ -40,6 +40,8 @@ ld_val/audit.c -text
 ld_val/ld_val.c -text
 ld_val/ld_val.h -text
 ld_val/ld_val_defs.h -text
+/tool_backend.h -text
+/tool_frontend.h -text
 useful/log.c -text
 useful/log.h -text
 useful/path.c -text

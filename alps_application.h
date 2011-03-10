@@ -23,8 +23,10 @@
 #include "alps/alps.h"
 #include "alps/apInfo.h"
 
-#define ALPS_XT_CNAME   "/proc/cray_xt/cname"
-#define BLOCK_SIZE      10
+#define ALPS_XT_CNAME           "/proc/cray_xt/cname"
+#define ALPS_XT_HOSTNAME_FMT    "nid%05d"
+#define ALPS_XT_HOSTNAME_LEN    9
+#define BLOCK_SIZE              10
 
 /* struct typedefs */
 typedef struct
@@ -74,7 +76,9 @@ int             registerAprunPid(pid_t);
 int             deregisterAprunPid(pid_t);
 uint64_t        getApid(pid_t);
 char *          getCName(void);
+int             getNid(void);
 int             getNumAppPEs(pid_t);
 int             getNumAppNodes(pid_t);
+char **         getAppHostsList(pid_t aprunPid);
 
 #endif /* _ALPS_APPLICATION_H */

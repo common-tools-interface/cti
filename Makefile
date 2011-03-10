@@ -27,14 +27,14 @@ demodir			= $(exec_prefix)/demos
 
 libtransfer_CFLAGS 	= -fPIC -g -Wall -Ialps/include -Ild_val
 libtransfer_SOURCES 	= alps_application.c alps_transfer.c alps_run.c useful/path.c
-libtransfer_HEADERS	= alps_application.h alps_transfer.h alps_run.h
+libtransfer_HEADERS	= tool_frontend.h 
 libtransfer_OBJECTS 	= $(libtransfer_SOURCES:.c=.o)
 libtransfer_LDFLAGS 	= -Lalps/lib/alps 
 libtransfer_LDADD 	= ld_val/libld_val.a -lalps -lxmlrpc
 
 libbackend_CFLAGS	= -fPIC -g -Wall -Ialps/include -I/opt/cray/job/1.5.5-0.1_2.0301.24546.5.1.gem/include
 libbackend_SOURCES	= alps_backend.c
-libbackend_HEADERS	= alps_backend.h
+libbackend_HEADERS	= tool_backend.h
 libbackend_OBJECTS	= $(libbackend_SOURCES:.c=.o)
 libbackend_LDFLAGS	= -Lalps/lib/alps -L/opt/cray/job/1.5.5-0.1_2.0301.24546.5.1.gem/lib64
 libbackend_LDADD	= -lalpsutil -ljob

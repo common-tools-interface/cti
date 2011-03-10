@@ -558,6 +558,23 @@ getCName()
 }
 
 int
+getNid()
+{
+        // ensure the svcNid exists
+        if (svcNid == (serviceNode_t *)NULL)
+        {
+                if ((svcNid = getSvcNodeInfo()) == (serviceNode_t *)NULL)
+                {
+                        // couldn't get the svcnode info for some odd reason
+                        return -1;
+                }
+        }
+        
+        // return the nid
+        return svcNid->nid;
+}
+
+int
 getNumAppPEs(pid_t aprunPid)
 {
         appEntry_t *    app_ptr;
@@ -593,4 +610,70 @@ getNumAppNodes(pid_t aprunPid)
         }
         
         return app_ptr->alpsInfo.cmdDetail->nodeCnt;
+}
+
+char **
+getAppHostsList(pid_t aprunPid)
+{
+        appEntry_t *    app_ptr;
+        int             curNid, numNid;
+        char **         hosts;
+        char            hostEntry[ALPS_XT_HOSTNAME_LEN];
+        int             i;
+        
+        // sanity check
+        if (aprunPid <= 0)
+                return (char **)NULL;
+                
+        // try to find an entry in the my_apps list for the aprunPid
+        if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+        {
+                // couldn't find the entry associated with the aprunPid
+                return (char **)NULL;
+        }
+        
+        // allocate space for the hosts list, add an extra entry for the null terminator
+        if ((hosts = calloc(app_ptr->alpsInfo.cmdDetail->nodeCnt + 1, sizeof(char *))) == (void *)0)
+        {
+                // calloc failed
+                return (char **)NULL;
+        }
+        
+        // set the first entry
+        numNid = 1;
+        curNid = app_ptr->alpsInfo.places[0].nid;
+        // create the hostname string for this entry and place it into the list
+        snprintf(hostEntry, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, curNid);
+        hosts[0] = strdup(hostEntry);
+        // clear the buffer
+        memset(hostEntry, 0, ALPS_XT_HOSTNAME_LEN);
+        
+        // set the final entry to null, calloc doesn't guarantee null'ed memory
+        hosts[app_ptr->alpsInfo.cmdDetail->nodeCnt] = (char *)NULL;
+        
+        // check to see if we can skip iterating through the places list due to there being only one nid allocated
+        if (numNid == app_ptr->alpsInfo.cmdDetail->nodeCnt)
+        {
+                // we are done
+                return hosts;
+        }
+        
+        // iterate through the placelist to find the node id's for the PEs
+        for (i=1; i < app_ptr->alpsInfo.appinfo.numPlaces; i++)
+        {
+                if (curNid == app_ptr->alpsInfo.places[i].nid)
+                {
+                        continue;
+                }
+                // we have a new unique nid
+                curNid = app_ptr->alpsInfo.places[i].nid;
+                // create the hostname string for this entry and place it into the list
+                snprintf(hostEntry, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, curNid);
+                hosts[numNid++] = strdup(hostEntry);
+                // clear the buffer
+                memset(hostEntry, 0, ALPS_XT_HOSTNAME_LEN);
+        }
+        
+        // done
+        return hosts;
 }
