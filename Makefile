@@ -25,32 +25,32 @@ libdir			= $(exec_prefix)/lib
 includedir		= $(exec_prefix)/include
 demodir			= $(exec_prefix)/demos
 
-libtransfer_CFLAGS 	= -fPIC -g -Wall -Ialps/include -Ild_val
-libtransfer_SOURCES 	= alps_application.c alps_transfer.c alps_run.c useful/path.c
-libtransfer_HEADERS	= tool_frontend.h 
-libtransfer_OBJECTS 	= $(libtransfer_SOURCES:.c=.o)
-libtransfer_LDFLAGS 	= -Lalps/lib/alps 
-libtransfer_LDADD 	= ld_val/libld_val.a -lalps -lxmlrpc
+libcraytool_frontend_CFLAGS 	= -fPIC -Wall -Ialps/include -Ild_val
+libcraytool_frontend_SOURCES 	= alps_application.c alps_transfer.c alps_run.c useful/path.c
+libcraytool_frontend_HEADERS	= tool_frontend.h 
+libcraytool_frontend_OBJECTS 	= $(libcraytool_frontend_SOURCES:.c=.o)
+libcraytool_frontend_LDFLAGS 	= -Lalps/lib/alps 
+libcraytool_frontend_LDADD 	= ld_val/libld_val.a -lalps -lxmlrpc
 
-libbackend_CFLAGS	= -fPIC -g -Wall -Ialps/include -I/opt/cray/job/1.5.5-0.1_2.0301.24546.5.1.gem/include
-libbackend_SOURCES	= alps_backend.c
-libbackend_HEADERS	= tool_backend.h
-libbackend_OBJECTS	= $(libbackend_SOURCES:.c=.o)
-libbackend_LDFLAGS	= -Lalps/lib/alps -L/opt/cray/job/1.5.5-0.1_2.0301.24546.5.1.gem/lib64
-libbackend_LDADD	= -lalpsutil -ljob
+libcraytool_backend_CFLAGS	= -fPIC -Wall -Ialps/include -I/opt/cray/job/1.5.5-0.1_2.0301.24546.5.1.gem/include
+libcraytool_backend_SOURCES	= alps_backend.c
+libcraytool_backend_HEADERS	= tool_backend.h
+libcraytool_backend_OBJECTS	= $(libcraytool_backend_SOURCES:.c=.o)
+libcraytool_backend_LDFLAGS	= -Lalps/lib/alps -L/opt/cray/job/1.5.5-0.1_2.0301.24546.5.1.gem/lib64
+libcraytool_backend_LDADD	= -lalpsutil -ljob
 
-daemon_launcher_CFLAGS  = -g -Wall
+daemon_launcher_CFLAGS  = -Wall
 daemon_launcher_SOURCES = daemon_launcher.c useful/path.c
 
-demo_CFLAGS		= -g -Wall
+demo_CFLAGS		= -Wall
 demo_LDFLAGS		= -L. -Lalps/lib/alps
 demo_SOURCES		= alps_transfer_demo.c
 demo_LIBADD		= -ltransfer -lalps -lxmlrpc
 demo_DATA		= demos/*
 
-OBJECTS                 = $(libtransfer_OBJECTS) $(libbackend_OBJECTS)
-HEADERS			= $(libtransfer_HEADERS) $(libbackend_HEADERS)
-LIBS			= libtransfer.so libbackend.so
+OBJECTS                 = $(libcraytool_frontend_OBJECTS) $(libcraytool_backend_OBJECTS)
+HEADERS			= $(libcraytool_frontend_HEADERS) $(libcraytool_backend_HEADERS)
+LIBS			= libcraytool_frontend.so libcraytool_backend.so
 EXECUTABLE		= dlaunch
 DEMO			= demo
 
@@ -61,17 +61,17 @@ all: ld_val $(OBJECTS) $(LIBS) $(EXECUTABLE)
 ld_val :
 	$(MAKE) -C ld_val
 
-$(libtransfer_OBJECTS) : %.o: %.c
-	$(CC) $(libtransfer_CFLAGS) -c $< -o $@
+$(libcraytool_frontend_OBJECTS) : %.o: %.c
+	$(CC) $(libcraytool_frontend_CFLAGS) -c $< -o $@
 
-$(libbackend_OBJECTS) : %.o: %.c
-	$(CC) $(libbackend_CFLAGS) -c $< -o $@
+$(libcraytool_backend_OBJECTS) : %.o: %.c
+	$(CC) $(libcraytool_backend_CFLAGS) -c $< -o $@
 
-libtransfer.so : $(libtransfer_OBJECTS)
-	$(CC) -shared -Wl,-soname,$@ -o $@ $(libtransfer_OBJECTS) $(libtransfer_LDFLAGS) $(libtransfer_LDADD) -lc
+libcraytool_frontend.so : $(libcraytool_frontend_OBJECTS)
+	$(CC) -shared -Wl,-soname,$@ -o $@ $(libcraytool_frontend_OBJECTS) $(libcraytool_frontend_LDFLAGS) $(libcraytool_frontend_LDADD) -lc
 
-libbackend.so : $(libbackend_OBJECTS)
-	$(CC) -shared -Wl,-soname,$@ -o $@ $(libbackend_OBJECTS) $(libbackend_LDFLAGS) $(libbackend_LDADD) -lc
+libcraytool_backend.so : $(libcraytool_backend_OBJECTS)
+	$(CC) -shared -Wl,-soname,$@ -o $@ $(libcraytool_backend_OBJECTS) $(libcraytool_backend_LDFLAGS) $(libcraytool_backend_LDADD) -lc
 
 dlaunch : $(daemon_launcher_SOURCES)
 	$(CC) $(daemon_launcher_CFLAGS) -o $@ $(daemon_launcher_SOURCES)

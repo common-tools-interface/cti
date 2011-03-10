@@ -23,12 +23,12 @@ exec_prefix = $(prefix)
 
 libdir = $(exec_prefix)/lib
 
-libaudit_CFLAGS = -fPIC -g -Wall
+libaudit_CFLAGS = -fPIC -Wall
 libaudit_SOURCES = audit.c
 libaudit_OBJECTS = $(libaudit_SOURCES:.c=.o)
 LIBS = libaudit.so
 
-ld_val_CFLAGS = -fPIC -g -Wall
+ld_val_CFLAGS = -fPIC -Wall
 ld_val_SOURCES = ld_val.c
 ld_val_OBJECTS = $(ld_val_SOURCES:.c=.o)
 ld_val_ARFLAGS = -cq
