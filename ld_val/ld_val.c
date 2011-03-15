@@ -243,7 +243,7 @@ ld_verify(char *executable)
 }
 
 int
-ld_load(char *linker, char *executable)
+ld_load(char *linker, char *executable, char *lib)
 {
         int pid, fc;
         
@@ -263,6 +263,14 @@ ld_load(char *linker, char *executable)
         // child case
         if (pid == 0)
         {
+                // set the LD_AUDIT environment variable for this process
+                if (setenv(LD_AUDIT, lib, 1) < 0)
+                {
+                        perror("setenv");
+                        fprintf(stderr, "Failed to set LD_AUDIT environment variable.\n");
+                        exit(1);
+                }
+                
                 // redirect our stdout/stderr to /dev/null
                 fc = open("/dev/null", O_WRONLY);
                 dup2(fc, STDERR_FILENO);
@@ -315,7 +323,6 @@ ld_val(char *executable)
         char *linker;
         int pid;
         int rec = 0;
-        char *old_audit;
         char *tmp_audit;
         char *audit_location;
         char *libstr;
@@ -354,6 +361,7 @@ ld_val(char *executable)
         if (attach_shm_segs())
         {
                 fprintf(stderr, "Failed to attach shm segments.\n");
+                destroy_shm_segs();
                 return (char **)NULL;
         }
         
@@ -361,32 +369,24 @@ ld_val(char *executable)
         if ((tmp_array = calloc(BLOCK_SIZE, sizeof(char *))) == (void *)0)
         {
                 perror("calloc");
+                destroy_shm_segs();
                 return (char **)NULL;
         }
         num_alloc = BLOCK_SIZE;
         
-        // get and set the LD_AUDIT environment variable.
-        if ((tmp_audit = getenv(LD_AUDIT)) != (char *)NULL)
+        // get the location of the audit library
+        if ((tmp_audit = getenv(LIBAUDIT_ENV)) != (char *)NULL)
         {
-                old_audit = strdup(tmp_audit);
+                audit_location = strdup(tmp_audit);
         } else
         {
-                old_audit = (char *)NULL;
-        }
-        
-        // get the location of the audit library
-        audit_location = strdup(getenv(LIBAUDIT_ENV));
-        
-        if (setenv(LD_AUDIT, audit_location, 1) < 0)
-        {
-                perror("setenv");
-                fprintf(stderr, "Failed to set LD_AUDIT environment variable.\n");
+                fprintf(stderr, "Could not read LD_VAL_LIBRARY to get location of libaudit.so.\n");
                 destroy_shm_segs();
                 return (char **)NULL;
         }
         
         // Now we load our program using the list command to get its dso's
-        if ((pid = ld_load(linker, executable)) <= 0)
+        if ((pid = ld_load(linker, executable, audit_location)) <= 0)
         {
                 fprintf(stderr, "Failed to load the program using the linker.\n");
                 destroy_shm_segs();
@@ -417,15 +417,11 @@ ld_val(char *executable)
         
         rtn = make_rtn_array();
         
-        // reset the old environment variable
-        setenv(LD_AUDIT, old_audit, 1);
-        
         // destroy the shm segments
         destroy_shm_segs();
         
         // cleanup memory
-        free(old_audit);
-        free(audit_location);
+        free((void *)audit_location);
 
         return rtn;
 }

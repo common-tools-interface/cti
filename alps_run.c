@@ -19,10 +19,14 @@
  *
  *********************************************************************************/
  
+#include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "alps_run.h"
 #include "alps_application.h"
@@ -117,7 +121,7 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int stdout_fd, int st
         char **         tmp;
         int             aprun_argc = 0;
         int             fd_len = 0;
-        int             i, j;
+        int             i, j, fd;
         char *          pipefd_buf;
         char **         my_argv;
 
@@ -245,6 +249,19 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int stdout_fd, int st
                 // close unused ends of pipe
                 close(aprunPipeR[1]);
                 close(aprunPipeW[0]);
+                
+                // we don't want this aprun to suck up stdin of the tool program
+                if ((fd = open("/dev/null", O_RDONLY)) < 0)
+                {
+                        fprintf(stderr, "Unable to open /dev/null for reading.\n");
+                }
+                
+                // dup2 the null fd onto STDIN_FILENO
+                if (dup2(fd, STDIN_FILENO) < 0)
+                {
+                        fprintf(stderr, "Unable to redirect aprun stdin.\n");
+                }
+                close(fd);
                 
                 // redirect stdout/stderr if directed
                 if (redirectOutput)

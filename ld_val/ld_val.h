@@ -22,7 +22,7 @@
 #define _LD_VAL_H
 
 char *  ld_verify(char *);
-int     ld_load(char *, char *);
+int     ld_load(char *, char *, char *);
 char *  ld_get_lib(int);
 char ** ld_val(char *);
 

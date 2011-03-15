@@ -26,7 +26,7 @@ includedir		= $(exec_prefix)/include
 demodir			= $(exec_prefix)/demos
 
 libcraytool_frontend_CFLAGS 	= -fPIC -Wall -Ialps/include -Ild_val
-libcraytool_frontend_SOURCES 	= alps_application.c alps_transfer.c alps_run.c useful/path.c
+libcraytool_frontend_SOURCES 	= alps_application.c alps_transfer.c alps_run.c useful/path.c useful/stringList.c
 libcraytool_frontend_HEADERS	= tool_frontend.h 
 libcraytool_frontend_OBJECTS 	= $(libcraytool_frontend_SOURCES:.c=.o)
 libcraytool_frontend_LDFLAGS 	= -Lalps/lib/alps 

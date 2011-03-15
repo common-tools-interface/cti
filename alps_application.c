@@ -26,65 +26,18 @@
 
 #include "alps_application.h"
 
+#include "useful/useful.h"
+
 /* Static prototypes */
 static appList_t *      growAppsList(void);
 static void             reapAppsList(void);
 static void             reapAppEntry(pid_t);
 static void             consumeAppEntry(appEntry_t *);
-static int              growStringList(stringList_t *);
 static serviceNode_t *  getSvcNodeInfo(void);
 
 /* global variables */
 static serviceNode_t *  svcNid = (serviceNode_t *)NULL;        // service node information
 static appList_t *      my_apps = (appList_t *)NULL;           // global list pertaining to known aprun sessions
-
-static int
-growStringList(stringList_t *lst)
-{
-        int             i;
-        char **         tmp_lst;
-        
-        if (lst == (stringList_t *)NULL)
-                return 1;
-                
-        if (lst->list == (char **)NULL)
-        {
-                // allocate 10 new char ptrs for the list
-                if ((lst->list = calloc(BLOCK_SIZE, sizeof(char *))) == 0)
-                {
-                        return 1;
-                }
-                // reset the len and num values
-                lst->num = 0;
-                lst->len = BLOCK_SIZE;
-                
-                return 0;
-        }
-        
-        // ensure there is enough entries in the list for a future addition
-        if ((lst->num + 1) > lst->len)
-        {
-                if ((tmp_lst = calloc(lst->len + BLOCK_SIZE, sizeof(char *))) == 0)
-                {
-                        return 1;
-                }
-                // copy the old list to the new one
-                for (i = 0; i < lst->num; i++)
-                {
-                        tmp_lst[i] = lst->list[i];
-                }
-                // free the old list
-                free(lst->list);
-                // set the new list
-                lst->list = tmp_lst;
-                // increment the len value
-                lst->len += BLOCK_SIZE;
-                
-                return 0;
-        }
-
-        return 0;
-}
 
 static appList_t *
 growAppsList()
@@ -212,9 +165,7 @@ reapAppEntry(pid_t aprunPid)
 
 static void
 consumeAppEntry(appEntry_t *entry)
-{
-        int i;
-        
+{ 
         // sanity check
         if (entry == (appEntry_t *)NULL)
                 return;
@@ -227,29 +178,9 @@ consumeAppEntry(appEntry_t *entry)
                 free(entry->alpsInfo.places);
         
         // eat each of the string lists
-        if (entry->shipped_execs.list != (char **)NULL)
-        {
-                for (i=0; i < entry->shipped_execs.num; i++)
-                {
-                        free(entry->shipped_execs.list[i]);
-                }
-                free(entry->shipped_execs.list);
-        }
-        if (entry->shipped_libs.list != (char **)NULL)
-        {
-                for (i=0; i < entry->shipped_libs.num; i++)
-                {
-                        free(entry->shipped_libs.list[i]);
-                }
-                free(entry->shipped_libs.list);
-        }
-        if (entry->shipped_files.list != (char **)NULL)
-        {
-                for (i=0; i < entry->shipped_files.num; i++)
-                {
-                        free(entry->shipped_files.list[i]);
-                }
-        }
+        consumeStringList(entry->shipped_execs);
+        consumeStringList(entry->shipped_libs);
+        consumeStringList(entry->shipped_files);
         
         // nom nom the final appEntry_t object
         free(entry);
@@ -324,51 +255,6 @@ getSvcNodeInfo()
 }
 
 /* API defined functions start here */
-
-int
-searchStringList(stringList_t *lst, char *str)
-{
-        char **str_ptr;
-        
-        // sanity check
-        if (lst == (stringList_t *)NULL || str == (char *)NULL)
-                return 0;
-                
-        // shouldn't happen, but better safe then sorry
-        if (lst->list == (char **)NULL)
-                return 0;
-                
-        // set the str_ptr to the start of the list
-        str_ptr = lst->list;
-        // iterate through the list
-        while (*str_ptr)
-        {
-                if (!strcmp(*str_ptr, str))
-                        return 1;
-                ++str_ptr;
-        }
-        
-        // not found
-        return 0;
-}
-
-int
-addString(stringList_t *lst, char *str)
-{
-        // sanity check
-        if (lst == (stringList_t *)NULL || str == (char *)NULL)
-                return 1;
-                
-        // ensure room exists in the list
-        if (growStringList(lst))
-                return 1;
-                
-        // add the str to the list at the index num
-        // post increment num
-        lst->list[lst->num++] = strdup(str);
-        
-        return 0;
-}
 
 appEntry_t *
 findApp(pid_t aprunPid)
@@ -457,20 +343,20 @@ newApp(pid_t aprunPid)
         // save pe0 NID
         this->alpsInfo.pe0Node = this->alpsInfo.places[0].nid;
         
-        // create the initial arrays for the three saved str lists
-        if (growStringList(&this->shipped_execs))
+        // create the stringList_t objects for the three saved arrays
+        if ((this->shipped_execs = newStringList()) == (stringList_t *)NULL)
         {
                 reapAppsList();
                 consumeAppEntry(this);
                 return (appEntry_t *)NULL;
         }
-        if (growStringList(&this->shipped_libs))
+        if ((this->shipped_libs = newStringList()) == (stringList_t *)NULL)
         {
                 reapAppsList();
                 consumeAppEntry(this);
                 return (appEntry_t *)NULL;
         }
-        if (growStringList(&this->shipped_files))
+        if ((this->shipped_files = newStringList()) == (stringList_t *)NULL)
         {
                 reapAppsList();
                 consumeAppEntry(this);

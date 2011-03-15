@@ -77,7 +77,7 @@ sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env)
         }
         
         // search the shipped_execs list for a duplicate filename
-        if (!searchStringList(&app_ptr->shipped_execs, realname))
+        if (!searchStringList(app_ptr->shipped_execs, realname))
         {
                 // not found in list, so this is a unique file name
                 
@@ -90,7 +90,7 @@ sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env)
                 }
                 
                 // add filename to the saved list
-                if (addString(&app_ptr->shipped_execs, realname))
+                if (addString(app_ptr->shipped_execs, realname))
                 {
                         // we failed to insert fstr into the stringList but was able to ship - serious failure 
                         // for now we should record catastrophic failure fixme in the future
@@ -270,7 +270,7 @@ sendCNodeBinary(pid_t aprunPid, char *fstr)
         }
         
         // search the shipped_files list for a duplicate filename
-        if (!searchStringList(&app_ptr->shipped_execs, realname))
+        if (!searchStringList(app_ptr->shipped_execs, realname))
         {
                 // not found in list, so this is a unique file name
                 
@@ -283,7 +283,7 @@ sendCNodeBinary(pid_t aprunPid, char *fstr)
                 }
                 
                 // add filename to the saved list
-                if (addString(&app_ptr->shipped_execs, realname))
+                if (addString(app_ptr->shipped_execs, realname))
                 {
                         // we failed to insert fstr into the stringList but was able to ship - serious failure 
                         // for now we should record catastrophic failure fixme in the future
@@ -367,7 +367,7 @@ sendCNodeLibrary(pid_t aprunPid, char *fstr)
         // this by pointing its LD_LIBRARY_PATH to a custom directory containing the conflicting lib.
         
         // search the shipped_libs list for a duplicate filename
-        if (!searchStringList(&app_ptr->shipped_libs, realname))
+        if (!searchStringList(app_ptr->shipped_libs, realname))
         {
                 // not found in list, so this is a unique file name
                 
@@ -380,7 +380,7 @@ sendCNodeLibrary(pid_t aprunPid, char *fstr)
                 }
                 
                 // add filename to the saved list
-                if (addString(&app_ptr->shipped_libs, realname))
+                if (addString(app_ptr->shipped_libs, realname))
                 {
                         // we failed to insert fstr into the stringList but was able to ship - serious failure 
                         // for now we should record catastrophic failure fixme in the future
@@ -435,7 +435,7 @@ sendCNodeFile(pid_t aprunPid, char *fstr)
         }
         
         // search the shipped_files list for a duplicate filename
-        if (!searchStringList(&app_ptr->shipped_files, realname))
+        if (!searchStringList(app_ptr->shipped_files, realname))
         {
                 // not found in list, so this is a unique file name
                 
@@ -448,7 +448,7 @@ sendCNodeFile(pid_t aprunPid, char *fstr)
                 }
                 
                 // add filename to the saved list
-                if (addString(&app_ptr->shipped_files, realname))
+                if (addString(app_ptr->shipped_files, realname))
                 {
                         // we failed to insert fstr into the stringList but was able to ship - serious failure 
                         // for now we should record catastrophic failure fixme in the future

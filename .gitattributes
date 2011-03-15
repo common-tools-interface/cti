@@ -46,4 +46,6 @@ useful/log.c -text
 useful/log.h -text
 useful/path.c -text
 useful/path.h -text
+useful/stringList.c -text
+useful/stringList.h -text
 useful/useful.h -text
