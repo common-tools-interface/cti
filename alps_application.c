@@ -50,6 +50,7 @@ growAppsList()
         {
                 return (appList_t *)NULL;
         }
+        memset(newEntry, 0, sizeof(appList_t));     // clear it to NULL
         
         // if my_apps is null, this is the new head of the list
         if ((lstPtr = my_apps) == (appList_t *)NULL)
@@ -208,6 +209,7 @@ getSvcNodeInfo()
         {
                 return (serviceNode_t *)NULL;
         }
+        memset(my_node, 0, sizeof(serviceNode_t));     // clear it to NULL
         
         // open up the file defined in the alps header containing our node id (nid)
         if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)
