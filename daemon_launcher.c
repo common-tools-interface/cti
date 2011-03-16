@@ -22,12 +22,15 @@
 
 #include <fcntl.h>
 #include <getopt.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "useful/useful.h"
+
+#define ALPS_XT_NID		"/proc/cray_xt/nid"
 
 static int debug_flag = 0;
 
@@ -47,19 +50,23 @@ usage(char *name)
         fprintf(stdout, "directory and add it to PATH and LD_LIBRARY_PATH. Sets optional\n");
         fprintf(stdout, "specified variables in the environment of the process.\n\n");
         
-        fprintf(stdout, "-b, --binary           Binary file to execute\n");
-        fprintf(stdout, "-e, --env              Specify an environment variable to set\n");
-        fprintf(stdout, "                       The argument provided to this option must be issued\n");
-        fprintf(stdout, "                       with var=val, for example: -e myVar=myVal\n");
-        fprintf(stdout, "    --debug            Turn on debug logging to a file. (STDERR/STDOUT to file)\n");
-        fprintf(stdout, "-h, --help             Display this text and exit\n");
+        fprintf(stdout, "\t-b, --binary           Binary file to execute\n");
+        fprintf(stdout, "\t-e, --env              Specify an environment variable to set\n");
+        fprintf(stdout, "\t                       The argument provided to this option must be issued\n");
+        fprintf(stdout, "\t                       with var=val, for example: -e myVar=myVal\n");
+        fprintf(stdout, "\t    --debug            Turn on debug logging to a file. (STDERR/STDOUT to file)\n");
+        fprintf(stdout, "\t-h, --help             Display this text and exit\n");
 }
 
 int
 main(int argc, char **argv)
 {
         int     opt_ind = 0;
-        int     c;
+        int     c, nid;
+        FILE *  alps_fd;                // ALPS NID file stream
+        FILE *  log;
+        char    file_buf[BUFSIZ];       // file read buffer
+        uint64_t apid = 0;
         size_t  len;
         char    *end, *tool_path;
         char    *binary, *binary_path;
@@ -177,6 +184,37 @@ main(int argc, char **argv)
                                 usage(argv[0]);
                                 return 1;
                 }
+        }
+        
+        // if debug mode is turned on, redirect stdout/stderr to a log file
+        if (debug_flag)
+        {
+                // get the apid from the toolhelper path from argv[0]
+                sscanf(argv[0], "/var/spool/alps/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid);
+                
+                // read the nid from the system location
+                // open up the file defined in the alps header containing our node id (nid)
+                if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)
+                {
+                        return 1;
+                }
+                
+                // we expect this file to have a numeric value giving our current nid
+                if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
+                {
+                        return 1;
+                }
+                // convert this to an integer value
+                nid = atoi(file_buf);
+                
+                // close the file stream
+                fclose(alps_fd);
+                
+                // write the apid into the file_buf
+                snprintf(file_buf, BUFSIZ, "%llu", (long long unsigned int)apid);
+                
+                log = create_log(nid, file_buf);
+                hook_stdoe(log);
         }
         
         // call adjustPaths so that we chdir to where we shipped stuff over to and setup PATH/LD_LIBRARY_PATH

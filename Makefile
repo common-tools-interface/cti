@@ -40,7 +40,7 @@ libcraytool_backend_LDFLAGS	= -Lalps/lib/alps -L/opt/cray/job/1.5.5-0.1_2.0301.2
 libcraytool_backend_LDADD	= -lalpsutil -ljob
 
 daemon_launcher_CFLAGS  = -Wall
-daemon_launcher_SOURCES = daemon_launcher.c useful/path.c
+daemon_launcher_SOURCES = daemon_launcher.c useful/path.c useful/log.c
 
 demo_CFLAGS		= -Wall
 demo_LDFLAGS		= -L. -Lalps/lib/alps
