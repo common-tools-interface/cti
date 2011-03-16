@@ -396,17 +396,15 @@ registerAprunPid(pid_t aprunPid)
         return 0;
 }
 
-int
+void
 deregisterAprunPid(pid_t aprunPid)
 {
         // sanity check
         if (aprunPid <= 0)
-                return 1;
+                return;
         
         // call the reapAppEntry function for this pid
         reapAppEntry(aprunPid);
-        
-        return 0;
 }
 
 uint64_t

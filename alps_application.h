@@ -65,7 +65,7 @@ typedef struct appList appList_t;
 appEntry_t *    findApp(pid_t);
 appEntry_t *    newApp(pid_t);
 int             registerAprunPid(pid_t);
-int             deregisterAprunPid(pid_t);
+void            deregisterAprunPid(pid_t);
 uint64_t        getApid(pid_t);
 char *          getCName(void);
 int             getNid(void);
