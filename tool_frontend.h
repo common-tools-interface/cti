@@ -314,6 +314,14 @@ extern int      killAprun(pid_t aprunPid, int signum);
  *      not currently support naming conflicts between files and will refuse to
  *      ship a file with a conflicting name to a previously shipped file.
  *
+ *      If the debug option evaluates to true, daemon launcher will attempt to 
+ *      read the environment variable defined by DBG_LOG_ENV_VAR and create a
+ *      log file at this location. If the environment variable is not found or
+ *      is null, it will create a log file in the /tmp directory on the compute
+ *      node. It will then dup the STDOUT/STDERR file channels to this log file.
+ *      This is the only way to capture stdout/stderr output from a tool program
+ *      on the compute nodes.
+ *
  * Arguments
  *      aprunPid -      The pid_t of the registered aprun session to launch
  *                      the tool program to.
@@ -326,13 +334,16 @@ extern int      killAprun(pid_t aprunPid, int signum);
  *      env -           The null terminated list of environment variables to
  *                      set in the environment of the fstr process. The strings
  *                      in this list shall be formed in a "envVar=val" manner.
+ *      debug -         If true, create a log file at the location provided by
+ *                      DBG_LOG_ENV_VAR. Redirect stdout/stderr to the log
+ *                      files fd.
  *
  * Returns
  *      0 on success, or else 1 on failure.
  * 
  */
 extern int      sendCNodeExec(pid_t aprunPid, char *fstr, char **args, 
-                        char **env);
+                        char **env, int debug);
 
 /*
  * sendCNodeBinrary - Ship a program executable to the compute nodes associated 
@@ -383,7 +394,7 @@ extern int      sendCNodeBinary(pid_t aprunPid, char *fstr);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      sendCNodeLibrary(pid_t aprunPid, char *fstr)
+extern int      sendCNodeLibrary(pid_t aprunPid, char *fstr);
 
 /*
  * sendCNodeFile - Ship a regular file to the compute nodes associated with a
@@ -405,6 +416,6 @@ extern int      sendCNodeLibrary(pid_t aprunPid, char *fstr)
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      sendCNodeLibrary(pid_t aprunPid, char *fstr)
+extern int      sendCNodeLibrary(pid_t aprunPid, char *fstr);
 
 #endif /* _TOOL_FRONTEND_H */

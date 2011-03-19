@@ -1,4 +1,4 @@
-/*********************************************************************************\
+/******************************************************************************\
  * tool_backend.h - The public API definitions for the backend portion of the
  *                  tool_interface.
  *
@@ -15,7 +15,7 @@
  * $Rev$
  * $Author$
  *
- *********************************************************************************/
+ ******************************************************************************/
 
 #ifndef _TOOL_BACKEND_H
 #define _TOOL_BACKEND_H
@@ -34,7 +34,9 @@ typedef struct
  * alps_backend commands
  */
 extern nodeAppPidList_t *       findAppPids(uint64_t);
+extern void                     destroy_nodeAppPidList(nodeAppPidList_t *);
 extern char *                   getNodeCName(void);
+extern char *                   getNodeNidName(void);
 extern int                      getNodeNid(void);
 extern int                      getFirstPE(uint64_t);
 extern int                      getPesHere(uint64_t);

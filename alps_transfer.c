@@ -33,7 +33,7 @@
 #include "useful/useful.h"
 
 int
-sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env)
+sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env, int dbg)
 {
         appEntry_t *    app_ptr;        // pointer to the appEntry_t object associated with the provided aprun pid
         const char *    errmsg;         // errmsg that is possibly returned by call to alps_launch_tool_helper
@@ -149,6 +149,12 @@ sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env)
                         }
                 }
                 
+                // if debug is on, add the len of the debug switch
+                if (dbg)
+                {
+                        len += strlen(" --debug");
+                }
+                
                 // add the length of the "--" terminator to end the opt parsing
                 len += strlen(" --");
                 
@@ -188,6 +194,14 @@ sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env)
                                 snprintf(args_flat, len, "%s -e %s", cpy, *tmp++);
                                 free(cpy);
                         }
+                }
+                
+                // add the debug switch if debug is on
+                if (dbg)
+                {
+                        cpy = strdup(args_flat);
+                        snprintf(args_flat, len, "%s --debug", cpy);
+                        free(cpy);
                 }
                 
                 // add the "options" terminator

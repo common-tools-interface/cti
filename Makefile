@@ -29,7 +29,7 @@ libcraytool_frontend_CFLAGS 	= -fPIC -Wall -Ialps/include -Ild_val
 libcraytool_frontend_SOURCES 	= alps_application.c alps_transfer.c alps_run.c useful/path.c useful/stringList.c
 libcraytool_frontend_HEADERS	= tool_frontend.h 
 libcraytool_frontend_OBJECTS 	= $(libcraytool_frontend_SOURCES:.c=.o)
-libcraytool_frontend_LDFLAGS 	= -Lalps/lib/alps 
+libcraytool_frontend_LDFLAGS 	= -Wl,-z,origin -Wl,-rpath,/usr/lib/alps -Wl,-rpath,'$$ORIGIN'/alps -Lalps/lib/alps 
 libcraytool_frontend_LDADD 	= ld_val/libld_val.a -lalps -lxmlrpc
 
 libcraytool_backend_CFLAGS	= -fPIC -Wall -Ialps/include -I/opt/cray/job/1.5.5-0.1_2.0301.24546.5.1.gem/include
@@ -48,6 +48,7 @@ demo_SOURCES		= alps_transfer_demo.c
 demo_LIBADD		= -ltransfer -lalps -lxmlrpc
 demo_DATA		= demos/*
 
+EXTRA_libalps		= alps/lib/alps
 OBJECTS                 = $(libcraytool_frontend_OBJECTS) $(libcraytool_backend_OBJECTS)
 HEADERS			= $(libcraytool_frontend_HEADERS) $(libcraytool_backend_HEADERS)
 LIBS			= libcraytool_frontend.so libcraytool_backend.so
@@ -89,6 +90,7 @@ install : ld_val $(HEADERS) $(LIBS) $(EXECUTABLE)
 	cp $(LIBS) $(libdir)
 	cp $(EXECUTABLE) $(bindir)
 	$(MAKE) -C ld_val prefix=$(exec_prefix) install
+	svn export $(EXTRA_libalps) $(libdir)/alps
 
 .PHONY: install-demo
 install-demo : $(DEMO)

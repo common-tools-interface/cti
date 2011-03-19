@@ -126,6 +126,9 @@ main(int argc, char **argv)
         {
                 switch (c)
                 {
+                        case 0:
+                                // if this is a flag, do nothing
+                                break;
                         case 'b':
                                 if (optarg == (char *)NULL)
                                 {

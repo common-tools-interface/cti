@@ -288,6 +288,19 @@ findAppPids(uint64_t apid)
         return appPidList;
 }
 
+void
+destroy_nodeAppPidList(nodeAppPidList_t *lst)
+{
+        // sanity check
+        if (lst == (nodeAppPidList_t *)NULL)
+                return;
+                
+        if (lst->peAppPids != (pid_t *)NULL)
+                free(lst->peAppPids);
+                
+        free(lst);
+}
+
 char *
 getNodeCName()
 {
@@ -303,6 +316,35 @@ getNodeCName()
         
         // return the cname
         return strdup(thisNode->cname);
+}
+
+char *
+getNodeNidName()
+{
+        char *  nidHost;
+
+        // ensure the thisNode exists
+        if (thisNode == (computeNode_t *)NULL)
+        {
+                if ((thisNode = getComputeNodeInfo()) == (computeNode_t *)NULL)
+                {
+                        // couldn't get the compute node info for some odd reason
+                        return (char *)NULL;
+                }
+        }
+        
+        // allocate space for the nid hostname
+        if ((nidHost = malloc(ALPS_XT_HOSTNAME_LEN*sizeof(char))) == (void *)0)
+        {
+                // malloc failed
+                return (char *)NULL;
+        }
+        
+        // create the nid hostname string
+        snprintf(nidHost, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, thisNode->nid);
+        
+        // return the nid hostname
+        return nidHost;
 }
 
 int
