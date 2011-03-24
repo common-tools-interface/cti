@@ -42,6 +42,7 @@ pathFind(const char *file, const char *envPath)
         struct stat stat_buf;
         char    buf[PATH_MAX];
         char    *path;
+        char    *tmp;
         char    *p_entry;
         char    *savePtr;
         char    *retval;
@@ -78,12 +79,13 @@ pathFind(const char *file, const char *envPath)
                 envPath = "PATH";
         }
 
-        path = strdup(getenv(envPath));
-        if (path == NULL) 
+        if ((tmp = getenv(envPath)) == (char *)NULL)
         {
                 /* nothing in path to search */
+                fprintf(stderr, "Could not getenv %s.\n", envPath);
                 return (char *)NULL;
         }
+        path = strdup(tmp);
 
         /*
         * Start searching the colon-delimited PATH, prepending each
@@ -130,6 +132,7 @@ libFind(const char *file, const char *envPath)
         char    buf[PATH_MAX];
         char    *path;
         char    *extraPath;
+        char    *tmp;
         char    *p_entry;
         char    *savePtr;
         char    *retval;
@@ -158,15 +161,16 @@ libFind(const char *file, const char *envPath)
         {
                 // default to using LD_LIBRARY_PATH
                 envPath = "LD_LIBRARY_PATH";
-                extraPath = EXTRA_LIBRARY_PATH;
+                extraPath = strdup(EXTRA_LIBRARY_PATH);
         }
         
-        path = strdup(getenv(envPath));
-        if (path == NULL) 
+        if ((tmp = getenv(envPath)) == (char *)NULL)
         {
                 /* nothing in path to search */
+                fprintf(stderr, "Could not getenv %s.\n", envPath);
                 return (char *)NULL;
         }
+        path = strdup(tmp);
         
         /*
         * Start searching the colon-delimited PATH, prepending each
@@ -220,6 +224,8 @@ libFind(const char *file, const char *envPath)
                 } 
                 p_entry = strtok_r(NULL, ":", &savePtr);
         }
+        
+        free(extraPath);
         
         // not found
         return (char *)NULL;
