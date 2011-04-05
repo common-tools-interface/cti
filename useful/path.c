@@ -272,7 +272,7 @@ adjustPaths(char *path)
                 return 1;
         }
         
-        snprintf(newpath, len, "%s:%s", oldpath, path);
+        snprintf(newpath, len, "%s:%s", path, oldpath);
         
         if (setenv("PATH", newpath, 1) != 0)
         {
@@ -292,7 +292,7 @@ adjustPaths(char *path)
                 return 1;
         }
         
-        snprintf(newpath, len, "%s:%s", oldpath, path);
+        snprintf(newpath, len, "%s:%s", path, oldpath);
         
         if (setenv("LD_LIBRARY_PATH", newpath, 1) != 0)
         {
