@@ -17,6 +17,7 @@
 
 CC = gcc
 AR = ar
+LN = ln
 
 prefix = $(CURDIR)/install
 exec_prefix = $(prefix)
@@ -33,6 +34,9 @@ ld_val_SOURCES = ld_val.c
 ld_val_OBJECTS = $(ld_val_SOURCES:.c=.o)
 ld_val_ARFLAGS = -cq
 A_LIBS = libld_val.a
+MAJORVERS               = 0
+MINORVERS               = 0
+
 
 OBJECTS = $(libaudit_OBJECTS) $(ld_val_OBJECTS)
 
@@ -44,7 +48,9 @@ LIBS_SOURCES : $(libaudit_SOURCES)
 	$(CC) $(libaudit_CFLAGS) -c $(libaudit_SOURCES)
 
 libaudit.so : $(libaudit_OBJECTS)
-	$(CC) -shared -Wl,-soname,$(LIBS) -o $@ $(libaudit_OBJECTS) -lc
+	$(CC) -shared -Wl,-soname,$(LIBS) -o $@.$(MAJORVERS).$(MINORVERS) $(libaudit_OBJECTS) -lc
+	$(LN) -s $@.$(MAJORVERS).$(MINORVERS) $@
+	$(LN) -s $@.$(MAJORVERS).$(MINORVERS) $@.$(MAJORVERS)
 
 .PHONY: A_LIBS_SOURCES
 A_LIBS_SOURCES : $(ld_val_SOURCES)
