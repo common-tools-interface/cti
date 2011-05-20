@@ -16,6 +16,7 @@
 #
 
 CC = gcc
+LN = ln
 
 prefix			= $(CURDIR)/install
 exec_prefix		= $(prefix)
@@ -54,6 +55,8 @@ HEADERS			= $(libcraytool_frontend_HEADERS) $(libcraytool_backend_HEADERS)
 LIBS			= libcraytool_frontend.so libcraytool_backend.so
 EXECUTABLE		= dlaunch
 DEMO			= demo
+MAJORVERS		= 0
+MINORVERS		= 0
 
 .PHONY: all
 all: ld_val $(OBJECTS) $(LIBS) $(EXECUTABLE)
@@ -69,10 +72,14 @@ $(libcraytool_backend_OBJECTS) : %.o: %.c
 	$(CC) $(libcraytool_backend_CFLAGS) -c $< -o $@
 
 libcraytool_frontend.so : $(libcraytool_frontend_OBJECTS)
-	$(CC) -shared -Wl,-soname,$@ -o $@ $(libcraytool_frontend_OBJECTS) $(libcraytool_frontend_LDFLAGS) $(libcraytool_frontend_LDADD) -lc
+	$(CC) -shared -Wl,-soname,$@ -o $@.$(MAJORVERS).$(MINORVERS) $(libcraytool_frontend_OBJECTS) $(libcraytool_frontend_LDFLAGS) $(libcraytool_frontend_LDADD) -lc
+	$(LN) -s $@.$(MAJORVERS).$(MINORVERS) $@
+	$(LN) -s $@.$(MAJORVERS).$(MINORVERS) $@.$(MAJORVERS)
 
 libcraytool_backend.so : $(libcraytool_backend_OBJECTS)
-	$(CC) -shared -Wl,-soname,$@ -o $@ $(libcraytool_backend_OBJECTS) $(libcraytool_backend_LDFLAGS) $(libcraytool_backend_LDADD) -lc
+	$(CC) -shared -Wl,-soname,$@ -o $@.$(MAJORVERS).$(MINORVERS) $(libcraytool_backend_OBJECTS) $(libcraytool_backend_LDFLAGS) $(libcraytool_backend_LDADD) -lc
+	$(LN) -s $@.$(MAJORVERS).$(MINORVERS) $@
+	$(LN) -s $@.$(MAJORVERS).$(MINORVERS) $@.$(MAJORVERS)
 
 dlaunch : $(daemon_launcher_SOURCES)
 	$(CC) $(daemon_launcher_CFLAGS) -o $@ $(daemon_launcher_SOURCES)
