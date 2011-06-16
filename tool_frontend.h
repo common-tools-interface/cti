@@ -416,6 +416,6 @@ extern int      sendCNodeLibrary(pid_t aprunPid, char *fstr);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      sendCNodeLibrary(pid_t aprunPid, char *fstr);
+extern int      sendCNodeFile(pid_t aprunPid, char *fstr);
 
 #endif /* _TOOL_FRONTEND_H */
