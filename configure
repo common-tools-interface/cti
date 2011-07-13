@@ -621,6 +621,10 @@ LIBOBJS
 JOB_LIBS
 JOB_CFLAGS
 PKG_CONFIG
+AUDIT_VERSION
+CRAYTOOL_FE_VERSION
+CRAYTOOL_BE_VERSION
+craytool_srcdir
 OTOOL64
 OTOOL
 LIPO
@@ -680,7 +684,6 @@ am__isrc
 INSTALL_DATA
 INSTALL_SCRIPT
 INSTALL_PROGRAM
-craytool_srcdir
 EGREP
 GREP
 CPP
@@ -3659,9 +3662,6 @@ $as_echo "$ac_cv_safe_to_define___extensions__" >&6; }
 
   $as_echo "#define _TANDEM_SOURCE 1" >>confdefs.h
 
-
-
-craytool_srcdir="`cd $srcdir && pwd`"
 
 
 am__api_version='1.11'
@@ -11462,6 +11462,15 @@ CC="$lt_save_CC"
 
 
 
+craytool_srcdir="`cd $srcdir && pwd`"
+
+CRAYTOOL_BE_VERSION=0:0:0
+
+CRAYTOOL_FE_VERSION=0:0:0
+
+AUDIT_VERSION=0:0:0
+
+
 #########################
 ### Setup env options ###
 #########################
@@ -13247,7 +13256,7 @@ done
 ################
 ### Finalize ###
 ################
-ac_config_files="$ac_config_files Makefile src/Makefile src/ld_val/Makefile"
+ac_config_files="$ac_config_files Makefile cray-tool_backend.pc cray-tool_frontend.pc cray-audit.pc src/Makefile src/ld_val/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -14259,6 +14268,9 @@ do
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+    "cray-tool_backend.pc") CONFIG_FILES="$CONFIG_FILES cray-tool_backend.pc" ;;
+    "cray-tool_frontend.pc") CONFIG_FILES="$CONFIG_FILES cray-tool_frontend.pc" ;;
+    "cray-audit.pc") CONFIG_FILES="$CONFIG_FILES cray-audit.pc" ;;
     "src/Makefile") CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
     "src/ld_val/Makefile") CONFIG_FILES="$CONFIG_FILES src/ld_val/Makefile" ;;
 

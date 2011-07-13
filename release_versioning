@@ -1,5 +1,5 @@
 #
-# Top level Makefile.am for the craytool interface.
+# release and shared library version control for the craytool interface.
 #
 # ©2011 Cray Inc.  All Rights Reserved.
 #
@@ -15,14 +15,17 @@
 # $Author$
 #
 
-ACLOCAL_AMFLAGS = -I m4
+craytool_major=1
+craytool_minor=0
 
-SUBDIRS = src/ld_val src
+be_current=0
+be_revision=0
+be_age=0
 
-EXTRA_DIST = cray-tool_backend.pc.in cray-tool_frontend.pc.in cray-audit.pc.in \
-	     release_versioning
+fe_current=0
+fe_revision=0
+fe_age=0
 
-pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = cray-tool_backend.pc cray-tool_frontend.pc \
-		 cray-audit.pc
-
+audit_current=0
+audit_revision=0
+audit_age=0

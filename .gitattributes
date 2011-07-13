@@ -1,6 +1,7 @@
 * text=auto !eol
 /Makefile.am -text
 /Makefile.in -text
+/acinclude.m4 -text
 /aclocal.m4 -text
 alps/IMPORTANT-README -text
 alps/include/alps/alps.h -text
@@ -35,6 +36,9 @@ config/ltmain.sh -text
 config/missing -text
 /configure -text
 /configure.ac -text
+/cray-audit.pc.in -text
+/cray-tool_backend.pc.in -text
+/cray-tool_frontend.pc.in -text
 demos/alps_transfer_demo.c -text
 demos/sleepy/sleepy.c -text
 demos/testing.info -text
@@ -44,6 +48,7 @@ m4/ltsugar.m4 -text
 m4/ltversion.m4 -text
 m4/lt~obsolete.m4 -text
 m4/pkg.m4 -text
+/release_versioning -text
 src/Makefile.am -text
 src/Makefile.in -text
 src/alps_application.c -text

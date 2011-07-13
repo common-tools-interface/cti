@@ -17,7 +17,7 @@
 
 AC_PREREQ([2.68])
 
-AC_INIT([craytool_interface], [1.0], [andrewg@cray.com])
+AC_INIT([craytool_interface], [CRAYTOOL_RELEASE], [andrewg@cray.com])
 AC_COPYRIGHT([© 2011 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/alps_application.c])
@@ -28,10 +28,13 @@ AC_CONFIG_HEADERS([config.h])
 dnl Turn on Posix extensions
 AC_USE_SYSTEM_EXTENSIONS
 
-AC_SUBST([craytool_srcdir], ["`cd $srcdir && pwd`"])
-
 AM_INIT_AUTOMAKE([foreign -Wall])
 LT_INIT
+
+AC_SUBST([craytool_srcdir], ["`cd $srcdir && pwd`"])
+AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
+AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
+AC_SUBST([AUDIT_VERSION], [AUDIT_CURRENT:AUDIT_REVISION:AUDIT_AGE])
 
 #########################
 ### Setup env options ###
@@ -196,6 +199,9 @@ AC_CHECK_FUNCS([dup2 memset setenv strdup strrchr strstr])
 ### Finalize ###
 ################
 AC_CONFIG_FILES([Makefile
+		 cray-tool_backend.pc
+		 cray-tool_frontend.pc
+		 cray-audit.pc
 		 src/Makefile
                  src/ld_val/Makefile])
 AC_OUTPUT

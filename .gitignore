@@ -3,9 +3,13 @@
 /config.h
 /config.log
 /config.status
+/cray-audit.pc
+/cray-tool_backend.pc
+/cray-tool_frontend.pc
 /libtool
 src/.deps
 src/Makefile
 src/dlaunch
 src/ld_val/.deps
+src/ld_val/Makefile
 /stamp-h1
