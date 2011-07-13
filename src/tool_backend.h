@@ -26,8 +26,14 @@
 /* struct typedefs */
 typedef struct
 {
-        int             numPids;
-        pid_t *         peAppPids;
+        int             rank;   // This entries rank
+        pid_t           pid;    // This entries pid
+} nodeRankPidPair_t;
+
+typedef struct
+{
+        int                     numPairs;
+        nodeRankPidPair_t *     rankPidPairs;
 } nodeAppPidList_t;
 
 /*

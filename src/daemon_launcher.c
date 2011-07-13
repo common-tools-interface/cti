@@ -69,7 +69,8 @@ main(int argc, char **argv)
         uint64_t apid = 0;
         size_t  len;
         char    *end, *tool_path;
-        char    *binary, *binary_path;
+        char *  binary = NULL; 
+        char *  binary_path;
         char    *env, *val;
 
         // we require at least 1 argument beyond argv[0]

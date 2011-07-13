@@ -1,0 +1,22 @@
+LDVAL 	= ld_val
+JOBLIBS	= @JOB_LIBS@
+
+AM_CFLAGS 	= -DBINDIR=\"$(bindir)\" -I$(LDVAL) -fPIC -Wall
+
+lib_LTLIBRARIES	= libcraytool_frontend.la libcraytool_backend.la
+
+libcraytool_frontend_la_SOURCES = alps_application.c alps_transfer.c alps_run.c useful/path.c \
+				  useful/stringList.c alps_application.h alps_transfer.h \
+				  alps_run.h useful.h
+libcraytool_frontend_la_LIBADD	= $(LDVAL)/libld_val.la
+libcraytool_frontend_la_LDFLAGS	= -Wl,-z,origin -Wl,-rpath,/usr/lib/alps -Wl,-rpath,'$$ORIGIN'/alps \
+				  -lalps -lxmlrpc
+
+libcraytool_backend_la_SOURCES	= alps_backend.c pmi_attribs_parser.c alps_backend.h pmi_attribs_parser.h
+libcraytool_backend_la_LDFLAGS	= $(JOBLIBS) -lalpsutil -ljob
+
+bin_PROGRAMS	= dlaunch
+dlaunch_SOURCES	= daemon_launcher.c useful/path.c useful/log.c useful/useful.h
+dlaunch_CFLAGS = $(AM_CFLAGS)
+
+include_HEADERS	= tool_backend.h tool_frontend.h

@@ -1,4 +1,4 @@
-/*********************************************************************************\
+/******************************************************************************\
  * alps_backend.h - A header file for the alps_backend interface.
  *
  * © 2011 Cray Inc.  All Rights Reserved.
@@ -14,7 +14,7 @@
  * $Rev$
  * $Author$
  *
- *********************************************************************************/
+ ******************************************************************************/
  
 #ifndef _ALPS_BACKEND_H
 #define _ALPS_BACKEND_H
@@ -23,21 +23,24 @@
 #include "alps/alps.h"
 #include "alps/alps_toolAssist.h"
 
-#define ALPS_XT_CNAME   "/proc/cray_xt/cname"
+#include "pmi_attribs_parser.h"
+
+#define ALPS_XT_CNAME           "/proc/cray_xt/cname"
 #define ALPS_XT_HOSTNAME_FMT    "nid%05d"
 #define ALPS_XT_HOSTNAME_LEN    9
 
-/* struct typedefs */
+#define ALPS_CNODE_TOOL_PATH_FMT ALPS_CNODE_PATH_FMT "/" ALPS_CNODE_TOOL_FMT
+
 typedef struct
 {
-        int             numPids;
-        pid_t *         peAppPids;
+        int                     numPairs;
+        nodeRankPidPair_t *     rankPidPairs;
 } nodeAppPidList_t;
 
 typedef struct
 {
-        int     nid;            // compute node id
-        char *  cname;          // compute node hostname
+        int             nid;    // compute node id
+        char *          cname;  // compute node hostname
 } computeNode_t;
 
 /* function prototypes */

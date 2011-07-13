@@ -44,7 +44,7 @@ pathFind(const char *file, const char *envPath)
         char    *path;
         char    *tmp;
         char    *p_entry;
-        char    *savePtr;
+        char    *savePtr = NULL;
         char    *retval;
 
         if (file == (char *)NULL) 
@@ -131,10 +131,10 @@ libFind(const char *file, const char *envPath)
         struct stat stat_buf;
         char    buf[PATH_MAX];
         char    *path;
-        char    *extraPath;
+        char    *extraPath = NULL;
         char    *tmp;
         char    *p_entry;
-        char    *savePtr;
+        char    *savePtr = NULL;
         char    *retval;
         
         /* Check for possible relative or absolute path */
