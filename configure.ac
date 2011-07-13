@@ -1,4 +1,6 @@
 #
+# configure.ac script for the craytool interface.
+#
 # © 2010-2011 Cray Inc. All Rights Reserved
 #
 # Unpublished Proprietary Information.
