@@ -19,7 +19,11 @@
 LDVAL 	= ld_val
 JOBLIBS	= @JOB_LIBS@
 
-AM_CFLAGS 	= -DBINDIR=\"$(bindir)\" -I$(LDVAL) -fPIC -Wall
+if USE_INTERNAL_CFLAGS
+AM_CFLAGS       = -I$(LDVAL) -fPIC -Wall -g -O2
+else
+AM_CFLAGS 	= -I$(LDVAL) -fPIC -Wall
+endif
 
 lib_LTLIBRARIES		= libcraytool_frontend.la libcraytool_backend.la
 

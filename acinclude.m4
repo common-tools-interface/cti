@@ -35,10 +35,3 @@ define([CRAYTOOL_FE_REVISION], [patsubst(esyscmd([. release_versioning; echo $fe
 define([CRAYTOOL_FE_AGE], [patsubst(esyscmd([. release_versioning; echo $fe_age]), [
 ])])
 
-define([AUDIT_CURRENT], [patsubst(esyscmd([. release_versioning; echo $audit_current]), [
-])])
-define([AUDIT_REVISION], [patsubst(esyscmd([. release_versioning; echo $audit_revision]), [
-])])
-define([AUDIT_AGE], [patsubst(esyscmd([. release_versioning; echo $audit_age]), [
-])])
-

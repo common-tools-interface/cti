@@ -19,6 +19,10 @@
  *
  *********************************************************************************/
 
+#ifdef HAVE_CONFIG_H
+#include        <config.h>
+#endif /* HAVE_CONFIG_H */
+
 #include <errno.h>
 #include <limits.h>
 #include <stdlib.h>

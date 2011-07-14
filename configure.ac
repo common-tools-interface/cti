@@ -27,6 +27,7 @@ AC_CONFIG_HEADERS([config.h])
 
 dnl Turn on Posix extensions
 AC_USE_SYSTEM_EXTENSIONS
+AC_GNU_SOURCE
 
 AM_INIT_AUTOMAKE([foreign -Wall])
 LT_INIT
@@ -34,11 +35,28 @@ LT_INIT
 AC_SUBST([craytool_srcdir], ["`cd $srcdir && pwd`"])
 AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
 AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
-AC_SUBST([AUDIT_VERSION], [AUDIT_CURRENT:AUDIT_REVISION:AUDIT_AGE])
+
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+
+###########################
+### Check for programs. ###
+###########################
+AC_PROG_CC
+AM_PROG_CC_C_O
+AC_PROG_INSTALL
+AC_PROG_LIBTOOL
+AC_PROG_LN_S
+AC_PROG_SED
 
 #########################
 ### Setup env options ###
 #########################
+dnl This is needed because the rtld library will *NOT* work if optimizations
+dnl are turned on. I don't know how to fix this, so this is a workaround until
+dnl the lightbulb turns on.
+AS_IF([test "x${ac_cv_env_CFLAGS_set}" = "x"], [CFLAGS=""])
+AM_CONDITIONAL([USE_INTERNAL_CFLAGS], [test "x${ac_cv_env_CFLAGS_set}" = "x"])
+
 dnl Add the local alps libs to the library search path
 if test -d "$craytool_srcdir/alps/lib/alps/"; then
 	LDFLAGS="$LDFLAGS -L$craytool_srcdir/alps/lib/alps/"
@@ -49,16 +67,6 @@ if test -d "$craytool_srcdir/alps/include/"; then
 	CPPFLAGS="$CPPFLAGS -I$craytool_srcdir/alps/include/"
 	CFLAGS="$CFLAGS -I$craytool_srcdir/alps/include/"
 fi
-
-###########################
-### Check for programs. ###
-###########################
-AC_PROG_CC
-AC_PROG_INSTALL
-AC_PROG_LIBTOOL
-AC_PROG_LN_S
-AC_PROG_SED
-AM_PROG_CC_C_O
 
 ############################
 ### Check for libraries. ###
