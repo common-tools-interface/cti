@@ -142,6 +142,7 @@ int
 searchStringList(stringList_t *lst, char *str)
 {
         char **str_ptr;
+        int i = lst->num;
         
         // sanity check
         if (lst == (stringList_t *)NULL || str == (char *)NULL)
@@ -153,8 +154,9 @@ searchStringList(stringList_t *lst, char *str)
                 
         // set the str_ptr to the start of the list
         str_ptr = lst->list;
+        
         // iterate through the list
-        while (*str_ptr != (char *)NULL)
+        while (0 < i--)
         {
                 if (!strcmp(*str_ptr, str))
                         return 1;
