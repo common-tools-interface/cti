@@ -89,7 +89,9 @@ reapAppsList()
         {
                 free(lstPtr);
                 my_apps = (appList_t *)NULL;
+                return;
         }
+        
         // iterate through until we find the entry whos next entry has a null next entry ;)
         // i.e. magic - this works because growAppsList always places the new appList_t entry
         // at the end of the list
