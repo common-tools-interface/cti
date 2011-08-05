@@ -326,7 +326,7 @@ guessAppPids(uint64_t apid)
                         continue;
                 
                 // this is a good pid, save it
-                appPidList->rankPidPairs[i].rank = --rank;
+                appPidList->rankPidPairs[i].rank = rank--;
                 appPidList->rankPidPairs[i--].pid = dirtyPidList[j];
         }
         

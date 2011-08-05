@@ -15,23 +15,6 @@
 
 @SET_MAKE@
 
-#
-# Top level Makefile.am for the craytool interface.
-#
-# ©2011 Cray Inc.  All Rights Reserved.
-#
-# Unpublished Proprietary Information.
-# This unpublished work is protected to trade secret, copyright and other laws.
-# Except as permitted by contract or express written permission of Cray Inc.,
-# no part of this work or its content may be used, reproduced or disclosed
-# in any form.
-#
-# $HeadURL: http://svn/svn/debugger-support/tools_interface/trunk/Makefile.am $
-# $Date: 2011-07-13 18:17:34 -0500 (Wed, 13 Jul 2011) $
-# $Rev: 1121 $
-# $Author: andrewg $
-#
-
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkgincludedir = $(includedir)/@PACKAGE@
@@ -276,6 +259,24 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+
+#
+# Top level Makefile.am for the craytool interface.
+#
+# ©2011 Cray Inc.  All Rights Reserved.
+#
+# Unpublished Proprietary Information.
+# This unpublished work is protected to trade secret, copyright and other laws.
+# Except as permitted by contract or express written permission of Cray Inc.,
+# no part of this work or its content may be used, reproduced or disclosed
+# in any form.
+#
+# $HeadURL: http://svn/svn/debugger-support/tools_interface/trunk/Makefile.am $
+# $Date: 2011-07-13 18:17:34 -0500 (Wed, 13 Jul 2011) $
+# $Rev: 1121 $
+# $Author: andrewg $
+#
+SRCDIR = @craytool_srcdir@
 ACLOCAL_AMFLAGS = -I m4
 SUBDIRS = src/ld_val src
 EXTRA_DIST = cray-tool_backend.pc.in cray-tool_frontend.pc.in cray-audit.pc.in \
@@ -741,7 +742,8 @@ info: info-recursive
 info-am:
 
 install-data-am: install-pkgconfigDATA
-
+	@$(NORMAL_INSTALL)
+	$(MAKE) $(AM_MAKEFLAGS) install-data-hook
 install-dvi: install-dvi-recursive
 
 install-dvi-am:
@@ -789,7 +791,8 @@ ps-am:
 uninstall-am: uninstall-pkgconfigDATA
 
 .MAKE: $(RECURSIVE_CLEAN_TARGETS) $(RECURSIVE_TARGETS) all \
-	ctags-recursive install-am install-strip tags-recursive
+	ctags-recursive install-am install-data-am install-strip \
+	tags-recursive
 
 .PHONY: $(RECURSIVE_CLEAN_TARGETS) $(RECURSIVE_TARGETS) CTAGS GTAGS \
 	all all-am am--refresh check check-am clean clean-generic \
@@ -798,16 +801,21 @@ uninstall-am: uninstall-pkgconfigDATA
 	distcheck distclean distclean-generic distclean-hdr \
 	distclean-libtool distclean-tags distcleancheck distdir \
 	distuninstallcheck dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-pkgconfigDATA install-ps \
-	install-ps-am install-strip installcheck installcheck-am \
-	installdirs installdirs-am maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-recursive \
-	uninstall uninstall-am uninstall-pkgconfigDATA
+	install install-am install-data install-data-am \
+	install-data-hook install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-pkgconfigDATA install-ps install-ps-am install-strip \
+	installcheck installcheck-am installdirs installdirs-am \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags tags-recursive uninstall uninstall-am \
+	uninstall-pkgconfigDATA
 
+
+install-data-hook:
+	cp -r $(SRCDIR)/alps/lib/alps $(libdir)/alps
+	rm -rf `find $(libdir)/alps -name .svn`
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
