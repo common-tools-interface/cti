@@ -236,7 +236,7 @@ libFind(const char *file, const char *envPath)
 }
 
 /*
- * Add the path directory to both PATH and LD_LIBRARY_PATH.
+ * Set the path directory to be PATH and LD_LIBRARY_PATH.
  *
  * Also, chdir to the path dir so that files created in "./"
  * have a writable home. This addresses the fact that /tmp 
@@ -246,7 +246,7 @@ int
 adjustPaths(char *path)
 {
         struct stat statbuf;
-        char *oldpath, *newpath;
+        char *newpath;
         int len;
         
         // sanity check
@@ -265,39 +265,23 @@ adjustPaths(char *path)
         // change the working directory to path
         if (chdir(path) != 0)
                 return 1;
-                
-        // add path to the PATH variable
-        if ((oldpath = getenv("PATH")) == (char *)NULL)
-                return 1;
         
-        len = strlen(oldpath) + strlen(":") + strlen(path) + 1;
+        len = strlen(path) + 1;
         if ((newpath = malloc(len*sizeof(char))) == (char *)NULL)
         {
                 return 1;
         }
         
-        snprintf(newpath, len, "%s:%s", path, oldpath);
+        snprintf(newpath, len, "%s", path);
         
+        // set path to the PATH variable
         if (setenv("PATH", newpath, 1) != 0)
         {
                 free(newpath);
                 return 1;
         }
         
-        free(newpath);
-        
-        // add path to the LD_LIBRARY_PATH variable
-        if ((oldpath = getenv("LD_LIBRARY_PATH")) == (char *)NULL)
-                return 1;
-                
-        len = strlen(oldpath) + strlen(":") + strlen(path) + 1;
-        if ((newpath = malloc(len*sizeof(char))) == (char *)NULL)
-        {
-                return 1;
-        }
-        
-        snprintf(newpath, len, "%s:%s", path, oldpath);
-        
+        // set path to the LD_LIBRARY_PATH variable
         if (setenv("LD_LIBRARY_PATH", newpath, 1) != 0)
         {
                 free(newpath);
