@@ -61,6 +61,18 @@ struct appList
 };
 typedef struct appList appList_t;
 
+typedef struct
+{
+        char *  hostname;
+        int     numPes;
+} nodeHostPlacement_t;
+
+typedef struct
+{
+        int                     numHosts;
+        nodeHostPlacement_t *   hosts;
+} appHostPlacementList_t;
+
 /* function prototypes */
 appEntry_t *    findApp(pid_t);
 appEntry_t *    newApp(pid_t);
@@ -71,6 +83,7 @@ char *          getCName(void);
 int             getNid(void);
 int             getNumAppPEs(pid_t);
 int             getNumAppNodes(pid_t);
-char **         getAppHostsList(pid_t aprunPid);
+char **         getAppHostsList(pid_t);
+appHostPlacementList_t *  getAppHostsPlacement(pid_t);
 
 #endif /* _ALPS_APPLICATION_H */

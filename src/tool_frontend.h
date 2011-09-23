@@ -36,6 +36,18 @@
 #define LIBAUDIT_ENV_VAR        "LD_VAL_LIBRARY"
 #define DBG_LOG_ENV_VAR         "DBG_LOG_DIR"
 
+/* struct typedefs used in return values */
+typedef struct
+{
+        char *  hostname;
+        int     numPes;
+} nodeHostPlacement_t;
+
+typedef struct
+{
+        int                     numHosts;
+        nodeHostPlacement_t *   hosts;
+} appHostPlacementList_t;
 
 /*
  * alps_application functions - Functions relating directly to the application.
@@ -187,6 +199,51 @@ extern int      getNumAppNodes(pid_t aprunPid);
  */
 extern char **  getAppHostsList(pid_t aprunPid);
 
+/*
+ * getAppHostsPlacement - Returns a appHostPlacementList_t struct containing
+                          nodeHostPlacement_t entries that contain the hostname
+                          of the compute nodes allocated by ALPS and the number
+                          of PEs assigned to that host for the application 
+                          associated with the aprun pid.
+ * 
+ * Detail
+ *      This function creates a appHostPlacementList_t struct that contains
+ *      the number of hosts associated with the application and 
+ *      nodeHostPlacement_t struct entries that contain the hostname string
+ *      along with the number of PEs assigned to this host. Note that there is
+ *      a nodeHostPlacement_t entry for each compute node hostname that is 
+ *      assoicated with the given aprun pid. These hostnames can be used to
+ *      communicate with the compute nodes over socket connections.
+ *
+ * Arguments
+ *      aprunPid - The pid_t of the registered aprun session.
+ *
+ * Returns
+ *      An appHostPlacementList_t struct that contains the number of hosts in
+ *      the application and an array of nodeHostPlacement_t structs for each
+ *      host assigned to the application.
+ * 
+ */
+extern appHostPlacementList_t *  getAppHostsPlacement(pid_t aprunPid);
+
+/*
+ * destroy_AppHostsPlacement - Used to destroy the memory allocated for a 
+ *                        appHostPlacementList_t struct.
+ * 
+ * Detail
+ *      This function free's a appHostPlacementList_t struct. This is used to
+ *      safely destroy the data structure returned by a call to the 
+ *      getAppHostsPlacement function when the caller is done with the data
+ *      that was allocated during its creation.
+ *
+ * Arguments
+ *      placement_list - A pointer to the appHostPlacementList_t to free.
+ *
+ * Returns
+ *      Void. This function behaves similarly to free().
+ *
+ */
+extern void destroy_appHostPlacementList(appHostPlacementList_t *placement_list);
 
 /*
  * alps_run functions - Functions related to launching a new aprun session
@@ -208,9 +265,14 @@ extern char **  getAppHostsList(pid_t aprunPid);
  *      the barrier release function is called with the pid returned by this
  *      function.
  *
- *      This function will redirect the stdin of aprun to /dev/null to prevent
- *      aprun from grabbing any input on stdin which may be used by other tool
- *      programs. It can also optionally redirect stdout/stderr to provided
+ *      This function can redirect the stdin of aprun to a file in order to
+ *      provide arguments to a application. This is enabled by setting the
+ *      argument redirectInput to true and providing a string that represents
+ *      the pathname to the file. If redirectInput is false, the function will
+ *      redirect the stdin of aprun to /dev/null to prevent aprun from grabbing
+ *      any input on stdin which may be used by other tool programs. 
+ *
+ *      This function can also optionally redirect stdout/stderr to provided
  *      open file descriptors by setting redirectOutput to true (non-zero).
  *
  * Arguments
@@ -221,17 +283,22 @@ extern char **  getAppHostsList(pid_t aprunPid);
  *                      itself.
  *      redirectOutput - Toggles redirecting aprun stdout/stderr to the provided
  *                      file descriptors.
+ *      redirectInput - Toggles redirecting aprun stdin to the provided file
+ *                      name.
  *      stdout_fd -     The open file descriptor to redirect stdout to if 
  *                      redirectOutput evaluates to true.
  *      stderr_fd -     The open file descriptor to redirect stderr to if
  *                      redirectOutput evaluates to true.
+ *      inputFile -     The pathname of a file to open and redirect stdin to if
+ *                      redirectInput evaluates to true.
  *
  * Returns
  *      The pid_t of the forked aprun process or 0 on error.
  * 
  */
 extern pid_t    launchAprun_barrier(char **aprun_argv, int redirectOutput, 
-                        int stdout_fd, int stderr_fd);
+                        int redirectInput, int stdout_fd, int stderr_fd,
+                        char *inputFile);
 
 /*
  * releaseAprun_barrier - Release the aprun session launched with the

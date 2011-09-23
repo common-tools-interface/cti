@@ -524,6 +524,13 @@ getAppHostsList(pid_t aprunPid)
                 return (char **)NULL;
         }
         
+        // ensure app_ptr->alpsInfo.cmdDetail->nodeCnt is non-zero
+        if ( app_ptr->alpsInfo.cmdDetail->nodeCnt <= 0 )
+        {
+                // no nodes in the application
+                return (char **)NULL;
+        }
+        
         // allocate space for the hosts list, add an extra entry for the null terminator
         if ((hosts = calloc(app_ptr->alpsInfo.cmdDetail->nodeCnt + 1, sizeof(char *))) == (void *)0)
         {
@@ -569,3 +576,117 @@ getAppHostsList(pid_t aprunPid)
         // done
         return hosts;
 }
+
+appHostPlacementList_t *
+getAppHostsPlacement(pid_t aprunPid)
+{
+        appEntry_t *    app_ptr;
+        int             curNid, numNid;
+        int             numPe;
+        nodeHostPlacement_t *           curHost;
+        appHostPlacementList_t *        placement_list;
+        char            hostEntry[ALPS_XT_HOSTNAME_LEN];
+        int             i;
+        
+        // sanity check
+        if (aprunPid <= 0)
+                return (appHostPlacementList_t *)NULL;
+                
+        // try to find an entry in the my_apps list for the aprunPid
+        if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+        {
+                // couldn't find the entry associated with the aprunPid
+                return (appHostPlacementList_t *)NULL;
+        }
+
+        // ensure the app_ptr->alpsInfo.cmdDetail->nodeCnt is non-zero
+        if ( app_ptr->alpsInfo.cmdDetail->nodeCnt <= 0 )
+        {
+                // no nodes in the application
+                return (appHostPlacementList_t *)NULL;
+        }
+        
+        // allocate space for the appHostPlacementList_t struct
+        if ((placement_list = malloc(sizeof(appHostPlacementList_t))) == (void *)0)
+        {
+                // malloc failed
+                return (appHostPlacementList_t *)NULL;
+        }
+        
+        // set the number of hosts for the application
+        placement_list->numHosts = app_ptr->alpsInfo.cmdDetail->nodeCnt;
+        
+        // allocate space for the nodeHostPlacement_t structs inside the placement_list
+        if ((placement_list->hosts = malloc(placement_list->numHosts * sizeof(nodeHostPlacement_t))) == (void *)0)
+        {
+                // malloc failed
+                free(placement_list);
+                return (appHostPlacementList_t *)NULL;
+        }
+        // clear the nodeHostPlacment_t memory
+        memset(placement_list->hosts, 0, placement_list->numHosts * sizeof(nodeHostPlacement_t));
+        
+        // set the first entry
+        numNid = 1;
+        numPe  = 1;
+        curNid = app_ptr->alpsInfo.places[0].nid;
+        curHost = &placement_list->hosts[0];
+        
+        // create the hostname string for this entry and place it into the list
+        snprintf(hostEntry, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, curNid);
+        curHost->hostname = strdup(hostEntry);
+        
+        // clear the buffer
+        memset(hostEntry, 0, ALPS_XT_HOSTNAME_LEN);
+        
+        // check to see if we can skip iterating through the places list due to there being only one nid allocated
+        if (numNid == app_ptr->alpsInfo.cmdDetail->nodeCnt)
+        {
+                // we are done
+                return placement_list;
+        }
+        
+        // iterate through the placelist to find the node id's for the PEs
+        for (i=1; i < app_ptr->alpsInfo.appinfo.numPlaces; i++)
+        {
+                if (curNid == app_ptr->alpsInfo.places[i].nid)
+                {
+                        ++numPe;
+                        continue;
+                }
+                // new unique nid found
+                // set the number of pes found
+                curHost->numPes = numPe;
+                // reset numPes
+                numPe = 1;
+                
+                // set to the new current nid
+                curNid = app_ptr->alpsInfo.places[i].nid;
+                // create the hostname string for this entry and place it into the list
+                snprintf(hostEntry, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, curNid);
+                // change to the next host entry
+                curHost = &placement_list->hosts[numNid++];
+                // set the hostname
+                curHost->hostname = strdup(hostEntry);
+                
+                // clear the buffer
+                memset(hostEntry, 0, ALPS_XT_HOSTNAME_LEN);
+        }
+        
+        // done
+        return placement_list;
+}
+
+void
+destroy_appHostPlacementList(appHostPlacementList_t *placement_list)
+{
+        // sanity check
+        if (placement_list == (appHostPlacementList_t *)NULL)
+                return;
+                
+        if (placement_list->hosts != (nodeHostPlacement_t *)NULL)
+                free(placement_list->hosts);
+                
+        free(placement_list);
+}
+

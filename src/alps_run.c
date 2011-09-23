@@ -1,4 +1,4 @@
-/*********************************************************************************\
+/******************************************************************************\
  * alps_run.c - A interface to launch and interact with aprun sessions. This
  *              provides the tool developer with an easy to use interface to
  *              start new instances of an aprun program and get the pid_t of
@@ -17,7 +17,7 @@
  * $Rev$
  * $Author$
  *
- *********************************************************************************/
+ ******************************************************************************/
  
 #ifdef HAVE_CONFIG_H
 #include        <config.h>
@@ -117,7 +117,8 @@ findAprunInv(pid_t aprunPid)
 }
 
 pid_t
-launchAprun_barrier(char **aprun_argv, int redirectOutput, int stdout_fd, int stderr_fd)
+launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput, 
+                        int stdout_fd, int stderr_fd, char *inputFile)
 {
         aprunInv_t *    myapp;
         aprunInv_t *    newapp;
@@ -254,10 +255,27 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int stdout_fd, int st
                 close(aprunPipeR[1]);
                 close(aprunPipeW[0]);
                 
-                // we don't want this aprun to suck up stdin of the tool program
-                if ((fd = open("/dev/null", O_RDONLY)) < 0)
+                if (redirectInput)
                 {
-                        fprintf(stderr, "Unable to open /dev/null for reading.\n");
+                        // open the provided input file if non-null and redirect it to
+                        // stdin
+                        if (inputFile == (char *)NULL)
+                        {
+                                fprintf(stderr, "Provided inputFile argument is null.\n");
+                                exit(1);
+                        }
+                        if ((fd = open(inputFile, O_RDONLY)) < 0)
+                        {
+                                fprintf(stderr, "Unable to open %s for reading.\n", inputFile);
+                                exit(1);
+                        }
+                } else
+                {
+                        // we don't want this aprun to suck up stdin of the tool program
+                        if ((fd = open("/dev/null", O_RDONLY)) < 0)
+                        {
+                                fprintf(stderr, "Unable to open /dev/null for reading.\n");
+                        }
                 }
                 
                 // dup2 the null fd onto STDIN_FILENO

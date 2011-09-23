@@ -40,7 +40,7 @@ struct aprunInv
 typedef struct aprunInv aprunInv_t;
 
 /* function prototypes */
-pid_t   launchAprun_barrier(char **, int, int, int);
+pid_t   launchAprun_barrier(char **, int, int, int, int, char *);
 int     releaseAprun_barrier(pid_t);
 int     killAprun(pid_t, int);
 
