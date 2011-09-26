@@ -673,6 +673,9 @@ getAppHostsPlacement(pid_t aprunPid)
                 memset(hostEntry, 0, ALPS_XT_HOSTNAME_LEN);
         }
         
+        // we need to write the last numPE into the current host type
+        curHost->numPes = numPe;
+        
         // done
         return placement_list;
 }
