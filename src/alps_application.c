@@ -642,7 +642,10 @@ getAppHostsPlacement(pid_t aprunPid)
         // check to see if we can skip iterating through the places list due to there being only one nid allocated
         if (numNid == app_ptr->alpsInfo.cmdDetail->nodeCnt)
         {
-                // we are done
+                // we have no more hostnames to process
+                // all nids in the places list will belong to our current host
+                // so write the numPlaces into the current host type and return
+                curHost->numPes = app_ptr->alpsInfo.appinfo.numPlaces;
                 return placement_list;
         }
         
