@@ -22,8 +22,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "alps_run.h"
-#include "alps_transfer.h"
+#include "tool_frontend.h"
 
 void
 usage(char *name)
@@ -45,7 +44,7 @@ main(int argc, char **argv)
                 return 1;
         }
         
-        if ((mypid = launchAprun_barrier(&argv[1])) <= 0)
+        if ((mypid = launchAprun_barrier(&argv[1],0,0,0,0,NULL)) <= 0)
         {
                 fprintf(stderr, "Err: Could not launch aprun!\n");
                 return 1;

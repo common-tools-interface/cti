@@ -58,15 +58,15 @@ dnl the lightbulb turns on.
 AS_IF([test "x${ac_cv_env_CFLAGS_set}" = "x"], [CFLAGS=""])
 AM_CONDITIONAL([USE_INTERNAL_CFLAGS], [test "x${ac_cv_env_CFLAGS_set}" = "x"])
 
-dnl Add the local alps libs to the library search path
-if test -d "$craytool_srcdir/alps/lib/alps/"; then
-	LDFLAGS="$LDFLAGS -L$craytool_srcdir/alps/lib/alps/"
+dnl Add the system alps libs to the library search path
+if test -d "/usr/lib/alps/"; then
+	LDFLAGS="$LDFLAGS -L/usr/lib/alps/"
 fi
 
-dnl Add the local alps include to the header search path
-if test -d "$craytool_srcdir/alps/include/"; then
-	CPPFLAGS="$CPPFLAGS -I$craytool_srcdir/alps/include/"
-	CFLAGS="$CFLAGS -I$craytool_srcdir/alps/include/"
+dnl Add the system alps include to the header search path
+if test -d "/usr/include/alps/"; then
+	CPPFLAGS="$CPPFLAGS -I/usr/include/alps/"
+	CFLAGS="$CFLAGS -I/usr/include/alps/"
 fi
 
 ############################

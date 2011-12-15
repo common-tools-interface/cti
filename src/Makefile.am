@@ -31,8 +31,7 @@ libcraytool_frontend_la_SOURCES = alps_application.c alps_transfer.c alps_run.c 
 				  useful/stringList.c alps_application.h alps_transfer.h \
 				  alps_run.h useful.h
 libcraytool_frontend_la_LIBADD	= $(LDVAL)/libld_val.la
-libcraytool_frontend_la_LDFLAGS	= -Wl,-z,origin -Wl,-rpath,/usr/lib/alps -Wl,-rpath,'$$ORIGIN'/alps \
-				  -lalps -lxmlrpc -version-info $(CRAYTOOL_FE_VERSION)
+libcraytool_frontend_la_LDFLAGS	= -lalps -lxmlrpc -version-info $(CRAYTOOL_FE_VERSION)
 
 libcraytool_backend_la_SOURCES	= alps_backend.c pmi_attribs_parser.c alps_backend.h pmi_attribs_parser.h
 libcraytool_backend_la_LDFLAGS	= $(JOBLIBS) -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
@@ -40,6 +39,4 @@ libcraytool_backend_la_LDFLAGS	= $(JOBLIBS) -lalpsutil -version-info $(CRAYTOOL_
 bin_PROGRAMS	= dlaunch
 dlaunch_SOURCES	= daemon_launcher.c useful/path.c useful/log.c useful/useful.h
 dlaunch_CFLAGS = $(AM_CFLAGS)
-
-include_HEADERS	= tool_backend.h tool_frontend.h
 

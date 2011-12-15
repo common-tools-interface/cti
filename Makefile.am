@@ -27,6 +27,5 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = cray-tool_backend.pc cray-tool_frontend.pc \
 		 cray-audit.pc
 
-install-data-hook:
-	cp -r $(SRCDIR)/alps/lib/alps $(libdir)/alps
-	rm -rf `find $(libdir)/alps -name .svn`
+include_HEADERS = include/tool_backend.h include/tool_frontend.h
+

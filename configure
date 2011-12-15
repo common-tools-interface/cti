@@ -12259,13 +12259,13 @@ else
 fi
 
 
-if test -d "$craytool_srcdir/alps/lib/alps/"; then
-	LDFLAGS="$LDFLAGS -L$craytool_srcdir/alps/lib/alps/"
+if test -d "/usr/lib/alps/"; then
+	LDFLAGS="$LDFLAGS -L/usr/lib/alps/"
 fi
 
-if test -d "$craytool_srcdir/alps/include/"; then
-	CPPFLAGS="$CPPFLAGS -I$craytool_srcdir/alps/include/"
-	CFLAGS="$CFLAGS -I$craytool_srcdir/alps/include/"
+if test -d "/usr/include/alps/"; then
+	CPPFLAGS="$CPPFLAGS -I/usr/include/alps/"
+	CFLAGS="$CFLAGS -I/usr/include/alps/"
 fi
 
 ############################
