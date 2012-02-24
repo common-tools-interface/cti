@@ -1,6 +1,5 @@
 #
-# Makefile.am for the libcraytool and dlaunch components of the craytool 
-# interface.
+# Makefile.am for the demo utilities
 #
 # ©2011 Cray Inc.  All Rights Reserved.
 #
@@ -10,10 +9,10 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-# $HeadURL: http://svn/svn/debugger-support/tools_interface/trunk/src/Makefile.am $
-# $Date: 2011-12-15 14:06:34 -0600 (Thu, 15 Dec 2011) $
-# $Rev: 1452 $
-# $Author: andrewg $
+# $HeadURL$
+# $Date$
+# $Rev$
+# $Author$
 #
 
 if USE_INTERNAL_CFLAGS
