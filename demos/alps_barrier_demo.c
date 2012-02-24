@@ -1,6 +1,6 @@
 /*********************************************************************************\
- * alps_barrier_demo.c - An example program which takes advantage of the libtransfer.so
- *			library which will launch an aprun session from the given
+ * alps_barrier_demo.c - An example program which takes advantage of the CrayTool
+ *			Interface which will launch an aprun session from the given
  *			argv, display information about the job, and hold it at the 
  *			startup barrier.
  *

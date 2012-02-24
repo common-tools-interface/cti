@@ -50,7 +50,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-EXTRA_PROGRAMS = aprunBarrier$(EXEEXT)
+EXTRA_PROGRAMS = aprunBarrier$(EXEEXT) aprunTransfer$(EXEEXT)
 subdir = demos
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -74,6 +74,12 @@ am__v_lt_0 = --silent
 aprunBarrier_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(aprunBarrier_CFLAGS) \
 	$(CFLAGS) $(aprunBarrier_LDFLAGS) $(LDFLAGS) -o $@
+am_aprunTransfer_OBJECTS = aprunTransfer-alps_transfer_demo.$(OBJEXT)
+aprunTransfer_OBJECTS = $(am_aprunTransfer_OBJECTS)
+aprunTransfer_LDADD = $(LDADD)
+aprunTransfer_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(aprunTransfer_CFLAGS) \
+	$(CFLAGS) $(aprunTransfer_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -100,8 +106,8 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = $(aprunBarrier_SOURCES)
-DIST_SOURCES = $(aprunBarrier_SOURCES)
+SOURCES = $(aprunBarrier_SOURCES) $(aprunTransfer_SOURCES)
+DIST_SOURCES = $(aprunBarrier_SOURCES) $(aprunTransfer_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -231,6 +237,9 @@ top_srcdir = @top_srcdir@
 aprunBarrier_CFLAGS = $(AM_CFLAGS)
 aprunBarrier_SOURCES = alps_barrier_demo.c
 aprunBarrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
+aprunTransfer_CFLAGS = $(AM_CFLAGS)
+aprunTransfer_SOURCES = alps_transfer_demo.c
+aprunTransfer_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
 all: all-am
 
 .SUFFIXES:
@@ -268,6 +277,9 @@ $(am__aclocal_m4_deps):
 aprunBarrier$(EXEEXT): $(aprunBarrier_OBJECTS) $(aprunBarrier_DEPENDENCIES) 
 	@rm -f aprunBarrier$(EXEEXT)
 	$(AM_V_CCLD)$(aprunBarrier_LINK) $(aprunBarrier_OBJECTS) $(aprunBarrier_LDADD) $(LIBS)
+aprunTransfer$(EXEEXT): $(aprunTransfer_OBJECTS) $(aprunTransfer_DEPENDENCIES) 
+	@rm -f aprunTransfer$(EXEEXT)
+	$(AM_V_CCLD)$(aprunTransfer_LINK) $(aprunTransfer_OBJECTS) $(aprunTransfer_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -276,6 +288,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aprunBarrier-alps_barrier_demo.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aprunTransfer-alps_transfer_demo.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -311,6 +324,20 @@ aprunBarrier-alps_barrier_demo.obj: alps_barrier_demo.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='alps_barrier_demo.c' object='aprunBarrier-alps_barrier_demo.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunBarrier_CFLAGS) $(CFLAGS) -c -o aprunBarrier-alps_barrier_demo.obj `if test -f 'alps_barrier_demo.c'; then $(CYGPATH_W) 'alps_barrier_demo.c'; else $(CYGPATH_W) '$(srcdir)/alps_barrier_demo.c'; fi`
+
+aprunTransfer-alps_transfer_demo.o: alps_transfer_demo.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunTransfer_CFLAGS) $(CFLAGS) -MT aprunTransfer-alps_transfer_demo.o -MD -MP -MF $(DEPDIR)/aprunTransfer-alps_transfer_demo.Tpo -c -o aprunTransfer-alps_transfer_demo.o `test -f 'alps_transfer_demo.c' || echo '$(srcdir)/'`alps_transfer_demo.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/aprunTransfer-alps_transfer_demo.Tpo $(DEPDIR)/aprunTransfer-alps_transfer_demo.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='alps_transfer_demo.c' object='aprunTransfer-alps_transfer_demo.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunTransfer_CFLAGS) $(CFLAGS) -c -o aprunTransfer-alps_transfer_demo.o `test -f 'alps_transfer_demo.c' || echo '$(srcdir)/'`alps_transfer_demo.c
+
+aprunTransfer-alps_transfer_demo.obj: alps_transfer_demo.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunTransfer_CFLAGS) $(CFLAGS) -MT aprunTransfer-alps_transfer_demo.obj -MD -MP -MF $(DEPDIR)/aprunTransfer-alps_transfer_demo.Tpo -c -o aprunTransfer-alps_transfer_demo.obj `if test -f 'alps_transfer_demo.c'; then $(CYGPATH_W) 'alps_transfer_demo.c'; else $(CYGPATH_W) '$(srcdir)/alps_transfer_demo.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/aprunTransfer-alps_transfer_demo.Tpo $(DEPDIR)/aprunTransfer-alps_transfer_demo.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='alps_transfer_demo.c' object='aprunTransfer-alps_transfer_demo.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunTransfer_CFLAGS) $(CFLAGS) -c -o aprunTransfer-alps_transfer_demo.obj `if test -f 'alps_transfer_demo.c'; then $(CYGPATH_W) 'alps_transfer_demo.c'; else $(CYGPATH_W) '$(srcdir)/alps_transfer_demo.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -520,7 +547,7 @@ uninstall-am:
 	tags uninstall uninstall-am
 
 
-demos: aprunBarrier
+demos: aprunBarrier aprunTransfer
 
 .PHONY: demos
 

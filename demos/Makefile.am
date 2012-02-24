@@ -21,12 +21,16 @@ else
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
 endif
 
-EXTRA_PROGRAMS = aprunBarrier
+EXTRA_PROGRAMS = aprunBarrier aprunTransfer
 
 aprunBarrier_CFLAGS = $(AM_CFLAGS)
 aprunBarrier_SOURCES = alps_barrier_demo.c
 aprunBarrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
 
-demos: aprunBarrier
+aprunTransfer_CFLAGS = $(AM_CFLAGS)
+aprunTransfer_SOURCES = alps_transfer_demo.c
+aprunTransfer_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
+
+demos: aprunBarrier aprunTransfer
 
 .PHONY: demos
