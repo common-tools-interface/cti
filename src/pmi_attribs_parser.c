@@ -34,6 +34,8 @@ getPmiAttribsInfo(uint64_t apid)
         FILE *          fp;
         char            fileName[PATH_MAX];
         pmi_attribs_t * rtn;
+        int		int1;
+        long int	longint1;
 
         // sanity check
         if (apid <= 0)
@@ -110,7 +112,7 @@ getPmiAttribsInfo(uint64_t apid)
         for (i=0; i < rtn->app_nodeNumRanks; ++i)
         {
                 // read in the rank and pid from the current line
-                if (fscanf(fp, "%d %ld\n", &rtn->app_rankPidPairs[i].rank, (long int *)&rtn->app_rankPidPairs[i].pid) != 2)
+                if (fscanf(fp, "%d %ld\n", &int1, &longint1) != 2)
                 {
                         fprintf(stderr, "Reading rank/pid pair %d failed.\n", i);
                         free(rtn->app_rankPidPairs);
@@ -118,6 +120,13 @@ getPmiAttribsInfo(uint64_t apid)
                         fclose(fp);
                         return (pmi_attribs_t *)NULL;
                 }
+                // note that there was previously a bug here since long int * is
+                // not the size of pid_t. I was getting lucky for most sizes, but
+                // I believe padding screwed this up and caused a segfault.
+                // The new way of reading into a temp int and then writting fixed
+                // the issue.
+                rtn->app_rankPidPairs[i].rank = int1;
+                rtn->app_rankPidPairs[i].pid  = (pid_t)longint1;
         }
         
         // close the fp

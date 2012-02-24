@@ -35,6 +35,8 @@
 #include "useful/useful.h"
 
 #define ALPS_XT_NID		"/proc/cray_xt/nid"
+#define APID_ENV_VAR		"CRAYTOOL_APID"
+#define APID_STR_BUF_LEN	32
 
 static int debug_flag = 0;
 
@@ -71,6 +73,7 @@ main(int argc, char **argv)
         FILE *  log;
         char    file_buf[BUFSIZ];       // file read buffer
         uint64_t apid = 0;
+        char	apid_str[APID_STR_BUF_LEN];
         size_t  len;
         char    *end, *tool_path;
         char *  binary = NULL; 
@@ -126,6 +129,13 @@ main(int argc, char **argv)
         tool_path[len] = '\0';
         
         fprintf(stderr, "Toolhelper path: %s\n", tool_path);
+        
+        // get the apid from the toolhelper path from argv[0]
+        sscanf(argv[0], "/var/spool/alps/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid);
+        // write the apid to the apid_str
+        snprintf(apid_str, APID_STR_BUF_LEN, "%llu", (long long unsigned int)apid);
+        // set the APID_ENV_VAR environment variable to the apid
+        setenv(APID_ENV_VAR, apid_str, 1);
         
         while ((c = getopt_long(argc, argv, "b:e:h", long_opts, &opt_ind)) != -1)
         {
@@ -197,9 +207,6 @@ main(int argc, char **argv)
         // if debug mode is turned on, redirect stdout/stderr to a log file
         if (debug_flag)
         {
-                // get the apid from the toolhelper path from argv[0]
-                sscanf(argv[0], "/var/spool/alps/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid);
-                
                 // read the nid from the system location
                 // open up the file defined in the alps header containing our node id (nid)
                 if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)

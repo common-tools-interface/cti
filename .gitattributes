@@ -19,8 +19,10 @@ config/missing -text
 demos/Makefile.am -text
 demos/Makefile.in -text
 demos/alps_barrier_demo.c -text
+demos/alps_callback_daemon.c -text
+demos/alps_callback_demo.c -text
+demos/alps_callback_demo.h -text
 demos/alps_transfer_demo.c -text
-demos/sleepy/sleepy.c -text
 demos/testing.info -text
 include/tool_backend.h -text
 include/tool_frontend.h -text

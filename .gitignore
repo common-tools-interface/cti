@@ -8,9 +8,7 @@
 /cray-tool_frontend.pc
 demos/.deps
 demos/Makefile
-demos/a.out
-demos/aprunBarrier
-demos/aprunTransfer
+demos/demo_binaries
 /install
 /libtool
 src/.deps

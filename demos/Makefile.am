@@ -21,7 +21,7 @@ else
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
 endif
 
-EXTRA_PROGRAMS = aprunBarrier aprunTransfer
+EXTRA_PROGRAMS = aprunBarrier aprunTransfer aprunCallback callback_daemon
 
 aprunBarrier_CFLAGS = $(AM_CFLAGS)
 aprunBarrier_SOURCES = alps_barrier_demo.c
@@ -31,6 +31,20 @@ aprunTransfer_CFLAGS = $(AM_CFLAGS)
 aprunTransfer_SOURCES = alps_transfer_demo.c
 aprunTransfer_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
 
-demos: aprunBarrier aprunTransfer
+aprunCallback_CFLAGS = $(AM_CFLAGS)
+aprunCallback_SOURCES = alps_callback_demo.c
+aprunCallback_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend -pthread
+
+callback_daemon_CFLAGS = $(AM_CFLAGS)
+callback_daemon_SOURCES = alps_callback_daemon.c
+callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_backend
+
+demos: aprunBarrier aprunTransfer aprunCallback callback_daemon
+	mkdir -p demo_binaries
+	cp testing.info demo_binaries
+	mv aprunBarrier demo_binaries
+	mv aprunTransfer demo_binaries
+	mv aprunCallback demo_binaries
+	mv callback_daemon demo_binaries
 
 .PHONY: demos
