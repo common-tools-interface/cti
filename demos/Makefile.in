@@ -27,8 +27,8 @@
 # in any form.
 #
 # $HeadURL: http://svn/svn/debugger-support/tools_interface/trunk/demos/Makefile.am $
-# $Date: 2012-02-23 18:50:34 -0600 (Thu, 23 Feb 2012) $
-# $Rev: 1538 $
+# $Date: 2012-02-23 19:11:02 -0600 (Thu, 23 Feb 2012) $
+# $Rev: 1540 $
 # $Author: andrewg $
 #
 VPATH = @srcdir@
