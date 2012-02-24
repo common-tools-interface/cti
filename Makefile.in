@@ -285,8 +285,8 @@ top_srcdir = @top_srcdir@
 # in any form.
 #
 # $HeadURL: http://svn/svn/debugger-support/tools_interface/trunk/Makefile.am $
-# $Date: 2011-12-15 14:06:34 -0600 (Thu, 15 Dec 2011) $
-# $Rev: 1452 $
+# $Date: 2012-02-23 18:44:57 -0600 (Thu, 23 Feb 2012) $
+# $Rev: 1537 $
 # $Author: andrewg $
 #
 SRCDIR = @craytool_srcdir@
