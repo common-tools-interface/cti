@@ -659,6 +659,7 @@ LIBTOOL
 am__fastdepCC_FALSE
 am__fastdepCC_TRUE
 CCDEPMODE
+am__nodep
 AMDEPBACKSLASH
 AMDEP_FALSE
 AMDEP_TRUE
@@ -758,11 +759,6 @@ LDFLAGS
 LIBS
 CPPFLAGS
 CPP
-CPPFLAGS
-CC
-LDFLAGS
-LIBS
-CPPFLAGS
 PKG_CONFIG
 JOB_CFLAGS
 JOB_LIBS'
@@ -4140,6 +4136,7 @@ fi
 if test "x$enable_dependency_tracking" != xno; then
   am_depcomp="$ac_aux_dir/depcomp"
   AMDEPBACKSLASH='\'
+  am__nodep='_no'
 fi
  if test "x$enable_dependency_tracking" != xno; then
   AMDEP_TRUE=
@@ -4224,6 +4221,7 @@ else
   # instance it was reported that on HP-UX the gcc test will end up
   # making a dummy file named `D' -- because `-MD' means `put the output
   # in D'.
+  rm -rf conftest.dir
   mkdir conftest.dir
   # Copy depcomp to subdir because otherwise we won't find it if we're
   # using a relative directory.
@@ -4283,7 +4281,7 @@ else
 	break
       fi
       ;;
-    msvisualcpp | msvcmsys)
+    msvc7 | msvc7msys | msvisualcpp | msvcmsys)
       # This compiler won't grok `-c -o', but also, the minuso test has
       # not run yet.  These depmodes are late enough in the game, and
       # so weak that their functioning should not be impacted.
@@ -4347,8 +4345,8 @@ esac
 
 
 
-macro_version='2.4'
-macro_revision='1.3293'
+macro_version='2.4.2'
+macro_revision='1.3337'
 
 
 
@@ -13289,7 +13287,7 @@ done
 ################
 ### Finalize ###
 ################
-ac_config_files="$ac_config_files Makefile cray-tool_backend.pc cray-tool_frontend.pc cray-audit.pc src/Makefile src/ld_val/Makefile"
+ac_config_files="$ac_config_files Makefile cray-tool_backend.pc cray-tool_frontend.pc cray-audit.pc src/Makefile src/ld_val/Makefile demos/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -14310,6 +14308,7 @@ do
     "cray-audit.pc") CONFIG_FILES="$CONFIG_FILES cray-audit.pc" ;;
     "src/Makefile") CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
     "src/ld_val/Makefile") CONFIG_FILES="$CONFIG_FILES src/ld_val/Makefile" ;;
+    "demos/Makefile") CONFIG_FILES="$CONFIG_FILES demos/Makefile" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac

@@ -212,5 +212,6 @@ AC_CONFIG_FILES([Makefile
 		 cray-tool_frontend.pc
 		 cray-audit.pc
 		 src/Makefile
-                 src/ld_val/Makefile])
+                 src/ld_val/Makefile
+		 demos/Makefile])
 AC_OUTPUT

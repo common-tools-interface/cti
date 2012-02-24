@@ -201,10 +201,10 @@ extern char **  getAppHostsList(pid_t aprunPid);
 
 /*
  * getAppHostsPlacement - Returns a appHostPlacementList_t struct containing
-                          nodeHostPlacement_t entries that contain the hostname
-                          of the compute nodes allocated by ALPS and the number
-                          of PEs assigned to that host for the application 
-                          associated with the aprun pid.
+ *                        nodeHostPlacement_t entries that contain the hostname
+ *                        of the compute nodes allocated by ALPS and the number
+ *                        of PEs assigned to that host for the application 
+ *                        associated with the aprun pid.
  * 
  * Detail
  *      This function creates a appHostPlacementList_t struct that contains

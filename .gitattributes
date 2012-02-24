@@ -16,6 +16,9 @@ config/missing -text
 /cray-audit.pc.in -text
 /cray-tool_backend.pc.in -text
 /cray-tool_frontend.pc.in -text
+demos/Makefile.am -text
+demos/Makefile.in -text
+demos/alps_barrier_demo.c -text
 demos/alps_transfer_demo.c -text
 demos/sleepy/sleepy.c -text
 demos/testing.info -text

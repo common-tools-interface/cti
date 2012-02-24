@@ -6,6 +6,11 @@
 /cray-audit.pc
 /cray-tool_backend.pc
 /cray-tool_frontend.pc
+demos/.deps
+demos/Makefile
+demos/aprunBarrier
+demos/aprunTransfer
+/install
 /libtool
 src/.deps
 src/Makefile
