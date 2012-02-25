@@ -55,9 +55,13 @@ callback_handler(void *thread_arg)
 
         pthread_cleanup_push(handler_destroy, thread_arg);     // setup thread cleanup function
         
-        printf("Compute node connected.\n");
-	printf("CNode_addr: %s\n", addr);
-	printf("CNode_port: %d\n", port);
+        // grab the mutex lock
+        pthread_mutex_lock(&my_node.lock);
+        	printf("Compute node connected.\n");
+		printf("CNode_addr: %s\n", addr);
+		printf("CNode_port: %d\n\n", port);
+	// unlock the mutex
+        pthread_mutex_unlock(&my_node.lock);
 	
 	// clear the receive buffer
 	memset((void *)recv_get, 0, BUFSIZE);
@@ -79,7 +83,6 @@ callback_handler(void *thread_arg)
         // first is the starting pe for that node
         // 
         start_pe = atoi(tok);
-        printf("Starting PE on node: %d\n", start_pe);
         
         // our concept of node number is based on the starting pe on the node,
         // divided by the total number of pes divided by the number of nodes.
@@ -91,7 +94,6 @@ callback_handler(void *thread_arg)
                 return (void *)NULL;
         }
         cname = strdup(tok);    // second is the compute nodes cname
-        printf("cnode hostname: %s\n", cname);
         
         if ((tok = strtok_r(NULL, ":", &lasts)) == (char *)NULL)
         {
@@ -99,10 +101,14 @@ callback_handler(void *thread_arg)
                 return (void *)NULL;
         }
         local_pes = atoi(tok);       // last is the number of local pes on the node
-        printf("Local PEs on the node: %d\n", local_pes);
         
         // grab the mutex lock
         pthread_mutex_lock(&my_node.lock);
+        
+        	printf("Starting PE on node: %d\n", start_pe);
+        	printf("cnode hostname: %s\n", cname);
+        	printf("Local PEs on the node: %d\n\n", local_pes);
+        	
                 ++registered_nodes;
                 peNodes[node]->node_cname = cname;
         
@@ -368,11 +374,12 @@ main(int argc, char **argv)
         // Wait for the callbacks to complete.
         pthread_mutex_lock(&my_node.lock);
         
+        fprintf(stdout, "Waiting for callbacks...\n\n");
+        
         while (registered_nodes < app_nodes)
         {
-                fprintf(stdout, "Waiting for callbacks...\n\n");
                 pthread_cond_wait(&my_node.cond, &my_node.lock);
-                fprintf(stdout, "\nTotal registered callbacks: %d\n", registered_nodes);
+                fprintf(stdout, "Total registered callbacks: %d\n\n", registered_nodes);
         }
         
         pthread_mutex_unlock(&my_node.lock);
@@ -380,7 +387,7 @@ main(int argc, char **argv)
         // callbacks complete, kill the listener thread
         pthread_cancel(my_node.listener);
         
-        printf("\nHit return to release the application from the startup barrier...");
+        printf("Hit return to release the application from the startup barrier...");
 	
 	// just read a single character from stdin then release the app/exit
 	(void)getchar();
