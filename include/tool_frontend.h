@@ -36,7 +36,10 @@
 #define LIBAUDIT_ENV_VAR        "LD_VAL_LIBRARY"
 #define DBG_LOG_ENV_VAR         "DBG_LOG_DIR"
 
-/* struct typedefs used in return values */
+/* 
+ * struct typedefs used in return values 
+ */
+
 typedef struct
 {
         char *  hostname;

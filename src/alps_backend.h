@@ -25,6 +25,8 @@
 
 #include "pmi_attribs_parser.h"
 
+#define APID_ENV_VAR		"CRAYTOOL_APID"
+
 #define ALPS_XT_CNAME           "/proc/cray_xt/cname"
 #define ALPS_XT_HOSTNAME_FMT    "nid%05d"
 #define ALPS_XT_HOSTNAME_LEN    9
@@ -44,13 +46,13 @@ typedef struct
 } computeNode_t;
 
 /* function prototypes */
-nodeAppPidList_t *      findAppPids(uint64_t);
+nodeAppPidList_t *      findAppPids(void);
 void                    destroy_nodeAppPidList(nodeAppPidList_t *);
 char *                  getNodeCName(void);
 char *                  getNodeNidName(void);
 int                     getNodeNid(void);
-int                     getFirstPE(uint64_t);
-int                     getPesHere(uint64_t);
+int                     getFirstPE(void);
+int                     getPesHere(void);
 
 #endif /* _ALPS_BACKEND_H */
 

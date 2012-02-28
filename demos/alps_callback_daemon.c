@@ -105,8 +105,6 @@ main(int argc, char **argv)
 {
         int opt_ind = 0;
         int c;
-        uint64_t apid = 0;
-        char *apid_str;
         FILE *log;
         
         while ((c = getopt_long(argc, argv, "h:", long_opts, &opt_ind)) != -1)
@@ -131,11 +129,6 @@ main(int argc, char **argv)
                 }
         }
         
-        // get the apid from the CRAYTOOL_APID environment variable
-        apid_str = getenv("CRAYTOOL_APID");
-        apid = strtoull(apid_str, NULL, 10);
-        fprintf(stderr, "My apid: %llu\n", apid);
-        
         // get my nodes cname
         if ((my_hostname = getNodeCName()) == (char *)NULL)
         {
@@ -145,7 +138,7 @@ main(int argc, char **argv)
         fprintf(stderr, "My hostname: %s\n", my_hostname);
         
         // get the first PE that resides on this node
-        if ((firstPe = getFirstPE(apid)) == -1)
+        if ((firstPe = getFirstPE()) == -1)
         {
                 fprintf(stderr, "getFirstPE failed.\n");
                 return 1;
@@ -153,7 +146,7 @@ main(int argc, char **argv)
         fprintf(stderr, "My first PE: %d\n", firstPe);
         
         // get the number of PEs that reside on this node
-        if ((numPes = getPesHere(apid)) == -1)
+        if ((numPes = getPesHere()) == -1)
         {
                 fprintf(stderr, "getPesHere failed.\n");
                 return 1;
@@ -161,7 +154,7 @@ main(int argc, char **argv)
         fprintf(stderr, "PEs here: %d\n", numPes);
         
         // get the pids for the app
-        if ((appPids = findAppPids(apid)) == (nodeAppPidList_t *)NULL)
+        if ((appPids = findAppPids()) == (nodeAppPidList_t *)NULL)
         {
                 fprintf(stderr, "findAppPids failed.\n");
                 return 1;

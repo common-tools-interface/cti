@@ -38,15 +38,17 @@
 /* static prototypes */
 static int                      isTid(pid_t);
 static computeNode_t *          getComputeNodeInfo(void);
-static int                      getAlpsPlacementInfo(uint64_t);
-static nodeAppPidList_t *       guessAppPids(uint64_t);
-static int                      try_getPmiAttribsInfo(uint64_t);
+static int                      getAlpsPlacementInfo(void);
+static nodeAppPidList_t *       guessAppPids(void);
+static int                      try_getPmiAttribsInfo(void);
 
 /* global variables */
 static computeNode_t *          thisNode  = (computeNode_t *)NULL;      // compute node information
 static alpsAppLayout_t *        appLayout = (alpsAppLayout_t *)NULL;    // node application information
 static pmi_attribs_t *          attrs = (pmi_attribs_t *)NULL;          // node pmi_attribs information
 static int                      tried_getPmiAttribsInfo = 0;            // pmi_attribs attempt bit
+static char *			apid_str = (char *)NULL;		// temporary pointer to apid str returned by getenv
+static uint64_t			apid = 0;				// global apid obtained from environment variable
 
 /*
 *       getComputeNodeInfo - read cname and nid from alps defined system locations
@@ -117,9 +119,13 @@ getComputeNodeInfo()
 }
 
 static int
-getAlpsPlacementInfo(uint64_t apid)
+getAlpsPlacementInfo()
 {
         alpsAppLayout_t *       tmpLayout;
+        
+        // sanity check
+        if (apid <= 0)
+                return 1;
         
         // malloc size for the struct
         if ((tmpLayout = malloc(sizeof(alpsAppLayout_t))) == (void *)0)
@@ -143,7 +149,7 @@ getAlpsPlacementInfo(uint64_t apid)
 }
 
 static int
-try_getPmiAttribsInfo(uint64_t apid)
+try_getPmiAttribsInfo()
 {
         // This has the possibility of failing on systems that don't have the
         // pmi_attribs file generation patch. So this function keeps track of
@@ -159,20 +165,26 @@ try_getPmiAttribsInfo(uint64_t apid)
 }
 
 nodeAppPidList_t *
-findAppPids(uint64_t apid)
+findAppPids()
 {
         nodeAppPidList_t * rtn;
 
-        // sanity check
-        if (apid <= 0)
-                return (nodeAppPidList_t *)NULL;
+        // Try to read the apid from the environment if we haven't done so already
+        if (apid == 0)
+        {
+		apid_str = getenv(APID_ENV_VAR);
+                if (apid_str == (char *)NULL)
+                	return (nodeAppPidList_t *)NULL;      
+                
+                apid = (uint64_t)strtoull(apid_str, NULL, 10);
+        }
                 
         // try to call getPmiAttribsInfo
-        if (!try_getPmiAttribsInfo(apid))
+        if (!try_getPmiAttribsInfo())
         {
                 // we couldn't get the attrs info, so lets try to guess
                 // the pids using the old method.
-                return (guessAppPids(apid));
+                return (guessAppPids());
         }
         
         // ensure the attrs object has a app_rankPidPairs array
@@ -180,7 +192,7 @@ findAppPids(uint64_t apid)
         {
                 // something is messed up, so try to guess the pids as a last
                 // resort.
-                return (guessAppPids(apid));
+                return (guessAppPids());
         }
         
         // allocate the return object
@@ -207,7 +219,7 @@ findAppPids(uint64_t apid)
 }
 
 static nodeAppPidList_t *
-guessAppPids(uint64_t apid)
+guessAppPids()
 {
         jid_t                   jid;
         pid_t *                 dirtyPidList;
@@ -224,7 +236,7 @@ guessAppPids(uint64_t apid)
         if (appLayout == (alpsAppLayout_t *)NULL)
         {
                 // make sure we got the alpsAppLayout_t object
-                if (getAlpsPlacementInfo(apid))
+                if (getAlpsPlacementInfo())
                 {
                         return (nodeAppPidList_t *)NULL;
                 }
@@ -413,17 +425,23 @@ getNodeNid()
 }
 
 int
-getFirstPE(uint64_t apid)
+getFirstPE()
 {
-        // sanity check
-        if (apid <= 0)
-                return -1;
+	// Try to read the apid from the environment if we haven't done so already
+        if (apid == 0)
+        {
+		apid_str = getenv(APID_ENV_VAR);
+                if (apid_str == (char *)NULL)
+                	return -1;      
+                
+                apid = (uint64_t)strtoull(apid_str, NULL, 10);
+        }
         
         // make sure the appLayout object has been created
         if (appLayout == (alpsAppLayout_t *)NULL)
         {
                 // make sure we got the alpsAppLayout_t object
-                if (getAlpsPlacementInfo(apid))
+                if (getAlpsPlacementInfo())
                 {
                         return -1;
                 }
@@ -433,17 +451,23 @@ getFirstPE(uint64_t apid)
 }
 
 int
-getPesHere(uint64_t apid)
+getPesHere()
 {
-        // sanity check
-        if (apid <= 0)
-                return -1;
+	// Try to read the apid from the environment if we haven't done so already
+        if (apid == 0)
+        {
+		apid_str = getenv(APID_ENV_VAR);
+                if (apid_str == (char *)NULL)
+                	return -1;      
+                
+                apid = (uint64_t)strtoull(apid_str, NULL, 10);
+        }
         
         // make sure the appLayout object has been created
         if (appLayout == (alpsAppLayout_t *)NULL)
         {
                 // make sure we got the alpsAppLayout_t object
-                if (getAlpsPlacementInfo(apid))
+                if (getAlpsPlacementInfo())
                 {
                         return -1;
                 }
