@@ -78,7 +78,7 @@ typedef struct
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      registerAprunPid(pid_t aprunPid);
+extern int	registerAprunPid(pid_t aprunPid);
 
 /*
  * deregisterAprunPid - Assists in cleaning up internal allocated memory
@@ -98,7 +98,7 @@ extern int      registerAprunPid(pid_t aprunPid);
  *      Returns no value.
  *
  */
-extern void     deregisterAprunPid(pid_t aprunPid);
+extern void	deregisterAprunPid(pid_t aprunPid);
 
 /*
  * getApid - Obtain the apid associated with the aprun pid.
@@ -110,7 +110,7 @@ extern void     deregisterAprunPid(pid_t aprunPid);
  *      apid if found, or else 0 on failure/not found.
  * 
  */
-extern uint64_t getApid(pid_t aprunPid);
+extern uint64_t	getApid(pid_t aprunPid);
 
 /*
  * getCName - Returns the cabinet hostname of the active login node.
@@ -126,7 +126,7 @@ extern uint64_t getApid(pid_t aprunPid);
  *      A string containing the cname host, or else a null string on error.
  * 
  */
-extern char *   getCName();
+extern char *	getCName();
 
 /*
  * getNid - Returns the node id of the active login node.
@@ -142,7 +142,7 @@ extern char *   getCName();
  *      The integer value of the nid, or else -1 on error.
  * 
  */
-extern int      getNid();
+extern int	getNid();
 
 /*
  * getNumAppPEs - Returns the number of processing elements in the application
@@ -160,7 +160,7 @@ extern int      getNid();
  *      Number of PEs in the application, or else 0 on error.
  * 
  */
-extern int      getNumAppPEs(pid_t aprunPid);
+extern int	getNumAppPEs(pid_t aprunPid);
 
 /*
  * getNumAppNodes - Returns the number of compute nodes allocated for the
@@ -179,7 +179,7 @@ extern int      getNumAppPEs(pid_t aprunPid);
  *      or else 0 on error.
  * 
  */
-extern int      getNumAppNodes(pid_t aprunPid);
+extern int	getNumAppNodes(pid_t aprunPid);
 
 /*
  * getAppHostsList - Returns a null terminated array of strings containing
@@ -200,7 +200,7 @@ extern int      getNumAppNodes(pid_t aprunPid);
  *      pointer on error.
  * 
  */
-extern char **  getAppHostsList(pid_t aprunPid);
+extern char **	getAppHostsList(pid_t aprunPid);
 
 /*
  * getAppHostsPlacement - Returns a appHostPlacementList_t struct containing
@@ -227,7 +227,7 @@ extern char **  getAppHostsList(pid_t aprunPid);
  *      host assigned to the application.
  * 
  */
-extern appHostPlacementList_t *  getAppHostsPlacement(pid_t aprunPid);
+extern appHostPlacementList_t *	getAppHostsPlacement(pid_t aprunPid);
 
 /*
  * destroy_AppHostsPlacement - Used to destroy the memory allocated for a 
@@ -246,7 +246,7 @@ extern appHostPlacementList_t *  getAppHostsPlacement(pid_t aprunPid);
  *      Void. This function behaves similarly to free().
  *
  */
-extern void destroy_appHostPlacementList(appHostPlacementList_t *placement_list);
+extern void	destroy_appHostPlacementList(appHostPlacementList_t *placement_list);
 
 /*
  * alps_run functions - Functions related to launching a new aprun session
@@ -299,7 +299,7 @@ extern void destroy_appHostPlacementList(appHostPlacementList_t *placement_list)
  *      The pid_t of the forked aprun process or 0 on error.
  * 
  */
-extern pid_t    launchAprun_barrier(char **aprun_argv, int redirectOutput, 
+extern pid_t	launchAprun_barrier(char **aprun_argv, int redirectOutput, 
                         int redirectInput, int stdout_fd, int stderr_fd,
                         char *inputFile);
 
@@ -323,7 +323,7 @@ extern pid_t    launchAprun_barrier(char **aprun_argv, int redirectOutput,
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      releaseAprun_barrier(pid_t aprunPid);
+extern int	releaseAprun_barrier(pid_t aprunPid);
 
 /*
  * killAprun - Send a signal using the apkill mechanism to a aprun session
@@ -342,7 +342,7 @@ extern int      releaseAprun_barrier(pid_t aprunPid);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      killAprun(pid_t aprunPid, int signum);
+extern int	killAprun(pid_t aprunPid, int signum);
 
 
 /*
@@ -412,7 +412,7 @@ extern int      killAprun(pid_t aprunPid, int signum);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      sendCNodeExec(pid_t aprunPid, char *fstr, char **args, 
+extern int	sendCNodeExec(pid_t aprunPid, char *fstr, char **args, 
                         char **env, int debug);
 
 /*
@@ -440,7 +440,7 @@ extern int      sendCNodeExec(pid_t aprunPid, char *fstr, char **args,
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      sendCNodeBinary(pid_t aprunPid, char *fstr);
+extern int	sendCNodeBinary(pid_t aprunPid, char *fstr);
 
 /*
  * sendCNodeLibrary - Ship a shared library to the compute nodes associated
@@ -464,7 +464,7 @@ extern int      sendCNodeBinary(pid_t aprunPid, char *fstr);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      sendCNodeLibrary(pid_t aprunPid, char *fstr);
+extern int	sendCNodeLibrary(pid_t aprunPid, char *fstr);
 
 /*
  * sendCNodeFile - Ship a regular file to the compute nodes associated with a
@@ -486,6 +486,6 @@ extern int      sendCNodeLibrary(pid_t aprunPid, char *fstr);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int      sendCNodeFile(pid_t aprunPid, char *fstr);
+extern int	sendCNodeFile(pid_t aprunPid, char *fstr);
 
 #endif /* _TOOL_FRONTEND_H */

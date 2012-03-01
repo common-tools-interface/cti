@@ -32,7 +32,7 @@
  *			tool daemon. This is automatically set when the dlaunch
  *			utility launches the tool daemon on the compute node.	
  */
-#define APID_ENV_VAR		"CRAYTOOL_APID"
+#define APID_ENV_VAR	"CRAYTOOL_APID"
 
 /* struct typedefs */
 typedef struct
@@ -76,7 +76,7 @@ typedef struct
  *      contain the actual PE rank/PE pid pairings.
  *
  */
-extern nodeAppPidList_t *       findAppPids(void);
+extern nodeAppPidList_t *	findAppPids(void);
 
 /*
  * destroy_nodeAppPidList - Used to destroy the memory allocated for a 
@@ -95,7 +95,7 @@ extern nodeAppPidList_t *       findAppPids(void);
  *      Void. This function behaves similarly to free().
  *
  */
-extern void                     destroy_nodeAppPidList(nodeAppPidList_t *pid_list);
+extern void	destroy_nodeAppPidList(nodeAppPidList_t *pid_list);
 
 /*
  * getNodeCName - Returns the cabinet hostname of the compute node.
@@ -112,7 +112,7 @@ extern void                     destroy_nodeAppPidList(nodeAppPidList_t *pid_lis
  *      A string containing the cname host, or else a null string on error.
  * 
  */
-extern char *                   getNodeCName(void);
+extern char *	getNodeCName(void);
 
 /*
  * getNodeNidName - Returns the nid hostname of the compute node.
@@ -129,7 +129,7 @@ extern char *                   getNodeCName(void);
  *      A string containing the nid hostname, or else a null string on error.
  * 
  */
-extern char *                   getNodeNidName(void);
+extern char *	getNodeNidName(void);
 
 /*
  * getNodeNid - Returns the node id of the compute node.
@@ -145,7 +145,7 @@ extern char *                   getNodeNidName(void);
  *      The integer value of the nid, or else -1 on error.
  * 
  */
-extern int                      getNodeNid(void);
+extern int	getNodeNid(void);
 
 /*
  * getFirstPE - Returns the first PE number that resides on the compute node.
@@ -162,7 +162,7 @@ extern int                      getNodeNid(void);
  *      The integer value of the first PE on the node, or else -1 on error.
  * 
  */
-extern int                      getFirstPE(void);
+extern int	getFirstPE(void);
 
 /*
  * getPesHere - Returns the number of PEs that reside on the compute node.
@@ -178,6 +178,6 @@ extern int                      getFirstPE(void);
  *      The integer value of the number of PEs on the node, or else -1 on error.
  * 
  */
-extern int                      getPesHere(void);
+extern int	getPesHere(void);
 
 #endif /* _TOOL_BACKEND_H */

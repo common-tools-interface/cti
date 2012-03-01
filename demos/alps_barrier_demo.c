@@ -42,9 +42,9 @@ main(int argc, char **argv)
 	pid_t		mypid;
 	uint64_t	myapid;
 	char *		mycname;
-	int		mynid;
-	int		mynumpes;
-	int		mynumnodes;
+	int			mynid;
+	int			mynumpes;
+	int			mynumnodes;
 	char **		myhostlist;
 	appHostPlacementList_t * myhostplacement;
 	// internal variables
