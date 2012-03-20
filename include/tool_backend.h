@@ -29,10 +29,17 @@
  * are defined here.
  *
  * APID_ENV_VAR		Used to keep track of the apid associated with the
- *			tool daemon. This is automatically set when the dlaunch
- *			utility launches the tool daemon on the compute node.	
+ *					tool daemon. This is automatically set when the dlaunch
+ *					utility launches the tool daemon on the compute node.
+ * SCRATCH_ENV_VAR	The environment variable that is used to denote temporary
+ *					storage space. This is automatically set when the dlaunch
+ *					utility launches the tool daemon on the compute node. This
+ *					is the canonical Unix environment variable that denotes
+ *					scratch space.
  */
 #define APID_ENV_VAR	"CRAYTOOL_APID"
+#define SCRATCH_ENV_VAR	"TMPDIR"
+
 
 /* struct typedefs */
 typedef struct
