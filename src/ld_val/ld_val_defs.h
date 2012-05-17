@@ -31,20 +31,4 @@
 #define CTL_CHANNEL_SIZE	1
 #define BLOCK_SIZE		20
 
-// We should check the 64 bit linker first since most
-// apps are built using x86-64 nowadays.
-// Check the lsb linker last. (do we even use lsb code?)
-// lsb = linux standard base
-const char *linkers[] = {
-	"/lib64/ld-linux-x86-64.so.2",
-	"/lib/ld-linux.so.2",
-	"/lib64/ld-2.9.so",
-	"/lib/ld-2.9.so",
-	"/lib64/ld-lsb-x86-64.so.2",
-	"/lib/ld-lsb.so.2",
-	"/lib64/ld-lsb-x86-64.so.3",
-	"/lib/ld-lsb.so.3",
-	NULL
-	};
-
 #endif /* _LD_VAL_DEFS_H */

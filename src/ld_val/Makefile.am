@@ -20,7 +20,7 @@ AM_CFLAGS = -fPIC -Wall
 noinst_LTLIBRARIES 	= libld_val.la
 lib_LTLIBRARIES		= libaudit.la
 
-libld_val_la_SOURCES	= ld_val.c ld_val_defs.h ld_val.h
+libld_val_la_SOURCES	= ld_val.c
 if USE_INTERNAL_CFLAGS
 libld_val_la_CFLAGS     = $(AM_CFLAGS) -g -O2
 else
@@ -28,10 +28,13 @@ libld_val_la_CFLAGS     = $(AM_CFLAGS)
 endif
 libld_val_la_LDFLAGS	= -static -no-undefined
 
-libaudit_la_SOURCES	= audit.c ld_val_defs.h
+libaudit_la_SOURCES	= audit.c
 if USE_INTERNAL_CFLAGS
 libaudit_la_CFLAGS      = $(AM_CFLAGS) -g
 else
 libaudit_la_CFLAGS      = $(AM_CFLAGS)
 endif
 libaudit_la_LDFLAGS	= -shared -avoid-version
+
+noinst_HEADERS		= ld_val.h ld_val_defs.h
+

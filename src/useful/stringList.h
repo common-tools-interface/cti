@@ -32,7 +32,7 @@ typedef struct
 /* function prototypes */
 stringList_t *  newStringList(void);
 int             consumeStringList(stringList_t *);
-int             searchStringList(stringList_t *, char *);
-int             addString(stringList_t *, char *);
+int             searchStringList(stringList_t *, const char *);
+int             addString(stringList_t *, const char *);
 
 #endif /* _STRINGLIST_H */

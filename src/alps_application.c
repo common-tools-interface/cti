@@ -294,6 +294,7 @@ newApp(pid_t aprunPid)
 {
 	appList_t *		lstPtr;
 	appEntry_t *	this;
+	const char **	ignore_ptr;
 	
 	// grow the global my_apps list and get its new appList_t entry
 	if ((lstPtr = growAppsList()) == (appList_t *)NULL)
@@ -363,6 +364,16 @@ newApp(pid_t aprunPid)
 		reapAppsList();
 		consumeAppEntry(this);
 		return (appEntry_t *)NULL;
+	}
+	// Add the ignored library strings to the shipped_libs string list.
+	for (ignore_ptr=__ignored_libs; *ignore_ptr != NULL; ++ignore_ptr)
+	{
+		if (addString(this->shipped_libs, *ignore_ptr))
+		{
+			reapAppsList();
+			consumeAppEntry(this);
+			return (appEntry_t *)NULL;
+		}
 	}
 	if ((this->shipped_files = newStringList()) == (stringList_t *)NULL)
 	{

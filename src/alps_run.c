@@ -41,7 +41,7 @@ static void consumeAprunInv(aprunInv_t *);
 static aprunInv_t * findAprunInv(pid_t);
 
 // global aprunInv_t list
-aprunInv_t *	head = (aprunInv_t *)NULL;
+static aprunInv_t *	head = (aprunInv_t *)NULL;
 
 static void
 reapAprunInv(pid_t aprunPid)

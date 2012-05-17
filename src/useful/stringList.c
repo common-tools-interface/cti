@@ -139,13 +139,13 @@ consumeStringList(stringList_t *lst)
 }
 
 int
-searchStringList(stringList_t *lst, char *str)
+searchStringList(stringList_t *lst, const char *str)
 {
 	char **str_ptr;
 	int i = lst->num;
 	
 	// sanity check
-	if (lst == (stringList_t *)NULL || str == (char *)NULL)
+	if (lst == (stringList_t *)NULL || str == (const char *)NULL)
 		return 0;
 		
 	// shouldn't happen, but better safe then sorry
@@ -168,10 +168,10 @@ searchStringList(stringList_t *lst, char *str)
 }
 
 int
-addString(stringList_t *lst, char *str)
+addString(stringList_t *lst, const char *str)
 {
 	// sanity check
-	if (lst == (stringList_t *)NULL || str == (char *)NULL)
+	if (lst == (stringList_t *)NULL || str == (const char *)NULL)
 		return 1;
 		
 	// ensure room exists in the list

@@ -48,16 +48,31 @@ static int destroy_shm_segs(void);
 static int save_str(char *);
 static char ** make_rtn_array(void);
 
+/* list of valid linkers */
+// We should check the 64 bit linker first since most
+// apps are built using x86-64 nowadays.
+// Check the lsb linker last. (do we even use lsb code?)
+// lsb = linux standard base
+static const char *linkers[] = {
+	"/lib64/ld-linux-x86-64.so.2",
+	"/lib/ld-linux.so.2",
+	"/lib64/ld-lsb-x86-64.so.2",
+	"/lib/ld-lsb.so.2",
+	"/lib64/ld-lsb-x86-64.so.3",
+	"/lib/ld-lsb.so.3",
+	NULL
+};
+
 /* global variables */
-key_t	key_a;
-key_t	key_b;
-int		shmid;
-int		shm_ctlid;
-char *	shm;
-char *	shm_ctl;
-int		num_ptrs;
-int		num_alloc;
-char **	tmp_array = (char **)NULL;
+static key_t	key_a;
+static key_t	key_b;
+static int		shmid;
+static int		shm_ctlid;
+static char *	shm;
+static char *	shm_ctl;
+static int		num_ptrs;
+static int		num_alloc;
+static char **	tmp_array = (char **)NULL;
 
 int
 creat_shm_segs()

@@ -21,9 +21,9 @@
 
 #define EXTRA_LIBRARY_PATH  "/lib64:/usr/lib64:/lib:/usr/lib"
 
-char *pathFind(const char *, const char *);
-char *libFind(const char *, const char *);
-int adjustPaths(char *);
-char *pathToName(char *);
+char *	pathFind(const char *, const char *);
+char *	libFind(const char *, const char *);
+int		adjustPaths(char *);
+char *	pathToName(char *);
 
 #endif /* _PATH_H */
