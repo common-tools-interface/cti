@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 
 #include "alps_run.h"
@@ -538,6 +539,9 @@ killAprun(pid_t aprunPid, int signum)
 	reapAprunInv(aprunPid);
 	// deregister this aprunPid from the alps_transfer interface
 	deregisterAprunPid(aprunPid);
+	
+	// wait until the apkill finishes
+	waitpid(mypid, NULL, 0);
 	
 	return 0;
 }

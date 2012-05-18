@@ -28,10 +28,11 @@
 # in any form.
 #
 # $HeadURL: http://svn/svn/debugger-support/tools_interface/trunk/src/Makefile.am $
-# $Date: 2011-12-15 14:06:34 -0600 (Thu, 15 Dec 2011) $
-# $Rev: 1452 $
+# $Date: 2012-05-17 16:19:04 -0500 (Thu, 17 May 2012) $
+# $Rev: 1682 $
 # $Author: andrewg $
 #
+
 
 
 VPATH = @srcdir@
@@ -55,7 +56,8 @@ build_triplet = @build@
 host_triplet = @host@
 bin_PROGRAMS = dlaunch$(EXEEXT)
 subdir = src
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
+DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
+	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
@@ -109,8 +111,8 @@ libcraytool_backend_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(AM_CFLAGS) $(CFLAGS) $(libcraytool_backend_la_LDFLAGS) \
 	$(LDFLAGS) -o $@
 libcraytool_frontend_la_DEPENDENCIES = $(LDVAL)/libld_val.la
-am_libcraytool_frontend_la_OBJECTS = alps_application.lo \
-	alps_transfer.lo alps_run.lo path.lo stringList.lo
+am_libcraytool_frontend_la_OBJECTS = alps_application.lo alps_run.lo \
+	alps_transfer.lo ignored_libraries.lo path.lo stringList.lo
 libcraytool_frontend_la_OBJECTS =  \
 	$(am_libcraytool_frontend_la_OBJECTS)
 libcraytool_frontend_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
@@ -155,6 +157,7 @@ SOURCES = $(libcraytool_backend_la_SOURCES) \
 	$(libcraytool_frontend_la_SOURCES) $(dlaunch_SOURCES)
 DIST_SOURCES = $(libcraytool_backend_la_SOURCES) \
 	$(libcraytool_frontend_la_SOURCES) $(dlaunch_SOURCES)
+HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -284,16 +287,19 @@ JOBLIBS = @JOB_LIBS@
 @USE_INTERNAL_CFLAGS_FALSE@AM_CFLAGS = -I$(LDVAL) -fPIC -Wall
 @USE_INTERNAL_CFLAGS_TRUE@AM_CFLAGS = -I$(LDVAL) -fPIC -Wall -g -O2
 lib_LTLIBRARIES = libcraytool_frontend.la libcraytool_backend.la
-libcraytool_frontend_la_SOURCES = alps_application.c alps_transfer.c alps_run.c useful/path.c \
-				  useful/stringList.c alps_application.h alps_transfer.h \
-				  alps_run.h useful.h
+libcraytool_frontend_la_SOURCES = alps_application.c alps_run.c alps_transfer.c ignored_libraries.c \
+				  useful/path.c useful/stringList.c 
 
 libcraytool_frontend_la_LIBADD = $(LDVAL)/libld_val.la
 libcraytool_frontend_la_LDFLAGS = -lalps -lxmlrpc -version-info $(CRAYTOOL_FE_VERSION)
-libcraytool_backend_la_SOURCES = alps_backend.c pmi_attribs_parser.c alps_backend.h pmi_attribs_parser.h
+libcraytool_backend_la_SOURCES = alps_backend.c pmi_attribs_parser.c
 libcraytool_backend_la_LDFLAGS = $(JOBLIBS) -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
-dlaunch_SOURCES = daemon_launcher.c useful/path.c useful/log.c useful/useful.h
+dlaunch_SOURCES = daemon_launcher.c useful/path.c useful/log.c
 dlaunch_CFLAGS = $(AM_CFLAGS)
+noinst_HEADERS = alps_application.h alps_run.h alps_transfer.h \
+		  alps_backend.h pmi_attribs_parser.h \
+		  useful/log.h useful/path.h useful/stringList.h useful/useful.h
+
 all: all-am
 
 .SUFFIXES:
@@ -423,6 +429,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-daemon_launcher.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-path.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ignored_libraries.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/path.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pmi_attribs_parser.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stringList.Plo@am__quote@
@@ -594,7 +601,7 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(LTLIBRARIES) $(PROGRAMS)
+all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(HEADERS)
 install-binPROGRAMS: install-libLTLIBRARIES
 
 installdirs:

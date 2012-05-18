@@ -30,7 +30,7 @@ lib_LTLIBRARIES	= libcraytool_frontend.la libcraytool_backend.la
 libcraytool_frontend_la_SOURCES = alps_application.c alps_run.c alps_transfer.c ignored_libraries.c \
 				  useful/path.c useful/stringList.c 
 libcraytool_frontend_la_LIBADD	= $(LDVAL)/libld_val.la
-libcraytool_frontend_la_LDFLAGS	= -lalps -version-info $(CRAYTOOL_FE_VERSION)
+libcraytool_frontend_la_LDFLAGS	= -lalps -lxmlrpc -version-info $(CRAYTOOL_FE_VERSION)
 
 libcraytool_backend_la_SOURCES	= alps_backend.c pmi_attribs_parser.c
 libcraytool_backend_la_LDFLAGS	= $(JOBLIBS) -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)

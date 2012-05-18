@@ -18,6 +18,8 @@
  *
  *********************************************************************************/
 
+#include <stdio.h>
+
 /* 
 ** This list may need to be updated with each new release of CNL.
 */
