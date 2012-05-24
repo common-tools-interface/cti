@@ -330,6 +330,9 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 	if (read(myapp->pipeCtl.pipe_w, &myapp->pipeCtl.sync_int, sizeof(myapp->pipeCtl.sync_int)) <= 0)
 	{
 		fprintf(stderr, "Aprun launch failed.\n");
+		// attempt to kill aprun since the caller will not recieve the aprun pid
+		// just in case the aprun process is still hanging around.
+		killAprun(myapp->aprunPid, DEFAULT_SIG);
 		free(myapp);
 		return 0;
 	}
