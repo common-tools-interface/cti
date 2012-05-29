@@ -28,8 +28,8 @@
 # in any form.
 #
 # $HeadURL: http://svn/svn/debugger-support/tools_interface/trunk/src/Makefile.am $
-# $Date: 2012-05-17 16:19:04 -0500 (Thu, 17 May 2012) $
-# $Rev: 1682 $
+# $Date: 2012-05-18 14:59:29 -0500 (Fri, 18 May 2012) $
+# $Rev: 1691 $
 # $Author: andrewg $
 #
 
@@ -112,7 +112,7 @@ libcraytool_backend_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(LDFLAGS) -o $@
 libcraytool_frontend_la_DEPENDENCIES = $(LDVAL)/libld_val.la
 am_libcraytool_frontend_la_OBJECTS = alps_application.lo alps_run.lo \
-	alps_transfer.lo ignored_libraries.lo path.lo stringList.lo
+	alps_transfer.lo path.lo stringList.lo
 libcraytool_frontend_la_OBJECTS =  \
 	$(am_libcraytool_frontend_la_OBJECTS)
 libcraytool_frontend_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
@@ -287,11 +287,11 @@ JOBLIBS = @JOB_LIBS@
 @USE_INTERNAL_CFLAGS_FALSE@AM_CFLAGS = -I$(LDVAL) -fPIC -Wall
 @USE_INTERNAL_CFLAGS_TRUE@AM_CFLAGS = -I$(LDVAL) -fPIC -Wall -g -O2
 lib_LTLIBRARIES = libcraytool_frontend.la libcraytool_backend.la
-libcraytool_frontend_la_SOURCES = alps_application.c alps_run.c alps_transfer.c ignored_libraries.c \
+libcraytool_frontend_la_SOURCES = alps_application.c alps_run.c alps_transfer.c \
 				  useful/path.c useful/stringList.c 
 
 libcraytool_frontend_la_LIBADD = $(LDVAL)/libld_val.la
-libcraytool_frontend_la_LDFLAGS = -lalps -lxmlrpc -version-info $(CRAYTOOL_FE_VERSION)
+libcraytool_frontend_la_LDFLAGS = -lalps -version-info $(CRAYTOOL_FE_VERSION)
 libcraytool_backend_la_SOURCES = alps_backend.c pmi_attribs_parser.c
 libcraytool_backend_la_LDFLAGS = $(JOBLIBS) -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
 dlaunch_SOURCES = daemon_launcher.c useful/path.c useful/log.c
@@ -429,7 +429,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-daemon_launcher.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-path.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ignored_libraries.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/path.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pmi_attribs_parser.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stringList.Plo@am__quote@

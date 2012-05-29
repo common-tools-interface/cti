@@ -27,9 +27,6 @@
 /* Define to 1 if you have the job library (-ljob). */
 #undef HAVE_LIBJOB
 
-/* Define to 1 if you have the xmlrpc library (-lxmlrpc). */
-#undef HAVE_LIBXMLRPC
-
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
 

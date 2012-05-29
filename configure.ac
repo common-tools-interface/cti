@@ -79,17 +79,6 @@ AC_CHECK_LIB([c],
 	     [AC_MSG_ERROR([libc not found!!!])]
 	     )
 
-dnl Check for libxmlrpc
-AC_CHECK_LIB([xmlrpc], 
-	     [XMLRPC_Free], 
-	     [AC_DEFINE([HAVE_LIBXMLRPC],
-			[1],
-			[Define to 1 if you have the xmlrpc library (-lxmlrpc).]
-			)
-	      ],
-	     [AC_MSG_ERROR([libxmlrpc not found.])]
-	     )
-
 dnl Check for libalps
 AC_CHECK_LIB([alps], 
 	     [alpsGetMyNid],
@@ -99,7 +88,6 @@ AC_CHECK_LIB([alps],
 			)
 	      ],
 	     [AC_MSG_ERROR([libalps not found.])],
-	     [-lxmlrpc]
 	     )
 
 dnl Check for libalpsutil
@@ -111,7 +99,6 @@ AC_CHECK_LIB([alpsutil],
 			)
 	      ],
 	     [AC_MSG_ERROR([libalpsutil not found.])]
-	     [-lxmlrpc]
 	     )
 
 dnl Note that the job include path is not in the normal system location.

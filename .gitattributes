@@ -44,7 +44,6 @@ src/alps_run.h -text
 src/alps_transfer.c -text
 src/alps_transfer.h -text
 src/daemon_launcher.c -text
-src/ignored_libraries.c -text
 src/ld_val/Makefile.am -text
 src/ld_val/Makefile.in -text
 src/ld_val/audit.c -text

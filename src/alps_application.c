@@ -43,6 +43,26 @@ static serviceNode_t *	getSvcNodeInfo(void);
 static serviceNode_t *	svcNid = (serviceNode_t *)NULL;	// service node information
 static appList_t *		my_apps = (appList_t *)NULL;	// global list pertaining to known aprun sessions
 
+/* 
+** This list may need to be updated with each new release of CNL.
+*/
+static const char * __ignored_libs[] = {
+	"libdl.so.2",
+	"libc.so.6",
+	"libvolume_id.so.1",
+	"libcidn.so.1",
+	"libnsl.so.1",
+	"librt.so.1",
+	"libutil.so.1",
+	"libpthread.so.0",
+	"libudev.so.0",
+	"libcrypt.so.1",
+	"libz.so.1",
+	"libm.so.6",
+	"libnss_files.so.2",
+	NULL
+};
+
 static appList_t *
 growAppsList()
 {

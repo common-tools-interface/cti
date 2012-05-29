@@ -73,9 +73,6 @@ typedef struct
         nodeHostPlacement_t *   hosts;
 } appHostPlacementList_t;
 
-/* global variables */
-extern const char ** __ignored_libs;
-
 /* function prototypes */
 appEntry_t *    findApp(pid_t);
 appEntry_t *    newApp(pid_t);
