@@ -74,7 +74,7 @@ static int		num_ptrs;
 static int		num_alloc;
 static char **	tmp_array = (char **)NULL;
 
-int
+static int
 creat_shm_segs()
 {
 	/*
@@ -118,7 +118,7 @@ creat_shm_segs()
 	return 0;
 }
 
-int
+static int
 attach_shm_segs()
 {
 	/*
@@ -138,7 +138,7 @@ attach_shm_segs()
 	return 0;
 }
 
-int
+static int
 destroy_shm_segs()
 {
 	int ret = 0;
@@ -158,7 +158,7 @@ destroy_shm_segs()
 	return ret;
 }
 
-int
+static int
 save_str(char *str)
 {
 	if (str == (char *)NULL)
@@ -179,7 +179,7 @@ save_str(char *str)
 	return num_ptrs;
 }
 
-char **
+static char **
 make_rtn_array()
 {
 	char **rtn;
