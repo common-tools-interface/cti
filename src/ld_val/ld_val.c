@@ -47,6 +47,9 @@ static int attach_shm_segs(void);
 static int destroy_shm_segs(void);
 static int save_str(char *);
 static char ** make_rtn_array(void);
+static char * ld_get_lib(int);
+static char * ld_verify(char *);
+static int ld_load(char *, char *, char *);
 
 /* list of valid linkers */
 // We should check the 64 bit linker first since most
@@ -210,7 +213,7 @@ make_rtn_array()
 	return rtn;
 }
 
-char *
+static char *
 ld_verify(char *executable)
 {
 	const char *linker = NULL;
@@ -260,7 +263,7 @@ ld_verify(char *executable)
 	return (char *)linker;
 }
 
-int
+static int
 ld_load(char *linker, char *executable, char *lib)
 {
 	int pid, fc;
@@ -303,7 +306,7 @@ ld_load(char *linker, char *executable, char *lib)
 	return pid;
 }
 
-char *
+static char *
 ld_get_lib(int pid)
 {
 	char *libstr;
@@ -419,7 +422,11 @@ ld_val(char *executable)
 		// as it will always be the ld.so we are using to
 		// get the shared libraries.
 		if (++rec == 1)
+		{
+			if (libstr != (char *)NULL)
+				free(libstr);
 			continue;
+		}
 		
 		// if we recieved a null, we might be done.
 		if (libstr == (char *)NULL)

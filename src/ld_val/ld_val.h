@@ -21,9 +21,10 @@
 #ifndef _LD_VAL_H
 #define _LD_VAL_H
 
-char *  ld_verify(char *);
-int     ld_load(char *, char *, char *);
-char *  ld_get_lib(int);
+// User should pass in a fullpath string of an executable, this returns a null
+// terminated array of strings containing location of dso dependencies.
+// The caller is expected to free each of the returned strings as well as the
+// string buffer.
 char ** ld_val(char *);
 
 #endif /* _LD_VAL_H */
