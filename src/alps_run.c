@@ -392,7 +392,6 @@ releaseAprun_barrier(pid_t aprunPid)
 int
 killAprun(pid_t aprunPid, int signum)
 {
-	aprunInv_t * appPtr;
 	int          mypid;
 	uint64_t     apid, i;
 	int          sig, j;
@@ -412,10 +411,6 @@ killAprun(pid_t aprunPid, int signum)
 	{
 		sig = DEFAULT_SIG;
 	}
-		
-	// find the aprunInv_t entry in the global list
-	if ((appPtr = findAprunInv(aprunPid)) == (aprunInv_t *)NULL)
-		return 1;
 		
 	// get the apid associated with this aprunPid
 	if ((apid = getApid(aprunPid)) == 0)
