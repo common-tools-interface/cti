@@ -171,7 +171,16 @@ main(int argc, char **argv)
 	}
 	
 	// get the apid from the toolhelper path from argv[0]
-	sscanf(argv[0], "/var/spool/alps/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid);
+	if ((sscanf(argv[0], "/var/spool/alps/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid)) == 0)
+	{
+		// fix for CLE 5.0 changes
+		if ((sscanf(argv[0], "/var/opt/cray/alps/spool/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid)) == 0)
+		{
+			// failure
+			fprintf(stderr, "sscanf apid failed");
+			return 1;
+		}
+	}
 	// write the apid to the apid_str
 	snprintf(apid_str, APID_STR_BUF_LEN, "%llu", (long long unsigned int)apid);
 	
