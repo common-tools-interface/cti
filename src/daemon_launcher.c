@@ -38,6 +38,8 @@
 #define APID_ENV_VAR		"CRAYTOOL_APID"
 #define APID_STR_BUF_LEN	32
 #define SCRATCH_ENV_VAR	"TMPDIR"
+#define SHELL_ENV_VAR		"SHELL"
+#define SHELL_VAR			"/bin/sh"
 
 static int debug_flag = 0;
 
@@ -252,6 +254,16 @@ main(int argc, char **argv)
 	// ALPS will enforce cleanup here and the tool is guaranteed to be able to write
 	// to it.
 	if (setenv(SCRATCH_ENV_VAR, tool_path, 1) < 0)
+	{
+		// failure
+		fprintf(stderr, "setenv failed");
+		return 1;
+	}
+	
+	// set the SHELL environment variable to the shell included on the compute
+	// node. Note that other shells other than /bin/sh are not currently supported
+	// in CNL.
+	if (setenv(SHELL_ENV_VAR, SHELL_VAR, 1) < 0)
 	{
 		// failure
 		fprintf(stderr, "setenv failed");
