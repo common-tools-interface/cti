@@ -64,19 +64,9 @@ AM_CONDITIONAL([USE_INTERNAL_CFLAGS], [test "x${ac_cv_env_CFLAGS_set}" = "x"])
 
 dnl This m4 macro will grab the required ALPS RPM from CSS and extract it with
 dnl cpio. It will create varibales $ALPS_LIB_PATH and $ALPS_INC_PATH which point
-dnl to the alps libraries and headers respectively.
+dnl to the alps libraries and headers respectively. It will also modify LDFLAGS,
+dnl CFLAGS, and CPPFLAGS.
 cray_SETUP_ALPS_RPMS
-
-dnl Add the system alps libs to the library search path
-if test -d "$ALPS_LIB_PATH"; then
-	LDFLAGS="$LDFLAGS -L$ALPS_LIB_PATH"
-fi
-
-dnl Add the system alps include to the header search path
-if test -d "$ALPS_INC_PATH"; then
-	CPPFLAGS="$CPPFLAGS -I$ALPS_INC_PATH"
-	CFLAGS="$CFLAGS -I$ALPS_INC_PATH"
-fi
 
 ############################
 ### Check for libraries. ###

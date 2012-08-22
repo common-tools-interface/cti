@@ -618,6 +618,7 @@ ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
 LIBOBJS
+XMLRPC_LIB_PATH
 ALPS_INC_PATH
 ALPS_LIB_PATH
 CPIO
@@ -12323,10 +12324,25 @@ fi
 
 
 
-		ALPS_RPM_VERS="4.1"
-	ALPS_RPM_DIR_DEF="/cray/css/release/cray/build/alps_gemini/sles11sp1/x86_64/RB-4.1/published/latest/RPMS/x86_64"
-	ALPS_RPM_1="alps-4.1.0-2.0401.7442.1.gem.x86_64.rpm"
-	ALPS_RPM_2="alps-app-devel-4.1.0-2.0401.7442.1.gem.x86_64.rpm"
+			CLE_RPM_VERS="4.1"
+
+		ALPS_RPM_DIR="/cray/css/release/cray/build/alps_gemini/sles11sp1/x86_64/RB-4.1/published/latest/RPMS/x86_64"
+
+		XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp1/x86_64/trunk-gem/working/latest/3rd-party/x86_64"
+
+	if test -d "$ALPS_RPM_DIR"; then
+		ALPS_RPM_1=$(find $ALPS_RPM_DIR/alps-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)
+		ALPS_RPM_2=$(find $ALPS_RPM_DIR/alps-app-devel-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)
+	else
+		as_fn_error $? "ALPS RPM directory $ALPS_RPM_DIR not found." "$LINENO" 5
+	fi
+
+	if test -d "$XMLRPC_RPM_DIR"; then
+		XMLRPC_RPM_1=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi0-[0-9\.\-]*.x86_64.rpm)
+		XMLRPC_RPM_2=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi-devel-[0-9\.\-]*.x86_64.rpm)
+	else
+		as_fn_error $? "XMLRPC RPM directory $XMLRPC_RPM_DIR not found." "$LINENO" 5
+	fi
 
 
 
@@ -12424,13 +12440,15 @@ fi
 	fi
 
 		_cray_curdir=$(pwd)
-	_cray_tmpdir="$_cray_curdir/alps_base/$ALPS_RPM_VERS"
+	_cray_tmpdir="$_cray_curdir/alps_base/$CLE_RPM_VERS"
 
 	if test ! -d "$_cray_tmpdir"; then :
   	as_dir=$_cray_tmpdir; as_fn_mkdir_p
 				cd $_cray_tmpdir
-				$RPM2CPIO $ALPS_RPM_DIR_DEF/$ALPS_RPM_1 | $CPIO -idv
-				$RPM2CPIO $ALPS_RPM_DIR_DEF/$ALPS_RPM_2 | $CPIO -idv
+				$RPM2CPIO $ALPS_RPM_1 | $CPIO -idv
+				$RPM2CPIO $ALPS_RPM_2 | $CPIO -idv
+				$RPM2CPIO $XMLRPC_RPM_1 | $CPIO -idv
+				$RPM2CPIO $XMLRPC_RPM_2 | $CPIO -idv
 				cd $_cray_curdir
 				{ $as_echo "$as_me:${as_lineno-$LINENO}: Created ALPS staging location at $_cray_tmpdir" >&5
 $as_echo "$as_me: Created ALPS staging location at $_cray_tmpdir" >&6;}
@@ -12441,16 +12459,22 @@ fi
 
 	ALPS_INC_PATH=$_cray_tmpdir/usr/include/alps/
 
+	XMLRPC_LIB_PATH=$_cray_tmpdir/usr/lib64/
 
 
-if test -d "$ALPS_LIB_PATH"; then
-	LDFLAGS="$LDFLAGS -L$ALPS_LIB_PATH"
-fi
+		if test -d "$ALPS_LIB_PATH"; then
+		LDFLAGS="$LDFLAGS -L$ALPS_LIB_PATH"
+	fi
 
-if test -d "$ALPS_INC_PATH"; then
-	CPPFLAGS="$CPPFLAGS -I$ALPS_INC_PATH"
-	CFLAGS="$CFLAGS -I$ALPS_INC_PATH"
-fi
+		if test -d "$ALPS_INC_PATH"; then
+		CPPFLAGS="$CPPFLAGS -I$ALPS_INC_PATH"
+		CFLAGS="$CFLAGS -I$ALPS_INC_PATH"
+	fi
+
+		if test -d "$XMLRPC_LIB_PATH"; then
+		LDFLAGS="$LDFLAGS -L$XMLRPC_LIB_PATH"
+	fi
+
 
 ############################
 ### Check for libraries. ###

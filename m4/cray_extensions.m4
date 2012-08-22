@@ -36,11 +36,29 @@ dnl create alps files in a staging location
 dnl
 AC_DEFUN([cray_SETUP_ALPS_RPMS],
 [
+	dnl Set this to the CLE base version we are buidling against. Note that this
+	dnl does not include update level information.
+	CLE_RPM_VERS="4.1"
+
 	dnl Set this to the location of the alps RPMS we should build against
-	ALPS_RPM_VERS="4.1"
-	ALPS_RPM_DIR_DEF="/cray/css/release/cray/build/alps_gemini/sles11sp1/x86_64/RB-4.1/published/latest/RPMS/x86_64"
-	ALPS_RPM_1="alps-4.1.0-2.0401.7442.1.gem.x86_64.rpm"
-	ALPS_RPM_2="alps-app-devel-4.1.0-2.0401.7442.1.gem.x86_64.rpm"
+	ALPS_RPM_DIR="/cray/css/release/cray/build/alps_gemini/sles11sp1/x86_64/RB-4.1/published/latest/RPMS/x86_64"
+	
+	dnl Set this to the location of the xmlrpc-epi RPMS we should build against
+	XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp1/x86_64/trunk-gem/working/latest/3rd-party/x86_64"
+	
+	if test -d "$ALPS_RPM_DIR"; then
+		[ALPS_RPM_1=$(find $ALPS_RPM_DIR/alps-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)]
+		[ALPS_RPM_2=$(find $ALPS_RPM_DIR/alps-app-devel-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)]
+	else
+		AC_MSG_ERROR([ALPS RPM directory $ALPS_RPM_DIR not found.])
+	fi
+	
+	if test -d "$XMLRPC_RPM_DIR"; then
+		[XMLRPC_RPM_1=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi0-[0-9\.\-]*.x86_64.rpm)]
+		[XMLRPC_RPM_2=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi-devel-[0-9\.\-]*.x86_64.rpm)]
+	else
+		AC_MSG_ERROR([XMLRPC RPM directory $XMLRPC_RPM_DIR not found.])
+	fi
 
 	AC_PROG_MKDIR_P
 	
@@ -59,17 +77,36 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 
 	dnl Create a temporary directory to extract the alps libraries to
 	_cray_curdir=$(pwd)
-	_cray_tmpdir="$_cray_curdir/alps_base/$ALPS_RPM_VERS"
+	_cray_tmpdir="$_cray_curdir/alps_base/$CLE_RPM_VERS"
 
 	AS_IF(	[test ! -d "$_cray_tmpdir"],
 			[	AS_MKDIR_P([$_cray_tmpdir])
 				cd $_cray_tmpdir
-				$RPM2CPIO $ALPS_RPM_DIR_DEF/$ALPS_RPM_1 | $CPIO -idv
-				$RPM2CPIO $ALPS_RPM_DIR_DEF/$ALPS_RPM_2 | $CPIO -idv
+				$RPM2CPIO $ALPS_RPM_1 | $CPIO -idv
+				$RPM2CPIO $ALPS_RPM_2 | $CPIO -idv
+				$RPM2CPIO $XMLRPC_RPM_1 | $CPIO -idv
+				$RPM2CPIO $XMLRPC_RPM_2 | $CPIO -idv
 				cd $_cray_curdir
 				AC_MSG_NOTICE([Created ALPS staging location at $_cray_tmpdir])
 			])
 	
 	AC_SUBST([ALPS_LIB_PATH], [$_cray_tmpdir/usr/lib/alps/])
 	AC_SUBST([ALPS_INC_PATH], [$_cray_tmpdir/usr/include/alps/])
+	AC_SUBST([XMLRPC_LIB_PATH], [$_cray_tmpdir/usr/lib64/])
+	
+	dnl Add the alps libs to the library search path
+	if test -d "$ALPS_LIB_PATH"; then
+		LDFLAGS="$LDFLAGS -L$ALPS_LIB_PATH"
+	fi
+
+	dnl Add the alps include to the header search path
+	if test -d "$ALPS_INC_PATH"; then
+		CPPFLAGS="$CPPFLAGS -I$ALPS_INC_PATH"
+		CFLAGS="$CFLAGS -I$ALPS_INC_PATH"
+	fi
+	
+	dnl Add the xmlrpc libs to the library search path
+	if test -d "$XMLRPC_LIB_PATH"; then
+		LDFLAGS="$LDFLAGS -L$XMLRPC_LIB_PATH"
+	fi
 ])
