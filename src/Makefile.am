@@ -2,7 +2,7 @@
 # Makefile.am for the libcraytool and dlaunch components of the craytool 
 # interface.
 #
-# ©2011 Cray Inc.  All Rights Reserved.
+# ©2011-2012 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -10,14 +10,12 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-# $HeadURL$
-# $Date$
-# $Rev$
-# $Author$
-#
+## $HeadURL$
+## $Date$
+## $Rev$
+## $Author$
 
 LDVAL 	= ld_val
-JOBLIBS	= @JOB_LIBS@
 
 if USE_INTERNAL_CFLAGS
 AM_CFLAGS       = -I$(LDVAL) -fPIC -Wall -g -O2
@@ -33,7 +31,7 @@ libcraytool_frontend_la_LIBADD	= $(LDVAL)/libld_val.la
 libcraytool_frontend_la_LDFLAGS	= -lalps -version-info $(CRAYTOOL_FE_VERSION)
 
 libcraytool_backend_la_SOURCES	= alps_backend.c pmi_attribs_parser.c
-libcraytool_backend_la_LDFLAGS	= $(JOBLIBS) -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
+libcraytool_backend_la_LDFLAGS	= -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
 
 bin_PROGRAMS	= dlaunch
 dlaunch_SOURCES	= daemon_launcher.c useful/path.c useful/log.c

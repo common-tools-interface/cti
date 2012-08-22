@@ -1,7 +1,7 @@
 #
 # Makefile.am for the ldval and libaudit components of the craytool interface.
 #
-# ©2011 Cray Inc.  All Rights Reserved.
+# ©2011-2012 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -9,11 +9,10 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-# $HeadURL$
-# $Date$
-# $Rev$
-# $Author$
-#
+## $HeadURL$
+## $Date$
+## $Rev$
+## $Author$
 
 AM_CFLAGS = -fPIC -Wall
 

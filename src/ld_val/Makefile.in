@@ -18,18 +18,13 @@
 #
 # Makefile.am for the ldval and libaudit components of the craytool interface.
 #
-# ©2011 Cray Inc.  All Rights Reserved.
+# ©2011-2012 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
 # Except as permitted by contract or express written permission of Cray Inc.,
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
-#
-# $HeadURL: http://svn/svn/debugger-support/tools_interface/trunk/src/ld_val/Makefile.am $
-# $Date: 2012-05-17 16:19:04 -0500 (Thu, 17 May 2012) $
-# $Rev: 1682 $
-# $Author: andrewg $
 #
 
 
@@ -56,11 +51,10 @@ subdir = src/ld_val
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
-	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
-	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/cray_extensions.m4 \
+	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
+	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
+	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -144,6 +138,8 @@ ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
+ALPS_INC_PATH = @ALPS_INC_PATH@
+ALPS_LIB_PATH = @ALPS_LIB_PATH@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
@@ -154,6 +150,7 @@ AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CPIO = @CPIO@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CRAYTOOL_BE_VERSION = @CRAYTOOL_BE_VERSION@
@@ -177,8 +174,6 @@ INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
-JOB_CFLAGS = @JOB_CFLAGS@
-JOB_LIBS = @JOB_LIBS@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
@@ -204,8 +199,8 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
-PKG_CONFIG = @PKG_CONFIG@
 RANLIB = @RANLIB@
+RPM2CPIO = @RPM2CPIO@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@

@@ -24,9 +24,6 @@
 /* Define to 1 if you have the `c' library (-lc). */
 #undef HAVE_LIBC
 
-/* Define to 1 if you have the job library (-ljob). */
-#undef HAVE_LIBJOB
-
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
 

@@ -5,7 +5,7 @@
  *		   associated with an aprun pid. This can also be used to launch
  *		   tool daemons on the compute nodes in an automated way.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2012 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

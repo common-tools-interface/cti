@@ -8,5 +8,5 @@ Description: The frontend component of the craytool interface. Exposes a useful 
 Version: @VERSION@
 Requires:
 Libs: -L${libdir}
-Libs.private: -lalps -lxmlrpc
+Libs.private: -lalps -lxmlrpc-epi -lexpat
 Cflags: -I${includedir}

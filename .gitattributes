@@ -1,7 +1,6 @@
 * text=auto !eol
 /Makefile.am -text
 /Makefile.in -text
-/acinclude.m4 -text
 /aclocal.m4 -text
 /config.h.in -text
 config/compile -text
@@ -26,6 +25,7 @@ demos/alps_transfer_demo.c -text
 demos/testing.info -text
 include/tool_backend.h -text
 include/tool_frontend.h -text
+m4/cray_extensions.m4 -text
 m4/libtool.m4 -text
 m4/ltoptions.m4 -text
 m4/ltsugar.m4 -text

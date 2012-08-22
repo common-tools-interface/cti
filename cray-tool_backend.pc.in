@@ -8,5 +8,5 @@ Description: The backend component of the craytool interface. Exposes a useful A
 Version: @VERSION@
 Requires:
 Libs: -L${libdir}
-Libs.private: -ljob -ljobctl -lalpsutil
+Libs.private: -lalpsutil
 Cflags: -I${includedir}

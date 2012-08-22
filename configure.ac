@@ -1,7 +1,7 @@
 #
 # configure.ac script for the craytool interface.
 #
-# © 2010-2011 Cray Inc. All Rights Reserved
+# © 2010-2012 Cray Inc. All Rights Reserved
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -9,16 +9,17 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-# $HeadURL$
-# $Date$
-# $Rev$
-# $Author$
-#
+dnl $HeadURL$
+dnl $Date$
+dnl $Rev$
+dnl $Author$
 
 AC_PREREQ([2.68])
 
-AC_INIT([craytool_interface], [CRAYTOOL_RELEASE], [andrewg@cray.com])
-AC_COPYRIGHT([© 2011 Cray Inc. All Rights Reserved.])
+dnl We need to use the m4_esyscmd_s here because the Cray macro extensions are
+dnl not pulled in until after AC_INIT
+AC_INIT([craytool_interface], [m4_esyscmd_s([. release_versioning; echo $craytool_major.$craytool_minor])], [andrewg@cray.com])
+AC_COPYRIGHT([© 2011-2012 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/alps_application.c])
 AC_CONFIG_AUX_DIR([config])
@@ -31,6 +32,9 @@ AC_GNU_SOURCE
 
 AM_INIT_AUTOMAKE([foreign -Wall])
 LT_INIT
+
+dnl Pull in Cray specific m4 extensions
+cray_INIT
 
 AC_SUBST([craytool_srcdir], ["`cd $srcdir && pwd`"])
 AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
@@ -58,15 +62,20 @@ dnl the lightbulb turns on.
 AS_IF([test "x${ac_cv_env_CFLAGS_set}" = "x"], [CFLAGS=""])
 AM_CONDITIONAL([USE_INTERNAL_CFLAGS], [test "x${ac_cv_env_CFLAGS_set}" = "x"])
 
+dnl This m4 macro will grab the required ALPS RPM from CSS and extract it with
+dnl cpio. It will create varibales $ALPS_LIB_PATH and $ALPS_INC_PATH which point
+dnl to the alps libraries and headers respectively.
+cray_SETUP_ALPS_RPMS
+
 dnl Add the system alps libs to the library search path
-if test -d "/usr/lib/alps/"; then
-	LDFLAGS="$LDFLAGS -L/usr/lib/alps/"
+if test -d "$ALPS_LIB_PATH"; then
+	LDFLAGS="$LDFLAGS -L$ALPS_LIB_PATH"
 fi
 
 dnl Add the system alps include to the header search path
-if test -d "/usr/include/alps/"; then
-	CPPFLAGS="$CPPFLAGS -I/usr/include/alps/"
-	CFLAGS="$CFLAGS -I/usr/include/alps/"
+if test -d "$ALPS_INC_PATH"; then
+	CPPFLAGS="$CPPFLAGS -I$ALPS_INC_PATH"
+	CFLAGS="$CFLAGS -I$ALPS_INC_PATH"
 fi
 
 ############################
@@ -76,7 +85,7 @@ dnl Check for libc
 AC_CHECK_LIB([c],
 	     [free],
 	     [],
-	     [AC_MSG_ERROR([libc not found!!!])]
+	     [AC_MSG_FAILURE([libc not found!!!])]
 	     )
 
 dnl Check for libalps
@@ -87,7 +96,7 @@ AC_CHECK_LIB([alps],
 			[Define to 1 if you have the alps library (-lalps).]
 			)
 	      ],
-	     [AC_MSG_ERROR([libalps not found.])],
+	     [AC_MSG_FAILURE([libalps not found.])],
 	     )
 
 dnl Check for libalpsutil
@@ -98,26 +107,7 @@ AC_CHECK_LIB([alpsutil],
 			[Define to 1 if you have the alpsutil library (-lalpsutil).]
 			)
 	      ],
-	     [AC_MSG_ERROR([libalpsutil not found.])]
-	     )
-
-dnl Note that the job include path is not in the normal system location.
-dnl So we need to use pkg-config to get at the info for this.
-PKG_CHECK_MODULES([JOB], [cray-job])
-
-dnl Define the substitution var for later
-AC_SUBST([JOB_LIBS], ["$JOB_LIBS"])
-
-dnl Check for libjob
-AC_CHECK_LIB([job], 
-	     [job_getapjid],
-	     [AC_DEFINE([HAVE_LIBJOB],
-			[1],
-			[Define to 1 if you have the job library (-ljob).]
-			)
-	      ],
-	     [AC_MSG_ERROR([libjob not found. Ensure the job module is loaded.])],
-	     [$JOB_LIBS]
+	     [AC_MSG_FAILURE([libalpsutil not found.])]
 	     )
 
 ###############################
@@ -128,25 +118,25 @@ AC_CHECK_HEADERS([fcntl.h inttypes.h limits.h netinet/in.h stdint.h stdlib.h str
 dnl Check for alps.h
 AC_CHECK_HEADER([alps/alps.h],
 		[],
-		[AC_MSG_ERROR([alps/alps.h not found.])]
+		[AC_MSG_FAILURE([alps/alps.h not found.])]
 		)
 
 dnl Check for alps_toolAssist.h
 AC_CHECK_HEADER([alps/alps_toolAssist.h],
 		[],
-		[AC_MSG_ERROR([alps/alps_toolAssist.h not found.])]
+		[AC_MSG_FAILURE([alps/alps_toolAssist.h not found.])]
 		)
 
 dnl Check for apInfo.h
 AC_CHECK_HEADER([alps/apInfo.h],
 		[],
-		[AC_MSG_ERROR([alps/apInfo.h not found.])]
+		[AC_MSG_FAILURE([alps/apInfo.h not found.])]
 		)
 
 dnl Check for libalps.h
 AC_CHECK_HEADER([alps/libalps.h],
 		[],
-		[AC_MSG_ERROR([alps/libalps.h not found.])],
+		[AC_MSG_FAILURE([alps/libalps.h not found.])],
 		[#include <alps/alps_toolAssist.h>
 		 #include <netinet/in.h>
 		 ]
@@ -155,20 +145,10 @@ AC_CHECK_HEADER([alps/libalps.h],
 dnl Check for libalpsutil.h
 AC_CHECK_HEADER([alps/libalpsutil.h],
 		[],
-		[AC_MSG_ERROR([alps/libalpsutil.h not found.])],
+		[AC_MSG_FAILURE([alps/libalpsutil.h not found.])],
 		[#include <alps/alps_toolAssist.h>
 		 #include <netinet/in.h>
 		 ]
-		)
-
-dnl add the $job_path/include location to the header search paths
-CFLAGS="$CFLAGS $JOB_CFLAGS"
-CPPFLAGS="$CPPFLAGS $JOB_CFLAGS"
-
-dnl Now check for the job.h header
-AC_CHECK_HEADER([job.h],
-		[],
-		[AC_MSG_ERROR([job.h header not found. Ensure proper job module is loaded.])]
 		)
 
 #####################################################################
@@ -194,11 +174,13 @@ AC_CHECK_FUNCS([dup2 memset setenv strdup strrchr strstr])
 ################
 ### Finalize ###
 ################
-AC_CONFIG_FILES([Makefile
-		 cray-tool_backend.pc
-		 cray-tool_frontend.pc
-		 cray-audit.pc
-		 src/Makefile
-                 src/ld_val/Makefile
-		 demos/Makefile])
+AC_CONFIG_FILES([	Makefile
+					cray-tool_backend.pc
+					cray-tool_frontend.pc
+					cray-audit.pc
+					src/Makefile
+					src/ld_val/Makefile
+					demos/Makefile
+])
+
 AC_OUTPUT
