@@ -45,20 +45,6 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 	
 	dnl Set this to the location of the xmlrpc-epi RPMS we should build against
 	XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp1/x86_64/trunk-gem/working/latest/3rd-party/x86_64"
-	
-	if test -d "$ALPS_RPM_DIR"; then
-		[ALPS_RPM_1=$(find $ALPS_RPM_DIR/alps-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)]
-		[ALPS_RPM_2=$(find $ALPS_RPM_DIR/alps-app-devel-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)]
-	else
-		AC_MSG_ERROR([ALPS RPM directory $ALPS_RPM_DIR not found.])
-	fi
-	
-	if test -d "$XMLRPC_RPM_DIR"; then
-		[XMLRPC_RPM_1=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi0-[0-9\.\-]*.x86_64.rpm)]
-		[XMLRPC_RPM_2=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi-devel-[0-9\.\-]*.x86_64.rpm)]
-	else
-		AC_MSG_ERROR([XMLRPC RPM directory $XMLRPC_RPM_DIR not found.])
-	fi
 
 	AC_PROG_MKDIR_P
 	
@@ -80,7 +66,35 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 	_cray_tmpdir="$_cray_curdir/alps_base/$CLE_RPM_VERS"
 
 	AS_IF(	[test ! -d "$_cray_tmpdir"],
-			[	AS_MKDIR_P([$_cray_tmpdir])
+			[	dnl resolve the names of the alps rpms
+				if test -d "$ALPS_RPM_DIR"; then
+					[ALPS_RPM_1=$(find $ALPS_RPM_DIR/alps-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)]
+					if test ! -e "$ALPS_RPM_1"; then
+						AC_MSG_ERROR([ALPS RPM alps-$CLE_RPM_VERS not found.])
+					fi
+					[ALPS_RPM_2=$(find $ALPS_RPM_DIR/alps-app-devel-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)]
+					if test ! -e "$ALPS_RPM_2"; then
+						AC_MSG_ERROR([ALPS RPM alps-app-devel-$CLE_RPM_VERS not found.])
+					fi
+				else
+					AC_MSG_ERROR([ALPS RPM directory $ALPS_RPM_DIR not found.])
+				fi
+	
+				dnl resolve the names of the xmlrpc rpms
+				if test -d "$XMLRPC_RPM_DIR"; then
+					[XMLRPC_RPM_1=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi0-[0-9\.\-]*.x86_64.rpm)]
+					if test ! -e "$XMLRPC_RPM_1"; then
+						AC_MSG_ERROR([XMLRPC RPM cray-libxmlrpc-epi0 not found.])
+					fi
+					[XMLRPC_RPM_2=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi-devel-[0-9\.\-]*.x86_64.rpm)]
+					if test ! -e "$XMLRPC_RPM_1"; then
+						AC_MSG_ERROR([XMLRPC RPM cray-libxmlrpc-epi-devel not found.])
+					fi
+				else
+					AC_MSG_ERROR([XMLRPC RPM directory $XMLRPC_RPM_DIR not found.])
+				fi
+				
+				AS_MKDIR_P([$_cray_tmpdir])
 				cd $_cray_tmpdir
 				$RPM2CPIO $ALPS_RPM_1 | $CPIO -idv
 				$RPM2CPIO $ALPS_RPM_2 | $CPIO -idv
