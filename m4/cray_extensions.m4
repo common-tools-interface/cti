@@ -76,6 +76,10 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 					if test ! -e "$ALPS_RPM_2"; then
 						AC_MSG_ERROR([ALPS RPM alps-app-devel-$CLE_RPM_VERS not found.])
 					fi
+					[ALPS_RPM_3=$(find $ALPS_RPM_DIR/alps-devel-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)]
+					if test ! -e "$ALPS_RPM_3"; then
+						AC_MSG_ERROR([ALPS RPM alps-devel-$CLE_RPM_VERS not found.])
+					fi
 				else
 					AC_MSG_ERROR([ALPS RPM directory $ALPS_RPM_DIR not found.])
 				fi
@@ -98,6 +102,7 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 				cd $_cray_tmpdir
 				$RPM2CPIO $ALPS_RPM_1 | $CPIO -idv
 				$RPM2CPIO $ALPS_RPM_2 | $CPIO -idv
+				$RPM2CPIO $ALPS_RPM_3 | $CPIO -idv
 				$RPM2CPIO $XMLRPC_RPM_1 | $CPIO -idv
 				$RPM2CPIO $XMLRPC_RPM_2 | $CPIO -idv
 				cd $_cray_curdir
