@@ -58,7 +58,7 @@ growStringList(stringList_t *lst)
 	}
 	
 	// ensure there is enough entries in the list for a future addition
-	if ((lst->num + 1) > lst->len)
+	if ((lst->num + 1) > (int)lst->len)
 	{
 		if ((tmp_lst = calloc(lst->len + BLOCK_SIZE, sizeof(char *))) == 0)
 		{
