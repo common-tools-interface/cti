@@ -54,7 +54,7 @@ la_version(unsigned int version)
 		}
 		
 		// locate the segment
-		if ((shmid = shmget(key_a, PATH_MAX, 0666)) < 0) 
+		if ((shmid = shmget(key_a, PATH_MAX, SHM_R | SHM_W)) < 0) 
 		{
 			shmid = 0;
 			return LA_FLG_BINDTO | LA_FLG_BINDFROM;
@@ -77,7 +77,7 @@ la_version(unsigned int version)
 		}
 		
 		// locate the segment
-		if ((shm_ctlid = shmget(key_b, CTL_CHANNEL_SIZE, 0666)) < 0) 
+		if ((shm_ctlid = shmget(key_b, CTL_CHANNEL_SIZE, SHM_R | SHM_W)) < 0) 
 		{
 			shm_ctlid = 0;
 			return LA_FLG_BINDTO | LA_FLG_BINDFROM;

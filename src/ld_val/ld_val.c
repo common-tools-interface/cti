@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -34,6 +35,7 @@
 
 #include <sys/types.h>
 #include <sys/ipc.h>
+#include <sys/prctl.h>
 #include <sys/shm.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -42,6 +44,7 @@
 #include "ld_val.h"
 
 /* Internal prototypes */
+static void overwatch_handler(int);
 static int creat_shm_segs(void);
 static int attach_shm_segs(void);
 static int destroy_shm_segs(void);
@@ -69,6 +72,7 @@ static const char *linkers[] = {
 /* global variables */
 static key_t	key_a;
 static key_t	key_b;
+static pid_t	overwatch_pid;
 static int		shmid;
 static int		shm_ctlid;
 static char *	shm;
@@ -77,6 +81,24 @@ static int		num_ptrs;
 static int		num_alloc;
 static char **	tmp_array = (char **)NULL;
 
+static void
+overwatch_handler(int sig)
+{
+	// remove the shared memory segments	
+	if (shmctl(shmid, IPC_RMID, NULL) < 0)
+	{
+		perror("IPC error: shmctl");
+	}
+	
+	if (shmctl(shm_ctlid, IPC_RMID, NULL) < 0)
+	{
+		perror("IPC error: shmctl");
+	}
+	
+	// exit
+	exit(0);
+}
+
 static int
 creat_shm_segs()
 {
@@ -84,9 +106,21 @@ creat_shm_segs()
 	*  Create the shm segments - Note that these will behave as a semaphore in the
 	*  event that multiple programs are trying to access this interface at once.
 	*
-	*  There is no way to avoid a deadlock if the key is not removed by the
-	*  first caller.
+	*  This function is now able to avoid a deadlock if the caller causes an
+	*  error or is interrupted by a signal. This is achieved by using an
+	*  "overwatch" process which does the actual creation of the shm segment
+	*  id. The overwatch process is forked off and will destroy the id if it
+	*  detects that it has become orphaned or if the parent sends it a SIGUSR1.
+	*
+	*  Note this is still prone to a denial of service if the caller never goes
+	*  away. Perhaps a watchdog timer in the overwatch could fix this issue.
+	*
 	*/
+	
+	// pipe to signal that the shm segment was created
+	int 	fds[2];
+	// this is never used, but good form I guess.
+	char	tmp[1];
 	
 	// start out by creating the keys from a well known file location and a character id
 	if ((key_a = ftok(KEYFILE, ID_A)) == (key_t)-1)
@@ -99,21 +133,113 @@ creat_shm_segs()
 		perror("IPC error: ftok");
 		return 1;
 	}
-	
-	while ((shmid = shmget(key_a, PATH_MAX, IPC_CREAT | IPC_EXCL | 0666)) < 0) 
+
+	// create the pipe
+	if (pipe(fds) < 0)
 	{
-		if (errno == EEXIST)
-			continue;
+		perror("pipe");
+		return 1;
+	}
+
+	// fork off the overwatch process
+	overwatch_pid = fork();
+	
+	// error case
+	if (overwatch_pid < 0)
+	{
+		perror("fork");
+		return 1;
+	}
+	
+	// child case
+	if (overwatch_pid == 0)
+	{
+		struct sigaction new_handler;
+		sigset_t mask;
+	
+		// close the read end of the pipe
+		close(fds[0]);
 		
+		// setup the signal handler so this child can exit
+		memset(&new_handler, 0, sizeof(new_handler));
+		sigemptyset(&new_handler.sa_mask);
+		new_handler.sa_flags = 0;
+		new_handler.sa_handler = overwatch_handler;
+		sigaction(SIGUSR1, &new_handler, NULL);
+		
+		// set the parent death signal to send us SIGUSR1
+		if (prctl(PR_SET_PDEATHSIG, SIGUSR1) < 0)
+		{
+			perror("prctl");
+			// close my end of the pipe to let the parent figure out we failed
+			close(fds[1]);
+			exit(1);
+		}
+		
+		// create the shared memory segments
+		while ((shmid = shmget(key_a, PATH_MAX, IPC_CREAT | IPC_EXCL | SHM_R | SHM_W)) < 0) 
+		{
+			if (errno == EEXIST)
+				continue;
+		
+			perror("IPC error: shmget");
+			// close my end of the pipe to let the parent figure out we failed
+			close(fds[1]);
+			exit(1);
+		}
+	
+		while ((shm_ctlid = shmget(key_b, CTL_CHANNEL_SIZE, IPC_CREAT | IPC_EXCL | SHM_R | SHM_W)) < 0)
+		{
+			if (errno == EEXIST)
+				continue;
+			
+			perror("IPC error: shmget");
+			// delete the segment we just created since this one failed
+			if (shmctl(shmid, IPC_RMID, NULL) < 0)
+			{
+				perror("IPC error: shmctl");
+			}
+			// close my end of the pipe to let the parent figure out we failed
+			close(fds[1]);
+			exit(1);
+		}
+		
+		// init the signal mask to empty
+		sigemptyset(&mask);
+		
+		// I am done. Close my end of the pipe so the parent knows I am finished.
+		close(fds[1]);
+		
+		// wait for a signal to arrive
+		sigsuspend(&mask);
+		
+		// never reached
+		exit(0);
+	}
+	
+	// parent case
+	// close write end of pipe
+	close(fds[1]);
+	
+	// block in a read until we get an EOF, this signals the child is finished
+	// doing its work
+	if (read(fds[0], tmp, 1) < 0)
+	{
+		perror("read");
+	}
+	
+	// close the read end of the pipe
+	close(fds[0]);
+	
+	// get the id of the memory segments - they have been created for us
+	if ((shmid = shmget(key_a, PATH_MAX, SHM_R | SHM_W)) < 0) 
+	{
 		perror("IPC error: shmget");
 		return 1;
 	}
 	
-	while ((shm_ctlid = shmget(key_b, CTL_CHANNEL_SIZE, IPC_CREAT | IPC_EXCL | 0666)) < 0)
-	{
-		if (errno == EEXIST)
-			continue;
-			
+	if ((shm_ctlid = shmget(key_b, CTL_CHANNEL_SIZE, SHM_R | SHM_W)) < 0)
+	{		
 		perror("IPC error: shmget");
 		return 1;
 	}
@@ -146,17 +272,27 @@ destroy_shm_segs()
 {
 	int ret = 0;
 	
-	if (shmctl(shmid, IPC_RMID, NULL) < 0)
+	if (shmdt((void *)shm) == -1)
 	{
-		perror("IPC error: shmctl");
+		perror("IPC error: shmdt");
 		ret = 1;
 	}
 	
-	if (shmctl(shm_ctlid, IPC_RMID, NULL) < 0)
+	if (shmdt((void *)shm_ctl) == -1)
 	{
-		perror("IPC error: shmctl");
+		perror("IPC error: shmdt");
 		ret = 1;
 	}
+	
+	// send the overwatch child a kill of SIGUSR1
+	if (kill(overwatch_pid, SIGUSR1) < 0)
+	{
+		perror("kill");
+		ret = 1;
+	}
+	
+	// wait for child to return
+	waitpid(overwatch_pid, NULL, 0);
 	
 	return ret;
 }
