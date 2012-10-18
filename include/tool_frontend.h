@@ -294,6 +294,8 @@ extern void	destroy_appHostPlacementList(appHostPlacementList_t *placement_list)
  *                      redirectOutput evaluates to true.
  *      inputFile -     The pathname of a file to open and redirect stdin to if
  *                      redirectInput evaluates to true.
+ *       chdirPath -    The path to change the current working directory of aprun
+ *                      to, or NULL if no chdir is to take place.
  *
  * Returns
  *      The pid_t of the forked aprun process or 0 on error.
@@ -301,7 +303,7 @@ extern void	destroy_appHostPlacementList(appHostPlacementList_t *placement_list)
  */
 extern pid_t	launchAprun_barrier(char **aprun_argv, int redirectOutput, 
                         int redirectInput, int stdout_fd, int stderr_fd,
-                        char *inputFile);
+                        char *inputFile, char *chdirPath);
 
 /*
  * releaseAprun_barrier - Release the aprun session launched with the

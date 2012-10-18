@@ -119,7 +119,7 @@ findAprunInv(pid_t aprunPid)
 
 pid_t
 launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput, 
-			int stdout_fd, int stderr_fd, char *inputFile)
+			int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath)
 {
 	aprunInv_t * myapp;
 	aprunInv_t * newapp;
@@ -298,6 +298,15 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 			if (dup2(stderr_fd, STDERR_FILENO) < 0)
 			{
 				fprintf(stderr, "Unable to redirect aprun stderr.\n");
+			}
+		}
+		
+		// chdir if directed
+		if (chdirPath != (char *)NULL)
+		{
+			if (chdir(chdirPath))
+			{
+				fprintf(stderr, "Unable to chdir to provided path.\n");
 			}
 		}
 

@@ -311,7 +311,7 @@ main(int argc, char **argv)
         }
         
         // call aprun
-        if ((aprunPid = launchAprun_barrier(&argv[1],0,0,0,0,NULL)) <= 0)
+        if ((aprunPid = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL)) <= 0)
         {
                 fprintf(stderr, "Aprun failed.\n");
                 return 1;
