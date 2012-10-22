@@ -29,13 +29,14 @@
 #include "alps/libalps.h"
 
 #include "alps_application.h"
+#include "alps_run.h"
 
 #include "useful/useful.h"
 
 /* Static prototypes */
 static appList_t *		growAppsList(void);
 static void				reapAppsList(void);
-static void				reapAppEntry(pid_t);
+static void				reapAppEntry(uint64_t);
 static void				consumeAppEntry(appEntry_t *);
 static serviceNode_t *	getSvcNodeInfo(void);
 
@@ -126,13 +127,13 @@ reapAppsList()
 }
 
 static void
-reapAppEntry(pid_t aprunPid)
+reapAppEntry(uint64_t apid)
 {
 	appList_t *	lstPtr;
 	appList_t *	prePtr;
 	
 	// sanity check
-	if (((lstPtr = my_apps) == (appList_t *)NULL) || (aprunPid <= 0))
+	if (((lstPtr = my_apps) == (appList_t *)NULL) || (apid <= 0))
 		return;
 		
 	prePtr = my_apps;
@@ -154,12 +155,12 @@ reapAppEntry(pid_t aprunPid)
 	}
 	
 	// we need to locate the position of the appList_t object that we need to remove
-	while (lstPtr->thisEntry->aprunPid != aprunPid)
+	while (lstPtr->thisEntry->apid != apid)
 	{
 		prePtr = lstPtr;
 		if ((lstPtr = lstPtr->nextEntry) == (appList_t *)NULL)
 		{
-			// there are no more entries and we didn't find the aprunPid
+			// there are no more entries and we didn't find the apid
 			return;
 		}
 	}
@@ -285,7 +286,7 @@ getSvcNodeInfo()
 /* API defined functions start here */
 
 appEntry_t *
-findApp(pid_t aprunPid)
+findApp(uint64_t apid)
 {
 	appList_t *	lstPtr;
 	
@@ -294,23 +295,23 @@ findApp(pid_t aprunPid)
 		return (appEntry_t *)NULL;
 	
 	// iterate through the my_apps list
-	while (lstPtr->thisEntry->aprunPid != aprunPid)
+	while (lstPtr->thisEntry->apid != apid)
 	{
 		// make lstPtr point to the next entry
 		if ((lstPtr = lstPtr->nextEntry) == (appList_t *)NULL)
 		{
 			// if lstPtr is null, we are at the end of the list
-			// so the entry for aprunPid doesn't exist
+			// so the entry for apid doesn't exist
 			return (appEntry_t *)NULL;
 		}
 	}
 	
-	// if we get here, we found the appEntry_t that corresponds to aprunPid
+	// if we get here, we found the appEntry_t that corresponds to apid
 	return lstPtr->thisEntry;
 }
 
 appEntry_t *
-newApp(pid_t aprunPid)
+newApp(uint64_t apid)
 {
 	appList_t *		lstPtr;
 	appEntry_t *	this;
@@ -334,31 +335,12 @@ newApp(pid_t aprunPid)
 	}
 	memset(this, 0, sizeof(appEntry_t));     // clear it to NULL
 	
-	// ensure the svnNid exists
-	if (svcNid == (serviceNode_t *)NULL)
-	{
-		if ((svcNid = getSvcNodeInfo()) == (serviceNode_t *)NULL)
-		{
-			reapAppsList();
-			consumeAppEntry(this);
-			return (appEntry_t *)NULL;
-		}
-	}
-	
-	// set the aprun pid member
-	this->aprunPid = aprunPid;
-	
-	// set the application id member
-	if ((this->alpsInfo.apid = alps_get_apid(svcNid->nid, aprunPid)) == 0)
-	{
-		reapAppsList();
-		consumeAppEntry(this);
-		return (appEntry_t *)NULL;
-	}
+	// set the apid member
+	this->apid = apid;
 	
 	// retrieve detailed information about our app
 	// save this information into the struct
-	if (alps_get_appinfo(this->alpsInfo.apid, &this->alpsInfo.appinfo, &this->alpsInfo.cmdDetail, &this->alpsInfo.places) != 1)
+	if (alps_get_appinfo(this->apid, &this->alpsInfo.appinfo, &this->alpsInfo.cmdDetail, &this->alpsInfo.places) != 1)
 	{
 		reapAppsList();
 		consumeAppEntry(this);
@@ -412,18 +394,18 @@ newApp(pid_t aprunPid)
 // this function creates a new appEntry_t object for the app
 // used by the alps_run functions
 int
-registerAprunPid(pid_t aprunPid)
+registerApid(uint64_t apid)
 {
 	// sanity check
-	if (aprunPid <= 0)
+	if (apid <= 0)
 		return 1;
 		
-	// try to find an entry in the my_apps list for the aprunPid
-	if (findApp(aprunPid) == (appEntry_t *)NULL)
+	// try to find an entry in the my_apps list for the apid
+	if (findApp(apid) == (appEntry_t *)NULL)
 	{
 		// aprun pid not found in the global my_apps list
 		// so lets create a new appEntry_t object for it
-		if (newApp(aprunPid) == (appEntry_t *)NULL)
+		if (newApp(apid) == (appEntry_t *)NULL)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
 			return 1;
@@ -434,37 +416,43 @@ registerAprunPid(pid_t aprunPid)
 }
 
 void
-deregisterAprunPid(pid_t aprunPid)
+deregisterApid(uint64_t apid)
 {
 	// sanity check
-	if (aprunPid <= 0)
+	if (apid <= 0)
 		return;
 	
-	// call the reapAppEntry function for this pid
-	reapAppEntry(aprunPid);
+	// call the reapAppEntry function for this apid
+	reapAppEntry(apid);
+	
+	// call the reapAprunInv function for this apid
+	// This is for applications that were launched by this interface, but we
+	// no longer want to control them.
+	reapAprunInv(apid);
 }
 
 uint64_t
 getApid(pid_t aprunPid)
 {
-	appEntry_t *	app_ptr;
-
 	// sanity check
 	if (aprunPid <= 0)
 		return 0;
-	
-	// try to find an entry in the my_apps list for the aprunPid
-	if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+		
+	// ensure the svcNid exists
+	if (svcNid == (serviceNode_t *)NULL)
 	{
-		// couldn't find the entry associated with the aprunPid
-		return 0;
+		if ((svcNid = getSvcNodeInfo()) == (serviceNode_t *)NULL)
+		{
+			// couldn't get the svcnode info for some odd reason
+			return 0;
+		}
 	}
-	
-	return app_ptr->alpsInfo.apid;
+		
+	return alps_get_apid(svcNid->nid, aprunPid);
 }
 
 char *
-getCName()
+getNodeCName()
 {
 	// ensure the svcNid exists
 	if (svcNid == (serviceNode_t *)NULL)
@@ -481,7 +469,7 @@ getCName()
 }
 
 int
-getNid()
+getNodeNid()
 {
 	// ensure the svcNid exists
 	if (svcNid == (serviceNode_t *)NULL)
@@ -498,18 +486,37 @@ getNid()
 }
 
 int
-getNumAppPEs(pid_t aprunPid)
+getAppNid(uint64_t apid)
 {
 	appEntry_t *	app_ptr;
 	
 	// sanity check
-	if (aprunPid <= 0)
+	if (apid <= 0)
+		return -1;
+		
+	// try to find an entry in the my_apps list for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
+	{
+		// couldn't find the entry associated with the apid
+		return -1;
+	}
+
+	return app_ptr->alpsInfo.appinfo.aprunNid;
+}
+
+int
+getNumAppPEs(uint64_t apid)
+{
+	appEntry_t *	app_ptr;
+	
+	// sanity check
+	if (apid <= 0)
 		return 0;
 		
-	// try to find an entry in the my_apps list for the aprunPid
-	if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+	// try to find an entry in the my_apps list for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
 	{
-		// couldn't find the entry associated with the aprunPid
+		// couldn't find the entry associated with the apid
 		return 0;
 	}
 	
@@ -517,18 +524,18 @@ getNumAppPEs(pid_t aprunPid)
 }
 
 int
-getNumAppNodes(pid_t aprunPid)
+getNumAppNodes(uint64_t apid)
 {
 	appEntry_t *	app_ptr;
 	
 	// sanity check
-	if (aprunPid <= 0)
+	if (apid <= 0)
 		return 0;
 		
-	// try to find an entry in the my_apps list for the aprunPid
-	if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+	// try to find an entry in the my_apps list for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
 	{
-		// couldn't find the entry associated with the aprunPid
+		// couldn't find the entry associated with the apid
 		return 0;
 	}
 	
@@ -536,7 +543,7 @@ getNumAppNodes(pid_t aprunPid)
 }
 
 char **
-getAppHostsList(pid_t aprunPid)
+getAppHostsList(uint64_t apid)
 {
 	appEntry_t *	app_ptr;
 	int				curNid, numNid;
@@ -545,13 +552,13 @@ getAppHostsList(pid_t aprunPid)
 	int				i;
 	
 	// sanity check
-	if (aprunPid <= 0)
+	if (apid <= 0)
 		return (char **)NULL;
 		
-	// try to find an entry in the my_apps list for the aprunPid
-	if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+	// try to find an entry in the my_apps list for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
 	{
-		// couldn't find the entry associated with the aprunPid
+		// couldn't find the entry associated with the apid
 		return (char **)NULL;
 	}
 	
@@ -609,7 +616,7 @@ getAppHostsList(pid_t aprunPid)
 }
 
 appHostPlacementList_t *
-getAppHostsPlacement(pid_t aprunPid)
+getAppHostsPlacement(uint64_t apid)
 {
 	appEntry_t *				app_ptr;
 	int							curNid, numNid;
@@ -620,13 +627,13 @@ getAppHostsPlacement(pid_t aprunPid)
 	int							i;
 	
 	// sanity check
-	if (aprunPid <= 0)
+	if (apid <= 0)
 		return (appHostPlacementList_t *)NULL;
 		
-	// try to find an entry in the my_apps list for the aprunPid
-	if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+	// try to find an entry in the my_apps list for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
 	{
-		// couldn't find the entry associated with the aprunPid
+		// couldn't find the entry associated with the apid
 		return (appHostPlacementList_t *)NULL;
 	}
 

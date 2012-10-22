@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * alps_run.h - A header file for the alps_run interface.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2012 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -19,29 +19,39 @@
 #ifndef _ALPS_RUN_H
 #define _ALPS_RUN_H
 
-#define APRUN           "aprun"
-#define APKILL          "apkill"
-#define DEFAULT_SIG     9
+#include <stdint.h>
+
+#define APRUN			"aprun"
+#define APKILL			"apkill"
+#define DEFAULT_SIG	9
 
 /* struct typedefs */
 typedef struct
 {
-        int pipe_r;
-        int pipe_w;
-        int sync_int;
+	int pipe_r;
+	int pipe_w;
+	int sync_int;
 } barrierCtl_t;
 
 struct aprunInv
 {
-        pid_t                   aprunPid;
-        barrierCtl_t            pipeCtl;
-        struct aprunInv *      next;
+	uint64_t			apid;
+	pid_t				aprunPid;
+	barrierCtl_t		pipeCtl;
+	struct aprunInv *	next;
 };
 typedef struct aprunInv aprunInv_t;
 
+typedef struct
+{
+	uint64_t	apid;
+	pid_t		aprunPid;
+} aprunProc_t;
+
 /* function prototypes */
-pid_t   launchAprun_barrier(char **, int, int, int, int, char *, char *);
-int     releaseAprun_barrier(pid_t);
-int     killAprun(pid_t, int);
+aprunProc_t	*	launchAprun_barrier(char **, int, int, int, int, char *, char *);
+int				releaseAprun_barrier(uint64_t);
+int				killAprun(uint64_t, int);
+void			reapAprunInv(uint64_t);
 
 #endif /* _ALPS_RUN_H */

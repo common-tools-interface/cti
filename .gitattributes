@@ -21,6 +21,7 @@ demos/alps_barrier_demo.c -text
 demos/alps_callback_daemon.c -text
 demos/alps_callback_demo.c -text
 demos/alps_callback_demo.h -text
+demos/alps_info_demo.c -text
 demos/alps_transfer_demo.c -text
 demos/testing.info -text
 include/tool_backend.h -text

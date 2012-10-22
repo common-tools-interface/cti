@@ -37,7 +37,7 @@
 #include "useful/useful.h"
 
 int
-sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env, int dbg)
+sendCNodeExec(uint64_t apid, char *fstr, char **args, char **env, int dbg)
 {
 	appEntry_t *	app_ptr;	// pointer to the appEntry_t object associated with the provided aprun pid
 	const char *	errmsg;		// errmsg that is possibly returned by call to alps_launch_tool_helper
@@ -51,15 +51,15 @@ sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env, int dbg)
 	size_t			len, env_base_len;	// len vars used in creating the args_flat string
 
 	// sanity check
-	if (aprunPid <= 0 || fstr == (char *)NULL)
+	if (apid <= 0 || fstr == (char *)NULL)
 		return 1;
 		
-	// try to find an entry in the my_apps array for the aprunPid
-	if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+	// try to find an entry in the my_apps array for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
 	{
-		// aprun pid not found in the global my_apps array
+		// apid not found in the global my_apps array
 		// so lets create a new appEntry_t object for it
-		if ((app_ptr = newApp(aprunPid)) == (appEntry_t *)NULL)
+		if ((app_ptr = newApp(apid)) == (appEntry_t *)NULL)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
 			return 1;
@@ -86,7 +86,7 @@ sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env, int dbg)
 		// not found in list, so this is a unique file name
 		
 		// ship the executable to the compute nodes
-		if ((errmsg = alps_launch_tool_helper(app_ptr->alpsInfo.apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &fullname)) != (const char *)NULL)
+		if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &fullname)) != (const char *)NULL)
 		{
 			// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 			fprintf(stderr, "%s\n", errmsg);
@@ -111,7 +111,7 @@ sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env, int dbg)
 		{
 			while (*tmp != (char *)NULL)
 			{
-				if (sendCNodeLibrary(aprunPid, *tmp++))
+				if (sendCNodeLibrary(app_ptr->apid, *tmp++))
 				{
 					// if we return with non-zero status, catastrophic failure occured in the lib transfer
 					return 1;
@@ -228,7 +228,7 @@ sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env, int dbg)
 		
 		// Done. We now have a flattened args string
 		// We can launch the tool daemon onto the compute nodes now.
-		if ((errmsg = alps_launch_tool_helper(app_ptr->alpsInfo.apid, app_ptr->alpsInfo.pe0Node, 1, 1, 1, &args_flat)) != NULL)
+		if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 1, 1, &args_flat)) != NULL)
 		{
 			// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
 			fprintf(stderr, "%s\n", errmsg);
@@ -248,7 +248,7 @@ sendCNodeExec(pid_t aprunPid, char *fstr, char **args, char **env, int dbg)
 }
 
 int
-sendCNodeBinary(pid_t aprunPid, char *fstr)
+sendCNodeBinary(uint64_t apid, char *fstr)
 {
 	appEntry_t *	app_ptr;	// pointer to the appEntry_t object associated with the provided aprun pid
 	const char *	errmsg;		// errmsg that is possibly returned by call to alps_launch_tool_helper
@@ -258,15 +258,15 @@ sendCNodeBinary(pid_t aprunPid, char *fstr)
 	char **			tmp;		// temporary pointer used to iterate through lists of strings
 	
 	// sanity check
-	if (aprunPid <= 0 || fstr == (char *)NULL)
+	if (apid <= 0 || fstr == (char *)NULL)
 		return 1;
 
-	// try to find an entry in the my_apps array for the aprunPid
-	if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+	// try to find an entry in the my_apps array for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
 	{
-		// aprun pid not found in the global my_apps array
+		// apid not found in the global my_apps array
 		// so lets create a new appEntry_t object for it
-		if ((app_ptr = newApp(aprunPid)) == (appEntry_t *)NULL)
+		if ((app_ptr = newApp(apid)) == (appEntry_t *)NULL)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
 			return 1;
@@ -293,7 +293,7 @@ sendCNodeBinary(pid_t aprunPid, char *fstr)
 		// not found in list, so this is a unique file name
 		
 		// ship the file to the compute nodes
-		if ((errmsg = alps_launch_tool_helper(app_ptr->alpsInfo.apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &fullname)) != (const char *)NULL)
+		if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &fullname)) != (const char *)NULL)
 		{
 			// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 			fprintf(stderr, "%s\n", errmsg);
@@ -318,7 +318,7 @@ sendCNodeBinary(pid_t aprunPid, char *fstr)
 		{
 			while (*tmp != (char *)NULL)
 			{
-				if (sendCNodeLibrary(aprunPid, *tmp++))
+				if (sendCNodeLibrary(app_ptr->apid, *tmp++))
 				{
 					// if we return with non-zero status, catastrophic failure occured in the lib transfer
 					return 1;
@@ -343,7 +343,7 @@ sendCNodeBinary(pid_t aprunPid, char *fstr)
 }
 
 int
-sendCNodeLibrary(pid_t aprunPid, char *fstr)
+sendCNodeLibrary(uint64_t apid, char *fstr)
 {
 	appEntry_t *	app_ptr;	// pointer to the appEntry_t object associated with the provided aprun pid
 	const char *	errmsg;		// errmsg that is possibly returned by call to alps_launch_tool_helper
@@ -351,15 +351,15 @@ sendCNodeLibrary(pid_t aprunPid, char *fstr)
 	char *			realname;	// realname (lacking path info) of the file
 
 	// sanity check
-	if (aprunPid <= 0 || fstr == (char *)NULL)
+	if (apid <= 0 || fstr == (char *)NULL)
 		return 1;
 		
-	// try to find an entry in the my_apps array for the aprunPid
-	if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+	// try to find an entry in the my_apps array for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
 	{
-		// aprun pid not found in the global my_apps array
+		// apid not found in the global my_apps array
 		// so lets create a new appEntry_t object for it
-		if ((app_ptr = newApp(aprunPid)) == (appEntry_t *)NULL)
+		if ((app_ptr = newApp(apid)) == (appEntry_t *)NULL)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
 			return 1;
@@ -390,7 +390,7 @@ sendCNodeLibrary(pid_t aprunPid, char *fstr)
 		// not found in list, so this is a unique file name
 		
 		// ship the library to the compute nodes
-		if ((errmsg = alps_launch_tool_helper(app_ptr->alpsInfo.apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &fullname)) != (const char *)NULL)
+		if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &fullname)) != (const char *)NULL)
 		{
 			// we failed to ship the library to the compute nodes for some reason - catastrophic failure
 			fprintf(stderr, "%s\n", errmsg);
@@ -415,7 +415,7 @@ sendCNodeLibrary(pid_t aprunPid, char *fstr)
 }
 
 int
-sendCNodeFile(pid_t aprunPid, char *fstr)
+sendCNodeFile(uint64_t apid, char *fstr)
 {
 	appEntry_t *	app_ptr;	// pointer to the appEntry_t object associated with the provided aprun pid
 	const char *	errmsg;		// errmsg that is possibly returned by call to alps_launch_tool_helper
@@ -423,15 +423,15 @@ sendCNodeFile(pid_t aprunPid, char *fstr)
 	char *			realname;	// realname (lacking path info) of the file
 
 	// sanity check
-	if (aprunPid <= 0 || fstr == (char *)NULL)
+	if (apid <= 0 || fstr == (char *)NULL)
 		return 1;
 
-	// try to find an entry in the my_apps array for the aprunPid
-	if ((app_ptr = findApp(aprunPid)) == (appEntry_t *)NULL)
+	// try to find an entry in the my_apps array for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
 	{
-		// aprun pid not found in the global my_apps array
+		// apid not found in the global my_apps array
 		// so lets create a new appEntry_t object for it
-		if ((app_ptr = newApp(aprunPid)) == (appEntry_t *)NULL)
+		if ((app_ptr = newApp(apid)) == (appEntry_t *)NULL)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
 			return 1;
@@ -458,7 +458,7 @@ sendCNodeFile(pid_t aprunPid, char *fstr)
 		// not found in list, so this is a unique file name
 		
 		// ship the file to the compute nodes
-		if ((errmsg = alps_launch_tool_helper(app_ptr->alpsInfo.apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &fullname)) != (const char *)NULL)
+		if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &fullname)) != (const char *)NULL)
 		{
 			// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 			fprintf(stderr, "%s\n", errmsg);

@@ -1,7 +1,7 @@
 #
 # Makefile.am for the demo utilities
 #
-# ©2011 Cray Inc.  All Rights Reserved.
+# ©2011-2012 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -21,11 +21,15 @@ else
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
 endif
 
-EXTRA_PROGRAMS = aprunBarrier aprunTransfer aprunCallback callback_daemon
+EXTRA_PROGRAMS = aprunBarrier aprunInfo aprunTransfer aprunCallback callback_daemon
 
 aprunBarrier_CFLAGS = $(AM_CFLAGS)
 aprunBarrier_SOURCES = alps_barrier_demo.c
 aprunBarrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
+
+aprunInfo_CFLAGS = $(AM_CFLAGS)
+aprunInfo_SOURCES = alps_info_demo.c
+aprunInfo_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
 
 aprunTransfer_CFLAGS = $(AM_CFLAGS)
 aprunTransfer_SOURCES = alps_transfer_demo.c
@@ -39,10 +43,11 @@ callback_daemon_CFLAGS = $(AM_CFLAGS)
 callback_daemon_SOURCES = alps_callback_daemon.c
 callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_backend
 
-demos: aprunBarrier aprunTransfer aprunCallback callback_daemon
+demos: aprunBarrier aprunInfo aprunTransfer aprunCallback callback_daemon
 	mkdir -p demo_binaries
 	cp testing.info demo_binaries
 	mv aprunBarrier demo_binaries
+	mv aprunInfo demo_binaries
 	mv aprunTransfer demo_binaries
 	mv aprunCallback demo_binaries
 	mv callback_daemon demo_binaries

@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * alps_callback_daemon.c - The compute node daemon portion of the alps_callback_demo.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2012 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -52,11 +52,11 @@ nodeAppPidList_t *	appPids = (nodeAppPidList_t *)NULL;
 int
 callback_register()
 {
-	int              rc;
-	int              svcNodefd;		// file descriptor for the callback socket
-	struct addrinfo hints;			// hints object for call to getaddrinfo
-	struct addrinfo *svcNode;		// service node addrinfo object
-	char             msg[BUFSIZE];	// message buffer
+	int		rc;
+	int		svcNodefd;			// file descriptor for the callback socket
+	struct addrinfo hints;		// hints object for call to getaddrinfo
+	struct addrinfo *svcNode;	// service node addrinfo object
+	char	msg[BUFSIZE];		// message buffer
 	
 	memset(&hints, 0, sizeof(hints));	// ensure the hints struct is cleared
 	hints.ai_family = AF_UNSPEC;		// use AF_INET6 to force IPv6

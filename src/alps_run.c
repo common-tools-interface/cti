@@ -24,6 +24,7 @@
 #endif /* HAVE_CONFIG_H */
  
 #include <fcntl.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -37,32 +38,31 @@
 #include "alps_application.h"
 
 /* static prototypes */
-static void reapAprunInv(pid_t);
 static void consumeAprunInv(aprunInv_t *);
-static aprunInv_t * findAprunInv(pid_t);
+static aprunInv_t * findAprunInv(uint64_t);
 
 // global aprunInv_t list
 static aprunInv_t *	head = (aprunInv_t *)NULL;
 
-static void
-reapAprunInv(pid_t aprunPid)
+void
+reapAprunInv(uint64_t apid)
 {
 	aprunInv_t * appPtr;
 	aprunInv_t * prePtr;
 	
 	// sanity check
-	if (((appPtr = head) == (aprunInv_t *)NULL) || (aprunPid <= 0))
+	if (((appPtr = head) == (aprunInv_t *)NULL) || (apid <= 0))
 		return;
 	
 	prePtr = head;
 	
 	// find the aprunInv_t entry in the global list
-	while (appPtr->aprunPid != aprunPid)
+	while (appPtr->apid != apid)
 	{
 		prePtr = appPtr;
 		if ((appPtr = appPtr->next) == (aprunInv_t *)NULL)
 		{
-			// on last entry and aprunPid not found
+			// on last entry and apid not found
 			return;
 		}
 	}
@@ -97,15 +97,15 @@ consumeAprunInv(aprunInv_t *app)
 }
 
 static aprunInv_t *
-findAprunInv(pid_t aprunPid)
+findAprunInv(uint64_t apid)
 {
 	aprunInv_t * appPtr;
 
 	// find the aprunInv_t entry in the global list
-	if (((appPtr = head) == (aprunInv_t *)NULL) || (aprunPid <= 0))
+	if (((appPtr = head) == (aprunInv_t *)NULL) || (apid <= 0))
 		return (aprunInv_t *)NULL;
 		
-	while (appPtr->aprunPid != aprunPid)
+	while (appPtr->apid != apid)
 	{
 		if ((appPtr = appPtr->next) == (aprunInv_t *)NULL)
 		{
@@ -117,7 +117,7 @@ findAprunInv(pid_t aprunPid)
 	return appPtr;
 }
 
-pid_t
+aprunProc_t	*
 launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput, 
 			int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath)
 {
@@ -133,12 +133,14 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 	// pipes for aprun
 	int aprunPipeR[2];
 	int aprunPipeW[2];
+	// return object
+	aprunProc_t *	rtn;
 
 	// create a new aprunInv_t object
 	if ((myapp = malloc(sizeof(aprunInv_t))) == (void *)0)
 	{
 		// Malloc failed
-		return 0;
+		return NULL;
 	}
 	memset(myapp, 0, sizeof(aprunInv_t));     // clear it to NULL
 	
@@ -147,13 +149,13 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 	{
 		fprintf(stderr, "Pipe creation failure on aprunPipeR.\n");
 		free(myapp);
-		return 0;
+		return NULL;
 	}
 	if (pipe(aprunPipeW) < 0)
 	{
 		fprintf(stderr, "Pipe creation failure on aprunPipeW.\n");
 		free(myapp);
-		return 0;
+		return NULL;
 	}
 	
 	// set my ends of the pipes in the aprunInv_t structure
@@ -176,7 +178,7 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 	{
 		// calloc failed
 		free(myapp);
-		return 0;
+		return NULL;
 	}
 		
 	// add the initial aprun argv
@@ -211,7 +213,7 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 			free(*tmp++);
 		}
 		free(my_argv);
-		return 0;
+		return NULL;
 	}
 	
 	// write the buffer
@@ -245,7 +247,7 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 			free(*tmp++);
 		}
 		free(my_argv);
-		return 0;
+		return NULL;
 	}
 	
 	// child case
@@ -278,7 +280,7 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 			}
 		}
 		
-		// dup2 the null fd onto STDIN_FILENO
+		// dup2 the fd onto STDIN_FILENO
 		if (dup2(fd, STDIN_FILENO) < 0)
 		{
 			fprintf(stderr, "Unable to redirect aprun stdin.\n");
@@ -341,9 +343,9 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 		fprintf(stderr, "Aprun launch failed.\n");
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
-		killAprun(myapp->aprunPid, DEFAULT_SIG);
+		kill(myapp->aprunPid, DEFAULT_SIG);
 		free(myapp);
-		return 0;
+		return NULL;
 	}
 	
 	// insert myapp into the global list
@@ -362,28 +364,50 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 		newapp->next = myapp;
 	}
 	
+	// set the apid associated with the pid of aprun
+	if ((myapp->apid = getApid(myapp->aprunPid)) == 0)
+	{
+		fprintf(stderr, "Could not obtain apid associated with pid of aprun.\n");
+		// attempt to kill aprun since the caller will not recieve the aprun pid
+		// just in case the aprun process is still hanging around.
+		kill(myapp->aprunPid, DEFAULT_SIG);
+		free(myapp);
+		return NULL;
+	}
+	
 	// register this process with the alps_transfer interface
-	if (registerAprunPid(myapp->aprunPid))
+	if (registerApid(myapp->apid))
 	{
 		// we failed to register our app
 		fprintf(stderr, "Could not register application!\n");
 	}
 	
-	// return the pid of the aprun process we forked
-	return myapp->aprunPid;      
+	// create a new aprunProc_t return object
+	if ((rtn = malloc(sizeof(aprunProc_t))) == (void *)0)
+	{
+		// Malloc failed
+		return NULL;
+	}
+	
+	// set the return object members
+	rtn->apid = myapp->apid;
+	rtn->aprunPid = myapp->aprunPid;
+	
+	// return the apid and the pid of the aprun process we forked
+	return rtn;
 }
 
 int
-releaseAprun_barrier(pid_t aprunPid)
+releaseAprun_barrier(uint64_t apid)
 {
 	aprunInv_t * appPtr;
 	
 	// sanity check
-	if (aprunPid <= 0)
+	if (apid <= 0)
 		return 1;
 	
 	// find the aprunInv_t entry in the global list
-	if ((appPtr = findAprunInv(aprunPid)) == (aprunInv_t *)NULL)
+	if ((appPtr = findAprunInv(apid)) == (aprunInv_t *)NULL)
 		return 1;
 	
 	// Conduct a pipe write for alps to release app from the startup barrier.
@@ -399,10 +423,10 @@ releaseAprun_barrier(pid_t aprunPid)
 }
 
 int
-killAprun(pid_t aprunPid, int signum)
+killAprun(uint64_t apid, int signum)
 {
 	int          mypid;
-	uint64_t     apid, i;
+	uint64_t     i;
 	int          sig, j;
 	size_t       len;
 	char *       sigStr;
@@ -412,20 +436,13 @@ killAprun(pid_t aprunPid, int signum)
 	
 	
 	// sanity check
-	if (aprunPid <= 0)
+	if (apid <= 0)
 		return 1;
 		
 	// ensure the user called us with a signal number that makes sense, otherwise default to 9
 	if ((sig = signum) <= 0)
 	{
 		sig = DEFAULT_SIG;
-	}
-		
-	// get the apid associated with this aprunPid
-	if ((apid = getApid(aprunPid)) == 0)
-	{
-		// failed to find an entry in the apls_transfer interface for the associated aprun pid
-		return 1;
 	}
 	
 	// create the string to pass to exec
@@ -542,10 +559,8 @@ killAprun(pid_t aprunPid, int signum)
 	}
 	free(my_argv);
 	
-	// remove the aprunInv_t object for this aprunPid from the global list
-	reapAprunInv(aprunPid);
-	// deregister this aprunPid from the alps_transfer interface
-	deregisterAprunPid(aprunPid);
+	// deregister this apid from the interface
+	deregisterApid(apid);
 	
 	// wait until the apkill finishes
 	waitpid(mypid, NULL, 0);

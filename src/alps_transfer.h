@@ -22,9 +22,9 @@
 #define ALPS_LAUNCHER   "dlaunch"
 
 /* function prototypes */
-int             sendCNodeExec(pid_t, char *, char **, char **, int);
-int             sendCNodeBinary(pid_t, char *);
-int             sendCNodeLibrary(pid_t, char *);
-int             sendCNodeFile(pid_t, char *);
+int             sendCNodeExec(uint64_t, char *, char **, char **, int);
+int             sendCNodeBinary(uint64_t, char *);
+int             sendCNodeLibrary(uint64_t, char *);
+int             sendCNodeFile(uint64_t, char *);
 
 #endif /* _ALPS_TRANSFER_H */

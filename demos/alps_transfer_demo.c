@@ -36,7 +36,7 @@ usage(char *name)
 int
 main(int argc, char **argv)
 {
-	pid_t   mypid;
+	aprunProc_t *myapp;
 	
 	if (argc < 2)
 	{
@@ -46,16 +46,16 @@ main(int argc, char **argv)
 	
 	printf("Launching application...\n");
 	
-	if ((mypid = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL)) <= 0)
+	if ((myapp = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL)) <= 0)
 	{
 		fprintf(stderr, "Error: Could not launch aprun!\n");
 		return 1;
 	}
 	
-	if (sendCNodeFile(mypid, "testing.info"))
+	if (sendCNodeFile(myapp->apid, "testing.info"))
 	{
 		fprintf(stderr, "Error: Failed to send file to cnodes!\n");
-		killAprun(mypid, 9);
+		killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
@@ -66,10 +66,10 @@ main(int argc, char **argv)
 	// just read a single character from stdin then release the app/exit
 	(void)getchar();
 	
-	if (releaseAprun_barrier(mypid))
+	if (releaseAprun_barrier(myapp->apid))
 	{
 		fprintf(stderr, "Error: Failed to release app from barrier!\n");
-		killAprun(mypid, 9);
+		killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
