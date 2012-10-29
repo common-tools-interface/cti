@@ -12474,7 +12474,7 @@ fi
 
 	ALPS_LIB_PATH=$_cray_tmpdir/usr/lib/alps/
 
-	ALPS_INC_PATH=$_cray_tmpdir/usr/include/alps/
+	ALPS_INC_PATH=$_cray_tmpdir/usr/include/
 
 	XMLRPC_LIB_PATH=$_cray_tmpdir/usr/lib64/
 

@@ -110,7 +110,7 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 			])
 	
 	AC_SUBST([ALPS_LIB_PATH], [$_cray_tmpdir/usr/lib/alps/])
-	AC_SUBST([ALPS_INC_PATH], [$_cray_tmpdir/usr/include/alps/])
+	AC_SUBST([ALPS_INC_PATH], [$_cray_tmpdir/usr/include/])
 	AC_SUBST([XMLRPC_LIB_PATH], [$_cray_tmpdir/usr/lib64/])
 	
 	dnl Add the alps libs to the library search path
