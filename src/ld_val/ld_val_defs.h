@@ -22,7 +22,7 @@
 #ifndef _LD_VAL_DEFS_H
 #define _LD_VAL_DEFS_H
 
-#define LIBAUDIT_ENV		"LD_VAL_LIBRARY"
+#define LIBAUDIT_ENV		"CRAY_LD_VAL_LIBRARY"
 #define LD_AUDIT			"LD_AUDIT"
 
 #define KEYFILE			"/proc/cray_xt"

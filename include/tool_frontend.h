@@ -33,8 +33,8 @@
  *                      files to. Note that this location must be accessible by 
  *                      the compute nodes.
  */
-#define LIBAUDIT_ENV_VAR        "LD_VAL_LIBRARY"
-#define DBG_LOG_ENV_VAR         "DBG_LOG_DIR"
+#define LIBAUDIT_ENV_VAR        "CRAY_LD_VAL_LIBRARY"
+#define DBG_LOG_ENV_VAR         "CRAY_DBG_LOG_DIR"
 
 /* 
  * struct typedefs used in return values 

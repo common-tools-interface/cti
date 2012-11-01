@@ -19,7 +19,7 @@
 #ifndef _LOG_H
 #define _LOG_H
 
-#define DBG_LOG_ENV_VAR "DBG_LOG_DIR"
+#define DBG_LOG_ENV_VAR "CRAY_DBG_LOG_DIR"
 
 FILE *create_log(int, char *);
 int write_log(FILE *, char *);

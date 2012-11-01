@@ -537,7 +537,7 @@ ld_val(char *executable)
 		audit_location = strdup(tmp_audit);
 	} else
 	{
-		fprintf(stderr, "Could not read LD_VAL_LIBRARY to get location of libaudit.so.\n");
+		fprintf(stderr, "Could not read CRAY_LD_VAL_LIBRARY to get location of libaudit.so.\n");
 		destroy_shm_segs();
 		return (char **)NULL;
 	}
