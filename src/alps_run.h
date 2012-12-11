@@ -49,7 +49,7 @@ typedef struct
 } aprunProc_t;
 
 /* function prototypes */
-aprunProc_t	*	launchAprun_barrier(char **, int, int, int, int, char *, char *);
+aprunProc_t	*	launchAprun_barrier(char **, int, int, int, int, char *, char *, char **);
 int				releaseAprun_barrier(uint64_t);
 int				killAprun(uint64_t, int);
 void			reapAprunInv(uint64_t);

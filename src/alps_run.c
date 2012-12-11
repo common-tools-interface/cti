@@ -118,8 +118,9 @@ findAprunInv(uint64_t apid)
 }
 
 aprunProc_t	*
-launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput, 
-			int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath)
+launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput, 
+						int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
+						char **env_list	)
 {
 	aprunInv_t * myapp;
 	aprunInv_t * newapp;
@@ -277,6 +278,7 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 			if ((fd = open("/dev/null", O_RDONLY)) < 0)
 			{
 				fprintf(stderr, "Unable to open /dev/null for reading.\n");
+				exit(1);
 			}
 		}
 		
@@ -284,6 +286,7 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 		if (dup2(fd, STDIN_FILENO) < 0)
 		{
 			fprintf(stderr, "Unable to redirect aprun stdin.\n");
+			exit(1);
 		}
 		close(fd);
 		
@@ -294,12 +297,14 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 			if (dup2(stdout_fd, STDOUT_FILENO) < 0)
 			{
 				fprintf(stderr, "Unable to redirect aprun stdout.\n");
+				exit(1);
 			}
 			
 			// dup2 stderr
 			if (dup2(stderr_fd, STDERR_FILENO) < 0)
 			{
 				fprintf(stderr, "Unable to redirect aprun stderr.\n");
+				exit(1);
 			}
 		}
 		
@@ -309,6 +314,22 @@ launchAprun_barrier(char **aprun_argv, int redirectOutput, int redirectInput,
 			if (chdir(chdirPath))
 			{
 				fprintf(stderr, "Unable to chdir to provided path.\n");
+				exit(1);
+			}
+		}
+		
+		// if env_list is not null, call putenv for each entry in the list
+		if (env_list != (char **)NULL)
+		{
+			i = 0;
+			while(env_list[i] != (char *)NULL)
+			{
+				// putenv returns non-zero on error
+				if (putenv(env_list[i++]))
+				{
+					fprintf(stderr, "Unable to putenv provided env_list.\n");
+					exit(1);
+				}
 			}
 		}
 

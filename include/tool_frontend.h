@@ -310,6 +310,10 @@ extern void	destroy_appHostPlacementList(appHostPlacementList_t *placement_list)
  *      aprun process. This is useful if the aprun session should start 
  *      somewhere other than the current PWD if the application creates files. 
  *
+ *      This function can optionally set environment variables for the aprun
+ *      process. This is useful if the aprun session should use an environment
+ *      variable that is different than the current value set in the parent.
+ *
  * Arguments
  *      aprun_argv -    A null terminated list of arguments to pass directly
  *                      to aprun. This differs from a traditional argv in the
@@ -328,6 +332,10 @@ extern void	destroy_appHostPlacementList(appHostPlacementList_t *placement_list)
  *                      redirectInput evaluates to true.
  *      chdirPath -     The path to change the current working directory of 
  *                      aprun to, or NULL if no chdir is to take place.
+ *      env_list -      A null terminated list of strings of the form 
+ *                      "name=value". The value of name in the environment will
+ *                      be set to value irrespective of name already existing in
+ *                      the environment. 
  *
  * Returns
  *      A aprunProc_t pointer that contains the pid of the aprun process as well
@@ -338,7 +346,8 @@ extern void	destroy_appHostPlacementList(appHostPlacementList_t *placement_list)
  */
 extern aprunProc_t * launchAprun_barrier(char **aprun_argv, int redirectOutput, 
                                int redirectInput, int stdout_fd, int stderr_fd,
-                               char *inputFile, char *chdirPath);
+                               char *inputFile, char *chdirPath, 
+                               char **env_list);
 
 /*
  * releaseAprun_barrier - Release the aprun session launched with the
