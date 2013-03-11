@@ -46,7 +46,7 @@ main(int argc, char **argv)
 	
 	printf("Launching application...\n");
 	
-	if ((myapp = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL)) <= 0)
+	if ((myapp = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
 	{
 		fprintf(stderr, "Error: Could not launch aprun!\n");
 		return 1;

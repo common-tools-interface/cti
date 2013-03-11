@@ -63,7 +63,7 @@ main(int argc, char **argv)
  	*						and have ALPS hold the application at its MPI startup
  	*						barrier.
 	*/
-	if ((myapp = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL)) == (aprunProc_t *)NULL)
+	if ((myapp = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) == (aprunProc_t *)NULL)
 	{
 		fprintf(stderr, "Error: Could not launch aprun!\n");
 		return 1;
