@@ -293,6 +293,15 @@ findApp(uint64_t apid)
 	// ensure my_apps isn't empty
 	if ((lstPtr = my_apps) == (appList_t *)NULL)
 		return (appEntry_t *)NULL;
+		
+	// BUG 795026 fix - If the head thisEntry is NULL, then we were interrupted
+	// while in the newApp routine. Reap the list of this junk entry.
+	if (lstPtr->thisEntry == (appList_t *)NULL)
+	{
+		reapAppsList();
+		// There are no entries in the list.
+		return (appEntry_t *)NULL;
+	}
 	
 	// iterate through the my_apps list
 	while (lstPtr->thisEntry->apid != apid)
