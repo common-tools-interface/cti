@@ -296,7 +296,7 @@ findApp(uint64_t apid)
 		
 	// BUG 795026 fix - If the head thisEntry is NULL, then we were interrupted
 	// while in the newApp routine. Reap the list of this junk entry.
-	if (lstPtr->thisEntry == (appList_t *)NULL)
+	if (lstPtr->thisEntry == (appEntry_t *)NULL)
 	{
 		reapAppsList();
 		// There are no entries in the list.
@@ -311,6 +311,17 @@ findApp(uint64_t apid)
 		{
 			// if lstPtr is null, we are at the end of the list
 			// so the entry for apid doesn't exist
+			return (appEntry_t *)NULL;
+		}
+		
+		// BUG 795026 fix - if thisEntry is NULL, we had a valid app in the list
+		// and were interrupted at some point after that. Reap the list of this
+		// junk entry. It should be the last entry on the list since this is the
+		// first thing called when registering a new apid.
+		if (lstPtr->thisEntry == (appEntry_t *)NULL)
+		{
+			reapAppsList();
+			// There are no more entires in the list
 			return (appEntry_t *)NULL;
 		}
 	}
