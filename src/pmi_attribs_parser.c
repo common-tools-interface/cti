@@ -24,31 +24,64 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "pmi_attribs_parser.h"
 
 pmi_attribs_t *
 getPmiAttribsInfo(uint64_t apid)
 {
-	int             i;
-	FILE *          fp;
-	char            fileName[PATH_MAX];
-	int             int1;
-	long int        longint1;
-	pmi_attribs_t * rtn;
+	int					i;
+	FILE *				fp;
+	char				fileName[PATH_MAX];
+	int					int1;
+	long int			longint1;
+	pmi_attribs_t *		rtn;
+	struct timespec		timer;
+	int					tcount = 0;
+	
+	// init the timer to .25 seconds
+	timer.tv_sec	= 0;
+	timer.tv_nsec	= 250000000;
 
 	// sanity check
 	if (apid <= 0)
 		return (pmi_attribs_t *)NULL;
+		
+	// TODO: There is a potential race condition here. For an attach scenario,
+	// its possible to attach to the application before its at the startup
+	// barrier. That means we could potentially read the pmi_attribs file before
+	// its finished being written. This is only possible when there is no
+	// startup barrier and an application is linked dynamically meaning it can
+	// take a long time to startup at scale due to DVS issues.
 
 	// create the path to the pmi_attribs file
 	snprintf(fileName, PATH_MAX, PMI_ATTRIBS_FILE_PATH_FMT, (long long unsigned int)apid);
 	
 	// try to open the pmi_attribs file
-	if ((fp = fopen(fileName, "r")) == 0)
+	while ((fp = fopen(fileName, "r")) == 0)
 	{
-		// we couldn't open the pmi_attribs file, so return null
-		return (pmi_attribs_t *)NULL;
+		// If we failed to open the file, sleep for timer nsecs. Keep track of
+		// the count and make sure that this does not equal the timeout value
+		// in seconds.
+		// If you modify the timer, make sure you modify the multiple of the
+		// timeout value. The timeout value is in seconds, we are sleeping in
+		// fractions of seconds.
+		if (tcount++ < (4 * PMI_ATTRIBS_FOPEN_TIMEOUT))
+		{
+			if (nanosleep(&timer, NULL) < 0)
+			{
+				fprintf(stderr, "nanosleep failed.\n");
+			}
+			if (tcount%4 == 0)
+			{
+				fprintf(stderr, "Could not open pmi_attribs file after %d seconds.\n", tcount/4);
+			}
+		} else
+		{
+			// we couldn't open the pmi_attribs file, so return null
+			return (pmi_attribs_t *)NULL;
+		}
 	}
 	
 	// we opened the file, so lets allocate the return object

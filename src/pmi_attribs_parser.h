@@ -25,8 +25,12 @@
 #include "alps/alps.h"
 
 /* We expect the pmi_attribs format to be /var/spool/alps/<apid>/pmi_attribs */
-#define PMI_ATTRIBS_FILE_NAME           "pmi_attribs"
-#define PMI_ATTRIBS_FILE_PATH_FMT       ALPS_CNODE_PATH_FMT "/" PMI_ATTRIBS_FILE_NAME
+#define PMI_ATTRIBS_FILE_NAME        "pmi_attribs"
+#define PMI_ATTRIBS_FILE_PATH_FMT    ALPS_CNODE_PATH_FMT "/" PMI_ATTRIBS_FILE_NAME
+
+/* Timeout length in seconds for trying to open pmi_attribs file */
+// TODO: Use timeout variable here.
+#define PMI_ATTRIBS_FOPEN_TIMEOUT    45
 
 /* struct typedefs */
 typedef struct
