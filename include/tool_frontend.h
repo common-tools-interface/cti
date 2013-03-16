@@ -2,7 +2,7 @@
  * tool_frontend.h - The public API definitions for the frontend portion of the
  *                   tool_interface.
  *
- * © 2011-2012 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -26,15 +26,22 @@
 /*
  * The tool interface needs to read environment specific locations
  * dynamically at run time. The environment variables that are read
- * are defined here.
+ * are defined here. Their values are the values users should use to set in 
+ * their environment.
  *
  * LIBAUDIT_ENV_VAR     Used to define the absolute path to the audit library
  * DBG_LOG_ENV_VAR      Optional variable used to define a path to write log
  *                      files to. Note that this location must be accessible by 
  *                      the compute nodes.
+ * USER_DEF_APRUN_LOCATION
+ *                      Used to define the absolute path to the aprun binary.
+ *                      This is used when a site has renamed the real aprun
+ *                      binary to something else.
+ * 
  */
 #define LIBAUDIT_ENV_VAR        "CRAY_LD_VAL_LIBRARY"
 #define DBG_LOG_ENV_VAR         "CRAY_DBG_LOG_DIR"
+#define USER_DEF_APRUN_LOCATION "CRAY_APRUN_PATH"
 
 /* 
  * struct typedefs used in return values 

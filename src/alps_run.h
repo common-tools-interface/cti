@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * alps_run.h - A header file for the alps_run interface.
  *
- * © 2011-2012 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -24,6 +24,12 @@
 #define APRUN			"aprun"
 #define APKILL			"apkill"
 #define DEFAULT_SIG	9
+
+#define OLD_APRUN_LOCATION	"/usr/bin/aprun"
+#define OBS_APRUN_LOCATION	"/opt/cray/alps/default/bin/aprun"
+// defined in tool_frontend.h, used to define absolute location of the real
+// aprun binary
+#define USER_DEF_APRUN_LOCATION "CRAY_APRUN_PATH"
 
 /* struct typedefs */
 typedef struct

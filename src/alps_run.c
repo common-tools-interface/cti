@@ -4,7 +4,7 @@
  *	      start new instances of an aprun program and get the pid_t of
  *	      the associated aprun session.
  *
- * © 2011-2012 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -23,6 +23,7 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
  
+#include <dirent.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -34,12 +35,15 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 
+#include <linux/limits.h>
+
 #include "alps_run.h"
 #include "alps_application.h"
 
 /* static prototypes */
 static void consumeAprunInv(aprunInv_t *);
 static aprunInv_t * findAprunInv(uint64_t);
+static int	checkPathForWrappedAprun(char *);
 
 // global aprunInv_t list
 static aprunInv_t *	head = (aprunInv_t *)NULL;
@@ -117,23 +121,89 @@ findAprunInv(uint64_t apid)
 	return appPtr;
 }
 
+static int	
+checkPathForWrappedAprun(char *aprun_path)
+{
+	char *			usr_aprun_path;
+	struct stat		buf;
+	
+	// The following is used when a user sets the CRAY_APRUN_PATH environment
+	// variable to the absolute location of aprun. It overrides the default
+	// behavior.
+	if ((usr_aprun_path = getenv(USER_DEF_APRUN_LOCATION)) != NULL)
+	{
+		// There is a path to aprun set, lets try to stat it to make sure it
+		// exists
+		if (stat(usr_aprun_path, &buf) == 0)
+		{
+			// We were able to stat it! Lets check aprun_path against it
+			if (strncmp(aprun_path, usr_aprun_path, strlen(usr_aprun_path)))
+			{
+				// This is a wrapper. Return 1.
+				return 1;
+			}
+			
+			// This is a real aprun. Return 0.
+			return 0;
+		} else
+		{
+			// We were unable to stat the file pointed to by usr_aprun_path, lets
+			// print a warning and fall back to using the default method.
+			fprintf(stderr, "Warning: CRAY_APRUN_PATH is set but cannot stat its value.\n");
+		}
+	}
+	
+	// check to see if the path points at the old aprun location
+	if (strncmp(aprun_path, OLD_APRUN_LOCATION, strlen(OLD_APRUN_LOCATION)))
+	{
+		// it doesn't point to the old aprun location, so check the new OBS
+		// location
+		if (strncmp(aprun_path, OBS_APRUN_LOCATION, strlen(OBS_APRUN_LOCATION)))
+		{
+			// This is a wrapper. Return 1.
+			return 1;
+		}
+	}
+	
+	// This is a real aprun, return 0
+	return 0;
+}
+
+static int
+filter_pid_entries(const struct dirent *a)
+{
+	unsigned long int pid;
+	
+	// We only want to get files that are of the format /proc/<pid>/
+	// if the assignment succeeds then the file matches this type.
+	return sscanf(a->d_name, "%lu", &pid);
+}
+
 aprunProc_t	*
 launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput, 
 						int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
 						char **env_list	)
 {
-	aprunInv_t * myapp;
-	aprunInv_t * newapp;
-	pid_t        mypid;
-	char **      tmp;
-	int          aprun_argc = 0;
-	int          fd_len = 0;
-	int          i, j, fd;
-	char *       pipefd_buf;
-	char **      my_argv;
+	aprunInv_t *	myapp;
+	aprunInv_t *	newapp;
+	pid_t			mypid;
+	char **			tmp;
+	int				aprun_argc = 0;
+	int				fd_len = 0;
+	int				i, j, fd;
+	char *			pipefd_buf;
+	char **			my_argv;
 	// pipes for aprun
-	int aprunPipeR[2];
-	int aprunPipeW[2];
+	int				aprunPipeR[2];
+	int				aprunPipeW[2];
+	// used for determining if the aprun binary is a wrapper script
+	char *			aprun_proc_path = NULL;
+	char *			aprun_exe_path;
+	struct dirent 	**file_list;
+	int				file_list_len;
+	char *			proc_stat_path = NULL;
+	FILE *			proc_stat = NULL;
+	int				proc_ppid;
 	// return object
 	aprunProc_t *	rtn;
 
@@ -145,7 +215,8 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	}
 	memset(myapp, 0, sizeof(aprunInv_t));     // clear it to NULL
 	
-	// make the pipes for aprun (tells aprun to hold the program at the initial barrier)
+	// make the pipes for aprun (tells aprun to hold the program at the initial 
+	// barrier)
 	if (pipe(aprunPipeR) < 0)
 	{
 		fprintf(stderr, "Pipe creation failure on aprunPipeR.\n");
@@ -165,7 +236,8 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	
 	// create the argv array for the actual aprun exec
 	// figure out the length of the argv array
-	// this is the number of args in the aprun_argv array passed to us plus 2 for the -P w,r argument and 2 for aprun and null term
+	// this is the number of args in the aprun_argv array passed to us plus 2 
+	// for the -P w,r argument and 2 for aprun and null term
 		
 	// iterate through the aprun_argv array
 	tmp = aprun_argv;
@@ -343,9 +415,6 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	
 	// parent case
 	
-	// set aprunPid in aprunInv_t structure
-	myapp->aprunPid = mypid;
-	
 	// close unused ends of pipe
 	close(aprunPipeR[0]);
 	close(aprunPipeW[1]);
@@ -358,15 +427,217 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	}
 	free(my_argv);
 	
-	// Wait on pipe read for app to start and get to barrier
+	// Wait on pipe read for app to start and get to barrier - once this happens
+	// we know the real aprun is up and running
 	if (read(myapp->pipeCtl.pipe_w, &myapp->pipeCtl.sync_int, sizeof(myapp->pipeCtl.sync_int)) <= 0)
 	{
 		fprintf(stderr, "Aprun launch failed.\n");
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
-		kill(myapp->aprunPid, DEFAULT_SIG);
+		kill(mypid, DEFAULT_SIG);
 		free(myapp);
 		return NULL;
+	}
+	
+	// The following code was added to detect if a site is using a wrapper script
+	// around aprun. Some sites use these as prologue/epilogue. I know this
+	// functionality has been added to alps, but sites are still using the
+	// wrapper. If this is no longer true in the future, rip this stuff out.
+	
+	// FIXME: This doesn't handle multiple layers of depth.
+	
+	// first read the link of the exe in /proc for the aprun pid.
+	
+	// create the path to the /proc/<pid>/exe location
+	if (asprintf(&aprun_proc_path, "/proc/%lu/exe", (unsigned long)mypid) < 0)
+	{
+		fprintf(stderr, "asprintf failed.\n");
+		goto continue_on_error;
+	}
+	
+	// alloc size for the path buffer, base this on PATH_MAX. Note that /proc
+	// is not posix compliant so trying to do the right thing by calling lstat
+	// won't work.
+	if ((aprun_exe_path = malloc(PATH_MAX)) == (void *)0)
+	{
+		// Malloc failed
+		fprintf(stderr, "malloc failed.\n");
+		free(aprun_proc_path);
+		goto continue_on_error;
+	}
+	// set it to null, this also guarantees that we will have a null terminator.
+	memset(aprun_exe_path, 0, PATH_MAX);
+	
+	// read the link
+	if (readlink(aprun_proc_path, aprun_exe_path, PATH_MAX-1) < 0)
+	{
+		fprintf(stderr, "Warning: readlink failed on aprun /proc/<pid>/exe.\n");
+		free(aprun_proc_path);
+		free(aprun_exe_path);
+		goto continue_on_error;
+	}
+	
+	// check the link path to see if its the real aprun binary
+	if (checkPathForWrappedAprun(aprun_exe_path))
+	{
+		// aprun is wrapped, we need to start harvesting stuff out from /proc.
+		
+		// start by getting all the /proc/<pid>/ files
+		if ((file_list_len = scandir("/proc", &file_list, filter_pid_entries, NULL)) < 0)
+		{
+			perror("scandir");
+			fprintf(stderr, "Failure: Could not enumerate /proc for real aprun process.\n");
+			free(aprun_proc_path);
+			free(aprun_exe_path);
+			// attempt to kill aprun since the caller will not recieve the aprun pid
+			// just in case the aprun process is still hanging around.
+			kill(mypid, DEFAULT_SIG);
+			free(myapp);
+			return NULL;
+		}
+		
+		// loop over each entry reading in its ppid from its stat file
+		for (i=0; i <= file_list_len; ++i)
+		{
+			// if i is equal to file_list_len, then we are at an error condition
+			// we did not find the child aprun process. We should error out at
+			// this point since we will error out later in an alps call anyways.
+			if (i == file_list_len)
+			{
+				fprintf(stderr, "Failure: Could not find child aprun process of wrapped aprun command.\n");
+				free(aprun_proc_path);
+				free(aprun_exe_path);
+				// attempt to kill aprun since the caller will not recieve the aprun pid
+				// just in case the aprun process is still hanging around.
+				kill(mypid, DEFAULT_SIG);
+				free(myapp);
+				// free the file_list
+				for (i=0; i < file_list_len; ++i)
+				{
+					free(file_list[i]);
+				}
+				free(file_list);
+				return NULL;
+			}
+		
+			// create the path to the /proc/<pid>/stat for this entry
+			if (asprintf(&proc_stat_path, "/proc/%s/stat", (file_list[i])->d_name) < 0)
+			{
+				fprintf(stderr, "asprintf failed.\n");
+				fprintf(stderr, "Failure: Could not enumerate /proc/<pid>/stat for real aprun process.\n");
+				free(aprun_proc_path);
+				free(aprun_exe_path);
+				// attempt to kill aprun since the caller will not recieve the aprun pid
+				// just in case the aprun process is still hanging around.
+				kill(mypid, DEFAULT_SIG);
+				free(myapp);
+				// free the file_list
+				for (i=0; i < file_list_len; ++i)
+				{
+					free(file_list[i]);
+				}
+				free(file_list);
+				return NULL;
+			}
+			
+			// open the stat file for reading
+			if ((proc_stat = fopen(proc_stat_path, "r")) == NULL)
+			{
+				// ignore this entry and go onto the next
+				free(proc_stat_path);
+				proc_stat_path = NULL;
+				continue;
+			}
+			
+			// free the proc_stat_path
+			free(proc_stat_path);
+			proc_stat_path = NULL;
+			
+			// parse the stat file for the ppid
+			if (fscanf(proc_stat, "%*d %*s %*c %d", &proc_ppid) != 1)
+			{
+				// could not get the ppid?? continue to the next entry
+				fclose(proc_stat);
+				proc_stat = NULL;
+				continue;
+			}
+			
+			// close the stat file
+			fclose(proc_stat);
+			proc_stat = NULL;
+			
+			// check to see if the ppid matches the pid of our child
+			if (proc_ppid == mypid)
+			{
+				// it matches, check to see if this is the real aprun
+				
+				// free the existing aprun_proc_path
+				free(aprun_proc_path);
+				aprun_proc_path = NULL;
+				
+				// allocate the new aprun_proc_path
+				if (asprintf(&aprun_proc_path, "/proc/%s/exe", (file_list[i])->d_name) < 0)
+				{
+					fprintf(stderr, "asprintf failed.\n");
+					fprintf(stderr, "Failure: Could not enumerate /proc/<pid>/exe for real aprun process.\n");
+					free(aprun_proc_path);
+					free(aprun_exe_path);
+					// attempt to kill aprun since the caller will not recieve the aprun pid
+					// just in case the aprun process is still hanging around.
+					kill(mypid, DEFAULT_SIG);
+					free(myapp);
+					// free the file_list
+					for (i=0; i < file_list_len; ++i)
+					{
+						free(file_list[i]);
+					}
+					free(file_list);
+					return NULL;
+				}
+				
+				// reset aprun_exe_path to null.
+				memset(aprun_exe_path, 0, PATH_MAX);
+				
+				// read the exe link to get what its pointing at
+				if (readlink(aprun_proc_path, aprun_exe_path, PATH_MAX-1) < 0)
+				{
+					// if the readlink failed, ignore the error and continue to
+					// the next entry. Its possible that this could fail under
+					// certain scenarios like the process is running as root.
+					continue;
+				}
+				
+				// check if this is the real aprun
+				if (!checkPathForWrappedAprun(aprun_exe_path))
+				{
+					// success! This is the real aprun
+					// set the aprunPid of the real aprun in the aprunInv_t structure
+					myapp->aprunPid = (pid_t)strtoul((file_list[i])->d_name, NULL, 10);
+					
+					// cleanup memory
+					free(aprun_proc_path);
+					free(aprun_exe_path);
+					
+					// free the file_list
+					for (i=0; i < file_list_len; ++i)
+					{
+						free(file_list[i]);
+					}
+					free(file_list);
+					// done
+					break;
+				}
+			}
+		}
+	} else
+	{
+		// cleanup memory
+		free(aprun_proc_path);
+		free(aprun_exe_path);
+	
+continue_on_error:
+		// set aprunPid in aprunInv_t structure
+		myapp->aprunPid = mypid;
 	}
 	
 	// insert myapp into the global list
