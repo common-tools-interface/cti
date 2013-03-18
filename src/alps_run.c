@@ -130,7 +130,7 @@ checkPathForWrappedAprun(char *aprun_path)
 	// The following is used when a user sets the CRAY_APRUN_PATH environment
 	// variable to the absolute location of aprun. It overrides the default
 	// behavior.
-	if ((usr_aprun_path = getenv(USER_DEF_APRUN_LOCATION)) != NULL)
+	if ((usr_aprun_path = getenv(USER_DEF_APRUN_LOC_ENV_VAR)) != NULL)
 	{
 		// There is a path to aprun set, lets try to stat it to make sure it
 		// exists
@@ -149,7 +149,7 @@ checkPathForWrappedAprun(char *aprun_path)
 		{
 			// We were unable to stat the file pointed to by usr_aprun_path, lets
 			// print a warning and fall back to using the default method.
-			fprintf(stderr, "Warning: CRAY_APRUN_PATH is set but cannot stat its value.\n");
+			fprintf(stderr, "Warning: %s is set but cannot stat its value.\n", USER_DEF_APRUN_LOC_ENV_VAR);
 		}
 	}
 	

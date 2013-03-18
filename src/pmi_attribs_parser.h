@@ -1,7 +1,7 @@
 /******************************************************************************\
  * pmi_attribs_parser.c - A header file for the pmi_attribs file parser.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -29,8 +29,10 @@
 #define PMI_ATTRIBS_FILE_PATH_FMT    ALPS_CNODE_PATH_FMT "/" PMI_ATTRIBS_FILE_NAME
 
 /* Timeout length in seconds for trying to open pmi_attribs file */
-// TODO: Use timeout variable here.
-#define PMI_ATTRIBS_FOPEN_TIMEOUT    45
+#define PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT    60
+// User defined timeout variables
+#define PMI_ATTRIBS_TIMEOUT_ENV_VAR		"CRAY_CTI_PMI_FOPEN_TIMEOUT"
+#define PMI_EXTRA_SLEEP_ENV_VAR			"CRAY_CTI_PMI_EXTRA_SLEEP"
 
 /* struct typedefs */
 typedef struct

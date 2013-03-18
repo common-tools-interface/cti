@@ -2,7 +2,7 @@
  * pmi_attribs_parser.c - A interface to parse the pmi_attribs file that exists
 			  on the compute node.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "pmi_attribs_parser.h"
 
@@ -39,6 +40,9 @@ getPmiAttribsInfo(uint64_t apid)
 	pmi_attribs_t *		rtn;
 	struct timespec		timer;
 	int					tcount = 0;
+	unsigned long int	timeout = 0;
+	unsigned long int	extra_timeout = 0;
+	char *				env_var_str;
 	
 	// init the timer to .25 seconds
 	timer.tv_sec	= 0;
@@ -64,10 +68,31 @@ getPmiAttribsInfo(uint64_t apid)
 		// If we failed to open the file, sleep for timer nsecs. Keep track of
 		// the count and make sure that this does not equal the timeout value
 		// in seconds.
+		
+		// Try to read the timeout value if this is the first time through
+		if (timeout == 0)
+		{
+			// Query the environment variable setting in case the user set this.
+			if ((env_var_str = getenv(PMI_ATTRIBS_TIMEOUT_ENV_VAR)) != NULL)
+			{
+				// var is set, so use this
+				timeout = strtoul(env_var_str, NULL, 10);
+				// if still 0, set this to default
+				if (timeout == 0)
+				{
+					timeout = PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT;
+				}
+			} else
+			{
+				// Set the timeout to the default value
+				timeout = PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT;
+			}
+		}
+		
 		// If you modify the timer, make sure you modify the multiple of the
 		// timeout value. The timeout value is in seconds, we are sleeping in
 		// fractions of seconds.
-		if (tcount++ < (4 * PMI_ATTRIBS_FOPEN_TIMEOUT))
+		if (tcount++ < (4 * timeout))
 		{
 			if (nanosleep(&timer, NULL) < 0)
 			{
@@ -82,6 +107,32 @@ getPmiAttribsInfo(uint64_t apid)
 			// we couldn't open the pmi_attribs file, so return null
 			return (pmi_attribs_t *)NULL;
 		}
+	}
+	
+	// if tcount is not zero, that means we failed to open the pmi_attribs file
+	// lets sleep for a fraction of tcount to try and avoid a race condition here.
+	// This can be user defined.
+	// FIXME: This is nondeterministic and a bad idea...
+	if (tcount != 0)
+	{
+		// Query the environment variable setting in case the user set this.
+		if ((env_var_str = getenv(PMI_EXTRA_SLEEP_ENV_VAR)) != NULL)
+		{
+			// var is set, so use this
+			extra_timeout = strtoul(env_var_str, NULL, 10);
+			// if still 0, set this to default which is a fraction of tcount in
+			// seconds
+			if (extra_timeout == 0)
+			{
+				extra_timeout = (tcount/4)/10;
+			}
+		} else
+		{
+			// Set the extra timeout to the default value
+			extra_timeout = (tcount/4)/10;
+		}
+		// sleep for the extra amount of time
+		sleep(extra_timeout);
 	}
 	
 	// we opened the file, so lets allocate the return object

@@ -27,21 +27,36 @@
  * The tool interface needs to read environment specific locations
  * dynamically at run time. The environment variables that are read
  * are defined here. Their values are the values users should use to set in 
- * their environment.
+ * their environment. Note that these are compile time constants in the library
+ * and cannot be overridden.
  *
  * LIBAUDIT_ENV_VAR     Used to define the absolute path to the audit library
  * DBG_LOG_ENV_VAR      Optional variable used to define a path to write log
  *                      files to. Note that this location must be accessible by 
  *                      the compute nodes.
- * USER_DEF_APRUN_LOCATION
+ * USER_DEF_APRUN_LOC_ENV_VAR
  *                      Used to define the absolute path to the aprun binary.
  *                      This is used when a site has renamed the real aprun
  *                      binary to something else.
+ * PMI_ATTRIBS_TIMEOUT_ENV_VAR
+ *                      Used to define the amount of time the daemon will spend
+ *                      attempting to open the pmi_attribs file when gathering
+ *                      application pid information on the compute node. If this
+ *                      is not set, the default timeout period is 60 seconds.
+ * PMI_EXTRA_SLEEP_ENV_VAR
+ *                      Used to define an extra amount of time to sleep after
+ *                      reading the pmi_attribs file if it was not immediately
+ *                      available. This is to avoid a potential race condition.
+ *                      If this is not set, the default is to wait an order of
+ *                      magnitude less than the amount of time it took to open
+ *                      the pmi_attribs file.
  * 
  */
-#define LIBAUDIT_ENV_VAR        "CRAY_LD_VAL_LIBRARY"
-#define DBG_LOG_ENV_VAR         "CRAY_DBG_LOG_DIR"
-#define USER_DEF_APRUN_LOCATION "CRAY_APRUN_PATH"
+#define LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
+#define DBG_LOG_ENV_VAR             "CRAY_DBG_LOG_DIR"
+#define USER_DEF_APRUN_LOC_ENV_VAR  "CRAY_APRUN_PATH"
+#define PMI_ATTRIBS_TIMEOUT_ENV_VAR "CRAY_CTI_PMI_FOPEN_TIMEOUT"
+#define PMI_EXTRA_SLEEP_ENV_VAR     "CRAY_CTI_PMI_EXTRA_SLEEP"
 
 /* 
  * struct typedefs used in return values 
