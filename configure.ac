@@ -82,6 +82,7 @@ AC_CHECK_LIB([alps],
 			)
 	      ],
 	     [AC_MSG_FAILURE([libalps not found.])],
+	     [-lxmlrpc-epi]
 	     )
 
 dnl Check for libalpsutil
