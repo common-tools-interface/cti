@@ -125,6 +125,7 @@ static int
 checkPathForWrappedAprun(char *aprun_path)
 {
 	char *			usr_aprun_path;
+	char *			default_obs_realpath = NULL;
 	struct stat		buf;
 	
 	// The following is used when a user sets the CRAY_APRUN_PATH environment
@@ -157,12 +158,23 @@ checkPathForWrappedAprun(char *aprun_path)
 	if (strncmp(aprun_path, OLD_APRUN_LOCATION, strlen(OLD_APRUN_LOCATION)))
 	{
 		// it doesn't point to the old aprun location, so check the new OBS
-		// location
-		if (strncmp(aprun_path, OBS_APRUN_LOCATION, strlen(OBS_APRUN_LOCATION)))
+		// location. Note that we need to resolve this location with a call to 
+		// realpath.
+		if ((default_obs_realpath = realpath(OBS_APRUN_LOCATION, NULL)) == NULL)
+		{
+			fprintf(stderr, "Failure: Could not resolve realpath of aprun.\n");
+			// Assume this is the real aprun...
+			return 0;
+		}
+		// Check the string
+		if (strncmp(aprun_path, default_obs_realpath, strlen(default_obs_realpath)))
 		{
 			// This is a wrapper. Return 1.
+			free(default_obs_realpath);
 			return 1;
 		}
+		// cleanup
+		free(default_obs_realpath);
 	}
 	
 	// This is a real aprun, return 0
