@@ -56,11 +56,6 @@ AC_PROG_SED
 #########################
 ### Setup env options ###
 #########################
-dnl This is needed because the rtld library will *NOT* work if optimizations
-dnl are turned on. I don't know how to fix this, so this is a workaround until
-dnl the lightbulb turns on.
-AS_IF([test "x${ac_cv_env_CFLAGS_set}" = "x"], [CFLAGS=""])
-AM_CONDITIONAL([USE_INTERNAL_CFLAGS], [test "x${ac_cv_env_CFLAGS_set}" = "x"])
 
 dnl This m4 macro will grab the required ALPS RPM from CSS and extract it with
 dnl cpio. It will create varibales $ALPS_LIB_PATH and $ALPS_INC_PATH which point

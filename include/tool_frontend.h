@@ -31,6 +31,10 @@
  * and cannot be overridden.
  *
  * LIBAUDIT_ENV_VAR     Used to define the absolute path to the audit library
+ * LIBAUDIT_KEYFILE_ENV_VAR
+ *                      Used to define a path to a file used to create sys-v 
+ *                      keys in the audit library. If the file doesn't exist, it
+ *                      will be created at the provided location.
  * DBG_LOG_ENV_VAR      Optional variable used to define a path to write log
  *                      files to. Note that this location must be accessible by 
  *                      the compute nodes.
@@ -53,6 +57,7 @@
  * 
  */
 #define LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
+#define LIBAUDIT_KEYFILE_ENV_VAR    "CRAY_LD_VAL_KEYFILE"
 #define DBG_LOG_ENV_VAR             "CRAY_DBG_LOG_DIR"
 #define USER_DEF_APRUN_LOC_ENV_VAR  "CRAY_APRUN_PATH"
 #define PMI_ATTRIBS_TIMEOUT_ENV_VAR "CRAY_CTI_PMI_FOPEN_TIMEOUT"

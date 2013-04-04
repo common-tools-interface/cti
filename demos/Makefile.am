@@ -1,7 +1,7 @@
 #
 # Makefile.am for the demo utilities
 #
-# ©2011-2012 Cray Inc.  All Rights Reserved.
+# ©2011-2013 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -15,15 +15,12 @@
 ## $Author$
 #
 
-if USE_INTERNAL_CFLAGS
-AM_CFLAGS       = -I$(includedir) -L$(libdir) -g -O2
-else
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
-endif
 
 EXTRA_PROGRAMS = aprunBarrier aprunInfo aprunTransfer aprunCallback callback_daemon
 
 aprunBarrier_CFLAGS = $(AM_CFLAGS)
+
 aprunBarrier_SOURCES = alps_barrier_demo.c
 aprunBarrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
 

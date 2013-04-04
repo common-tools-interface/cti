@@ -19,7 +19,7 @@
 # Makefile.am for the libcraytool and dlaunch components of the craytool 
 # interface.
 #
-# ©2011-2012 Cray Inc.  All Rights Reserved.
+# ©2011-2013 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -279,8 +279,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 LDVAL = ld_val
-@USE_INTERNAL_CFLAGS_FALSE@AM_CFLAGS = -I$(LDVAL) -fPIC -Wall
-@USE_INTERNAL_CFLAGS_TRUE@AM_CFLAGS = -I$(LDVAL) -fPIC -Wall -g -O2
+AM_CFLAGS = -I$(LDVAL) -fPIC -Wall
 lib_LTLIBRARIES = libcraytool_frontend.la libcraytool_backend.la
 libcraytool_frontend_la_SOURCES = alps_application.c alps_run.c alps_transfer.c \
 				  useful/path.c useful/stringList.c 

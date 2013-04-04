@@ -18,7 +18,7 @@
 #
 # Makefile.am for the demo utilities
 #
-# ©2011-2012 Cray Inc.  All Rights Reserved.
+# ©2011-2013 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -255,8 +255,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-@USE_INTERNAL_CFLAGS_FALSE@AM_CFLAGS = -I$(includedir) -L$(libdir)
-@USE_INTERNAL_CFLAGS_TRUE@AM_CFLAGS = -I$(includedir) -L$(libdir) -g -O2
+AM_CFLAGS = -I$(includedir) -L$(libdir)
 aprunBarrier_CFLAGS = $(AM_CFLAGS)
 aprunBarrier_SOURCES = alps_barrier_demo.c
 aprunBarrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend

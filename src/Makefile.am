@@ -2,7 +2,7 @@
 # Makefile.am for the libcraytool and dlaunch components of the craytool 
 # interface.
 #
-# ©2011-2012 Cray Inc.  All Rights Reserved.
+# ©2011-2013 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -17,11 +17,7 @@
 
 LDVAL 	= ld_val
 
-if USE_INTERNAL_CFLAGS
-AM_CFLAGS       = -I$(LDVAL) -fPIC -Wall -g -O2
-else
 AM_CFLAGS 	= -I$(LDVAL) -fPIC -Wall
-endif
 
 lib_LTLIBRARIES	= libcraytool_frontend.la libcraytool_backend.la
 

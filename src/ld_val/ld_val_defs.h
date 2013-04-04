@@ -4,7 +4,7 @@
  *                 and KEY_B coorespond to the key_t used to create the shm
  *                 segment. These definitions can be modified as needed.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -22,13 +22,13 @@
 #ifndef _LD_VAL_DEFS_H
 #define _LD_VAL_DEFS_H
 
-#define LIBAUDIT_ENV		"CRAY_LD_VAL_LIBRARY"
-#define LD_AUDIT			"LD_AUDIT"
+#define LIBAUDIT_ENV_VAR				"CRAY_LD_VAL_LIBRARY"
+#define LIBAUDIT_KEYFILE_ENV_VAR	"CRAY_LD_VAL_KEYFILE"
+#define LD_AUDIT						"LD_AUDIT"
 
-#define KEYFILE			"/proc/cray_xt"
-#define ID_A				'A'
-#define ID_B				'B'
-#define CTL_CHANNEL_SIZE	1
-#define BLOCK_SIZE		20
+#define DEFAULT_KEYFILE				"/proc/cray_xt"
+#define ID_A							'A'
+#define ID_B							'B'
+#define BLOCK_SIZE					20
 
 #endif /* _LD_VAL_DEFS_H */

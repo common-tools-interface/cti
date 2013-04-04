@@ -5,7 +5,7 @@
  *	    static portion of the code to link into a program wishing to use
  *	    this interface.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/prctl.h>
+#include <sys/sem.h>
 #include <sys/shm.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -50,7 +51,7 @@ static int attach_shm_segs(void);
 static int destroy_shm_segs(void);
 static int save_str(char *);
 static char ** make_rtn_array(void);
-static char * ld_get_lib(int);
+static char * ld_get_lib(void);
 static char * ld_verify(char *);
 static int ld_load(char *, char *, char *);
 
@@ -70,13 +71,13 @@ static const char *linkers[] = {
 };
 
 /* global variables */
+static char *	key_file = NULL;
 static key_t	key_a;
 static key_t	key_b;
 static pid_t	overwatch_pid;
 static int		shmid;
-static int		shm_ctlid;
 static char *	shm;
-static char *	shm_ctl;
+static int		sem_ctrlid;
 static int		num_ptrs;
 static int		num_alloc;
 static char **	tmp_array = (char **)NULL;
@@ -84,15 +85,16 @@ static char **	tmp_array = (char **)NULL;
 static void
 overwatch_handler(int sig)
 {
-	// remove the shared memory segments	
+	// remove the shared memory segment	
 	if (shmctl(shmid, IPC_RMID, NULL) < 0)
 	{
 		perror("IPC error: shmctl");
 	}
 	
-	if (shmctl(shm_ctlid, IPC_RMID, NULL) < 0)
+	// remove the semaphore
+	if (semctl(sem_ctrlid, 0, IPC_RMID) < 0)
 	{
-		perror("IPC error: shmctl");
+		perror("IPC error: semctl");
 	}
 	
 	// exit
@@ -121,14 +123,21 @@ creat_shm_segs()
 	int 	fds[2];
 	// this is never used, but good form I guess.
 	char	tmp[1];
+	// used for calls to semctl
+	union semun {
+			int					val;
+			struct semid_ds *	buf;
+			unsigned short *	array;
+			struct seminfo *	__buf;
+	} sem_arg;
 	
 	// start out by creating the keys from a well known file location and a character id
-	if ((key_a = ftok(KEYFILE, ID_A)) == (key_t)-1)
+	if ((key_a = ftok(key_file, ID_A)) == (key_t)-1)
 	{
 		perror("IPC error: ftok");
 		return 1;
 	}
-	if ((key_b = ftok(KEYFILE, ID_B)) == (key_t)-1)
+	if ((key_b = ftok(key_file, ID_B)) == (key_t)-1)
 	{
 		perror("IPC error: ftok");
 		return 1;
@@ -188,12 +197,13 @@ creat_shm_segs()
 			exit(1);
 		}
 	
-		while ((shm_ctlid = shmget(key_b, CTL_CHANNEL_SIZE, IPC_CREAT | IPC_EXCL | SHM_R | SHM_W)) < 0)
+		// create the semaphore
+		while ((sem_ctrlid = semget(key_b, 1, IPC_CREAT | IPC_EXCL | 0600)) < 0)
 		{
 			if (errno == EEXIST)
 				continue;
 			
-			perror("IPC error: shmget");
+			perror("IPC error: semget");
 			// delete the segment we just created since this one failed
 			if (shmctl(shmid, IPC_RMID, NULL) < 0)
 			{
@@ -203,6 +213,10 @@ creat_shm_segs()
 			close(fds[1]);
 			exit(1);
 		}
+		
+		// init the semaphore value to 2
+		sem_arg.val = 2;
+		semctl(sem_ctrlid, 0, SETVAL, sem_arg);
 		
 		// init the signal mask to empty
 		sigemptyset(&mask);
@@ -231,16 +245,17 @@ creat_shm_segs()
 	// close the read end of the pipe
 	close(fds[0]);
 	
-	// get the id of the memory segments - they have been created for us
+	// get the id of the memory segment
 	if ((shmid = shmget(key_a, PATH_MAX, SHM_R | SHM_W)) < 0) 
 	{
 		perror("IPC error: shmget");
 		return 1;
 	}
 	
-	if ((shm_ctlid = shmget(key_b, CTL_CHANNEL_SIZE, SHM_R | SHM_W)) < 0)
-	{		
-		perror("IPC error: shmget");
+	// get the id of the semaphore
+	if ((sem_ctrlid = semget(key_b, 1, 0)) < 0)
+	{
+		perror("IPC error: semget");
 		return 1;
 	}
 	
@@ -251,14 +266,9 @@ static int
 attach_shm_segs()
 {
 	/*
-	*  Attach the shm segments to our data space.
+	*  Attach the shm segment to our data space.
 	*/
 	if ((shm = shmat(shmid, NULL, 0)) == (char *)-1) 
-	{
-		perror("IPC error: shmat");
-		return 1;
-	}
-	if ((shm_ctl = shmat(shm_ctlid, NULL, 0)) == (char *)-1)
 	{
 		perror("IPC error: shmat");
 		return 1;
@@ -273,12 +283,6 @@ destroy_shm_segs()
 	int ret = 0;
 	
 	if (shmdt((void *)shm) == -1)
-	{
-		perror("IPC error: shmdt");
-		ret = 1;
-	}
-	
-	if (shmdt((void *)shm_ctl) == -1)
 	{
 		perror("IPC error: shmdt");
 		ret = 1;
@@ -443,59 +447,113 @@ ld_load(char *linker, char *executable, char *lib)
 }
 
 static char *
-ld_get_lib(int pid)
+ld_get_lib()
 {
-	char *libstr;
+	char *			libstr;
+	struct sembuf	sops[1];
 	
-	if (pid <= 0)
-		return (char *)NULL;
+	// setup the semop command
 	
-	// wait for the child to signal us on the shm_ctl channel
-	// as long as the child is alive
-	while ((*shm_ctl != '1') && !waitpid(pid, NULL, WNOHANG));
+	// wait for audit to give us one resource, then grab it
+	sops[0].sem_num = 0;	// operate on sema 0
+	sops[0].sem_op = -1;	// grab 1 resource
+	sops[0].sem_flg = SEM_UNDO;
 	
-	// only read if signaled
-	if (*shm_ctl == '1')
+	// execute the semop cmd
+	if (semop(sem_ctrlid, sops, 1) == -1)
 	{
-		// copy the library location string
-		libstr = strdup(shm);
-		
-		// reset the shm segment
-		memset(shm, '\0', PATH_MAX);
-		
-		// reset the control channel
-		*shm_ctl = '0';
-		
-		// return the string
-		return libstr;
+		perror("semop");
+		return (char *)NULL;
 	}
 	
-	// if we get here, we are done so return null
-	return (char *)NULL;
+	// try to grab another resource, we already grabbed one but if two are 
+	// available it means that we either beat the audit process in the race or
+	// it went away, which the caller is going to check for.
+	sops[0].sem_op = -1;
+	sops[0].sem_flg = IPC_NOWAIT | SEM_UNDO;
+	
+	if (semop(sem_ctrlid, sops, 1) == 0)
+	{
+		// we grabbed a resource and are done.
+		// we need to give two resources back in case this was a race condition
+		sops[0].sem_op = 2;
+		sops[0].sem_flg = SEM_UNDO;
+		semop(sem_ctrlid, sops, 1);
+		
+		return (char *)NULL;
+	}
+
+	// copy the library location string
+	libstr = strdup(shm);
+	
+	// reset the shm segment
+	memset(shm, '\0', PATH_MAX);
+	
+	// give two resources back
+	sops[0].sem_op = 2;
+	sops[0].sem_flg = SEM_UNDO;
+	
+	if (semop(sem_ctrlid, sops, 1) == -1)
+	{
+		perror("semop");
+	}
+		
+	// return the string
+	return libstr;
 }
 
 char **
 ld_val(char *executable)
 {
-	char *linker;
-	int pid;
-	int rec = 0;
-	char *tmp_audit;
-	char *audit_location;
-	char *libstr;
-	char **rtn;
+	char *			linker;
+	int				pid;
+	int				rec = 0;
+	char *			tmp_audit;
+	char *			tmp_keyfile;
+	struct stat		stat_buf;
+	FILE *			tmp_file;
+	char *			audit_location;
+	char *			libstr;
+	char **			rtn;
 	
 	// reset global vars
 	key_a = 0;
 	key_b = 0;
 	shmid = 0;
-	shm_ctlid = 0;
+	sem_ctrlid = 0;
 	shm = NULL;
-	shm_ctl = NULL;
 	num_ptrs = 0;
 	
 	if (executable == (char *)NULL)
 		return (char **)NULL;
+		
+	// get the location of the keyfile or else set it to the default value
+	if ((tmp_keyfile = getenv(LIBAUDIT_KEYFILE_ENV_VAR)) != (char *)NULL)
+	{
+		key_file = strdup(tmp_keyfile);
+		// stat the user defined key_file to make sure it exists
+		if (stat(key_file, &stat_buf) < 0)
+		{
+			// key_file doesn't exist so try to do an fopen on it. This will
+			// will ensure all our future calls to ftok will work.
+			if ((tmp_file = fopen(key_file, "w")) == (FILE *)NULL)
+			{
+				fprintf(stderr, "FATAL: The keyfile environment variable %s file doesn't exist and\n", LIBAUDIT_KEYFILE_ENV_VAR);
+				fprintf(stderr, "       its value is not a writable location.\n");
+				return (char **)NULL;
+			}
+		}
+	} else
+	{
+		key_file = strdup(DEFAULT_KEYFILE);
+		// make sure our default choice works, otherwise things will break.
+		if (stat(key_file, &stat_buf) < 0)
+		{
+			fprintf(stderr, "FATAL: The keyfile environment variable %s file isn't set and\n", LIBAUDIT_KEYFILE_ENV_VAR);
+			fprintf(stderr, "       the default keyfile doesn't exist.\n");
+			return (char **)NULL;
+		}
+	}
 	
 	// ensure that we found a valid linker that was verified
 	if ((linker = ld_verify(executable)) == (char *)NULL)
@@ -510,14 +568,14 @@ ld_val(char *executable)
 	// This will spin if another caller is using this interface
 	if (creat_shm_segs())
 	{
-		fprintf(stderr, "Failed to create shm segments.\n");
+		fprintf(stderr, "Failed to create shm segment.\n");
 		return (char **)NULL;
 	}
 
-	// Attach the segments to our data space.
+	// Attach the segment to our data space.
 	if (attach_shm_segs())
 	{
-		fprintf(stderr, "Failed to attach shm segments.\n");
+		fprintf(stderr, "Failed to attach shm segment.\n");
 		destroy_shm_segs();
 		return (char **)NULL;
 	}
@@ -532,7 +590,7 @@ ld_val(char *executable)
 	num_alloc = BLOCK_SIZE;
 	
 	// get the location of the audit library
-	if ((tmp_audit = getenv(LIBAUDIT_ENV)) != (char *)NULL)
+	if ((tmp_audit = getenv(LIBAUDIT_ENV_VAR)) != (char *)NULL)
 	{
 		audit_location = strdup(tmp_audit);
 	} else
@@ -552,7 +610,7 @@ ld_val(char *executable)
 	
 	// Read from the shm segment while the child process is still alive
 	do {
-		libstr = ld_get_lib(pid);
+		libstr = ld_get_lib();
 		
 		// we want to ignore the first library we recieve
 		// as it will always be the ld.so we are using to
@@ -583,6 +641,7 @@ ld_val(char *executable)
 	
 	// cleanup memory
 	free((void *)audit_location);
+	free((void *)key_file);
 
 	return rtn;
 }
