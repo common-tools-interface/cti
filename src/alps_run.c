@@ -216,6 +216,8 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	char *			proc_stat_path = NULL;
 	FILE *			proc_stat = NULL;
 	int				proc_ppid;
+	// used to ignore SIGINT
+	sigset_t		mask, omask;
 	// return object
 	aprunProc_t *	rtn;
 
@@ -317,6 +319,13 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	// add the null terminator
 	my_argv[i++] = (char *)NULL;
 	
+	// We don't want alps to pass along signals the caller recieves to the
+	// application process. In order to stop this from happening we need to put
+	// the child into a different process group.
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGINT);
+	sigprocmask(SIG_BLOCK, &mask, &omask);
+	
 	// fork off a process to launch aprun
 	mypid = fork();
 	
@@ -416,7 +425,13 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 				}
 			}
 		}
-
+		
+		// Place this process in its own group to prevent signals being passed
+		// to it. This is necessary in case the child code execs before the 
+		// parent can put us into our own group. This is so that we won't get
+		// the ctrl-c when aprun re-inits the signal handlers.
+		setpgid(0, 0);
+		
 		// exec aprun
 		execvp(APRUN, my_argv);
 		
@@ -426,6 +441,15 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	}
 	
 	// parent case
+	
+	// Place the child in its own group. We still need to block SIGINT in case
+	// its delivered to us before we can do this. We need to do this again here
+	// in case this code runs before the child code while we are still blocking 
+	// ctrl-c
+	setpgid(mypid, mypid);
+	
+	// unblock ctrl-c
+	sigprocmask(SIG_SETMASK, &omask, NULL);
 	
 	// close unused ends of pipe
 	close(aprunPipeR[0]);
