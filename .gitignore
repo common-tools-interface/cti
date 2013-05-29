@@ -7,6 +7,7 @@
 /cray-audit.pc
 /cray-tool_backend.pc
 /cray-tool_frontend.pc
+/cscope.out
 demos/.deps
 demos/Makefile
 demos/demo_binaries
