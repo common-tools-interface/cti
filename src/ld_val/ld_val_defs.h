@@ -31,4 +31,7 @@
 #define ID_B							'B'
 #define BLOCK_SIZE					20
 
+#define LDVAL_SEM						0
+#define AUDIT_SEM						1
+
 #endif /* _LD_VAL_DEFS_H */

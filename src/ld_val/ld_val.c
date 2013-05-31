@@ -198,7 +198,7 @@ creat_shm_segs()
 		}
 	
 		// create the semaphore
-		while ((sem_ctrlid = semget(key_b, 1, IPC_CREAT | IPC_EXCL | 0600)) < 0)
+		while ((sem_ctrlid = semget(key_b, 2, IPC_CREAT | IPC_EXCL | 0600)) < 0)
 		{
 			if (errno == EEXIST)
 				continue;
@@ -214,9 +214,10 @@ creat_shm_segs()
 			exit(1);
 		}
 		
-		// init the semaphore value to 2
-		sem_arg.val = 2;
-		semctl(sem_ctrlid, 0, SETVAL, sem_arg);
+		// init the semaphore values to 0
+		sem_arg.val = 0;
+		semctl(sem_ctrlid, LDVAL_SEM, SETVAL, sem_arg);
+		semctl(sem_ctrlid, AUDIT_SEM, SETVAL, sem_arg);
 		
 		// init the signal mask to empty
 		sigemptyset(&mask);
@@ -253,7 +254,7 @@ creat_shm_segs()
 	}
 	
 	// get the id of the semaphore
-	if ((sem_ctrlid = semget(key_b, 1, 0)) < 0)
+	if ((sem_ctrlid = semget(key_b, 0, 0)) < 0)
 	{
 		perror("IPC error: semget");
 		return 1;
@@ -449,14 +450,14 @@ ld_load(char *linker, char *executable, char *lib)
 static char *
 ld_get_lib()
 {
-	char *			libstr;
-	struct sembuf	sops[1];
+	char *				libstr;
+	struct sembuf		sops[1];
+	struct timespec		timeout;
 	
 	// setup the semop command
-	
-	// wait for audit to give us one resource, then grab it
-	sops[0].sem_num = 0;	// operate on sema 0
-	sops[0].sem_op = -1;	// grab 1 resource
+	// give one resource on our sema
+	sops[0].sem_num = LDVAL_SEM;	// operate on our sema
+	sops[0].sem_op = 1;				// give 1 resource
 	sops[0].sem_flg = SEM_UNDO;
 	
 	// execute the semop cmd
@@ -466,21 +467,61 @@ ld_get_lib()
 		return (char *)NULL;
 	}
 	
-	// try to grab another resource, we already grabbed one but if two are 
-	// available it means that we either beat the audit process in the race or
-	// it went away, which the caller is going to check for.
-	sops[0].sem_op = -1;
-	sops[0].sem_flg = IPC_NOWAIT | SEM_UNDO;
+	// grab one resource from the audit sema
+	sops[0].sem_num = AUDIT_SEM;	// operate on audit sema
+	sops[0].sem_op = -1;			// grab 1 resource
+	sops[0].sem_flg = SEM_UNDO;
 	
-	if (semop(sem_ctrlid, sops, 1) == 0)
+	// This operation is allowed to timeout in the event the AUDIT process goes
+	// away
+	
+	// setup the timeout to sleep for 1 microsecond
+	timeout.tv_sec = 0;
+	timeout.tv_nsec = 1000000;
+	
+	// execute the semtimedop cmd
+	if (semtimedop(sem_ctrlid, sops, 1, &timeout) == -1)
 	{
-		// we grabbed a resource and are done.
-		// we need to give two resources back in case this was a race condition
-		sops[0].sem_op = 2;
-		sops[0].sem_flg = SEM_UNDO;
-		semop(sem_ctrlid, sops, 1);
+		// audit process is likely dead, remove the resource on our sema
+		sops[0].sem_num = LDVAL_SEM;	// operate on our sema
+		sops[0].sem_op = -1;			// grab 1 resource
+		sops[0].sem_flg = SEM_UNDO | IPC_NOWAIT;
 		
-		return (char *)NULL;
+		// execute the semop cmd
+		if (semop(sem_ctrlid, sops, 1) == -1)
+		{
+			// Here we have an interesting situation. We tried to remove the resource
+			// from our sema, but failed to do so. Which means the audit process must
+			// have grabbed it. I suppose this might be possible if our first timedop
+			// fails and the clock cycle after that the audit process grabs our resource.
+			//
+			// Try to grab the resource once more, this time with a longer timeout.
+			// This is for good measure, because in this situation something went
+			// horibly wrong.
+			
+			// grab one resource from the audit sema
+			sops[0].sem_num = AUDIT_SEM;	// operate on audit sema
+			sops[0].sem_op = -1;			// grab 1 resource
+			sops[0].sem_flg = SEM_UNDO;
+			
+			// setup the timeout to sleep for 1 second
+			timeout.tv_sec = 1;
+			timeout.tv_nsec = 0;
+			
+			// execute the semtimedop cmd
+			if (semtimedop(sem_ctrlid, sops, 1, &timeout) == -1)
+			{
+				fprintf(stderr, "Encountered deadlock scenario.\n");
+				perror("semop");
+				return (char *)NULL;
+			}
+			
+			// We grabbed the audit resource, so continue on as normal
+		} else
+		{
+			// safe to return, the resource on our sema has been removed.
+			return (char *)NULL;
+		}
 	}
 
 	// copy the library location string
@@ -488,15 +529,6 @@ ld_get_lib()
 	
 	// reset the shm segment
 	memset(shm, '\0', PATH_MAX);
-	
-	// give two resources back
-	sops[0].sem_op = 2;
-	sops[0].sem_flg = SEM_UNDO;
-	
-	if (semop(sem_ctrlid, sops, 1) == -1)
-	{
-		perror("semop");
-	}
 		
 	// return the string
 	return libstr;

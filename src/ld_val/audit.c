@@ -86,7 +86,7 @@ la_version(unsigned int version)
 		}
 		
 		// get the id of the semaphore
-		if ((sem_ctrlid = semget(key_b, 1, 0)) < 0)
+		if ((sem_ctrlid = semget(key_b, 0, 0)) < 0)
 		{
 			sem_ctrlid = 0;
 			return version;
@@ -108,9 +108,9 @@ la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 
 	if (strlen(map->l_name) != 0)
 	{
-		// grab two resources
-		sops[0].sem_num = 0;	// operate on sema 0
-		sops[0].sem_op = -2;	// grab 2 resources
+		// wait for a resource from ld_val
+		sops[0].sem_num = LDVAL_SEM;	// operate on ld_val sema
+		sops[0].sem_op = -1;			// grab 1 resource
 		sops[0].sem_flg = SEM_UNDO;
 		
 		if (semop(sem_ctrlid, sops, 1) == -1)
@@ -126,8 +126,10 @@ la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 		}
 		*s = '\0';
 	
-		// release 1 resource
-		sops[0].sem_op = 1;
+		// give 1 resource on our sema
+		sops[0].sem_num = AUDIT_SEM;	// operate on our sema
+		sops[0].sem_op = 1;				// give 1 resource
+		sops[0].sem_flg = SEM_UNDO;
 		
 		if (semop(sem_ctrlid, sops, 1) == -1)
 		{
