@@ -17,7 +17,7 @@
 
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
 
-EXTRA_PROGRAMS = aprunBarrier aprunInfo aprunTransfer aprunCallback callback_daemon
+EXTRA_PROGRAMS = aprunBarrier aprunInfo aprunCallback callback_daemon
 
 aprunBarrier_CFLAGS = $(AM_CFLAGS)
 
@@ -28,10 +28,6 @@ aprunInfo_CFLAGS = $(AM_CFLAGS)
 aprunInfo_SOURCES = alps_info_demo.c
 aprunInfo_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
 
-aprunTransfer_CFLAGS = $(AM_CFLAGS)
-aprunTransfer_SOURCES = alps_transfer_demo.c
-aprunTransfer_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
-
 aprunCallback_CFLAGS = $(AM_CFLAGS)
 aprunCallback_SOURCES = alps_callback_demo.c
 aprunCallback_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend -pthread
@@ -40,12 +36,11 @@ callback_daemon_CFLAGS = $(AM_CFLAGS)
 callback_daemon_SOURCES = alps_callback_daemon.c
 callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_backend
 
-demos: aprunBarrier aprunInfo aprunTransfer aprunCallback callback_daemon
+demos: aprunBarrier aprunInfo aprunCallback callback_daemon
 	mkdir -p demo_binaries
 	cp testing.info demo_binaries
 	mv aprunBarrier demo_binaries
 	mv aprunInfo demo_binaries
-	mv aprunTransfer demo_binaries
 	mv aprunCallback demo_binaries
 	mv callback_daemon demo_binaries
 

@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * alps_transfer.h - A header file for the alps_application interface.
  *
- * © 2011-2012 Cray Inc.	All Rights Reserved.
+ * © 2011-2013 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -22,8 +22,6 @@
 
 #include "alps/alps.h"
 #include "alps/apInfo.h"
-
-#include "useful/stringList.h"
 
 #define ALPS_XT_CNAME				"/proc/cray_xt/cname"
 #define ALPS_XT_HOSTNAME_FMT		"nid%05d"
@@ -48,9 +46,6 @@ typedef struct
 {
 	uint64_t		apid;			// ALPS application ID
 	alpsInfo_t		alpsInfo;		// Information pertaining to the applications ALPS status
-	stringList_t *	shipped_execs;	// list of previously exec'ed binaries
-	stringList_t *	shipped_libs;	// list of previously shipped dso's
-	stringList_t *	shipped_files;	// list of previously shipped regular files
 } appEntry_t;
 
 struct appList

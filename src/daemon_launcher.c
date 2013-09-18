@@ -5,7 +5,7 @@
  *		     and allows users to specify environment variable settings
  *		     that a tool daemon should inherit.
  *
- * © 2011-2012 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -32,22 +32,31 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#include <archive.h>
+#include <archive_entry.h>
+
 #include "useful/useful.h"
 
 #define ALPS_XT_NID		"/proc/cray_xt/nid"
 #define APID_ENV_VAR		"CRAYTOOL_APID"
 #define APID_STR_BUF_LEN	32
 #define SCRATCH_ENV_VAR	"TMPDIR"
+#define BIN_DIR_VAR      "CRAYTOOL_BIN_DIR"
+#define LIB_DIR_VAR      "CRAYTOOL_LIB_DIR"
 #define SHELL_ENV_VAR		"SHELL"
 #define SHELL_VAR			"/bin/sh"
 
 static int debug_flag = 0;
 
 const struct option long_opts[] = {
-			{"binary",	required_argument,	0, 'b'},
-			{"env",		required_argument,	0, 'e'},
-			{"help",	no_argument,		0, 'h'},
-			{"debug",	no_argument,		&debug_flag, 1},
+			{"binary",		required_argument,	0, 'b'},
+			{"manifest",	required_argument,	0, 'm'},
+			{"env",			required_argument,	0, 'e'},
+			{"help",		no_argument,		0, 'h'},
+			{"debug",		no_argument,		&debug_flag, 1},
 			{0, 0, 0, 0}
 			};
 				
@@ -60,11 +69,38 @@ usage(char *name)
 	fprintf(stdout, "specified variables in the environment of the process.\n\n");
 	
 	fprintf(stdout, "\t-b, --binary	   Binary file to execute\n");
+	fprintf(stdout, "\t-m, --manifest  Manifest tarball to extract/set as CWD\n");
 	fprintf(stdout, "\t-e, --env       Specify an environment variable to set\n");
 	fprintf(stdout, "\t                The argument provided to this option must be issued\n");
 	fprintf(stdout, "\t                with var=val, for example: -e myVar=myVal\n");
 	fprintf(stdout, "\t    --debug     Turn on debug logging to a file. (STDERR/STDOUT to file)\n");
 	fprintf(stdout, "\t-h, --help      Display this text and exit\n");
+}
+
+static int
+copy_data(struct archive *ar, struct archive *aw)
+{
+	int r;
+	const void *buff;
+	size_t size;
+	off_t offset;
+
+	for (;;)
+	{
+		r = archive_read_data_block(ar, &buff, &size, &offset);
+		if (r == ARCHIVE_EOF) 
+		{
+			return (ARCHIVE_OK);
+		}
+		if (r != ARCHIVE_OK)
+			return (r);
+		r = archive_write_data_block(aw, buff, size, offset);
+		if (r != ARCHIVE_OK) 
+		{
+			fprintf(stderr, "archive_write_data_block(): %s\n", archive_error_string(ar));
+			return (r);
+		}
+	}
 }
 
 int
@@ -79,9 +115,19 @@ main(int argc, char **argv)
 	char		apid_str[APID_STR_BUF_LEN];
 	size_t		len;
 	char		*end, *tool_path;
+	struct stat statbuf;
 	char *		binary = NULL; 
 	char *		binary_path;
-	char		*env, *val;
+	char *		manifest = NULL;
+	char *		manifest_path = NULL;
+	char *		bin_path = NULL;
+	char *		lib_path = NULL;
+	char		*env, *val, *t;
+	char *		env_path = NULL;
+	int						r, flags = 0;
+	struct archive *		a;
+	struct archive *		ext;
+	struct archive_entry *	entry;
 
 	// we require at least 1 argument beyond argv[0]
 	if (argc < 2)
@@ -105,7 +151,7 @@ main(int argc, char **argv)
 	open("/dev/null", O_WRONLY);
 	open("/dev/null", O_WRONLY);
 	
-	while ((c = getopt_long(argc, argv, "b:e:h", long_opts, &opt_ind)) != -1)
+	while ((c = getopt_long(argc, argv, "b:m:e:h", long_opts, &opt_ind)) != -1)
 	{
 		switch (c)
 		{
@@ -124,6 +170,18 @@ main(int argc, char **argv)
 				
 				break;
 				
+			case 'm':
+				if (optarg == (char *)NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				// this is the name of the manifest tarball we will extract
+				manifest = strdup(optarg);
+				
+				break;
+				
 			case 'e':
 				if (optarg == (char *)NULL)
 				{
@@ -138,7 +196,7 @@ main(int argc, char **argv)
 				if ((env = strsep(&val, "=")) == NULL)
 				{
 					//error
-					fprintf(stderr, "strsep failed");
+					fprintf(stderr, "strsep failed\n");
 					return 1;
 				}
 				// ensure the user didn't pass us something stupid i.e. non-conforming
@@ -154,7 +212,7 @@ main(int argc, char **argv)
 				if (setenv(env, val, 1) < 0)
 				{
 					// failure
-					fprintf(stderr, "setenv failed");
+					fprintf(stderr, "setenv failed\n");
 					return 1;
 				}
 				
@@ -179,7 +237,7 @@ main(int argc, char **argv)
 		if ((sscanf(argv[0], "/var/opt/cray/alps/spool/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid)) == 0)
 		{
 			// failure
-			fprintf(stderr, "sscanf apid failed");
+			fprintf(stderr, "sscanf apid failed\n");
 			return 1;
 		}
 	}
@@ -193,12 +251,14 @@ main(int argc, char **argv)
 		// open up the file defined in the alps header containing our node id (nid)
 		if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)
 		{
+			fprintf(stderr, "%s not found.\n", ALPS_XT_NID);
 			return 1;
 		}
 		
 		// we expect this file to have a numeric value giving our current nid
 		if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
 		{
+			fprintf(stderr, "fgets failed.\n");
 			return 1;
 		}
 		// convert this to an integer value
@@ -218,7 +278,7 @@ main(int argc, char **argv)
 	if (setenv(APID_ENV_VAR, apid_str, 1) < 0)
 	{
 		// failure
-		fprintf(stderr, "setenv failed");
+		fprintf(stderr, "setenv failed\n");
 		return 1;
 	}
 	
@@ -235,14 +295,14 @@ main(int argc, char **argv)
 	// null terminator
 	if ((tool_path = malloc(len+1)) == (void *)0)
 	{
-		fprintf(stderr, "malloc failed");
+		fprintf(stderr, "malloc failed\n");
 		return 1;
 	}
 	
 	// strncpy the substring
 	if (strncpy(tool_path, argv[0], len) == (char *)NULL)
 	{
-		fprintf(stderr, "strncpy failed");
+		fprintf(stderr, "strncpy failed\n");
 		return 1;
 	}
 	// set the final null terminator
@@ -250,13 +310,140 @@ main(int argc, char **argv)
 	
 	fprintf(stderr, "Toolhelper path: %s\n", tool_path);
 	
+	// cd to the tool_path and relax the permissions
+	if (stat(tool_path, &statbuf) == -1)
+	{
+		fprintf(stderr, "Could not stat %s\n", tool_path);
+		return 1;
+	}
+	
+	// Relax permissions to ensure we can write to this directory
+	// use the existing perms for group and global settings
+	if (chmod(tool_path, statbuf.st_mode | S_IRWXU) != 0)
+	{
+		fprintf(stderr, "Could not chmod %s\n", tool_path);
+		return 1;
+	}
+		
+	// change the working directory to path
+	if (chdir(tool_path) != 0)
+	{
+		fprintf(stderr, "Could not chdir to %s\n", tool_path);
+		return 1;
+	}
+	
+	// Ensure that there was a manifest argument provided.
+	if (manifest == NULL)
+	{
+		fprintf(stderr, "Manifest argument missing!\n");
+		return 1;
+	}
+	
+	// create the manifest path string
+	if (asprintf(&manifest_path, "%s/%s", tool_path, manifest) <= 0)
+	{
+		fprintf(stderr, "asprintf failed\n");
+		return 1;
+	}
+	
+	// set the flags
+	flags |= ARCHIVE_EXTRACT_PERM;
+	flags |= ARCHIVE_EXTRACT_ACL;
+	flags |= ARCHIVE_EXTRACT_FFLAGS;
+	
+	a = archive_read_new();
+	ext = archive_write_disk_new();
+	archive_write_disk_set_options(ext, flags);
+	archive_read_support_format_tar(a);
+	
+	if ((r = archive_read_open_filename(a, manifest_path, 10240)))
+	{
+		fprintf(stderr, "archive_read_open_filename(): %s\n", archive_error_string(a));
+		return r;
+	}
+	
+	for (;;) 
+	{
+		r = archive_read_next_header(a, &entry);
+		if (r == ARCHIVE_EOF)
+			break;
+		if (r != ARCHIVE_OK)
+		{
+			fprintf(stderr, "archive_read_next_header(): %s\n", archive_error_string(a));
+			return 1;
+		}
+		
+		r = archive_write_header(ext, entry);
+		if (r != ARCHIVE_OK)
+		{
+			fprintf(stderr, "archive_write_header(): %s\n", archive_error_string(ext));
+			return 1;
+		}
+		
+		copy_data(a, ext);
+		
+		r = archive_write_finish_entry(ext);
+		if (r != ARCHIVE_OK)
+		{
+			fprintf(stderr, "archive_write_finish_entry(): %s\n", archive_error_string(ext));
+			return 1;
+		}
+	}
+	
+	archive_read_close(a);
+	archive_read_free(a);
+	
+	// The manifest should be extracted at this point.
+	
+	// We are done with the tarball, so remove it - if this fails just ignore it since it won't
+	// break things
+	remove(manifest_path);
+	
+	// Modify manifest_path to point at the directory, not the ".tar" bits
+	if ((t = strstr(manifest_path, ".tar")) != NULL)
+	{
+		// set it to a null terminator
+		*t = '\0';
+	}
+	
 	// set the SCRATCH_ENV_VAR environment variable to the toolhelper directory.
 	// ALPS will enforce cleanup here and the tool is guaranteed to be able to write
 	// to it.
-	if (setenv(SCRATCH_ENV_VAR, tool_path, 1) < 0)
+	if (asprintf(&env_path, "%s/tmp", manifest_path) <= 0)
+	{
+		fprintf(stderr, "asprintf failed\n");
+		return 1;
+	}
+	if (setenv(SCRATCH_ENV_VAR, env_path, 1) < 0)
 	{
 		// failure
-		fprintf(stderr, "setenv failed");
+		fprintf(stderr, "setenv failed\n");
+		return 1;
+	}
+	
+	// set the BIN_DIR_VAR environment variable to the toolhelper directory.
+	if (asprintf(&bin_path, "%s/bin", manifest_path) <= 0)
+	{
+		fprintf(stderr, "asprintf failed\n");
+		return 1;
+	}
+	if (setenv(BIN_DIR_VAR, bin_path, 1) < 0)
+	{
+		// failure
+		fprintf(stderr, "setenv failed\n");
+		return 1;
+	}
+	
+	// set the LIB_DIR_VAR environment variable to the toolhelper directory.
+	if (asprintf(&lib_path, "%s/lib", manifest_path) <= 0)
+	{
+		fprintf(stderr, "asprintf failed\n");
+		return 1;
+	}
+	if (setenv(LIB_DIR_VAR, lib_path, 1) < 0)
+	{
+		// failure
+		fprintf(stderr, "setenv failed\n");
 		return 1;
 	}
 	
@@ -266,12 +453,12 @@ main(int argc, char **argv)
 	if (setenv(SHELL_ENV_VAR, SHELL_VAR, 1) < 0)
 	{
 		// failure
-		fprintf(stderr, "setenv failed");
+		fprintf(stderr, "setenv failed\n");
 		return 1;
 	}
 	
 	// call adjustPaths so that we chdir to where we shipped stuff over to and setup PATH/LD_LIBRARY_PATH
-	if (adjustPaths(tool_path))
+	if (adjustPaths(manifest_path))
 	{
 		fprintf(stderr, "Could not adjust paths.\n");
 		free(tool_path);
@@ -281,13 +468,11 @@ main(int argc, char **argv)
 	// anything after the final "--" in the options string will be passed directly to the exec'ed binary
 	
 	// create the full path to the binary we are going to exec
-	len = strlen(tool_path) + strlen("/") + strlen(binary) + 1;
-	if ((binary_path = malloc(len)) == (void *)0)
+	if (asprintf(&binary_path, "%s/bin/%s", manifest_path, binary) <= 0)
 	{
-		fprintf(stderr, "malloc failed");
+		fprintf(stderr, "asprintf failed\n");
 		return 1;
 	}
-	snprintf(binary_path, len, "%s/%s", tool_path, binary);
 	
 	fprintf(stderr, "Binary path: %s\n", binary_path);
 	
@@ -301,6 +486,8 @@ main(int argc, char **argv)
 	execv(binary_path, &argv[optind - 1]);
 	
 	fprintf(stderr, "Return from exec!\n");
+	
+	perror("execv");
 	
 	return 1;
 }

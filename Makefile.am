@@ -1,7 +1,7 @@
 #
 # Top level Makefile.am for the craytool interface.
 #
-# ©2011-2012 Cray Inc.  All Rights Reserved.
+# ©2011-2013 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -14,7 +14,7 @@
 ## $Rev$
 ## $Author$
 
-SRCDIR=@craytool_srcdir@
+SRCDIR = @craytool_srcdir@
 
 ACLOCAL_AMFLAGS = -I m4
 

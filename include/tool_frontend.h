@@ -54,6 +54,9 @@
  *                      If this is not set, the default is to wait an order of
  *                      magnitude less than the amount of time it took to open
  *                      the pmi_attribs file.
+ * CFG_DIR_VAR          Used to define a location to write internal temporary
+ *                      files and directories to. The caller must have write
+ *                      permission inside this directory.
  * 
  */
 #define LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
@@ -62,9 +65,11 @@
 #define USER_DEF_APRUN_LOC_ENV_VAR  "CRAY_APRUN_PATH"
 #define PMI_ATTRIBS_TIMEOUT_ENV_VAR "CRAY_CTI_PMI_FOPEN_TIMEOUT"
 #define PMI_EXTRA_SLEEP_ENV_VAR     "CRAY_CTI_PMI_EXTRA_SLEEP"
+#define CFG_DIR_VAR                 "CRAY_CTI_CFG_DIR"
+#define DAEMON_STAGE_DIR            "CRAY_CTI_STAGE_DIR"
 
 /* 
- * struct typedefs used in return values 
+ * typedefs used in return values 
  */
 
 typedef struct
@@ -84,6 +89,8 @@ typedef struct
 	uint64_t	apid;
 	pid_t		aprunPid;
 } aprunProc_t;
+
+typedef int MANIFEST_ID;
 
 /*
  * alps_application functions - Functions relating directly to the application.
@@ -431,7 +438,7 @@ extern int	killAprun(uint64_t apid, int signum);
 
 
 /*
- * sendCNodeExec - Launch a tool program onto compute nodes associated with a
+ * execToolDaemon - Launch a tool program onto compute nodes associated with a
  *                 registered aprun pid.
  * 
  * Detail
@@ -451,11 +458,18 @@ extern int	killAprun(uint64_t apid, int signum);
  *      Note that args[0] is the begining of the program arguments and not the
  *      name of the program itself.
  *      
- *      The user can make multiple consecutive calls to this function and any
- *      previously shipped shared library dependency that is also used by the
- *      newest binary will not be redundantly shipped. This interface does
- *      not currently support naming conflicts between files and will refuse to
- *      ship a file with a conflicting name to a previously shipped file.
+ *      A MANIFEST_ID can be provided to ship a manifest of binaries, libraries,
+ *      and files that may be required by the tool daemon. The manifest must be
+ *      created before calling this function and will be cleaned up by this
+ *      function. A unique directory will be created on the compute node in the
+ *      temporary storage space associated with the application. This avoids
+ *      naming conflicts between other tools using the ALPS toolhelper
+ *      interface. This unique directory will contains subdirectories /bin that
+ *      contains all binaries and /lib that contains all libaries. Any files
+ *      will not be placed in a subdirectory and are available directly in the
+ *      current working directory of the tool daemon. All binaries will be found
+ *      in the PATH of the tool daemon process, and all libraries will be found
+ *      in the LD_LIBRARY_PATH of the tool daemon process.
  *
  *      If the debug option evaluates to true, daemon launcher will attempt to 
  *      read the environment variable defined by DBG_LOG_ENV_VAR and create a
@@ -468,6 +482,8 @@ extern int	killAprun(uint64_t apid, int signum);
  * Arguments
  *      apid -    The uint64_t apid of the registered aprun session to launch
  *                the tool program to.
+ *      mid -     The optional manifest id of a previously created manifest, or
+ *                0 if no manifest is required.
  *      fstr -    The name of the binary to exec onto the compute nodes.
  *                This can either be a fullpath name to the file or else
  *                the file name if the binary is found within the users
@@ -485,80 +501,98 @@ extern int	killAprun(uint64_t apid, int signum);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	sendCNodeExec(uint64_t apid, char *fstr, char **args, 
-                        char **env, int debug);
+extern int	execToolDaemon(uint64_t apid, MANIFEST_ID mid, char *fstr, 
+                           char **args, char **env, int debug);
 
 /*
- * sendCNodeBinrary - Ship a program executable to the compute nodes associated 
- *                    with a registered aprun pid without actually launching 
- *                    the binary itself.
- * 
+ * createNewManifest - Create a new manifest to ship additional binaries, 
+ *                     libraries, and files when exec'ing a tool daemon.
  * Detail
- *      This function is used to ship a program binary to compute nodes. It will
- *      take care of shipping the binrary, determine shared library dependencies
- *      using the LD_AUDIT interface, and ship any required shared library
- *      dependencies to compute nodes. It will not actually start the shipped
- *      binary. This is useful if a running tool process needs to fork/exec 
- *      another program at some point during its lifetime.
+ *      This function is used to create a new internal manifest list used to
+ *      ship additional binaries, libraries, and files with a tool daemon
+ *      process. The internal list will be cleaned up upon passing it as an
+ *      argument when launching the tool daemon. Only unique binary, library,
+ *      and file names will be added to the manifest. For instance, if multiple
+ *      binaries require libc.so, it will only be added once to the manifest.
  *
  * Arguments
- *      apid -    The uint64_t apid of the registered aprun session to ship the
- *                program binary to.
- *      fstr -    The name of the binary to ship to the compute nodes.
- *                This can either be a fullpath name to the file or else
- *                the file name if the binary is found within the users
- *                PATH.
+ *      None.
+ *
+ * Returns
+ *      A non-zero MANIFEST_ID on success, or else 0 on failure.
+ *
+ */
+extern MANIFEST_ID	createNewManifest(void);
+
+/*
+ * addManifestBinary - Add a program executable to an existing manifest.
+ * 
+ * Detail
+ *      This function is used to add a program binary to an existing manifest
+ *      based on the MANIFEST_ID argument. The program binary along with any
+ *      required shared library dependencies determined by the LD_AUDIT 
+ *      interface will be added to the manifest. This is useful if a tool daemon
+ *      needs to fork/exec another program at some point during its lifetime.
+ *      All binaries will be found in the PATH of the tool daemon, and all
+ *      libraries will be found in the LD_LIBRARY_PATH of the tool daemon.
+ *
+ * Arguments
+ *      mid -     The MANIFEST_ID of the existing manifest.
+ *      fstr -    The name of the binary to add to the manifest. This can either
+ *                be a fullpath name to the file or else the file name if the 
+ *                binary is found within PATH.
  *
  * Returns
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	sendCNodeBinary(uint64_t apid, char *fstr);
+extern int	addManifestBinary(MANIFEST_ID mid, char *fstr);
 
 /*
- * sendCNodeLibrary - Ship a shared library to the compute nodes associated
- *                    with a registered aprun pid.
+ * addManifestLibrary - Add a library to an existing manifest.
  * 
  * Detail
- *      This function is used to ship a shared library to compute nodes. This is
- *      useful for programs that wish to dlopen a shared library at some point
- *      during its lifetime.
+ *      This function is used to add a shared library to an existing manifest
+ *      based on the MANIFEST_ID argument. The library will only be added to the
+ *      manifest if it has a unique name to avoid redundant shipping. This is
+ *      useful if a tool daemon needs to dlopen a shared library at some point
+ *      during its lifetime. All libraries will be found in the LD_LIBRARY_PATH
+ *      of the tool daemon.
  *
  * Arguments
- *      apid -    The uint64_t apid of the registered aprun session to ship the
- *                shared library to.
- *      fstr -    The name of the shared library to ship to the compute
- *                nodes. This can either be a fullpath name to the library
- *                or else the library name if the library is found within
- *                the users LD_LIBRARY_PATH or any of the default system
- *                locations where shared libraries are stored.
+ *      mid -     The MANIFEST_ID of the existing manifest.
+ *      fstr -    The name of the shared library to add to the manifest. This
+ *                can either be a fullpath name to the library or else the 
+ *                library name if the library is found within LD_LIBRARY_PATH or
+ *                any of the default system locations where shared libraries are
+ *                stored.
  *
  * Returns
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	sendCNodeLibrary(uint64_t apid, char *fstr);
+extern int	addManifestLibrary(MANIFEST_ID mid, char *fstr);
 
 /*
- * sendCNodeFile - Ship a regular file to the compute nodes associated with a
- *                 registered aprun pid.
+ * addManifestFile - Add a regular file to an existing manifest.
  * 
  * Detail
- *      This function is used to ship a regular file to compute nodes. This is
- *      useful for shipping a required configuration file for a program or any
- *      other file that may be required by a tool program.
+ *      This function is used to add a regular file to an existing manifest
+ *      based on the MANIFEST_ID argument. The file will only be added to the
+ *      manifest if it has a unique name to avoid redundant shipping. This is
+ *      useful if a tool daemon needs to read a required configuration file for
+ *      a program or any other file that may be required by a tool daemon.
  *
  * Arguments
- *      apid -    The uint64_t apid of the registered aprun session to ship the
- *                file to.
- *      fstr -    The name of the file to ship to the compute nodes. This
- *                can either be a fullpath name to the file or else the
- *                file name if the file is found within the users PATH.
+ *      mid -     The MANIFEST_ID of the existing manifest.
+ *      fstr -    The name of the file to add to the manifest. This can either 
+ *                be a fullpath name to the file or else the file name if the 
+ *                file is found within the users PATH.
  *
  * Returns
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	sendCNodeFile(uint64_t apid, char *fstr);
+extern int	addManifestFile(MANIFEST_ID mid, char *fstr);
 
 #endif /* _TOOL_FRONTEND_H */

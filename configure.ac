@@ -1,7 +1,7 @@
 #
 # configure.ac script for the craytool interface.
 #
-# © 2010-2012 Cray Inc. All Rights Reserved
+# © 2010-2013 Cray Inc. All Rights Reserved
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -19,7 +19,7 @@ AC_PREREQ([2.68])
 dnl We need to use the m4_esyscmd_s here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT
 AC_INIT([craytool_interface], [m4_esyscmd_s([. release_versioning; echo $craytool_major.$craytool_minor])], [andrewg@cray.com])
-AC_COPYRIGHT([© 2011-2012 Cray Inc. All Rights Reserved.])
+AC_COPYRIGHT([© 2011-2013 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/alps_application.c])
 AC_CONFIG_AUX_DIR([config])
@@ -42,6 +42,19 @@ AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTO
 AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_RELEASE])
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+
+#############################
+### Check for --with tags ###
+#############################
+dnl Check for --with-libarchive
+AC_ARG_WITH([libarchive],
+	    [AS_HELP_STRING([--with-libarchive],
+			    [Specify path to libarchive library.]
+			    )
+	    ],
+	    [libarchive_path=$withval],
+	    []
+	    )
 
 ###########################
 ### Check for programs. ###
@@ -96,6 +109,16 @@ AC_CHECK_LIB([alpsutil],
 	     [AC_MSG_FAILURE([libalpsutil not found.])]
 	     )
 
+dnl Check for libarchive
+if test -f "$libarchive_path/lib/libarchive.a"; then
+	LDFLAGS="$LDFLAGS -L$libarchive_path/lib"
+fi
+AC_CHECK_LIB([archive],
+	     [archive_read_new],
+	     [AC_SUBST([archive_libs], ["-larchive"])],
+	     [AC_MSG_ERROR([libarchive.a not found.])]
+	     )
+
 ###############################
 ### Check for header files. ###
 ###############################
@@ -135,6 +158,16 @@ AC_CHECK_HEADER([alps/libalpsutil.h],
 		[#include <alps/alps_toolAssist.h>
 		 #include <netinet/in.h>
 		 ]
+		)
+
+dnl Check for libarchive headers
+if test -f "$libarchive_path/include/archive.h"; then
+	CPPFLAGS="$CPPFLAGS -I$libarchive_path/include"
+fi
+AC_CHECK_HEADER([archive.h],
+		[],
+		[AC_MSG_FAILURE([archive.h not found.])],
+		[]
 		)
 
 #####################################################################

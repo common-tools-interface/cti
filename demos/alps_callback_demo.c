@@ -4,7 +4,7 @@
  *			argv, transfer and launch a simple tool daemon that will
  *			communicate with the frontend over a simple socket connection.
  *
- * © 2011-2012 Cray Inc.	All Rights Reserved.
+ * © 2011-2013 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -364,7 +364,7 @@ main(int argc, char **argv)
 	tool_argv[2] = (char *)NULL;
 	
 	// Transfer and exec the callback_daemon application
-	if (sendCNodeExec(myapp->apid, LAUNCHER, tool_argv, (char **)NULL, 0))
+	if (execToolDaemon(myapp->apid, 0, LAUNCHER, tool_argv, (char **)NULL, 0))
 	{
 		fprintf(stderr, "Could not launch callback daemon on compute nodes!\n");
 		killAprun(myapp->apid, 9);

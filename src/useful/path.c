@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * path.c - Functions relating to searching and setting path variables.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -246,8 +246,8 @@ int
 adjustPaths(char *path)
 {
 	struct stat statbuf;
-	char *newpath;
-	int len;
+	char *binpath = NULL;
+	char *libpath = NULL;
 	
 	// sanity check
 	if (path == (char *)NULL)
@@ -266,29 +266,29 @@ adjustPaths(char *path)
 	if (chdir(path) != 0)
 		return 1;
 	
-	len = strlen(path) + 1;
-	if ((newpath = malloc(len*sizeof(char))) == (char *)NULL)
-	{
+	if (asprintf(&binpath, "%s/bin", path) <= 0)
 		return 1;
-	}
-	
-	snprintf(newpath, len, "%s", path);
 	
 	// set path to the PATH variable
-	if (setenv("PATH", newpath, 1) != 0)
+	if (setenv("PATH", binpath, 1) != 0)
 	{
-		free(newpath);
+		free(binpath);
 		return 1;
 	}
+	
+	free(binpath);
+	
+	if (asprintf(&libpath, "%s/lib", path) <= 0)
+		return 1;
 	
 	// set path to the LD_LIBRARY_PATH variable
-	if (setenv("LD_LIBRARY_PATH", newpath, 1) != 0)
+	if (setenv("LD_LIBRARY_PATH", libpath, 1) != 0)
 	{
-		free(newpath);
+		free(libpath);
 		return 1;
 	}
 	
-	free(newpath);
+	free(libpath);
 	
 	return 0;
 }

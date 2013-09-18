@@ -3,7 +3,7 @@
  *		      support functions for the other APIs defined by this
  *		      interface.
  *
- * © 2011-2012 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -43,26 +43,6 @@ static serviceNode_t *	getSvcNodeInfo(void);
 /* global variables */
 static serviceNode_t *	svcNid = (serviceNode_t *)NULL;	// service node information
 static appList_t *		my_apps = (appList_t *)NULL;	// global list pertaining to known aprun sessions
-
-/* 
-** This list may need to be updated with each new release of CNL.
-*/
-static const char * __ignored_libs[] = {
-	"libdl.so.2",
-	"libc.so.6",
-	"libvolume_id.so.1",
-	"libcidn.so.1",
-	"libnsl.so.1",
-	"librt.so.1",
-	"libutil.so.1",
-	"libpthread.so.0",
-	"libudev.so.0",
-	"libcrypt.so.1",
-	"libz.so.1",
-	"libm.so.6",
-	"libnss_files.so.2",
-	NULL
-};
 
 static appList_t *
 growAppsList()
@@ -205,11 +185,6 @@ consumeAppEntry(appEntry_t *entry)
 	if (entry->alpsInfo.places != (placeList_t *)NULL)
 		free(entry->alpsInfo.places);
 	
-	// eat each of the string lists
-	consumeStringList(entry->shipped_execs);
-	consumeStringList(entry->shipped_libs);
-	consumeStringList(entry->shipped_files);
-	
 	// nom nom the final appEntry_t object
 	free(entry);
 }
@@ -335,7 +310,6 @@ newApp(uint64_t apid)
 {
 	appList_t *		lstPtr;
 	appEntry_t *	this;
-	const char **	ignore_ptr;
 	
 	// grow the global my_apps list and get its new appList_t entry
 	if ((lstPtr = growAppsList()) == (appList_t *)NULL)
@@ -373,36 +347,6 @@ newApp(uint64_t apid)
 	
 	// save pe0 NID
 	this->alpsInfo.pe0Node = this->alpsInfo.places[0].nid;
-	
-	// create the stringList_t objects for the three saved arrays
-	if ((this->shipped_execs = newStringList()) == (stringList_t *)NULL)
-	{
-		reapAppsList();
-		consumeAppEntry(this);
-		return (appEntry_t *)NULL;
-	}
-	if ((this->shipped_libs = newStringList()) == (stringList_t *)NULL)
-	{
-		reapAppsList();
-		consumeAppEntry(this);
-		return (appEntry_t *)NULL;
-	}
-	// Add the ignored library strings to the shipped_libs string list.
-	for (ignore_ptr=__ignored_libs; *ignore_ptr != NULL; ++ignore_ptr)
-	{
-		if (addString(this->shipped_libs, *ignore_ptr))
-		{
-			reapAppsList();
-			consumeAppEntry(this);
-			return (appEntry_t *)NULL;
-		}
-	}
-	if ((this->shipped_files = newStringList()) == (stringList_t *)NULL)
-	{
-		reapAppsList();
-		consumeAppEntry(this);
-		return (appEntry_t *)NULL;
-	}
 	
 	// save the new appEntry_t object into the returned appList_t object that
 	// the call to growAppsList gave us.
