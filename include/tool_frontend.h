@@ -57,6 +57,12 @@
  * CFG_DIR_VAR          Used to define a location to write internal temporary
  *                      files and directories to. The caller must have write
  *                      permission inside this directory.
+ * DAEMON_STAGE_VAR		Used to define the directory root name that will be used
+ *                      to stage binaries, libraries, and files to on the
+ *                      compute node. This can be used to force multiple sessions
+ *                      to use the same directory structure. The use of this
+ *                      is not recommended since it is not guarded against race
+ *                      conditions and conflicting file names.
  * 
  */
 #define LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
@@ -66,7 +72,7 @@
 #define PMI_ATTRIBS_TIMEOUT_ENV_VAR "CRAY_CTI_PMI_FOPEN_TIMEOUT"
 #define PMI_EXTRA_SLEEP_ENV_VAR     "CRAY_CTI_PMI_EXTRA_SLEEP"
 #define CFG_DIR_VAR                 "CRAY_CTI_CFG_DIR"
-#define DAEMON_STAGE_DIR            "CRAY_CTI_STAGE_DIR"
+#define DAEMON_STAGE_VAR            "CRAY_CTI_STAGE_DIR"
 
 /* 
  * typedefs used in return values 
@@ -91,6 +97,7 @@ typedef struct
 } aprunProc_t;
 
 typedef int MANIFEST_ID;
+typedef int SESSION_ID;
 
 /*
  * alps_application functions - Functions relating directly to the application.
@@ -471,6 +478,18 @@ extern int	killAprun(uint64_t apid, int signum);
  *      in the PATH of the tool daemon process, and all libraries will be found
  *      in the LD_LIBRARY_PATH of the tool daemon process.
  *
+ *      A SESSION_ID can be provided to associate this tool daemon with an
+ *      existing tool daemon's environment previously setup on the compute node.
+ *      Any libraries or files that were previously shipped will also be
+ *      available to the new tool daemon. This can also be used to exec the tool
+ *      daemon inside of a previously shipped manifest that was created by the
+ *      call to sendManifest(). If a session id is provided, the return value
+ *      from this function will be the same session id on success.
+ *
+ *      If both MANIFEST_ID and SESSION_ID arguments are provided, the manifest
+ *      must have been created using the same session, otherwise an error will
+ *      occur.
+ *
  *      If the debug option evaluates to true, daemon launcher will attempt to 
  *      read the environment variable defined by DBG_LOG_ENV_VAR and create a
  *      log file at this location. If the environment variable is not found or
@@ -484,6 +503,8 @@ extern int	killAprun(uint64_t apid, int signum);
  *                the tool program to.
  *      mid -     The optional manifest id of a previously created manifest, or
  *                0 if no manifest is required.
+ *      sid -     The optional session id of a previously created session, or
+ *                0 if no session association should be made.
  *      fstr -    The name of the binary to exec onto the compute nodes.
  *                This can either be a fullpath name to the file or else
  *                the file name if the binary is found within the users
@@ -498,11 +519,11 @@ extern int	killAprun(uint64_t apid, int signum);
  *                files fd.
  *
  * Returns
- *      0 on success, or else 1 on failure.
+ *      A non-zero SESSION_ID on success, or else 0 on failure.
  * 
  */
-extern int	execToolDaemon(uint64_t apid, MANIFEST_ID mid, char *fstr, 
-                           char **args, char **env, int debug);
+extern SESSION_ID execToolDaemon(uint64_t apid, MANIFEST_ID mid, SESSION_ID sid,
+                           char *fstr, char **args, char **env, int debug);
 
 /*
  * createNewManifest - Create a new manifest to ship additional binaries, 
@@ -515,14 +536,39 @@ extern int	execToolDaemon(uint64_t apid, MANIFEST_ID mid, char *fstr,
  *      and file names will be added to the manifest. For instance, if multiple
  *      binaries require libc.so, it will only be added once to the manifest.
  *
+ *      An optional SESSION_ID argument can be used to associate the new 
+ *      manifest with an existing session created by a call to execToolDaemon()
+ *      or sendManifest(). In this case the existing file hiearchy will be used
+ *      from the previous call and uniqueness requirements will apply to the
+ *      previous manifest. If this is a brand new instance, pass in 0 for the
+ *      sid argument.
+ *
  * Arguments
- *      None.
+ *      sid -     The optional session id of a previously create session, or
+ *                0 if no session association should be made.
  *
  * Returns
  *      A non-zero MANIFEST_ID on success, or else 0 on failure.
  *
  */
-extern MANIFEST_ID	createNewManifest(void);
+extern MANIFEST_ID	createNewManifest(SESSION_ID sid);
+
+/*
+ * destroyManifest - Cleanup an existing manifest.
+ *
+ * Detail
+ *      This function is used to cleanup the internal memory associated with an
+ *      existing manifest. This can be used to force cleanup to happen without
+ *      shipping the manifest during error handling.
+ *
+ * Arguments
+ *      mid -     The MANIFEST_ID of the existing manifest.
+ *
+ * Returns
+ *      Returns no value.
+ *
+ */
+extern void	destroyManifest(MANIFEST_ID mid);
 
 /*
  * addManifestBinary - Add a program executable to an existing manifest.
@@ -594,5 +640,170 @@ extern int	addManifestLibrary(MANIFEST_ID mid, char *fstr);
  * 
  */
 extern int	addManifestFile(MANIFEST_ID mid, char *fstr);
+
+/*
+ * sendManifest - Ship a manifest to an apid and unpack it into temporary
+ *                storage.
+ * 
+ * Detail
+ *      This function is used to ship a manifest to the compute nodes and unpack
+ *      it into the applications toolhelper directory. This is useful if there 
+ *      is a need to interact with third party tools that do not use this this
+ *      interface. The returned SESSION_ID can be used in the future to send
+ *      additional manfiests to, or to exec tool daemons. In that case the 
+ *      future manifests/tool daemons will share the same directory structure.
+ *
+ *      The manifest argument must be a valid MANIFEST_ID that was created 
+ *      before calling this function and will be cleaned up by this function. A 
+ *      unique directory will be created on the compute node in the
+ *      temporary storage space associated with the application. This avoids
+ *      naming conflicts between other tools using the ALPS toolhelper
+ *      interface. This unique directory will contains subdirectories /bin that
+ *      contains all binaries and /lib that contains all libaries. Any files
+ *      will not be placed in a subdirectory and are available directly in the
+ *      current working directory of the tool daemon.
+ *
+ *      If the staging directory unpacked in the applications toolhelper 
+ *      directory needs to be static, the CRAY_CTI_STAGE_DIR environment
+ *      variable can be used to define the location.
+ *
+ *      If the debug option evaluates to true, daemon launcher will attempt to 
+ *      read the environment variable defined by DBG_LOG_ENV_VAR and create a
+ *      log file at this location. If the environment variable is not found or
+ *      is null, it will create a log file in the /tmp directory on the compute
+ *      node. It will then dup the STDOUT/STDERR file channels to this log file.
+ *      This is the only way to capture stdout/stderr output from a tool program
+ *      on the compute nodes.
+ *
+ * Arguments
+ *      apid -    The uint64_t apid of the registered aprun session to launch
+ *                the tool program to.
+ *      mid -     The MANIFEST_ID of the existing manifest.
+ *      debug -   If true, create a log file at the location provided by
+ *                DBG_LOG_ENV_VAR. Redirect stdout/stderr to the log
+ *                files fd.
+ *
+ * Returns
+ *      A non-zero SESSION_ID on success, or else 0 on failure.
+ * 
+ */
+extern SESSION_ID	sendManifest(uint64_t apid, MANIFEST_ID mid, int debug);
+
+/*
+ * getSessionLockFiles - Get the name(s) of instance dependency lock files.
+ * 
+ * Detail
+ *      This function is used to return a null terminated list of lock file
+ *      locations that must exist for dependency requirements of previously
+ *      shipped manifests/tool daemons to be met.
+ *
+ * Arguments
+ *      sid -     The SESSION_ID of the existing session.
+ *
+ * Returns
+ *      A null terminated array of strings, or else NULL on error.
+ * 
+ */
+extern char **	getSessionLockFiles(SESSION_ID sid);
+
+/*
+ * getSessionRootDir - Get root directory of session directory structure on 
+ *                     compute node.
+ * 
+ * Detail
+ *      This function is used to return the path of the root location of the
+ *      session directory on the compute node. The path is not accessible from
+ *      the login node. The returned string can be used to modify arguments to
+ *      tool daemons to locate dependencies. It is the callers responsibility to
+ *      free the allocated storage when it is no longer needed.
+ *
+ * Arguments
+ *      sid -     The SESSION_ID of the existing session.
+ *
+ * Returns
+ *      A pointer to the path on success, or NULL on error.
+ * 
+ */
+extern char *	getSessionRootDir(SESSION_ID sid);
+
+/*
+ * getSessionBinDir - Get bin directory of session binaries on compute node.
+ * 
+ * Detail
+ *      This function is used to return the path of the binary location of the
+ *      bin directory on the compute node. The path is not accessible from
+ *      the login node. The returned string can be used to modify arguments to
+ *      tool daemons to locate dependencies. It is the callers responsibility to
+ *      free the allocated storage when it is no longer needed. All manifest and
+ *      tool daemon binaries are placed within this directory.
+ *
+ * Arguments
+ *      sid -     The SESSION_ID of the existing session.
+ *
+ * Returns
+ *      A pointer to the path on success, or NULL on error.
+ * 
+ */
+extern char *	getSessionBinDir(SESSION_ID sid);
+
+/*
+ * getSessionLibDir - Get lib directory of session libraries on compute node.
+ * 
+ * Detail
+ *      This function is used to return the path of the library location of the
+ *      lib directory on the compute node. The path is not accessible from
+ *      the login node. The returned string can be used to modify arguments to
+ *      tool daemons to locate dependencies. It is the callers responsibility to
+ *      free the allocated storage when it is no longer needed. All manifest and
+ *      tool daemon libraries are placed within this directory.
+ *
+ * Arguments
+ *      sid -     The SESSION_ID of the existing session.
+ *
+ * Returns
+ *      A pointer to the path on success, or NULL on error.
+ * 
+ */
+extern char *	getSessionLibDir(SESSION_ID sid);
+
+/*
+ * getSessionFileDir - Get file directory of session files on compute node.
+ * 
+ * Detail
+ *      This function is used to return the path of the file location of the
+ *      file directory on the compute node. The path is not accessible from
+ *      the login node. The returned string can be used to modify arguments to
+ *      tool daemons to locate dependencies. It is the callers responsibility to
+ *      free the allocated storage when it is no longer needed. All manifest
+ *      files are placed within this directory.
+ *
+ * Arguments
+ *      sid -     The SESSION_ID of the existing session.
+ *
+ * Returns
+ *      A pointer to the path on success, or NULL on error.
+ * 
+ */
+extern char *	getSessionFileDir(SESSION_ID sid);
+
+/*
+ * getSessionTmpDir - Get tmp directory of session on compute node.
+ * 
+ * Detail
+ *      This function is used to return the path of the tmp location on the 
+ *      compute node. The path is not accessible from the login node. The 
+ *      returned string can be used to modify arguments to tool daemons to 
+ *      locate dependencies. It is the callers responsibility to free the 
+ *      allocated storage when it is no longer needed. This tmp dir is not
+ *      shared across sessions and populated by the tool daemon only.
+ *
+ * Arguments
+ *      sid -     The SESSION_ID of the existing session.
+ *
+ * Returns
+ *      A pointer to the path on success, or NULL on error.
+ * 
+ */
+extern char *	getSessionTmpDir(SESSION_ID sid);
 
 #endif /* _TOOL_FRONTEND_H */

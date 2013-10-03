@@ -21,15 +21,7 @@
 
 #include <stdint.h>
 
-#define APRUN			"aprun"
-#define APKILL			"apkill"
-#define DEFAULT_SIG	9
-
-#define OLD_APRUN_LOCATION	"/usr/bin/aprun"
-#define OBS_APRUN_LOCATION	"/opt/cray/alps/default/bin/aprun"
-// defined in tool_frontend.h, used to define absolute location of the real
-// aprun binary
-#define USER_DEF_APRUN_LOC_ENV_VAR "CRAY_APRUN_PATH"
+#include "alps_defs.h"
 
 /* struct typedefs */
 typedef struct

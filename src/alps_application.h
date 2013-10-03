@@ -23,9 +23,15 @@
 #include "alps/alps.h"
 #include "alps/apInfo.h"
 
-#define ALPS_XT_CNAME				"/proc/cray_xt/cname"
-#define ALPS_XT_HOSTNAME_FMT		"nid%05d"
-#define ALPS_XT_HOSTNAME_LEN		9
+#include "alps_defs.h"
+
+// The following represents a datatype that is inside the appEntry_t structure
+// that is managed exclusively by the alps_transfer.c layer. The alps_application.c
+// layer will only check to see if it is null or not during cleanup and call the
+// appropriate function.
+typedef void * TRANSFER_IFACE_OBJ;
+// This is the cleanup function prototype to deal with the above object.
+typedef void (*TRANSFER_IFACE_DESTROY)(TRANSFER_IFACE_OBJ);
 
 /* struct typedefs */
 typedef struct
@@ -44,8 +50,12 @@ typedef struct
 
 typedef struct
 {
-	uint64_t		apid;			// ALPS application ID
-	alpsInfo_t		alpsInfo;		// Information pertaining to the applications ALPS status
+	uint64_t				apid;			// ALPS application ID
+	alpsInfo_t				alpsInfo;		// Information pertaining to the applications ALPS status
+	char *					toolPath;		// backend toolhelper path for temporary storage
+	int						transfer_init;	// Transfer interface initialized?
+	TRANSFER_IFACE_OBJ		_transferObj;	// Managed by alps_transfer.c for this app entry
+	TRANSFER_IFACE_DESTROY	_destroyObj;	// Managed by the alps_transfer.c for this app entry
 } appEntry_t;
 
 struct appList

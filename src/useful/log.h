@@ -19,8 +19,6 @@
 #ifndef _LOG_H
 #define _LOG_H
 
-#define DBG_LOG_ENV_VAR "CRAY_DBG_LOG_DIR"
-
 FILE *create_log(int, char *);
 int write_log(FILE *, char *);
 int close_log(FILE *);

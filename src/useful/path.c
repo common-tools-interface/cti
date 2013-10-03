@@ -33,6 +33,8 @@
 
 #include "path.h"
 
+#define EXTRA_LIBRARY_PATH  "/lib64:/usr/lib64:/lib:/usr/lib"
+
 /*
  * Try to locate 'file' using PATH.
  *

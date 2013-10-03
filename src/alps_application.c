@@ -25,6 +25,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "alps/libalps.h"
 
@@ -184,6 +188,23 @@ consumeAppEntry(appEntry_t *entry)
 		free(entry->alpsInfo.cmdDetail);
 	if (entry->alpsInfo.places != (placeList_t *)NULL)
 		free(entry->alpsInfo.places);
+		
+	// free the toolPath
+	if (entry->toolPath != NULL)
+	{
+		free(entry->toolPath);
+	}
+		
+	// Check to see if there is a _transferObj
+	if (entry->_transferObj != NULL)
+	{
+		// Ensure that there is a destroy function defined
+		if (entry->_destroyObj != NULL)
+		{
+			// Call the destroy function
+			(*(entry->_destroyObj))(entry->_transferObj);
+		}
+	}
 	
 	// nom nom the final appEntry_t object
 	free(entry);
@@ -310,6 +331,8 @@ newApp(uint64_t apid)
 {
 	appList_t *		lstPtr;
 	appEntry_t *	this;
+	// Used to determine CLE version
+	struct stat 	statbuf;
 	
 	// grow the global my_apps list and get its new appList_t entry
 	if ((lstPtr = growAppsList()) == (appList_t *)NULL)
@@ -347,6 +370,30 @@ newApp(uint64_t apid)
 	
 	// save pe0 NID
 	this->alpsInfo.pe0Node = this->alpsInfo.places[0].nid;
+	
+	// Check to see if this system is using the new OBS system for the alps
+	// dependencies. This will affect the way we set the toolPath for the backend
+	if (stat(ALPS_OBS_LOC, &statbuf) == -1)
+	{
+		// Could not stat ALPS_OBS_LOC, assume it's using the old format.
+		if (asprintf(&this->toolPath, OLD_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
+		{
+			fprintf(stderr, "asprintf failed\n");
+			reapAppsList();
+			consumeAppEntry(this);
+			return (appEntry_t *)NULL;
+		}
+	} else
+	{
+		// Assume it's using the OBS format
+		if (asprintf(&this->toolPath, OBS_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
+		{
+			fprintf(stderr, "asprintf failed\n");
+			reapAppsList();
+			consumeAppEntry(this);
+			return (appEntry_t *)NULL;
+		}
+	}
 	
 	// save the new appEntry_t object into the returned appList_t object that
 	// the call to growAppsList gave us.

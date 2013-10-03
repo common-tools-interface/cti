@@ -38,23 +38,17 @@
 #include <archive.h>
 #include <archive_entry.h>
 
+#include "alps_defs.h"
 #include "useful/useful.h"
-
-#define ALPS_XT_NID		"/proc/cray_xt/nid"
-#define APID_ENV_VAR		"CRAYTOOL_APID"
-#define APID_STR_BUF_LEN	32
-#define SCRATCH_ENV_VAR	"TMPDIR"
-#define BIN_DIR_VAR      "CRAYTOOL_BIN_DIR"
-#define LIB_DIR_VAR      "CRAYTOOL_LIB_DIR"
-#define SHELL_ENV_VAR		"SHELL"
-#define SHELL_VAR			"/bin/sh"
 
 static int debug_flag = 0;
 
 const struct option long_opts[] = {
 			{"binary",		required_argument,	0, 'b'},
-			{"manifest",	required_argument,	0, 'm'},
+			{"directory",	required_argument,	0, 'd'},
 			{"env",			required_argument,	0, 'e'},
+			{"inst",		required_argument,	0, 'i'},
+			{"manifest",	required_argument,	0, 'm'},
 			{"help",		no_argument,		0, 'h'},
 			{"debug",		no_argument,		&debug_flag, 1},
 			{0, 0, 0, 0}
@@ -69,10 +63,12 @@ usage(char *name)
 	fprintf(stdout, "specified variables in the environment of the process.\n\n");
 	
 	fprintf(stdout, "\t-b, --binary	   Binary file to execute\n");
-	fprintf(stdout, "\t-m, --manifest  Manifest tarball to extract/set as CWD\n");
+	fprintf(stdout, "\t-d, --directory Use named directory for CWD\n");
 	fprintf(stdout, "\t-e, --env       Specify an environment variable to set\n");
 	fprintf(stdout, "\t                The argument provided to this option must be issued\n");
 	fprintf(stdout, "\t                with var=val, for example: -e myVar=myVal\n");
+	fprintf(stdout, "\t-i, --instance  Instance of tool daemon. Used in conjunction with sessions\n");
+	fprintf(stdout, "\t-m, --manifest  Manifest tarball to extract/set as CWD if -d omitted\n");
 	fprintf(stdout, "\t    --debug     Turn on debug logging to a file. (STDERR/STDOUT to file)\n");
 	fprintf(stdout, "\t-h, --help      Display this text and exit\n");
 }
@@ -107,7 +103,7 @@ int
 main(int argc, char **argv)
 {
 	int			opt_ind = 0;
-	int			c, nid;
+	int			c, nid, i, sCnt;
 	FILE *		alps_fd;	// ALPS NID file stream
 	FILE *		log;
 	char		file_buf[BUFSIZ];	// file read buffer
@@ -118,8 +114,12 @@ main(int argc, char **argv)
 	struct stat statbuf;
 	char *		binary = NULL; 
 	char *		binary_path;
+	char *		directory = NULL;
 	char *		manifest = NULL;
+	int			inst = 1;	// default to 1 if no instance argument is provided
 	char *		manifest_path = NULL;
+	char *		lock_path = NULL;
+	FILE *		lock_file;
 	char *		bin_path = NULL;
 	char *		lib_path = NULL;
 	char		*env, *val, *t;
@@ -151,7 +151,7 @@ main(int argc, char **argv)
 	open("/dev/null", O_WRONLY);
 	open("/dev/null", O_WRONLY);
 	
-	while ((c = getopt_long(argc, argv, "b:m:e:h", long_opts, &opt_ind)) != -1)
+	while ((c = getopt_long(argc, argv, "b:d:e:i:m:h", long_opts, &opt_ind)) != -1)
 	{
 		switch (c)
 		{
@@ -170,15 +170,15 @@ main(int argc, char **argv)
 				
 				break;
 				
-			case 'm':
+			case 'd':
 				if (optarg == (char *)NULL)
 				{
 					usage(argv[0]);
 					return 1;
 				}
 				
-				// this is the name of the manifest tarball we will extract
-				manifest = strdup(optarg);
+				// this is the name of the existing directory we should cd to
+				directory = strdup(optarg);
 				
 				break;
 				
@@ -218,6 +218,31 @@ main(int argc, char **argv)
 				
 				// free the strdup'ed string - this will subsequently also get rid of the val
 				free(env);
+				
+				break;
+				
+			case 'i':
+				if (optarg == (char *)NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				// This is our instance number. We need to wait for all those
+				// before us to finish their work before proceeding.
+				inst = atoi(optarg);
+				
+				break;
+				
+			case 'm':
+				if (optarg == (char *)NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				// this is the name of the manifest tarball we will extract
+				manifest = strdup(optarg);
 				
 				break;
 				
@@ -274,6 +299,14 @@ main(int argc, char **argv)
 		hook_stdoe(log);
 	}
 	
+	// Ensure the user provided a directory or manifest option
+	if (directory == NULL && manifest == NULL)
+	{
+		// failure
+		fprintf(stderr, "Missing either directory or manifest argument!\n");
+		return 1;
+	}
+	
 	// set the APID_ENV_VAR environment variable to the apid
 	if (setenv(APID_ENV_VAR, apid_str, 1) < 0)
 	{
@@ -308,7 +341,7 @@ main(int argc, char **argv)
 	// set the final null terminator
 	tool_path[len] = '\0';
 	
-	fprintf(stderr, "Toolhelper path: %s\n", tool_path);
+	fprintf(stderr, "inst %d: Toolhelper path: %s\n", inst, tool_path);
 	
 	// cd to the tool_path and relax the permissions
 	if (stat(tool_path, &statbuf) == -1)
@@ -324,7 +357,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "Could not chmod %s\n", tool_path);
 		return 1;
 	}
-		
+	
 	// change the working directory to path
 	if (chdir(tool_path) != 0)
 	{
@@ -332,80 +365,174 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	// Ensure that there was a manifest argument provided.
-	if (manifest == NULL)
+	// Now unpack the manifest
+	if (manifest != NULL)
 	{
-		fprintf(stderr, "Manifest argument missing!\n");
+		fprintf(stderr, "inst %d: Manifest provided: %s\n", inst, manifest);
+	
+		// create the manifest path string
+		if (asprintf(&manifest_path, "%s/%s", tool_path, manifest) <= 0)
+		{
+			fprintf(stderr, "asprintf failed\n");
+			return 1;
+		}
+		
+		// ensure the manifest tarball exists
+		if (stat(manifest_path, &statbuf) == -1)
+		{
+			fprintf(stderr, "Could not stat manifest tarball %s\n", manifest_path);
+			return 1;
+		}
+		
+		// ensure it is a regular file
+		if (!S_ISREG(statbuf.st_mode))
+		{
+			fprintf(stderr, "%s is not a regular file!\n", manifest_path);
+			return 1;
+		}
+	
+		// set the flags
+		flags |= ARCHIVE_EXTRACT_PERM;
+		flags |= ARCHIVE_EXTRACT_ACL;
+		flags |= ARCHIVE_EXTRACT_FFLAGS;
+	
+		a = archive_read_new();
+		ext = archive_write_disk_new();
+		archive_write_disk_set_options(ext, flags);
+		archive_read_support_format_tar(a);
+	
+		if ((r = archive_read_open_filename(a, manifest_path, 10240)))
+		{
+			fprintf(stderr, "archive_read_open_filename(): %s\n", archive_error_string(a));
+			return r;
+		}
+	
+		for (;;) 
+		{
+			r = archive_read_next_header(a, &entry);
+			if (r == ARCHIVE_EOF)
+				break;
+			if (r != ARCHIVE_OK)
+			{
+				fprintf(stderr, "archive_read_next_header(): %s\n", archive_error_string(a));
+				return 1;
+			}
+		
+			r = archive_write_header(ext, entry);
+			if (r != ARCHIVE_OK)
+			{
+				fprintf(stderr, "archive_write_header(): %s\n", archive_error_string(ext));
+				return 1;
+			}
+		
+			copy_data(a, ext);
+		
+			r = archive_write_finish_entry(ext);
+			if (r != ARCHIVE_OK)
+			{
+				fprintf(stderr, "archive_write_finish_entry(): %s\n", archive_error_string(ext));
+				return 1;
+			}
+		}
+	
+		archive_read_close(a);
+		archive_read_free(a);
+	
+		// The manifest should be extracted at this point.
+	
+		// We are done with the tarball, so remove it - if this fails just ignore it since it won't
+		// break things
+		remove(manifest_path);
+	
+		// Modify manifest_path to point at the directory, not the ".tar" bits
+		if ((t = strstr(manifest_path, ".tar")) != NULL)
+		{
+			// set it to a null terminator
+			*t = '\0';
+		}
+	}
+	
+	// handle the directory option
+	if (directory != NULL)
+	{
+		fprintf(stderr, "inst %d: Directory provided: %s\n", inst, directory);
+		
+		// create the manifest path string
+		if (manifest_path != NULL)
+		{
+			free(manifest_path);
+			manifest_path = NULL;
+		}
+		if (asprintf(&manifest_path, "%s/%s", tool_path, directory) <= 0)
+		{
+			fprintf(stderr, "asprintf failed\n");
+			return 1;
+		}
+	}
+	
+	// ensure the manifest directory exists
+	if (stat(manifest_path, &statbuf) == -1)
+	{
+		fprintf(stderr, "Could not stat root directory %s\n", manifest_path);
+		return 1;
+	}
+		
+	// ensure it is a directory
+	if (!S_ISDIR(statbuf.st_mode))
+	{
+		fprintf(stderr, "%s is not a directory!\n", manifest_path);
 		return 1;
 	}
 	
-	// create the manifest path string
-	if (asprintf(&manifest_path, "%s/%s", tool_path, manifest) <= 0)
+	// At this point we are done untar'ing stuff into the directory. We need
+	// to create our hidden file corresponding to our instance so that other
+	// tool daemons will know that their dependencies included with our manifest
+	// are ready for them to use. This prevents race conditions where a later
+	// tool daemon depends on files included in an earlier tool daemons manifest
+	// but the later tool daemon executes first.
+	
+	// first ensure the directory string exists, otherwise create it
+	if (directory == NULL)
+	{
+		// grab the directory part based on the manifest string
+		directory = strdup(manifest);
+		
+		// Modify t1 to point at the directory, not the ".tar" bits
+		if ((t = strstr(directory, ".tar")) != NULL)
+		{
+			// set it to a null terminator
+			*t = '\0';
+		}
+	}
+	
+	// create the path to the lock file
+	if (asprintf(&lock_path, "%s/.lock_%s_%d", tool_path, directory, inst) <= 0)
 	{
 		fprintf(stderr, "asprintf failed\n");
 		return 1;
 	}
 	
-	// set the flags
-	flags |= ARCHIVE_EXTRACT_PERM;
-	flags |= ARCHIVE_EXTRACT_ACL;
-	flags |= ARCHIVE_EXTRACT_FFLAGS;
-	
-	a = archive_read_new();
-	ext = archive_write_disk_new();
-	archive_write_disk_set_options(ext, flags);
-	archive_read_support_format_tar(a);
-	
-	if ((r = archive_read_open_filename(a, manifest_path, 10240)))
+	// try to fopen the lock file
+	if ((lock_file = fopen(lock_path, "w")) == NULL)
 	{
-		fprintf(stderr, "archive_read_open_filename(): %s\n", archive_error_string(a));
-		return r;
+		fprintf(stderr, "fopen on %s failed\n", lock_path);
+		// don't exit here, this will break future tool daemons though so its pretty
+		// bad to have a failure at this point. But it shouldn't screw this instance
+		// up at the very least.
+	} else
+	{
+		// close the file, it has been created
+		fclose(lock_file);
 	}
 	
-	for (;;) 
+	// Set the ROOT_DIR_VAR environment variable to the toolhelper directory.
+	if (setenv(ROOT_DIR_VAR, manifest_path, 1) < 0)
 	{
-		r = archive_read_next_header(a, &entry);
-		if (r == ARCHIVE_EOF)
-			break;
-		if (r != ARCHIVE_OK)
-		{
-			fprintf(stderr, "archive_read_next_header(): %s\n", archive_error_string(a));
-			return 1;
-		}
-		
-		r = archive_write_header(ext, entry);
-		if (r != ARCHIVE_OK)
-		{
-			fprintf(stderr, "archive_write_header(): %s\n", archive_error_string(ext));
-			return 1;
-		}
-		
-		copy_data(a, ext);
-		
-		r = archive_write_finish_entry(ext);
-		if (r != ARCHIVE_OK)
-		{
-			fprintf(stderr, "archive_write_finish_entry(): %s\n", archive_error_string(ext));
-			return 1;
-		}
+		// failure
+		fprintf(stderr, "setenv failed\n");
+		return 1;
 	}
-	
-	archive_read_close(a);
-	archive_read_free(a);
-	
-	// The manifest should be extracted at this point.
-	
-	// We are done with the tarball, so remove it - if this fails just ignore it since it won't
-	// break things
-	remove(manifest_path);
-	
-	// Modify manifest_path to point at the directory, not the ".tar" bits
-	if ((t = strstr(manifest_path, ".tar")) != NULL)
-	{
-		// set it to a null terminator
-		*t = '\0';
-	}
-	
+
 	// set the SCRATCH_ENV_VAR environment variable to the toolhelper directory.
 	// ALPS will enforce cleanup here and the tool is guaranteed to be able to write
 	// to it.
@@ -450,7 +577,7 @@ main(int argc, char **argv)
 	// set the SHELL environment variable to the shell included on the compute
 	// node. Note that other shells other than /bin/sh are not currently supported
 	// in CNL.
-	if (setenv(SHELL_ENV_VAR, SHELL_VAR, 1) < 0)
+	if (setenv(SHELL_ENV_VAR, SHELL_PATH, 1) < 0)
 	{
 		// failure
 		fprintf(stderr, "setenv failed\n");
@@ -465,6 +592,13 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
+	// ensure that binary was provided, otherwise just exit - the caller wanted to stage stuff.
+	if (binary == NULL)
+	{
+		fprintf(stderr, "inst %d: No binary provided. Stage to %s complete.\n", inst, manifest_path);
+		return 0;
+	}
+	
 	// anything after the final "--" in the options string will be passed directly to the exec'ed binary
 	
 	// create the full path to the binary we are going to exec
@@ -474,7 +608,59 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	fprintf(stderr, "Binary path: %s\n", binary_path);
+	fprintf(stderr, "inst %d: Binary path: %s\n", inst, binary_path);
+	
+	// At this point we need to wait on any other previous tool daemons that may
+	// or may not contain depedencies this instance needs. We will try to make
+	// sure each previous instance has a lock file, otherwise we spin until it
+	// gets created. We have no way of knowing for sure if the previous manifest
+	// contains dependencies that we need. This information is not tracked.
+	for (i = inst-1; i > 0; --i)
+	{
+		// reset sCnt
+		sCnt = 0;
+		
+		// free the existing lock path
+		free(lock_path);
+		
+		// create the path to this instances lock file
+		if (asprintf(&lock_path, "%s/.lock_%s_%d", tool_path, directory, i) <= 0)
+		{
+			fprintf(stderr, "asprintf failed\n");
+			return 1;
+		}
+		
+		// loop until we can stat this lock file
+		while (stat(lock_path, &statbuf))
+		{
+			// print out a message if sCnt is divisible by 100
+			if (sCnt++%100 == 0)
+			{
+				fprintf(stderr, "inst %d: Lock file %s not found. Sleeping...\n", inst, lock_path);
+			}
+			
+			// sleep until the file is created
+			usleep(10000);
+		}
+	}
+	
+	fprintf(stderr, "inst %d: All dependency locks acquired. Ready to exec.\n", inst);
+	
+	// At this point it is safe to assume we have all our dependencies.
+	
+	// ensure the binary exists
+	if (stat(binary_path, &statbuf) == -1)
+	{
+		fprintf(stderr, "Could not stat %s\n", binary_path);
+		return 1;
+	}
+	
+	// ensure it is a regular file
+	if (!S_ISREG(statbuf.st_mode))
+	{
+		fprintf(stderr, "%s is not a regular file!\n", binary_path);
+		return 1;
+	}
 	
 	// setup the new argv array
 	// Note that argv[optind] is the first argument that appears after the "--" terminator
@@ -485,9 +671,10 @@ main(int argc, char **argv)
 	// now we can exec our program
 	execv(binary_path, &argv[optind - 1]);
 	
-	fprintf(stderr, "Return from exec!\n");
+	fprintf(stderr, "inst %d: Return from exec!\n", inst);
 	
 	perror("execv");
 	
 	return 1;
 }
+

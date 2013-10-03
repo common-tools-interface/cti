@@ -40,6 +40,7 @@ src/alps_application.c -text
 src/alps_application.h -text
 src/alps_backend.c -text
 src/alps_backend.h -text
+src/alps_defs.h -text
 src/alps_run.c -text
 src/alps_run.h -text
 src/alps_transfer.c -text

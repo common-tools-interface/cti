@@ -27,6 +27,7 @@
 #include <linux/limits.h>
 
 #include "log.h"
+#include "alps_defs.h"
 
 FILE *
 create_log(int suffix, char *nodeName)
@@ -50,7 +51,7 @@ create_log(int suffix, char *nodeName)
 	// create the fullpath string to the log file using PATH_MAX plus a null term
 	snprintf(logfile, PATH_MAX+1, "%s/dbglog_%s.%d.log", envDir, nodeName, suffix);
 	
-	if ((logfd = fopen(logfile, "w")) == (FILE *)NULL)
+	if ((logfd = fopen(logfile, "a")) == (FILE *)NULL)
 	{
 		// could not open log file for writing at the specififed location
 		return (FILE *)NULL;

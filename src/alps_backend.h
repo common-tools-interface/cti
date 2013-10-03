@@ -23,14 +23,8 @@
 #include "alps/alps.h"
 #include "alps/alps_toolAssist.h"
 
+#include "alps_defs.h"
 #include "pmi_attribs_parser.h"
-
-#define APID_ENV_VAR				"CRAYTOOL_APID"
-#define ALPS_XT_CNAME				"/proc/cray_xt/cname"
-#define ALPS_XT_HOSTNAME_FMT		"nid%05d"
-#define ALPS_XT_HOSTNAME_LEN    9
-
-#define ALPS_CNODE_TOOL_PATH_FMT ALPS_CNODE_PATH_FMT "/" ALPS_CNODE_TOOL_FMT
 
 typedef struct
 {

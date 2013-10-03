@@ -19,8 +19,6 @@
 #ifndef _PATH_H
 #define _PATH_H
 
-#define EXTRA_LIBRARY_PATH  "/lib64:/usr/lib64:/lib:/usr/lib"
-
 char *	pathFind(const char *, const char *);
 char *	libFind(const char *, const char *);
 int		adjustPaths(char *);

@@ -67,19 +67,329 @@ static const char * __ignored_libs[] = {
 };
 
 /* Static prototypes */
+static sessList_t *		growSessList(void);
+static void				reapSessList(void);
+static void				reapSession(SESSION_ID);
+static void				consumeSession(session_t *);
+static session_t *		findSession(SESSION_ID);
+static session_t *		newSession(MANIFEST_ID);
 static manifList_t *	growManifList(void);
 static void				reapManifList(void);
 static void				reapManifest(MANIFEST_ID);
 static void				consumeManifest(manifest_t *);
 static manifest_t *		findManifest(MANIFEST_ID);
-static manifest_t *		newManifest(void);
+static manifest_t *		newManifest(SESSION_ID);
+static int				addManifestToSession(MANIFEST_ID, SESSION_ID);
+static void				addSessionToApp(appEntry_t *, SESSION_ID);
 static int				removeFilesFromDir(char *);
 static int				copyFilesToPackage(stringList_t *, char *);
 static int				packageManifestAndShip(uint64_t, MANIFEST_ID);
 
 /* global variables */
+static sessList_t *		my_sess;
+static SESSION_ID		next_sid = 1;
 static manifList_t *	my_manifs;
 static MANIFEST_ID		next_mid = 1;
+
+static sessList_t *
+growSessList(void)
+{
+	sessList_t *	newEntry;
+	sessList_t *	lstPtr;
+	
+	// alloc space for the new list entry
+	if ((newEntry = malloc(sizeof(sessList_t))) == (void *)0)
+	{
+		return NULL;
+	}
+	memset(newEntry, 0, sizeof(sessList_t));     // clear it to NULL
+	
+	// if my_sess is null, this is the new head of the list
+	if ((lstPtr = my_sess) == NULL)
+	{
+		my_sess = newEntry;
+	} else
+	{
+		// we need to iterate through the list to find the open next entry
+		while (lstPtr->nextEntry != NULL)
+		{
+			lstPtr = lstPtr->nextEntry;
+		}
+		lstPtr->nextEntry = newEntry;
+	}
+	
+	// return the pointer to the new entry
+	return newEntry;
+}
+
+// this function is used to undo the operation performed by growSessList
+static void
+reapSessList(void)
+{
+	sessList_t *	lstPtr;
+
+	// sanity check
+	if ((lstPtr = my_sess) == NULL)
+		return;
+	
+	// if this was the first entry, lets remove it
+	if (lstPtr->nextEntry == NULL)
+	{
+		free(lstPtr);
+		my_sess = NULL;
+		return;
+	}
+	
+	// iterate through until we find the entry whos next entry has a null next entry ;)
+	// i.e. magic - this works because growSessList always places the new session_t entry
+	// at the end of the list
+	while (lstPtr->nextEntry->nextEntry != NULL)
+	{
+		lstPtr = lstPtr->nextEntry;
+	}
+	// the next entry has a null next entry so we need to free the next entry
+	free(lstPtr->nextEntry);
+	// now we need to set this entries next entry to null
+	lstPtr->nextEntry = NULL;
+}
+
+static void
+reapSession(SESSION_ID sid)
+{
+	sessList_t *	lstPtr;
+	sessList_t *	prePtr;
+	
+	// sanity check
+	if (((lstPtr = my_sess) == NULL) || (sid <= 0))
+		return;
+	
+	prePtr = my_sess;
+	
+	// this shouldn't happen, but doing so will prevent a segfault if the list gets corrupted
+	while (lstPtr->thisEntry == NULL)
+	{
+		// if this is the only object in the list, then delete the entire list
+		if ((lstPtr = lstPtr->nextEntry) == NULL)
+		{
+			my_sess = NULL;
+			free(lstPtr);
+			return;
+		}
+		// otherwise point my_sess to the lstPtr and free the corrupt entry
+		my_sess = lstPtr;
+		free(prePtr);
+		prePtr = my_sess;
+	}
+	
+	// we need to locate the position of the sessList_t object that we need to remove
+	while (lstPtr->thisEntry->sid != sid)
+	{
+		prePtr = lstPtr;
+		if ((lstPtr = lstPtr->nextEntry) == NULL)
+		{
+			// there are no more entries and we didn't find the sid
+			return;
+		}
+	}
+	
+	// check to see if this was the first entry in the global my_sess list
+	if (prePtr == lstPtr)
+	{
+		// point the global my_sess list to the next entry
+		my_sess = lstPtr->nextEntry;
+		// consume the session_t object for this entry in the list
+		consumeSession(lstPtr->thisEntry);
+		// free the list object
+		free(lstPtr);
+	} else
+	{
+		// we are at some point midway through the global my_sess list
+		
+		// point the previous entries next entry to the list pointers next entry
+		// this bypasses the current list pointer
+		prePtr->nextEntry = lstPtr->nextEntry;
+		// consume the session_t object for this entry in the list
+		consumeSession(lstPtr->thisEntry);
+		// free the list object
+		free(lstPtr);
+	}
+	
+	// done
+	return;
+}
+
+static void
+consumeSession(session_t *entry)
+{
+	// sanity check
+	if (entry == NULL)
+		return;
+		
+	// free the basename of the manifest directory
+	if (entry->stage_name != NULL)
+		free(entry->stage_name);
+	
+	// eat each of the string lists
+	consumeStringList(entry->exec_names);
+	consumeStringList(entry->lib_names);
+	consumeStringList(entry->file_names);
+	
+	// nom nom the final session_t object
+	free(entry);
+}
+
+static session_t *
+findSession(SESSION_ID sid)
+{
+	sessList_t *	lstPtr;
+	
+	// sanity check
+	if (((lstPtr = my_sess) == NULL) || (sid <= 0))
+		return NULL;
+	
+	// this shouldn't happen, but doing so will prevent a segfault if the list gets corrupted
+	while (lstPtr->thisEntry == NULL)
+	{
+		// if this is the only object in the list, then delete the entire list
+		if ((lstPtr = lstPtr->nextEntry) == NULL)
+		{
+			my_sess = NULL;
+			free(lstPtr);
+			return NULL;
+		}
+		// otherwise point my_sess to the lstPtr and free the corrupt entry
+		my_sess = lstPtr;
+	}
+	
+	// we need to locate the position of the sessList_t object that we are looking for
+	while (lstPtr->thisEntry->sid != sid)
+	{
+		if ((lstPtr = lstPtr->nextEntry) == NULL)
+		{
+			// there are no more entries and we didn't find the sid
+			return NULL;
+		}
+	}
+	
+	return lstPtr->thisEntry;
+}
+
+static session_t *
+newSession(MANIFEST_ID mid)
+{
+	sessList_t *	lstPtr;
+	session_t *		this;
+	manifest_t *	m_ptr;
+	int				i;
+	char **			str_ptr;
+	
+	// ensure the mid exists
+	if ((m_ptr = findManifest(mid)) == NULL)
+	{
+		// We failed to find the manifest for the mid
+		return NULL;
+	}
+	
+	// grow the global my_manifs list and get its new manifest_t entry
+	if ((lstPtr = growSessList()) == NULL)
+	{
+		return NULL;
+	}
+	
+	// create the new session_t object
+	if ((this = malloc(sizeof(session_t))) == (void *)0)
+	{
+		reapSessList();
+		return NULL;
+	}
+	memset(this, 0, sizeof(session_t));     // clear it to NULL
+	
+	// set the sid member
+	// TODO: This could be made smarter by using a hash table instead of a revolving int we see now
+	this->sid = next_sid++;
+	
+	// set the instance count
+	// This gets used in the newManifest function to keep track of the number of
+	// instances referencing this session. This is to prevent naming conflicts of 
+	// the shipped tarball name.
+	this->instCnt = 1;
+	
+	// set the stage name
+	this->stage_name = strdup(m_ptr->stage_name);
+	
+	// create the stringList_t objects
+	if ((this->exec_names = newStringList()) == NULL)
+	{
+		reapSessList();
+		consumeSession(this);
+		return NULL;
+	}
+	if ((this->lib_names = newStringList()) == NULL)
+	{
+		reapSessList();
+		consumeSession(this);
+		return NULL;
+	}
+	if ((this->file_names = newStringList()) == NULL)
+	{
+		reapSessList();
+		consumeSession(this);
+		return NULL;
+	}
+	
+	// copy the names in each list of the manifest over to the session list
+	i = m_ptr->exec_names->num;
+	str_ptr = m_ptr->exec_names->list;
+	while (0 < i--)
+	{
+		if (addString(this->exec_names, *str_ptr))
+		{
+			// failed to save str_ptr into the list
+			reapSessList();
+			consumeSession(this);
+			return NULL;
+		}
+		
+		// increment str_ptr
+		++str_ptr;
+	}
+	i = m_ptr->lib_names->num;
+	str_ptr = m_ptr->lib_names->list;
+	while (0 < i--)
+	{
+		if (addString(this->lib_names, *str_ptr))
+		{
+			// failed to save str_ptr into the list
+			reapSessList();
+			consumeSession(this);
+			return NULL;
+		}
+		
+		// increment str_ptr
+		++str_ptr;
+	}
+	i = m_ptr->file_names->num;
+	str_ptr = m_ptr->file_names->list;
+	while (0 < i--)
+	{
+		if (addString(this->file_names, *str_ptr))
+		{
+			// failed to save str_ptr into the list
+			reapSessList();
+			consumeSession(this);
+			return NULL;
+		}
+		
+		// increment str_ptr
+		++str_ptr;
+	}
+	
+	// save the new session_t object into the returned sessList_t object that
+	// the call to growSessList gave us.
+	lstPtr->thisEntry = this;
+	
+	return this;
+}
 
 static manifList_t *
 growManifList(void)
@@ -215,9 +525,9 @@ consumeManifest(manifest_t *entry)
 	if (entry == NULL)
 		return;
 		
-	// free the root location
-	if (entry->tarball_name != NULL)
-		free(entry->tarball_name);
+	// free the basename of the manifest directory
+	if (entry->stage_name != NULL)
+		free(entry->stage_name);
 	
 	// eat each of the string lists
 	consumeStringList(entry->exec_names);
@@ -268,11 +578,14 @@ findManifest(MANIFEST_ID mid)
 }
 
 static manifest_t *
-newManifest(void)
+newManifest(SESSION_ID sid)
 {
 	manifList_t *	lstPtr;
 	manifest_t *	this;
 	const char **	ignore_ptr;
+	session_t *		s_ptr;
+	int				i;
+	char **			str_ptr;
 	
 	// grow the global my_manifs list and get its new manifest_t entry
 	if ((lstPtr = growManifList()) == NULL)
@@ -340,6 +653,85 @@ newManifest(void)
 		return NULL;
 	}
 	
+	// set the sid in the manifest
+	this->sid = sid;
+	
+	// Check to see if we need to add session info. Note that the names list
+	// will guarantee uniqueness. We simply need to add the name of a library
+	// to this list to prevent it from being shipped.
+	if (sid != 0)
+	{
+		if ((s_ptr = findSession(sid)) == NULL)
+		{
+			// We failed to find the session for the sid
+			fprintf(stderr, "SESSION_ID %d does not exist.\n", sid);
+			reapManifList();
+			consumeManifest(this);
+			return NULL;
+		}
+		
+		// increment the instance count in the sid
+		s_ptr->instCnt++;
+		
+		// set the instance number based on the instCnt in the sid
+		this->inst = s_ptr->instCnt;
+		
+		// copy the information from the session to the manifest
+		this->stage_name = strdup(s_ptr->stage_name);
+		
+		// copy all of the names to the manifest name lists
+		i = s_ptr->exec_names->num;
+		str_ptr = s_ptr->exec_names->list;
+		while (0 < i--)
+		{
+			if (addString(this->exec_names, *str_ptr))
+			{
+				// failed to save str_ptr into the list
+				reapManifList();
+				consumeManifest(this);
+				return NULL;
+			}
+		
+			// increment str_ptr
+			++str_ptr;
+		}
+		i = s_ptr->lib_names->num;
+		str_ptr = s_ptr->lib_names->list;
+		while (0 < i--)
+		{
+			if (addString(this->lib_names, *str_ptr))
+			{
+				// failed to save str_ptr into the list
+				reapManifList();
+				consumeManifest(this);
+				return NULL;
+			}
+		
+			// increment str_ptr
+			++str_ptr;
+		}
+		i = s_ptr->file_names->num;
+		str_ptr = s_ptr->file_names->list;
+		while (0 < i--)
+		{
+			if (addString(this->file_names, *str_ptr))
+			{
+				// failed to save str_ptr into the list
+				reapManifList();
+				consumeManifest(this);
+				return NULL;
+			}
+		
+			// increment str_ptr
+			++str_ptr;
+		}
+	} else
+	{
+		// this is the first instance of the session that will be created upon
+		// shipping this manifest
+		this->inst = 1;
+	}
+	
 	// save the new manifest_t object into the returned manifList_t object that
 	// the call to growManifList gave us.
 	lstPtr->thisEntry = this;
@@ -347,12 +739,180 @@ newManifest(void)
 	return this;
 }
 
+static int
+addManifestToSession(MANIFEST_ID mid, SESSION_ID sid)
+{
+	manifest_t *	m_ptr;
+	session_t *		s_ptr;
+	int				i;
+	char **			str_ptr;
+	
+	// sanity check
+	if (mid == 0 || sid == 0)
+	{
+		return 1;
+	}
+	
+	// Find the manifest entry in the global manifest list for the mid
+	if ((m_ptr = findManifest(mid)) == NULL)
+	{
+		// We failed to find the manifest for the mid
+		return 1;
+	}
+	
+	// Find the session entry in the global session list for the sid
+	if ((s_ptr = findSession(sid)) == NULL)
+	{
+		// We failed to find the session for the sid
+		return 1;
+	}
+	
+	// copy all of the names to the session name lists
+	i = m_ptr->exec_names->num;
+	str_ptr = m_ptr->exec_names->list;
+	while (0 < i--)
+	{
+		// ensure this name is not already in the list
+		if (!searchStringList(s_ptr->exec_names, *str_ptr))
+		{
+			// not in the list, so add it
+			if (addString(s_ptr->exec_names, *str_ptr))
+			{
+				// failed to save str_ptr into the list
+				return 1;
+			}
+		}
+		// increment str_ptr
+		++str_ptr;
+	}
+	
+	i = m_ptr->lib_names->num;
+	str_ptr = m_ptr->lib_names->list;
+	while (0 < i--)
+	{
+		// ensure this name is not already in the list
+		if (!searchStringList(s_ptr->lib_names, *str_ptr))
+		{
+			// not in the list, so add it
+			if (addString(s_ptr->lib_names, *str_ptr))
+			{
+				// failed to save str_ptr into the list
+				return 1;
+			}
+		}
+		// increment str_ptr
+		++str_ptr;
+	}
+	
+	i = m_ptr->file_names->num;
+	str_ptr = m_ptr->file_names->list;
+	while (0 < i--)
+	{
+		// ensure this name is not already in the list
+		if (!searchStringList(s_ptr->file_names, *str_ptr))
+		{
+			// not in the list, so add it
+			if (addString(s_ptr->file_names, *str_ptr))
+			{
+				// failed to save str_ptr into the list
+				return 1;
+			}
+		}
+		// increment str_ptr
+		++str_ptr;
+	}
+	
+	return 0;
+}
+
+static void
+destroyAppSess(TRANSFER_IFACE_OBJ obj)
+{
+	sessMgr_t *	sess_obj = (sessMgr_t *)obj;
+	int i;
+
+	// sanity check
+	if (sess_obj == NULL)
+		return;
+		
+	for (i=0; i < sess_obj->numSess; ++i)
+	{
+		reapSession(sess_obj->session_ids[i]);
+	}
+	
+	free(sess_obj->session_ids);
+	free(sess_obj);
+}
+
+static void
+addSessionToApp(appEntry_t *app_ptr, SESSION_ID sid)
+{
+	sessMgr_t *	sess_obj;
+	int *		new_ids;
+
+	// sanity check
+	if (app_ptr == NULL || sid == 0)
+		return;
+		
+	if (app_ptr->_transferObj == NULL)
+	{
+		// create a new sessMgr_t for this app entry
+		if ((sess_obj = malloc(sizeof(sessMgr_t))) == (void *)NULL)
+		{
+			// malloc failed
+			return;
+		}
+		memset(sess_obj, 0, sizeof(sessMgr_t));
+		
+		// setup the sess_obj
+		if ((sess_obj->session_ids = malloc(SESS_INC_SIZE * sizeof(int))) == (void *)NULL)
+		{
+			// malloc failed
+			free(sess_obj);
+			return;
+		}
+		memset(sess_obj->session_ids, 0, SESS_INC_SIZE * sizeof(int));
+		
+		sess_obj->len = SESS_INC_SIZE;
+		
+		// set the object in the app_ptr
+		app_ptr->_transferObj = (TRANSFER_IFACE_OBJ)sess_obj;
+	} else
+	{
+		sess_obj = (sessMgr_t *)app_ptr->_transferObj;
+		
+		// ensure there is space, otherwise realloc
+		if (sess_obj->numSess == sess_obj->len)
+		{
+			// need to realloc
+			if ((new_ids = realloc(sess_obj->session_ids, (sess_obj->len + SESS_INC_SIZE) * sizeof(int))) == (void *)NULL)
+			{
+				// malloc failed
+				return;
+			}
+			memset(&new_ids[sess_obj->len], 0, SESS_INC_SIZE * sizeof(int));
+			
+			sess_obj->session_ids = new_ids;
+			sess_obj->len += SESS_INC_SIZE;
+		}
+	}
+	
+	// Put the sid into the session_ids array
+	sess_obj->session_ids[sess_obj->numSess++] = sid;
+	
+	// ensure the destroy callback is set
+	if (app_ptr->_destroyObj == NULL)
+	{
+		app_ptr->_destroyObj = destroyAppSess;
+	}
+}
+
 MANIFEST_ID
-createNewManifest(void)
+createNewManifest(SESSION_ID sid)
 {
 	manifest_t *	m_ptr = NULL;
 	
-	if ((m_ptr = newManifest()) == NULL)
+	if ((m_ptr = newManifest(sid)) == NULL)
 		return 0;
 		
 	return m_ptr->mid;
@@ -709,11 +1269,11 @@ packageManifestAndShip(uint64_t apid, MANIFEST_ID mid)
 	char *					cfg_dir = NULL;		// configuration directory from env var
 	char *					stage_dir = NULL;	// staging directory name
 	char *					stage_path = NULL;	// staging path
-	char *					stage_name = NULL;	// staging directory name
 	char *					bin_path = NULL;
 	char *					lib_path = NULL;
 	char *					tmp_path = NULL;
 	char *					tar_name = NULL;
+	char *					tmp_tar_name;
 	const char *			errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
 	struct archive *		a = NULL;
 	struct archive *		disk = NULL;
@@ -755,24 +1315,45 @@ packageManifestAndShip(uint64_t apid, MANIFEST_ID mid)
 		goto packageManifestAndShip_error;
 	}
 	
-	// check to see if the caller set a staging directory name, otherwise create a unique one for them
-	if ((stage_dir = getenv(DAEMON_STAGE_DIR)) == NULL)
+	// Check the manifest to see if it already has a stage_name set, if so this is part of an existing
+	// session and we should use the same directory name
+	if (m_ptr->stage_name == NULL)
 	{
-		// take the default action
-		if (asprintf(&stage_path, "%s/%s", cfg_dir, DEFAULT_STAGE_DIR) <= 0)
+		// check to see if the caller set a staging directory name, otherwise create a unique one for them
+		if ((stage_dir = getenv(DAEMON_STAGE_VAR)) == NULL)
 		{
-			goto packageManifestAndShip_error;
-		}
+			// take the default action
+			if (asprintf(&stage_path, "%s/%s", cfg_dir, DEFAULT_STAGE_DIR) <= 0)
+			{
+				goto packageManifestAndShip_error;
+			}
 		
-		// create the temporary directory for the manifest package
-		if (mkdtemp(stage_path) == NULL)
+			// create the temporary directory for the manifest package
+			if (mkdtemp(stage_path) == NULL)
+			{
+				goto packageManifestAndShip_error;
+			}
+		} else
 		{
-			goto packageManifestAndShip_error;
+			// use the user defined directory
+			if (asprintf(&stage_path, "%s/%s", cfg_dir, stage_dir) <= 0)
+			{
+				goto packageManifestAndShip_error;
+			}
+		
+			if (mkdir(stage_path, S_IRWXU))
+			{
+				goto packageManifestAndShip_error;
+			}
 		}
+	
+		// get the stage name since we want to rebase things in the tarball
+		// save this in the m_ptr for later
+		m_ptr->stage_name = pathToName(stage_path);
 	} else
 	{
-		// use the user defined directory
-		if (asprintf(&stage_path, "%s/%s", cfg_dir, stage_dir) <= 0)
+		// use existing name
+		if (asprintf(&stage_path, "%s/%s", cfg_dir, m_ptr->stage_name) <= 0)
 		{
 			goto packageManifestAndShip_error;
 		}
@@ -782,9 +1363,6 @@ packageManifestAndShip(uint64_t apid, MANIFEST_ID mid)
 			goto packageManifestAndShip_error;
 		}
 	}
-	
-	// get the stage name since we want to rebase things in the tarball
-	stage_name = pathToName(stage_path);
 	
 	// now create the required subdirectories
 	if (asprintf(&bin_path, "%s/bin", stage_path) <= 0)
@@ -870,7 +1448,7 @@ packageManifestAndShip(uint64_t apid, MANIFEST_ID mid)
 		// pathanme to pass to open.
 		orig_path = strdup(archive_entry_pathname(entry));
 		// point at the start of the rebased path
-		if ((t = strstr(orig_path, stage_name)) == NULL)
+		if ((t = strstr(orig_path, m_ptr->stage_name)) == NULL)
 		{
 			fprintf(stderr, "Could not find base name for tar!\n");
 			free(orig_path);
@@ -917,6 +1495,29 @@ packageManifestAndShip(uint64_t apid, MANIFEST_ID mid)
 	archive_write_close(a);
 	archive_write_free(a);
 	
+	// rename the existing tarball based on its instance to prevent a race 
+	// condition where the dlaunch on the compute node has not yet extracted the 
+	// previously shipped tarball and we overwrite it with this new
+	// one.
+	
+	// create the temp tarball name
+	if (asprintf(&tmp_tar_name, "%s%d.tar", stage_path, m_ptr->inst) <= 0)
+	{
+		goto packageManifestAndShip_error;
+	}
+	
+	// move the tarball
+	if (rename(tar_name, tmp_tar_name))
+	{
+		fprintf(stderr, "Failed to rename tarball to %s.\n", tmp_tar_name);
+		free(tmp_tar_name);
+		goto packageManifestAndShip_error;
+	}
+	
+	// set the tar_name to the tmp_tar_name
+	free(tar_name);
+	tar_name = tmp_tar_name;
+	
 	// now ship the tarball to the compute node
 	if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &tar_name)) != NULL)
 	{
@@ -924,9 +1525,6 @@ packageManifestAndShip(uint64_t apid, MANIFEST_ID mid)
 		fprintf(stderr, "%s\n", errmsg);
 		goto packageManifestAndShip_error;
 	}
-	
-	// set the tarball name for args later
-	m_ptr->tarball_name = pathToName(tar_name);
 	
 	// clean things up
 	if (removeFilesFromDir(bin_path))
@@ -949,7 +1547,6 @@ packageManifestAndShip(uint64_t apid, MANIFEST_ID mid)
 	free(tmp_path);
 	remove(stage_path);
 	free(stage_path);
-	free(stage_name);
 	remove(tar_name);
 	free(tar_name);
 	
@@ -983,6 +1580,11 @@ packageManifestAndShip_error:
 		remove(lib_path);
 		free(lib_path);
 	}
+	if (tmp_path != NULL)
+	{
+		remove(tmp_path);
+		free(tmp_path);
+	}
 	if (stage_path != NULL)
 	{
 		if (removeFilesFromDir(stage_path))
@@ -997,27 +1599,27 @@ packageManifestAndShip_error:
 		remove(tar_name);
 		free(tar_name);
 	}
-	m_ptr->tarball_name = NULL;
 	return 1;
 }
 
-int
-execToolDaemon(uint64_t apid, MANIFEST_ID mid, char *fstr, char **args, char **env, int dbg)
+SESSION_ID
+sendManifest(uint64_t apid, MANIFEST_ID mid, int dbg)
 {
-	appEntry_t *	app_ptr;	// pointer to the appEntry_t object associated with the provided aprun pid
-	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the MANIFEST_ID argument
-	const char *	errmsg;		// errmsg that is possibly returned by call to alps_launch_tool_helper
-	char *			fullname;	// full path name of the executable to launch as a tool daemon
-	char *			realname;	// realname (lacking path info) of the executable
-	char *			args_flat;	// flattened args array to pass to the toolhelper call
-	char *			cpy;		// temporary cpy var used in creating args_flat
-	char *			launcher;	// full path name of the daemon launcher application
-	char **			tmp;		// temporary pointer used to iterate through lists of strings
-	size_t			len, env_base_len;	// len vars used in creating the args_flat string
+	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
+	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the MANIFEST_ID argument
+	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
+	char *			args_flat;			// flattened args array to pass to the toolhelper call
+	char *			cpy;				// temporary cpy var used in creating args_flat
+	char *			launcher;			// full path name of the daemon launcher application
+	size_t			len;				// len vars used in creating the args_flat string
+	session_t *		s_ptr = NULL;		// points at the session to return
+	SESSION_ID		rtn;
+	int				trnsfr = 1;			// should we transfer the dlaunch?
+	int				l, val;
 
 	// sanity check
-	if (apid <= 0 || fstr == (char *)NULL)
-		return 1;
+	if (apid <= 0 || mid <= 0)
+		return 0;
 	
 	// try to find an entry in the my_apps array for the apid
 	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
@@ -1027,27 +1629,260 @@ execToolDaemon(uint64_t apid, MANIFEST_ID mid, char *fstr, char **args, char **e
 		if ((app_ptr = newApp(apid)) == (appEntry_t *)NULL)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
-			return 1;
+			return 0;
 		}
 	}
 	
-	// try to find the manifest_t for the mid
+	// if transfer_init is set in the app entry object, there is no need to send dlaunch
+	// a second time
+	if (app_ptr->transfer_init)
+	{
+		trnsfr = 0;
+	}
+	
+	// find the manifest_t for the mid
 	if ((m_ptr = findManifest(mid)) == NULL)
 	{
-		if (mid == 0)
+		// We failed to find the manifest for the mid
+		fprintf(stderr, "MANIFEST_ID %d does not exist.\n", mid);
+		return 0;
+	}
+	
+	// Ensure that there are strings in the loc lists, otherwise there is no 
+	// need to ship a tarball, everything we need already has been transfered
+	// to the nodes
+	if (m_ptr->exec_loc->num || m_ptr->lib_loc->num || m_ptr->file_loc->num)
+	{
+		// ship the manifest tarball to the compute nodes
+		if (packageManifestAndShip(apid, m_ptr->mid))
 		{
-			// mid not found in the global my_manifs array
-			// so lets create a new manifest_t object for it
-			if ((m_ptr = newManifest()) == NULL)
-			{
-				// we failed to create a new manifest_t - catastrophic failure
-				return 1;
-			}
-		} else
+			// Failed to ship the manifest - catastrophic failure
+			return 0;
+		}
+	} else
+	{
+		// ensure that there is a session set in the m_ptr
+		if (m_ptr->sid <= 0)
+		{
+			fprintf(stderr, "MANIFEST_ID %d was empty!\n", m_ptr->mid);
+			return 0;
+		}
+		
+		// return the session id since everything was already shipped
+		rtn = m_ptr->sid;
+		
+		// remove the manifest
+		reapManifest(m_ptr->mid);
+		
+		return rtn;
+	}
+	
+	// now we need to create the flattened argv string for the actual call to the wrapper
+	// this is passed through the toolhelper
+	// The options passed MUST correspond to the options defined in the daemon_launcher program.
+	
+	// Create the launcher path based on the trnsfr option. If this is false, we have already
+	// transfered the launcher over to the compute node and want to use the existing one over
+	// there, otherwise we need to find the location of the launcher on our end to have alps
+	// transfer to the compute nodes
+	if (trnsfr)
+	{
+		// Need to transfer launcher binary
+		
+		// Find the location of the daemon launcher program
+		if ((launcher = pathFind(ALPS_LAUNCHER, NULL)) == (char *)NULL)
+		{
+			fprintf(stderr, "Could not locate the launcher application in PATH.\n");
+			return 0;
+		}
+	} else
+	{
+		// use existing launcher binary on compute node
+		if (asprintf(&launcher, "%s/%s", app_ptr->toolPath, ALPS_LAUNCHER) <= 0)
+		{
+			fprintf(stderr, "asprintf failed.\n");
+			return 0;
+		}
+	}
+	
+	// determine the length of the argv[0]
+	len = strlen(launcher);
+
+	// find the length of the inst int as a string
+	l = 1;
+	val = m_ptr->inst;
+	while(val>9) { l++; val/=10; }
+	
+	// determine the length of the -m (manifest) argument
+	len += strlen(" -m ");
+	len += strlen(m_ptr->stage_name);
+	len += l;
+	len += strlen(".tar");
+	
+	// determine the length of the -d (directory) argument
+	len += strlen(" -d ");
+	len += strlen(m_ptr->stage_name);
+	
+	// determine the length of the -i (instance) argument
+	len += strlen(" -i ");
+	len += l;
+		
+	// if debug is on, add the len of the debug switch
+	if (dbg)
+	{
+		len += strlen(" --debug");
+	}
+		
+	// add one for the null terminator
+	++len;
+	
+	// malloc space for this string buffer
+	if ((args_flat = malloc(len)) == (void *)NULL)
+	{
+		// malloc failed
+		free(launcher);
+		return 0;
+	}
+		
+	// start creating the flattened args string
+	snprintf(args_flat, len, "%s -m %s%d.tar -d %s -i %d", launcher, m_ptr->stage_name, m_ptr->inst, m_ptr->stage_name, m_ptr->inst);
+	
+	// Cleanup
+	free(launcher);
+	
+	// add the debug switch if debug is on
+	if (dbg)
+	{
+		cpy = strdup(args_flat);
+		snprintf(args_flat, len, "%s --debug", cpy);
+		free(cpy);
+	}
+	
+	// Done. We now have a flattened args string
+	// We can launch the tool daemon onto the compute nodes now.
+	if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, trnsfr, 1, 1, &args_flat)) != NULL)
+	{
+		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
+		fprintf(stderr, "%s\n", errmsg);
+		free(args_flat);
+		reapManifest(m_ptr->mid);
+		return 0;
+	}
+		
+	// cleanup our memory
+	free(args_flat);
+	
+	// create a new session for this tool daemon instance if one doesn't already exist
+	if (m_ptr->sid == 0)
+	{
+		if ((s_ptr = newSession(m_ptr->mid)) == NULL)
+		{
+			// we failed to create a new session_t - catastrophic failure
+			return 0;
+		}
+	} else
+	{
+		// Merge the manifest into the existing session
+		if (addManifestToSession(m_ptr->mid, m_ptr->sid))
+		{
+			// we failed to merge the manifest into the session - catastrophic failure
+			return 0;
+		}
+	}
+	
+	// remove the manifest
+	reapManifest(m_ptr->mid);
+	
+	// Associate this session with the app_ptr
+	addSessionToApp(app_ptr, s_ptr->sid);
+	// set the tranfser_init in the app_ptr
+	app_ptr->transfer_init = 1;
+	// point the toolPath of the session at the value in the app_ptr
+	s_ptr->toolPath = app_ptr->toolPath;
+	
+	return s_ptr->sid;
+}
+
+SESSION_ID
+execToolDaemon(uint64_t apid, MANIFEST_ID mid, SESSION_ID sid, char *fstr, char **args, char **env, int dbg)
+{
+	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
+	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the MANIFEST_ID argument
+	int				useManif = 0;		// controls if a manifest was shipped or not
+	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
+	char *			fullname;			// full path name of the executable to launch as a tool daemon
+	char *			realname;			// realname (lacking path info) of the executable
+	char *			args_flat;			// flattened args array to pass to the toolhelper call
+	char *			cpy;				// temporary cpy var used in creating args_flat
+	char *			launcher;			// full path name of the daemon launcher application
+	char **			tmp;				// temporary pointer used to iterate through lists of strings
+	size_t			len, env_base_len;	// len vars used in creating the args_flat string
+	session_t *		s_ptr = NULL;		// points at the session to return
+	int				trnsfr = 1;			// should we transfer the dlaunch?
+	int				l, val;
+
+	// sanity check
+	if (apid <= 0 || fstr == (char *)NULL)
+		return 0;
+	
+	// try to find an entry in the my_apps array for the apid
+	if ((app_ptr = findApp(apid)) == (appEntry_t *)NULL)
+	{
+		// apid not found in the global my_apps array
+		// so lets create a new appEntry_t object for it
+		if ((app_ptr = newApp(apid)) == (appEntry_t *)NULL)
+		{
+			// we failed to create a new appEntry_t entry - catastrophic failure
+			return 0;
+		}
+	}
+	
+	// if transfer_init is set in the app entry object, there is no need to send dlaunch
+	// a second time
+	if (app_ptr->transfer_init)
+	{
+		trnsfr = 0;
+	}
+	
+	// if the user provided a session, ensure it exists
+	if (sid != 0)
+	{
+		if ((s_ptr = findSession(sid)) == NULL)
+		{
+			// We failed to find the session for the sid
+			fprintf(stderr, "SESSION_ID %d does not exist.\n", sid);
+			return 0;
+		}
+	}
+	
+	// Check to see if the user provided a mid argument and process it
+	if (mid == 0)
+	{
+		// lets create a new manifest_t object
+		if ((m_ptr = newManifest(sid)) == NULL)
+		{
+			// we failed to create a new manifest_t - catastrophic failure
+			return 0;
+		}
+	} else
+	{
+		// try to find the manifest_t for the mid
+		if ((m_ptr = findManifest(mid)) == NULL)
 		{
 			// We failed to find the manifest for the mid
 			fprintf(stderr, "MANIFEST_ID %d does not exist.\n", mid);
-			return 1;
+			return 0;
+		}
+	}
+	
+	// ensure that the session matches in the manifest
+	if (s_ptr != NULL)
+	{
+		if (m_ptr->sid != s_ptr->sid)
+		{
+			// mismatch
+			fprintf(stderr, "Provided MANIFEST_ID was not created with the provided SESSION_ID.\n");
+			return 0;
 		}
 	}
 	
@@ -1055,14 +1890,21 @@ execToolDaemon(uint64_t apid, MANIFEST_ID mid, char *fstr, char **args, char **e
 	if (addManifestBinary(m_ptr->mid, fstr))
 	{
 		// Failed to add the binary to the manifest - catastrophic failure
-		return 1;
+		return 0;
 	}
-		
-	// ship the manifest tarball to the compute nodes
-	if (packageManifestAndShip(apid, m_ptr->mid))
+	
+	// Ensure that there are strings in the loc lists, otherwise there is no 
+	// need to ship a tarball, everything we need already has been transfered
+	// to the nodes
+	if (m_ptr->exec_loc->num || m_ptr->lib_loc->num || m_ptr->file_loc->num)
 	{
-		// Failed to ship the manifest - catastrophic failure
-		return 1;
+		// ship the manifest tarball to the compute nodes
+		if (packageManifestAndShip(apid, m_ptr->mid))
+		{
+			// Failed to ship the manifest - catastrophic failure
+			return 0;
+		}
+		++useManif;
 	}
 	
 	// now we need to create the flattened argv string for the actual call to the wrapper
@@ -1075,32 +1917,68 @@ execToolDaemon(uint64_t apid, MANIFEST_ID mid, char *fstr, char **args, char **e
 	if ((fullname = pathFind(fstr, NULL)) == NULL)
 	{
 		fprintf(stderr, "Could not locate the specified file in PATH.\n");
-		return 1;
+		return 0;
 	}
 	
 	// next just grab the real name (without path information) of the binary
 	if ((realname = pathToName(fullname)) == NULL)
 	{
 		fprintf(stderr, "Could not convert the fullname to realname.\n");
-		return 1;
+		return 0;
 	}
 	
 	// done with fullname
 	free(fullname);
 	
-	// Find the location of the daemon launcher program
-	if ((launcher = pathFind(ALPS_LAUNCHER, NULL)) == (char *)NULL)
+	// Create the launcher path based on the trnsfr option. If this is false, we have already
+	// transfered the launcher over to the compute node and want to use the existing one over
+	// there, otherwise we need to find the location of the launcher on our end to have alps
+	// transfer to the compute nodes
+	if (trnsfr)
 	{
-		fprintf(stderr, "Could not locate the launcher application in PATH.\n");
-		return 1;
+		// Need to transfer launcher binary
+		
+		// Find the location of the daemon launcher program
+		if ((launcher = pathFind(ALPS_LAUNCHER, NULL)) == (char *)NULL)
+		{
+			fprintf(stderr, "Could not locate the launcher application in PATH.\n");
+			return 0;
+		}
+	} else
+	{
+		// use existing launcher binary on compute node
+		if (asprintf(&launcher, "%s/%s", app_ptr->toolPath, ALPS_LAUNCHER) <= 0)
+		{
+			fprintf(stderr, "asprintf failed.\n");
+			return 0;
+		}
 	}
 	
 	// determine the length of the argv[0] and -b (binary) argument
 	len = strlen(launcher) + strlen(" -b ") + strlen(realname);
 	
-	// determine the length of the -m (manifest) argument
-	len += strlen(" -m ");
-	len += strlen(m_ptr->tarball_name);
+	// find the length of the inst int as a string
+	l = 1;
+	val = m_ptr->inst;
+	while(val>9) { l++; val/=10; }
+	
+	// We use a -m if useManif is true.
+	if (useManif)
+	{
+		// determine the length of the -m (manifest) argument
+		len += strlen(" -m ");
+		len += strlen(m_ptr->stage_name);
+		len += l;
+		len += strlen(".tar");
+	}
+	
+	// determine the length of the -d (directory) argument
+	len += strlen(" -d ");
+	len += strlen(m_ptr->stage_name);
+	
+	// determine the length of the -i (instance) argument
+	len += strlen(" -i ");
+	len += l;
 	
 	// iterate through the env array and determine its total length
 	env_base_len = strlen(" -e "); 
@@ -1141,11 +2019,22 @@ execToolDaemon(uint64_t apid, MANIFEST_ID mid, char *fstr, char **args, char **e
 	if ((args_flat = malloc(len)) == (void *)NULL)
 	{
 		// malloc failed
-		return 1;
+		return 0;
 	}
 		
 	// start creating the flattened args string
-	snprintf(args_flat, len, "%s -b %s -m %s", launcher, realname, m_ptr->tarball_name);
+	snprintf(args_flat, len, "%s -b %s -d %s -i %d", launcher, realname, m_ptr->stage_name, m_ptr->inst);
+	
+	// cleanup
+	free(launcher);
+	
+	// add -m argument if needed
+	if (useManif)
+	{
+		cpy = strdup(args_flat);
+		snprintf(args_flat, len, "%s -m %s%d.tar", cpy, m_ptr->stage_name, m_ptr->inst);
+		free(cpy);
+	}
 	
 	// cleanup mem
 	free(realname);
@@ -1192,19 +2081,212 @@ execToolDaemon(uint64_t apid, MANIFEST_ID mid, char *fstr, char **args, char **e
 		
 	// Done. We now have a flattened args string
 	// We can launch the tool daemon onto the compute nodes now.
-	if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 1, 1, &args_flat)) != NULL)
+	if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, trnsfr, 1, 1, &args_flat)) != NULL)
 	{
 		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
 		fprintf(stderr, "%s\n", errmsg);
 		free(args_flat);
 		reapManifest(m_ptr->mid);
-		return 1;
+		return 0;
 	}
 		
 	// cleanup our memory
 	free(args_flat);
+	
+	// create a new session for this tool daemon instance if one doesn't already exist
+	if (s_ptr == NULL)
+	{
+		if ((s_ptr = newSession(m_ptr->mid)) == NULL)
+		{
+			// we failed to create a new session_t - catastrophic failure
+			return 0;
+		}
+	} else
+	{
+		// Merge the manifest into the existing session only if we needed to
+		// transfer any files
+		if (useManif)
+		{
+			if (addManifestToSession(m_ptr->mid, s_ptr->sid))
+			{
+				// we failed to merge the manifest into the session - catastrophic failure
+				return 0;
+			}
+		}
+	}
+	
+	// remove the manifest
 	reapManifest(m_ptr->mid);
 	
-	return 0;
+	// Associate this session with the app_ptr
+	addSessionToApp(app_ptr, s_ptr->sid);
+	// set the tranfser_init in the app_ptr
+	app_ptr->transfer_init = 1;
+	// point the toolPath of the session at the value in the app_ptr
+	s_ptr->toolPath = app_ptr->toolPath;
+	
+	return s_ptr->sid;
+}
+
+char **
+getSessionLockFiles(SESSION_ID sid)
+{
+	session_t *		s_ptr = NULL;		// points at the session
+	char **			rtn = NULL;
+	char **			ptr;
+	int				i;
+	
+	// Ensure the provided session exists
+	if ((s_ptr = findSession(sid)) == NULL)
+	{
+		// We failed to find the session for the sid
+		fprintf(stderr, "SESSION_ID %d does not exist.\n", sid);
+		return NULL;
+	}
+	
+	// calloc the return array - need 1 extra for null term
+	if ((rtn = calloc(s_ptr->instCnt+1, sizeof(char *))) == (void *)0)
+	{
+		fprintf(stderr, "calloc failed.\n");
+		return NULL;
+	}
+	
+	// create the strings
+	ptr = rtn;
+	for (i=1; i <= s_ptr->instCnt; ++i)
+	{
+		if (asprintf(ptr, "%s/.lock_%s_%d", s_ptr->toolPath, s_ptr->stage_name, i) <= 0)
+		{
+			fprintf(stderr, "asprintf failed.\n");
+			free(rtn);
+			return NULL;
+		}
+		// increment ptr
+		++ptr;
+	}
+	// force the final entry to be null
+	*ptr = NULL;
+	
+	return rtn;
+}
+
+char *
+getSessionRootDir(SESSION_ID sid)
+{
+	session_t *		s_ptr = NULL;		// points at the session
+	char *			rtn = NULL;
+	
+	// Ensure the provided session exists
+	if ((s_ptr = findSession(sid)) == NULL)
+	{
+		// We failed to find the session for the sid
+		fprintf(stderr, "SESSION_ID %d does not exist.\n", sid);
+		return NULL;
+	}
+	
+	// create the return string
+	if (asprintf(&rtn, "%s/%s", s_ptr->toolPath, s_ptr->stage_name) <= 0)
+	{
+		fprintf(stderr, "asprintf failed.\n");
+		return NULL;
+	}
+	
+	return rtn;
+}
+
+char *
+getSessionBinDir(SESSION_ID sid)
+{
+	session_t *		s_ptr = NULL;		// points at the session
+	char *			rtn = NULL;
+	
+	// Ensure the provided session exists
+	if ((s_ptr = findSession(sid)) == NULL)
+	{
+		// We failed to find the session for the sid
+		fprintf(stderr, "SESSION_ID %d does not exist.\n", sid);
+		return NULL;
+	}
+	
+	// create the return string
+	if (asprintf(&rtn, "%s/%s/bin", s_ptr->toolPath, s_ptr->stage_name) <= 0)
+	{
+		fprintf(stderr, "asprintf failed.\n");
+		return NULL;
+	}
+	
+	return rtn;
+}
+
+char *
+getSessionLibDir(SESSION_ID sid)
+{
+	session_t *		s_ptr = NULL;		// points at the session
+	char *			rtn = NULL;
+	
+	// Ensure the provided session exists
+	if ((s_ptr = findSession(sid)) == NULL)
+	{
+		// We failed to find the session for the sid
+		fprintf(stderr, "SESSION_ID %d does not exist.\n", sid);
+		return NULL;
+	}
+	
+	// create the return string
+	if (asprintf(&rtn, "%s/%s/lib", s_ptr->toolPath, s_ptr->stage_name) <= 0)
+	{
+		fprintf(stderr, "asprintf failed.\n");
+		return NULL;
+	}
+	
+	return rtn;
+}
+
+char *
+getSessionFileDir(SESSION_ID sid)
+{
+	session_t *		s_ptr = NULL;		// points at the session
+	char *			rtn = NULL;
+	
+	// Ensure the provided session exists
+	if ((s_ptr = findSession(sid)) == NULL)
+	{
+		// We failed to find the session for the sid
+		fprintf(stderr, "SESSION_ID %d does not exist.\n", sid);
+		return NULL;
+	}
+	
+	// create the return string
+	if (asprintf(&rtn, "%s/%s", s_ptr->toolPath, s_ptr->stage_name) <= 0)
+	{
+		fprintf(stderr, "asprintf failed.\n");
+		return NULL;
+	}
+	
+	return rtn;
+}
+
+char *
+getSessionTmpDir(SESSION_ID sid)
+{
+	session_t *		s_ptr = NULL;		// points at the session
+	char *			rtn = NULL;
+	
+	// Ensure the provided session exists
+	if ((s_ptr = findSession(sid)) == NULL)
+	{
+		// We failed to find the session for the sid
+		fprintf(stderr, "SESSION_ID %d does not exist.\n", sid);
+		return NULL;
+	}
+	
+	// create the return string
+	if (asprintf(&rtn, "%s/%s/tmp", s_ptr->toolPath, s_ptr->stage_name) <= 0)
+	{
+		fprintf(stderr, "asprintf failed.\n");
+		return NULL;
+	}
+	
+	return rtn;
 }
 
