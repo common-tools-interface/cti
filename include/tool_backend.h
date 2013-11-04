@@ -36,16 +36,23 @@
  *					utility launches the tool daemon on the compute node. This
  *					is the canonical Unix environment variable that denotes
  *					scratch space.
+ * OLD_SCRATCH_ENV_VAR
+ *                  The environment variable that is used to contain the old
+ *                  value of the environment variable that is used to denote
+ *                  temporary storage space. This is useful if you need to query
+ *                  the value that was used in conjunction with the environment
+ *                  of the application.
  * BIN_DIR_VAR      This can be used to get at any binaries that were shipped
  *                  to the compute node with the manifest.
  * LIB_DIR_VAR      This can be used to get at any libraries that were shipped
  *                  to the compute node with the manifest.
  */
-#define APID_ENV_VAR     "CRAYTOOL_APID"
-#define SCRATCH_ENV_VAR  "TMPDIR"
-#define ROOT_DIR_VAR		"CRAYTOOL_ROOT_DIR"
-#define BIN_DIR_VAR      "CRAYTOOL_BIN_DIR"
-#define LIB_DIR_VAR      "CRAYTOOL_LIB_DIR"
+#define APID_ENV_VAR     	"CRAYTOOL_APID"
+#define SCRATCH_ENV_VAR  	"TMPDIR"
+#define OLD_SCRATCH_ENV_VAR	"CRAYTOOL_OLD_TMPDIR"
+#define ROOT_DIR_VAR			"CRAYTOOL_ROOT_DIR"
+#define BIN_DIR_VAR      	"CRAYTOOL_BIN_DIR"
+#define LIB_DIR_VAR      	"CRAYTOOL_LIB_DIR"
 
 /* struct typedefs */
 typedef struct

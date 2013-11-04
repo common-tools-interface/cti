@@ -123,6 +123,7 @@ main(int argc, char **argv)
 	char *		bin_path = NULL;
 	char *		lib_path = NULL;
 	char		*env, *val, *t;
+	char *		old_env_path = NULL;
 	char *		env_path = NULL;
 	int						r, flags = 0;
 	struct archive *		a;
@@ -531,6 +532,18 @@ main(int argc, char **argv)
 		// failure
 		fprintf(stderr, "setenv failed\n");
 		return 1;
+	}
+	
+	// Get the current value of the SCRATCH_ENV_VAR environment variable and set
+	// it to OLD_SCRATCH_ENV_VAR in case the tool daemon needs access to it.
+	if ((old_env_path = getenv(SCRATCH_ENV_VAR)) != NULL)
+	{
+		if (setenv(OLD_SCRATCH_ENV_VAR, old_env_path, 1) < 0)
+		{
+			// failure
+			fprintf(stderr, "setenv failed\n");
+			return 1;
+		}
 	}
 
 	// set the SCRATCH_ENV_VAR environment variable to the toolhelper directory.

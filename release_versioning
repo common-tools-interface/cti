@@ -16,10 +16,10 @@
 #
 
 craytool_major=2
-craytool_minor=0
+craytool_minor=1
 
 be_current=2
-be_revision=0
+be_revision=1
 be_age=0
 
 fe_current=2
