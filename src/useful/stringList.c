@@ -113,7 +113,7 @@ newStringList()
 int
 consumeStringList(stringList_t *lst)
 {
-	char ** tmp;
+	int		i;
 
 	// sanity check
 	if (lst == (stringList_t *)NULL)
@@ -123,10 +123,12 @@ consumeStringList(stringList_t *lst)
 	if (lst->list != (char **)NULL)
 	{
 		// free each entry
-		tmp = lst->list;
-		while (*tmp != (char *)NULL)
+		for (i=0; i < lst->num; ++i)
 		{
-			free(*tmp++);
+			if (lst->list[i] != NULL)
+			{
+				free(lst->list[i]);
+			}
 		}
 		// free the list itself
 		free(lst->list);
