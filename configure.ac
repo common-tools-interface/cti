@@ -194,8 +194,8 @@ AC_CHECK_FUNCS([dup2 memset setenv strdup strrchr strstr])
 ### Finalize ###
 ################
 AC_CONFIG_FILES([	Makefile
-					cray-tool_backend.pc
-					cray-tool_frontend.pc
+					cray-tools_be.pc
+					cray-tools_fe.pc
 					cray-audit.pc
 					src/Makefile
 					src/ld_val/Makefile

@@ -3,8 +3,8 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: libcraytool_backend
-Description: The backend component of the craytool interface. Exposes a useful API to tool programs.
+Name: libcraytools_be
+Description: The backend component of the Cray tools interface. Exposes a useful API to tool programs.
 Version: @VERSION@
 Requires:
 Libs: -L${libdir}

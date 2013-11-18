@@ -20,14 +20,14 @@ ACLOCAL_AMFLAGS = -I m4
 
 SUBDIRS = src/ld_val src demos
 
-EXTRA_DIST = cray-tool_backend.pc.in cray-tool_frontend.pc.in cray-audit.pc.in \
+EXTRA_DIST = cray-tools_be.pc.in cray-tools_fe.pc.in cray-audit.pc.in \
 	     release_versioning
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = cray-tool_backend.pc cray-tool_frontend.pc \
+pkgconfig_DATA = cray-tools_be.pc cray-tools_fe.pc \
 		 cray-audit.pc
 
-include_HEADERS = include/tool_backend.h include/tool_frontend.h
+include_HEADERS = include/cray_tools_be.h include/cray_tools_fe.h
 
 demos:
 	cd demos && $(MAKE) $(AM_MAKEFLAGS) demos

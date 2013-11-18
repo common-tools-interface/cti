@@ -20,15 +20,15 @@ ARCHIVE_LIBS	= @archive_libs@
 
 AM_CFLAGS 	= -I$(LDVAL) -fPIC -Wall
 
-lib_LTLIBRARIES	= libcraytool_frontend.la libcraytool_backend.la
+lib_LTLIBRARIES	= libcraytools_fe.la libcraytools_be.la
 
-libcraytool_frontend_la_SOURCES = alps_application.c alps_run.c alps_transfer.c \
+libcraytools_fe_la_SOURCES	= alps_application.c alps_run.c alps_transfer.c \
 				  useful/path.c useful/stringList.c 
-libcraytool_frontend_la_LIBADD	= $(LDVAL)/libld_val.la $(ARCHIVE_LIBS)
-libcraytool_frontend_la_LDFLAGS	= -lalps -version-info $(CRAYTOOL_FE_VERSION)
+libcraytools_fe_la_LIBADD	= $(LDVAL)/libld_val.la $(ARCHIVE_LIBS)
+libcraytools_fe_la_LDFLAGS	= -lalps -version-info $(CRAYTOOL_FE_VERSION)
 
-libcraytool_backend_la_SOURCES	= alps_backend.c pmi_attribs_parser.c
-libcraytool_backend_la_LDFLAGS	= -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
+libcraytools_be_la_SOURCES	= alps_backend.c pmi_attribs_parser.c
+libcraytools_be_la_LDFLAGS	= -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
 
 bin_PROGRAMS	= dlaunch
 dlaunch_SOURCES	= daemon_launcher.c useful/path.c useful/log.c
@@ -36,7 +36,7 @@ dlaunch_CFLAGS = $(AM_CFLAGS)
 dlaunch_LDADD = $(ARCHIVE_LIBS)
 dlaunch_LDFLAGS = -static
 
-noinst_HEADERS  = alps_application.h alps_run.h alps_transfer.h \
-		  alps_backend.h pmi_attribs_parser.h \
+noinst_HEADERS  = alps_application.h alps_backend.h alps_defs.h alps_run.h \
+		  alps_transfer.h pmi_attribs_parser.h \
 		  useful/log.h useful/path.h useful/stringList.h useful/useful.h
 

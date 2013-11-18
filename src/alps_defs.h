@@ -4,7 +4,7 @@
  * NOTE: These defines are used throughout the internal code base and are all
  *       placed inside this file to make modifications due to ALPS changes
  *       easier. The environment variables here should match those found in the
- *       public tool_backend.h and tool_frontend.h headers.
+ *       public cray_tools_be.h and cray_tools_fe.h headers.
  *
  * © 2013 Cray Inc.	All Rights Reserved.
  *

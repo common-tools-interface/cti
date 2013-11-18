@@ -13,8 +13,8 @@ config/missing -text
 /configure -text
 /configure.ac -text
 /cray-audit.pc.in -text
-/cray-tool_backend.pc.in -text
-/cray-tool_frontend.pc.in -text
+/cray-tools_be.pc.in -text
+/cray-tools_fe.pc.in -text
 demos/Makefile.am -text
 demos/Makefile.in -text
 demos/alps_barrier_demo.c -text
@@ -24,8 +24,8 @@ demos/alps_callback_demo.h -text
 demos/alps_info_demo.c -text
 demos/alps_transfer_demo.c -text
 demos/testing.info -text
-include/tool_backend.h -text
-include/tool_frontend.h -text
+include/cray_tools_be.h -text
+include/cray_tools_fe.h -text
 m4/cray_extensions.m4 -text
 m4/libtool.m4 -text
 m4/ltoptions.m4 -text
