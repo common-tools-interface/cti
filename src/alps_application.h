@@ -25,9 +25,11 @@
 
 #include "alps_defs.h"
 
+/* Private types */
+
 // The following represents a datatype that is inside the appEntry_t structure
-// that is managed exclusively by the alps_transfer.c layer. The alps_application.c
-// layer will only check to see if it is null or not during cleanup and call the
+// that is managed exclusively by the transfer layer. The application layer
+// will only check to see if it is null or not during cleanup and call the
 // appropriate function.
 typedef void * TRANSFER_IFACE_OBJ;
 // This is the cleanup function prototype to deal with the above object.
@@ -65,30 +67,34 @@ struct appList
 };
 typedef struct appList appList_t;
 
+/* Public types */
+
 typedef struct
 {
 	char *	hostname;
 	int		numPes;
-} nodeHostPlacement_t;
+} cti_host_t;
 
 typedef struct
 {
-	int						numHosts;
-	nodeHostPlacement_t *	hosts;
-} appHostPlacementList_t;
+	int				numHosts;
+	cti_host_t *	hosts;
+} cti_hostsList_t;
 
 /* function prototypes */
-appEntry_t *				findApp(uint64_t);
-appEntry_t *				newApp(uint64_t);
-int							registerApid(uint64_t);
-void						deregisterApid(uint64_t);
-uint64_t					getApid(pid_t);
-char *						getNodeCName(void);
-int							getNodeNid(void);
-int							getAppNid(uint64_t);
-int							getNumAppPEs(uint64_t);
-int							getNumAppNodes(uint64_t);
-char **	 					getAppHostsList(uint64_t);
-appHostPlacementList_t *	getAppHostsPlacement(uint64_t);
+
+appEntry_t *		_cti_findApp(uint64_t);
+appEntry_t *		_cti_newApp(uint64_t);
+int					cti_registerApid(uint64_t);
+void				cti_deregisterApid(uint64_t);
+uint64_t			cti_getApid(pid_t);
+char *				cti_getNodeCName(void);
+int					cti_getNodeNid(void);
+int					cti_getAppNid(uint64_t);
+int					cti_getNumAppPEs(uint64_t);
+int					cti_getNumAppNodes(uint64_t);
+char **	 			cti_getAppHostsList(uint64_t);
+cti_hostsList_t *	cti_getAppHostsPlacement(uint64_t);
+void				cti_destroy_hostsList(cti_hostsList_t *);
 
 #endif /* _ALPS_APPLICATION_H */

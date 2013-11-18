@@ -1,6 +1,6 @@
 /******************************************************************************\
- * tool_backend.h - The public API definitions for the backend portion of the
- *                  tool_interface.
+ * cray_tools_be.h - The public API definitions for the backend portion of
+ *                   the Cray tools interface.
  *
  * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
@@ -17,146 +17,180 @@
  *
  ******************************************************************************/
 
-#ifndef _TOOL_BACKEND_H
-#define _TOOL_BACKEND_H
+#ifndef _CRAY_TOOLS_BE_H
+#define _CRAY_TOOLS_BE_H
 
 #include <stdint.h>
 #include <sys/types.h>
 
 /*
- * The tool interface needs to read environment specific locations
- * dynamically at run time. The environment variables that are read
- * are defined here.
+ * The Cray tools interface automatically creates/sets several environment 
+ * variables when the dlaunch utility launches the tool daemon on the compute
+ * node. They are defined here. Note that the value of these environment
+ * variables are subject to change. Use the defines to guarantee portability.
  *
- * APID_ENV_VAR		Used to keep track of the apid associated with the
- *					tool daemon. This is automatically set when the dlaunch
- *					utility launches the tool daemon on the compute node.
- * SCRATCH_ENV_VAR	The environment variable that is used to denote temporary
- *					storage space. This is automatically set when the dlaunch
- *					utility launches the tool daemon on the compute node. This
- *					is the canonical Unix environment variable that denotes
- *					scratch space.
- * OLD_SCRATCH_ENV_VAR
- *                  The environment variable that is used to contain the old
- *                  value of the environment variable that is used to denote
- *                  temporary storage space. This is useful if you need to query
- *                  the value that was used in conjunction with the environment
- *                  of the application.
- * BIN_DIR_VAR      This can be used to get at any binaries that were shipped
- *                  to the compute node with the manifest.
- * LIB_DIR_VAR      This can be used to get at any libraries that were shipped
- *                  to the compute node with the manifest.
+ * CTI_APID_ENV_VAR
+ *
+ *         The environment variable that is used to hold the value of the apid 
+ *         associated with the tool daemon.
+ *
+ * CTI_SCRATCH_ENV_VAR
+ *
+ *         The environment variable that is used to denote temporary
+ *         storage space. This is set to a location that is guaranteed
+ *         to be writable and unique to the instance of the tool daemon.
+ *         If temporary storage space is required to be shared between a tool
+ *         daemon and the application, the caller should set the value of 
+ *         CTI_SCRATCH_ENV_VAR in the environment of aprun and then set
+ *         CTI_SCRATCH_ENV_VAR in their tool daemon to the value of 
+ *         OLD_SCRATCH_ENV_VAR. If multiple instances of tool daemons need to
+ *         share temporary storage space, CTI_SCRATCH_ENV_VAR can be set to the
+ *         value of CTI_ROOT_DIR_VAR.
+ *
+ * CTI_OLD_SCRATCH_ENV_VAR
+ *
+ *         The environment variable that is used to contain the value of
+ *         CTI_SCRATCH_ENV_VAR that was set inside the environment of the aprun
+ *         associated with this tool daemon. This is useful if you need to query
+ *         the value that was used in conjunction with the environment of the 
+ *         application. If CTI_SCRATCH_ENV_VAR was not set in the environment of
+ *         aprun, CTI_OLD_SCRATCH_ENV_VAR will not exist in the environment of
+ *         the tool daemon.
+ *
+ * CTI_ALPS_DIR_VAR
+ *
+ *         The environment variable that is used to hold the location of the
+ *         ALPS toolhelper directory for this application. This location is
+ *         shared by all instances of ALPS toolhelpers associated with this
+ *         application and no guarantees about uniqueness are made for files
+ *         placed in this location. Any ALPS toolhelper is allowed to 
+ *         overwrite/modify any files in this location.
+ *
+ * CTI_ROOT_DIR_VAR
+ *
+ *         The environment variable that is used to hold the location of this
+ *         tool daemons root location. Any files that were transfered over will
+ *         be found inside this directory. The binary, libraries, and temp
+ *         directories are all subdirectories of this root value. The cwd of the
+ *         tool daemon is automatically set to this location.
+ *
+ * CTI_BIN_DIR_VAR
+ *
+ *         The environment variable that is used to hold the location of any
+ *         binaries that were shipped to the compute node with the manifest.
+ *         This value is automatically added to PATH of the tool daemon.
+ *
+ * CTI_LIB_DIR_VAR
+ *
+ *         The environment variable that is used to hold the location of any
+ *         libraries that were shipped to the compute node with the manifest.
+ *         This value is automatically added to LD_LIBRARY_PATH of the tool
+ *         daemon.
  */
-#define APID_ENV_VAR     	"CRAYTOOL_APID"
-#define SCRATCH_ENV_VAR  	"TMPDIR"
-#define OLD_SCRATCH_ENV_VAR	"CRAYTOOL_OLD_TMPDIR"
-#define ROOT_DIR_VAR			"CRAYTOOL_ROOT_DIR"
-#define BIN_DIR_VAR      	"CRAYTOOL_BIN_DIR"
-#define LIB_DIR_VAR      	"CRAYTOOL_LIB_DIR"
+#define CTI_APID_ENV_VAR        "CRAYTOOL_APID"
+#define CTI_SCRATCH_ENV_VAR     "TMPDIR"
+#define CTI_OLD_SCRATCH_ENV_VAR "CRAYTOOL_OLD_TMPDIR"
+#define CTI_ALPS_DIR_VAR        "CRAYTOOL_ALPS_DIR"
+#define CTI_ROOT_DIR_VAR        "CRAYTOOL_ROOT_DIR"
+#define CTI_BIN_DIR_VAR         "CRAYTOOL_BIN_DIR"
+#define CTI_LIB_DIR_VAR         "CRAYTOOL_LIB_DIR"
 
-/* struct typedefs */
+/* 
+ * The following are types used as return values for some API calls.
+ */
 typedef struct
 {
-        int             rank;   // This entries rank
         pid_t           pid;    // This entries pid
-} nodeRankPidPair_t;
+        int             rank;   // This entries rank
+} cti_rankPidPair_t;
 
 typedef struct
 {
-        int                     numPairs;
-        nodeRankPidPair_t *     rankPidPairs;
-} nodeAppPidList_t;
+        int                 numPids;
+        cti_rankPidPair_t * pids;
+} cti_pidList_t;
 
 /*
- * alps_backend commands
+ * The Cray tools interface backend calls are defined below.
  */
 
-
 /*
- * findAppPids - Returns a nodeAppPidList_t struct containing nodeRankPidPair_t
- *               entries that contain the PE rank and PE PID parings for all
- *               application PEs that reside on the compute node.
+ * cti_findAppPids - Returns a cti_pidList_t containing entries that hold
+ *                   the PE rank and PE PID parings for all application PEs that
+ *                   reside on this compute node.
  *
  * Detail
- *      This function creates a nodeAppPidList_t struct that contains the number
- *      of PE rank/PE PID pairs that reside on the compute node that the tool
- *      daemon interfacing with this library is running on as well the
- *      nodeRankPidPair_t struct entries that contain the actual rank number
- *      along with the associated pid of the PE. Note that on older systems that
- *      do not create the pmi_attribs file, an older mechanism will be used
- *      which "guesses" the association based on the order in which the pid's
- *      were placed into the job container.
+ *      This function creates and returns a cti_pidList_t that contains the
+ *      number of PE rank/PE PID pairs and cti_nodeRankPidPair entries that 
+ *      contain the actual rank number along with the associated pid of the PE. 
  *
  * Arguments
  *      None.
  *
  * Returns
- *      An nodeAppPidList_t struct that contains the number of PE rank/PE pid
- *      pairings on the node and an array of nodeRankPidPair_t structs that
- *      contain the actual PE rank/PE pid pairings.
+ *      A cti_pidList_t that contains the number of PE rank/PE pid pairings
+ *      on the node and an array of cti_nodeRankPidPair that contain the actual 
+ *      PE rank/PE pid pairings. Returns NULL on error.
  *
  */
-extern nodeAppPidList_t *	findAppPids(void);
+extern cti_pidList_t *	cti_findAppPids(void);
 
 /*
- * destroy_nodeAppPidList - Used to destroy the memory allocated for a 
- *                          nodeAppPidList_t struct.
+ * cti_destroy_pidList - Used to destroy the memory allocated for a 
+ *                       cti_pidList_t.
  * 
  * Detail
- *      This function free's a nodeAppPidList_t struct. This is used to
- *      safely destroy the data structure returned by a call to the 
- *      findAppPids function when the caller is done with the data that was 
- *      allocated during its creation.
+ *      This function free's a cti_pidList_t. It is used to safely destroy
+ *      the data structure returned by a call to the cti_findAppPids function 
+ *      when the caller is done with the data that was allocated during its 
+ *      creation.
  *
  * Arguments
- *      pid_list - A pointer to the nodeAppPidList_t to free.
+ *      pid_list - A pointer to the cti_pidList_t to free.
  *
  * Returns
  *      Void. This function behaves similarly to free().
  *
  */
-extern void	destroy_nodeAppPidList(nodeAppPidList_t *pid_list);
+extern void	cti_destroy_pidList(cti_pidList_t *pid_list);
 
 /*
- * getNodeCName - Returns the cabinet hostname of the compute node.
+ * cti_getNodeCName - Returns the cabinet hostname of this compute node.
  * 
  * Detail
- *      This function determines the cname of the current compute node where
- *      the tool daemon interfacing with this library resides. Note that it is
- *      up to the user to free the returned string.
+ *      This function determines the cname of the compute node. It is
+ *      up to the caller to free the returned string.
  *
  * Arguments
  *      None.
  *
  * Returns
- *      A string containing the cname host, or else a null string on error.
+ *      A string containing the cname host, or else NULL on error.
  * 
  */
-extern char *	getNodeCName(void);
+extern char *	cti_getNodeCName(void);
 
 /*
- * getNodeNidName - Returns the nid hostname of the compute node.
+ * cti_getNodeNidName - Returns the nid hostname of this compute node.
  * 
  * Detail
- *      This function determines the nid (node id) hostname of the current
- *      compute node where the tool daemon interfacing with this library 
- *      resides. Note that it is up to the user to free the returned string.
+ *      This function determines the nid (node id) hostname of the compute node.
+ *      It is up to the caller to free the returned string.
  *
  * Arguments
  *      None.
  *
  * Returns
- *      A string containing the nid hostname, or else a null string on error.
+ *      A string containing the nid hostname, or else NULL on error.
  * 
  */
-extern char *	getNodeNidName(void);
+extern char *	cti_getNodeNidName(void);
 
 /*
- * getNodeNid - Returns the node id of the compute node.
+ * cti_getNodeNid - Returns the node id of this compute node.
  * 
  * Detail
- *      This function determines the nid (node id) of the current compute node
- *      where the tool daemon interfacing with this library resides.
+ *      This function determines the nid (node id) of the compute node.
  *
  * Arguments
  *      None.
@@ -165,15 +199,15 @@ extern char *	getNodeNidName(void);
  *      The integer value of the nid, or else -1 on error.
  * 
  */
-extern int	getNodeNid(void);
+extern int	cti_getNodeNid(void);
 
 /*
- * getFirstPE - Returns the first PE number that resides on the compute node.
+ * cti_getFirstPE - Returns the first PE number that resides on this compute 
+ *                  node.
  * 
  * Detail
- *      This function determines the first PE (as in lowest numbered) PE that
- *      resides on the current compute where the tool daemon interfacing with
- *      this library resides.
+ *      This function determines the first PE (as in lowest numbered) that 
+ *      resides on the compute node.
  *
  * Arguments
  *      None.
@@ -182,14 +216,13 @@ extern int	getNodeNid(void);
  *      The integer value of the first PE on the node, or else -1 on error.
  * 
  */
-extern int	getFirstPE(void);
+extern int	cti_getFirstPE(void);
 
 /*
- * getPesHere - Returns the number of PEs that reside on the compute node.
+ * cti_getPesHere - Returns the number of PEs that reside on this compute node.
  * 
  * Detail
- *      This function determines the number of PEs that reside on the current 
- *      compute where the tool daemon interfacing with this library resides.
+ *      This function determines the number of PEs that reside on the compute
  *
  * Arguments
  *      None.
@@ -198,6 +231,6 @@ extern int	getFirstPE(void);
  *      The integer value of the number of PEs on the node, or else -1 on error.
  * 
  */
-extern int	getPesHere(void);
+extern int	cti_getPesHere(void);
 
-#endif /* _TOOL_BACKEND_H */
+#endif /* _CRAY_TOOLS_BE_H */

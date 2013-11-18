@@ -45,22 +45,22 @@
 #include "ld_val.h"
 
 /* Internal prototypes */
-static void overwatch_handler(int);
-static int creat_shm_segs(void);
-static int attach_shm_segs(void);
-static int destroy_shm_segs(void);
-static int save_str(char *);
-static char ** make_rtn_array(void);
-static char * ld_get_lib(void);
-static char * ld_verify(char *);
-static int ld_load(char *, char *, char *);
+static void		_cti_overwatch_handler(int);
+static int		_cti_creat_shm_segs(void);
+static int		_cti_attach_shm_segs(void);
+static int		_cti_destroy_shm_segs(void);
+static int		_cti_save_str(char *);
+static char **	_cti_make_rtn_array(void);
+static char *	_cti_ld_get_lib(void);
+static char *	_cti_ld_verify(char *);
+static int		_cti_ld_load(char *, char *, char *);
 
 /* list of valid linkers */
 // We should check the 64 bit linker first since most
 // apps are built using x86-64 nowadays.
 // Check the lsb linker last. (do we even use lsb code?)
 // lsb = linux standard base
-static const char *linkers[] = {
+static const char *_cti_linkers[] = {
 	"/lib64/ld-linux-x86-64.so.2",
 	"/lib/ld-linux.so.2",
 	"/lib64/ld-lsb-x86-64.so.2",
@@ -71,28 +71,28 @@ static const char *linkers[] = {
 };
 
 /* global variables */
-static char *	key_file = NULL;
-static key_t	key_a;
-static key_t	key_b;
-static pid_t	overwatch_pid;
-static int		shmid;
-static char *	shm;
-static int		sem_ctrlid;
-static int		num_ptrs;
-static int		num_alloc;
-static char **	tmp_array = (char **)NULL;
+static char *	_cti_key_file = NULL;
+static key_t	_cti_key_a;
+static key_t	_cti_key_b;
+static pid_t	_cti_overwatch_pid;
+static int		_cti_shmid;
+static char *	_cti_shm = NULL;
+static int		_cti_sem_ctrlid;
+static int		_cti_num_ptrs;
+static int		_cti_num_alloc;
+static char **	_cti_tmp_array = NULL;
 
 static void
-overwatch_handler(int sig)
+_cti_overwatch_handler(int sig)
 {
 	// remove the shared memory segment	
-	if (shmctl(shmid, IPC_RMID, NULL) < 0)
+	if (shmctl(_cti_shmid, IPC_RMID, NULL) < 0)
 	{
 		perror("IPC error: shmctl");
 	}
 	
 	// remove the semaphore
-	if (semctl(sem_ctrlid, 0, IPC_RMID) < 0)
+	if (semctl(_cti_sem_ctrlid, 0, IPC_RMID) < 0)
 	{
 		perror("IPC error: semctl");
 	}
@@ -102,7 +102,7 @@ overwatch_handler(int sig)
 }
 
 static int
-creat_shm_segs()
+_cti_creat_shm_segs()
 {
 	/*
 	*  Create the shm segments - Note that these will behave as a semaphore in the
@@ -132,12 +132,12 @@ creat_shm_segs()
 	} sem_arg;
 	
 	// start out by creating the keys from a well known file location and a character id
-	if ((key_a = ftok(key_file, ID_A)) == (key_t)-1)
+	if ((_cti_key_a = ftok(_cti_key_file, ID_A)) == (key_t)-1)
 	{
 		perror("IPC error: ftok");
 		return 1;
 	}
-	if ((key_b = ftok(key_file, ID_B)) == (key_t)-1)
+	if ((_cti_key_b = ftok(_cti_key_file, ID_B)) == (key_t)-1)
 	{
 		perror("IPC error: ftok");
 		return 1;
@@ -151,17 +151,17 @@ creat_shm_segs()
 	}
 
 	// fork off the overwatch process
-	overwatch_pid = fork();
+	_cti_overwatch_pid = fork();
 	
 	// error case
-	if (overwatch_pid < 0)
+	if (_cti_overwatch_pid < 0)
 	{
 		perror("fork");
 		return 1;
 	}
 	
 	// child case
-	if (overwatch_pid == 0)
+	if (_cti_overwatch_pid == 0)
 	{
 		struct sigaction new_handler;
 		sigset_t mask;
@@ -173,7 +173,7 @@ creat_shm_segs()
 		memset(&new_handler, 0, sizeof(new_handler));
 		sigemptyset(&new_handler.sa_mask);
 		new_handler.sa_flags = 0;
-		new_handler.sa_handler = overwatch_handler;
+		new_handler.sa_handler = _cti_overwatch_handler;
 		sigaction(SIGUSR1, &new_handler, NULL);
 		
 		// set the parent death signal to send us SIGUSR1
@@ -186,7 +186,7 @@ creat_shm_segs()
 		}
 		
 		// create the shared memory segments
-		while ((shmid = shmget(key_a, PATH_MAX, IPC_CREAT | IPC_EXCL | SHM_R | SHM_W)) < 0) 
+		while ((_cti_shmid = shmget(_cti_key_a, PATH_MAX, IPC_CREAT | IPC_EXCL | SHM_R | SHM_W)) < 0) 
 		{
 			if (errno == EEXIST)
 				continue;
@@ -198,14 +198,14 @@ creat_shm_segs()
 		}
 	
 		// create the semaphore
-		while ((sem_ctrlid = semget(key_b, 2, IPC_CREAT | IPC_EXCL | 0600)) < 0)
+		while ((_cti_sem_ctrlid = semget(_cti_key_b, 2, IPC_CREAT | IPC_EXCL | 0600)) < 0)
 		{
 			if (errno == EEXIST)
 				continue;
 			
 			perror("IPC error: semget");
 			// delete the segment we just created since this one failed
-			if (shmctl(shmid, IPC_RMID, NULL) < 0)
+			if (shmctl(_cti_shmid, IPC_RMID, NULL) < 0)
 			{
 				perror("IPC error: shmctl");
 			}
@@ -216,8 +216,8 @@ creat_shm_segs()
 		
 		// init the semaphore values to 0
 		sem_arg.val = 0;
-		semctl(sem_ctrlid, LDVAL_SEM, SETVAL, sem_arg);
-		semctl(sem_ctrlid, AUDIT_SEM, SETVAL, sem_arg);
+		semctl(_cti_sem_ctrlid, LDVAL_SEM, SETVAL, sem_arg);
+		semctl(_cti_sem_ctrlid, AUDIT_SEM, SETVAL, sem_arg);
 		
 		// init the signal mask to empty
 		sigemptyset(&mask);
@@ -247,14 +247,14 @@ creat_shm_segs()
 	close(fds[0]);
 	
 	// get the id of the memory segment
-	if ((shmid = shmget(key_a, PATH_MAX, SHM_R | SHM_W)) < 0) 
+	if ((_cti_shmid = shmget(_cti_key_a, PATH_MAX, SHM_R | SHM_W)) < 0) 
 	{
 		perror("IPC error: shmget");
 		return 1;
 	}
 	
 	// get the id of the semaphore
-	if ((sem_ctrlid = semget(key_b, 0, 0)) < 0)
+	if ((_cti_sem_ctrlid = semget(_cti_key_b, 0, 0)) < 0)
 	{
 		perror("IPC error: semget");
 		return 1;
@@ -264,12 +264,12 @@ creat_shm_segs()
 }
 
 static int
-attach_shm_segs()
+_cti_attach_shm_segs()
 {
 	/*
 	*  Attach the shm segment to our data space.
 	*/
-	if ((shm = shmat(shmid, NULL, 0)) == (char *)-1) 
+	if ((_cti_shm = shmat(_cti_shmid, NULL, 0)) == (char *)-1) 
 	{
 		perror("IPC error: shmat");
 		return 1;
@@ -279,94 +279,94 @@ attach_shm_segs()
 }
 
 static int
-destroy_shm_segs()
+_cti_destroy_shm_segs()
 {
 	int ret = 0;
 	
-	if (shmdt((void *)shm) == -1)
+	if (shmdt(_cti_shm) == -1)
 	{
 		perror("IPC error: shmdt");
 		ret = 1;
 	}
 	
 	// send the overwatch child a kill of SIGUSR1
-	if (kill(overwatch_pid, SIGUSR1) < 0)
+	if (kill(_cti_overwatch_pid, SIGUSR1) < 0)
 	{
 		perror("kill");
 		ret = 1;
 	}
 	
 	// wait for child to return
-	waitpid(overwatch_pid, NULL, 0);
+	waitpid(_cti_overwatch_pid, NULL, 0);
 	
 	return ret;
 }
 
 static int
-save_str(char *str)
+_cti_save_str(char *str)
 {
-	if (str == (char *)NULL)
+	if (str == NULL)
 		return -1;
 	
-	if (num_ptrs >= num_alloc)
+	if (_cti_num_ptrs >= _cti_num_alloc)
 	{
-		num_alloc += BLOCK_SIZE;
-		if ((tmp_array = realloc((void *)tmp_array, num_alloc * sizeof(char *))) == (char **)NULL)
+		_cti_num_alloc += BLOCK_SIZE;
+		if ((_cti_tmp_array = realloc(_cti_tmp_array, _cti_num_alloc * sizeof(char *))) == (void *)0)
 		{
 			perror("realloc");
 			return -1;
 		}
 	}
 	
-	tmp_array[num_ptrs++] = str;
+	_cti_tmp_array[_cti_num_ptrs++] = str;
 	
-	return num_ptrs;
+	return _cti_num_ptrs;
 }
 
 static char **
-make_rtn_array()
+_cti_make_rtn_array()
 {
 	char **rtn;
 	int i;
 	
-	if (tmp_array == (char **)NULL)
-		return (char **)NULL;
+	if (_cti_tmp_array == NULL)
+		return NULL;
 	
 	// create the return array
-	if ((rtn = calloc(num_ptrs+1, sizeof(char *))) == (char **)NULL)
+	if ((rtn = calloc(_cti_num_ptrs+1, sizeof(char *))) == (void *)0)
 	{
 		perror("calloc");
-		return (char **)NULL;
+		return NULL;
 	}
 	
 	// assign each element of the return array
-	for (i=0; i<num_ptrs; i++)
+	for (i=0; i<_cti_num_ptrs; i++)
 	{
-		rtn[i] = tmp_array[i];
+		rtn[i] = _cti_tmp_array[i];
 	}
 	
 	// set the final element to null
-	rtn[i] = (char *)NULL;
+	rtn[i] = NULL;
 	
 	// free the temp array
-	free(tmp_array);
+	free(_cti_tmp_array);
 	
 	return rtn;
 }
 
 static char *
-ld_verify(char *executable)
+_cti_ld_verify(char *executable)
 {
 	const char *linker = NULL;
 	int pid, status, fc, i=1;
 	
-	if (executable == (char *)NULL)
-		return (char *)NULL;
+	if (executable == NULL)
+		return NULL;
 
 	// Verify that the linker is able to perform relocations on our binary
 	// This should be able to handle both 32 and 64 bit executables
 	// We will simply choose the first one that works for us.
-	for (linker = linkers[0]; linker != NULL; linker = linkers[i++])
+	for (linker = _cti_linkers[0]; linker != NULL; linker = _cti_linkers[i++])
 	{
 		pid = fork();
 		
@@ -374,7 +374,7 @@ ld_verify(char *executable)
 		if (pid < 0)
 		{
 			perror("fork");
-			return (char *)NULL;
+			return NULL;
 		}
 		
 		// child case
@@ -386,7 +386,7 @@ ld_verify(char *executable)
 			dup2(fc, STDOUT_FILENO);
 			
 			// exec the linker to verify it is able to load our program
-			execl(linker, linker, "--verify", executable, (char *)NULL);
+			execl(linker, linker, "--verify", executable, NULL);
 			perror("execl");
 		}
 		
@@ -405,11 +405,11 @@ ld_verify(char *executable)
 }
 
 static int
-ld_load(char *linker, char *executable, char *lib)
+_cti_ld_load(char *linker, char *executable, char *lib)
 {
 	int pid, fc;
 	
-	if (linker == (char *)NULL || executable == (char *)NULL)
+	if (linker == NULL || executable == NULL)
 		return -1;
 	
 	// invoke the rtld interface.
@@ -439,7 +439,7 @@ ld_load(char *linker, char *executable, char *lib)
 		dup2(fc, STDOUT_FILENO);
 		
 		// exec the linker with --list to get a list of our dso's
-		execl(linker, linker, "--list", executable, (char *)NULL);
+		execl(linker, linker, "--list", executable, NULL);
 		perror("execl");
 	}
 	
@@ -448,7 +448,7 @@ ld_load(char *linker, char *executable, char *lib)
 }
 
 static char *
-ld_get_lib()
+_cti_ld_get_lib()
 {
 	char *				libstr;
 	struct sembuf		sops[1];
@@ -461,10 +461,10 @@ ld_get_lib()
 	sops[0].sem_flg = SEM_UNDO;
 	
 	// execute the semop cmd
-	if (semop(sem_ctrlid, sops, 1) == -1)
+	if (semop(_cti_sem_ctrlid, sops, 1) == -1)
 	{
 		perror("semop");
-		return (char *)NULL;
+		return NULL;
 	}
 	
 	// grab one resource from the audit sema
@@ -480,7 +480,7 @@ ld_get_lib()
 	timeout.tv_nsec = 1000000;
 	
 	// execute the semtimedop cmd
-	if (semtimedop(sem_ctrlid, sops, 1, &timeout) == -1)
+	if (semtimedop(_cti_sem_ctrlid, sops, 1, &timeout) == -1)
 	{
 		// audit process is likely dead, remove the resource on our sema
 		sops[0].sem_num = LDVAL_SEM;	// operate on our sema
@@ -488,7 +488,7 @@ ld_get_lib()
 		sops[0].sem_flg = SEM_UNDO | IPC_NOWAIT;
 		
 		// execute the semop cmd
-		if (semop(sem_ctrlid, sops, 1) == -1)
+		if (semop(_cti_sem_ctrlid, sops, 1) == -1)
 		{
 			// Here we have an interesting situation. We tried to remove the resource
 			// from our sema, but failed to do so. Which means the audit process must
@@ -509,33 +509,33 @@ ld_get_lib()
 			timeout.tv_nsec = 0;
 			
 			// execute the semtimedop cmd
-			if (semtimedop(sem_ctrlid, sops, 1, &timeout) == -1)
+			if (semtimedop(_cti_sem_ctrlid, sops, 1, &timeout) == -1)
 			{
 				fprintf(stderr, "Encountered deadlock scenario.\n");
 				perror("semop");
-				return (char *)NULL;
+				return NULL;
 			}
 			
 			// We grabbed the audit resource, so continue on as normal
 		} else
 		{
 			// safe to return, the resource on our sema has been removed.
-			return (char *)NULL;
+			return NULL;
 		}
 	}
 
 	// copy the library location string
-	libstr = strdup(shm);
+	libstr = strdup(_cti_shm);
 	
-	// reset the shm segment
-	memset(shm, '\0', PATH_MAX);
+	// reset the _cti_shm segment
+	memset(_cti_shm, '\0', PATH_MAX);
 		
 	// return the string
 	return libstr;
 }
 
 char **
-ld_val(char *executable)
+_cti_ld_val(char *executable)
 {
 	char *			linker;
 	int				pid;
@@ -549,131 +549,131 @@ ld_val(char *executable)
 	char **			rtn;
 	
 	// reset global vars
-	key_a = 0;
-	key_b = 0;
-	shmid = 0;
-	sem_ctrlid = 0;
-	shm = NULL;
-	num_ptrs = 0;
+	_cti_key_a = 0;
+	_cti_key_b = 0;
+	_cti_shmid = 0;
+	_cti_sem_ctrlid = 0;
+	_cti_shm = NULL;
+	_cti_num_ptrs = 0;
 	
-	if (executable == (char *)NULL)
-		return (char **)NULL;
+	if (executable == NULL)
+		return NULL;
 		
 	// get the location of the keyfile or else set it to the default value
-	if ((tmp_keyfile = getenv(LIBAUDIT_KEYFILE_ENV_VAR)) != (char *)NULL)
+	if ((tmp_keyfile = getenv(LIBAUDIT_KEYFILE_ENV_VAR)) != NULL)
 	{
-		key_file = strdup(tmp_keyfile);
-		// stat the user defined key_file to make sure it exists
-		if (stat(key_file, &stat_buf) < 0)
+		_cti_key_file = strdup(tmp_keyfile);
+		// stat the user defined _cti_key_file to make sure it exists
+		if (stat(_cti_key_file, &stat_buf) < 0)
 		{
-			// key_file doesn't exist so try to do an fopen on it. This will
+			// _cti_key_file doesn't exist so try to do an fopen on it. This will
 			// will ensure all our future calls to ftok will work.
-			if ((tmp_file = fopen(key_file, "w")) == (FILE *)NULL)
+			if ((tmp_file = fopen(_cti_key_file, "w")) == (FILE *)NULL)
 			{
 				fprintf(stderr, "FATAL: The keyfile environment variable %s file doesn't exist and\n", LIBAUDIT_KEYFILE_ENV_VAR);
 				fprintf(stderr, "       its value is not a writable location.\n");
-				return (char **)NULL;
+				return NULL;
 			}
 		}
 	} else
 	{
-		key_file = strdup(DEFAULT_KEYFILE);
+		_cti_key_file = strdup(DEFAULT_KEYFILE);
 		// make sure our default choice works, otherwise things will break.
-		if (stat(key_file, &stat_buf) < 0)
+		if (stat(_cti_key_file, &stat_buf) < 0)
 		{
 			fprintf(stderr, "FATAL: The keyfile environment variable %s file isn't set and\n", LIBAUDIT_KEYFILE_ENV_VAR);
 			fprintf(stderr, "       the default keyfile doesn't exist.\n");
-			return (char **)NULL;
+			return NULL;
 		}
 	}
 	
 	// ensure that we found a valid linker that was verified
-	if ((linker = ld_verify(executable)) == (char *)NULL)
+	if ((linker = _cti_ld_verify(executable)) == NULL)
 	{
 		fprintf(stderr, "FATAL: Failed to locate a working dynamic linker for the specified binary.\n");
-		return (char **)NULL;
+		return NULL;
 	}
 	
 	// We now have a valid linker to use, so lets set up our shm segments
 	
 	// Create our shm segments
 	// This will spin if another caller is using this interface
-	if (creat_shm_segs())
+	if (_cti_creat_shm_segs())
 	{
 		fprintf(stderr, "Failed to create shm segment.\n");
-		return (char **)NULL;
+		return NULL;
 	}
 
 	// Attach the segment to our data space.
-	if (attach_shm_segs())
+	if (_cti_attach_shm_segs())
 	{
 		fprintf(stderr, "Failed to attach shm segment.\n");
-		destroy_shm_segs();
-		return (char **)NULL;
+		_cti_destroy_shm_segs();
+		return NULL;
 	}
 	
-	// create space for the tmp_array
-	if ((tmp_array = calloc(BLOCK_SIZE, sizeof(char *))) == (void *)0)
+	// create space for the _cti_tmp_array
+	if ((_cti_tmp_array = calloc(BLOCK_SIZE, sizeof(char *))) == (void *)0)
 	{
 		perror("calloc");
-		destroy_shm_segs();
-		return (char **)NULL;
+		_cti_destroy_shm_segs();
+		return NULL;
 	}
-	num_alloc = BLOCK_SIZE;
+	_cti_num_alloc = BLOCK_SIZE;
 	
 	// get the location of the audit library
-	if ((tmp_audit = getenv(LIBAUDIT_ENV_VAR)) != (char *)NULL)
+	if ((tmp_audit = getenv(LIBAUDIT_ENV_VAR)) != NULL)
 	{
 		audit_location = strdup(tmp_audit);
 	} else
 	{
 		fprintf(stderr, "Could not read CRAY_LD_VAL_LIBRARY to get location of libaudit.so.\n");
-		destroy_shm_segs();
-		return (char **)NULL;
+		_cti_destroy_shm_segs();
+		return NULL;
 	}
 	
 	// Now we load our program using the list command to get its dso's
-	if ((pid = ld_load(linker, executable, audit_location)) <= 0)
+	if ((pid = _cti_ld_load(linker, executable, audit_location)) <= 0)
 	{
 		fprintf(stderr, "Failed to load the program using the linker.\n");
-		destroy_shm_segs();
-		return (char **)NULL;
+		_cti_destroy_shm_segs();
+		return NULL;
 	}
 	
 	// Read from the shm segment while the child process is still alive
 	do {
-		libstr = ld_get_lib();
+		libstr = _cti_ld_get_lib();
 		
 		// we want to ignore the first library we recieve
 		// as it will always be the ld.so we are using to
 		// get the shared libraries.
 		if (++rec == 1)
 		{
-			if (libstr != (char *)NULL)
+			if (libstr != NULL)
 				free(libstr);
 			continue;
 		}
 		
 		// if we recieved a null, we might be done.
-		if (libstr == (char *)NULL)
+		if (libstr == NULL)
 			continue;
 			
-		if ((save_str(libstr)) <= 0)
+		if ((_cti_save_str(libstr)) <= 0)
 		{
 			fprintf(stderr, "Unable to save temp string.\n");
-			destroy_shm_segs();
-			return (char **)NULL;
+			_cti_destroy_shm_segs();
+			return NULL;
 		}
 	} while (!waitpid(pid, NULL, WNOHANG));
 	
-	rtn = make_rtn_array();
+	rtn = _cti_make_rtn_array();
 	
 	// destroy the shm segments
-	destroy_shm_segs();
+	_cti_destroy_shm_segs();
 	
 	// cleanup memory
-	free((void *)audit_location);
-	free((void *)key_file);
+	free(audit_location);
+	free(_cti_key_file);
 
 	return rtn;
 }

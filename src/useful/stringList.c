@@ -2,7 +2,7 @@
  * stringList.c - Functions relating to creating and maintaining searchable lists
  *		of strings.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -28,10 +28,10 @@
 #include "stringList.h"
 
 /* Static prototypes */
-static int growStringList(stringList_t *);
+static int _cti_growStringList(stringList_t *);
 
 static int
-growStringList(stringList_t *lst)
+_cti_growStringList(stringList_t *lst)
 {
 	int	     i;
 	char **	 tmp_lst;
@@ -87,7 +87,7 @@ growStringList(stringList_t *lst)
 // The following functions are used to interact with a stringList_t
 
 stringList_t *
-newStringList()
+_cti_newStringList()
 {
 	stringList_t *  this;
 
@@ -99,10 +99,10 @@ newStringList()
 	}
 	memset(this, 0, sizeof(stringList_t));     // clear it to NULL
 
-	// growStringList takes care of the initial creation of the list for us
-	if (growStringList(this))
+	// _cti_growStringList takes care of the initial creation of the list for us
+	if (_cti_growStringList(this))
 	{
-		// growStringList failed
+		// _cti_growStringList failed
 		free(this);
 		return (stringList_t *)NULL;
 	}
@@ -111,7 +111,7 @@ newStringList()
 }
 
 int
-consumeStringList(stringList_t *lst)
+_cti_consumeStringList(stringList_t *lst)
 {
 	int		i;
 
@@ -141,7 +141,7 @@ consumeStringList(stringList_t *lst)
 }
 
 int
-searchStringList(stringList_t *lst, const char *str)
+_cti_searchStringList(stringList_t *lst, const char *str)
 {
 	char **str_ptr;
 	int i = lst->num;
@@ -170,14 +170,14 @@ searchStringList(stringList_t *lst, const char *str)
 }
 
 int
-addString(stringList_t *lst, const char *str)
+_cti_addString(stringList_t *lst, const char *str)
 {
 	// sanity check
 	if (lst == (stringList_t *)NULL || str == (const char *)NULL)
 		return 1;
 		
 	// ensure room exists in the list
-	if (growStringList(lst))
+	if (_cti_growStringList(lst))
 		return 1;
 		
 	// add the str to the list at the index num

@@ -43,7 +43,7 @@
  * It is the responsiblity of the caller to free the returned buffer when done.
  */
 char *
-pathFind(const char *file, const char *envPath) 
+_cti_pathFind(const char *file, const char *envPath) 
 {
 	struct stat stat_buf;
 	char    buf[PATH_MAX];
@@ -132,7 +132,7 @@ pathFind(const char *file, const char *envPath)
  * It is the responsiblity of the caller to free the returned buffer when done.
  */
 char *
-libFind(const char *file, const char *envPath)
+_cti_libFind(const char *file, const char *envPath)
 {
 	struct stat stat_buf;
 	char    buf[PATH_MAX];
@@ -245,7 +245,7 @@ libFind(const char *file, const char *envPath)
  * can not be guaranteed to be writable.
  */
 int
-adjustPaths(char *path)
+_cti_adjustPaths(char *path)
 {
 	struct stat statbuf;
 	char *binpath = NULL;
@@ -296,7 +296,7 @@ adjustPaths(char *path)
 }
 
 char *
-pathToName(char *path)
+_cti_pathToName(char *path)
 {
 	char *  end;
 	
@@ -307,3 +307,4 @@ pathToName(char *path)
 	// and strdup from that point to the null term
 	return strdup(++end);
 }
+

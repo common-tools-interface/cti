@@ -40,31 +40,50 @@
 #include "alps_run.h"
 #include "alps_application.h"
 
+/* typedefs used here */
+
+typedef struct
+{
+	int pipe_r;
+	int pipe_w;
+	int sync_int;
+} barrierCtl_t;
+
+struct aprunInv
+{
+	uint64_t			apid;
+	pid_t				aprunPid;
+	barrierCtl_t		pipeCtl;
+	struct aprunInv *	next;
+};
+typedef struct aprunInv aprunInv_t;
+
 /* static prototypes */
-static void consumeAprunInv(aprunInv_t *);
-static aprunInv_t * findAprunInv(uint64_t);
-static int	checkPathForWrappedAprun(char *);
+static void 		_cti_consumeAprunInv(aprunInv_t *);
+static aprunInv_t * _cti_findAprunInv(uint64_t);
+static int			_cti_checkPathForWrappedAprun(char *);
+static int			_cti_filter_pid_entries(const struct dirent *);
 
 // global aprunInv_t list
-static aprunInv_t *	head = (aprunInv_t *)NULL;
+static aprunInv_t *	_cti_head = NULL;
 
 void
-reapAprunInv(uint64_t apid)
+_cti_reapAprunInv(uint64_t apid)
 {
 	aprunInv_t * appPtr;
 	aprunInv_t * prePtr;
 	
 	// sanity check
-	if (((appPtr = head) == (aprunInv_t *)NULL) || (apid <= 0))
+	if (((appPtr = _cti_head) == NULL) || (apid <= 0))
 		return;
 	
-	prePtr = head;
+	prePtr = _cti_head;
 	
 	// find the aprunInv_t entry in the global list
 	while (appPtr->apid != apid)
 	{
 		prePtr = appPtr;
-		if ((appPtr = appPtr->next) == (aprunInv_t *)NULL)
+		if ((appPtr = appPtr->next) == NULL)
 		{
 			// on last entry and apid not found
 			return;
@@ -75,9 +94,9 @@ reapAprunInv(uint64_t apid)
 	if (appPtr == prePtr)
 	{
 		// first entry in list is a match
-		head = appPtr->next;
+		_cti_head = appPtr->next;
 		// consume the actual entry
-		consumeAprunInv(appPtr);
+		_cti_consumeAprunInv(appPtr);
 	} else
 	{
 		// we are in the middle of the list
@@ -85,12 +104,12 @@ reapAprunInv(uint64_t apid)
 		// jump over the appPtr
 		prePtr->next = appPtr->next;
 		// consume the appPtr
-		consumeAprunInv(appPtr);
+		_cti_consumeAprunInv(appPtr);
 	}
 }
 
 static void
-consumeAprunInv(aprunInv_t *app)
+_cti_consumeAprunInv(aprunInv_t *app)
 {
 	// close the open pipe fds
 	close(app->pipeCtl.pipe_r);
@@ -101,20 +120,20 @@ consumeAprunInv(aprunInv_t *app)
 }
 
 static aprunInv_t *
-findAprunInv(uint64_t apid)
+_cti_findAprunInv(uint64_t apid)
 {
 	aprunInv_t * appPtr;
 
 	// find the aprunInv_t entry in the global list
-	if (((appPtr = head) == (aprunInv_t *)NULL) || (apid <= 0))
-		return (aprunInv_t *)NULL;
+	if (((appPtr = _cti_head) == NULL) || (apid <= 0))
+		return NULL;
 		
 	while (appPtr->apid != apid)
 	{
-		if ((appPtr = appPtr->next) == (aprunInv_t *)NULL)
+		if ((appPtr = appPtr->next) == NULL)
 		{
 			// entry not found
-			return (aprunInv_t *)NULL;
+			return NULL;
 		}
 	}
 
@@ -122,7 +141,7 @@ findAprunInv(uint64_t apid)
 }
 
 static int	
-checkPathForWrappedAprun(char *aprun_path)
+_cti_checkPathForWrappedAprun(char *aprun_path)
 {
 	char *			usr_aprun_path;
 	char *			default_obs_realpath = NULL;
@@ -182,7 +201,7 @@ checkPathForWrappedAprun(char *aprun_path)
 }
 
 static int
-filter_pid_entries(const struct dirent *a)
+_cti_filter_pid_entries(const struct dirent *a)
 {
 	unsigned long int pid;
 	
@@ -191,10 +210,10 @@ filter_pid_entries(const struct dirent *a)
 	return sscanf(a->d_name, "%lu", &pid);
 }
 
-aprunProc_t	*
-launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput, 
-						int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
-						char **env_list	)
+cti_aprunProc_t	*
+cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput, 
+							int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
+							char **env_list	)
 {
 	aprunInv_t *	myapp;
 	aprunInv_t *	newapp;
@@ -219,7 +238,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	// used to ignore SIGINT
 	sigset_t		mask, omask;
 	// return object
-	aprunProc_t *	rtn;
+	cti_aprunProc_t *	rtn;
 
 	// create a new aprunInv_t object
 	if ((myapp = malloc(sizeof(aprunInv_t))) == (void *)0)
@@ -255,7 +274,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 		
 	// iterate through the aprun_argv array
 	tmp = aprun_argv;
-	while (*tmp++ != (char *)NULL)
+	while (*tmp++ != NULL)
 	{
 		++aprun_argc;
 	}
@@ -295,7 +314,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 		free(myapp);
 		// cleanup my_argv array
 		tmp = my_argv;
-		while (*tmp != (char *)NULL)
+		while (*tmp != NULL)
 		{
 			free(*tmp++);
 		}
@@ -317,7 +336,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	}
 	
 	// add the null terminator
-	my_argv[i++] = (char *)NULL;
+	my_argv[i++] = NULL;
 	
 	// We don't want alps to pass along signals the caller recieves to the
 	// application process. In order to stop this from happening we need to put
@@ -336,7 +355,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 		free(myapp);
 		// cleanup my_argv array
 		tmp = my_argv;
-		while (*tmp != (char *)NULL)
+		while (*tmp != NULL)
 		{
 			free(*tmp++);
 		}
@@ -355,7 +374,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 		{
 			// open the provided input file if non-null and redirect it to
 			// stdin
-			if (inputFile == (char *)NULL)
+			if (inputFile == NULL)
 			{
 				fprintf(stderr, "Provided inputFile argument is null.\n");
 				exit(1);
@@ -402,7 +421,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 		}
 		
 		// chdir if directed
-		if (chdirPath != (char *)NULL)
+		if (chdirPath != NULL)
 		{
 			if (chdir(chdirPath))
 			{
@@ -415,7 +434,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 		if (env_list != (char **)NULL)
 		{
 			i = 0;
-			while(env_list[i] != (char *)NULL)
+			while(env_list[i] != NULL)
 			{
 				// putenv returns non-zero on error
 				if (putenv(env_list[i++]))
@@ -457,7 +476,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	
 	// cleanup my_argv array
 	tmp = my_argv;
-	while (*tmp != (char *)NULL)
+	while (*tmp != NULL)
 	{
 		free(*tmp++);
 	}
@@ -514,12 +533,12 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 	}
 	
 	// check the link path to see if its the real aprun binary
-	if (checkPathForWrappedAprun(aprun_exe_path))
+	if (_cti_checkPathForWrappedAprun(aprun_exe_path))
 	{
 		// aprun is wrapped, we need to start harvesting stuff out from /proc.
 		
 		// start by getting all the /proc/<pid>/ files
-		if ((file_list_len = scandir("/proc", &file_list, filter_pid_entries, NULL)) < 0)
+		if ((file_list_len = scandir("/proc", &file_list, _cti_filter_pid_entries, NULL)) < 0)
 		{
 			perror("scandir");
 			fprintf(stderr, "Failure: Could not enumerate /proc for real aprun process.\n");
@@ -644,7 +663,7 @@ launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput,
 				}
 				
 				// check if this is the real aprun
-				if (!checkPathForWrappedAprun(aprun_exe_path))
+				if (!_cti_checkPathForWrappedAprun(aprun_exe_path))
 				{
 					// success! This is the real aprun
 					// set the aprunPid of the real aprun in the aprunInv_t structure
@@ -677,14 +696,14 @@ continue_on_error:
 	}
 	
 	// insert myapp into the global list
-	if (head == (aprunInv_t *)NULL)
+	if (_cti_head == NULL)
 	{
-		head = myapp;
+		_cti_head = myapp;
 	} else
 	{
 		// iterate through until we find an empty next entry
-		newapp = head;
-		while (newapp->next != (aprunInv_t *)NULL)
+		newapp = _cti_head;
+		while (newapp->next != NULL)
 		{
 			newapp = newapp->next;
 		}
@@ -693,7 +712,7 @@ continue_on_error:
 	}
 	
 	// set the apid associated with the pid of aprun
-	if ((myapp->apid = getApid(myapp->aprunPid)) == 0)
+	if ((myapp->apid = cti_getApid(myapp->aprunPid)) == 0)
 	{
 		fprintf(stderr, "Could not obtain apid associated with pid of aprun.\n");
 		// attempt to kill aprun since the caller will not recieve the aprun pid
@@ -704,14 +723,14 @@ continue_on_error:
 	}
 	
 	// register this process with the alps_transfer interface
-	if (registerApid(myapp->apid))
+	if (cti_registerApid(myapp->apid))
 	{
 		// we failed to register our app
 		fprintf(stderr, "Could not register application!\n");
 	}
 	
-	// create a new aprunProc_t return object
-	if ((rtn = malloc(sizeof(aprunProc_t))) == (void *)0)
+	// create a new cti_aprunProc_t return object
+	if ((rtn = malloc(sizeof(cti_aprunProc_t))) == (void *)0)
 	{
 		// Malloc failed
 		return NULL;
@@ -726,7 +745,7 @@ continue_on_error:
 }
 
 int
-releaseAprun_barrier(uint64_t apid)
+cti_releaseAprun_barrier(uint64_t apid)
 {
 	aprunInv_t * appPtr;
 	
@@ -735,7 +754,7 @@ releaseAprun_barrier(uint64_t apid)
 		return 1;
 	
 	// find the aprunInv_t entry in the global list
-	if ((appPtr = findAprunInv(apid)) == (aprunInv_t *)NULL)
+	if ((appPtr = _cti_findAprunInv(apid)) == NULL)
 		return 1;
 	
 	// Conduct a pipe write for alps to release app from the startup barrier.
@@ -751,7 +770,7 @@ releaseAprun_barrier(uint64_t apid)
 }
 
 int
-killAprun(uint64_t apid, int signum)
+cti_killAprun(uint64_t apid, int signum)
 {
 	int          mypid;
 	uint64_t     i;
@@ -803,7 +822,7 @@ killAprun(uint64_t apid, int signum)
 		
 		// cleanup my_argv array
 		tmp = my_argv;
-		while (*tmp != (char *)NULL)
+		while (*tmp != NULL)
 		{
 			free(*tmp++);
 		}
@@ -834,7 +853,7 @@ killAprun(uint64_t apid, int signum)
 		
 		// cleanup my_argv array
 		tmp = my_argv;
-		while (*tmp != (char *)NULL)
+		while (*tmp != NULL)
 		{
 			free(*tmp++);
 		}
@@ -848,7 +867,7 @@ killAprun(uint64_t apid, int signum)
 	my_argv[2] = apidStr;
 	
 	// set the final null terminator
-	my_argv[3] = (char *)NULL;
+	my_argv[3] = NULL;
 	
 	// fork off a process to launch apkill
 	mypid = fork();
@@ -859,7 +878,7 @@ killAprun(uint64_t apid, int signum)
 		fprintf(stderr, "Fatal fork error.\n");
 		// cleanup my_argv array
 		tmp = my_argv;
-		while (*tmp != (char *)NULL)
+		while (*tmp != NULL)
 		{
 			free(*tmp++);
 		}
@@ -881,14 +900,14 @@ killAprun(uint64_t apid, int signum)
 	// parent case
 	// cleanup my_argv array
 	tmp = my_argv;
-	while (*tmp != (char *)NULL)
+	while (*tmp != NULL)
 	{
 		free(*tmp++);
 	}
 	free(my_argv);
 	
 	// deregister this apid from the interface
-	deregisterApid(apid);
+	cti_deregisterApid(apid);
 	
 	// wait until the apkill finishes
 	waitpid(mypid, NULL, 0);

@@ -35,9 +35,9 @@
 
 #include "ld_val_defs.h"
 
-static int		sem_ctrlid = 0;
-static int		shmid = 0;
-static char *	shm = NULL;
+static int		_cti_sem_ctrlid	= 0;
+static int		_cti_shmid		= 0;
+static char *	_cti_shm		= NULL;
 
 // This is always the first thing called
 unsigned int
@@ -54,7 +54,7 @@ la_version(unsigned int version)
 	}
 	
 	// Lets attach to our shm segments
-	if (shm == NULL)
+	if (_cti_shm == NULL)
 	{
 		// create the shm key
 		if ((key_a = ftok(key_file, ID_A)) == (key_t)-1)
@@ -63,21 +63,21 @@ la_version(unsigned int version)
 		}
 		
 		// locate the segment
-		if ((shmid = shmget(key_a, PATH_MAX, SHM_R | SHM_W)) < 0) 
+		if ((_cti_shmid = shmget(key_a, PATH_MAX, SHM_R | SHM_W)) < 0) 
 		{
-			shmid = 0;
+			_cti_shmid = 0;
 			return version;
 		}
 		
 		// now attach the segment to our data space
-		if ((shm = shmat(shmid, NULL, 0)) == (char *) -1) 
+		if ((_cti_shm = shmat(_cti_shmid, NULL, 0)) == (char *) -1) 
 		{
-			shm = NULL;
+			_cti_shm = NULL;
 			return version;
 		}
 	}
 
-	if (sem_ctrlid == 0)
+	if (_cti_sem_ctrlid == 0)
 	{
 		// create the shm key
 		if ((key_b = ftok(key_file, ID_B)) == (key_t)-1)
@@ -86,9 +86,9 @@ la_version(unsigned int version)
 		}
 		
 		// get the id of the semaphore
-		if ((sem_ctrlid = semget(key_b, 0, 0)) < 0)
+		if ((_cti_sem_ctrlid = semget(key_b, 0, 0)) < 0)
 		{
-			sem_ctrlid = 0;
+			_cti_sem_ctrlid = 0;
 			return version;
 		}
 	}
@@ -103,7 +103,7 @@ la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 	struct sembuf	sops[1];
 
 	// return if opening of the shm segments failed
-	if ((shmid == 0) || (sem_ctrlid == 0))
+	if ((_cti_shmid == 0) || (_cti_sem_ctrlid == 0))
 		return LA_FLG_BINDTO | LA_FLG_BINDFROM;
 
 	if (strlen(map->l_name) != 0)
@@ -113,13 +113,13 @@ la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 		sops[0].sem_op = -1;			// grab 1 resource
 		sops[0].sem_flg = SEM_UNDO;
 		
-		if (semop(sem_ctrlid, sops, 1) == -1)
+		if (semop(_cti_sem_ctrlid, sops, 1) == -1)
 		{
 			return LA_FLG_BINDTO | LA_FLG_BINDFROM;
 		}
 		
 		// write this string to the shm segment
-		s = shm;
+		s = _cti_shm;
 		for (c = map->l_name; *c != '\0'; c++)
 		{
 			*s++ = *c;
@@ -131,7 +131,7 @@ la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 		sops[0].sem_op = 1;				// give 1 resource
 		sops[0].sem_flg = SEM_UNDO;
 		
-		if (semop(sem_ctrlid, sops, 1) == -1)
+		if (semop(_cti_sem_ctrlid, sops, 1) == -1)
 		{
 			return LA_FLG_BINDTO | LA_FLG_BINDFROM;
 		}

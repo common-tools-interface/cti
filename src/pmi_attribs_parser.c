@@ -30,7 +30,7 @@
 #include "pmi_attribs_parser.h"
 
 pmi_attribs_t *
-getPmiAttribsInfo(uint64_t apid)
+_cti_getPmiAttribsInfo(uint64_t apid)
 {
 	int					i;
 	FILE *				fp;
@@ -50,7 +50,7 @@ getPmiAttribsInfo(uint64_t apid)
 
 	// sanity check
 	if (apid <= 0)
-		return (pmi_attribs_t *)NULL;
+		return NULL;
 		
 	// TODO: There is a potential race condition here. For an attach scenario,
 	// its possible to attach to the application before its at the startup
@@ -105,7 +105,7 @@ getPmiAttribsInfo(uint64_t apid)
 		} else
 		{
 			// we couldn't open the pmi_attribs file, so return null
-			return (pmi_attribs_t *)NULL;
+			return NULL;
 		}
 	}
 	
@@ -140,7 +140,7 @@ getPmiAttribsInfo(uint64_t apid)
 	{
 		fprintf(stderr, "malloc failed.\n");
 		fclose(fp);
-		return (pmi_attribs_t *)NULL;
+		return NULL;
 	}
 	
 	// set the apid
@@ -152,7 +152,7 @@ getPmiAttribsInfo(uint64_t apid)
 		fprintf(stderr, "Reading pmi_file_version failed.\n");
 		free(rtn);
 		fclose(fp);
-		return (pmi_attribs_t *)NULL;
+		return NULL;
 	}
 	
 	// read in the compute nodes nid number
@@ -161,7 +161,7 @@ getPmiAttribsInfo(uint64_t apid)
 		fprintf(stderr, "Reading cnode_nidNum failed.\n");
 		free(rtn);
 		fclose(fp);
-		return (pmi_attribs_t *)NULL;
+		return NULL;
 	}
 	
 	// read in the MPMD command number this compute node cooresponds to in
@@ -171,7 +171,7 @@ getPmiAttribsInfo(uint64_t apid)
 		fprintf(stderr, "Reading mpmd_cmdNum failed.\n");
 		free(rtn);
 		fclose(fp);
-		return (pmi_attribs_t *)NULL;
+		return NULL;
 	}
 	
 	// read in the number of application ranks that exist on this node
@@ -180,7 +180,7 @@ getPmiAttribsInfo(uint64_t apid)
 		fprintf(stderr, "Reading app_nodeNumRanks failed.\n");
 		free(rtn);
 		fclose(fp);
-		return (pmi_attribs_t *)NULL;
+		return NULL;
 	}
 	
 	// lets allocate the object to hold the rank/pid pairs we are about to
@@ -190,7 +190,7 @@ getPmiAttribsInfo(uint64_t apid)
 		fprintf(stderr, "malloc failed.\n");
 		free(rtn);
 		fclose(fp);
-		return (pmi_attribs_t *)NULL;
+		return NULL;
 	}
 	
 	for (i=0; i < rtn->app_nodeNumRanks; ++i)
@@ -202,7 +202,7 @@ getPmiAttribsInfo(uint64_t apid)
 			free(rtn->app_rankPidPairs);
 			free(rtn);
 			fclose(fp);
-			return (pmi_attribs_t *)NULL;
+			return NULL;
 		}
 		// note that there was previously a bug here since long int * is
 		// not the size of pid_t. I was getting lucky for most sizes, but
@@ -220,13 +220,13 @@ getPmiAttribsInfo(uint64_t apid)
 }
 
 void
-freePmiAttribs(pmi_attribs_t *attr)
+_cti_freePmiAttribs(pmi_attribs_t *attr)
 {
 	// sanity check
-	if (attr == (pmi_attribs_t *)NULL)
+	if (attr == NULL)
 		return;
 	
-	if (attr->app_rankPidPairs != (nodeRankPidPair_t *)NULL)
+	if (attr->app_rankPidPairs != NULL)
 		free(attr->app_rankPidPairs);
 		
 	free(attr);

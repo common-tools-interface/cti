@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * log.c - Functions used to create log files.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -30,7 +30,7 @@
 #include "alps_defs.h"
 
 FILE *
-create_log(int suffix, char *nodeName)
+_cti_create_log(int suffix, char *nodeName)
 {
 	char logfile[PATH_MAX];
 	char *envDir;
@@ -61,7 +61,7 @@ create_log(int suffix, char *nodeName)
 }
 
 int
-write_log(FILE *log, char *buf)
+_cti_write_log(FILE *log, char *buf)
 {
 	if (log == (FILE *)NULL || buf == (char *)NULL)
 		return 1;
@@ -72,13 +72,13 @@ write_log(FILE *log, char *buf)
 }
 
 int
-close_log(FILE *log)
+_cti_close_log(FILE *log)
 {
 	return fclose(log);
 }
 
 int
-hook_stdoe(FILE *log)
+_cti_hook_stdoe(FILE *log)
 {
 	// ensure the file ptr exists
 	if (log == (FILE *)NULL)

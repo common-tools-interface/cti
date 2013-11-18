@@ -23,33 +23,18 @@
 
 #include "alps_defs.h"
 
-/* struct typedefs */
-typedef struct
-{
-	int pipe_r;
-	int pipe_w;
-	int sync_int;
-} barrierCtl_t;
-
-struct aprunInv
-{
-	uint64_t			apid;
-	pid_t				aprunPid;
-	barrierCtl_t		pipeCtl;
-	struct aprunInv *	next;
-};
-typedef struct aprunInv aprunInv_t;
+/* public types */
 
 typedef struct
 {
 	uint64_t	apid;
 	pid_t		aprunPid;
-} aprunProc_t;
+} cti_aprunProc_t;
 
 /* function prototypes */
-aprunProc_t	*	launchAprun_barrier(char **, int, int, int, int, char *, char *, char **);
-int				releaseAprun_barrier(uint64_t);
-int				killAprun(uint64_t, int);
-void			reapAprunInv(uint64_t);
+void				_cti_reapAprunInv(uint64_t);
+cti_aprunProc_t	*	cti_launchAprun_barrier(char **, int, int, int, int, char *, char *, char **);
+int					cti_releaseAprun_barrier(uint64_t);
+int					cti_killAprun(uint64_t, int);
 
 #endif /* _ALPS_RUN_H */

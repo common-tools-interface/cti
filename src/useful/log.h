@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * log.h - Header file for the log interface.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -19,9 +19,9 @@
 #ifndef _LOG_H
 #define _LOG_H
 
-FILE *create_log(int, char *);
-int write_log(FILE *, char *);
-int close_log(FILE *);
-int hook_stdoe(FILE *);
+FILE *	_cti_create_log(int, char *);
+int 	_cti_write_log(FILE *, char *);
+int 	_cti_close_log(FILE *);
+int 	_cti_hook_stdoe(FILE *);
 
 #endif /* _LOG_H */

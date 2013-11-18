@@ -1,6 +1,6 @@
 /******************************************************************************\
- * tool_frontend.h - The public API definitions for the frontend portion of the
- *                   tool_interface.
+ * cray_tools_fe.h - The public API definitions for the frontend portion of
+ *                   the Cray tools interface
  *
  * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
@@ -17,315 +17,112 @@
  *
  ******************************************************************************/
 
-#ifndef _TOOL_FRONTEND_H
-#define _TOOL_FRONTEND_H
+#ifndef _CRAY_TOOLS_FE_H
+#define _CRAY_TOOLS_FE_H
 
 #include <stdint.h>
 #include <sys/types.h>
 
 /*
- * The tool interface needs to read environment specific locations
- * dynamically at run time. The environment variables that are read
- * are defined here. Their values are the values users should use to set in 
- * their environment. Note that these are compile time constants in the library
- * and cannot be overridden.
+ * The Cray tools interface needs to read environment variables about the system
+ * configuration dynamically at run time. The environment variables that are
+ * read are defined here.  Note that the value of these environment
+ * variables are subject to change. Use the defines to guarantee portability.
  *
- * LIBAUDIT_ENV_VAR     Used to define the absolute path to the audit library
- * LIBAUDIT_KEYFILE_ENV_VAR
- *                      Used to define a path to a file used to create sys-v 
- *                      keys in the audit library. If the file doesn't exist, it
- *                      will be created at the provided location.
- * DBG_LOG_ENV_VAR      Optional variable used to define a path to write log
- *                      files to. Note that this location must be accessible by 
- *                      the compute nodes.
- * USER_DEF_APRUN_LOC_ENV_VAR
- *                      Used to define the absolute path to the aprun binary.
- *                      This is used when a site has renamed the real aprun
- *                      binary to something else.
- * PMI_ATTRIBS_TIMEOUT_ENV_VAR
- *                      Used to define the amount of time the daemon will spend
- *                      attempting to open the pmi_attribs file when gathering
- *                      application pid information on the compute node. If this
- *                      is not set, the default timeout period is 60 seconds.
- * PMI_EXTRA_SLEEP_ENV_VAR
- *                      Used to define an extra amount of time to sleep after
- *                      reading the pmi_attribs file if it was not immediately
- *                      available. This is to avoid a potential race condition.
- *                      If this is not set, the default is to wait an order of
- *                      magnitude less than the amount of time it took to open
- *                      the pmi_attribs file.
- * CFG_DIR_VAR          Used to define a location to write internal temporary
- *                      files and directories to. The caller must have write
- *                      permission inside this directory.
- * DAEMON_STAGE_VAR		Used to define the directory root name that will be used
- *                      to stage binaries, libraries, and files to on the
- *                      compute node. This can be used to force multiple sessions
- *                      to use the same directory structure. The use of this
- *                      is not recommended since it is not guarded against race
- *                      conditions and conflicting file names.
+ * CTI_LIBAUDIT_ENV_VAR (required)
+ *
+ *         Used to define the absolute path to the audit library. This is
+ *         required to be defined.
+ *
+ * CTI_LIBAUDIT_KEYFILE_ENV_VAR (optional)
+ *
+ *         Used to define a path to a file used to create sys-v keys in the 
+ *         audit library. If the file doesn't exist, it will be created at the 
+ *         provided location. If it is not provided, a default choice will be 
+ *         made.
+ *
+ * CTI_DBG_LOG_ENV_VAR (optional)
+ *
+ *         Used to define a path to write log files to. This location must be 
+ *         cross mounted and accessible by the compute nodes in order to receive
+ *         debug logs from tool daemons.
+ *
+ * CTI_USER_DEF_APRUN_LOC_ENV_VAR (optional)
+ *
+ *         Used to define the absolute path to the aprun binary. This is used 
+ *         when a site has renamed the real aprun binary to something else.
+ *
+ * CTI_ATTRIBS_TIMEOUT_ENV_VAR (optional)
+ *
+ *         Used to define the amount of time the daemon will spend attempting to
+ *         open the pmi_attribs file when gathering application pid information
+ *         on the compute node. If this is not set, the default timeout period 
+ *         is 60 seconds.
+ *
+ * CTI_EXTRA_SLEEP_ENV_VAR (optional)
+ *
+ *         Used to define an extra amount of time to sleep after reading the 
+ *         pmi_attribs file if it was not immediately available. This is to 
+ *         avoid a potential race condition. If this is not set, the default is
+ *         to wait an order of magnitude less than the amount of time it took to
+ *         open the pmi_attribs file.
+ *
+ * CTI_CFG_DIR_VAR (required)
+ *
+ *         Used to define a location to write internal temporary files and 
+ *         directories to. The caller must have write permission inside this 
+ *         directory.
+ *
+ * CTI_DAEMON_STAGE_VAR	(optional - CAUTION!)
+ *
+ *         Used to define the directory root name that will be used to stage 
+ *         binaries, libraries, and files to on the compute node. This can be 
+ *         used to force multiple sessions to use the same directory structure.
+ *         The use of this is not recommended since it is not guarded against 
+ *         race conditions and conflicting file names.
  * 
  */
-#define LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
-#define LIBAUDIT_KEYFILE_ENV_VAR    "CRAY_LD_VAL_KEYFILE"
-#define DBG_LOG_ENV_VAR             "CRAY_DBG_LOG_DIR"
-#define USER_DEF_APRUN_LOC_ENV_VAR  "CRAY_APRUN_PATH"
-#define PMI_ATTRIBS_TIMEOUT_ENV_VAR "CRAY_CTI_PMI_FOPEN_TIMEOUT"
-#define PMI_EXTRA_SLEEP_ENV_VAR     "CRAY_CTI_PMI_EXTRA_SLEEP"
-#define CFG_DIR_VAR                 "CRAY_CTI_CFG_DIR"
-#define DAEMON_STAGE_VAR            "CRAY_CTI_STAGE_DIR"
+#define CTI_LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
+#define CTI_LIBAUDIT_KEYFILE_ENV_VAR    "CRAY_LD_VAL_KEYFILE"
+#define CTI_DBG_LOG_ENV_VAR             "CRAY_DBG_LOG_DIR"
+#define CTI_USER_DEF_APRUN_LOC_ENV_VAR  "CRAY_APRUN_PATH"
+#define CTI_ATTRIBS_TIMEOUT_ENV_VAR     "CRAY_CTI_PMI_FOPEN_TIMEOUT"
+#define CTI_EXTRA_SLEEP_ENV_VAR         "CRAY_CTI_PMI_EXTRA_SLEEP"
+#define CTI_CFG_DIR_VAR                 "CRAY_CTI_CFG_DIR"
+#define CTI_DAEMON_STAGE_VAR            "CRAY_CTI_STAGE_DIR"
 
 /* 
- * typedefs used in return values 
+ * The following are types used as return values for some API calls.
  */
-
 typedef struct
 {
         char *  hostname;
         int     numPes;
-} nodeHostPlacement_t;
+} cti_host_t;
 
 typedef struct
 {
-        int                     numHosts;
-        nodeHostPlacement_t *   hosts;
-} appHostPlacementList_t;
+        int            numHosts;
+        cti_host_t *   hosts;
+} cti_hostsList_t;
 
 typedef struct
 {
 	uint64_t	apid;
 	pid_t		aprunPid;
-} aprunProc_t;
+} cti_aprunProc_t;
 
-typedef int MANIFEST_ID;
-typedef int SESSION_ID;
+typedef int CTI_MANIFEST_ID;
+typedef int CTI_SESSION_ID;
 
-/*
- * alps_application functions - Functions relating directly to the application.
- */
-
-/*
- * getApid - Obtain the apid associated with the aprun pid.
- *
- * Detail
- *      This function is used to obtain the apid of an aprun session based on
- *      the pid of the aprun binary. This can be used in place of apstat if the
- *      pid_t of aprun is already known.
- *
- * Arguments
- *      aprunPid - The pid_t of the registered aprun session.
- *
- * Returns
- *      apid if found, or else 0 on failure/not found.
- * 
- */
-extern uint64_t	getApid(pid_t aprunPid);
+/************************************************************
+ * The Cray tools interface frontend calls are defined below.
+ ***********************************************************/
 
 /*
- * registerApid -   Assists in registering the apid of an already running 
- *                  aprun session for use with the tool interface.
- * 
- * Detail
- *      This function is used for registering a valid aprun session that was 
- *      previously launched through external means for use with the tool 
- *      interface. It is recommended to use the built-in functions to launch 
- *      aprun sessions, however sometimes this is impossible (such is the case 
- *      for a debug attach scenario). In order to use any of the functions
- *      defined in this interface, the apid of the aprun session *must* be
- *      registered. This is done automatically when using the built-in functions
- *      to launch aprun sessions. The apid can be obtained from apstat.
- *
- * Arguments
- *      apid - The uint64_t apid of the aprun session to register.
- *
- * Returns
- *      0 on success, or else 1 on failure.
- * 
- */
-extern int	registerApid(uint64_t apid);
-
-/*
- * deregisterApid - Assists in cleaning up internal allocated memory
- *                  associated with a previously registered aprun sessions
- *                  apid.
- * 
- * Detail
- *      For applications that use the tool interface that wish to operate over
- *      many different aprun sessions, this function can be used to free up
- *      and destroy any internal data structures that were created for use
- *      with the apid of the aprun session.
- *
- * Arguments
- *      apid - The uint64_t apid of the previously registered aprun session.
- *
- * Returns
- *      Returns no value.
- *
- */
-extern void	deregisterApid(uint64_t apid);
-
-/*
- * getNodeCName - Returns the cabinet hostname of the callers login node.
- * 
- * Detail
- *      This function determines the cname of the callers login node where
- *      any aprun sessions will be launched from.
- *
- * Arguments
- *      None.
- *
- * Returns
- *      A string containing the cname host, or else a null string on error.
- * 
- */
-extern char *	getNodeCName();
-
-/*
- * getNodeNid - Returns the node id of the callers login node.
- * 
- * Detail
- *      This function determines the nid (node id) of the callers login node
- *      where any aprun sessions will be launched from. This can be used to
- *      check if the current nid differs from the applications nid.
- *
- * Arguments
- *      None.
- *
- * Returns
- *      The integer value of the nid, or else -1 on error.
- * 
- */
-extern int	getNodeNid();
-
-/*
- * getAppNid - Returns the node id for the application associated with the apid.
- * 
- * Detail
- *      This function determines the nid (node id) associated with the given 
- *      apid. This can be used to check if the current nid differs from the 
- *      applications nid.
- *
- * Arguments
- *      None.
- *
- * Returns
- *      The integer value of the nid, or else -1 on error.
- * 
- */
-extern int	getAppNid();
-
-/*
- * getNumAppPEs - Returns the number of processing elements in the application
- *                associated with the apid.
- * 
- * Detail
- *      This function is used to determine the number of PEs (processing
- *      elements) that were propagated by ALPS for the application associated
- *      with the given apid.
- *
- * Arguments
- *      apid - The uint64_t apid of the previously registered aprun session.
- *
- * Returns
- *      Number of PEs in the application, or else 0 on error.
- * 
- */
-extern int	getNumAppPEs(uint64_t apid);
-
-/*
- * getNumAppNodes - Returns the number of compute nodes allocated for the
- *                  application associated with the apid.
- * 
- * Detail
- *      This function is used to determine the number of compute nodes that
- *      was allocated by ALPS for the application associated with the given
- *      apid.
- *
- * Arguments
- *      apid - The uint64_t apid of the previously registered aprun session.
- *
- * Returns
- *      Number of compute nodes allocated for the application,
- *      or else 0 on error.
- * 
- */
-extern int	getNumAppNodes(uint64_t apid);
-
-/*
- * getAppHostsList - Returns a null terminated array of strings containing
- *                   the hostnames of the compute nodes allocated by ALPS
- *                   for the application associated with the apid.
- * 
- * Detail
- *      This function creates a list of compute node hostnames for each
- *      compute node assoicated with the given apid. These hostnames
- *      can be used to communicate with the compute nodes over socket
- *      connections. The list is null terminated.
- *
- * Arguments
- *      apid - The uint64_t apid of the previously registered aprun session.
- *
- * Returns
- *      A null terminated list of pointers to strings, or else a null
- *      pointer on error.
- * 
- */
-extern char **	getAppHostsList(uint64_t apid);
-
-/*
- * getAppHostsPlacement - Returns a appHostPlacementList_t struct containing
- *                        nodeHostPlacement_t entries that contain the hostname
- *                        of the compute nodes allocated by ALPS and the number
- *                        of PEs assigned to that host for the application 
- *                        associated with the apid.
- * 
- * Detail
- *      This function creates a appHostPlacementList_t struct that contains
- *      the number of hosts associated with the application and 
- *      nodeHostPlacement_t struct entries that contain the hostname string
- *      along with the number of PEs assigned to this host. Note that there is
- *      a nodeHostPlacement_t entry for each compute node hostname that is 
- *      assoicated with the given apid. These hostnames can be used to
- *      communicate with the compute nodes over socket connections.
- *
- * Arguments
- *      apid - The uint64_t apid of the previously registered aprun session.
- *
- * Returns
- *      An appHostPlacementList_t struct that contains the number of hosts in
- *      the application and an array of nodeHostPlacement_t structs for each
- *      host assigned to the application.
- * 
- */
-extern appHostPlacementList_t *	getAppHostsPlacement(uint64_t apid);
-
-/*
- * destroy_AppHostsPlacement - Used to destroy the memory allocated for a 
- *                        appHostPlacementList_t struct.
- * 
- * Detail
- *      This function free's a appHostPlacementList_t struct. This is used to
- *      safely destroy the data structure returned by a call to the 
- *      getAppHostsPlacement function when the caller is done with the data
- *      that was allocated during its creation.
- *
- * Arguments
- *      placement_list - A pointer to the appHostPlacementList_t to free.
- *
- * Returns
- *      Void. This function behaves similarly to free().
- *
- */
-extern void	destroy_appHostPlacementList(appHostPlacementList_t *placement_list);
-
-/*
- * alps_run functions - Functions related to launching a new aprun session
- */
-
-
-/*
- * launchAprun_barrier - Start a new aprun session from the provided argv array
- *                       and have ALPS hold the application at its MPI startup
- *                       barrier.
+ * cti_launchAprun_barrier - Start a new aprun session from the provided argv
+ *                           array and have ALPS hold the application at its
+ *                           startup barrier for MPI/SHMEM/UPC applications.
  * 
  * Detail
  *      This function is the preferred way for users to use the tool interface
@@ -335,7 +132,8 @@ extern void	destroy_appHostPlacementList(appHostPlacementList_t *placement_list)
  *
  *      This function will hold the application at its startup barrier until
  *      the barrier release function is called with the apid returned by this
- *      function.
+ *      function. This only applies to applications using programming models
+ *      that call some sort of init function (MPI_init for example).
  *
  *      This function can redirect the stdin of aprun to a file in order to
  *      provide arguments to a application. This is enabled by setting the
@@ -379,27 +177,28 @@ extern void	destroy_appHostPlacementList(appHostPlacementList_t *placement_list)
  *                      the environment. 
  *
  * Returns
- *      A aprunProc_t pointer that contains the pid of the aprun process as well
+ *      A cti_aprunProc_t pointer that contains the pid of the aprun process as well
  *      as its apid. The returned apid should be use in subsequent calls to this
  *      interface. NULL is returned on error. It is the callers responsibility
  *      to free the returned type with a call to free().
  * 
  */
-extern aprunProc_t * launchAprun_barrier(char **aprun_argv, int redirectOutput, 
-                               int redirectInput, int stdout_fd, int stderr_fd,
-                               char *inputFile, char *chdirPath, 
-                               char **env_list);
+extern cti_aprunProc_t * cti_launchAprun_barrier(char **aprun_argv,
+                                        int redirectOutput, int redirectInput,
+                                        int stdout_fd, int stderr_fd,
+                                        char *inputFile, char *chdirPath, 
+                                        char **env_list);
 
 /*
- * releaseAprun_barrier - Release the aprun session launched with the
- *                        launchAprun_barrier function from its MPI startup
- *                        barrier.
+ * cti_releaseAprun_barrier - Release the aprun session launched with the
+ *                            launchAprun_barrier function from its startup
+ *                            barrier.
  * 
  * Detail
  *      This function communicates to the aprun process that ALPS should
- *      release the application from the MPI startup barrier it is currently
- *      being held at. Note that this function must be used in conjunction with
- *      a valid uint64_t apid that was created by the launchAprun_barrier 
+ *      release the application from the startup barrier it is currently being
+ *      held at. Note that this function must be used in conjunction with a
+ *      valid uint64_t apid that was created by the launchAprun_barrier
  *      function.
  *
  * Arguments
@@ -410,10 +209,224 @@ extern aprunProc_t * launchAprun_barrier(char **aprun_argv, int redirectOutput,
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	releaseAprun_barrier(uint64_t apid);
+extern int	cti_releaseAprun_barrier(uint64_t apid);
 
 /*
- * killAprun - Send a signal using the apkill mechanism to a aprun session
+ * cti_registerApid -   Assists in registering the apid of an already running 
+ *                      aprun session for use with the Cray tool interface.
+ * 
+ * Detail
+ *      This function is used for registering a valid aprun session that was 
+ *      previously launched through external means for use with the tool 
+ *      interface. It is recommended to use the built-in functions to launch 
+ *      aprun sessions, however sometimes this is impossible (such is the case 
+ *      for a debug attach scenario). In order to use any of the functions
+ *      defined in this interface, the apid of the aprun session *must* be
+ *      registered. This is done automatically when using the built-in functions
+ *      to launch aprun sessions. The apid can be obtained from apstat.
+ *
+ * Arguments
+ *      apid - The uint64_t apid of the aprun session to register.
+ *
+ * Returns
+ *      0 on success, or else 1 on failure.
+ * 
+ */
+extern int	cti_registerApid(uint64_t apid);
+
+/*
+ * cti_deregisterApid - Assists in cleaning up internal allocated memory
+ *                      associated with a previously registered aprun sessions
+ *                      apid.
+ * 
+ * Detail
+ *      For applications that use the tool interface that wish to operate over
+ *      many different aprun sessions, this function can be used to free up
+ *      and destroy any internal data structures that were created for use
+ *      with the apid of the aprun session.
+ *
+ * Arguments
+ *      apid - The uint64_t apid of the previously registered aprun session.
+ *
+ * Returns
+ *      Returns no value.
+ *
+ */
+extern void	cti_deregisterApid(uint64_t apid);
+
+/*
+ * cti_getApid - Obtain the apid associated with the aprun pid.
+ *
+ * Detail
+ *      This function is used to obtain the apid of an aprun session based on
+ *      the pid of the aprun binary. This can be used in place of apstat if the
+ *      pid_t of the aprun process is already known.
+ *
+ * Arguments
+ *      aprunPid - The pid_t of the registered aprun session.
+ *
+ * Returns
+ *      apid if found, or else 0 on failure/not found.
+ * 
+ */
+extern uint64_t	cti_getApid(pid_t aprunPid);
+
+/*
+ * cti_getNodeCName - Returns the cabinet hostname of the login node.
+ * 
+ * Detail
+ *      This function determines the cname of the current login node. This
+ *      hostname can be used by tool daemons to create socket connections to
+ *      the frontend.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      A string containing the cname host, or else a null string on error.
+ * 
+ */
+extern char *	cti_getNodeCName();
+
+/*
+ * cti_getNodeNid - Returns the node id of the login node.
+ * 
+ * Detail
+ *      This function determines the nid (node id) of the login node. This can 
+ *      be used to check if the nid where the aprun process resides differs
+ *      with the nid of the caller.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      The integer value of the nid, or else -1 on error.
+ * 
+ */
+extern int	cti_getNodeNid();
+
+/*
+ * cti_getAppNid - Returns the node id of the application associated with the 
+ *                 provided apid.
+ * 
+ * Detail
+ *      This function determines the nid (node id) associated with the given 
+ *      apid. This can be used to check if the current nid differs from the 
+ *      applications nid.
+ *
+ * Arguments
+ *      aprunPid - The pid_t of the registered aprun session.
+ *
+ * Returns
+ *      The integer value of the nid, or else -1 on error.
+ * 
+ */
+extern int	cti_getAppNid(uint64_t apid);
+
+/*
+ * cti_getNumAppPEs - Returns the number of processing elements in the
+ *                    application associated with the apid.
+ * 
+ * Detail
+ *      This function is used to determine the number of PEs (processing
+ *      elements) that were propagated by ALPS for the application associated
+ *      with the given apid.
+ *
+ * Arguments
+ *      apid - The uint64_t apid of the previously registered aprun session.
+ *
+ * Returns
+ *      Number of PEs in the application, or else 0 on error.
+ * 
+ */
+extern int	cti_getNumAppPEs(uint64_t apid);
+
+/*
+ * cti_getNumAppNodes - Returns the number of compute nodes allocated for the
+ *                      application associated with the apid.
+ * 
+ * Detail
+ *      This function is used to determine the number of compute nodes that
+ *      was allocated by ALPS for the application associated with the given
+ *      apid.
+ *
+ * Arguments
+ *      apid - The uint64_t apid of the previously registered aprun session.
+ *
+ * Returns
+ *      Number of compute nodes allocated for the application,
+ *      or else 0 on error.
+ * 
+ */
+extern int	cti_getNumAppNodes(uint64_t apid);
+
+/*
+ * cti_getAppHostsList - Returns a null terminated array of strings containing
+ *                       the hostnames of the compute nodes allocated by ALPS
+ *                       for the application associated with the apid.
+ * 
+ * Detail
+ *      This function creates a list of compute node hostnames for each
+ *      compute node assoicated with the given apid. These hostnames
+ *      can be used to communicate with the compute nodes over socket
+ *      connections. The list is null terminated.
+ *
+ * Arguments
+ *      apid - The uint64_t apid of the previously registered aprun session.
+ *
+ * Returns
+ *      A null terminated list of pointers to strings, or else a null
+ *      pointer on error.
+ * 
+ */
+extern char **	cti_getAppHostsList(uint64_t apid);
+
+/*
+ * cti_getAppHostsPlacement - Returns a cti_hostsList_t containing cti_host_t
+ *                            entries that contain the hostname of the compute
+ *                            nodes allocated by ALPS and the number of PEs
+ *                            assigned to that host for the application
+ *                            associated with the apid.
+ * 
+ * Detail
+ *      This function creates a cti_hostsList_t that contains the number of
+ *      hosts associated with the application and cti_host_t entries that
+ *      contain the hostname string along with the number of PEs assigned to
+ *      this host. Note that there is a cti_host_t entry for each compute node
+ *      hostname that is assoicated with the given apid. These hostnames can be
+ *      used to communicate with the compute nodes over socket connections.
+ *
+ * Arguments
+ *      apid - The uint64_t apid of the previously registered aprun session.
+ *
+ * Returns
+ *      An cti_hostsList_t that contains the number of hosts in the application
+ *      and an array of cti_host_t for each host assigned to the application.
+ * 
+ */
+extern cti_hostsList_t *	cti_getAppHostsPlacement(uint64_t apid);
+
+/*
+ * cti_estroy_hostsList - Used to destroy the memory allocated for a 
+ *                        cti_hostsList_t struct.
+ * 
+ * Detail
+ *      This function free's a cti_hostsList_t struct. This is used to
+ *      safely destroy the data structure returned by a call to the 
+ *      getAppHostsPlacement function when the caller is done with the data
+ *      that was allocated during its creation.
+ *
+ * Arguments
+ *      placement_list - A pointer to the cti_hostsList_t to free.
+ *
+ * Returns
+ *      Void. This function behaves similarly to free().
+ *
+ */
+extern void	cti_destroy_hostsList(cti_hostsList_t *placement_list);
+
+/*
+ * cti_killAprun - Send a signal using the apkill mechanism to a aprun session.
  * 
  * Detail
  *      This function is used to send a provided signal to the uint64_t apid
@@ -429,10 +442,10 @@ extern int	releaseAprun_barrier(uint64_t apid);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	killAprun(uint64_t apid, int signum);
+extern int	cti_killAprun(uint64_t apid, int signum);
 
 
-/*
+/*******************************************************************************
  * alps_transfer functions - Functions related to shipping files, shared 
  *                           libraries, and binaries to compute nodes and 
  *                           possibly launching tool daemons.
@@ -441,12 +454,11 @@ extern int	killAprun(uint64_t apid, int signum);
  *       that were previously shipped to compute nodes and will not allow a
  *       naming conflict to occur between consecutive calls. This eliminates
  *       redundant shipping of dependencies between multiple calls.
- */
-
+ ******************************************************************************/
 
 /*
- * execToolDaemon - Launch a tool program onto compute nodes associated with a
- *                 registered aprun pid.
+ * cti_execToolDaemon - Launch a tool daemon onto compute nodes associated with
+ *                      a registered aprun pid.
  * 
  * Detail
  *      This function is used to launch a program binary onto compute nodes.
@@ -465,20 +477,21 @@ extern int	killAprun(uint64_t apid, int signum);
  *      Note that args[0] is the begining of the program arguments and not the
  *      name of the program itself.
  *      
- *      A MANIFEST_ID can be provided to ship a manifest of binaries, libraries,
- *      and files that may be required by the tool daemon. The manifest must be
- *      created before calling this function and will be cleaned up by this
- *      function. A unique directory will be created on the compute node in the
- *      temporary storage space associated with the application. This avoids
- *      naming conflicts between other tools using the ALPS toolhelper
- *      interface. This unique directory will contains subdirectories /bin that
- *      contains all binaries and /lib that contains all libaries. Any files
- *      will not be placed in a subdirectory and are available directly in the
- *      current working directory of the tool daemon. All binaries will be found
- *      in the PATH of the tool daemon process, and all libraries will be found
- *      in the LD_LIBRARY_PATH of the tool daemon process.
+ *      A CTI_MANIFEST_ID can be provided to ship a manifest of binaries, 
+ *      libraries, and files that may be required by the tool daemon. The 
+ *      manifest must be created before calling this function and will be 
+ *      cleaned up by this function. A unique directory will be created on the
+ *      compute node in the temporary storage space associated with the
+ *      application. This avoids naming conflicts between other tools using the
+ *      ALPS toolhelper interface. This unique directory will contains 
+ *      subdirectories /bin that contains all binaries and /lib that contains 
+ *      all libaries. Any files will not be placed in a subdirectory and are 
+ *      available directly in the current working directory of the tool daemon.
+ *      All binaries will be found in the PATH of the tool daemon process, and
+ *      all libraries will be found in the LD_LIBRARY_PATH of the tool daemon
+ *      process.
  *
- *      A SESSION_ID can be provided to associate this tool daemon with an
+ *      A CTI_SESSION_ID can be provided to associate this tool daemon with an
  *      existing tool daemon's environment previously setup on the compute node.
  *      Any libraries or files that were previously shipped will also be
  *      available to the new tool daemon. This can also be used to exec the tool
@@ -486,13 +499,13 @@ extern int	killAprun(uint64_t apid, int signum);
  *      call to sendManifest(). If a session id is provided, the return value
  *      from this function will be the same session id on success.
  *
- *      If both MANIFEST_ID and SESSION_ID arguments are provided, the manifest
- *      must have been created using the same session, otherwise an error will
- *      occur.
+ *      If both CTI_MANIFEST_ID and CTI_SESSION_ID arguments are provided, the
+ *      manifest must have been created using the same session, otherwise an
+ *      error will occur.
  *
  *      If the debug option evaluates to true, daemon launcher will attempt to 
- *      read the environment variable defined by DBG_LOG_ENV_VAR and create a
- *      log file at this location. If the environment variable is not found or
+ *      read the environment variable defined by CTI_DBG_LOG_ENV_VAR and create
+ *      a log file at this location. If the environment variable is not found or
  *      is null, it will create a log file in the /tmp directory on the compute
  *      node. It will then dup the STDOUT/STDERR file channels to this log file.
  *      This is the only way to capture stdout/stderr output from a tool program
@@ -515,19 +528,20 @@ extern int	killAprun(uint64_t apid, int signum);
  *                set in the environment of the fstr process. The strings
  *                in this list shall be formed in a "envVar=val" manner.
  *      debug -   If true, create a log file at the location provided by
- *                DBG_LOG_ENV_VAR. Redirect stdout/stderr to the log
+ *                CTI_DBG_LOG_ENV_VAR. Redirect stdout/stderr to the log
  *                files fd.
  *
  * Returns
- *      A non-zero SESSION_ID on success, or else 0 on failure.
+ *      A non-zero CTI_SESSION_ID on success, or else 0 on failure.
  * 
  */
-extern SESSION_ID execToolDaemon(uint64_t apid, MANIFEST_ID mid, SESSION_ID sid,
-                           char *fstr, char **args, char **env, int debug);
+extern CTI_SESSION_ID cti_execToolDaemon(uint64_t apid, CTI_MANIFEST_ID mid, 
+                           CTI_SESSION_ID sid, char *fstr, char **args,
+                           char **env, int debug);
 
 /*
- * createNewManifest - Create a new manifest to ship additional binaries, 
- *                     libraries, and files when exec'ing a tool daemon.
+ * cti_createNewManifest - Create a new manifest to ship additional binaries, 
+ *                         libraries, and files when exec'ing a tool daemon.
  * Detail
  *      This function is used to create a new internal manifest list used to
  *      ship additional binaries, libraries, and files with a tool daemon
@@ -536,25 +550,25 @@ extern SESSION_ID execToolDaemon(uint64_t apid, MANIFEST_ID mid, SESSION_ID sid,
  *      and file names will be added to the manifest. For instance, if multiple
  *      binaries require libc.so, it will only be added once to the manifest.
  *
- *      An optional SESSION_ID argument can be used to associate the new 
- *      manifest with an existing session created by a call to execToolDaemon()
- *      or sendManifest(). In this case the existing file hiearchy will be used
- *      from the previous call and uniqueness requirements will apply to the
- *      previous manifest. If this is a brand new instance, pass in 0 for the
- *      sid argument.
+ *      An optional CTI_SESSION_ID argument can be used to associate the new 
+ *      manifest with an existing session created by a call to
+ *      cti_execToolDaemon() or cti_sendManifest(). In this case the existing
+ *      file hiearchy will be used from the previous call and uniqueness
+ *      requirements will apply to the previous manifest. If this is a brand new
+ *      instance, pass in 0 for the sid argument.
  *
  * Arguments
  *      sid -     The optional session id of a previously create session, or
  *                0 if no session association should be made.
  *
  * Returns
- *      A non-zero MANIFEST_ID on success, or else 0 on failure.
+ *      A non-zero CTI_MANIFEST_ID on success, or else 0 on failure.
  *
  */
-extern MANIFEST_ID	createNewManifest(SESSION_ID sid);
+extern CTI_MANIFEST_ID	cti_createNewManifest(CTI_SESSION_ID sid);
 
 /*
- * destroyManifest - Cleanup an existing manifest.
+ * cti_destroyManifest - Cleanup an existing manifest.
  *
  * Detail
  *      This function is used to cleanup the internal memory associated with an
@@ -562,20 +576,20 @@ extern MANIFEST_ID	createNewManifest(SESSION_ID sid);
  *      shipping the manifest during error handling.
  *
  * Arguments
- *      mid -     The MANIFEST_ID of the existing manifest.
+ *      mid -     The CTI_MANIFEST_ID of the existing manifest.
  *
  * Returns
  *      Returns no value.
  *
  */
-extern void	destroyManifest(MANIFEST_ID mid);
+extern void	cti_destroyManifest(CTI_MANIFEST_ID mid);
 
 /*
- * addManifestBinary - Add a program executable to an existing manifest.
+ * cti_addManifestBinary - Add a program executable to an existing manifest.
  * 
  * Detail
  *      This function is used to add a program binary to an existing manifest
- *      based on the MANIFEST_ID argument. The program binary along with any
+ *      based on the CTI_MANIFEST_ID argument. The program binary along with any
  *      required shared library dependencies determined by the LD_AUDIT 
  *      interface will be added to the manifest. This is useful if a tool daemon
  *      needs to fork/exec another program at some point during its lifetime.
@@ -583,7 +597,7 @@ extern void	destroyManifest(MANIFEST_ID mid);
  *      libraries will be found in the LD_LIBRARY_PATH of the tool daemon.
  *
  * Arguments
- *      mid -     The MANIFEST_ID of the existing manifest.
+ *      mid -     The CTI_MANIFEST_ID of the existing manifest.
  *      fstr -    The name of the binary to add to the manifest. This can either
  *                be a fullpath name to the file or else the file name if the 
  *                binary is found within PATH.
@@ -592,21 +606,21 @@ extern void	destroyManifest(MANIFEST_ID mid);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	addManifestBinary(MANIFEST_ID mid, char *fstr);
+extern int	cti_addManifestBinary(CTI_MANIFEST_ID mid, char *fstr);
 
 /*
- * addManifestLibrary - Add a library to an existing manifest.
+ * cti_addManifestLibrary - Add a library to an existing manifest.
  * 
  * Detail
  *      This function is used to add a shared library to an existing manifest
- *      based on the MANIFEST_ID argument. The library will only be added to the
- *      manifest if it has a unique name to avoid redundant shipping. This is
- *      useful if a tool daemon needs to dlopen a shared library at some point
- *      during its lifetime. All libraries will be found in the LD_LIBRARY_PATH
- *      of the tool daemon.
+ *      based on the CTI_MANIFEST_ID argument. The library will only be added to
+ *      the manifest if it has a unique name to avoid redundant shipping. This
+ *      is useful if a tool daemon needs to dlopen a shared library at some
+ *      point during its lifetime. All libraries will be found in the 
+ *      LD_LIBRARY_PATH of the tool daemon.
  *
  * Arguments
- *      mid -     The MANIFEST_ID of the existing manifest.
+ *      mid -     The CTI_MANIFEST_ID of the existing manifest.
  *      fstr -    The name of the shared library to add to the manifest. This
  *                can either be a fullpath name to the library or else the 
  *                library name if the library is found within LD_LIBRARY_PATH or
@@ -617,20 +631,20 @@ extern int	addManifestBinary(MANIFEST_ID mid, char *fstr);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	addManifestLibrary(MANIFEST_ID mid, char *fstr);
+extern int	cti_addManifestLibrary(CTI_MANIFEST_ID mid, char *fstr);
 
 /*
- * addManifestFile - Add a regular file to an existing manifest.
+ * cti_addManifestFile - Add a regular file to an existing manifest.
  * 
  * Detail
  *      This function is used to add a regular file to an existing manifest
- *      based on the MANIFEST_ID argument. The file will only be added to the
- *      manifest if it has a unique name to avoid redundant shipping. This is
- *      useful if a tool daemon needs to read a required configuration file for
- *      a program or any other file that may be required by a tool daemon.
+ *      based on the CTI_MANIFEST_ID argument. The file will only be added to
+ *      the manifest if it has a unique name to avoid redundant shipping. This
+ *      is useful if a tool daemon needs to read a required configuration file
+ *      fo a program or any other file that may be required by a tool daemon.
  *
  * Arguments
- *      mid -     The MANIFEST_ID of the existing manifest.
+ *      mid -     The CTI_MANIFEST_ID of the existing manifest.
  *      fstr -    The name of the file to add to the manifest. This can either 
  *                be a fullpath name to the file or else the file name if the 
  *                file is found within the users PATH.
@@ -639,21 +653,21 @@ extern int	addManifestLibrary(MANIFEST_ID mid, char *fstr);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	addManifestFile(MANIFEST_ID mid, char *fstr);
+extern int	cti_addManifestFile(CTI_MANIFEST_ID mid, char *fstr);
 
 /*
- * sendManifest - Ship a manifest to an apid and unpack it into temporary
- *                storage.
+ * cti_sendManifest - Ship a manifest to an apid and unpack it into temporary
+ *                    storage.
  * 
  * Detail
  *      This function is used to ship a manifest to the compute nodes and unpack
  *      it into the applications toolhelper directory. This is useful if there 
  *      is a need to interact with third party tools that do not use this this
- *      interface. The returned SESSION_ID can be used in the future to send
+ *      interface. The returned CTI_SESSION_ID can be used in the future to send
  *      additional manfiests to, or to exec tool daemons. In that case the 
  *      future manifests/tool daemons will share the same directory structure.
  *
- *      The manifest argument must be a valid MANIFEST_ID that was created 
+ *      The manifest argument must be a valid CTI_MANIFEST_ID that was created 
  *      before calling this function and will be cleaned up by this function. A 
  *      unique directory will be created on the compute node in the
  *      temporary storage space associated with the application. This avoids
@@ -664,12 +678,12 @@ extern int	addManifestFile(MANIFEST_ID mid, char *fstr);
  *      current working directory of the tool daemon.
  *
  *      If the staging directory unpacked in the applications toolhelper 
- *      directory needs to be static, the CRAY_CTI_STAGE_DIR environment
+ *      directory needs to be static, the CTI_DAEMON_STAGE_VAR environment
  *      variable can be used to define the location.
  *
  *      If the debug option evaluates to true, daemon launcher will attempt to 
- *      read the environment variable defined by DBG_LOG_ENV_VAR and create a
- *      log file at this location. If the environment variable is not found or
+ *      read the environment variable defined by CTI_DBG_LOG_ENV_VAR and create
+ *      a log file at this location. If the environment variable is not found or
  *      is null, it will create a log file in the /tmp directory on the compute
  *      node. It will then dup the STDOUT/STDERR file channels to this log file.
  *      This is the only way to capture stdout/stderr output from a tool program
@@ -678,37 +692,40 @@ extern int	addManifestFile(MANIFEST_ID mid, char *fstr);
  * Arguments
  *      apid -    The uint64_t apid of the registered aprun session to launch
  *                the tool program to.
- *      mid -     The MANIFEST_ID of the existing manifest.
+ *      mid -     The CTI_MANIFEST_ID of the existing manifest.
  *      debug -   If true, create a log file at the location provided by
- *                DBG_LOG_ENV_VAR. Redirect stdout/stderr to the log
+ *                CTI_DBG_LOG_ENV_VAR. Redirect stdout/stderr to the log
  *                files fd.
  *
  * Returns
  *      A non-zero SESSION_ID on success, or else 0 on failure.
  * 
  */
-extern SESSION_ID	sendManifest(uint64_t apid, MANIFEST_ID mid, int debug);
+extern CTI_SESSION_ID	cti_sendManifest(uint64_t apid, CTI_MANIFEST_ID mid, 
+                                      int debug);
 
 /*
- * getSessionLockFiles - Get the name(s) of instance dependency lock files.
+ * cti_getSessionLockFiles - Get the name(s) of instance dependency lock files.
  * 
  * Detail
  *      This function is used to return a null terminated list of lock file
  *      locations that must exist for dependency requirements of previously
- *      shipped manifests/tool daemons to be met.
+ *      shipped manifests/tool daemons to be met. These files are not accessible
+ *      from the login node. The strings can be used as arguments passed to the
+ *      tool daemons.
  *
  * Arguments
- *      sid -     The SESSION_ID of the existing session.
+ *      sid -     The CTI_SESSION_ID of the existing session.
  *
  * Returns
  *      A null terminated array of strings, or else NULL on error.
  * 
  */
-extern char **	getSessionLockFiles(SESSION_ID sid);
+extern char **	cti_getSessionLockFiles(CTI_SESSION_ID sid);
 
 /*
- * getSessionRootDir - Get root directory of session directory structure on 
- *                     compute node.
+ * cti_getSessionRootDir - Get root directory of session directory structure on 
+ *                         compute node.
  * 
  * Detail
  *      This function is used to return the path of the root location of the
@@ -718,16 +735,16 @@ extern char **	getSessionLockFiles(SESSION_ID sid);
  *      free the allocated storage when it is no longer needed.
  *
  * Arguments
- *      sid -     The SESSION_ID of the existing session.
+ *      sid -     The CTI_SESSION_ID of the existing session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
  * 
  */
-extern char *	getSessionRootDir(SESSION_ID sid);
+extern char *	cti_getSessionRootDir(CTI_SESSION_ID sid);
 
 /*
- * getSessionBinDir - Get bin directory of session binaries on compute node.
+ * cti_getSessionBinDir - Get bin directory of session binaries on compute node.
  * 
  * Detail
  *      This function is used to return the path of the binary location of the
@@ -738,16 +755,17 @@ extern char *	getSessionRootDir(SESSION_ID sid);
  *      tool daemon binaries are placed within this directory.
  *
  * Arguments
- *      sid -     The SESSION_ID of the existing session.
+ *      sid -     The CTI_SESSION_ID of the existing session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
  * 
  */
-extern char *	getSessionBinDir(SESSION_ID sid);
+extern char *	cti_getSessionBinDir(CTI_SESSION_ID sid);
 
 /*
- * getSessionLibDir - Get lib directory of session libraries on compute node.
+ * cti_getSessionLibDir - Get lib directory of session libraries on compute 
+ *                        node.
  * 
  * Detail
  *      This function is used to return the path of the library location of the
@@ -758,16 +776,16 @@ extern char *	getSessionBinDir(SESSION_ID sid);
  *      tool daemon libraries are placed within this directory.
  *
  * Arguments
- *      sid -     The SESSION_ID of the existing session.
+ *      sid -     The CTI_SESSION_ID of the existing session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
  * 
  */
-extern char *	getSessionLibDir(SESSION_ID sid);
+extern char *	cti_getSessionLibDir(CTI_SESSION_ID sid);
 
 /*
- * getSessionFileDir - Get file directory of session files on compute node.
+ * cti_getSessionFileDir - Get file directory of session files on compute node.
  * 
  * Detail
  *      This function is used to return the path of the file location of the
@@ -778,16 +796,16 @@ extern char *	getSessionLibDir(SESSION_ID sid);
  *      files are placed within this directory.
  *
  * Arguments
- *      sid -     The SESSION_ID of the existing session.
+ *      sid -     The CTI_SESSION_ID of the existing session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
  * 
  */
-extern char *	getSessionFileDir(SESSION_ID sid);
+extern char *	cti_getSessionFileDir(CTI_SESSION_ID sid);
 
 /*
- * getSessionTmpDir - Get tmp directory of session on compute node.
+ * cti_getSessionTmpDir - Get tmp directory of session on compute node.
  * 
  * Detail
  *      This function is used to return the path of the tmp location on the 
@@ -798,12 +816,12 @@ extern char *	getSessionFileDir(SESSION_ID sid);
  *      shared across sessions and populated by the tool daemon only.
  *
  * Arguments
- *      sid -     The SESSION_ID of the existing session.
+ *      sid -     The CTI_SESSION_ID of the existing session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
  * 
  */
-extern char *	getSessionTmpDir(SESSION_ID sid);
+extern char *	cti_getSessionTmpDir(CTI_SESSION_ID sid);
 
-#endif /* _TOOL_FRONTEND_H */
+#endif /* _CRAY_TOOLS_FE_H */

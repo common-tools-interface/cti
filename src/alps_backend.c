@@ -4,7 +4,7 @@
  *		  an easy to use interface to obtain application information
  *		  for backend tool daemons running on the compute nodes.
  *
- * © 2011-2012 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -33,20 +33,24 @@
 
 #include "alps/libalpsutil.h"
 
+typedef struct
+{
+	int		nid;	// compute node id
+	char *	cname;	// compute node hostname
+} computeNode_t;
 
 /* static prototypes */
-static computeNode_t *		getComputeNodeInfo(void);
-static int					getAlpsPlacementInfo(void);
+static computeNode_t *		_cti_getComputeNodeInfo(void);
+static int					_cti_getAlpsPlacementInfo(void);
 
 /* global variables */
-static computeNode_t *		thisNode  = (computeNode_t *)NULL;		// compute node information
-static alpsAppLayout_t *	appLayout = (alpsAppLayout_t *)NULL;	// node application information
-static pmi_attribs_t *		attrs = (pmi_attribs_t *)NULL;			// node pmi_attribs information
-static char *				apid_str = (char *)NULL;				// temporary pointer to apid str returned by getenv
-static uint64_t				apid = 0;								// global apid obtained from environment variable
+static computeNode_t *		_cti_thisNode	= NULL;	// compute node information
+static alpsAppLayout_t *	_cti_appLayout	= NULL;	// node application information
+static pmi_attribs_t *		_cti_attrs 		= NULL;	// node pmi_attribs information
+static uint64_t				_cti_apid 		= 0;	// global apid obtained from environment variable
 
 /*
-*       getComputeNodeInfo - read cname and nid from alps defined system locations
+*       _cti_getComputeNodeInfo - read cname and nid from alps defined system locations
 *
 *       args: None.
 *
@@ -55,7 +59,7 @@ static uint64_t				apid = 0;								// global apid obtained from environment var
 *
 */
 static computeNode_t *
-getComputeNodeInfo()
+_cti_getComputeNodeInfo()
 {
 	FILE *alps_fd;			// ALPS NID/CNAME file stream
 	char file_buf[BUFSIZ];	// file read buffer
@@ -114,12 +118,12 @@ getComputeNodeInfo()
 }
 
 static int
-getAlpsPlacementInfo()
+_cti_getAlpsPlacementInfo()
 {
 	alpsAppLayout_t *	tmpLayout;
 	
 	// sanity check
-	if (apid <= 0)
+	if (_cti_apid == 0)
 		return 1;
 	
 	// malloc size for the struct
@@ -131,113 +135,121 @@ getAlpsPlacementInfo()
 	memset(tmpLayout, 0, sizeof(alpsAppLayout_t));     // clear it to NULL
 	
 	// get application information from alps
-	if (alps_get_placement_info(apid, tmpLayout, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) < 0)
+	if (alps_get_placement_info(_cti_apid, tmpLayout, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) < 0)
 	{
 		fprintf(stderr, "apls_get_placement_info failed.\n");
 		return 1;
 	}
 	
 	// set the global pointer
-	appLayout = tmpLayout;
+	_cti_appLayout = tmpLayout;
 	
 	return 0;
 }
 
-nodeAppPidList_t *
-findAppPids()
+cti_pidList_t *
+cti_findAppPids()
 {
-	nodeAppPidList_t * rtn;
+	cti_pidList_t * rtn;
+	int i;
 
-	// Try to read the apid from the environment if we haven't done so already
-	if (apid == 0)
+	// Try to read the _cti_apid from the environment if we haven't done so already
+	if (_cti_apid == 0)
 	{
-		apid_str = getenv(APID_ENV_VAR);
-		if (apid_str == (char *)NULL)
-			return (nodeAppPidList_t *)NULL;      
+		char *apid_str = getenv(APID_ENV_VAR);
+		if (apid_str == NULL)
+			return NULL;      
 		
-		apid = (uint64_t)strtoull(apid_str, NULL, 10);
+		_cti_apid = (uint64_t)strtoull(apid_str, NULL, 10);
 	}
 	
-	// Call getPmiAttribsInfo - We now require the pmi_attribs file to exist
+	// Call _cti_getPmiAttribsInfo - We require the pmi_attribs file to exist
 	// in order to function properly.
-	if ((attrs = getPmiAttribsInfo(apid)) == (pmi_attribs_t *)NULL)
+	if (_cti_attrs == NULL)
 	{
-		// Something messed up, so fail.
-		return (nodeAppPidList_t *)NULL;
+		if ((_cti_attrs = _cti_getPmiAttribsInfo(_cti_apid)) == NULL)
+		{
+			// Something messed up, so fail.
+			return NULL;
+		}
 	}
 	
-	// ensure the attrs object has a app_rankPidPairs array
-	if (attrs->app_rankPidPairs == (nodeRankPidPair_t *)NULL)
+	// ensure the _cti_attrs object has a app_rankPidPairs array
+	if (_cti_attrs->app_rankPidPairs == NULL)
 	{
 		// something is messed up, so fail.
-		return (nodeAppPidList_t *)NULL;
+		return NULL;
 	}
 	
 	// allocate the return object
-	if ((rtn = malloc(sizeof(nodeAppPidList_t))) == (void *)0)
+	if ((rtn = malloc(sizeof(cti_pidList_t))) == (void *)0)
 	{
 		fprintf(stderr, "malloc failed.\n");
-		return (nodeAppPidList_t *)NULL;
+		return NULL;
 	}
 	
-	rtn->numPairs = attrs->app_nodeNumRanks;
+	rtn->numPids = _cti_attrs->app_nodeNumRanks;
 	
-	// allocate the nodeRankPidPair_t array
-	if ((rtn->rankPidPairs = malloc(rtn->numPairs * sizeof(nodeRankPidPair_t))) == (void *)0)
+	// allocate the cti_rankPidPair_t array
+	if ((rtn->pids = malloc(rtn->numPids * sizeof(cti_rankPidPair_t))) == (void *)0)
 	{
 		fprintf(stderr, "malloc failed.\n");
 		free(rtn);
-		return (nodeAppPidList_t *)NULL;
+		return NULL;
 	}
 	
-	// memcpy the attrs rank/pid array to the rtn rank/pid array
-	memcpy(rtn->rankPidPairs, attrs->app_rankPidPairs, rtn->numPairs * sizeof(nodeRankPidPair_t));
+	// set the _cti_attrs rank/pid array to the rtn rank/pid array
+	for (i=0; i < rtn->numPids; ++i)
+	{
+		rtn->pids[i].pid = _cti_attrs->app_rankPidPairs[i].pid;
+		rtn->pids[i].rank = _cti_attrs->app_rankPidPairs[i].rank;
+	}
 	
 	return rtn;
 }
 
 void
-destroy_nodeAppPidList(nodeAppPidList_t *lst)
+cti_destroy_pidList(cti_pidList_t *lst)
 {
 	// sanity check
-	if (lst == (nodeAppPidList_t *)NULL)
+	if (lst == NULL)
 		return;
 		
-	if (lst->rankPidPairs != (nodeRankPidPair_t *)NULL)
-		free(lst->rankPidPairs);
+	if (lst->pids != NULL)
+		free(lst->pids);
 		
 	free(lst);
 }
 
 char *
-getNodeCName()
+cti_getNodeCName()
 {
-	// ensure the thisNode exists
-	if (thisNode == (computeNode_t *)NULL)
+	// ensure the _cti_thisNode exists
+	if (_cti_thisNode == NULL)
 	{
-		if ((thisNode = getComputeNodeInfo()) == (computeNode_t *)NULL)
+		if ((_cti_thisNode = _cti_getComputeNodeInfo()) == NULL)
 		{
 			// couldn't get the compute node info for some odd reason
-			return (char *)NULL;
+			return NULL;
 		}
 	}
 	
 	// return the cname
-	return strdup(thisNode->cname);
+	return strdup(_cti_thisNode->cname);
 }
 
 char *
-getNodeNidName()
+cti_getNodeNidName()
 {
 	char * nidHost;
 
-	// ensure the thisNode exists
-	if (thisNode == (computeNode_t *)NULL)
+	// ensure the _cti_thisNode exists
+	if (_cti_thisNode == NULL)
 	{
-		if ((thisNode = getComputeNodeInfo()) == (computeNode_t *)NULL)
+		if ((_cti_thisNode = _cti_getComputeNodeInfo()) == NULL)
 		{
 			// couldn't get the compute node info for some odd reason
-			return (char *)NULL;
+			return NULL;
 		}
 	}
 	
@@ -245,23 +257,23 @@ getNodeNidName()
 	if ((nidHost = malloc(ALPS_XT_HOSTNAME_LEN*sizeof(char))) == (void *)0)
 	{
 		// malloc failed
-		return (char *)NULL;
+		return NULL;
 	}
 	
 	// create the nid hostname string
-	snprintf(nidHost, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, thisNode->nid);
+	snprintf(nidHost, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, _cti_thisNode->nid);
 	
 	// return the nid hostname
 	return nidHost;
 }
 
 int
-getNodeNid()
+cti_getNodeNid()
 {
-	// ensure the thisNode exists
-	if (thisNode == (computeNode_t *)NULL)
+	// ensure the _cti_thisNode exists
+	if (_cti_thisNode == NULL)
 	{
-		if ((thisNode = getComputeNodeInfo()) == (computeNode_t *)NULL)
+		if ((_cti_thisNode = _cti_getComputeNodeInfo()) == NULL)
 		{
 			// couldn't get the compute node info for some odd reason
 			return -1;
@@ -269,58 +281,58 @@ getNodeNid()
 	}
 	
 	// return the nid
-	return thisNode->nid;
+	return _cti_thisNode->nid;
 }
 
 int
-getFirstPE()
+cti_getFirstPE()
 {
-	// Try to read the apid from the environment if we haven't done so already
-	if (apid == 0)
+	// Try to read the _cti_apid from the environment if we haven't done so already
+	if (_cti_apid == 0)
 	{
-		apid_str = getenv(APID_ENV_VAR);
-		if (apid_str == (char *)NULL)
+		char *apid_str = getenv(APID_ENV_VAR);
+		if (apid_str == NULL)
 			return -1;      
 		
-		apid = (uint64_t)strtoull(apid_str, NULL, 10);
+		_cti_apid = (uint64_t)strtoull(apid_str, NULL, 10);
 	}
 	
-	// make sure the appLayout object has been created
-	if (appLayout == (alpsAppLayout_t *)NULL)
+	// make sure the _cti_appLayout object has been created
+	if (_cti_appLayout == (alpsAppLayout_t *)NULL)
 	{
 		// make sure we got the alpsAppLayout_t object
-		if (getAlpsPlacementInfo())
+		if (_cti_getAlpsPlacementInfo())
 		{
 			return -1;
 		}
 	}
 	
-	return appLayout->firstPe;
+	return _cti_appLayout->firstPe;
 }
 
 int
-getPesHere()
+cti_getPesHere()
 {
-	// Try to read the apid from the environment if we haven't done so already
-	if (apid == 0)
+	// Try to read the _cti_apid from the environment if we haven't done so already
+	if (_cti_apid == 0)
 	{
-		apid_str = getenv(APID_ENV_VAR);
-		if (apid_str == (char *)NULL)
+		char *apid_str = getenv(APID_ENV_VAR);
+		if (apid_str == NULL)
 			return -1;      
 		
-		apid = (uint64_t)strtoull(apid_str, NULL, 10);
+		_cti_apid = (uint64_t)strtoull(apid_str, NULL, 10);
 	}
 	
-	// make sure the appLayout object has been created
-	if (appLayout == (alpsAppLayout_t *)NULL)
+	// make sure the _cti_appLayout object has been created
+	if (_cti_appLayout == NULL)
 	{
 		// make sure we got the alpsAppLayout_t object
-		if (getAlpsPlacementInfo())
+		if (_cti_getAlpsPlacementInfo())
 		{
 			return -1;
 		}
 	}
 	
-	return appLayout->numPesHere;
+	return _cti_appLayout->numPesHere;
 }
 

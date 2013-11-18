@@ -1,7 +1,7 @@
 /******************************************************************************\
  * alps_backend.h - A header file for the alps_backend interface.
  *
- * © 2011-2012 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -26,26 +26,27 @@
 #include "alps_defs.h"
 #include "pmi_attribs_parser.h"
 
+// External visibility
 typedef struct
 {
-        int                     numPairs;
-        nodeRankPidPair_t *     rankPidPairs;
-} nodeAppPidList_t;
+	pid_t	pid;	// This entries pid
+	int		rank;	// This entries rank
+} cti_rankPidPair_t;
 
 typedef struct
 {
-        int             nid;    // compute node id
-        char *          cname;  // compute node hostname
-} computeNode_t;
+	int					numPids;
+	cti_rankPidPair_t *	pids;
+} cti_pidList_t;
 
 /* function prototypes */
-nodeAppPidList_t *      findAppPids(void);
-void                    destroy_nodeAppPidList(nodeAppPidList_t *);
-char *                  getNodeCName(void);
-char *                  getNodeNidName(void);
-int                     getNodeNid(void);
-int                     getFirstPE(void);
-int                     getPesHere(void);
+cti_pidList_t *		cti_findAppPids(void);
+void				cti_destroy_pidList(cti_pidList_t *);
+char *				cti_getNodeCName(void);
+char *				cti_getNodeNidName(void);
+int					cti_getNodeNid(void);
+int					cti_getFirstPE(void);
+int					cti_getPesHere(void);
 
 #endif /* _ALPS_BACKEND_H */
 

@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * stringList.h - Header file for the stringList interface.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -30,9 +30,9 @@ typedef struct
 } stringList_t;
 
 /* function prototypes */
-stringList_t *  newStringList(void);
-int             consumeStringList(stringList_t *);
-int             searchStringList(stringList_t *, const char *);
-int             addString(stringList_t *, const char *);
+stringList_t *  _cti_newStringList(void);
+int             _cti_consumeStringList(stringList_t *);
+int             _cti_searchStringList(stringList_t *, const char *);
+int             _cti_addString(stringList_t *, const char *);
 
 #endif /* _STRINGLIST_H */

@@ -54,7 +54,7 @@ const struct option long_opts[] = {
 			{0, 0, 0, 0}
 			};
 				
-void
+static void
 usage(char *name)
 {
 	fprintf(stdout, "Usage: %s [OPTIONS]...\n", name);
@@ -296,8 +296,8 @@ main(int argc, char **argv)
 		// write the apid into the file_buf
 		snprintf(file_buf, BUFSIZ, "%llu", (long long unsigned int)apid);
 		
-		log = create_log(nid, file_buf);
-		hook_stdoe(log);
+		log = _cti_create_log(nid, file_buf);
+		_cti_hook_stdoe(log);
 	}
 	
 	// Ensure the user provided a directory or manifest option
@@ -526,7 +526,15 @@ main(int argc, char **argv)
 		fclose(lock_file);
 	}
 	
-	// Set the ROOT_DIR_VAR environment variable to the toolhelper directory.
+	// Set the ALPS_DIR_VAR environment variable to the toolhelper directory.
+	if (setenv(ALPS_DIR_VAR, manifest_path, 1) < 0)
+	{
+		// failure
+		fprintf(stderr, "setenv failed\n");
+		return 1;
+	}
+	
+	// Set the ROOT_DIR_VAR environment variable to the manifest directory.
 	if (setenv(ROOT_DIR_VAR, manifest_path, 1) < 0)
 	{
 		// failure
@@ -597,8 +605,8 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	// call adjustPaths so that we chdir to where we shipped stuff over to and setup PATH/LD_LIBRARY_PATH
-	if (adjustPaths(manifest_path))
+	// call _cti_adjustPaths so that we chdir to where we shipped stuff over to and setup PATH/LD_LIBRARY_PATH
+	if (_cti_adjustPaths(manifest_path))
 	{
 		fprintf(stderr, "Could not adjust paths.\n");
 		free(tool_path);
