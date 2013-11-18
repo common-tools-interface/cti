@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * alps_callback_daemon.c - The compute node daemon portion of the alps_callback_demo.
  *
- * © 2011-2012 Cray Inc.	All Rights Reserved.
+ * © 2011-2013 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -30,7 +30,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include "tool_backend.h"
+#include "cray_tools_be.h"
 
 #include "alps_callback_demo.h"
 
@@ -41,13 +41,13 @@ const struct option long_opts[] = {
 			};
 
 // service node information
-char *	fe_hostname = (char *)NULL;
+char *	fe_hostname = NULL;
 // this nodes information
-char *	my_hostname = (char *)NULL;
+char *	my_hostname = NULL;
 int		firstPe = 0;
 int		numPes = 0;
 // pid information
-nodeAppPidList_t *	appPids = (nodeAppPidList_t *)NULL;
+cti_pidList_t *	appPids = NULL;
 
 int
 callback_register()
@@ -112,7 +112,7 @@ main(int argc, char **argv)
 		switch (c)
 		{
 			case 'h':
-				if (optarg == (char *)NULL)
+				if (optarg == NULL)
 				{
 					//usage();
 					return 1;
@@ -130,23 +130,23 @@ main(int argc, char **argv)
 	}
 	
 	// get my nodes cname
-	if ((my_hostname = getNodeCName()) == (char *)NULL)
+	if ((my_hostname = cti_getNodeCName()) == NULL)
 	{
-		fprintf(stderr, "getNodeCName failed.\n");
+		fprintf(stderr, "cti_getNodeCName failed.\n");
 		return 1;
 	}
 	fprintf(stderr, "My hostname: %s\n", my_hostname);
 	
 	// get the first PE that resides on this node
-	if ((firstPe = getFirstPE()) == -1)
+	if ((firstPe = cti_getFirstPE()) == -1)
 	{
-		fprintf(stderr, "getFirstPE failed.\n");
+		fprintf(stderr, "cti_getFirstPE failed.\n");
 		return 1;
 	}
 	fprintf(stderr, "My first PE: %d\n", firstPe);
 	
 	// get the number of PEs that reside on this node
-	if ((numPes = getPesHere()) == -1)
+	if ((numPes = cti_getPesHere()) == -1)
 	{
 		fprintf(stderr, "getPesHere failed.\n");
 		return 1;
@@ -154,12 +154,12 @@ main(int argc, char **argv)
 	fprintf(stderr, "PEs here: %d\n", numPes);
 	
 	// get the pids for the app
-	if ((appPids = findAppPids()) == (nodeAppPidList_t *)NULL)
+	if ((appPids = cti_findAppPids()) == NULL)
 	{
 		fprintf(stderr, "findAppPids failed.\n");
 		return 1;
 	}
-	fprintf(stderr, "App pid_t's here: %d\n", appPids->numPairs);
+	fprintf(stderr, "App pid_t's here: %d\n", appPids->numPids);
 	
 	callback_register();
 	

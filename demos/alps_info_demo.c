@@ -1,9 +1,9 @@
 /*********************************************************************************\
- * alps_info_demo.c - An example program which takes advantage of the CrayTool
- *			Interface which will gather information from ALPS about a previously
- *          launch job.
+ * alps_info_demo.c - An example program which takes advantage of the Cray
+ *			tools interface which will gather information from ALPS about a
+ *          previously launched job.
  *
- * © 2012 Cray Inc.	All Rights Reserved.
+ * © 2012-2013 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "tool_frontend.h"
+#include "cray_tools_fe.h"
 
 void
 usage(char *name)
@@ -37,17 +37,17 @@ usage(char *name)
 int
 main(int argc, char **argv)
 {
-	uint64_t					myapid;
+	uint64_t			myapid;
 	// values returned by the tool_frontend library.
-	char *						mycname;
-	int							mynid;
-	int							appnid;
-	int							appnumpes;
-	int							appnumnodes;
-	char **						apphostlist;
-	appHostPlacementList_t *	apphostplacement;
+	char *				mycname;
+	int					mynid;
+	int					appnid;
+	int					appnumpes;
+	int					appnumnodes;
+	char **				apphostlist;
+	cti_hostsList_t *	apphostplacement;
 	// internal variables
-	char **		i;
+	char **	i;
 	int		j;
 	
 	if (argc < 2)
@@ -60,7 +60,7 @@ main(int argc, char **argv)
 	
 	myapid = (uint64_t)strtoull(argv[1], NULL, 10);
 	
-	if (registerApid(myapid))
+	if (cti_registerApid(myapid))
 	{
 		fprintf(stderr, "Error: Could not register apid!\n");
 		return 1;
@@ -69,71 +69,71 @@ main(int argc, char **argv)
 	printf("Application apid %llu registered.\n", (long long unsigned int)myapid);
 	
 	/*
-	* getNodeCName - Returns the cabinet hostname of the active login node.
+	* cti_getNodeCName - Returns the cabinet hostname of the active login node.
 	*/
-	if ((mycname = getNodeCName()) == (char *)NULL)
+	if ((mycname = cti_getNodeCName()) == NULL)
 	{
 		fprintf(stderr, "Error: Could not query cname!\n");
 		return 1;
 	}
 	
 	/*
-	* getNodeNid - Returns the node id of the active login node.
+	* cti_getNodeNid - Returns the node id of the active login node.
 	*/
-	if ((mynid = getNodeNid()) < 0)
+	if ((mynid = cti_getNodeNid()) < 0)
 	{
 		fprintf(stderr, "Error: Could not query Nid!\n");
 		return 1;
 	}
 	
 	/*
-	* getAppNid - Returns the node id for the application associated with the apid.
+	* cti_getAppNid - Returns the node id for the application associated with the apid.
 	*/
-	if ((appnid = getAppNid(myapid)) < 0)
+	if ((appnid = cti_getAppNid(myapid)) < 0)
 	{
 		fprintf(stderr, "Error: Could not query application Nid!\n");
 		return 1;
 	}
 	
 	/*
-	* getNumAppPEs -	Returns the number of processing elements in the application
-	*					associated with the apid.
+	* cti_getNumAppPEs -	Returns the number of processing elements in the application
+	*						associated with the apid.
 	*/
-	if ((appnumpes = getNumAppPEs(myapid)) == 0)
+	if ((appnumpes = cti_getNumAppPEs(myapid)) == 0)
 	{
 		fprintf(stderr, "Error: Could not query numAppPEs!\n");
 		return 1;
 	}
 	
 	/*
-	* getNumAppNodes -	Returns the number of compute nodes allocated for the
-	*					application associated with the aprun pid.
+	* cti_getNumAppNodes -	Returns the number of compute nodes allocated for the
+	*						application associated with the aprun pid.
 	*/
-	if ((appnumnodes = getNumAppNodes(myapid)) == 0)
+	if ((appnumnodes = cti_getNumAppNodes(myapid)) == 0)
 	{
 		fprintf(stderr, "Error: Could not query numAppNodes!\n");
 		return 1;
 	}
 	
 	/*
-	* getAppHostsList - Returns a null terminated array of strings containing
-	*					the hostnames of the compute nodes allocated by ALPS
-	*					for the application associated with the aprun pid.
+	* cti_getAppHostsList - Returns a null terminated array of strings containing
+	*						the hostnames of the compute nodes allocated by ALPS
+	*						for the application associated with the aprun pid.
 	*/
-	if ((apphostlist = getAppHostsList(myapid)) == (char **)NULL)
+	if ((apphostlist = cti_getAppHostsList(myapid)) == NULL)
 	{
 		fprintf(stderr, "Error: Could not query appHostsList!\n");
 		return 1;
 	}
 	
 	/*
-	* getAppHostsPlacement -	Returns a appHostPlacementList_t struct containing
-	*							nodeHostPlacement_t entries that contain the hostname
-	*							of the compute nodes allocated by ALPS and the number
-	*							of PEs assigned to that host for the application 
-	*							associated with the aprun pid.
+	* cti_getAppHostsPlacement -	Returns a cti_hostsList_t containing cti_host_t
+	*								entries that contain the hostname of the compute
+	*								nodes allocated by ALPS and the number of PEs
+	*								assigned to that host for the application associated
+	*								with the aprun pid.
  	*/
-	if ((apphostplacement = getAppHostsPlacement(myapid)) == (appHostPlacementList_t *)NULL)
+	if ((apphostplacement = cti_getAppHostsPlacement(myapid)) == NULL)
 	{
 		fprintf(stderr, "Error: Could not query appHostsPlacement!\n");
 		return 1;
@@ -151,15 +151,15 @@ main(int argc, char **argv)
 	printf("Number of compute nodes used by application: %d\n", appnumnodes);
 	printf("\n");
 	
-	printf("The following is a list of compute node hostnames returned by getAppHostsList():\n\n");
+	printf("The following is a list of compute node hostnames returned by cti_getAppHostsList():\n\n");
 	i = apphostlist;
-	while (*i != (char *)NULL)
+	while (*i != NULL)
 	{
 		printf("%s\n", *i++);
 	}
 	
-	printf("\nThe following information was returned by getAppHostsPlacement():\n\n");
-	printf("There are %d host(s) in the appHostPlacementList_t struct.\n", apphostplacement->numHosts);
+	printf("\nThe following information was returned by cti_getAppHostsPlacement():\n\n");
+	printf("There are %d host(s) in the cti_hostsList_t struct.\n", apphostplacement->numHosts);
 	for (j=0; j < apphostplacement->numHosts; ++j)
 	{
 		printf("On host %s there are %d PEs.\n", apphostplacement->hosts[j].hostname, apphostplacement->hosts[j].numPes);
@@ -168,7 +168,7 @@ main(int argc, char **argv)
 	// don't forget to cleanup memory that was malloc'ed
 	free(mycname);
 	free(apphostlist);
-	destroy_appHostPlacementList(apphostplacement);
+	cti_destroy_hostsList(apphostplacement);
 	
 	return 0;
 }

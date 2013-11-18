@@ -32,7 +32,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include "tool_frontend.h"
+#include "cray_tools_fe.h"
 
 #include "alps_callback_demo.h"
 
@@ -70,14 +70,14 @@ callback_handler(void *thread_arg)
 	if (recv(args->cnodefd, recv_get, sizeof(recv_get), 0) < 0)
 	{
 		fprintf(stderr, "Failed to recieve.\n");
-		return (void *)NULL;
+		return NULL;
 	}
 	
 	// Parse the response and insert into the global table
-	if ((tok = strtok_r(recv_get, ":", &lasts)) == (char *)NULL)
+	if ((tok = strtok_r(recv_get, ":", &lasts)) == NULL)
 	{
 		fprintf(stderr, "Failed to parse recv buffer.\n");
-		return (void *)NULL;
+		return NULL;
 	}
 	
 	// first is the starting pe for that node
@@ -88,17 +88,17 @@ callback_handler(void *thread_arg)
 	// divided by the total number of pes divided by the number of nodes.
 	node = start_pe / (num_pes/app_nodes);
 	
-	if ((tok = strtok_r(NULL, ":", &lasts)) == (char *)NULL)
+	if ((tok = strtok_r(NULL, ":", &lasts)) == NULL)
 	{
 		fprintf(stderr, "Failed to parse recv buffer.\n");
-		return (void *)NULL;
+		return NULL;
 	}
 	cname = strdup(tok);	// second is the compute nodes cname
 	
-	if ((tok = strtok_r(NULL, ":", &lasts)) == (char *)NULL)
+	if ((tok = strtok_r(NULL, ":", &lasts)) == NULL)
 	{
 		fprintf(stderr, "Failed to parse recv buffer.\n");
-		return (void *)NULL;
+		return NULL;
 	}
 	local_pes = atoi(tok);	// last is the number of local pes on the node
 	
@@ -153,34 +153,34 @@ callback_listener(void *thread_arg)
 	if ((rc = getaddrinfo(NULL, CALLBACK_PORT, &args->hints, &args->listener)) != 0)
 	{
 		fprintf(stderr, "Getaddrinfo failed: %s\n", gai_strerror(rc));
-		return (void *)NULL;
+		return NULL;
 	}
 	
 	// create the socket
 	if ((args->listenfd = socket(args->listener->ai_family, args->listener->ai_socktype, args->listener->ai_protocol)) < 0)
 	{
 		fprintf(stderr, "Listener socket creation failed.\n");
-		return (void *)NULL;
+		return NULL;
 	}
 	
 	if (setsockopt(args->listenfd, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set))	!= 0)
 	{
 		fprintf(stderr, "Listener socket setsockopt failed.\n");
-		return (void *)NULL;
+		return NULL;
 	}
 	
 	// bind to the socket
 	if (bind(args->listenfd, args->listener->ai_addr, args->listener->ai_addrlen) == -1)
 	{
 		fprintf(stderr, "Listener bind on socket failed.\n");
-		return (void *)NULL;
+		return NULL;
 	}
 	
 	// listen on the socket
 	if (listen(args->listenfd, BACKLOG) < 0)
 	{
 		fprintf(stderr, "Listen failed.\n");
-		return (void *)NULL;
+		return NULL;
 	}
 	
 	// setup the handler thread attributes having a detached state
@@ -197,7 +197,7 @@ callback_listener(void *thread_arg)
 		if ((hargs = malloc(sizeof(handlerThreadArgs_t))) == (void *)0)
 		{
 			fprintf(stderr, "Unable to malloc thread arguments.\n");
-			return (void *)NULL;
+			return NULL;
 		}
 		
 		hargs->len = sizeof(hargs->cnode);
@@ -290,9 +290,10 @@ callback_destroy(void *thread_arg)
 int
 main(int argc, char **argv)
 {
-	aprunProc_t *	myapp;
-	char **			tool_argv;
-	int				i;
+	cti_aprunProc_t *	myapp;
+	char **				tool_argv;
+	int					i;
+	CTI_SESSION_ID		mysid;
 	
 	// ensure the user called me correctly
 	if (argc < 2)
@@ -311,24 +312,24 @@ main(int argc, char **argv)
 	}
 	
 	// call aprun
-	if ((myapp = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
+	if ((myapp = cti_launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
 	{
 		fprintf(stderr, "Aprun failed.\n");
 		return 1;
 	}
 	
 	// get number of allocated nodes in app
-	if ((app_nodes = getNumAppNodes(myapp->apid)) == 0)
+	if ((app_nodes = cti_getNumAppNodes(myapp->apid)) == 0)
 	{
-		fprintf(stderr, "getNumAppNodes failed.\n");
-		killAprun(myapp->apid, 9);
+		fprintf(stderr, "cti_getNumAppNodes failed.\n");
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	// get number of PEs in app
-	if ((num_pes = getNumAppPEs(myapp->apid)) == 0)
+	if ((num_pes = cti_getNumAppPEs(myapp->apid)) == 0)
 	{
-		fprintf(stderr, "getNumAppPEs failed.\n");
-		killAprun(myapp->apid, 9);
+		fprintf(stderr, "cti_getNumAppPEs failed.\n");
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
@@ -336,7 +337,7 @@ main(int argc, char **argv)
 	if ((peNodes = calloc(app_nodes, sizeof(BackEndNode_t *))) == (void *)0)
 	{
 		fprintf(stderr, "could not calloc memory for the peNodes array.\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	for (i=0; i<app_nodes; i++)
@@ -344,30 +345,30 @@ main(int argc, char **argv)
 		if ((peNodes[i] = malloc(sizeof(BackEndNode_t))) == (void *)0)
 		{
 			fprintf(stderr, "Could not malloc memory for peNodes entry.\n");
-			killAprun(myapp->apid, 9);
+			cti_killAprun(myapp->apid, 9);
 			return 1;
 		}
 	}
 	
 	// get the cname of this service node
-	my_node.cname = getNodeCName();
+	my_node.cname = cti_getNodeCName();
 	
 	// alloc memory for the argv array
 	if ((tool_argv = calloc(3, sizeof(char *))) == (void *)0)
 	{
 		fprintf(stderr, "Could not calloc memory for the tool argv string.\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	tool_argv[0] = "-h";
 	tool_argv[1] = my_node.cname;
-	tool_argv[2] = (char *)NULL;
+	tool_argv[2] = NULL;
 	
 	// Transfer and exec the callback_daemon application
-	if (execToolDaemon(myapp->apid, 0, LAUNCHER, tool_argv, (char **)NULL, 0))
+	if ((mysid = cti_execToolDaemon(myapp->apid, 0, 0, LAUNCHER, tool_argv, NULL, 0)) == 0)
 	{
 		fprintf(stderr, "Could not launch callback daemon on compute nodes!\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
@@ -393,10 +394,10 @@ main(int argc, char **argv)
 	(void)getchar();
 	
 	// release barrier
-	if (releaseAprun_barrier(myapp->apid))
+	if (cti_releaseAprun_barrier(myapp->apid))
 	{
 		fprintf(stderr, "Could not release app from barrier.\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	

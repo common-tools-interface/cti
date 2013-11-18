@@ -191,19 +191,19 @@ extern cti_aprunProc_t * cti_launchAprun_barrier(char **aprun_argv,
 
 /*
  * cti_releaseAprun_barrier - Release the aprun session launched with the
- *                            launchAprun_barrier function from its startup
+ *                            cti_launchAprun_barrier function from its startup
  *                            barrier.
  * 
  * Detail
  *      This function communicates to the aprun process that ALPS should
  *      release the application from the startup barrier it is currently being
  *      held at. Note that this function must be used in conjunction with a
- *      valid uint64_t apid that was created by the launchAprun_barrier
+ *      valid uint64_t apid that was created by the cti_launchAprun_barrier
  *      function.
  *
  * Arguments
  *      apid - The uint64_t apid of the aprun session started with a call to
- *             launchAprun_barrier
+ *             cti_launchAprun_barrier
  *
  * Returns
  *      0 on success, or else 1 on failure.
@@ -407,7 +407,7 @@ extern char **	cti_getAppHostsList(uint64_t apid);
 extern cti_hostsList_t *	cti_getAppHostsPlacement(uint64_t apid);
 
 /*
- * cti_estroy_hostsList - Used to destroy the memory allocated for a 
+ * cti_destroy_hostsList - Used to destroy the memory allocated for a 
  *                        cti_hostsList_t struct.
  * 
  * Detail

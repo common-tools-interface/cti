@@ -1,9 +1,9 @@
 /*********************************************************************************\
- * alps_transfer_demo.c - An example program which takes advantage of the CrayTool
- *			Interface which will launch an aprun session from the given
+ * alps_transfer_demo.c - An example program which takes advantage of the Cray
+ *			tools interface which will launch an aprun session from the given
  *			argv and transfer demo files.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "tool_frontend.h"
+#include "cray_tools_fe.h"
 
 void
 usage(char *name)
@@ -36,7 +36,10 @@ usage(char *name)
 int
 main(int argc, char **argv)
 {
-	aprunProc_t *myapp;
+	cti_aprunProc_t *	myapp;
+	CTI_MANIFEST_ID		mymid;
+	CTI_SESSION_ID		mysid;
+	char *				file_loc;
 	
 	if (argc < 2)
 	{
@@ -46,30 +49,58 @@ main(int argc, char **argv)
 	
 	printf("Launching application...\n");
 	
-	if ((myapp = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
+	if ((myapp = cti_launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
 	{
 		fprintf(stderr, "Error: Could not launch aprun!\n");
 		return 1;
 	}
 	
-	if (sendCNodeFile(myapp->apid, "testing.info"))
+	// Create a new manifest for the file
+	if ((mymid = cti_createNewManifest(0)) == 0)
 	{
-		fprintf(stderr, "Error: Failed to send file to cnodes!\n");
-		killAprun(myapp->apid, 9);
+		fprintf(stderr, "Error: Could not create a new manifest!\n");
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
-	printf("Sent testing.info to the toolhelper directory on the compute node(s).\n");
+	// Add the file to the manifest
+	if (cti_addManifestFile(mymid, "testing.info"))
+	{
+		fprintf(stderr, "Error: Could not add testing.info to manifest!\n");
+		cti_destroyManifest(mymid);
+		cti_killAprun(myapp->apid, 9);
+		return 1;
+	}
+	
+	// Send the manifest to the compute node
+	if ((mysid = cti_sendManifest(myapp->apid, mymid, 0)) == 0)
+	{
+		fprintf(stderr, "Error: Could not ship manifest!\n");
+		cti_destroyManifest(mymid);
+		cti_killAprun(myapp->apid, 9);
+		return 1;
+	}
+	
+	// Get the location of the directory where the file now resides on the
+	// compute node
+	if ((file_loc = cti_getSessionFileDir(mysid)) == NULL)
+	{
+		fprintf(stderr, "Error: Could not get session file directory!\n");
+		cti_killAprun(myapp->apid, 9);
+		return 1;
+	}
+	
+	printf("Sent testing.info to the directory %s on the compute node(s).\n", file_loc);
 	
 	printf("\nHit return to release the application from the startup barrier...");
 	
 	// just read a single character from stdin then release the app/exit
 	(void)getchar();
 	
-	if (releaseAprun_barrier(myapp->apid))
+	if (cti_releaseAprun_barrier(myapp->apid))
 	{
 		fprintf(stderr, "Error: Failed to release app from barrier!\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	

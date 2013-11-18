@@ -1,10 +1,10 @@
-/*********************************************************************************\
- * alps_barrier_demo.c - An example program which takes advantage of the CrayTool
- *			Interface which will launch an aprun session from the given
+/******************************************************************************\
+ * alps_barrier_demo.c - An example program which takes advantage of the Cray
+ *			tools interface which will launch an aprun session from the given
  *			argv, display information about the job, and hold it at the 
  *			startup barrier.
  *
- * © 2011-2012 Cray Inc.	All Rights Reserved.
+ * © 2011-2013 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -17,13 +17,13 @@
  * $Rev$
  * $Author$
  *
- *********************************************************************************/
+ ******************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "tool_frontend.h"
+#include "cray_tools_fe.h"
 
 void
 usage(char *name)
@@ -39,15 +39,15 @@ int
 main(int argc, char **argv)
 {
 	// values returned by the tool_frontend library.
-	aprunProc_t *				myapp;
-	char *						mycname;
-	int							mynid;
-	int							mynumpes;
-	int							mynumnodes;
-	char **						myhostlist;
-	appHostPlacementList_t *	myhostplacement;
+	cti_aprunProc_t *	myapp;
+	char *				mycname;
+	int					mynid;
+	int					mynumpes;
+	int					mynumnodes;
+	char **				myhostlist;
+	cti_hostsList_t *	myhostplacement;
 	// internal variables
-	char **		i;
+	char **	i;
 	int		j;
 	
 	if (argc < 2)
@@ -63,7 +63,7 @@ main(int argc, char **argv)
  	*						and have ALPS hold the application at its MPI startup
  	*						barrier.
 	*/
-	if ((myapp = launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) == (aprunProc_t *)NULL)
+	if ((myapp = cti_launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) == NULL)
 	{
 		fprintf(stderr, "Error: Could not launch aprun!\n");
 		return 1;
@@ -72,70 +72,70 @@ main(int argc, char **argv)
 	printf("Application pid %d launched.\n", (int)myapp->aprunPid);
 	
 	/*
-	* getNodeCName - Returns the cabinet hostname of the active login node.
+	* cti_getNodeCName - Returns the cabinet hostname of the active login node.
 	*/
-	if ((mycname = getNodeCName()) == (char *)NULL)
+	if ((mycname = cti_getNodeCName()) == NULL)
 	{
 		fprintf(stderr, "Error: Could not query cname!\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
 	/*
-	* getNid - Returns the node id of the active login node.
+	* cti_getNid - Returns the node id of the active login node.
 	*/
-	if ((mynid = getNodeNid()) < 0)
+	if ((mynid = cti_getNodeNid()) < 0)
 	{
 		fprintf(stderr, "Error: Could not query Nid!\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
 	/*
-	* getNumAppPEs -	Returns the number of processing elements in the application
-	*					associated with the apid.
+	* cti_getNumAppPEs -	Returns the number of processing elements in the application
+	*						associated with the apid.
 	*/
-	if ((mynumpes = getNumAppPEs(myapp->apid)) == 0)
+	if ((mynumpes = cti_getNumAppPEs(myapp->apid)) == 0)
 	{
 		fprintf(stderr, "Error: Could not query numAppPEs!\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
 	/*
-	* getNumAppNodes -	Returns the number of compute nodes allocated for the
-	*					application associated with the aprun pid.
+	* cti_getNumAppNodes -	Returns the number of compute nodes allocated for the
+	*						application associated with the aprun pid.
 	*/
-	if ((mynumnodes = getNumAppNodes(myapp->apid)) == 0)
+	if ((mynumnodes = cti_getNumAppNodes(myapp->apid)) == 0)
 	{
 		fprintf(stderr, "Error: Could not query numAppNodes!\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
 	/*
-	* getAppHostsList - Returns a null terminated array of strings containing
-	*					the hostnames of the compute nodes allocated by ALPS
-	*					for the application associated with the aprun pid.
+	* cti_getAppHostsList - Returns a null terminated array of strings containing
+	*						the hostnames of the compute nodes allocated by ALPS
+	*						for the application associated with the aprun pid.
 	*/
-	if ((myhostlist = getAppHostsList(myapp->apid)) == (char **)NULL)
+	if ((myhostlist = cti_getAppHostsList(myapp->apid)) == NULL)
 	{
 		fprintf(stderr, "Error: Could not query appHostsList!\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
 	/*
-	* getAppHostsPlacement -	Returns a appHostPlacementList_t struct containing
-	*							nodeHostPlacement_t entries that contain the hostname
-	*							of the compute nodes allocated by ALPS and the number
-	*							of PEs assigned to that host for the application 
-	*							associated with the aprun pid.
+	* cti_getAppHostsPlacement -	Returns a cti_hostsList_t containing cti_host_t
+	*								entries that contain the hostname of the compute
+	*								nodes allocated by ALPS and the number of PEs
+	*								assigned to that host for the application associated
+	*								with the aprun pid.
  	*/
-	if ((myhostplacement = getAppHostsPlacement(myapp->apid)) == (appHostPlacementList_t *)NULL)
+	if ((myhostplacement = cti_getAppHostsPlacement(myapp->apid)) == NULL)
 	{
 		fprintf(stderr, "Error: Could not query appHostsPlacement!\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
@@ -149,15 +149,15 @@ main(int argc, char **argv)
 	printf("Number of compute nodes used by application: %d\n", mynumnodes);
 	printf("\n");
 	
-	printf("The following is a list of compute node hostnames returned by getAppHostsList():\n\n");
+	printf("The following is a list of compute node hostnames returned by cti_getAppHostsList():\n\n");
 	i = myhostlist;
-	while (*i != (char *)NULL)
+	while (*i != NULL)
 	{
 		printf("%s\n", *i++);
 	}
 	
-	printf("\nThe following information was returned by getAppHostsPlacement():\n\n");
-	printf("There are %d host(s) in the appHostPlacementList_t struct.\n", myhostplacement->numHosts);
+	printf("\nThe following information was returned by cti_getAppHostsPlacement():\n\n");
+	printf("There are %d host(s) in the cti_hostsList_t struct.\n", myhostplacement->numHosts);
 	for (j=0; j < myhostplacement->numHosts; ++j)
 	{
 		printf("On host %s there are %d PEs.\n", myhostplacement->hosts[j].hostname, myhostplacement->hosts[j].numPes);
@@ -166,17 +166,17 @@ main(int argc, char **argv)
 	// don't forget to cleanup memory that was malloc'ed
 	free(mycname);
 	free(myhostlist);
-	destroy_appHostPlacementList(myhostplacement);
+	cti_destroy_hostsList(myhostplacement);
 	
 	printf("\nHit return to release the application from the startup barrier...");
 	
 	// just read a single character from stdin then release the app/exit
 	(void)getchar();
 	
-	if (releaseAprun_barrier(myapp->apid))
+	if (cti_releaseAprun_barrier(myapp->apid))
 	{
 		fprintf(stderr, "Error: Failed to release app from barrier!\n");
-		killAprun(myapp->apid, 9);
+		cti_killAprun(myapp->apid, 9);
 		return 1;
 	}
 	
