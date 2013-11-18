@@ -250,16 +250,16 @@ top_srcdir = @top_srcdir@
 AM_CFLAGS = -I$(includedir) -L$(libdir)
 aprunBarrier_CFLAGS = $(AM_CFLAGS)
 aprunBarrier_SOURCES = alps_barrier_demo.c
-aprunBarrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
+aprunBarrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 aprunInfo_CFLAGS = $(AM_CFLAGS)
 aprunInfo_SOURCES = alps_info_demo.c
-aprunInfo_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend
+aprunInfo_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 aprunCallback_CFLAGS = $(AM_CFLAGS)
 aprunCallback_SOURCES = alps_callback_demo.c
-aprunCallback_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_frontend -pthread
+aprunCallback_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -pthread
 callback_daemon_CFLAGS = $(AM_CFLAGS)
 callback_daemon_SOURCES = alps_callback_daemon.c
-callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytool_backend
+callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_be
 all: all-am
 
 .SUFFIXES:
