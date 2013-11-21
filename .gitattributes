@@ -45,6 +45,8 @@ src/alps_run.c -text
 src/alps_run.h -text
 src/alps_transfer.c -text
 src/alps_transfer.h -text
+src/cti_error.c -text
+src/cti_error.h -text
 src/daemon_launcher.c -text
 src/ld_val/Makefile.am -text
 src/ld_val/Makefile.in -text

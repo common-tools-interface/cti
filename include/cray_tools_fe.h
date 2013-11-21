@@ -120,6 +120,25 @@ typedef int CTI_SESSION_ID;
  ***********************************************************/
 
 /*
+ * cti_error_str - Returns an error string associated with a command that
+ *                 returned an error value.
+ * 
+ * Detail
+ *      This function returns the internal error string associated with a failed
+ *      command. This string can be used to print an informative message about
+ *      why an API call failed. If no error is known, the string will contain
+ *      "Unknown CTI error".
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      A string containing the error message, or else "Unknown CTI error".
+ * 
+ */
+extern const char *	cti_error_str(void);
+
+/*
  * cti_launchAprun_barrier - Start a new aprun session from the provided argv
  *                           array and have ALPS hold the application at its
  *                           startup barrier for MPI/SHMEM/UPC applications.

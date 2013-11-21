@@ -40,6 +40,8 @@
 #include "alps_run.h"
 #include "alps_application.h"
 
+#include "cti_error.h"
+
 /* typedefs used here */
 
 typedef struct
@@ -74,7 +76,7 @@ _cti_reapAprunInv(uint64_t apid)
 	aprunInv_t * prePtr;
 	
 	// sanity check
-	if (((appPtr = _cti_head) == NULL) || (apid <= 0))
+	if (((appPtr = _cti_head) == NULL) || (apid == 0))
 		return;
 	
 	prePtr = _cti_head;
@@ -124,15 +126,26 @@ _cti_findAprunInv(uint64_t apid)
 {
 	aprunInv_t * appPtr;
 
-	// find the aprunInv_t entry in the global list
-	if (((appPtr = _cti_head) == NULL) || (apid <= 0))
+	// sanity check
+	if (apid == 0)
+	{
+		_cti_set_error("Invalid apid %d.", (int)apid);
 		return NULL;
+	}
+
+	// find the aprunInv_t entry in the global list
+	if ((appPtr = _cti_head) == NULL)
+	{
+		_cti_set_error("The apid %d was not launched.", (int)apid);
+		return NULL;
+	}
 		
 	while (appPtr->apid != apid)
 	{
 		if ((appPtr = appPtr->next) == NULL)
 		{
 			// entry not found
+			_cti_set_error("The apid %d was not launched.", (int)apid);
 			return NULL;
 		}
 	}
@@ -169,7 +182,7 @@ _cti_checkPathForWrappedAprun(char *aprun_path)
 		{
 			// We were unable to stat the file pointed to by usr_aprun_path, lets
 			// print a warning and fall back to using the default method.
-			fprintf(stderr, "Warning: %s is set but cannot stat its value.\n", USER_DEF_APRUN_LOC_ENV_VAR);
+			_cti_set_error("%s is set but cannot stat its value.", USER_DEF_APRUN_LOC_ENV_VAR);
 		}
 	}
 	
@@ -181,7 +194,7 @@ _cti_checkPathForWrappedAprun(char *aprun_path)
 		// realpath.
 		if ((default_obs_realpath = realpath(OBS_APRUN_LOCATION, NULL)) == NULL)
 		{
-			fprintf(stderr, "Failure: Could not resolve realpath of aprun.\n");
+			_cti_set_error("Could not resolve realpath of aprun.");
 			// Assume this is the real aprun...
 			return 0;
 		}
@@ -244,6 +257,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	if ((myapp = malloc(sizeof(aprunInv_t))) == (void *)0)
 	{
 		// Malloc failed
+		_cti_set_error("malloc failed.");
 		return NULL;
 	}
 	memset(myapp, 0, sizeof(aprunInv_t));     // clear it to NULL
@@ -252,13 +266,13 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	// barrier)
 	if (pipe(aprunPipeR) < 0)
 	{
-		fprintf(stderr, "Pipe creation failure on aprunPipeR.\n");
+		_cti_set_error("Pipe creation failure on aprunPipeR.");
 		free(myapp);
 		return NULL;
 	}
 	if (pipe(aprunPipeW) < 0)
 	{
-		fprintf(stderr, "Pipe creation failure on aprunPipeW.\n");
+		_cti_set_error("Pipe creation failure on aprunPipeW.");
 		free(myapp);
 		return NULL;
 	}
@@ -283,6 +297,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	if ((my_argv = calloc(aprun_argc+4, sizeof(char *))) == (void *)0)
 	{
 		// calloc failed
+		_cti_set_error("calloc failed.");
 		free(myapp);
 		return NULL;
 	}
@@ -311,6 +326,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	if ((pipefd_buf = malloc(sizeof(char)*fd_len)) == (void *)0)
 	{
 		// malloc failed
+		_cti_set_error("malloc failed.");
 		free(myapp);
 		// cleanup my_argv array
 		tmp = my_argv;
@@ -351,7 +367,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	// error case
 	if (mypid < 0)
 	{
-		fprintf(stderr, "Fatal fork error.\n");
+		_cti_set_error("Fatal fork error.");
 		free(myapp);
 		// cleanup my_argv array
 		tmp = my_argv;
@@ -364,11 +380,36 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	}
 	
 	// child case
+	// Note that this should not use the _cti_set_error() interface since it is
+	// a child process.
 	if (mypid == 0)
 	{
 		// close unused ends of pipe
 		close(aprunPipeR[1]);
 		close(aprunPipeW[0]);
+		
+		// redirect stdout/stderr if directed - do this early so that we can
+		// print out errors to the proper descriptor.
+		if (redirectOutput)
+		{
+			// dup2 stdout
+			if (dup2(stdout_fd, STDOUT_FILENO) < 0)
+			{
+				// XXX: How to properly print this error? The parent won't be
+				// expecting the error message on this stream since dup2 failed.
+				fprintf(stderr, "CTI error: Unable to redirect aprun stdout.\n");
+				exit(1);
+			}
+			
+			// dup2 stderr
+			if (dup2(stderr_fd, STDERR_FILENO) < 0)
+			{
+				// XXX: How to properly print this error? The parent won't be
+				// expecting the error message on this stream since dup2 failed.
+				fprintf(stderr, "CTI error: Unable to redirect aprun stderr.\n");
+				exit(1);
+			}
+		}
 		
 		if (redirectInput)
 		{
@@ -376,12 +417,12 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 			// stdin
 			if (inputFile == NULL)
 			{
-				fprintf(stderr, "Provided inputFile argument is null.\n");
+				fprintf(stderr, "CTI error: Provided inputFile argument is null.\n");
 				exit(1);
 			}
 			if ((fd = open(inputFile, O_RDONLY)) < 0)
 			{
-				fprintf(stderr, "Unable to open %s for reading.\n", inputFile);
+				fprintf(stderr, "CTI error: Unable to open %s for reading.\n", inputFile);
 				exit(1);
 			}
 		} else
@@ -389,7 +430,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 			// we don't want this aprun to suck up stdin of the tool program
 			if ((fd = open("/dev/null", O_RDONLY)) < 0)
 			{
-				fprintf(stderr, "Unable to open /dev/null for reading.\n");
+				fprintf(stderr, "CTI error: Unable to open /dev/null for reading.\n");
 				exit(1);
 			}
 		}
@@ -397,35 +438,17 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 		// dup2 the fd onto STDIN_FILENO
 		if (dup2(fd, STDIN_FILENO) < 0)
 		{
-			fprintf(stderr, "Unable to redirect aprun stdin.\n");
+			fprintf(stderr, "CTI error: Unable to redirect aprun stdin.\n");
 			exit(1);
 		}
 		close(fd);
-		
-		// redirect stdout/stderr if directed
-		if (redirectOutput)
-		{
-			// dup2 stdout
-			if (dup2(stdout_fd, STDOUT_FILENO) < 0)
-			{
-				fprintf(stderr, "Unable to redirect aprun stdout.\n");
-				exit(1);
-			}
-			
-			// dup2 stderr
-			if (dup2(stderr_fd, STDERR_FILENO) < 0)
-			{
-				fprintf(stderr, "Unable to redirect aprun stderr.\n");
-				exit(1);
-			}
-		}
 		
 		// chdir if directed
 		if (chdirPath != NULL)
 		{
 			if (chdir(chdirPath))
 			{
-				fprintf(stderr, "Unable to chdir to provided path.\n");
+				fprintf(stderr, "CTI error: Unable to chdir to provided path.\n");
 				exit(1);
 			}
 		}
@@ -439,7 +462,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 				// putenv returns non-zero on error
 				if (putenv(env_list[i++]))
 				{
-					fprintf(stderr, "Unable to putenv provided env_list.\n");
+					fprintf(stderr, "CTI error: Unable to putenv provided env_list.\n");
 					exit(1);
 				}
 			}
@@ -455,7 +478,8 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 		execvp(APRUN, my_argv);
 		
 		// exec shouldn't return
-		fprintf(stderr, "Return from exec.\n");
+		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execvp");
 		exit(1);
 	}
 	
@@ -486,7 +510,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	// we know the real aprun is up and running
 	if (read(myapp->pipeCtl.pipe_w, &myapp->pipeCtl.sync_int, sizeof(myapp->pipeCtl.sync_int)) <= 0)
 	{
-		fprintf(stderr, "Aprun launch failed.\n");
+		_cti_set_error("Control pipe read failed.");
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
 		kill(mypid, DEFAULT_SIG);
@@ -506,7 +530,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	// create the path to the /proc/<pid>/exe location
 	if (asprintf(&aprun_proc_path, "/proc/%lu/exe", (unsigned long)mypid) < 0)
 	{
-		fprintf(stderr, "asprintf failed.\n");
+		_cti_set_error("asprintf failed.");
 		goto continue_on_error;
 	}
 	
@@ -516,7 +540,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	if ((aprun_exe_path = malloc(PATH_MAX)) == (void *)0)
 	{
 		// Malloc failed
-		fprintf(stderr, "malloc failed.\n");
+		_cti_set_error("malloc failed.");
 		free(aprun_proc_path);
 		goto continue_on_error;
 	}
@@ -526,7 +550,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 	// read the link
 	if (readlink(aprun_proc_path, aprun_exe_path, PATH_MAX-1) < 0)
 	{
-		fprintf(stderr, "Warning: readlink failed on aprun /proc/<pid>/exe.\n");
+		_cti_set_error("readlink failed on aprun %s.", aprun_proc_path);
 		free(aprun_proc_path);
 		free(aprun_exe_path);
 		goto continue_on_error;
@@ -540,8 +564,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 		// start by getting all the /proc/<pid>/ files
 		if ((file_list_len = scandir("/proc", &file_list, _cti_filter_pid_entries, NULL)) < 0)
 		{
-			perror("scandir");
-			fprintf(stderr, "Failure: Could not enumerate /proc for real aprun process.\n");
+			_cti_set_error("Could not enumerate /proc for real aprun process.");
 			free(aprun_proc_path);
 			free(aprun_exe_path);
 			// attempt to kill aprun since the caller will not recieve the aprun pid
@@ -559,7 +582,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 			// this point since we will error out later in an alps call anyways.
 			if (i == file_list_len)
 			{
-				fprintf(stderr, "Failure: Could not find child aprun process of wrapped aprun command.\n");
+				_cti_set_error("Could not find child aprun process of wrapped aprun command.");
 				free(aprun_proc_path);
 				free(aprun_exe_path);
 				// attempt to kill aprun since the caller will not recieve the aprun pid
@@ -578,8 +601,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 			// create the path to the /proc/<pid>/stat for this entry
 			if (asprintf(&proc_stat_path, "/proc/%s/stat", (file_list[i])->d_name) < 0)
 			{
-				fprintf(stderr, "asprintf failed.\n");
-				fprintf(stderr, "Failure: Could not enumerate /proc/<pid>/stat for real aprun process.\n");
+				_cti_set_error("asprintf failed.");
 				free(aprun_proc_path);
 				free(aprun_exe_path);
 				// attempt to kill aprun since the caller will not recieve the aprun pid
@@ -633,8 +655,7 @@ cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInpu
 				// allocate the new aprun_proc_path
 				if (asprintf(&aprun_proc_path, "/proc/%s/exe", (file_list[i])->d_name) < 0)
 				{
-					fprintf(stderr, "asprintf failed.\n");
-					fprintf(stderr, "Failure: Could not enumerate /proc/<pid>/exe for real aprun process.\n");
+					_cti_set_error("asprintf failed.");
 					free(aprun_proc_path);
 					free(aprun_exe_path);
 					// attempt to kill aprun since the caller will not recieve the aprun pid
@@ -714,7 +735,7 @@ continue_on_error:
 	// set the apid associated with the pid of aprun
 	if ((myapp->apid = cti_getApid(myapp->aprunPid)) == 0)
 	{
-		fprintf(stderr, "Could not obtain apid associated with pid of aprun.\n");
+		_cti_set_error("Could not obtain apid associated with pid of aprun.");
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
 		kill(myapp->aprunPid, DEFAULT_SIG);
@@ -723,16 +744,13 @@ continue_on_error:
 	}
 	
 	// register this process with the alps_transfer interface
-	if (cti_registerApid(myapp->apid))
-	{
-		// we failed to register our app
-		fprintf(stderr, "Could not register application!\n");
-	}
+	cti_registerApid(myapp->apid);
 	
 	// create a new cti_aprunProc_t return object
 	if ((rtn = malloc(sizeof(cti_aprunProc_t))) == (void *)0)
 	{
 		// Malloc failed
+		_cti_set_error("malloc failed.");
 		return NULL;
 	}
 	
@@ -750,18 +768,24 @@ cti_releaseAprun_barrier(uint64_t apid)
 	aprunInv_t * appPtr;
 	
 	// sanity check
-	if (apid <= 0)
+	if (apid == 0)
+	{
+		_cti_set_error("Invalid apid %d.", (int)apid);
 		return 1;
+	}
 	
 	// find the aprunInv_t entry in the global list
 	if ((appPtr = _cti_findAprunInv(apid)) == NULL)
+	{
+		// error string is already set
 		return 1;
+	}
 	
 	// Conduct a pipe write for alps to release app from the startup barrier.
 	// Just write back what we read earlier.
 	if (write(appPtr->pipeCtl.pipe_r, &appPtr->pipeCtl.sync_int, sizeof(appPtr->pipeCtl.sync_int)) <= 0)
 	{
-		fprintf(stderr, "Aprun barrier release operation failed.\n");
+		_cti_set_error("Aprun barrier release operation failed.");
 		return 1;
 	}
 	
@@ -783,8 +807,11 @@ cti_killAprun(uint64_t apid, int signum)
 	
 	
 	// sanity check
-	if (apid <= 0)
+	if (apid == 0)
+	{
+		_cti_set_error("Invalid apid %d.", (int)apid);
 		return 1;
+	}
 		
 	// ensure the user called us with a signal number that makes sense, otherwise default to 9
 	if ((sig = signum) <= 0)
@@ -798,6 +825,7 @@ cti_killAprun(uint64_t apid, int signum)
 	if ((my_argv = calloc(4, sizeof(char *))) == (void *)0)
 	{
 		// calloc failed
+		_cti_set_error("calloc failed.");
 		return 1;
 	}
 	
@@ -875,7 +903,7 @@ cti_killAprun(uint64_t apid, int signum)
 	// error case
 	if (mypid < 0)
 	{
-		fprintf(stderr, "Fatal fork error.\n");
+		_cti_set_error("Fatal fork error.");
 		// cleanup my_argv array
 		tmp = my_argv;
 		while (*tmp != NULL)
@@ -893,7 +921,7 @@ cti_killAprun(uint64_t apid, int signum)
 		execvp(APKILL, my_argv);
 		
 		// exec shouldn't return
-		fprintf(stderr, "Return from exec.\n");
+		fprintf(stderr, "CTI error: Return from exec.\n");
 		exit(1);
 	}
 	

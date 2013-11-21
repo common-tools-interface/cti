@@ -35,6 +35,7 @@
 #include "alps_application.h"
 #include "alps_run.h"
 
+#include "cti_error.h"
 #include "useful/useful.h"
 
 /* Static prototypes */
@@ -57,6 +58,7 @@ _cti_growAppsList()
 	// alloc space for the new list entry
 	if ((newEntry = malloc(sizeof(appList_t))) == (void *)0)
 	{
+		_cti_set_error("malloc failed.");
 		return NULL;
 	}
 	memset(newEntry, 0, sizeof(appList_t));     // clear it to NULL
@@ -117,7 +119,7 @@ _cti_reapAppEntry(uint64_t apid)
 	appList_t *	prePtr;
 	
 	// sanity check
-	if (((lstPtr = _cti_my_apps) == (appList_t *)NULL) || (apid <= 0))
+	if (((lstPtr = _cti_my_apps) == (appList_t *)NULL) || (apid == 0))
 		return;
 		
 	prePtr = _cti_my_apps;
@@ -177,7 +179,7 @@ _cti_reapAppEntry(uint64_t apid)
 
 static void
 _cti_consumeAppEntry(appEntry_t *entry)
-{ 
+{
 	// sanity check
 	if (entry == NULL)
 		return;
@@ -230,6 +232,7 @@ _cti_getSvcNodeInfo()
 	// free this.
 	if ((my_node = malloc(sizeof(serviceNode_t))) == (void *)0)
 	{
+		_cti_set_error("malloc failed.");
 		return NULL;
 	}
 	memset(my_node, 0, sizeof(serviceNode_t));     // clear it to NULL
@@ -237,6 +240,7 @@ _cti_getSvcNodeInfo()
 	// open up the file defined in the alps header containing our node id (nid)
 	if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)
 	{
+		_cti_set_error("fopen of %s failed.", ALPS_XT_NID);
 		free(my_node);
 		return NULL;
 	}
@@ -244,6 +248,7 @@ _cti_getSvcNodeInfo()
 	// we expect this file to have a numeric value giving our current nid
 	if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
 	{
+		_cti_set_error("fgets of %s failed.", ALPS_XT_NID);
 		free(my_node);
 		fclose(alps_fd);
 		return NULL;
@@ -257,6 +262,7 @@ _cti_getSvcNodeInfo()
 	// open up the cname file
 	if ((alps_fd = fopen(ALPS_XT_CNAME, "r")) == NULL)
 	{
+		_cti_set_error("fopen of %s failed.", ALPS_XT_CNAME);
 		free(my_node);
 		return NULL;
 	}
@@ -264,6 +270,7 @@ _cti_getSvcNodeInfo()
 	// we expect this file to contain a string which represents our interconnect hostname
 	if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
 	{
+		_cti_set_error("fopen of %s failed.", ALPS_XT_CNAME);
 		free(my_node);
 		fclose(alps_fd);
 		return NULL;
@@ -288,12 +295,16 @@ _cti_findApp(uint64_t apid)
 	
 	// ensure _cti_my_apps isn't empty
 	if ((lstPtr = _cti_my_apps) == NULL)
+	{
+		_cti_set_error("The apid %d is not registered.", (int)apid);
 		return NULL;
+	}
 		
 	// BUG 795026 fix - If the head thisEntry is NULL, then we were interrupted
 	// while in the _cti_newApp routine. Reap the list of this junk entry.
 	if (lstPtr->thisEntry == NULL)
 	{
+		_cti_set_error("The apid %d is not registered.", (int)apid);
 		_cti_reapAppsList();
 		// There are no entries in the list.
 		return NULL;
@@ -307,6 +318,7 @@ _cti_findApp(uint64_t apid)
 		{
 			// if lstPtr is null, we are at the end of the list
 			// so the entry for apid doesn't exist
+			_cti_set_error("The apid %d is not registered.", (int)apid);
 			return NULL;
 		}
 		
@@ -316,8 +328,9 @@ _cti_findApp(uint64_t apid)
 		// first thing called when registering a new apid.
 		if (lstPtr->thisEntry == NULL)
 		{
-			_cti_reapAppsList();
 			// There are no more entires in the list
+			_cti_set_error("The apid %d is not registered.", (int)apid);
+			_cti_reapAppsList();
 			return NULL;
 		}
 	}
@@ -337,12 +350,14 @@ _cti_newApp(uint64_t apid)
 	// grow the global _cti_my_apps list and get its new appList_t entry
 	if ((lstPtr = _cti_growAppsList()) == NULL)
 	{
+		// error string is already set
 		return NULL;
 	}
 	
 	// create the new appEntry_t object
 	if ((this = malloc(sizeof(appEntry_t))) == NULL)
 	{
+		_cti_set_error("malloc failed.");
 		// get rid of the appList_t object that we added to the list
 		// since we failed
 		_cti_reapAppsList();
@@ -359,6 +374,7 @@ _cti_newApp(uint64_t apid)
 	// save this information into the struct
 	if (alps_get_appinfo(this->apid, &this->alpsInfo.appinfo, &this->alpsInfo.cmdDetail, &this->alpsInfo.places) != 1)
 	{
+		_cti_set_error("alps_get_appinfo() failed.");
 		_cti_reapAppsList();
 		_cti_consumeAppEntry(this);
 		return NULL;
@@ -378,7 +394,7 @@ _cti_newApp(uint64_t apid)
 		// Could not stat ALPS_OBS_LOC, assume it's using the old format.
 		if (asprintf(&this->toolPath, OLD_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
 		{
-			fprintf(stderr, "asprintf failed\n");
+			_cti_set_error("asprintf failed");
 			_cti_reapAppsList();
 			_cti_consumeAppEntry(this);
 			return NULL;
@@ -388,7 +404,7 @@ _cti_newApp(uint64_t apid)
 		// Assume it's using the OBS format
 		if (asprintf(&this->toolPath, OBS_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
 		{
-			fprintf(stderr, "asprintf failed\n");
+			_cti_set_error("asprintf failed");
 			_cti_reapAppsList();
 			_cti_consumeAppEntry(this);
 			return NULL;
@@ -408,8 +424,11 @@ int
 cti_registerApid(uint64_t apid)
 {
 	// sanity check
-	if (apid <= 0)
+	if (apid == 0)
+	{
+		_cti_set_error("Invalid apid %d.", (int)apid);
 		return 1;
+	}
 		
 	// try to find an entry in the _cti_my_apps list for the apid
 	if (_cti_findApp(apid) == NULL)
@@ -419,6 +438,7 @@ cti_registerApid(uint64_t apid)
 		if (_cti_newApp(apid) == NULL)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
+			// error string already set
 			return 1;
 		}
 	}
@@ -430,7 +450,7 @@ void
 cti_deregisterApid(uint64_t apid)
 {
 	// sanity check
-	if (apid <= 0)
+	if (apid == 0)
 		return;
 	
 	// call the _cti_reapAppEntry function for this apid
@@ -446,8 +466,11 @@ uint64_t
 cti_getApid(pid_t aprunPid)
 {
 	// sanity check
-	if (aprunPid <= 0)
+	if (aprunPid == 0)
+	{
+		_cti_set_error("Invalid pid %d.", (int)aprunPid);
 		return 0;
+	}
 		
 	// ensure the _cti_svcNid exists
 	if (_cti_svcNid == NULL)
@@ -455,6 +478,7 @@ cti_getApid(pid_t aprunPid)
 		if ((_cti_svcNid = _cti_getSvcNodeInfo()) == NULL)
 		{
 			// couldn't get the svcnode info for some odd reason
+			// error string already set
 			return 0;
 		}
 	}
@@ -471,6 +495,7 @@ cti_getNodeCName()
 		if ((_cti_svcNid = _cti_getSvcNodeInfo()) == NULL)
 		{
 			// couldn't get the svcnode info for some odd reason
+			// error string already set
 			return NULL;
 		}
 	}
@@ -488,6 +513,7 @@ cti_getNodeNid()
 		if ((_cti_svcNid = _cti_getSvcNodeInfo()) == NULL)
 		{
 			// couldn't get the svcnode info for some odd reason
+			// error string already set
 			return -1;
 		}
 	}
@@ -502,13 +528,17 @@ cti_getAppNid(uint64_t apid)
 	appEntry_t *	app_ptr;
 	
 	// sanity check
-	if (apid <= 0)
+	if (apid == 0)
+	{
+		_cti_set_error("Invalid apid %d.", (int)apid);
 		return -1;
+	}
 		
 	// try to find an entry in the _cti_my_apps list for the apid
 	if ((app_ptr = _cti_findApp(apid)) == NULL)
 	{
 		// couldn't find the entry associated with the apid
+		// error string already set
 		return -1;
 	}
 
@@ -521,13 +551,17 @@ cti_getNumAppPEs(uint64_t apid)
 	appEntry_t *	app_ptr;
 	
 	// sanity check
-	if (apid <= 0)
+	if (apid == 0)
+	{
+		_cti_set_error("Invalid apid %d.", (int)apid);
 		return 0;
+	}
 		
 	// try to find an entry in the _cti_my_apps list for the apid
 	if ((app_ptr = _cti_findApp(apid)) == NULL)
 	{
 		// couldn't find the entry associated with the apid
+		// error string already set
 		return 0;
 	}
 	
@@ -540,8 +574,11 @@ cti_getNumAppNodes(uint64_t apid)
 	appEntry_t *	app_ptr;
 	
 	// sanity check
-	if (apid <= 0)
+	if (apid == 0)
+	{
+		_cti_set_error("Invalid apid %d.", (int)apid);
 		return 0;
+	}
 		
 	// try to find an entry in the _cti_my_apps list for the apid
 	if ((app_ptr = _cti_findApp(apid)) == NULL)
@@ -563,19 +600,24 @@ cti_getAppHostsList(uint64_t apid)
 	int				i;
 	
 	// sanity check
-	if (apid <= 0)
+	if (apid == 0)
+	{
+		_cti_set_error("Invalid apid %d.", (int)apid);
 		return NULL;
+	}
 		
 	// try to find an entry in the _cti_my_apps list for the apid
 	if ((app_ptr = _cti_findApp(apid)) == NULL)
 	{
 		// couldn't find the entry associated with the apid
+		// error string already set
 		return NULL;
 	}
 	
 	// ensure app_ptr->alpsInfo.cmdDetail->nodeCnt is non-zero
 	if ( app_ptr->alpsInfo.cmdDetail->nodeCnt <= 0 )
 	{
+		_cti_set_error("Application %d does not have any nodes.", (int)apid);
 		// no nodes in the application
 		return NULL;
 	}
@@ -584,6 +626,7 @@ cti_getAppHostsList(uint64_t apid)
 	if ((hosts = calloc(app_ptr->alpsInfo.cmdDetail->nodeCnt + 1, sizeof(char *))) == (void *)0)
 	{
 		// calloc failed
+		_cti_set_error("calloc failed.");
 		return NULL;
 	}
 	
@@ -638,13 +681,17 @@ cti_getAppHostsPlacement(uint64_t apid)
 	int					i;
 	
 	// sanity check
-	if (apid <= 0)
+	if (apid == 0)
+	{
+		_cti_set_error("Invalid apid %d.", (int)apid);
 		return NULL;
+	}
 		
 	// try to find an entry in the _cti_my_apps list for the apid
 	if ((app_ptr = _cti_findApp(apid)) == NULL)
 	{
 		// couldn't find the entry associated with the apid
+		// error string already set
 		return NULL;
 	}
 
@@ -652,6 +699,7 @@ cti_getAppHostsPlacement(uint64_t apid)
 	if ( app_ptr->alpsInfo.cmdDetail->nodeCnt <= 0 )
 	{
 		// no nodes in the application
+		_cti_set_error("Application %d does not have any nodes.", (int)apid);
 		return NULL;
 	}
 	
@@ -659,6 +707,7 @@ cti_getAppHostsPlacement(uint64_t apid)
 	if ((placement_list = malloc(sizeof(cti_hostsList_t))) == (void *)0)
 	{
 		// malloc failed
+		_cti_set_error("malloc failed.");
 		return NULL;
 	}
 	
@@ -669,6 +718,7 @@ cti_getAppHostsPlacement(uint64_t apid)
 	if ((placement_list->hosts = malloc(placement_list->numHosts * sizeof(cti_host_t))) == (void *)0)
 	{
 		// malloc failed
+		_cti_set_error("malloc failed.");
 		free(placement_list);
 		return NULL;
 	}

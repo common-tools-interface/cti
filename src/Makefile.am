@@ -23,7 +23,7 @@ AM_CFLAGS 	= -I$(LDVAL) -fPIC -Wall
 lib_LTLIBRARIES	= libcraytools_fe.la libcraytools_be.la
 
 libcraytools_fe_la_SOURCES	= alps_application.c alps_run.c alps_transfer.c \
-				  useful/path.c useful/stringList.c 
+				  cti_error.c useful/path.c useful/stringList.c 
 libcraytools_fe_la_LIBADD	= $(LDVAL)/libld_val.la $(ARCHIVE_LIBS)
 libcraytools_fe_la_LDFLAGS	= -lalps -version-info $(CRAYTOOL_FE_VERSION)
 
@@ -37,6 +37,6 @@ dlaunch_LDADD = $(ARCHIVE_LIBS)
 dlaunch_LDFLAGS = -static
 
 noinst_HEADERS  = alps_application.h alps_backend.h alps_defs.h alps_run.h \
-		  alps_transfer.h pmi_attribs_parser.h \
+		  alps_transfer.h cti_error.h pmi_attribs_parser.h \
 		  useful/log.h useful/path.h useful/stringList.h useful/useful.h
 

@@ -88,7 +88,6 @@ _cti_pathFind(const char *file, const char *envPath)
 	if ((tmp = getenv(envPath)) == (char *)NULL)
 	{
 		/* nothing in path to search */
-		fprintf(stderr, "Could not getenv %s.\n", envPath);
 		return (char *)NULL;
 	}
 	path = strdup(tmp);
@@ -173,7 +172,6 @@ _cti_libFind(const char *file, const char *envPath)
 	if ((tmp = getenv(envPath)) == (char *)NULL)
 	{
 		/* nothing in path to search */
-		fprintf(stderr, "Could not getenv %s.\n", envPath);
 		return (char *)NULL;
 	}
 	path = strdup(tmp);
