@@ -12325,11 +12325,11 @@ $as_echo "$ac_cv_path_SED" >&6; }
 #########################
 
 
-			CLE_RPM_VERS="4.1"
+			CLE_RPM_VERS="4.2"
 
-		ALPS_RPM_DIR="/cray/css/release/cray/build/alps_gemini/sles11sp1/x86_64/RB-4.1/published/latest/RPMS/x86_64"
+		ALPS_RPM_DIR="/cray/css/release/cray/build/alps_gemini/sles11sp1/x86_64/RB-4.2UP00/published/latest/RPMS/x86_64/"
 
-		XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp1/x86_64/trunk-gem/working/latest/3rd-party/x86_64"
+		XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp1/x86_64/RB-4.2-gem/working/latest-RB-4.2UP00/3rd-party/x86_64/"
 
 
 

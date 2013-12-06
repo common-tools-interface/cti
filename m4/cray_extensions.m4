@@ -1,7 +1,7 @@
 #
 # cray_extensions.m4 Cray configure extensions.
 #
-# ©2012 Cray Inc.  All Rights Reserved.
+# ©2012-2013 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -38,13 +38,13 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 [
 	dnl Set this to the CLE base version we are buidling against. Note that this
 	dnl does not include update level information.
-	CLE_RPM_VERS="4.1"
+	CLE_RPM_VERS="4.2"
 
 	dnl Set this to the location of the alps RPMS we should build against
-	ALPS_RPM_DIR="/cray/css/release/cray/build/alps_gemini/sles11sp1/x86_64/RB-4.1/published/latest/RPMS/x86_64"
-	
+	ALPS_RPM_DIR="/cray/css/release/cray/build/alps_gemini/sles11sp1/x86_64/RB-4.2UP00/published/latest/RPMS/x86_64/"
+
 	dnl Set this to the location of the xmlrpc-epi RPMS we should build against
-	XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp1/x86_64/trunk-gem/working/latest/3rd-party/x86_64"
+	XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp1/x86_64/RB-4.2-gem/working/latest-RB-4.2UP00/3rd-party/x86_64/"
 
 	AC_PROG_MKDIR_P
 	
