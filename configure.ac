@@ -14,11 +14,11 @@ dnl $Date$
 dnl $Rev$
 dnl $Author$
 
-AC_PREREQ([2.68])
+AC_PREREQ([2.63])
 
 dnl We need to use the m4_esyscmd_s here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT
-AC_INIT([craytool_interface], [m4_esyscmd_s([. release_versioning; echo $craytool_major.$craytool_minor])], [andrewg@cray.com])
+AC_INIT([craytool_interface], [m4_esyscmd([. release_versioning; echo $craytool_major.$craytool_minor])], [andrewg@cray.com])
 AC_COPYRIGHT([© 2011-2013 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/alps_application.c])
@@ -28,7 +28,6 @@ AC_CONFIG_HEADERS([config.h])
 
 dnl Turn on Posix extensions
 AC_USE_SYSTEM_EXTENSIONS
-AC_GNU_SOURCE
 
 AM_INIT_AUTOMAKE([foreign -Wall])
 LT_INIT
