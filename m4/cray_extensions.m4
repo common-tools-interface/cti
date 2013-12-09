@@ -16,19 +16,20 @@ dnl $Author$
 
 dnl
 dnl read release and library version information from disk
+dnl This is not portable due to tr -d and source...
 dnl
 AC_DEFUN([cray_INIT],
 [
 	dnl Pull in the revision information from the release_versioning file
-	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([. release_versioning; echo $craytool_major.$craytool_minor])])
+	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])])
 	
-	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd([. release_versioning; echo $be_current])])
-	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd([. release_versioning; echo $be_revision])])
-	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd([. release_versioning; echo $be_age])])
+	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd([source release_versioning; echo $be_current | tr -d '\n'])])
+	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd([source release_versioning; echo $be_revision | tr -d '\n'])])
+	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd([source release_versioning; echo $be_age | tr -d '\n'])])
 	
-	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd([. release_versioning; echo $fe_current])])
-	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd([. release_versioning; echo $fe_revision])])
-	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd([. release_versioning; echo $fe_age])])
+	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd([source release_versioning; echo $fe_current | tr -d '\n'])])
+	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd([source release_versioning; echo $fe_revision | tr -d '\n'])])
+	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd([source release_versioning; echo $fe_age | tr -d '\n'])])
 ])
 
 dnl

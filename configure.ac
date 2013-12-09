@@ -16,9 +16,9 @@ dnl $Author$
 
 AC_PREREQ([2.63])
 
-dnl We need to use the m4_esyscmd_s here because the Cray macro extensions are
-dnl not pulled in until after AC_INIT
-AC_INIT([craytool_interface], [m4_esyscmd([. release_versioning; echo $craytool_major.$craytool_minor])], [andrewg@cray.com])
+dnl We need to use the m4_esyscmd here because the Cray macro extensions are
+dnl not pulled in until after AC_INIT. This is not portable...
+AC_INIT([craytool_interface], [m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])], [andrewg@cray.com])
 AC_COPYRIGHT([© 2011-2013 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/alps_application.c])
@@ -51,8 +51,7 @@ AC_ARG_WITH([libarchive],
 			    [Specify path to libarchive library.]
 			    )
 	    ],
-	    [libarchive_path=$withval],
-	    []
+	    [libarchive_path=$withval]
 	    )
 
 ###########################
