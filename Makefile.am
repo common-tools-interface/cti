@@ -17,6 +17,7 @@
 SRCDIR = @craytool_srcdir@
 
 ACLOCAL_AMFLAGS = -I m4
+AM_LIBTOOLFLAGS = --quiet
 
 SUBDIRS = src/ld_val src demos
 

@@ -19,6 +19,7 @@ LDVAL		= ld_val
 ARCHIVE_LIBS	= @archive_libs@
 
 AM_CFLAGS 	= -I$(LDVAL) -fPIC -Wall
+AM_LIBTOOLFLAGS = --quiet
 
 lib_LTLIBRARIES	= libcraytools_fe.la libcraytools_be.la
 

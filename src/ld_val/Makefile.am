@@ -15,6 +15,7 @@
 ## $Author$
 
 AM_CFLAGS				= -fPIC -Wall
+AM_LIBTOOLFLAGS				= --quiet
 
 noinst_LTLIBRARIES		= libld_val.la
 lib_LTLIBRARIES			= libaudit.la

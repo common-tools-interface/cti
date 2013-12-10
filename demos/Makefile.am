@@ -16,6 +16,7 @@
 #
 
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
+AM_LIBTOOLFLAGS = --quiet
 
 EXTRA_PROGRAMS = aprunBarrier aprunInfo aprunCallback callback_daemon
 

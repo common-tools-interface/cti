@@ -218,6 +218,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CFLAGS = -fPIC -Wall
+AM_LIBTOOLFLAGS = --quiet
 noinst_LTLIBRARIES = libld_val.la
 lib_LTLIBRARIES = libaudit.la
 libld_val_la_SOURCES = ld_val.c

@@ -237,6 +237,7 @@ top_srcdir = @top_srcdir@
 LDVAL = ld_val
 ARCHIVE_LIBS = @archive_libs@
 AM_CFLAGS = -I$(LDVAL) -fPIC -Wall
+AM_LIBTOOLFLAGS = --quiet
 lib_LTLIBRARIES = libcraytools_fe.la libcraytools_be.la
 libcraytools_fe_la_SOURCES = alps_application.c alps_run.c alps_transfer.c \
 				  cti_error.c useful/path.c useful/stringList.c 
