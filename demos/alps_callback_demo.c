@@ -4,7 +4,7 @@
  *			argv, transfer and launch a simple tool daemon that will
  *			communicate with the frontend over a simple socket connection.
  *
- * © 2011-2013 Cray Inc.	All Rights Reserved.
+ * © 2011-2014 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -293,7 +293,7 @@ main(int argc, char **argv)
 	cti_aprunProc_t *	myapp;
 	char **				tool_argv;
 	int					i;
-	CTI_SESSION_ID		mysid;
+	cti_session_id_t	mysid;
 	
 	// ensure the user called me correctly
 	if (argc < 2)
@@ -312,7 +312,7 @@ main(int argc, char **argv)
 	}
 	
 	// call aprun
-	if ((myapp = cti_launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
+	if ((myapp = cti_launchAprunBarrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
 	{
 		fprintf(stderr, "Aprun failed.\n");
 		return 1;
@@ -394,7 +394,7 @@ main(int argc, char **argv)
 	(void)getchar();
 	
 	// release barrier
-	if (cti_releaseAprun_barrier(myapp->apid))
+	if (cti_releaseAprunBarrier(myapp->apid))
 	{
 		fprintf(stderr, "Could not release app from barrier.\n");
 		cti_killAprun(myapp->apid, 9);

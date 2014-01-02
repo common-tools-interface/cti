@@ -3,7 +3,7 @@
  *		      support functions for the other APIs defined by this
  *		      interface.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -783,7 +783,7 @@ cti_getAppHostsPlacement(uint64_t apid)
 }
 
 void
-cti_destroy_hostsList(cti_hostsList_t *placement_list)
+cti_destroyHostsList(cti_hostsList_t *placement_list)
 {
 	// sanity check
 	if (placement_list == NULL)

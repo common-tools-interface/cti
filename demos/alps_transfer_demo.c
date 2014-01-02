@@ -3,7 +3,7 @@
  *			tools interface which will launch an aprun session from the given
  *			argv and transfer demo files.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -37,8 +37,8 @@ int
 main(int argc, char **argv)
 {
 	cti_aprunProc_t *	myapp;
-	CTI_MANIFEST_ID		mymid;
-	CTI_SESSION_ID		mysid;
+	cti_manifest_id_t	mymid;
+	cti_session_id_t	mysid;
 	char *				file_loc;
 	
 	if (argc < 2)
@@ -49,7 +49,7 @@ main(int argc, char **argv)
 	
 	printf("Launching application...\n");
 	
-	if ((myapp = cti_launchAprun_barrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
+	if ((myapp = cti_launchAprunBarrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
 	{
 		fprintf(stderr, "Error: Could not launch aprun!\n");
 		return 1;
@@ -97,7 +97,7 @@ main(int argc, char **argv)
 	// just read a single character from stdin then release the app/exit
 	(void)getchar();
 	
-	if (cti_releaseAprun_barrier(myapp->apid))
+	if (cti_releaseAprunBarrier(myapp->apid))
 	{
 		fprintf(stderr, "Error: Failed to release app from barrier!\n");
 		cti_killAprun(myapp->apid, 9);

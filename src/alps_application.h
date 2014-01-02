@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * alps_transfer.h - A header file for the alps_application interface.
  *
- * © 2011-2013 Cray Inc.	All Rights Reserved.
+ * © 2011-2014 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -95,6 +95,6 @@ int					cti_getNumAppPEs(uint64_t);
 int					cti_getNumAppNodes(uint64_t);
 char **	 			cti_getAppHostsList(uint64_t);
 cti_hostsList_t *	cti_getAppHostsPlacement(uint64_t);
-void				cti_destroy_hostsList(cti_hostsList_t *);
+void				cti_destroyHostsList(cti_hostsList_t *);
 
 #endif /* _ALPS_APPLICATION_H */

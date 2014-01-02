@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * alps_transfer.h - A header file for the alps_transfer interface.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -23,22 +23,22 @@
 
 #include "alps_defs.h"
 
-typedef int CTI_MANIFEST_ID;
-typedef int CTI_SESSION_ID;
+typedef int cti_manifest_id_t;
+typedef int cti_session_id_t;
 
 /* function prototypes */
-CTI_MANIFEST_ID	cti_createNewManifest(CTI_SESSION_ID);
-void			cti_destroyManifest(CTI_MANIFEST_ID);
-int				cti_addManifestBinary(CTI_MANIFEST_ID, char *);
-int				cti_addManifestLibrary(CTI_MANIFEST_ID, char *);
-int				cti_addManifestFile(CTI_MANIFEST_ID, char *);
-CTI_SESSION_ID	cti_sendManifest(uint64_t, CTI_MANIFEST_ID, int);
-CTI_SESSION_ID	cti_execToolDaemon(uint64_t, CTI_MANIFEST_ID, CTI_SESSION_ID, char *, char **, char **, int);
-char **			cti_getSessionLockFiles(CTI_SESSION_ID sid);
-char *			cti_getSessionRootDir(CTI_SESSION_ID);
-char *			cti_getSessionBinDir(CTI_SESSION_ID);
-char *			cti_getSessionLibDir(CTI_SESSION_ID);
-char *			cti_getSessionFileDir(CTI_SESSION_ID);
-char *			cti_getSessionTmpDir(CTI_SESSION_ID);
+cti_manifest_id_t	cti_createNewManifest(cti_session_id_t);
+void				cti_destroyManifest(cti_manifest_id_t);
+int					cti_addManifestBinary(cti_manifest_id_t, char *);
+int					cti_addManifestLibrary(cti_manifest_id_t, char *);
+int					cti_addManifestFile(cti_manifest_id_t, char *);
+cti_session_id_t	cti_sendManifest(uint64_t, cti_manifest_id_t, int);
+cti_session_id_t	cti_execToolDaemon(uint64_t, cti_manifest_id_t, cti_session_id_t, char *, char **, char **, int);
+char **				cti_getSessionLockFiles(cti_session_id_t);
+char *				cti_getSessionRootDir(cti_session_id_t);
+char *				cti_getSessionBinDir(cti_session_id_t);
+char *				cti_getSessionLibDir(cti_session_id_t);
+char *				cti_getSessionFileDir(cti_session_id_t);
+char *				cti_getSessionTmpDir(cti_session_id_t);
 
 #endif /* _ALPS_TRANSFER_H */

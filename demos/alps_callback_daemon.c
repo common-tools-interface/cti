@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * alps_callback_daemon.c - The compute node daemon portion of the alps_callback_demo.
  *
- * © 2011-2013 Cray Inc.	All Rights Reserved.
+ * © 2011-2014 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -146,9 +146,9 @@ main(int argc, char **argv)
 	fprintf(stderr, "My first PE: %d\n", firstPe);
 	
 	// get the number of PEs that reside on this node
-	if ((numPes = cti_getPesHere()) == -1)
+	if ((numPes = cti_getNumPEsHere()) == -1)
 	{
-		fprintf(stderr, "getPesHere failed.\n");
+		fprintf(stderr, "cti_getNumPEsHere failed.\n");
 		return 1;
 	}
 	fprintf(stderr, "PEs here: %d\n", numPes);

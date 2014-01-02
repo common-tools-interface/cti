@@ -1,8 +1,11 @@
 /******************************************************************************\
  * cray_tools_be.h - The public API definitions for the backend portion of
- *                   the Cray tools interface.
+ *                   the Cray tools interface. This interface should be used
+ *                   only on Cray compute nodes. It will not function on eslogin
+ *                   or login nodes. Backend refers to the location where
+ *                   applications are run.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -28,6 +31,7 @@
  * variables when the dlaunch utility launches the tool daemon on the compute
  * node. They are defined here. Note that the value of these environment
  * variables are subject to change. Use the defines to guarantee portability.
+ * These should all be read-only.
  *
  * CTI_APID_ENV_VAR
  *
@@ -57,7 +61,7 @@
  *         aprun, CTI_OLD_SCRATCH_ENV_VAR will not exist in the environment of
  *         the tool daemon.
  *
- * CTI_ALPS_DIR_VAR
+ * CTI_ALPS_DIR_ENV_VAR
  *
  *         The environment variable that is used to hold the location of the
  *         ALPS toolhelper directory for this application. This location is
@@ -66,7 +70,7 @@
  *         placed in this location. Any ALPS toolhelper is allowed to 
  *         overwrite/modify any files in this location.
  *
- * CTI_ROOT_DIR_VAR
+ * CTI_ROOT_DIR_ENV_VAR
  *
  *         The environment variable that is used to hold the location of this
  *         tool daemons root location. Any files that were transfered over will
@@ -74,13 +78,13 @@
  *         directories are all subdirectories of this root value. The cwd of the
  *         tool daemon is automatically set to this location.
  *
- * CTI_BIN_DIR_VAR
+ * CTI_BIN_DIR_ENV_VAR
  *
  *         The environment variable that is used to hold the location of any
  *         binaries that were shipped to the compute node with the manifest.
  *         This value is automatically added to PATH of the tool daemon.
  *
- * CTI_LIB_DIR_VAR
+ * CTI_LIB_DIR_ENV_VAR
  *
  *         The environment variable that is used to hold the location of any
  *         libraries that were shipped to the compute node with the manifest.
@@ -90,10 +94,10 @@
 #define CTI_APID_ENV_VAR        "CRAYTOOL_APID"
 #define CTI_SCRATCH_ENV_VAR     "TMPDIR"
 #define CTI_OLD_SCRATCH_ENV_VAR "CRAYTOOL_OLD_TMPDIR"
-#define CTI_ALPS_DIR_VAR        "CRAYTOOL_ALPS_DIR"
-#define CTI_ROOT_DIR_VAR        "CRAYTOOL_ROOT_DIR"
-#define CTI_BIN_DIR_VAR         "CRAYTOOL_BIN_DIR"
-#define CTI_LIB_DIR_VAR         "CRAYTOOL_LIB_DIR"
+#define CTI_ALPS_DIR_ENV_VAR    "CRAYTOOL_ALPS_DIR"
+#define CTI_ROOT_DIR_ENV_VAR    "CRAYTOOL_ROOT_DIR"
+#define CTI_BIN_DIR_ENV_VAR     "CRAYTOOL_BIN_DIR"
+#define CTI_LIB_DIR_ENV_VAR     "CRAYTOOL_LIB_DIR"
 
 /* 
  * The following are types used as return values for some API calls.
@@ -136,7 +140,7 @@ typedef struct
 extern cti_pidList_t *	cti_findAppPids(void);
 
 /*
- * cti_destroy_pidList - Used to destroy the memory allocated for a 
+ * cti_destroyPidList - Used to destroy the memory allocated for a 
  *                       cti_pidList_t.
  * 
  * Detail
@@ -152,14 +156,14 @@ extern cti_pidList_t *	cti_findAppPids(void);
  *      Void. This function behaves similarly to free().
  *
  */
-extern void	cti_destroy_pidList(cti_pidList_t *pid_list);
+extern void	cti_destroyPidList(cti_pidList_t *pid_list);
 
 /*
  * cti_getNodeCName - Returns the cabinet hostname of this compute node.
  * 
  * Detail
- *      This function determines the cname of the compute node. It is
- *      up to the caller to free the returned string.
+ *      This function determines the cname of the compute node 
+ *      (e.g., c0-0c2s6n3). It is up to the caller to free the returned string.
  *
  * Arguments
  *      None.
@@ -174,8 +178,8 @@ extern char *	cti_getNodeCName(void);
  * cti_getNodeNidName - Returns the nid hostname of this compute node.
  * 
  * Detail
- *      This function determines the nid (node id) hostname of the compute node.
- *      It is up to the caller to free the returned string.
+ *      This function determines the nid (node id) hostname of the compute node
+ *      (e.g., nid00001). It is up to the caller to free the returned string.
  *
  * Arguments
  *      None.
@@ -207,7 +211,11 @@ extern int	cti_getNodeNid(void);
  * 
  * Detail
  *      This function determines the first PE (as in lowest numbered) that 
- *      resides on the compute node.
+ *      resides on the compute node. The PE acronym stands for Processing
+ *      Elements and for an entire application are doled out starting at zero
+ *      and incrementing progressively through all of the nodes. Any given node
+ *      has a consecutive set of PE numbers starting at cit_getFirstPE() up 
+ *      through cti_getFirstPE() + cti_getNumPEsHere() - 1.
  *
  * Arguments
  *      None.
@@ -219,7 +227,7 @@ extern int	cti_getNodeNid(void);
 extern int	cti_getFirstPE(void);
 
 /*
- * cti_getPesHere - Returns the number of PEs that reside on this compute node.
+ * cti_getNumPEsHere - Returns the number of PEs that reside on this compute node.
  * 
  * Detail
  *      This function determines the number of PEs that reside on the compute
@@ -231,6 +239,6 @@ extern int	cti_getFirstPE(void);
  *      The integer value of the number of PEs on the node, or else -1 on error.
  * 
  */
-extern int	cti_getPesHere(void);
+extern int	cti_getNumPEsHere(void);
 
 #endif /* _CRAY_TOOLS_BE_H */

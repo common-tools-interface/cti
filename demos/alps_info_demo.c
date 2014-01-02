@@ -3,7 +3,7 @@
  *			tools interface which will gather information from ALPS about a
  *          previously launched job.
  *
- * © 2012-2013 Cray Inc.	All Rights Reserved.
+ * © 2012-2014 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -168,7 +168,7 @@ main(int argc, char **argv)
 	// don't forget to cleanup memory that was malloc'ed
 	free(mycname);
 	free(apphostlist);
-	cti_destroy_hostsList(apphostplacement);
+	cti_destroyHostsList(apphostplacement);
 	
 	return 0;
 }

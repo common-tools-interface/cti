@@ -4,7 +4,7 @@
  *		  an easy to use interface to obtain application information
  *		  for backend tool daemons running on the compute nodes.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -209,7 +209,7 @@ cti_findAppPids()
 }
 
 void
-cti_destroy_pidList(cti_pidList_t *lst)
+cti_destroyPidList(cti_pidList_t *lst)
 {
 	// sanity check
 	if (lst == NULL)
@@ -311,7 +311,7 @@ cti_getFirstPE()
 }
 
 int
-cti_getPesHere()
+cti_getNumPEsHere()
 {
 	// Try to read the _cti_apid from the environment if we haven't done so already
 	if (_cti_apid == 0)

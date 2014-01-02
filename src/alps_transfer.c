@@ -5,7 +5,7 @@
  *		   associated with an aprun pid. This can also be used to launch
  *		   tool daemons on the compute nodes in an automated way.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -51,8 +51,8 @@
 
 typedef struct
 {
-	CTI_MANIFEST_ID	mid;			// manifest id
-	CTI_SESSION_ID	sid;			// optional session id
+	cti_manifest_id_t	mid;			// manifest id
+	cti_session_id_t	sid;			// optional session id
 	int				inst;			// instance number - used with session to prevent tarball name conflicts
 	char *			stage_name;		// basename of the manifest directory
 	stringList_t *	exec_names;		// list of manifest binary names
@@ -65,7 +65,7 @@ typedef struct
 
 typedef struct
 {
-	CTI_SESSION_ID	sid;			// session id
+	cti_session_id_t	sid;			// session id
 	int				instCnt;		// instance count - set in the manifest to prevent naming conflicts
 	char *			stage_name;		// basename of the manifest directory
 	char *			toolPath;		// toolPath of the app entry - DO NOT FREE THIS!!!
@@ -122,28 +122,28 @@ static const char * _cti_ignored_libs[] = {
 /* Static prototypes */
 static sessList_t *		_cti_growSessList(void);
 static void				_cti_reapSessList(void);
-static void				_cti_reapSession(CTI_SESSION_ID);
+static void				_cti_reapSession(cti_session_id_t);
 static void				_cti_consumeSession(session_t *);
-static session_t *		_cti_findSession(CTI_SESSION_ID);
-static session_t *		_cti_newSession(CTI_MANIFEST_ID);
+static session_t *		_cti_findSession(cti_session_id_t);
+static session_t *		_cti_newSession(cti_manifest_id_t);
 static manifList_t *	_cti_growManifList(void);
 static void				_cti_reapManifList(void);
-static void				_cti_reapManifest(CTI_MANIFEST_ID);
+static void				_cti_reapManifest(cti_manifest_id_t);
 static void				_cti_consumeManifest(manifest_t *);
-static manifest_t *		_cti_findManifest(CTI_MANIFEST_ID);
-static manifest_t *		_cti_newManifest(CTI_SESSION_ID);
-static int				_cti_addManifestToSession(CTI_MANIFEST_ID, CTI_SESSION_ID);
+static manifest_t *		_cti_findManifest(cti_manifest_id_t);
+static manifest_t *		_cti_newManifest(cti_session_id_t);
+static int				_cti_addManifestToSession(cti_manifest_id_t, cti_session_id_t);
 static void				_cti_destroyAppSess(TRANSFER_IFACE_OBJ obj);
-static void				_cti_addSessionToApp(appEntry_t *, CTI_SESSION_ID);
+static void				_cti_addSessionToApp(appEntry_t *, cti_session_id_t);
 static int				_cti_removeFilesFromDir(char *);
 static int				_cti_copyFilesToPackage(stringList_t *, char *);
-static int				_cti_packageManifestAndShip(uint64_t, CTI_MANIFEST_ID);
+static int				_cti_packageManifestAndShip(uint64_t, cti_manifest_id_t);
 
 /* global variables */
 static sessList_t *		_cti_my_sess	= NULL;
-static CTI_SESSION_ID	_cti_next_sid	= 1;
+static cti_session_id_t	_cti_next_sid	= 1;
 static manifList_t *	_cti_my_manifs	= NULL;
-static CTI_MANIFEST_ID	_cti_next_mid	= 1;
+static cti_manifest_id_t	_cti_next_mid	= 1;
 
 static sessList_t *
 _cti_growSessList(void)
@@ -209,7 +209,7 @@ _cti_reapSessList(void)
 }
 
 static void
-_cti_reapSession(CTI_SESSION_ID sid)
+_cti_reapSession(cti_session_id_t sid)
 {
 	sessList_t *	lstPtr;
 	sessList_t *	prePtr;
@@ -294,19 +294,19 @@ _cti_consumeSession(session_t *entry)
 }
 
 static session_t *
-_cti_findSession(CTI_SESSION_ID sid)
+_cti_findSession(cti_session_id_t sid)
 {
 	sessList_t *	lstPtr;
 	
 	// sanity check
 	if (sid <= 0)
 	{
-		_cti_set_error("Invalid CTI_SESSION_ID %d.", (int)sid);
+		_cti_set_error("Invalid cti_session_id_t %d.", (int)sid);
 	}
 	
 	if ((lstPtr = _cti_my_sess) == NULL)
 	{
-		_cti_set_error("CTI_SESSION_ID %d does not exist.", (int)sid);
+		_cti_set_error("cti_session_id_t %d does not exist.", (int)sid);
 		return NULL;
 	}
 	
@@ -316,7 +316,7 @@ _cti_findSession(CTI_SESSION_ID sid)
 		// if this is the only object in the list, then delete the entire list
 		if ((lstPtr = lstPtr->nextEntry) == NULL)
 		{
-			_cti_set_error("CTI_SESSION_ID %d does not exist.", (int)sid);
+			_cti_set_error("cti_session_id_t %d does not exist.", (int)sid);
 			_cti_my_sess = NULL;
 			free(lstPtr);
 			return NULL;
@@ -331,7 +331,7 @@ _cti_findSession(CTI_SESSION_ID sid)
 		if ((lstPtr = lstPtr->nextEntry) == NULL)
 		{
 			// there are no more entries and we didn't find the sid
-			_cti_set_error("CTI_SESSION_ID %d does not exist.", (int)sid);
+			_cti_set_error("cti_session_id_t %d does not exist.", (int)sid);
 			return NULL;
 		}
 	}
@@ -340,7 +340,7 @@ _cti_findSession(CTI_SESSION_ID sid)
 }
 
 static session_t *
-_cti_newSession(CTI_MANIFEST_ID mid)
+_cti_newSession(cti_manifest_id_t mid)
 {
 	sessList_t *	lstPtr;
 	session_t *		this;
@@ -529,7 +529,7 @@ _cti_reapManifList(void)
 }
 
 static void
-_cti_reapManifest(CTI_MANIFEST_ID mid)
+_cti_reapManifest(cti_manifest_id_t mid)
 {
 	manifList_t *	lstPtr;
 	manifList_t *	prePtr;
@@ -617,20 +617,20 @@ _cti_consumeManifest(manifest_t *entry)
 }
 
 static manifest_t *
-_cti_findManifest(CTI_MANIFEST_ID mid)
+_cti_findManifest(cti_manifest_id_t mid)
 {
 	manifList_t *	lstPtr;
 	
 	// sanity check
 	if (mid <= 0)
 	{
-		_cti_set_error("Invalid CTI_MANIFEST_ID %d.", (int)mid);
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
 		return NULL;
 	}
 	
 	if ((lstPtr = _cti_my_manifs) == NULL)
 	{
-		_cti_set_error("CTI_MANIFEST_ID %d does not exist.", (int)mid);
+		_cti_set_error("cti_manifest_id_t %d does not exist.", (int)mid);
 		return NULL;
 	}
 	
@@ -640,7 +640,7 @@ _cti_findManifest(CTI_MANIFEST_ID mid)
 		// if this is the only object in the list, then delete the entire list
 		if ((lstPtr = lstPtr->nextEntry) == NULL)
 		{
-			_cti_set_error("CTI_MANIFEST_ID %d does not exist.", (int)mid);
+			_cti_set_error("cti_manifest_id_t %d does not exist.", (int)mid);
 			_cti_my_manifs = NULL;
 			free(lstPtr);
 			return NULL;
@@ -655,7 +655,7 @@ _cti_findManifest(CTI_MANIFEST_ID mid)
 		if ((lstPtr = lstPtr->nextEntry) == NULL)
 		{
 			// there are no more entries and we didn't find the mid
-			_cti_set_error("CTI_MANIFEST_ID %d does not exist.", (int)mid);
+			_cti_set_error("cti_manifest_id_t %d does not exist.", (int)mid);
 			return NULL;
 		}
 	}
@@ -664,7 +664,7 @@ _cti_findManifest(CTI_MANIFEST_ID mid)
 }
 
 static manifest_t *
-_cti_newManifest(CTI_SESSION_ID sid)
+_cti_newManifest(cti_session_id_t sid)
 {
 	manifList_t *	lstPtr;
 	manifest_t *	this;
@@ -838,7 +838,7 @@ _cti_newManifest(CTI_SESSION_ID sid)
 }
 
 static int
-_cti_addManifestToSession(CTI_MANIFEST_ID mid, CTI_SESSION_ID sid)
+_cti_addManifestToSession(cti_manifest_id_t mid, cti_session_id_t sid)
 {
 	manifest_t *	m_ptr;
 	session_t *		s_ptr;
@@ -848,13 +848,13 @@ _cti_addManifestToSession(CTI_MANIFEST_ID mid, CTI_SESSION_ID sid)
 	// sanity check
 	if (mid == 0)
 	{
-		_cti_set_error("Invalid CTI_MANIFEST_ID %d.", (int)mid);
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
 		return 1;
 	}
 	
 	if (sid == 0)
 	{
-		_cti_set_error("Invalid CTI_SESSION_ID %d.", (int)sid);
+		_cti_set_error("Invalid cti_session_id_t %d.", (int)sid);
 		return 1;
 	}
 	
@@ -955,7 +955,7 @@ _cti_destroyAppSess(TRANSFER_IFACE_OBJ obj)
 }
 
 static void
-_cti_addSessionToApp(appEntry_t *app_ptr, CTI_SESSION_ID sid)
+_cti_addSessionToApp(appEntry_t *app_ptr, cti_session_id_t sid)
 {
 	sessMgr_t *	sess_obj;
 	int *		new_ids;
@@ -1019,8 +1019,8 @@ _cti_addSessionToApp(appEntry_t *app_ptr, CTI_SESSION_ID sid)
 
 /* API defined functions start here */
 
-CTI_MANIFEST_ID
-cti_createNewManifest(CTI_SESSION_ID sid)
+cti_manifest_id_t
+cti_createNewManifest(cti_session_id_t sid)
 {
 	manifest_t *	m_ptr = NULL;
 	
@@ -1034,15 +1034,15 @@ cti_createNewManifest(CTI_SESSION_ID sid)
 }
 
 void
-cti_destroyManifest(CTI_MANIFEST_ID mid)
+cti_destroyManifest(cti_manifest_id_t mid)
 {
 	_cti_reapManifest(mid);
 }
 
 int
-cti_addManifestBinary(CTI_MANIFEST_ID mid, char *fstr)
+cti_addManifestBinary(cti_manifest_id_t mid, char *fstr)
 {
-	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the CTI_MANIFEST_ID argument
+	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	char *			fullname;	// full path name of the binary to add to the manifest
 	char *			realname;	// realname (lacking path info) of the file
 	char **			lib_array;	// the returned list of strings containing the required libraries by the executable
@@ -1051,7 +1051,7 @@ cti_addManifestBinary(CTI_MANIFEST_ID mid, char *fstr)
 	// sanity check
 	if (mid <= 0)
 	{
-		_cti_set_error("Invalid CTI_MANIFEST_ID %d.", (int)mid);
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
 		return 1;
 	}
 	
@@ -1140,16 +1140,16 @@ cti_addManifestBinary(CTI_MANIFEST_ID mid, char *fstr)
 }
 
 int
-cti_addManifestLibrary(CTI_MANIFEST_ID mid, char *fstr)
+cti_addManifestLibrary(cti_manifest_id_t mid, char *fstr)
 {
-	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the CTI_MANIFEST_ID argument
+	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	char *			fullname;	// full path name of the library to add to the manifest
 	char *			realname;	// realname (lacking path info) of the library
 	
 	// sanity check
 	if (mid <= 0)
 	{
-		_cti_set_error("Invalid CTI_MANIFEST_ID %d.", (int)mid);
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
 		return 1;
 	}
 	
@@ -1216,16 +1216,16 @@ cti_addManifestLibrary(CTI_MANIFEST_ID mid, char *fstr)
 }
 
 int
-cti_addManifestFile(CTI_MANIFEST_ID mid, char *fstr)
+cti_addManifestFile(cti_manifest_id_t mid, char *fstr)
 {
-	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the CTI_MANIFEST_ID argument
+	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	char *			fullname;	// full path name of the file to add to the manifest
 	char *			realname;	// realname (lacking path info) of the file
 	
 	// sanity check
 	if (mid <= 0)
 	{
-		_cti_set_error("Invalid CTI_MANIFEST_ID %d.", (int)mid);
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
 		return 1;
 	}
 	
@@ -1424,10 +1424,10 @@ _cti_copyFilesToPackage(stringList_t *list, char *path)
 }
 
 static int
-_cti_packageManifestAndShip(uint64_t apid, CTI_MANIFEST_ID mid)
+_cti_packageManifestAndShip(uint64_t apid, cti_manifest_id_t mid)
 {
 	appEntry_t *			app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
-	manifest_t *			m_ptr = NULL;		// pointer to the manifest_t object associated with the CTI_MANIFEST_ID argument
+	manifest_t *			m_ptr = NULL;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	char *					cfg_dir = NULL;		// configuration directory from env var
 	char *					stage_dir = NULL;	// staging directory name
 	char *					stage_path = NULL;	// staging path
@@ -1455,7 +1455,7 @@ _cti_packageManifestAndShip(uint64_t apid, CTI_MANIFEST_ID mid)
 	
 	if (mid <= 0)
 	{
-		_cti_set_error("Invalid CTI_MANIFEST_ID %d.", (int)mid);
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
 		return 1;
 	}
 	
@@ -1814,18 +1814,18 @@ packageManifestAndShip_error:
 	return 1;
 }
 
-CTI_SESSION_ID
-cti_sendManifest(uint64_t apid, CTI_MANIFEST_ID mid, int dbg)
+cti_session_id_t
+cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 {
 	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
-	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the CTI_MANIFEST_ID argument
+	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
 	char *			args_flat;			// flattened args array to pass to the toolhelper call
 	char *			cpy;				// temporary cpy var used in creating args_flat
 	char *			launcher;			// full path name of the daemon launcher application
 	size_t			len;				// len vars used in creating the args_flat string
 	session_t *		s_ptr = NULL;		// points at the session to return
-	CTI_SESSION_ID		rtn;
+	cti_session_id_t		rtn;
 	int				trnsfr = 1;			// should we transfer the dlaunch?
 	int				l, val;
 
@@ -1838,7 +1838,7 @@ cti_sendManifest(uint64_t apid, CTI_MANIFEST_ID mid, int dbg)
 	
 	if (mid <= 0)
 	{
-		_cti_set_error("Invalid CTI_MANIFEST_ID %d.", (int)mid);
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
 		return 1;
 	}
 	
@@ -1882,7 +1882,7 @@ cti_sendManifest(uint64_t apid, CTI_MANIFEST_ID mid, int dbg)
 		// ensure that there is a session set in the m_ptr
 		if (m_ptr->sid <= 0)
 		{
-			_cti_set_error("CTI_MANIFEST_ID %d was empty!", m_ptr->mid);
+			_cti_set_error("cti_manifest_id_t %d was empty!", m_ptr->mid);
 			return 0;
 		}
 		
@@ -2024,11 +2024,11 @@ cti_sendManifest(uint64_t apid, CTI_MANIFEST_ID mid, int dbg)
 	return s_ptr->sid;
 }
 
-CTI_SESSION_ID
-cti_execToolDaemon(uint64_t apid, CTI_MANIFEST_ID mid, CTI_SESSION_ID sid, char *fstr, char **args, char **env, int dbg)
+cti_session_id_t
+cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, char *fstr, char **args, char **env, int dbg)
 {
 	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
-	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the CTI_MANIFEST_ID argument
+	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	int				useManif = 0;		// controls if a manifest was shipped or not
 	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
 	char *			fullname;			// full path name of the executable to launch as a tool daemon
@@ -2108,7 +2108,7 @@ cti_execToolDaemon(uint64_t apid, CTI_MANIFEST_ID mid, CTI_SESSION_ID sid, char 
 		if (m_ptr->sid != s_ptr->sid)
 		{
 			// mismatch
-			_cti_set_error("CTI_MANIFEST_ID %d was not created with CTI_SESSION_ID %d.", (int)mid, (int)sid);
+			_cti_set_error("cti_manifest_id_t %d was not created with cti_session_id_t %d.", (int)mid, (int)sid);
 			return 0;
 		}
 	}
@@ -2361,7 +2361,7 @@ cti_execToolDaemon(uint64_t apid, CTI_MANIFEST_ID mid, CTI_SESSION_ID sid, char 
 }
 
 char **
-cti_getSessionLockFiles(CTI_SESSION_ID sid)
+cti_getSessionLockFiles(cti_session_id_t sid)
 {
 	session_t *		s_ptr = NULL;		// points at the session
 	char **			rtn = NULL;
@@ -2403,7 +2403,7 @@ cti_getSessionLockFiles(CTI_SESSION_ID sid)
 }
 
 char *
-cti_getSessionRootDir(CTI_SESSION_ID sid)
+cti_getSessionRootDir(cti_session_id_t sid)
 {
 	session_t *		s_ptr = NULL;		// points at the session
 	char *			rtn = NULL;
@@ -2427,7 +2427,7 @@ cti_getSessionRootDir(CTI_SESSION_ID sid)
 }
 
 char *
-cti_getSessionBinDir(CTI_SESSION_ID sid)
+cti_getSessionBinDir(cti_session_id_t sid)
 {
 	session_t *		s_ptr = NULL;		// points at the session
 	char *			rtn = NULL;
@@ -2451,7 +2451,7 @@ cti_getSessionBinDir(CTI_SESSION_ID sid)
 }
 
 char *
-cti_getSessionLibDir(CTI_SESSION_ID sid)
+cti_getSessionLibDir(cti_session_id_t sid)
 {
 	session_t *		s_ptr = NULL;		// points at the session
 	char *			rtn = NULL;
@@ -2475,7 +2475,7 @@ cti_getSessionLibDir(CTI_SESSION_ID sid)
 }
 
 char *
-cti_getSessionFileDir(CTI_SESSION_ID sid)
+cti_getSessionFileDir(cti_session_id_t sid)
 {
 	session_t *		s_ptr = NULL;		// points at the session
 	char *			rtn = NULL;
@@ -2499,7 +2499,7 @@ cti_getSessionFileDir(CTI_SESSION_ID sid)
 }
 
 char *
-cti_getSessionTmpDir(CTI_SESSION_ID sid)
+cti_getSessionTmpDir(cti_session_id_t sid)
 {
 	session_t *		s_ptr = NULL;		// points at the session
 	char *			rtn = NULL;

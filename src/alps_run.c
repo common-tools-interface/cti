@@ -4,7 +4,7 @@
  *	      start new instances of an aprun program and get the pid_t of
  *	      the associated aprun session.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -224,9 +224,9 @@ _cti_filter_pid_entries(const struct dirent *a)
 }
 
 cti_aprunProc_t	*
-cti_launchAprun_barrier(	char **aprun_argv, int redirectOutput, int redirectInput, 
-							int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
-							char **env_list	)
+cti_launchAprunBarrier(	char **aprun_argv, int redirectOutput, int redirectInput, 
+						int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
+						char **env_list	)
 {
 	aprunInv_t *	myapp;
 	aprunInv_t *	newapp;
@@ -763,7 +763,7 @@ continue_on_error:
 }
 
 int
-cti_releaseAprun_barrier(uint64_t apid)
+cti_releaseAprunBarrier(uint64_t apid)
 {
 	aprunInv_t * appPtr;
 	

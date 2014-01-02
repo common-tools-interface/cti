@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * alps_run.h - A header file for the alps_run interface.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -33,8 +33,8 @@ typedef struct
 
 /* function prototypes */
 void				_cti_reapAprunInv(uint64_t);
-cti_aprunProc_t	*	cti_launchAprun_barrier(char **, int, int, int, int, char *, char *, char **);
-int					cti_releaseAprun_barrier(uint64_t);
+cti_aprunProc_t	*	cti_launchAprunBarrier(char **, int, int, int, int, char *, char *, char **);
+int					cti_releaseAprunBarrier(uint64_t);
 int					cti_killAprun(uint64_t, int);
 
 #endif /* _ALPS_RUN_H */
