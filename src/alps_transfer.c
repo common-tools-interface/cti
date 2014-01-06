@@ -53,25 +53,25 @@ typedef struct
 {
 	cti_manifest_id_t	mid;			// manifest id
 	cti_session_id_t	sid;			// optional session id
-	int				inst;			// instance number - used with session to prevent tarball name conflicts
-	char *			stage_name;		// basename of the manifest directory
-	stringList_t *	exec_names;		// list of manifest binary names
-	stringList_t *	lib_names;		// list of manifest dso names
-	stringList_t *	file_names;		// list of manifest regular file names
-	stringList_t *	exec_loc;		// fullpath of manifest binaries
-	stringList_t *	lib_loc;		// fullpath of manifest libaries
-	stringList_t *	file_loc;		// fullpath of manifest files
+	int					inst;			// instance number - used with session to prevent tarball name conflicts
+	char *				stage_name;		// basename of the manifest directory
+	stringList_t *		exec_names;		// list of manifest binary names
+	stringList_t *		lib_names;		// list of manifest dso names
+	stringList_t *		file_names;		// list of manifest regular file names
+	stringList_t *		exec_loc;		// fullpath of manifest binaries
+	stringList_t *		lib_loc;		// fullpath of manifest libaries
+	stringList_t *		file_loc;		// fullpath of manifest files
 } manifest_t;
 
 typedef struct
 {
 	cti_session_id_t	sid;			// session id
-	int				instCnt;		// instance count - set in the manifest to prevent naming conflicts
-	char *			stage_name;		// basename of the manifest directory
-	char *			toolPath;		// toolPath of the app entry - DO NOT FREE THIS!!!
-	stringList_t *	exec_names;		// list of manifest binary names
-	stringList_t *	lib_names;		// list of manifest dso names
-	stringList_t *	file_names;		// list of manifest regular file names
+	int					instCnt;		// instance count - set in the manifest to prevent naming conflicts
+	char *				stage_name;		// basename of the manifest directory
+	char *				toolPath;		// toolPath of the app entry - DO NOT FREE THIS!!!
+	stringList_t *		exec_names;		// list of manifest binary names
+	stringList_t *		lib_names;		// list of manifest dso names
+	stringList_t *		file_names;		// list of manifest regular file names
 } session_t;
 
 struct manifList
