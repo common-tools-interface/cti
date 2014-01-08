@@ -45,7 +45,8 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 EXTRA_PROGRAMS = aprunBarrier$(EXEEXT) aprunInfo$(EXEEXT) \
-	aprunCallback$(EXEEXT) callback_daemon$(EXEEXT)
+	aprunTransfer$(EXEEXT) aprunCallback$(EXEEXT) \
+	callback_daemon$(EXEEXT)
 subdir = demos
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -76,6 +77,12 @@ aprunInfo_LDADD = $(LDADD)
 aprunInfo_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(aprunInfo_CFLAGS) \
 	$(CFLAGS) $(aprunInfo_LDFLAGS) $(LDFLAGS) -o $@
+am_aprunTransfer_OBJECTS = aprunTransfer-alps_transfer_demo.$(OBJEXT)
+aprunTransfer_OBJECTS = $(am_aprunTransfer_OBJECTS)
+aprunTransfer_LDADD = $(LDADD)
+aprunTransfer_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(aprunTransfer_CFLAGS) \
+	$(CFLAGS) $(aprunTransfer_LDFLAGS) $(LDFLAGS) -o $@
 am_callback_daemon_OBJECTS =  \
 	callback_daemon-alps_callback_daemon.$(OBJEXT)
 callback_daemon_OBJECTS = $(am_callback_daemon_OBJECTS)
@@ -96,9 +103,11 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(aprunBarrier_SOURCES) $(aprunCallback_SOURCES) \
-	$(aprunInfo_SOURCES) $(callback_daemon_SOURCES)
+	$(aprunInfo_SOURCES) $(aprunTransfer_SOURCES) \
+	$(callback_daemon_SOURCES)
 DIST_SOURCES = $(aprunBarrier_SOURCES) $(aprunCallback_SOURCES) \
-	$(aprunInfo_SOURCES) $(callback_daemon_SOURCES)
+	$(aprunInfo_SOURCES) $(aprunTransfer_SOURCES) \
+	$(callback_daemon_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -230,6 +239,9 @@ aprunBarrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 aprunInfo_CFLAGS = $(AM_CFLAGS)
 aprunInfo_SOURCES = alps_info_demo.c
 aprunInfo_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
+aprunTransfer_CFLAGS = $(AM_CFLAGS)
+aprunTransfer_SOURCES = alps_transfer_demo.c
+aprunTransfer_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 aprunCallback_CFLAGS = $(AM_CFLAGS)
 aprunCallback_SOURCES = alps_callback_demo.c
 aprunCallback_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -pthread
@@ -278,6 +290,9 @@ aprunCallback$(EXEEXT): $(aprunCallback_OBJECTS) $(aprunCallback_DEPENDENCIES)
 aprunInfo$(EXEEXT): $(aprunInfo_OBJECTS) $(aprunInfo_DEPENDENCIES) 
 	@rm -f aprunInfo$(EXEEXT)
 	$(aprunInfo_LINK) $(aprunInfo_OBJECTS) $(aprunInfo_LDADD) $(LIBS)
+aprunTransfer$(EXEEXT): $(aprunTransfer_OBJECTS) $(aprunTransfer_DEPENDENCIES) 
+	@rm -f aprunTransfer$(EXEEXT)
+	$(aprunTransfer_LINK) $(aprunTransfer_OBJECTS) $(aprunTransfer_LDADD) $(LIBS)
 callback_daemon$(EXEEXT): $(callback_daemon_OBJECTS) $(callback_daemon_DEPENDENCIES) 
 	@rm -f callback_daemon$(EXEEXT)
 	$(callback_daemon_LINK) $(callback_daemon_OBJECTS) $(callback_daemon_LDADD) $(LIBS)
@@ -291,6 +306,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aprunBarrier-alps_barrier_demo.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aprunCallback-alps_callback_demo.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aprunInfo-alps_info_demo.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aprunTransfer-alps_transfer_demo.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/callback_daemon-alps_callback_daemon.Po@am__quote@
 
 .c.o:
@@ -355,6 +371,20 @@ aprunInfo-alps_info_demo.obj: alps_info_demo.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_info_demo.c' object='aprunInfo-alps_info_demo.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunInfo_CFLAGS) $(CFLAGS) -c -o aprunInfo-alps_info_demo.obj `if test -f 'alps_info_demo.c'; then $(CYGPATH_W) 'alps_info_demo.c'; else $(CYGPATH_W) '$(srcdir)/alps_info_demo.c'; fi`
+
+aprunTransfer-alps_transfer_demo.o: alps_transfer_demo.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunTransfer_CFLAGS) $(CFLAGS) -MT aprunTransfer-alps_transfer_demo.o -MD -MP -MF $(DEPDIR)/aprunTransfer-alps_transfer_demo.Tpo -c -o aprunTransfer-alps_transfer_demo.o `test -f 'alps_transfer_demo.c' || echo '$(srcdir)/'`alps_transfer_demo.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/aprunTransfer-alps_transfer_demo.Tpo $(DEPDIR)/aprunTransfer-alps_transfer_demo.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_transfer_demo.c' object='aprunTransfer-alps_transfer_demo.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunTransfer_CFLAGS) $(CFLAGS) -c -o aprunTransfer-alps_transfer_demo.o `test -f 'alps_transfer_demo.c' || echo '$(srcdir)/'`alps_transfer_demo.c
+
+aprunTransfer-alps_transfer_demo.obj: alps_transfer_demo.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunTransfer_CFLAGS) $(CFLAGS) -MT aprunTransfer-alps_transfer_demo.obj -MD -MP -MF $(DEPDIR)/aprunTransfer-alps_transfer_demo.Tpo -c -o aprunTransfer-alps_transfer_demo.obj `if test -f 'alps_transfer_demo.c'; then $(CYGPATH_W) 'alps_transfer_demo.c'; else $(CYGPATH_W) '$(srcdir)/alps_transfer_demo.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/aprunTransfer-alps_transfer_demo.Tpo $(DEPDIR)/aprunTransfer-alps_transfer_demo.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_transfer_demo.c' object='aprunTransfer-alps_transfer_demo.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(aprunTransfer_CFLAGS) $(CFLAGS) -c -o aprunTransfer-alps_transfer_demo.obj `if test -f 'alps_transfer_demo.c'; then $(CYGPATH_W) 'alps_transfer_demo.c'; else $(CYGPATH_W) '$(srcdir)/alps_transfer_demo.c'; fi`
 
 callback_daemon-alps_callback_daemon.o: alps_callback_daemon.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(callback_daemon_CFLAGS) $(CFLAGS) -MT callback_daemon-alps_callback_daemon.o -MD -MP -MF $(DEPDIR)/callback_daemon-alps_callback_daemon.Tpo -c -o callback_daemon-alps_callback_daemon.o `test -f 'alps_callback_daemon.c' || echo '$(srcdir)/'`alps_callback_daemon.c
@@ -551,11 +581,12 @@ uninstall-am:
 	tags uninstall uninstall-am
 
 
-demos: aprunBarrier aprunInfo aprunCallback callback_daemon
+demos: aprunBarrier aprunInfo aprunTransfer aprunCallback callback_daemon
 	mkdir -p demo_binaries
 	cp testing.info demo_binaries
 	mv aprunBarrier demo_binaries
 	mv aprunInfo demo_binaries
+	mv aprunTransfer demo_binaries
 	mv aprunCallback demo_binaries
 	mv callback_daemon demo_binaries
 
