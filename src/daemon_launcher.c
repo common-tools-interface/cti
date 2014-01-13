@@ -5,7 +5,7 @@
  *		     and allows users to specify environment variable settings
  *		     that a tool daemon should inherit.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -110,7 +110,7 @@ main(int argc, char **argv)
 	uint64_t	apid = 0;
 	char		apid_str[APID_STR_BUF_LEN];
 	size_t		len;
-	char		*end, *tool_path;
+	char		*end, *tool_path, *launch_path;
 	struct stat statbuf;
 	char *		binary = NULL; 
 	char *		binary_path;
@@ -256,17 +256,29 @@ main(int argc, char **argv)
 		}
 	}
 	
+	// call realpath on argv[0] to resolve any extra slashes
+	if ((launch_path = realpath(argv[0], NULL)) == NULL)
+	{
+		// failure
+		fprintf(stderr, "realpath failed\n");
+		return 1;
+	}
+	
 	// get the apid from the toolhelper path from argv[0]
-	if ((sscanf(argv[0], "/var/spool/alps/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid)) == 0)
+	if ((sscanf(launch_path, "/var/spool/alps/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid)) == 0)
 	{
 		// fix for CLE 5.0 changes
-		if ((sscanf(argv[0], "/var/opt/cray/alps/spool/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid)) == 0)
+		if ((sscanf(launch_path, "/var/opt/cray/alps/spool/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid)) == 0)
 		{
 			// failure
 			fprintf(stderr, "sscanf apid failed\n");
 			return 1;
 		}
 	}
+	
+	// cleanup
+	free(launch_path);
+	
 	// write the apid to the apid_str
 	snprintf(apid_str, APID_STR_BUF_LEN, "%llu", (long long unsigned int)apid);
 	
