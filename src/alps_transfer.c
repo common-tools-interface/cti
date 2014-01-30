@@ -1682,9 +1682,11 @@ _cti_packageManifestAndShip(uint64_t apid, cti_manifest_id_t mid)
 	
 	archive_read_close(disk);
 	archive_read_free(disk);
+	disk = NULL;
 	
 	archive_write_close(a);
 	archive_write_free(a);
+	a = NULL;
 	
 	// rename the existing tarball based on its instance to prevent a race 
 	// condition where the dlaunch on the compute node has not yet extracted the 
