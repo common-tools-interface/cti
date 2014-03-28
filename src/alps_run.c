@@ -194,9 +194,16 @@ _cti_checkPathForWrappedAprun(char *aprun_path)
 		// realpath.
 		if ((default_obs_realpath = realpath(OBS_APRUN_LOCATION, NULL)) == NULL)
 		{
-			_cti_set_error("Could not resolve realpath of aprun.");
-			// Assume this is the real aprun...
-			return 0;
+			// Fix for BUG 810204 - Ensure that the OLD_APRUN_LOCATION exists before giving up.
+			if ((default_obs_realpath = realpath(OLD_APRUN_LOCATION, NULL)) == NULL)
+			{
+				_cti_set_error("Could not resolve realpath of aprun.");
+				// FIXME: Assume this is the real aprun...
+				return 0;
+			}
+			// This is a wrapper. Return 1.
+			free(default_obs_realpath);
+			return 1;
 		}
 		// Check the string
 		if (strncmp(aprun_path, default_obs_realpath, strlen(default_obs_realpath)))
