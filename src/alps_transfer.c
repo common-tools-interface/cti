@@ -2004,6 +2004,14 @@ cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 		}
 	} else
 	{
+		// Bugfix: Make sure to set s_ptr...
+		// Find the session entry in the global session list for the sid
+		if ((s_ptr = _cti_findSession(m_ptr->sid)) == NULL)
+		{
+			// We failed to find the session for the sid
+			// error string already set
+			return 0;
+		}
 		// Merge the manifest into the existing session
 		if (_cti_addManifestToSession(m_ptr->mid, m_ptr->sid))
 		{
