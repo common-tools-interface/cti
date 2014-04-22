@@ -38,12 +38,10 @@
 #include <archive.h>
 #include <archive_entry.h>
 
-#include "alps/libalps.h"
-
+#include "alps_fe.h"
 #include "alps_transfer.h"
 #include "alps_application.h"
 #include "ld_val.h"
-
 #include "cti_error.h"
 #include "useful.h"
 
@@ -1713,10 +1711,16 @@ _cti_packageManifestAndShip(uint64_t apid, cti_manifest_id_t mid)
 	tar_name = tmp_tar_name;
 	
 	// now ship the tarball to the compute node
-	if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &tar_name)) != NULL)
+	if ((errmsg = _cti_alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &tar_name)) != NULL)
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
-		_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
+		//
+		// If we were ready, then set the error message. Otherwise we assume that
+		// dlopen failed and we already set the error string in that case.
+		if (_cti_alps_ready())
+		{
+			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
+		}
 		goto packageManifestAndShip_error;
 	}
 	
@@ -1981,10 +1985,16 @@ cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 	
 	// Done. We now have a flattened args string
 	// We can launch the tool daemon onto the compute nodes now.
-	if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, trnsfr, 1, 1, &args_flat)) != NULL)
+	if ((errmsg = _cti_alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, trnsfr, 1, 1, &args_flat)) != NULL)
 	{
 		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
-		_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
+		//
+		// If we were ready, then set the error message. Otherwise we assume that
+		// dlopen failed and we already set the error string in that case.
+		if (_cti_alps_ready())
+		{
+			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
+		}
 		free(args_flat);
 		_cti_reapManifest(m_ptr->mid);
 		return 0;
@@ -2321,10 +2331,16 @@ cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, c
 		
 	// Done. We now have a flattened args string
 	// We can launch the tool daemon onto the compute nodes now.
-	if ((errmsg = alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, trnsfr, 1, 1, &args_flat)) != NULL)
+	if ((errmsg = _cti_alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, trnsfr, 1, 1, &args_flat)) != NULL)
 	{
 		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
-		_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
+		//
+		// If we were ready, then set the error message. Otherwise we assume that
+		// dlopen failed and we already set the error string in that case.
+		if (_cti_alps_ready())
+		{
+			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
+		}
 		free(args_flat);
 		_cti_reapManifest(m_ptr->mid);
 		return 0;

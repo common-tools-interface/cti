@@ -50,12 +50,16 @@ src/frontend/Makefile.am -text
 src/frontend/Makefile.in -text
 src/frontend/alps_application.c -text
 src/frontend/alps_application.h -text
+src/frontend/alps_fe.c -text
+src/frontend/alps_fe.h -text
 src/frontend/alps_run.c -text
 src/frontend/alps_run.h -text
 src/frontend/alps_transfer.c -text
 src/frontend/alps_transfer.h -text
 src/frontend/cti_error.c -text
 src/frontend/cti_error.h -text
+src/frontend/cti_fe.c -text
+src/frontend/cti_fe.h -text
 src/ld_val/Makefile.am -text
 src/ld_val/Makefile.in -text
 src/ld_val/audit.c -text

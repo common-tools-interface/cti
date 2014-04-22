@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * alps_transfer.h - A header file for the alps_application interface.
+ * alps_application.h - A header file for the alps_application interface.
  *
  * © 2011-2014 Cray Inc.	All Rights Reserved.
  *

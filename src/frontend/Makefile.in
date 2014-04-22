@@ -68,11 +68,11 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libcraytools_fe_la_DEPENDENCIES = $(USEFUL)/libuseful.la \
 	$(LDVAL)/libld_val.la $(am__DEPENDENCIES_1)
-am_libcraytools_fe_la_OBJECTS =  \
+am_libcraytools_fe_la_OBJECTS = libcraytools_fe_la-cti_fe.lo \
+	libcraytools_fe_la-cti_error.lo libcraytools_fe_la-alps_fe.lo \
 	libcraytools_fe_la-alps_application.lo \
 	libcraytools_fe_la-alps_run.lo \
-	libcraytools_fe_la-alps_transfer.lo \
-	libcraytools_fe_la-cti_error.lo
+	libcraytools_fe_la-alps_transfer.lo
 libcraytools_fe_la_OBJECTS = $(am_libcraytools_fe_la_OBJECTS)
 libcraytools_fe_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) \
@@ -222,13 +222,13 @@ USEFUL = $(SRC)/useful
 AM_CFLAGS = -fPIC -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
 lib_LTLIBRARIES = libcraytools_fe.la
-libcraytools_fe_la_SOURCES = alps_application.c alps_run.c alps_transfer.c \
-								cti_error.c alps_application.h alps_run.h \
-								alps_transfer.h cti_error.h
+libcraytools_fe_la_SOURCES = cti_fe.c cti_fe.h cti_error.c cti_error.h \
+								alps_fe.c alps_fe.h alps_application.c alps_application.h \
+								alps_run.c alps_run.h alps_transfer.c alps_transfer.h 
 
 libcraytools_fe_la_CFLAGS = $(AM_CFLAGS) -I$(LDVAL) -I$(USEFUL)
 libcraytools_fe_la_LIBADD = $(USEFUL)/libuseful.la $(LDVAL)/libld_val.la $(ARCHIVE_LIBS)
-libcraytools_fe_la_LDFLAGS = -lalps -version-info $(CRAYTOOL_FE_VERSION)
+libcraytools_fe_la_LDFLAGS = -ldl -version-info $(CRAYTOOL_FE_VERSION)
 all: all-am
 
 .SUFFIXES:
@@ -299,9 +299,11 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-alps_application.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-alps_fe.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-alps_run.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-alps_transfer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-cti_error.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-cti_fe.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -324,6 +326,27 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
+libcraytools_fe_la-cti_fe.lo: cti_fe.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-cti_fe.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-cti_fe.Tpo -c -o libcraytools_fe_la-cti_fe.lo `test -f 'cti_fe.c' || echo '$(srcdir)/'`cti_fe.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-cti_fe.Tpo $(DEPDIR)/libcraytools_fe_la-cti_fe.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_fe.c' object='libcraytools_fe_la-cti_fe.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-cti_fe.lo `test -f 'cti_fe.c' || echo '$(srcdir)/'`cti_fe.c
+
+libcraytools_fe_la-cti_error.lo: cti_error.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-cti_error.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-cti_error.Tpo -c -o libcraytools_fe_la-cti_error.lo `test -f 'cti_error.c' || echo '$(srcdir)/'`cti_error.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-cti_error.Tpo $(DEPDIR)/libcraytools_fe_la-cti_error.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_error.c' object='libcraytools_fe_la-cti_error.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-cti_error.lo `test -f 'cti_error.c' || echo '$(srcdir)/'`cti_error.c
+
+libcraytools_fe_la-alps_fe.lo: alps_fe.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-alps_fe.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-alps_fe.Tpo -c -o libcraytools_fe_la-alps_fe.lo `test -f 'alps_fe.c' || echo '$(srcdir)/'`alps_fe.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-alps_fe.Tpo $(DEPDIR)/libcraytools_fe_la-alps_fe.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_fe.c' object='libcraytools_fe_la-alps_fe.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-alps_fe.lo `test -f 'alps_fe.c' || echo '$(srcdir)/'`alps_fe.c
+
 libcraytools_fe_la-alps_application.lo: alps_application.c
 @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-alps_application.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-alps_application.Tpo -c -o libcraytools_fe_la-alps_application.lo `test -f 'alps_application.c' || echo '$(srcdir)/'`alps_application.c
 @am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-alps_application.Tpo $(DEPDIR)/libcraytools_fe_la-alps_application.Plo
@@ -344,13 +367,6 @@ libcraytools_fe_la-alps_transfer.lo: alps_transfer.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_transfer.c' object='libcraytools_fe_la-alps_transfer.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-alps_transfer.lo `test -f 'alps_transfer.c' || echo '$(srcdir)/'`alps_transfer.c
-
-libcraytools_fe_la-cti_error.lo: cti_error.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-cti_error.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-cti_error.Tpo -c -o libcraytools_fe_la-cti_error.lo `test -f 'cti_error.c' || echo '$(srcdir)/'`cti_error.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-cti_error.Tpo $(DEPDIR)/libcraytools_fe_la-cti_error.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_error.c' object='libcraytools_fe_la-cti_error.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-cti_error.lo `test -f 'cti_error.c' || echo '$(srcdir)/'`cti_error.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

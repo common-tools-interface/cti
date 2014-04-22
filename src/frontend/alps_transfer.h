@@ -20,7 +20,6 @@
 #define _ALPS_TRANSFER_H
 
 #include "stringList.h"
-
 #include "alps_defs.h"
 
 typedef int cti_manifest_id_t;

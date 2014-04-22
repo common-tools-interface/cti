@@ -30,8 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "alps/libalps.h"
-
+#include "alps_fe.h"
 #include "alps_application.h"
 #include "alps_run.h"
 #include "cti_error.h"
@@ -371,9 +370,14 @@ _cti_newApp(uint64_t apid)
 	
 	// retrieve detailed information about our app
 	// save this information into the struct
-	if (alps_get_appinfo(this->apid, &this->alpsInfo.appinfo, &this->alpsInfo.cmdDetail, &this->alpsInfo.places) != 1)
+	if (_cti_alps_get_appinfo(this->apid, &this->alpsInfo.appinfo, &this->alpsInfo.cmdDetail, &this->alpsInfo.places) != 1)
 	{
-		_cti_set_error("alps_get_appinfo() failed.");
+		// If we were ready, then set the error message. Otherwise we assume that
+		// dlopen failed and we already set the error string in that case.
+		if (_cti_alps_ready())
+		{
+			_cti_set_error("alps_get_appinfo() failed.");
+		}
 		_cti_reapAppsList();
 		_cti_consumeAppEntry(this);
 		return NULL;
@@ -482,7 +486,7 @@ cti_getApid(pid_t aprunPid)
 		}
 	}
 		
-	return alps_get_apid(_cti_svcNid->nid, aprunPid);
+	return _cti_alps_get_apid(_cti_svcNid->nid, aprunPid);
 }
 
 char *
