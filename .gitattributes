@@ -37,11 +37,17 @@ m4/pkg.m4 -text
 src/Makefile.am -text
 src/Makefile.in -text
 src/alps_defs.h -text
+src/backend/Makefile.am -text
+src/backend/Makefile.in -text
 src/backend/alps_backend.c -text
 src/backend/alps_backend.h -text
 src/backend/pmi_attribs_parser.c -text
 src/backend/pmi_attribs_parser.h -text
+src/daemon/Makefile.am -text
+src/daemon/Makefile.in -text
 src/daemon/daemon_launcher.c -text
+src/frontend/Makefile.am -text
+src/frontend/Makefile.in -text
 src/frontend/alps_application.c -text
 src/frontend/alps_application.h -text
 src/frontend/alps_run.c -text

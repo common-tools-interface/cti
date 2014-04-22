@@ -15514,7 +15514,7 @@ done
 ################
 ### Finalize ###
 ################
-ac_config_files="$ac_config_files Makefile cray-tools_be.pc cray-tools_fe.pc cray-audit.pc src/Makefile src/ld_val/Makefile src/useful/Makefile demos/Makefile"
+ac_config_files="$ac_config_files Makefile cray-tools_be.pc cray-tools_fe.pc cray-audit.pc src/Makefile src/backend/Makefile src/daemon/Makefile src/frontend/Makefile src/ld_val/Makefile src/useful/Makefile demos/Makefile"
 
 
 cat >confcache <<\_ACEOF
@@ -16399,6 +16399,9 @@ do
     "cray-tools_fe.pc") CONFIG_FILES="$CONFIG_FILES cray-tools_fe.pc" ;;
     "cray-audit.pc") CONFIG_FILES="$CONFIG_FILES cray-audit.pc" ;;
     "src/Makefile") CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
+    "src/backend/Makefile") CONFIG_FILES="$CONFIG_FILES src/backend/Makefile" ;;
+    "src/daemon/Makefile") CONFIG_FILES="$CONFIG_FILES src/daemon/Makefile" ;;
+    "src/frontend/Makefile") CONFIG_FILES="$CONFIG_FILES src/frontend/Makefile" ;;
     "src/ld_val/Makefile") CONFIG_FILES="$CONFIG_FILES src/ld_val/Makefile" ;;
     "src/useful/Makefile") CONFIG_FILES="$CONFIG_FILES src/useful/Makefile" ;;
     "demos/Makefile") CONFIG_FILES="$CONFIG_FILES demos/Makefile" ;;

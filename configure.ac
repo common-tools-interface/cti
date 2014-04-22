@@ -196,6 +196,9 @@ AC_CONFIG_FILES([	Makefile
 					cray-tools_fe.pc
 					cray-audit.pc
 					src/Makefile
+					src/backend/Makefile
+					src/daemon/Makefile
+					src/frontend/Makefile
 					src/ld_val/Makefile
 					src/useful/Makefile
 					demos/Makefile
