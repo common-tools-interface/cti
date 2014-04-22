@@ -49,7 +49,7 @@ _cti_fini(void)
 	switch (_cti_current_wlm)
 	{
 		case CTI_WLM_ALPS:
-			// call alps based destructor
+			_cti_alps_fini();
 			break;
 			
 		case CTI_WLM_SLURM:
