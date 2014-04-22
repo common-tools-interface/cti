@@ -34,9 +34,8 @@
 
 #include "alps_application.h"
 #include "alps_run.h"
-
 #include "cti_error.h"
-#include "useful/useful.h"
+#include "useful.h"
 
 /* Static prototypes */
 static appList_t *		_cti_growAppsList(void);

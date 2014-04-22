@@ -39,7 +39,6 @@
 
 #include "alps_run.h"
 #include "alps_application.h"
-
 #include "cti_error.h"
 
 /* typedefs used here */

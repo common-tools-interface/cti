@@ -1,7 +1,7 @@
 #
 # Makefile.am for the ldval and libaudit components of the craytool interface.
 #
-# ©2011-2013 Cray Inc.  All Rights Reserved.
+# ©2011-2014 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -15,19 +15,18 @@
 ## $Author$
 
 AM_CFLAGS				= -fPIC -Wall
-AM_LIBTOOLFLAGS				= --quiet
+AM_LIBTOOLFLAGS			= --quiet
 
 noinst_LTLIBRARIES		= libld_val.la
 lib_LTLIBRARIES			= libaudit.la
 
-libld_val_la_SOURCES	= ld_val.c
-
+libld_val_la_SOURCES	= ld_val.c ld_val_defs.h
 libld_val_la_CFLAGS		= $(AM_CFLAGS)
 libld_val_la_LDFLAGS	= -static -no-undefined
 
-libaudit_la_SOURCES		= audit.c
+libaudit_la_SOURCES		= audit.c ld_val_defs.h
 libaudit_la_CFLAGS		= $(AM_CFLAGS)
 libaudit_la_LDFLAGS		= -shared -avoid-version
 
-noinst_HEADERS			= ld_val.h ld_val_defs.h
+noinst_HEADERS			= ld_val.h
 

@@ -45,7 +45,7 @@
 #include "ld_val.h"
 
 #include "cti_error.h"
-#include "useful/useful.h"
+#include "useful.h"
 
 /* Types used here */
 
@@ -133,7 +133,7 @@ static void				_cti_consumeManifest(manifest_t *);
 static manifest_t *		_cti_findManifest(cti_manifest_id_t);
 static manifest_t *		_cti_newManifest(cti_session_id_t);
 static int				_cti_addManifestToSession(cti_manifest_id_t, cti_session_id_t);
-static void				_cti_destroyAppSess(TRANSFER_IFACE_OBJ obj);
+static void				_cti_destroyAppSess(transfer_iface_obj obj);
 static void				_cti_addSessionToApp(appEntry_t *, cti_session_id_t);
 static int				_cti_removeFilesFromDir(char *);
 static int				_cti_copyFilesToPackage(stringList_t *, char *);
@@ -936,7 +936,7 @@ _cti_addManifestToSession(cti_manifest_id_t mid, cti_session_id_t sid)
 }
 
 static void
-_cti_destroyAppSess(TRANSFER_IFACE_OBJ obj)
+_cti_destroyAppSess(transfer_iface_obj obj)
 {
 	sessMgr_t *	sess_obj = (sessMgr_t *)obj;
 	int i;
@@ -986,7 +986,7 @@ _cti_addSessionToApp(appEntry_t *app_ptr, cti_session_id_t sid)
 		sess_obj->len = SESS_INC_SIZE;
 		
 		// set the object in the app_ptr
-		app_ptr->_transferObj = (TRANSFER_IFACE_OBJ)sess_obj;
+		app_ptr->_transferObj = (transfer_iface_obj)sess_obj;
 	} else
 	{
 		sess_obj = (sessMgr_t *)app_ptr->_transferObj;

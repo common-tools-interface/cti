@@ -15,9 +15,9 @@
 @SET_MAKE@
 
 #
-# Makefile.am for the ldval and libaudit components of the craytool interface.
+# Makefile.am for the useful components of the craytool interface.
 #
-# ©2011-2014 Cray Inc.  All Rights Reserved.
+# ©2014 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -45,7 +45,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-subdir = src/ld_val
+subdir = src/useful
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -58,27 +58,14 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
-am__installdirs = "$(DESTDIR)$(libdir)"
-libLTLIBRARIES_INSTALL = $(INSTALL)
-LTLIBRARIES = $(lib_LTLIBRARIES) $(noinst_LTLIBRARIES)
-libaudit_la_LIBADD =
-am_libaudit_la_OBJECTS = libaudit_la-audit.lo
-libaudit_la_OBJECTS = $(am_libaudit_la_OBJECTS)
-libaudit_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(libaudit_la_CFLAGS) \
-	$(CFLAGS) $(libaudit_la_LDFLAGS) $(LDFLAGS) -o $@
-libld_val_la_LIBADD =
-am_libld_val_la_OBJECTS = libld_val_la-ld_val.lo
-libld_val_la_OBJECTS = $(am_libld_val_la_OBJECTS)
-libld_val_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(libld_val_la_CFLAGS) \
-	$(CFLAGS) $(libld_val_la_LDFLAGS) $(LDFLAGS) -o $@
+LTLIBRARIES = $(noinst_LTLIBRARIES)
+libuseful_la_LIBADD =
+am_libuseful_la_OBJECTS = libuseful_la-log.lo libuseful_la-path.lo \
+	libuseful_la-stringList.lo
+libuseful_la_OBJECTS = $(am_libuseful_la_OBJECTS)
+libuseful_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(libuseful_la_CFLAGS) \
+	$(CFLAGS) $(libuseful_la_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -91,8 +78,8 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libaudit_la_SOURCES) $(libld_val_la_SOURCES)
-DIST_SOURCES = $(libaudit_la_SOURCES) $(libld_val_la_SOURCES)
+SOURCES = $(libuseful_la_SOURCES)
+DIST_SOURCES = $(libuseful_la_SOURCES)
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
@@ -217,17 +204,14 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CFLAGS = -fPIC -Wall
+SRC = @craytool_dir@/src
 AM_LIBTOOLFLAGS = --quiet
-noinst_LTLIBRARIES = libld_val.la
-lib_LTLIBRARIES = libaudit.la
-libld_val_la_SOURCES = ld_val.c ld_val_defs.h
-libld_val_la_CFLAGS = $(AM_CFLAGS)
-libld_val_la_LDFLAGS = -static -no-undefined
-libaudit_la_SOURCES = audit.c ld_val_defs.h
-libaudit_la_CFLAGS = $(AM_CFLAGS)
-libaudit_la_LDFLAGS = -shared -avoid-version
-noinst_HEADERS = ld_val.h
+AM_CFLAGS = -fPIC -Wall -I$(SRC)
+noinst_LTLIBRARIES = libuseful.la
+libuseful_la_SOURCES = log.c log.h path.c path.h stringList.c stringList.h
+libuseful_la_CFLAGS = $(AM_CFLAGS)
+libuseful_la_LDFLAGS = -static -no-undefined
+noinst_HEADERS = useful.h
 all: all-am
 
 .SUFFIXES:
@@ -241,9 +225,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  src/ld_val/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  src/useful/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign  src/ld_val/Makefile
+	  $(AUTOMAKE) --foreign  src/useful/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -261,33 +245,6 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-install-libLTLIBRARIES: $(lib_LTLIBRARIES)
-	@$(NORMAL_INSTALL)
-	test -z "$(libdir)" || $(MKDIR_P) "$(DESTDIR)$(libdir)"
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    f=$(am__strip_dir) \
-	    echo " $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
-	    $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
-	  else :; fi; \
-	done
-
-uninstall-libLTLIBRARIES:
-	@$(NORMAL_UNINSTALL)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  p=$(am__strip_dir) \
-	  echo " $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
-	  $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
-	done
-
-clean-libLTLIBRARIES:
-	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
-	  test "$$dir" != "$$p" || dir=.; \
-	  echo "rm -f \"$${dir}/so_locations\""; \
-	  rm -f "$${dir}/so_locations"; \
-	done
 
 clean-noinstLTLIBRARIES:
 	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
@@ -297,10 +254,8 @@ clean-noinstLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libaudit.la: $(libaudit_la_OBJECTS) $(libaudit_la_DEPENDENCIES) 
-	$(libaudit_la_LINK) -rpath $(libdir) $(libaudit_la_OBJECTS) $(libaudit_la_LIBADD) $(LIBS)
-libld_val.la: $(libld_val_la_OBJECTS) $(libld_val_la_DEPENDENCIES) 
-	$(libld_val_la_LINK)  $(libld_val_la_OBJECTS) $(libld_val_la_LIBADD) $(LIBS)
+libuseful.la: $(libuseful_la_OBJECTS) $(libuseful_la_DEPENDENCIES) 
+	$(libuseful_la_LINK)  $(libuseful_la_OBJECTS) $(libuseful_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -308,8 +263,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libaudit_la-audit.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libld_val_la-ld_val.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-log.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-path.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-stringList.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -332,19 +288,26 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-libaudit_la-audit.lo: audit.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libaudit_la_CFLAGS) $(CFLAGS) -MT libaudit_la-audit.lo -MD -MP -MF $(DEPDIR)/libaudit_la-audit.Tpo -c -o libaudit_la-audit.lo `test -f 'audit.c' || echo '$(srcdir)/'`audit.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libaudit_la-audit.Tpo $(DEPDIR)/libaudit_la-audit.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='audit.c' object='libaudit_la-audit.lo' libtool=yes @AMDEPBACKSLASH@
+libuseful_la-log.lo: log.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-log.lo -MD -MP -MF $(DEPDIR)/libuseful_la-log.Tpo -c -o libuseful_la-log.lo `test -f 'log.c' || echo '$(srcdir)/'`log.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-log.Tpo $(DEPDIR)/libuseful_la-log.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='log.c' object='libuseful_la-log.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libaudit_la_CFLAGS) $(CFLAGS) -c -o libaudit_la-audit.lo `test -f 'audit.c' || echo '$(srcdir)/'`audit.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-log.lo `test -f 'log.c' || echo '$(srcdir)/'`log.c
 
-libld_val_la-ld_val.lo: ld_val.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libld_val_la_CFLAGS) $(CFLAGS) -MT libld_val_la-ld_val.lo -MD -MP -MF $(DEPDIR)/libld_val_la-ld_val.Tpo -c -o libld_val_la-ld_val.lo `test -f 'ld_val.c' || echo '$(srcdir)/'`ld_val.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libld_val_la-ld_val.Tpo $(DEPDIR)/libld_val_la-ld_val.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='ld_val.c' object='libld_val_la-ld_val.lo' libtool=yes @AMDEPBACKSLASH@
+libuseful_la-path.lo: path.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-path.lo -MD -MP -MF $(DEPDIR)/libuseful_la-path.Tpo -c -o libuseful_la-path.lo `test -f 'path.c' || echo '$(srcdir)/'`path.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-path.Tpo $(DEPDIR)/libuseful_la-path.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='path.c' object='libuseful_la-path.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libld_val_la_CFLAGS) $(CFLAGS) -c -o libld_val_la-ld_val.lo `test -f 'ld_val.c' || echo '$(srcdir)/'`ld_val.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-path.lo `test -f 'path.c' || echo '$(srcdir)/'`path.c
+
+libuseful_la-stringList.lo: stringList.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-stringList.lo -MD -MP -MF $(DEPDIR)/libuseful_la-stringList.Tpo -c -o libuseful_la-stringList.lo `test -f 'stringList.c' || echo '$(srcdir)/'`stringList.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-stringList.Tpo $(DEPDIR)/libuseful_la-stringList.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='stringList.c' object='libuseful_la-stringList.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-stringList.lo `test -f 'stringList.c' || echo '$(srcdir)/'`stringList.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -429,9 +392,6 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(LTLIBRARIES) $(HEADERS)
 installdirs:
-	for dir in "$(DESTDIR)$(libdir)"; do \
-	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
-	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -458,8 +418,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
-	clean-noinstLTLIBRARIES mostlyclean-am
+clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
+	mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -481,7 +441,7 @@ install-data-am:
 
 install-dvi: install-dvi-am
 
-install-exec-am: install-libLTLIBRARIES
+install-exec-am:
 
 install-html: install-html-am
 
@@ -513,23 +473,22 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-libLTLIBRARIES
+uninstall-am:
 
 .MAKE: install-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libLTLIBRARIES clean-libtool clean-noinstLTLIBRARIES \
-	ctags distclean distclean-compile distclean-generic \
-	distclean-libtool distclean-tags distdir dvi dvi-am html \
-	html-am info info-am install install-am install-data \
-	install-data-am install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-libLTLIBRARIES install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-libLTLIBRARIES
+	clean-libtool clean-noinstLTLIBRARIES ctags distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags uninstall uninstall-am
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

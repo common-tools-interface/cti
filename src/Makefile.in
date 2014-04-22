@@ -18,7 +18,7 @@
 # Makefile.am for the libcraytool and dlaunch components of the craytool 
 # interface.
 #
-# ©2011-2013 Cray Inc.  All Rights Reserved.
+# ©2011-2014 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -71,26 +71,31 @@ am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libcraytools_be_la_LIBADD =
-am_libcraytools_be_la_OBJECTS = alps_backend.lo pmi_attribs_parser.lo
+am_libcraytools_be_la_OBJECTS = libcraytools_be_la-alps_backend.lo \
+	libcraytools_be_la-pmi_attribs_parser.lo
 libcraytools_be_la_OBJECTS = $(am_libcraytools_be_la_OBJECTS)
 libcraytools_be_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(libcraytools_be_la_CFLAGS) $(CFLAGS) \
 	$(libcraytools_be_la_LDFLAGS) $(LDFLAGS) -o $@
 am__DEPENDENCIES_1 =
-libcraytools_fe_la_DEPENDENCIES = $(LDVAL)/libld_val.la \
-	$(am__DEPENDENCIES_1)
-am_libcraytools_fe_la_OBJECTS = alps_application.lo alps_run.lo \
-	alps_transfer.lo cti_error.lo path.lo stringList.lo
+libcraytools_fe_la_DEPENDENCIES = $(USEFUL)/libuseful.la \
+	$(LDVAL)/libld_val.la $(am__DEPENDENCIES_1)
+am_libcraytools_fe_la_OBJECTS =  \
+	libcraytools_fe_la-alps_application.lo \
+	libcraytools_fe_la-alps_run.lo \
+	libcraytools_fe_la-alps_transfer.lo \
+	libcraytools_fe_la-cti_error.lo
 libcraytools_fe_la_OBJECTS = $(am_libcraytools_fe_la_OBJECTS)
 libcraytools_fe_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(libcraytools_fe_la_CFLAGS) $(CFLAGS) \
 	$(libcraytools_fe_la_LDFLAGS) $(LDFLAGS) -o $@
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
-am_dlaunch_OBJECTS = dlaunch-daemon_launcher.$(OBJEXT) \
-	dlaunch-path.$(OBJEXT) dlaunch-log.$(OBJEXT)
+am_dlaunch_OBJECTS = dlaunch-daemon_launcher.$(OBJEXT)
 dlaunch_OBJECTS = $(am_dlaunch_OBJECTS)
-dlaunch_DEPENDENCIES = $(am__DEPENDENCIES_1)
+dlaunch_DEPENDENCIES = $(USEFUL)/libuseful.la $(am__DEPENDENCIES_1)
 dlaunch_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(dlaunch_CFLAGS) $(CFLAGS) \
 	$(dlaunch_LDFLAGS) $(LDFLAGS) -o $@
@@ -199,7 +204,7 @@ build_cpu = @build_cpu@
 build_os = @build_os@
 build_vendor = @build_vendor@
 builddir = @builddir@
-craytool_srcdir = @craytool_srcdir@
+craytool_dir = @craytool_dir@
 datadir = @datadir@
 datarootdir = @datarootdir@
 docdir = @docdir@
@@ -234,26 +239,33 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-LDVAL = ld_val
 ARCHIVE_LIBS = @archive_libs@
-AM_CFLAGS = -I$(LDVAL) -fPIC -Wall
+SRC = @craytool_dir@/src
+LDVAL = $(SRC)/ld_val
+USEFUL = $(SRC)/useful
+BE = $(SRC)/backend
+DAEMON = $(SRC)/daemon
+FE = $(SRC)/frontend
+AM_CFLAGS = -fPIC -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
 lib_LTLIBRARIES = libcraytools_fe.la libcraytools_be.la
-libcraytools_fe_la_SOURCES = alps_application.c alps_run.c alps_transfer.c \
-				  cti_error.c useful/path.c useful/stringList.c 
+libcraytools_fe_la_SOURCES = $(FE)/alps_application.c $(FE)/alps_run.c $(FE)/alps_transfer.c \
+				 				$(FE)/cti_error.c $(FE)/alps_application.h $(FE)/alps_run.h \
+								$(FE)/alps_transfer.h $(FE)/cti_error.h
 
-libcraytools_fe_la_LIBADD = $(LDVAL)/libld_val.la $(ARCHIVE_LIBS)
+libcraytools_fe_la_CFLAGS = $(AM_CFLAGS) -I$(LDVAL) -I$(USEFUL)
+libcraytools_fe_la_LIBADD = $(USEFUL)/libuseful.la $(LDVAL)/libld_val.la $(ARCHIVE_LIBS)
 libcraytools_fe_la_LDFLAGS = -lalps -version-info $(CRAYTOOL_FE_VERSION)
-libcraytools_be_la_SOURCES = alps_backend.c pmi_attribs_parser.c
-libcraytools_be_la_LDFLAGS = -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
-dlaunch_SOURCES = daemon_launcher.c useful/path.c useful/log.c
-dlaunch_CFLAGS = $(AM_CFLAGS)
-dlaunch_LDADD = $(ARCHIVE_LIBS)
-dlaunch_LDFLAGS = -static
-noinst_HEADERS = alps_application.h alps_backend.h alps_defs.h alps_run.h \
-		  alps_transfer.h cti_error.h pmi_attribs_parser.h \
-		  useful/log.h useful/path.h useful/stringList.h useful/useful.h
+libcraytools_be_la_SOURCES = $(BE)/alps_backend.c $(BE)/pmi_attribs_parser.c \
+								$(BE)/alps_backend.h $(BE)/pmi_attribs_parser.h
 
+libcraytools_be_la_CFLAGS = $(AM_CFLAGS)
+libcraytools_be_la_LDFLAGS = -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
+dlaunch_SOURCES = $(DAEMON)/daemon_launcher.c
+dlaunch_CFLAGS = $(AM_CFLAGS) -I$(USEFUL)
+dlaunch_LDADD = $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
+dlaunch_LDFLAGS = -static
+noinst_HEADERS = alps_defs.h
 all: all-am
 
 .SUFFIXES:
@@ -356,17 +368,13 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/alps_application.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/alps_backend.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/alps_run.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/alps_transfer.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_error.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-daemon_launcher.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-log.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-path.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/path.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pmi_attribs_parser.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stringList.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_be_la-alps_backend.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_be_la-pmi_attribs_parser.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-alps_application.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-alps_run.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-alps_transfer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-cti_error.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -389,61 +397,61 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-path.lo: useful/path.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT path.lo -MD -MP -MF $(DEPDIR)/path.Tpo -c -o path.lo `test -f 'useful/path.c' || echo '$(srcdir)/'`useful/path.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/path.Tpo $(DEPDIR)/path.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='useful/path.c' object='path.lo' libtool=yes @AMDEPBACKSLASH@
+libcraytools_be_la-alps_backend.lo: $(BE)/alps_backend.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_be_la_CFLAGS) $(CFLAGS) -MT libcraytools_be_la-alps_backend.lo -MD -MP -MF $(DEPDIR)/libcraytools_be_la-alps_backend.Tpo -c -o libcraytools_be_la-alps_backend.lo `test -f '$(BE)/alps_backend.c' || echo '$(srcdir)/'`$(BE)/alps_backend.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_be_la-alps_backend.Tpo $(DEPDIR)/libcraytools_be_la-alps_backend.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(BE)/alps_backend.c' object='libcraytools_be_la-alps_backend.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o path.lo `test -f 'useful/path.c' || echo '$(srcdir)/'`useful/path.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_be_la_CFLAGS) $(CFLAGS) -c -o libcraytools_be_la-alps_backend.lo `test -f '$(BE)/alps_backend.c' || echo '$(srcdir)/'`$(BE)/alps_backend.c
 
-stringList.lo: useful/stringList.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT stringList.lo -MD -MP -MF $(DEPDIR)/stringList.Tpo -c -o stringList.lo `test -f 'useful/stringList.c' || echo '$(srcdir)/'`useful/stringList.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/stringList.Tpo $(DEPDIR)/stringList.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='useful/stringList.c' object='stringList.lo' libtool=yes @AMDEPBACKSLASH@
+libcraytools_be_la-pmi_attribs_parser.lo: $(BE)/pmi_attribs_parser.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_be_la_CFLAGS) $(CFLAGS) -MT libcraytools_be_la-pmi_attribs_parser.lo -MD -MP -MF $(DEPDIR)/libcraytools_be_la-pmi_attribs_parser.Tpo -c -o libcraytools_be_la-pmi_attribs_parser.lo `test -f '$(BE)/pmi_attribs_parser.c' || echo '$(srcdir)/'`$(BE)/pmi_attribs_parser.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_be_la-pmi_attribs_parser.Tpo $(DEPDIR)/libcraytools_be_la-pmi_attribs_parser.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(BE)/pmi_attribs_parser.c' object='libcraytools_be_la-pmi_attribs_parser.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stringList.lo `test -f 'useful/stringList.c' || echo '$(srcdir)/'`useful/stringList.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_be_la_CFLAGS) $(CFLAGS) -c -o libcraytools_be_la-pmi_attribs_parser.lo `test -f '$(BE)/pmi_attribs_parser.c' || echo '$(srcdir)/'`$(BE)/pmi_attribs_parser.c
 
-dlaunch-daemon_launcher.o: daemon_launcher.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-daemon_launcher.o -MD -MP -MF $(DEPDIR)/dlaunch-daemon_launcher.Tpo -c -o dlaunch-daemon_launcher.o `test -f 'daemon_launcher.c' || echo '$(srcdir)/'`daemon_launcher.c
+libcraytools_fe_la-alps_application.lo: $(FE)/alps_application.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-alps_application.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-alps_application.Tpo -c -o libcraytools_fe_la-alps_application.lo `test -f '$(FE)/alps_application.c' || echo '$(srcdir)/'`$(FE)/alps_application.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-alps_application.Tpo $(DEPDIR)/libcraytools_fe_la-alps_application.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(FE)/alps_application.c' object='libcraytools_fe_la-alps_application.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-alps_application.lo `test -f '$(FE)/alps_application.c' || echo '$(srcdir)/'`$(FE)/alps_application.c
+
+libcraytools_fe_la-alps_run.lo: $(FE)/alps_run.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-alps_run.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-alps_run.Tpo -c -o libcraytools_fe_la-alps_run.lo `test -f '$(FE)/alps_run.c' || echo '$(srcdir)/'`$(FE)/alps_run.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-alps_run.Tpo $(DEPDIR)/libcraytools_fe_la-alps_run.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(FE)/alps_run.c' object='libcraytools_fe_la-alps_run.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-alps_run.lo `test -f '$(FE)/alps_run.c' || echo '$(srcdir)/'`$(FE)/alps_run.c
+
+libcraytools_fe_la-alps_transfer.lo: $(FE)/alps_transfer.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-alps_transfer.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-alps_transfer.Tpo -c -o libcraytools_fe_la-alps_transfer.lo `test -f '$(FE)/alps_transfer.c' || echo '$(srcdir)/'`$(FE)/alps_transfer.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-alps_transfer.Tpo $(DEPDIR)/libcraytools_fe_la-alps_transfer.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(FE)/alps_transfer.c' object='libcraytools_fe_la-alps_transfer.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-alps_transfer.lo `test -f '$(FE)/alps_transfer.c' || echo '$(srcdir)/'`$(FE)/alps_transfer.c
+
+libcraytools_fe_la-cti_error.lo: $(FE)/cti_error.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-cti_error.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-cti_error.Tpo -c -o libcraytools_fe_la-cti_error.lo `test -f '$(FE)/cti_error.c' || echo '$(srcdir)/'`$(FE)/cti_error.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-cti_error.Tpo $(DEPDIR)/libcraytools_fe_la-cti_error.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(FE)/cti_error.c' object='libcraytools_fe_la-cti_error.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-cti_error.lo `test -f '$(FE)/cti_error.c' || echo '$(srcdir)/'`$(FE)/cti_error.c
+
+dlaunch-daemon_launcher.o: $(DAEMON)/daemon_launcher.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-daemon_launcher.o -MD -MP -MF $(DEPDIR)/dlaunch-daemon_launcher.Tpo -c -o dlaunch-daemon_launcher.o `test -f '$(DAEMON)/daemon_launcher.c' || echo '$(srcdir)/'`$(DAEMON)/daemon_launcher.c
 @am__fastdepCC_TRUE@	mv -f $(DEPDIR)/dlaunch-daemon_launcher.Tpo $(DEPDIR)/dlaunch-daemon_launcher.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='daemon_launcher.c' object='dlaunch-daemon_launcher.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(DAEMON)/daemon_launcher.c' object='dlaunch-daemon_launcher.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-daemon_launcher.o `test -f 'daemon_launcher.c' || echo '$(srcdir)/'`daemon_launcher.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-daemon_launcher.o `test -f '$(DAEMON)/daemon_launcher.c' || echo '$(srcdir)/'`$(DAEMON)/daemon_launcher.c
 
-dlaunch-daemon_launcher.obj: daemon_launcher.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-daemon_launcher.obj -MD -MP -MF $(DEPDIR)/dlaunch-daemon_launcher.Tpo -c -o dlaunch-daemon_launcher.obj `if test -f 'daemon_launcher.c'; then $(CYGPATH_W) 'daemon_launcher.c'; else $(CYGPATH_W) '$(srcdir)/daemon_launcher.c'; fi`
+dlaunch-daemon_launcher.obj: $(DAEMON)/daemon_launcher.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-daemon_launcher.obj -MD -MP -MF $(DEPDIR)/dlaunch-daemon_launcher.Tpo -c -o dlaunch-daemon_launcher.obj `if test -f '$(DAEMON)/daemon_launcher.c'; then $(CYGPATH_W) '$(DAEMON)/daemon_launcher.c'; else $(CYGPATH_W) '$(srcdir)/$(DAEMON)/daemon_launcher.c'; fi`
 @am__fastdepCC_TRUE@	mv -f $(DEPDIR)/dlaunch-daemon_launcher.Tpo $(DEPDIR)/dlaunch-daemon_launcher.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='daemon_launcher.c' object='dlaunch-daemon_launcher.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$(DAEMON)/daemon_launcher.c' object='dlaunch-daemon_launcher.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-daemon_launcher.obj `if test -f 'daemon_launcher.c'; then $(CYGPATH_W) 'daemon_launcher.c'; else $(CYGPATH_W) '$(srcdir)/daemon_launcher.c'; fi`
-
-dlaunch-path.o: useful/path.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-path.o -MD -MP -MF $(DEPDIR)/dlaunch-path.Tpo -c -o dlaunch-path.o `test -f 'useful/path.c' || echo '$(srcdir)/'`useful/path.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/dlaunch-path.Tpo $(DEPDIR)/dlaunch-path.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='useful/path.c' object='dlaunch-path.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-path.o `test -f 'useful/path.c' || echo '$(srcdir)/'`useful/path.c
-
-dlaunch-path.obj: useful/path.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-path.obj -MD -MP -MF $(DEPDIR)/dlaunch-path.Tpo -c -o dlaunch-path.obj `if test -f 'useful/path.c'; then $(CYGPATH_W) 'useful/path.c'; else $(CYGPATH_W) '$(srcdir)/useful/path.c'; fi`
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/dlaunch-path.Tpo $(DEPDIR)/dlaunch-path.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='useful/path.c' object='dlaunch-path.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-path.obj `if test -f 'useful/path.c'; then $(CYGPATH_W) 'useful/path.c'; else $(CYGPATH_W) '$(srcdir)/useful/path.c'; fi`
-
-dlaunch-log.o: useful/log.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-log.o -MD -MP -MF $(DEPDIR)/dlaunch-log.Tpo -c -o dlaunch-log.o `test -f 'useful/log.c' || echo '$(srcdir)/'`useful/log.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/dlaunch-log.Tpo $(DEPDIR)/dlaunch-log.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='useful/log.c' object='dlaunch-log.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-log.o `test -f 'useful/log.c' || echo '$(srcdir)/'`useful/log.c
-
-dlaunch-log.obj: useful/log.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-log.obj -MD -MP -MF $(DEPDIR)/dlaunch-log.Tpo -c -o dlaunch-log.obj `if test -f 'useful/log.c'; then $(CYGPATH_W) 'useful/log.c'; else $(CYGPATH_W) '$(srcdir)/useful/log.c'; fi`
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/dlaunch-log.Tpo $(DEPDIR)/dlaunch-log.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='useful/log.c' object='dlaunch-log.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-log.obj `if test -f 'useful/log.c'; then $(CYGPATH_W) 'useful/log.c'; else $(CYGPATH_W) '$(srcdir)/useful/log.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-daemon_launcher.obj `if test -f '$(DAEMON)/daemon_launcher.c'; then $(CYGPATH_W) '$(DAEMON)/daemon_launcher.c'; else $(CYGPATH_W) '$(srcdir)/$(DAEMON)/daemon_launcher.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

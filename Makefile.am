@@ -14,12 +14,10 @@
 ## $Rev$
 ## $Author$
 
-SRCDIR = @craytool_srcdir@
-
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src/ld_val src demos
+SUBDIRS = src/ld_val src/useful src demos
 
 EXTRA_DIST = cray-tools_be.pc.in cray-tools_fe.pc.in cray-audit.pc.in \
 	     release_versioning

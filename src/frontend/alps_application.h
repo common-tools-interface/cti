@@ -31,9 +31,9 @@
 // that is managed exclusively by the transfer layer. The application layer
 // will only check to see if it is null or not during cleanup and call the
 // appropriate function.
-typedef void * TRANSFER_IFACE_OBJ;
+typedef void * transfer_iface_obj;
 // This is the cleanup function prototype to deal with the above object.
-typedef void (*TRANSFER_IFACE_DESTROY)(TRANSFER_IFACE_OBJ);
+typedef void (*transfer_iface_destroy)(transfer_iface_obj);
 
 /* struct typedefs */
 typedef struct
@@ -56,8 +56,8 @@ typedef struct
 	alpsInfo_t				alpsInfo;		// Information pertaining to the applications ALPS status
 	char *					toolPath;		// backend toolhelper path for temporary storage
 	int						transfer_init;	// Transfer interface initialized?
-	TRANSFER_IFACE_OBJ		_transferObj;	// Managed by alps_transfer.c for this app entry
-	TRANSFER_IFACE_DESTROY	_destroyObj;	// Managed by the alps_transfer.c for this app entry
+	transfer_iface_obj		_transferObj;	// Managed by alps_transfer.c for this app entry
+	transfer_iface_destroy	_destroyObj;	// Managed by the alps_transfer.c for this app entry
 } appEntry_t;
 
 struct appList

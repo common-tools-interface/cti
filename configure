@@ -751,7 +751,7 @@ PACKAGE_VERSION='4.0'
 PACKAGE_STRING='craytool_interface 4.0'
 PACKAGE_BUGREPORT='andrewg@cray.com'
 
-ac_unique_file="src/alps_application.c"
+ac_unique_file="src/alps_defs.h"
 # Factoring default headers for most tests.
 ac_includes_default="\
 #include <stdio.h>
@@ -799,7 +799,7 @@ RPM2CPIO
 CRAYTOOL_RELEASE_VERSION
 CRAYTOOL_FE_VERSION
 CRAYTOOL_BE_VERSION
-craytool_srcdir
+craytool_dir
 OTOOL64
 OTOOL
 LIPO
@@ -11278,7 +11278,7 @@ CC="$lt_save_CC"
 
 
 
-craytool_srcdir="`cd $srcdir && pwd`"
+craytool_dir="`cd $srcdir && pwd`"
 
 CRAYTOOL_BE_VERSION=4:0:0
 
@@ -15514,7 +15514,7 @@ done
 ################
 ### Finalize ###
 ################
-ac_config_files="$ac_config_files Makefile cray-tools_be.pc cray-tools_fe.pc cray-audit.pc src/Makefile src/ld_val/Makefile demos/Makefile"
+ac_config_files="$ac_config_files Makefile cray-tools_be.pc cray-tools_fe.pc cray-audit.pc src/Makefile src/ld_val/Makefile src/useful/Makefile demos/Makefile"
 
 
 cat >confcache <<\_ACEOF
@@ -16400,6 +16400,7 @@ do
     "cray-audit.pc") CONFIG_FILES="$CONFIG_FILES cray-audit.pc" ;;
     "src/Makefile") CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
     "src/ld_val/Makefile") CONFIG_FILES="$CONFIG_FILES src/ld_val/Makefile" ;;
+    "src/useful/Makefile") CONFIG_FILES="$CONFIG_FILES src/useful/Makefile" ;;
     "demos/Makefile") CONFIG_FILES="$CONFIG_FILES demos/Makefile" ;;
 
   *) { { $as_echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5

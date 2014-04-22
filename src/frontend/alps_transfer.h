@@ -19,7 +19,7 @@
 #ifndef _ALPS_TRANSFER_H
 #define _ALPS_TRANSFER_H
 
-#include "useful/stringList.h"
+#include "stringList.h"
 
 #include "alps_defs.h"
 

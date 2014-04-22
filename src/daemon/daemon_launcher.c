@@ -39,7 +39,7 @@
 #include <archive_entry.h>
 
 #include "alps_defs.h"
-#include "useful/useful.h"
+#include "useful.h"
 
 static int debug_flag = 0;
 

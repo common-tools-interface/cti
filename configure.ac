@@ -21,7 +21,7 @@ dnl not pulled in until after AC_INIT. This is not portable...
 AC_INIT([craytool_interface], [m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])], [andrewg@cray.com])
 AC_COPYRIGHT([© 2011-2013 Cray Inc. All Rights Reserved.])
 
-AC_CONFIG_SRCDIR([src/alps_application.c])
+AC_CONFIG_SRCDIR([src/alps_defs.h])
 AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
@@ -35,7 +35,7 @@ LT_INIT
 dnl Pull in Cray specific m4 extensions
 cray_INIT
 
-AC_SUBST([craytool_srcdir], ["`cd $srcdir && pwd`"])
+AC_SUBST([craytool_dir], ["`cd $srcdir && pwd`"])
 AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
 AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
 AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_RELEASE])
@@ -197,6 +197,7 @@ AC_CONFIG_FILES([	Makefile
 					cray-audit.pc
 					src/Makefile
 					src/ld_val/Makefile
+					src/useful/Makefile
 					demos/Makefile
 ])
 
