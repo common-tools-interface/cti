@@ -24,9 +24,8 @@ AM_LIBTOOLFLAGS = --quiet
 
 lib_LTLIBRARIES = libcraytools_fe.la
 
-libcraytools_fe_la_SOURCES	=	cti_fe.c cti_fe.h cti_error.c cti_error.h \
-								alps_fe.c alps_fe.h alps_application.c alps_application.h \
-								alps_run.c alps_run.h alps_transfer.c alps_transfer.h 
+libcraytools_fe_la_SOURCES	=	cti_fe.c cti_fe.h cti_run.c cti_run.h cti_error.c cti_error.h \
+								cti_transfer.c cti_transfer.h alps_fe.c alps_fe.h 
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -I$(LDVAL) -I$(USEFUL)
 libcraytools_fe_la_LIBADD	=	$(USEFUL)/libuseful.la $(LDVAL)/libld_val.la $(ARCHIVE_LIBS)
 libcraytools_fe_la_LDFLAGS	=	-ldl -version-info $(CRAYTOOL_FE_VERSION)

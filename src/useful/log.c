@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * log.c - Functions used to create log files.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -27,7 +27,7 @@
 #include <linux/limits.h>
 
 #include "log.h"
-#include "alps_defs.h"
+#include "cti_defs.h"
 
 FILE *
 _cti_create_log(int suffix, char *nodeName)

@@ -23,7 +23,7 @@
 #include "alps/alps.h"
 #include "alps/alps_toolAssist.h"
 
-#include "alps_defs.h"
+#include "cti_defs.h"
 #include "pmi_attribs_parser.h"
 
 // External visibility

@@ -21,7 +21,7 @@ dnl not pulled in until after AC_INIT. This is not portable...
 AC_INIT([craytool_interface], [m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])], [andrewg@cray.com])
 AC_COPYRIGHT([© 2011-2013 Cray Inc. All Rights Reserved.])
 
-AC_CONFIG_SRCDIR([src/alps_defs.h])
+AC_CONFIG_SRCDIR([src/cti_defs.h])
 AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])

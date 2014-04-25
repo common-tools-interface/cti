@@ -19,16 +19,47 @@
 #ifndef _ALPS_FE_H
 #define _ALPS_FE_H
 
-#include "alps/alps.h"
-#include "alps/apInfo.h"
+#include <stdint.h>
+#include <sys/types.h>
+
+#include "cti_fe.h"
+
+typedef struct
+{
+	char *	hostname;
+	int		numPes;
+} cti_host_t;
+
+typedef struct
+{
+	int				numHosts;
+	cti_host_t *	hosts;
+} cti_hostsList_t;
+
+typedef struct
+{
+	uint64_t	apid;
+	pid_t		aprunPid;
+} cti_aprunProc_t;
 
 /* function prototypes */
+int 				_cti_alps_init(void);
+void				_cti_alps_fini(void);
+int					_cti_alps_compJobId(void *, void *);
+cti_app_id_t		_cti_alps_launchBarrier(char **, int, int, int, int, char *, char *, char **);
+int					_cti_alps_releaseBarrier(void *);
+int					_cti_alps_ship_package(void *, char *);
+int					_cti_alps_start_daemon(void *, char *, int);
 
-int 			_cti_alps_init(void);
-void			_cti_alps_fini(void);
-int				_cti_alps_ready(void);
-uint64_t		_cti_alps_get_apid(int, pid_t);
-int				_cti_alps_get_appinfo(uint64_t, appInfo_t *, cmdDetail_t **, placeList_t **);
-const char *	_cti_alps_launch_tool_helper(uint64_t, int, int, int, int, char **);
+cti_app_id_t		cti_registerApid(uint64_t);
+uint64_t			cti_getApid(pid_t);
+char *				cti_getNodeCName(void);
+int					cti_getNodeNid(void);
+int					cti_getAppNid(cti_app_id_t);
+int					cti_getNumAppPEs(cti_app_id_t);
+int					cti_getNumAppNodes(cti_app_id_t);
+char **	 			cti_getAppHostsList(cti_app_id_t);
+cti_hostsList_t *	cti_getAppHostsPlacement(cti_app_id_t);
+void				cti_destroyHostsList(cti_hostsList_t *);
 
 #endif /* _ALPS_FE_H */

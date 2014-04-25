@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * alps_run.h - A header file for the alps_run interface.
+ * cti_run.h - A header file for the cti_run interface.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -16,25 +16,17 @@
  *
  *********************************************************************************/
 
-#ifndef _ALPS_RUN_H
-#define _ALPS_RUN_H
+#ifndef _CTI_RUN_H
+#define _CTI_RUN_H
 
 #include <stdint.h>
+#include <sys/types.h>
 
-#include "alps_defs.h"
-
-/* public types */
-
-typedef struct
-{
-	uint64_t	apid;
-	pid_t		aprunPid;
-} cti_aprunProc_t;
+#include "cti_fe.h"
 
 /* function prototypes */
-void				_cti_reapAprunInv(uint64_t);
-cti_aprunProc_t	*	cti_launchAprunBarrier(char **, int, int, int, int, char *, char *, char **);
-int					cti_releaseAprunBarrier(uint64_t);
-int					cti_killAprun(uint64_t, int);
+cti_app_id_t		cti_launchAppBarrier(char **, int, int, int, int, char *, char *, char **);
+int					cti_releaseAppBarrier(cti_app_id_t);
+int					cti_killApp(cti_app_id_t, int);
 
-#endif /* _ALPS_RUN_H */
+#endif /* _CTI_RUN_H */

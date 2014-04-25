@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * alps_transfer.h - A header file for the alps_transfer interface.
+ * cti_transfer.h - A header file for the cti_transfer interface.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -16,23 +16,26 @@
  *
  *********************************************************************************/
 
-#ifndef _ALPS_TRANSFER_H
-#define _ALPS_TRANSFER_H
+#ifndef _CTI_TRANSFER_H
+#define _CTI_TRANSFER_H
 
-#include "stringList.h"
-#include "alps_defs.h"
+#include <stdint.h>
+
+#include "cti_fe.h"
 
 typedef int cti_manifest_id_t;
 typedef int cti_session_id_t;
 
 /* function prototypes */
+void				_cti_destroyAppSess(void *);
+
 cti_manifest_id_t	cti_createNewManifest(cti_session_id_t);
 void				cti_destroyManifest(cti_manifest_id_t);
 int					cti_addManifestBinary(cti_manifest_id_t, char *);
 int					cti_addManifestLibrary(cti_manifest_id_t, char *);
 int					cti_addManifestFile(cti_manifest_id_t, char *);
-cti_session_id_t	cti_sendManifest(uint64_t, cti_manifest_id_t, int);
-cti_session_id_t	cti_execToolDaemon(uint64_t, cti_manifest_id_t, cti_session_id_t, char *, char **, char **, int);
+cti_session_id_t	cti_sendManifest(cti_app_id_t, cti_manifest_id_t, int);
+cti_session_id_t	cti_execToolDaemon(cti_app_id_t, cti_manifest_id_t, cti_session_id_t, char *, char **, char **, int);
 char **				cti_getSessionLockFiles(cti_session_id_t);
 char *				cti_getSessionRootDir(cti_session_id_t);
 char *				cti_getSessionBinDir(cti_session_id_t);
@@ -40,4 +43,4 @@ char *				cti_getSessionLibDir(cti_session_id_t);
 char *				cti_getSessionFileDir(cti_session_id_t);
 char *				cti_getSessionTmpDir(cti_session_id_t);
 
-#endif /* _ALPS_TRANSFER_H */
+#endif /* _CTI_TRANSFER_H */

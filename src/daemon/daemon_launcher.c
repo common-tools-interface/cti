@@ -38,7 +38,7 @@
 #include <archive.h>
 #include <archive_entry.h>
 
-#include "alps_defs.h"
+#include "cti_defs.h"
 #include "useful.h"
 
 static int debug_flag = 0;

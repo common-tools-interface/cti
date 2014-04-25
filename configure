@@ -751,7 +751,7 @@ PACKAGE_VERSION='4.0'
 PACKAGE_STRING='craytool_interface 4.0'
 PACKAGE_BUGREPORT='andrewg@cray.com'
 
-ac_unique_file="src/alps_defs.h"
+ac_unique_file="src/cti_defs.h"
 # Factoring default headers for most tests.
 ac_includes_default="\
 #include <stdio.h>

@@ -17,5 +17,5 @@
 
 SUBDIRS			= ld_val useful frontend backend daemon
 
-noinst_HEADERS	= alps_defs.h
+noinst_HEADERS	= cti_defs.h
 

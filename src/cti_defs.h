@@ -1,12 +1,12 @@
 /*********************************************************************************\
- * alps_defs.h - A header file for common defines.
+ * cti_defs.h - A header file for common defines.
  *
  * NOTE: These defines are used throughout the internal code base and are all
- *       placed inside this file to make modifications due to ALPS changes
+ *       placed inside this file to make modifications due to WLM changes
  *       easier. The environment variables here should match those found in the
  *       public cray_tools_be.h and cray_tools_fe.h headers.
  *
- * © 2013 Cray Inc.	All Rights Reserved.
+ * © 2013-2014 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -21,8 +21,8 @@
  *
  *********************************************************************************/
 
-#ifndef _ALPS_DEFS_H
-#define _ALPS_DEFS_H
+#ifndef _CTI_DEFS_H
+#define _CTI_DEFS_H
 
 /*
 ** Frontend defines relating to the login node 
@@ -36,7 +36,7 @@
 #define ALPS_XT_NID				"/proc/cray_xt/nid"									// file where nid info is located
 #define ALPS_XT_HOSTNAME_FMT		"nid%05d"												// hostname format string
 #define ALPS_XT_HOSTNAME_LEN		9														// length of the string that can represent a hostname
-#define ALPS_LAUNCHER				"dlaunch"												// name of the tool daemon launcher binary
+#define CTI_LAUNCHER				"dlaunch"												// name of the tool daemon launcher binary
 #define DEFAULT_STAGE_DIR		"cti_daemonXXXXXX"									// default directory name for the fake root of the tool daemon
 #define ALPS_OBS_LOC				"/opt/cray/alps"										// used to test if the system is using the OBS format
 #define OLD_TOOLHELPER_DIR		"/var/spool/alps/%llu/toolhelper%llu"				// old alps toolhelper path format on compute node
@@ -68,4 +68,4 @@
 #define BIN_DIR_VAR					"CRAYTOOL_BIN_DIR"	// Backend: Used to denote where binaries are located (set)
 #define LIB_DIR_VAR					"CRAYTOOL_LIB_DIR"	// Backend: Used to denote where libraries are located (set)
 
-#endif /* _ALPS_DEFS_H */
+#endif /* _CTI_DEFS_H */

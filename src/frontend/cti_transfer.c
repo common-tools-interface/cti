@@ -1,9 +1,9 @@
 /*********************************************************************************\
- * alps_transfer.c - A interface to the alps toolhelper functions. This provides
- *		   a tool developer with an easy to use interface to transfer
- *		   binaries, shared libraries, and files to the compute nodes
- *		   associated with an aprun pid. This can also be used to launch
- *		   tool daemons on the compute nodes in an automated way.
+ * cti_transfer.c - A generic interface to the transfer files and start daemons.
+ *		   This provides a tool developer with an easy to use interface to
+ *		   transfer binaries, shared libraries, and files to the compute nodes
+ *		   associated with an app. This can also be used to launch tool daemons
+ *		   on the compute nodes in an automated way.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -39,10 +39,11 @@
 #include <archive_entry.h>
 
 #include "alps_fe.h"
-#include "alps_transfer.h"
-#include "alps_application.h"
-#include "ld_val.h"
+#include "cti_fe.h"
+#include "cti_defs.h"
 #include "cti_error.h"
+#include "cti_transfer.h"
+#include "ld_val.h"
 #include "useful.h"
 
 /* Types used here */
@@ -99,6 +100,7 @@ typedef struct
 
 /* 
 ** This list may need to be updated with each new release of CNL.
+** FIXME: This needs to be WLM specific.
 */
 static const char * _cti_ignored_libs[] = {
 	"libdl.so.2",
@@ -131,16 +133,15 @@ static void				_cti_consumeManifest(manifest_t *);
 static manifest_t *		_cti_findManifest(cti_manifest_id_t);
 static manifest_t *		_cti_newManifest(cti_session_id_t);
 static int				_cti_addManifestToSession(cti_manifest_id_t, cti_session_id_t);
-static void				_cti_destroyAppSess(transfer_iface_obj obj);
 static void				_cti_addSessionToApp(appEntry_t *, cti_session_id_t);
 static int				_cti_removeFilesFromDir(char *);
 static int				_cti_copyFilesToPackage(stringList_t *, char *);
 static int				_cti_packageManifestAndShip(uint64_t, cti_manifest_id_t);
 
 /* global variables */
-static sessList_t *		_cti_my_sess	= NULL;
-static cti_session_id_t	_cti_next_sid	= 1;
-static manifList_t *	_cti_my_manifs	= NULL;
+static sessList_t *			_cti_my_sess	= NULL;
+static cti_session_id_t		_cti_next_sid	= 1;
+static manifList_t *		_cti_my_manifs	= NULL;
 static cti_manifest_id_t	_cti_next_mid	= 1;
 
 static sessList_t *
@@ -934,25 +935,6 @@ _cti_addManifestToSession(cti_manifest_id_t mid, cti_session_id_t sid)
 }
 
 static void
-_cti_destroyAppSess(transfer_iface_obj obj)
-{
-	sessMgr_t *	sess_obj = (sessMgr_t *)obj;
-	int i;
-
-	// sanity check
-	if (sess_obj == NULL)
-		return;
-		
-	for (i=0; i < sess_obj->numSess; ++i)
-	{
-		_cti_reapSession(sess_obj->session_ids[i]);
-	}
-	
-	free(sess_obj->session_ids);
-	free(sess_obj);
-}
-
-static void
 _cti_addSessionToApp(appEntry_t *app_ptr, cti_session_id_t sid)
 {
 	sessMgr_t *	sess_obj;
@@ -984,7 +966,7 @@ _cti_addSessionToApp(appEntry_t *app_ptr, cti_session_id_t sid)
 		sess_obj->len = SESS_INC_SIZE;
 		
 		// set the object in the app_ptr
-		app_ptr->_transferObj = (transfer_iface_obj)sess_obj;
+		app_ptr->_transferObj = (void *)sess_obj;
 	} else
 	{
 		sess_obj = (sessMgr_t *)app_ptr->_transferObj;
@@ -1007,15 +989,28 @@ _cti_addSessionToApp(appEntry_t *app_ptr, cti_session_id_t sid)
 	
 	// Put the sid into the session_ids array
 	sess_obj->session_ids[sess_obj->numSess++] = sid;
-	
-	// ensure the destroy callback is set
-	if (app_ptr->_destroyObj == NULL)
-	{
-		app_ptr->_destroyObj = _cti_destroyAppSess;
-	}
 }
 
 /* API defined functions start here */
+
+void
+_cti_destroyAppSess(void *obj)
+{
+	sessMgr_t *	sess_obj = (sessMgr_t *)obj;
+	int i;
+
+	// sanity check
+	if (sess_obj == NULL)
+		return;
+		
+	for (i=0; i < sess_obj->numSess; ++i)
+	{
+		_cti_reapSession(sess_obj->session_ids[i]);
+	}
+	
+	free(sess_obj->session_ids);
+	free(sess_obj);
+}
 
 cti_manifest_id_t
 cti_createNewManifest(cti_session_id_t sid)
@@ -1422,7 +1417,7 @@ _cti_copyFilesToPackage(stringList_t *list, char *path)
 }
 
 static int
-_cti_packageManifestAndShip(uint64_t apid, cti_manifest_id_t mid)
+_cti_packageManifestAndShip(cti_app_id_t appId, cti_manifest_id_t mid)
 {
 	appEntry_t *			app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
 	manifest_t *			m_ptr = NULL;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
@@ -1434,7 +1429,6 @@ _cti_packageManifestAndShip(uint64_t apid, cti_manifest_id_t mid)
 	char *					tmp_path = NULL;
 	char *					tar_name = NULL;
 	char *					tmp_tar_name;
-	const char *			errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
 	struct archive *		a = NULL;
 	struct archive *		disk = NULL;
 	struct archive_entry *	entry;
@@ -1445,9 +1439,9 @@ _cti_packageManifestAndShip(uint64_t apid, cti_manifest_id_t mid)
 	char *					orig_path;
 	
 	// sanity check
-	if (apid == 0)
+	if (appId == 0)
 	{
-		_cti_set_error("Invalid apid %d.", (int)apid);
+		_cti_set_error("Invalid appId %d.", (int)appId);
 		return 1;
 	}
 	
@@ -1457,10 +1451,10 @@ _cti_packageManifestAndShip(uint64_t apid, cti_manifest_id_t mid)
 		return 1;
 	}
 	
-	// try to find an entry in the my_apps array for the apid
-	if ((app_ptr = _cti_findApp(apid)) == NULL)
+	// try to find an entry in the my_apps array for the appId
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
 	{
-		// apid not found in the global my_apps array - unknown apid failure
+		// appId not found in the global my_apps array - unknown appId failure
 		// error string already set
 		goto packageManifestAndShip_error;
 	}
@@ -1710,18 +1704,32 @@ _cti_packageManifestAndShip(uint64_t apid, cti_manifest_id_t mid)
 	free(tar_name);
 	tar_name = tmp_tar_name;
 	
-	// now ship the tarball to the compute node
-	if ((errmsg = _cti_alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, 1, 0, 1, &tar_name)) != NULL)
+	// Call the appropriate transfer function based on the wlm
+	switch (app_ptr->wlm)
 	{
-		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
-		//
-		// If we were ready, then set the error message. Otherwise we assume that
-		// dlopen failed and we already set the error string in that case.
-		if (_cti_alps_ready())
-		{
-			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
-		}
-		goto packageManifestAndShip_error;
+		case CTI_WLM_ALPS:
+			if (_cti_alps_ship_package(app_ptr->_wlmObj, tar_name))
+			{
+				// we failed to ship the file to the compute nodes for some reason - catastrophic failure
+				// Error message already set
+				goto packageManifestAndShip_error;
+			}
+			break;
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			_cti_set_error("Current WLM is not yet supported.");
+			goto packageManifestAndShip_error;
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			_cti_set_error("Multiple workload managers present! This is not yet supported.");
+			goto packageManifestAndShip_error;
+			
+		case CTI_WLM_NONE:
+			_cti_set_error("No valid workload manager detected.");
+			goto packageManifestAndShip_error;
 	}
 	
 	// clean things up
@@ -1821,24 +1829,23 @@ packageManifestAndShip_error:
 }
 
 cti_session_id_t
-cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
+cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 {
-	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
-	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
-	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
-	char *			args_flat;			// flattened args array to pass to the toolhelper call
-	char *			cpy;				// temporary cpy var used in creating args_flat
-	char *			launcher;			// full path name of the daemon launcher application
-	size_t			len;				// len vars used in creating the args_flat string
-	session_t *		s_ptr = NULL;		// points at the session to return
-	cti_session_id_t		rtn;
-	int				trnsfr = 1;			// should we transfer the dlaunch?
-	int				l, val;
+	appEntry_t *		app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
+	manifest_t *		m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
+	char *				args_flat;			// flattened args array to pass to the toolhelper call
+	char *				cpy;				// temporary cpy var used in creating args_flat
+	char *				launcher;			// full path name of the daemon launcher application
+	size_t				len;				// len vars used in creating the args_flat string
+	session_t *			s_ptr = NULL;		// points at the session to return
+	cti_session_id_t	rtn;
+	int					trnsfr = 1;			// should we transfer the dlaunch?
+	int					l, val;
 
 	// sanity check
-	if (apid == 0)
+	if (appId == 0)
 	{
-		_cti_set_error("Invalid apid %d.", (int)apid);
+		_cti_set_error("Invalid appId %d.", (int)appId);
 		return 1;
 	}
 	
@@ -1848,17 +1855,17 @@ cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 		return 1;
 	}
 	
-	// try to find an entry in the my_apps array for the apid
-	if ((app_ptr = _cti_findApp(apid)) == NULL)
+	// try to find an entry in the my_apps array for the appId
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
 	{
-		// apid not found in the global my_apps array - unknown apid failure
+		// appId not found in the global my_apps array - unknown appId failure
 		// error string already set
 		return 0;
 	}
 	
-	// if transfer_init is set in the app entry object, there is no need to send dlaunch
+	// if _transfer_init is set in the app entry object, there is no need to send dlaunch
 	// a second time
-	if (app_ptr->transfer_init)
+	if (app_ptr->_transfer_init)
 	{
 		trnsfr = 0;
 	}
@@ -1877,7 +1884,7 @@ cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 	if (m_ptr->exec_loc->num || m_ptr->lib_loc->num || m_ptr->file_loc->num)
 	{
 		// ship the manifest tarball to the compute nodes
-		if (_cti_packageManifestAndShip(apid, m_ptr->mid))
+		if (_cti_packageManifestAndShip(appId, m_ptr->mid))
 		{
 			// Failed to ship the manifest - catastrophic failure
 			// error string already set
@@ -1914,7 +1921,7 @@ cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 		// Need to transfer launcher binary
 		
 		// Find the location of the daemon launcher program
-		if ((launcher = _cti_pathFind(ALPS_LAUNCHER, NULL)) == NULL)
+		if ((launcher = _cti_pathFind(CTI_LAUNCHER, NULL)) == NULL)
 		{
 			_cti_set_error("Could not locate the launcher application in PATH.");
 			return 0;
@@ -1922,7 +1929,7 @@ cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 	} else
 	{
 		// use existing launcher binary on compute node
-		if (asprintf(&launcher, "%s/%s", app_ptr->toolPath, ALPS_LAUNCHER) <= 0)
+		if (asprintf(&launcher, "%s/%s", app_ptr->toolPath, CTI_LAUNCHER) <= 0)
 		{
 			_cti_set_error("asprintf failed.");
 			return 0;
@@ -1984,20 +1991,41 @@ cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 	}
 	
 	// Done. We now have a flattened args string
-	// We can launch the tool daemon onto the compute nodes now.
-	if ((errmsg = _cti_alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, trnsfr, 1, 1, &args_flat)) != NULL)
+	
+	// Call the appropriate transfer function based on the wlm
+	switch (app_ptr->wlm)
 	{
-		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
-		//
-		// If we were ready, then set the error message. Otherwise we assume that
-		// dlopen failed and we already set the error string in that case.
-		if (_cti_alps_ready())
-		{
-			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
-		}
-		free(args_flat);
-		_cti_reapManifest(m_ptr->mid);
-		return 0;
+		case CTI_WLM_ALPS:
+			if (_cti_alps_start_daemon(app_ptr->_wlmObj, args_flat, trnsfr))
+			{
+				// we failed to ship the file to the compute nodes for some reason - catastrophic failure
+				// Error message already set
+				free(args_flat);
+				_cti_reapManifest(m_ptr->mid);
+				return 0;
+			}
+			break;
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			_cti_set_error("Current WLM is not yet supported.");
+			free(args_flat);
+			_cti_reapManifest(m_ptr->mid);
+			return 0;
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			_cti_set_error("Multiple workload managers present! This is not yet supported.");
+			free(args_flat);
+			_cti_reapManifest(m_ptr->mid);
+			return 0;
+			
+		case CTI_WLM_NONE:
+			_cti_set_error("No valid workload manager detected.");
+			free(args_flat);
+			_cti_reapManifest(m_ptr->mid);
+			return 0;
 	}
 		
 	// cleanup our memory
@@ -2037,7 +2065,7 @@ cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 	// Associate this session with the app_ptr
 	_cti_addSessionToApp(app_ptr, s_ptr->sid);
 	// set the tranfser_init in the app_ptr
-	app_ptr->transfer_init = 1;
+	app_ptr->_transfer_init = 1;
 	// point the toolPath of the session at the value in the app_ptr
 	s_ptr->toolPath = app_ptr->toolPath;
 	
@@ -2045,12 +2073,11 @@ cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, int dbg)
 }
 
 cti_session_id_t
-cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, char *fstr, char **args, char **env, int dbg)
+cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t sid, char *fstr, char **args, char **env, int dbg)
 {
 	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
 	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	int				useManif = 0;		// controls if a manifest was shipped or not
-	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
 	char *			fullname;			// full path name of the executable to launch as a tool daemon
 	char *			realname;			// realname (lacking path info) of the executable
 	char *			args_flat;			// flattened args array to pass to the toolhelper call
@@ -2063,9 +2090,9 @@ cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, c
 	int				l, val;
 		
 	// sanity check
-	if (apid == 0)
+	if (appId == 0)
 	{
-		_cti_set_error("Invalid apid %d.", (int)apid);
+		_cti_set_error("Invalid appId %d.", (int)appId);
 		return 1;
 	}
 	
@@ -2075,17 +2102,17 @@ cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, c
 		return 1;
 	}
 	
-	// try to find an entry in the my_apps array for the apid
-	if ((app_ptr = _cti_findApp(apid)) == NULL)
+	// try to find an entry in the my_apps array for the appId
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
 	{
-		// apid not found in the global my_apps array - unknown apid failure
+		// appId not found in the global my_apps array - unknown appId failure
 		// error string already set
 		return 0;
 	}
 	
-	// if transfer_init is set in the app entry object, there is no need to send dlaunch
+	// if _transfer_init is set in the app entry object, there is no need to send dlaunch
 	// a second time
-	if (app_ptr->transfer_init)
+	if (app_ptr->_transfer_init)
 	{
 		trnsfr = 0;
 	}
@@ -2147,7 +2174,7 @@ cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, c
 	if (m_ptr->exec_loc->num || m_ptr->lib_loc->num || m_ptr->file_loc->num)
 	{
 		// ship the manifest tarball to the compute nodes
-		if (_cti_packageManifestAndShip(apid, m_ptr->mid))
+		if (_cti_packageManifestAndShip(appId, m_ptr->mid))
 		{
 			// Failed to ship the manifest - catastrophic failure
 			// error string already set
@@ -2188,7 +2215,7 @@ cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, c
 		// Need to transfer launcher binary
 		
 		// Find the location of the daemon launcher program
-		if ((launcher = _cti_pathFind(ALPS_LAUNCHER, NULL)) == NULL)
+		if ((launcher = _cti_pathFind(CTI_LAUNCHER, NULL)) == NULL)
 		{
 			_cti_set_error("Could not locate the launcher application in PATH.");
 			return 0;
@@ -2196,7 +2223,7 @@ cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, c
 	} else
 	{
 		// use existing launcher binary on compute node
-		if (asprintf(&launcher, "%s/%s", app_ptr->toolPath, ALPS_LAUNCHER) <= 0)
+		if (asprintf(&launcher, "%s/%s", app_ptr->toolPath, CTI_LAUNCHER) <= 0)
 		{
 			_cti_set_error("asprintf failed.");
 			return 0;
@@ -2330,22 +2357,43 @@ cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, c
 	}
 		
 	// Done. We now have a flattened args string
-	// We can launch the tool daemon onto the compute nodes now.
-	if ((errmsg = _cti_alps_launch_tool_helper(app_ptr->apid, app_ptr->alpsInfo.pe0Node, trnsfr, 1, 1, &args_flat)) != NULL)
+	
+	// Call the appropriate transfer function based on the wlm
+	switch (app_ptr->wlm)
 	{
-		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
-		//
-		// If we were ready, then set the error message. Otherwise we assume that
-		// dlopen failed and we already set the error string in that case.
-		if (_cti_alps_ready())
-		{
-			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
-		}
-		free(args_flat);
-		_cti_reapManifest(m_ptr->mid);
-		return 0;
+		case CTI_WLM_ALPS:
+			if (_cti_alps_start_daemon(app_ptr->_wlmObj, args_flat, trnsfr))
+			{
+				// we failed to ship the file to the compute nodes for some reason - catastrophic failure
+				// Error message already set
+				free(args_flat);
+				_cti_reapManifest(m_ptr->mid);
+				return 0;
+			}
+			break;
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			_cti_set_error("Current WLM is not yet supported.");
+			free(args_flat);
+			_cti_reapManifest(m_ptr->mid);
+			return 0;
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			_cti_set_error("Multiple workload managers present! This is not yet supported.");
+			free(args_flat);
+			_cti_reapManifest(m_ptr->mid);
+			return 0;
+			
+		case CTI_WLM_NONE:
+			_cti_set_error("No valid workload manager detected.");
+			free(args_flat);
+			_cti_reapManifest(m_ptr->mid);
+			return 0;
 	}
-		
+	
 	// cleanup our memory
 	free(args_flat);
 	
@@ -2379,7 +2427,7 @@ cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, cti_session_id_t sid, c
 	// Associate this session with the app_ptr
 	_cti_addSessionToApp(app_ptr, s_ptr->sid);
 	// set the tranfser_init in the app_ptr
-	app_ptr->transfer_init = 1;
+	app_ptr->_transfer_init = 1;
 	// point the toolPath of the session at the value in the app_ptr
 	s_ptr->toolPath = app_ptr->toolPath;
 	
