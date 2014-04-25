@@ -5,8 +5,8 @@
 /config.log
 /config.status
 /cray-audit.pc
-/cray-tool_backend.pc
-/cray-tool_frontend.pc
+/cray-tools_be.pc
+/cray-tools_fe.pc
 /cscope.out
 demos/.deps
 demos/Makefile
@@ -15,7 +15,15 @@ demos/demo_binaries
 /libtool
 src/.deps
 src/Makefile
-src/dlaunch
+src/backend/.deps
+src/backend/Makefile
+src/daemon/.deps
+src/daemon/Makefile
+src/daemon/dlaunch
+src/frontend/.deps
+src/frontend/Makefile
 src/ld_val/.deps
 src/ld_val/Makefile
+src/useful/.deps
+src/useful/Makefile
 /stamp-h1

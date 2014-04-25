@@ -1593,7 +1593,8 @@ _cti_packageManifestAndShip(cti_app_id_t appId, cti_manifest_id_t mid)
 	a = archive_write_new();
 	archive_write_add_filter_none(a);
 	
-	archive_write_set_format_ustar(a);
+	// Fix for BUG 811393 - use gnutar instead of ustar.
+	archive_write_set_format_gnutar(a);
 	
 	archive_write_open_filename(a, tar_name);
 	
