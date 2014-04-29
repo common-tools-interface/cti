@@ -460,6 +460,33 @@ cti_current_wlm(void)
 	return _cti_current_wlm;
 }
 
+const char *
+cti_wlm_type_toString(cti_wlm_type wlm_type)
+{
+	switch (wlm_type)
+	{
+		case CTI_WLM_ALPS:
+			return "Cray ALPS";
+			
+		case CTI_WLM_CRAY_SLURM:
+			return "Cray based SLURM";
+	
+		case CTI_WLM_SLURM:
+			return "SLURM";
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			return "Multiple WLMs present";
+			
+		case CTI_WLM_NONE:
+			return "No WLM detected";
+	}
+	
+	// Shouldn't get here
+	return "Invalid WLM.";
+}
+
 void
 cti_deregisterApp(cti_app_id_t appId)
 {

@@ -75,6 +75,7 @@ appEntry_t *		_cti_findAppEntryByJobId(void *);
 int					_cti_setTransferObj(cti_app_id_t, void *, obj_destroy);
 
 cti_wlm_type		cti_current_wlm(void);
+const char *		cti_wlm_type_toString(cti_wlm_type);
 void				cti_deregisterApp(cti_app_id_t);
 char *				cti_getHostName(void);
 char *				cti_getLauncherHostName(cti_app_id_t);

@@ -88,14 +88,15 @@ static uint64_t			_cti_alps_get_apid(int, pid_t);
 static int				_cti_alps_get_appinfo(uint64_t, appInfo_t *, cmdDetail_t **, placeList_t **);
 static const char *		_cti_alps_launch_tool_helper(uint64_t, int, int, int, int, char **);
 static void				_cti_alps_consumeAlpsInfo(void *);
-static void 			_cti_consumeAprunInv(aprunInv_t *);
-static serviceNode_t *	_cti_getSvcNodeInfo(void);
-static int				_cti_checkPathForWrappedAprun(char *);
-static int				_cti_filter_pid_entries(const struct dirent *);
+static void 			_cti_alps_consumeAprunInv(aprunInv_t *);
+static serviceNode_t *	_cti_alps_getSvcNodeInfo(void);
+static int				_cti_alps_checkPathForWrappedAprun(char *);
+static int				_cti_alps_filter_pid_entries(const struct dirent *);
+static uint64_t			_cti_alps_getApid(pid_t);
 
 /* global variables */
-static cti_alps_funcs_t *	_cti_alps_ptr = NULL;	// libalps wrappers
-static serviceNode_t *		_cti_svcNid	= NULL;		// service node information
+static cti_alps_funcs_t *	_cti_alps_ptr 		= NULL;	// libalps wrappers
+static serviceNode_t *		_cti_alps_svcNid	= NULL;	// service node information
 
 /* Constructor/Destructor functions */
 
@@ -221,7 +222,7 @@ _cti_alps_launch_tool_helper(uint64_t arg1, int arg2, int arg3, int arg4, int ar
 }
 
 /*
-*       _cti_getSvcNodeInfo - read cname and nid from alps defined system locations
+*       _cti_alps_getSvcNodeInfo - read cname and nid from alps defined system locations
 *
 *       args: None.
 *
@@ -230,7 +231,7 @@ _cti_alps_launch_tool_helper(uint64_t arg1, int arg2, int arg3, int arg4, int ar
 *
 */
 static serviceNode_t *
-_cti_getSvcNodeInfo()
+_cti_alps_getSvcNodeInfo()
 {
 	FILE *alps_fd;	  // ALPS NID/CNAME file stream
 	char file_buf[BUFSIZ];  // file read buffer
@@ -311,13 +312,13 @@ _cti_alps_consumeAlpsInfo(void *this)
 	
 	// try to free the inv object
 	if (alpsInfo->inv != NULL)
-		_cti_consumeAprunInv(alpsInfo->inv);
+		_cti_alps_consumeAprunInv(alpsInfo->inv);
 	
 	free(alpsInfo);
 }
 
 static void
-_cti_consumeAprunInv(aprunInv_t *runPtr)
+_cti_alps_consumeAprunInv(aprunInv_t *runPtr)
 {
 	// sanity
 	if (runPtr == NULL)
@@ -397,6 +398,9 @@ cti_registerApid(uint64_t apid)
 			return 0;
 		}
 		memset(alpsInfo, 0, sizeof(alpsInfo_t));     // clear it to NULL
+		
+		// set the apid
+		alpsInfo->apid = apid;
 	
 		// retrieve detailed information about our app
 		// save this information into the struct
@@ -461,8 +465,8 @@ cti_registerApid(uint64_t apid)
 	return appId;
 }
 
-uint64_t
-cti_getApid(pid_t aprunPid)
+static uint64_t
+_cti_alps_getApid(pid_t aprunPid)
 {
 	// sanity check
 	if (aprunPid == 0)
@@ -470,26 +474,70 @@ cti_getApid(pid_t aprunPid)
 		_cti_set_error("Invalid pid %d.", (int)aprunPid);
 		return 0;
 	}
-	
-	// sanity check
-	if (cti_current_wlm() != CTI_WLM_ALPS)
-	{
-		_cti_set_error("Invalid call. ALPS WLM not in use.");
-		return 0;
-	}
 		
-	// ensure the _cti_svcNid exists
-	if (_cti_svcNid == NULL)
+	// ensure the _cti_alps_svcNid exists
+	if (_cti_alps_svcNid == NULL)
 	{
-		if ((_cti_svcNid = _cti_getSvcNodeInfo()) == NULL)
+		if ((_cti_alps_svcNid = _cti_alps_getSvcNodeInfo()) == NULL)
 		{
 			// couldn't get the svcnode info for some odd reason
 			// error string already set
 			return 0;
 		}
 	}
-		
-	return _cti_alps_get_apid(_cti_svcNid->nid, aprunPid);
+	
+	return _cti_alps_get_apid(_cti_alps_svcNid->nid, aprunPid);
+}
+
+cti_aprunProc_t *
+cti_getAprunInfo(cti_app_id_t appId)
+{
+	appEntry_t *		app_ptr;
+	alpsInfo_t *		alpsInfo;
+	cti_aprunProc_t *	aprunInfo;
+	
+	// sanity check
+	if (appId == 0)
+	{
+		_cti_set_error("Invalid appId %d.", (int)appId);
+		return NULL;
+	}
+	
+	// try to find an entry in the _cti_my_apps list for the apid
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	{
+		// couldn't find the entry associated with the apid
+		// error string already set
+		return NULL;
+	}
+	
+	// sanity check
+	if (app_ptr->wlm != CTI_WLM_ALPS)
+	{
+		_cti_set_error("cti_getAprunInfo: Invalid WLM.");
+		return NULL;
+	}
+	
+	// sanity check
+	alpsInfo = (alpsInfo_t *)app_ptr->_wlmObj;
+	if (alpsInfo == NULL)
+	{
+		_cti_set_error("cti_getAprunInfo: _wlmObj is NULL!");
+		return NULL;
+	}
+	
+	// allocate space for the cti_aprunProc_t struct
+	if ((aprunInfo = malloc(sizeof(cti_aprunProc_t))) == (void *)0)
+	{
+		// malloc failed
+		_cti_set_error("malloc failed.");
+		return NULL;
+	}
+	
+	aprunInfo->apid = alpsInfo->apid;
+	aprunInfo->aprunPid = alpsInfo->appinfo.aprunPid;
+	
+	return aprunInfo;
 }
 
 char *
@@ -497,10 +545,10 @@ _cti_alps_getHostName(void)
 {
 	char *hostname;
 
-	// ensure the _cti_svcNid exists
-	if (_cti_svcNid == NULL)
+	// ensure the _cti_alps_svcNid exists
+	if (_cti_alps_svcNid == NULL)
 	{
-		if ((_cti_svcNid = _cti_getSvcNodeInfo()) == NULL)
+		if ((_cti_alps_svcNid = _cti_alps_getSvcNodeInfo()) == NULL)
 		{
 			// couldn't get the svcnode info for some odd reason
 			// error string already set
@@ -508,7 +556,7 @@ _cti_alps_getHostName(void)
 		}
 	}
 	
-	if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, _cti_svcNid->nid) < 0)
+	if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, _cti_alps_svcNid->nid) < 0)
 	{
 		_cti_set_error("asprintf failed.");
 		return NULL;
@@ -788,7 +836,7 @@ _cti_alps_getAppHostsPlacement(void *this)
 }
 
 static int	
-_cti_checkPathForWrappedAprun(char *aprun_path)
+_cti_alps_checkPathForWrappedAprun(char *aprun_path)
 {
 	char *			usr_aprun_path;
 	char *			default_obs_realpath = NULL;
@@ -855,7 +903,7 @@ _cti_checkPathForWrappedAprun(char *aprun_path)
 }
 
 static int
-_cti_filter_pid_entries(const struct dirent *a)
+_cti_alps_filter_pid_entries(const struct dirent *a)
 {
 	unsigned long int pid;
 	
@@ -910,13 +958,13 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 	if (pipe(aprunPipeR) < 0)
 	{
 		_cti_set_error("Pipe creation failure on aprunPipeR.");
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
 	if (pipe(aprunPipeW) < 0)
 	{
 		_cti_set_error("Pipe creation failure on aprunPipeW.");
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
 	
@@ -942,12 +990,11 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 	{
 		// calloc failed
 		_cti_set_error("calloc failed.");
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
 		
 	// add the initial aprun argv
-	// FIXME: Make generic
 	my_argv[0] = strdup(APRUN);
 	
 	// Add the -P r,w args
@@ -972,7 +1019,7 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 	{
 		// malloc failed
 		_cti_set_error("malloc failed.");
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		// cleanup my_argv array
 		tmp = my_argv;
 		while (*tmp != NULL)
@@ -1013,7 +1060,7 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 	if (mypid < 0)
 	{
 		_cti_set_error("Fatal fork error.");
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		// cleanup my_argv array
 		tmp = my_argv;
 		while (*tmp != NULL)
@@ -1159,7 +1206,7 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
 		kill(mypid, DEFAULT_SIG);
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
 	
@@ -1202,12 +1249,12 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 	}
 	
 	// check the link path to see if its the real aprun binary
-	if (_cti_checkPathForWrappedAprun(aprun_exe_path))
+	if (_cti_alps_checkPathForWrappedAprun(aprun_exe_path))
 	{
 		// aprun is wrapped, we need to start harvesting stuff out from /proc.
 		
 		// start by getting all the /proc/<pid>/ files
-		if ((file_list_len = scandir("/proc", &file_list, _cti_filter_pid_entries, NULL)) < 0)
+		if ((file_list_len = scandir("/proc", &file_list, _cti_alps_filter_pid_entries, NULL)) < 0)
 		{
 			_cti_set_error("Could not enumerate /proc for real aprun process.");
 			free(aprun_proc_path);
@@ -1215,7 +1262,7 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 			// attempt to kill aprun since the caller will not recieve the aprun pid
 			// just in case the aprun process is still hanging around.
 			kill(mypid, DEFAULT_SIG);
-			_cti_consumeAprunInv(myapp);
+			_cti_alps_consumeAprunInv(myapp);
 			return 0;
 		}
 		
@@ -1233,7 +1280,7 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 				// attempt to kill aprun since the caller will not recieve the aprun pid
 				// just in case the aprun process is still hanging around.
 				kill(mypid, DEFAULT_SIG);
-				_cti_consumeAprunInv(myapp);
+				_cti_alps_consumeAprunInv(myapp);
 				// free the file_list
 				for (i=0; i < file_list_len; ++i)
 				{
@@ -1252,7 +1299,7 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 				// attempt to kill aprun since the caller will not recieve the aprun pid
 				// just in case the aprun process is still hanging around.
 				kill(mypid, DEFAULT_SIG);
-				_cti_consumeAprunInv(myapp);
+				_cti_alps_consumeAprunInv(myapp);
 				// free the file_list
 				for (i=0; i < file_list_len; ++i)
 				{
@@ -1306,7 +1353,7 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 					// attempt to kill aprun since the caller will not recieve the aprun pid
 					// just in case the aprun process is still hanging around.
 					kill(mypid, DEFAULT_SIG);
-					_cti_consumeAprunInv(myapp);
+					_cti_alps_consumeAprunInv(myapp);
 					// free the file_list
 					for (i=0; i < file_list_len; ++i)
 					{
@@ -1329,7 +1376,7 @@ _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectI
 				}
 				
 				// check if this is the real aprun
-				if (!_cti_checkPathForWrappedAprun(aprun_exe_path))
+				if (!_cti_alps_checkPathForWrappedAprun(aprun_exe_path))
 				{
 					// success! This is the real aprun
 					// set the aprunPid of the real aprun in the aprunInv_t structure
@@ -1362,13 +1409,13 @@ continue_on_error:
 	}
 	
 	// set the apid associated with the pid of aprun
-	if ((apid = cti_getApid(myapp->aprunPid)) == 0)
+	if ((apid = _cti_alps_getApid(myapp->aprunPid)) == 0)
 	{
 		_cti_set_error("Could not obtain apid associated with pid of aprun.");
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
 		kill(myapp->aprunPid, DEFAULT_SIG);
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
 	
@@ -1377,7 +1424,7 @@ continue_on_error:
 	{
 		// failed to register apid, error is already set
 		kill(myapp->aprunPid, DEFAULT_SIG);
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
 	
@@ -1386,7 +1433,7 @@ continue_on_error:
 	{
 		// this should never happen
 		kill(myapp->aprunPid, DEFAULT_SIG);
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
 	
@@ -1396,7 +1443,7 @@ continue_on_error:
 	{
 		// this should never happen
 		kill(myapp->aprunPid, DEFAULT_SIG);
-		_cti_consumeAprunInv(myapp);
+		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
 	

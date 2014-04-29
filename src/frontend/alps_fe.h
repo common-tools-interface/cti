@@ -47,6 +47,6 @@ char *				_cti_alps_getHostName(void);
 char *				_cti_alps_getLauncherHostName(void *);
 
 cti_app_id_t		cti_registerApid(uint64_t);
-uint64_t			cti_getApid(pid_t);
+cti_aprunProc_t *	cti_getAprunInfo(cti_app_id_t);
 
 #endif /* _ALPS_FE_H */

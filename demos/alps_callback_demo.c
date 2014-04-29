@@ -290,7 +290,7 @@ callback_destroy(void *thread_arg)
 int
 main(int argc, char **argv)
 {
-	cti_aprunProc_t *	myapp;
+	cti_app_id_t		myapp;
 	char **				tool_argv;
 	int					i;
 	cti_session_id_t	mysid;
@@ -312,24 +312,27 @@ main(int argc, char **argv)
 	}
 	
 	// call aprun
-	if ((myapp = cti_launchAprunBarrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
+	if ((myapp = cti_launchAppBarrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
 	{
-		fprintf(stderr, "Aprun failed.\n");
+		fprintf(stderr, "cti_launchAppBarrier failed!\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
 		return 1;
 	}
 	
 	// get number of allocated nodes in app
-	if ((app_nodes = cti_getNumAppNodes(myapp->apid)) == 0)
+	if ((app_nodes = cti_getNumAppNodes(myapp)) == 0)
 	{
 		fprintf(stderr, "cti_getNumAppNodes failed.\n");
-		cti_killAprun(myapp->apid, 9);
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
 		return 1;
 	}
 	// get number of PEs in app
-	if ((num_pes = cti_getNumAppPEs(myapp->apid)) == 0)
+	if ((num_pes = cti_getNumAppPEs(myapp)) == 0)
 	{
 		fprintf(stderr, "cti_getNumAppPEs failed.\n");
-		cti_killAprun(myapp->apid, 9);
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
 		return 1;
 	}
 	
@@ -337,7 +340,7 @@ main(int argc, char **argv)
 	if ((peNodes = calloc(app_nodes, sizeof(BackEndNode_t *))) == (void *)0)
 	{
 		fprintf(stderr, "could not calloc memory for the peNodes array.\n");
-		cti_killAprun(myapp->apid, 9);
+		cti_killApp(myapp, 9);
 		return 1;
 	}
 	for (i=0; i<app_nodes; i++)
@@ -345,19 +348,25 @@ main(int argc, char **argv)
 		if ((peNodes[i] = malloc(sizeof(BackEndNode_t))) == (void *)0)
 		{
 			fprintf(stderr, "Could not malloc memory for peNodes entry.\n");
-			cti_killAprun(myapp->apid, 9);
+			cti_killApp(myapp, 9);
 			return 1;
 		}
 	}
 	
 	// get the cname of this service node
-	my_node.cname = cti_getNodeCName();
+	if ((my_node.cname = cti_getHostName()) == NULL)
+	{
+		fprintf(stderr, "cti_getHostName failed!\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
+		return 1;
+	}
 	
 	// alloc memory for the argv array
 	if ((tool_argv = calloc(3, sizeof(char *))) == (void *)0)
 	{
 		fprintf(stderr, "Could not calloc memory for the tool argv string.\n");
-		cti_killAprun(myapp->apid, 9);
+		cti_killApp(myapp, 9);
 		return 1;
 	}
 	tool_argv[0] = "-h";
@@ -365,10 +374,11 @@ main(int argc, char **argv)
 	tool_argv[2] = NULL;
 	
 	// Transfer and exec the callback_daemon application
-	if ((mysid = cti_execToolDaemon(myapp->apid, 0, 0, LAUNCHER, tool_argv, NULL, 0)) == 0)
+	if ((mysid = cti_execToolDaemon(myapp, 0, 0, LAUNCHER, tool_argv, NULL, 0)) == 0)
 	{
-		fprintf(stderr, "Could not launch callback daemon on compute nodes!\n");
-		cti_killAprun(myapp->apid, 9);
+		fprintf(stderr, "cti_execToolDaemon failed!\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
 		return 1;
 	}
 	
@@ -394,10 +404,11 @@ main(int argc, char **argv)
 	(void)getchar();
 	
 	// release barrier
-	if (cti_releaseAprunBarrier(myapp->apid))
+	if (cti_releaseAppBarrier(myapp))
 	{
-		fprintf(stderr, "Could not release app from barrier.\n");
-		cti_killAprun(myapp->apid, 9);
+		fprintf(stderr, "cti_releaseAppBarrier failed.\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
 		return 1;
 	}
 	

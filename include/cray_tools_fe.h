@@ -171,6 +171,23 @@ extern const char *	cti_error_str(void);
 extern cti_wlm_type	cti_current_wlm(void);
 
 /*
+ * cti_wlm_type_toString - Obtain the stringified representation of the 
+ *                         cti_wlm_type.
+ * 
+ * Detail
+ *      This call can be used to turn the cti_wlm_type returned by 
+ *      cti_current_wlm into a human readable format.
+ *
+ * Arguments
+ *      wlm_type - The cti_wlm_type to stringify
+ *
+ * Returns
+ *      A string containing the human readable format.
+ *
+ */
+extern const char *	cti_wlm_type_toString(cti_wlm_type wlm_type);
+
+/*
  * cti_deregisterApp - Assists in cleaning up internal allocated memory
  *                     associated with a previously registered application.
  * 
@@ -484,21 +501,24 @@ extern int	cti_killApp(cti_app_id_t app_id, int signum);
 extern cti_app_id_t	cti_registerApid(uint64_t apid);
 
 /*
- * cti_getApid - Obtain the apid associated with the aprun pid.
+ * cti_getAprunInfo - Obtain information about the aprun process
  *
  * Detail
- *      This function is used to obtain the apid of an aprun session based on
- *      the pid of the aprun binary. This can be used in place of apstat if the
- *      pid_t of the aprun process is already known.
+ *      This function is used to obtain the apid of an aprun session and the
+ *      pid_t of the aprun process based on the passed in app_id. It is the 
+ *      callers responsibility to free the allocated storage when it is no 
+ *      longer needed.
  *
  * Arguments
- *      aprunPid - The pid_t of the registered aprun session.
+ *      app_id -  The cti_app_id_t of the registered application.
  *
  * Returns
- *      apid if found, or else 0 on failure/not found.
- * 
+ *      A cti_aprunProc_t pointer that contains the apid and pid_t of aprun.
+ *      NULL is returned on error. The caller should free() the returned pointer
+ *      when finished using it.
+ *
  */
-extern uint64_t	cti_getApid(pid_t aprunPid);
+extern cti_aprunProc_t *	cti_getAprunInfo(cti_app_id_t);
 
 
 /*******************************************************************************
