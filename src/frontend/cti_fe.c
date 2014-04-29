@@ -454,6 +454,12 @@ _cti_setTransferObj(cti_app_id_t appId, void *transferObj, obj_destroy transferD
 	return 0;
 }
 
+cti_wlm_type
+cti_current_wlm(void)
+{
+	return _cti_current_wlm;
+}
+
 void
 cti_deregisterApp(cti_app_id_t appId)
 {
@@ -465,8 +471,316 @@ cti_deregisterApp(cti_app_id_t appId)
 	_cti_reapAppEntry(appId);
 }
 
-cti_wlm_type
-cti_current_wlm(void)
+int
+cti_getNumAppPEs(cti_app_id_t appId)
 {
-	return _cti_current_wlm;
+	appEntry_t *	app_ptr;
+	
+	// sanity check
+	if (appId == 0)
+	{
+		_cti_set_error("Invalid appId %d.", (int)appId);
+		return 0;
+	}
+		
+	// try to find an entry in the _cti_my_apps list for the apid
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	{
+		// couldn't find the entry associated with the apid
+		// error string already set
+		return 0;
+	}
+	
+	// sanity check
+	if (app_ptr->_wlmObj == NULL)
+	{
+		_cti_set_error("cti_getNumAppPEs: _wlmObj is NULL!");
+		return 0;
+	}
+	
+	// Call the appropriate function based on the wlm
+	switch (app_ptr->wlm)
+	{
+		case CTI_WLM_ALPS:
+			return _cti_alps_getNumAppPEs(app_ptr->_wlmObj);
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			_cti_set_error("Current WLM is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			_cti_set_error("Multiple workload managers present! This is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_NONE:
+			_cti_set_error("No valid workload manager detected.");
+			return 0;
+	}
+	
+	// should not get here
+	_cti_set_error("At impossible exit.");
+	return 0;
 }
+
+int
+cti_getNumAppNodes(cti_app_id_t appId)
+{
+	appEntry_t *	app_ptr;
+	
+	// sanity check
+	if (appId == 0)
+	{
+		_cti_set_error("Invalid appId %d.", (int)appId);
+		return 0;
+	}
+	
+	// try to find an entry in the _cti_my_apps list for the apid
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	{
+		// couldn't find the entry associated with the apid
+		// error string already set
+		return 0;
+	}
+	
+	// sanity check
+	if (app_ptr->_wlmObj == NULL)
+	{
+		_cti_set_error("cti_getNumAppNodes: _wlmObj is NULL!");
+		return 0;
+	}
+	
+	// Call the appropriate function based on the wlm
+	switch (app_ptr->wlm)
+	{
+		case CTI_WLM_ALPS:
+			return _cti_alps_getNumAppNodes(app_ptr->_wlmObj);
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			_cti_set_error("Current WLM is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			_cti_set_error("Multiple workload managers present! This is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_NONE:
+			_cti_set_error("No valid workload manager detected.");
+			return 0;
+	}
+	
+	// should not get here
+	_cti_set_error("At impossible exit.");
+	return 0;
+}
+
+char **
+cti_getAppHostsList(cti_app_id_t appId)
+{
+	appEntry_t *	app_ptr;
+	
+	// sanity check
+	if (appId == 0)
+	{
+		_cti_set_error("Invalid appId %d.", (int)appId);
+		return 0;
+	}
+	
+	// try to find an entry in the _cti_my_apps list for the apid
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	{
+		// couldn't find the entry associated with the apid
+		// error string already set
+		return 0;
+	}
+	
+	// sanity check
+	if (app_ptr->_wlmObj == NULL)
+	{
+		_cti_set_error("cti_getAppHostsList: _wlmObj is NULL!");
+		return 0;
+	}
+	
+	// Call the appropriate function based on the wlm
+	switch (app_ptr->wlm)
+	{
+		case CTI_WLM_ALPS:
+			return _cti_alps_getAppHostsList(app_ptr->_wlmObj);
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			_cti_set_error("Current WLM is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			_cti_set_error("Multiple workload managers present! This is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_NONE:
+			_cti_set_error("No valid workload manager detected.");
+			return 0;
+	}
+	
+	// should not get here
+	_cti_set_error("At impossible exit.");
+	return 0;
+}
+
+cti_hostsList_t *
+cti_getAppHostsPlacement(cti_app_id_t appId)
+{
+	appEntry_t *	app_ptr;
+	
+	// sanity check
+	if (appId == 0)
+	{
+		_cti_set_error("Invalid appId %d.", (int)appId);
+		return 0;
+	}
+	
+	// try to find an entry in the _cti_my_apps list for the apid
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	{
+		// couldn't find the entry associated with the apid
+		// error string already set
+		return 0;
+	}
+	
+	// sanity check
+	if (app_ptr->_wlmObj == NULL)
+	{
+		_cti_set_error("cti_getAppHostsPlacement: _wlmObj is NULL!");
+		return 0;
+	}
+	
+	// Call the appropriate function based on the wlm
+	switch (app_ptr->wlm)
+	{
+		case CTI_WLM_ALPS:
+			return _cti_alps_getAppHostsPlacement(app_ptr->_wlmObj);
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			_cti_set_error("Current WLM is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			_cti_set_error("Multiple workload managers present! This is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_NONE:
+			_cti_set_error("No valid workload manager detected.");
+			return 0;
+	}
+	
+	// should not get here
+	_cti_set_error("At impossible exit.");
+	return 0;
+}
+
+void
+cti_destroyHostsList(cti_hostsList_t *placement_list)
+{
+	// sanity check
+	if (placement_list == NULL)
+		return;
+		
+	if (placement_list->hosts != NULL)
+		free(placement_list->hosts);
+		
+	free(placement_list);
+}
+
+char *
+cti_getHostName()
+{
+	// Call the appropriate function based on the wlm
+	switch (_cti_current_wlm)
+	{
+		case CTI_WLM_ALPS:
+			return _cti_alps_getHostName();
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			_cti_set_error("Current WLM is not yet supported.");
+			return NULL;
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			_cti_set_error("Multiple workload managers present! This is not yet supported.");
+			return NULL;
+			
+		case CTI_WLM_NONE:
+			_cti_set_error("No valid workload manager detected.");
+			return NULL;
+	}
+	
+	// should not get here
+	_cti_set_error("At impossible exit.");
+	return NULL;
+}
+
+char *
+cti_getLauncherHostName(cti_app_id_t appId)
+{
+	appEntry_t *	app_ptr;
+	
+	// sanity check
+	if (appId == 0)
+	{
+		_cti_set_error("Invalid appId %d.", (int)appId);
+		return 0;
+	}
+	
+	// try to find an entry in the _cti_my_apps list for the apid
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	{
+		// couldn't find the entry associated with the apid
+		// error string already set
+		return 0;
+	}
+	
+	// sanity check
+	if (app_ptr->_wlmObj == NULL)
+	{
+		_cti_set_error("cti_getLauncherHostName: _wlmObj is NULL!");
+		return 0;
+	}
+	
+	// Call the appropriate function based on the wlm
+	switch (app_ptr->wlm)
+	{
+		case CTI_WLM_ALPS:
+			return _cti_alps_getLauncherHostName(app_ptr->_wlmObj);
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			_cti_set_error("Current WLM is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_MULTI:
+			// TODO - add argument to allow caller to select preferred wlm if there is
+			// ever multiple WLMs present on the system.
+			_cti_set_error("Multiple workload managers present! This is not yet supported.");
+			return 0;
+			
+		case CTI_WLM_NONE:
+			_cti_set_error("No valid workload manager detected.");
+			return 0;
+	}
+	
+	// should not get here
+	_cti_set_error("At impossible exit.");
+	return 0;
+}
+

@@ -15,14 +15,14 @@
 # $Author$
 #
 
-craytool_major=4
+craytool_major=5
 craytool_minor=0
 
-be_current=4
+be_current=5
 be_revision=0
 be_age=0
 
-fe_current=4
+fe_current=5
 fe_revision=0
 fe_age=0
 

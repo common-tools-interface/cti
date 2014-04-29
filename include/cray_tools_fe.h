@@ -115,8 +115,19 @@ typedef struct
 	pid_t		aprunPid;
 } cti_aprunProc_t;
 
-typedef int cti_manifest_id_t;
-typedef int cti_session_id_t;
+enum cti_wlm_type
+{
+	CTI_WLM_NONE,	// error/unitialized state
+	CTI_WLM_ALPS,
+	CTI_WLM_CRAY_SLURM,
+	CTI_WLM_SLURM
+};
+typedef enum cti_wlm_type	cti_wlm_type;
+
+typedef uint64_t	cti_app_id_t;
+typedef int 		cti_manifest_id_t;
+typedef int			cti_session_id_t;
+
 
 /************************************************************
  * The Cray tools interface frontend calls are defined below.
@@ -142,164 +153,47 @@ typedef int cti_session_id_t;
 extern const char *	cti_error_str(void);
 
 /*
- * cti_launchAprunBarrier - Start a new aprun session from the provided argv
- *                          array and have ALPS hold the application at its
- *                          startup barrier for MPI/SHMEM/UPC/CAF applications.
+ * cti_current_wlm - Obtain the current workload manager (WLM) in use on the 
+ *                   system.
  * 
  * Detail
- *      This function is the preferred way for users to use the tool interface
- *      to launch aprun sessions. It's important to note that the argv is not
- *      a traditional argv in the sense that argv[0] is the start of actual
- *      arguments provided to the aprun call and not the name of aprun itself.
- *
- *      This function will hold the application at its startup barrier until
- *      the barrier release function is called with the apid returned by this
- *      function. This only applies to applications using programming models
- *      that call some sort of init function (MPI_Init for example).
- *
- *      This function can redirect the stdin of aprun to a file in order to
- *      provide arguments to a application. This is enabled by setting the
- *      argument redirectInput to true and providing a string that represents
- *      the pathname to the file. If redirectInput is false, the function will
- *      redirect the stdin of aprun to /dev/null to prevent aprun from grabbing
- *      any input on stdin which may be used by other tool programs. 
- *
- *      This function can also optionally redirect stdout/stderr to provided
- *      open file descriptors by setting redirectOutput to true (non-zero).
- *
- *      This function can optionally set the current working directory for the 
- *      aprun process. This is useful if the aprun session should start 
- *      somewhere other than the current PWD if the application creates files. 
- *
- *      This function can optionally set environment variables for the aprun
- *      process. This is useful if the aprun session should use an environment
- *      variable that is different than the current value set in the parent.
+ *      This call can be used to obtain the current WLM in use on the system.
+ *      The result can be used by the caller to validate arguments to functions
+ *      and learn which WLM specific calls can be made.
  *
  * Arguments
- *      aprun_argv -    A null terminated list of arguments to pass directly
- *                      to aprun. This differs from a traditional argv in the
- *                      sense that aprun_argv[0] is the start of the actual
- *                      arguments passed to aprun and not the name of aprun
- *                      itself.
- *      redirectOutput - Toggles redirecting aprun stdout/stderr to the provided
- *                      file descriptors.
- *      redirectInput - Toggles redirecting aprun stdin to the provided file
- *                      name.
- *      stdout_fd -     The open file descriptor to redirect stdout to if 
- *                      redirectOutput evaluates to true.
- *      stderr_fd -     The open file descriptor to redirect stderr to if
- *                      redirectOutput evaluates to true.
- *      inputFile -     The pathname of a file to open and redirect stdin to if
- *                      redirectInput evaluates to true.
- *      chdirPath -     The path to change the current working directory of 
- *                      aprun to, or NULL if no chdir is to take place.
- *      env_list -      A null terminated list of strings of the form 
- *                      "name=value". The value of name in the environment will
- *                      be set to value irrespective of name already existing in
- *                      the environment. 
+ *      None.
  *
  * Returns
- *      A cti_aprunProc_t pointer that contains the pid of the aprun process as
- *      well as its apid. The returned apid should be use in subsequent calls to
- *      this interface. NULL is returned on error. It is the callers
- *      responsibility to free the returned type with a call to free().
- * 
+ *      A cti_wlm_type that contains the current WLM in use on the system.
+ *
  */
-extern cti_aprunProc_t * cti_launchAprunBarrier(   char **aprun_argv,
-                                                    int redirectOutput,
-                                                    int redirectInput,
-                                                    int stdout_fd,
-                                                    int stderr_fd,
-                                                    char *inputFile,
-                                                    char *chdirPath, 
-                                                    char **env_list);
+extern cti_wlm_type	cti_current_wlm(void);
 
 /*
- * cti_releaseAprunBarrier - Release the aprun session launched with the
- *                           cti_launchAprunBarrier function from its startup
- *                           barrier.
- * 
- * Detail
- *      This function communicates to the aprun process that ALPS should
- *      release the application from the startup barrier it is currently being
- *      held at. Note that this function must be used in conjunction with a
- *      valid apid that was created by the cti_launchAprunBarrier function.
- *
- * Arguments
- *      apid - The apid of the aprun session started with a call to
- *             cti_launchAprunBarrier
- *
- * Returns
- *      0 on success, or else 1 on failure.
- * 
- */
-extern int	cti_releaseAprunBarrier(uint64_t apid);
-
-/*
- * cti_registerApid -   Assists in registering the apid of an already running 
- *                      aprun session for use with the Cray tool interface.
- * 
- * Detail
- *      This function is used for registering a valid aprun session that was 
- *      previously launched through external means for use with the tool 
- *      interface. It is recommended to use the built-in functions to launch 
- *      aprun sessions, however sometimes this is impossible (such is the case 
- *      for a debug attach scenario). In order to use any of the functions
- *      defined in this interface, the apid of the aprun session *must* be
- *      registered. This is done automatically when using the built-in functions
- *      to launch aprun sessions. The apid can be obtained from apstat.
- *
- * Arguments
- *      apid - The apid of the aprun session to register.
- *
- * Returns
- *      0 on success, or else 1 on failure.
- * 
- */
-extern int	cti_registerApid(uint64_t apid);
-
-/*
- * cti_deregisterApid - Assists in cleaning up internal allocated memory
- *                      associated with a previously registered aprun sessions
- *                      apid.
+ * cti_deregisterApp - Assists in cleaning up internal allocated memory
+ *                     associated with a previously registered application.
  * 
  * Detail
  *      For applications that use the tool interface that wish to operate over
- *      many different aprun sessions, this function can be used to free up
+ *      many different launcher sessions, this function can be used to free up
  *      and destroy any internal data structures that were created for use
- *      with the apid of the aprun session.
+ *      with the app_id of the registered application.
  *
  * Arguments
- *      apid - The apid of the previously registered aprun session.
+ *      app_id - The cti_app_id_t of the previously registered application.
  *
  * Returns
  *      Returns no value.
  *
  */
-extern void	cti_deregisterApid(uint64_t apid);
+extern void	cti_deregisterApp(cti_app_id_t app_id);
 
 /*
- * cti_getApid - Obtain the apid associated with the aprun pid.
- *
- * Detail
- *      This function is used to obtain the apid of an aprun session based on
- *      the pid of the aprun binary. This can be used in place of apstat if the
- *      pid_t of the aprun process is already known.
- *
- * Arguments
- *      aprunPid - The pid_t of the registered aprun session.
- *
- * Returns
- *      apid if found, or else 0 on failure/not found.
- * 
- */
-extern uint64_t	cti_getApid(pid_t aprunPid);
-
-/*
- * cti_getNodeCName - Returns the cabinet hostname of the login node.
+ * cti_getHostName - Returns the hostname of the current login node.
  * 
  * Detail
- *      This function determines the cname of the current login node. This
+ *      This function determines the hostname of the current login node. This
  *      hostname can be used by tool daemons to create socket connections to
  *      the frontend.
  *
@@ -310,129 +204,110 @@ extern uint64_t	cti_getApid(pid_t aprunPid);
  *      A string containing the cname host, or else a null string on error.
  * 
  */
-extern char *	cti_getNodeCName();
+extern char *	cti_getHostName();
 
 /*
- * cti_getNodeNid - Returns the node id of the login node.
+ * cti_getLauncherHostName - Returns the hostname of the login node where the
+ *                           application launcher process resides.
  * 
  * Detail
- *      This function determines the nid (node id) of the login node. This can 
- *      be used to check if the nid where the aprun process resides differs
- *      with the nid of the caller.
+ *      This function determines the hostname of the login node where the 
+ *      application launcher used to launch the registerd app_id resides. This
+ *      hostname may be different from the result returned by cti_getHostName.
  *
  * Arguments
- *      None.
+ *      app_id -  The cti_app_id_t of the registered application.
  *
  * Returns
- *      The integer value of the nid, or else -1 on error.
+ *      A string containing the launcher host, or else a null string on error.
  * 
  */
-extern int	cti_getNodeNid();
-
-/*
- * cti_getAppNid - Returns the node id of the login node where the aprun process
- *                 associated with the provided apid is running.
- * 
- * Detail
- *      This function determines the nid (node id) where the aprun process is
- *      running that is associated with the given apid. This can be used to 
- *      check if the result of cti_getNodeNid() differs from the nid where the
- *      aprun process associated with an application is running. Sometimes 
- *      special consideration must be taken if the current login node is not 
- *      where an applications aprun process is running. Such is the case when
- *      using the MPIR proctable.
- *
- * Arguments
- *      aprunPid - The pid_t of the registered aprun session.
- *
- * Returns
- *      The integer value of the nid, or else -1 on error.
- * 
- */
-extern int	cti_getAppNid(uint64_t apid);
+extern char *	cti_getLauncherHostName(cti_app_id_t app_id);
 
 /*
  * cti_getNumAppPEs - Returns the number of processing elements in the
- *                    application associated with the apid.
+ *                    application associated with the app_id.
  * 
  * Detail
  *      This function is used to determine the number of PEs (processing
- *      elements) that were propagated by ALPS for the application associated
- *      with the given apid.
+ *      elements) for the application associated with the given app_id. A PE 
+ *      typically represents a single rank.
  *
  * Arguments
- *      apid - The apid of the previously registered aprun session.
+ *      app_id -  The cti_app_id_t of the registered application.
  *
  * Returns
  *      Number of PEs in the application, or else 0 on error.
  * 
  */
-extern int	cti_getNumAppPEs(uint64_t apid);
+extern int	cti_getNumAppPEs(cti_app_id_t app_id);
 
 /*
  * cti_getNumAppNodes - Returns the number of compute nodes allocated for the
- *                      application associated with the apid.
+ *                      application associated with the app_id.
  * 
  * Detail
  *      This function is used to determine the number of compute nodes that
- *      was allocated by ALPS for the application associated with the given
- *      apid.
+ *      was allocated by the application launcher for the application associated
+ *      with the given app_id.
  *
  * Arguments
- *      apid - The apid of the previously registered aprun session.
+ *      app_id -  The cti_app_id_t of the registered application.
  *
  * Returns
  *      Number of compute nodes allocated for the application,
  *      or else 0 on error.
  * 
  */
-extern int	cti_getNumAppNodes(uint64_t apid);
+extern int	cti_getNumAppNodes(cti_app_id_t app_id);
 
 /*
  * cti_getAppHostsList - Returns a null terminated array of strings containing
- *                       the hostnames of the compute nodes allocated by ALPS
- *                       for the application associated with the apid.
+ *                       the hostnames of the compute nodes allocated by the
+ *                       application launcher for the application associated 
+ *                       with the app_id.
  * 
  * Detail
  *      This function creates a list of compute node hostnames for each
- *      compute node assoicated with the given apid. These hostnames
+ *      compute node assoicated with the given app_id. These hostnames
  *      can be used to communicate with the compute nodes over socket
- *      connections. The list is null terminated.
+ *      connections. The list is null terminated. It is the callers 
+ *      responsibility to free the returned list of strings.
  *
  * Arguments
- *      apid - The apid of the previously registered aprun session.
+ *      app_id -  The cti_app_id_t of the registered application.
  *
  * Returns
  *      A null terminated list of pointers to strings, or else a null
  *      pointer on error.
  * 
  */
-extern char **	cti_getAppHostsList(uint64_t apid);
+extern char **	cti_getAppHostsList(cti_app_id_t app_id);
 
 /*
  * cti_getAppHostsPlacement - Returns a cti_hostsList_t containing cti_host_t
  *                            entries that contain the hostname of the compute
- *                            nodes allocated by ALPS and the number of PEs
- *                            assigned to that host for the application
- *                            associated with the apid.
+ *                            nodes allocated by the application launcher and 
+ *                            the number of PEs assigned to that host for the 
+ *                            application associated with the app_id.
  * 
  * Detail
  *      This function creates a cti_hostsList_t that contains the number of
  *      hosts associated with the application and cti_host_t entries that
  *      contain the hostname string along with the number of PEs assigned to
  *      this host. Note that there is a cti_host_t entry for each compute node
- *      hostname that is assoicated with the given apid. These hostnames can be
- *      used to communicate with the compute nodes over socket connections.
+ *      hostname that is assoicated with the given app_id. These hostnames can
+ *      be used to communicate with the compute nodes over socket connections.
  *
  * Arguments
- *      apid - The apid of the previously registered aprun session.
+ *      app_id -  The cti_app_id_t of the registered application.
  *
  * Returns
  *      An cti_hostsList_t that contains the number of hosts in the application
  *      and an array of cti_host_t for each host assigned to the application.
  * 
  */
-extern cti_hostsList_t *	cti_getAppHostsPlacement(uint64_t apid);
+extern cti_hostsList_t *	cti_getAppHostsPlacement(cti_app_id_t app_id);
 
 /*
  * cti_destroyHostsList - Used to destroy the memory allocated for a 
@@ -453,40 +328,194 @@ extern cti_hostsList_t *	cti_getAppHostsPlacement(uint64_t apid);
  */
 extern void	cti_destroyHostsList(cti_hostsList_t *placement_list);
 
+
+/*******************************************************************************
+ * cti_run functions - Functions related to starting and/or killing applications
+ *                     using system application launchers like aprun, srun, or
+ *                     mpirun.
+ ******************************************************************************/
+
 /*
- * cti_killAprun - Send a signal using the apkill mechanism to a aprun session.
+ * cti_launchAppBarrier - Start an application using the application launcher
+ *                        with the provided argv array and have the launcher
+ *                        hold the application at its startup barrier for 
+ *                        MPI/SHMEM/UPC/CAF applications.
  * 
  * Detail
- *      This function is used to send a provided signal to the apid associated
- *      with a valid aprun session. It uses the apkill mechansim to ensure the
- *      proper delivery of the signal to compute nodes.
+ *      This function is the preferred way for users to use the tool interface
+ *      to launch applications.
+ *
+ *      The launcher to use will be automatically determined based on the
+ *      current workload manager on the system. It is up to the caller to obtain
+ *      valid launcher_argv arguments. This interface will simply pass the
+ *      arguments through directly to the launcher program. This launcher is
+ *      either aprun, srun, or mpirun.
+ *
+ *      This function will hold the application at its startup barrier until
+ *      the barrier release function is called with the app_id returned by this
+ *      call. This only applies to applications using programming models that
+ *      call some sort of init function (MPI_Init for example).
+ *
+ *      This function can redirect the stdin of the launcher to a file. This is 
+ *      enabled by setting the argument redirectInput to true and providing a 
+ *      string that represents the pathname to the file. If redirectInput is 
+ *      false, the function will redirect the stdin of the launcher to /dev/null 
+ *      to prevent the launcher  from grabbing any input on stdin which may be
+ *      used by other tool programs. 
+ *
+ *      This function can also optionally redirect stdout/stderr to provided
+ *      open file descriptors by setting redirectOutput to true (non-zero).
+ *
+ *      This function can optionally set the current working directory for the 
+ *      launcher process. This is useful if the launcher should start somewhere
+ *      other than the current PWD if the application creates files based on 
+ *      PWD.
+ *
+ *      This function can optionally set environment variables for the launcher
+ *      process. This is useful if the launcher should use an environment
+ *      variable that is different than the current value set in the parent.
  *
  * Arguments
- *      apid -    The apid of the aprun session to send the signal to.
- *      signum -  The signal number (defined in signal.h) to send to the aprun 
- *                session.
+ *      launcher_argv -  A null terminated list of arguments to pass directly to
+ *                       the launcher. This differs from a traditional argv in
+ *                       the sense that launcher_argv[0] is the start of the
+ *                       actual arguments passed to the launcher and not the
+ *                       name of launcher itself.
+ *      redirectOutput - Toggles redirecting launcher stdout/stderr to the
+ *                       provided file descriptors.
+ *      redirectInput -  Toggles redirecting launcher stdin to the provided file
+ *                       name.
+ *      stdout_fd -      The open file descriptor to redirect stdout to if 
+ *                       redirectOutput evaluates to true.
+ *      stderr_fd -      The open file descriptor to redirect stderr to if
+ *                       redirectOutput evaluates to true.
+ *      inputFile -      The pathname of a file to open and redirect stdin to if
+ *                       redirectInput evaluates to true.
+ *      chdirPath -      The path to change the current working directory of 
+ *                       the launcher to, or NULL if no chdir is to take place.
+ *      env_list -       A null terminated list of strings of the form 
+ *                       "name=value". The value of name in the environment will
+ *                       be set to value irrespective of name already existing
+ *                       in the environment. 
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ * 
+ */
+extern cti_app_id_t cti_launchAppBarrier(   char ** launcher_argv,
+                                            int     redirectOutput,
+                                            int     redirectInput,
+                                            int     stdout_fd,
+                                            int     stderr_fd,
+                                            char *  inputFile,
+                                            char *  chdirPath, 
+                                            char ** env_list);
+
+/*
+ * cti_releaseAppBarrier - Release the application launcher launched with the
+ *                         cti_launchAppBarrier function from its startup
+ *                         barrier.
+ * 
+ * Detail
+ *      This function communicates to the application launcher process that it 
+ *      should be released from the startup barrier it is currently being held
+ *      at. Note that this function must be used in conjunction with a valid
+ *      app_id that was created by the cti_launchAppBarrier function.
+ *
+ * Arguments
+ *      app_id - The cti_app_id_t of the application started with a call to
+ *               cti_launchAppBarrier.
  *
  * Returns
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	cti_killAprun(uint64_t apid, int signum);
+extern int	cti_releaseAppBarrier(cti_app_id_t app_id);
+
+/*
+ * cti_killApp - Send a signal using the appropriate launcher kill mechanism to 
+ *               an application launcher.
+ * 
+ * Detail
+ *      This function is used to send the provided signal to the app_id 
+ *      associated with a valid application session. The app_id must have been
+ *      obtained by calling cti_launchAppBarrier or an appropriate register
+ *      function.
+ *
+ * Arguments
+ *      app_id -  The cti_app_id_t of the registered application.
+ *      signum -  The signal number (defined in signal.h) to send to the 
+ *                application.
+ *
+ * Returns
+ *      0 on success, or else 1 on failure.
+ * 
+ */
+extern int	cti_killApp(cti_app_id_t app_id, int signum);
 
 
 /*******************************************************************************
- * alps_transfer functions - Functions related to shipping files, shared 
- *                           libraries, and binaries to compute nodes and 
- *                           possibly launching tool daemons.
+ * ALPS WLM functions - Functions valid with the ALPS WLM only.
+ ******************************************************************************/
+
+/*
+ * cti_registerApid -   Assists in registering the apid of an already running 
+ *                      aprun session for use with the Cray tool interface.
+ * 
+ * Detail
+ *      This function is used for registering a valid aprun session that was 
+ *      previously launched through external means for use with the tool 
+ *      interface. It is recommended to use the built-in functions to launch 
+ *      aprun sessions, however sometimes this is impossible (such is the case 
+ *      for a debug attach scenario). In order to use any of the functions
+ *      defined in this interface, the apid of the aprun session *must* be
+ *      registered. This is done automatically when using the built-in functions
+ *      to launch aprun sessions. The apid can be obtained from apstat.
  *
- * NOTE: Any of the functions defined in this section will keep track of files
- *       that were previously shipped to compute nodes and will not allow a
- *       naming conflict to occur between consecutive calls. This eliminates
- *       redundant shipping of dependencies between multiple calls.
+ * Arguments
+ *      apid - The apid of the aprun session to register.
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ * 
+ */
+extern cti_app_id_t	cti_registerApid(uint64_t apid);
+
+/*
+ * cti_getApid - Obtain the apid associated with the aprun pid.
+ *
+ * Detail
+ *      This function is used to obtain the apid of an aprun session based on
+ *      the pid of the aprun binary. This can be used in place of apstat if the
+ *      pid_t of the aprun process is already known.
+ *
+ * Arguments
+ *      aprunPid - The pid_t of the registered aprun session.
+ *
+ * Returns
+ *      apid if found, or else 0 on failure/not found.
+ * 
+ */
+extern uint64_t	cti_getApid(pid_t aprunPid);
+
+
+/*******************************************************************************
+ * cti_transfer functions - Functions related to shipping files, shared
+ *                          libraries, and binaries to compute nodes and
+ *                          possibly launching tool daemons.
+ *
+ * NOTE: The functions defined in this section will keep track of files that
+ *       were previously shipped to compute nodes for a session and will not
+ *       allow a naming conflict to occur between consecutive calls. This
+ *       eliminates redundant shipping of dependencies between multiple calls
+ *       in the same session.
  ******************************************************************************/
 
 /*
  * cti_execToolDaemon - Launch a tool daemon onto compute nodes associated with
- *                      a registered aprun pid.
+ *                      a registered application app_id.
  * 
  * Detail
  *      This function is used to launch a program binary onto compute nodes.
@@ -510,14 +539,13 @@ extern int	cti_killAprun(uint64_t apid, int signum);
  *      manifest must be created before calling this function and will be 
  *      cleaned up by this function. A unique directory will be created on the
  *      compute node in the temporary storage space associated with the
- *      application. This avoids naming conflicts between other tools using the
- *      ALPS toolhelper interface. This unique directory will contains 
- *      subdirectories /bin that contains all binaries and /lib that contains 
- *      all libaries. Any files will not be placed in a subdirectory and are 
- *      available directly in the current working directory of the tool daemon.
- *      All binaries will be found in the PATH of the tool daemon process, and
- *      all libraries will be found in the LD_LIBRARY_PATH of the tool daemon
- *      process.
+ *      application. This avoids naming conflicts between other tools using this
+ *      interface. This unique directory will contain subdirectories /bin that
+ *      contains all binaries and /lib that contains all libraries. Any files
+ *      will not be placed in a subdirectory and are available directly in the
+ *      current working directory of the tool daemon. All binaires will be found
+ *      in the PATH of the tool daemon process, and all libraries will be found
+ *      in the LD_LIBRARY_PATH of the tool daemon process.
  *
  *      A cti_session_id_t can be provided to associate this tool daemon with an
  *      existing tool daemon's environment previously setup on the compute node.
@@ -540,8 +568,7 @@ extern int	cti_killAprun(uint64_t apid, int signum);
  *      tool program on the compute nodes.
  *
  * Arguments
- *      apid -    The apid of the registered aprun session to launch the tool
- *                program to.
+ *      app_id -  The cti_app_id_t of the registered application.
  *      mid -     The optional manifest id of a previously created manifest, or
  *                0 if no manifest is required.
  *      sid -     The optional session id of a previously created session, or
@@ -563,9 +590,13 @@ extern int	cti_killAprun(uint64_t apid, int signum);
  *      A non-zero cti_session_id_t on success, or else 0 on failure.
  * 
  */
-extern cti_session_id_t cti_execToolDaemon(uint64_t apid, cti_manifest_id_t mid, 
-                           cti_session_id_t sid, char *fstr, char **args,
-                           char **env, int debug);
+extern cti_session_id_t cti_execToolDaemon( cti_app_id_t      app_id, 
+                                            cti_manifest_id_t mid, 
+                                            cti_session_id_t  sid, 
+                                            char *            fstr, 
+                                            char **           args,
+                                            char **           env,
+                                            int               debug);
 
 /*
  * cti_createNewManifest - Create a new manifest to ship additional binaries, 
@@ -684,7 +715,7 @@ extern int	cti_addManifestLibrary(cti_manifest_id_t mid, char *fstr);
 extern int	cti_addManifestFile(cti_manifest_id_t mid, char *fstr);
 
 /*
- * cti_sendManifest - Ship a manifest to an apid and unpack it into temporary
+ * cti_sendManifest - Ship a manifest to an app_id and unpack it into temporary
  *                    storage.
  * 
  * Detail
@@ -699,11 +730,10 @@ extern int	cti_addManifestFile(cti_manifest_id_t mid, char *fstr);
  *      before calling this function and will be cleaned up by this function. A 
  *      unique directory will be created on the compute node in the
  *      temporary storage space associated with the application. This avoids
- *      naming conflicts between other tools using the ALPS toolhelper
- *      interface. This unique directory will contains subdirectories /bin that
- *      contains all binaries and /lib that contains all libaries. Any files
- *      will not be placed in a subdirectory and are available directly in the
- *      current working directory of the tool daemon.
+ *      naming conflicts between other tools using this interface. This unique
+ *      directory will contains subdirectories /bin that contains all binaries
+ *      and /lib that contains all libaries. Any files are available directly
+ *      in the current working directory of the tool daemon.
  *
  *      If the staging directory unpacked in the applications toolhelper 
  *      directory needs to be static, the CTI_DAEMON_STAGE_DIR_ENV_VAR
@@ -718,8 +748,7 @@ extern int	cti_addManifestFile(cti_manifest_id_t mid, char *fstr);
  *      tool program on the compute nodes.
  *
  * Arguments
- *      apid -    The apid of the registered aprun session to launch the tool
- *                program to.
+ *      app_id -  The cti_app_id_t of the registered application.
  *      mid -     The cti_manifest_id_t of the existing manifest.
  *      debug -   If true, create a log file at the location provided by
  *                CTI_DBG_LOG_DIR_ENV_VAR. Redirect stdout/stderr to the log
@@ -729,8 +758,9 @@ extern int	cti_addManifestFile(cti_manifest_id_t mid, char *fstr);
  *      A non-zero SESSION_ID on success, or else 0 on failure.
  * 
  */
-extern cti_session_id_t	cti_sendManifest(uint64_t apid, cti_manifest_id_t mid, 
-                                      int debug);
+extern cti_session_id_t	cti_sendManifest(   cti_app_id_t      app_id, 
+                                            cti_manifest_id_t mid, 
+                                            int               debug);
 
 /*
  * cti_getSessionLockFiles - Get the name(s) of instance dependency lock files.

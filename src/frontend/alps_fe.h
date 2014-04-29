@@ -26,18 +26,6 @@
 
 typedef struct
 {
-	char *	hostname;
-	int		numPes;
-} cti_host_t;
-
-typedef struct
-{
-	int				numHosts;
-	cti_host_t *	hosts;
-} cti_hostsList_t;
-
-typedef struct
-{
 	uint64_t	apid;
 	pid_t		aprunPid;
 } cti_aprunProc_t;
@@ -48,18 +36,17 @@ void				_cti_alps_fini(void);
 int					_cti_alps_compJobId(void *, void *);
 cti_app_id_t		_cti_alps_launchBarrier(char **, int, int, int, int, char *, char *, char **);
 int					_cti_alps_releaseBarrier(void *);
+int					_cti_alps_killApp(void *, int);
 int					_cti_alps_ship_package(void *, char *);
 int					_cti_alps_start_daemon(void *, char *, int);
+int					_cti_alps_getNumAppPEs(void *);
+int					_cti_alps_getNumAppNodes(void *);
+char **				_cti_alps_getAppHostsList(void *);
+cti_hostsList_t *	_cti_alps_getAppHostsPlacement(void *);
+char *				_cti_alps_getHostName(void);
+char *				_cti_alps_getLauncherHostName(void *);
 
 cti_app_id_t		cti_registerApid(uint64_t);
 uint64_t			cti_getApid(pid_t);
-char *				cti_getNodeCName(void);
-int					cti_getNodeNid(void);
-int					cti_getAppNid(cti_app_id_t);
-int					cti_getNumAppPEs(cti_app_id_t);
-int					cti_getNumAppNodes(cti_app_id_t);
-char **	 			cti_getAppHostsList(cti_app_id_t);
-cti_hostsList_t *	cti_getAppHostsPlacement(cti_app_id_t);
-void				cti_destroyHostsList(cti_hostsList_t *);
 
 #endif /* _ALPS_FE_H */

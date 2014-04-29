@@ -36,33 +36,52 @@ typedef void (*obj_destroy)(void *);
 enum cti_wlm_type
 {
 	CTI_WLM_NONE,	// error/unitialized state
-	CTI_WLM_MULTI,	// not used yet - placeholder for future design
 	CTI_WLM_ALPS,
 	CTI_WLM_CRAY_SLURM,
-	CTI_WLM_SLURM
+	CTI_WLM_SLURM,
+	CTI_WLM_MULTI	// not used - placeholder for future design
 };
 typedef enum cti_wlm_type	cti_wlm_type;
 
 typedef struct
 {
-	cti_app_id_t			appId;				// cti application ID
-	cti_wlm_type			wlm;				// WLM type of this app
-	char *					toolPath;			// backend toolhelper path for temporary storage
-	void *					_wlmObj;			// Managed by appropriate wlm fe for this app entry
-	obj_destroy				_wlmDestroy;		// Used to destroy the wlm object
-	int						_transfer_init;		// Managed by alps_transfer.c for this app entry
-	void *					_transferObj;		// Managed by alps_transfer.c for this app entry
-	obj_destroy				_transferDestroy;	// Used to destroy the transfer object
+	cti_app_id_t	appId;				// cti application ID
+	cti_wlm_type	wlm;				// WLM type of this app
+	char *			toolPath;			// backend toolhelper path for temporary storage
+	void *			_wlmObj;			// Managed by appropriate wlm fe for this app entry
+	obj_destroy		_wlmDestroy;		// Used to destroy the wlm object
+	int				_transfer_init;		// Managed by alps_transfer.c for this app entry
+	void *			_transferObj;		// Managed by alps_transfer.c for this app entry
+	obj_destroy		_transferDestroy;	// Used to destroy the transfer object
 } appEntry_t;
+
+typedef struct
+{
+	char *			hostname;
+	int				numPes;
+} cti_host_t;
+
+typedef struct
+{
+	int				numHosts;
+	cti_host_t *	hosts;
+} cti_hostsList_t;
 
 /* function prototypes */
 
-cti_app_id_t	_cti_newAppEntry(cti_wlm_type, const char *, void *, obj_destroy);
-appEntry_t *	_cti_findAppEntry(cti_app_id_t);
-appEntry_t *	_cti_findAppEntryByJobId(void *);
-int				_cti_setTransferObj(cti_app_id_t, void *, obj_destroy);
+cti_app_id_t		_cti_newAppEntry(cti_wlm_type, const char *, void *, obj_destroy);
+appEntry_t *		_cti_findAppEntry(cti_app_id_t);
+appEntry_t *		_cti_findAppEntryByJobId(void *);
+int					_cti_setTransferObj(cti_app_id_t, void *, obj_destroy);
 
-cti_wlm_type	cti_current_wlm(void);
-void			cti_deregisterApp(cti_app_id_t);
+cti_wlm_type		cti_current_wlm(void);
+void				cti_deregisterApp(cti_app_id_t);
+char *				cti_getHostName(void);
+char *				cti_getLauncherHostName(cti_app_id_t);
+int					cti_getNumAppPEs(cti_app_id_t);
+int					cti_getNumAppNodes(cti_app_id_t);
+char **	 			cti_getAppHostsList(cti_app_id_t);
+cti_hostsList_t *	cti_getAppHostsPlacement(cti_app_id_t);
+void				cti_destroyHostsList(cti_hostsList_t *);
 
 #endif /* _CTI_FE_H */

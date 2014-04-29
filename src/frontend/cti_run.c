@@ -34,7 +34,6 @@ cti_launchAppBarrier(	char **launcher_argv, int redirectOutput, int redirectInpu
 						int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
 						char **env_list	)
 {
-
 	// get the current WLM and call the appropriate launch function
 	switch (cti_current_wlm())
 	{
@@ -147,7 +146,7 @@ cti_killApp(cti_app_id_t appId, int signum)
 	switch (app_ptr->wlm)
 	{
 		case CTI_WLM_ALPS:
-			rtn = _cti_alps_releaseBarrier(app_ptr->_wlmObj);
+			rtn = _cti_alps_killApp(app_ptr->_wlmObj, signum);
 			break;
 			
 		case CTI_WLM_CRAY_SLURM:
