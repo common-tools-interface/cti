@@ -108,7 +108,7 @@ main(int argc, char **argv)
 	FILE *		log;
 	char		file_buf[BUFSIZ];	// file read buffer
 	uint64_t	apid = 0;
-	char		apid_str[APID_STR_BUF_LEN];
+	char *		apid_str;
 	size_t		len;
 	char		*end, *tool_path, *launch_path;
 	struct stat statbuf;
@@ -280,7 +280,12 @@ main(int argc, char **argv)
 	free(launch_path);
 	
 	// write the apid to the apid_str
-	snprintf(apid_str, APID_STR_BUF_LEN, "%llu", (long long unsigned int)apid);
+	if (asprintf(&apid_str, "%llu", (long long unsigned int)apid) <= 0)
+	{
+		// failure
+		fprintf(stderr, "asprintf failed\n");
+		return 1;
+	}
 	
 	// if debug mode is turned on, redirect stdout/stderr to a log file
 	if (debug_flag)
@@ -327,6 +332,9 @@ main(int argc, char **argv)
 		fprintf(stderr, "setenv failed\n");
 		return 1;
 	}
+	
+	// cleanup
+	free(apid_str);
 	
 	// create the toolhelper path from argv[0]
 	// begin by locating the final '/' in the string

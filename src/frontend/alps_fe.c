@@ -55,7 +55,6 @@ typedef struct
 typedef struct
 {
 	int		nid;		// service node id
-	char *	cname;		// service node hostname
 } serviceNode_t;
 
 typedef struct
@@ -94,6 +93,31 @@ static int				_cti_alps_checkPathForWrappedAprun(char *);
 static int				_cti_alps_filter_pid_entries(const struct dirent *);
 static uint64_t			_cti_alps_getApid(pid_t);
 
+/* 
+** This list may need to be updated with each new release of CNL.
+*/
+static const char * _cti_alps_ignored_libs[] = {
+	"libdl.so.2",
+	"libc.so.6",
+	"libvolume_id.so.1",
+	"libcidn.so.1",
+	"libnsl.so.1",
+	"librt.so.1",
+	"libutil.so.1",
+	"libpthread.so.0",
+	"libudev.so.0",
+	"libcrypt.so.1",
+	"libz.so.1",
+	"libm.so.6",
+	"libnss_files.so.2",
+	NULL 
+};
+
+static const char * _cti_alps_extra_libs[] = {
+	ALPS_BE_LIB_NAME,
+	NULL
+};
+
 /* global variables */
 static cti_alps_funcs_t *	_cti_alps_ptr 		= NULL;	// libalps wrappers
 static serviceNode_t *		_cti_alps_svcNid	= NULL;	// service node information
@@ -117,7 +141,7 @@ _cti_alps_init(void)
 	}
 	memset(_cti_alps_ptr, 0, sizeof(cti_alps_funcs_t));     // clear it to NULL
 	
-	if ((_cti_alps_ptr->handle = dlopen("libalps.so", RTLD_LAZY)) == NULL)
+	if ((_cti_alps_ptr->handle = dlopen(ALPS_FE_LIB_NAME, RTLD_LAZY)) == NULL)
 	{
 		_cti_set_error("dlopen: %s", dlerror());
 		free(_cti_alps_ptr);
@@ -222,18 +246,18 @@ _cti_alps_launch_tool_helper(uint64_t arg1, int arg2, int arg3, int arg4, int ar
 }
 
 /*
-*       _cti_alps_getSvcNodeInfo - read cname and nid from alps defined system locations
+*       _cti_alps_getSvcNodeInfo - read nid from alps defined system locations
 *
 *       args: None.
 *
-*       return value: serviceNode_t pointer containing the service nodes cname and
-*       nid, or else NULL on error.
+*       return value: serviceNode_t pointer containing the service nodes nid,
+*       or else NULL on error.
 *
 */
 static serviceNode_t *
 _cti_alps_getSvcNodeInfo()
 {
-	FILE *alps_fd;	  // ALPS NID/CNAME file stream
+	FILE *alps_fd;	  // ALPS NID file stream
 	char file_buf[BUFSIZ];  // file read buffer
 	serviceNode_t *my_node; // return struct containing service node info
 	
@@ -264,30 +288,6 @@ _cti_alps_getSvcNodeInfo()
 	}
 	// convert this to an integer value
 	my_node->nid = atoi(file_buf);
-	
-	// close the file stream
-	fclose(alps_fd);
-	
-	// open up the cname file
-	if ((alps_fd = fopen(ALPS_XT_CNAME, "r")) == NULL)
-	{
-		_cti_set_error("fopen of %s failed.", ALPS_XT_CNAME);
-		free(my_node);
-		return NULL;
-	}
-	
-	// we expect this file to contain a string which represents our interconnect hostname
-	if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
-	{
-		_cti_set_error("fopen of %s failed.", ALPS_XT_CNAME);
-		free(my_node);
-		fclose(alps_fd);
-		return NULL;
-	}
-	// copy this to the cname ptr
-	my_node->cname = strdup(file_buf);
-	// we need to get rid of the newline
-	my_node->cname[strlen(my_node->cname) - 1] = '\0';
 	
 	// close the file stream
 	fclose(alps_fd);
@@ -637,7 +637,7 @@ _cti_alps_getAppHostsList(void *this)
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	int				curNid, numNid;
 	char **			hosts;
-	char			hostEntry[ALPS_XT_HOSTNAME_LEN];
+	char *			hostEntry;
 	int				i;
 	
 	// sanity check
@@ -681,10 +681,13 @@ _cti_alps_getAppHostsList(void *this)
 	numNid = 1;
 	curNid = my_app->places[0].nid;
 	// create the hostname string for this entry and place it into the list
-	snprintf(hostEntry, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, curNid);
-	hosts[0] = strdup(hostEntry);
-	// clear the buffer
-	memset(hostEntry, 0, ALPS_XT_HOSTNAME_LEN);
+	if (asprintf(&hostEntry, ALPS_XT_HOSTNAME_FMT, curNid) <= 0)
+	{
+		// asprintf failed
+		_cti_set_error("asprintf failed.");
+		return NULL;
+	}
+	hosts[0] = hostEntry;
 	
 	// set the final entry to null, calloc doesn't guarantee null'ed memory
 	hosts[my_app->cmdDetail->nodeCnt] = NULL;
@@ -706,10 +709,13 @@ _cti_alps_getAppHostsList(void *this)
 		// we have a new unique nid
 		curNid = my_app->places[i].nid;
 		// create the hostname string for this entry and place it into the list
-		snprintf(hostEntry, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, curNid);
-		hosts[numNid++] = strdup(hostEntry);
-		// clear the buffer
-		memset(hostEntry, 0, ALPS_XT_HOSTNAME_LEN);
+		if (asprintf(&hostEntry, ALPS_XT_HOSTNAME_FMT, curNid) <= 0)
+		{
+			// asprintf failed
+			_cti_set_error("asprintf failed.");
+			return NULL;
+		}
+		hosts[numNid++] = hostEntry;
 	}
 	
 	// done
@@ -724,7 +730,7 @@ _cti_alps_getAppHostsPlacement(void *this)
 	int					numPe;
 	cti_host_t *		curHost;
 	cti_hostsList_t *	placement_list;
-	char				hostEntry[ALPS_XT_HOSTNAME_LEN];
+	char *				hostEntry;
 	int					i;
 	
 	// sanity check
@@ -785,11 +791,14 @@ _cti_alps_getAppHostsPlacement(void *this)
 	curHost = &placement_list->hosts[0];
 	
 	// create the hostname string for this entry and place it into the list
-	snprintf(hostEntry, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, curNid);
-	curHost->hostname = strdup(hostEntry);
-	
-	// clear the buffer
-	memset(hostEntry, 0, ALPS_XT_HOSTNAME_LEN);
+	if (asprintf(&hostEntry, ALPS_XT_HOSTNAME_FMT, curNid) <= 0)
+	{
+		// asprintf failed
+		_cti_set_error("asprintf failed.");
+		free(placement_list);
+		return NULL;
+	}
+	curHost->hostname = hostEntry;
 	
 	// check to see if we can skip iterating through the places list due to there being only one nid allocated
 	if (numNid == my_app->cmdDetail->nodeCnt)
@@ -818,14 +827,17 @@ _cti_alps_getAppHostsPlacement(void *this)
 		// set to the new current nid
 		curNid = my_app->places[i].nid;
 		// create the hostname string for this entry and place it into the list
-		snprintf(hostEntry, ALPS_XT_HOSTNAME_LEN, ALPS_XT_HOSTNAME_FMT, curNid);
+		if (asprintf(&hostEntry, ALPS_XT_HOSTNAME_FMT, curNid) <= 0)
+		{
+			// asprintf failed
+			_cti_set_error("asprintf failed.");
+			free(placement_list);
+			return NULL;
+		}
 		// change to the next host entry
 		curHost = &placement_list->hosts[numNid++];
-		// set the hostname
-		curHost->hostname = strdup(hostEntry);
+		curHost->hostname = hostEntry;
 		
-		// clear the buffer
-		memset(hostEntry, 0, ALPS_XT_HOSTNAME_LEN);
 	}
 	
 	// we need to write the last numPE into the current host type
@@ -1626,6 +1638,58 @@ _cti_alps_killApp(void *this, int signum)
 	waitpid(mypid, NULL, 0);
 	
 	return 0;
+}
+
+int
+_cti_alps_verifyBinary(const char *fstr)
+{
+	// all binaries are valid
+	return 0;
+}
+
+int
+_cti_alps_verifyLibrary(const char *fstr)
+{
+	const char **i_str = _cti_alps_ignored_libs;
+
+	while (*i_str != NULL)
+	{
+		if (strncmp(*i_str, fstr, strlen(*i_str)) == 0)
+		{
+			// fstr is in the list
+			return 1;
+		}
+	}
+
+	// fstr not in the list
+	return 0;
+}
+
+int
+_cti_alps_verifyFile(const char *fstr)
+{
+	// all files are valid
+	return 0;
+}
+
+const char **
+_cti_alps_extraBinaries(void)
+{
+	// no extra binaries needed
+	return NULL;
+}
+
+const char **
+_cti_alps_extraLibraries(void)
+{
+	return _cti_alps_extra_libs;
+}
+
+const char **
+_cti_alps_extraFiles(void)
+{
+	// no extra files needed
+	return NULL;
 }
 
 int

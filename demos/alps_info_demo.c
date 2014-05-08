@@ -70,11 +70,11 @@ main(int argc, char **argv)
 	printf("Current workload manager: %s\n", cti_wlm_type_toString(mywlm));
 	
 	/*
-	 * cti_getHostName - Returns the hostname of the current login node.
+	 * cti_getHostname - Returns the hostname of the current login node.
 	 */
-	if ((myhostname = cti_getHostName()) == NULL)
+	if ((myhostname = cti_getHostname()) == NULL)
 	{
-		fprintf(stderr, "Error: cti_getHostName failed!\n");
+		fprintf(stderr, "Error: cti_getHostname failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
 		rtn = 1;
 	} else

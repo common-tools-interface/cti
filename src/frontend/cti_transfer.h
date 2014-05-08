@@ -31,9 +31,9 @@ void				_cti_destroyAppSess(void *);
 
 cti_manifest_id_t	cti_createNewManifest(cti_session_id_t);
 void				cti_destroyManifest(cti_manifest_id_t);
-int					cti_addManifestBinary(cti_manifest_id_t, char *);
-int					cti_addManifestLibrary(cti_manifest_id_t, char *);
-int					cti_addManifestFile(cti_manifest_id_t, char *);
+int					cti_addManifestBinary(cti_manifest_id_t, const char *);
+int					cti_addManifestLibrary(cti_manifest_id_t, const char *);
+int					cti_addManifestFile(cti_manifest_id_t, const char *);
 cti_session_id_t	cti_sendManifest(cti_app_id_t, cti_manifest_id_t, int);
 cti_session_id_t	cti_execToolDaemon(cti_app_id_t, cti_manifest_id_t, cti_session_id_t, char *, char **, char **, int);
 char **				cti_getSessionLockFiles(cti_session_id_t);

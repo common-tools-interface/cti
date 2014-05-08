@@ -21,7 +21,7 @@ AM_LIBTOOLFLAGS = --quiet
 
 lib_LTLIBRARIES = libcraytools_be.la
 
-libcraytools_be_la_SOURCES  =	alps_backend.c pmi_attribs_parser.c \
-								alps_backend.h pmi_attribs_parser.h
+libcraytools_be_la_SOURCES  =	cti_be.c cti_be.h alps_be.c alps_be.h \
+								pmi_attribs_parser.c pmi_attribs_parser.h
 libcraytools_be_la_CFLAGS   =   $(AM_CFLAGS)
-libcraytools_be_la_LDFLAGS  =   -lalpsutil -version-info $(CRAYTOOL_BE_VERSION)
+libcraytools_be_la_LDFLAGS  =   -ldl -version-info $(CRAYTOOL_BE_VERSION)

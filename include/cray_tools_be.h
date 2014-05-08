@@ -114,9 +114,53 @@ typedef struct
         cti_rankPidPair_t * pids;
 } cti_pidList_t;
 
+enum cti_wlm_type
+{
+	CTI_WLM_NONE,	// error/unitialized state
+	CTI_WLM_ALPS,
+	CTI_WLM_CRAY_SLURM,
+	CTI_WLM_SLURM
+};
+typedef enum cti_wlm_type	cti_wlm_type;
+
 /*
  * The Cray tools interface backend calls are defined below.
  */
+
+/*
+ * cti_current_wlm - Obtain the current workload manager (WLM) in use on the 
+ *                   system.
+ * 
+ * Detail
+ *      This call can be used to obtain the current WLM in use on the system.
+ *      The result can be used by the caller to validate arguments to functions
+ *      and learn which WLM specific calls can be made.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      A cti_wlm_type that contains the current WLM in use on the system.
+ *
+ */
+extern cti_wlm_type	cti_current_wlm(void);
+
+/*
+ * cti_wlm_type_toString - Obtain the stringified representation of the 
+ *                         cti_wlm_type.
+ * 
+ * Detail
+ *      This call can be used to turn the cti_wlm_type returned by 
+ *      cti_current_wlm into a human readable format.
+ *
+ * Arguments
+ *      wlm_type - The cti_wlm_type to stringify
+ *
+ * Returns
+ *      A string containing the human readable format.
+ *
+ */
+extern const char *	cti_wlm_type_toString(cti_wlm_type wlm_type);
 
 /*
  * cti_findAppPids - Returns a cti_pidList_t containing entries that hold
@@ -159,54 +203,23 @@ extern cti_pidList_t *	cti_findAppPids(void);
 extern void	cti_destroyPidList(cti_pidList_t *pid_list);
 
 /*
- * cti_getNodeCName - Returns the cabinet hostname of this compute node.
+ * cti_getNodeHostname - Returns the hostname of this compute node.
  * 
  * Detail
- *      This function determines the cname of the compute node 
- *      (e.g., c0-0c2s6n3). It is up to the caller to free the returned string.
+ *      This function determines the hostname of the current compute node. It is
+ *      up to the caller to free the returned string.
  *
  * Arguments
  *      None.
  *
  * Returns
- *      A string containing the cname host, or else NULL on error.
+ *      A string containing the hostname, or else a null string on error.
  * 
  */
-extern char *	cti_getNodeCName(void);
+extern char *	cti_getNodeHostname();
 
 /*
- * cti_getNodeNidName - Returns the nid hostname of this compute node.
- * 
- * Detail
- *      This function determines the nid (node id) hostname of the compute node
- *      (e.g., nid00001). It is up to the caller to free the returned string.
- *
- * Arguments
- *      None.
- *
- * Returns
- *      A string containing the nid hostname, or else NULL on error.
- * 
- */
-extern char *	cti_getNodeNidName(void);
-
-/*
- * cti_getNodeNid - Returns the node id of this compute node.
- * 
- * Detail
- *      This function determines the nid (node id) of the compute node.
- *
- * Arguments
- *      None.
- *
- * Returns
- *      The integer value of the nid, or else -1 on error.
- * 
- */
-extern int	cti_getNodeNid(void);
-
-/*
- * cti_getFirstPE - Returns the first PE number that resides on this compute 
+ * cti_getNodeFirstPE - Returns the first PE number that resides on this compute 
  *                  node.
  * 
  * Detail
@@ -214,8 +227,8 @@ extern int	cti_getNodeNid(void);
  *      resides on the compute node. The PE acronym stands for Processing
  *      Elements and for an entire application are doled out starting at zero
  *      and incrementing progressively through all of the nodes. Any given node
- *      has a consecutive set of PE numbers starting at cit_getFirstPE() up 
- *      through cti_getFirstPE() + cti_getNumPEsHere() - 1.
+ *      has a consecutive set of PE numbers starting at cti_getNodeFirstPE() up 
+ *      through cti_getNodeFirstPE() + cti_getNodePEs() - 1.
  *
  * Arguments
  *      None.
@@ -224,10 +237,10 @@ extern int	cti_getNodeNid(void);
  *      The integer value of the first PE on the node, or else -1 on error.
  * 
  */
-extern int	cti_getFirstPE(void);
+extern int	cti_getNodeFirstPE(void);
 
 /*
- * cti_getNumPEsHere - Returns the number of PEs that reside on this compute node.
+ * cti_getNodePEs - Returns the number of PEs that reside on this compute node.
  * 
  * Detail
  *      This function determines the number of PEs that reside on the compute
@@ -239,6 +252,6 @@ extern int	cti_getFirstPE(void);
  *      The integer value of the number of PEs on the node, or else -1 on error.
  * 
  */
-extern int	cti_getNumPEsHere(void);
+extern int	cti_getNodePEs(void);
 
 #endif /* _CRAY_TOOLS_BE_H */

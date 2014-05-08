@@ -354,9 +354,9 @@ main(int argc, char **argv)
 	}
 	
 	// get the cname of this service node
-	if ((my_node.cname = cti_getHostName()) == NULL)
+	if ((my_node.cname = cti_getHostname()) == NULL)
 	{
-		fprintf(stderr, "cti_getHostName failed!\n");
+		fprintf(stderr, "cti_getHostname failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
 		cti_killApp(myapp, 9);
 		return 1;

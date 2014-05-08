@@ -52,7 +52,6 @@ static appList_t *		_cti_my_apps	= NULL;	// global list pertaining to known appl
 void __attribute__((constructor))
 _cti_init(void)
 {
-
 	// TODO: Add wlm_detect here, then call proper init function
 	// In the future this should be able to handle multiple WLM types.
 	
@@ -728,7 +727,7 @@ cti_destroyHostsList(cti_hostsList_t *placement_list)
 }
 
 char *
-cti_getHostName()
+cti_getHostname()
 {
 	// Call the appropriate function based on the wlm
 	switch (_cti_current_wlm)

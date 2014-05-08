@@ -38,8 +38,10 @@ src/Makefile.am -text
 src/Makefile.in -text
 src/backend/Makefile.am -text
 src/backend/Makefile.in -text
-src/backend/alps_backend.c -text
-src/backend/alps_backend.h -text
+src/backend/alps_be.c -text
+src/backend/alps_be.h -text
+src/backend/cti_be.c -text
+src/backend/cti_be.h -text
 src/backend/pmi_attribs_parser.c -text
 src/backend/pmi_attribs_parser.h -text
 src/cti_defs.h -text

@@ -16,15 +16,10 @@
  *
  ******************************************************************************/
  
-#ifndef _ALPS_BACKEND_H
-#define _ALPS_BACKEND_H
+#ifndef _CTI_BE_H
+#define _CTI_BE_H
 
-#include <stdint.h>
-#include "alps/alps.h"
-#include "alps/alps_toolAssist.h"
-
-#include "cti_defs.h"
-#include "pmi_attribs_parser.h"
+#include <sys/types.h>
 
 // External visibility
 typedef struct
@@ -39,14 +34,23 @@ typedef struct
 	cti_rankPidPair_t *	pids;
 } cti_pidList_t;
 
+enum cti_wlm_type
+{
+	CTI_WLM_NONE,	// error/unitialized state
+	CTI_WLM_ALPS,
+	CTI_WLM_CRAY_SLURM,
+	CTI_WLM_SLURM
+};
+typedef enum cti_wlm_type	cti_wlm_type;
+
 /* function prototypes */
+cti_wlm_type		cti_current_wlm(void);
+const char *		cti_wlm_type_toString(cti_wlm_type);
 cti_pidList_t *		cti_findAppPids(void);
 void				cti_destroyPidList(cti_pidList_t *);
-char *				cti_getNodeCName(void);
-char *				cti_getNodeNidName(void);
-int					cti_getNodeNid(void);
-int					cti_getFirstPE(void);
-int					cti_getNumPEsHere(void);
+char *				cti_getNodeHostname(void);
+int					cti_getNodeFirstPE(void);
+int					cti_getNodePEs(void);
 
-#endif /* _ALPS_BACKEND_H */
+#endif /* _CTI_BE_H */
 

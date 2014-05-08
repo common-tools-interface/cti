@@ -77,7 +77,7 @@ int					_cti_setTransferObj(cti_app_id_t, void *, obj_destroy);
 cti_wlm_type		cti_current_wlm(void);
 const char *		cti_wlm_type_toString(cti_wlm_type);
 void				cti_deregisterApp(cti_app_id_t);
-char *				cti_getHostName(void);
+char *				cti_getHostname(void);
 char *				cti_getLauncherHostName(cti_app_id_t);
 int					cti_getNumAppPEs(cti_app_id_t);
 int					cti_getNumAppNodes(cti_app_id_t);

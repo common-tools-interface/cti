@@ -207,7 +207,7 @@ extern const char *	cti_wlm_type_toString(cti_wlm_type wlm_type);
 extern void	cti_deregisterApp(cti_app_id_t app_id);
 
 /*
- * cti_getHostName - Returns the hostname of the current login node.
+ * cti_getHostname - Returns the hostname of the current login node.
  * 
  * Detail
  *      This function determines the hostname of the current login node. This
@@ -218,10 +218,10 @@ extern void	cti_deregisterApp(cti_app_id_t app_id);
  *      None.
  *
  * Returns
- *      A string containing the cname host, or else a null string on error.
+ *      A string containing the hostname, or else a null string on error.
  * 
  */
-extern char *	cti_getHostName();
+extern char *	cti_getHostname();
 
 /*
  * cti_getLauncherHostName - Returns the hostname of the login node where the
@@ -230,7 +230,7 @@ extern char *	cti_getHostName();
  * Detail
  *      This function determines the hostname of the login node where the 
  *      application launcher used to launch the registerd app_id resides. This
- *      hostname may be different from the result returned by cti_getHostName.
+ *      hostname may be different from the result returned by cti_getHostname.
  *
  * Arguments
  *      app_id -  The cti_app_id_t of the registered application.

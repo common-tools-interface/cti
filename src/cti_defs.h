@@ -27,27 +27,31 @@
 /*
 ** Frontend defines relating to the login node 
 */
-#define APRUN						"aprun"													// name of the ALPS job launcher binary
-#define OLD_APRUN_LOCATION		"/usr/bin/aprun"										// default legacy location of the aprun binary
-#define OBS_APRUN_LOCATION		"/opt/cray/alps/default/bin/aprun"					// default new location of the aprun binary
-#define APKILL						"apkill"												// name of the ALPS job kill binary
 #define DEFAULT_SIG				9														// default signal value to use with apkill
-#define ALPS_XT_CNAME				"/proc/cray_xt/cname"									// file where cname info is located
-#define ALPS_XT_NID				"/proc/cray_xt/nid"									// file where nid info is located
-#define ALPS_XT_HOSTNAME_FMT		"nid%05d"												// hostname format string
-#define ALPS_XT_HOSTNAME_LEN		9														// length of the string that can represent a hostname
 #define CTI_LAUNCHER				"dlaunch"												// name of the tool daemon launcher binary
 #define DEFAULT_STAGE_DIR		"cti_daemonXXXXXX"									// default directory name for the fake root of the tool daemon
-#define ALPS_OBS_LOC				"/opt/cray/alps"										// used to test if the system is using the OBS format
-#define OLD_TOOLHELPER_DIR		"/var/spool/alps/%llu/toolhelper%llu"				// old alps toolhelper path format on compute node
-#define OBS_TOOLHELPER_DIR		"/var/opt/cray/alps/spool/%llu/toolhelper%llu"	// new alps toolhelper path format on compute node
 
 /*
 ** Backend defines relating to the compute node
 */
-#define APID_STR_BUF_LEN			32			// length of the string that can represent an apid
 #define SHELL_ENV_VAR				"SHELL"		// The environment variable to set shell info
 #define SHELL_PATH				"/bin/sh"	// The location of the shell to set SHELL to
+
+/*
+** Alps specific information
+*/
+#define APRUN						"aprun"													// name of the ALPS job launcher binary
+#define OLD_APRUN_LOCATION		"/usr/bin/aprun"										// default legacy location of the aprun binary
+#define OBS_APRUN_LOCATION		"/opt/cray/alps/default/bin/aprun"					// default new location of the aprun binary
+#define APKILL						"apkill"												// name of the ALPS job kill binary
+#define ALPS_XT_NID				"/proc/cray_xt/nid"									// file where nid info is located
+#define ALPS_XT_HOSTNAME_FMT		"nid%05d"												// hostname format string
+#define ALPS_OBS_LOC				"/opt/cray/alps"										// used to test if the system is using the OBS format
+#define ALPS_FE_LIB_NAME			"libalps.so"											// name of the alps library used on the frontend
+#define ALPS_BE_LIB_NAME			"libalpsutil.so"										// name of the alps library used on the backend
+#define OLD_TOOLHELPER_DIR		"/var/spool/alps/%llu/toolhelper%llu"				// old alps toolhelper path format on compute node
+#define OBS_TOOLHELPER_DIR		"/var/opt/cray/alps/spool/%llu/toolhelper%llu"	// new alps toolhelper path format on compute node
+
 
 /*
 ** Environment variables that are set/maintained by this library
