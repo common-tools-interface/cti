@@ -1659,6 +1659,7 @@ _cti_alps_verifyLibrary(const char *fstr)
 			// fstr is in the list
 			return 1;
 		}
+		++i_str;
 	}
 
 	// fstr not in the list
