@@ -257,12 +257,14 @@ _cti_searchFileName(fileList_t *lstPtr, const char *name)
 {
 
 	// sanity check
-	if (lstPtr == NULL || name == NULL)
+	if (name == NULL)
 	{
 		_cti_set_error("_cti_searchFileName bad args.");
 		return -1;
 	}
 	
+	// If lstPtr is null, it means there is nothing in the list. This name is
+	// unique
 	while (lstPtr != NULL)
 	{
 		// sanity
