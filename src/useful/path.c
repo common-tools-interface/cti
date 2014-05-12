@@ -144,7 +144,7 @@ _cti_libFind(const char *file)
 	char *			extraPath = strdup(EXTRA_LIBRARY_PATH);
 	char *			savePtr = NULL;
 	char *			cmd;
-	char *			res;
+	char *			res = NULL;
 	size_t			res_len;
 	int				len;
 	FILE *			fp;
