@@ -20,7 +20,7 @@
 #define _PATH_H
 
 char *	_cti_pathFind(const char *, const char *);
-char *	_cti_libFind(const char *, const char *);
+char *	_cti_libFind(const char *);
 int		_cti_adjustPaths(char *);
 char *	_cti_pathToName(char *);
 

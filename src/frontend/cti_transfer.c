@@ -1214,7 +1214,7 @@ cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr)
 	}
 	
 	// first we should ensure that the library exists and convert it to its fullpath name
-	if ((fullname = _cti_libFind(fstr, NULL)) == NULL)
+	if ((fullname = _cti_libFind(fstr)) == NULL)
 	{
 		_cti_set_error("Could not locate %s in LD_LIBRARY_PATH or system location.", fstr);
 		return 1;

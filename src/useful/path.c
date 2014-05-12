@@ -124,23 +124,31 @@ _cti_pathFind(const char *file, const char *envPath)
 }
 
 /*
- * Try to locate 'library' using LD_LIBRARY_PATH.
+ * Try to locate 'library' in standard locations.
  *
  * Return pointer to path/library that can be opened, or NULL on failure.
  *
  * It is the responsiblity of the caller to free the returned buffer when done.
+ *
+ * This function makes use of a dangerous popen command. Do not pass user defined
+ * strings to this function.
  */
 char *
-_cti_libFind(const char *file, const char *envPath)
+_cti_libFind(const char *file)
 {
-	struct stat stat_buf;
-	char    buf[PATH_MAX];
-	char    *path;
-	char    *extraPath = NULL;
-	char    *tmp;
-	char    *p_entry;
-	char    *savePtr = NULL;
-	char    *retval;
+	struct stat		stat_buf;
+	char			buf[PATH_MAX];
+	char *			path;
+	char *			tmp;
+	char *			p_entry;
+	char *			extraPath = strdup(EXTRA_LIBRARY_PATH);
+	char *			savePtr = NULL;
+	char *			cmd;
+	char *			res;
+	size_t			len;
+	FILE *			fp;
+	char *			base;
+	char *			retval;
 	
 	/* Check for possible relative or absolute path */
 	if (file[0] == '.' || file[0] == '/') 
@@ -161,54 +169,87 @@ _cti_libFind(const char *file, const char *envPath)
 			return (char *)NULL;
 		}
 	}
-	
-	if (envPath == NULL) 
-	{
-		// default to using LD_LIBRARY_PATH
-		envPath = "LD_LIBRARY_PATH";
-		extraPath = strdup(EXTRA_LIBRARY_PATH);
-	}
-	
-	if ((tmp = getenv(envPath)) == (char *)NULL)
-	{
-		/* nothing in path to search */
-		return (char *)NULL;
-	}
-	path = strdup(tmp);
-	
+
 	/*
-	* Start searching the colon-delimited PATH, prepending each
-	* directory and checking to see if stat succeeds
-	*/
-	// grab the first p_entry in the path
-	p_entry = strtok_r(path, ":", &savePtr);
-	while (p_entry != NULL) 
+	* Search LD_LIBRARY_PATH first
+	*/	
+	if ((tmp = getenv("LD_LIBRARY_PATH")) != NULL)
 	{
-		// create the full path string
-		snprintf(buf, PATH_MAX+1, "%s/%s", p_entry, file);
-		// check to see if we can stat it
-		if (stat(buf, &stat_buf) == 0) 
+		path = strdup(tmp);
+	
+		/*
+		* Start searching the colon-delimited PATH, prepending each
+		* directory and checking to see if stat succeeds
+		*/
+		// grab the first p_entry in the path
+		p_entry = strtok_r(path, ":", &savePtr);
+		while (p_entry != NULL) 
 		{
-			// we can stat it so make sure its a regular file.
-			if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
+			// create the full path string
+			snprintf(buf, PATH_MAX+1, "%s/%s", p_entry, file);
+			// check to see if we can stat it
+			if (stat(buf, &stat_buf) == 0) 
 			{
-				retval = strdup(buf);
-				free(path);
-				return retval;
+				// we can stat it so make sure its a regular file.
+				if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
+				{
+					retval = strdup(buf);
+					free(path);
+					return retval;
+				}
 			}
-		}
-		// grab the next p_entry in the path
-		p_entry = strtok_r(NULL, ":", &savePtr);
+			// grab the next p_entry in the path
+			p_entry = strtok_r(NULL, ":", &savePtr);
+		}	
+		
+		free(path);
 	}
-	
-	free(path);
-	
-	// see if there is an extraPath defined, if not the file was not found in PATH
-	if (extraPath == NULL) 
+
+	/*
+	* Search the ldcache for the file
+	*/
+
+	// create the command string -- This is incredibly dangerous and should not
+	// be used elsewhere outside of this library.
+	if (asprintf(&cmd, "/sbin/ldconfig -p | grep \"%s\" | cut -d \" \" -f4", file) <= 0)
 	{
-		return (char *)NULL;
+		// failure occured
+		return NULL;
 	}
-	
+
+	if ((fp = fopen(cmd, "r")) != NULL)
+	{
+		// we have output
+		while (getline(&res, &len, fp) != -1)
+		{
+			// check to see if the basename of the result matches our file
+		    if ((base = _cti_pathToName(res)) != NULL)
+			{
+				if (strncmp(base, file, strlen(file)) == 0)
+				{
+					// filenames match - ensure we can stat the file
+					if (stat(res, &stat_buf) == 0)
+					{
+						// we can stat it so make sure its a regular file
+						if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
+						{
+							// found the library
+							retval = res;
+							free(base);
+							return retval;
+						}
+					}
+				}
+				// This is not the library you are looking for.
+				free(base);
+			}
+			free(res);
+			res = NULL;
+		}
+		pclose(fp);
+	}
+	free(cmd);
+
 	/*
 	* Search the additional path for the file
 	*/
@@ -232,7 +273,7 @@ _cti_libFind(const char *file, const char *envPath)
 	free(extraPath);
 	
 	// not found
-	return (char *)NULL;
+	return NULL;
 }
 
 /*
