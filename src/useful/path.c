@@ -145,7 +145,8 @@ _cti_libFind(const char *file)
 	char *			savePtr = NULL;
 	char *			cmd;
 	char *			res;
-	size_t			len;
+	size_t			res_len;
+	int				len;
 	FILE *			fp;
 	char *			base;
 	char *			retval;
@@ -220,12 +221,18 @@ _cti_libFind(const char *file)
 	if ((fp = popen(cmd, "r")) != NULL)
 	{
 		// we have output
-		while (getline(&res, &len, fp) != -1)
+		while ((len = getline(&res, &res_len, fp)) != -1)
 		{
+			// turn the newline into a null terminator
+			if (res[len-1] == '\n')
+			{
+				res[len-1] = '\0';
+			}
+			
 			// check to see if the basename of the result matches our file
 		    if ((base = _cti_pathToName(res)) != NULL)
 			{
-				if (strncmp(base, file, strlen(file)) == 0)
+				if ((strlen(base) == strlen(file)) && (strcmp(base, file) == 0))
 				{
 					// filenames match - ensure we can stat the file
 					if (stat(res, &stat_buf) == 0)
