@@ -217,7 +217,7 @@ _cti_libFind(const char *file)
 		return NULL;
 	}
 
-	if ((fp = fopen(cmd, "r")) != NULL)
+	if ((fp = popen(cmd, "r")) != NULL)
 	{
 		// we have output
 		while (getline(&res, &len, fp) != -1)
