@@ -342,6 +342,10 @@ _cti_pathToName(char *path)
 	// locate the last instance of '/' in the path
 	end = strrchr(path, '/');
 	
+	// sanity check
+	if (end == NULL)
+		return NULL;
+	
 	// increment end to point one char past the final '/'
 	// and strdup from that point to the null term
 	return strdup(++end);
