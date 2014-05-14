@@ -54,21 +54,21 @@ typedef struct
 
 typedef struct
 {
-	int		nid;		// service node id
+	int				nid;		// service node id
 } serviceNode_t;
 
 typedef struct
 {
-	int pipe_r;
-	int pipe_w;
-	int sync_int;
+	int 			pipe_r;
+	int 			pipe_w;
+	int 			sync_int;
 } barrierCtl_t;
 
 typedef struct
 {
-	pid_t				aprunPid;
-	int					pipeOpen;
-	barrierCtl_t		pipeCtl;
+	pid_t			aprunPid;
+	int				pipeOpen;
+	barrierCtl_t	pipeCtl;
 } aprunInv_t;
 
 typedef struct
@@ -81,22 +81,72 @@ typedef struct
 	aprunInv_t *	inv;			// Optional object used for launched applications.
 } alpsInfo_t;
 
+
 /* Static prototypes */
-static int				_cti_alps_ready(void);
-static uint64_t			_cti_alps_get_apid(int, pid_t);
-static int				_cti_alps_get_appinfo(uint64_t, appInfo_t *, cmdDetail_t **, placeList_t **);
-static const char *		_cti_alps_launch_tool_helper(uint64_t, int, int, int, int, char **);
-static void				_cti_alps_consumeAlpsInfo(void *);
-static void 			_cti_alps_consumeAprunInv(aprunInv_t *);
-static serviceNode_t *	_cti_alps_getSvcNodeInfo(void);
-static int				_cti_alps_checkPathForWrappedAprun(char *);
-static int				_cti_alps_filter_pid_entries(const struct dirent *);
-static uint64_t			_cti_alps_getApid(pid_t);
+static int					_cti_alps_init(void);
+static void					_cti_alps_fini(void);
+static int					_cti_alps_cmpJobId(void *, void *);
+static cti_app_id_t			_cti_alps_launchBarrier(char **, int, int, int, int, char *, char *, char **);
+static int					_cti_alps_releaseBarrier(void *);
+static int					_cti_alps_killApp(void *, int);
+static int					_cti_alps_verifyBinary(const char *);
+static int					_cti_alps_verifyLibrary(const char *);
+static int					_cti_alps_verifyFile(const char *);
+static const char **		_cti_alps_extraBinaries(void);
+static const char **		_cti_alps_extraLibraries(void);
+static const char **		_cti_alps_extraFiles(void);
+static int					_cti_alps_ship_package(void *, char *);
+static int					_cti_alps_start_daemon(void *, char *, int);
+static int					_cti_alps_getNumAppPEs(void *);
+static int					_cti_alps_getNumAppNodes(void *);
+static char **				_cti_alps_getAppHostsList(void *);
+static cti_hostsList_t *	_cti_alps_getAppHostsPlacement(void *);
+static char *				_cti_alps_getHostName(void);
+static char *				_cti_alps_getLauncherHostName(void *);
+static int					_cti_alps_ready(void);
+static uint64_t				_cti_alps_get_apid(int, pid_t);
+static int					_cti_alps_get_appinfo(uint64_t, appInfo_t *, cmdDetail_t **, placeList_t **);
+static const char *			_cti_alps_launch_tool_helper(uint64_t, int, int, int, int, char **);
+static void					_cti_alps_consumeAlpsInfo(void *);
+static void 				_cti_alps_consumeAprunInv(aprunInv_t *);
+static serviceNode_t *		_cti_alps_getSvcNodeInfo(void);
+static int					_cti_alps_checkPathForWrappedAprun(char *);
+static int					_cti_alps_filter_pid_entries(const struct dirent *);
+static uint64_t				_cti_alps_getApid(pid_t);
+
+
+/* alps wlm proto object */
+cti_wlm_proto_t				_cti_alps_wlmProto =
+{
+	CTI_WLM_ALPS,					// wlm_type
+	_cti_alps_init,					// wlm_init
+	_cti_alps_fini,					// wlm_fini
+	_cti_alps_cmpJobId,				// wlm_cmpJobId
+	_cti_alps_launchBarrier,		// wlm_launchBarrier
+	_cti_alps_releaseBarrier,		// wlm_releaseBarrier
+	_cti_alps_killApp,				// wlm_killApp
+	_cti_alps_verifyBinary,			// wlm_verifyBinary
+	_cti_alps_verifyLibrary,		// wlm_verifyLibrary
+	_cti_alps_verifyFile,			// wlm_verifyFile
+	_cti_alps_extraBinaries,		// wlm_extraBinaries
+	_cti_alps_extraLibraries,		// wlm_extraLibraries
+	_cti_alps_extraFiles,			// wlm_extraFiles
+	_cti_alps_ship_package,			// wlm_shipPackage
+	_cti_alps_start_daemon,			// wlm_startDaemon
+	_cti_alps_getNumAppPEs,			// wlm_getNumAppPEs
+	_cti_alps_getNumAppNodes,		// wlm_getNumAppNodes
+	_cti_alps_getAppHostsList,		// wlm_getAppHostsList
+	_cti_alps_getAppHostsPlacement,	// wlm_getAppHostsPlacement
+	_cti_alps_getHostName,			// wlm_getHostName
+	_cti_alps_getLauncherHostName	// wlm_getLauncherHostName
+};
+
+/* static global variables */
 
 /* 
 ** This list may need to be updated with each new release of CNL.
 */
-static const char * _cti_alps_ignored_libs[] = {
+static const char * 		_cti_alps_ignored_libs[] = {
 	"libdl.so.2",
 	"libc.so.6",
 	"libvolume_id.so.1",
@@ -113,18 +163,17 @@ static const char * _cti_alps_ignored_libs[] = {
 	NULL 
 };
 
-static const char * _cti_alps_extra_libs[] = {
+static const char * 		_cti_alps_extra_libs[] = {
 	ALPS_BE_LIB_NAME,
 	NULL
 };
 
-/* global variables */
 static cti_alps_funcs_t *	_cti_alps_ptr 		= NULL;	// libalps wrappers
 static serviceNode_t *		_cti_alps_svcNid	= NULL;	// service node information
 
 /* Constructor/Destructor functions */
 
-int
+static int
 _cti_alps_init(void)
 {
 	char *error;
@@ -189,7 +238,7 @@ _cti_alps_init(void)
 	return 0;
 }
 
-void
+static void
 _cti_alps_fini(void)
 {
 	// sanity check
@@ -335,8 +384,8 @@ _cti_alps_consumeAprunInv(aprunInv_t *runPtr)
 	free(runPtr);
 }
 
-int
-_cti_alps_compJobId(void *this, void *id)
+static int
+_cti_alps_cmpJobId(void *this, void *id)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	uint64_t		apid;
@@ -345,14 +394,14 @@ _cti_alps_compJobId(void *this, void *id)
 	if (my_app == NULL)
 	{
 		_cti_set_error("Null wlm obj.");
-		return 0;
+		return -1;
 	}
 	
 	// sanity check
 	if (id == NULL)
 	{
 		_cti_set_error("Null job id.");
-		return 0;
+		return -1;
 	}
 	
 	apid = *((uint64_t *)id);
@@ -445,7 +494,7 @@ cti_registerApid(uint64_t apid)
 			}
 		}
 		
-		if ((appId = _cti_newAppEntry(CTI_WLM_ALPS, toolPath, (void *)alpsInfo, &_cti_alps_consumeAlpsInfo)) == 0)
+		if ((appId = _cti_newAppEntry(&_cti_alps_wlmProto, toolPath, (void *)alpsInfo, &_cti_alps_consumeAlpsInfo)) == 0)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
 			// error string already set
@@ -512,9 +561,9 @@ cti_getAprunInfo(cti_app_id_t appId)
 	}
 	
 	// sanity check
-	if (app_ptr->wlm != CTI_WLM_ALPS)
+	if (app_ptr->wlmProto->wlm_type != CTI_WLM_ALPS)
 	{
-		_cti_set_error("cti_getAprunInfo: Invalid WLM.");
+		_cti_set_error("cti_getAprunInfo: WLM mismatch.");
 		return NULL;
 	}
 	
@@ -540,7 +589,7 @@ cti_getAprunInfo(cti_app_id_t appId)
 	return aprunInfo;
 }
 
-char *
+static char *
 _cti_alps_getHostName(void)
 {
 	char *hostname;
@@ -565,7 +614,7 @@ _cti_alps_getHostName(void)
 	return hostname;
 }
 
-char *
+static char *
 _cti_alps_getLauncherHostName(void *this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
@@ -574,8 +623,8 @@ _cti_alps_getLauncherHostName(void *this)
 	// sanity check
 	if (my_app == NULL)
 	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return 0;
+		_cti_set_error("getLauncherHostName operation failed.");
+		return NULL;
 	}
 	
 	if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, my_app->appinfo.aprunNid) < 0)
@@ -587,7 +636,7 @@ _cti_alps_getLauncherHostName(void *this)
 	return hostname;
 }
 
-int
+static int
 _cti_alps_getNumAppPEs(void *this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
@@ -609,7 +658,7 @@ _cti_alps_getNumAppPEs(void *this)
 	return my_app->cmdDetail->width;
 }
 
-int
+static int
 _cti_alps_getNumAppNodes(void *this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
@@ -631,7 +680,7 @@ _cti_alps_getNumAppNodes(void *this)
 	return my_app->cmdDetail->nodeCnt;
 }
 
-char **
+static char **
 _cti_alps_getAppHostsList(void *this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
@@ -722,7 +771,7 @@ _cti_alps_getAppHostsList(void *this)
 	return hosts;
 }
 
-cti_hostsList_t *
+static cti_hostsList_t *
 _cti_alps_getAppHostsPlacement(void *this)
 {
 	alpsInfo_t *		my_app = (alpsInfo_t *)this;
@@ -924,7 +973,7 @@ _cti_alps_filter_pid_entries(const struct dirent *a)
 	return sscanf(a->d_name, "%lu", &pid);
 }
 
-cti_app_id_t
+static cti_app_id_t
 _cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectInput, 
 							int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
 							char **env_list	)
@@ -1497,7 +1546,7 @@ _cti_alps_releaseBarrier(void *this)
 	return 0;
 }
 
-int
+static int
 _cti_alps_killApp(void *this, int signum)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
@@ -1640,14 +1689,14 @@ _cti_alps_killApp(void *this, int signum)
 	return 0;
 }
 
-int
+static int
 _cti_alps_verifyBinary(const char *fstr)
 {
 	// all binaries are valid
 	return 0;
 }
 
-int
+static int
 _cti_alps_verifyLibrary(const char *fstr)
 {
 	const char **i_str = _cti_alps_ignored_libs;
@@ -1666,34 +1715,34 @@ _cti_alps_verifyLibrary(const char *fstr)
 	return 0;
 }
 
-int
+static int
 _cti_alps_verifyFile(const char *fstr)
 {
 	// all files are valid
 	return 0;
 }
 
-const char **
+static const char **
 _cti_alps_extraBinaries(void)
 {
 	// no extra binaries needed
 	return NULL;
 }
 
-const char **
+static const char **
 _cti_alps_extraLibraries(void)
 {
 	return _cti_alps_extra_libs;
 }
 
-const char **
+static const char **
 _cti_alps_extraFiles(void)
 {
 	// no extra files needed
 	return NULL;
 }
 
-int
+static int
 _cti_alps_ship_package(void *this, char *package)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
@@ -1730,7 +1779,7 @@ _cti_alps_ship_package(void *this, char *package)
 	return 0;
 }
 
-int
+static int
 _cti_alps_start_daemon(void *this, char *args, int transfer)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
@@ -1761,7 +1810,7 @@ _cti_alps_start_daemon(void *this, char *args, int transfer)
 		{
 			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
 		}
-		return 0;
+		return 1;
 	}
 	
 	return 0;

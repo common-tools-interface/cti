@@ -34,31 +34,10 @@ cti_launchAppBarrier(	char **launcher_argv, int redirectOutput, int redirectInpu
 						int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
 						char **env_list	)
 {
-	// get the current WLM and call the appropriate launch function
-	switch (cti_current_wlm())
-	{
-		case CTI_WLM_ALPS:
-			return _cti_alps_launchBarrier(launcher_argv, redirectOutput, redirectInput, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			_cti_set_error("Current WLM is not yet supported.");
-			return 0;
-			
-		case CTI_WLM_MULTI:
-			// TODO - add argument to allow caller to select preferred wlm if there is
-			// ever multiple WLMs present on the system.
-			_cti_set_error("Multiple workload managers present! This is not yet supported.");
-			return 0;
-			
-		case CTI_WLM_NONE:
-			_cti_set_error("No valid workload manager detected.");
-			return 0;
-	}
-	
-	// should not get here
-	_cti_set_error("At impossible exit.");
-	return 0;
+	// call the appropriate wlm launch function based on the current wlm proto
+	return _cti_wlmProto->wlm_launchBarrier(	launcher_argv, redirectOutput, redirectInput, 
+												stdout_fd, stderr_fd, inputFile, chdirPath, 
+												env_list);
 }
 
 int
@@ -89,29 +68,7 @@ cti_releaseAppBarrier(cti_app_id_t appId)
 	}
 	
 	// Call the appropriate barrier release function based on the wlm
-	switch (app_ptr->wlm)
-	{
-		case CTI_WLM_ALPS:
-			return _cti_alps_releaseBarrier(app_ptr->_wlmObj);
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			_cti_set_error("Current WLM is not yet supported.");
-			return 1;
-			
-		case CTI_WLM_MULTI:
-			// TODO - add argument to allow caller to select preferred wlm if there is
-			// ever multiple WLMs present on the system.
-			_cti_set_error("Multiple workload managers present! This is not yet supported.");
-			return 1;
-			
-		case CTI_WLM_NONE:
-			_cti_set_error("No valid workload manager detected.");
-			return 1;
-	}
-	
-	// done
-	return 0;
+	return _cti_wlmProto->wlm_releaseBarrier(app_ptr->_wlmObj);
 }
 
 int
@@ -143,27 +100,7 @@ cti_killApp(cti_app_id_t appId, int signum)
 	}
 	
 	// Call the appropriate app kill function based on the wlm
-	switch (app_ptr->wlm)
-	{
-		case CTI_WLM_ALPS:
-			rtn = _cti_alps_killApp(app_ptr->_wlmObj, signum);
-			break;
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			_cti_set_error("Current WLM is not yet supported.");
-			return 1;
-			
-		case CTI_WLM_MULTI:
-			// TODO - add argument to allow caller to select preferred wlm if there is
-			// ever multiple WLMs present on the system.
-			_cti_set_error("Multiple workload managers present! This is not yet supported.");
-			return 1;
-			
-		case CTI_WLM_NONE:
-			_cti_set_error("No valid workload manager detected.");
-			return 1;
-	}
+	rtn = _cti_wlmProto->wlm_killApp(app_ptr->_wlmObj, signum);
 	
 	// deregister this apid from the interface
 	if (!rtn)

@@ -30,28 +30,10 @@ typedef struct
 	pid_t		aprunPid;
 } cti_aprunProc_t;
 
-/* function prototypes */
-int 				_cti_alps_init(void);
-void				_cti_alps_fini(void);
-int					_cti_alps_compJobId(void *, void *);
-cti_app_id_t		_cti_alps_launchBarrier(char **, int, int, int, int, char *, char *, char **);
-int					_cti_alps_releaseBarrier(void *);
-int					_cti_alps_killApp(void *, int);
-int					_cti_alps_verifyBinary(const char *);
-int					_cti_alps_verifyLibrary(const char *);
-int					_cti_alps_verifyFile(const char *);
-const char **		_cti_alps_extraBinaries(void);
-const char **		_cti_alps_extraLibraries(void);
-const char **		_cti_alps_extraFiles(void);
-int					_cti_alps_ship_package(void *, char *);
-int					_cti_alps_start_daemon(void *, char *, int);
-int					_cti_alps_getNumAppPEs(void *);
-int					_cti_alps_getNumAppNodes(void *);
-char **				_cti_alps_getAppHostsList(void *);
-cti_hostsList_t *	_cti_alps_getAppHostsPlacement(void *);
-char *				_cti_alps_getHostName(void);
-char *				_cti_alps_getLauncherHostName(void *);
+/* wlm proto object */
+extern cti_wlm_proto_t	_cti_alps_wlmProto;
 
+/* function prototypes */
 cti_app_id_t		cti_registerApid(uint64_t);
 cti_aprunProc_t *	cti_getAprunInfo(cti_app_id_t);
 

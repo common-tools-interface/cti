@@ -1619,126 +1619,111 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		goto packageManifestAndShip_error;
 	}
 	
-	// Process file lists based on WLM now that it is known
-	switch (app_ptr->wlm)
+	// Process file lists based on the WLM now that it is known
+
+	// Check binaries for validity
+	f_ptr = m_ptr->exec_files;
+	while (f_ptr != NULL)
 	{
-		case CTI_WLM_ALPS:
-			// Check binaries for validity
-			f_ptr = m_ptr->exec_files;
-			while (f_ptr != NULL)
+		// Only check file if it needs to be shipped
+		if (!f_ptr->this->present)
+		{
+			if (app_ptr->wlmProto->wlm_verifyBinary(f_ptr->this->name))
 			{
-				// Only check file if it needs to be shipped
-				if (!f_ptr->this->present)
-				{
-					if (_cti_alps_verifyBinary(f_ptr->this->name))
-					{
-						// this file is not valid
-						f_ptr->this->present = 1;
-						free(f_ptr->this->loc);
-						f_ptr->this->loc = NULL;
-					}
-				}
-				f_ptr = f_ptr->next;
+				// this file is not valid
+				f_ptr->this->present = 1;
+				free(f_ptr->this->loc);
+				f_ptr->this->loc = NULL;
 			}
+		}
+		f_ptr = f_ptr->next;
+	}
 		
-			// grab any extra wlm binaries if this is the first instance
-			if (m_ptr->inst == 1)
+	// grab any extra wlm binaries if this is the first instance
+	if (m_ptr->inst == 1)
+	{
+		if ((wlm_files = app_ptr->wlmProto->wlm_extraBinaries()) != NULL)
+		{
+			while (*wlm_files != NULL)
 			{
-				if ((wlm_files = _cti_alps_extraBinaries()) != NULL)
+				if (cti_addManifestBinary(m_ptr->mid, *wlm_files))
 				{
-					while (*wlm_files != NULL)
-					{
-						if (cti_addManifestBinary(m_ptr->mid, *wlm_files))
-						{
-							// Failed to add the binary to the manifest - catastrophic failure
-							goto packageManifestAndShip_error;
-						}
-						++wlm_files;
-					}
+					// Failed to add the binary to the manifest - catastrophic failure
+					goto packageManifestAndShip_error;
 				}
+				++wlm_files;
 			}
+		}
+	}
 			
-			// Check libraries for validity
-			f_ptr = m_ptr->lib_files;
-			while (f_ptr != NULL)
+	// Check libraries for validity
+	f_ptr = m_ptr->lib_files;
+	while (f_ptr != NULL)
+	{
+		// Only check file if it needs to be shipped
+		if (!f_ptr->this->present)
+		{
+			if (app_ptr->wlmProto->wlm_verifyLibrary(f_ptr->this->name))
 			{
-				// Only check file if it needs to be shipped
-				if (!f_ptr->this->present)
-				{
-					if (_cti_alps_verifyLibrary(f_ptr->this->name))
-					{
-						// this file is not valid
-						f_ptr->this->present = 1;
-						free(f_ptr->this->loc);
-						f_ptr->this->loc = NULL;
-					}
-				}
-				f_ptr = f_ptr->next;
+				// this file is not valid
+				f_ptr->this->present = 1;
+				free(f_ptr->this->loc);
+				f_ptr->this->loc = NULL;
 			}
+		}
+		f_ptr = f_ptr->next;
+	}
 			
-			// grab any extra libraries if this is the first instance
-			if (m_ptr->inst == 1)
+	// grab any extra libraries if this is the first instance
+	if (m_ptr->inst == 1)
+	{
+		if ((wlm_files = app_ptr->wlmProto->wlm_extraLibraries()) != NULL)
+		{
+			while (*wlm_files != NULL)
 			{
-				if ((wlm_files = _cti_alps_extraLibraries()) != NULL)
+				if (cti_addManifestLibrary(m_ptr->mid, *wlm_files))
 				{
-					while (*wlm_files != NULL)
-					{
-						if (cti_addManifestLibrary(m_ptr->mid, *wlm_files))
-						{
-							// Failed to add the binary to the manifest - catastrophic failure
-							goto packageManifestAndShip_error;
-						}
-						++wlm_files;
-					}
+					// Failed to add the binary to the manifest - catastrophic failure
+					goto packageManifestAndShip_error;
 				}
+				++wlm_files;
 			}
+		}
+	}
 			
-			// Check files for validity
-			f_ptr = m_ptr->file_files;
-			while (f_ptr != NULL)
+	// Check files for validity
+	f_ptr = m_ptr->file_files;
+	while (f_ptr != NULL)
+	{
+		// Only check file if it needs to be shipped
+		if (!f_ptr->this->present)
+		{
+			if (app_ptr->wlmProto->wlm_verifyFile(f_ptr->this->name))
 			{
-				// Only check file if it needs to be shipped
-				if (!f_ptr->this->present)
-				{
-					if (_cti_alps_verifyFile(f_ptr->this->name))
-					{
-						// this file is not valid
-						f_ptr->this->present = 1;
-						free(f_ptr->this->loc);
-						f_ptr->this->loc = NULL;
-					}
-				}
-				f_ptr = f_ptr->next;
+				// this file is not valid
+				f_ptr->this->present = 1;
+				free(f_ptr->this->loc);
+				f_ptr->this->loc = NULL;
 			}
-			
-			// grab any extra files if this is the first instance
-			if (m_ptr->inst == 1)
+		}
+		f_ptr = f_ptr->next;
+	}
+	
+	// grab any extra files if this is the first instance
+	if (m_ptr->inst == 1)
+	{
+		if ((wlm_files = app_ptr->wlmProto->wlm_extraFiles()) != NULL)
+		{
+			while (*wlm_files != NULL)
 			{
-				if ((wlm_files = _cti_alps_extraFiles()) != NULL)
+				if (cti_addManifestFile(m_ptr->mid, *wlm_files))
 				{
-					while (*wlm_files != NULL)
-					{
-						if (cti_addManifestFile(m_ptr->mid, *wlm_files))
-						{
-							// Failed to add the binary to the manifest - catastrophic failure
-							goto packageManifestAndShip_error;
-						}
-						++wlm_files;
-					}
+					// Failed to add the binary to the manifest - catastrophic failure
+					goto packageManifestAndShip_error;
 				}
+				++wlm_files;
 			}
-			break;
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			_cti_set_error("_cti_packageManifestAndShip: Current WLM is not yet supported.");
-			goto packageManifestAndShip_error;
-			
-		case CTI_WLM_MULTI:
-		case CTI_WLM_NONE:
-			// This should never be encountered as an app must have a single WLM associated with it
-			_cti_set_error("_cti_packageManifestAndShip: Invalid workload manager detected.");
-			goto packageManifestAndShip_error;
+		}
 	}
 	
 	// copy all of the binaries
@@ -1913,31 +1898,11 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	tar_name = tmp_tar_name;
 	
 	// Call the appropriate transfer function based on the wlm
-	switch (app_ptr->wlm)
+	if (app_ptr->wlmProto->wlm_shipPackage(app_ptr->_wlmObj, tar_name))
 	{
-		case CTI_WLM_ALPS:
-			if (_cti_alps_ship_package(app_ptr->_wlmObj, tar_name))
-			{
-				// we failed to ship the file to the compute nodes for some reason - catastrophic failure
-				// Error message already set
-				goto packageManifestAndShip_error;
-			}
-			break;
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			_cti_set_error("_cti_packageManifestAndShip: Current WLM is not yet supported.");
-			goto packageManifestAndShip_error;
-			
-		case CTI_WLM_MULTI:
-			// TODO - add argument to allow caller to select preferred wlm if there is
-			// ever multiple WLMs present on the system.
-			_cti_set_error("_cti_packageManifestAndShip: Multiple workload managers present! This is not yet supported.");
-			goto packageManifestAndShip_error;
-			
-		case CTI_WLM_NONE:
-			_cti_set_error("_cti_packageManifestAndShip: No valid workload manager detected.");
-			goto packageManifestAndShip_error;
+		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
+		// Error message already set
+		goto packageManifestAndShip_error;
 	}
 	
 	// clean things up
@@ -2213,39 +2178,13 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	// Done. We now have a flattened args string
 	
 	// Call the appropriate transfer function based on the wlm
-	switch (app_ptr->wlm)
+	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, args_flat, trnsfr))
 	{
-		case CTI_WLM_ALPS:
-			if (_cti_alps_start_daemon(app_ptr->_wlmObj, args_flat, trnsfr))
-			{
-				// we failed to ship the file to the compute nodes for some reason - catastrophic failure
-				// Error message already set
-				free(args_flat);
-				_cti_reapManifest(m_ptr->mid);
-				return 0;
-			}
-			break;
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			_cti_set_error("Current WLM is not yet supported.");
-			free(args_flat);
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
-			
-		case CTI_WLM_MULTI:
-			// TODO - add argument to allow caller to select preferred wlm if there is
-			// ever multiple WLMs present on the system.
-			_cti_set_error("Multiple workload managers present! This is not yet supported.");
-			free(args_flat);
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
-			
-		case CTI_WLM_NONE:
-			_cti_set_error("No valid workload manager detected.");
-			free(args_flat);
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
+		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
+		// Error message already set
+		free(args_flat);
+		_cti_reapManifest(m_ptr->mid);
+		return 0;
 	}
 		
 	// cleanup our memory
@@ -2570,39 +2509,13 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	// Done. We now have a flattened args string
 	
 	// Call the appropriate transfer function based on the wlm
-	switch (app_ptr->wlm)
+	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, args_flat, trnsfr))
 	{
-		case CTI_WLM_ALPS:
-			if (_cti_alps_start_daemon(app_ptr->_wlmObj, args_flat, trnsfr))
-			{
-				// we failed to ship the file to the compute nodes for some reason - catastrophic failure
-				// Error message already set
-				free(args_flat);
-				_cti_reapManifest(m_ptr->mid);
-				return 0;
-			}
-			break;
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			_cti_set_error("Current WLM is not yet supported.");
-			free(args_flat);
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
-			
-		case CTI_WLM_MULTI:
-			// TODO - add argument to allow caller to select preferred wlm if there is
-			// ever multiple WLMs present on the system.
-			_cti_set_error("Multiple workload managers present! This is not yet supported.");
-			free(args_flat);
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
-			
-		case CTI_WLM_NONE:
-			_cti_set_error("No valid workload manager detected.");
-			free(args_flat);
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
+		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
+		// Error message already set
+		free(args_flat);
+		_cti_reapManifest(m_ptr->mid);
+		return 0;
 	}
 	
 	// cleanup our memory
