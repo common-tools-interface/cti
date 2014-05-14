@@ -30,7 +30,20 @@
 #include "alps_be.h"
 
 // Global vars
-static cti_wlm_type 	_cti_current_wlm = CTI_WLM_NONE;
+/* noneness wlm proto object */
+static cti_wlm_proto_t	_cti_nonenessProto =
+{
+	CTI_WLM_NONE,					// wlm_type
+	_cti_wlm_init_none,				// wlm_init
+	_cti_wlm_fini_none,				// wlm_fini
+	_cti_wlm_findAppPids_none,		// wlm_findAppPids
+	_cti_wlm_getNodeHostname_none,	// wlm_getNodeHostname
+	_cti_wlm_getNodeFirstPE_none,	// wlm_getNodeFirstPE
+	_cti_wlm_getNodePEs_none		// wlm_getNodePEs
+};
+
+/* global wlm proto object - this is initialized to noneness by default */
+cti_wlm_proto_t *		_cti_wlmProto 	= &_cti_nonenessProto;
 
 // Constructor function
 void __attribute__((constructor))
@@ -41,11 +54,12 @@ _cti_init(void)
 	// init function
 	// In the future this should be able to handle multiple WLM types.
 	
-	_cti_current_wlm = CTI_WLM_ALPS;
-	if (_cti_alps_init())
+	_cti_wlmProto = &_cti_alps_wlmProto;
+	
+	if (_cti_wlmProto->wlm_init())
 	{
-		// We failed to init, so ensure we set the WLM to none.
-		_cti_current_wlm = CTI_WLM_NONE;
+		// We failed to init, so ensure we set the WLM proto to noneness
+		_cti_wlmProto = &_cti_nonenessProto;
 		return;
 	}
 }
@@ -54,27 +68,19 @@ _cti_init(void)
 void __attribute__ ((destructor))
 _cti_fini(void)
 {
-	switch (_cti_current_wlm)
-	{
-		case CTI_WLM_ALPS:
-			_cti_alps_fini();
-			break;
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-		case CTI_WLM_NONE:
-			break;
-	}
-
-	_cti_current_wlm = CTI_WLM_NONE;
-
+	// call the wlm finish function
+	_cti_wlmProto->wlm_fini();
+	
+	// reset the wlm proto to noneness
+	_cti_wlmProto = &_cti_nonenessProto;
+	
 	return;
 }
 
 cti_wlm_type
 cti_current_wlm(void)
 {
-	return _cti_current_wlm;
+	return _cti_wlmProto->wlm_type;
 }
 
 const char *
@@ -103,24 +109,7 @@ cti_pidList_t *
 cti_findAppPids()
 {
 	// Call the appropriate function based on the wlm
-	switch (_cti_current_wlm)
-	{
-		case CTI_WLM_ALPS:
-			return _cti_alps_findAppPids();
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			fprintf(stderr, "Current WLM is not yet supported.");
-			return NULL;
-			
-		case CTI_WLM_NONE:
-			fprintf(stderr, "No valid workload manager detected.");
-			return NULL;
-	}
-	
-	// should not get here
-	fprintf(stderr, "At impossible exit.");
-	return NULL;
+	return _cti_wlmProto->wlm_findAppPids();
 }
 
 void
@@ -140,71 +129,64 @@ char *
 cti_getNodeHostname()
 {
 	// Call the appropriate function based on the wlm
-	switch (_cti_current_wlm)
-	{
-		case CTI_WLM_ALPS:
-			return _cti_alps_getNodeHostname();
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			fprintf(stderr, "Current WLM is not yet supported.");
-			return NULL;
-			
-		case CTI_WLM_NONE:
-			fprintf(stderr, "No valid workload manager detected.");
-			return NULL;
-	}
-	
-	// should not get here
-	fprintf(stderr, "At impossible exit.");
-	return NULL;
+	return _cti_wlmProto->wlm_getNodeHostname();
 }
 
 int
 cti_getNodeFirstPE()
 {
 	// Call the appropriate function based on the wlm
-	switch (_cti_current_wlm)
-	{
-		case CTI_WLM_ALPS:
-			return _cti_alps_getNodeFirstPE();
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			fprintf(stderr, "Current WLM is not yet supported.");
-			return -1;
-			
-		case CTI_WLM_NONE:
-			fprintf(stderr, "No valid workload manager detected.");
-			return -1;
-	}
-	
-	// should not get here
-	fprintf(stderr, "At impossible exit.");
-	return -1;
+	return _cti_wlmProto->wlm_getNodeFirstPE();
 }
 
 int
 cti_getNodePEs()
 {
 	// Call the appropriate function based on the wlm
-	switch (_cti_current_wlm)
-	{
-		case CTI_WLM_ALPS:
-			return _cti_alps_getNodePEs();
-			
-		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
-			fprintf(stderr, "Current WLM is not yet supported.");
-			return -1;
-			
-		case CTI_WLM_NONE:
-			fprintf(stderr, "No valid workload manager detected.");
-			return -1;
-	}
-	
-	// should not get here
-	fprintf(stderr, "At impossible exit.");
+	return _cti_wlmProto->wlm_getNodePEs();
+}
+
+/* Noneness functions for wlm proto */
+
+int
+_cti_wlm_init_none(void)
+{
+	fprintf(stderr, "wlm_init() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return 1;
+}
+
+void
+_cti_wlm_fini_none(void)
+{
+	fprintf(stderr, "wlm_fini() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return;
+}
+
+cti_pidList_t *
+_cti_wlm_findAppPids_none(void)
+{
+	fprintf(stderr, "wlm_findAppPids() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return NULL;
+}
+
+char *
+_cti_wlm_getNodeHostname_none(void)
+{
+	fprintf(stderr, "wlm_getNodeHostname() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return NULL;
+}
+
+int
+_cti_wlm_getNodeFirstPE_none(void)
+{
+	fprintf(stderr, "wlm_getNodeFirstPE() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return -1;
+}
+
+int
+_cti_wlm_getNodePEs_none(void)
+{
+	fprintf(stderr, "wlm_getNodeFirstPE() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return -1;
 }
 

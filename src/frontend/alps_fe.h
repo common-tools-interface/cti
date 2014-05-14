@@ -24,14 +24,14 @@
 
 #include "cti_fe.h"
 
+/* wlm proto object */
+extern cti_wlm_proto_t	_cti_alps_wlmProto;
+
 typedef struct
 {
 	uint64_t	apid;
 	pid_t		aprunPid;
 } cti_aprunProc_t;
-
-/* wlm proto object */
-extern cti_wlm_proto_t	_cti_alps_wlmProto;
 
 /* function prototypes */
 cti_app_id_t		cti_registerApid(uint64_t);

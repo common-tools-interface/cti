@@ -21,12 +21,7 @@
 
 #include "cti_be.h"
 
-/* function prototypes */
-int 			_cti_alps_init(void);
-void			_cti_alps_fini(void);
-cti_pidList_t *	_cti_alps_findAppPids(void);
-char *			_cti_alps_getNodeHostname(void);
-int				_cti_alps_getNodeFirstPE(void);
-int				_cti_alps_getNodePEs(void);
+/* wlm proto object */
+extern cti_wlm_proto_t	_cti_alps_wlmProto;
 
 #endif /* _ALPS_BE_H */

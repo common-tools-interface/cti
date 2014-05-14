@@ -45,9 +45,27 @@ typedef struct
 } computeNode_t;
 
 /* static prototypes */
+static int 					_cti_alps_init(void);
+static void					_cti_alps_fini(void);
+static cti_pidList_t *		_cti_alps_findAppPids(void);
+static char *				_cti_alps_getNodeHostname(void);
+static int					_cti_alps_getNodeFirstPE(void);
+static int					_cti_alps_getNodePEs(void);
 static int					_cti_alps_get_placement_info(uint64_t, alpsAppLayout_t *, int **, int **, int **, int **, struct in_addr **, int **, int **, int **, int **);
 static int					_cti_alps_getComputeNodeInfo(void);
 static int					_cti_alps_getPlacementInfo(void);
+
+/* alps wlm proto object */
+cti_wlm_proto_t				_cti_alps_wlmProto =
+{
+	CTI_WLM_ALPS,				// wlm_type
+	_cti_alps_init,				// wlm_init
+	_cti_alps_fini,				// wlm_fini
+	_cti_alps_findAppPids,		// wlm_findAppPids
+	_cti_alps_getNodeHostname,	// wlm_getNodeHostname
+	_cti_alps_getNodeFirstPE,	// wlm_getNodeFirstPE
+	_cti_alps_getNodePEs		// wlm_getNodePEs
+};
 
 // Global vars
 static cti_alps_funcs_t *	_cti_alps_ptr 	= NULL;	// libalps wrappers
@@ -58,7 +76,7 @@ static uint64_t				_cti_apid 		= 0;	// global apid obtained from environment var
 
 /* Constructor/Destructor functions */
 
-int
+static int
 _cti_alps_init(void)
 {
 	char *error;
@@ -116,7 +134,7 @@ _cti_alps_init(void)
 	return 0;
 }
 
-void
+static void
 _cti_alps_fini(void)
 {
 	// sanity check
@@ -231,7 +249,7 @@ _cti_alps_getPlacementInfo()
 
 /* ALPS related calls start here */
 
-cti_pidList_t *
+static cti_pidList_t *
 _cti_alps_findAppPids()
 {
 	cti_pidList_t * rtn;
@@ -284,7 +302,7 @@ _cti_alps_findAppPids()
 	return rtn;
 }
 
-char *
+static char *
 _cti_alps_getNodeHostname()
 {
 	char * nidHost;
@@ -311,7 +329,7 @@ _cti_alps_getNodeHostname()
 	return nidHost;
 }
 
-int
+static int
 _cti_alps_getNodeFirstPE()
 {
 	// make sure the _cti_appLayout object has been created
@@ -327,7 +345,7 @@ _cti_alps_getNodeFirstPE()
 	return _cti_appLayout->firstPe;
 }
 
-int
+static int
 _cti_alps_getNodePEs()
 {
 	// make sure the _cti_appLayout object has been created
