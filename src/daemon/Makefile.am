@@ -23,7 +23,7 @@ AM_LIBTOOLFLAGS = --quiet
 
 bin_PROGRAMS    = dlaunch
 
-dlaunch_SOURCES	= daemon_launcher.c
+dlaunch_SOURCES	= cti_daemon.c
 dlaunch_CFLAGS	= $(AM_CFLAGS) -I$(USEFUL)
 dlaunch_LDADD	= $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
 dlaunch_LDFLAGS	= -static

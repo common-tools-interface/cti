@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * daemon_launcher.c - A wrapper program used to launch tool daemons on the
+ * cti_daemon.c - A wrapper program used to launch tool daemons on the
  *		     compute nodes. This will ensure that the path and
  *		     ld_library_path env variables point to the proper location
  *		     and allows users to specify environment variable settings
