@@ -2126,8 +2126,17 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		return 0;
 	}
 	
+	// Ensure toolPath is not null
+	if (app_ptr->toolPath == NULL)
+	{
+		_cti_set_error("Tool daemon path information is missing!");
+		return 0;
+	}
+	
 	// start creating the flattened args string
-	if (asprintf(&args_flat, "%s -a %s -w %d -m %s%d.tar -d %s -i %d", launcher, jid_str, app_ptr->wlmProto->wlm_type, m_ptr->stage_name, m_ptr->inst, m_ptr->stage_name, m_ptr->inst) <= 0)
+	if (asprintf(&args_flat, "%s -a %s -p %s -w %d -m %s%d.tar -d %s -i %d", 
+				launcher, jid_str, app_ptr->toolPath, app_ptr->wlmProto->wlm_type, 
+				m_ptr->stage_name, m_ptr->inst, m_ptr->stage_name, m_ptr->inst) <= 0)
 	{
 		_cti_set_error("asprintf failed.");
 		return 0;
@@ -2360,8 +2369,17 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		return 0;
 	}
 	
+	// Ensure toolPath is not null
+	if (app_ptr->toolPath == NULL)
+	{
+		_cti_set_error("Tool daemon path information is missing!");
+		return 0;
+	}
+	
 	// start creating the flattened args string
-	if (asprintf(&args_flat, "%s -a %s -w %d -b %s -d %s -i %d", launcher, jid_str, app_ptr->wlmProto->wlm_type, realname, m_ptr->stage_name, m_ptr->inst) <= 0)
+	if (asprintf(&args_flat, "%s -a %s -p %s -w %d -b %s -d %s -i %d", 
+				launcher, jid_str, app_ptr->toolPath, app_ptr->wlmProto->wlm_type, 
+				realname, m_ptr->stage_name, m_ptr->inst) <= 0)
 	{
 		_cti_set_error("asprintf failed.");
 		return 0;

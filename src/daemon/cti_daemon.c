@@ -51,6 +51,7 @@ const struct option long_opts[] = {
 			{"env",			required_argument,	0, 'e'},
 			{"inst",		required_argument,	0, 'i'},
 			{"manifest",	required_argument,	0, 'm'},
+			{"path",		required_argument,	0, 'p'},
 			{"wlm",			required_argument,	0, 'w'},
 			{"help",		no_argument,		0, 'h'},
 			{"debug",		no_argument,		&debug_flag, 1},
