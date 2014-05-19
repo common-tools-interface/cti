@@ -29,7 +29,7 @@
 #include "alps/alps_toolAssist.h"
 
 #include "cti_defs.h"
-#include "alps_be.h"
+#include "cti_be.h"
 #include "pmi_attribs_parser.h"
 
 // types used here

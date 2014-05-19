@@ -24,6 +24,17 @@
 #ifndef _CTI_DEFS_H
 #define _CTI_DEFS_H
 
+// WLM identifier. This is system specific. Right now only one WLM at a time
+// is supported.
+enum cti_wlm_type
+{
+	CTI_WLM_NONE,	// error/unitialized state
+	CTI_WLM_ALPS,
+	CTI_WLM_CRAY_SLURM,
+	CTI_WLM_SLURM
+};
+typedef enum cti_wlm_type	cti_wlm_type;
+
 /*
 ** Frontend defines relating to the login node 
 */
@@ -65,9 +76,9 @@
 #define DBG_LOG_ENV_VAR 				"CRAY_DBG_LOG_DIR"	// Frontend: Used to define a directory to write debug logs to (read)
 
 #define APID_ENV_VAR					"CRAYTOOL_APID"		// Backend: Used to hold the string representation of the apid (set)
+#define WLM_ENV_VAR					"CRAYTOOL_WLM"			// Backend: Used to hold the enum representation of the wlm (set)
 #define SCRATCH_ENV_VAR				"TMPDIR"				// Backend: Used to denote temporary storage space (set)
 #define OLD_SCRATCH_ENV_VAR			"CRAYTOOL_OLD_TMPDIR"	// Backend: Used to denote the old setting of TMPDIR (set)
-#define ALPS_DIR_VAR					"CRAYTOOL_ALPS_DIR"	// Backend: Used to denote the alps toolhelper directory (set)
 #define ROOT_DIR_VAR					"CRAYTOOL_ROOT_DIR"	// Backend: Used to denote the fake root of the tool daemon (set)
 #define BIN_DIR_VAR					"CRAYTOOL_BIN_DIR"	// Backend: Used to denote where binaries are located (set)
 #define LIB_DIR_VAR					"CRAYTOOL_LIB_DIR"	// Backend: Used to denote where libraries are located (set)

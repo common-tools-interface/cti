@@ -53,6 +53,7 @@ static cti_wlm_proto_t	_cti_nonenessProto =
 	_cti_wlm_init_none,
 	_cti_wlm_fini_none,
 	_cti_wlm_cmpJobId_none,
+	_cti_wlm_getJobId_none,
 	_cti_wlm_launchBarrier_none,
 	_cti_wlm_releaseBarrier_none,
 	_cti_wlm_killApp_none,
@@ -608,6 +609,13 @@ _cti_wlm_cmpJobId_none(void *a1, void *a2)
 {
 	_cti_set_error("wlm_cmpJobId() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return -1;
+}
+
+char *
+_cti_wlm_getJobId_none(void *a1)
+{
+	_cti_set_error("wlm_getJobId() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return NULL;
 }
 
 cti_app_id_t

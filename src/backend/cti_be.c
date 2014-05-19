@@ -25,9 +25,12 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "cti_be.h"
-#include "alps_be.h"
+
+/* wlm specific proto objects defined elsewhere */
+extern cti_wlm_proto_t	_cti_alps_wlmProto;
 
 // Global vars
 /* noneness wlm proto object */
@@ -49,12 +52,33 @@ cti_wlm_proto_t *		_cti_wlmProto 	= &_cti_nonenessProto;
 void __attribute__((constructor))
 _cti_init(void)
 {
+	char *	wlm_str;
 
-	// TODO: Add wlm here based env var set by dlaunch, then call proper 
-	// init function
-	// In the future this should be able to handle multiple WLM types.
+	// get the wlm string from the environment
+	if ((wlm_str = getenv(WLM_ENV_VAR)) == NULL)
+	{
+		fprintf(stderr, "Env var %s not set!\n", WLM_ENV_VAR);
+		return;
+	}
 	
-	_cti_wlmProto = &_cti_alps_wlmProto;
+	// verify that the wlm string is valid
+	switch (atoi(wlm_str))
+	{
+		case CTI_WLM_ALPS:
+			_cti_wlmProto = &_cti_alps_wlmProto;
+			break;
+		
+		case CTI_WLM_NONE:
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			// These wlm are not supported
+			fprintf(stderr, "wlm %s is not yet supported!\n", cti_wlm_type_toString(atoi(wlm_str)));
+			return;
+		
+		default:
+			fprintf(stderr, "Env var %s is invalid.\n", WLM_ENV_VAR);
+			return;
+	}
 	
 	if (_cti_wlmProto->wlm_init())
 	{
@@ -105,6 +129,20 @@ cti_wlm_type_toString(cti_wlm_type wlm_type)
 	return "Invalid WLM.";
 }
 
+char *
+cti_getAppId(void)
+{
+	char *	apid_str;
+	
+	// get the apid string from the environment
+	if ((apid_str = getenv(APID_ENV_VAR)) == NULL)
+	{
+		return NULL;
+	}
+	
+	return strdup(apid_str);
+}
+
 cti_pidList_t *
 cti_findAppPids()
 {
@@ -145,6 +183,79 @@ cti_getNodePEs()
 	// Call the appropriate function based on the wlm
 	return _cti_wlmProto->wlm_getNodePEs();
 }
+
+char *
+cti_getRootDir()
+{
+	char *	root_str;
+	
+	// get the string from the environment
+	if ((root_str = getenv(ROOT_DIR_VAR)) == NULL)
+	{
+		return NULL;
+	}
+	
+	return strdup(root_str);
+}
+
+char *
+cti_getBinDir()
+{
+	char *	bin_str;
+	
+	// get the string from the environment
+	if ((bin_str = getenv(BIN_DIR_VAR)) == NULL)
+	{
+		return NULL;
+	}
+	
+	return strdup(bin_str);
+}
+
+char *
+cti_getLibDir()
+{
+	char *	lib_str;
+	
+	// get the string from the environment
+	if ((lib_str = getenv(LIB_DIR_VAR)) == NULL)
+	{
+		return NULL;
+	}
+	
+	return strdup(lib_str);
+}
+
+char *
+cti_getFileDir()
+{
+	char *	file_str;
+	
+	// XXX: This is the same as the root dir for now.
+	
+	// get the string from the environment
+	if ((file_str = getenv(ROOT_DIR_VAR)) == NULL)
+	{
+		return NULL;
+	}
+	
+	return strdup(file_str);
+}
+
+char *
+cti_getTmpDir()
+{
+	char *	tmp_str;
+	
+	// get the string from the environment
+	if ((tmp_str = getenv(SCRATCH_ENV_VAR)) == NULL)
+	{
+		return NULL;
+	}
+	
+	return strdup(tmp_str);
+}
+
 
 /* Noneness functions for wlm proto */
 

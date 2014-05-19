@@ -2006,14 +2006,13 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 {
 	appEntry_t *		app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
 	manifest_t *		m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
+	char *				jid_str;			// job identifier string - wlm specific
 	char *				args_flat;			// flattened args array to pass to the toolhelper call
-	char *				cpy;				// temporary cpy var used in creating args_flat
+	char *				tmp_args;			// temporary args used in creating args_flat
 	char *				launcher;			// full path name of the daemon launcher application
-	size_t				len;				// len vars used in creating the args_flat string
 	session_t *			s_ptr = NULL;		// points at the session to return
 	cti_session_id_t	rtn;
 	int					trnsfr = 1;			// should we transfer the dlaunch?
-	int					l, val;
 
 	// sanity check
 	if (appId == 0)
@@ -2121,58 +2120,34 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		}
 	}
 	
-	// determine the length of the argv[0]
-	len = strlen(launcher);
-
-	// find the length of the inst int as a string
-	l = 1;
-	val = m_ptr->inst;
-	while(val>9) { l++; val/=10; }
-	
-	// determine the length of the -m (manifest) argument
-	len += strlen(" -m ");
-	len += strlen(m_ptr->stage_name);
-	len += l;
-	len += strlen(".tar");
-	
-	// determine the length of the -d (directory) argument
-	len += strlen(" -d ");
-	len += strlen(m_ptr->stage_name);
-	
-	// determine the length of the -i (instance) argument
-	len += strlen(" -i ");
-	len += l;
-		
-	// if debug is on, add the len of the debug switch
-	if (dbg)
+	if ((jid_str = app_ptr->wlmProto->wlm_getJobId(app_ptr->_wlmObj)) == NULL)
 	{
-		len += strlen(" --debug");
-	}
-		
-	// add one for the null terminator
-	++len;
-	
-	// malloc space for this string buffer
-	if ((args_flat = malloc(len)) == (void *)0)
-	{
-		// malloc failed
-		_cti_set_error("malloc failed.");
-		free(launcher);
+		// error already set
 		return 0;
 	}
-		
+	
 	// start creating the flattened args string
-	snprintf(args_flat, len, "%s -m %s%d.tar -d %s -i %d", launcher, m_ptr->stage_name, m_ptr->inst, m_ptr->stage_name, m_ptr->inst);
+	if (asprintf(&args_flat, "%s -a %s -w %d -m %s%d.tar -d %s -i %d", launcher, jid_str, app_ptr->wlmProto->wlm_type, m_ptr->stage_name, m_ptr->inst, m_ptr->stage_name, m_ptr->inst) <= 0)
+	{
+		_cti_set_error("asprintf failed.");
+		return 0;
+	}
 	
 	// Cleanup
 	free(launcher);
+	free(jid_str);
 	
 	// add the debug switch if debug is on
 	if (dbg)
 	{
-		cpy = strdup(args_flat);
-		snprintf(args_flat, len, "%s --debug", cpy);
-		free(cpy);
+		tmp_args = args_flat;
+		args_flat = NULL;
+		if (asprintf(&args_flat, "%s --debug", tmp_args) <= 0)
+		{
+			_cti_set_error("asprintf failed.");
+			return 0;
+		}
+		free(tmp_args);
 	}
 	
 	// Done. We now have a flattened args string
@@ -2224,21 +2199,20 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 }
 
 cti_session_id_t
-cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t sid, char *fstr, char **args, char **env, int dbg)
+cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t sid, char *daemon, char **args, char **env, int dbg)
 {
 	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
 	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	int				useManif = 0;		// controls if a manifest was shipped or not
 	char *			fullname;			// full path name of the executable to launch as a tool daemon
 	char *			realname;			// realname (lacking path info) of the executable
-	char *			args_flat;			// flattened args array to pass to the toolhelper call
-	char *			cpy;				// temporary cpy var used in creating args_flat
+	char *			jid_str;			// job id string to pass to the backend. This is wlm specific.
+	char *			args_flat = NULL;	// flattened args array to pass to the toolhelper call
+	char *			tmp_args;			// temporary args used in creating args_flat
 	char *			launcher;			// full path name of the daemon launcher application
 	char **			tmp;				// temporary pointer used to iterate through lists of strings
-	size_t			len, env_base_len;	// len vars used in creating the args_flat string
 	session_t *		s_ptr = NULL;		// points at the session to return
 	int				trnsfr = 1;			// should we transfer the dlaunch?
-	int				l, val;
 		
 	// sanity check
 	if (appId == 0)
@@ -2247,9 +2221,9 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		return 1;
 	}
 	
-	if (fstr == NULL)
+	if (daemon == NULL)
 	{
-		_cti_set_error("cti_execToolDaemon had null fstr.");
+		_cti_set_error("Required tool daemon argument is missing.");
 		return 1;
 	}
 	
@@ -2311,8 +2285,8 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		}
 	}
 	
-	// add the fstr to the manifest
-	if (cti_addManifestBinary(m_ptr->mid, fstr))
+	// add the daemon to the manifest
+	if (cti_addManifestBinary(m_ptr->mid, daemon))
 	{
 		// Failed to add the binary to the manifest - catastrophic failure
 		// error string already set
@@ -2339,17 +2313,17 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		
 	// find the binary name for the args
 	
-	// convert to fullpath name
-	if ((fullname = _cti_pathFind(fstr, NULL)) == NULL)
+	// convert daemon to fullpath name
+	if ((fullname = _cti_pathFind(daemon, NULL)) == NULL)
 	{
-		_cti_set_error("Could not locate the specified file in PATH.");
+		_cti_set_error("Could not locate the specified tool daemon binary in PATH.");
 		return 0;
 	}
 	
 	// next just grab the real name (without path information) of the binary
 	if ((realname = _cti_pathToName(fullname)) == NULL)
 	{
-		_cti_set_error("Could not convert the fullname to realname.");
+		_cti_set_error("Could not convert the tool daemon binary fullname to realname.");
 		return 0;
 	}
 	
@@ -2380,92 +2354,37 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		}
 	}
 	
-	// determine the length of the argv[0] and -b (binary) argument
-	len = strlen(launcher) + strlen(" -b ") + strlen(realname);
-	
-	// find the length of the inst int as a string
-	l = 1;
-	val = m_ptr->inst;
-	while(val>9) { l++; val/=10; }
-	
-	// We use a -m if useManif is true.
-	if (useManif)
+	if ((jid_str = app_ptr->wlmProto->wlm_getJobId(app_ptr->_wlmObj)) == NULL)
 	{
-		// determine the length of the -m (manifest) argument
-		len += strlen(" -m ");
-		len += strlen(m_ptr->stage_name);
-		len += l;
-		len += strlen(".tar");
-	}
-	
-	// determine the length of the -d (directory) argument
-	len += strlen(" -d ");
-	len += strlen(m_ptr->stage_name);
-	
-	// determine the length of the -i (instance) argument
-	len += strlen(" -i ");
-	len += l;
-	
-	// iterate through the env array and determine its total length
-	env_base_len = strlen(" -e "); 
-	tmp = env;
-	// ensure the are actual entries before dereferencing tmp
-	if (tmp != NULL)
-	{
-		while (*tmp != NULL)
-		{
-			len += env_base_len + strlen(*tmp++);
-		}
-	}
-		
-	// if debug is on, add the len of the debug switch
-	if (dbg)
-	{
-		len += strlen(" --debug");
-	}
-		
-	// add the length of the "--" terminator to end the opt parsing
-	len += strlen(" --");
-		
-	// iterate through the args array and determine its length
-	tmp = args;
-	// ensure the are actual entries before dereferencing tmp
-	if (tmp != NULL)
-	{
-		while (*tmp != NULL)
-		{
-			len += strlen(" ") + strlen(*tmp++) + strlen(" ");
-		}
-	}
-		
-	// add one for the null terminator
-	++len;
-	
-	// malloc space for this string buffer
-	if ((args_flat = malloc(len)) == (void *)0)
-	{
-		// malloc failed
-		_cti_set_error("malloc failed.");
+		// error already set
 		return 0;
 	}
-		
+	
 	// start creating the flattened args string
-	snprintf(args_flat, len, "%s -b %s -d %s -i %d", launcher, realname, m_ptr->stage_name, m_ptr->inst);
+	if (asprintf(&args_flat, "%s -a %s -w %d -b %s -d %s -i %d", launcher, jid_str, app_ptr->wlmProto->wlm_type, realname, m_ptr->stage_name, m_ptr->inst) <= 0)
+	{
+		_cti_set_error("asprintf failed.");
+		return 0;
+	}
 	
 	// cleanup
 	free(launcher);
+	free(jid_str);
+	free(realname);
 	
 	// add -m argument if needed
 	if (useManif)
 	{
-		cpy = strdup(args_flat);
-		snprintf(args_flat, len, "%s -m %s%d.tar", cpy, m_ptr->stage_name, m_ptr->inst);
-		free(cpy);
+		tmp_args = args_flat;
+		args_flat = NULL;
+		if (asprintf(&args_flat, "%s -m %s%d.tar", tmp_args, m_ptr->stage_name, m_ptr->inst) <= 0)
+		{
+			_cti_set_error("asprintf failed.");
+			return 0;
+		}
+		free(tmp_args);
 	}
 	
-	// cleanup mem
-	free(realname);
-		
 	// add each of the env arguments
 	tmp = env;
 	// ensure the are actual entries before dereferencing tmp
@@ -2473,25 +2392,40 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	{
 		while (*tmp != NULL)
 		{
-			// we need a temporary copy of the args_flat string so far
-			cpy = strdup(args_flat);
-			snprintf(args_flat, len, "%s -e %s", cpy, *tmp++);
-			free(cpy);
+			// add the env arg
+			tmp_args = args_flat;
+			args_flat = NULL;
+			if (asprintf(&args_flat, "%s -e %s", tmp_args, *tmp++) <= 0)
+			{
+				_cti_set_error("asprintf failed.");
+				return 0;
+			}
+			free(tmp_args);
 		}
 	}
 		
 	// add the debug switch if debug is on
 	if (dbg)
 	{
-		cpy = strdup(args_flat);
-		snprintf(args_flat, len, "%s --debug", cpy);
-		free(cpy);
+		tmp_args = args_flat;
+		args_flat = NULL;
+		if (asprintf(&args_flat, "%s --debug", tmp_args) <= 0)
+		{
+			_cti_set_error("asprintf failed.");
+			return 0;
+		}
+		free(tmp_args);
 	}
 	
 	// add the "options" terminator
-	cpy = strdup(args_flat);
-	snprintf(args_flat, len, "%s --", cpy);
-	free(cpy);
+	tmp_args = args_flat;
+	args_flat = NULL;
+	if (asprintf(&args_flat, "%s --", tmp_args) <= 0)
+	{
+		_cti_set_error("asprintf failed.");
+		return 0;
+	}
+	free(tmp_args);
 	
 	// add each of the args from the args array
 	tmp = args;
@@ -2500,9 +2434,14 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	{
 		while (*tmp != NULL)
 		{
-			cpy = strdup(args_flat);
-			snprintf(args_flat, len, "%s %s ", cpy, *tmp++);
-			free(cpy);
+			tmp_args = args_flat;
+			args_flat = NULL;
+			if (asprintf(&args_flat, "%s %s ", tmp_args, *tmp++) <= 0)
+			{
+				_cti_set_error("asprintf failed.");
+				return 0;
+			}
+			free(tmp_args);
 		}
 	}
 		

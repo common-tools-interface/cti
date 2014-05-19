@@ -39,7 +39,6 @@ src/Makefile.in -text
 src/backend/Makefile.am -text
 src/backend/Makefile.in -text
 src/backend/alps_be.c -text
-src/backend/alps_be.h -text
 src/backend/cti_be.c -text
 src/backend/cti_be.h -text
 src/backend/pmi_attribs_parser.c -text
@@ -47,7 +46,9 @@ src/backend/pmi_attribs_parser.h -text
 src/cti_defs.h -text
 src/daemon/Makefile.am -text
 src/daemon/Makefile.in -text
+src/daemon/alps_dl.c -text
 src/daemon/cti_daemon.c -text
+src/daemon/cti_daemon.h -text
 src/frontend/Makefile.am -text
 src/frontend/Makefile.in -text
 src/frontend/alps_fe.c -text

@@ -33,11 +33,6 @@
  * variables are subject to change. Use the defines to guarantee portability.
  * These should all be read-only.
  *
- * CTI_APID_ENV_VAR
- *
- *         The environment variable that is used to hold the value of the apid 
- *         associated with the tool daemon.
- *
  * CTI_SCRATCH_ENV_VAR
  *
  *         The environment variable that is used to denote temporary
@@ -60,44 +55,9 @@
  *         application. If CTI_SCRATCH_ENV_VAR was not set in the environment of
  *         aprun, CTI_OLD_SCRATCH_ENV_VAR will not exist in the environment of
  *         the tool daemon.
- *
- * CTI_ALPS_DIR_ENV_VAR
- *
- *         The environment variable that is used to hold the location of the
- *         ALPS toolhelper directory for this application. This location is
- *         shared by all instances of ALPS toolhelpers associated with this
- *         application and no guarantees about uniqueness are made for files
- *         placed in this location. Any ALPS toolhelper is allowed to 
- *         overwrite/modify any files in this location.
- *
- * CTI_ROOT_DIR_ENV_VAR
- *
- *         The environment variable that is used to hold the location of this
- *         tool daemons root location. Any files that were transfered over will
- *         be found inside this directory. The binary, libraries, and temp
- *         directories are all subdirectories of this root value. The cwd of the
- *         tool daemon is automatically set to this location.
- *
- * CTI_BIN_DIR_ENV_VAR
- *
- *         The environment variable that is used to hold the location of any
- *         binaries that were shipped to the compute node with the manifest.
- *         This value is automatically added to PATH of the tool daemon.
- *
- * CTI_LIB_DIR_ENV_VAR
- *
- *         The environment variable that is used to hold the location of any
- *         libraries that were shipped to the compute node with the manifest.
- *         This value is automatically added to LD_LIBRARY_PATH of the tool
- *         daemon.
  */
-#define CTI_APID_ENV_VAR        "CRAYTOOL_APID"
 #define CTI_SCRATCH_ENV_VAR     "TMPDIR"
 #define CTI_OLD_SCRATCH_ENV_VAR "CRAYTOOL_OLD_TMPDIR"
-#define CTI_ALPS_DIR_ENV_VAR    "CRAYTOOL_ALPS_DIR"
-#define CTI_ROOT_DIR_ENV_VAR    "CRAYTOOL_ROOT_DIR"
-#define CTI_BIN_DIR_ENV_VAR     "CRAYTOOL_BIN_DIR"
-#define CTI_LIB_DIR_ENV_VAR     "CRAYTOOL_LIB_DIR"
 
 /* 
  * The following are types used as return values for some API calls.
@@ -161,6 +121,24 @@ extern cti_wlm_type	cti_current_wlm(void);
  *
  */
 extern const char *	cti_wlm_type_toString(cti_wlm_type wlm_type);
+
+/*
+ * cti_getAppId - Returns the Application id in string format of the application
+ *                associated with this tool daemon.
+ * 
+ * Detail
+ *      This function returns the application id in string format. This string
+ *      is formated in a WLM specific way. It is up to the caller to free the 
+ *      returned string.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      A string containing the application id, or else NULL on error.
+ * 
+ */
+extern char *	cti_getAppId();
 
 /*
  * cti_findAppPids - Returns a cti_pidList_t containing entries that hold
@@ -253,5 +231,103 @@ extern int	cti_getNodeFirstPE(void);
  * 
  */
 extern int	cti_getNodePEs(void);
+
+/*
+ * cti_getRootDir - Get root directory for this tool daemon.
+ * 
+ * Detail
+ *      This function is used to return the path of the root location for this
+ *      tool daemon. Any files that were transfered over will be found inside 
+ *      this directory. The binary, libraries, and temp directories are all 
+ *      subdirectories of this root value. The cwd of the tool daemon is 
+ *      automatically set to this location. It is the callers responsibility to 
+ *      free the allocated storage when it is no longer needed.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      The path string on success, or NULL on error.
+ * 
+ */
+extern char *	cti_getRootDir(void);
+
+/*
+ * cti_getBinDir - Get bin directory for this tool daemon.
+ * 
+ * Detail
+ *      This function is used to return the path of the binary location for this
+ *      tool daemon. This directory is used to hold the location of any binaries 
+ *      that were shipped to the compute node with the manifest. This value is 
+ *      automatically added to PATH of the tool daemon. It is the callers 
+ *      responsibility to free the allocated storage when it is no longer 
+ *      needed.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      The path string on success, or NULL on error.
+ * 
+ */
+extern char *	cti_getBinDir(void);
+
+/*
+ * cti_getLibDir - Get lib directory for this tool daemon.
+ * 
+ * Detail
+ *      This function is used to return the path of the library location for
+ *      this tool daemon. This directory is used to hold the location of any
+ *      libraries that were shipped to the compute node with the manifest. This
+ *      value is automatically added to LD_LIBRARY_PATH of the tool daemon. It
+ *      is the callers responsibility to free the allocated storage when it is 
+ *      no longer needed. 
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      The path string on success, or NULL on error.
+ * 
+ */
+extern char *	cti_getLibDir(void);
+
+/*
+ * cti_getFileDir - Get file directory for this tool daemon.
+ * 
+ * Detail
+ *      This function is used to return the path of the file location for this
+ *      tool daemon. This directory is used to hold the location of any files
+ *      that were shipped to the compute node with the manifest. It is the 
+ *      callers responsibility to free the allocated storage when it is no 
+ *      longer needed. 
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      The path string on success, or NULL on error.
+ * 
+ */
+extern char *	cti_getFileDir(void);
+
+/*
+ * cti_getTmpDir - Get tmp directory for this tool daemon.
+ * 
+ * Detail
+ *      This function is used to return the path of the tmp location for this
+ *      tool daemon. This directory is guaranteed to be writable and is suitable
+ *      for temporary file storage. It will be cleaned up on tool daemon exit.
+ *      It is the callers responsibility to free the allocated storage when it
+ *      is no longer needed.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      The path string on success, or NULL on error.
+ * 
+ */
+extern char *	cti_getTmpDir(void);
 
 #endif /* _CRAY_TOOLS_BE_H */

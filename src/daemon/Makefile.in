@@ -60,7 +60,8 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
-am_dlaunch_OBJECTS = dlaunch-cti_daemon.$(OBJEXT)
+am_dlaunch_OBJECTS = dlaunch-cti_daemon.$(OBJEXT) \
+	dlaunch-alps_dl.$(OBJEXT)
 dlaunch_OBJECTS = $(am_dlaunch_OBJECTS)
 am__DEPENDENCIES_1 =
 dlaunch_DEPENDENCIES = $(USEFUL)/libuseful.la $(am__DEPENDENCIES_1)
@@ -209,7 +210,7 @@ SRC = @craytool_dir@/src
 USEFUL = $(SRC)/useful
 AM_CFLAGS = -fPIC -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
-dlaunch_SOURCES = cti_daemon.c
+dlaunch_SOURCES = cti_daemon.c alps_dl.c
 dlaunch_CFLAGS = $(AM_CFLAGS) -I$(USEFUL)
 dlaunch_LDADD = $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
 dlaunch_LDFLAGS = -static
@@ -284,6 +285,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-alps_dl.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlaunch-cti_daemon.Po@am__quote@
 
 .c.o:
@@ -320,6 +322,20 @@ dlaunch-cti_daemon.obj: cti_daemon.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_daemon.c' object='dlaunch-cti_daemon.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-cti_daemon.obj `if test -f 'cti_daemon.c'; then $(CYGPATH_W) 'cti_daemon.c'; else $(CYGPATH_W) '$(srcdir)/cti_daemon.c'; fi`
+
+dlaunch-alps_dl.o: alps_dl.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-alps_dl.o -MD -MP -MF $(DEPDIR)/dlaunch-alps_dl.Tpo -c -o dlaunch-alps_dl.o `test -f 'alps_dl.c' || echo '$(srcdir)/'`alps_dl.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/dlaunch-alps_dl.Tpo $(DEPDIR)/dlaunch-alps_dl.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_dl.c' object='dlaunch-alps_dl.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-alps_dl.o `test -f 'alps_dl.c' || echo '$(srcdir)/'`alps_dl.c
+
+dlaunch-alps_dl.obj: alps_dl.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -MT dlaunch-alps_dl.obj -MD -MP -MF $(DEPDIR)/dlaunch-alps_dl.Tpo -c -o dlaunch-alps_dl.obj `if test -f 'alps_dl.c'; then $(CYGPATH_W) 'alps_dl.c'; else $(CYGPATH_W) '$(srcdir)/alps_dl.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/dlaunch-alps_dl.Tpo $(DEPDIR)/dlaunch-alps_dl.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_dl.c' object='dlaunch-alps_dl.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(dlaunch_CFLAGS) $(CFLAGS) -c -o dlaunch-alps_dl.obj `if test -f 'alps_dl.c'; then $(CYGPATH_W) 'alps_dl.c'; else $(CYGPATH_W) '$(srcdir)/alps_dl.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

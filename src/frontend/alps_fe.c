@@ -86,6 +86,7 @@ typedef struct
 static int					_cti_alps_init(void);
 static void					_cti_alps_fini(void);
 static int					_cti_alps_cmpJobId(void *, void *);
+static char *				_cti_alps_getJobId(void *);
 static cti_app_id_t			_cti_alps_launchBarrier(char **, int, int, int, int, char *, char *, char **);
 static int					_cti_alps_releaseBarrier(void *);
 static int					_cti_alps_killApp(void *, int);
@@ -122,6 +123,7 @@ cti_wlm_proto_t				_cti_alps_wlmProto =
 	_cti_alps_init,					// wlm_init
 	_cti_alps_fini,					// wlm_fini
 	_cti_alps_cmpJobId,				// wlm_cmpJobId
+	_cti_alps_getJobId,				// wlm_getJobId
 	_cti_alps_launchBarrier,		// wlm_launchBarrier
 	_cti_alps_releaseBarrier,		// wlm_releaseBarrier
 	_cti_alps_killApp,				// wlm_killApp
@@ -407,6 +409,28 @@ _cti_alps_cmpJobId(void *this, void *id)
 	apid = *((uint64_t *)id);
 	
 	return my_app->apid == apid;
+}
+
+static char *
+_cti_alps_getJobId(void *this)
+{
+	alpsInfo_t *	my_app = (alpsInfo_t *)this;
+	char *			rtn = NULL;
+	
+	// sanity check
+	if (my_app == NULL)
+	{
+		_cti_set_error("Null wlm obj.");
+		return NULL;
+	}
+	
+	if (asprintf(&rtn, "%llu", (long long unsigned int)my_app->apid) <= 0)
+	{
+		_cti_set_error("asprintf failed.");
+		return NULL;
+	}
+	
+	return rtn;
 }
 
 // this function creates a new appEntry_t object for the app

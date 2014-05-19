@@ -39,21 +39,38 @@
 #include <archive_entry.h>
 
 #include "cti_defs.h"
+#include "cti_daemon.h"
 #include "useful.h"
 
 static int debug_flag = 0;
 
 const struct option long_opts[] = {
+			{"apid",		required_argument,	0, 'a'},
 			{"binary",		required_argument,	0, 'b'},
 			{"directory",	required_argument,	0, 'd'},
 			{"env",			required_argument,	0, 'e'},
 			{"inst",		required_argument,	0, 'i'},
 			{"manifest",	required_argument,	0, 'm'},
+			{"wlm",			required_argument,	0, 'w'},
 			{"help",		no_argument,		0, 'h'},
 			{"debug",		no_argument,		&debug_flag, 1},
 			{0, 0, 0, 0}
 			};
-				
+			
+/* wlm specific proto objects defined elsewhere */
+extern cti_wlm_proto_t	_cti_alps_wlmProto;
+
+/* noneness wlm proto object */
+static cti_wlm_proto_t	_cti_nonenessProto =
+{
+	CTI_WLM_NONE,					// wlm_type
+	_cti_wlm_init_none,				// wlm_init
+	_cti_wlm_getNodeID_none			// wlm_getNodeID
+};
+
+/* global wlm proto object - this is initialized to noneness by default */
+cti_wlm_proto_t *	_cti_wlmProto 	= &_cti_nonenessProto;
+
 static void
 usage(char *name)
 {
@@ -62,6 +79,7 @@ usage(char *name)
 	fprintf(stdout, "directory and add it to PATH and LD_LIBRARY_PATH. Sets optional\n");
 	fprintf(stdout, "specified variables in the environment of the process.\n\n");
 	
+	fprintf(stdout, "\t-a, --apid      Application id\n");
 	fprintf(stdout, "\t-b, --binary	   Binary file to execute\n");
 	fprintf(stdout, "\t-d, --directory Use named directory for CWD\n");
 	fprintf(stdout, "\t-e, --env       Specify an environment variable to set\n");
@@ -69,6 +87,8 @@ usage(char *name)
 	fprintf(stdout, "\t                with var=val, for example: -e myVar=myVal\n");
 	fprintf(stdout, "\t-i, --instance  Instance of tool daemon. Used in conjunction with sessions\n");
 	fprintf(stdout, "\t-m, --manifest  Manifest tarball to extract/set as CWD if -d omitted\n");
+	fprintf(stdout, "\t-p, --path      PWD path where tool daemon should be started\n");
+	fprintf(stdout, "\t-w, --wlm       Workload Manager in use\n");
 	fprintf(stdout, "\t    --debug     Turn on debug logging to a file. (STDERR/STDOUT to file)\n");
 	fprintf(stdout, "\t-h, --help      Display this text and exit\n");
 }
@@ -102,41 +122,33 @@ copy_data(struct archive *ar, struct archive *aw)
 int
 main(int argc, char **argv)
 {
-	int			opt_ind = 0;
-	int			c, nid, i, sCnt;
-	FILE *		alps_fd;	// ALPS NID file stream
-	FILE *		log;
-	char		file_buf[BUFSIZ];	// file read buffer
-	uint64_t	apid = 0;
-	char *		apid_str;
-	size_t		len;
-	char		*end, *tool_path, *launch_path;
-	struct stat statbuf;
-	char *		binary = NULL; 
-	char *		binary_path;
-	char *		directory = NULL;
-	char *		manifest = NULL;
-	int			inst = 1;	// default to 1 if no instance argument is provided
-	char *		manifest_path = NULL;
-	char *		lock_path = NULL;
-	FILE *		lock_file;
-	char *		bin_path = NULL;
-	char *		lib_path = NULL;
-	char		*env, *val, *t;
-	char *		old_env_path = NULL;
-	char *		env_path = NULL;
+	int				opt_ind = 0;
+	int				c, i, sCnt;
+	int				wlm_arg = CTI_WLM_NONE;
+	char *			wlm_str;
+	char *			apid_str = NULL;
+	char *			tool_path = NULL;
+	FILE *			log;
+	struct stat 	statbuf;
+	char *			binary = NULL; 
+	char *			binary_path;
+	char *			directory = NULL;
+	char *			manifest = NULL;
+	int				inst = 1;	// default to 1 if no instance argument is provided
+	char *			manifest_path = NULL;
+	char *			lock_path = NULL;
+	FILE *			lock_file;
+	char *			bin_path = NULL;
+	char *			lib_path = NULL;
+	stringList_t *	env_args = NULL;
+	char			*env, *val, *t;
+	char *			old_env_path = NULL;
+	char *			env_path = NULL;
 	int						r, flags = 0;
 	struct archive *		a;
 	struct archive *		ext;
 	struct archive_entry *	entry;
-
-	// we require at least 1 argument beyond argv[0]
-	if (argc < 2)
-	{
-		usage(argv[0]);
-		return 1;
-	}
-
+	
 	/*
 	* The ALPS Tool Helper closes channels 0-2 to keep things "clean".
 	* Unfortuantely, that means that any file opens that I do will
@@ -147,20 +159,47 @@ main(int argc, char **argv)
 	* or may not get all/any of 0-2, but should they be available, they
 	* will be gotten.
 	* This, of course, must happen "early" before any other opens.
+	*
+	* We do this here for every WLM, as it shouldn't impact the other WLM and
+	* will prevent weirdness from happening during printing to stderr.
+	*
 	*/
 	open("/dev/null", O_RDONLY);
 	open("/dev/null", O_WRONLY);
 	open("/dev/null", O_WRONLY);
 	
-	while ((c = getopt_long(argc, argv, "b:d:e:i:m:h", long_opts, &opt_ind)) != -1)
+	// we require at least 1 argument beyond argv[0]
+	if (argc < 2)
+	{
+		usage(argv[0]);
+		return 1;
+	}
+	
+	// We want to do as little as possible while parsing the opts. This is because
+	// we do not create a log file until after the opts are parsed, and there will
+	// be no valid output until after the log is created on most systems.
+	while ((c = getopt_long(argc, argv, "a:b:d:e:i:m:p:w:h", long_opts, &opt_ind)) != -1)
 	{
 		switch (c)
 		{
 			case 0:
 				// if this is a flag, do nothing
 				break;
+			
+			case 'a': 
+				if (optarg == NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				// this is the application id that is WLM specific
+				apid_str = strdup(optarg);
+				
+				break;
+			
 			case 'b':
-				if (optarg == (char *)NULL)
+				if (optarg == NULL)
 				{
 					usage(argv[0]);
 					return 1;
@@ -172,7 +211,7 @@ main(int argc, char **argv)
 				break;
 				
 			case 'd':
-				if (optarg == (char *)NULL)
+				if (optarg == NULL)
 				{
 					usage(argv[0]);
 					return 1;
@@ -184,46 +223,35 @@ main(int argc, char **argv)
 				break;
 				
 			case 'e':
-				if (optarg == (char *)NULL)
+				if (optarg == NULL)
 				{
 					usage(argv[0]);
 					return 1;
 				}
 				
 				// this is an optional option to set user defined environment variables
-				val = strdup(optarg);
-				// we need to strsep the string at the "=" character
-				// we expect the user to pass in the -e argument as envVar=val
-				if ((env = strsep(&val, "=")) == NULL)
+				if (env_args == NULL)
 				{
-					//error
-					fprintf(stderr, "strsep failed\n");
-					return 1;
-				}
-				// ensure the user didn't pass us something stupid i.e. non-conforming
-				if ((*env == '\0') || (*val == '\0'))
-				{
-					// they passed us something stupid
-					fprintf(stderr, "Unrecognized env argument.\n");
-					usage(argv[0]);
-					return 1;
+					// create the string list
+					if ((env_args = _cti_newStringList()) == NULL)
+					{
+						// failed to create string list - shouldn't happen
+						fprintf(stderr, "_cti_newStringList() failed.\n");
+						return 1;
+					}
 				}
 				
-				// set the actual environment variable
-				if (setenv(env, val, 1) < 0)
+				if (_cti_addString(env_args, optarg))
 				{
-					// failure
-					fprintf(stderr, "setenv failed\n");
+					// failed to add string to the list - shouldn't happen
+					fprintf(stderr, "_cti_addString() failed.\n");
 					return 1;
 				}
-				
-				// free the strdup'ed string - this will subsequently also get rid of the val
-				free(env);
 				
 				break;
 				
 			case 'i':
-				if (optarg == (char *)NULL)
+				if (optarg == NULL)
 				{
 					usage(argv[0]);
 					return 1;
@@ -236,7 +264,7 @@ main(int argc, char **argv)
 				break;
 				
 			case 'm':
-				if (optarg == (char *)NULL)
+				if (optarg == NULL)
 				{
 					usage(argv[0]);
 					return 1;
@@ -244,6 +272,30 @@ main(int argc, char **argv)
 				
 				// this is the name of the manifest tarball we will extract
 				manifest = strdup(optarg);
+				
+				break;
+				
+			case 'p':
+				if (optarg == NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				// this is the tool path argument where we should cd to
+				tool_path = strdup(optarg);
+				
+				break;
+				
+			case 'w':
+				if (optarg == NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				// this is the wlm value that we should use
+				wlm_arg = atoi(optarg);
 				
 				break;
 				
@@ -256,65 +308,73 @@ main(int argc, char **argv)
 		}
 	}
 	
-	// call realpath on argv[0] to resolve any extra slashes
-	if ((launch_path = realpath(argv[0], NULL)) == NULL)
+	// Setup the wlm arg without error checking so that we can create a debug
+	// log if asked to. We will error check below.
+	switch (wlm_arg)
 	{
-		// failure
-		fprintf(stderr, "realpath failed\n");
-		return 1;
-	}
-	
-	// get the apid from the toolhelper path from argv[0]
-	if ((sscanf(launch_path, "/var/spool/alps/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid)) == 0)
-	{
-		// fix for CLE 5.0 changes
-		if ((sscanf(launch_path, "/var/opt/cray/alps/spool/%*d/toolhelper%llu/%*s", (long long unsigned int *)&apid)) == 0)
-		{
-			// failure
-			fprintf(stderr, "sscanf apid failed\n");
-			return 1;
-		}
-	}
-	
-	// cleanup
-	free(launch_path);
-	
-	// write the apid to the apid_str
-	if (asprintf(&apid_str, "%llu", (long long unsigned int)apid) <= 0)
-	{
-		// failure
-		fprintf(stderr, "asprintf failed\n");
-		return 1;
+		case CTI_WLM_ALPS:
+			_cti_wlmProto = &_cti_alps_wlmProto;
+			break;
+		
+		case CTI_WLM_CRAY_SLURM:	
+		case CTI_WLM_SLURM:	
+		case CTI_WLM_NONE:
+		default:
+			// the wlmProto defaults to noneness, so break
+			break;
 	}
 	
 	// if debug mode is turned on, redirect stdout/stderr to a log file
 	if (debug_flag)
 	{
-		// read the nid from the system location
-		// open up the file defined in the alps header containing our node id (nid)
-		if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)
+		int null_apid = 0;
+		
+		// sanity so that we can write something if we are missing the apid string
+		if (apid_str == NULL)
 		{
-			fprintf(stderr, "%s not found.\n", ALPS_XT_NID);
-			return 1;
+			++null_apid;
+			apid_str = strdup("NOAPID");
 		}
 		
-		// we expect this file to have a numeric value giving our current nid
-		if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
-		{
-			fprintf(stderr, "fgets failed.\n");
-			return 1;
-		}
-		// convert this to an integer value
-		nid = atoi(file_buf);
-		
-		// close the file stream
-		fclose(alps_fd);
-		
-		// write the apid into the file_buf
-		snprintf(file_buf, BUFSIZ, "%llu", (long long unsigned int)apid);
-		
-		log = _cti_create_log(nid, file_buf);
+		// setup the log
+		log = _cti_create_log(_cti_wlmProto->wlm_getNodeID(), apid_str);
 		_cti_hook_stdoe(log);
+		
+		// cleanup the apid string if it was missing
+		if (null_apid)
+		{
+			free(apid_str);
+			apid_str = NULL;
+		}
+	}
+	
+	/* It is NOW safe to write to stdout/stderr, the log file has been setup */
+	
+	// Now ensure the user provided a valid wlm argument. 
+	switch (wlm_arg)
+	{
+		case CTI_WLM_ALPS:
+			// These wlm are valid
+			break;
+		
+		case CTI_WLM_NONE:
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			// These wlm are not supported
+			fprintf(stderr, "WLM provided by wlm argument is not yet supported!\n");
+			return 1;
+		
+		default:
+			fprintf(stderr, "Invalid wlm argument.\n");
+			return 1;
+	}
+	
+	// Ensure the user provided an apid argument
+	if (apid_str == NULL)
+	{
+		// failure
+		fprintf(stderr, "Missing apid argument!\n");
+		return 1;
 	}
 	
 	// Ensure the user provided a directory or manifest option
@@ -325,6 +385,62 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
+	// Ensure the user provided a toolpath option
+	if (tool_path == NULL)
+	{
+		// failure
+		fprintf(stderr, "Missing path argument!\n");
+		return 1;
+	}
+	
+	// call the wlm specific init function
+	if (_cti_wlmProto->wlm_init())
+	{
+		// failure
+		fprintf(stderr, "wlm_init() failed.\n");
+		return 1;
+	}
+	
+	// process the env args
+	if (env_args != NULL)
+	{
+		for (i=0; i < env_args->num; ++i)
+		{
+			// set val to point at the begining of this string
+			val = env_args->list[i];
+			
+			// we need to strsep the string at the "=" character
+			// we expect the user to pass in the -e argument as envVar=val
+			// Note that env will now point at the start and val will point at
+			// the value argument
+			if ((env = strsep(&val, "=")) == NULL)
+			{
+				//error
+				fprintf(stderr, "strsep failed\n");
+				return 1;
+			}
+			
+			// ensure the user didn't pass us something stupid i.e. non-conforming
+			if ((*env == '\0') || (*val == '\0'))
+			{
+				// they passed us something stupid
+				fprintf(stderr, "Unrecognized env argument.\n");
+				return 1;
+			}
+			
+			// set the actual environment variable
+			if (setenv(env, val, 1) < 0)
+			{
+				// failure
+				fprintf(stderr, "setenv failed\n");
+				return 1;
+			}
+		}
+		
+		// Done with the env_args
+		_cti_consumeStringList(env_args);
+	}
+	
 	// set the APID_ENV_VAR environment variable to the apid
 	if (setenv(APID_ENV_VAR, apid_str, 1) < 0)
 	{
@@ -333,38 +449,26 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	// cleanup
-	free(apid_str);
-	
-	// create the toolhelper path from argv[0]
-	// begin by locating the final '/' in the string
-	end = strrchr(argv[0], '/');
-	
-	// determine the string length of the toolhelper directory location
-	// this is the string length of argv[0] subtracted by the length of
-	// the substring from the final '/' character.
-	len = strlen(argv[0]) - strlen(end);
-	
-	// malloc space for the string. Note that we need one extra byte for the
-	// null terminator
-	if ((tool_path = malloc(len+1)) == (void *)0)
+	// set the WLM_ENV_VAR environment variable to the wlm
+	if (asprintf(&wlm_str, "%d", _cti_wlmProto->wlm_type) <= 0)
 	{
-		fprintf(stderr, "malloc failed\n");
+		fprintf(stderr, "asprintf failed\n");
 		return 1;
 	}
-	
-	// strncpy the substring
-	if (strncpy(tool_path, argv[0], len) == (char *)NULL)
+	if (setenv(WLM_ENV_VAR, wlm_str, 1) < 0)
 	{
-		fprintf(stderr, "strncpy failed\n");
+		// failure
+		fprintf(stderr, "setenv failed\n");
 		return 1;
 	}
-	// set the final null terminator
-	tool_path[len] = '\0';
-	
-	fprintf(stderr, "inst %d: Toolhelper path: %s\n", inst, tool_path);
+	free(wlm_str);
 	
 	// cd to the tool_path and relax the permissions
+	if (debug_flag)
+	{
+		fprintf(stderr, "inst %d: Toolhelper path: %s\n", inst, tool_path);
+	}
+	
 	if (stat(tool_path, &statbuf) == -1)
 	{
 		fprintf(stderr, "Could not stat %s\n", tool_path);
@@ -389,7 +493,10 @@ main(int argc, char **argv)
 	// Now unpack the manifest
 	if (manifest != NULL)
 	{
-		fprintf(stderr, "inst %d: Manifest provided: %s\n", inst, manifest);
+		if (debug_flag)
+		{
+			fprintf(stderr, "inst %d: Manifest provided: %s\n", inst, manifest);
+		}
 	
 		// create the manifest path string
 		if (asprintf(&manifest_path, "%s/%s", tool_path, manifest) <= 0)
@@ -476,7 +583,10 @@ main(int argc, char **argv)
 	// handle the directory option
 	if (directory != NULL)
 	{
-		fprintf(stderr, "inst %d: Directory provided: %s\n", inst, directory);
+		if (debug_flag)
+		{
+			fprintf(stderr, "inst %d: Directory provided: %s\n", inst, directory);
+		}
 		
 		// create the manifest path string
 		if (manifest_path != NULL)
@@ -497,7 +607,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "Could not stat root directory %s\n", manifest_path);
 		return 1;
 	}
-		
+	
 	// ensure it is a directory
 	if (!S_ISDIR(statbuf.st_mode))
 	{
@@ -544,14 +654,6 @@ main(int argc, char **argv)
 	{
 		// close the file, it has been created
 		fclose(lock_file);
-	}
-	
-	// Set the ALPS_DIR_VAR environment variable to the toolhelper directory.
-	if (setenv(ALPS_DIR_VAR, manifest_path, 1) < 0)
-	{
-		// failure
-		fprintf(stderr, "setenv failed\n");
-		return 1;
 	}
 	
 	// Set the ROOT_DIR_VAR environment variable to the manifest directory.
@@ -615,16 +717,6 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	// set the SHELL environment variable to the shell included on the compute
-	// node. Note that other shells other than /bin/sh are not currently supported
-	// in CNL.
-	if (setenv(SHELL_ENV_VAR, SHELL_PATH, 1) < 0)
-	{
-		// failure
-		fprintf(stderr, "setenv failed\n");
-		return 1;
-	}
-	
 	// call _cti_adjustPaths so that we chdir to where we shipped stuff over to and setup PATH/LD_LIBRARY_PATH
 	if (_cti_adjustPaths(manifest_path))
 	{
@@ -649,7 +741,10 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	fprintf(stderr, "inst %d: Binary path: %s\n", inst, binary_path);
+	if (debug_flag)
+	{
+		fprintf(stderr, "inst %d: Binary path: %s\n", inst, binary_path);
+	}
 	
 	// At this point we need to wait on any other previous tool daemons that may
 	// or may not contain depedencies this instance needs. We will try to make
@@ -675,9 +770,12 @@ main(int argc, char **argv)
 		while (stat(lock_path, &statbuf))
 		{
 			// print out a message if sCnt is divisible by 100
-			if (sCnt++%100 == 0)
+			if (debug_flag)
 			{
-				fprintf(stderr, "inst %d: Lock file %s not found. Sleeping...\n", inst, lock_path);
+				if (sCnt++%100 == 0)
+				{
+					fprintf(stderr, "inst %d: Lock file %s not found. Sleeping...\n", inst, lock_path);
+				}
 			}
 			
 			// sleep until the file is created
@@ -685,7 +783,10 @@ main(int argc, char **argv)
 		}
 	}
 	
-	fprintf(stderr, "inst %d: All dependency locks acquired. Ready to exec.\n", inst);
+	if (debug_flag)
+	{
+		fprintf(stderr, "inst %d: All dependency locks acquired. Ready to exec.\n", inst);
+	}
 	
 	// At this point it is safe to assume we have all our dependencies.
 	
@@ -717,5 +818,21 @@ main(int argc, char **argv)
 	perror("execv");
 	
 	return 1;
+}
+
+/* Noneness functions for wlm proto */
+
+int
+_cti_wlm_init_none(void)
+{
+	fprintf(stderr, "wlm_init() not supported.");
+	return 1;
+}
+
+int
+_cti_wlm_getNodeID_none(void)
+{
+	fprintf(stderr, "_cti_wlm_getNodeID_none() not supported.");
+	return -1;
 }
 

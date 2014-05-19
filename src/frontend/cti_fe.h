@@ -22,23 +22,14 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "cti_defs.h"
+
 /* struct typedefs */
 
 // Internal identifier used by callers to interface with the library. When they
 // request functionality that operates on applications, they must pass this
 // identifier in.
 typedef uint64_t cti_app_id_t;
-
-// WLM identifier. This is system specific. Right now only one WLM at a time
-// is supported.
-enum cti_wlm_type
-{
-	CTI_WLM_NONE,	// error/unitialized state
-	CTI_WLM_ALPS,
-	CTI_WLM_CRAY_SLURM,
-	CTI_WLM_SLURM
-};
-typedef enum cti_wlm_type	cti_wlm_type;
 
 typedef struct
 {
@@ -61,6 +52,7 @@ typedef struct
 	int 				(*wlm_init)(void);							// wlm init function - return true on error
 	void				(*wlm_fini)(void);							// wlm finish function
 	int					(*wlm_cmpJobId)(void *, void *);			// compare wlm specific job ids - return -1 on error, 1 on match, 0 on mismatch
+	char *				(*wlm_getJobId)(void *);					// return the string version of the job identifer
 	cti_app_id_t		(*wlm_launchBarrier)(	char **, 
 												int, 
 												int, 
@@ -127,6 +119,7 @@ void				cti_destroyHostsList(cti_hostsList_t *);
 int					_cti_wlm_init_none(void);
 void				_cti_wlm_fini_none(void);
 int					_cti_wlm_cmpJobId_none(void *, void *);
+char *				_cti_wlm_getJobId_none(void *);
 cti_app_id_t		_cti_wlm_launchBarrier_none(char **, int, int, int, int, char *, char *, char **);
 int					_cti_wlm_releaseBarrier_none(void *);
 int					_cti_wlm_killApp_none(void *, int);

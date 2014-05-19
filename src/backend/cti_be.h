@@ -21,6 +21,8 @@
 
 #include <sys/types.h>
 
+#include "cti_defs.h"
+
 // External visibility
 typedef struct
 {
@@ -33,15 +35,6 @@ typedef struct
 	int					numPids;
 	cti_rankPidPair_t *	pids;
 } cti_pidList_t;
-
-enum cti_wlm_type
-{
-	CTI_WLM_NONE,	// error/unitialized state
-	CTI_WLM_ALPS,
-	CTI_WLM_CRAY_SLURM,
-	CTI_WLM_SLURM
-};
-typedef enum cti_wlm_type	cti_wlm_type;
 
 // This is the wlm proto object that all wlm implementations should define.
 // The noneness functions can be used if a function is not definable by your wlm,
@@ -63,11 +56,17 @@ extern cti_wlm_proto_t *	_cti_wlmProto;
 /* function prototypes */
 cti_wlm_type		cti_current_wlm(void);
 const char *		cti_wlm_type_toString(cti_wlm_type);
+char *				cti_getAppId(void);
 cti_pidList_t *		cti_findAppPids(void);
 void				cti_destroyPidList(cti_pidList_t *);
 char *				cti_getNodeHostname(void);
 int					cti_getNodeFirstPE(void);
 int					cti_getNodePEs(void);
+char *				cti_getRootDir(void);
+char *				cti_getBinDir(void);
+char *				cti_getLibDir(void);
+char *				cti_getFileDir(void);
+char *				cti_getTmpDir(void);
 
 /* Noneness functions for wlm proto - Use these if your wlm proto doesn't define the function */
 int					_cti_wlm_init_none(void);
