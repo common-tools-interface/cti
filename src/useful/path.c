@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * path.c - Functions relating to searching and setting path variables.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
