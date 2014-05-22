@@ -145,26 +145,6 @@ cti_wlm_proto_t				_cti_alps_wlmProto =
 
 /* static global variables */
 
-/* 
-** This list may need to be updated with each new release of CNL.
-*/
-static const char * 		_cti_alps_ignored_libs[] = {
-	"libdl.so.2",
-	"libc.so.6",
-	"libvolume_id.so.1",
-	"libcidn.so.1",
-	"libnsl.so.1",
-	"librt.so.1",
-	"libutil.so.1",
-	"libpthread.so.0",
-	"libudev.so.0",
-	"libcrypt.so.1",
-	"libz.so.1",
-	"libm.so.6",
-	"libnss_files.so.2",
-	NULL 
-};
-
 static const char * 		_cti_alps_extra_libs[] = {
 	ALPS_BE_LIB_NAME,
 	NULL
@@ -1723,19 +1703,14 @@ _cti_alps_verifyBinary(const char *fstr)
 static int
 _cti_alps_verifyLibrary(const char *fstr)
 {
-	const char **i_str = _cti_alps_ignored_libs;
-
-	while (*i_str != NULL)
-	{
-		if (strncmp(*i_str, fstr, strlen(*i_str)) == 0)
-		{
-			// fstr is in the list
-			return 1;
-		}
-		++i_str;
-	}
-
-	// fstr not in the list
+	// XXX: We used to not ship libraries that were already present on the 
+	// compute node as part of CNL. However, this was in error. The following
+	// is from Pete Swanson:
+	//
+	//   Understand that the native compute image is not guaranteed to have the
+    //   same (or by any means all) the libraries that are on the login node.
+	
+	// all libraries are valid
 	return 0;
 }
 
