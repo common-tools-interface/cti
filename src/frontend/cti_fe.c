@@ -59,9 +59,11 @@ static cti_wlm_proto_t	_cti_nonenessProto =
 	_cti_wlm_killApp_none,
 	_cti_wlm_verifyBinary_none,
 	_cti_wlm_verifyLibrary_none,
+	_cti_wlm_verifyLibDir_none,
 	_cti_wlm_verifyFile_none,
 	_cti_wlm_extraBinaries_none,
 	_cti_wlm_extraLibraries_none,
+	_cti_wlm_extraLibDirs_none,
 	_cti_wlm_extraFiles_none,
 	_cti_wlm_shipPackage_none,
 	_cti_wlm_startDaemon_none,
@@ -654,6 +656,13 @@ _cti_wlm_verifyLibrary_none(const char *a1)
 }
 
 int
+_cti_wlm_verifyLibDir_none(const char *a1)
+{
+	_cti_set_error("wlm_verifyLibDir() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return 0;
+}
+
+int
 _cti_wlm_verifyFile_none(const char *a1)
 {
 	_cti_set_error("wlm_verifyFile() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
@@ -671,6 +680,13 @@ const char **
 _cti_wlm_extraLibraries_none(void)
 {
 	_cti_set_error("wlm_extraLibraries() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return NULL;
+}
+
+const char **
+_cti_wlm_extraLibDirs_none(void)
+{
+	_cti_set_error("wlm_extraLibDirs() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 

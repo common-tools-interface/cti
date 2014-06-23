@@ -92,9 +92,11 @@ static int					_cti_alps_releaseBarrier(void *);
 static int					_cti_alps_killApp(void *, int);
 static int					_cti_alps_verifyBinary(const char *);
 static int					_cti_alps_verifyLibrary(const char *);
+static int					_cti_alps_verifyLibDir(const char *);
 static int					_cti_alps_verifyFile(const char *);
 static const char **		_cti_alps_extraBinaries(void);
 static const char **		_cti_alps_extraLibraries(void);
+static const char **		_cti_alps_extraLibDirs(void);
 static const char **		_cti_alps_extraFiles(void);
 static int					_cti_alps_ship_package(void *, char *);
 static int					_cti_alps_start_daemon(void *, char *, int);
@@ -129,9 +131,11 @@ cti_wlm_proto_t				_cti_alps_wlmProto =
 	_cti_alps_killApp,				// wlm_killApp
 	_cti_alps_verifyBinary,			// wlm_verifyBinary
 	_cti_alps_verifyLibrary,		// wlm_verifyLibrary
+	_cti_alps_verifyLibDir,			// wlm_verifyLibDir
 	_cti_alps_verifyFile,			// wlm_verifyFile
 	_cti_alps_extraBinaries,		// wlm_extraBinaries
 	_cti_alps_extraLibraries,		// wlm_extraLibraries
+	_cti_alps_extraLibDirs,			// wlm_extraLibDirs
 	_cti_alps_extraFiles,			// wlm_extraFiles
 	_cti_alps_ship_package,			// wlm_shipPackage
 	_cti_alps_start_daemon,			// wlm_startDaemon
@@ -1715,6 +1719,13 @@ _cti_alps_verifyLibrary(const char *fstr)
 }
 
 static int
+_cti_alps_verifyLibDir(const char *fstr)
+{
+	// all library directories are valid
+	return 0;
+}
+
+static int
 _cti_alps_verifyFile(const char *fstr)
 {
 	// all files are valid
@@ -1732,6 +1743,13 @@ static const char **
 _cti_alps_extraLibraries(void)
 {
 	return _cti_alps_extra_libs;
+}
+
+static const char **
+_cti_alps_extraLibDirs(void)
+{
+	// no extra library directories needed
+	return NULL;
 }
 
 static const char **

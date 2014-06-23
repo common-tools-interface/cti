@@ -65,9 +65,11 @@ typedef struct
 	int					(*wlm_killApp)(void *, int);				// kill application - return true on error
 	int					(*wlm_verifyBinary)(const char *);			// verify that binary file is valid for wlm - return true on invalid binary
 	int					(*wlm_verifyLibrary)(const char *);			// verify that library file is valid for wlm - return true on invalid library
+	int					(*wlm_verifyLibDir)(const char *);			// verify that library directory is valid for wlm - return true on invalid library directory
 	int					(*wlm_verifyFile)(const char *);			// verify that normal file is valid for wlm - return true on invalid file
 	const char **		(*wlm_extraBinaries)(void);					// extra wlm specific binaries required by backend library - return NULL if none
 	const char **		(*wlm_extraLibraries)(void);				// extra wlm specific libraries required by backend library - return NULL if none
+	const char **		(*wlm_extraLibDirs)(void);					// extra wlm specific library directories required by backend library - return NULL if none
 	const char **		(*wlm_extraFiles)(void);					// extra wlm specific files required by backend library - return NULL if none
 	int					(*wlm_shipPackage)(void *, char *);			// ship package to backends - return true on error
 	int					(*wlm_startDaemon)(void *, char *, int);	// start backend tool daemon - return true on error
@@ -125,9 +127,11 @@ int					_cti_wlm_releaseBarrier_none(void *);
 int					_cti_wlm_killApp_none(void *, int);
 int					_cti_wlm_verifyBinary_none(const char *);
 int					_cti_wlm_verifyLibrary_none(const char *);
+int					_cti_wlm_verifyLibDir_none(const char *);
 int					_cti_wlm_verifyFile_none(const char *);
 const char **		_cti_wlm_extraBinaries_none(void);
 const char **		_cti_wlm_extraLibraries_none(void);
+const char **		_cti_wlm_extraLibDirs_none(void);
 const char **		_cti_wlm_extraFiles_none(void);
 int					_cti_wlm_shipPackage_none(void *, char *);
 int					_cti_wlm_startDaemon_none(void *, char *, int);

@@ -70,6 +70,7 @@ typedef struct
 	char *				stage_name;		// basename of the manifest directory
 	fileList_t *		exec_files;		// list of manifest binaries
 	fileList_t *		lib_files;		// list of manifest libraries
+	fileList_t *		libdir_files;	// list of manifest library directories
 	fileList_t *		file_files;		// list of manifest files
 	int					hasFiles;		// true if there are any files to ship in the file lists
 } manifest_t;
@@ -82,6 +83,7 @@ typedef struct
 	char *				toolPath;		// toolPath of the app entry - DO NOT FREE THIS!!!
 	stringList_t *		exec_names;		// list of manifest binary names
 	stringList_t *		lib_names;		// list of manifest dso names
+	stringList_t *		libdir_names;	// list of manifest library directory names
 	stringList_t *		file_names;		// list of manifest regular file names
 } session_t;
 
@@ -129,8 +131,9 @@ static manifest_t *		_cti_findManifest(cti_manifest_id_t);
 static manifest_t *		_cti_newManifest(cti_session_id_t);
 static int				_cti_addManifestToSession(manifest_t *, session_t *);
 static void				_cti_addSessionToApp(appEntry_t *, cti_session_id_t);
-static int				_cti_removeFilesFromDir(char *);
 static int				_cti_copyFileToPackage(char *, char *, char *);
+static int				_cti_removeDirectory(char *);
+static int				_cti_copyDirectoryToPackage(char *, char *, char *);
 static int				_cti_packageManifestAndShip(appEntry_t *, manifest_t *);
 
 /* global variables */
@@ -405,6 +408,7 @@ _cti_consumeSession(session_t *sess)
 	// eat each of the string lists
 	_cti_consumeStringList(sess->exec_names);
 	_cti_consumeStringList(sess->lib_names);
+	_cti_consumeStringList(sess->libdir_names);
 	_cti_consumeStringList(sess->file_names);
 	
 	// nom nom the final session_t object
@@ -457,7 +461,6 @@ _cti_findSession(cti_session_id_t sid)
 	return lstPtr->this;
 }
 
-// FIXME
 static session_t *
 _cti_newSession(manifest_t *m_ptr)
 {
@@ -505,6 +508,12 @@ _cti_newSession(manifest_t *m_ptr)
 		_cti_consumeSession(this);
 		return NULL;
 	}
+	if ((this->libdir_names = _cti_newStringList()) == NULL)
+	{
+		_cti_set_error("_cti_newStringList() failed.");
+		_cti_consumeSession(this);
+		return NULL;
+	}
 	if ((this->file_names = _cti_newStringList()) == NULL)
 	{
 		_cti_set_error("_cti_newStringList() failed.");
@@ -527,6 +536,7 @@ _cti_newSession(manifest_t *m_ptr)
 		// increment f_ptr
 		f_ptr = f_ptr->next;
 	}
+	
 	f_ptr = m_ptr->lib_files;
 	while (f_ptr != NULL)
 	{
@@ -541,6 +551,22 @@ _cti_newSession(manifest_t *m_ptr)
 		// increment f_ptr
 		f_ptr = f_ptr->next;
 	}
+	
+	f_ptr = m_ptr->libdir_files;
+	while (f_ptr != NULL)
+	{
+		if (_cti_addString(this->libdir_names, f_ptr->this->name))
+		{
+			// failed to save name into the list
+			_cti_set_error("_cti_addString() failed.");
+			_cti_consumeSession(this);
+			return NULL;
+		}
+		
+		// increment f_ptr
+		f_ptr = f_ptr->next;
+	}
+	
 	f_ptr = m_ptr->file_files;
 	while (f_ptr != NULL)
 	{
@@ -819,6 +845,7 @@ _cti_newManifest(cti_session_id_t sid)
 			// increment str_ptr
 			++str_ptr;
 		}
+		
 		i = s_ptr->lib_names->num;
 		str_ptr = s_ptr->lib_names->list;
 		while (0 < i--)
@@ -851,6 +878,40 @@ _cti_newManifest(cti_session_id_t sid)
 			// increment str_ptr
 			++str_ptr;
 		}
+		
+		i = s_ptr->libdir_names->num;
+		str_ptr = s_ptr->libdir_names->list;
+		while (0 < i--)
+		{
+			// ensure str_ptr is not null
+			if (str_ptr == NULL)
+			{
+				_cti_set_error("_cti_newManifest() failed.");
+				_cti_consumeManifest(this);
+				return NULL;
+			}
+			
+			if ((f_ptr = _cti_newFileEntry()) == NULL)
+			{
+				// error already set
+				_cti_consumeManifest(this);
+				return NULL;
+			}
+			
+			f_ptr->name = strdup(*str_ptr);
+			f_ptr->present = 1;				// these files were already transfered and checked for validity
+			
+			if (_cti_addFileEntry(&this->libdir_files, f_ptr))
+			{
+				// error already set
+				_cti_consumeManifest(this);
+				return NULL;
+			}
+		
+			// increment str_ptr
+			++str_ptr;
+		}
+		
 		i = s_ptr->file_names->num;
 		str_ptr = s_ptr->file_names->list;
 		while (0 < i--)
@@ -883,6 +944,7 @@ _cti_newManifest(cti_session_id_t sid)
 			// increment str_ptr
 			++str_ptr;
 		}
+		
 	} else
 	{
 		// this is the first instance of the session that will be created upon
@@ -940,6 +1002,24 @@ _cti_addManifestToSession(manifest_t *m_ptr, session_t *s_ptr)
 		{
 			// not in the list, so add it
 			if (_cti_addString(s_ptr->lib_names, f_ptr->this->name))
+			{
+				// failed to save name into the list
+				_cti_set_error("_cti_addString() failed.");
+				return 1;
+			}
+		}
+		// increment f_ptr
+		f_ptr = f_ptr->next;
+	}
+	
+	f_ptr = m_ptr->libdir_files;
+	while (f_ptr != NULL)
+	{
+		// ensure this name is not already in the list
+		if (!_cti_searchStringList(s_ptr->libdir_names, f_ptr->this->name))
+		{
+			// not in the list, so add it
+			if (_cti_addString(s_ptr->libdir_names, f_ptr->this->name))
 			{
 				// failed to save name into the list
 				_cti_set_error("_cti_addString() failed.");
@@ -1276,6 +1356,115 @@ cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr)
 	return 0;
 }
 
+// TODO: This should be able to merge two directories with the same name but different
+// contents. Right now this doesn't happen. The directory can only be added once. This
+// is probably not desired.
+int
+cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr)
+{
+	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
+	struct stat 	statbuf;
+	char *			fullname;	// full path name of the library directory to add to the manifest
+	char *			realname;	// realname (lacking path info) of the library directory
+	int				rtn;		// rtn value
+	fileEntry_t *	f_ptr;		// pointer to file entry
+	
+	// sanity check
+	if (mid <= 0)
+	{
+		_cti_set_error("cti_addManifestLibDir: Invalid cti_manifest_id_t %d.", (int)mid);
+		return 1;
+	}
+	
+	if (fstr == NULL)
+	{
+		_cti_set_error("cti_addManifestLibDir: Invalid args.");
+		return 1;
+	}
+	
+	// Find the manifest entry in the global manifest list for the mid
+	if ((m_ptr = _cti_findManifest(mid)) == NULL)
+	{
+		// We failed to find the manifest for the mid
+		// error string already set
+		return 1;
+	}
+	
+	// Ensure the provided directory exists
+	if (stat(fstr, &statbuf)) 
+	{
+		/* can't access file */
+		_cti_set_error("cti_addManifestLibDir: Provided path %s does not exist.", fstr);
+		return 1;
+	}
+
+	// ensure the file is a directory
+	if (!S_ISDIR(statbuf.st_mode))
+	{
+		/* file is not a directory */
+		_cti_set_error("cti_addManifestLibDir: Provided path %s is not a directory.", fstr);
+		return 1;
+	}
+	
+	// convert the path to its real fullname (i.e. resolve symlinks and get rid of special chars)
+	if ((fullname = realpath(fstr, NULL)) == NULL)
+	{
+		_cti_set_error("cti_addManifestLibDir: realpath failed.");
+		return 1;
+	}
+
+	// next just grab the real name (without path information) of the library directory
+	if ((realname = _cti_pathToName(fullname)) == NULL)
+	{
+		_cti_set_error("cti_addManifestLibDir: Could not convert the fullname to realname.");
+		free(fullname);
+		return 1;
+	}
+	
+	// search the libdir_files list for a duplicate directory name
+	rtn = _cti_searchFileName(m_ptr->libdir_files, realname);
+	if (rtn == -1)
+	{
+		// error occured
+		free(fullname);
+		free(realname);
+		return 1;
+	} else if (rtn == 0)
+	{
+		// not found in list, so this is a unique file name
+
+		// add realname to the names list
+		if ((f_ptr = _cti_newFileEntry()) == NULL)
+		{
+			// error already set
+			free(fullname);
+			free(realname);
+			return 1;
+		}
+			
+		f_ptr->name = realname;	// this will get free'ed later on
+		f_ptr->loc  = fullname;	// this will get free'ed later on
+		
+		if (_cti_addFileEntry(&m_ptr->libdir_files, f_ptr))
+		{
+			// error already set
+			_cti_consumeFileEntry(f_ptr);
+			return 1;
+		}
+		
+		// set hasFiles to true
+		m_ptr->hasFiles = 1;
+	} else
+	{
+		// filename has already been added - enforce uniqueness requirements and silently fail
+		// cleanup memory
+		free(fullname);
+		free(realname);
+	}
+	
+	return 0;
+}
+
 int
 cti_addManifestFile(cti_manifest_id_t mid, const char *fstr)
 {
@@ -1366,51 +1555,6 @@ cti_addManifestFile(cti_manifest_id_t mid, const char *fstr)
 }
 
 static int
-_cti_removeFilesFromDir(char *path)
-{
-	struct dirent *	d;
-	DIR *			dir;
-	char *			name_path = NULL;
-	
-	if ((dir = opendir(path)) == NULL)
-	{
-		_cti_set_error("opendir: %s", strerror(errno));
-		return 1;
-	}
-	
-	do {
-		// reset errno
-		errno = 0;
-		
-		// get the next dirent entry in the directory
-		if ((d = readdir(dir)) != NULL)
-		{
-			// create the full path name
-			if (asprintf(&name_path, "%s/%s", path, d->d_name) <= 0)
-			{
-				_cti_set_error("asprintf failed.");
-				closedir(dir);
-				return 1;
-			}
-			// remove the file
-			remove(name_path);
-			free(name_path);
-		}
-	} while (d != NULL);
-	
-	// check for error
-	if (errno != 0)
-	{
-		_cti_set_error("readdir: %s", strerror(errno));
-		closedir(dir);
-		return 1;
-	}
-	
-	closedir(dir);
-	return 0;
-}
-
-static int
 _cti_copyFileToPackage(char *loc, char *name, char *path)
 {
 	int				nr, nw;
@@ -1438,7 +1582,6 @@ _cti_copyFileToPackage(char *loc, char *name, char *path)
 	{
 		_cti_set_error("_cti_copyFileToPackage: asprintf failed.");
 		fclose(f1);
-		free(name);
 		return 1;
 	}
 	
@@ -1483,6 +1626,309 @@ _cti_copyFileToPackage(char *loc, char *name, char *path)
 		
 	// cleanup
 	free(name_path);
+	
+	return 0;
+}
+
+// This will act as a rm -rf ...
+static int
+_cti_removeDirectory(char *path)
+{
+	DIR *			dir;
+	struct dirent *	d;
+	char *			name_path;
+	struct stat		statbuf;
+
+	// sanity check
+	if (path == NULL)
+	{
+		_cti_set_error("_cti_removeDirectory: invalid args.");
+		return 1;
+	}
+	
+	// open the directory
+	if ((dir = opendir(path)) == NULL)
+	{
+		_cti_set_error("_cti_removeDirectory: Could not opendir %s.", path);
+		return 1;
+	}
+	
+	// Recurse over every file in the directory
+	while ((d = readdir(dir)) != NULL)
+	{
+		// ensure this isn't the . or .. file
+		switch (strlen(d->d_name))
+		{
+			case 1:
+				if (d->d_name[0] == '.')
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+				
+			case 2:
+				if (strcmp(d->d_name, "..") == 0)
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+			
+			default:
+				break;
+		}
+	
+		// create the full path name
+		if (asprintf(&name_path, "%s/%s", path, d->d_name) <= 0)
+		{
+			_cti_set_error("_cti_removeDirectory: asprintf failed.");
+			closedir(dir);
+			return 1;
+		}
+		
+		// stat the file
+		if (stat(name_path, &statbuf) == -1)
+		{
+			_cti_set_error("_cti_removeDirectory: Could not stat %s.", name_path);
+			closedir(dir);
+			free(name_path);
+			return 1;
+		}
+		
+		// if this is a directory we need to recursively call this function
+		if (S_ISDIR(statbuf.st_mode))
+		{
+			if (_cti_removeDirectory(name_path))
+			{
+				// error already set
+				closedir(dir);
+				free(name_path);
+				return 1;
+			}
+		} else
+		{
+			// remove the file
+			if (remove(name_path))
+			{
+				_cti_set_error("_cti_removeDirectory: Could not remove %s.", name_path);
+				closedir(dir);
+				free(name_path);
+				return 1;
+			}
+		}
+		// done with this file
+		free(name_path);
+	}
+	
+	// done with the directory
+	closedir(dir);
+	
+	// remove the directory
+	if (remove(path))
+	{
+		_cti_set_error("_cti_removeDirectory: Could not remove %s.", path);
+		return 1;
+	}
+	
+	return 0;
+}
+
+// TODO: This could be made smarter by handling symlinks...
+static int
+_cti_copyDirectoryToPackage(char *loc, char *name, char *path)
+{
+	DIR *			dir;
+	struct dirent *	d;
+	int				nr, nw;
+	FILE *			f1;
+	FILE *			f2;
+	char *			target_path;
+	char *			name_path;
+	char *			target_name_path;
+	char			buffer[BUFSIZ];
+	struct stat		statbuf;
+
+	// sanity check
+	if (loc == NULL || name == NULL || path == NULL)
+	{
+		_cti_set_error("_cti_copyDirectoryToPackage: invalid args.");
+		return 1;
+	}
+	
+	// stat the reference directory
+	if (stat(loc, &statbuf) == -1)
+	{
+		_cti_set_error("_cti_copyDirectoryToPackage: Could not stat %s.", loc);
+		return 1;
+	}
+	
+	// Open the reference directory
+	if ((dir = opendir(loc)) == NULL)
+	{
+		_cti_set_error("_cti_copyDirectoryToPackage: Could not opendir %s.", loc);
+		return 1;
+	}
+	
+	// create the new target path
+	if (asprintf(&target_path, "%s/%s", path, name) <= 0)
+	{
+		_cti_set_error("_cti_copyDirectoryToPackage: asprintf failed.");
+		closedir(dir);
+		return 1;
+	}
+	
+	// create the new target directory
+	if (mkdir(target_path, statbuf.st_mode))
+	{
+		_cti_set_error("_cti_copyDirectoryToPackage: mkdir failed.");
+		closedir(dir);
+		free(target_path);
+		return 1;
+	}
+	
+	// Recurse through each file in the reference directory
+	while ((d = readdir(dir)) != NULL)
+	{
+		// ensure this isn't the . or .. file
+		switch (strlen(d->d_name))
+		{
+			case 1:
+				if (d->d_name[0] == '.')
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+				
+			case 2:
+				if (strcmp(d->d_name, "..") == 0)
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+			
+			default:
+				break;
+		}
+		
+		// Create the name path to this file
+		if (asprintf(&name_path, "%s/%s", loc, d->d_name) <= 0)
+		{
+			_cti_set_error("_cti_copyDirectoryToPackage: asprintf failed.");
+			closedir(dir);
+			_cti_removeDirectory(target_path);
+			free(target_path);
+			return 1;
+		}
+		
+		// stat this file
+		if (stat(name_path, &statbuf) == -1)
+		{
+			_cti_set_error("_cti_copyDirectoryToPackage: Could not stat %s.", name_path);
+			closedir(dir);
+			_cti_removeDirectory(target_path);
+			free(target_path);
+			free(name_path);
+			return 1;
+		}
+		
+		// If this is a directory, we need to recursively call this function to copy its contents
+		if (S_ISDIR(statbuf.st_mode))
+		{
+			if (_cti_copyDirectoryToPackage(name_path, d->d_name, target_path))
+			{
+				// error already set
+				closedir(dir);
+				_cti_removeDirectory(target_path);
+				free(target_path);
+				free(name_path);
+				return 1;
+			}
+		} else
+		{
+			// Otherwise we try to copy as usual
+			
+			// open the reference file
+			if ((f1 = fopen(name_path, "r")) == NULL)
+			{
+				_cti_set_error("_cti_copyDirectoryToPackage: fopen failed.");
+				closedir(dir);
+				_cti_removeDirectory(target_path);
+				free(target_path);
+				free(name_path);
+				return 1;
+			}
+			
+			// create the new name path
+			if (asprintf(&target_name_path, "%s/%s", target_path, d->d_name) <= 0)
+			{
+				_cti_set_error("_cti_copyDirectoryToPackage: asprintf failed.");
+				closedir(dir);
+				_cti_removeDirectory(target_path);
+				free(target_path);
+				free(name_path);
+				return 1;
+			}
+			
+			// open the target file
+			if ((f2 = fopen(target_name_path, "w")) == NULL)
+			{
+				_cti_set_error("_cti_copyDirectoryToPackage: fopen failed.");
+				closedir(dir);
+				_cti_removeDirectory(target_path);
+				free(target_path);
+				free(name_path);
+				fclose(f1);
+				free(target_name_path);
+				return 1;
+			}
+			
+			// read/write everything from f1/to f2
+			while ((nr = fread(buffer, sizeof(char), BUFSIZ, f1)) > 0)
+			{
+				if ((nw = fwrite(buffer, sizeof(char), nr, f2)) != nr)
+				{
+					_cti_set_error("_cti_copyDirectoryToPackage: fwrite failed.");
+					closedir(dir);
+					fclose(f1);
+					fclose(f2);
+					_cti_removeDirectory(target_path);
+					free(target_path);
+					free(name_path);
+					free(target_name_path);
+					return 1;
+				}
+			}
+			
+			// close the files
+			fclose(f1);
+			fclose(f2);
+			
+			// set the permissions of the new file to that of the old file
+			if (chmod(target_name_path, statbuf.st_mode) != 0)
+			{
+				_cti_set_error("_cti_copyDirectoryToPackage: Could not chmod %s.", name_path);
+				closedir(dir);
+				_cti_removeDirectory(target_path);
+				free(target_path);
+				free(name_path);
+				free(target_name_path);
+				return 1;
+			}
+			
+			// cleanup
+			free(target_name_path);
+		}
+		
+		// cleanup
+		free(name_path);
+	}
+	
+	// done
+	closedir(dir);
+	free(target_path);
 	
 	return 0;
 }
@@ -1690,6 +2136,41 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 			}
 		}
 	}
+	
+	// Check library directories for validity
+	f_ptr = m_ptr->libdir_files;
+	while (f_ptr != NULL)
+	{
+		// Only check file if it needs to be shipped
+		if (!f_ptr->this->present)
+		{
+			if (app_ptr->wlmProto->wlm_verifyLibDir(f_ptr->this->name))
+			{
+				// this file is not valid
+				f_ptr->this->present = 1;
+				free(f_ptr->this->loc);
+				f_ptr->this->loc = NULL;
+			}
+		}
+		f_ptr = f_ptr->next;
+	}
+	
+	// grab any extra library directories if this is the first instance
+	if (m_ptr->inst == 1)
+	{
+		if ((wlm_files = app_ptr->wlmProto->wlm_extraLibDirs()) != NULL)
+		{
+			while (*wlm_files != NULL)
+			{
+				if (cti_addManifestLibDir(m_ptr->mid, *wlm_files))
+				{
+					// Failed to add the binary to the manifest - catastrophic failure
+					goto packageManifestAndShip_error;
+				}
+				++wlm_files;
+			}
+		}
+	}
 			
 	// Check files for validity
 	f_ptr = m_ptr->file_files;
@@ -1750,6 +2231,22 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		if (!f_ptr->this->present)
 		{
 			if (_cti_copyFileToPackage(f_ptr->this->loc, f_ptr->this->name, lib_path))
+			{
+				// error string already set
+				goto packageManifestAndShip_error;
+			}
+		}
+		f_ptr = f_ptr->next;
+	}
+	
+	// copy all of the library directories
+	f_ptr = m_ptr->libdir_files;
+	while (f_ptr != NULL)
+	{
+		// Only ship if the file is not already present
+		if (!f_ptr->this->present)
+		{
+			if (_cti_copyDirectoryToPackage(f_ptr->this->loc, f_ptr->this->name, lib_path))
 			{
 				// error string already set
 				goto packageManifestAndShip_error;
@@ -1906,31 +2403,15 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	}
 	
 	// clean things up
-	if (_cti_removeFilesFromDir(bin_path))
-	{
-		// Normally we don't want to print to stderr, but in this case we should at least try
-		// to do something since we don't return with a warning status.
-		fprintf(stderr, "Failed to remove files from %s, please remove manually.\n", bin_path);
-	}
-	remove(bin_path);
 	free(bin_path);
-	if (_cti_removeFilesFromDir(lib_path))
-	{
-		// Normally we don't want to print to stderr, but in this case we should at least try
-		// to do something since we don't return with a warning status.
-		fprintf(stderr, "Failed to remove files from %s, please remove manually.\n", lib_path);
-	}
-	remove(lib_path);
 	free(lib_path);
-	if (_cti_removeFilesFromDir(stage_path))
+	free(tmp_path);
+	if (_cti_removeDirectory(stage_path))
 	{
 		// Normally we don't want to print to stderr, but in this case we should at least try
 		// to do something since we don't return with a warning status.
 		fprintf(stderr, "Failed to remove files from %s, please remove manually.\n", stage_path);
 	}
-	remove(tmp_path);
-	free(tmp_path);
-	remove(stage_path);
 	free(stage_path);
 	remove(tar_name);
 	free(tar_name);
@@ -1953,44 +2434,28 @@ packageManifestAndShip_error:
 		archive_write_close(a);
 		archive_write_free(a);
 	}
-
-	// Try to remove any files already copied
+	
 	if (bin_path != NULL)
 	{
-		if (_cti_removeFilesFromDir(bin_path))
-		{
-			// Normally we don't want to print to stderr, but in this case we should at least try
-			// to do something since we don't return with a warning status.
-			fprintf(stderr, "Failed to remove files from %s, please remove manually.\n", bin_path);
-		}
-		remove(bin_path);
 		free(bin_path);
 	}
 	if (lib_path != NULL)
 	{
-		if (_cti_removeFilesFromDir(lib_path))
-		{
-			// Normally we don't want to print to stderr, but in this case we should at least try
-			// to do something since we don't return with a warning status.
-			fprintf(stderr, "Failed to remove files from %s, please remove manually.\n", lib_path);
-		}
-		remove(lib_path);
 		free(lib_path);
 	}
 	if (tmp_path != NULL)
 	{
-		remove(tmp_path);
 		free(tmp_path);
 	}
+	// Try to remove any files already copied
 	if (stage_path != NULL)
 	{
-		if (_cti_removeFilesFromDir(stage_path))
+		if (_cti_removeDirectory(stage_path))
 		{
 			// Normally we don't want to print to stderr, but in this case we should at least try
 			// to do something since we don't return with a warning status.
 			fprintf(stderr, "Failed to remove files from %s, please remove manually.\n", stage_path);
 		}
-		remove(stage_path);
 		free(stage_path);
 	}
 	if (tar_name != NULL)

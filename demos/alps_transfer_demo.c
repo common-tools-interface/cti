@@ -77,6 +77,18 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
+	// Add the library directory to the manifest
+	/*
+	if (cti_addManifestLibDir(mymid, "/lib/xcrypt/"))
+	{
+		fprintf(stderr, "Error: cti_addManifestLibDir failed!\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_destroyManifest(mymid);
+		cti_killApp(myapp, 9);
+		return 1;
+	}
+	*/
+	
 	// Send the manifest to the compute node
 	if ((mysid = cti_sendManifest(myapp, mymid, 0)) == 0)
 	{

@@ -713,6 +713,32 @@ extern int	cti_addManifestBinary(cti_manifest_id_t mid, char *fstr);
 extern int	cti_addManifestLibrary(cti_manifest_id_t mid, char *fstr);
 
 /*
+ * cti_addManifestLibDir - Add a library directory to an existing manifest.
+ * 
+ * Detail
+ *      This function is used to add a shared library directory to an existing 
+ *      manifest based on the cti_manifest_id_t argument. The entire contents of
+ *      the provided directory will recursively added. The library directory 
+ *      will only be added to the manifest if it has a unique name to avoid 
+ *      redundant shipping. This is somewhat unexpected for directories as the
+ *      contents should be merged. This is useful if a tool daemon needs to 
+ *      dlopen a shared library at some point during its lifetime and a large
+ *      number of files needs to be sent. The library directory will NOT be
+ *      added to the LD_LIBRARY_PATH of the tool daemon. It is up to the tool
+ *      daemon writer to set as needed.
+ *
+ * Arguments
+ *      mid -     The cti_manifest_id_t of the existing manifest.
+ *      fstr -    The name of the shared library directory to add to the 
+ *                manifest. This must be a fullpath name of the directory.
+ *
+ * Returns
+ *      0 on success, or else 1 on failure.
+ * 
+ */
+extern int	cti_addManifestLibDir(cti_manifest_id_t mid, char *fstr);
+
+/*
  * cti_addManifestFile - Add a regular file to an existing manifest.
  * 
  * Detail
