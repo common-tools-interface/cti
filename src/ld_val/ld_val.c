@@ -236,12 +236,6 @@ _cti_ld_load(char *linker, char *executable, char *lib)
 	// close write end of the pipe
 	close(_cti_fds[1]);
 	
-	// change the read end to be non-blocking
-	if (fcntl(_cti_fds[0], F_SETFL, O_NONBLOCK) < 0)
-	{
-		perror("fcntl");
-	}
-	
 	// return the child pid
 	return pid;
 }
@@ -270,27 +264,15 @@ _cti_ld_get_lib()
 		return NULL;
 	}
 	
-	// Now read in the length of the path string - note that since we are non-blocking
-	// we should allow a little leway in the timings since we read a valid start sequence
+	// Now read in the length of the path string
 	pos = 0;
 	do {
 		ret = read(_cti_fds[0], &path_len_buf[pos], 1);
 		if (ret < 0)
 		{
-			// We should check errno for why it failed.
-			switch (errno)
-			{
-				case EAGAIN:
-					// sleep for awhile and the try again, we don't want to return
-					// since we are in a valid sequence
-					usleep(5000);
-					continue;
-					
-				default:
-					// Some other error occured, big problems detected
-					perror("read");
-					return NULL;
-			}
+			// error occured
+			perror("read");
+			return NULL;
 		} else if (ret == 0)
 		{
 			// Something went very wrong here, we got an eof in the middle of 
@@ -332,24 +314,13 @@ _cti_ld_get_lib()
 	pos = 0;
 	do {
 		// read the library path string
-		ret = read(_cti_fds[0], libstr+pos, path_len);
+		ret = read(_cti_fds[0], libstr+pos, path_len-pos);
 		if (ret < 0)
 		{
-			// We should check errno for why it failed.
-			switch (errno)
-			{
-				case EAGAIN:
-					// sleep for awhile and the try again, we don't want to return
-					// since we are in a valid sequence
-					usleep(5000);
-					continue;
-					
-				default:
-					// Some other error occured, big problems detected
-					perror("read");
-					free(libstr);
-					return NULL;
-			}
+			// error occured
+			perror("read");
+			free(libstr);
+			return NULL;
 		} else if (ret == 0)
 		{
 			// Something went very wrong here, we got an eof in the middle of 
