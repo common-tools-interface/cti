@@ -5,7 +5,7 @@
  *	    static portion of the code to link into a program wishing to use
  *	    this interface.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -34,21 +34,13 @@
 #include <unistd.h>
 
 #include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/prctl.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
 
 #include "ld_val_defs.h"
 #include "ld_val.h"
 
 /* Internal prototypes */
-static void		_cti_overwatch_handler(int);
-static int		_cti_creat_shm_segs(void);
-static int		_cti_attach_shm_segs(void);
-static int		_cti_destroy_shm_segs(void);
 static int		_cti_save_str(char *);
 static char **	_cti_make_rtn_array(void);
 static char *	_cti_ld_get_lib(void);
@@ -71,236 +63,10 @@ static const char *_cti_linkers[] = {
 };
 
 /* global variables */
-static char *	_cti_key_file = NULL;
-static key_t	_cti_key_a;
-static key_t	_cti_key_b;
-static pid_t	_cti_overwatch_pid;
-static int		_cti_shmid;
-static char *	_cti_shm = NULL;
-static int		_cti_sem_ctrlid;
 static int		_cti_num_ptrs;
 static int		_cti_num_alloc;
 static char **	_cti_tmp_array = NULL;
-
-static void
-_cti_overwatch_handler(int sig)
-{
-	// remove the shared memory segment	
-	if (shmctl(_cti_shmid, IPC_RMID, NULL) < 0)
-	{
-		perror("IPC error: shmctl");
-	}
-	
-	// remove the semaphore
-	if (semctl(_cti_sem_ctrlid, 0, IPC_RMID) < 0)
-	{
-		perror("IPC error: semctl");
-	}
-	
-	// exit
-	exit(0);
-}
-
-static int
-_cti_creat_shm_segs()
-{
-	/*
-	*  Create the shm segments - Note that these will behave as a semaphore in the
-	*  event that multiple programs are trying to access this interface at once.
-	*
-	*  This function is now able to avoid a deadlock if the caller causes an
-	*  error or is interrupted by a signal. This is achieved by using an
-	*  "overwatch" process which does the actual creation of the shm segment
-	*  id. The overwatch process is forked off and will destroy the id if it
-	*  detects that it has become orphaned or if the parent sends it a SIGUSR1.
-	*
-	*  Note this is still prone to a denial of service if the caller never goes
-	*  away. Perhaps a watchdog timer in the overwatch could fix this issue.
-	*
-	*/
-	
-	// pipe to signal that the shm segment was created
-	int 	fds[2];
-	// this is never used, but good form I guess.
-	char	tmp[1];
-	// used for calls to semctl
-	union semun {
-			int					val;
-			struct semid_ds *	buf;
-			unsigned short *	array;
-			struct seminfo *	__buf;
-	} sem_arg;
-	
-	// start out by creating the keys from a well known file location and a character id
-	if ((_cti_key_a = ftok(_cti_key_file, ID_A)) == (key_t)-1)
-	{
-		perror("IPC error: ftok");
-		return 1;
-	}
-	if ((_cti_key_b = ftok(_cti_key_file, ID_B)) == (key_t)-1)
-	{
-		perror("IPC error: ftok");
-		return 1;
-	}
-
-	// create the pipe
-	if (pipe(fds) < 0)
-	{
-		perror("pipe");
-		return 1;
-	}
-
-	// fork off the overwatch process
-	_cti_overwatch_pid = fork();
-	
-	// error case
-	if (_cti_overwatch_pid < 0)
-	{
-		perror("fork");
-		return 1;
-	}
-	
-	// child case
-	if (_cti_overwatch_pid == 0)
-	{
-		struct sigaction new_handler;
-		sigset_t mask;
-	
-		// close the read end of the pipe
-		close(fds[0]);
-		
-		// setup the signal handler so this child can exit
-		memset(&new_handler, 0, sizeof(new_handler));
-		sigemptyset(&new_handler.sa_mask);
-		new_handler.sa_flags = 0;
-		new_handler.sa_handler = _cti_overwatch_handler;
-		sigaction(SIGUSR1, &new_handler, NULL);
-		
-		// set the parent death signal to send us SIGUSR1
-		if (prctl(PR_SET_PDEATHSIG, SIGUSR1) < 0)
-		{
-			perror("prctl");
-			// close my end of the pipe to let the parent figure out we failed
-			close(fds[1]);
-			exit(1);
-		}
-		
-		// create the shared memory segments
-		while ((_cti_shmid = shmget(_cti_key_a, PATH_MAX, IPC_CREAT | IPC_EXCL | SHM_R | SHM_W)) < 0) 
-		{
-			if (errno == EEXIST)
-				continue;
-		
-			perror("IPC error: shmget");
-			// close my end of the pipe to let the parent figure out we failed
-			close(fds[1]);
-			exit(1);
-		}
-	
-		// create the semaphore
-		while ((_cti_sem_ctrlid = semget(_cti_key_b, 2, IPC_CREAT | IPC_EXCL | 0600)) < 0)
-		{
-			if (errno == EEXIST)
-				continue;
-			
-			perror("IPC error: semget");
-			// delete the segment we just created since this one failed
-			if (shmctl(_cti_shmid, IPC_RMID, NULL) < 0)
-			{
-				perror("IPC error: shmctl");
-			}
-			// close my end of the pipe to let the parent figure out we failed
-			close(fds[1]);
-			exit(1);
-		}
-		
-		// init the semaphore values to 0
-		sem_arg.val = 0;
-		semctl(_cti_sem_ctrlid, LDVAL_SEM, SETVAL, sem_arg);
-		semctl(_cti_sem_ctrlid, AUDIT_SEM, SETVAL, sem_arg);
-		
-		// init the signal mask to empty
-		sigemptyset(&mask);
-		
-		// I am done. Close my end of the pipe so the parent knows I am finished.
-		close(fds[1]);
-		
-		// wait for a signal to arrive
-		sigsuspend(&mask);
-		
-		// never reached
-		exit(0);
-	}
-	
-	// parent case
-	// close write end of pipe
-	close(fds[1]);
-	
-	// block in a read until we get an EOF, this signals the child is finished
-	// doing its work
-	if (read(fds[0], tmp, 1) < 0)
-	{
-		perror("read");
-	}
-	
-	// close the read end of the pipe
-	close(fds[0]);
-	
-	// get the id of the memory segment
-	if ((_cti_shmid = shmget(_cti_key_a, PATH_MAX, SHM_R | SHM_W)) < 0) 
-	{
-		perror("IPC error: shmget");
-		return 1;
-	}
-	
-	// get the id of the semaphore
-	if ((_cti_sem_ctrlid = semget(_cti_key_b, 0, 0)) < 0)
-	{
-		perror("IPC error: semget");
-		return 1;
-	}
-	
-	return 0;
-}
-
-static int
-_cti_attach_shm_segs()
-{
-	/*
-	*  Attach the shm segment to our data space.
-	*/
-	if ((_cti_shm = shmat(_cti_shmid, NULL, 0)) == (char *)-1) 
-	{
-		perror("IPC error: shmat");
-		return 1;
-	}
-	
-	return 0;
-}
-
-static int
-_cti_destroy_shm_segs()
-{
-	int ret = 0;
-	
-	if (shmdt(_cti_shm) == -1)
-	{
-		perror("IPC error: shmdt");
-		ret = 1;
-	}
-	
-	// send the overwatch child a kill of SIGUSR1
-	if (kill(_cti_overwatch_pid, SIGUSR1) < 0)
-	{
-		perror("kill");
-		ret = 1;
-	}
-	
-	// wait for child to return
-	waitpid(_cti_overwatch_pid, NULL, 0);
-	
-	return ret;
-}
+static int		_cti_fds[2];
 
 static int
 _cti_save_str(char *str)
@@ -350,6 +116,11 @@ _cti_make_rtn_array()
 	
 	// free the temp array
 	free(_cti_tmp_array);
+	
+	// reset global variables
+	_cti_tmp_array = NULL;
+	_cti_num_alloc = 0;
+	_cti_num_ptrs = 0;
 	
 	return rtn;
 }
@@ -412,6 +183,13 @@ _cti_ld_load(char *linker, char *executable, char *lib)
 	if (linker == NULL || executable == NULL)
 		return -1;
 	
+	// create the pipe
+	if (pipe(_cti_fds) < 0)
+	{
+		perror("pipe");
+		return -1;
+	}
+	
 	// invoke the rtld interface.
 	pid = fork();
 	
@@ -425,111 +203,166 @@ _cti_ld_load(char *linker, char *executable, char *lib)
 	// child case
 	if (pid == 0)
 	{
+		// close the read end of the pipe
+		close(_cti_fds[0]);
+		
+		// dup2 stderr - Note that we want to use stderr since stdout will be
+		// cluttered with other junk
+		if (dup2(_cti_fds[1], STDERR_FILENO) < 0)
+		{
+			fprintf(stderr, "CTI error: Unable to redirect LD_AUDIT stderr.\n");
+			exit(1);
+		}
+		
+		// redirect stdout to /dev/null - we don't really care if this fails.
+		fc = open("/dev/null", O_WRONLY);
+		dup2(fc, STDOUT_FILENO);
+	
 		// set the LD_AUDIT environment variable for this process
 		if (setenv(LD_AUDIT, lib, 1) < 0)
 		{
 			perror("setenv");
-			fprintf(stderr, "Failed to set LD_AUDIT environment variable.\n");
+			fprintf(stderr, "CTI error: Failed to set LD_AUDIT environment variable.\n");
 			exit(1);
 		}
-		
-		// redirect our stdout/stderr to /dev/null
-		fc = open("/dev/null", O_WRONLY);
-		dup2(fc, STDERR_FILENO);
-		dup2(fc, STDOUT_FILENO);
 		
 		// exec the linker with --list to get a list of our dso's
 		execl(linker, linker, "--list", executable, NULL);
 		perror("execl");
+		exit(1);
 	}
 	
 	// parent case
+	// close write end of the pipe
+	close(_cti_fds[1]);
+	
+	// change the read end to be non-blocking
+	if (fcntl(_cti_fds[0], F_SETFL, O_NONBLOCK) < 0)
+	{
+		perror("fcntl");
+	}
+	
+	// return the child pid
 	return pid;
 }
 
 static char *
 _cti_ld_get_lib()
 {
-	char *				libstr;
-	struct sembuf		sops[1];
-	struct timespec		timeout;
+	char 	seq;
+	char 	path_len_buf[BUFSIZ] = {0};
+	int		path_len = 0;
+	int		pos;
+	int		ret;
+	char *	libstr;
 	
-	// setup the semop command
-	// give one resource on our sema
-	sops[0].sem_num = LDVAL_SEM;	// operate on our sema
-	sops[0].sem_op = 1;				// give 1 resource
-	sops[0].sem_flg = SEM_UNDO;
-	
-	// execute the semop cmd
-	if (semop(_cti_sem_ctrlid, sops, 1) == -1)
+	// Read the first character - we expect this to be LIBAUDIT_SEP_CHAR
+	if (read(_cti_fds[0], &seq, 1) <= 0)
 	{
-		perror("semop");
+		// read failed, return NULL
+		return NULL;
+	}
+
+	// Ensure this is the LIBAUDIT_SEP_CHAR
+	if (seq != LIBAUDIT_SEP_CHAR)
+	{
+		fprintf(stderr, "CTI error: Invalid sequence start detected in _cti_ld_get_lib.\n");
 		return NULL;
 	}
 	
-	// grab one resource from the audit sema
-	sops[0].sem_num = AUDIT_SEM;	// operate on audit sema
-	sops[0].sem_op = -1;			// grab 1 resource
-	sops[0].sem_flg = SEM_UNDO;
-	
-	// This operation is allowed to timeout in the event the AUDIT process goes
-	// away
-	
-	// setup the timeout to sleep for 1 microsecond
-	timeout.tv_sec = 0;
-	timeout.tv_nsec = 1000000;
-	
-	// execute the semtimedop cmd
-	if (semtimedop(_cti_sem_ctrlid, sops, 1, &timeout) == -1)
-	{
-		// audit process is likely dead, remove the resource on our sema
-		sops[0].sem_num = LDVAL_SEM;	// operate on our sema
-		sops[0].sem_op = -1;			// grab 1 resource
-		sops[0].sem_flg = SEM_UNDO | IPC_NOWAIT;
-		
-		// execute the semop cmd
-		if (semop(_cti_sem_ctrlid, sops, 1) == -1)
+	// Now read in the length of the path string - note that since we are non-blocking
+	// we should allow a little leway in the timings since we read a valid start sequence
+	pos = 0;
+	do {
+		ret = read(_cti_fds[0], &path_len_buf[pos], 1);
+		if (ret < 0)
 		{
-			// Here we have an interesting situation. We tried to remove the resource
-			// from our sema, but failed to do so. Which means the audit process must
-			// have grabbed it. I suppose this might be possible if our first timedop
-			// fails and the clock cycle after that the audit process grabs our resource.
-			//
-			// Try to grab the resource once more, this time with a longer timeout.
-			// This is for good measure, because in this situation something went
-			// horibly wrong.
-			
-			// grab one resource from the audit sema
-			sops[0].sem_num = AUDIT_SEM;	// operate on audit sema
-			sops[0].sem_op = -1;			// grab 1 resource
-			sops[0].sem_flg = SEM_UNDO;
-			
-			// setup the timeout to sleep for 1 second
-			timeout.tv_sec = 1;
-			timeout.tv_nsec = 0;
-			
-			// execute the semtimedop cmd
-			if (semtimedop(_cti_sem_ctrlid, sops, 1, &timeout) == -1)
+			// We should check errno for why it failed.
+			switch (errno)
 			{
-				fprintf(stderr, "Encountered deadlock scenario.\n");
-				perror("semop");
+				case EAGAIN:
+					// sleep for awhile and the try again, we don't want to return
+					// since we are in a valid sequence
+					usleep(5000);
+					continue;
+					
+				default:
+					// Some other error occured, big problems detected
+					perror("read");
+					return NULL;
+			}
+		} else if (ret == 0)
+		{
+			// Something went very wrong here, we got an eof in the middle of 
+			// a valid sequence
+			fprintf(stderr, "CTI error: EOF detected in valid sequence in _cti_ld_get_lib.\n");
+			return NULL;
+		}
+		
+		// check to see if we read the LIBAUDIT_SEP_CHAR
+		if (path_len_buf[pos] == LIBAUDIT_SEP_CHAR)
+		{
+			// we finished reading the length, ensure that pos is not zero
+			// otherwise we literally just read %% and have no length.
+			if (pos == 0)
+			{
+				fprintf(stderr, "CTI error: Missing path len value in _cti_ld_get_lib.\n");
 				return NULL;
 			}
 			
-			// We grabbed the audit resource, so continue on as normal
+			// set the char to null term - we have a valid length and are finished
+			path_len_buf[pos] = '\0';
+			path_len = atoi(path_len_buf);
 		} else
 		{
-			// safe to return, the resource on our sema has been removed.
+			// increment pos
+			++pos;
+		}
+	} while (path_len == 0);
+	
+	// Now we know how long the string will be, so lets allocate a buffer and
+	// read the rest
+	if ((libstr = malloc(path_len+1)) == (void *)0)
+	{
+		perror("malloc");
+		return NULL;
+	}
+	memset(libstr, 0, path_len+1);
+	
+	pos = 0;
+	do {
+		// read the library path string
+		ret = read(_cti_fds[0], libstr+pos, path_len);
+		if (ret < 0)
+		{
+			// We should check errno for why it failed.
+			switch (errno)
+			{
+				case EAGAIN:
+					// sleep for awhile and the try again, we don't want to return
+					// since we are in a valid sequence
+					usleep(5000);
+					continue;
+					
+				default:
+					// Some other error occured, big problems detected
+					perror("read");
+					free(libstr);
+					return NULL;
+			}
+		} else if (ret == 0)
+		{
+			// Something went very wrong here, we got an eof in the middle of 
+			// a valid sequence
+			fprintf(stderr, "CTI error: EOF detected in valid sequence in _cti_ld_get_lib.\n");
+			free(libstr);
 			return NULL;
 		}
-	}
-
-	// copy the library location string
-	libstr = strdup(_cti_shm);
-	
-	// reset the _cti_shm segment
-	memset(_cti_shm, '\0', PATH_MAX);
 		
+		// update pos
+		pos += ret;
+	} while (pos != path_len);
+	
 	// return the string
 	return libstr;
 }
@@ -541,85 +374,37 @@ _cti_ld_val(char *executable)
 	int				pid;
 	int				rec = 0;
 	char *			tmp_audit;
-	char *			tmp_keyfile;
-	struct stat		stat_buf;
-	FILE *			tmp_file;
 	char *			audit_location;
 	char *			libstr;
 	char **			rtn;
+	int				n;
 	
-	// reset global vars
-	_cti_key_a = 0;
-	_cti_key_b = 0;
-	_cti_shmid = 0;
-	_cti_sem_ctrlid = 0;
-	_cti_shm = NULL;
-	_cti_num_ptrs = 0;
-	
+	// sanity
 	if (executable == NULL)
 		return NULL;
-		
-	// get the location of the keyfile or else set it to the default value
-	if ((tmp_keyfile = getenv(LIBAUDIT_KEYFILE_ENV_VAR)) != NULL)
+	
+	// reset global vars
+	_cti_num_ptrs = 0;
+	_cti_num_alloc = BLOCK_SIZE;
+	
+	// Ensure _cti_tmp_array is null
+	if (_cti_tmp_array != NULL)
 	{
-		_cti_key_file = strdup(tmp_keyfile);
-		// stat the user defined _cti_key_file to make sure it exists
-		if (stat(_cti_key_file, &stat_buf) < 0)
-		{
-			// _cti_key_file doesn't exist so try to do an fopen on it. This will
-			// will ensure all our future calls to ftok will work.
-			if ((tmp_file = fopen(_cti_key_file, "w")) == (FILE *)NULL)
-			{
-				fprintf(stderr, "FATAL: The keyfile environment variable %s file doesn't exist and\n", LIBAUDIT_KEYFILE_ENV_VAR);
-				fprintf(stderr, "       its value is not a writable location.\n");
-				return NULL;
-			}
-		}
-	} else
+		free(_cti_tmp_array);
+	}
+	// create space for the _cti_tmp_array
+	if ((_cti_tmp_array = calloc(BLOCK_SIZE, sizeof(char *))) == (void *)0)
 	{
-		_cti_key_file = strdup(DEFAULT_KEYFILE);
-		// make sure our default choice works, otherwise things will break.
-		if (stat(_cti_key_file, &stat_buf) < 0)
-		{
-			fprintf(stderr, "FATAL: The keyfile environment variable %s file isn't set and\n", LIBAUDIT_KEYFILE_ENV_VAR);
-			fprintf(stderr, "       the default keyfile doesn't exist.\n");
-			return NULL;
-		}
+		perror("calloc");
+		return NULL;
 	}
 	
 	// ensure that we found a valid linker that was verified
 	if ((linker = _cti_ld_verify(executable)) == NULL)
 	{
-		fprintf(stderr, "FATAL: Failed to locate a working dynamic linker for the specified binary.\n");
+		fprintf(stderr, "CTI error: Failed to locate a working dynamic linker for the specified binary.\n");
 		return NULL;
 	}
-	
-	// We now have a valid linker to use, so lets set up our shm segments
-	
-	// Create our shm segments
-	// This will spin if another caller is using this interface
-	if (_cti_creat_shm_segs())
-	{
-		fprintf(stderr, "Failed to create shm segment.\n");
-		return NULL;
-	}
-
-	// Attach the segment to our data space.
-	if (_cti_attach_shm_segs())
-	{
-		fprintf(stderr, "Failed to attach shm segment.\n");
-		_cti_destroy_shm_segs();
-		return NULL;
-	}
-	
-	// create space for the _cti_tmp_array
-	if ((_cti_tmp_array = calloc(BLOCK_SIZE, sizeof(char *))) == (void *)0)
-	{
-		perror("calloc");
-		_cti_destroy_shm_segs();
-		return NULL;
-	}
-	_cti_num_alloc = BLOCK_SIZE;
 	
 	// get the location of the audit library
 	if ((tmp_audit = getenv(LIBAUDIT_ENV_VAR)) != NULL)
@@ -627,22 +412,27 @@ _cti_ld_val(char *executable)
 		audit_location = strdup(tmp_audit);
 	} else
 	{
-		fprintf(stderr, "Could not read CRAY_LD_VAL_LIBRARY to get location of libaudit.so.\n");
-		_cti_destroy_shm_segs();
+		fprintf(stderr, "CTI error: Could not read CRAY_LD_VAL_LIBRARY to get location of libaudit.so.\n");
 		return NULL;
 	}
 	
 	// Now we load our program using the list command to get its dso's
 	if ((pid = _cti_ld_load(linker, executable, audit_location)) <= 0)
 	{
-		fprintf(stderr, "Failed to load the program using the linker.\n");
-		_cti_destroy_shm_segs();
+		fprintf(stderr, "CTI error: Failed to load the program using the linker.\n");
 		return NULL;
 	}
 	
-	// Read from the shm segment while the child process is still alive
+	// Try to read libraries while the child process is still alive
 	do {
+	
+cti_data_avail:
+
 		libstr = _cti_ld_get_lib();
+		
+		// if we recieved a null, we might be done.
+		if (libstr == NULL)
+			continue;
 		
 		// we want to ignore the first library we recieve
 		// as it will always be the ld.so we are using to
@@ -653,27 +443,33 @@ _cti_ld_val(char *executable)
 				free(libstr);
 			continue;
 		}
-		
-		// if we recieved a null, we might be done.
-		if (libstr == NULL)
-			continue;
 			
 		if ((_cti_save_str(libstr)) <= 0)
 		{
-			fprintf(stderr, "Unable to save temp string.\n");
-			_cti_destroy_shm_segs();
+			fprintf(stderr, "CTI error: Unable to save temp string.\n");
 			return NULL;
 		}
 	} while (!waitpid(pid, NULL, WNOHANG));
 	
-	rtn = _cti_make_rtn_array();
+	// Final check to see if there is still data available for reading, if so
+	// jump back up to the loop. Note that with pipes, even though the child
+	// process is gone, we might still have data available to read. We want to
+	// continue reading until we get an EOF on the pipe.
+	if (ioctl(_cti_fds[0], FIONREAD, &n) < 0)
+	{
+		perror("ioctl");
+	}
+	if (n >= 1)
+	{
+		goto cti_data_avail;
+	}
 	
-	// destroy the shm segments
-	_cti_destroy_shm_segs();
+	rtn = _cti_make_rtn_array();
 	
 	// cleanup memory
 	free(audit_location);
-	free(_cti_key_file);
+	// close read end of the pipe
+	close(_cti_fds[0]);
 
 	return rtn;
 }

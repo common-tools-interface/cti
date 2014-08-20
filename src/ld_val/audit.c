@@ -1,9 +1,8 @@
 /*********************************************************************************\
  * audit.c - A custom rtld audit interface to deliver locations of loaded dso's
- *	   over a shared memory segment. This is the dynamic portion of the
- *	   code which is used by the static library interface.
+ *	         over stdout.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -28,115 +27,38 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
-
 #include "ld_val_defs.h"
-
-static int		_cti_sem_ctrlid	= 0;
-static int		_cti_shmid		= 0;
-static char *	_cti_shm		= NULL;
 
 // This is always the first thing called
 unsigned int
 la_version(unsigned int version)
 {
-	char *	key_file = NULL;
-	key_t	key_a = 0;
-	key_t	key_b = 0;
-	
-	// get the location of the keyfile or else set it to the default value
-	if ((key_file = getenv(LIBAUDIT_KEYFILE_ENV_VAR)) == (char *)NULL)
-	{
-		key_file = DEFAULT_KEYFILE;
-	}
-	
-	// Lets attach to our shm segments
-	if (_cti_shm == NULL)
-	{
-		// create the shm key
-		if ((key_a = ftok(key_file, ID_A)) == (key_t)-1)
-		{
-			return version;
-		}
-		
-		// locate the segment
-		if ((_cti_shmid = shmget(key_a, PATH_MAX, SHM_R | SHM_W)) < 0) 
-		{
-			_cti_shmid = 0;
-			return version;
-		}
-		
-		// now attach the segment to our data space
-		if ((_cti_shm = shmat(_cti_shmid, NULL, 0)) == (char *) -1) 
-		{
-			_cti_shm = NULL;
-			return version;
-		}
-	}
-
-	if (_cti_sem_ctrlid == 0)
-	{
-		// create the shm key
-		if ((key_b = ftok(key_file, ID_B)) == (key_t)-1)
-		{
-			return version;
-		}
-		
-		// get the id of the semaphore
-		if ((_cti_sem_ctrlid = semget(key_b, 0, 0)) < 0)
-		{
-			_cti_sem_ctrlid = 0;
-			return version;
-		}
-	}
-
+	// Return here, we don't need to do anything special.
 	return version;
 }
 
+// This is called every time a shared library is loaded
 unsigned int
 la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 {
 	char *s, *c;
-	struct sembuf	sops[1];
 
-	// return if opening of the shm segments failed
-	if ((_cti_shmid == 0) || (_cti_sem_ctrlid == 0))
-		return LA_FLG_BINDTO | LA_FLG_BINDFROM;
-
+	// Ensure the library name has a length, otherwise return
 	if (strlen(map->l_name) != 0)
 	{
-		// wait for a resource from ld_val
-		sops[0].sem_num = LDVAL_SEM;	// operate on ld_val sema
-		sops[0].sem_op = -1;			// grab 1 resource
-		sops[0].sem_flg = SEM_UNDO;
-		
-		if (semop(_cti_sem_ctrlid, sops, 1) == -1)
-		{
-			return LA_FLG_BINDTO | LA_FLG_BINDFROM;
-		}
-		
-		// write this string to the shm segment
-		s = _cti_shm;
-		for (c = map->l_name; *c != '\0'; c++)
-		{
-			*s++ = *c;
-		}
-		*s = '\0';
-	
-		// give 1 resource on our sema
-		sops[0].sem_num = AUDIT_SEM;	// operate on our sema
-		sops[0].sem_op = 1;				// give 1 resource
-		sops[0].sem_flg = SEM_UNDO;
-		
-		if (semop(_cti_sem_ctrlid, sops, 1) == -1)
-		{
-			return LA_FLG_BINDTO | LA_FLG_BINDFROM;
-		}
+		// write the sep character
+		fprintf(stderr, "%c", LIBAUDIT_SEP_CHAR);
+		// write the length of the string
+		fprintf(stderr, "%d", strlen(map->l_name));
+		// write the sep character
+		fprintf(stderr, "%c", LIBAUDIT_SEP_CHAR);
+		// write the lib string
+		fprintf(stderr, "%s", map->l_name);
+		// flush the output
+		fflush(stderr);
 	}
 
+	// return normally
 	return LA_FLG_BINDTO | LA_FLG_BINDFROM;
 }
 

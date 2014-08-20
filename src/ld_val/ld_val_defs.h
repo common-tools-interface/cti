@@ -1,10 +1,10 @@
 /*********************************************************************************\
  * ld_val_defs.h - A header file for the ld_val project containing standard
- *                 definitions used throughout the project. Note that KEY_A
- *                 and KEY_B coorespond to the key_t used to create the shm
- *                 segment. These definitions can be modified as needed.
+ *                 definitions used throughout the project. This has been 
+ *                 simplified to read from a pipe instead of more advanced IPC
+ *                 techniques.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -22,16 +22,11 @@
 #ifndef _LD_VAL_DEFS_H
 #define _LD_VAL_DEFS_H
 
-#define LIBAUDIT_ENV_VAR				"CRAY_LD_VAL_LIBRARY"
-#define LIBAUDIT_KEYFILE_ENV_VAR	"CRAY_LD_VAL_KEYFILE"
-#define LD_AUDIT						"LD_AUDIT"
+#define LIBAUDIT_ENV_VAR		"CRAY_LD_VAL_LIBRARY"
+#define LD_AUDIT				"LD_AUDIT"
 
-#define DEFAULT_KEYFILE				"/proc/cray_xt"
-#define ID_A							'A'
-#define ID_B							'B'
-#define BLOCK_SIZE					20
+#define BLOCK_SIZE			16
 
-#define LDVAL_SEM						0
-#define AUDIT_SEM						1
+#define LIBAUDIT_SEP_CHAR	'%'
 
 #endif /* _LD_VAL_DEFS_H */
