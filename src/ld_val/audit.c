@@ -33,7 +33,12 @@
 unsigned int
 la_version(unsigned int version)
 {
-	// Return here, we don't need to do anything special.
+	// Set stderr to be fully buffered. This should not be larger than the
+	// capicity of the pipe, otherwise we will have problems.
+	// XXX: How to handle failure? I don't think this will matter too much if
+	// things fail.
+	setvbuf(stderr, NULL, _IOFBF, READ_BUF_LEN);
+	
 	return version;
 }
 
@@ -46,14 +51,8 @@ la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 	// Ensure the library name has a length, otherwise return
 	if (strlen(map->l_name) != 0)
 	{
-		// write the sep character
-		fprintf(stderr, "%c", LIBAUDIT_SEP_CHAR);
-		// write the length of the string
-		fprintf(stderr, "%d", strlen(map->l_name));
-		// write the sep character
-		fprintf(stderr, "%c", LIBAUDIT_SEP_CHAR);
-		// write the lib string
-		fprintf(stderr, "%s", map->l_name);
+		// write the lib string followed by a null terminator
+		fprintf(stderr, "%s%c", map->l_name, '\0');
 		// flush the output
 		fflush(stderr);
 	}

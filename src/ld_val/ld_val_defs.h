@@ -26,7 +26,7 @@
 #define LD_AUDIT				"LD_AUDIT"
 
 #define BLOCK_SIZE			16
-
-#define LIBAUDIT_SEP_CHAR	'%'
+// Do not make this larger than the pipe capacity.
+#define READ_BUF_LEN			1024
 
 #endif /* _LD_VAL_DEFS_H */

@@ -43,7 +43,6 @@
 /* Internal prototypes */
 static int		_cti_save_str(char *);
 static char **	_cti_make_rtn_array(void);
-static char *	_cti_ld_get_lib(void);
 static char *	_cti_ld_verify(char *);
 static int		_cti_ld_load(char *, char *, char *);
 
@@ -63,6 +62,7 @@ static const char *_cti_linkers[] = {
 };
 
 /* global variables */
+static char		_cti_read_buf[READ_BUF_LEN];
 static int		_cti_num_ptrs;
 static int		_cti_num_alloc;
 static char **	_cti_tmp_array = NULL;
@@ -240,115 +240,21 @@ _cti_ld_load(char *linker, char *executable, char *lib)
 	return pid;
 }
 
-static char *
-_cti_ld_get_lib()
-{
-	char 	seq;
-	char 	path_len_buf[BUFSIZ] = {0};
-	int		path_len = 0;
-	int		pos;
-	int		ret;
-	char *	libstr;
-	
-	// Read the first character - we expect this to be LIBAUDIT_SEP_CHAR
-	if (read(_cti_fds[0], &seq, 1) <= 0)
-	{
-		// read failed, return NULL
-		return NULL;
-	}
-
-	// Ensure this is the LIBAUDIT_SEP_CHAR
-	if (seq != LIBAUDIT_SEP_CHAR)
-	{
-		fprintf(stderr, "CTI error: Invalid sequence start detected in _cti_ld_get_lib.\n");
-		return NULL;
-	}
-	
-	// Now read in the length of the path string
-	pos = 0;
-	do {
-		ret = read(_cti_fds[0], &path_len_buf[pos], 1);
-		if (ret < 0)
-		{
-			// error occured
-			perror("read");
-			return NULL;
-		} else if (ret == 0)
-		{
-			// Something went very wrong here, we got an eof in the middle of 
-			// a valid sequence
-			fprintf(stderr, "CTI error: EOF detected in valid sequence in _cti_ld_get_lib.\n");
-			return NULL;
-		}
-		
-		// check to see if we read the LIBAUDIT_SEP_CHAR
-		if (path_len_buf[pos] == LIBAUDIT_SEP_CHAR)
-		{
-			// we finished reading the length, ensure that pos is not zero
-			// otherwise we literally just read %% and have no length.
-			if (pos == 0)
-			{
-				fprintf(stderr, "CTI error: Missing path len value in _cti_ld_get_lib.\n");
-				return NULL;
-			}
-			
-			// set the char to null term - we have a valid length and are finished
-			path_len_buf[pos] = '\0';
-			path_len = atoi(path_len_buf);
-		} else
-		{
-			// increment pos
-			++pos;
-		}
-	} while (path_len == 0);
-	
-	// Now we know how long the string will be, so lets allocate a buffer and
-	// read the rest
-	if ((libstr = malloc(path_len+1)) == (void *)0)
-	{
-		perror("malloc");
-		return NULL;
-	}
-	memset(libstr, 0, path_len+1);
-	
-	pos = 0;
-	do {
-		// read the library path string
-		ret = read(_cti_fds[0], libstr+pos, path_len-pos);
-		if (ret < 0)
-		{
-			// error occured
-			perror("read");
-			free(libstr);
-			return NULL;
-		} else if (ret == 0)
-		{
-			// Something went very wrong here, we got an eof in the middle of 
-			// a valid sequence
-			fprintf(stderr, "CTI error: EOF detected in valid sequence in _cti_ld_get_lib.\n");
-			free(libstr);
-			return NULL;
-		}
-		
-		// update pos
-		pos += ret;
-	} while (pos != path_len);
-	
-	// return the string
-	return libstr;
-}
-
 char **
 _cti_ld_val(char *executable)
 {
 	char *			linker;
 	int				pid;
-	int				rec = 0;
 	char *			tmp_audit;
 	char *			audit_location;
-	char *			libstr;
 	char **			rtn;
-	int				n;
+	int				num_read;
+	int				pos;
+	char *			libstr;
+	int				found = 0;
+	char *			start;
+	char *			end;
+	int				rem;
 	
 	// sanity
 	if (executable == NULL)
@@ -394,47 +300,108 @@ _cti_ld_val(char *executable)
 		return NULL;
 	}
 	
-	// Try to read libraries while the child process is still alive
-	do {
+	// reset pos
+	pos = 0;
 	
-cti_data_avail:
-
-		libstr = _cti_ld_get_lib();
-		
-		// if we recieved a null, we might be done.
-		if (libstr == NULL)
-			continue;
-		
-		// we want to ignore the first library we recieve
-		// as it will always be the ld.so we are using to
-		// get the shared libraries.
-		if (++rec == 1)
+	// Try to read libraries while the pipe is open
+	do {
+		// read up to READ_BUF_LEN, offset based on pos since we might have
+		// leftovers
+		num_read = read(_cti_fds[0], &_cti_read_buf[pos], READ_BUF_LEN-pos);
+		// check for error
+		if (num_read < 0)
 		{
-			if (libstr != NULL)
-				free(libstr);
+			// error occured
+			perror("read");
+			return NULL;
+		} else if (num_read == 0)
+		{
+			// if we get an EOF with pos set, we have a partial string without
+			// the rest, this is an error
+			if (pos != 0)
+			{
+				// Something went very wrong here, we got an eof in the middle of 
+				// a valid sequence
+				fprintf(stderr, "CTI error: EOF detected in valid sequence.\n");
+				return NULL;
+			}
+			// we are done if we get an EOF
 			continue;
+		}
+		
+		// init start, end, and rem
+		start = _cti_read_buf;
+		end = start+1;
+		rem = num_read;
+		
+		// walk the buffer to find the null terms and create libstr out of them.
+		// we are done when end points at the last character read
+		while (end < &_cti_read_buf[num_read-1])
+		{
+			// find the first null terminator in the string
+			if ((end = memchr(start, '\0', rem)) == NULL)
+			{
+				// point end at the last entry and continue, we have a partial
+				// string.
+				end = &_cti_read_buf[num_read-1];
+				continue;
+			}
+			
+			// copy the current string
+			libstr = strdup(start);
+			
+			// if found is false, we should check for the linker string, we don't
+			// want to ship this. We will use the ld.so that is present on the
+			// compute nodes.
+			if (!found)
+			{
+				if (strncmp(linker, libstr, strlen(linker)))
+				{
+					// strings don't match, we want to save it.
+					goto save_str;
+				} else
+				{
+					// set found and free this string. Do not save it.
+					++found;
+					free(libstr);
+				}
+			} else
+			{
+save_str:
+				if ((_cti_save_str(libstr)) <= 0)
+				{
+					fprintf(stderr, "CTI error: Unable to save temp string.\n");
+					return NULL;
+				}
+			}
+			
+			// point end pass the null terminator and adjust the remainder, we
+			// need to get rid of the entire string plus the null term.
+			rem -= ++end - start;
+			
+			// point start at the end, and move on to another iteration
+			start = end;
 		}
 			
-		if ((_cti_save_str(libstr)) <= 0)
+		// if rem if non-zero, we have a partial string left over.
+		if (rem != 0)
 		{
-			fprintf(stderr, "CTI error: Unable to save temp string.\n");
-			return NULL;
+			memmove(_cti_read_buf, start, rem);
+			// memset the rest to zero, just to be safe
+			if (rem < num_read)
+			{
+				memset(&_cti_read_buf[rem], 0, num_read-rem);
+			}
+			// update pos
+			pos = rem;
+		} else
+		{
+			// reset pos for next run since there was no remainder this time
+			pos = 0;
 		}
-	} while (!waitpid(pid, NULL, WNOHANG));
+	} while (num_read != 0);
 	
-	// Final check to see if there is still data available for reading, if so
-	// jump back up to the loop. Note that with pipes, even though the child
-	// process is gone, we might still have data available to read. We want to
-	// continue reading until we get an EOF on the pipe.
-	if (ioctl(_cti_fds[0], FIONREAD, &n) < 0)
-	{
-		perror("ioctl");
-	}
-	if (n >= 1)
-	{
-		goto cti_data_avail;
-	}
-	
+	// All done, make the return array
 	rtn = _cti_make_rtn_array();
 	
 	// cleanup memory
