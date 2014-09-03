@@ -37,13 +37,6 @@
  *         Used to define the absolute path to the audit library. This is
  *         required to be defined.
  *
- * CTI_LIBAUDIT_KEYFILE_ENV_VAR (optional)
- *
- *         Used to define a path to a file used to create sys-v keys in the 
- *         audit library. If the file doesn't exist, it will be created at the 
- *         provided location. If it is not provided, a default choice will be 
- *         made.
- *
  * CTI_DBG_LOG_DIR_ENV_VAR (optional)
  *
  *         Used to define a path to write log files to. This location must be 
@@ -86,7 +79,6 @@
  * 
  */
 #define CTI_LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
-#define CTI_LIBAUDIT_KEYFILE_ENV_VAR    "CRAY_LD_VAL_KEYFILE"
 #define CTI_DBG_LOG_DIR_ENV_VAR         "CRAY_DBG_LOG_DIR"
 #define CTI_USER_DEF_APRUN_EXE_ENV_VAR  "CRAY_APRUN_PATH"
 #define CTI_ATTRIBS_TIMEOUT_ENV_VAR     "CRAY_CTI_PMI_FOPEN_TIMEOUT"
