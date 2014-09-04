@@ -50,6 +50,7 @@ typedef struct
 	uint64_t    	(*alps_get_apid)(int, pid_t);
 	int				(*alps_get_appinfo)(uint64_t, appInfo_t *, cmdDetail_t **, placeList_t **);
 	const char *	(*alps_launch_tool_helper)(uint64_t, int, int, int, int, char **);
+	int				(*alps_get_overlap_ordinal)(uint64_t, char **, int *);
 } cti_alps_funcs_t;
 
 typedef struct
@@ -110,6 +111,7 @@ static int					_cti_alps_ready(void);
 static uint64_t				_cti_alps_get_apid(int, pid_t);
 static int					_cti_alps_get_appinfo(uint64_t, appInfo_t *, cmdDetail_t **, placeList_t **);
 static const char *			_cti_alps_launch_tool_helper(uint64_t, int, int, int, int, char **);
+static int					_cti_alps_get_overlap_ordinal(uint64_t, char **, int *);
 static void					_cti_alps_consumeAlpsInfo(void *);
 static void 				_cti_alps_consumeAprunInv(aprunInv_t *);
 static serviceNode_t *		_cti_alps_getSvcNodeInfo(void);
@@ -220,6 +222,12 @@ _cti_alps_init(void)
 		return 1;
 	}
 	
+	// load alps_get_overlap_ordinal
+	// XXX: It is alright for this load to fail as some versions of libalps
+	//       will be missing this function. In that case, we should always
+	//       return error
+	_cti_alps_ptr->alps_get_overlap_ordinal = dlsym(_cti_alps_ptr->handle, "alps_get_overlap_ordinal");
+	
 	// done
 	return 0;
 }
@@ -256,7 +264,7 @@ _cti_alps_get_apid(int arg1, pid_t arg2)
 	// sanity check
 	if (_cti_alps_ptr == NULL)
 		return 0;
-		
+	
 	return (*_cti_alps_ptr->alps_get_apid)(arg1, arg2);
 }
 
@@ -279,6 +287,43 @@ _cti_alps_launch_tool_helper(uint64_t arg1, int arg2, int arg3, int arg4, int ar
 		
 	return (*_cti_alps_ptr->alps_launch_tool_helper)(arg1, arg2, arg3, arg4, arg5, arg6);
 }
+
+static int
+_cti_alps_get_overlap_ordinal(uint64_t arg1, char **arg2, int *arg3)
+{
+	// sanity check
+	if (_cti_alps_ptr == NULL)
+	{
+		if (arg2 != NULL)
+		{
+			*arg2 = "_cti_alps_get_overlap_ordinal: _cti_alps_ptr is NULL!";
+		}
+		if (arg3 != NULL)
+		{
+			*arg3 = -1;
+		}
+		return -1;
+	}
+	
+	// Ensure that the function pointer is not null, if it is null we need to
+	// exit with error. We expect some alps libraries not to support this function.
+	if (_cti_alps_ptr->alps_get_overlap_ordinal == NULL)
+	{
+		if (arg2 != NULL)
+		{
+			*arg2 = "alps_get_overlap_ordinal() not supported.";
+		}
+		if (arg3 != NULL)
+		{
+			*arg3 = -1;
+		}
+		return -1;
+	}
+	
+	return (*_cti_alps_ptr->alps_get_overlap_ordinal)(arg1, arg2, arg3);
+}
+
+
 
 /*
 *       _cti_alps_getSvcNodeInfo - read nid from alps defined system locations
@@ -1831,5 +1876,58 @@ _cti_alps_start_daemon(void *this, char *args, int transfer)
 	}
 	
 	return 0;
+}
+
+int
+cti_getAlpsOverlapOrdinal(cti_app_id_t appId)
+{
+	appEntry_t *	app_ptr;
+	alpsInfo_t *	my_app;
+	char *			errMsg = NULL;
+	int				rtn;
+	
+	// sanity check
+	if (appId == 0)
+	{
+		_cti_set_error("Invalid appId %d.", (int)appId);
+		return -1;
+	}
+	
+	// try to find an entry in the _cti_my_apps list for the apid
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	{
+		// couldn't find the entry associated with the apid
+		// error string already set
+		return -1;
+	}
+	
+	// sanity check
+	if (app_ptr->wlmProto->wlm_type != CTI_WLM_ALPS)
+	{
+		_cti_set_error("cti_getAlpsOverlapOrdinal: WLM mismatch.");
+		return -1;
+	}
+	
+	// sanity check
+	my_app = (alpsInfo_t *)app_ptr->_wlmObj;
+	if (my_app == NULL)
+	{
+		_cti_set_error("cti_getAlpsOverlapOrdinal: _wlmObj is NULL!");
+		return -1;
+	}
+	
+	rtn = _cti_alps_get_overlap_ordinal(my_app->apid, &errMsg, NULL);
+	if (rtn < 0)
+	{
+		if (errMsg != NULL)
+		{
+			_cti_set_error("%s", errMsg);
+		} else
+		{
+			_cti_set_error("cti_getAlpsOverlapOrdinal: Unknown _cti_alps_get_overlap_ordinal failure");
+		}
+	}
+	
+	return rtn;
 }
 

@@ -510,7 +510,29 @@ extern cti_app_id_t	cti_registerApid(uint64_t apid);
  *      when finished using it.
  *
  */
-extern cti_aprunProc_t *	cti_getAprunInfo(cti_app_id_t);
+extern cti_aprunProc_t *	cti_getAprunInfo(cti_app_id_t app_id);
+
+/*
+ * cti_getAlpsOverlapOrdinal - Return the applications "overlap ordinal"
+ *
+ * Detail
+ *      This function is used to obtain the "overlap ordinal" for the 
+ *      application. The overlap ordinal is a small integer unique to this app
+ *      among the group of applications that partially or fully overlap the set 
+ *      of nodes occupied by the specified application. This is only useful for
+ *      checkpoint restart on Cray ALPS systems when trying to figure out the
+ *      number of applications currently running beside the given application.
+ *      Note that this function can only be called with a cti_app_id_t from a
+ *      valid ALPS WLM application.
+ *
+ * Arguments
+ *      app_id -  The cti_app_id_t of the registered application.
+ *
+ * Returns
+ *      A non-negative integer representing the overlap ordinal. On error a
+ *      negative value will be returned.
+ */
+extern int  cti_getAlpsOverlapOrdinal(cti_app_id_t app_Id);
 
 
 /*******************************************************************************

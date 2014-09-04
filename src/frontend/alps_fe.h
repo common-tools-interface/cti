@@ -36,5 +36,6 @@ typedef struct
 /* function prototypes */
 cti_app_id_t		cti_registerApid(uint64_t);
 cti_aprunProc_t *	cti_getAprunInfo(cti_app_id_t);
+int					cti_getAlpsOverlapOrdinal(cti_app_id_t appId);
 
 #endif /* _ALPS_FE_H */
