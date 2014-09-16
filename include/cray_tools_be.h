@@ -59,6 +59,10 @@
 #define CTI_SCRATCH_ENV_VAR     "TMPDIR"
 #define CTI_OLD_SCRATCH_ENV_VAR "CRAYTOOL_OLD_TMPDIR"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* 
  * The following are types used as return values for some API calls.
  */
@@ -329,5 +333,9 @@ extern char *	cti_getFileDir(void);
  * 
  */
 extern char *	cti_getTmpDir(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CRAY_TOOLS_BE_H */

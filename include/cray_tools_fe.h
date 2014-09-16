@@ -86,6 +86,10 @@
 #define CTI_CFG_DIR_ENV_VAR             "CRAY_CTI_CFG_DIR"
 #define CTI_DAEMON_STAGE_DIR_ENV_VAR    "CRAY_CTI_STAGE_DIR"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* 
  * The following are types used as return values for some API calls.
  */
@@ -941,5 +945,9 @@ extern char *	cti_getSessionFileDir(cti_session_id_t sid);
  * 
  */
 extern char *	cti_getSessionTmpDir(cti_session_id_t sid);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CRAY_TOOLS_FE_H */
