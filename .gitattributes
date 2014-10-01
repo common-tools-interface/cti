@@ -69,6 +69,7 @@ src/ld_val/ld_val.c -text
 src/ld_val/ld_val.h -text
 src/ld_val/ld_val_defs.h -text
 src/mpir_iface/Makefile.am -text
+src/mpir_iface/Makefile.in -text
 src/mpir_iface/gdb_MPIR.c -text
 src/mpir_iface/gdb_MPIR.h -text
 src/mpir_iface/gdb_MPIR_iface.c -text

@@ -24,6 +24,9 @@ src/frontend/.deps
 src/frontend/Makefile
 src/ld_val/.deps
 src/ld_val/Makefile
+src/mpir_iface/.deps
+src/mpir_iface/Makefile
+src/mpir_iface/cti_starter
 src/useful/.deps
 src/useful/Makefile
 /stamp-h1
