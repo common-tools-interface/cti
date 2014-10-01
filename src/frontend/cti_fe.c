@@ -356,17 +356,11 @@ _cti_findAppEntryByJobId(void *wlm_id)
 }
 
 int
-_cti_setTransferObj(cti_app_id_t appId, void *transferObj, obj_destroy transferDestroy)
+_cti_setTransferObj(appEntry_t *app_ptr, void *transferObj, obj_destroy transferDestroy)
 {
-	appEntry_t *	app_ptr;
-	
-	// try to find an entry in the _cti_my_apps list for the appId
-	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
-	{
-		// couldn't find the entry associated with the appId
-		// error string already set
+	// sanity
+	if (app_ptr == NULL)
 		return 1;
-	}
 	
 	// set the members
 	app_ptr->_transferObj = transferObj;

@@ -1564,7 +1564,7 @@ continue_on_error:
 	// set the inv
 	alpsInfo->inv = myapp;
 	
-	// return the apid and the pid of the aprun process we forked
+	// return the cti_app_id_t
 	return rtn;
 }
 

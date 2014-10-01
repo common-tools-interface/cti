@@ -63,6 +63,17 @@ typedef enum cti_wlm_type	cti_wlm_type;
 #define OLD_TOOLHELPER_DIR		"/var/spool/alps/%llu/toolhelper%llu"				// old alps toolhelper path format on compute node
 #define OBS_TOOLHELPER_DIR		"/var/opt/cray/alps/spool/%llu/toolhelper%llu"	// new alps toolhelper path format on compute node
 
+/*
+** Cray SLURM specific information
+*/
+#define SRUN						"srun"
+#define CRAY_SLURM_APID(jobid, stepid)	((stepid * 10000000000) + jobid)			// formula for creating Cray apid from SLURM jobid.stepid
+#define	 CRAY_SLURM_TOOL_DIR		"/var/opt/cray/alps/%llu"							// Cray SLURM staging path on compute node
+
+/*
+** MPIR_iface specific information
+*/
+#define CTI_GDB_BINARY			"cti_approved_gdb"									// name of gdb binary
 
 /*
 ** Environment variables that are set/maintained by this library

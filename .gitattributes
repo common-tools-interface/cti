@@ -53,6 +53,7 @@ src/frontend/Makefile.am -text
 src/frontend/Makefile.in -text
 src/frontend/alps_fe.c -text
 src/frontend/alps_fe.h -text
+src/frontend/cray_slurm_fe.c -text
 src/frontend/cti_error.c -text
 src/frontend/cti_error.h -text
 src/frontend/cti_fe.c -text
@@ -67,6 +68,12 @@ src/ld_val/audit.c -text
 src/ld_val/ld_val.c -text
 src/ld_val/ld_val.h -text
 src/ld_val/ld_val_defs.h -text
+src/mpir_iface/Makefile.am -text
+src/mpir_iface/gdb_MPIR.c -text
+src/mpir_iface/gdb_MPIR.h -text
+src/mpir_iface/gdb_MPIR_iface.c -text
+src/mpir_iface/gdb_MPIR_iface.h -text
+src/mpir_iface/gdb_MPIR_starter.c -text
 src/useful/Makefile.am -text
 src/useful/Makefile.in -text
 src/useful/log.c -text

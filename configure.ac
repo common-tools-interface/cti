@@ -1,7 +1,7 @@
 #
 # configure.ac script for the craytool interface.
 #
-# © 2010-2013 Cray Inc. All Rights Reserved
+# © 2010-2014 Cray Inc. All Rights Reserved
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -19,7 +19,7 @@ AC_PREREQ([2.63])
 dnl We need to use the m4_esyscmd here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT. This is not portable...
 AC_INIT([craytool_interface], [m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])], [andrewg@cray.com])
-AC_COPYRIGHT([© 2011-2013 Cray Inc. All Rights Reserved.])
+AC_COPYRIGHT([© 2011-2014 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/cti_defs.h])
 AC_CONFIG_AUX_DIR([config])
@@ -53,6 +53,15 @@ AC_ARG_WITH([libarchive],
 	    ],
 	    [libarchive_path=$withval]
 	    )
+
+dnl Check for --with-libmi
+AC_ARG_WITH([libmi],
+			[AS_HELP_STRING([--with-libmi],
+							[Specify path to libmi library.]
+							)
+			],
+			[libmi_path=$withval]
+			)
 
 ###########################
 ### Check for programs. ###
@@ -117,6 +126,16 @@ AC_CHECK_LIB([archive],
 	     [AC_MSG_ERROR([libarchive.a not found.])]
 	     )
 
+dnl Check for libmi
+if test -f "$libmi_path/lib/libmi.so"; then
+	LDFLAGS="$LDFLAGS -L$libmi_path/lib"
+fi
+AC_CHECK_LIB([mi],
+			 [MICommandFree],
+			 [AC_SUBST([mi_libs], ["-lmi"])],
+			 [AC_MSG_ERROR([libmi.so not found.])]
+			 )
+
 ###############################
 ### Check for header files. ###
 ###############################
@@ -168,6 +187,16 @@ AC_CHECK_HEADER([archive.h],
 		[]
 		)
 
+dnl Check for libmi headers
+if test -f "$libmi_path/include/MI.h"; then
+	CPPFLAGS="$CPPFLAGS -I$libmi_path/include"
+fi
+AC_CHECK_HEADER([MI.h],
+				[],
+				[AC_MSG_FAILURE([MI.h not found.])],
+				[]
+				)
+
 #####################################################################
 ### Check for typedefs, structures, and compiler characteristics. ###
 #####################################################################
@@ -200,6 +229,7 @@ AC_CONFIG_FILES([	Makefile
 					src/daemon/Makefile
 					src/frontend/Makefile
 					src/ld_val/Makefile
+					src/mpir_iface/Makefile
 					src/useful/Makefile
 					demos/Makefile
 ])

@@ -244,7 +244,7 @@ char **
 _cti_ld_val(char *executable)
 {
 	char *			linker;
-	int				pid;
+	int				pid, status;
 	char *			tmp_audit;
 	char *			audit_location;
 	char **			rtn;
@@ -313,6 +313,9 @@ _cti_ld_val(char *executable)
 		{
 			// error occured
 			perror("read");
+			// prevent zombie
+			kill(pid, SIGKILL);
+			waitpid(pid, &status, 0);
 			return NULL;
 		} else if (num_read == 0)
 		{
@@ -323,6 +326,9 @@ _cti_ld_val(char *executable)
 				// Something went very wrong here, we got an eof in the middle of 
 				// a valid sequence
 				fprintf(stderr, "CTI error: EOF detected in valid sequence.\n");
+				// prevent zombie
+				kill(pid, SIGKILL);
+				waitpid(pid, &status, 0);
 				return NULL;
 			}
 			// we are done if we get an EOF
@@ -371,6 +377,9 @@ save_str:
 				if ((_cti_save_str(libstr)) <= 0)
 				{
 					fprintf(stderr, "CTI error: Unable to save temp string.\n");
+					// prevent zombie
+					kill(pid, SIGKILL);
+					waitpid(pid, &status, 0);
 					return NULL;
 				}
 			}
@@ -408,6 +417,9 @@ save_str:
 	free(audit_location);
 	// close read end of the pipe
 	close(_cti_fds[0]);
+	
+	// prevent zombie
+	waitpid(pid, &status, 0);
 
 	return rtn;
 }
