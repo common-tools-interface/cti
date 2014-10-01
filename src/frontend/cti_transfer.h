@@ -28,7 +28,6 @@ typedef int cti_session_id_t;
 
 /* function prototypes */
 void				_cti_destroyAppSess(void *);
-
 cti_manifest_id_t	cti_createNewManifest(cti_session_id_t);
 void				cti_destroyManifest(cti_manifest_id_t);
 int					cti_addManifestBinary(cti_manifest_id_t, const char *);

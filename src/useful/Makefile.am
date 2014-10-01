@@ -20,7 +20,7 @@ AM_CFLAGS		= -fPIC -Wall -I$(SRC)
 
 noinst_LTLIBRARIES      = libuseful.la
 
-libuseful_la_SOURCES    = log.c log.h path.c path.h stringList.c stringList.h
+libuseful_la_SOURCES    = log.c log.h path.c path.h stack.c stack.h stringList.c stringList.h
 libuseful_la_CFLAGS     = $(AM_CFLAGS)
 libuseful_la_LDFLAGS    = -static -no-undefined
 

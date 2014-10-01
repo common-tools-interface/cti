@@ -141,7 +141,7 @@ _cti_libFind(const char *file)
 	char *			path;
 	char *			tmp;
 	char *			p_entry;
-	char *			extraPath = strdup(EXTRA_LIBRARY_PATH);
+	char *			extraPath;
 	char *			savePtr = NULL;
 	char *			cmd;
 	char *			res = NULL;
@@ -243,6 +243,7 @@ _cti_libFind(const char *file)
 							// found the library
 							retval = res;
 							free(base);
+							pclose(fp);
 							return retval;
 						}
 					}
@@ -260,6 +261,7 @@ _cti_libFind(const char *file)
 	/*
 	* Search the additional path for the file
 	*/
+	extraPath = strdup(EXTRA_LIBRARY_PATH);
 	p_entry = strtok_r(extraPath, ":", &savePtr);
 	while (p_entry != NULL) 
 	{

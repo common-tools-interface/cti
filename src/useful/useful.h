@@ -21,6 +21,7 @@
 
 #include "path.h"
 #include "log.h"
+#include "stack.h"
 #include "stringList.h"
 
 #endif /* _USEFUL_H */

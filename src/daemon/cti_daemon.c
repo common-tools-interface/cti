@@ -141,7 +141,7 @@ main(int argc, char **argv)
 	FILE *			lock_file;
 	char *			bin_path = NULL;
 	char *			lib_path = NULL;
-	stringList_t *	env_args = NULL;
+	cti_stack_t *	env_args = NULL;
 	char			*env, *val, *t;
 	char *			old_env_path = NULL;
 	char *			env_path = NULL;
@@ -234,18 +234,18 @@ main(int argc, char **argv)
 				if (env_args == NULL)
 				{
 					// create the string list
-					if ((env_args = _cti_newStringList()) == NULL)
+					if ((env_args = _cti_newStack()) == NULL)
 					{
-						// failed to create string list - shouldn't happen
-						fprintf(stderr, "_cti_newStringList() failed.\n");
+						// failed to create stack - shouldn't happen
+						fprintf(stderr, "_cti_newStack() failed.\n");
 						return 1;
 					}
 				}
 				
-				if (_cti_addString(env_args, optarg))
+				if (_cti_push(env_args, strdup(optarg)))
 				{
-					// failed to add string to the list - shouldn't happen
-					fprintf(stderr, "_cti_addString() failed.\n");
+					// failed to push the string - shouldn't happen
+					fprintf(stderr, "_cti_push() failed.\n");
 					return 1;
 				}
 				
@@ -405,11 +405,11 @@ main(int argc, char **argv)
 	// process the env args
 	if (env_args != NULL)
 	{
-		for (i=0; i < env_args->num; ++i)
+		// pop the top element
+		val = (char *)_cti_pop(env_args);
+	
+		while (val != NULL)
 		{
-			// set val to point at the begining of this string
-			val = env_args->list[i];
-			
 			// we need to strsep the string at the "=" character
 			// we expect the user to pass in the -e argument as envVar=val
 			// Note that env will now point at the start and val will point at
@@ -436,10 +436,16 @@ main(int argc, char **argv)
 				fprintf(stderr, "setenv failed\n");
 				return 1;
 			}
+			
+			// free this element
+			free(env);
+			
+			// pop the next element
+			val = (char *)_cti_pop(env_args);
 		}
 		
 		// Done with the env_args
-		_cti_consumeStringList(env_args);
+		_cti_consumeStack(env_args);
 	}
 	
 	// set the APID_ENV_VAR environment variable to the apid

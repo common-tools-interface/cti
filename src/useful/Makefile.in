@@ -61,7 +61,7 @@ CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libuseful_la_LIBADD =
 am_libuseful_la_OBJECTS = libuseful_la-log.lo libuseful_la-path.lo \
-	libuseful_la-stringList.lo
+	libuseful_la-stack.lo libuseful_la-stringList.lo
 libuseful_la_OBJECTS = $(am_libuseful_la_OBJECTS)
 libuseful_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(libuseful_la_CFLAGS) \
@@ -190,6 +190,7 @@ localedir = @localedir@
 localstatedir = @localstatedir@
 lt_ECHO = @lt_ECHO@
 mandir = @mandir@
+mi_libs = @mi_libs@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
 pdfdir = @pdfdir@
@@ -208,7 +209,7 @@ SRC = @craytool_dir@/src
 AM_LIBTOOLFLAGS = --quiet
 AM_CFLAGS = -fPIC -Wall -I$(SRC)
 noinst_LTLIBRARIES = libuseful.la
-libuseful_la_SOURCES = log.c log.h path.c path.h stringList.c stringList.h
+libuseful_la_SOURCES = log.c log.h path.c path.h stack.c stack.h stringList.c stringList.h
 libuseful_la_CFLAGS = $(AM_CFLAGS)
 libuseful_la_LDFLAGS = -static -no-undefined
 noinst_HEADERS = useful.h
@@ -265,6 +266,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-path.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-stack.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-stringList.Plo@am__quote@
 
 .c.o:
@@ -301,6 +303,13 @@ libuseful_la-path.lo: path.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='path.c' object='libuseful_la-path.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-path.lo `test -f 'path.c' || echo '$(srcdir)/'`path.c
+
+libuseful_la-stack.lo: stack.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-stack.lo -MD -MP -MF $(DEPDIR)/libuseful_la-stack.Tpo -c -o libuseful_la-stack.lo `test -f 'stack.c' || echo '$(srcdir)/'`stack.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-stack.Tpo $(DEPDIR)/libuseful_la-stack.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='stack.c' object='libuseful_la-stack.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-stack.lo `test -f 'stack.c' || echo '$(srcdir)/'`stack.c
 
 libuseful_la-stringList.lo: stringList.c
 @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-stringList.lo -MD -MP -MF $(DEPDIR)/libuseful_la-stringList.Tpo -c -o libuseful_la-stringList.lo `test -f 'stringList.c' || echo '$(srcdir)/'`stringList.c
