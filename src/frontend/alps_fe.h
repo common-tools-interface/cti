@@ -34,8 +34,9 @@ typedef struct
 } cti_aprunProc_t;
 
 /* function prototypes */
-cti_app_id_t		cti_registerApid(uint64_t);
-cti_aprunProc_t *	cti_getAprunInfo(cti_app_id_t);
-int					cti_getAlpsOverlapOrdinal(cti_app_id_t);
+cti_app_id_t		cti_alps_registerApid(uint64_t);
+uint64_t			cti_alps_getApid(pid_t);
+cti_aprunProc_t *	cti_alps_getAprunInfo(cti_app_id_t);
+int					cti_alps_getAlpsOverlapOrdinal(cti_app_id_t);
 
 #endif /* _ALPS_FE_H */

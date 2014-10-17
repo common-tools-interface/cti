@@ -75,6 +75,9 @@ src/mpir_iface/gdb_MPIR.h -text
 src/mpir_iface/gdb_MPIR_iface.c -text
 src/mpir_iface/gdb_MPIR_iface.h -text
 src/mpir_iface/gdb_MPIR_starter.c -text
+src/slurm_util/IMPORTANT -text
+src/slurm_util/Makefile.am -text
+src/slurm_util/slurm_util.c -text
 src/useful/Makefile.am -text
 src/useful/Makefile.in -text
 src/useful/log.c -text

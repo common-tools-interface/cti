@@ -41,6 +41,7 @@
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
+#include "useful.h"
 
 /* Types used here */
 
@@ -88,19 +89,19 @@ static int					_cti_alps_init(void);
 static void					_cti_alps_fini(void);
 static int					_cti_alps_cmpJobId(void *, void *);
 static char *				_cti_alps_getJobId(void *);
-static cti_app_id_t			_cti_alps_launchBarrier(char **, int, int, int, int, char *, char *, char **);
+static cti_app_id_t			_cti_alps_launchBarrier(char * const [], int, int, int, int, const char *, const char *, char * const []);
 static int					_cti_alps_releaseBarrier(void *);
 static int					_cti_alps_killApp(void *, int);
 static int					_cti_alps_verifyBinary(const char *);
 static int					_cti_alps_verifyLibrary(const char *);
 static int					_cti_alps_verifyLibDir(const char *);
 static int					_cti_alps_verifyFile(const char *);
-static const char **		_cti_alps_extraBinaries(void);
-static const char **		_cti_alps_extraLibraries(void);
-static const char **		_cti_alps_extraLibDirs(void);
-static const char **		_cti_alps_extraFiles(void);
-static int					_cti_alps_ship_package(void *, char *);
-static int					_cti_alps_start_daemon(void *, char *, int);
+static const char * const *	_cti_alps_extraBinaries(void);
+static const char * const *	_cti_alps_extraLibraries(void);
+static const char * const *	_cti_alps_extraLibDirs(void);
+static const char * const *	_cti_alps_extraFiles(void);
+static int					_cti_alps_ship_package(void *, const char *);
+static int					_cti_alps_start_daemon(void *, int, const char *, const char *);
 static int					_cti_alps_getNumAppPEs(void *);
 static int					_cti_alps_getNumAppNodes(void *);
 static char **				_cti_alps_getAppHostsList(void *);
@@ -117,7 +118,6 @@ static void 				_cti_alps_consumeAprunInv(aprunInv_t *);
 static serviceNode_t *		_cti_alps_getSvcNodeInfo(void);
 static int					_cti_alps_checkPathForWrappedAprun(char *);
 static int					_cti_alps_filter_pid_entries(const struct dirent *);
-static uint64_t				_cti_alps_getApid(pid_t);
 
 
 /* alps wlm proto object */
@@ -151,7 +151,7 @@ cti_wlm_proto_t				_cti_alps_wlmProto =
 
 /* static global variables */
 
-static const char * 		_cti_alps_extra_libs[] = {
+static const char * const		_cti_alps_extra_libs[] = {
 	ALPS_BE_LIB_NAME,
 	NULL
 };
@@ -465,7 +465,7 @@ _cti_alps_getJobId(void *this)
 // this function creates a new appEntry_t object for the app
 // used by the alps_run functions
 cti_app_id_t
-cti_registerApid(uint64_t apid)
+cti_alps_registerApid(uint64_t apid)
 {
 	cti_app_id_t	appId = 0;
 	alpsInfo_t *	alpsInfo;
@@ -567,13 +567,20 @@ cti_registerApid(uint64_t apid)
 	return appId;
 }
 
-static uint64_t
-_cti_alps_getApid(pid_t aprunPid)
+uint64_t
+cti_alps_getApid(pid_t aprunPid)
 {
 	// sanity check
-	if (aprunPid == 0)
+	if (aprunPid < 0)
 	{
 		_cti_set_error("Invalid pid %d.", (int)aprunPid);
+		return 0;
+	}
+	
+	// sanity check
+	if (cti_current_wlm() != CTI_WLM_ALPS)
+	{
+		_cti_set_error("Invalid call. ALPS WLM not in use.");
 		return 0;
 	}
 		
@@ -592,7 +599,7 @@ _cti_alps_getApid(pid_t aprunPid)
 }
 
 cti_aprunProc_t *
-cti_getAprunInfo(cti_app_id_t appId)
+cti_alps_getAprunInfo(cti_app_id_t appId)
 {
 	appEntry_t *		app_ptr;
 	alpsInfo_t *		alpsInfo;
@@ -1027,16 +1034,16 @@ _cti_alps_filter_pid_entries(const struct dirent *a)
 }
 
 static cti_app_id_t
-_cti_alps_launchBarrier(	char **launcher_argv, int redirectOutput, int redirectInput, 
-							int stdout_fd, int stderr_fd, char *inputFile, char *chdirPath,
-							char **env_list	)
+_cti_alps_launchBarrier(	char * const launcher_argv[], int redirectOutput, int redirectInput, 
+							int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath,
+							char * const env_list[]	)
 {
 	aprunInv_t *	myapp;
 	appEntry_t *	appEntry;
 	alpsInfo_t *	alpsInfo;
 	uint64_t 		apid;
 	pid_t			mypid;
-	char **			tmp;
+	char * const *	tmp;
 	int				aprun_argc = 0;
 	int				fd_len = 0;
 	int				i, j, fd;
@@ -1523,7 +1530,7 @@ continue_on_error:
 	}
 	
 	// set the apid associated with the pid of aprun
-	if ((apid = _cti_alps_getApid(myapp->aprunPid)) == 0)
+	if ((apid = cti_alps_getApid(myapp->aprunPid)) == 0)
 	{
 		_cti_set_error("Could not obtain apid associated with pid of aprun.");
 		// attempt to kill aprun since the caller will not recieve the aprun pid
@@ -1534,7 +1541,7 @@ continue_on_error:
 	}
 	
 	// register this app with the application interface
-	if ((rtn = cti_registerApid(apid)) == 0)
+	if ((rtn = cti_alps_registerApid(apid)) == 0)
 	{
 		// failed to register apid, error is already set
 		kill(myapp->aprunPid, DEFAULT_SIG);
@@ -1777,27 +1784,27 @@ _cti_alps_verifyFile(const char *fstr)
 	return 0;
 }
 
-static const char **
+static const char * const *
 _cti_alps_extraBinaries(void)
 {
 	// no extra binaries needed
 	return NULL;
 }
 
-static const char **
+static const char * const *
 _cti_alps_extraLibraries(void)
 {
 	return _cti_alps_extra_libs;
 }
 
-static const char **
+static const char * const *
 _cti_alps_extraLibDirs(void)
 {
 	// no extra library directories needed
 	return NULL;
 }
 
-static const char **
+static const char * const *
 _cti_alps_extraFiles(void)
 {
 	// no extra files needed
@@ -1805,10 +1812,11 @@ _cti_alps_extraFiles(void)
 }
 
 static int
-_cti_alps_ship_package(void *this, char *package)
+_cti_alps_ship_package(void *this, const char *package)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
-	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
+	const char *	errmsg;					// errmsg that is possibly returned by call to alps_launch_tool_helper
+	char *			p = (char *)package;	// discard const qualifier because alps isn't const correct
 	
 	// sanity check
 	if (my_app == NULL)
@@ -1824,8 +1832,8 @@ _cti_alps_ship_package(void *this, char *package)
 		return 1;
 	}
 	
-	// now ship the tarball to the compute node
-	if ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, 1, 0, 1, &package)) != NULL)
+	// now ship the tarball to the compute node - discard const qualifier because alps isn't const correct
+	if ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, 1, 0, 1, &p)) != NULL)
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		//
@@ -1842,10 +1850,12 @@ _cti_alps_ship_package(void *this, char *package)
 }
 
 static int
-_cti_alps_start_daemon(void *this, char *args, int transfer)
+_cti_alps_start_daemon(void *this, int transfer, const char *tool_path, const char *args)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
+	char *			launcher;
+	char *			a;
 	
 	// sanity check
 	if (my_app == NULL)
@@ -1861,8 +1871,41 @@ _cti_alps_start_daemon(void *this, char *args, int transfer)
 		return 1;
 	}
 	
-	// launch the tool daemon onto the compute nodes.
-	if ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, transfer, 1, 1, &args)) != NULL)
+	// Create the launcher path based on the transfer option. If this is false, we have already
+	// transfered the launcher over to the compute node and want to use the existing one over
+	// there, otherwise we need to find the location of the launcher on our end to have alps
+	// transfer to the compute nodes
+	if (transfer)
+	{
+		// Need to transfer launcher binary
+		
+		// Find the location of the daemon launcher program
+		if ((launcher = _cti_pathFind(CTI_LAUNCHER, NULL)) == NULL)
+		{
+			_cti_set_error("Could not locate the launcher application in PATH.");
+			return 1;
+		}
+	} else
+	{
+		// use existing launcher binary on compute node
+		if (asprintf(&launcher, "%s/%s", tool_path, CTI_LAUNCHER) <= 0)
+		{
+			_cti_set_error("asprintf failed.");
+			return 1;
+		}
+	}
+	
+	// create the new args string
+	if (asprintf(&a, "%s %s", launcher, args) <= 0)
+	{
+		_cti_set_error("asprintf failed.");
+		free(launcher);
+		return 1;
+	}
+	free(launcher);
+	
+	// launch the tool daemon onto the compute nodes
+	if ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, transfer, 1, 1, &a)) != NULL)
 	{
 		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
 		//
@@ -1872,14 +1915,16 @@ _cti_alps_start_daemon(void *this, char *args, int transfer)
 		{
 			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
 		}
+		free(a);
 		return 1;
 	}
+	free(a);
 	
 	return 0;
 }
 
 int
-cti_getAlpsOverlapOrdinal(cti_app_id_t appId)
+cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId)
 {
 	appEntry_t *	app_ptr;
 	alpsInfo_t *	my_app;

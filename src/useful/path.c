@@ -293,7 +293,7 @@ _cti_libFind(const char *file)
  * can not be guaranteed to be writable.
  */
 int
-_cti_adjustPaths(char *path)
+_cti_adjustPaths(const char *path)
 {
 	struct stat statbuf;
 	char *binpath = NULL;
@@ -344,7 +344,7 @@ _cti_adjustPaths(char *path)
 }
 
 char *
-_cti_pathToName(char *path)
+_cti_pathToName(const char *path)
 {
 	char *  end;
 	

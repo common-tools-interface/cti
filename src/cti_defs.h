@@ -36,6 +36,11 @@ enum cti_wlm_type
 typedef enum cti_wlm_type	cti_wlm_type;
 
 /*
+** Generic defines
+*/
+#define CTI_BUF_SIZE				4096
+
+/*
 ** Frontend defines relating to the login node 
 */
 #define DEFAULT_SIG				9														// default signal value to use with apkill
@@ -66,7 +71,11 @@ typedef enum cti_wlm_type	cti_wlm_type;
 /*
 ** Cray SLURM specific information
 */
-#define SRUN						"srun"
+#define SRUN						"srun"													// name of slurm job launcher binary
+#define SATTACH					"sattach"												// name of slurm io redirect binary
+#define SCANCEL					"scancel"												// name of slurm job signal binary
+#define SBCAST						"sbcast"												// name of slurm transfer binary
+#define SLURM_STEP_UTIL			"cti_slurm_util"										// name of cti slurm job step info utility
 #define CRAY_SLURM_APID(jobid, stepid)	((stepid * 10000000000) + jobid)			// formula for creating Cray apid from SLURM jobid.stepid
 #define	 CRAY_SLURM_TOOL_DIR		"/var/opt/cray/alps/%llu"							// Cray SLURM staging path on compute node
 

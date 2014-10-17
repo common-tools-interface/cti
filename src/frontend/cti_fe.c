@@ -601,7 +601,7 @@ _cti_wlm_fini_none(void)
 }
 
 int
-_cti_wlm_cmpJobId_none(void *a1, void *a2)
+_cti_wlm_cmpJobId_none(void * a1, void * a2)
 {
 	_cti_set_error("wlm_cmpJobId() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return -1;
@@ -615,7 +615,7 @@ _cti_wlm_getJobId_none(void *a1)
 }
 
 cti_app_id_t
-_cti_wlm_launchBarrier_none(char **a1, int a2, int a3, int a4, int a5, char *a6, char *a7, char **a8)
+_cti_wlm_launchBarrier_none(char * const a1[], int a2, int a3, int a4, int a5, const char *a6, const char *a7, char * const a8[])
 {
 	_cti_set_error("wlm_launchBarrier() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 0;
@@ -663,28 +663,28 @@ _cti_wlm_verifyFile_none(const char *a1)
 	return 0;
 }
 
-const char **
+const char * const *
 _cti_wlm_extraBinaries_none(void)
 {
 	_cti_set_error("wlm_extraBinaries() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 
-const char **
+const char * const *
 _cti_wlm_extraLibraries_none(void)
 {
 	_cti_set_error("wlm_extraLibraries() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 
-const char **
+const char * const *
 _cti_wlm_extraLibDirs_none(void)
 {
 	_cti_set_error("wlm_extraLibDirs() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 
-const char **
+const char * const *
 _cti_wlm_extraFiles_none(void)
 {
 	_cti_set_error("wlm_extraFiles() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
@@ -692,14 +692,14 @@ _cti_wlm_extraFiles_none(void)
 }
 
 int
-_cti_wlm_shipPackage_none(void *a1, char *a2)
+_cti_wlm_shipPackage_none(void *a1, const char *a2)
 {
 	_cti_set_error("wlm_shipPackage() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 1;
 }
 
 int
-_cti_wlm_startDaemon_none(void *a1, char *a2, int a3)
+_cti_wlm_startDaemon_none(void *a1, int a2, const char *a3, const char *a4)
 {
 	_cti_set_error("wlm_startDaemon() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 1;

@@ -2283,7 +2283,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	char *					bin_path = NULL;
 	char *					lib_path = NULL;
 	char *					tmp_path = NULL;
-	const char **			wlm_files;
+	const char * const *	wlm_files;
 	stringEntry_t *			l_ptr;
 	stringEntry_t *			o_ptr;
 	fileEntry_t *			f_ptr;
@@ -2865,7 +2865,6 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	char *				jid_str;			// job identifier string - wlm specific
 	char *				args_flat;			// flattened args array to pass to the toolhelper call
 	char *				tmp_args;			// temporary args used in creating args_flat
-	char *				launcher;			// full path name of the daemon launcher application
 	session_t *			s_ptr = NULL;		// points at the session to return
 	cti_session_id_t	rtn;
 	int					trnsfr = 1;			// should we transfer the dlaunch?
@@ -2951,30 +2950,8 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	// now we need to create the flattened argv string for the actual call to the wrapper
 	// this is passed through the toolhelper
 	// The options passed MUST correspond to the options defined in the daemon_launcher program.
-	
-	// Create the launcher path based on the trnsfr option. If this is false, we have already
-	// transfered the launcher over to the compute node and want to use the existing one over
-	// there, otherwise we need to find the location of the launcher on our end to have alps
-	// transfer to the compute nodes
-	if (trnsfr)
-	{
-		// Need to transfer launcher binary
-		
-		// Find the location of the daemon launcher program
-		if ((launcher = _cti_pathFind(CTI_LAUNCHER, NULL)) == NULL)
-		{
-			_cti_set_error("Could not locate the launcher application in PATH.");
-			return 0;
-		}
-	} else
-	{
-		// use existing launcher binary on compute node
-		if (asprintf(&launcher, "%s/%s", app_ptr->toolPath, CTI_LAUNCHER) <= 0)
-		{
-			_cti_set_error("asprintf failed.");
-			return 0;
-		}
-	}
+	//
+	// The actual daemon launcher path string is determined by the wlm_startDaemon call
 	
 	if ((jid_str = app_ptr->wlmProto->wlm_getJobId(app_ptr->_wlmObj)) == NULL)
 	{
@@ -2990,8 +2967,8 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	}
 	
 	// start creating the flattened args string
-	if (asprintf(&args_flat, "%s -a %s -p %s -w %d -m %s%d.tar -d %s -i %d", 
-				launcher, jid_str, app_ptr->toolPath, app_ptr->wlmProto->wlm_type, 
+	if (asprintf(&args_flat, "-a %s -p %s -w %d -m %s%d.tar -d %s -i %d", 
+				jid_str, app_ptr->toolPath, app_ptr->wlmProto->wlm_type, 
 				m_ptr->stage_name, m_ptr->inst, m_ptr->stage_name, m_ptr->inst) <= 0)
 	{
 		_cti_set_error("asprintf failed.");
@@ -2999,7 +2976,6 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	}
 	
 	// Cleanup
-	free(launcher);
 	free(jid_str);
 	
 	// add the debug switch if debug is on
@@ -3018,7 +2994,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	// Done. We now have a flattened args string
 	
 	// Call the appropriate transfer function based on the wlm
-	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, args_flat, trnsfr))
+	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, trnsfr, app_ptr->toolPath, args_flat))
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		// Error message already set
@@ -3064,7 +3040,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 }
 
 cti_session_id_t
-cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t sid, char *daemon, char **args, char **env, int dbg)
+cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t sid, const char *daemon, char * const args[], char * const env[], int dbg)
 {
 	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
 	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
@@ -3074,8 +3050,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	char *			jid_str;			// job id string to pass to the backend. This is wlm specific.
 	char *			args_flat = NULL;	// flattened args array to pass to the toolhelper call
 	char *			tmp_args;			// temporary args used in creating args_flat
-	char *			launcher;			// full path name of the daemon launcher application
-	char **			tmp;				// temporary pointer used to iterate through lists of strings
+	char * const *	tmp;				// temporary pointer used to iterate through lists of strings
 	session_t *		s_ptr = NULL;		// points at the session to return
 	int				trnsfr = 1;			// should we transfer the dlaunch?
 		
@@ -3175,7 +3150,9 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	// now we need to create the flattened argv string for the actual call to the wrapper
 	// this is passed through the toolhelper
 	// The options passed MUST correspond to the options defined in the daemon_launcher program.
-		
+	//
+	// The actual daemon launcher path string is determined by the wlm_startDaemon call
+	
 	// find the binary name for the args
 	
 	// convert daemon to fullpath name
@@ -3195,30 +3172,6 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	// done with fullname
 	free(fullname);
 	
-	// Create the launcher path based on the trnsfr option. If this is false, we have already
-	// transfered the launcher over to the compute node and want to use the existing one over
-	// there, otherwise we need to find the location of the launcher on our end to have alps
-	// transfer to the compute nodes
-	if (trnsfr)
-	{
-		// Need to transfer launcher binary
-		
-		// Find the location of the daemon launcher program
-		if ((launcher = _cti_pathFind(CTI_LAUNCHER, NULL)) == NULL)
-		{
-			_cti_set_error("Could not locate the launcher application in PATH.");
-			return 0;
-		}
-	} else
-	{
-		// use existing launcher binary on compute node
-		if (asprintf(&launcher, "%s/%s", app_ptr->toolPath, CTI_LAUNCHER) <= 0)
-		{
-			_cti_set_error("asprintf failed.");
-			return 0;
-		}
-	}
-	
 	if ((jid_str = app_ptr->wlmProto->wlm_getJobId(app_ptr->_wlmObj)) == NULL)
 	{
 		// error already set
@@ -3233,8 +3186,8 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	}
 	
 	// start creating the flattened args string
-	if (asprintf(&args_flat, "%s -a %s -p %s -w %d -b %s -d %s -i %d", 
-				launcher, jid_str, app_ptr->toolPath, app_ptr->wlmProto->wlm_type, 
+	if (asprintf(&args_flat, "-a %s -p %s -w %d -b %s -d %s -i %d", 
+				jid_str, app_ptr->toolPath, app_ptr->wlmProto->wlm_type, 
 				realname, m_ptr->stage_name, m_ptr->inst) <= 0)
 	{
 		_cti_set_error("asprintf failed.");
@@ -3242,7 +3195,6 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	}
 	
 	// cleanup
-	free(launcher);
 	free(jid_str);
 	free(realname);
 	
@@ -3322,7 +3274,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	// Done. We now have a flattened args string
 	
 	// Call the appropriate transfer function based on the wlm
-	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, args_flat, trnsfr))
+	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, trnsfr, app_ptr->toolPath, args_flat))
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		// Error message already set

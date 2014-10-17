@@ -35,7 +35,7 @@ int					cti_addManifestLibrary(cti_manifest_id_t, const char *);
 int					cti_addManifestLibDir(cti_manifest_id_t, const char *);
 int					cti_addManifestFile(cti_manifest_id_t, const char *);
 cti_session_id_t	cti_sendManifest(cti_app_id_t, cti_manifest_id_t, int);
-cti_session_id_t	cti_execToolDaemon(cti_app_id_t, cti_manifest_id_t, cti_session_id_t, char *, char **, char **, int);
+cti_session_id_t	cti_execToolDaemon(cti_app_id_t, cti_manifest_id_t, cti_session_id_t, const char *, char * const [], char * const [], int);
 char **				cti_getSessionLockFiles(cti_session_id_t);
 char *				cti_getSessionRootDir(cti_session_id_t);
 char *				cti_getSessionBinDir(cti_session_id_t);

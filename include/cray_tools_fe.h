@@ -105,12 +105,6 @@ typedef struct
         cti_host_t *   hosts;
 } cti_hostsList_t;
 
-typedef struct
-{
-	uint64_t	apid;
-	pid_t		aprunPid;
-} cti_aprunProc_t;
-
 enum cti_wlm_type
 {
 	CTI_WLM_NONE,	// error/unitialized state
@@ -121,8 +115,8 @@ enum cti_wlm_type
 typedef enum cti_wlm_type	cti_wlm_type;
 
 typedef uint64_t	cti_app_id_t;
-typedef int 		cti_manifest_id_t;
 typedef int			cti_session_id_t;
+typedef int 		cti_manifest_id_t;
 
 
 /************************************************************
@@ -416,14 +410,14 @@ extern void	cti_destroyHostsList(cti_hostsList_t *placement_list);
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-extern cti_app_id_t cti_launchAppBarrier(   char ** launcher_argv,
-                                            int     redirectOutput,
-                                            int     redirectInput,
-                                            int     stdout_fd,
-                                            int     stderr_fd,
-                                            char *  inputFile,
-                                            char *  chdirPath, 
-                                            char ** env_list);
+extern cti_app_id_t cti_launchAppBarrier(   char * const    launcher_argv[],
+                                            int             redirectOutput,
+                                            int             redirectInput,
+                                            int             stdout_fd,
+                                            int             stderr_fd,
+                                            const char *    inputFile,
+                                            const char *    chdirPath, 
+                                            char * const    env_list[]);
 
 /*
  * cti_releaseAppBarrier - Release the application launcher launched with the
@@ -472,9 +466,37 @@ extern int	cti_killApp(cti_app_id_t app_id, int signum);
  * ALPS WLM functions - Functions valid with the ALPS WLM only.
  ******************************************************************************/
 
+// alps specific type information
+typedef struct
+{
+	uint64_t	apid;
+	pid_t		aprunPid;
+} cti_aprunProc_t;
+
 /*
- * cti_registerApid -   Assists in registering the apid of an already running 
- *                      aprun session for use with the Cray tool interface.
+ * cti_alps_getApid - Get the apid associated with the pid of an existing aprun
+ *                    process.
+ *
+ * Detail
+ *      This function is used to obtain the alps apid associated with the pid
+ *      of the aprun process. It is useful in order to call the 
+ *      cti_alps_registerApid function when only the pid of the aprun process is
+ *      known.
+ *
+ * Arguments
+ *      aprunPid - The pid_t of the aprun process
+ *
+ * Returns
+ *      A uint64_t that represents the alps apid of the aprun process. 0 is 
+ *      returned on error.
+ *
+ */
+extern uint64_t cti_alps_getApid(pid_t aprunPid);
+
+/*
+ * cti_alps_registerApid -  Assists in registering the apid of an already
+ *                          running aprun session for use with the Cray tool 
+ *                          interface.
  * 
  * Detail
  *      This function is used for registering a valid aprun session that was 
@@ -494,10 +516,10 @@ extern int	cti_killApp(cti_app_id_t app_id, int signum);
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-extern cti_app_id_t	cti_registerApid(uint64_t apid);
+extern cti_app_id_t	cti_alps_registerApid(uint64_t apid);
 
 /*
- * cti_getAprunInfo - Obtain information about the aprun process
+ * cti_alps_getAprunInfo - Obtain information about the aprun process
  *
  * Detail
  *      This function is used to obtain the apid of an aprun session and the
@@ -514,10 +536,10 @@ extern cti_app_id_t	cti_registerApid(uint64_t apid);
  *      when finished using it.
  *
  */
-extern cti_aprunProc_t *	cti_getAprunInfo(cti_app_id_t app_id);
+extern cti_aprunProc_t *	cti_alps_getAprunInfo(cti_app_id_t app_id);
 
 /*
- * cti_getAlpsOverlapOrdinal - Return the applications "overlap ordinal"
+ * cti_alps_getAlpsOverlapOrdinal - Return the applications "overlap ordinal"
  *
  * Detail
  *      This function is used to obtain the "overlap ordinal" for the 
@@ -536,7 +558,7 @@ extern cti_aprunProc_t *	cti_getAprunInfo(cti_app_id_t app_id);
  *      A non-negative integer representing the overlap ordinal. On error a
  *      negative value will be returned.
  */
-extern int  cti_getAlpsOverlapOrdinal(cti_app_id_t app_Id);
+extern int  cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_Id);
 
 
 /*******************************************************************************
@@ -628,13 +650,13 @@ extern int  cti_getAlpsOverlapOrdinal(cti_app_id_t app_Id);
  *      A non-zero cti_session_id_t on success, or else 0 on failure.
  * 
  */
-extern cti_session_id_t cti_execToolDaemon( cti_app_id_t      app_id, 
-                                            cti_manifest_id_t mid, 
-                                            cti_session_id_t  sid, 
-                                            char *            fstr, 
-                                            char **           args,
-                                            char **           env,
-                                            int               debug);
+extern cti_session_id_t cti_execToolDaemon( cti_app_id_t        app_id, 
+                                            cti_manifest_id_t   mid, 
+                                            cti_session_id_t    sid, 
+                                            const char *		fstr, 
+                                            char * const        args[],
+                                            char * const        env[],
+                                            int                 debug);
 
 /*
  * cti_createNewManifest - Create a new manifest to ship additional binaries, 
@@ -703,7 +725,7 @@ extern void	cti_destroyManifest(cti_manifest_id_t mid);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	cti_addManifestBinary(cti_manifest_id_t mid, char *fstr);
+extern int	cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_addManifestLibrary - Add a library to an existing manifest.
@@ -728,7 +750,7 @@ extern int	cti_addManifestBinary(cti_manifest_id_t mid, char *fstr);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	cti_addManifestLibrary(cti_manifest_id_t mid, char *fstr);
+extern int	cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_addManifestLibDir - Add a library directory to an existing manifest.
@@ -754,7 +776,7 @@ extern int	cti_addManifestLibrary(cti_manifest_id_t mid, char *fstr);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	cti_addManifestLibDir(cti_manifest_id_t mid, char *fstr);
+extern int	cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_addManifestFile - Add a regular file to an existing manifest.
@@ -776,7 +798,7 @@ extern int	cti_addManifestLibDir(cti_manifest_id_t mid, char *fstr);
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int	cti_addManifestFile(cti_manifest_id_t mid, char *fstr);
+extern int	cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_sendManifest - Ship a manifest to an app_id and unpack it into temporary

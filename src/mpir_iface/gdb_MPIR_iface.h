@@ -28,7 +28,9 @@ void			_cti_gdb_cleanup(cti_gdb_id_t);
 void			_cti_gdb_cleanupAll(void);
 void			_cti_gdb_execStarter(cti_gdb_id_t, const char *, char * const[], const char *);
 int				_cti_gdb_postFork(cti_gdb_id_t);
-char *			_cti_gdb_getJobId(cti_gdb_id_t, const char *);
+char *			_cti_gdb_getSymbolVal(cti_gdb_id_t, const char *);
+// After calling releaseBarrier, no further calls with this instance is possible. The child
+// will have exited.
 int				_cti_gdb_releaseBarrier(cti_gdb_id_t);
 
 #endif /* _GDB_MPIR_IFACE_H */

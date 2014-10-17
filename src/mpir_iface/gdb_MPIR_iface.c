@@ -42,6 +42,7 @@
 typedef struct
 {
 	int			init;		// initialized?
+	int			final;		// finalized?
 	int 		pipeR[2];	// caller read pipe
 	int 		pipeW[2];	// caller write pipe
 	int			pipe_r;		// my read end
@@ -113,8 +114,11 @@ _cti_gdb_cleanupAll(void)
 		if (this == NULL)
 			continue;
 		
-		// send the exit message
-		_cti_gdb_sendMsg(this->pipe_w, msg);
+		// send the exit message if not finalized
+		if (!this->final)
+		{
+			_cti_gdb_sendMsg(this->pipe_w, msg);
+		}
 		
 		// we don't care about a response. The other side isn't going to
 		// send one.
@@ -148,10 +152,10 @@ _cti_gdb_cleanup(cti_gdb_id_t gdb_id)
 		return;
 	}
 	
-	// check if the instance has been initialized
-	if (this->init)
+	// check if the instance has been initialized and hasn't yet been finalized
+	if (this->init && !this->final)
 	{
-		// it has been, so we need to send an exit message
+		// we need to send an exit message
 		cti_gdb_msg_t *	msg;
 
 		// create the exit request message
@@ -487,27 +491,27 @@ _cti_gdb_postFork(cti_gdb_id_t gdb_id)
 	return 0;
 }
 
-// This function will return the application job id string. Note that the caller
+// This function will return a string value for a symbol. Note that the caller
 // needs to pass in the symbol name to query. We suspect this to change between
-// different WLM implementations.
+// different WLM implementations. The symbol must refer to a string value!
 char *
-_cti_gdb_getJobId(cti_gdb_id_t gdb_id, const char *jobid_sym)
+_cti_gdb_getSymbolVal(cti_gdb_id_t gdb_id, const char *sym)
 {
 	gdbCtlInst_t *	this;
 	cti_gdb_msg_t *	msg;
 	char *			rtn;
 	
 	// check the args
-	if (jobid_sym == NULL)
+	if (sym == NULL)
 	{
-		_cti_set_error("_cti_gdb_getJobId: Invalid args.\n");
+		_cti_set_error("_cti_gdb_getSymbolVal: Invalid args.\n");
 		return NULL;
 	}
 
 	// ensure the caller passed a valid id.
 	if (gdb_id < 0 || gdb_id >= CTI_GDB_TABLE_SIZE)
 	{
-		_cti_set_error("_cti_gdb_getJobId: Invalid cti_gdb_id_t.\n");
+		_cti_set_error("_cti_gdb_getSymbolVal: Invalid cti_gdb_id_t.\n");
 		return NULL;
 	}
 	
@@ -517,12 +521,19 @@ _cti_gdb_getJobId(cti_gdb_id_t gdb_id, const char *jobid_sym)
 	// validate the instance
 	if (this == NULL)
 	{
-		_cti_set_error("_cti_gdb_getJobId: Invalid cti_gdb_id_t.\n");
+		_cti_set_error("_cti_gdb_getSymbolVal: Invalid cti_gdb_id_t.\n");
+		return NULL;
+	}
+	
+	// ensure the instance hasn't already been finalized
+	if (this->final)
+	{
+		_cti_set_error("_cti_gdb_getSymbolVal: cti_gdb_id_t is finalized.\n");
 		return NULL;
 	}
 	
 	// create the request message
-	if ((msg = _cti_gdb_createMsg(MSG_ID, strdup(jobid_sym))) == NULL)
+	if ((msg = _cti_gdb_createMsg(MSG_ID, strdup(sym))) == NULL)
 	{
 		// set the error message if there is one
 		if (_cti_gdb_err_string != NULL)
@@ -530,7 +541,7 @@ _cti_gdb_getJobId(cti_gdb_id_t gdb_id, const char *jobid_sym)
 			_cti_set_error("%s", _cti_gdb_err_string);
 		} else
 		{
-			_cti_set_error("_cti_gdb_getJobId: Unknown gdb_MPIR error!\n");
+			_cti_set_error("_cti_gdb_getSymbolVal: Unknown gdb_MPIR error!\n");
 		}
 		return NULL;
 	}
@@ -544,7 +555,7 @@ _cti_gdb_getJobId(cti_gdb_id_t gdb_id, const char *jobid_sym)
 			_cti_set_error("%s", _cti_gdb_err_string);
 		} else
 		{
-			_cti_set_error("_cti_gdb_getJobId: Unknown gdb_MPIR error!\n");
+			_cti_set_error("_cti_gdb_getSymbolVal: Unknown gdb_MPIR error!\n");
 		}
 		_cti_gdb_consumeMsg(msg);
 		return NULL;
@@ -561,7 +572,7 @@ _cti_gdb_getJobId(cti_gdb_id_t gdb_id, const char *jobid_sym)
 			_cti_set_error("%s", _cti_gdb_err_string);
 		} else
 		{
-			_cti_set_error("_cti_gdb_getJobId: Unknown gdb_MPIR error!\n");
+			_cti_set_error("_cti_gdb_getSymbolVal: Unknown gdb_MPIR error!\n");
 		}
 		return NULL;
 	}
@@ -579,7 +590,7 @@ _cti_gdb_getJobId(cti_gdb_id_t gdb_id, const char *jobid_sym)
 		default:
 			// We don't have error recovery right now, so if an unexpected message
 			// comes in we are screwed.
-			_cti_set_error("_cti_gdb_getJobId: Unexpected message received!\n");
+			_cti_set_error("_cti_gdb_getSymbolVal: Unexpected message received!\n");
 			_cti_gdb_consumeMsg(msg);
 			return NULL;
 	}
@@ -613,6 +624,13 @@ _cti_gdb_releaseBarrier(cti_gdb_id_t gdb_id)
 	if (this == NULL)
 	{
 		_cti_set_error("_cti_gdb_releaseBarrier: Invalid cti_gdb_id_t.\n");
+		return 1;
+	}
+	
+	// ensure the instance hasn't already been finalized
+	if (this->final)
+	{
+		_cti_set_error("_cti_gdb_releaseBarrier: cti_gdb_id_t is finalized.\n");
 		return 1;
 	}
 	
@@ -680,6 +698,9 @@ _cti_gdb_releaseBarrier(cti_gdb_id_t gdb_id)
 	
 	// cleanup the message
 	_cti_gdb_consumeMsg(msg);
+	
+	// set finalized to true
+	this->final = 1;
 	
 	return 0;
 }

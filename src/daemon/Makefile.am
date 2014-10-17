@@ -14,17 +14,17 @@
 ## $Rev$
 ## $Author$
 
-ARCHIVE_LIBS    = @archive_libs@
-SRC             = @craytool_dir@/src
-USEFUL          = $(SRC)/useful
+ARCHIVE_LIBS    	= @archive_libs@
+SRC             	= @craytool_dir@/src
+USEFUL          	= $(SRC)/useful
 
-AM_CFLAGS       = -Wall -I$(SRC)
-AM_LIBTOOLFLAGS = --quiet
+AM_CFLAGS       	= -Wall -I$(SRC)
+AM_LIBTOOLFLAGS 	= --quiet
 
-bin_PROGRAMS    = dlaunch
+libexec_PROGRAMS	= dlaunch
 
-dlaunch_SOURCES	= cti_daemon.c alps_dl.c
-dlaunch_CFLAGS	= $(AM_CFLAGS) -I$(USEFUL)
-dlaunch_LDADD	= $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
-dlaunch_LDFLAGS	= -all-static
+dlaunch_SOURCES		= cti_daemon.c alps_dl.c
+dlaunch_CFLAGS		= $(AM_CFLAGS) -I$(USEFUL)
+dlaunch_LDADD		= $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
+dlaunch_LDFLAGS		= -all-static
 

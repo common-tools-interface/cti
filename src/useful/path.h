@@ -21,7 +21,7 @@
 
 char *	_cti_pathFind(const char *, const char *);
 char *	_cti_libFind(const char *);
-int		_cti_adjustPaths(char *);
-char *	_cti_pathToName(char *);
+int		_cti_adjustPaths(const char *);
+char *	_cti_pathToName(const char *);
 
 #endif /* _PATH_H */

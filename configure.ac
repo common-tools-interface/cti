@@ -67,6 +67,7 @@ AC_ARG_WITH([libmi],
 ### Check for programs. ###
 ###########################
 AC_PROG_CC
+AC_PROG_CC_C99
 AM_PROG_CC_C_O
 AC_PROG_INSTALL
 AC_PROG_LIBTOOL
