@@ -30,9 +30,9 @@
 #include "alps_fe.h"
 
 cti_app_id_t
-cti_launchAppBarrier(	char * const launcher_argv[], int redirectOutput, int redirectInput, 
+cti_launchAppBarrier(	const char * const launcher_argv[], int redirectOutput, int redirectInput, 
 						int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath,
-						char * const env_list[]	)
+						const char * const env_list[]	)
 {
 	// call the appropriate wlm launch function based on the current wlm proto
 	return _cti_wlmProto->wlm_launchBarrier(	launcher_argv, redirectOutput, redirectInput, 

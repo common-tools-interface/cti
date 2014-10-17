@@ -3040,7 +3040,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 }
 
 cti_session_id_t
-cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t sid, const char *daemon, char * const args[], char * const env[], int dbg)
+cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t sid, const char *daemon, const char * const args[], const char * const env[], int dbg)
 {
 	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
 	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
@@ -3050,7 +3050,6 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	char *			jid_str;			// job id string to pass to the backend. This is wlm specific.
 	char *			args_flat = NULL;	// flattened args array to pass to the toolhelper call
 	char *			tmp_args;			// temporary args used in creating args_flat
-	char * const *	tmp;				// temporary pointer used to iterate through lists of strings
 	session_t *		s_ptr = NULL;		// points at the session to return
 	int				trnsfr = 1;			// should we transfer the dlaunch?
 		
@@ -3211,17 +3210,15 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		free(tmp_args);
 	}
 	
-	// add each of the env arguments
-	tmp = env;
-	// ensure the are actual entries before dereferencing tmp
-	if (tmp != NULL)
+	// ensure the are actual entries before dereferencing
+	if (env != NULL)
 	{
-		while (*tmp != NULL)
+		while (*env != NULL)
 		{
 			// add the env arg
 			tmp_args = args_flat;
 			args_flat = NULL;
-			if (asprintf(&args_flat, "%s -e %s", tmp_args, *tmp++) <= 0)
+			if (asprintf(&args_flat, "%s -e %s", tmp_args, *env++) <= 0)
 			{
 				_cti_set_error("asprintf failed.");
 				return 0;
@@ -3254,15 +3251,14 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	free(tmp_args);
 	
 	// add each of the args from the args array
-	tmp = args;
-	// ensure the are actual entries before dereferencing tmp
-	if (tmp != NULL)
+	// ensure the are actual entries before dereferencing
+	if (args != NULL)
 	{
-		while (*tmp != NULL)
+		while (*args != NULL)
 		{
 			tmp_args = args_flat;
 			args_flat = NULL;
-			if (asprintf(&args_flat, "%s %s ", tmp_args, *tmp++) <= 0)
+			if (asprintf(&args_flat, "%s %s ", tmp_args, *args++) <= 0)
 			{
 				_cti_set_error("asprintf failed.");
 				return 0;

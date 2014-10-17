@@ -25,7 +25,7 @@
 #include "cti_fe.h"
 
 /* function prototypes */
-cti_app_id_t		cti_launchAppBarrier(char * const [], int, int, int, int, const char *, const char *, char * const []);
+cti_app_id_t		cti_launchAppBarrier(const char * const [], int, int, int, int, const char *, const char *, const char * const []);
 int					cti_releaseAppBarrier(cti_app_id_t);
 int					cti_killApp(cti_app_id_t, int);
 

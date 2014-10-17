@@ -26,7 +26,7 @@ typedef int cti_gdb_id_t;
 cti_gdb_id_t	_cti_gdb_newInstance(void);
 void			_cti_gdb_cleanup(cti_gdb_id_t);
 void			_cti_gdb_cleanupAll(void);
-void			_cti_gdb_execStarter(cti_gdb_id_t, const char *, char * const[], const char *);
+void			_cti_gdb_execStarter(cti_gdb_id_t, const char *, const char * const[], const char *);
 int				_cti_gdb_postFork(cti_gdb_id_t);
 char *			_cti_gdb_getSymbolVal(cti_gdb_id_t, const char *);
 // After calling releaseBarrier, no further calls with this instance is possible. The child

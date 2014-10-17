@@ -615,7 +615,7 @@ _cti_wlm_getJobId_none(void *a1)
 }
 
 cti_app_id_t
-_cti_wlm_launchBarrier_none(char * const a1[], int a2, int a3, int a4, int a5, const char *a6, const char *a7, char * const a8[])
+_cti_wlm_launchBarrier_none(const char * const a1[], int a2, int a3, int a4, int a5, const char *a6, const char *a7, const char * const a8[])
 {
 	_cti_set_error("wlm_launchBarrier() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 0;

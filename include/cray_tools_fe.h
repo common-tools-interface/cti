@@ -410,14 +410,14 @@ extern void	cti_destroyHostsList(cti_hostsList_t *placement_list);
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-extern cti_app_id_t cti_launchAppBarrier(   char * const    launcher_argv[],
-                                            int             redirectOutput,
-                                            int             redirectInput,
-                                            int             stdout_fd,
-                                            int             stderr_fd,
-                                            const char *    inputFile,
-                                            const char *    chdirPath, 
-                                            char * const    env_list[]);
+extern cti_app_id_t cti_launchAppBarrier(   const char * const  launcher_argv[],
+                                            int                 redirectOutput,
+                                            int                 redirectInput,
+                                            int                 stdout_fd,
+                                            int                 stderr_fd,
+                                            const char *        inputFile,
+                                            const char *        chdirPath, 
+                                            const char * const  env_list[]);
 
 /*
  * cti_releaseAppBarrier - Release the application launcher launched with the
@@ -654,8 +654,8 @@ extern cti_session_id_t cti_execToolDaemon( cti_app_id_t        app_id,
                                             cti_manifest_id_t   mid, 
                                             cti_session_id_t    sid, 
                                             const char *		fstr, 
-                                            char * const        args[],
-                                            char * const        env[],
+                                            const char * const  args[],
+                                            const char * const  env[],
                                             int                 debug);
 
 /*

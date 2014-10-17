@@ -89,7 +89,7 @@ static int					_cti_alps_init(void);
 static void					_cti_alps_fini(void);
 static int					_cti_alps_cmpJobId(void *, void *);
 static char *				_cti_alps_getJobId(void *);
-static cti_app_id_t			_cti_alps_launchBarrier(char * const [], int, int, int, int, const char *, const char *, char * const []);
+static cti_app_id_t			_cti_alps_launchBarrier(const char * const [], int, int, int, int, const char *, const char *, const char * const []);
 static int					_cti_alps_releaseBarrier(void *);
 static int					_cti_alps_killApp(void *, int);
 static int					_cti_alps_verifyBinary(const char *);
@@ -1034,9 +1034,9 @@ _cti_alps_filter_pid_entries(const struct dirent *a)
 }
 
 static cti_app_id_t
-_cti_alps_launchBarrier(	char * const launcher_argv[], int redirectOutput, int redirectInput, 
+_cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput, int redirectInput, 
 							int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath,
-							char * const env_list[]	)
+							const char * const env_list[]	)
 {
 	aprunInv_t *	myapp;
 	appEntry_t *	appEntry;
@@ -1100,10 +1100,12 @@ _cti_alps_launchBarrier(	char * const launcher_argv[], int redirectOutput, int r
 	// for the -P w,r argument and 2 for aprun and null term
 		
 	// iterate through the launcher_argv array
-	tmp = launcher_argv;
-	while (*tmp++ != NULL)
+	if (launcher_argv != NULL)
 	{
-		++aprun_argc;
+		for (i=0; launcher_argv[i] != NULL; ++i)
+		{
+			++aprun_argc;
+		}
 	}
 		
 	// allocate the new argv array. Need additional entry for null terminator
@@ -1267,13 +1269,12 @@ _cti_alps_launchBarrier(	char * const launcher_argv[], int redirectOutput, int r
 		}
 		
 		// if env_list is not null, call putenv for each entry in the list
-		if (env_list != (char **)NULL)
+		if (env_list != NULL)
 		{
-			i = 0;
-			while(env_list[i] != NULL)
+			for (i=0; env_list[i] != NULL; ++i)
 			{
 				// putenv returns non-zero on error
-				if (putenv(env_list[i++]))
+				if (putenv(strdup(env_list[i])))
 				{
 					fprintf(stderr, "CTI error: Unable to putenv provided env_list.\n");
 					exit(1);

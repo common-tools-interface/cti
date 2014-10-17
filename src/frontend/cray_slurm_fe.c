@@ -86,7 +86,7 @@ static void					_cti_cray_slurm_consumeSlurmLayout(slurmStepLayout_t *);
 static slurmStepLayout_t *	_cti_cray_slurm_getLayout(uint32_t, uint32_t);
 static int					_cti_cray_slurm_cmpJobId(void *, void *);
 static char *				_cti_cray_slurm_getJobId(void *);
-static cti_app_id_t			_cti_cray_slurm_launchBarrier(char * const [], int, int, int, int, const char *, const char *, char * const []);
+static cti_app_id_t			_cti_cray_slurm_launchBarrier(const char * const [], int, int, int, int, const char *, const char *, const char * const []);
 static int					_cti_cray_slurm_releaseBarrier(void *);
 static int					_cti_cray_slurm_killApp(void *, int);
 static int					_cti_cray_slurm_verifyBinary(const char *);
@@ -980,9 +980,9 @@ cti_registerJobStep(uint32_t jobid, uint32_t stepid)
 }
 
 static cti_app_id_t
-_cti_cray_slurm_launchBarrier(	char * const launcher_argv[], int redirectOutput, int redirectInput, 
-							int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath,
-							char * const env_list[]	)
+_cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectOutput, int redirectInput, 
+								int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath,
+								const char * const env_list[]	)
 {
 	srunInv_t *			myapp;
 	appEntry_t *		appEntry;
@@ -1060,13 +1060,12 @@ _cti_cray_slurm_launchBarrier(	char * const launcher_argv[], int redirectOutput,
 		}
 		
 		// if env_list is not null, call putenv for each entry in the list
-		if (env_list != (char **)NULL)
+		if (env_list != NULL)
 		{
-			i = 0;
-			while(env_list[i] != NULL)
+			for (i=0; env_list[i] != NULL; ++i)
 			{
 				// putenv returns non-zero on error
-				if (putenv(env_list[i++]))
+				if (putenv(strdup(env_list[i])))
 				{
 					fprintf(stderr, "CTI error: Unable to putenv provided env_list.\n");
 					exit(1);

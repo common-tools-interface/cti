@@ -53,14 +53,14 @@ typedef struct
 	void					(*wlm_fini)(void);								// wlm finish function
 	int						(*wlm_cmpJobId)(void *, void *);				// compare wlm specific job ids - return -1 on error, 1 on match, 0 on mismatch
 	char *					(*wlm_getJobId)(void *);						// return the string version of the job identifer
-	cti_app_id_t			(*wlm_launchBarrier)(	char * const [],		// launch application - return 0 on error or else cti_app_id_t
-												int, 
-												int, 
-												int, 
-												int, 
-												const char *, 
-												const char *, 
-												char * const []);
+	cti_app_id_t			(*wlm_launchBarrier)(	const char * const [],	// launch application - return 0 on error or else cti_app_id_t
+													int, 
+													int, 
+													int, 
+													int, 
+													const char *, 
+													const char *, 
+													const char * const []);
 	int						(*wlm_releaseBarrier)(void *);					// release app from barrier - return true on error
 	int						(*wlm_killApp)(void *, int);					// kill application - return true on error
 	int						(*wlm_verifyBinary)(const char *);				// verify that binary file is valid for wlm - return true on invalid binary
@@ -122,7 +122,7 @@ int						_cti_wlm_init_none(void);
 void					_cti_wlm_fini_none(void);
 int						_cti_wlm_cmpJobId_none(void *, void *);
 char *					_cti_wlm_getJobId_none(void *);
-cti_app_id_t			_cti_wlm_launchBarrier_none(char * const [], int, int, int, int, const char *, const char *, char * const []);
+cti_app_id_t			_cti_wlm_launchBarrier_none(const char * const [], int, int, int, int, const char *, const char *, const char * const []);
 int						_cti_wlm_releaseBarrier_none(void *);
 int						_cti_wlm_killApp_none(void *, int);
 int						_cti_wlm_verifyBinary_none(const char *);

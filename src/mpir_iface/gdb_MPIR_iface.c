@@ -251,17 +251,16 @@ _cti_gdb_newInstance(void)
 // This function is called by the child after the fork.
 // It will setup the call to exec the gdb MPIR starter utility.
 void
-_cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, char * const launcher_args[], const char *input_file)
+_cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * const launcher_args[], const char *input_file)
 {
 	gdbCtlInst_t *	this;
-	char * const *	p;
 	char *			pr_arg;
 	char *			pw_arg;
 	char *			l_arg;
 	char *			i_arg = NULL;
 	int				s_argc = 0;
 	char **			s_argv;
-	int				i;
+	int				i,j;
 	
 	// ensure the caller passed valid arguments
 	if (launcher == NULL)
@@ -311,8 +310,7 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, char * const lau
 	{
 		// add one for the "--" argument
 		++s_argc;
-		p = launcher_args;
-		while (*p++ != NULL)
+		for (i=0; launcher_args[i] != NULL; ++i)
 		{
 			++s_argc;
 		}
@@ -391,10 +389,9 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, char * const lau
 	if (launcher_args != NULL)
 	{
 		s_argv[i++] = "--";
-		p = launcher_args;
-		while (*p != NULL)
+		for (j=0; launcher_args[j] != NULL; ++j)
 		{
-			s_argv[i++] = *p++;
+			s_argv[i++] = (char *)launcher_args[j];	// yes, I know this cast is bad.
 		}
 	}
 	// set null terminator
