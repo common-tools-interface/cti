@@ -14512,7 +14512,9 @@ fi
 CFLAGS="$save_CFLAGS"
 
 save_CFLAGS="$CFLAGS"
+save_CPPFLAGS="$CPPFLAGS"
 CFLAGS="$CFLAGS $SLURM_CFLAGS"
+CPPFLAGS="$CPPFLAGS $SLURM_CFLAGS"
 if test "${ac_cv_header_slurm_slurm_h+set}" = set; then
   { $as_echo "$as_me:$LINENO: checking for slurm/slurm.h" >&5
 $as_echo_n "checking for slurm/slurm.h... " >&6; }
@@ -14660,6 +14662,7 @@ fi
 
 
 CFLAGS="$save_CFLAGS"
+CPPFLAGS="$save_CPPFLAGS"
 
 save_CFLAGS="$CFLAGS"
 if test -f "$libarchive_path/include/archive.h"; then

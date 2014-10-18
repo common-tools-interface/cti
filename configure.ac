@@ -221,13 +221,16 @@ CFLAGS="$save_CFLAGS"
 
 dnl Check for libslurm headers
 save_CFLAGS="$CFLAGS"
+save_CPPFLAGS="$CPPFLAGS"
 CFLAGS="$CFLAGS $SLURM_CFLAGS"
+CPPFLAGS="$CPPFLAGS $SLURM_CFLAGS"
 AC_CHECK_HEADER(	[slurm/slurm.h],
 					[],
 					[AC_MSG_FAILURE([slurm/slurm.h not found.])]
 					)
 dnl restore flags
 CFLAGS="$save_CFLAGS"
+CPPFLAGS="$save_CPPFLAGS"
 
 dnl Check for libarchive headers
 save_CFLAGS="$CFLAGS"
