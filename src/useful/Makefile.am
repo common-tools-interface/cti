@@ -14,7 +14,7 @@
 ## $Rev$
 ## $Author$
 
-SRC             = @craytool_dir@/src
+SRC             = @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS = --quiet
 AM_CFLAGS		= -fPIC -Wall -I$(SRC)
 

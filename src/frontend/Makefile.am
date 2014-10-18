@@ -14,8 +14,7 @@
 ## $Rev$
 ## $Author$
 
-ARCHIVE_LIBS    = @archive_libs@
-SRC             = @craytool_dir@/src
+SRC             = @CRAYTOOL_DIR@/src
 LDVAL           = $(SRC)/ld_val
 USEFUL          = $(SRC)/useful
 MPIR_IFACE		= $(SRC)/mpir_iface
@@ -27,8 +26,8 @@ lib_LTLIBRARIES = libcraytools_fe.la
 
 libcraytools_fe_la_SOURCES	=	cti_fe.c cti_fe.h cti_run.c cti_run.h cti_error.c cti_error.h \
 								cti_transfer.c cti_transfer.h alps_fe.c alps_fe.h cray_slurm_fe.c
-libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -I$(MPIR_IFACE) -I$(LDVAL) -I$(USEFUL)
+libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -I$(MPIR_IFACE) -I$(LDVAL) -I$(USEFUL) $(ARCHIVE_CFLAGS) $(ALPS_CFLAGS)
 libcraytools_fe_la_LIBADD	=	$(USEFUL)/libuseful.la $(LDVAL)/libld_val.la $(MPIR_IFACE)/libmpir_iface.la \
 								$(ARCHIVE_LIBS)
-libcraytools_fe_la_LDFLAGS	=	-ldl -version-info $(CRAYTOOL_FE_VERSION)
+libcraytools_fe_la_LDFLAGS	=	-ldl -version-info $(CRAYTOOL_FE_VERSION) $(ARCHIVE_LDFLAGS)
 

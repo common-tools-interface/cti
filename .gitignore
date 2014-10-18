@@ -1,5 +1,4 @@
 /Makefile
-/alps_base
 /autom4te.cache
 /config.h
 /config.log
@@ -11,12 +10,14 @@
 demos/.deps
 demos/Makefile
 demos/demo_binaries
+/external
 /install
 /libtool
 src/.deps
 src/Makefile
 src/backend/.deps
 src/backend/Makefile
+src/cscope.out
 src/daemon/.deps
 src/daemon/Makefile
 src/daemon/dlaunch
@@ -27,6 +28,10 @@ src/ld_val/Makefile
 src/mpir_iface/.deps
 src/mpir_iface/Makefile
 src/mpir_iface/cti_starter
+src/slurm_util/.deps
+src/slurm_util/Makefile
+src/slurm_util/Makefile.in
+src/slurm_util/cti_slurm_util
 src/useful/.deps
 src/useful/Makefile
 /stamp-h1

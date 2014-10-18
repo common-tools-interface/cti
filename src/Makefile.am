@@ -15,7 +15,7 @@
 ## $Rev$
 ## $Author$
 
-SUBDIRS			= ld_val useful mpir_iface frontend backend daemon
+SUBDIRS			= ld_val useful mpir_iface frontend backend daemon slurm_util
 
 noinst_HEADERS	= cti_defs.h
 

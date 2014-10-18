@@ -790,17 +790,24 @@ ac_includes_default="\
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
-mi_libs
-archive_libs
-XMLRPC_LIB_PATH
-ALPS_INC_PATH
-ALPS_LIB_PATH
+MI_CFLAGS
+ARCHIVE_CFLAGS
+MI_LIBS
+MI_LDFLAGS
+ARCHIVE_LIBS
+ARCHIVE_LDFLAGS
+SLURM_LIBS
+SLURM_CFLAGS
+SLURM_LDFLAGS
+WGET
+ALPS_CFLAGS
+ALPS_LDFLAGS
 CPIO
 RPM2CPIO
 CRAYTOOL_RELEASE_VERSION
 CRAYTOOL_FE_VERSION
 CRAYTOOL_BE_VERSION
-craytool_dir
+CRAYTOOL_DIR
 OTOOL64
 OTOOL
 LIPO
@@ -928,7 +935,8 @@ LIBS
 CPPFLAGS
 CPP
 RPM2CPIO
-CPIO'
+CPIO
+WGET'
 
 
 # Initialize some variables set by options.
@@ -1574,9 +1582,9 @@ Optional Packages:
   --with-pic              try to use only PIC/non-PIC objects [default=use
                           both]
   --with-gnu-ld           assume the C compiler uses GNU ld [default=no]
-  --with-libarchive       Specify path to libarchive library.
+  --with-libarchive       Specify path to libarchive install.
 
-  --with-libmi            Specify path to libmi library.
+  --with-libmi            Specify path to libmi install.
 
 
 Some influential environment variables:
@@ -1590,6 +1598,7 @@ Some influential environment variables:
   CPP         C preprocessor
   RPM2CPIO    Location of rpm2cpio
   CPIO        Location of cpio
+  WGET        Location of wget
 
 Use these variables to override the choices made by `configure' or to help
 it to find libraries and programs with nonstandard names/locations.
@@ -5067,13 +5076,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:5070: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:5079: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:5073: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:5082: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:5076: output\"" >&5)
+  (eval echo "\"\$as_me:5085: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6278,7 +6287,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6281 "configure"' > conftest.$ac_ext
+  echo '#line 6290 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7647,11 +7656,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7650: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7659: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7654: \$? = $ac_status" >&5
+   echo "$as_me:7663: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7986,11 +7995,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7989: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7998: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7993: \$? = $ac_status" >&5
+   echo "$as_me:8002: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8091,11 +8100,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8094: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8103: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8098: \$? = $ac_status" >&5
+   echo "$as_me:8107: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8146,11 +8155,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8149: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8158: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8153: \$? = $ac_status" >&5
+   echo "$as_me:8162: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -10946,7 +10955,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 10949 "configure"
+#line 10958 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11042,7 +11051,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11045 "configure"
+#line 11054 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11282,7 +11291,7 @@ CC="$lt_save_CC"
 
 
 
-craytool_dir="`cd $srcdir && pwd`"
+CRAYTOOL_DIR="`cd $srcdir && pwd`"
 
 CRAYTOOL_BE_VERSION=6:0:0
 
@@ -12660,23 +12669,76 @@ $as_echo "$as_me: error: cpio not found." >&2;}
 	fi
 
 		_cray_curdir=$(pwd)
-	_cray_tmpdir="$_cray_curdir/alps_base/$CLE_RPM_VERS"
+	_cray_stage="$_cray_curdir/external"
+	_cray_tmpdir="$_cray_stage/alps_base"
+
+		if test ! -d "$_cray_stage"; then
+		{ as_dir=$_cray_stage
+  case $as_dir in #(
+  -*) as_dir=./$as_dir;;
+  esac
+  test -d "$as_dir" || { $as_mkdir_p && mkdir -p "$as_dir"; } || {
+    as_dirs=
+    while :; do
+      case $as_dir in #(
+      *\'*) as_qdir=`$as_echo "$as_dir" | sed "s/'/'\\\\\\\\''/g"`;; #'(
+      *) as_qdir=$as_dir;;
+      esac
+      as_dirs="'$as_qdir' $as_dirs"
+      as_dir=`$as_dirname -- "$as_dir" ||
+$as_expr X"$as_dir" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
+	 X"$as_dir" : 'X\(//\)[^/]' \| \
+	 X"$as_dir" : 'X\(//\)$' \| \
+	 X"$as_dir" : 'X\(/\)' \| . 2>/dev/null ||
+$as_echo X"$as_dir" |
+    sed '/^X\(.*[^/]\)\/\/*[^/][^/]*\/*$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\/\)[^/].*/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\/\)$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\).*/{
+	    s//\1/
+	    q
+	  }
+	  s/.*/./; q'`
+      test -d "$as_dir" && break
+    done
+    test -z "$as_dirs" || eval "mkdir $as_dirs"
+  } || test -d "$as_dir" || { { $as_echo "$as_me:$LINENO: error: cannot create directory $as_dir" >&5
+$as_echo "$as_me: error: cannot create directory $as_dir" >&2;}
+   { (exit 1); exit 1; }; }; }
+	fi
+
+	{ $as_echo "$as_me:$LINENO: checking for ALPS stage directory" >&5
+$as_echo_n "checking for ALPS stage directory... " >&6; }
 
 	if test ! -d "$_cray_tmpdir"; then
-  					if test -d "$ALPS_RPM_DIR"; then
-					ALPS_RPM_1=$(find $ALPS_RPM_DIR/alps-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)
+  	{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+				{ $as_echo "$as_me:$LINENO: Creating ALPS staging directory in $_cray_tmpdir" >&5
+$as_echo "$as_me: Creating ALPS staging directory in $_cray_tmpdir" >&6;}
+
+								if test -d "$ALPS_RPM_DIR"; then
+					ALPS_RPM_1=$(find $ALPS_RPM_DIR/alps-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm 2>&5)
 					if test ! -e "$ALPS_RPM_1"; then
 						{ { $as_echo "$as_me:$LINENO: error: ALPS RPM alps-$CLE_RPM_VERS not found." >&5
 $as_echo "$as_me: error: ALPS RPM alps-$CLE_RPM_VERS not found." >&2;}
    { (exit 1); exit 1; }; }
 					fi
-					ALPS_RPM_2=$(find $ALPS_RPM_DIR/alps-app-devel-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)
+					ALPS_RPM_2=$(find $ALPS_RPM_DIR/alps-app-devel-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm 2>&5)
 					if test ! -e "$ALPS_RPM_2"; then
 						{ { $as_echo "$as_me:$LINENO: error: ALPS RPM alps-app-devel-$CLE_RPM_VERS not found." >&5
 $as_echo "$as_me: error: ALPS RPM alps-app-devel-$CLE_RPM_VERS not found." >&2;}
    { (exit 1); exit 1; }; }
 					fi
-					ALPS_RPM_3=$(find $ALPS_RPM_DIR/alps-devel-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm)
+					ALPS_RPM_3=$(find $ALPS_RPM_DIR/alps-devel-$CLE_RPM_VERS.[0-9\.\-]*.gem.x86_64.rpm 2>&5)
 					if test ! -e "$ALPS_RPM_3"; then
 						{ { $as_echo "$as_me:$LINENO: error: ALPS RPM alps-devel-$CLE_RPM_VERS not found." >&5
 $as_echo "$as_me: error: ALPS RPM alps-devel-$CLE_RPM_VERS not found." >&2;}
@@ -12689,13 +12751,13 @@ $as_echo "$as_me: error: ALPS RPM directory $ALPS_RPM_DIR not found." >&2;}
 				fi
 
 								if test -d "$XMLRPC_RPM_DIR"; then
-					XMLRPC_RPM_1=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi0-[0-9\.\-]*.x86_64.rpm)
+					XMLRPC_RPM_1=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi0-[0-9\.\-]*.x86_64.rpm 2>&5)
 					if test ! -e "$XMLRPC_RPM_1"; then
 						{ { $as_echo "$as_me:$LINENO: error: XMLRPC RPM cray-libxmlrpc-epi0 not found." >&5
 $as_echo "$as_me: error: XMLRPC RPM cray-libxmlrpc-epi0 not found." >&2;}
    { (exit 1); exit 1; }; }
 					fi
-					XMLRPC_RPM_2=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi-devel-[0-9\.\-]*.x86_64.rpm)
+					XMLRPC_RPM_2=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi-devel-[0-9\.\-]*.x86_64.rpm 2>&5)
 					if test ! -e "$XMLRPC_RPM_1"; then
 						{ { $as_echo "$as_me:$LINENO: error: XMLRPC RPM cray-libxmlrpc-epi-devel not found." >&5
 $as_echo "$as_me: error: XMLRPC RPM cray-libxmlrpc-epi-devel not found." >&2;}
@@ -12749,37 +12811,452 @@ $as_echo X"$as_dir" |
 $as_echo "$as_me: error: cannot create directory $as_dir" >&2;}
    { (exit 1); exit 1; }; }; }
 				cd $_cray_tmpdir
-				$RPM2CPIO $ALPS_RPM_1 | $CPIO -idv
-				$RPM2CPIO $ALPS_RPM_2 | $CPIO -idv
-				$RPM2CPIO $ALPS_RPM_3 | $CPIO -idv
-				$RPM2CPIO $XMLRPC_RPM_1 | $CPIO -idv
-				$RPM2CPIO $XMLRPC_RPM_2 | $CPIO -idv
+				$RPM2CPIO $ALPS_RPM_1 | $CPIO -idv >&5 2>&5
+				$RPM2CPIO $ALPS_RPM_2 | $CPIO -idv >&5 2>&5
+				$RPM2CPIO $ALPS_RPM_3 | $CPIO -idv >&5 2>&5
+				$RPM2CPIO $XMLRPC_RPM_1 | $CPIO -idv >&5 2>&5
+				$RPM2CPIO $XMLRPC_RPM_2 | $CPIO -idv >&5 2>&5
 				cd $_cray_curdir
-				{ $as_echo "$as_me:$LINENO: Created ALPS staging location at $_cray_tmpdir" >&5
-$as_echo "$as_me: Created ALPS staging location at $_cray_tmpdir" >&6;}
 
+else
+  { $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
 fi
 
 
-	ALPS_LIB_PATH=$_cray_tmpdir/usr/lib/alps/
+	{ $as_echo "$as_me:$LINENO: checking if ALPS libraries are setup" >&5
+$as_echo_n "checking if ALPS libraries are setup... " >&6; }
 
-	ALPS_INC_PATH=$_cray_tmpdir/usr/include/
-
-	XMLRPC_LIB_PATH=$_cray_tmpdir/usr/lib64/
-
-
-		if test -d "$ALPS_LIB_PATH"; then
-		LDFLAGS="$LDFLAGS -L$ALPS_LIB_PATH"
+	if test ! -d "$_cray_tmpdir/usr/lib/alps/"; then
+		{ $as_echo "$as_me:$LINENO: result: not found" >&5
+$as_echo "not found" >&6; }
+		{ { $as_echo "$as_me:$LINENO: error: ALPS lib directory $_cray_tmpdir/usr/lib/alps/ not found." >&5
+$as_echo "$as_me: error: ALPS lib directory $_cray_tmpdir/usr/lib/alps/ not found." >&2;}
+   { (exit 1); exit 1; }; }
 	fi
 
-		if test -d "$ALPS_INC_PATH"; then
-		CPPFLAGS="$CPPFLAGS -I$ALPS_INC_PATH"
-		CFLAGS="$CFLAGS -I$ALPS_INC_PATH"
+	if test ! -d "$_cray_tmpdir/usr/include/"; then
+		{ $as_echo "$as_me:$LINENO: result: not found" >&5
+$as_echo "not found" >&6; }
+		{ { $as_echo "$as_me:$LINENO: error: ALPS include directory $_cray_tmpdir/usr/include/ not found." >&5
+$as_echo "$as_me: error: ALPS include directory $_cray_tmpdir/usr/include/ not found." >&2;}
+   { (exit 1); exit 1; }; }
 	fi
 
-		if test -d "$XMLRPC_LIB_PATH"; then
-		LDFLAGS="$LDFLAGS -L$XMLRPC_LIB_PATH"
+	if test ! -d "$_cray_tmpdir/usr/lib64/"; then
+		{ $as_echo "$as_me:$LINENO: result: not found" >&5
+$as_echo "not found" >&6; }
+		{ { $as_echo "$as_me:$LINENO: error: XMLRPC lib directory $_cray_tmpdir/usr/lib64/ not found." >&5
+$as_echo "$as_me: error: XMLRPC lib directory $_cray_tmpdir/usr/lib64/ not found." >&2;}
+   { (exit 1); exit 1; }; }
 	fi
+
+	{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+	ALPS_LDFLAGS="-L$_cray_tmpdir/usr/lib/alps -L$_cray_tmpdir/usr/lib64"
+
+	ALPS_CFLAGS="-I$_cray_tmpdir/usr/include"
+
+
+
+
+			SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/trunk/SLE_11_SP2/x86_64/"
+
+	{ $as_echo "$as_me:$LINENO: checking for a thread-safe mkdir -p" >&5
+$as_echo_n "checking for a thread-safe mkdir -p... " >&6; }
+if test -z "$MKDIR_P"; then
+  if test "${ac_cv_path_mkdir+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH$PATH_SEPARATOR/opt/sfw/bin
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_prog in mkdir gmkdir; do
+	 for ac_exec_ext in '' $ac_executable_extensions; do
+	   { test -f "$as_dir/$ac_prog$ac_exec_ext" && $as_test_x "$as_dir/$ac_prog$ac_exec_ext"; } || continue
+	   case `"$as_dir/$ac_prog$ac_exec_ext" --version 2>&1` in #(
+	     'mkdir (GNU coreutils) '* | \
+	     'mkdir (coreutils) '* | \
+	     'mkdir (fileutils) '4.1*)
+	       ac_cv_path_mkdir=$as_dir/$ac_prog$ac_exec_ext
+	       break 3;;
+	   esac
+	 done
+       done
+done
+IFS=$as_save_IFS
+
+fi
+
+  if test "${ac_cv_path_mkdir+set}" = set; then
+    MKDIR_P="$ac_cv_path_mkdir -p"
+  else
+    # As a last resort, use the slow shell script.  Don't cache a
+    # value for MKDIR_P within a source directory, because that will
+    # break other packages using the cache if that directory is
+    # removed, or if the value is a relative name.
+    test -d ./--version && rmdir ./--version
+    MKDIR_P="$ac_install_sh -d"
+  fi
+fi
+{ $as_echo "$as_me:$LINENO: result: $MKDIR_P" >&5
+$as_echo "$MKDIR_P" >&6; }
+
+	for ac_prog in gawk mawk nawk awk
+do
+  # Extract the first word of "$ac_prog", so it can be a program name with args.
+set dummy $ac_prog; ac_word=$2
+{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if test "${ac_cv_prog_AWK+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  if test -n "$AWK"; then
+  ac_cv_prog_AWK="$AWK" # Let the user override the test.
+else
+as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_prog_AWK="$ac_prog"
+    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+fi
+fi
+AWK=$ac_cv_prog_AWK
+if test -n "$AWK"; then
+  { $as_echo "$as_me:$LINENO: result: $AWK" >&5
+$as_echo "$AWK" >&6; }
+else
+  { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+  test -n "$AWK" && break
+done
+
+
+
+	# Extract the first word of "wget", so it can be a program name with args.
+set dummy wget; ac_word=$2
+{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if test "${ac_cv_path_WGET+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  case $WGET in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_WGET="$WGET" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_WGET="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_path_WGET" && ac_cv_path_WGET="wget"
+  ;;
+esac
+fi
+WGET=$ac_cv_path_WGET
+if test -n "$WGET"; then
+  { $as_echo "$as_me:$LINENO: result: $WGET" >&5
+$as_echo "$WGET" >&6; }
+else
+  { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+	if test -z "$WGET"; then
+		{ { $as_echo "$as_me:$LINENO: error: wget not found." >&5
+$as_echo "$as_me: error: wget not found." >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+
+	# Extract the first word of "rpm2cpio", so it can be a program name with args.
+set dummy rpm2cpio; ac_word=$2
+{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if test "${ac_cv_path_RPM2CPIO+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  case $RPM2CPIO in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_RPM2CPIO="$RPM2CPIO" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_RPM2CPIO="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_path_RPM2CPIO" && ac_cv_path_RPM2CPIO="rpm2cpio"
+  ;;
+esac
+fi
+RPM2CPIO=$ac_cv_path_RPM2CPIO
+if test -n "$RPM2CPIO"; then
+  { $as_echo "$as_me:$LINENO: result: $RPM2CPIO" >&5
+$as_echo "$RPM2CPIO" >&6; }
+else
+  { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+	if test -z "$RPM2CPIO"; then
+		{ { $as_echo "$as_me:$LINENO: error: rpm2cpio not found." >&5
+$as_echo "$as_me: error: rpm2cpio not found." >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+
+	# Extract the first word of "cpio", so it can be a program name with args.
+set dummy cpio; ac_word=$2
+{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if test "${ac_cv_path_CPIO+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  case $CPIO in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_CPIO="$CPIO" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_CPIO="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_path_CPIO" && ac_cv_path_CPIO="cpio"
+  ;;
+esac
+fi
+CPIO=$ac_cv_path_CPIO
+if test -n "$CPIO"; then
+  { $as_echo "$as_me:$LINENO: result: $CPIO" >&5
+$as_echo "$CPIO" >&6; }
+else
+  { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+	if test -z "$CPIO"; then
+		{ { $as_echo "$as_me:$LINENO: error: cpio not found." >&5
+$as_echo "$as_me: error: cpio not found." >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+		_cray_curdir=$(pwd)
+	_cray_stage="$_cray_curdir/external"
+	_cray_tmpdir="$_cray_stage/slurm_base"
+
+		if test ! -d "$_cray_stage"; then
+		{ as_dir=$_cray_stage
+  case $as_dir in #(
+  -*) as_dir=./$as_dir;;
+  esac
+  test -d "$as_dir" || { $as_mkdir_p && mkdir -p "$as_dir"; } || {
+    as_dirs=
+    while :; do
+      case $as_dir in #(
+      *\'*) as_qdir=`$as_echo "$as_dir" | sed "s/'/'\\\\\\\\''/g"`;; #'(
+      *) as_qdir=$as_dir;;
+      esac
+      as_dirs="'$as_qdir' $as_dirs"
+      as_dir=`$as_dirname -- "$as_dir" ||
+$as_expr X"$as_dir" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
+	 X"$as_dir" : 'X\(//\)[^/]' \| \
+	 X"$as_dir" : 'X\(//\)$' \| \
+	 X"$as_dir" : 'X\(/\)' \| . 2>/dev/null ||
+$as_echo X"$as_dir" |
+    sed '/^X\(.*[^/]\)\/\/*[^/][^/]*\/*$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\/\)[^/].*/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\/\)$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\).*/{
+	    s//\1/
+	    q
+	  }
+	  s/.*/./; q'`
+      test -d "$as_dir" && break
+    done
+    test -z "$as_dirs" || eval "mkdir $as_dirs"
+  } || test -d "$as_dir" || { { $as_echo "$as_me:$LINENO: error: cannot create directory $as_dir" >&5
+$as_echo "$as_me: error: cannot create directory $as_dir" >&2;}
+   { (exit 1); exit 1; }; }; }
+	fi
+
+	{ $as_echo "$as_me:$LINENO: checking for SLURM stage directory" >&5
+$as_echo_n "checking for SLURM stage directory... " >&6; }
+
+	if test ! -d "$_cray_tmpdir"; then
+  	{ $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+				{ $as_echo "$as_me:$LINENO: Creating SLURM staging directory in $_cray_tmpdir" >&5
+$as_echo "$as_me: Creating SLURM staging directory in $_cray_tmpdir" >&6;}
+
+								{ as_dir=$_cray_tmpdir
+  case $as_dir in #(
+  -*) as_dir=./$as_dir;;
+  esac
+  test -d "$as_dir" || { $as_mkdir_p && mkdir -p "$as_dir"; } || {
+    as_dirs=
+    while :; do
+      case $as_dir in #(
+      *\'*) as_qdir=`$as_echo "$as_dir" | sed "s/'/'\\\\\\\\''/g"`;; #'(
+      *) as_qdir=$as_dir;;
+      esac
+      as_dirs="'$as_qdir' $as_dirs"
+      as_dir=`$as_dirname -- "$as_dir" ||
+$as_expr X"$as_dir" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
+	 X"$as_dir" : 'X\(//\)[^/]' \| \
+	 X"$as_dir" : 'X\(//\)$' \| \
+	 X"$as_dir" : 'X\(/\)' \| . 2>/dev/null ||
+$as_echo X"$as_dir" |
+    sed '/^X\(.*[^/]\)\/\/*[^/][^/]*\/*$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\/\)[^/].*/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\/\)$/{
+	    s//\1/
+	    q
+	  }
+	  /^X\(\/\).*/{
+	    s//\1/
+	    q
+	  }
+	  s/.*/./; q'`
+      test -d "$as_dir" && break
+    done
+    test -z "$as_dirs" || eval "mkdir $as_dirs"
+  } || test -d "$as_dir" || { { $as_echo "$as_me:$LINENO: error: cannot create directory $as_dir" >&5
+$as_echo "$as_me: error: cannot create directory $as_dir" >&2;}
+   { (exit 1); exit 1; }; }; }
+				cd $_cray_tmpdir
+
+								$WGET -r -np -nH --cut-dirs=5 -R index.html* -P . -A slurm-[0-9]*,slurm-devel-* $SLURM_HTTP_RPM_SITE >&5 2>&5
+
+								SLURM_RPM_1=$(find slurm-[0-9]* 2>&5)
+				if test ! -e "$SLURM_RPM_1"; then
+					cd $_cray_curdir
+					{ { $as_echo "$as_me:$LINENO: error: slurm rpm from $SLURM_HTTP_RPM_SITE not found." >&5
+$as_echo "$as_me: error: slurm rpm from $SLURM_HTTP_RPM_SITE not found." >&2;}
+   { (exit 1); exit 1; }; }
+				fi
+				SLURM_RPM_2=$(find slurm-devel-*)
+				if test ! -e "$SLURM_RPM_2"; then
+					cd $_cray_curdir
+					{ { $as_echo "$as_me:$LINENO: error: slurm-devel rpm from $SLURM_HTTP_RPM_SITE not found." >&5
+$as_echo "$as_me: error: slurm-devel rpm from $SLURM_HTTP_RPM_SITE not found." >&2;}
+   { (exit 1); exit 1; }; }
+				fi
+				$RPM2CPIO $SLURM_RPM_1 | $CPIO -idv >&5 2>&5
+				$RPM2CPIO $SLURM_RPM_2 | $CPIO -idv >&5 2>&5
+				cd $_cray_curdir
+
+else
+  { $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+fi
+
+
+		cd $_cray_tmpdir
+	SLURM_RPM_1=$(find slurm-[0-9]* 2>&5)
+	SLURM_BASE_NAME=$(echo $SLURM_RPM_1 | $AWK '{match($1,/slurm-([0-9a-f.-]*.ari).x86_64.rpm/,a)}END{print a[1]}' 2>&5)
+	cd $_cray_curdir
+	if test "x$SLURM_BASE_NAME" = x; then
+		rm -r -f $_cray_tmpdir
+		{ { $as_echo "$as_me:$LINENO: error: Could not obtain slurm base rpm name." >&5
+$as_echo "$as_me: error: Could not obtain slurm base rpm name." >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+	{ $as_echo "$as_me:$LINENO: checking for presence of SLURM libraries" >&5
+$as_echo_n "checking for presence of SLURM libraries... " >&6; }
+
+	if test ! -d "$_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/lib64/"; then
+		{ $as_echo "$as_me:$LINENO: result: not found" >&5
+$as_echo "not found" >&6; }
+		{ { $as_echo "$as_me:$LINENO: error: SLURM lib directory $_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/lib64/ not found." >&5
+$as_echo "$as_me: error: SLURM lib directory $_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/lib64/ not found." >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+	if test ! -d "$_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/include/"; then
+		{ $as_echo "$as_me:$LINENO: result: not found" >&5
+$as_echo "not found" >&6; }
+		{ { $as_echo "$as_me:$LINENO: error: SLURM include directory $_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/include/ not found." >&5
+$as_echo "$as_me: error: SLURM include directory $_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/include/ not found." >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
+	{ $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+		rm -r -f $_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/lib64/*.la
+
+	SLURM_LDFLAGS="-L$_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/lib64"
+
+	SLURM_CFLAGS="-I$_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/include"
+
 
 
 ############################
@@ -12870,6 +13347,8 @@ See \`config.log' for more details." >&2;}
 fi
 
 
+save_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS $ALPS_LDFLAGS"
 { $as_echo "$as_me:$LINENO: checking for alpsGetMyNid in -lalps" >&5
 $as_echo_n "checking for alpsGetMyNid in -lalps... " >&6; }
 if test "${ac_cv_lib_alps_alpsGetMyNid+set}" = set; then
@@ -12877,7 +13356,7 @@ if test "${ac_cv_lib_alps_alpsGetMyNid+set}" = set; then
 else
   ac_check_lib_save_LIBS=$LIBS
 LIBS="-lalps -lxmlrpc-epi
-	      $LIBS"
+				 $LIBS"
 cat >conftest.$ac_ext <<_ACEOF
 /* confdefs.h.  */
 _ACEOF
@@ -12952,7 +13431,6 @@ $as_echo "$as_me: error: libalps not found.
 See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 fi
-
 
 { $as_echo "$as_me:$LINENO: checking for alps_get_placement_info in -lalpsutil" >&5
 $as_echo_n "checking for alps_get_placement_info in -lalpsutil... " >&6; }
@@ -13037,9 +13515,102 @@ See \`config.log' for more details." >&2;}
 
 fi
 
+LDFLAGS="$save_LDFLAGS"
 
+save_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS $SLURM_LDFLAGS"
+{ $as_echo "$as_me:$LINENO: checking for slurm_api_version in -lslurm" >&5
+$as_echo_n "checking for slurm_api_version in -lslurm... " >&6; }
+if test "${ac_cv_lib_slurm_slurm_api_version+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lslurm  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char slurm_api_version ();
+int
+main ()
+{
+return slurm_api_version ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_lib_slurm_slurm_api_version=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_slurm_slurm_api_version=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_slurm_slurm_api_version" >&5
+$as_echo "$ac_cv_lib_slurm_slurm_api_version" >&6; }
+if test "x$ac_cv_lib_slurm_slurm_api_version" = x""yes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_SLURM 1
+_ACEOF
+
+
+else
+  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: libslurm not found.
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: libslurm not found.
+See \`config.log' for more details." >&2;}
+   { (exit 1); exit 1; }; }; }
+
+fi
+
+SLURM_LIBS="-lslurm"
+
+LDFLAGS="$save_LDFLAGS"
+
+save_LDFLAGS="$LDFLAGS"
 if test -f "$libarchive_path/lib/libarchive.a"; then
-	LDFLAGS="$LDFLAGS -L$libarchive_path/lib"
+	ARCHIVE_LDFLAGS="-L$libarchive_path/lib"
+
+	LDFLAGS="$LDFLAGS $ARCHIVE_LDFLAGS"
 fi
 { $as_echo "$as_me:$LINENO: checking for archive_read_new in -larchive" >&5
 $as_echo_n "checking for archive_read_new in -larchive... " >&6; }
@@ -13107,7 +13678,11 @@ fi
 { $as_echo "$as_me:$LINENO: result: $ac_cv_lib_archive_archive_read_new" >&5
 $as_echo "$ac_cv_lib_archive_archive_read_new" >&6; }
 if test "x$ac_cv_lib_archive_archive_read_new" = x""yes; then
-  archive_libs="-larchive"
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_ARCHIVE 1
+_ACEOF
+
 
 else
   { { $as_echo "$as_me:$LINENO: error: libarchive.a not found." >&5
@@ -13116,9 +13691,15 @@ $as_echo "$as_me: error: libarchive.a not found." >&2;}
 
 fi
 
+ARCHIVE_LIBS="-larchive"
 
+LDFLAGS="$save_LDFLAGS"
+
+save_LDFLAGS="$LDFLAGS"
 if test -f "$libmi_path/lib/libmi.so"; then
-	LDFLAGS="$LDFLAGS -L$libmi_path/lib"
+	MI_LDFLAGS="-L$libmi_path/lib"
+
+	LDFLAGS="$LDFLAGS $MI_LDFLAGS"
 fi
 { $as_echo "$as_me:$LINENO: checking for MICommandFree in -lmi" >&5
 $as_echo_n "checking for MICommandFree in -lmi... " >&6; }
@@ -13186,7 +13767,11 @@ fi
 { $as_echo "$as_me:$LINENO: result: $ac_cv_lib_mi_MICommandFree" >&5
 $as_echo "$ac_cv_lib_mi_MICommandFree" >&6; }
 if test "x$ac_cv_lib_mi_MICommandFree" = x""yes; then
-  mi_libs="-lmi"
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_MI 1
+_ACEOF
+
 
 else
   { { $as_echo "$as_me:$LINENO: error: libmi.so not found." >&5
@@ -13195,6 +13780,9 @@ $as_echo "$as_me: error: libmi.so not found." >&2;}
 
 fi
 
+MI_LIBS="-lmi"
+
+LDFLAGS="$save_LDFLAGS"
 
 ###############################
 ### Check for header files. ###
@@ -13359,6 +13947,8 @@ fi
 done
 
 
+save_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS $ALPS_CFLAGS"
 if test "${ac_cv_header_alps_alps_h+set}" = set; then
   { $as_echo "$as_me:$LINENO: checking for alps/alps.h" >&5
 $as_echo_n "checking for alps/alps.h... " >&6; }
@@ -13503,7 +14093,6 @@ See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 
 fi
-
 
 
 if test "${ac_cv_header_alps_alps_toolAssist_h+set}" = set; then
@@ -13652,7 +14241,6 @@ See \`config.log' for more details." >&2;}
 fi
 
 
-
 if test "${ac_cv_header_alps_apInfo_h+set}" = set; then
   { $as_echo "$as_me:$LINENO: checking for alps/apInfo.h" >&5
 $as_echo_n "checking for alps/apInfo.h... " >&6; }
@@ -13799,7 +14387,6 @@ See \`config.log' for more details." >&2;}
 fi
 
 
-
 { $as_echo "$as_me:$LINENO: checking for alps/libalps.h" >&5
 $as_echo_n "checking for alps/libalps.h... " >&6; }
 if test "${ac_cv_header_alps_libalps_h+set}" = set; then
@@ -13859,7 +14446,6 @@ $as_echo "$as_me: error: alps/libalps.h not found.
 See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 fi
-
 
 
 { $as_echo "$as_me:$LINENO: checking for alps/libalpsutil.h" >&5
@@ -13923,9 +14509,163 @@ See \`config.log' for more details." >&2;}
 fi
 
 
+CFLAGS="$save_CFLAGS"
 
+save_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS $SLURM_CFLAGS"
+if test "${ac_cv_header_slurm_slurm_h+set}" = set; then
+  { $as_echo "$as_me:$LINENO: checking for slurm/slurm.h" >&5
+$as_echo_n "checking for slurm/slurm.h... " >&6; }
+if test "${ac_cv_header_slurm_slurm_h+set}" = set; then
+  $as_echo_n "(cached) " >&6
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_header_slurm_slurm_h" >&5
+$as_echo "$ac_cv_header_slurm_slurm_h" >&6; }
+else
+  # Is the header compilable?
+{ $as_echo "$as_me:$LINENO: checking slurm/slurm.h usability" >&5
+$as_echo_n "checking slurm/slurm.h usability... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <slurm/slurm.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+$as_echo "$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ $as_echo "$as_me:$LINENO: checking slurm/slurm.h presence" >&5
+$as_echo_n "checking slurm/slurm.h presence... " >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <slurm/slurm.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ $as_echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+$as_echo "$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { $as_echo "$as_me:$LINENO: WARNING: slurm/slurm.h: accepted by the compiler, rejected by the preprocessor!" >&5
+$as_echo "$as_me: WARNING: slurm/slurm.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: slurm/slurm.h: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: slurm/slurm.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { $as_echo "$as_me:$LINENO: WARNING: slurm/slurm.h: present but cannot be compiled" >&5
+$as_echo "$as_me: WARNING: slurm/slurm.h: present but cannot be compiled" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: slurm/slurm.h:     check for missing prerequisite headers?" >&5
+$as_echo "$as_me: WARNING: slurm/slurm.h:     check for missing prerequisite headers?" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: slurm/slurm.h: see the Autoconf documentation" >&5
+$as_echo "$as_me: WARNING: slurm/slurm.h: see the Autoconf documentation" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: slurm/slurm.h:     section \"Present But Cannot Be Compiled\"" >&5
+$as_echo "$as_me: WARNING: slurm/slurm.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: slurm/slurm.h: proceeding with the preprocessor's result" >&5
+$as_echo "$as_me: WARNING: slurm/slurm.h: proceeding with the preprocessor's result" >&2;}
+    { $as_echo "$as_me:$LINENO: WARNING: slurm/slurm.h: in the future, the compiler will take precedence" >&5
+$as_echo "$as_me: WARNING: slurm/slurm.h: in the future, the compiler will take precedence" >&2;}
+    ( cat <<\_ASBOX
+## ------------------------------- ##
+## Report this to andrewg@cray.com ##
+## ------------------------------- ##
+_ASBOX
+     ) | sed "s/^/$as_me: WARNING:     /" >&2
+    ;;
+esac
+{ $as_echo "$as_me:$LINENO: checking for slurm/slurm.h" >&5
+$as_echo_n "checking for slurm/slurm.h... " >&6; }
+if test "${ac_cv_header_slurm_slurm_h+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_cv_header_slurm_slurm_h=$ac_header_preproc
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_header_slurm_slurm_h" >&5
+$as_echo "$ac_cv_header_slurm_slurm_h" >&6; }
+
+fi
+if test "x$ac_cv_header_slurm_slurm_h" = x""yes; then
+  :
+else
+  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: slurm/slurm.h not found.
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: slurm/slurm.h not found.
+See \`config.log' for more details." >&2;}
+   { (exit 1); exit 1; }; }; }
+
+fi
+
+
+CFLAGS="$save_CFLAGS"
+
+save_CFLAGS="$CFLAGS"
 if test -f "$libarchive_path/include/archive.h"; then
-	CPPFLAGS="$CPPFLAGS -I$libarchive_path/include"
+	ARCHIVE_CFLAGS="-I$libarchive_path/include"
+
+	CFLAGS="$CFLAGS $ARCHIVE_CFLAGS"
 fi
 { $as_echo "$as_me:$LINENO: checking for archive.h" >&5
 $as_echo_n "checking for archive.h... " >&6; }
@@ -13986,9 +14726,13 @@ See \`config.log' for more details." >&2;}
 fi
 
 
+CFLAGS="$save_CFLAGS"
 
+save_CFLAGS="$CFLAGS"
 if test -f "$libmi_path/include/MI.h"; then
-	CPPFLAGS="$CPPFLAGS -I$libmi_path/include"
+	MI_CFLAGS="-I$libmi_path/include"
+
+	CFLAGS="$CFLAGS $MI_CFLAGS"
 fi
 { $as_echo "$as_me:$LINENO: checking for MI.h" >&5
 $as_echo_n "checking for MI.h... " >&6; }
@@ -14049,6 +14793,7 @@ See \`config.log' for more details." >&2;}
 fi
 
 
+CFLAGS="$save_CFLAGS"
 
 #####################################################################
 ### Check for typedefs, structures, and compiler characteristics. ###
@@ -15870,7 +16615,7 @@ done
 ################
 ### Finalize ###
 ################
-ac_config_files="$ac_config_files Makefile cray-tools_be.pc cray-tools_fe.pc cray-audit.pc src/Makefile src/backend/Makefile src/daemon/Makefile src/frontend/Makefile src/ld_val/Makefile src/mpir_iface/Makefile src/useful/Makefile demos/Makefile"
+ac_config_files="$ac_config_files Makefile cray-tools_be.pc cray-tools_fe.pc cray-audit.pc src/Makefile src/backend/Makefile src/daemon/Makefile src/frontend/Makefile src/ld_val/Makefile src/mpir_iface/Makefile src/slurm_util/Makefile src/useful/Makefile demos/Makefile"
 
 
 cat >confcache <<\_ACEOF
@@ -16760,6 +17505,7 @@ do
     "src/frontend/Makefile") CONFIG_FILES="$CONFIG_FILES src/frontend/Makefile" ;;
     "src/ld_val/Makefile") CONFIG_FILES="$CONFIG_FILES src/ld_val/Makefile" ;;
     "src/mpir_iface/Makefile") CONFIG_FILES="$CONFIG_FILES src/mpir_iface/Makefile" ;;
+    "src/slurm_util/Makefile") CONFIG_FILES="$CONFIG_FILES src/slurm_util/Makefile" ;;
     "src/useful/Makefile") CONFIG_FILES="$CONFIG_FILES src/useful/Makefile" ;;
     "demos/Makefile") CONFIG_FILES="$CONFIG_FILES demos/Makefile" ;;
 

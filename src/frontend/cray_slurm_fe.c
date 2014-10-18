@@ -130,7 +130,7 @@ cti_wlm_proto_t				_cti_cray_slurm_wlmProto =
 	_cti_cray_slurm_getAppHostsList,		// wlm_getAppHostsList
 	_cti_cray_slurm_getAppHostsPlacement,	// wlm_getAppHostsPlacement
 	NULL, //_cti_cray_slurm_getHostName,			// wlm_getHostName
-	_cti_wlm_getLauncherHostName_none		// wlm_getLauncherHostName - Not supported by slurm
+	_cti_wlm_getLauncherHostName_none		// wlm_getLauncherHostName - FIXME: Not supported by slurm
 };
 
 /* Constructor/Destructor functions */
