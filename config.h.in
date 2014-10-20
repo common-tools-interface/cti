@@ -92,6 +92,9 @@
 /* Define to 1 if you have the <vfork.h> header file. */
 #undef HAVE_VFORK_H
 
+/* Define to 1 if you have the wlm_detect library (-lwlm_detect). */
+#undef HAVE_WLM_DETECT
+
 /* Define to 1 if `fork' works. */
 #undef HAVE_WORKING_FORK
 

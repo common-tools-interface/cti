@@ -20,15 +20,19 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <dlfcn.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "wlm_detect.h"
+
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
 #include "alps_fe.h"
+#include "cray_slurm_fe.h"
 
 struct appList
 {
@@ -36,6 +40,13 @@ struct appList
 	struct appList *	next;
 };
 typedef struct appList appList_t;
+
+typedef struct
+{
+	void *			handle;
+	char *			(*wlm_detect_get_active)(void);
+	const char *	(*wlm_detect_get_default)(void);
+} cti_wlm_detect_t;
 
 /* Static prototypes */
 static int				_cti_addAppEntry(appEntry_t *);
@@ -45,6 +56,7 @@ static void				_cti_reapAppEntry(cti_app_id_t);
 // static global vars
 static cti_app_id_t		_cti_app_id 	= 1;	// start counting from 1
 static appList_t *		_cti_my_apps	= NULL;	// global list pertaining to known application sessions
+static cti_wlm_detect_t	_cti_wlm_detect;
 
 /* noneness wlm proto object */
 static cti_wlm_proto_t	_cti_nonenessProto =
@@ -82,10 +94,78 @@ cti_wlm_proto_t *		_cti_wlmProto 	= &_cti_nonenessProto;
 void __attribute__((constructor))
 _cti_init(void)
 {
-	// TODO: Add wlm_detect here, then call proper init function
-	// In the future this should be able to handle multiple WLM types.
+	char *	active_wlm;
+	char *	error;
+	int		use_default = 0;
+	int		do_free = 1;
+
+	// XXX: If wlm_detect doesn't work on your system, this will default to ALPS
+	// TODO: Add env var to allow caller to specify what WLM they want to use.
 	
-	_cti_wlmProto = &_cti_alps_wlmProto;
+	if ((_cti_wlm_detect.handle = dlopen(WLM_DETECT_LIB_NAME, RTLD_LAZY)) == NULL)
+	{
+		use_default = 1;
+		goto wlm_detect_err;
+	}
+	
+	// Clear any existing error
+	dlerror();
+	
+	// load wlm_detect_get_active
+	_cti_wlm_detect.wlm_detect_get_active = dlsym(_cti_wlm_detect.handle, "wlm_detect_get_active");
+	if ((error = dlerror()) != NULL)
+	{
+		dlclose(_cti_wlm_detect.handle);
+		use_default = 1;
+		goto wlm_detect_err;
+	}
+	
+	// try to get the active wlm
+	active_wlm = (*_cti_wlm_detect.wlm_detect_get_active)();
+	if (active_wlm == NULL)
+	{
+		// load wlm_detect_get_default
+		_cti_wlm_detect.wlm_detect_get_default = dlsym(_cti_wlm_detect.handle, "wlm_detect_get_default");
+		if ((error = dlerror()) != NULL)
+		{
+			dlclose(_cti_wlm_detect.handle);
+			use_default = 1;
+			goto wlm_detect_err;
+		}
+		// use the default wlm
+		active_wlm = (char *)(*_cti_wlm_detect.wlm_detect_get_default)();
+		do_free = 0;
+	}
+	
+	// parse the returned result
+	if (strncmp("ALPS", active_wlm, strlen("ALPS")) == 0)
+	{
+		_cti_wlmProto = &_cti_alps_wlmProto;
+	} else if (strncmp("SLURM", active_wlm, strlen("SLURM")) == 0)
+	{
+		_cti_wlmProto = &_cti_cray_slurm_wlmProto;
+	} else
+	{
+		// fallback to use the default
+		use_default = 1;
+	}
+	
+	// close the wlm_detect handle, we are done with it
+	dlclose(_cti_wlm_detect.handle);
+	
+	// maybe cleanup the string
+	if (do_free)
+	{
+		free(active_wlm);
+	}
+	
+wlm_detect_err:
+
+	// check if wlm_detect failed, in which case we should use the default
+	if (use_default)
+	{
+		_cti_wlmProto = &_cti_alps_wlmProto;
+	}
 	
 	if (_cti_wlmProto->wlm_init())
 	{

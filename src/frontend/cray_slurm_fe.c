@@ -35,6 +35,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include "cray_slurm_fe.h"
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
@@ -898,7 +899,7 @@ _cti_cray_slurm_getJobId(void *this)
 
 // this function creates a new appEntry_t object for the app
 cti_app_id_t
-cti_registerJobStep(uint32_t jobid, uint32_t stepid)
+cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 {
 	uint64_t			apid;	// Cray version of the job+step
 	craySlurmInfo_t	*	sinfo;
@@ -977,6 +978,57 @@ cti_registerJobStep(uint32_t jobid, uint32_t stepid)
 	}
 
 	return appId;
+}
+
+cti_srunProc_t *
+cti_cray_slurm_getSrunInfo(cti_app_id_t appId)
+{
+	appEntry_t *		app_ptr;
+	craySlurmInfo_t	*	sinfo;
+	cti_srunProc_t *	srunInfo;
+	
+	// sanity check
+	if (appId == 0)
+	{
+		_cti_set_error("Invalid appId %d.", (int)appId);
+		return NULL;
+	}
+	
+	// try to find an entry in the _cti_my_apps list for the apid
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	{
+		// couldn't find the entry associated with the apid
+		// error string already set
+		return NULL;
+	}
+	
+	// sanity check
+	if (app_ptr->wlmProto->wlm_type != CTI_WLM_CRAY_SLURM)
+	{
+		_cti_set_error("cti_cray_slurm_getSrunInfo: WLM mismatch.");
+		return NULL;
+	}
+	
+	// sanity check
+	sinfo = (craySlurmInfo_t *)app_ptr->_wlmObj;
+	if (sinfo == NULL)
+	{
+		_cti_set_error("cti_cray_slurm_getSrunInfo: _wlmObj is NULL!");
+		return NULL;
+	}
+	
+	// allocate space for the cti_srunProc_t struct
+	if ((srunInfo = malloc(sizeof(cti_srunProc_t))) == (void *)0)
+	{
+		// malloc failed
+		_cti_set_error("malloc failed.");
+		return NULL;
+	}
+	
+	srunInfo->jobid = sinfo->jobid;
+	srunInfo->stepid = sinfo->stepid;
+	
+	return srunInfo;
 }
 
 static cti_app_id_t
@@ -1256,7 +1308,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	}
 	
 	// register this app with the application interface
-	if ((rtn = cti_registerJobStep(jobid, stepid)) == 0)
+	if ((rtn = cti_cray_slurm_registerJobStep(jobid, stepid)) == 0)
 	{
 		// failed to register the jobid/stepid, error is already set.
 		_cti_cray_slurm_consumeSrunInv(myapp);

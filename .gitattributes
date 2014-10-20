@@ -54,6 +54,7 @@ src/frontend/Makefile.in -text
 src/frontend/alps_fe.c -text
 src/frontend/alps_fe.h -text
 src/frontend/cray_slurm_fe.c -text
+src/frontend/cray_slurm_fe.h -text
 src/frontend/cti_error.c -text
 src/frontend/cti_error.h -text
 src/frontend/cti_fe.c -text

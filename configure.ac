@@ -87,6 +87,9 @@ cray_SETUP_ALPS_RPMS
 dnl Ditto for the slurm libraries
 cray_SETUP_SLURM_RPMS
 
+dnl Ditto for the wlm_detect libraries
+cray_SETUP_WLM_DETECT_RPMS
+
 ############################
 ### Check for libraries. ###
 ############################
@@ -137,6 +140,22 @@ AC_CHECK_LIB(	[slurm],
 				[AC_MSG_FAILURE([libslurm not found.])]
 				)
 AC_SUBST([SLURM_LIBS], ["-lslurm"])
+dnl restore flags
+LDFLAGS="$save_LDFLAGS"
+
+dnl Check for libwlm_detect
+save_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS $WLM_DETECT_LDFLAGS"
+AC_CHECK_LIB(	[wlm_detect],
+				[wlm_detect_get_default],
+				[AC_DEFINE(	[HAVE_WLM_DETECT],
+								[1],
+								[Define to 1 if you have the wlm_detect library (-lwlm_detect).]
+							)
+				],
+				[AC_MSG_FAILURE([libwlm_detect not found.])]
+				)
+AC_SUBST([WLM_DETECT_LIBS], ["-lwlm_detect"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
@@ -227,6 +246,19 @@ CPPFLAGS="$CPPFLAGS $SLURM_CFLAGS"
 AC_CHECK_HEADER(	[slurm/slurm.h],
 					[],
 					[AC_MSG_FAILURE([slurm/slurm.h not found.])]
+					)
+dnl restore flags
+CFLAGS="$save_CFLAGS"
+CPPFLAGS="$save_CPPFLAGS"
+
+dnl Check for libwlm_detect headers
+save_CFLAGS="$CFLAGS"
+save_CPPFLAGS="$CPPFLAGS"
+CFLAGS="$CFLAGS $WLM_DETECT_CFLAGS"
+CPPFLAGS="$CPPFLAGS $WLM_DETECT_CFLAGS"
+AC_CHECK_HEADER(	[wlm_detect.h],
+					[],
+					[AC_MSG_FAILURE([wlm_detect.h not found.])]
 					)
 dnl restore flags
 CFLAGS="$save_CFLAGS"
