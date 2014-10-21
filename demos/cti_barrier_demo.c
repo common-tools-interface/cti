@@ -1,9 +1,10 @@
-/*********************************************************************************\
- * alps_info_demo.c - An example program which takes advantage of the Cray
- *			tools interface which will gather information from ALPS about a
- *          previously launched job.
+/******************************************************************************\
+ * cti_barrier_demo.c - An example program which takes advantage of the Cray
+ *			tools interface which will launch an application from the given
+ *			argv, display information about the job, and hold it at the 
+ *			startup barrier.
  *
- * © 2012-2014 Cray Inc.	All Rights Reserved.
+ * © 2011-2014 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -16,7 +17,7 @@
  * $Rev$
  * $Author$
  *
- *********************************************************************************/
+ ******************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,9 +28,9 @@
 void
 usage(char *name)
 {
-	fprintf(stdout, "USAGE: %s [apid]\n", name);
-	fprintf(stdout, "Gather information about a previously launched aprun session\n");
-	fprintf(stdout, "using the Cray tools interface.\n");
+	fprintf(stdout, "USAGE: %s [LAUNCHER STRING]\n", name);
+	fprintf(stdout, "Launch an application using the cti library\n");
+	fprintf(stdout, "and print out information.\n");
 	fprintf(stdout, "Written by andrewg@cray.com\n");
 	return;
 }
@@ -37,13 +38,11 @@ usage(char *name)
 int
 main(int argc, char **argv)
 {
-	int					rtn = 0;
-	uint64_t			myapid;
+	int rtn = 0;
 	// values returned by the tool_frontend library.
 	cti_wlm_type		mywlm;
 	char *				myhostname;
 	cti_app_id_t		myapp;
-	cti_aprunProc_t *	myapruninfo;
 	char *				mylauncherhostname;
 	int					mynumpes;
 	int					mynumnodes;
@@ -83,24 +82,31 @@ main(int argc, char **argv)
 		free(myhostname);
 	}
 	
-	// turn the argv string into an apid uint64_t
-	myapid = (uint64_t)strtoull(argv[1], NULL, 10);
-	
-	if ((myapp = cti_registerApid(myapid)) == 0)
+	/*
+	 * cti_launchAppBarrier - Start an application using the application launcher
+	 *                        with the provided argv array and have the launcher
+	 *                        hold the application at its startup barrier for 
+	 *                        MPI/SHMEM/UPC/CAF applications.
+	 */
+	if ((myapp = cti_launchAppBarrier((const char * const *)&argv[1],0,0,0,0,NULL,NULL,NULL)) == 0)
 	{
-		fprintf(stderr, "Error: cti_registerApid failed!\n");
+		fprintf(stderr, "Error: cti_launchAppBarrier failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
-		rtn = 1;
+		return 1;
 	}
 	
 	// Conduct WLM specific calls
 	switch (mywlm)
 	{
 		case CTI_WLM_ALPS:
+		{
+			cti_aprunProc_t *	myapruninfo;
+			int					ordinal;
+		
 			/*
 			 * cti_getAprunInfo - Obtain information about the aprun process
 			 */
-			if ((myapruninfo = cti_getAprunInfo(myapp)) == NULL)
+			if ((myapruninfo = cti_alps_getAprunInfo(myapp)) == NULL)
 			{
 				fprintf(stderr, "Error: cti_getAprunInfo failed!\n");
 				fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -111,6 +117,34 @@ main(int argc, char **argv)
 				printf("pid_t of aprun: %d\n", myapruninfo->aprunPid);
 				free(myapruninfo);
 			}
+			/*
+			*  cti_alps_getAlpsOverlapOrdinal - Obtain overlap ordinal. This can fail on
+			*                                   some systems.
+			*/
+			ordinal = cti_alps_getAlpsOverlapOrdinal(myapp);
+			printf("alps overlap ordinal: %d\n", ordinal);
+		}
+			break;
+			
+		case CTI_WLM_CRAY_SLURM:
+		{
+			cti_srunProc_t *	mysruninfo;
+			
+			/*
+			 * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
+			 */
+			 if ((mysruninfo = cti_cray_slurm_getSrunInfo(myapp)) == NULL)
+			 {
+			 	fprintf(stderr, "Error: cti_cray_slurm_getSrunInfo failed!\n");
+				fprintf(stderr, "CTI error: %s\n", cti_error_str());
+				rtn = 1;
+			 } else
+			 {
+			 	printf("jobid of application:  %lu\n", (long unsigned int)mysruninfo->jobid);
+			 	printf("stepid of application: %lu\n", (long unsigned int)mysruninfo->stepid);
+				free(mysruninfo);
+			 }
+		}
 			break;
 			
 		default:
@@ -204,6 +238,19 @@ main(int argc, char **argv)
 			printf("On host %s there are %d PEs.\n", myhostplacement->hosts[j].hostname, myhostplacement->hosts[j].numPes);
 		}
 		cti_destroyHostsList(myhostplacement);
+	}
+	
+	printf("\nHit return to release the application from the startup barrier...");
+	
+	// just read a single character from stdin then release the app/exit
+	(void)getchar();
+	
+	if (cti_releaseAppBarrier(myapp))
+	{
+		fprintf(stderr, "Error: cti_releaseAppBarrier failed!\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
+		return 1;
 	}
 	
 	cti_deregisterApp(myapp);

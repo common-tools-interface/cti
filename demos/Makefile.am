@@ -1,7 +1,7 @@
 #
 # Makefile.am for the demo utilities
 #
-# ©2011-2013 Cray Inc.  All Rights Reserved.
+# ©2011-2014 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -18,35 +18,35 @@
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
 AM_LIBTOOLFLAGS = --quiet
 
-EXTRA_PROGRAMS = aprunBarrier aprunInfo aprunTransfer aprunCallback callback_daemon
+EXTRA_PROGRAMS = cti_barrier cti_info cti_transfer cti_callback cti_callback_daemon
 
-aprunBarrier_CFLAGS = $(AM_CFLAGS)
-aprunBarrier_SOURCES = alps_barrier_demo.c
-aprunBarrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
+cti_barrier_CFLAGS			= $(AM_CFLAGS)
+cti_barrier_SOURCES			= cti_barrier_demo.c
+cti_barrier_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 
-aprunInfo_CFLAGS = $(AM_CFLAGS)
-aprunInfo_SOURCES = alps_info_demo.c
-aprunInfo_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
+cti_info_CFLAGS				= $(AM_CFLAGS)
+cti_info_SOURCES			= cti_info_demo.c
+cti_info_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 
-aprunTransfer_CFLAGS = $(AM_CFLAGS)
-aprunTransfer_SOURCES = alps_transfer_demo.c
-aprunTransfer_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
+cti_transfer_CFLAGS			= $(AM_CFLAGS)
+cti_transfer_SOURCES		= cti_transfer_demo.c
+cti_transfer_LDFLAGS		= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 
-aprunCallback_CFLAGS = $(AM_CFLAGS)
-aprunCallback_SOURCES = alps_callback_demo.c
-aprunCallback_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -pthread
+cti_callback_CFLAGS			= $(AM_CFLAGS)
+cti_callback_SOURCES		= cti_callback_demo.c
+cti_callback_LDFLAGS		= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -pthread
 
-callback_daemon_CFLAGS = $(AM_CFLAGS)
-callback_daemon_SOURCES = alps_callback_daemon.c
-callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_be
+cti_callback_daemon_CFLAGS	= $(AM_CFLAGS)
+cti_callback_daemon_SOURCES = cti_callback_daemon.c
+cti_callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_be
 
-demos: aprunBarrier aprunInfo aprunTransfer aprunCallback callback_daemon
+demos: cti_barrier cti_info cti_transfer cti_callback cti_callback_daemon
 	mkdir -p demo_binaries
 	cp testing.info demo_binaries
-	mv aprunBarrier demo_binaries
-	mv aprunInfo demo_binaries
-	mv aprunTransfer demo_binaries
-	mv aprunCallback demo_binaries
-	mv callback_daemon demo_binaries
+	mv cti_barrier demo_binaries
+	mv cti_info demo_binaries
+	mv cti_transfer demo_binaries
+	mv cti_callback demo_binaries
+	mv cti_callback_daemon demo_binaries
 
 .PHONY: demos

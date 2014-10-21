@@ -1,7 +1,7 @@
 /*********************************************************************************\
- * alps_callback_demo.h - Header file for the alps_callback_demo.
+ * cti_callback_demo.h - Header file for the cti_callback_demo.
  *
- * © 2011 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -16,8 +16,8 @@
  *
  *********************************************************************************/
 
-#ifndef _ALPS_CALLBACK_DEMO_H
-#define _ALPS_CALLBACK_DEMO_H
+#ifndef _CTI_CALLBACK_DEMO_H
+#define _CTI_CALLBACK_DEMO_H
 
 /* internal defines */
 // Port declarations are arbitrary for now. This might cause problems
@@ -26,7 +26,7 @@
 #define BACKLOG 8192
 #define BUFSIZE 32768
 
-#define LAUNCHER  "callback_daemon"
+#define LAUNCHER  "cti_callback_daemon"
 
 /* struct typedefs */
 typedef struct
@@ -70,4 +70,4 @@ void *  callback_listener(void *);
 int     callback_create(void);
 void    callback_destroy(void *);
 
-#endif /* _ALPS_CALLBACK_DEMO_H */
+#endif /* _CTI_CALLBACK_DEMO_H */

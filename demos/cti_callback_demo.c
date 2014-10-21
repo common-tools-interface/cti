@@ -1,6 +1,6 @@
 /*********************************************************************************\
- * alps_callback_demo.c - An example program which takes advantage of the CrayTool
- *			Interface which will launch an aprun session from the given
+ * cti_callback_demo.c - An example program which takes advantage of the Cray
+ *			Tool Interface which will launch an aprun session from the given
  *			argv, transfer and launch a simple tool daemon that will
  *			communicate with the frontend over a simple socket connection.
  *
@@ -34,7 +34,7 @@
 
 #include "cray_tools_fe.h"
 
-#include "alps_callback_demo.h"
+#include "cti_callback_demo.h"
 
 /* global variables */
 int					registered_nodes = 0;
@@ -312,7 +312,7 @@ main(int argc, char **argv)
 	}
 	
 	// call aprun
-	if ((myapp = cti_launchAppBarrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
+	if ((myapp = cti_launchAppBarrier((const char * const *)&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
 	{
 		fprintf(stderr, "cti_launchAppBarrier failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -374,7 +374,7 @@ main(int argc, char **argv)
 	tool_argv[2] = NULL;
 	
 	// Transfer and exec the callback_daemon application
-	if ((mysid = cti_execToolDaemon(myapp, 0, 0, LAUNCHER, tool_argv, NULL, 0)) == 0)
+	if ((mysid = cti_execToolDaemon(myapp, 0, 0, LAUNCHER, (const char * const *)tool_argv, NULL, 0)) == 0)
 	{
 		fprintf(stderr, "cti_execToolDaemon failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());

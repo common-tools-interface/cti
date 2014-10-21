@@ -20,10 +20,10 @@ USEFUL              = $(SRC)/useful
 AM_CFLAGS       	= -Wall -I$(SRC)
 AM_LIBTOOLFLAGS 	= --quiet
 
-libexec_PROGRAMS	= dlaunch
+libexec_PROGRAMS	= cti_dlaunch
 
-dlaunch_SOURCES		= cti_daemon.c alps_dl.c
-dlaunch_CFLAGS		= $(AM_CFLAGS) -I$(USEFUL) $(ARCHIVE_CFLAGS)
-dlaunch_LDADD		= $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
-dlaunch_LDFLAGS		= -all-static $(ARCHIVE_LDFLAGS)
+cti_dlaunch_SOURCES	= cti_daemon.c alps_dl.c
+cti_dlaunch_CFLAGS	= $(AM_CFLAGS) -I$(USEFUL) $(ARCHIVE_CFLAGS)
+cti_dlaunch_LDADD	= $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
+cti_dlaunch_LDFLAGS	= -all-static $(ARCHIVE_LDFLAGS)
 

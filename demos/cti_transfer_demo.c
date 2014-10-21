@@ -1,7 +1,7 @@
 /*********************************************************************************\
- * alps_transfer_demo.c - An example program which takes advantage of the Cray
- *			tools interface which will launch an aprun session from the given
- *			argv and transfer demo files.
+ * cti_transfer_demo.c - An example program which takes advantage of the Cray
+ *			tools interface which will launch an application session from the
+ *			given argv and transfer demo files.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -27,7 +27,7 @@
 void
 usage(char *name)
 {
-	fprintf(stdout, "USAGE: %s [APRUN STRING]\n", name);
+	fprintf(stdout, "USAGE: %s [LAUNCHER STRING]\n", name);
 	fprintf(stdout, "Launch an application using the Cray Tools Interface\n");
 	fprintf(stdout, "and transfer a test file to the compute node.\n");
 	fprintf(stdout, "Written by andrewg@cray.com\n");
@@ -40,8 +40,8 @@ main(int argc, char **argv)
 	cti_app_id_t		myapp;
 	cti_manifest_id_t	mymid;
 	cti_session_id_t	mysid;
-	cti_aprunProc_t *	myapruninfo;
 	char *				file_loc;
+	cti_wlm_type		mywlm;
 	
 	if (argc < 2)
 	{
@@ -51,7 +51,7 @@ main(int argc, char **argv)
 	
 	printf("Launching application...\n");
 	
-	if ((myapp = cti_launchAppBarrier(&argv[1],0,0,0,0,NULL,NULL,NULL)) == 0)
+	if ((myapp = cti_launchAppBarrier((const char * const *)&argv[1],0,0,0,0,NULL,NULL,NULL)) == 0)
 	{
 		fprintf(stderr, "Error: cti_launchAppBarrier failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -77,18 +77,6 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	// Add the library directory to the manifest
-	/*
-	if (cti_addManifestLibDir(mymid, "/lib/xcrypt/"))
-	{
-		fprintf(stderr, "Error: cti_addManifestLibDir failed!\n");
-		fprintf(stderr, "CTI error: %s\n", cti_error_str());
-		cti_destroyManifest(mymid);
-		cti_killApp(myapp, 9);
-		return 1;
-	}
-	*/
-	
 	// Send the manifest to the compute node
 	if ((mysid = cti_sendManifest(myapp, mymid, 0)) == 0)
 	{
@@ -111,15 +99,53 @@ main(int argc, char **argv)
 	
 	printf("Sent testing.info to the directory %s on the compute node(s).\n", file_loc);
 	
-	if ((myapruninfo = cti_getAprunInfo(myapp)) == NULL)
+	
+	// Get the current WLM in use so that we can verify based on that
+	mywlm = cti_current_wlm();
+	
+	// Conduct WLM specific calls
+	switch (mywlm)
 	{
-		fprintf(stderr, "Error: cti_getAprunInfo failed!\n");
-		fprintf(stderr, "CTI error: %s\n", cti_error_str());
-	} else
-	{
-		printf("\nVerify by issuing the following commands in another terminal:\n\n");
-		printf("module load nodehealth\n");
-		printf("pcmd -a %llu \"ls %s\"\n", (long long unsigned int)myapruninfo->apid, file_loc);
+		case CTI_WLM_ALPS:
+		{
+			cti_aprunProc_t *	myapruninfo;
+			
+			if ((myapruninfo = cti_alps_getAprunInfo(myapp)) == NULL)
+			{
+				fprintf(stderr, "Error: cti_alps_getAprunInfo failed!\n");
+				fprintf(stderr, "CTI error: %s\n", cti_error_str());
+			} else
+			{
+				printf("\nVerify by issuing the following commands in another terminal:\n\n");
+				printf("module load nodehealth\n");
+				printf("pcmd -a %llu \"ls %s\"\n", (long long unsigned int)myapruninfo->apid, file_loc);
+			}
+		}
+			break;
+			
+		case CTI_WLM_CRAY_SLURM:
+		{
+			cti_srunProc_t *	mysruninfo;
+			
+			/*
+			 * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
+			 */
+			 if ((mysruninfo = cti_cray_slurm_getSrunInfo(myapp)) == NULL)
+			 {
+			 	fprintf(stderr, "Error: cti_cray_slurm_getSrunInfo failed!\n");
+				fprintf(stderr, "CTI error: %s\n", cti_error_str());
+			 } else
+			 {
+			 	printf("\nVerify by issuing the following commands in another terminal:\n\n");
+			 	printf("srun --jobid=%lu --gres=none --mem-per-cpu=0 ls %s\n", (long unsigned int)mysruninfo->jobid, file_loc);
+				free(mysruninfo);
+			 }
+		}
+			break;
+		
+		default:
+			// do nothing
+			break;
 	}
 	
 	free(file_loc);

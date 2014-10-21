@@ -44,7 +44,7 @@ typedef enum cti_wlm_type	cti_wlm_type;
 ** Frontend defines relating to the login node 
 */
 #define DEFAULT_SIG				9														// default signal value to use with apkill
-#define CTI_LAUNCHER				"dlaunch"												// name of the tool daemon launcher binary
+#define CTI_LAUNCHER				"cti_dlaunch"											// name of the tool daemon launcher binary
 #define DEFAULT_STAGE_DIR		"cti_daemonXXXXXX"									// default directory name for the fake root of the tool daemon
 #define WLM_DETECT_LIB_NAME		"libwlm_detect.so"									// wlm_detect library
 

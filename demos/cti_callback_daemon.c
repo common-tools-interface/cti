@@ -1,5 +1,6 @@
 /*********************************************************************************\
- * alps_callback_daemon.c - The compute node daemon portion of the alps_callback_demo.
+ * cti_callback_daemon.c - The compute node daemon portion of the 
+ *                         cti_callback_demo.
  *
  * © 2011-2014 Cray Inc.	All Rights Reserved.
  *
@@ -32,7 +33,7 @@
 
 #include "cray_tools_be.h"
 
-#include "alps_callback_demo.h"
+#include "cti_callback_demo.h"
 
 const struct option long_opts[] = {
 			{"hostname", required_argument, 0, 'h'},
@@ -163,7 +164,7 @@ main(int argc, char **argv)
 	
 	callback_register();
 	
-	// sleep for either 1000 seconds or until alps kills us off.
+	// sleep for either 1000 seconds or until the wlm kills us off.
 	sleep(1000);
 	
 	return 0;
