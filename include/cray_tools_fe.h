@@ -371,7 +371,8 @@ extern void cti_destroyHostsList(cti_hostsList_t *placement_list);
  *      used by other tool programs. 
  *
  *      This function can also optionally redirect stdout/stderr to provided
- *      open file descriptors by setting redirectOutput to true (non-zero).
+ *      open file descriptors by setting redirectOutput to true (non-zero). If
+ *      redirectOutput is false, the default stdout/stderr will be used.
  *
  *      This function can optionally set the current working directory for the 
  *      launcher process. This is useful if the launcher should start somewhere

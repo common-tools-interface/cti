@@ -272,12 +272,7 @@ _cti_gdb_setup_gdbmi_environment(void)
 		MICommandFree(cmd);
 		return 1;
 	}
-	if (!MICommandResultOK(cmd)) 
-	{
-		_cti_gdb_sendError(MICommandResultErrorMessage(cmd));
-		MICommandFree(cmd);
-		return 1;
-	}
+	// for some reason this command always reports errors, so don't error check it.
 	MICommandFree(cmd);
 	
 	return 0;
@@ -406,6 +401,12 @@ main(int argc, char *argv[])
 					free(starter);
 				}
 				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
+				}
+				
 				// get the starter binary string
 				starter = strdup(optarg);
 				
@@ -421,6 +422,12 @@ main(int argc, char *argv[])
 				if (input_file != NULL)
 				{
 					free(input_file);
+				}
+				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
 				}
 				
 				// get the input file string
@@ -446,11 +453,11 @@ main(int argc, char *argv[])
 	}
 
 	// process any additional non-opt arguments
-	for ( ; opt_ind < argc; ++opt_ind)
+	for ( ; optind < argc; ++optind)
 	{
 		if (s_args[0] == NULL)
 		{
-			if (asprintf(&s_args[0], "%s", argv[opt_ind]) < 0)
+			if (asprintf(&s_args[0], "%s", argv[optind]) < 0)
 			{
 				perror("asprintf");
 				return 1;
@@ -459,7 +466,7 @@ main(int argc, char *argv[])
 		{
 			char *s_ptr = s_args[0];
 			s_args[0] = NULL;
-			if (asprintf(&s_args[0], "%s %s", s_ptr, argv[opt_ind]) < 0)
+			if (asprintf(&s_args[0], "%s %s", s_ptr, argv[optind]) < 0)
 			{
 				perror("asprintf");
 				return 1;
@@ -495,6 +502,8 @@ main(int argc, char *argv[])
 	// go there since we have good args now. 
 	
 	_cti_gdb_sess = MISessionNew();
+	
+	//MISessionSetDebug(1);
 	
 	MISessionRegisterEventCallback(_cti_gdb_sess, event_callback);
 	//MISessionRegisterConsoleCallback(_cti_gdb_sess, console_callback);
@@ -693,8 +702,7 @@ main(int argc, char *argv[])
 	
 	// TODO: Ensure we hit the MPIR_Breakpoint routine
 	
-	
-	
+
 	
 	// reset the events
 	_cti_gdb_ready = 0;
@@ -751,7 +759,7 @@ main(int argc, char *argv[])
 		tv.tv_sec = 1200;
 		tv.tv_usec = 0;
 		
-		switch (select(1, &fds, NULL, NULL, &tv))
+		switch (select(_cti_gdb_pipe_r+1, &fds, NULL, NULL, &tv))
 		{
 			case -1:
 				// check value of errno
@@ -812,6 +820,11 @@ main(int argc, char *argv[])
 
 					case MSG_ID:
 					{
+						char *			res;
+						char *			ptr;
+						char *			end;
+						cti_gdb_msg_t *	res_msg;
+					
 						// Ensure the payload string is not null
 						if (msg->msg_payload.msg_string == NULL)
 						{
@@ -843,20 +856,89 @@ main(int argc, char *argv[])
 						}
 						
 						// get the string value of the result
-						char *res = MIGetDataEvaluateExpressionInfo(cmd);
+						if ((res = MIGetDataEvaluateExpressionInfo(cmd)) == NULL)
+						{
+							// this is a fatal error
+							_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
+							MICommandFree(cmd);
+							_cti_gdb_cleanupMI();
+							_cti_gdb_consumeMsg(msg);
+							
+							return 1;
+						}
 						
-						// cleanup the command and the message
+						// cleanup the command
 						MICommandFree(cmd);
-						_cti_gdb_consumeMsg(msg);
 						
+						// gdb prints string values at the end in quotes, so lets
+						// find the first quote
+						if ((ptr = strchr(res, '\"')) == NULL)
+						{
+							// this is a fatal error
+							_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
+							free(res);
+							_cti_gdb_cleanupMI();
+							_cti_gdb_consumeMsg(msg);
+							
+							return 1;
+						}
 						
+						// point past the quote
+						++ptr;
 						
+						// now find the last quote
+						if ((end = strrchr(ptr, '\"')) == NULL)
+						{
+							// this is a fatal error
+							_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
+							free(res);
+							_cti_gdb_cleanupMI();
+							_cti_gdb_consumeMsg(msg);
+							
+							return 1;
+						}
 						
-						// TODO parse the res string
+						// turn it into a null terminator
+						*end = '\0';
 						
+						// create the ready message
+						if ((res_msg = _cti_gdb_createMsg(MSG_ID, strdup(ptr))) == NULL)
+						{
+							// send the error message
+							if (_cti_gdb_err_string != NULL)
+							{
+								_cti_gdb_sendError(strdup(_cti_gdb_err_string));
+							} else
+							{
+								_cti_gdb_sendError(strdup("Unknown gdb_MPIR error!\n"));
+							}
+							free(res);
+							_cti_gdb_cleanupMI();
+							_cti_gdb_consumeMsg(msg);
+							return 1;
+						}
 						
+						// send the message
+						if (_cti_gdb_sendMsg(_cti_gdb_pipe_w, res_msg))
+						{
+							// send the error message
+							if (_cti_gdb_err_string != NULL)
+							{
+								_cti_gdb_sendError(strdup(_cti_gdb_err_string));
+							} else
+							{
+								_cti_gdb_sendError(strdup("Unknown gdb_MPIR error!\n"));
+							}
+							_cti_gdb_consumeMsg(res_msg);
+							free(res);
+							_cti_gdb_cleanupMI();
+							_cti_gdb_consumeMsg(msg);
+							return 1;
+						}
 						
-						
+						// cleanup
+						_cti_gdb_consumeMsg(res_msg);
+						free(res);
 						
 						break;
 					}
@@ -884,7 +966,39 @@ main(int argc, char *argv[])
 							return 1;
 						}
 						
+						// create the exit message
+						if ((msg = _cti_gdb_createMsg(MSG_EXIT)) == NULL)
+						{
+							// send the error message
+							if (_cti_gdb_err_string != NULL)
+							{
+								_cti_gdb_sendError(strdup(_cti_gdb_err_string));
+							} else
+							{
+								_cti_gdb_sendError(strdup("Unknown gdb_MPIR error!\n"));
+							}
+							_cti_gdb_cleanupMI();
+							return 1;
+						}
+						
+						// send the message
+						if (_cti_gdb_sendMsg(_cti_gdb_pipe_w, msg))
+						{
+							// send the error message
+							if (_cti_gdb_err_string != NULL)
+							{
+								_cti_gdb_sendError(strdup(_cti_gdb_err_string));
+							} else
+							{
+								_cti_gdb_sendError(strdup("Unknown gdb_MPIR error!\n"));
+							}
+							_cti_gdb_consumeMsg(msg);
+							_cti_gdb_cleanupMI();
+							return 1;
+						}
+						
 						// Clean things up, we are done now and can exit.
+						_cti_gdb_consumeMsg(msg);
 						_cti_gdb_cleanupMI();
 						
 						return 0;

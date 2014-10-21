@@ -1178,10 +1178,11 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	jobid = (uint32_t)strtoul(sym_str, &end_p, 10);
 	
 	// check for errors
-	if ((errno == ERANGE && (jobid == LONG_MAX || jobid == LONG_MIN)) || (errno != 0 && jobid == 0))
+	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0))
 	{
 		_cti_set_error("_cti_cray_slurm_launchBarrier: strtoul failed.\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
+		free(sym_str);
 		
 		return 0;
 	}
@@ -1189,17 +1190,25 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	{
 		_cti_set_error("_cti_cray_slurm_launchBarrier: strtoul failed.\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
+		free(sym_str);
 		
 		return 0;
 	}
 	
+	free(sym_str);
+	
 	// get the stepid string for slurm
 	if ((sym_str = _cti_gdb_getSymbolVal(myapp->gdb_id, "totalview_stepid")) == NULL)
 	{
+		/*
 		// error already set
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		
 		return 0;
+		*/
+		// FIXME: Once totalview_stepid starts showing up we can use it.
+		fprintf(stderr, "stepid not found! Defaulting to 0.\n");
+		sym_str = strdup("0");
 	}
 	
 	// convert the string into the actual stepid
@@ -1207,10 +1216,11 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	stepid = (uint32_t)strtoul(sym_str, &end_p, 10);
 	
 	// check for errors
-	if ((errno == ERANGE && (jobid == LONG_MAX || jobid == LONG_MIN)) || (errno != 0 && jobid == 0))
+	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
 	{
 		_cti_set_error("_cti_cray_slurm_launchBarrier: strtoul failed.\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
+		free(sym_str);
 		
 		return 0;
 	}
@@ -1218,37 +1228,41 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	{
 		_cti_set_error("_cti_cray_slurm_launchBarrier: strtoul failed.\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
+		free(sym_str);
 		
 		return 0;
 	}
 	
-	// if redirectOutput is true, then we need to fork off an sattach process.
+	free(sym_str);
+	
+	// We now need to fork off an sattach process.
 	// For SLURM, sattach makes the iostreams of srun available. This process
 	// will exit when the srun process exits. 
 	
-	if (redirectOutput)
+	// fork off a process to start the sattach command
+	mypid = fork();
+		
+		
+	// error case
+	if (mypid < 0)
 	{
-		// fork off a process to start the sattach command
-		mypid = fork();
-		
-		
-		// error case
-		if (mypid < 0)
-		{
-			_cti_set_error("Fatal fork error.");
-			_cti_cray_slurm_consumeSrunInv(myapp);
-		
-			return 0;
-		}
+		_cti_set_error("Fatal fork error.");
+		_cti_cray_slurm_consumeSrunInv(myapp);
 	
-		// child case
-		// Note that this should not use the _cti_set_error() interface since it is
-		// a child process.
-		if (mypid == 0)
+		return 0;
+	}
+
+	// child case
+	// Note that this should not use the _cti_set_error() interface since it is
+	// a child process.
+	if (mypid == 0)
+	{
+		int 	fd;
+		char *	args[4];
+	
+		// if redirectOutput is true, we use the caller provided fds.
+		if (redirectOutput)
 		{
-			int 	fd;
-			char *	args[4];
-		
 			// dup2 stdout
 			if (dup2(stdout_fd, STDOUT_FILENO) < 0)
 			{
@@ -1257,7 +1271,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 				fprintf(stderr, "CTI error: Unable to redirect srun stdout.\n");
 				exit(1);
 			}
-			
+		
 			// dup2 stderr
 			if (dup2(stderr_fd, STDERR_FILENO) < 0)
 			{
@@ -1266,47 +1280,47 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 				fprintf(stderr, "CTI error: Unable to redirect srun stderr.\n");
 				exit(1);
 			}
-			
-			// we set the input redirection in the mpir interface call. So we just
-			// redirect stdin to /dev/null for sattach.
-			if ((fd = open("/dev/null", O_RDONLY)) < 0)
-			{
-				fprintf(stderr, "CTI error: Unable to open /dev/null for reading.\n");
-				exit(1);
-			}
-			
-			// dup2 the fd onto STDIN_FILENO
-			if (dup2(fd, STDIN_FILENO) < 0)
-			{
-				fprintf(stderr, "CTI error: Unable to redirect aprun stdin.\n");
-				exit(1);
-			}
-			close(fd);
-			
-			// create the args
-			args[0] = SATTACH;
-			args[1] = "-Q";
-			if (asprintf(&args[2], "%u.%u", jobid, stepid)  <= 0)
-			{
-				fprintf(stderr, "CTI error: asprintf failed.\n");
-				exit(1);
-			}
-			args[3] = NULL;
-			
-			// exec sattach
-			execvp(SATTACH, args);
+		}
 		
-			// exec shouldn't return
-			fprintf(stderr, "CTI error: Return from exec.\n");
-			perror("execvp");
+		// we set the input redirection in the mpir interface call. So we just
+		// redirect stdin to /dev/null for sattach.
+		if ((fd = open("/dev/null", O_RDONLY)) < 0)
+		{
+			fprintf(stderr, "CTI error: Unable to open /dev/null for reading.\n");
 			exit(1);
 		}
 		
-		// parent case
+		// dup2 the fd onto STDIN_FILENO
+		if (dup2(fd, STDIN_FILENO) < 0)
+		{
+			fprintf(stderr, "CTI error: Unable to redirect aprun stdin.\n");
+			exit(1);
+		}
+		close(fd);
 		
-		// save the pid for later so that we can waitpid() on it when finished
-		myapp->sattach_pid = mypid;
+		// create the args
+		args[0] = SATTACH;
+		args[1] = "-Q";
+		if (asprintf(&args[2], "%u.%u", jobid, stepid)  <= 0)
+		{
+			fprintf(stderr, "CTI error: asprintf failed.\n");
+			exit(1);
+		}
+		args[3] = NULL;
+		
+		// exec sattach
+		execvp(SATTACH, args);
+	
+		// exec shouldn't return
+		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execvp");
+		exit(1);
 	}
+	
+	// parent case
+	
+	// save the pid for later so that we can waitpid() on it when finished
+	myapp->sattach_pid = mypid;
 	
 	// register this app with the application interface
 	if ((rtn = cti_cray_slurm_registerJobStep(jobid, stepid)) == 0)
