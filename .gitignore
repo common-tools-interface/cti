@@ -20,7 +20,7 @@ src/backend/Makefile
 src/cscope.out
 src/daemon/.deps
 src/daemon/Makefile
-src/daemon/dlaunch
+src/daemon/cti_dlaunch
 src/frontend/.deps
 src/frontend/Makefile
 src/ld_val/.deps

@@ -104,6 +104,7 @@ static int					_cti_cray_slurm_getNumAppPEs(void *);
 static int					_cti_cray_slurm_getNumAppNodes(void *);
 static char **				_cti_cray_slurm_getAppHostsList(void *);
 static cti_hostsList_t *	_cti_cray_slurm_getAppHostsPlacement(void *);
+static char *				_cti_cray_slurm_getHostName(void);
 
 /* cray slurm wlm proto object */
 cti_wlm_proto_t				_cti_cray_slurm_wlmProto =
@@ -130,7 +131,7 @@ cti_wlm_proto_t				_cti_cray_slurm_wlmProto =
 	_cti_cray_slurm_getNumAppNodes,			// wlm_getNumAppNodes
 	_cti_cray_slurm_getAppHostsList,		// wlm_getAppHostsList
 	_cti_cray_slurm_getAppHostsPlacement,	// wlm_getAppHostsPlacement
-	NULL, //_cti_cray_slurm_getHostName,			// wlm_getHostName
+	_cti_cray_slurm_getHostName,			// wlm_getHostName
 	_cti_wlm_getLauncherHostName_none		// wlm_getLauncherHostName - FIXME: Not supported by slurm
 };
 
@@ -1956,5 +1957,59 @@ _cti_cray_slurm_getAppHostsPlacement(void *this)
 	
 	// done
 	return placement_list;
+}
+
+static char *
+_cti_cray_slurm_getHostName(void)
+{
+	FILE *	nid_fd;				// Cray NID file stream
+	char	file_buf[BUFSIZ];	// file read buffer
+	int		nid = 0;			// nid of this node
+	char *	eptr;
+	char *	hostname;			// hostname to return
+	
+	// open up the file containing our node id (nid) - since we are using the
+	// Cray variant of native slurm this is required to work.
+	if ((nid_fd = fopen(ALPS_XT_NID, "r")) == NULL)
+	{
+		_cti_set_error("fopen on %s failed.", ALPS_XT_NID);
+		return NULL;
+	}
+	
+	// we expect this file to have a numeric value giving our current nid
+	if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
+	{
+		_cti_set_error("fgets on %s failed.", ALPS_XT_NID);
+		fclose(nid_fd);
+		return NULL;
+	}
+	// convert this to an integer value
+	nid = (int)strtol(file_buf, &eptr, 10);
+	
+	// close the file stream
+	fclose(nid_fd);
+	
+	// check for error
+	if ((errno == ERANGE && nid == INT_MAX)
+			|| (errno != 0 && nid == 0))
+	{
+		_cti_set_error("strtol failed.");
+		return NULL;
+	}
+	
+	// check for invalid input
+	if (eptr == file_buf || *eptr != '\0')
+	{
+		_cti_set_error("Bad data in %s.", ALPS_XT_NID);
+		return NULL;
+	}
+	
+	if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, nid) < 0)
+	{
+		_cti_set_error("asprintf failed.");
+		return NULL;
+	}
+	
+	return hostname;
 }
 
