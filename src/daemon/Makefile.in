@@ -61,7 +61,8 @@ am__installdirs = "$(DESTDIR)$(libexecdir)"
 libexecPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(libexec_PROGRAMS)
 am_cti_dlaunch_OBJECTS = cti_dlaunch-cti_daemon.$(OBJEXT) \
-	cti_dlaunch-alps_dl.$(OBJEXT)
+	cti_dlaunch-alps_dl.$(OBJEXT) \
+	cti_dlaunch-cray_slurm_dl.$(OBJEXT)
 cti_dlaunch_OBJECTS = $(am_cti_dlaunch_OBJECTS)
 am__DEPENDENCIES_1 =
 cti_dlaunch_DEPENDENCIES = $(USEFUL)/libuseful.la \
@@ -221,7 +222,7 @@ SRC = @CRAYTOOL_DIR@/src
 USEFUL = $(SRC)/useful
 AM_CFLAGS = -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
-cti_dlaunch_SOURCES = cti_daemon.c alps_dl.c
+cti_dlaunch_SOURCES = cti_daemon.c alps_dl.c cray_slurm_dl.c
 cti_dlaunch_CFLAGS = $(AM_CFLAGS) -I$(USEFUL) $(ARCHIVE_CFLAGS)
 cti_dlaunch_LDADD = $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
 cti_dlaunch_LDFLAGS = -all-static $(ARCHIVE_LDFLAGS)
@@ -297,6 +298,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_dlaunch-alps_dl.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_dlaunch-cray_slurm_dl.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_dlaunch-cti_daemon.Po@am__quote@
 
 .c.o:
@@ -347,6 +349,20 @@ cti_dlaunch-alps_dl.obj: alps_dl.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_dl.c' object='cti_dlaunch-alps_dl.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -c -o cti_dlaunch-alps_dl.obj `if test -f 'alps_dl.c'; then $(CYGPATH_W) 'alps_dl.c'; else $(CYGPATH_W) '$(srcdir)/alps_dl.c'; fi`
+
+cti_dlaunch-cray_slurm_dl.o: cray_slurm_dl.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -MT cti_dlaunch-cray_slurm_dl.o -MD -MP -MF $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Tpo -c -o cti_dlaunch-cray_slurm_dl.o `test -f 'cray_slurm_dl.c' || echo '$(srcdir)/'`cray_slurm_dl.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Tpo $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cray_slurm_dl.c' object='cti_dlaunch-cray_slurm_dl.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -c -o cti_dlaunch-cray_slurm_dl.o `test -f 'cray_slurm_dl.c' || echo '$(srcdir)/'`cray_slurm_dl.c
+
+cti_dlaunch-cray_slurm_dl.obj: cray_slurm_dl.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -MT cti_dlaunch-cray_slurm_dl.obj -MD -MP -MF $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Tpo -c -o cti_dlaunch-cray_slurm_dl.obj `if test -f 'cray_slurm_dl.c'; then $(CYGPATH_W) 'cray_slurm_dl.c'; else $(CYGPATH_W) '$(srcdir)/cray_slurm_dl.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Tpo $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cray_slurm_dl.c' object='cti_dlaunch-cray_slurm_dl.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -c -o cti_dlaunch-cray_slurm_dl.obj `if test -f 'cray_slurm_dl.c'; then $(CYGPATH_W) 'cray_slurm_dl.c'; else $(CYGPATH_W) '$(srcdir)/cray_slurm_dl.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

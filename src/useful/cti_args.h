@@ -1,5 +1,5 @@
 /******************************************************************************\
- * stack.h - Header file for the stack interface.
+ * cti_args.h - Header file for the arg interface.
  *
  * © 2014 Cray Inc.  All Rights Reserved.
  *
@@ -16,23 +16,23 @@
  *
  ******************************************************************************/
 
-#ifndef _STACK_H
-#define _STACK_H
+#ifndef _CTI_ARGS_H
+#define _CTI_ARGS_H
 
-#define CTI_DEFAULT_STACK	128
+#include	<stdarg.h>
 
 /* struct typedefs */
 typedef struct
 {
-	unsigned int	idx;
-	unsigned int	num_elems;
-	void **			elems;
-} cti_stack_t;
+	unsigned int	argc;
+	char **			argv;
+	unsigned int	_len;
+} cti_args_t;
 
-/* function prototypes */
-cti_stack_t *	_cti_newStack(void);
-void			_cti_consumeStack(cti_stack_t *);
-int				_cti_push(cti_stack_t *, void *);
-void *			_cti_pop(cti_stack_t *);
+cti_args_t *	_cti_newArgs(void);
+void			_cti_freeArgs(cti_args_t *);
+int				_cti_addArg(cti_args_t *, const char *, ...);
+int				_cti_mergeArgs(cti_args_t *, cti_args_t *);
+char *			_cti_flattenArgs(cti_args_t *);
 
-#endif /* _STACK_H */
+#endif /* _CTI_ARGS_H */

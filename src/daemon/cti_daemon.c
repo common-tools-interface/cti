@@ -40,7 +40,7 @@
 
 #include "cti_defs.h"
 #include "cti_daemon.h"
-#include "useful.h"
+#include "cti_useful.h"
 
 static int debug_flag = 0;
 
@@ -60,6 +60,7 @@ const struct option long_opts[] = {
 			
 /* wlm specific proto objects defined elsewhere */
 extern cti_wlm_proto_t	_cti_alps_wlmProto;
+extern cti_wlm_proto_t	_cti_cray_slurm_wlmProto;
 
 /* noneness wlm proto object */
 static cti_wlm_proto_t	_cti_nonenessProto =
@@ -73,9 +74,9 @@ static cti_wlm_proto_t	_cti_nonenessProto =
 cti_wlm_proto_t *	_cti_wlmProto 	= &_cti_nonenessProto;
 
 static void
-usage(char *name)
+usage(void)
 {
-	fprintf(stdout, "Usage: %s [OPTIONS]...\n", name);
+	fprintf(stdout, "Usage: %s [OPTIONS]...\n", CTI_LAUNCHER);
 	fprintf(stdout, "Launch a program on a compute node. Chdir's to the toolhelper\n");
 	fprintf(stdout, "directory and add it to PATH and LD_LIBRARY_PATH. Sets optional\n");
 	fprintf(stdout, "specified variables in the environment of the process.\n\n");
@@ -114,7 +115,7 @@ copy_data(struct archive *ar, struct archive *aw)
 		r = archive_write_data_block(aw, buff, size, offset);
 		if (r != ARCHIVE_OK) 
 		{
-			fprintf(stderr, "archive_write_data_block(): %s\n", archive_error_string(ar));
+			fprintf(stderr, "%s: archive_write_data_block(): %s\n", CTI_LAUNCHER, archive_error_string(ar));
 			return (r);
 		}
 	}
@@ -172,8 +173,17 @@ main(int argc, char **argv)
 	// we require at least 1 argument beyond argv[0]
 	if (argc < 2)
 	{
-		usage(argv[0]);
+		usage();
 		return 1;
+	}
+	
+	// print out argv array if debug is turned on
+	if (debug_flag)
+	{
+		for (i=0; i < argc; ++i)
+		{
+			fprintf(stderr, "%s: argv[%d] = %s\n", CTI_LAUNCHER, i, argv[i]);
+		}
 	}
 	
 	// We want to do as little as possible while parsing the opts. This is because
@@ -190,7 +200,7 @@ main(int argc, char **argv)
 			case 'a': 
 				if (optarg == NULL)
 				{
-					usage(argv[0]);
+					usage();
 					return 1;
 				}
 				
@@ -202,7 +212,7 @@ main(int argc, char **argv)
 			case 'b':
 				if (optarg == NULL)
 				{
-					usage(argv[0]);
+					usage();
 					return 1;
 				}
 				
@@ -214,7 +224,7 @@ main(int argc, char **argv)
 			case 'd':
 				if (optarg == NULL)
 				{
-					usage(argv[0]);
+					usage();
 					return 1;
 				}
 				
@@ -226,7 +236,7 @@ main(int argc, char **argv)
 			case 'e':
 				if (optarg == NULL)
 				{
-					usage(argv[0]);
+					usage();
 					return 1;
 				}
 				
@@ -237,7 +247,7 @@ main(int argc, char **argv)
 					if ((env_args = _cti_newStack()) == NULL)
 					{
 						// failed to create stack - shouldn't happen
-						fprintf(stderr, "_cti_newStack() failed.\n");
+						fprintf(stderr, "%s: _cti_newStack() failed.\n", CTI_LAUNCHER);
 						return 1;
 					}
 				}
@@ -245,7 +255,7 @@ main(int argc, char **argv)
 				if (_cti_push(env_args, strdup(optarg)))
 				{
 					// failed to push the string - shouldn't happen
-					fprintf(stderr, "_cti_push() failed.\n");
+					fprintf(stderr, "%s: _cti_push() failed.\n", CTI_LAUNCHER);
 					return 1;
 				}
 				
@@ -254,7 +264,7 @@ main(int argc, char **argv)
 			case 'i':
 				if (optarg == NULL)
 				{
-					usage(argv[0]);
+					usage();
 					return 1;
 				}
 				
@@ -267,7 +277,7 @@ main(int argc, char **argv)
 			case 'm':
 				if (optarg == NULL)
 				{
-					usage(argv[0]);
+					usage();
 					return 1;
 				}
 				
@@ -279,7 +289,7 @@ main(int argc, char **argv)
 			case 'p':
 				if (optarg == NULL)
 				{
-					usage(argv[0]);
+					usage();
 					return 1;
 				}
 				
@@ -291,7 +301,7 @@ main(int argc, char **argv)
 			case 'w':
 				if (optarg == NULL)
 				{
-					usage(argv[0]);
+					usage();
 					return 1;
 				}
 				
@@ -301,10 +311,10 @@ main(int argc, char **argv)
 				break;
 				
 			case 'h':
-				usage(argv[0]);
+				usage();
 				return 1;
 			default:
-				usage(argv[0]);
+				usage();
 				return 1;
 		}
 	}
@@ -317,7 +327,10 @@ main(int argc, char **argv)
 			_cti_wlmProto = &_cti_alps_wlmProto;
 			break;
 		
-		case CTI_WLM_CRAY_SLURM:	
+		case CTI_WLM_CRAY_SLURM:
+			_cti_wlmProto = &_cti_cray_slurm_wlmProto;
+			break;
+			
 		case CTI_WLM_SLURM:	
 		case CTI_WLM_NONE:
 		default:
@@ -355,18 +368,18 @@ main(int argc, char **argv)
 	switch (wlm_arg)
 	{
 		case CTI_WLM_ALPS:
+		case CTI_WLM_CRAY_SLURM:
 			// These wlm are valid
 			break;
 		
 		case CTI_WLM_NONE:
-		case CTI_WLM_CRAY_SLURM:
 		case CTI_WLM_SLURM:
 			// These wlm are not supported
-			fprintf(stderr, "WLM provided by wlm argument is not yet supported!\n");
+			fprintf(stderr, "%s: WLM provided by wlm argument is not yet supported!\n", CTI_LAUNCHER);
 			return 1;
 		
 		default:
-			fprintf(stderr, "Invalid wlm argument.\n");
+			fprintf(stderr, "%s: Invalid wlm argument.\n", CTI_LAUNCHER);
 			return 1;
 	}
 	
@@ -374,7 +387,7 @@ main(int argc, char **argv)
 	if (apid_str == NULL)
 	{
 		// failure
-		fprintf(stderr, "Missing apid argument!\n");
+		fprintf(stderr, "%s: Missing apid argument!\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
@@ -382,7 +395,7 @@ main(int argc, char **argv)
 	if (directory == NULL && manifest == NULL)
 	{
 		// failure
-		fprintf(stderr, "Missing either directory or manifest argument!\n");
+		fprintf(stderr, "%s: Missing either directory or manifest argument!\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
@@ -390,7 +403,7 @@ main(int argc, char **argv)
 	if (tool_path == NULL)
 	{
 		// failure
-		fprintf(stderr, "Missing path argument!\n");
+		fprintf(stderr, "%s: Missing path argument!\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
@@ -398,7 +411,7 @@ main(int argc, char **argv)
 	if (_cti_wlmProto->wlm_init())
 	{
 		// failure
-		fprintf(stderr, "wlm_init() failed.\n");
+		fprintf(stderr, "%s: wlm_init() failed.\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
@@ -417,7 +430,7 @@ main(int argc, char **argv)
 			if ((env = strsep(&val, "=")) == NULL)
 			{
 				//error
-				fprintf(stderr, "strsep failed\n");
+				fprintf(stderr, "%s: strsep failed\n", CTI_LAUNCHER);
 				return 1;
 			}
 			
@@ -425,7 +438,7 @@ main(int argc, char **argv)
 			if ((*env == '\0') || (*val == '\0'))
 			{
 				// they passed us something stupid
-				fprintf(stderr, "Unrecognized env argument.\n");
+				fprintf(stderr, "%s: Unrecognized env argument.\n", CTI_LAUNCHER);
 				return 1;
 			}
 			
@@ -433,7 +446,7 @@ main(int argc, char **argv)
 			if (setenv(env, val, 1) < 0)
 			{
 				// failure
-				fprintf(stderr, "setenv failed\n");
+				fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
 				return 1;
 			}
 			
@@ -452,20 +465,20 @@ main(int argc, char **argv)
 	if (setenv(APID_ENV_VAR, apid_str, 1) < 0)
 	{
 		// failure
-		fprintf(stderr, "setenv failed\n");
+		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
 	// set the WLM_ENV_VAR environment variable to the wlm
 	if (asprintf(&wlm_str, "%d", _cti_wlmProto->wlm_type) <= 0)
 	{
-		fprintf(stderr, "asprintf failed\n");
+		fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	if (setenv(WLM_ENV_VAR, wlm_str, 1) < 0)
 	{
 		// failure
-		fprintf(stderr, "setenv failed\n");
+		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	free(wlm_str);
@@ -473,12 +486,12 @@ main(int argc, char **argv)
 	// cd to the tool_path and relax the permissions
 	if (debug_flag)
 	{
-		fprintf(stderr, "inst %d: Toolhelper path: %s\n", inst, tool_path);
+		fprintf(stderr, "%s: inst %d: Toolhelper path: %s\n", CTI_LAUNCHER, inst, tool_path);
 	}
 	
 	if (stat(tool_path, &statbuf) == -1)
 	{
-		fprintf(stderr, "Could not stat %s\n", tool_path);
+		fprintf(stderr, "%s: Could not stat %s\n", CTI_LAUNCHER, tool_path);
 		return 1;
 	}
 	
@@ -486,14 +499,14 @@ main(int argc, char **argv)
 	// use the existing perms for group and global settings
 	if (chmod(tool_path, statbuf.st_mode | S_IRWXU) != 0)
 	{
-		fprintf(stderr, "Could not chmod %s\n", tool_path);
+		fprintf(stderr, "%s: Could not chmod %s\n", CTI_LAUNCHER, tool_path);
 		return 1;
 	}
 	
 	// change the working directory to path
 	if (chdir(tool_path) != 0)
 	{
-		fprintf(stderr, "Could not chdir to %s\n", tool_path);
+		fprintf(stderr, "%s: Could not chdir to %s\n", CTI_LAUNCHER, tool_path);
 		return 1;
 	}
 	
@@ -502,27 +515,27 @@ main(int argc, char **argv)
 	{
 		if (debug_flag)
 		{
-			fprintf(stderr, "inst %d: Manifest provided: %s\n", inst, manifest);
+			fprintf(stderr, "%s: inst %d: Manifest provided: %s\n", CTI_LAUNCHER, inst, manifest);
 		}
 	
 		// create the manifest path string
 		if (asprintf(&manifest_path, "%s/%s", tool_path, manifest) <= 0)
 		{
-			fprintf(stderr, "asprintf failed\n");
+			fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
 			return 1;
 		}
 		
 		// ensure the manifest tarball exists
 		if (stat(manifest_path, &statbuf) == -1)
 		{
-			fprintf(stderr, "Could not stat manifest tarball %s\n", manifest_path);
+			fprintf(stderr, "%s: Could not stat manifest tarball %s\n", CTI_LAUNCHER, manifest_path);
 			return 1;
 		}
 		
 		// ensure it is a regular file
 		if (!S_ISREG(statbuf.st_mode))
 		{
-			fprintf(stderr, "%s is not a regular file!\n", manifest_path);
+			fprintf(stderr, "%s: %s is not a regular file!\n", CTI_LAUNCHER, manifest_path);
 			return 1;
 		}
 	
@@ -538,7 +551,7 @@ main(int argc, char **argv)
 	
 		if ((r = archive_read_open_filename(a, manifest_path, 10240)))
 		{
-			fprintf(stderr, "archive_read_open_filename(): %s\n", archive_error_string(a));
+			fprintf(stderr, "%s: archive_read_open_filename(): %s\n", CTI_LAUNCHER, archive_error_string(a));
 			return r;
 		}
 	
@@ -549,14 +562,14 @@ main(int argc, char **argv)
 				break;
 			if (r != ARCHIVE_OK)
 			{
-				fprintf(stderr, "archive_read_next_header(): %s\n", archive_error_string(a));
+				fprintf(stderr, "%s: archive_read_next_header(): %s\n", CTI_LAUNCHER, archive_error_string(a));
 				return 1;
 			}
 		
 			r = archive_write_header(ext, entry);
 			if (r != ARCHIVE_OK)
 			{
-				fprintf(stderr, "archive_write_header(): %s\n", archive_error_string(ext));
+				fprintf(stderr, "%s: archive_write_header(): %s\n", CTI_LAUNCHER, archive_error_string(ext));
 				return 1;
 			}
 		
@@ -565,7 +578,7 @@ main(int argc, char **argv)
 			r = archive_write_finish_entry(ext);
 			if (r != ARCHIVE_OK)
 			{
-				fprintf(stderr, "archive_write_finish_entry(): %s\n", archive_error_string(ext));
+				fprintf(stderr, "%s: archive_write_finish_entry(): %s\n", CTI_LAUNCHER, archive_error_string(ext));
 				return 1;
 			}
 		}
@@ -592,7 +605,7 @@ main(int argc, char **argv)
 	{
 		if (debug_flag)
 		{
-			fprintf(stderr, "inst %d: Directory provided: %s\n", inst, directory);
+			fprintf(stderr, "%s: inst %d: Directory provided: %s\n", CTI_LAUNCHER, inst, directory);
 		}
 		
 		// create the manifest path string
@@ -603,7 +616,7 @@ main(int argc, char **argv)
 		}
 		if (asprintf(&manifest_path, "%s/%s", tool_path, directory) <= 0)
 		{
-			fprintf(stderr, "asprintf failed\n");
+			fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
 			return 1;
 		}
 	}
@@ -611,14 +624,14 @@ main(int argc, char **argv)
 	// ensure the manifest directory exists
 	if (stat(manifest_path, &statbuf) == -1)
 	{
-		fprintf(stderr, "Could not stat root directory %s\n", manifest_path);
+		fprintf(stderr, "%s: Could not stat root directory %s\n", CTI_LAUNCHER, manifest_path);
 		return 1;
 	}
 	
 	// ensure it is a directory
 	if (!S_ISDIR(statbuf.st_mode))
 	{
-		fprintf(stderr, "%s is not a directory!\n", manifest_path);
+		fprintf(stderr, "%s: %s is not a directory!\n", CTI_LAUNCHER, manifest_path);
 		return 1;
 	}
 	
@@ -646,14 +659,14 @@ main(int argc, char **argv)
 	// create the path to the lock file
 	if (asprintf(&lock_path, "%s/.lock_%s_%d", tool_path, directory, inst) <= 0)
 	{
-		fprintf(stderr, "asprintf failed\n");
+		fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
 	// try to fopen the lock file
 	if ((lock_file = fopen(lock_path, "w")) == NULL)
 	{
-		fprintf(stderr, "fopen on %s failed\n", lock_path);
+		fprintf(stderr, "%s: fopen on %s failed\n", CTI_LAUNCHER, lock_path);
 		// don't exit here, this will break future tool daemons though so its pretty
 		// bad to have a failure at this point. But it shouldn't screw this instance
 		// up at the very least.
@@ -667,7 +680,7 @@ main(int argc, char **argv)
 	if (setenv(ROOT_DIR_VAR, manifest_path, 1) < 0)
 	{
 		// failure
-		fprintf(stderr, "setenv failed\n");
+		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
@@ -678,7 +691,7 @@ main(int argc, char **argv)
 		if (setenv(OLD_SCRATCH_ENV_VAR, old_env_path, 1) < 0)
 		{
 			// failure
-			fprintf(stderr, "setenv failed\n");
+			fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
 			return 1;
 		}
 	}
@@ -688,46 +701,46 @@ main(int argc, char **argv)
 	// to it.
 	if (asprintf(&env_path, "%s/tmp", manifest_path) <= 0)
 	{
-		fprintf(stderr, "asprintf failed\n");
+		fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	if (setenv(SCRATCH_ENV_VAR, env_path, 1) < 0)
 	{
 		// failure
-		fprintf(stderr, "setenv failed\n");
+		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
 	// set the BIN_DIR_VAR environment variable to the toolhelper directory.
 	if (asprintf(&bin_path, "%s/bin", manifest_path) <= 0)
 	{
-		fprintf(stderr, "asprintf failed\n");
+		fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	if (setenv(BIN_DIR_VAR, bin_path, 1) < 0)
 	{
 		// failure
-		fprintf(stderr, "setenv failed\n");
+		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
 	// set the LIB_DIR_VAR environment variable to the toolhelper directory.
 	if (asprintf(&lib_path, "%s/lib", manifest_path) <= 0)
 	{
-		fprintf(stderr, "asprintf failed\n");
+		fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	if (setenv(LIB_DIR_VAR, lib_path, 1) < 0)
 	{
 		// failure
-		fprintf(stderr, "setenv failed\n");
+		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
 	// call _cti_adjustPaths so that we chdir to where we shipped stuff over to and setup PATH/LD_LIBRARY_PATH
 	if (_cti_adjustPaths(manifest_path))
 	{
-		fprintf(stderr, "Could not adjust paths.\n");
+		fprintf(stderr, "%s: Could not adjust paths.\n", CTI_LAUNCHER);
 		free(tool_path);
 		return 1;
 	}
@@ -735,7 +748,7 @@ main(int argc, char **argv)
 	// ensure that binary was provided, otherwise just exit - the caller wanted to stage stuff.
 	if (binary == NULL)
 	{
-		fprintf(stderr, "inst %d: No binary provided. Stage to %s complete.\n", inst, manifest_path);
+		fprintf(stderr, "%s: inst %d: No binary provided. Stage to %s complete.\n", CTI_LAUNCHER, inst, manifest_path);
 		return 0;
 	}
 	
@@ -744,13 +757,13 @@ main(int argc, char **argv)
 	// create the full path to the binary we are going to exec
 	if (asprintf(&binary_path, "%s/bin/%s", manifest_path, binary) <= 0)
 	{
-		fprintf(stderr, "asprintf failed\n");
+		fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
 		return 1;
 	}
 	
 	if (debug_flag)
 	{
-		fprintf(stderr, "inst %d: Binary path: %s\n", inst, binary_path);
+		fprintf(stderr, "%s: inst %d: Binary path: %s\n", CTI_LAUNCHER, inst, binary_path);
 	}
 	
 	// At this point we need to wait on any other previous tool daemons that may
@@ -769,7 +782,7 @@ main(int argc, char **argv)
 		// create the path to this instances lock file
 		if (asprintf(&lock_path, "%s/.lock_%s_%d", tool_path, directory, i) <= 0)
 		{
-			fprintf(stderr, "asprintf failed\n");
+			fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
 			return 1;
 		}
 		
@@ -781,7 +794,7 @@ main(int argc, char **argv)
 			{
 				if (sCnt++%100 == 0)
 				{
-					fprintf(stderr, "inst %d: Lock file %s not found. Sleeping...\n", inst, lock_path);
+					fprintf(stderr, "%s: inst %d: Lock file %s not found. Sleeping...\n", CTI_LAUNCHER, inst, lock_path);
 				}
 			}
 			
@@ -792,7 +805,7 @@ main(int argc, char **argv)
 	
 	if (debug_flag)
 	{
-		fprintf(stderr, "inst %d: All dependency locks acquired. Ready to exec.\n", inst);
+		fprintf(stderr, "%s: inst %d: All dependency locks acquired. Ready to exec.\n", CTI_LAUNCHER, inst);
 	}
 	
 	// At this point it is safe to assume we have all our dependencies.
@@ -800,14 +813,14 @@ main(int argc, char **argv)
 	// ensure the binary exists
 	if (stat(binary_path, &statbuf) == -1)
 	{
-		fprintf(stderr, "Could not stat %s\n", binary_path);
+		fprintf(stderr, "%s: Could not stat %s\n", CTI_LAUNCHER, binary_path);
 		return 1;
 	}
 	
 	// ensure it is a regular file
 	if (!S_ISREG(statbuf.st_mode))
 	{
-		fprintf(stderr, "%s is not a regular file!\n", binary_path);
+		fprintf(stderr, "%s: %s is not a regular file!\n", CTI_LAUNCHER, binary_path);
 		return 1;
 	}
 	
@@ -820,7 +833,7 @@ main(int argc, char **argv)
 	// now we can exec our program
 	execv(binary_path, &argv[optind - 1]);
 	
-	fprintf(stderr, "inst %d: Return from exec!\n", inst);
+	fprintf(stderr, "%s: inst %d: Return from exec!\n", CTI_LAUNCHER, inst);
 	
 	perror("execv");
 	
@@ -832,14 +845,14 @@ main(int argc, char **argv)
 int
 _cti_wlm_init_none(void)
 {
-	fprintf(stderr, "wlm_init() not supported.");
+	fprintf(stderr, "%s: wlm_init() not supported.", CTI_LAUNCHER);
 	return 1;
 }
 
 int
 _cti_wlm_getNodeID_none(void)
 {
-	fprintf(stderr, "_cti_wlm_getNodeID_none() not supported.");
+	fprintf(stderr, "%s: wlm_getNodeID() not supported.", CTI_LAUNCHER);
 	return -1;
 }
 

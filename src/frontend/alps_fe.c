@@ -41,7 +41,7 @@
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
-#include "useful.h"
+#include "cti_useful.h"
 
 /* Types used here */
 
@@ -101,7 +101,7 @@ static const char * const *	_cti_alps_extraLibraries(void);
 static const char * const *	_cti_alps_extraLibDirs(void);
 static const char * const *	_cti_alps_extraFiles(void);
 static int					_cti_alps_ship_package(void *, const char *);
-static int					_cti_alps_start_daemon(void *, int, const char *, const char *);
+static int					_cti_alps_start_daemon(void *, int, const char *, cti_args_t *);
 static int					_cti_alps_getNumAppPEs(void *);
 static int					_cti_alps_getNumAppNodes(void *);
 static char **				_cti_alps_getAppHostsList(void *);
@@ -1851,11 +1851,12 @@ _cti_alps_ship_package(void *this, const char *package)
 }
 
 static int
-_cti_alps_start_daemon(void *this, int transfer, const char *tool_path, const char *args)
+_cti_alps_start_daemon(void *this, int transfer, const char *tool_path, cti_args_t * args)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
 	char *			launcher;
+	char *			args_flat;
 	char *			a;
 	
 	// sanity check
@@ -1896,14 +1897,24 @@ _cti_alps_start_daemon(void *this, int transfer, const char *tool_path, const ch
 		}
 	}
 	
-	// create the new args string
-	if (asprintf(&a, "%s %s", launcher, args) <= 0)
+	// get the flattened args string since alps needs to use that
+	if ((args_flat = _cti_flattenArgs(args)) == NULL)
 	{
-		_cti_set_error("asprintf failed.");
+		_cti_set_error("_cti_flattenArgs failed.");
 		free(launcher);
 		return 1;
 	}
+	
+	// create the new args string
+	if (asprintf(&a, "%s %s", launcher, args_flat) <= 0)
+	{
+		_cti_set_error("asprintf failed.");
+		free(launcher);
+		free(args_flat);
+		return 1;
+	}
 	free(launcher);
+	free(args_flat);
 	
 	// launch the tool daemon onto the compute nodes
 	if ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, transfer, 1, 1, &a)) != NULL)

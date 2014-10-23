@@ -1,5 +1,5 @@
 /******************************************************************************\
- * stack.c - Functions relating to creating and maintaining a dynamic stack
+ * cti_stack.c - Functions relating to creating and maintaining a dynamic stack
  *
  * © 2014 Cray Inc.  All Rights Reserved.
  *
@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "stack.h"
+#include "cti_stack.h"
 
 /* Static prototypes */
 static int				_cti_resizeStack(cti_stack_t *);

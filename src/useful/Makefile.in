@@ -60,8 +60,9 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libuseful_la_LIBADD =
-am_libuseful_la_OBJECTS = libuseful_la-log.lo libuseful_la-path.lo \
-	libuseful_la-stack.lo libuseful_la-stringList.lo
+am_libuseful_la_OBJECTS = libuseful_la-cti_args.lo \
+	libuseful_la-cti_log.lo libuseful_la-cti_path.lo \
+	libuseful_la-cti_stack.lo libuseful_la-cti_stringList.lo
 libuseful_la_OBJECTS = $(am_libuseful_la_OBJECTS)
 libuseful_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(libuseful_la_CFLAGS) \
@@ -219,10 +220,12 @@ SRC = @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS = --quiet
 AM_CFLAGS = -fPIC -Wall -I$(SRC)
 noinst_LTLIBRARIES = libuseful.la
-libuseful_la_SOURCES = log.c log.h path.c path.h stack.c stack.h stringList.c stringList.h
+libuseful_la_SOURCES = cti_args.c cti_log.c cti_path.c cti_stack.c \
+						  cti_stringList.c
+
 libuseful_la_CFLAGS = $(AM_CFLAGS)
 libuseful_la_LDFLAGS = -static -no-undefined
-noinst_HEADERS = useful.h
+noinst_HEADERS = cti_useful.h
 all: all-am
 
 .SUFFIXES:
@@ -274,10 +277,11 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-log.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-path.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-stack.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-stringList.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_args.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_log.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_path.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_stack.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_stringList.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -300,33 +304,40 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-libuseful_la-log.lo: log.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-log.lo -MD -MP -MF $(DEPDIR)/libuseful_la-log.Tpo -c -o libuseful_la-log.lo `test -f 'log.c' || echo '$(srcdir)/'`log.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-log.Tpo $(DEPDIR)/libuseful_la-log.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='log.c' object='libuseful_la-log.lo' libtool=yes @AMDEPBACKSLASH@
+libuseful_la-cti_args.lo: cti_args.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-cti_args.lo -MD -MP -MF $(DEPDIR)/libuseful_la-cti_args.Tpo -c -o libuseful_la-cti_args.lo `test -f 'cti_args.c' || echo '$(srcdir)/'`cti_args.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-cti_args.Tpo $(DEPDIR)/libuseful_la-cti_args.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_args.c' object='libuseful_la-cti_args.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-log.lo `test -f 'log.c' || echo '$(srcdir)/'`log.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_args.lo `test -f 'cti_args.c' || echo '$(srcdir)/'`cti_args.c
 
-libuseful_la-path.lo: path.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-path.lo -MD -MP -MF $(DEPDIR)/libuseful_la-path.Tpo -c -o libuseful_la-path.lo `test -f 'path.c' || echo '$(srcdir)/'`path.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-path.Tpo $(DEPDIR)/libuseful_la-path.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='path.c' object='libuseful_la-path.lo' libtool=yes @AMDEPBACKSLASH@
+libuseful_la-cti_log.lo: cti_log.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-cti_log.lo -MD -MP -MF $(DEPDIR)/libuseful_la-cti_log.Tpo -c -o libuseful_la-cti_log.lo `test -f 'cti_log.c' || echo '$(srcdir)/'`cti_log.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-cti_log.Tpo $(DEPDIR)/libuseful_la-cti_log.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_log.c' object='libuseful_la-cti_log.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-path.lo `test -f 'path.c' || echo '$(srcdir)/'`path.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_log.lo `test -f 'cti_log.c' || echo '$(srcdir)/'`cti_log.c
 
-libuseful_la-stack.lo: stack.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-stack.lo -MD -MP -MF $(DEPDIR)/libuseful_la-stack.Tpo -c -o libuseful_la-stack.lo `test -f 'stack.c' || echo '$(srcdir)/'`stack.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-stack.Tpo $(DEPDIR)/libuseful_la-stack.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='stack.c' object='libuseful_la-stack.lo' libtool=yes @AMDEPBACKSLASH@
+libuseful_la-cti_path.lo: cti_path.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-cti_path.lo -MD -MP -MF $(DEPDIR)/libuseful_la-cti_path.Tpo -c -o libuseful_la-cti_path.lo `test -f 'cti_path.c' || echo '$(srcdir)/'`cti_path.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-cti_path.Tpo $(DEPDIR)/libuseful_la-cti_path.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_path.c' object='libuseful_la-cti_path.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-stack.lo `test -f 'stack.c' || echo '$(srcdir)/'`stack.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_path.lo `test -f 'cti_path.c' || echo '$(srcdir)/'`cti_path.c
 
-libuseful_la-stringList.lo: stringList.c
-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-stringList.lo -MD -MP -MF $(DEPDIR)/libuseful_la-stringList.Tpo -c -o libuseful_la-stringList.lo `test -f 'stringList.c' || echo '$(srcdir)/'`stringList.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-stringList.Tpo $(DEPDIR)/libuseful_la-stringList.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='stringList.c' object='libuseful_la-stringList.lo' libtool=yes @AMDEPBACKSLASH@
+libuseful_la-cti_stack.lo: cti_stack.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-cti_stack.lo -MD -MP -MF $(DEPDIR)/libuseful_la-cti_stack.Tpo -c -o libuseful_la-cti_stack.lo `test -f 'cti_stack.c' || echo '$(srcdir)/'`cti_stack.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-cti_stack.Tpo $(DEPDIR)/libuseful_la-cti_stack.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_stack.c' object='libuseful_la-cti_stack.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-stringList.lo `test -f 'stringList.c' || echo '$(srcdir)/'`stringList.c
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_stack.lo `test -f 'cti_stack.c' || echo '$(srcdir)/'`cti_stack.c
+
+libuseful_la-cti_stringList.lo: cti_stringList.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-cti_stringList.lo -MD -MP -MF $(DEPDIR)/libuseful_la-cti_stringList.Tpo -c -o libuseful_la-cti_stringList.lo `test -f 'cti_stringList.c' || echo '$(srcdir)/'`cti_stringList.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-cti_stringList.Tpo $(DEPDIR)/libuseful_la-cti_stringList.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_stringList.c' object='libuseful_la-cti_stringList.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_stringList.lo `test -f 'cti_stringList.c' || echo '$(srcdir)/'`cti_stringList.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

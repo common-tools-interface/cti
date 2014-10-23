@@ -1,5 +1,5 @@
-/*********************************************************************************\
- * log.c - Functions used to create log files.
+/******************************************************************************\
+ * cti_log.c - Functions used to create log files.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -14,7 +14,7 @@
  * $Rev$
  * $Author$
  *
- *********************************************************************************/
+ ******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -26,7 +26,7 @@
 
 #include <linux/limits.h>
 
-#include "log.h"
+#include "cti_log.h"
 #include "cti_defs.h"
 
 FILE *

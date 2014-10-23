@@ -1,5 +1,5 @@
-/*********************************************************************************\
- * path.h - Header file for the path interface.
+/******************************************************************************\
+ * cti_path.h - Header file for the path interface.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -14,14 +14,14 @@
  * $Rev$
  * $Author$
  *
- *********************************************************************************/
+ ******************************************************************************/
 
-#ifndef _PATH_H
-#define _PATH_H
+#ifndef _CTI_PATH_H
+#define _CTI_PATH_H
 
 char *	_cti_pathFind(const char *, const char *);
 char *	_cti_libFind(const char *);
 int		_cti_adjustPaths(const char *);
 char *	_cti_pathToName(const char *);
 
-#endif /* _PATH_H */
+#endif /* _CTI_PATH_H */

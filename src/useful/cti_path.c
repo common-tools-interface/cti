@@ -1,5 +1,5 @@
-/*********************************************************************************\
- * path.c - Functions relating to searching and setting path variables.
+/******************************************************************************\
+ * cti_path.c - Functions relating to searching and setting path variables.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -14,7 +14,7 @@
  * $Rev$
  * $Author$
  *
- *********************************************************************************/
+ ******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -31,7 +31,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "path.h"
+#include "cti_path.h"
 
 #define EXTRA_LIBRARY_PATH  "/lib64:/usr/lib64:/lib:/usr/lib"
 

@@ -44,7 +44,7 @@
 #include "cti_error.h"
 #include "cti_transfer.h"
 #include "ld_val.h"
-#include "useful.h"
+#include "cti_useful.h"
 
 /* Types used here */
 
@@ -2863,8 +2863,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	appEntry_t *		app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
 	manifest_t *		m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	char *				jid_str;			// job identifier string - wlm specific
-	char *				args_flat;			// flattened args array to pass to the toolhelper call
-	char *				tmp_args;			// temporary args used in creating args_flat
+	cti_args_t *		d_args;				// args to pass to the daemon launcher
 	session_t *			s_ptr = NULL;		// points at the session to return
 	cti_session_id_t	rtn;
 	int					trnsfr = 1;			// should we transfer the dlaunch?
@@ -2914,6 +2913,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		{
 			// We failed to find the session for the sid
 			// error string already set
+			_cti_reapManifest(m_ptr->mid);
 			return 0;
 		}
 	}
@@ -2927,6 +2927,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		{
 			// Failed to ship the manifest - catastrophic failure
 			// error string already set
+			_cti_reapManifest(m_ptr->mid);
 			return 0;
 		}
 	} else
@@ -2935,6 +2936,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		if (m_ptr->sid <= 0)
 		{
 			_cti_set_error("cti_manifest_id_t %d was empty!", m_ptr->mid);
+			_cti_reapManifest(m_ptr->mid);
 			return 0;
 		}
 		
@@ -2947,15 +2949,17 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		return rtn;
 	}
 	
-	// now we need to create the flattened argv string for the actual call to the wrapper
-	// this is passed through the toolhelper
+	// now we need to create the argv for the actual call to the WLM wrapper call
+	//
 	// The options passed MUST correspond to the options defined in the daemon_launcher program.
 	//
 	// The actual daemon launcher path string is determined by the wlm_startDaemon call
+	// since that is wlm specific
 	
 	if ((jid_str = app_ptr->wlmProto->wlm_getJobId(app_ptr->_wlmObj)) == NULL)
 	{
 		// error already set
+		_cti_reapManifest(m_ptr->mid);
 		return 0;
 	}
 	
@@ -2963,48 +2967,99 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	if (app_ptr->toolPath == NULL)
 	{
 		_cti_set_error("Tool daemon path information is missing!");
+		_cti_reapManifest(m_ptr->mid);
+		free(jid_str);
 		return 0;
 	}
 	
-	// start creating the flattened args string
-	if (asprintf(&args_flat, "-a %s -p %s -w %d -m %s%d.tar -d %s -i %d", 
-				jid_str, app_ptr->toolPath, app_ptr->wlmProto->wlm_type, 
-				m_ptr->stage_name, m_ptr->inst, m_ptr->stage_name, m_ptr->inst) <= 0)
+	
+	// create a new args obj
+	if ((d_args = _cti_newArgs()) == NULL)
 	{
-		_cti_set_error("asprintf failed.");
+		_cti_set_error("_cti_newArgs failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(jid_str);
+		return 0;
+	} 
+	
+	// begin adding the args
+	
+	if (_cti_addArg(d_args, "-a %s", jid_str))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(jid_str);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	free(jid_str);
+	
+	if (_cti_addArg(d_args, "-p %s", app_ptr->toolPath))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
 		return 0;
 	}
 	
-	// Cleanup
-	free(jid_str);
+	if (_cti_addArg(d_args, "-w %d", app_ptr->wlmProto->wlm_type))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	
+	if (_cti_addArg(d_args, "-m %s%d.tar", m_ptr->stage_name, m_ptr->inst))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	
+	if (_cti_addArg(d_args, "-d %s", m_ptr->stage_name))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	
+	if (_cti_addArg(d_args, "-i %d", m_ptr->inst))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
 	
 	// add the debug switch if debug is on
 	if (dbg)
 	{
-		tmp_args = args_flat;
-		args_flat = NULL;
-		if (asprintf(&args_flat, "%s --debug", tmp_args) <= 0)
+		if (_cti_addArg(d_args, "--debug"))
 		{
-			_cti_set_error("asprintf failed.");
+			_cti_set_error("_cti_addArg failed.");
+			_cti_reapManifest(m_ptr->mid);
+			_cti_freeArgs(d_args);
 			return 0;
 		}
-		free(tmp_args);
 	}
 	
-	// Done. We now have a flattened args string
+	// Done. We now have an argv array to pass
 	
 	// Call the appropriate transfer function based on the wlm
-	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, trnsfr, app_ptr->toolPath, args_flat))
+	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, trnsfr, app_ptr->toolPath, d_args))
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		// Error message already set
-		free(args_flat);
+		_cti_freeArgs(d_args);
 		_cti_reapManifest(m_ptr->mid);
 		return 0;
 	}
 		
 	// cleanup our memory
-	free(args_flat);
+	_cti_freeArgs(d_args);
 	
 	// create a new session for this tool daemon instance if one doesn't already exist
 	if (m_ptr->sid == 0)
@@ -3013,6 +3068,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		{
 			// we failed to create a new session_t - catastrophic failure
 			// error string already set
+			_cti_reapManifest(m_ptr->mid);
 			return 0;
 		}
 	} else
@@ -3022,6 +3078,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		{
 			// we failed to merge the manifest into the session - catastrophic failure
 			// error string already set
+			_cti_reapManifest(m_ptr->mid);
 			return 0;
 		}
 	}
@@ -3048,8 +3105,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	char *			fullname;			// full path name of the executable to launch as a tool daemon
 	char *			realname;			// realname (lacking path info) of the executable
 	char *			jid_str;			// job id string to pass to the backend. This is wlm specific.
-	char *			args_flat = NULL;	// flattened args array to pass to the toolhelper call
-	char *			tmp_args;			// temporary args used in creating args_flat
+	cti_args_t *	d_args;				// args to pass to the daemon launcher
 	session_t *		s_ptr = NULL;		// points at the session to return
 	int				trnsfr = 1;			// should we transfer the dlaunch?
 		
@@ -3129,6 +3185,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	{
 		// Failed to add the binary to the manifest - catastrophic failure
 		// error string already set
+		_cti_reapManifest(m_ptr->mid);
 		return 0;
 	}
 	
@@ -3141,16 +3198,18 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		{
 			// Failed to ship the manifest - catastrophic failure
 			// error string already set
+			_cti_reapManifest(m_ptr->mid);
 			return 0;
 		}
 		++useManif;
 	}
 	
-	// now we need to create the flattened argv string for the actual call to the wrapper
-	// this is passed through the toolhelper
+	// now we need to create the argv for the actual call to the WLM wrapper call
+	//
 	// The options passed MUST correspond to the options defined in the daemon_launcher program.
 	//
 	// The actual daemon launcher path string is determined by the wlm_startDaemon call
+	// since that is wlm specific
 	
 	// find the binary name for the args
 	
@@ -3158,6 +3217,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	if ((fullname = _cti_pathFind(daemon, NULL)) == NULL)
 	{
 		_cti_set_error("Could not locate the specified tool daemon binary in PATH.");
+		_cti_reapManifest(m_ptr->mid);
 		return 0;
 	}
 	
@@ -3165,6 +3225,8 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	if ((realname = _cti_pathToName(fullname)) == NULL)
 	{
 		_cti_set_error("Could not convert the tool daemon binary fullname to realname.");
+		_cti_reapManifest(m_ptr->mid);
+		free(fullname);
 		return 0;
 	}
 	
@@ -3174,6 +3236,8 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	if ((jid_str = app_ptr->wlmProto->wlm_getJobId(app_ptr->_wlmObj)) == NULL)
 	{
 		// error already set
+		_cti_reapManifest(m_ptr->mid);
+		free(realname);
 		return 0;
 	}
 	
@@ -3181,106 +3245,158 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	if (app_ptr->toolPath == NULL)
 	{
 		_cti_set_error("Tool daemon path information is missing!");
+		_cti_reapManifest(m_ptr->mid);
+		free(jid_str);
+		free(realname);
 		return 0;
 	}
 	
-	// start creating the flattened args string
-	if (asprintf(&args_flat, "-a %s -p %s -w %d -b %s -d %s -i %d", 
-				jid_str, app_ptr->toolPath, app_ptr->wlmProto->wlm_type, 
-				realname, m_ptr->stage_name, m_ptr->inst) <= 0)
+	// create a new args obj
+	if ((d_args = _cti_newArgs()) == NULL)
 	{
-		_cti_set_error("asprintf failed.");
+		_cti_set_error("_cti_newArgs failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(jid_str);
+		free(realname);
+		return 0;
+	} 
+	
+	// begin adding the args
+	
+	if (_cti_addArg(d_args, "-a %s", jid_str))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(jid_str);
+		free(realname);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	free(jid_str);
+	
+	if (_cti_addArg(d_args, "-p %s", app_ptr->toolPath))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(realname);
+		_cti_freeArgs(d_args);
 		return 0;
 	}
 	
-	// cleanup
-	free(jid_str);
+	if (_cti_addArg(d_args, "-w %d", app_ptr->wlmProto->wlm_type))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(realname);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	
+	if (_cti_addArg(d_args, "-b %s", realname))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(realname);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
 	free(realname);
+	
+	if (_cti_addArg(d_args, "-d %s", m_ptr->stage_name))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	
+	if (_cti_addArg(d_args, "-i %d", m_ptr->inst))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
 	
 	// add -m argument if needed
 	if (useManif)
 	{
-		tmp_args = args_flat;
-		args_flat = NULL;
-		if (asprintf(&args_flat, "%s -m %s%d.tar", tmp_args, m_ptr->stage_name, m_ptr->inst) <= 0)
+		if (_cti_addArg(d_args, "-m %s%d.tar", m_ptr->stage_name, m_ptr->inst))
 		{
-			_cti_set_error("asprintf failed.");
+			_cti_set_error("_cti_addArg failed.");
+			_cti_reapManifest(m_ptr->mid);
+			_cti_freeArgs(d_args);
 			return 0;
 		}
-		free(tmp_args);
 	}
 	
+	// add each of the env vars from the env array
 	// ensure the are actual entries before dereferencing
 	if (env != NULL)
 	{
 		while (*env != NULL)
 		{
-			// add the env arg
-			tmp_args = args_flat;
-			args_flat = NULL;
-			if (asprintf(&args_flat, "%s -e %s", tmp_args, *env++) <= 0)
+			// add this env arg
+			if (_cti_addArg(d_args, "-e %s", *env++))
 			{
-				_cti_set_error("asprintf failed.");
+				_cti_set_error("_cti_addArg failed.");
+				_cti_reapManifest(m_ptr->mid);
+				_cti_freeArgs(d_args);
 				return 0;
 			}
-			free(tmp_args);
 		}
 	}
 		
 	// add the debug switch if debug is on
 	if (dbg)
 	{
-		tmp_args = args_flat;
-		args_flat = NULL;
-		if (asprintf(&args_flat, "%s --debug", tmp_args) <= 0)
+		if (_cti_addArg(d_args, "--debug"))
 		{
-			_cti_set_error("asprintf failed.");
+			_cti_set_error("_cti_addArg failed.");
+			_cti_reapManifest(m_ptr->mid);
+			_cti_freeArgs(d_args);
 			return 0;
 		}
-		free(tmp_args);
 	}
-	
-	// add the "options" terminator
-	tmp_args = args_flat;
-	args_flat = NULL;
-	if (asprintf(&args_flat, "%s --", tmp_args) <= 0)
-	{
-		_cti_set_error("asprintf failed.");
-		return 0;
-	}
-	free(tmp_args);
 	
 	// add each of the args from the args array
 	// ensure the are actual entries before dereferencing
 	if (args != NULL)
 	{
+		// add the options terminator
+		if (_cti_addArg(d_args, "--"))
+		{
+			_cti_set_error("_cti_addArg failed.");
+			_cti_reapManifest(m_ptr->mid);
+			_cti_freeArgs(d_args);
+			return 0;
+		}
 		while (*args != NULL)
 		{
-			tmp_args = args_flat;
-			args_flat = NULL;
-			if (asprintf(&args_flat, "%s %s ", tmp_args, *args++) <= 0)
+			if (_cti_addArg(d_args, "%s", *args++))
 			{
-				_cti_set_error("asprintf failed.");
+				_cti_set_error("_cti_addArg failed.");
+				_cti_reapManifest(m_ptr->mid);
+				_cti_freeArgs(d_args);
 				return 0;
 			}
-			free(tmp_args);
 		}
 	}
 		
-	// Done. We now have a flattened args string
+	// Done. We now have an argv array to pass
 	
 	// Call the appropriate transfer function based on the wlm
-	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, trnsfr, app_ptr->toolPath, args_flat))
+	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, trnsfr, app_ptr->toolPath, d_args))
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		// Error message already set
-		free(args_flat);
 		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
 		return 0;
 	}
 	
 	// cleanup our memory
-	free(args_flat);
+	_cti_freeArgs(d_args);
 	
 	// create a new session for this tool daemon instance if one doesn't already exist
 	if (s_ptr == NULL)
@@ -3289,6 +3405,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		{
 			// we failed to create a new session_t - catastrophic failure
 			// error string already set
+			_cti_reapManifest(m_ptr->mid);
 			return 0;
 		}
 	} else
@@ -3301,6 +3418,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 			{
 				// we failed to merge the manifest into the session - catastrophic failure
 				// error string already set
+				_cti_reapManifest(m_ptr->mid);
 				return 0;
 			}
 		}

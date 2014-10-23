@@ -1,6 +1,6 @@
-/*********************************************************************************\
- * stringList.h - Header file for the stringList interface. This implements a
- *                trie tree.
+/******************************************************************************\
+ * cti_stringList.h - Header file for the stringList interface. This implements
+ *                    a trie tree.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -15,10 +15,10 @@
  * $Rev$
  * $Author$
  *
- *********************************************************************************/
+ ******************************************************************************/
  
-#ifndef _STRINGLIST_H
-#define _STRINGLIST_H
+#ifndef _CTI_STRINGLIST_H
+#define _CTI_STRINGLIST_H
 
 #include <limits.h>
 
@@ -54,4 +54,4 @@ int				_cti_addString(stringList_t *, const char *, void *);
 stringEntry_t *	_cti_getEntries(stringList_t *);
 void			_cti_cleanupEntries(stringEntry_t *);
 
-#endif /* _STRINGLIST_H */
+#endif /* _CTI_STRINGLIST_H */

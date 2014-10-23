@@ -779,7 +779,7 @@ _cti_wlm_shipPackage_none(void *a1, const char *a2)
 }
 
 int
-_cti_wlm_startDaemon_none(void *a1, int a2, const char *a3, const char *a4)
+_cti_wlm_startDaemon_none(void *a1, int a2, const char *a3, cti_args_t *a4)
 {
 	_cti_set_error("wlm_startDaemon() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 1;

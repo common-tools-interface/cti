@@ -78,7 +78,7 @@ typedef enum cti_wlm_type	cti_wlm_type;
 #define SBCAST						"sbcast"												// name of slurm transfer binary
 #define SLURM_STEP_UTIL			"cti_slurm_util"										// name of cti slurm job step info utility
 #define CRAY_SLURM_APID(jobid, stepid)	((stepid * 10000000000) + jobid)			// formula for creating Cray apid from SLURM jobid.stepid
-#define	 CRAY_SLURM_TOOL_DIR		"/var/opt/cray/alps/%llu"							// Cray SLURM staging path on compute node
+#define	 CRAY_SLURM_TOOL_DIR		"/var/opt/cray/alps/spool/%llu"						// Cray SLURM staging path on compute node
 
 /*
 ** MPIR_iface specific information

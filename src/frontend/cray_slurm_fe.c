@@ -39,7 +39,7 @@
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
-#include "useful.h"
+#include "cti_useful.h"
 
 #include "gdb_MPIR_iface.h"
 
@@ -99,7 +99,7 @@ static const char * const *	_cti_cray_slurm_extraLibraries(void);
 static const char * const *	_cti_cray_slurm_extraLibDirs(void);
 static const char * const *	_cti_cray_slurm_extraFiles(void);
 static int					_cti_cray_slurm_ship_package(void *, const char *);
-static int					_cti_cray_slurm_start_daemon(void *, int, const char *, const char *);
+static int					_cti_cray_slurm_start_daemon(void *, int, const char *, cti_args_t *);
 static int					_cti_cray_slurm_getNumAppPEs(void *);
 static int					_cti_cray_slurm_getNumAppNodes(void *);
 static char **				_cti_cray_slurm_getAppHostsList(void *);
@@ -1535,7 +1535,7 @@ static int
 _cti_cray_slurm_ship_package(void *this, const char *package)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
-	char *				my_argv[6];
+	cti_args_t *		my_args;
 	char *				str1;
 	char *				str2;
 	int					mypid;
@@ -1554,39 +1554,74 @@ _cti_cray_slurm_ship_package(void *this, const char *package)
 		return 1;
 	}
 	
-	// create the args for sbcast
-	my_argv[0] = SBCAST;
-	my_argv[1] = "-C";
-	if (asprintf(&my_argv[2], "-j %d", my_app->jobid) <= 0)
+	// ensure numNodes is non-zero
+	if (my_app->layout->numNodes <= 0)
 	{
-		_cti_set_error("asprintf failed.");
+		_cti_set_error("Application %d.%d does not have any nodes.", my_app->jobid, my_app->stepid);
+		// no nodes in the application
 		return 1;
 	}
-	my_argv[3] = (char *)package;
+	
+	// create a new args obj
+	if ((my_args = _cti_newArgs()) == NULL)
+	{
+		_cti_set_error("_cti_newArgs failed.");
+		return 1;
+	}
+	
+	// create the args for sbcast
+	
+	if (_cti_addArg(my_args, "%s", SBCAST))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "-C"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "-j %d", my_app->jobid))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "%s", package))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
 	if (asprintf(&str1, CRAY_SLURM_TOOL_DIR, (long long unsigned int)my_app->apid) <= 0)
 	{
 		_cti_set_error("asprintf failed");
-		free(my_argv[2]);
+		_cti_freeArgs(my_args);
 		return 1;
 	}
 	if ((str2 = _cti_pathToName(package)) == NULL)
 	{
 		_cti_set_error("_cti_pathToName failed");
-		free(my_argv[2]);
+		_cti_freeArgs(my_args);
 		free(str1);
 		return 1;
 	}
-	if (asprintf(&my_argv[4], "%s/%s", str1, str2) <= 0)
+	if (_cti_addArg(my_args, "%s/%s", str1, str2))
 	{
-		_cti_set_error("asprintf failed");
-		free(my_argv[2]);
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		free(str1);
 		free(str2);
 		return 1;
 	}
 	free(str1);
 	free(str2);
-	my_argv[5] = NULL;
 	
 	// now ship the tarball to the compute nodes
 	// fork off a process to launch sbcast
@@ -1596,9 +1631,7 @@ _cti_cray_slurm_ship_package(void *this, const char *package)
 	if (mypid < 0)
 	{
 		_cti_set_error("Fatal fork error.");
-		// cleanup my_argv array
-		free(my_argv[2]);
-		free(my_argv[4]);
+		_cti_freeArgs(my_args);
 		
 		return 1;
 	}
@@ -1607,7 +1640,7 @@ _cti_cray_slurm_ship_package(void *this, const char *package)
 	if (mypid == 0)
 	{
 		// exec scancel
-		execvp(SBCAST, my_argv);
+		execvp(SBCAST, my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -1615,9 +1648,8 @@ _cti_cray_slurm_ship_package(void *this, const char *package)
 	}
 	
 	// parent case
-	// cleanup my_argv array
-	free(my_argv[2]);
-	free(my_argv[4]);
+	// cleanup
+	_cti_freeArgs(my_args);
 	
 	// wait until the scancel finishes
 	// FIXME: There is no way to error check right now because the sbcast command
@@ -1631,11 +1663,11 @@ _cti_cray_slurm_ship_package(void *this, const char *package)
 }
 
 static int
-_cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, const char *args)
+_cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, cti_args_t * args)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	char *				launcher;
-	char *				my_argv[10];
+	cti_args_t *		my_args;
 	char *				hostlist;
 	char *				tmp;
 	int					fd, i, mypid;
@@ -1652,6 +1684,14 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, co
 	if (args == NULL)
 	{
 		_cti_set_error("args string is null!");
+		return 1;
+	}
+	
+	// ensure numNodes is non-zero
+	if (my_app->layout->numNodes <= 0)
+	{
+		_cti_set_error("Application %d.%d does not have any nodes.", my_app->jobid, my_app->stepid);
+		// no nodes in the application
 		return 1;
 	}
 	
@@ -1702,40 +1742,130 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, co
 		return 1;
 	}
 	
-	// TODO: Launch only on nodes associated with step id
-	//srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --nodelist=<host1,host2,...> --share --quiet <tool daemon> <args>
-	my_argv[0] = SRUN;
-	if (asprintf(&my_argv[1], "--jobid=%d", my_app->jobid) <= 0)
+	// create a new args obj
+	if ((my_args = _cti_newArgs()) == NULL)
 	{
-		_cti_set_error("asprintf failed.");
+		_cti_set_error("_cti_newArgs failed.");
 		close(fd);
 		free(launcher);
 		return 1;
 	}
-	my_argv[2] = "--gres=none";
-	my_argv[3] = "--mem-per-cpu=0";
-	// get the first host entry
-	tmp = strdup(my_app->layout->hosts[0].host);
-	for (i=1; i < my_app->layout->numNodes; ++i)
+	
+	// Start adding the args to the my_args array
+	// This corresponds to:
+	// srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --nodelist=<host1,host2,...> --share --quiet <tool daemon> <args>
+	
+	if (_cti_addArg(my_args, "%s", SRUN))
 	{
-		if (asprintf(&hostlist, "%s,%s", tmp, my_app->layout->hosts[i].host) <= 0)
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--jobid=%d", my_app->jobid))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--gres=none"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--mem-per-cpu=0"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	// create the hostlist. If there is only one entry, then we don't need to
+	// iterate over the list.
+	if (my_app->layout->numNodes == 1)
+	{
+		hostlist = strdup(my_app->layout->hosts[0].host);
+	} else
+	{
+		// get the first host entry
+		tmp = strdup(my_app->layout->hosts[0].host);
+		for (i=1; i < my_app->layout->numNodes; ++i)
 		{
-			_cti_set_error("asprintf failed.");
-			close(fd);
-			free(launcher);
-			free(my_argv[1]);
+			if (asprintf(&hostlist, "%s,%s", tmp, my_app->layout->hosts[i].host) <= 0)
+			{
+				_cti_set_error("asprintf failed.");
+				close(fd);
+				free(launcher);
+				_cti_freeArgs(my_args);
+				free(tmp);
+				return 1;
+			}
 			free(tmp);
+			tmp = hostlist;
+		}
+	}
+	if (_cti_addArg(my_args, "--nodelist=%s", hostlist))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		free(hostlist);
+		return 1;
+	}
+	free(hostlist);
+	
+	if (_cti_addArg(my_args, "--share"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	/*
+	if (_cti_addArg(my_args, "--quiet"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	*/
+	
+	if (_cti_addArg(my_args, "%s", launcher))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	// merge in the args array if there is one
+	if (args != NULL)
+	{
+		if (_cti_mergeArgs(my_args, args))
+		{
+			_cti_set_error("_cti_mergeArgs failed.");
+			close(fd);
+			_cti_freeArgs(my_args);
 			return 1;
 		}
-		free(tmp);
-		tmp = hostlist;
 	}
-	my_argv[4] = hostlist;
-	my_argv[5] = "--share";
-	my_argv[6] = "--quiet";
-	my_argv[7] = launcher;
-	my_argv[8] = (char *)args;	// yes I know this is bad, but look at what it is doing
-	my_argv[9] = NULL;
 	
 	// fork off a process to launch srun
 	mypid = fork();
@@ -1745,9 +1875,7 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, co
 	{
 		_cti_set_error("Fatal fork error.");
 		close(fd);
-		free(my_argv[1]);
-		free(my_argv[4]);
-		free(my_argv[7]);
+		_cti_freeArgs(my_args);
 		
 		return 1;
 	}
@@ -1755,6 +1883,7 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, co
 	// child case
 	if (mypid == 0)
 	{
+		/*
 		// clear file creation mask
 		umask(0);
 		
@@ -1791,6 +1920,7 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, co
 		{
 			close(i);
 		}
+		*/
 		
 		// Place this process in its own group to prevent signals being passed
 		// to it. This is necessary in case the child code execs before the 
@@ -1798,7 +1928,7 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, co
 		setpgid(0, 0);
 		
 		// exec srun
-		execvp(SRUN, my_argv);
+		execvp(SRUN, my_args->argv);
 		
 		// exec shouldn't return
 		exit(1);
@@ -1809,9 +1939,7 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, co
 	
 	// cleanup
 	close(fd);
-	free(my_argv[1]);
-	free(my_argv[4]);
-	free(my_argv[7]);
+	_cti_freeArgs(my_args);
 	
 	// done
 	return 0;

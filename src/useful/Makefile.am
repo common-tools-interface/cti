@@ -20,8 +20,9 @@ AM_CFLAGS		= -fPIC -Wall -I$(SRC)
 
 noinst_LTLIBRARIES      = libuseful.la
 
-libuseful_la_SOURCES    = log.c log.h path.c path.h stack.c stack.h stringList.c stringList.h
+libuseful_la_SOURCES    = cti_args.c cti_log.c cti_path.c cti_stack.c \
+						  cti_stringList.c
 libuseful_la_CFLAGS     = $(AM_CFLAGS)
 libuseful_la_LDFLAGS    = -static -no-undefined
 
-noinst_HEADERS			= useful.h
+noinst_HEADERS			= cti_useful.h

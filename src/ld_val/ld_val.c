@@ -279,7 +279,7 @@ _cti_ld_val(char *executable)
 	// ensure that we found a valid linker that was verified
 	if ((linker = _cti_ld_verify(executable)) == NULL)
 	{
-		fprintf(stderr, "CTI error: Failed to locate a working dynamic linker for the specified binary.\n");
+		// If no valid linker was found, we assume that this was a static binary.
 		return NULL;
 	}
 	

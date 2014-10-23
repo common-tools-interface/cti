@@ -1,6 +1,6 @@
 /******************************************************************************\
- * stringList.c - Functions relating to creating and maintaining searchable lists
- *		of strings.
+ * cti_stringList.c - Functions relating to creating and maintaining searchable
+ *		              lists of strings.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -25,8 +25,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "stack.h"
-#include "stringList.h"
+#include "cti_stack.h"
+#include "cti_stringList.h"
 
 /* Static prototypes */
 static stringNode_t *	_cti_newStringNode(void);

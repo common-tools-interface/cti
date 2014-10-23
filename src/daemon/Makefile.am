@@ -22,7 +22,7 @@ AM_LIBTOOLFLAGS 	= --quiet
 
 libexec_PROGRAMS	= cti_dlaunch
 
-cti_dlaunch_SOURCES	= cti_daemon.c alps_dl.c
+cti_dlaunch_SOURCES	= cti_daemon.c alps_dl.c cray_slurm_dl.c
 cti_dlaunch_CFLAGS	= $(AM_CFLAGS) -I$(USEFUL) $(ARCHIVE_CFLAGS)
 cti_dlaunch_LDADD	= $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
 cti_dlaunch_LDFLAGS	= -all-static $(ARCHIVE_LDFLAGS)

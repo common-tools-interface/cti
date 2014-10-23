@@ -23,6 +23,7 @@
 #include <sys/types.h>
 
 #include "cti_defs.h"
+#include "cti_args.h"
 
 /* struct typedefs */
 
@@ -72,7 +73,10 @@ typedef struct
 	const char * const *	(*wlm_extraLibDirs)(void);						// extra wlm specific library directories required by backend library - return NULL if none
 	const char * const *	(*wlm_extraFiles)(void);						// extra wlm specific files required by backend library - return NULL if none
 	int						(*wlm_shipPackage)(void *, const char *);		// ship package to backends - return true on error
-	int						(*wlm_startDaemon)(void *, int, const char *, const char *);	// start backend tool daemon - return true on error
+	int						(*wlm_startDaemon)(	void *,						// start backend tool daemon - return true on error
+												int,
+												const char *, 
+												cti_args_t *);
 	int						(*wlm_getNumAppPEs)(void *);					// retrieve number of PEs in app - return 0 on error
 	int						(*wlm_getNumAppNodes)(void *);					// retrieve number of compute nodes in app - return 0 on error
 	char **					(*wlm_getAppHostsList)(void *);					// get hosts list for app - return NULL on error
@@ -134,7 +138,7 @@ const char * const *	_cti_wlm_extraLibraries_none(void);
 const char * const *	_cti_wlm_extraLibDirs_none(void);
 const char * const *	_cti_wlm_extraFiles_none(void);
 int						_cti_wlm_shipPackage_none(void *, const char *);
-int						_cti_wlm_startDaemon_none(void *, int, const char *, const char *);
+int						_cti_wlm_startDaemon_none(void *, int, const char *, cti_args_t *);
 int						_cti_wlm_getNumAppPEs_none(void *);
 int						_cti_wlm_getNumAppNodes_none(void *);
 char **					_cti_wlm_getAppHostsList_none(void *);

@@ -237,6 +237,9 @@ _cti_gdb_recvMsg(int rfd)
 		n += nr;
 	}
 	
+	// set the msg_type
+	rtn->msg_type = msg_head.msg_type;
+	
 	// Receive the payload if needed
 	switch (msg_head.msg_type)
 	{
@@ -350,9 +353,6 @@ _cti_gdb_recvMsg(int rfd)
 			}
 			break;
 	}
-	
-	// set the msg_type
-	rtn->msg_type = msg_head.msg_type;
 	
 	// All done
 	return rtn;
