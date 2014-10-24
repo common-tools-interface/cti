@@ -10,10 +10,10 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL: http://svn/svn/debugger-support/tools_interface/trunk/src/daemon/alps_dl.c $
- * $Date: 2014-05-19 18:07:52 -0500 (Mon, 19 May 2014) $
- * $Rev: 3480 $
- * $Author: andrewg $
+ * $HeadURL$
+ * $Date$
+ * $Rev$
+ * $Author$
  *
  ******************************************************************************/
 
