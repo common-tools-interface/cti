@@ -307,6 +307,10 @@ _cti_consumeSession(session_t *sess)
 	// free the basename of the manifest directory
 	if (sess->stage_name != NULL)
 		free(sess->stage_name);
+		
+	// free the toolpath
+	if (sess->toolPath != NULL)
+		free(sess->toolPath);
 	
 	// eat each of the string lists
 	_cti_consumeStringList(sess->exec_names, &_cti_consumeFileEntry);
@@ -2389,7 +2393,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	// grab any extra wlm binaries if this is the first instance
 	if (m_ptr->inst == 1)
 	{
-		if ((wlm_files = app_ptr->wlmProto->wlm_extraBinaries()) != NULL)
+		if ((wlm_files = app_ptr->wlmProto->wlm_extraBinaries(app_ptr->_wlmObj)) != NULL)
 		{
 			while (*wlm_files != NULL)
 			{
@@ -2422,7 +2426,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 			// Only check file if it needs to be shipped
 			if (!f_ptr->present)
 			{
-				if (app_ptr->wlmProto->wlm_verifyBinary(l_ptr->str))
+				if (app_ptr->wlmProto->wlm_verifyBinary(app_ptr->_wlmObj, l_ptr->str))
 				{
 					// this file is not valid
 					
@@ -2451,7 +2455,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	// grab any extra libraries if this is the first instance
 	if (m_ptr->inst == 1)
 	{
-		if ((wlm_files = app_ptr->wlmProto->wlm_extraLibraries()) != NULL)
+		if ((wlm_files = app_ptr->wlmProto->wlm_extraLibraries(app_ptr->_wlmObj)) != NULL)
 		{
 			while (*wlm_files != NULL)
 			{
@@ -2484,7 +2488,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 			// Only check file if it needs to be shipped
 			if (!f_ptr->present)
 			{
-				if (app_ptr->wlmProto->wlm_verifyBinary(l_ptr->str))
+				if (app_ptr->wlmProto->wlm_verifyBinary(app_ptr->_wlmObj, l_ptr->str))
 				{
 					// this file is not valid
 					
@@ -2513,7 +2517,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	// grab any extra library directories if this is the first instance
 	if (m_ptr->inst == 1)
 	{
-		if ((wlm_files = app_ptr->wlmProto->wlm_extraLibDirs()) != NULL)
+		if ((wlm_files = app_ptr->wlmProto->wlm_extraLibDirs(app_ptr->_wlmObj)) != NULL)
 		{
 			while (*wlm_files != NULL)
 			{
@@ -2546,7 +2550,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 			// Only check file if it needs to be shipped
 			if (!f_ptr->present)
 			{
-				if (app_ptr->wlmProto->wlm_verifyBinary(l_ptr->str))
+				if (app_ptr->wlmProto->wlm_verifyBinary(app_ptr->_wlmObj, l_ptr->str))
 				{
 					// this file is not valid
 					
@@ -2575,7 +2579,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	// grab any extra files if this is the first instance
 	if (m_ptr->inst == 1)
 	{
-		if ((wlm_files = app_ptr->wlmProto->wlm_extraFiles()) != NULL)
+		if ((wlm_files = app_ptr->wlmProto->wlm_extraFiles(app_ptr->_wlmObj)) != NULL)
 		{
 			while (*wlm_files != NULL)
 			{
@@ -2608,7 +2612,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 			// Only check file if it needs to be shipped
 			if (!f_ptr->present)
 			{
-				if (app_ptr->wlmProto->wlm_verifyBinary(l_ptr->str))
+				if (app_ptr->wlmProto->wlm_verifyBinary(app_ptr->_wlmObj, l_ptr->str))
 				{
 					// this file is not valid
 					
@@ -2836,12 +2840,12 @@ cti_session_id_t
 cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 {
 	appEntry_t *		app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
+	const char *		toolPath;			// tool path associated with this appEntry_t based on the wlm
 	manifest_t *		m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	char *				jid_str;			// job identifier string - wlm specific
 	cti_args_t *		d_args;				// args to pass to the daemon launcher
 	session_t *			s_ptr = NULL;		// points at the session to return
 	cti_session_id_t	rtn;
-	int					trnsfr = 1;			// should we transfer the dlaunch?
 
 	// sanity check
 	if (appId == 0)
@@ -2862,13 +2866,6 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		// appId not found in the global my_apps array - unknown appId failure
 		// error string already set
 		return 0;
-	}
-	
-	// if _transfer_init is set in the app entry object, there is no need to send dlaunch
-	// a second time
-	if (app_ptr->_transfer_init)
-	{
-		trnsfr = 0;
 	}
 	
 	// find the manifest_t for the mid
@@ -2938,15 +2935,14 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		return 0;
 	}
 	
-	// Ensure toolPath is not null
-	if (app_ptr->toolPath == NULL)
+	// Get the tool path for this wlm
+	if ((toolPath = app_ptr->wlmProto->wlm_getToolPath(app_ptr->_wlmObj)) == NULL)
 	{
-		_cti_set_error("Tool daemon path information is missing!");
+		// error already set
 		_cti_reapManifest(m_ptr->mid);
 		free(jid_str);
 		return 0;
 	}
-	
 	
 	// create a new args obj
 	if ((d_args = _cti_newArgs()) == NULL)
@@ -2969,7 +2965,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	}
 	free(jid_str);
 	
-	if (_cti_addArg(d_args, "-p %s", app_ptr->toolPath))
+	if (_cti_addArg(d_args, "-p %s", toolPath))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -3024,7 +3020,7 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	// Done. We now have an argv array to pass
 	
 	// Call the appropriate transfer function based on the wlm
-	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, trnsfr, app_ptr->toolPath, d_args))
+	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, d_args))
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		// Error message already set
@@ -3063,10 +3059,9 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	
 	// Associate this session with the app_ptr
 	_cti_addSessionToApp(app_ptr, s_ptr->sid);
-	// set the tranfser_init in the app_ptr
-	app_ptr->_transfer_init = 1;
-	// point the toolPath of the session at the value in the app_ptr
-	s_ptr->toolPath = app_ptr->toolPath;
+	
+	// copy toolPath into the session
+	s_ptr->toolPath = strdup(toolPath);
 	
 	return s_ptr->sid;
 }
@@ -3080,9 +3075,9 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	char *			fullname;			// full path name of the executable to launch as a tool daemon
 	char *			realname;			// realname (lacking path info) of the executable
 	char *			jid_str;			// job id string to pass to the backend. This is wlm specific.
+	const char *	toolPath;			// tool path of backend staging directory. This is wlm specific.
 	cti_args_t *	d_args;				// args to pass to the daemon launcher
 	session_t *		s_ptr = NULL;		// points at the session to return
-	int				trnsfr = 1;			// should we transfer the dlaunch?
 		
 	// sanity check
 	if (appId == 0)
@@ -3103,13 +3098,6 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		// appId not found in the global my_apps array - unknown appId failure
 		// error string already set
 		return 0;
-	}
-	
-	// if _transfer_init is set in the app entry object, there is no need to send dlaunch
-	// a second time
-	if (app_ptr->_transfer_init)
-	{
-		trnsfr = 0;
 	}
 	
 	// if the user provided a session, ensure it exists
@@ -3216,10 +3204,10 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		return 0;
 	}
 	
-	// Ensure toolPath is not null
-	if (app_ptr->toolPath == NULL)
+	// Get the tool path for this wlm
+	if ((toolPath = app_ptr->wlmProto->wlm_getToolPath(app_ptr->_wlmObj)) == NULL)
 	{
-		_cti_set_error("Tool daemon path information is missing!");
+		// error already set
 		_cti_reapManifest(m_ptr->mid);
 		free(jid_str);
 		free(realname);
@@ -3249,7 +3237,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	}
 	free(jid_str);
 	
-	if (_cti_addArg(d_args, "-p %s", app_ptr->toolPath))
+	if (_cti_addArg(d_args, "-p %s", toolPath))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -3361,7 +3349,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	// Done. We now have an argv array to pass
 	
 	// Call the appropriate transfer function based on the wlm
-	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, trnsfr, app_ptr->toolPath, d_args))
+	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, d_args))
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		// Error message already set
@@ -3404,10 +3392,9 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	
 	// Associate this session with the app_ptr
 	_cti_addSessionToApp(app_ptr, s_ptr->sid);
-	// set the tranfser_init in the app_ptr
-	app_ptr->_transfer_init = 1;
-	// point the toolPath of the session at the value in the app_ptr
-	s_ptr->toolPath = app_ptr->toolPath;
+	
+	// copy toolPath into the session
+	s_ptr->toolPath = strdup(toolPath);
 	
 	return s_ptr->sid;
 }

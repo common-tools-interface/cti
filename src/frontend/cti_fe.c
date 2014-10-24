@@ -65,6 +65,7 @@ static const cti_wlm_proto_t	_cti_nonenessProto =
 	CTI_WLM_NONE,
 	_cti_wlm_init_none,
 	_cti_wlm_fini_none,
+	_cti_wlm_destroy_none,
 	_cti_wlm_cmpJobId_none,
 	_cti_wlm_getJobId_none,
 	_cti_wlm_launchBarrier_none,
@@ -85,7 +86,8 @@ static const cti_wlm_proto_t	_cti_nonenessProto =
 	_cti_wlm_getAppHostsList_none,
 	_cti_wlm_getAppHostsPlacement_none,
 	_cti_wlm_getHostName_none,
-	_cti_wlm_getLauncherHostName_none
+	_cti_wlm_getLauncherHostName_none,
+	_cti_wlm_getToolPath_none
 };
 
 /* global wlm proto object - this is initialized to noneness by default */
@@ -245,20 +247,11 @@ _cti_consumeAppEntry(appEntry_t *entry)
 	// Check to see if there is a wlm obj
 	if (entry->_wlmObj != NULL)
 	{
-		// Call the wlm specific destroy function if there is one
-		if (entry->_wlmDestroy != NULL)
-		{
-			(*(entry->_wlmDestroy))(entry->_wlmObj);
-		}
+		// Call the appropriate function based on the wlm
+		entry->wlmProto->wlm_destroy(entry->_wlmObj);
 	}
 	
 	entry->_wlmObj = NULL;
-		
-	// free the toolPath
-	if (entry->toolPath != NULL)
-	{
-		free(entry->toolPath);
-	}
 	
 	// Check to see if there is a _transferObj
 	if (entry->_transferObj != NULL)
@@ -342,19 +335,13 @@ _cti_reapAppEntry(cti_app_id_t appId)
 }
 
 cti_app_id_t
-_cti_newAppEntry(const cti_wlm_proto_t *wlmProto, const char *toolPath, void *wlm_obj, obj_destroy destroy)
+_cti_newAppEntry(const cti_wlm_proto_t *wlmProto, cti_wlm_obj wlm_obj)
 {
 	appEntry_t *	this;
 	
 	if (wlm_obj == NULL)
 	{
 		_cti_set_error("Null wlm_obj.");
-		return 0;
-	}
-	
-	if (toolPath == NULL)
-	{
-		_cti_set_error("Null toolPath.");
 		return 0;
 	}
 	
@@ -369,9 +356,7 @@ _cti_newAppEntry(const cti_wlm_proto_t *wlmProto, const char *toolPath, void *wl
 	// set the members
 	this->appId = _cti_app_id++;	// assign this to the next id.
 	this->wlmProto = wlmProto;
-	this->toolPath = strdup(toolPath);
 	this->_wlmObj = wlm_obj;
-	this->_wlmDestroy = destroy;
 	
 	// save the new appEntry_t into the global app list
 	if (_cti_addAppEntry(this))
@@ -713,15 +698,22 @@ _cti_wlm_fini_none(void)
 	return;
 }
 
+void
+_cti_wlm_destroy_none(cti_wlm_obj a1)
+{
+	_cti_set_error("wlm_fini() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return;
+}
+
 int
-_cti_wlm_cmpJobId_none(void * a1, void * a2)
+_cti_wlm_cmpJobId_none(cti_wlm_obj a1, cti_wlm_apid a2)
 {
 	_cti_set_error("wlm_cmpJobId() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return -1;
 }
 
 char *
-_cti_wlm_getJobId_none(void *a1)
+_cti_wlm_getJobId_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_getJobId() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
@@ -735,112 +727,112 @@ _cti_wlm_launchBarrier_none(const char * const a1[], int a2, int a3, int a4, int
 }
 
 int
-_cti_wlm_releaseBarrier_none(void *a1)
+_cti_wlm_releaseBarrier_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_releaseBarrier() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 1;
 }
 
 int
-_cti_wlm_killApp_none(void *a1, int a2)
+_cti_wlm_killApp_none(cti_wlm_obj a1, int a2)
 {
 	_cti_set_error("wlm_killApp() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 1;
 }
 
 int
-_cti_wlm_verifyBinary_none(const char *a1)
+_cti_wlm_verifyBinary_none(cti_wlm_obj a1, const char *a2)
 {
 	_cti_set_error("wlm_verifyBinary() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 0;
 }
 
 int
-_cti_wlm_verifyLibrary_none(const char *a1)
+_cti_wlm_verifyLibrary_none(cti_wlm_obj a1, const char *a2)
 {
 	_cti_set_error("wlm_verifyLibrary() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 0;
 }
 
 int
-_cti_wlm_verifyLibDir_none(const char *a1)
+_cti_wlm_verifyLibDir_none(cti_wlm_obj a1, const char *a2)
 {
 	_cti_set_error("wlm_verifyLibDir() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 0;
 }
 
 int
-_cti_wlm_verifyFile_none(const char *a1)
+_cti_wlm_verifyFile_none(cti_wlm_obj a1, const char *a2)
 {
 	_cti_set_error("wlm_verifyFile() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 0;
 }
 
 const char * const *
-_cti_wlm_extraBinaries_none(void)
+_cti_wlm_extraBinaries_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_extraBinaries() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 
 const char * const *
-_cti_wlm_extraLibraries_none(void)
+_cti_wlm_extraLibraries_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_extraLibraries() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 
 const char * const *
-_cti_wlm_extraLibDirs_none(void)
+_cti_wlm_extraLibDirs_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_extraLibDirs() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 
 const char * const *
-_cti_wlm_extraFiles_none(void)
+_cti_wlm_extraFiles_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_extraFiles() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 
 int
-_cti_wlm_shipPackage_none(void *a1, const char *a2)
+_cti_wlm_shipPackage_none(cti_wlm_obj a1, const char *a2)
 {
 	_cti_set_error("wlm_shipPackage() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 1;
 }
 
 int
-_cti_wlm_startDaemon_none(void *a1, int a2, const char *a3, cti_args_t *a4)
+_cti_wlm_startDaemon_none(cti_wlm_obj a1, cti_args_t *a2)
 {
 	_cti_set_error("wlm_startDaemon() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 1;
 }
 
 int
-_cti_wlm_getNumAppPEs_none(void *a1)
+_cti_wlm_getNumAppPEs_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_getNumAppPEs() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 0;
 }
 
 int
-_cti_wlm_getNumAppNodes_none(void *a1)
+_cti_wlm_getNumAppNodes_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_getNumAppNodes() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 0;
 }
 
 char **
-_cti_wlm_getAppHostsList_none(void *a1)
+_cti_wlm_getAppHostsList_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_getAppHostsList() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 
 cti_hostsList_t *
-_cti_wlm_getAppHostsPlacement_none(void *a1)
+_cti_wlm_getAppHostsPlacement_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_getAppHostsPlacement() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
@@ -854,9 +846,16 @@ _cti_wlm_getHostName_none(void)
 }
 
 char *
-_cti_wlm_getLauncherHostName_none(void *a1)
+_cti_wlm_getLauncherHostName_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_getLauncherHostName() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return NULL;
+}
+
+const char *
+_cti_wlm_getToolPath_none(cti_wlm_obj a1)
+{
+	_cti_set_error("wlm_getToolPath() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 

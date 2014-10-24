@@ -48,63 +48,66 @@
 typedef struct
 {
 	cti_gdb_id_t	gdb_id;
-	pid_t			gdb_pid;		// pid of the gdb process for the mpir starter
-	pid_t			sattach_pid;	// Optional pid of the sattach process if we are redirecting io
+	pid_t			gdb_pid;			// pid of the gdb process for the mpir starter
+	pid_t			sattach_pid;		// Optional pid of the sattach process if we are redirecting io
 } srunInv_t;
 
 typedef struct
 {
-	char *			host;			// hostname of this node
-	int				PEsHere;		// Number of PEs running on this node
-	int				firstPE;		// First PE number on this node
+	char *			host;				// hostname of this node
+	int				PEsHere;			// Number of PEs running on this node
+	int				firstPE;			// First PE number on this node
 } slurmNodeLayout_t;
 
 typedef struct
 {
-	int					numPEs;		// Number of PEs associated with the job step
-	int					numNodes;	// Number of nodes associated with the job step
-	slurmNodeLayout_t *	hosts;		// Array of hosts of length numNodes
+	int					numPEs;			// Number of PEs associated with the job step
+	int					numNodes;		// Number of nodes associated with the job step
+	slurmNodeLayout_t *	hosts;			// Array of hosts of length numNodes
 } slurmStepLayout_t;
 
 typedef struct
 {
-	uint32_t			jobid;		// SLURM job id
-	uint32_t			stepid;		// SLURM step id
-	uint64_t			apid;		// Cray variant of step+job id
-	slurmStepLayout_t *	layout;		// Layout of job step
-	srunInv_t *			inv;		// Optional object used for launched applications.
+	uint32_t			jobid;			// SLURM job id
+	uint32_t			stepid;			// SLURM step id
+	uint64_t			apid;			// Cray variant of step+job id
+	slurmStepLayout_t *	layout;			// Layout of job step
+	srunInv_t *			inv;			// Optional object used for launched applications.
+	char *				toolPath;		// Backend staging directory
+	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
 } craySlurmInfo_t;
 
 /* Static prototypes */
 static int					_cti_cray_slurm_init(void);
 static void					_cti_cray_slurm_fini(void);
 static craySlurmInfo_t *	_cti_cray_slurm_newSlurmInfo(void);
-static void 				_cti_cray_slurm_consumeSlurmInfo(void *);
+static void 				_cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj);
 static srunInv_t *			_cti_cray_slurm_newSrunInv(void);
 static void					_cti_cray_slurm_consumeSrunInv(srunInv_t *);
 static slurmStepLayout_t *	_cti_cray_slurm_newSlurmLayout(int, int);
 static void					_cti_cray_slurm_consumeSlurmLayout(slurmStepLayout_t *);
 static slurmStepLayout_t *	_cti_cray_slurm_getLayout(uint32_t, uint32_t);
-static int					_cti_cray_slurm_cmpJobId(void *, void *);
-static char *				_cti_cray_slurm_getJobId(void *);
+static int					_cti_cray_slurm_cmpJobId(cti_wlm_obj, cti_wlm_apid);
+static char *				_cti_cray_slurm_getJobId(cti_wlm_obj);
 static cti_app_id_t			_cti_cray_slurm_launchBarrier(const char * const [], int, int, int, int, const char *, const char *, const char * const []);
-static int					_cti_cray_slurm_releaseBarrier(void *);
-static int					_cti_cray_slurm_killApp(void *, int);
-static int					_cti_cray_slurm_verifyBinary(const char *);
-static int					_cti_cray_slurm_verifyLibrary(const char *);
-static int					_cti_cray_slurm_verifyLibDir(const char *);
-static int					_cti_cray_slurm_verifyFile(const char *);
-static const char * const *	_cti_cray_slurm_extraBinaries(void);
-static const char * const *	_cti_cray_slurm_extraLibraries(void);
-static const char * const *	_cti_cray_slurm_extraLibDirs(void);
-static const char * const *	_cti_cray_slurm_extraFiles(void);
-static int					_cti_cray_slurm_ship_package(void *, const char *);
-static int					_cti_cray_slurm_start_daemon(void *, int, const char *, cti_args_t *);
-static int					_cti_cray_slurm_getNumAppPEs(void *);
-static int					_cti_cray_slurm_getNumAppNodes(void *);
-static char **				_cti_cray_slurm_getAppHostsList(void *);
-static cti_hostsList_t *	_cti_cray_slurm_getAppHostsPlacement(void *);
+static int					_cti_cray_slurm_releaseBarrier(cti_wlm_obj);
+static int					_cti_cray_slurm_killApp(cti_wlm_obj, int);
+static int					_cti_cray_slurm_verifyBinary(cti_wlm_obj, const char *);
+static int					_cti_cray_slurm_verifyLibrary(cti_wlm_obj, const char *);
+static int					_cti_cray_slurm_verifyLibDir(cti_wlm_obj, const char *);
+static int					_cti_cray_slurm_verifyFile(cti_wlm_obj, const char *);
+static const char * const *	_cti_cray_slurm_extraBinaries(cti_wlm_obj);
+static const char * const *	_cti_cray_slurm_extraLibraries(cti_wlm_obj);
+static const char * const *	_cti_cray_slurm_extraLibDirs(cti_wlm_obj);
+static const char * const *	_cti_cray_slurm_extraFiles(cti_wlm_obj);
+static int					_cti_cray_slurm_ship_package(cti_wlm_obj, const char *);
+static int					_cti_cray_slurm_start_daemon(cti_wlm_obj, cti_args_t *);
+static int					_cti_cray_slurm_getNumAppPEs(cti_wlm_obj);
+static int					_cti_cray_slurm_getNumAppNodes(cti_wlm_obj);
+static char **				_cti_cray_slurm_getAppHostsList(cti_wlm_obj);
+static cti_hostsList_t *	_cti_cray_slurm_getAppHostsPlacement(cti_wlm_obj);
 static char *				_cti_cray_slurm_getHostName(void);
+static const char *			_cti_cray_slurm_getToolPath(cti_wlm_obj);
 
 /* cray slurm wlm proto object */
 const cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
@@ -112,6 +115,7 @@ const cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
 	CTI_WLM_CRAY_SLURM,						// wlm_type
 	_cti_cray_slurm_init,					// wlm_init
 	_cti_cray_slurm_fini,					// wlm_fini
+	_cti_cray_slurm_consumeSlurmInfo,		// wlm_destroy
 	_cti_cray_slurm_cmpJobId,				// wlm_cmpJobId
 	_cti_cray_slurm_getJobId,				// wlm_getJobId
 	_cti_cray_slurm_launchBarrier,			// wlm_launchBarrier
@@ -132,7 +136,8 @@ const cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
 	_cti_cray_slurm_getAppHostsList,		// wlm_getAppHostsList
 	_cti_cray_slurm_getAppHostsPlacement,	// wlm_getAppHostsPlacement
 	_cti_cray_slurm_getHostName,			// wlm_getHostName
-	_cti_wlm_getLauncherHostName_none		// wlm_getLauncherHostName - FIXME: Not supported by slurm
+	_cti_wlm_getLauncherHostName_none,		// wlm_getLauncherHostName - FIXME: Not supported by slurm
+	_cti_cray_slurm_getToolPath				// wlm_getToolPath
 };
 
 /* Constructor/Destructor functions */
@@ -169,17 +174,19 @@ _cti_cray_slurm_newSlurmInfo(void)
 	}
 	
 	// init the members
-	this->jobid		= 0;
-	this->stepid	= 0;
-	this->apid		= 0;
-	this->layout	= NULL;
-	this->inv		= NULL;
+	this->jobid			= 0;
+	this->stepid		= 0;
+	this->apid			= 0;
+	this->layout		= NULL;
+	this->inv			= NULL;
+	this->toolPath		= NULL;
+	this->dlaunch_sent	= 0;
 	
 	return this;
 }
 
 static void 
-_cti_cray_slurm_consumeSlurmInfo(void *this)
+_cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 {
 	craySlurmInfo_t *	sinfo = (craySlurmInfo_t *)this;
 
@@ -189,6 +196,9 @@ _cti_cray_slurm_consumeSlurmInfo(void *this)
 
 	_cti_cray_slurm_consumeSlurmLayout(sinfo->layout);
 	_cti_cray_slurm_consumeSrunInv(sinfo->inv);
+	
+	if (sinfo->toolPath != NULL)
+		free(sinfo->toolPath);
 	
 	free(sinfo);
 }
@@ -859,7 +869,7 @@ handle_error:
 }
 
 static int
-_cti_cray_slurm_cmpJobId(void *this, void *id)
+_cti_cray_slurm_cmpJobId(cti_wlm_obj this, cti_wlm_apid id)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	uint64_t			apid;
@@ -887,7 +897,7 @@ _cti_cray_slurm_cmpJobId(void *this, void *id)
 // it into a Cray apid easier on the backend since we don't lose any information
 // with this format.
 static char *
-_cti_cray_slurm_getJobId(void *this)
+_cti_cray_slurm_getJobId(cti_wlm_obj this)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	char *				rtn = NULL;
@@ -935,7 +945,7 @@ cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 	apid = CRAY_SLURM_APID(jobid, stepid);
 	
 	// try to find an entry in the _cti_my_apps list for the apid
-	if (_cti_findAppEntryByJobId((void *)&apid) == NULL)
+	if (_cti_findAppEntryByJobId((cti_wlm_apid)&apid) == NULL)
 	{
 		// apid not found in the global _cti_my_apps list
 		// so lets create a new appEntry_t object for it
@@ -954,14 +964,6 @@ cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 		// set the apid
 		sinfo->apid = apid;
 		
-		// create the toolPath
-		if (asprintf(&toolPath, CRAY_SLURM_TOOL_DIR, (long long unsigned int)apid) <= 0)
-		{
-			_cti_set_error("asprintf failed");
-			_cti_cray_slurm_consumeSlurmInfo(sinfo);
-			return 0;
-		}
-		
 		// retrieve detailed information about our app
 		if ((sinfo->layout = _cti_cray_slurm_getLayout(jobid, stepid)) == NULL)
 		{
@@ -970,17 +972,23 @@ cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 			return 0;
 		}
 		
+		// create the toolPath
+		if (asprintf(&toolPath, CRAY_SLURM_TOOL_DIR, (long long unsigned int)apid) <= 0)
+		{
+			_cti_set_error("asprintf failed");
+			_cti_cray_slurm_consumeSlurmInfo(sinfo);
+			return 0;
+		}
+		sinfo->toolPath = toolPath;
+		
 		// create the new app entry
-		if ((appId = _cti_newAppEntry(&_cti_cray_slurm_wlmProto, toolPath, (void *)sinfo, &_cti_cray_slurm_consumeSlurmInfo)) == 0)
+		if ((appId = _cti_newAppEntry(&_cti_cray_slurm_wlmProto, (cti_wlm_obj)sinfo)) == 0)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
 			// error string already set
 			_cti_cray_slurm_consumeSlurmInfo(sinfo);
-			free(toolPath);
 			return 0;
 		}
-		
-		free(toolPath);
 	} else
 	{
 		// apid was already registered. This is a failure.
@@ -1029,7 +1037,7 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId)
 	}
 	
 	// allocate space for the cti_srunProc_t struct
-	if ((srunInfo = malloc(sizeof(cti_srunProc_t))) == (void *)0)
+	if ((srunInfo = malloc(sizeof(cti_srunProc_t))) == NULL)
 	{
 		// malloc failed
 		_cti_set_error("malloc failed.");
@@ -1390,7 +1398,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 }
 
 static int
-_cti_cray_slurm_releaseBarrier(void *this)
+_cti_cray_slurm_releaseBarrier(cti_wlm_obj this)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 
@@ -1430,7 +1438,7 @@ _cti_cray_slurm_releaseBarrier(void *this)
 }
 
 static int
-_cti_cray_slurm_killApp(void *this, int signum)
+_cti_cray_slurm_killApp(cti_wlm_obj this, int signum)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	cti_args_t *		my_args;
@@ -1519,63 +1527,63 @@ _cti_cray_slurm_killApp(void *this, int signum)
 }
 
 static int
-_cti_cray_slurm_verifyBinary(const char *fstr)
+_cti_cray_slurm_verifyBinary(cti_wlm_obj this, const char *fstr)
 {
 	// all binaries are valid
 	return 0;
 }
 
 static int
-_cti_cray_slurm_verifyLibrary(const char *fstr)
+_cti_cray_slurm_verifyLibrary(cti_wlm_obj this, const char *fstr)
 {
 	// all libraries are valid
 	return 0;
 }
 
 static int
-_cti_cray_slurm_verifyLibDir(const char *fstr)
+_cti_cray_slurm_verifyLibDir(cti_wlm_obj this, const char *fstr)
 {
 	// all library directories are valid
 	return 0;
 }
 
 static int
-_cti_cray_slurm_verifyFile(const char *fstr)
+_cti_cray_slurm_verifyFile(cti_wlm_obj this, const char *fstr)
 {
 	// all files are valid
 	return 0;
 }
 
 static const char * const *
-_cti_cray_slurm_extraBinaries(void)
+_cti_cray_slurm_extraBinaries(cti_wlm_obj this)
 {
 	// no extra binaries needed
 	return NULL;
 }
 
 static const char * const *
-_cti_cray_slurm_extraLibraries(void)
+_cti_cray_slurm_extraLibraries(cti_wlm_obj this)
 {
 	// no extra libraries needed
 	return NULL;
 }
 
 static const char * const *
-_cti_cray_slurm_extraLibDirs(void)
+_cti_cray_slurm_extraLibDirs(cti_wlm_obj this)
 {
 	// no extra library directories needed
 	return NULL;
 }
 
 static const char * const *
-_cti_cray_slurm_extraFiles(void)
+_cti_cray_slurm_extraFiles(cti_wlm_obj this)
 {
 	// no extra files needed
 	return NULL;
 }
 
 static int
-_cti_cray_slurm_ship_package(void *this, const char *package)
+_cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	cti_args_t *		my_args;
@@ -1706,7 +1714,7 @@ _cti_cray_slurm_ship_package(void *this, const char *package)
 }
 
 static int
-_cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, cti_args_t * args)
+_cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	char *				launcher;
@@ -1754,7 +1762,7 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, ct
 
 	// If we have not yet transfered the dlaunch binary, we need to do that in advance with
 	// native slurm
-	if (transfer)
+	if (!my_app->dlaunch_sent)
 	{
 		// Need to transfer launcher binary
 		
@@ -1775,10 +1783,13 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, ct
 		}
 		
 		free(launcher);
+		
+		// set transfer to true
+		my_app->dlaunch_sent = 1;
 	}
 	
 	// use existing launcher binary on compute node
-	if (asprintf(&launcher, "%s/%s", tool_path, CTI_LAUNCHER) <= 0)
+	if (asprintf(&launcher, "%s/%s", my_app->toolPath, CTI_LAUNCHER) <= 0)
 	{
 		_cti_set_error("asprintf failed.");
 		close(fd);
@@ -1878,7 +1889,6 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, ct
 		return 1;
 	}
 	
-	/*
 	if (_cti_addArg(my_args, "--quiet"))
 	{
 		_cti_set_error("_cti_addArg failed.");
@@ -1887,7 +1897,6 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, ct
 		_cti_freeArgs(my_args);
 		return 1;
 	}
-	*/
 	
 	if (_cti_addArg(my_args, "%s", launcher))
 	{
@@ -1926,7 +1935,6 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, ct
 	// child case
 	if (mypid == 0)
 	{
-		/*
 		// dup2 stdin
 		if (dup2(fd, STDIN_FILENO) < 0)
 		{
@@ -1957,7 +1965,6 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, ct
 		{
 			close(i);
 		}
-		*/
 		
 		// Place this process in its own group to prevent signals being passed
 		// to it. This is necessary in case the child code execs before the 
@@ -1983,7 +1990,7 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, ct
 }
 
 static int
-_cti_cray_slurm_getNumAppPEs(void *this)
+_cti_cray_slurm_getNumAppPEs(cti_wlm_obj this)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	
@@ -2005,7 +2012,7 @@ _cti_cray_slurm_getNumAppPEs(void *this)
 }
 
 static int
-_cti_cray_slurm_getNumAppNodes(void *this)
+_cti_cray_slurm_getNumAppNodes(cti_wlm_obj this)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	
@@ -2027,7 +2034,7 @@ _cti_cray_slurm_getNumAppNodes(void *this)
 }
 
 static char **
-_cti_cray_slurm_getAppHostsList(void *this)
+_cti_cray_slurm_getAppHostsList(cti_wlm_obj this)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	char **				hosts;
@@ -2056,7 +2063,7 @@ _cti_cray_slurm_getAppHostsList(void *this)
 	}
 	
 	// allocate space for the hosts list, add an extra entry for the null terminator
-	if ((hosts = calloc(my_app->layout->numNodes + 1, sizeof(char *))) == (void *)0)
+	if ((hosts = calloc(my_app->layout->numNodes + 1, sizeof(char *))) == NULL)
 	{
 		// calloc failed
 		_cti_set_error("calloc failed.");
@@ -2077,7 +2084,7 @@ _cti_cray_slurm_getAppHostsList(void *this)
 }
 
 static cti_hostsList_t *
-_cti_cray_slurm_getAppHostsPlacement(void *this)
+_cti_cray_slurm_getAppHostsPlacement(cti_wlm_obj this)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 	cti_hostsList_t *	placement_list;
@@ -2106,7 +2113,7 @@ _cti_cray_slurm_getAppHostsPlacement(void *this)
 	}
 	
 	// allocate space for the cti_hostsList_t struct
-	if ((placement_list = malloc(sizeof(cti_hostsList_t))) == (void *)0)
+	if ((placement_list = malloc(sizeof(cti_hostsList_t))) == NULL)
 	{
 		// malloc failed
 		_cti_set_error("malloc failed.");
@@ -2117,7 +2124,7 @@ _cti_cray_slurm_getAppHostsPlacement(void *this)
 	placement_list->numHosts = my_app->layout->numNodes;
 	
 	// allocate space for the cti_host_t structs inside the placement_list
-	if ((placement_list->hosts = malloc(placement_list->numHosts * sizeof(cti_host_t))) == (void *)0)
+	if ((placement_list->hosts = malloc(placement_list->numHosts * sizeof(cti_host_t))) == NULL)
 	{
 		// malloc failed
 		_cti_set_error("malloc failed.");
@@ -2190,5 +2197,27 @@ _cti_cray_slurm_getHostName(void)
 	}
 	
 	return hostname;
+}
+
+static const char *
+_cti_cray_slurm_getToolPath(cti_wlm_obj this)
+{
+	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
+	
+	// sanity check
+	if (my_app == NULL)
+	{
+		_cti_set_error("getToolPath operation failed.");
+		return NULL;
+	}
+	
+	// sanity check
+	if (my_app->toolPath == NULL)
+	{
+		_cti_set_error("toolPath info missing from sinfo obj!");
+		return NULL;
+	}
+
+	return (const char *)my_app->toolPath;
 }
 

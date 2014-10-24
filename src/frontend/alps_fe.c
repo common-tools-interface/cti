@@ -81,43 +81,46 @@ typedef struct
 	cmdDetail_t *	cmdDetail;		// ALPS application command information (width, depth, memory, command name)
 	placeList_t *	places;	 		// ALPS application placement information (nid, processors, PE threads)
 	aprunInv_t *	inv;			// Optional object used for launched applications.
+	char *			toolPath;		// Backend staging directory
+	int				dlaunch_sent;	// True if we have already transfered the dlaunch utility
 } alpsInfo_t;
 
 
 /* Static prototypes */
 static int					_cti_alps_init(void);
 static void					_cti_alps_fini(void);
-static int					_cti_alps_cmpJobId(void *, void *);
-static char *				_cti_alps_getJobId(void *);
+static int					_cti_alps_cmpJobId(cti_wlm_obj, cti_wlm_apid);
+static char *				_cti_alps_getJobId(cti_wlm_obj);
 static cti_app_id_t			_cti_alps_launchBarrier(const char * const [], int, int, int, int, const char *, const char *, const char * const []);
-static int					_cti_alps_releaseBarrier(void *);
-static int					_cti_alps_killApp(void *, int);
-static int					_cti_alps_verifyBinary(const char *);
-static int					_cti_alps_verifyLibrary(const char *);
-static int					_cti_alps_verifyLibDir(const char *);
-static int					_cti_alps_verifyFile(const char *);
-static const char * const *	_cti_alps_extraBinaries(void);
-static const char * const *	_cti_alps_extraLibraries(void);
-static const char * const *	_cti_alps_extraLibDirs(void);
-static const char * const *	_cti_alps_extraFiles(void);
-static int					_cti_alps_ship_package(void *, const char *);
-static int					_cti_alps_start_daemon(void *, int, const char *, cti_args_t *);
-static int					_cti_alps_getNumAppPEs(void *);
-static int					_cti_alps_getNumAppNodes(void *);
-static char **				_cti_alps_getAppHostsList(void *);
-static cti_hostsList_t *	_cti_alps_getAppHostsPlacement(void *);
+static int					_cti_alps_releaseBarrier(cti_wlm_obj);
+static int					_cti_alps_killApp(cti_wlm_obj, int);
+static int					_cti_alps_verifyBinary(cti_wlm_obj, const char *);
+static int					_cti_alps_verifyLibrary(cti_wlm_obj, const char *);
+static int					_cti_alps_verifyLibDir(cti_wlm_obj, const char *);
+static int					_cti_alps_verifyFile(cti_wlm_obj, const char *);
+static const char * const *	_cti_alps_extraBinaries(cti_wlm_obj);
+static const char * const *	_cti_alps_extraLibraries(cti_wlm_obj);
+static const char * const *	_cti_alps_extraLibDirs(cti_wlm_obj);
+static const char * const *	_cti_alps_extraFiles(cti_wlm_obj);
+static int					_cti_alps_ship_package(cti_wlm_obj, const char *);
+static int					_cti_alps_start_daemon(cti_wlm_obj, cti_args_t *);
+static int					_cti_alps_getNumAppPEs(cti_wlm_obj);
+static int					_cti_alps_getNumAppNodes(cti_wlm_obj);
+static char **				_cti_alps_getAppHostsList(cti_wlm_obj);
+static cti_hostsList_t *	_cti_alps_getAppHostsPlacement(cti_wlm_obj);
 static char *				_cti_alps_getHostName(void);
-static char *				_cti_alps_getLauncherHostName(void *);
+static char *				_cti_alps_getLauncherHostName(cti_wlm_obj);
 static int					_cti_alps_ready(void);
 static uint64_t				_cti_alps_get_apid(int, pid_t);
 static int					_cti_alps_get_appinfo(uint64_t, appInfo_t *, cmdDetail_t **, placeList_t **);
 static const char *			_cti_alps_launch_tool_helper(uint64_t, int, int, int, int, char **);
 static int					_cti_alps_get_overlap_ordinal(uint64_t, char **, int *);
-static void					_cti_alps_consumeAlpsInfo(void *);
+static void					_cti_alps_consumeAlpsInfo(cti_wlm_obj);
 static void 				_cti_alps_consumeAprunInv(aprunInv_t *);
 static serviceNode_t *		_cti_alps_getSvcNodeInfo(void);
 static int					_cti_alps_checkPathForWrappedAprun(char *);
 static int					_cti_alps_filter_pid_entries(const struct dirent *);
+static const char *			_cti_alps_getToolPath(cti_wlm_obj);
 
 
 /* alps wlm proto object */
@@ -126,6 +129,7 @@ const cti_wlm_proto_t		_cti_alps_wlmProto =
 	CTI_WLM_ALPS,					// wlm_type
 	_cti_alps_init,					// wlm_init
 	_cti_alps_fini,					// wlm_fini
+	_cti_alps_consumeAlpsInfo,		// wlm_destroy
 	_cti_alps_cmpJobId,				// wlm_cmpJobId
 	_cti_alps_getJobId,				// wlm_getJobId
 	_cti_alps_launchBarrier,		// wlm_launchBarrier
@@ -146,7 +150,8 @@ const cti_wlm_proto_t		_cti_alps_wlmProto =
 	_cti_alps_getAppHostsList,		// wlm_getAppHostsList
 	_cti_alps_getAppHostsPlacement,	// wlm_getAppHostsPlacement
 	_cti_alps_getHostName,			// wlm_getHostName
-	_cti_alps_getLauncherHostName	// wlm_getLauncherHostName
+	_cti_alps_getLauncherHostName,	// wlm_getLauncherHostName
+	_cti_alps_getToolPath			// wlm_getToolPath
 };
 
 /* static global variables */
@@ -246,7 +251,6 @@ _cti_alps_fini(void)
 	
 	return;
 }
-
 
 /* dlopen related wrappers */
 
@@ -376,7 +380,7 @@ _cti_alps_getSvcNodeInfo()
 }
 
 static void
-_cti_alps_consumeAlpsInfo(void *this)
+_cti_alps_consumeAlpsInfo(cti_wlm_obj this)
 {
 	alpsInfo_t	*alpsInfo = (alpsInfo_t *)this;
 
@@ -393,6 +397,10 @@ _cti_alps_consumeAlpsInfo(void *this)
 	// try to free the inv object
 	if (alpsInfo->inv != NULL)
 		_cti_alps_consumeAprunInv(alpsInfo->inv);
+	
+	// free the toolPath
+	if (alpsInfo->toolPath != NULL)
+		free(alpsInfo->toolPath);
 	
 	free(alpsInfo);
 }
@@ -416,7 +424,7 @@ _cti_alps_consumeAprunInv(aprunInv_t *runPtr)
 }
 
 static int
-_cti_alps_cmpJobId(void *this, void *id)
+_cti_alps_cmpJobId(cti_wlm_obj this, cti_wlm_apid id)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	uint64_t		apid;
@@ -441,7 +449,7 @@ _cti_alps_cmpJobId(void *this, void *id)
 }
 
 static char *
-_cti_alps_getJobId(void *this)
+_cti_alps_getJobId(cti_wlm_obj this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	char *			rtn = NULL;
@@ -547,16 +555,17 @@ cti_alps_registerApid(uint64_t apid)
 			}
 		}
 		
-		if ((appId = _cti_newAppEntry(&_cti_alps_wlmProto, toolPath, (void *)alpsInfo, &_cti_alps_consumeAlpsInfo)) == 0)
+		// set the tool path
+		alpsInfo->toolPath = toolPath;
+		
+		if ((appId = _cti_newAppEntry(&_cti_alps_wlmProto, (cti_wlm_obj)alpsInfo)) == 0)
 		{
 			// we failed to create a new appEntry_t entry - catastrophic failure
 			// error string already set
 			_cti_alps_consumeAlpsInfo(alpsInfo);
-			free(toolPath);
 			return 0;
 		}
 		
-		free(toolPath);
 	} else
 	{
 		// apid was already registerd. This is a failure.
@@ -675,7 +684,7 @@ _cti_alps_getHostName(void)
 }
 
 static char *
-_cti_alps_getLauncherHostName(void *this)
+_cti_alps_getLauncherHostName(cti_wlm_obj this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	char *			hostname;
@@ -697,7 +706,7 @@ _cti_alps_getLauncherHostName(void *this)
 }
 
 static int
-_cti_alps_getNumAppPEs(void *this)
+_cti_alps_getNumAppPEs(cti_wlm_obj this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 
@@ -719,7 +728,7 @@ _cti_alps_getNumAppPEs(void *this)
 }
 
 static int
-_cti_alps_getNumAppNodes(void *this)
+_cti_alps_getNumAppNodes(cti_wlm_obj this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 
@@ -741,7 +750,7 @@ _cti_alps_getNumAppNodes(void *this)
 }
 
 static char **
-_cti_alps_getAppHostsList(void *this)
+_cti_alps_getAppHostsList(cti_wlm_obj this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	int				curNid, numNid;
@@ -832,7 +841,7 @@ _cti_alps_getAppHostsList(void *this)
 }
 
 static cti_hostsList_t *
-_cti_alps_getAppHostsPlacement(void *this)
+_cti_alps_getAppHostsPlacement(cti_wlm_obj this)
 {
 	alpsInfo_t *		my_app = (alpsInfo_t *)this;
 	int					curNid, numNid;
@@ -1577,7 +1586,7 @@ continue_on_error:
 }
 
 int
-_cti_alps_releaseBarrier(void *this)
+_cti_alps_releaseBarrier(cti_wlm_obj this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 
@@ -1608,7 +1617,7 @@ _cti_alps_releaseBarrier(void *this)
 }
 
 static int
-_cti_alps_killApp(void *this, int signum)
+_cti_alps_killApp(cti_wlm_obj this, int signum)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	int				mypid;
@@ -1751,14 +1760,14 @@ _cti_alps_killApp(void *this, int signum)
 }
 
 static int
-_cti_alps_verifyBinary(const char *fstr)
+_cti_alps_verifyBinary(cti_wlm_obj this, const char *fstr)
 {
 	// all binaries are valid
 	return 0;
 }
 
 static int
-_cti_alps_verifyLibrary(const char *fstr)
+_cti_alps_verifyLibrary(cti_wlm_obj this, const char *fstr)
 {
 	// XXX: We used to not ship libraries that were already present on the 
 	// compute node as part of CNL. However, this was in error. The following
@@ -1772,48 +1781,48 @@ _cti_alps_verifyLibrary(const char *fstr)
 }
 
 static int
-_cti_alps_verifyLibDir(const char *fstr)
+_cti_alps_verifyLibDir(cti_wlm_obj this, const char *fstr)
 {
 	// all library directories are valid
 	return 0;
 }
 
 static int
-_cti_alps_verifyFile(const char *fstr)
+_cti_alps_verifyFile(cti_wlm_obj this, const char *fstr)
 {
 	// all files are valid
 	return 0;
 }
 
 static const char * const *
-_cti_alps_extraBinaries(void)
+_cti_alps_extraBinaries(cti_wlm_obj this)
 {
 	// no extra binaries needed
 	return NULL;
 }
 
 static const char * const *
-_cti_alps_extraLibraries(void)
+_cti_alps_extraLibraries(cti_wlm_obj this)
 {
 	return _cti_alps_extra_libs;
 }
 
 static const char * const *
-_cti_alps_extraLibDirs(void)
+_cti_alps_extraLibDirs(cti_wlm_obj this)
 {
 	// no extra library directories needed
 	return NULL;
 }
 
 static const char * const *
-_cti_alps_extraFiles(void)
+_cti_alps_extraFiles(cti_wlm_obj this)
 {
 	// no extra files needed
 	return NULL;
 }
 
 static int
-_cti_alps_ship_package(void *this, const char *package)
+_cti_alps_ship_package(cti_wlm_obj this, const char *package)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
 	const char *	errmsg;					// errmsg that is possibly returned by call to alps_launch_tool_helper
@@ -1851,9 +1860,10 @@ _cti_alps_ship_package(void *this, const char *package)
 }
 
 static int
-_cti_alps_start_daemon(void *this, int transfer, const char *tool_path, cti_args_t * args)
+_cti_alps_start_daemon(cti_wlm_obj this, cti_args_t * args)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
+	int				do_transfer;
 	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
 	char *			launcher;
 	char *			args_flat;
@@ -1873,11 +1883,11 @@ _cti_alps_start_daemon(void *this, int transfer, const char *tool_path, cti_args
 		return 1;
 	}
 	
-	// Create the launcher path based on the transfer option. If this is false, we have already
-	// transfered the launcher over to the compute node and want to use the existing one over
-	// there, otherwise we need to find the location of the launcher on our end to have alps
-	// transfer to the compute nodes
-	if (transfer)
+	// Create the launcher path based on the value of dlaunch_sent in alpsInfo_t. If this is
+	// false, we have not yet transfered the dlaunch utility to the compute nodes, so we need
+	// to find the location of it on our end and have alps transfer it.
+	do_transfer = my_app->dlaunch_sent ? 0:1;
+	if (do_transfer)
 	{
 		// Need to transfer launcher binary
 		
@@ -1887,10 +1897,14 @@ _cti_alps_start_daemon(void *this, int transfer, const char *tool_path, cti_args
 			_cti_set_error("Could not locate the launcher application in PATH.");
 			return 1;
 		}
+		
+		// set transfer value in my_app to true
+		my_app->dlaunch_sent = 1;
+		
 	} else
 	{
 		// use existing launcher binary on compute node
-		if (asprintf(&launcher, "%s/%s", tool_path, CTI_LAUNCHER) <= 0)
+		if (asprintf(&launcher, "%s/%s", my_app->toolPath, CTI_LAUNCHER) <= 0)
 		{
 			_cti_set_error("asprintf failed.");
 			return 1;
@@ -1917,7 +1931,7 @@ _cti_alps_start_daemon(void *this, int transfer, const char *tool_path, cti_args
 	free(args_flat);
 	
 	// launch the tool daemon onto the compute nodes
-	if ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, transfer, 1, 1, &a)) != NULL)
+	if ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, do_transfer, 1, 1, &a)) != NULL)
 	{
 		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
 		//
@@ -1986,5 +2000,27 @@ cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId)
 	}
 	
 	return rtn;
+}
+
+static const char *
+_cti_alps_getToolPath(cti_wlm_obj this)
+{
+	alpsInfo_t *	my_app = (alpsInfo_t *)this;
+	
+	// sanity check
+	if (my_app == NULL)
+	{
+		_cti_set_error("getToolPath operation failed.");
+		return NULL;
+	}
+	
+	// sanity check
+	if (my_app->toolPath == NULL)
+	{
+		_cti_set_error("toolPath info missing from alps info obj!");
+		return NULL;
+	}
+
+	return (const char *)my_app->toolPath;
 }
 
