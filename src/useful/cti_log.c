@@ -57,6 +57,9 @@ _cti_create_log(int suffix, char *nodeName)
 		return (FILE *)NULL;
 	}
 	
+	// set the log to be unbuffered - don't return error if this fails
+	setvbuf(logfd, NULL, _IONBF, 0);
+	
 	return logfd;
 }
 

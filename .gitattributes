@@ -39,6 +39,7 @@ src/Makefile.in -text
 src/backend/Makefile.am -text
 src/backend/Makefile.in -text
 src/backend/alps_be.c -text
+src/backend/cray_slurm_be.c -text
 src/backend/cti_be.c -text
 src/backend/cti_be.h -text
 src/backend/pmi_attribs_parser.c -text

@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * alps_be.c - alps specific backend library functions.
+ * cray_slurm_be.c - Cray native slurm specific backend library functions.
  *
  * © 2014 Cray Inc.  All Rights Reserved.
  *
@@ -20,13 +20,9 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#include <dlfcn.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
-#include "alps/alps.h"
-#include "alps/alps_toolAssist.h"
 
 #include "cti_defs.h"
 #include "cti_be.h"
@@ -35,173 +31,122 @@
 // types used here
 typedef struct
 {
-	void *	handle;
-	int 	(*alps_get_placement_info)(uint64_t, alpsAppLayout_t *, int **, int **, int **, int **, struct in_addr **, int **, int **, int **, int **);
-} cti_alps_funcs_t;
-
-typedef struct
-{
 	int		nid;	// compute node id
 } computeNode_t;
 
 /* static prototypes */
-static int 					_cti_alps_init(void);
-static void					_cti_alps_fini(void);
-static cti_pidList_t *		_cti_alps_findAppPids(void);
-static char *				_cti_alps_getNodeHostname(void);
-static int					_cti_alps_getNodeFirstPE(void);
-static int					_cti_alps_getNodePEs(void);
-static int					_cti_alps_get_placement_info(uint64_t, alpsAppLayout_t *, int **, int **, int **, int **, struct in_addr **, int **, int **, int **, int **);
-static int					_cti_alps_getComputeNodeInfo(void);
-static int					_cti_alps_getPlacementInfo(void);
+static int 					_cti_cray_slurm_init(void);
+static void					_cti_cray_slurm_fini(void);
+//static cti_pidList_t *		_cti_cray_slurm_findAppPids(void);
+static char *				_cti_cray_slurm_getNodeHostname(void);
+//static int					_cti_cray_slurm_getNodeFirstPE(void);
+//static int					_cti_cray_slurm_getNodePEs(void);
 
-/* alps wlm proto object */
-cti_wlm_proto_t				_cti_alps_wlmProto =
+/* cray slurm wlm proto object */
+cti_wlm_proto_t				_cti_cray_slurm_wlmProto =
 {
-	CTI_WLM_ALPS,				// wlm_type
-	_cti_alps_init,				// wlm_init
-	_cti_alps_fini,				// wlm_fini
-	_cti_alps_findAppPids,		// wlm_findAppPids
-	_cti_alps_getNodeHostname,	// wlm_getNodeHostname
-	_cti_alps_getNodeFirstPE,	// wlm_getNodeFirstPE
-	_cti_alps_getNodePEs		// wlm_getNodePEs
+	CTI_WLM_CRAY_SLURM,					// wlm_type
+	_cti_cray_slurm_init,				// wlm_init
+	_cti_cray_slurm_fini,				// wlm_fini
+	_cti_wlm_findAppPids_none,//_cti_cray_slurm_findAppPids,		// wlm_findAppPids
+	_cti_cray_slurm_getNodeHostname,	// wlm_getNodeHostname
+	_cti_wlm_getNodeFirstPE_none,//_cti_cray_slurm_getNodeFirstPE,		// wlm_getNodeFirstPE
+	_cti_wlm_getNodePEs_none,//_cti_cray_slurm_getNodePEs			// wlm_getNodePEs
 };
 
 // Global vars
-static cti_alps_funcs_t *	_cti_alps_ptr 	= NULL;	// libalps wrappers
 static computeNode_t *		_cti_thisNode	= NULL;	// compute node information
-static alpsAppLayout_t *	_cti_appLayout	= NULL;	// node application information
 static pmi_attribs_t *		_cti_attrs 		= NULL;	// node pmi_attribs information
-static uint64_t				_cti_apid 		= 0;	// global apid obtained from environment variable
+static uint32_t				_cti_jobid 		= 0;	// global jobid obtained from environment variable
+static uint32_t				_cti_stepid		= 0;	// global stepid obtained from environment variable
 
 /* Constructor/Destructor functions */
 
 static int
-_cti_alps_init(void)
+_cti_cray_slurm_init(void)
 {
-	char *error;
-	char *apid_str;
+	char *	apid_str;
+	char *	ptr;
 
-	// Only init once.
-	if (_cti_alps_ptr != NULL)
-		return 0;
-		
-	// Create a new cti_alps_funcs_t
-	if ((_cti_alps_ptr = malloc(sizeof(cti_alps_funcs_t))) == NULL)
-	{
-		fprintf(stderr, "malloc failed.");
-		return 1;
-	}
-	memset(_cti_alps_ptr, 0, sizeof(cti_alps_funcs_t));     // clear it to NULL
-	
-	if ((_cti_alps_ptr->handle = dlopen(ALPS_BE_LIB_NAME, RTLD_LAZY)) == NULL)
-	{
-		fprintf(stderr, "dlopen: %s", dlerror());
-		free(_cti_alps_ptr);
-		_cti_alps_ptr = NULL;
-		return 1;
-	}
-	
-	// Clear any existing error
-	dlerror();
-	
-	// load alps_get_placement_info
-	_cti_alps_ptr->alps_get_placement_info = dlsym(_cti_alps_ptr->handle, "alps_get_placement_info");
-	if ((error = dlerror()) != NULL)
-	{
-		fprintf(stderr, "dlsym: %s", error);
-		dlclose(_cti_alps_ptr->handle);
-		free(_cti_alps_ptr);
-		_cti_alps_ptr = NULL;
-		return 1;
-	}
-	
 	// read information from the environment set by dlaunch
-	if ((apid_str = getenv(APID_ENV_VAR)) == NULL)
+	if ((ptr = getenv(APID_ENV_VAR)) == NULL)
 	{
 		// Things were not setup properly, missing env vars!
 		fprintf(stderr, "Env var %s not set!", APID_ENV_VAR);
-		dlclose(_cti_alps_ptr->handle);
-		free(_cti_alps_ptr);
-		_cti_alps_ptr = NULL;
 		return 1;
 	}
 	
-	_cti_apid = (uint64_t)strtoull(apid_str, NULL, 10);
+	// make a copy of the env var
+	apid_str = strdup(ptr);
+	
+	// find the '.' that seperates jobid from stepid
+	if ((ptr = strchr(apid_str, '.')) == NULL)
+	{
+		// Things were not setup properly!
+		fprintf(stderr, "Env var %s has invalid value!", APID_ENV_VAR);
+		free(apid_str);
+		return 1;
+	}
+	
+	// set the '.' to a null term
+	*ptr++ = '\0';
+	
+	// get the jobid and stepid
+	_cti_jobid = (uint32_t)strtoul(apid_str, NULL, 10);
+	_cti_stepid = (uint32_t)strtoul(ptr, NULL, 10);
 	
 	// done
 	return 0;
 }
 
 static void
-_cti_alps_fini(void)
+_cti_cray_slurm_fini(void)
 {
-	// sanity check
-	if (_cti_alps_ptr == NULL)
-		return;
-		
-	// cleanup
-	dlclose(_cti_alps_ptr->handle);
-	free(_cti_alps_ptr);
-	_cti_alps_ptr = NULL;
-	
+	// do nothing
 	return;
-}
-
-/* dlopen related wrappers */
-
-static int
-_cti_alps_get_placement_info(uint64_t a1, alpsAppLayout_t *a2, int **a3, int **a4, int **a5, int **a6, struct in_addr **a7, int **a8, int **a9, int **a10, int **a11)
-{
-	// sanity check
-	if (_cti_alps_ptr == NULL)
-		return -1;
-		
-	return (*_cti_alps_ptr->alps_get_placement_info)(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11);
 }
 
 /* Static functions */
 
 static int
-_cti_alps_getComputeNodeInfo()
+_cti_cray_slurm_getComputeNodeInfo()
 {
-	FILE *alps_fd;			// ALPS NID file stream
-	char file_buf[BUFSIZ];	// file read buffer
-	computeNode_t *my_node;	// struct containing compute node info
+	FILE *			nid_fd;				// NID file stream
+	char 			file_buf[BUFSIZ];	// file read buffer
+	computeNode_t *	my_node;			// struct containing compute node info
 	
 	// sanity
 	if (_cti_thisNode != NULL)
 		return 0;
 	
-	// allocate the computeNode_t object, its the callers responsibility to
-	// free this.
-	if ((my_node = malloc(sizeof(computeNode_t))) == (void *)0)
+	// allocate the computeNode_t object
+	if ((my_node = malloc(sizeof(computeNode_t))) == NULL)
 	{
 		fprintf(stderr, "malloc failed.\n");
 		return 1;
 	}
 	
-	// open up the file defined in the alps header containing our node id (nid)
-	if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)
+	// open up the file containing our node id (nid)
+	if ((nid_fd = fopen(ALPS_XT_NID, "r")) == NULL)
 	{
-		fprintf(stderr, "_cti_alps_getComputeNodeInfo failed.\n");
+		fprintf(stderr, "_cti_cray_slurm_getComputeNodeInfo failed.\n");
 		free(my_node);
 		return 1;
 	}
 	
 	// we expect this file to have a numeric value giving our current nid
-	if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
+	if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
 	{
-		fprintf(stderr, "_cti_alps_getComputeNodeInfo failed.\n");
+		fprintf(stderr, "_cti_nid_fd_getComputeNodeInfo failed.\n");
 		free(my_node);
-		fclose(alps_fd);
+		fclose(nid_fd);
 		return 1;
 	}
 	// convert this to an integer value
 	my_node->nid = atoi(file_buf);
 	
 	// close the file stream
-	fclose(alps_fd);
+	fclose(nid_fd);
 	
 	// set the global pointer
 	_cti_thisNode = my_node;
@@ -209,6 +154,7 @@ _cti_alps_getComputeNodeInfo()
 	return 0;
 }
 
+/*
 static int
 _cti_alps_getPlacementInfo()
 {
@@ -245,11 +191,12 @@ _cti_alps_getPlacementInfo()
 	
 	return 0;
 }
+*/
 
 /* API related calls start here */
-
+/*
 static cti_pidList_t *
-_cti_alps_findAppPids()
+_cti_cray_slurm_findAppPids()
 {
 	cti_pidList_t * rtn;
 	int i;
@@ -300,19 +247,20 @@ _cti_alps_findAppPids()
 	
 	return rtn;
 }
+*/
 
 static char *
-_cti_alps_getNodeHostname()
+_cti_cray_slurm_getNodeHostname()
 {
 	char * nidHost;
 
 	// ensure the _cti_thisNode exists
 	if (_cti_thisNode == NULL)
 	{
-		if (_cti_alps_getComputeNodeInfo())
+		if (_cti_cray_slurm_getComputeNodeInfo())
 		{
 			// couldn't get the compute node info for some odd reason
-			fprintf(stderr, "_cti_alps_getNodeHostname failed.\n");
+			fprintf(stderr, "_cti_cray_slurm_getNodeHostname failed.\n");
 			return NULL;
 		}
 	}
@@ -320,7 +268,7 @@ _cti_alps_getNodeHostname()
 	// create the nid hostname string
 	if (asprintf(&nidHost, ALPS_XT_HOSTNAME_FMT, _cti_thisNode->nid) <= 0)
 	{
-		fprintf(stderr, "_cti_alps_getNodeHostname failed.\n");
+		fprintf(stderr, "_cti_cray_slurm_getNodeHostname failed.\n");
 		return NULL;
 	}
 	
@@ -328,6 +276,7 @@ _cti_alps_getNodeHostname()
 	return nidHost;
 }
 
+/*
 static int
 _cti_alps_getNodeFirstPE()
 {
@@ -359,4 +308,5 @@ _cti_alps_getNodePEs()
 	
 	return _cti_appLayout->numPesHere;
 }
+*/
 

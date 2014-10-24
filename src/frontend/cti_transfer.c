@@ -105,7 +105,6 @@ typedef struct
 #define SESS_INC_SIZE		10
 
 /* Static prototypes */
-static int				_cti_getCfgDir(void);
 static fileEntry_t *	_cti_newFileEntry(void);
 static void				_cti_consumeFileEntry(void *);
 static fileEntry_t *	_cti_copyFileEntry(fileEntry_t *);
@@ -131,30 +130,8 @@ static sessList_t *			_cti_my_sess	= NULL;
 static cti_session_id_t		_cti_next_sid	= 1;
 static manifList_t *		_cti_my_manifs	= NULL;
 static cti_manifest_id_t	_cti_next_mid	= 1;
-static char *				_cti_cfg_dir	= NULL;
 
 /* static functions */
-
-static int
-_cti_getCfgDir(void)
-{
-	char *cfg_dir;
-
-	// sanity
-	if (_cti_cfg_dir != NULL)
-		return 0;
-
-	if ((cfg_dir = getenv(CFG_DIR_VAR)) == NULL)
-	{
-		_cti_set_error("Cannot getenv on %s. Ensure environment variables are set.", CFG_DIR_VAR);
-		return 1;
-	}
-	
-	// set the global variable
-	_cti_cfg_dir = strdup(cfg_dir);
-
-	return 0;
-}
 
 static fileEntry_t *
 _cti_newFileEntry(void)
@@ -2278,6 +2255,7 @@ _cti_copyDirectoryToPackage(const char *loc, const char *name, const char *path)
 static int
 _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 {
+	const char *			cfg_dir = NULL;		// tmp directory
 	char *					stage_dir = NULL;	// staging directory name
 	char *					stage_path = NULL;	// staging path
 	char *					bin_path = NULL;
@@ -2312,14 +2290,11 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		return 1;
 	}
 	
-	// Ensure configuration dir is set
-	if (_cti_cfg_dir == NULL)
+	// Get the configuration directory
+	if ((cfg_dir = _cti_getCfgDir()) == NULL)
 	{
-		if (_cti_getCfgDir())
-		{
-			// error already set
-			return 1;
-		}
+		// error already set
+		return 1;
 	}
 	
 	// Check the manifest to see if it already has a stage_name set, if so this is part of an existing
@@ -2330,7 +2305,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		if ((stage_dir = getenv(DAEMON_STAGE_VAR)) == NULL)
 		{
 			// take the default action
-			if (asprintf(&stage_path, "%s/%s", _cti_cfg_dir, DEFAULT_STAGE_DIR) <= 0)
+			if (asprintf(&stage_path, "%s/%s", cfg_dir, DEFAULT_STAGE_DIR) <= 0)
 			{
 				_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 				goto packageManifestAndShip_error;
@@ -2345,7 +2320,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		} else
 		{
 			// use the user defined directory
-			if (asprintf(&stage_path, "%s/%s", _cti_cfg_dir, stage_dir) <= 0)
+			if (asprintf(&stage_path, "%s/%s", cfg_dir, stage_dir) <= 0)
 			{
 				_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 				goto packageManifestAndShip_error;
@@ -2364,7 +2339,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	} else
 	{
 		// use existing name
-		if (asprintf(&stage_path, "%s/%s", _cti_cfg_dir, m_ptr->stage_name) <= 0)
+		if (asprintf(&stage_path, "%s/%s", cfg_dir, m_ptr->stage_name) <= 0)
 		{
 			_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 			goto packageManifestAndShip_error;

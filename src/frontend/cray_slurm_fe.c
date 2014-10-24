@@ -63,7 +63,7 @@ typedef struct
 {
 	int					numPEs;		// Number of PEs associated with the job step
 	int					numNodes;	// Number of nodes associated with the job step
-	slurmNodeLayout_t *	hosts;	// Array of hosts of length numNodes
+	slurmNodeLayout_t *	hosts;		// Array of hosts of length numNodes
 } slurmStepLayout_t;
 
 typedef struct
@@ -107,7 +107,7 @@ static cti_hostsList_t *	_cti_cray_slurm_getAppHostsPlacement(void *);
 static char *				_cti_cray_slurm_getHostName(void);
 
 /* cray slurm wlm proto object */
-cti_wlm_proto_t				_cti_cray_slurm_wlmProto =
+const cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
 {
 	CTI_WLM_CRAY_SLURM,						// wlm_type
 	_cti_cray_slurm_init,					// wlm_init
@@ -295,7 +295,8 @@ _cti_cray_slurm_consumeSlurmLayout(slurmStepLayout_t *this)
 static slurmStepLayout_t *
 _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 {
-	char *				my_argv[4];
+	cti_args_t *		my_args;
+	char *				slurm_util_loc;
 	int					pipe_r[2];		// pipes to read result of command
 	int					pipe_e[2];		// error pipes if error occurs
 	int					mypid;
@@ -307,41 +308,55 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 	char *				read_buf;
 	slurmStepLayout_t *	rtn = NULL;
 	
-	// create the args for sbcast
-	if ((my_argv[0] = _cti_pathFind(SLURM_STEP_UTIL, NULL)) == NULL)
+	// create a new args obj
+	if ((my_args = _cti_newArgs()) == NULL)
+	{
+		_cti_set_error("_cti_newArgs failed.");
+		return NULL;
+	}
+	
+	// create the args for slurm util
+	
+	if ((slurm_util_loc = _cti_pathFind(SLURM_STEP_UTIL, NULL)) == NULL)
 	{
 		_cti_set_error("Could not locate CTI slurm job step utility in PATH.");
 		return NULL;
 	}
-	if (asprintf(&my_argv[1], "-j %d", jobid) <= 0)
+	if (_cti_addArg(my_args, "%s", slurm_util_loc))
 	{
-		_cti_set_error("asprintf failed.");
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		free(slurm_util_loc);
 		return NULL;
 	}
-	if (asprintf(&my_argv[2], "-s %d", stepid) <= 0)
+	free(slurm_util_loc);
+	
+	if (_cti_addArg(my_args, "-j %d", jobid))
 	{
-		_cti_set_error("asprintf failed.");
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return NULL;
 	}
-	// set null terminator
-	my_argv[3] = NULL;
+	
+	if (_cti_addArg(my_args, "-s %d", stepid))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return NULL;
+	}
 	
 	// make the pipes for the command
 	if (pipe(pipe_r) < 0)
 	{
 		_cti_set_error("Pipe creation failure.");
-		free(my_argv[0]);
-		free(my_argv[1]);
-		free(my_argv[2]);
+		_cti_freeArgs(my_args);
 		
 		return NULL;
 	}
 	if (pipe(pipe_e) < 0)
 	{
 		_cti_set_error("Pipe creation failure.");
-		free(my_argv[0]);
-		free(my_argv[1]);
-		free(my_argv[2]);
+		_cti_freeArgs(my_args);
 		
 		return NULL;
 	}
@@ -353,10 +368,7 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 	if (mypid < 0)
 	{
 		_cti_set_error("Fatal fork error.");
-		// cleanup my_argv array
-		free(my_argv[0]);
-		free(my_argv[1]);
-		free(my_argv[2]);
+		_cti_freeArgs(my_args);
 		
 		return NULL;
 	}
@@ -406,7 +418,7 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 		close(fd);
 		
 		// exec slurm utility
-		execvp(my_argv[0], my_argv);
+		execvp(my_args->argv[0], my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -419,10 +431,8 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 	close(pipe_r[1]);
 	close(pipe_e[1]);
 	
-	// cleanup my_argv array
-	free(my_argv[0]);
-	free(my_argv[1]);
-	free(my_argv[2]);
+	// cleanup
+	_cti_freeArgs(my_args);
 	
 	// allocate the read buffer
 	if ((read_buf = malloc(CTI_BUF_SIZE)) == NULL)
@@ -1207,7 +1217,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 		return 0;
 		*/
 		// FIXME: Once totalview_stepid starts showing up we can use it.
-		fprintf(stderr, "stepid not found! Defaulting to 0.\n");
+		fprintf(stderr, "cti_fe: Warning: stepid not found! Defaulting to 0.\n");
 		sym_str = strdup("0");
 	}
 	
@@ -1257,8 +1267,8 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	// a child process.
 	if (mypid == 0)
 	{
-		int 	fd;
-		char *	args[4];
+		int 			fd;
+		cti_args_t *	my_args;
 	
 		// if redirectOutput is true, we use the caller provided fds.
 		if (redirectOutput)
@@ -1298,18 +1308,38 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 		}
 		close(fd);
 		
-		// create the args
-		args[0] = SATTACH;
-		args[1] = "-Q";
-		if (asprintf(&args[2], "%u.%u", jobid, stepid)  <= 0)
+		// create a new args obj
+		if ((my_args = _cti_newArgs()) == NULL)
 		{
-			fprintf(stderr, "CTI error: asprintf failed.\n");
+			fprintf(stderr, "CTI error: _cti_newArgs failed.");
 			exit(1);
 		}
-		args[3] = NULL;
+		
+		// create the args for sattach
+		
+		if (_cti_addArg(my_args, "%s", SATTACH))
+		{
+			fprintf(stderr, "CTI error: _cti_addArg failed.");
+			_cti_freeArgs(my_args);
+			exit(1);
+		}
+		
+		if (_cti_addArg(my_args, "%-Q"))
+		{
+			fprintf(stderr, "CTI error: _cti_addArg failed.");
+			_cti_freeArgs(my_args);
+			exit(1);
+		}
+		
+		if (_cti_addArg(my_args, "%u.%u", jobid, stepid))
+		{
+			fprintf(stderr, "CTI error: _cti_addArg failed.");
+			_cti_freeArgs(my_args);
+			exit(1);
+		}
 		
 		// exec sattach
-		execvp(SATTACH, args);
+		execvp(SATTACH, my_args->argv);
 	
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -1403,7 +1433,7 @@ static int
 _cti_cray_slurm_killApp(void *this, int signum)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
-	char * 				my_argv[5];
+	cti_args_t *		my_args;
 	int					mypid;
 	
 	// sanity check
@@ -1413,31 +1443,46 @@ _cti_cray_slurm_killApp(void *this, int signum)
 		return 1;
 	}
 	
-	// create the string to pass to exec
+	// create a new args obj
+	if ((my_args = _cti_newArgs()) == NULL)
+	{
+		_cti_set_error("_cti_newArgs failed.");
+		return 1;
+	}
+	
+	// create the args for scancel
 	
 	// first argument should be "scancel"
-	my_argv[0] = SCANCEL;
+	if (_cti_addArg(my_args, "%s", SCANCEL))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
 	
 	// second argument is quiet
-	my_argv[1] = "-Q";
+	if (_cti_addArg(my_args, "-Q"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
 	
 	// third argument is signal number
-	if (asprintf(&my_argv[2], "-s %d", signum) <= 0)
+	if (_cti_addArg(my_args, "-s %d", signum))
 	{
-		_cti_set_error("asprintf failed.");
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return 1;
 	}
 	
 	// fourth argument is the jobid.stepid
-	if (asprintf(&my_argv[3], "%u.%u", my_app->jobid, my_app->stepid)  <= 0)
+	if (_cti_addArg(my_args, "%u.%u", my_app->jobid, my_app->stepid))
 	{
-		_cti_set_error("asprintf failed.");
-		free(my_argv[2]);
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return 1;
 	}
-
-	// set the final null terminator
-	my_argv[4] = NULL;
 	
 	// fork off a process to launch scancel
 	mypid = fork();
@@ -1446,9 +1491,8 @@ _cti_cray_slurm_killApp(void *this, int signum)
 	if (mypid < 0)
 	{
 		_cti_set_error("Fatal fork error.");
-		// cleanup my_argv array
-		free(my_argv[2]);
-		free(my_argv[3]);
+		// cleanup
+		_cti_freeArgs(my_args);
 		
 		return 1;
 	}
@@ -1457,7 +1501,7 @@ _cti_cray_slurm_killApp(void *this, int signum)
 	if (mypid == 0)
 	{
 		// exec scancel
-		execvp(SCANCEL, my_argv);
+		execvp(SCANCEL, my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -1465,9 +1509,8 @@ _cti_cray_slurm_killApp(void *this, int signum)
 	}
 	
 	// parent case
-	// cleanup my_argv array
-	free(my_argv[2]);
-	free(my_argv[3]);
+	// cleanup
+	_cti_freeArgs(my_args);
 	
 	// wait until the scancel finishes
 	waitpid(mypid, NULL, 0);
@@ -1884,12 +1927,6 @@ _cti_cray_slurm_start_daemon(void *this, int transfer, const char *tool_path, ct
 	if (mypid == 0)
 	{
 		/*
-		// clear file creation mask
-		umask(0);
-		
-		// change directory to root
-		chdir("/");
-		
 		// dup2 stdin
 		if (dup2(fd, STDIN_FILENO) < 0)
 		{
@@ -2140,9 +2177,9 @@ _cti_cray_slurm_getHostName(void)
 	}
 	
 	// check for invalid input
-	if (eptr == file_buf || *eptr != '\0')
+	if (eptr == file_buf)
 	{
-		_cti_set_error("Bad data in %s.", ALPS_XT_NID);
+		_cti_set_error("Bad data in %s", ALPS_XT_NID);
 		return NULL;
 	}
 	

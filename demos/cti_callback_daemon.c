@@ -134,7 +134,7 @@ main(int argc, char **argv)
 	if ((my_hostname = cti_getNodeHostname()) == NULL)
 	{
 		fprintf(stderr, "cti_getNodeCName failed.\n");
-		return 1;
+		my_hostname = "ERROR";
 	}
 	fprintf(stderr, "My hostname: %s\n", my_hostname);
 	
@@ -142,7 +142,6 @@ main(int argc, char **argv)
 	if ((firstPe = cti_getNodeFirstPE()) == -1)
 	{
 		fprintf(stderr, "cti_getNodeFirstPE failed.\n");
-		return 1;
 	}
 	fprintf(stderr, "My first PE: %d\n", firstPe);
 	
@@ -150,7 +149,6 @@ main(int argc, char **argv)
 	if ((numPes = cti_getNodePEs()) == -1)
 	{
 		fprintf(stderr, "cti_getNodePEs failed.\n");
-		return 1;
 	}
 	fprintf(stderr, "PEs here: %d\n", numPes);
 	
@@ -158,9 +156,10 @@ main(int argc, char **argv)
 	if ((appPids = cti_findAppPids()) == NULL)
 	{
 		fprintf(stderr, "findAppPids failed.\n");
-		return 1;
+	} else
+	{
+		fprintf(stderr, "App pid_t's here: %d\n", appPids->numPids);
 	}
-	fprintf(stderr, "App pid_t's here: %d\n", appPids->numPids);
 	
 	callback_register();
 	

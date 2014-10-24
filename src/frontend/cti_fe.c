@@ -53,13 +53,14 @@ static int				_cti_addAppEntry(appEntry_t *);
 static void				_cti_consumeAppEntry(appEntry_t *);
 static void				_cti_reapAppEntry(cti_app_id_t);
 
-// static global vars
+/* static global vars */
 static cti_app_id_t		_cti_app_id 	= 1;	// start counting from 1
 static appList_t *		_cti_my_apps	= NULL;	// global list pertaining to known application sessions
-static cti_wlm_detect_t	_cti_wlm_detect;
+static cti_wlm_detect_t	_cti_wlm_detect = {0};	// wlm_detect functions for dlopen
+static char *			_cti_cfg_dir	= NULL;	// config dir that we can use as temporary storage
 
 /* noneness wlm proto object */
-static cti_wlm_proto_t	_cti_nonenessProto =
+static const cti_wlm_proto_t	_cti_nonenessProto =
 {
 	CTI_WLM_NONE,
 	_cti_wlm_init_none,
@@ -88,7 +89,7 @@ static cti_wlm_proto_t	_cti_nonenessProto =
 };
 
 /* global wlm proto object - this is initialized to noneness by default */
-cti_wlm_proto_t *		_cti_wlmProto 	= &_cti_nonenessProto;
+static const cti_wlm_proto_t *	_cti_wlmProto = &_cti_nonenessProto;
 
 // Constructor function
 void __attribute__((constructor))
@@ -188,7 +189,9 @@ _cti_fini(void)
 	return;
 }
 
-/* static functions */
+/*********************
+** static functions 
+*********************/
 
 static int
 _cti_addAppEntry(appEntry_t *entry)
@@ -338,10 +341,8 @@ _cti_reapAppEntry(cti_app_id_t appId)
 	return;
 }
 
-/* API defined functions start here */
-
 cti_app_id_t
-_cti_newAppEntry(cti_wlm_proto_t *wlmProto, const char *toolPath, void *wlm_obj, obj_destroy destroy)
+_cti_newAppEntry(const cti_wlm_proto_t *wlmProto, const char *toolPath, void *wlm_obj, obj_destroy destroy)
 {
 	appEntry_t *	this;
 	
@@ -448,6 +449,38 @@ _cti_setTransferObj(appEntry_t *app_ptr, void *transferObj, obj_destroy transfer
 	
 	return 0;
 }
+
+const cti_wlm_proto_t *
+_cti_current_wlm_proto(void)
+{
+	return _cti_wlmProto;
+}
+
+const char *
+_cti_getCfgDir(void)
+{
+	char *cfg_dir;
+
+	// return if we already have the value
+	if (_cti_cfg_dir != NULL)
+		return _cti_cfg_dir;
+
+	// read the value
+	if ((cfg_dir = getenv(CFG_DIR_VAR)) == NULL)
+	{
+		_cti_set_error("Cannot getenv on %s. Ensure environment variables are set.", CFG_DIR_VAR);
+		return NULL;
+	}
+	
+	// set the global variable
+	_cti_cfg_dir = strdup(cfg_dir);
+
+	return _cti_cfg_dir;
+}
+
+/************************
+* API defined functions
+************************/
 
 cti_wlm_type
 cti_current_wlm(void)

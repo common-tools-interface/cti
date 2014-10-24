@@ -121,7 +121,7 @@ static int					_cti_alps_filter_pid_entries(const struct dirent *);
 
 
 /* alps wlm proto object */
-cti_wlm_proto_t				_cti_alps_wlmProto =
+const cti_wlm_proto_t		_cti_alps_wlmProto =
 {
 	CTI_WLM_ALPS,					// wlm_type
 	_cti_alps_init,					// wlm_init

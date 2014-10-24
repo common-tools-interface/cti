@@ -27,17 +27,18 @@
 #include "cti_error.h"
 #include "cti_fe.h"
 #include "cti_run.h"
-#include "alps_fe.h"
 
 cti_app_id_t
 cti_launchAppBarrier(	const char * const launcher_argv[], int redirectOutput, int redirectInput, 
 						int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath,
 						const char * const env_list[]	)
 {
+	const cti_wlm_proto_t * curProto = _cti_current_wlm_proto();
+
 	// call the appropriate wlm launch function based on the current wlm proto
-	return _cti_wlmProto->wlm_launchBarrier(	launcher_argv, redirectOutput, redirectInput, 
-												stdout_fd, stderr_fd, inputFile, chdirPath, 
-												env_list);
+	return curProto->wlm_launchBarrier(		launcher_argv, redirectOutput, redirectInput, 
+											stdout_fd, stderr_fd, inputFile, chdirPath, 
+											env_list);
 }
 
 int
@@ -68,7 +69,7 @@ cti_releaseAppBarrier(cti_app_id_t appId)
 	}
 	
 	// Call the appropriate barrier release function based on the wlm
-	return _cti_wlmProto->wlm_releaseBarrier(app_ptr->_wlmObj);
+	return app_ptr->wlmProto->wlm_releaseBarrier(app_ptr->_wlmObj);
 }
 
 int
@@ -100,7 +101,7 @@ cti_killApp(cti_app_id_t appId, int signum)
 	}
 	
 	// Call the appropriate app kill function based on the wlm
-	rtn = _cti_wlmProto->wlm_killApp(app_ptr->_wlmObj, signum);
+	rtn = app_ptr->wlmProto->wlm_killApp(app_ptr->_wlmObj, signum);
 	
 	// deregister this apid from the interface
 	if (!rtn)

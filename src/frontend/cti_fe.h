@@ -91,25 +91,25 @@ typedef void (*obj_destroy)(void *);
 
 typedef struct
 {
-	cti_app_id_t		appId;				// cti application ID
-	cti_wlm_proto_t *	wlmProto;			// wlm proto obj of this app
-	char *				toolPath;			// backend toolhelper path for temporary storage
-	void *				_wlmObj;			// Managed by appropriate wlm fe for this app entry
-	obj_destroy			_wlmDestroy;		// Used to destroy the wlm object
-	int					_transfer_init;		// Managed by alps_transfer.c for this app entry
-	void *				_transferObj;		// Managed by alps_transfer.c for this app entry
-	obj_destroy			_transferDestroy;	// Used to destroy the transfer object
+	cti_app_id_t			appId;				// cti application ID
+	const cti_wlm_proto_t *	wlmProto;			// wlm proto obj of this app
+	char *					toolPath;			// backend toolhelper path for temporary storage
+	void *					_wlmObj;			// Managed by appropriate wlm fe for this app entry
+	obj_destroy				_wlmDestroy;		// Used to destroy the wlm object
+	int						_transfer_init;		// Managed by alps_transfer.c for this app entry
+	void *					_transferObj;		// Managed by alps_transfer.c for this app entry
+	obj_destroy				_transferDestroy;	// Used to destroy the transfer object
 } appEntry_t;
 
-/* current wlm proto */
-extern cti_wlm_proto_t *	_cti_wlmProto;
-
-/* function prototypes */
-cti_app_id_t			_cti_newAppEntry(cti_wlm_proto_t *, const char *, void *, obj_destroy);
+/* internal function prototypes */
+cti_app_id_t			_cti_newAppEntry(const cti_wlm_proto_t *, const char *, void *, obj_destroy);
 appEntry_t *			_cti_findAppEntry(cti_app_id_t);
 appEntry_t *			_cti_findAppEntryByJobId(void *);
 int						_cti_setTransferObj(appEntry_t *, void *, obj_destroy);
+const cti_wlm_proto_t *	_cti_current_wlm_proto(void);
+const char *			_cti_getCfgDir(void);
 
+/* API function prototypes */
 cti_wlm_type			cti_current_wlm(void);
 const char *			cti_wlm_type_toString(cti_wlm_type);
 void					cti_deregisterApp(cti_app_id_t);

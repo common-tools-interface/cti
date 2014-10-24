@@ -117,17 +117,6 @@ _cti_addArg(cti_args_t *this, const char *fmt, ...)
 		return 1;
 	}
 	
-	// Ensure that there is room for this argument
-	if (this->argc == this->_len)
-	{
-		// need to resize
-		if (_cti_resizeArgs(this))
-		{
-			// failed to resize
-			return 1;
-		}
-	}
-	
 	// setup the va_args
 	va_start(ap, fmt);
 	
@@ -140,6 +129,17 @@ _cti_addArg(cti_args_t *this, const char *fmt, ...)
 	
 	// finish the va_args
 	va_end(ap);
+	
+	// Ensure that there is room for this argument
+	if (this->argc == this->_len)
+	{
+		// need to resize
+		if (_cti_resizeArgs(this))
+		{
+			// failed to resize
+			return 1;
+		}
+	}
 	
 	// set the argument string
 	this->argv[this->argc] = new_arg;

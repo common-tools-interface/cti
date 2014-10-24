@@ -32,8 +32,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 
 #include <archive.h>
 #include <archive_entry.h>
@@ -124,6 +126,7 @@ copy_data(struct archive *ar, struct archive *aw)
 int
 main(int argc, char **argv)
 {
+	struct rlimit	rl;
 	int				opt_ind = 0;
 	int				c, i, sCnt;
 	int				wlm_arg = CTI_WLM_NONE;
@@ -151,39 +154,11 @@ main(int argc, char **argv)
 	struct archive *		ext;
 	struct archive_entry *	entry;
 	
-	/*
-	* The ALPS Tool Helper closes channels 0-2 to keep things "clean".
-	* Unfortuantely, that means that any file opens that I do will
-	* have them available. If I open my log file, for instance, it
-	* will get channel 0 and that just doesn't seem safe. So, the lines
-	* below open (and waste) three channels such that I am guaranteed
-	* that future opens will not get them 0-2. Note that the opens may
-	* or may not get all/any of 0-2, but should they be available, they
-	* will be gotten.
-	* This, of course, must happen "early" before any other opens.
-	*
-	* We do this here for every WLM, as it shouldn't impact the other WLM and
-	* will prevent weirdness from happening during printing to stderr.
-	*
-	*/
-	open("/dev/null", O_RDONLY);
-	open("/dev/null", O_WRONLY);
-	open("/dev/null", O_WRONLY);
-	
 	// we require at least 1 argument beyond argv[0]
 	if (argc < 2)
 	{
 		usage();
 		return 1;
-	}
-	
-	// print out argv array if debug is turned on
-	if (debug_flag)
-	{
-		for (i=0; i < argc; ++i)
-		{
-			fprintf(stderr, "%s: argv[%d] = %s\n", CTI_LAUNCHER, i, argv[i]);
-		}
 	}
 	
 	// We want to do as little as possible while parsing the opts. This is because
@@ -204,6 +179,12 @@ main(int argc, char **argv)
 					return 1;
 				}
 				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
+				}
+				
 				// this is the application id that is WLM specific
 				apid_str = strdup(optarg);
 				
@@ -214,6 +195,12 @@ main(int argc, char **argv)
 				{
 					usage();
 					return 1;
+				}
+				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
 				}
 				
 				// this is the name of the binary we will exec
@@ -228,6 +215,12 @@ main(int argc, char **argv)
 					return 1;
 				}
 				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
+				}
+				
 				// this is the name of the existing directory we should cd to
 				directory = strdup(optarg);
 				
@@ -238,6 +231,12 @@ main(int argc, char **argv)
 				{
 					usage();
 					return 1;
+				}
+				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
 				}
 				
 				// this is an optional option to set user defined environment variables
@@ -281,6 +280,12 @@ main(int argc, char **argv)
 					return 1;
 				}
 				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
+				}
+				
 				// this is the name of the manifest tarball we will extract
 				manifest = strdup(optarg);
 				
@@ -291,6 +296,12 @@ main(int argc, char **argv)
 				{
 					usage();
 					return 1;
+				}
+				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
 				}
 				
 				// this is the tool path argument where we should cd to
@@ -318,6 +329,47 @@ main(int argc, char **argv)
 				return 1;
 		}
 	}
+	
+	// Start becoming a daemon
+	
+	// clear file creation mask
+	umask(0);
+	
+	// get max number of file descriptors
+	if (getrlimit(RLIMIT_NOFILE, &rl) < 0)
+	{
+		// guess the value
+		rl.rlim_max = 1024;
+	}
+	if (rl.rlim_max == RLIM_INFINITY)
+	{
+		// guess the value
+		rl.rlim_max = 1024;
+	}
+	
+	// Ensure every file descriptor is closed
+	/*
+	for (i=0; i < rl.rlim_max; ++i)
+	{
+		close(i);
+	}
+	*/
+	
+	/*
+	* We close channels 0-2 to keep things "clean".
+	* Unfortuantely, that means that any file opens that I do will
+	* have them available. If I open my log file, for instance, it
+	* will get channel 0 and that just doesn't seem safe. So, the lines
+	* below open (and waste) three channels such that I am guaranteed
+	* that future opens will not get them 0-2. Note that the opens may
+	* or may not get all/any of 0-2, but should they be available, they
+	* will be gotten.
+	* This, of course, must happen "early" before any other opens.
+	*
+	*/
+	open("/dev/null", O_RDONLY);
+	open("/dev/null", O_WRONLY);
+	open("/dev/null", O_WRONLY);
 	
 	// Setup the wlm arg without error checking so that we can create a debug
 	// log if asked to. We will error check below.
@@ -359,6 +411,15 @@ main(int argc, char **argv)
 		{
 			free(apid_str);
 			apid_str = NULL;
+		}
+	}
+	
+	// print out argv array if debug is turned on
+	if (debug_flag)
+	{
+		for (i=0; i < argc; ++i)
+		{
+			fprintf(stderr, "%s: argv[%d] = \"%s\"\n", CTI_LAUNCHER, i, argv[i]);
 		}
 	}
 	

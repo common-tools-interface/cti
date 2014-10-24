@@ -25,7 +25,7 @@
 #include "cti_fe.h"
 
 /* wlm proto object */
-extern cti_wlm_proto_t	_cti_alps_wlmProto;
+extern const cti_wlm_proto_t	_cti_alps_wlmProto;
 
 typedef struct
 {
