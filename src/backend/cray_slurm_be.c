@@ -34,13 +34,21 @@ typedef struct
 	int		nid;	// compute node id
 } computeNode_t;
 
+typedef struct
+{
+	int		PEsHere;	// Number of PEs placed on this node
+	int		firstPE;	// first PE on this node
+} slurmLayout_t;
+
 /* static prototypes */
 static int 					_cti_cray_slurm_init(void);
 static void					_cti_cray_slurm_fini(void);
+static int					_cti_cray_slurm_getComputeNodeInfo(void);
+static int					_cti_cray_slurm_getSlurmLayout(void);
 //static cti_pidList_t *		_cti_cray_slurm_findAppPids(void);
 static char *				_cti_cray_slurm_getNodeHostname(void);
-//static int					_cti_cray_slurm_getNodeFirstPE(void);
-//static int					_cti_cray_slurm_getNodePEs(void);
+static int					_cti_cray_slurm_getNodeFirstPE(void);
+static int					_cti_cray_slurm_getNodePEs(void);
 
 /* cray slurm wlm proto object */
 cti_wlm_proto_t				_cti_cray_slurm_wlmProto =
@@ -50,13 +58,14 @@ cti_wlm_proto_t				_cti_cray_slurm_wlmProto =
 	_cti_cray_slurm_fini,				// wlm_fini
 	_cti_wlm_findAppPids_none,//_cti_cray_slurm_findAppPids,		// wlm_findAppPids
 	_cti_cray_slurm_getNodeHostname,	// wlm_getNodeHostname
-	_cti_wlm_getNodeFirstPE_none,//_cti_cray_slurm_getNodeFirstPE,		// wlm_getNodeFirstPE
-	_cti_wlm_getNodePEs_none,//_cti_cray_slurm_getNodePEs			// wlm_getNodePEs
+	_cti_cray_slurm_getNodeFirstPE,		// wlm_getNodeFirstPE
+	_cti_cray_slurm_getNodePEs			// wlm_getNodePEs
 };
 
 // Global vars
 static computeNode_t *		_cti_thisNode	= NULL;	// compute node information
-static pmi_attribs_t *		_cti_attrs 		= NULL;	// node pmi_attribs information
+//static pmi_attribs_t *		_cti_attrs 		= NULL;	// node pmi_attribs information
+static slurmLayout_t *		_cti_layout		= NULL;	// compute node layout for slurm app
 static uint32_t				_cti_jobid 		= 0;	// global jobid obtained from environment variable
 static uint32_t				_cti_stepid		= 0;	// global stepid obtained from environment variable
 
@@ -102,14 +111,20 @@ _cti_cray_slurm_init(void)
 static void
 _cti_cray_slurm_fini(void)
 {
-	// do nothing
+	// cleanup
+	if (_cti_thisNode != NULL)
+		free(_cti_thisNode);
+		
+	if (_cti_layout != NULL)
+		free(_cti_layout);
+	
 	return;
 }
 
 /* Static functions */
 
 static int
-_cti_cray_slurm_getComputeNodeInfo()
+_cti_cray_slurm_getComputeNodeInfo(void)
 {
 	FILE *			nid_fd;				// NID file stream
 	char 			file_buf[BUFSIZ];	// file read buffer
@@ -154,44 +169,149 @@ _cti_cray_slurm_getComputeNodeInfo()
 	return 0;
 }
 
-/*
 static int
-_cti_alps_getPlacementInfo()
+_cti_cray_slurm_getSlurmLayout(void)
 {
-	alpsAppLayout_t *	tmpLayout;
+	slurmLayout_t *			my_layout;
+	char *					nid_str;
+	char *					file_dir;
+	char *					layoutPath;
+	FILE *					my_file;
+	slurmLayoutFileHeader_t	layout_hdr;
+	slurmLayoutFile_t *		layout;
+	int						i, offset;
 	
-	// sanity check
-	if (_cti_appLayout != NULL)
+	// sanity
+	if (_cti_layout != NULL)
 		return 0;
 	
-	// sanity check
-	if (_cti_apid == 0)
+	// ensure the _cti_thisNode exists
+	if (_cti_thisNode == NULL)
 	{
-		fprintf(stderr, "_cti_alps_getPlacementInfo failed.\n");
+		if (_cti_cray_slurm_getComputeNodeInfo())
+		{
+			// couldn't get the compute node info for some odd reason
+			fprintf(stderr, "_cti_cray_slurm_getSlurmLayout failed.\n");
+			return 1;
+		}
+	}
+	
+	// create the nid string for this node, we will strcmp with it later
+	if (asprintf(&nid_str, "%d", _cti_thisNode->nid) <= 0)
+	{
+		fprintf(stderr, "asprintf failed.\n");
 		return 1;
 	}
 	
-	// malloc size for the struct
-	if ((tmpLayout = malloc(sizeof(alpsAppLayout_t))) == (void *)0)
+	// allocate the slurmLayout_t object
+	if ((my_layout = malloc(sizeof(slurmLayout_t))) == NULL)
 	{
 		fprintf(stderr, "malloc failed.\n");
+		free(nid_str);
 		return 1;
 	}
-	memset(tmpLayout, 0, sizeof(alpsAppLayout_t));     // clear it to NULL
 	
-	// get application information from alps
-	if (_cti_alps_get_placement_info(_cti_apid, tmpLayout, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) < 0)
+	// get the file directory were we can find the layout file
+	if ((file_dir = cti_getFileDir()) == NULL)
 	{
-		fprintf(stderr, "_cti_alps_getPlacementInfo failed.\n");
+		fprintf(stderr, "_cti_cray_slurm_getSlurmLayout failed.\n");
+		free(nid_str);
+		free(my_layout);
 		return 1;
 	}
 	
-	// set the global pointer
-	_cti_appLayout = tmpLayout;
+	// create the path to the layout file
+	if (asprintf(&layoutPath, "%s/%s", file_dir, SLURM_LAYOUT_FILE) <= 0)
+	{
+		fprintf(stderr, "asprintf failed.\n");
+		free(nid_str);
+		free(my_layout);
+		free(file_dir);
+		return 1;
+	}
+	// cleanup
+	free(file_dir);
 	
-	return 0;
+	// open the layout file for reading
+	if ((my_file = fopen(layoutPath, "rb")) == NULL)
+	{
+		fprintf(stderr, "Could not open %s for reading\n", layoutPath);
+		free(nid_str);
+		free(my_layout);
+		free(layoutPath);
+		return 1;
+	}
+	
+	// read the header from the file
+	if (fread(&layout_hdr, sizeof(slurmLayoutFileHeader_t), 1, my_file) != 1)
+	{
+		fprintf(stderr, "Could not read %s\n", layoutPath);
+		free(nid_str);
+		free(my_layout);
+		free(layoutPath);
+		fclose(my_file);
+		return 1;
+	}
+	
+	// allocate the layout array based on the header
+	if ((layout = calloc(layout_hdr.numNodes, sizeof(slurmLayoutFile_t))) == NULL)
+	{
+		fprintf(stderr, "calloc failed.\n");
+		free(nid_str);
+		free(my_layout);
+		free(layoutPath);
+		fclose(my_file);
+		return 1;
+	}
+	
+	// read the layout info
+	if (fread(layout, sizeof(slurmLayoutFile_t), layout_hdr.numNodes, my_file) != layout_hdr.numNodes)
+	{
+		fprintf(stderr, "Bad data in %s\n", layoutPath);
+		free(nid_str);
+		free(my_layout);
+		free(layoutPath);
+		fclose(my_file);
+		free(layout);
+		return 1;
+	}
+	
+	// done reading the file
+	free(layoutPath);
+	fclose(my_file);
+	
+	// find the entry for this nid, we need to offset into the host name based on
+	// this nid
+	offset = strlen(layout[0].host) - strlen(nid_str);
+	
+	for (i=0; i < layout_hdr.numNodes; ++i)
+	{
+		// check if this entry corresponds to our nid
+		if (strncmp(layout[i].host + offset, nid_str, strlen(nid_str)) == 0)
+		{
+			// found it
+			my_layout->PEsHere = layout[i].PEsHere;
+			my_layout->firstPE = layout[i].firstPE;
+			
+			// cleanup
+			free(nid_str);
+			free(layout);
+			
+			// set global value
+			_cti_layout = my_layout;
+			
+			// done
+			return 0;
+		}
+	}
+	
+	// if we get here, we didn't find the nid in the layout list!
+	fprintf(stderr, "Could not find layout entry for nid %s\n", nid_str);
+	free(nid_str);
+	free(my_layout);
+	free(layout);
+	return 1;
 }
-*/
 
 /* API related calls start here */
 /*
@@ -276,37 +396,36 @@ _cti_cray_slurm_getNodeHostname()
 	return nidHost;
 }
 
-/*
+
 static int
-_cti_alps_getNodeFirstPE()
+_cti_cray_slurm_getNodeFirstPE()
 {
-	// make sure the _cti_appLayout object has been created
-	if (_cti_appLayout == (alpsAppLayout_t *)NULL)
+	// make sure we have the layout
+	if (_cti_layout == NULL)
 	{
-		// make sure we got the alpsAppLayout_t object
-		if (_cti_alps_getPlacementInfo())
+		// get the layout
+		if (_cti_cray_slurm_getSlurmLayout())
 		{
 			return -1;
 		}
 	}
 	
-	return _cti_appLayout->firstPe;
+	return _cti_layout->firstPE;
 }
 
 static int
-_cti_alps_getNodePEs()
+_cti_cray_slurm_getNodePEs()
 {
-	// make sure the _cti_appLayout object has been created
-	if (_cti_appLayout == NULL)
+	// make sure we have the layout
+	if (_cti_layout == NULL)
 	{
-		// make sure we got the alpsAppLayout_t object
-		if (_cti_alps_getPlacementInfo())
+		// get the layout
+		if (_cti_cray_slurm_getSlurmLayout())
 		{
 			return -1;
 		}
 	}
 	
-	return _cti_appLayout->numPesHere;
+	return _cti_layout->PEsHere;
 }
-*/
 

@@ -121,7 +121,6 @@ static manifest_t *		_cti_newManifest(cti_session_id_t);
 static int				_cti_addManifestToSession(manifest_t *, session_t *);
 static void				_cti_addSessionToApp(appEntry_t *, cti_session_id_t);
 static int				_cti_copyFileToPackage(const char *, const char *, const char *);
-static int				_cti_removeDirectory(char *);
 static int				_cti_copyDirectoryToPackage(const char *, const char *, const char *);
 static int				_cti_packageManifestAndShip(appEntry_t *, manifest_t *);
 
@@ -1949,110 +1948,6 @@ _cti_copyFileToPackage(const char *loc, const char *name, const char *path)
 		
 	// cleanup
 	free(name_path);
-	
-	return 0;
-}
-
-// This will act as a rm -rf ...
-static int
-_cti_removeDirectory(char *path)
-{
-	DIR *			dir;
-	struct dirent *	d;
-	char *			name_path;
-	struct stat		statbuf;
-
-	// sanity check
-	if (path == NULL)
-	{
-		_cti_set_error("_cti_removeDirectory: invalid args.");
-		return 1;
-	}
-	
-	// open the directory
-	if ((dir = opendir(path)) == NULL)
-	{
-		_cti_set_error("_cti_removeDirectory: Could not opendir %s.", path);
-		return 1;
-	}
-	
-	// Recurse over every file in the directory
-	while ((d = readdir(dir)) != NULL)
-	{
-		// ensure this isn't the . or .. file
-		switch (strlen(d->d_name))
-		{
-			case 1:
-				if (d->d_name[0] == '.')
-				{
-					// continue to the outer while loop
-					continue;
-				}
-				break;
-				
-			case 2:
-				if (strcmp(d->d_name, "..") == 0)
-				{
-					// continue to the outer while loop
-					continue;
-				}
-				break;
-			
-			default:
-				break;
-		}
-	
-		// create the full path name
-		if (asprintf(&name_path, "%s/%s", path, d->d_name) <= 0)
-		{
-			_cti_set_error("_cti_removeDirectory: asprintf failed.");
-			closedir(dir);
-			return 1;
-		}
-		
-		// stat the file
-		if (stat(name_path, &statbuf) == -1)
-		{
-			_cti_set_error("_cti_removeDirectory: Could not stat %s.", name_path);
-			closedir(dir);
-			free(name_path);
-			return 1;
-		}
-		
-		// if this is a directory we need to recursively call this function
-		if (S_ISDIR(statbuf.st_mode))
-		{
-			if (_cti_removeDirectory(name_path))
-			{
-				// error already set
-				closedir(dir);
-				free(name_path);
-				return 1;
-			}
-		} else
-		{
-			// remove the file
-			if (remove(name_path))
-			{
-				_cti_set_error("_cti_removeDirectory: Could not remove %s.", name_path);
-				closedir(dir);
-				free(name_path);
-				return 1;
-			}
-		}
-		// done with this file
-		free(name_path);
-	}
-	
-	// done with the directory
-	closedir(dir);
-	
-	// remove the directory
-	if (remove(path))
-	{
-		_cti_set_error("_cti_removeDirectory: Could not remove %s.", path);
-		return 1;
-	}
 	
 	return 0;
 }

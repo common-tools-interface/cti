@@ -20,11 +20,15 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <dirent.h>
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "wlm_detect.h"
 
@@ -182,12 +186,31 @@ wlm_detect_err:
 void __attribute__ ((destructor))
 _cti_fini(void)
 {
+	appList_t *	lstPtr = _cti_my_apps;
+	appList_t * next;
+
+	// reap all the registered apps
+	while (lstPtr != NULL)
+	{
+		// point at the next entry
+		next = lstPtr->next;
+		
+		// free this entry
+		_cti_consumeAppEntry(lstPtr->this);
+		
+		// free this lstPtr
+		free(lstPtr);
+		
+		// point at the next entry
+		lstPtr = next;
+	}
+	
 	// call the wlm proto fini function
 	_cti_wlmProto->wlm_fini();
 	
 	// reset wlm proto to noneness
 	_cti_wlmProto = &_cti_nonenessProto;
-
+	
 	return;
 }
 
@@ -461,6 +484,110 @@ _cti_getCfgDir(void)
 	_cti_cfg_dir = strdup(cfg_dir);
 
 	return _cti_cfg_dir;
+}
+
+// This will act as a rm -rf ...
+int
+_cti_removeDirectory(const char *path)
+{
+	DIR *			dir;
+	struct dirent *	d;
+	char *			name_path;
+	struct stat		statbuf;
+
+	// sanity check
+	if (path == NULL)
+	{
+		_cti_set_error("_cti_removeDirectory: invalid args.");
+		return 1;
+	}
+	
+	// open the directory
+	if ((dir = opendir(path)) == NULL)
+	{
+		_cti_set_error("_cti_removeDirectory: Could not opendir %s.", path);
+		return 1;
+	}
+	
+	// Recurse over every file in the directory
+	while ((d = readdir(dir)) != NULL)
+	{
+		// ensure this isn't the . or .. file
+		switch (strlen(d->d_name))
+		{
+			case 1:
+				if (d->d_name[0] == '.')
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+				
+			case 2:
+				if (strcmp(d->d_name, "..") == 0)
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+			
+			default:
+				break;
+		}
+	
+		// create the full path name
+		if (asprintf(&name_path, "%s/%s", path, d->d_name) <= 0)
+		{
+			_cti_set_error("_cti_removeDirectory: asprintf failed.");
+			closedir(dir);
+			return 1;
+		}
+		
+		// stat the file
+		if (stat(name_path, &statbuf) == -1)
+		{
+			_cti_set_error("_cti_removeDirectory: Could not stat %s.", name_path);
+			closedir(dir);
+			free(name_path);
+			return 1;
+		}
+		
+		// if this is a directory we need to recursively call this function
+		if (S_ISDIR(statbuf.st_mode))
+		{
+			if (_cti_removeDirectory(name_path))
+			{
+				// error already set
+				closedir(dir);
+				free(name_path);
+				return 1;
+			}
+		} else
+		{
+			// remove the file
+			if (remove(name_path))
+			{
+				_cti_set_error("_cti_removeDirectory: Could not remove %s.", name_path);
+				closedir(dir);
+				free(name_path);
+				return 1;
+			}
+		}
+		// done with this file
+		free(name_path);
+	}
+	
+	// done with the directory
+	closedir(dir);
+	
+	// remove the directory
+	if (remove(path))
+	{
+		_cti_set_error("_cti_removeDirectory: Could not remove %s.", path);
+		return 1;
+	}
+	
+	return 0;
 }
 
 /************************

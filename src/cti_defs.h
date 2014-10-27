@@ -72,6 +72,21 @@ typedef enum cti_wlm_type	cti_wlm_type;
 /*
 ** Cray SLURM specific information
 */
+
+// Used when reading/writing layout file - used on FE and BE
+// File will begin with the following header
+typedef struct
+{
+	int	numNodes;
+}	slurmLayoutFileHeader_t;
+// Followed by numNodes of the following:
+typedef struct
+{
+	char	host[9];	// hostname of this node in nidXXXXX\0 format - 9 chars total
+	int		PEsHere;	// Number of PEs placed on this node
+	int		firstPE;	// first PE on this node
+}	slurmLayoutFile_t;
+
 #define SRUN						"srun"													// name of slurm job launcher binary
 #define SATTACH					"sattach"												// name of slurm io redirect binary
 #define SCANCEL					"scancel"												// name of slurm job signal binary
@@ -79,6 +94,9 @@ typedef enum cti_wlm_type	cti_wlm_type;
 #define SLURM_STEP_UTIL			"cti_slurm_util"										// name of cti slurm job step info utility
 #define CRAY_SLURM_APID(jobid, stepid)	((stepid * 10000000000) + jobid)			// formula for creating Cray apid from SLURM jobid.stepid
 #define	 CRAY_SLURM_TOOL_DIR		"/var/opt/cray/alps/spool/%llu"						// Cray SLURM staging path on compute node
+#define SLURM_STAGE_DIR			"slurmXXXXXX"											// directory name for staging slurm specific files to transfer
+#define SLURM_LAYOUT_FILE		"slurm_layout"											// name of file containing layout information
+#define SLURM_PID_FILE			"slurm_pid"											// name of file containing pid information
 
 /*
 ** MPIR_iface specific information

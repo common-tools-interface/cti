@@ -348,12 +348,10 @@ main(int argc, char **argv)
 	}
 	
 	// Ensure every file descriptor is closed
-	/*
 	for (i=0; i < rl.rlim_max; ++i)
 	{
 		close(i);
 	}
-	*/
 	
 	/*
 	* We close channels 0-2 to keep things "clean".

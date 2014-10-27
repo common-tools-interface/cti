@@ -111,6 +111,7 @@ appEntry_t *			_cti_findAppEntryByJobId(cti_wlm_apid);
 int						_cti_setTransferObj(appEntry_t *, void *, obj_destroy);
 const cti_wlm_proto_t *	_cti_current_wlm_proto(void);
 const char *			_cti_getCfgDir(void);
+int						_cti_removeDirectory(const char *);
 
 /* API function prototypes */
 cti_wlm_type			cti_current_wlm(void);

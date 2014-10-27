@@ -75,6 +75,8 @@ typedef struct
 	srunInv_t *			inv;			// Optional object used for launched applications.
 	char *				toolPath;		// Backend staging directory
 	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
+	char *				stagePath;		// directory to stage this instance files in for transfer to BE
+	char **				extraFiles;		// extra files to transfer to BE associated with this app
 } craySlurmInfo_t;
 
 /* Static prototypes */
@@ -181,6 +183,8 @@ _cti_cray_slurm_newSlurmInfo(void)
 	this->inv			= NULL;
 	this->toolPath		= NULL;
 	this->dlaunch_sent	= 0;
+	this->stagePath		= NULL;
+	this->extraFiles	= NULL;
 	
 	return this;
 }
@@ -199,6 +203,26 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 	
 	if (sinfo->toolPath != NULL)
 		free(sinfo->toolPath);
+		
+	// cleanup staging directory if it exists
+	if (sinfo->stagePath != NULL)
+	{
+		_cti_removeDirectory(sinfo->stagePath);
+		free(sinfo->stagePath);
+	}
+	
+	// cleanup the extra files array
+	if (sinfo->extraFiles != NULL)
+	{
+		char **	ptr = sinfo->extraFiles;
+		
+		while (*ptr != NULL)
+		{
+			free(*ptr++);
+		}
+		
+		free(sinfo->extraFiles);
+	}
 	
 	free(sinfo);
 }
@@ -1332,7 +1356,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 			exit(1);
 		}
 		
-		if (_cti_addArg(my_args, "%-Q"))
+		if (_cti_addArg(my_args, "-Q"))
 		{
 			fprintf(stderr, "CTI error: _cti_addArg failed.");
 			_cti_freeArgs(my_args);
@@ -1578,8 +1602,144 @@ _cti_cray_slurm_extraLibDirs(cti_wlm_obj this)
 static const char * const *
 _cti_cray_slurm_extraFiles(cti_wlm_obj this)
 {
-	// no extra files needed
-	return NULL;
+	craySlurmInfo_t *		my_app = (craySlurmInfo_t *)this;
+	const char *			cfg_dir;
+	FILE *					myFile;
+	char *					layoutPath;
+	slurmLayoutFileHeader_t	layout_hdr;
+	slurmLayoutFile_t		layout_entry;
+	char *					pidPath = NULL;
+	int						i;
+	
+	// sanity check
+	if (my_app == NULL)
+		return NULL;
+		
+	// sanity check
+	if (my_app->layout == NULL)
+		return NULL;
+	
+	// If we already have created the extraFiles array, return that
+	if (my_app->extraFiles != NULL)
+	{
+		return (const char * const *)my_app->extraFiles;
+	}
+	
+	// Check to see if we should create the staging directory
+	if (my_app->stagePath == NULL)
+	{
+		// Get the configuration directory
+		if ((cfg_dir = _cti_getCfgDir()) == NULL)
+		{
+			// cannot continue, so return NULL. BE API might fail.
+			// TODO: How to handle this error?
+			return NULL;
+		}
+		
+		// create the directory to stage the needed files
+		if (asprintf(&my_app->stagePath, "%s/%s", cfg_dir, SLURM_STAGE_DIR) <= 0)
+		{
+			// cannot continue, so return NULL. BE API might fail.
+			// TODO: How to handle this error?
+			my_app->stagePath = NULL;
+			return NULL;
+		}
+		
+		// create the temporary directory for the manifest package
+		if (mkdtemp(my_app->stagePath) == NULL)
+		{
+			// cannot continue, so return NULL. BE API might fail.
+			// TODO: How to handle this error?
+			free(my_app->stagePath);
+			my_app->stagePath = NULL;
+			return NULL;
+		}
+	}
+	
+	// create path string to layout file
+	if (asprintf(&layoutPath, "%s/%s", my_app->stagePath, SLURM_LAYOUT_FILE) <= 0)
+	{
+		// cannot continue, so return NULL. BE API might fail.
+		// TODO: How to handle this error?
+		return NULL;
+	}
+	
+	// Open the layout file
+	if ((myFile = fopen(layoutPath, "wb")) == NULL)
+	{
+		// cannot continue, so return NULL. BE API might fail.
+		// TODO: How to handle this error?
+		free(layoutPath);
+		return NULL;
+	}
+	
+	// init the layout header
+	layout_hdr.numNodes = my_app->layout->numNodes;
+	
+	// write the header
+	if (fwrite(&layout_hdr, sizeof(slurmLayoutFileHeader_t), 1, myFile) != 1)
+	{
+		// cannot continue, so return NULL. BE API might fail.
+		// TODO: How to handle this error?
+		free(layoutPath);
+		fclose(myFile);
+		return NULL;
+	}
+	
+	// write each of the entries
+	for (i=0; i < my_app->layout->numNodes; ++i)
+	{
+		// ensure we have good hostname information
+		if (strlen(my_app->layout->hosts[i].host) != (sizeof(layout_entry.host) - 1))
+		{
+			// No way to continue, the hostname will not fit in our fixed size buffer
+			// TODO: How to handle this error?
+			free(layoutPath);
+			fclose(myFile);
+			return NULL;
+		}
+		
+		// set this entry
+		memcpy(&layout_entry.host[0], my_app->layout->hosts[i].host, sizeof(layout_entry.host));
+		layout_entry.PEsHere = my_app->layout->hosts[i].PEsHere;
+		layout_entry.firstPE = my_app->layout->hosts[i].firstPE;
+		
+		if (fwrite(&layout_entry, sizeof(slurmLayoutFile_t), 1, myFile) != 1)
+		{
+			// cannot continue, so return NULL. BE API might fail.
+			// TODO: How to handle this error?
+			free(layoutPath);
+			fclose(myFile);
+			return NULL;
+		}
+	}
+	
+	// done with the layout file
+	fclose(myFile);
+	
+	// TODO: Create pid file
+	
+	
+	
+	
+	// create the extraFiles array - This should be the length of the above files
+	if ((my_app->extraFiles = calloc(3, sizeof(char *))) == NULL)
+	{
+		// calloc failed
+		// cannot continue, so return NULL. BE API might fail.
+		// TODO: How to handle this error?
+		free(layoutPath);
+		return NULL;
+	}
+	
+	// set the layout file
+	my_app->extraFiles[0] = layoutPath;
+	// TODO: set the pid file
+	my_app->extraFiles[1] = pidPath;
+	// set the null terminator
+	my_app->extraFiles[2] = NULL;
+	
+	return (const char * const *)my_app->extraFiles;
 }
 
 static int
@@ -1595,6 +1755,13 @@ _cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 	if (my_app == NULL)
 	{
 		_cti_set_error("WLM obj is null!");
+		return 1;
+	}
+	
+	// sanity check
+	if (my_app->layout == NULL)
+	{
+		_cti_set_error("craySlurmInfo_t layout is null!");
 		return 1;
 	}
 	
@@ -1728,6 +1895,13 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	if (my_app == NULL)
 	{
 		_cti_set_error("WLM obj is null!");
+		return 1;
+	}
+	
+	// sanity check
+	if (my_app->layout == NULL)
+	{
+		_cti_set_error("craySlurmInfo_t layout is null!");
 		return 1;
 	}
 	
@@ -1881,15 +2055,6 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	free(hostlist);
 	
 	if (_cti_addArg(my_args, "--share"))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		close(fd);
-		free(launcher);
-		_cti_freeArgs(my_args);
-		return 1;
-	}
-	
-	if (_cti_addArg(my_args, "--quiet"))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		close(fd);
