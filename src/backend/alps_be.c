@@ -136,14 +136,30 @@ _cti_alps_init(void)
 static void
 _cti_alps_fini(void)
 {
-	// sanity check
-	if (_cti_alps_ptr == NULL)
-		return;
-		
-	// cleanup
-	dlclose(_cti_alps_ptr->handle);
-	free(_cti_alps_ptr);
-	_cti_alps_ptr = NULL;
+	if (_cti_alps_ptr != NULL)
+	{
+		dlclose(_cti_alps_ptr->handle);
+		free(_cti_alps_ptr);
+		_cti_alps_ptr = NULL;
+	}
+	
+	if (_cti_thisNode != NULL)
+	{
+		free(_cti_thisNode);
+		_cti_thisNode = NULL;
+	}
+	
+	if (_cti_appLayout != NULL)
+	{
+		free(_cti_appLayout);
+		_cti_appLayout = NULL;
+	}
+	
+	if (_cti_attrs != NULL)
+	{
+		_cti_freePmiAttribs(_cti_attrs);
+		_cti_attrs = NULL;
+	}
 	
 	return;
 }
@@ -258,7 +274,7 @@ _cti_alps_findAppPids()
 	// in order to function properly.
 	if (_cti_attrs == NULL)
 	{
-		if ((_cti_attrs = _cti_getPmiAttribsInfo(_cti_apid)) == NULL)
+		if ((_cti_attrs = _cti_getPmiAttribsInfo()) == NULL)
 		{
 			// Something messed up, so fail.
 			fprintf(stderr, "_cti_alps_findAppPids failed.\n");

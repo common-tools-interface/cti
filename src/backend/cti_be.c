@@ -71,6 +71,7 @@ _cti_init(void)
 		
 		case CTI_WLM_CRAY_SLURM:
 			_cti_wlmProto = &_cti_cray_slurm_wlmProto;
+			break;
 		
 		case CTI_WLM_NONE:
 		case CTI_WLM_SLURM:
@@ -187,6 +188,21 @@ cti_getNodePEs()
 	return _cti_wlmProto->wlm_getNodePEs();
 }
 
+// This should be hidden from everyone outside of internal library code
+char *
+_cti_getToolDir()
+{
+	char *	tool_str;
+	
+	// get the string from the environment
+	if ((tool_str = getenv(TOOL_DIR_VAR)) == NULL)
+	{
+		return NULL;
+	}
+	
+	return strdup(tool_str);
+}
+
 char *
 cti_getRootDir()
 {
@@ -234,10 +250,8 @@ cti_getFileDir()
 {
 	char *	file_str;
 	
-	// XXX: This is the same as the root dir for now.
-	
 	// get the string from the environment
-	if ((file_str = getenv(ROOT_DIR_VAR)) == NULL)
+	if ((file_str = getenv(FILE_DIR_VAR)) == NULL)
 	{
 		return NULL;
 	}

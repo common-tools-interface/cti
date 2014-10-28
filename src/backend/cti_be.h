@@ -53,6 +53,9 @@ typedef struct
 /* current wlm proto */
 extern cti_wlm_proto_t *	_cti_wlmProto;
 
+/* internal function prototypes */
+char *				_cti_getToolDir(void);
+
 /* function prototypes */
 cti_wlm_type		cti_current_wlm(void);
 const char *		cti_wlm_type_toString(cti_wlm_type);

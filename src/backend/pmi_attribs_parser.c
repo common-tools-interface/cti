@@ -2,7 +2,7 @@
  * pmi_attribs_parser.c - A interface to parse the pmi_attribs file that exists
 			  on the compute node.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -27,13 +27,15 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "cti_be.h"
 #include "pmi_attribs_parser.h"
 
 pmi_attribs_t *
-_cti_getPmiAttribsInfo(uint64_t apid)
+_cti_getPmiAttribsInfo(void)
 {
 	int					i;
 	FILE *				fp;
+	char *				tool_path;
 	char				fileName[PATH_MAX];
 	int					int1;
 	long int			longint1;
@@ -47,10 +49,6 @@ _cti_getPmiAttribsInfo(uint64_t apid)
 	// init the timer to .25 seconds
 	timer.tv_sec	= 0;
 	timer.tv_nsec	= 250000000;
-
-	// sanity check
-	if (apid <= 0)
-		return NULL;
 		
 	// TODO: There is a potential race condition here. For an attach scenario,
 	// its possible to attach to the application before its at the startup
@@ -58,9 +56,22 @@ _cti_getPmiAttribsInfo(uint64_t apid)
 	// its finished being written. This is only possible when there is no
 	// startup barrier and an application is linked dynamically meaning it can
 	// take a long time to startup at scale due to DVS issues.
+	
+	// get toolpath
+	if ((tool_path = _cti_getToolDir()) == NULL)
+	{
+		// failed to get the top level location of pmi_attribs file
+		return NULL;
+	}
 
 	// create the path to the pmi_attribs file
-	snprintf(fileName, PATH_MAX, PMI_ATTRIBS_FILE_PATH_FMT, (long long unsigned int)apid);
+	if (snprintf(fileName, PATH_MAX, "%s/%s", tool_path, PMI_ATTRIBS_FILE_NAME) < 0)
+	{
+		// snprintf failed
+		fprintf(stderr, "snprintf failed.\n");
+		return NULL;
+	}
+	free(tool_path);
 	
 	// try to open the pmi_attribs file
 	while ((fp = fopen(fileName, "r")) == 0)
@@ -142,9 +153,6 @@ _cti_getPmiAttribsInfo(uint64_t apid)
 		fclose(fp);
 		return NULL;
 	}
-	
-	// set the apid
-	rtn->apid = apid;
 	
 	// read in the pmi file version
 	if (fscanf(fp, "%d\n", &rtn->pmi_file_ver) != 1)

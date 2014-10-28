@@ -2068,7 +2068,7 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	
 	// Start adding the args to the my_args array
 	// This corresponds to:
-	// srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --nodelist=<host1,host2,...> --share --quiet <tool daemon> <args>
+	// srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --nodelist=<host1,host2,...> --share <tool daemon> <args>
 	
 	if (_cti_addArg(my_args, "%s", SRUN))
 	{

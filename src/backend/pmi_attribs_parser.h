@@ -1,7 +1,7 @@
 /******************************************************************************\
  * pmi_attribs_parser.h - A header file for the pmi_attribs file parser.
  *
- * © 2011-2013 Cray Inc.  All Rights Reserved.
+ * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -22,18 +22,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "alps/alps.h"
-
-/* We expect the pmi_attribs format to be /var/spool/alps/<apid>/pmi_attribs */
-#define PMI_ATTRIBS_FILE_NAME		"pmi_attribs"
-#define PMI_ATTRIBS_FILE_PATH_FMT	ALPS_CNODE_PATH_FMT "/" PMI_ATTRIBS_FILE_NAME
-
-/* Timeout length in seconds for trying to open pmi_attribs file */
-#define PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT	60
-// User defined timeout variables
-#define PMI_ATTRIBS_TIMEOUT_ENV_VAR		"CRAY_CTI_PMI_FOPEN_TIMEOUT"
-#define PMI_EXTRA_SLEEP_ENV_VAR			"CRAY_CTI_PMI_EXTRA_SLEEP"
-
 /* struct typedefs */
 typedef struct
 {
@@ -43,7 +31,6 @@ typedef struct
 
 typedef struct
 {
-	uint64_t				apid;				// apid for this pmi_attribs_t file
 	int						pmi_file_ver;		// pmi_attribs file layout version
 	int						cnode_nidNum;		// compute node nid number
 	int						mpmd_cmdNum;		// command number this node represents in the MPMD set
@@ -52,7 +39,7 @@ typedef struct
 } pmi_attribs_t;
 
 /* function prototypes */
-pmi_attribs_t *	_cti_getPmiAttribsInfo(uint64_t);
+pmi_attribs_t *	_cti_getPmiAttribsInfo(void);
 void			_cti_freePmiAttribs(pmi_attribs_t *);
 
 #endif /* _PMI_ATTRIBS_PARSER_H */

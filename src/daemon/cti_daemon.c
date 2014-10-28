@@ -145,6 +145,7 @@ main(int argc, char **argv)
 	FILE *			lock_file;
 	char *			bin_path = NULL;
 	char *			lib_path = NULL;
+	char *			file_path = NULL;
 	cti_stack_t *	env_args = NULL;
 	char			*env, *val, *t;
 	char *			old_env_path = NULL;
@@ -790,6 +791,27 @@ main(int argc, char **argv)
 		return 1;
 	}
 	if (setenv(LIB_DIR_VAR, lib_path, 1) < 0)
+	{
+		// failure
+		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
+		return 1;
+	}
+	
+	// set FILE_DIR_VAR environment variable to the toolhelper directory
+	if (asprintf(&file_path, "%s", manifest_path) <= 0)
+	{
+		fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
+		return 1;
+	}
+	if (setenv(FILE_DIR_VAR, file_path, 1) < 0)
+	{
+		// failure
+		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
+		return 1;
+	}
+	
+	// set TOOL_DIR_VAR to tool_path - This should remain hidden from the user and only used by internal library calls
+	if (setenv(TOOL_DIR_VAR, tool_path, 1) < 0)
 	{
 		// failure
 		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);

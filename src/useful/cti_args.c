@@ -99,7 +99,7 @@ _cti_resizeArgs(cti_args_t *this)
 	this->argv = (char **)new;
 	this->_len += ARGV_BLOCK_SIZE;
 	// initialize new memory
-	memset(&(this->argv[this->argc]), 0, this->_len - this->argc);
+	memset(&(this->argv[this->argc]), 0, (this->_len - this->argc) * sizeof(char *));
 	
 	return 0;
 }
