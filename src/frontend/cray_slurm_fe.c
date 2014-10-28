@@ -73,6 +73,7 @@ typedef struct
 	uint64_t			apid;			// Cray variant of step+job id
 	slurmStepLayout_t *	layout;			// Layout of job step
 	srunInv_t *			inv;			// Optional object used for launched applications.
+	cti_mpir_pid_t *	app_pids;		// Optional object used to hold the rank->pid association
 	char *				toolPath;		// Backend staging directory
 	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
 	char *				stagePath;		// directory to stage this instance files in for transfer to BE
@@ -181,6 +182,7 @@ _cti_cray_slurm_newSlurmInfo(void)
 	this->apid			= 0;
 	this->layout		= NULL;
 	this->inv			= NULL;
+	this->app_pids		= NULL;
 	this->toolPath		= NULL;
 	this->dlaunch_sent	= 0;
 	this->stagePath		= NULL;
@@ -200,6 +202,7 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 
 	_cti_cray_slurm_consumeSlurmLayout(sinfo->layout);
 	_cti_cray_slurm_consumeSrunInv(sinfo->inv);
+	_cti_gdb_freeMpirPid(sinfo->app_pids);
 	
 	if (sinfo->toolPath != NULL)
 		free(sinfo->toolPath);
@@ -1089,6 +1092,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	char *				end_p;
 	uint32_t			jobid;
 	uint32_t			stepid;
+	cti_mpir_pid_t *	pids;
 	cti_app_id_t		rtn;			// return object
 	
 
@@ -1277,6 +1281,20 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	
 	free(sym_str);
 	
+	// get the pid information from slurm
+	// FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
+	// call can be removed. Right now the pmi_attribs file is created in the pmi
+	// ctor, which is called after the slurm startup barrier, meaning it will not
+	// yet be created when launching. So we need to send over a file containing
+	// the information to the compute nodes.
+	if ((pids = _cti_gdb_getAppPids(myapp->gdb_id)) == NULL)
+	{
+		// error already set
+		_cti_cray_slurm_consumeSrunInv(myapp);
+		
+		return 0;
+	}
+	
 	// We now need to fork off an sattach process.
 	// For SLURM, sattach makes the iostreams of srun available. This process
 	// will exit when the srun process exits. 
@@ -1290,6 +1308,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	{
 		_cti_set_error("Fatal fork error.");
 		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_gdb_freeMpirPid(pids);
 	
 		return 0;
 	}
@@ -1389,6 +1408,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	{
 		// failed to register the jobid/stepid, error is already set.
 		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_gdb_freeMpirPid(pids);
 		
 		return 0;
 	}
@@ -1399,6 +1419,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 		// this should never happen
 		_cti_set_error("_cti_cray_slurm_launchBarrier: impossible null appEntry error!\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_gdb_freeMpirPid(pids);
 		
 		return 0;
 	}
@@ -1410,12 +1431,16 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 		// this should never happen
 		_cti_set_error("_cti_cray_slurm_launchBarrier: impossible null sinfo error!\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_gdb_freeMpirPid(pids);
 		
 		return 0;
 	}
 	
 	// set the inv
 	sinfo->inv = myapp;
+	
+	// set the pids
+	sinfo->app_pids = pids;
 	
 	// return the cti_app_id_t
 	return rtn;
@@ -1609,6 +1634,8 @@ _cti_cray_slurm_extraFiles(cti_wlm_obj this)
 	slurmLayoutFileHeader_t	layout_hdr;
 	slurmLayoutFile_t		layout_entry;
 	char *					pidPath = NULL;
+	slurmPidFileHeader_t	pid_hdr;
+	slurmPidFile_t			pid_entry;
 	int						i;
 	
 	// sanity check
@@ -1624,6 +1651,12 @@ _cti_cray_slurm_extraFiles(cti_wlm_obj this)
 	{
 		return (const char * const *)my_app->extraFiles;
 	}
+	
+	// init data structures
+	memset(&layout_hdr, 0, sizeof(layout_hdr));
+	memset(&layout_entry, 0, sizeof(layout_entry));
+	memset(&pid_hdr, 0, sizeof(pid_hdr));
+	memset(&pid_entry, 0, sizeof(pid_entry));
 	
 	// Check to see if we should create the staging directory
 	if (my_app->stagePath == NULL)
@@ -1717,10 +1750,64 @@ _cti_cray_slurm_extraFiles(cti_wlm_obj this)
 	// done with the layout file
 	fclose(myFile);
 	
-	// TODO: Create pid file
+	// check to see if there is an app_pids member, if so we need to create the 
+	// pid file
+	if (my_app->app_pids != NULL)
+	{
+		// create path string to pid file
+		if (asprintf(&pidPath, "%s/%s", my_app->stagePath, SLURM_PID_FILE) <= 0)
+		{
+			// cannot continue, so return NULL. BE API might fail.
+			// TODO: How to handle this error?
+			free(layoutPath);
+			return NULL;
+		}
 	
+		// Open the pid file
+		if ((myFile = fopen(pidPath, "wb")) == NULL)
+		{
+			// cannot continue, so return NULL. BE API might fail.
+			// TODO: How to handle this error?
+			free(layoutPath);
+			free(pidPath);
+			return NULL;
+		}
 	
+		// init the pid header
+		pid_hdr.numPids = my_app->app_pids->num_pids;
+		
+		// write the header
+		if (fwrite(&pid_hdr, sizeof(slurmPidFileHeader_t), 1, myFile) != 1)
+		{
+			// cannot continue, so return NULL. BE API might fail.
+			// TODO: How to handle this error?
+			free(layoutPath);
+			free(pidPath);
+			fclose(myFile);
+			return NULL;
+		}
 	
+		// write each of the entries
+		for (i=0; i < my_app->app_pids->num_pids; ++i)
+		{
+			// set this entry
+			pid_entry.pid = my_app->app_pids->pid[i];
+			
+			// write this entry
+			if (fwrite(&pid_entry, sizeof(slurmPidFile_t), 1, myFile) != 1)
+			{
+				// cannot continue, so return NULL. BE API might fail.
+				// TODO: How to handle this error?
+				free(layoutPath);
+				free(pidPath);
+				fclose(myFile);
+				return NULL;
+			}
+		}
+	
+		// done with the pid file
+		fclose(myFile);
+	}
 	
 	// create the extraFiles array - This should be the length of the above files
 	if ((my_app->extraFiles = calloc(3, sizeof(char *))) == NULL)

@@ -45,8 +45,8 @@ typedef struct
 	int			final;		// finalized?
 	int 		pipeR[2];	// caller read pipe
 	int 		pipeW[2];	// caller write pipe
-	int			pipe_r;		// my read end
-	int			pipe_w;		// my write end
+	FILE *		pipe_r;		// my read stream
+	FILE *		pipe_w;		// my write stream
 } gdbCtlInst_t;
 
 
@@ -82,8 +82,8 @@ _cti_gdb_consumeInst(cti_gdb_id_t gdb_id)
 	if (this->init)
 	{
 		// close my fds
-		close(this->pipe_r);
-		close(this->pipe_w);
+		fclose(this->pipe_r);
+		fclose(this->pipe_w);
 	}
 	
 	// cleanup the instance
@@ -444,8 +444,18 @@ _cti_gdb_postFork(cti_gdb_id_t gdb_id)
 	close(this->pipeW[0]);
 	
 	// set the read/write ends in the instance
-	this->pipe_r = this->pipeR[0];
-	this->pipe_w = this->pipeW[1];
+	this->pipe_r = fdopen(this->pipeR[0], "r");
+	if (this->pipe_r == NULL)
+	{
+		_cti_set_error("_cti_gdb_postFork: fdopen failed!\n");
+		return 1;
+	}
+	this->pipe_w = fdopen(this->pipeW[1], "w");
+	if (this->pipe_w == NULL)
+	{
+		_cti_set_error("_cti_gdb_postFork: fdopen failed!\n");
+		return 1;
+	}
 	
 	// set init to true
 	this->init = 1;
@@ -588,6 +598,151 @@ _cti_gdb_getSymbolVal(cti_gdb_id_t gdb_id, const char *sym)
 			// We don't have error recovery right now, so if an unexpected message
 			// comes in we are screwed.
 			_cti_set_error("_cti_gdb_getSymbolVal: Unexpected message received!\n");
+			_cti_gdb_consumeMsg(msg);
+			return NULL;
+	}
+	
+	// Cleanup msg
+	_cti_gdb_consumeMsg(msg);
+	
+	return rtn;
+}
+
+// used to free the return type from _cti_gdb_getAppPids()
+void
+_cti_gdb_freeMpirPid(cti_mpir_pid_t *this)
+{
+	// sanity
+	if (this == NULL)
+		return;
+		
+	if (this->pid != NULL)
+		free(this->pid);
+	
+	free(this);
+}
+
+// This function will return a cti_pid_t ptr that contains the rank->pid pairing.
+// This is harvested from the MPIR_proctable.
+cti_mpir_pid_t *
+_cti_gdb_getAppPids(cti_gdb_id_t gdb_id)
+{
+	gdbCtlInst_t *		this;
+	cti_gdb_msg_t *		msg;
+	cti_mpir_pid_t *	rtn;
+	int					i;
+
+	// ensure the caller passed a valid id.
+	if (gdb_id < 0 || gdb_id >= CTI_GDB_TABLE_SIZE)
+	{
+		_cti_set_error("_cti_gdb_getAppPids: Invalid cti_gdb_id_t.\n");
+		return NULL;
+	}
+	
+	// point at the instance
+	this = _cti_gdb_hashtable[gdb_id];
+	
+	// validate the instance
+	if (this == NULL)
+	{
+		_cti_set_error("_cti_gdb_getAppPids: Invalid cti_gdb_id_t.\n");
+		return NULL;
+	}
+	
+	// ensure the instance hasn't already been finalized
+	if (this->final)
+	{
+		_cti_set_error("_cti_gdb_getAppPids: cti_gdb_id_t is finalized.\n");
+		return NULL;
+	}
+	
+	// create the request message
+	if ((msg = _cti_gdb_createMsg(MSG_PID, (cti_pid_t *)NULL)) == NULL)
+	{
+		// set the error message if there is one
+		if (_cti_gdb_err_string != NULL)
+		{
+			_cti_set_error("%s", _cti_gdb_err_string);
+		} else
+		{
+			_cti_set_error("_cti_gdb_getAppPids: Unknown gdb_MPIR error!\n");
+		}
+		return NULL;
+	}
+	
+	// send the message
+	if (_cti_gdb_sendMsg(this->pipe_w, msg))
+	{
+		// this is a fatal error
+		if (_cti_gdb_err_string != NULL)
+		{
+			_cti_set_error("%s", _cti_gdb_err_string);
+		} else
+		{
+			_cti_set_error("_cti_gdb_getAppPids: Unknown gdb_MPIR error!\n");
+		}
+		_cti_gdb_consumeMsg(msg);
+		return NULL;
+	}
+	// cleanup the message we just sent
+	_cti_gdb_consumeMsg(msg);
+	
+	// recv response
+	if ((msg = _cti_gdb_recvMsg(this->pipe_r)) == NULL)
+	{
+		// this is a fatal error
+		if (_cti_gdb_err_string != NULL)
+		{
+			_cti_set_error("%s", _cti_gdb_err_string);
+		} else
+		{
+			_cti_set_error("_cti_gdb_getSymbolVal: Unknown gdb_MPIR error!\n");
+		}
+		return NULL;
+	}
+	
+	// process the response
+	switch (msg->msg_type)
+	{
+		// This is what we expect
+		case MSG_PID:
+			if (msg->msg_payload.msg_pid == NULL)
+			{
+				_cti_set_error("_cti_gdb_getAppPids: Missing pid information in response.\n");
+				_cti_gdb_consumeMsg(msg);
+				return NULL;
+			}
+			
+			// create the return type
+			if ((rtn = malloc(sizeof(cti_mpir_pid_t))) == NULL)
+			{
+				_cti_set_error("malloc failed.\n");
+				_cti_gdb_consumeMsg(msg);
+				return NULL;
+			}
+			if ((rtn->pid = calloc(msg->msg_payload.msg_pid->num_pids, sizeof(pid_t))) == NULL)
+			{
+				_cti_set_error("calloc failed.\n");
+				_cti_gdb_consumeMsg(msg);
+				free(rtn);
+				return NULL;
+			}
+			
+			rtn->num_pids = msg->msg_payload.msg_pid->num_pids;
+			
+			// copy the return pid_t array
+			for (i=0; i < rtn->num_pids; ++i)
+			{
+				rtn->pid[i] = msg->msg_payload.msg_pid->pid[i];
+			}
+			
+			break;
+			
+		// anything else is an error
+		default:
+			// We don't have error recovery right now, so if an unexpected message
+			// comes in we are screwed.
+			_cti_set_error("_cti_gdb_getAppPids: Unexpected message received!\n");
 			_cti_gdb_consumeMsg(msg);
 			return NULL;
 	}

@@ -87,6 +87,18 @@ typedef struct
 	int		firstPE;	// first PE on this node
 }	slurmLayoutFile_t;
 
+// Used when reading/writing pid file - used on FE and BE
+// File will begin with the following header
+typedef struct
+{
+	int	numPids;
+}	slurmPidFileHeader_t;
+// Followed by numPids of the following:
+typedef struct
+{
+	pid_t	pid;		// pid_t of this PE
+}	slurmPidFile_t;
+
 #define SRUN						"srun"													// name of slurm job launcher binary
 #define SATTACH					"sattach"												// name of slurm io redirect binary
 #define SCANCEL					"scancel"												// name of slurm job signal binary
@@ -102,6 +114,7 @@ typedef struct
 ** MPIR_iface specific information
 */
 #define CTI_GDB_BINARY			"cti_approved_gdb"									// name of gdb binary
+#define GDB_MPIR_STARTER			"cti_starter"											// name of starter binary
 
 /*
 ** Environment variables that are set/maintained by this library

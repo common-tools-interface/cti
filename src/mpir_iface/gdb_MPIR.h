@@ -21,8 +21,7 @@
 #define _GDB_MPIR_H
 
 #include <stdarg.h>
-
-#define GDB_MPIR_STARTER	"cti_starter"
+#include <stdio.h>
 
 /* datatype typedefs */
 
@@ -32,17 +31,30 @@ enum cti_gdb_msgtype
 	MSG_ERROR,
 	MSG_EXIT,
 	MSG_ID,
+	MSG_PID,
 	MSG_READY,
 	MSG_RELEASE
 };
 typedef enum cti_gdb_msgtype cti_gdb_msgtype_t;
+
+// used for returning rank/pid pairs
+// TODO: If rank reordering is ever supported, this will need to change. It
+// assumes that node hostname information is not needed because the BE has the
+// first PE/num PEs available. That assumption will be incorrect for rank 
+// reordered jobs since they are not following SMP order.
+typedef struct
+{
+	size_t		num_pids;
+	pid_t *		pid;
+} cti_pid_t;
 
 // This is a union in order to be extendible into the future if need be.
 // Simply add another type to the union if we expect a different type of value
 // to be returned.
 typedef union
 {
-	char *	msg_string;
+	char *		msg_string;
+	cti_pid_t *	msg_pid;
 } cti_gdb_msgpayload_t;
 
 typedef struct
@@ -56,10 +68,12 @@ typedef struct
 extern char *	_cti_gdb_err_string;
 
 /* function prototypes */
+cti_pid_t *		_cti_gdb_newPid(size_t);
+void			_cti_gdb_freePid(cti_pid_t *);
 cti_gdb_msg_t *	_cti_gdb_createMsg(cti_gdb_msgtype_t, ...);
 void			_cti_gdb_consumeMsg(cti_gdb_msg_t *);
-int				_cti_gdb_sendMsg(int, cti_gdb_msg_t *);
-cti_gdb_msg_t *	_cti_gdb_recvMsg(int);
+int				_cti_gdb_sendMsg(FILE *, cti_gdb_msg_t *);
+cti_gdb_msg_t *	_cti_gdb_recvMsg(FILE *);
 
 #endif /* _GDB_MPIR_H */
 
