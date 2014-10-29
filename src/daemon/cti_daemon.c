@@ -54,6 +54,7 @@ const struct option long_opts[] = {
 			{"inst",		required_argument,	0, 'i'},
 			{"manifest",	required_argument,	0, 'm'},
 			{"path",		required_argument,	0, 'p'},
+			{"apath",		required_argument,	0, 't'},
 			{"wlm",			required_argument,	0, 'w'},
 			{"help",		no_argument,		0, 'h'},
 			{"debug",		no_argument,		&debug_flag, 1},
@@ -92,6 +93,7 @@ usage(void)
 	fprintf(stdout, "\t-i, --instance  Instance of tool daemon. Used in conjunction with sessions\n");
 	fprintf(stdout, "\t-m, --manifest  Manifest tarball to extract/set as CWD if -d omitted\n");
 	fprintf(stdout, "\t-p, --path      PWD path where tool daemon should be started\n");
+	fprintf(stdout, "\t-t, --apath     Path where the pmi_attribs file can be found\n");
 	fprintf(stdout, "\t-w, --wlm       Workload Manager in use\n");
 	fprintf(stdout, "\t    --debug     Turn on debug logging to a file. (STDERR/STDOUT to file)\n");
 	fprintf(stdout, "\t-h, --help      Display this text and exit\n");
@@ -133,6 +135,7 @@ main(int argc, char **argv)
 	char *			wlm_str;
 	char *			apid_str = NULL;
 	char *			tool_path = NULL;
+	char *			attribs_path = NULL;
 	FILE *			log;
 	struct stat 	statbuf;
 	char *			binary = NULL; 
@@ -165,7 +168,7 @@ main(int argc, char **argv)
 	// We want to do as little as possible while parsing the opts. This is because
 	// we do not create a log file until after the opts are parsed, and there will
 	// be no valid output until after the log is created on most systems.
-	while ((c = getopt_long(argc, argv, "a:b:d:e:i:m:p:w:h", long_opts, &opt_ind)) != -1)
+	while ((c = getopt_long(argc, argv, "a:b:d:e:i:m:p:t:w:h", long_opts, &opt_ind)) != -1)
 	{
 		switch (c)
 		{
@@ -307,6 +310,25 @@ main(int argc, char **argv)
 				
 				// this is the tool path argument where we should cd to
 				tool_path = strdup(optarg);
+				
+				break;
+				
+			case 't':
+				if (optarg == NULL)
+				{
+					usage();
+					return 1;
+				}
+				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
+				}
+				
+				// this is the pmi_attribs path argument to find the attribs file
+				// This is optional, some implementations might not use it.
+				attribs_path = strdup(optarg);
 				
 				break;
 				
@@ -816,6 +838,17 @@ main(int argc, char **argv)
 		// failure
 		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
 		return 1;
+	}
+	
+	// set PMI_ATTRIBS_DIR_VAR to attribs_path if there is one. This is optional.
+	if (attribs_path != NULL)
+	{
+		if (setenv(PMI_ATTRIBS_DIR_VAR, attribs_path, 1) < 0)
+		{
+			// failure
+			fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
+			return 1;
+		}
 	}
 	
 	// call _cti_adjustPaths so that we chdir to where we shipped stuff over to and setup PATH/LD_LIBRARY_PATH

@@ -203,6 +203,21 @@ _cti_getToolDir()
 	return strdup(tool_str);
 }
 
+// This should be hidden from everyone outside of internal library code
+char *
+_cti_getAttribsDir()
+{
+	char *	attribs_str;
+	
+	// get the string from the environment
+	if ((attribs_str = getenv(PMI_ATTRIBS_DIR_VAR)) == NULL)
+	{
+		return NULL;
+	}
+	
+	return strdup(attribs_str);
+}
+
 char *
 cti_getRootDir()
 {

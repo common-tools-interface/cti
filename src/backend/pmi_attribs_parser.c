@@ -35,7 +35,7 @@ _cti_getPmiAttribsInfo(void)
 {
 	int					i;
 	FILE *				fp;
-	char *				tool_path;
+	char *				attribs_path;
 	char				fileName[PATH_MAX];
 	int					int1;
 	long int			longint1;
@@ -57,21 +57,21 @@ _cti_getPmiAttribsInfo(void)
 	// startup barrier and an application is linked dynamically meaning it can
 	// take a long time to startup at scale due to DVS issues.
 	
-	// get toolpath
-	if ((tool_path = _cti_getToolDir()) == NULL)
+	// get attribs path
+	if ((attribs_path = _cti_getAttribsDir()) == NULL)
 	{
 		// failed to get the top level location of pmi_attribs file
 		return NULL;
 	}
 
 	// create the path to the pmi_attribs file
-	if (snprintf(fileName, PATH_MAX, "%s/%s", tool_path, PMI_ATTRIBS_FILE_NAME) < 0)
+	if (snprintf(fileName, PATH_MAX, "%s/%s", attribs_path, PMI_ATTRIBS_FILE_NAME) < 0)
 	{
 		// snprintf failed
 		fprintf(stderr, "snprintf failed.\n");
 		return NULL;
 	}
-	free(tool_path);
+	free(attribs_path);
 	
 	// try to open the pmi_attribs file
 	while ((fp = fopen(fileName, "r")) == 0)

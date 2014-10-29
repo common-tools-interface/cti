@@ -82,9 +82,9 @@ typedef struct
 	placeList_t *	places;	 		// ALPS application placement information (nid, processors, PE threads)
 	aprunInv_t *	inv;			// Optional object used for launched applications.
 	char *			toolPath;		// Backend staging directory
+	char *			attribsPath;	// Backend directory where pmi_attribs is located
 	int				dlaunch_sent;	// True if we have already transfered the dlaunch utility
 } alpsInfo_t;
-
 
 /* Static prototypes */
 static int					_cti_alps_init(void);
@@ -121,7 +121,7 @@ static serviceNode_t *		_cti_alps_getSvcNodeInfo(void);
 static int					_cti_alps_checkPathForWrappedAprun(char *);
 static int					_cti_alps_filter_pid_entries(const struct dirent *);
 static const char *			_cti_alps_getToolPath(cti_wlm_obj);
-
+static const char *			_cti_alps_getAttribsPath(cti_wlm_obj);
 
 /* alps wlm proto object */
 const cti_wlm_proto_t		_cti_alps_wlmProto =
@@ -151,7 +151,8 @@ const cti_wlm_proto_t		_cti_alps_wlmProto =
 	_cti_alps_getAppHostsPlacement,	// wlm_getAppHostsPlacement
 	_cti_alps_getHostName,			// wlm_getHostName
 	_cti_alps_getLauncherHostName,	// wlm_getLauncherHostName
-	_cti_alps_getToolPath			// wlm_getToolPath
+	_cti_alps_getToolPath,			// wlm_getToolPath
+	_cti_alps_getAttribsPath		// wlm_getAttribsPath
 };
 
 /* static global variables */
@@ -401,6 +402,10 @@ _cti_alps_consumeAlpsInfo(cti_wlm_obj this)
 	// free the toolPath
 	if (alpsInfo->toolPath != NULL)
 		free(alpsInfo->toolPath);
+		
+	// free the attribsPath
+	if (alpsInfo->attribsPath != NULL)
+		free(alpsInfo->attribsPath);
 	
 	free(alpsInfo);
 }
@@ -478,6 +483,7 @@ cti_alps_registerApid(uint64_t apid)
 	cti_app_id_t	appId = 0;
 	alpsInfo_t *	alpsInfo;
 	char *			toolPath;
+	char *			attribsPath;
 	// Used to determine CLE version
 	struct stat 	statbuf;
 
@@ -544,6 +550,13 @@ cti_alps_registerApid(uint64_t apid)
 				_cti_alps_consumeAlpsInfo(alpsInfo);
 				return 0;
 			}
+			if (asprintf(&attribsPath, OLD_ATTRIBS_DIR, (long long unsigned int)apid) <= 0)
+			{
+				_cti_set_error("asprintf failed");
+				_cti_alps_consumeAlpsInfo(alpsInfo);
+				free(toolPath);
+				return 0;
+			}
 		} else
 		{
 			// Assume it's using the OBS format
@@ -553,10 +566,18 @@ cti_alps_registerApid(uint64_t apid)
 				_cti_alps_consumeAlpsInfo(alpsInfo);
 				return 0;
 			}
+			if (asprintf(&attribsPath, OBS_ATTRIBS_DIR, (long long unsigned int)apid) <= 0)
+			{
+				_cti_set_error("asprintf failed");
+				_cti_alps_consumeAlpsInfo(alpsInfo);
+				free(toolPath);
+				return 0;
+			}
 		}
 		
-		// set the tool path
+		// set the tool and attribs path
 		alpsInfo->toolPath = toolPath;
+		alpsInfo->attribsPath = attribsPath;
 		
 		if ((appId = _cti_newAppEntry(&_cti_alps_wlmProto, (cti_wlm_obj)alpsInfo)) == 0)
 		{
@@ -2022,5 +2043,27 @@ _cti_alps_getToolPath(cti_wlm_obj this)
 	}
 
 	return (const char *)my_app->toolPath;
+}
+
+static const char *
+_cti_alps_getAttribsPath(cti_wlm_obj this)
+{
+	alpsInfo_t *	my_app = (alpsInfo_t *)this;
+	
+	// sanity check
+	if (my_app == NULL)
+	{
+		_cti_set_error("getAttribsPath operation failed.");
+		return NULL;
+	}
+	
+	// sanity check
+	if (my_app->attribsPath == NULL)
+	{
+		_cti_set_error("attribsPath info missing from alps info obj!");
+		return NULL;
+	}
+
+	return (const char *)my_app->attribsPath;
 }
 

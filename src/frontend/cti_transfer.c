@@ -2971,6 +2971,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	char *			realname;			// realname (lacking path info) of the executable
 	char *			jid_str;			// job id string to pass to the backend. This is wlm specific.
 	const char *	toolPath;			// tool path of backend staging directory. This is wlm specific.
+	const char *	attribsPath;		// path to pmi_attribs file based on the wlm
 	cti_args_t *	d_args;				// args to pass to the daemon launcher
 	session_t *		s_ptr = NULL;		// points at the session to return
 		
@@ -3109,6 +3110,9 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		return 0;
 	}
 	
+	// Get the attribs path for this wlm - this is optional and can come back null
+	attribsPath = app_ptr->wlmProto->wlm_getAttribsPath(app_ptr->_wlmObj);
+	
 	// create a new args obj
 	if ((d_args = _cti_newArgs()) == NULL)
 	{
@@ -3139,6 +3143,18 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		free(realname);
 		_cti_freeArgs(d_args);
 		return 0;
+	}
+	
+	if (attribsPath != NULL)
+	{
+		if (_cti_addArg(d_args, "-t %s", attribsPath))
+		{
+			_cti_set_error("_cti_addArg failed.");
+			_cti_reapManifest(m_ptr->mid);
+			free(realname);
+			_cti_freeArgs(d_args);
+			return 0;
+		}
 	}
 	
 	if (_cti_addArg(d_args, "-w %d", app_ptr->wlmProto->wlm_type))

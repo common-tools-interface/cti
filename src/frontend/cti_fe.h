@@ -90,6 +90,7 @@ typedef struct
 	char *					(*wlm_getHostName)(void);							// get hostname of current node - return NULL on error
 	char *					(*wlm_getLauncherHostName)(cti_wlm_obj);			// get hostname where the job launcher was started - return NULL on error
 	const char *			(*wlm_getToolPath)(cti_wlm_obj);					// get backend base directory used for staging - return NULL on error
+	const char *			(*wlm_getAttribsPath)(cti_wlm_obj);					// get backend directory where the pmi_attribs file can be found
 } cti_wlm_proto_t;
 
 // This is the function prototype used to destroy an implementation defined obj
@@ -151,5 +152,6 @@ cti_hostsList_t *		_cti_wlm_getAppHostsPlacement_none(cti_wlm_obj);
 char *					_cti_wlm_getHostName_none(void);
 char *					_cti_wlm_getLauncherHostName_none(cti_wlm_obj);
 const char *			_cti_wlm_getToolPath_none(cti_wlm_obj);
+const char *			_cti_wlm_getAttribsPath_none(cti_wlm_obj);
 
 #endif /* _CTI_FE_H */

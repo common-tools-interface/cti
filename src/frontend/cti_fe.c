@@ -91,7 +91,8 @@ static const cti_wlm_proto_t	_cti_nonenessProto =
 	_cti_wlm_getAppHostsPlacement_none,
 	_cti_wlm_getHostName_none,
 	_cti_wlm_getLauncherHostName_none,
-	_cti_wlm_getToolPath_none
+	_cti_wlm_getToolPath_none,
+	_cti_wlm_getAttribsPath_none
 };
 
 /* global wlm proto object - this is initialized to noneness by default */
@@ -983,6 +984,13 @@ const char *
 _cti_wlm_getToolPath_none(cti_wlm_obj a1)
 {
 	_cti_set_error("wlm_getToolPath() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return NULL;
+}
+
+const char *
+_cti_wlm_getAttribsPath_none(cti_wlm_obj a1)
+{
+	_cti_set_error("wlm_getAttribsPath() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return NULL;
 }
 

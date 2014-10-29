@@ -111,6 +111,7 @@ static char **				_cti_cray_slurm_getAppHostsList(cti_wlm_obj);
 static cti_hostsList_t *	_cti_cray_slurm_getAppHostsPlacement(cti_wlm_obj);
 static char *				_cti_cray_slurm_getHostName(void);
 static const char *			_cti_cray_slurm_getToolPath(cti_wlm_obj);
+static const char *			_cti_cray_slurm_getAttribsPath(cti_wlm_obj);
 
 /* cray slurm wlm proto object */
 const cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
@@ -140,7 +141,8 @@ const cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
 	_cti_cray_slurm_getAppHostsPlacement,	// wlm_getAppHostsPlacement
 	_cti_cray_slurm_getHostName,			// wlm_getHostName
 	_cti_wlm_getLauncherHostName_none,		// wlm_getLauncherHostName - FIXME: Not supported by slurm
-	_cti_cray_slurm_getToolPath				// wlm_getToolPath
+	_cti_cray_slurm_getToolPath,			// wlm_getToolPath
+	_cti_cray_slurm_getAttribsPath			// wlm_getAttribsPath
 };
 
 /* Constructor/Destructor functions */
@@ -2470,6 +2472,30 @@ _cti_cray_slurm_getToolPath(cti_wlm_obj this)
 		return NULL;
 	}
 
+	return (const char *)my_app->toolPath;
+}
+
+static const char *
+_cti_cray_slurm_getAttribsPath(cti_wlm_obj this)
+{
+	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
+	
+	// sanity check
+	if (my_app == NULL)
+	{
+		_cti_set_error("getAttribsPath operation failed.");
+		return NULL;
+	}
+	
+	// sanity check
+	if (my_app->toolPath == NULL)
+	{
+		_cti_set_error("toolPath info missing from sinfo obj!");
+		return NULL;
+	}
+	
+	// Note that for slurm the pmi_attribs file is in the same location as the
+	// toolpath since a toolhelper directory is not being created.
 	return (const char *)my_app->toolPath;
 }
 

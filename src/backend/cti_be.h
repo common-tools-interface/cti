@@ -55,6 +55,7 @@ extern cti_wlm_proto_t *	_cti_wlmProto;
 
 /* internal function prototypes */
 char *				_cti_getToolDir(void);
+char *				_cti_getAttribsDir(void);
 
 /* function prototypes */
 cti_wlm_type		cti_current_wlm(void);

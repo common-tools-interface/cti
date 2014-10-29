@@ -70,6 +70,8 @@ typedef enum cti_wlm_type	cti_wlm_type;
 #define ALPS_BE_LIB_NAME			"libalpsutil.so"									// name of the alps library used on the backend
 #define OLD_TOOLHELPER_DIR		"/var/spool/alps/%llu/toolhelper%llu"			// old alps toolhelper path format on compute node
 #define OBS_TOOLHELPER_DIR		"/var/opt/cray/alps/spool/%llu/toolhelper%llu"// new alps toolhelper path format on compute node
+#define OLD_ATTRIBS_DIR			"/var/spool/alps/%llu"							// old pmi_attribs path format on compute node
+#define OBS_ATTRIBS_DIR			"/var/opt/cray/alps/spool/%llu"					// new pmi_attribs path format on compute node
 
 /*******************************************************************************
 ** Cray SLURM specific information
@@ -138,6 +140,7 @@ typedef struct
 #define BIN_DIR_VAR						"CRAYTOOL_BIN_DIR"				// Backend: Used to denote where binaries are located (set)
 #define LIB_DIR_VAR						"CRAYTOOL_LIB_DIR"				// Backend: Used to denote where libraries are located (set)
 #define FILE_DIR_VAR						"CRAYTOOL_FILE_DIR"				// Backend: Used to denote where files are located (set)
+#define PMI_ATTRIBS_DIR_VAR				"CRAYTOOL_PMI_ATTRIBS_DIR"		// Backend: Used to denote where the pmi_attribs file is located (set)
 #define PMI_ATTRIBS_TIMEOUT_ENV_VAR		"CRAY_CTI_PMI_FOPEN_TIMEOUT"		// Backend: Used to define a sleep timeout period for creation of pmi_attribs file (read)
 #define PMI_EXTRA_SLEEP_ENV_VAR			"CRAY_CTI_PMI_EXTRA_SLEEP"		// Backend: Used to sleep a fixed period of time after the pmi_attribs file has been opened (read)
 
