@@ -211,7 +211,7 @@ main(int argc, char *argv[])
 	}
 	
 	// read the pid from the pipe
-	if (fread(&my_pid, sizeof(pid_t), 1, rfp) != 0)
+	if (fread(&my_pid, sizeof(pid_t), 1, rfp) != 1)
 	{
 		// read failed
 		perror("fread");

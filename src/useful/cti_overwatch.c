@@ -343,8 +343,10 @@ _cti_assign_overwatch(cti_overwatch_t *this, pid_t chld_pid)
 		return 1;
 	}
 	
+	fflush(this->pipe_w);
+	
 	// read a byte of data, this is the overwatch acknowledge of our pid
-	if (fread(&sync, sizeof(char), 1, this->pipe_r) != 0)
+	if (fread(&sync, sizeof(char), 1, this->pipe_r) != 1)
 	{
 		// read failed
 		_cti_free_overwatch(this);

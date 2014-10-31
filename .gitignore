@@ -34,4 +34,5 @@ src/slurm_util/Makefile.in
 src/slurm_util/cti_slurm_util
 src/useful/.deps
 src/useful/Makefile
+src/useful/cti_overwatch
 /stamp-h1
