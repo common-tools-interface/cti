@@ -16,12 +16,12 @@
 
 SRC				= @CRAYTOOL_DIR@/src
 
-AM_CFLAGS		= -fPIC -Wall -I$(SRC)
+AM_CFLAGS		= -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
 
 lib_LTLIBRARIES = libcraytools_be.la
 
 libcraytools_be_la_SOURCES  =	cti_be.c alps_be.c cray_slurm_be.c \
 								pmi_attribs_parser.c
-libcraytools_be_la_CFLAGS   =   $(AM_CFLAGS) $(ALPS_CFLAGS)
+libcraytools_be_la_CFLAGS   =   $(AM_CFLAGS) -fPIC $(ALPS_CFLAGS)
 libcraytools_be_la_LDFLAGS  =   -ldl -version-info $(CRAYTOOL_BE_VERSION)

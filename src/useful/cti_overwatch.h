@@ -1,7 +1,7 @@
 /******************************************************************************\
- * cti_useful.h - A standard header file that includes all useful interfaces.
+ * cti_overwatch.h - Header file for the overwatch interface.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * © 2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -16,15 +16,20 @@
  *
  ******************************************************************************/
 
-#ifndef _CTI_USEFUL_H
-#define _CTI_USEFUL_H
+#ifndef _CTI_OVERWATCH_H
+#define _CTI_OVERWATCH_H
 
-#include "cti_args.h"
-#include "cti_log.h"
-#include "cti_overwatch.h"
-#include "cti_path.h"
-#include "cti_signal.h"
-#include "cti_stack.h"
-#include "cti_stringList.h"
+/* struct typedefs */
+typedef struct
+{
+	pid_t	o_pid;		// overwatch process pid	
+	FILE *	pipe_r;		// my read stream
+	FILE *	pipe_w;		// my write stream
+} cti_overwatch_t;
 
-#endif /* _CTI_USEFUL_H */
+cti_overwatch_t *	_cti_create_overwatch(void);
+int					_cti_assign_overwatch(cti_overwatch_t *, pid_t);
+void				_cti_exit_overwatch(cti_overwatch_t *);
+
+#endif /* _CTI_OVERWATCH_H */
+

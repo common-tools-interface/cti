@@ -68,22 +68,23 @@ typedef struct
 
 typedef struct
 {
-	pid_t			aprunPid;
-	int				pipeOpen;
-	barrierCtl_t	pipeCtl;
+	pid_t				aprunPid;
+	int					pipeOpen;
+	barrierCtl_t		pipeCtl;
+	cti_overwatch_t *	o_watch;		// overwatch handler to enforce cleanup
 } aprunInv_t;
 
 typedef struct
 {
-	uint64_t		apid;			// ALPS apid
-	int				pe0Node;		// ALPS PE0 node id
-	appInfo_t		appinfo;		// ALPS application information
-	cmdDetail_t *	cmdDetail;		// ALPS application command information (width, depth, memory, command name)
-	placeList_t *	places;	 		// ALPS application placement information (nid, processors, PE threads)
-	aprunInv_t *	inv;			// Optional object used for launched applications.
-	char *			toolPath;		// Backend staging directory
-	char *			attribsPath;	// Backend directory where pmi_attribs is located
-	int				dlaunch_sent;	// True if we have already transfered the dlaunch utility
+	uint64_t			apid;			// ALPS apid
+	int					pe0Node;		// ALPS PE0 node id
+	appInfo_t			appinfo;		// ALPS application information
+	cmdDetail_t *		cmdDetail;		// ALPS application command information (width, depth, memory, command name)
+	placeList_t *		places;	 		// ALPS application placement information (nid, processors, PE threads)
+	aprunInv_t *		inv;			// Optional object used for launched applications.
+	char *				toolPath;		// Backend staging directory
+	char *				attribsPath;	// Backend directory where pmi_attribs is located
+	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
 } alpsInfo_t;
 
 /* Static prototypes */
@@ -422,6 +423,12 @@ _cti_alps_consumeAprunInv(aprunInv_t *runPtr)
 	{
 		close(runPtr->pipeCtl.pipe_r);
 		close(runPtr->pipeCtl.pipe_w);
+	}
+	
+	// free the overwatch handler
+	if (runPtr->o_watch != NULL)
+	{
+		_cti_exit_overwatch(runPtr->o_watch);
 	}
 	
 	// free the object from memory
@@ -1068,32 +1075,27 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 							int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath,
 							const char * const env_list[]	)
 {
-	aprunInv_t *	myapp;
-	appEntry_t *	appEntry;
-	alpsInfo_t *	alpsInfo;
-	uint64_t 		apid;
-	pid_t			mypid;
-	char * const *	tmp;
-	int				aprun_argc = 0;
-	int				fd_len = 0;
-	int				i, j, fd;
-	char *			pipefd_buf;
-	char **			my_argv;
+	aprunInv_t *		myapp;
+	appEntry_t *		appEntry;
+	alpsInfo_t *		alpsInfo;
+	uint64_t 			apid;
+	pid_t				mypid;
+	cti_args_t *		my_args;
+	int					i, fd;
 	// pipes for aprun
-	int				aprunPipeR[2];
-	int				aprunPipeW[2];
+	int					aprunPipeR[2];
+	int					aprunPipeW[2];
 	// used for determining if the aprun binary is a wrapper script
-	char *			aprun_proc_path = NULL;
-	char *			aprun_exe_path;
-	struct dirent 	**file_list;
-	int				file_list_len;
-	char *			proc_stat_path = NULL;
-	FILE *			proc_stat = NULL;
-	int				proc_ppid;
-	// used to ignore SIGINT
-	sigset_t		mask, omask;
+	char *				aprun_proc_path = NULL;
+	char *				aprun_exe_path;
+	struct dirent **	file_list;
+	int					file_list_len;
+	char *				proc_stat_path = NULL;
+	FILE *				proc_stat = NULL;
+	int					proc_ppid;
+	sigset_t *			mask;
 	// return object
-	cti_app_id_t	rtn;
+	cti_app_id_t		rtn;
 
 	// create a new aprunInv_t object
 	if ((myapp = malloc(sizeof(aprunInv_t))) == (void *)0)
@@ -1125,86 +1127,72 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 	myapp->pipeCtl.pipe_w = aprunPipeW[0];
 	
 	// create the argv array for the actual aprun exec
-	// figure out the length of the argv array
-	// this is the number of args in the launcher_argv array passed to us plus 2 
-	// for the -P w,r argument and 2 for aprun and null term
-		
-	// iterate through the launcher_argv array
+	
+	// create a new args obj
+	if ((my_args = _cti_newArgs()) == NULL)
+	{
+		_cti_set_error("_cti_newArgs failed.");
+		_cti_alps_consumeAprunInv(myapp);
+		return 0;
+	}
+	
+	// add the initial aprun argv
+	if (_cti_addArg(my_args, "%s", APRUN))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_alps_consumeAprunInv(myapp);
+		_cti_freeArgs(my_args);
+		return 0;
+	}
+	
+	// Add the -P r,w args
+	if (_cti_addArg(my_args, "-P"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_alps_consumeAprunInv(myapp);
+		_cti_freeArgs(my_args);
+		return 0;
+	}
+	if (_cti_addArg(my_args, "%d,%d", aprunPipeW[1], aprunPipeR[0]))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_alps_consumeAprunInv(myapp);
+		_cti_freeArgs(my_args);
+		return 0;
+	}
+	
+	// set the rest of the argv for aprun from the passed in args
 	if (launcher_argv != NULL)
 	{
 		for (i=0; launcher_argv[i] != NULL; ++i)
 		{
-			++aprun_argc;
+			if (_cti_addArg(my_args, "%s", launcher_argv[i]))
+			{
+				_cti_set_error("_cti_addArg failed.");
+				_cti_alps_consumeAprunInv(myapp);
+				_cti_freeArgs(my_args);
+				return 0;
+			}
 		}
 	}
-		
-	// allocate the new argv array. Need additional entry for null terminator
-	if ((my_argv = calloc(aprun_argc+4, sizeof(char *))) == (void *)0)
+	
+	// setup signals
+	if ((mask = _cti_block_signals()) == NULL)
 	{
-		// calloc failed
-		_cti_set_error("calloc failed.");
+		_cti_set_error("_cti_block_signals failed.");
 		_cti_alps_consumeAprunInv(myapp);
-		return 0;
-	}
-		
-	// add the initial aprun argv
-	my_argv[0] = strdup(APRUN);
-	
-	// Add the -P r,w args
-	my_argv[1] = strdup("-P");
-	
-	// determine length of the fds
-	j = aprunPipeR[0];
-	do{
-		++fd_len;
-	} while (j/=10);
-		
-	j = aprunPipeW[1];
-	do{
-		++fd_len;
-	} while (j/=10);
-	
-	// need a final char for comma and null terminator
-	fd_len += 2;
-	
-	// allocate space for the buffer including the terminating zero
-	if ((pipefd_buf = malloc(sizeof(char)*fd_len)) == (void *)0)
-	{
-		// malloc failed
-		_cti_set_error("malloc failed.");
-		_cti_alps_consumeAprunInv(myapp);
-		// cleanup my_argv array
-		tmp = my_argv;
-		while (*tmp != NULL)
-		{
-			free(*tmp++);
-		}
-		free(my_argv);
+		_cti_freeArgs(my_args);
 		return 0;
 	}
 	
-	// write the buffer
-	snprintf(pipefd_buf, fd_len, "%d,%d", aprunPipeW[1], aprunPipeR[0]);
-	
-	my_argv[2] = pipefd_buf;
-	
-	// set the argv array for aprun
-	// here we expect the final argument to be the program we wish to start
-	// and we need to add our -P r,w argument before this happens
-	for (i=3; i < aprun_argc+3; i++)
+	// setup overwatch to ensure aprun gets killed off on error
+	if ((myapp->o_watch = _cti_create_overwatch()) == NULL)
 	{
-		my_argv[i] = strdup(launcher_argv[i-3]);
+		_cti_set_error("_cti_create_overwatch failed.");
+		_cti_alps_consumeAprunInv(myapp);
+		_cti_freeArgs(my_args);
+		return 0;
 	}
-	
-	// add the null terminator
-	my_argv[i++] = NULL;
-	
-	// We don't want alps to pass along signals the caller recieves to the
-	// application process. In order to stop this from happening we need to put
-	// the child into a different process group.
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGINT);
-	sigprocmask(SIG_BLOCK, &mask, &omask);
 	
 	// fork off a process to launch aprun
 	mypid = fork();
@@ -1214,13 +1202,7 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 	{
 		_cti_set_error("Fatal fork error.");
 		_cti_alps_consumeAprunInv(myapp);
-		// cleanup my_argv array
-		tmp = my_argv;
-		while (*tmp != NULL)
-		{
-			free(*tmp++);
-		}
-		free(my_argv);
+		_cti_freeArgs(my_args);
 		return 0;
 	}
 	
@@ -1312,14 +1294,23 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 			}
 		}
 		
-		// Place this process in its own group to prevent signals being passed
-		// to it. This is necessary in case the child code execs before the 
-		// parent can put us into our own group. This is so that we won't get
-		// the ctrl-c when aprun re-inits the signal handlers.
-		setpgid(0, 0);
+		// assign the overwatch process to our pid
+		if (_cti_assign_overwatch(myapp->o_watch, getpid()))
+		{
+			// no way to guarantee cleanup
+			fprintf(stderr, "CTI error: _cti_assign_overwatch failed.\n");
+			exit(1);
+		}
+		
+		// restore signals
+		if (_cti_child_setpgid_restore(mask))
+		{
+			// don't fail, but print out an error
+			fprintf(stderr, "CTI error: _cti_child_setpgid_restore failed!\n");
+		}
 		
 		// exec aprun
-		execvp(APRUN, my_argv);
+		execvp(APRUN, my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -1329,26 +1320,23 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 	
 	// parent case
 	
-	// Place the child in its own group. We still need to block SIGINT in case
-	// its delivered to us before we can do this. We need to do this again here
-	// in case this code runs before the child code while we are still blocking 
-	// ctrl-c
-	setpgid(mypid, mypid);
-	
-	// unblock ctrl-c
-	sigprocmask(SIG_SETMASK, &omask, NULL);
-	
 	// close unused ends of pipe
 	close(aprunPipeR[0]);
 	close(aprunPipeW[1]);
 	
-	// cleanup my_argv array
-	tmp = my_argv;
-	while (*tmp != NULL)
+	// cleanup args
+	_cti_freeArgs(my_args);
+	
+	// restore signals
+	if (_cti_setpgid_restore(mypid, mask))
 	{
-		free(*tmp++);
+		_cti_set_error("_cti_setpgid_restore failed.");
+		// attempt to kill aprun since the caller will not recieve the aprun pid
+		// just in case the aprun process is still hanging around.
+		kill(mypid, DEFAULT_SIG);
+		_cti_alps_consumeAprunInv(myapp);
+		return 0;
 	}
-	free(my_argv);
 	
 	// Wait on pipe read for app to start and get to barrier - once this happens
 	// we know the real aprun is up and running

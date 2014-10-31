@@ -18,13 +18,13 @@ SRC             = @CRAYTOOL_DIR@/src
 MPIR_IFACE		= $(SRC)/mpir_iface
 FRONTEND		= $(SRC)/frontend
 
-AM_CFLAGS		= -fPIC -Wall -I$(SRC)
+AM_CFLAGS		= -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
 
 noinst_LTLIBRARIES      	=	libmpir_iface.la
 
 libmpir_iface_la_SOURCES	=	gdb_MPIR.c gdb_MPIR.h gdb_MPIR_iface.c gdb_MPIR_iface.h
-libmpir_iface_la_CFLAGS		=	$(AM_CFLAGS) -I$(FRONTEND) $(MI_CFLAGS)
+libmpir_iface_la_CFLAGS		=	$(AM_CFLAGS) -fPIC -I$(FRONTEND) $(MI_CFLAGS)
 libmpir_iface_la_LDFLAGS    =	-static -no-undefined
 
 libexec_PROGRAMS    		=	cti_starter

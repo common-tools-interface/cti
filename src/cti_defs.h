@@ -43,14 +43,21 @@ typedef enum cti_wlm_type	cti_wlm_type;
 /*******************************************************************************
 ** Frontend defines relating to the login node 
 *******************************************************************************/
-#define DEFAULT_SIG				9													// default signal value to use with apkill
-#define CTI_LAUNCHER				"cti_dlaunch"										// name of the tool daemon launcher binary
-#define DEFAULT_STAGE_DIR		"cti_daemonXXXXXX"								// default directory name for the fake root of the tool daemon
+#define CTI_OVERWATCH_BINARY		"cti_overwatch"									// name of the overwatch binary
+#define DEFAULT_SIG				9													// default signal value to use
 #define WLM_DETECT_LIB_NAME		"libwlm_detect.so"								// wlm_detect library
+
+/*******************************************************************************
+** MPIR_iface specific information
+*******************************************************************************/
+#define CTI_GDB_BINARY			"cti_approved_gdb"								// name of gdb binary
+#define GDB_MPIR_STARTER			"cti_starter"										// name of starter binary
 
 /*******************************************************************************
 ** Backend defines relating to the compute node
 *******************************************************************************/
+#define CTI_LAUNCHER							"cti_dlaunch"							// name of the tool daemon launcher binary
+#define DEFAULT_STAGE_DIR					"cti_daemonXXXXXX"					// default directory name for the fake root of the tool daemon
 #define SHELL_ENV_VAR							"SHELL"									// The environment variable to set shell info
 #define SHELL_PATH							"/bin/sh"								// The location of the shell to set SHELL to
 #define PMI_ATTRIBS_FILE_NAME				"pmi_attribs"							// Name of the pmi_attribs file to find pid info
@@ -113,12 +120,6 @@ typedef struct
 #define SLURM_STAGE_DIR			"slurmXXXXXX"									// directory name for staging slurm specific files to transfer
 #define SLURM_LAYOUT_FILE		"slurm_layout"									// name of file containing layout information
 #define SLURM_PID_FILE			"slurm_pid"									// name of file containing pid information
-
-/*******************************************************************************
-** MPIR_iface specific information
-*******************************************************************************/
-#define CTI_GDB_BINARY			"cti_approved_gdb"							// name of gdb binary
-#define GDB_MPIR_STARTER			"cti_starter"									// name of starter binary
 
 /*******************************************************************************
 ** Environment variables that are set/maintained by this library

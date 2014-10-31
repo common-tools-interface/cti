@@ -87,8 +87,13 @@ src/useful/cti_args.c -text
 src/useful/cti_args.h -text
 src/useful/cti_log.c -text
 src/useful/cti_log.h -text
+src/useful/cti_overwatch.c -text
+src/useful/cti_overwatch.h -text
+src/useful/cti_overwatch_process.c -text
 src/useful/cti_path.c -text
 src/useful/cti_path.h -text
+src/useful/cti_signal.c -text
+src/useful/cti_signal.h -text
 src/useful/cti_stack.c -text
 src/useful/cti_stack.h -text
 src/useful/cti_stringList.c -text

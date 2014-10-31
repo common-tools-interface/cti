@@ -27,6 +27,7 @@
 #
 
 
+
 VPATH = @srcdir@
 pkgdatadir = $(datadir)/@PACKAGE@
 pkglibdir = $(libdir)/@PACKAGE@
@@ -45,6 +46,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+libexec_PROGRAMS = cti_overwatch$(EXEEXT)
 subdir = src/useful
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
@@ -61,12 +63,23 @@ CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libuseful_la_LIBADD =
 am_libuseful_la_OBJECTS = libuseful_la-cti_args.lo \
-	libuseful_la-cti_log.lo libuseful_la-cti_path.lo \
+	libuseful_la-cti_log.lo libuseful_la-cti_overwatch.lo \
+	libuseful_la-cti_path.lo libuseful_la-cti_signal.lo \
 	libuseful_la-cti_stack.lo libuseful_la-cti_stringList.lo
 libuseful_la_OBJECTS = $(am_libuseful_la_OBJECTS)
 libuseful_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(libuseful_la_CFLAGS) \
 	$(CFLAGS) $(libuseful_la_LDFLAGS) $(LDFLAGS) -o $@
+am__installdirs = "$(DESTDIR)$(libexecdir)"
+libexecPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
+PROGRAMS = $(libexec_PROGRAMS)
+am_cti_overwatch_OBJECTS =  \
+	cti_overwatch-cti_overwatch_process.$(OBJEXT)
+cti_overwatch_OBJECTS = $(am_cti_overwatch_OBJECTS)
+cti_overwatch_LDADD = $(LDADD)
+cti_overwatch_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(cti_overwatch_CFLAGS) \
+	$(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -79,8 +92,8 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libuseful_la_SOURCES)
-DIST_SOURCES = $(libuseful_la_SOURCES)
+SOURCES = $(libuseful_la_SOURCES) $(cti_overwatch_SOURCES)
+DIST_SOURCES = $(libuseful_la_SOURCES) $(cti_overwatch_SOURCES)
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
@@ -218,13 +231,15 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SRC = @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS = --quiet
-AM_CFLAGS = -fPIC -Wall -I$(SRC)
+AM_CFLAGS = -Wall -I$(SRC)
 noinst_LTLIBRARIES = libuseful.la
-libuseful_la_SOURCES = cti_args.c cti_log.c cti_path.c cti_stack.c \
-						  cti_stringList.c
+libuseful_la_SOURCES = cti_args.c cti_log.c cti_overwatch.c cti_path.c \
+						  cti_signal.c cti_stack.c cti_stringList.c
 
-libuseful_la_CFLAGS = $(AM_CFLAGS)
+libuseful_la_CFLAGS = $(AM_CFLAGS) -fPIC
 libuseful_la_LDFLAGS = -static -no-undefined
+cti_overwatch_SOURCES = cti_overwatch_process.c
+cti_overwatch_CFLAGS = $(AM_CFLAGS)
 noinst_HEADERS = cti_useful.h
 all: all-am
 
@@ -270,6 +285,37 @@ clean-noinstLTLIBRARIES:
 	done
 libuseful.la: $(libuseful_la_OBJECTS) $(libuseful_la_DEPENDENCIES) 
 	$(libuseful_la_LINK)  $(libuseful_la_OBJECTS) $(libuseful_la_LIBADD) $(LIBS)
+install-libexecPROGRAMS: $(libexec_PROGRAMS)
+	@$(NORMAL_INSTALL)
+	test -z "$(libexecdir)" || $(MKDIR_P) "$(DESTDIR)$(libexecdir)"
+	@list='$(libexec_PROGRAMS)'; for p in $$list; do \
+	  p1=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
+	  if test -f $$p \
+	     || test -f $$p1 \
+	  ; then \
+	    f=`echo "$$p1" | sed 's,^.*/,,;$(transform);s/$$/$(EXEEXT)/'`; \
+	   echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(libexecPROGRAMS_INSTALL) '$$p' '$(DESTDIR)$(libexecdir)/$$f'"; \
+	   $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(libexecPROGRAMS_INSTALL) "$$p" "$(DESTDIR)$(libexecdir)/$$f" || exit 1; \
+	  else :; fi; \
+	done
+
+uninstall-libexecPROGRAMS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(libexec_PROGRAMS)'; for p in $$list; do \
+	  f=`echo "$$p" | sed 's,^.*/,,;s/$(EXEEXT)$$//;$(transform);s/$$/$(EXEEXT)/'`; \
+	  echo " rm -f '$(DESTDIR)$(libexecdir)/$$f'"; \
+	  rm -f "$(DESTDIR)$(libexecdir)/$$f"; \
+	done
+
+clean-libexecPROGRAMS:
+	@list='$(libexec_PROGRAMS)'; for p in $$list; do \
+	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
+	  echo " rm -f $$p $$f"; \
+	  rm -f $$p $$f ; \
+	done
+cti_overwatch$(EXEEXT): $(cti_overwatch_OBJECTS) $(cti_overwatch_DEPENDENCIES) 
+	@rm -f cti_overwatch$(EXEEXT)
+	$(cti_overwatch_LINK) $(cti_overwatch_OBJECTS) $(cti_overwatch_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -277,9 +323,12 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_overwatch-cti_overwatch_process.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_args.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_log.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_overwatch.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_path.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_signal.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_stack.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libuseful_la-cti_stringList.Plo@am__quote@
 
@@ -318,12 +367,26 @@ libuseful_la-cti_log.lo: cti_log.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_log.lo `test -f 'cti_log.c' || echo '$(srcdir)/'`cti_log.c
 
+libuseful_la-cti_overwatch.lo: cti_overwatch.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-cti_overwatch.lo -MD -MP -MF $(DEPDIR)/libuseful_la-cti_overwatch.Tpo -c -o libuseful_la-cti_overwatch.lo `test -f 'cti_overwatch.c' || echo '$(srcdir)/'`cti_overwatch.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-cti_overwatch.Tpo $(DEPDIR)/libuseful_la-cti_overwatch.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_overwatch.c' object='libuseful_la-cti_overwatch.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_overwatch.lo `test -f 'cti_overwatch.c' || echo '$(srcdir)/'`cti_overwatch.c
+
 libuseful_la-cti_path.lo: cti_path.c
 @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-cti_path.lo -MD -MP -MF $(DEPDIR)/libuseful_la-cti_path.Tpo -c -o libuseful_la-cti_path.lo `test -f 'cti_path.c' || echo '$(srcdir)/'`cti_path.c
 @am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-cti_path.Tpo $(DEPDIR)/libuseful_la-cti_path.Plo
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_path.c' object='libuseful_la-cti_path.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_path.lo `test -f 'cti_path.c' || echo '$(srcdir)/'`cti_path.c
+
+libuseful_la-cti_signal.lo: cti_signal.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-cti_signal.lo -MD -MP -MF $(DEPDIR)/libuseful_la-cti_signal.Tpo -c -o libuseful_la-cti_signal.lo `test -f 'cti_signal.c' || echo '$(srcdir)/'`cti_signal.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libuseful_la-cti_signal.Tpo $(DEPDIR)/libuseful_la-cti_signal.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_signal.c' object='libuseful_la-cti_signal.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_signal.lo `test -f 'cti_signal.c' || echo '$(srcdir)/'`cti_signal.c
 
 libuseful_la-cti_stack.lo: cti_stack.c
 @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -MT libuseful_la-cti_stack.lo -MD -MP -MF $(DEPDIR)/libuseful_la-cti_stack.Tpo -c -o libuseful_la-cti_stack.lo `test -f 'cti_stack.c' || echo '$(srcdir)/'`cti_stack.c
@@ -338,6 +401,20 @@ libuseful_la-cti_stringList.lo: cti_stringList.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_stringList.c' object='libuseful_la-cti_stringList.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libuseful_la_CFLAGS) $(CFLAGS) -c -o libuseful_la-cti_stringList.lo `test -f 'cti_stringList.c' || echo '$(srcdir)/'`cti_stringList.c
+
+cti_overwatch-cti_overwatch_process.o: cti_overwatch_process.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_overwatch_CFLAGS) $(CFLAGS) -MT cti_overwatch-cti_overwatch_process.o -MD -MP -MF $(DEPDIR)/cti_overwatch-cti_overwatch_process.Tpo -c -o cti_overwatch-cti_overwatch_process.o `test -f 'cti_overwatch_process.c' || echo '$(srcdir)/'`cti_overwatch_process.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_overwatch-cti_overwatch_process.Tpo $(DEPDIR)/cti_overwatch-cti_overwatch_process.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_overwatch_process.c' object='cti_overwatch-cti_overwatch_process.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_overwatch_CFLAGS) $(CFLAGS) -c -o cti_overwatch-cti_overwatch_process.o `test -f 'cti_overwatch_process.c' || echo '$(srcdir)/'`cti_overwatch_process.c
+
+cti_overwatch-cti_overwatch_process.obj: cti_overwatch_process.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_overwatch_CFLAGS) $(CFLAGS) -MT cti_overwatch-cti_overwatch_process.obj -MD -MP -MF $(DEPDIR)/cti_overwatch-cti_overwatch_process.Tpo -c -o cti_overwatch-cti_overwatch_process.obj `if test -f 'cti_overwatch_process.c'; then $(CYGPATH_W) 'cti_overwatch_process.c'; else $(CYGPATH_W) '$(srcdir)/cti_overwatch_process.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_overwatch-cti_overwatch_process.Tpo $(DEPDIR)/cti_overwatch-cti_overwatch_process.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_overwatch_process.c' object='cti_overwatch-cti_overwatch_process.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_overwatch_CFLAGS) $(CFLAGS) -c -o cti_overwatch-cti_overwatch_process.obj `if test -f 'cti_overwatch_process.c'; then $(CYGPATH_W) 'cti_overwatch_process.c'; else $(CYGPATH_W) '$(srcdir)/cti_overwatch_process.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -420,8 +497,11 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(LTLIBRARIES) $(HEADERS)
+all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(HEADERS)
 installdirs:
+	for dir in "$(DESTDIR)$(libexecdir)"; do \
+	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
+	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -448,8 +528,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
-	mostlyclean-am
+clean-am: clean-generic clean-libexecPROGRAMS clean-libtool \
+	clean-noinstLTLIBRARIES mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -471,7 +551,7 @@ install-data-am:
 
 install-dvi: install-dvi-am
 
-install-exec-am:
+install-exec-am: install-libexecPROGRAMS
 
 install-html: install-html-am
 
@@ -503,22 +583,24 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am:
+uninstall-am: uninstall-libexecPROGRAMS
 
 .MAKE: install-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-noinstLTLIBRARIES ctags distclean \
-	distclean-compile distclean-generic distclean-libtool \
-	distclean-tags distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
+	clean-libexecPROGRAMS clean-libtool clean-noinstLTLIBRARIES \
+	ctags distclean distclean-compile distclean-generic \
+	distclean-libtool distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-libexecPROGRAMS install-man \
 	install-pdf install-pdf-am install-ps install-ps-am \
 	install-strip installcheck installcheck-am installdirs \
 	maintainer-clean maintainer-clean-generic mostlyclean \
 	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am
+	pdf pdf-am ps ps-am tags uninstall uninstall-am \
+	uninstall-libexecPROGRAMS
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

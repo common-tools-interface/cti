@@ -16,13 +16,18 @@
 
 SRC             = @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS = --quiet
-AM_CFLAGS		= -fPIC -Wall -I$(SRC)
+AM_CFLAGS		= -Wall -I$(SRC)
 
 noinst_LTLIBRARIES      = libuseful.la
 
-libuseful_la_SOURCES    = cti_args.c cti_log.c cti_path.c cti_stack.c \
-						  cti_stringList.c
-libuseful_la_CFLAGS     = $(AM_CFLAGS)
+libuseful_la_SOURCES    = cti_args.c cti_log.c cti_overwatch.c cti_path.c \
+						  cti_signal.c cti_stack.c cti_stringList.c
+libuseful_la_CFLAGS     = $(AM_CFLAGS) -fPIC
 libuseful_la_LDFLAGS    = -static -no-undefined
+
+libexec_PROGRAMS		= cti_overwatch
+
+cti_overwatch_SOURCES	= cti_overwatch_process.c
+cti_overwatch_CFLAGS	= $(AM_CFLAGS)
 
 noinst_HEADERS			= cti_useful.h
