@@ -329,8 +329,6 @@ _cti_alps_get_overlap_ordinal(uint64_t arg1, char **arg2, int *arg3)
 	return (*_cti_alps_ptr->alps_get_overlap_ordinal)(arg1, arg2, arg3);
 }
 
-
-
 /*
 *       _cti_alps_getSvcNodeInfo - read nid from alps defined system locations
 *
@@ -660,7 +658,7 @@ cti_alps_getAprunInfo(cti_app_id_t appId)
 	// sanity check
 	if (app_ptr->wlmProto->wlm_type != CTI_WLM_ALPS)
 	{
-		_cti_set_error("cti_getAprunInfo: WLM mismatch.");
+		_cti_set_error("Invalid call. ALPS WLM not in use.");
 		return NULL;
 	}
 	
@@ -668,7 +666,7 @@ cti_alps_getAprunInfo(cti_app_id_t appId)
 	alpsInfo = (alpsInfo_t *)app_ptr->_wlmObj;
 	if (alpsInfo == NULL)
 	{
-		_cti_set_error("cti_getAprunInfo: _wlmObj is NULL!");
+		_cti_set_error("cti_alps_getAprunInfo: _wlmObj is NULL!");
 		return NULL;
 	}
 	
@@ -1629,14 +1627,8 @@ static int
 _cti_alps_killApp(cti_wlm_obj this, int signum)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
+	cti_args_t *	my_args;
 	int				mypid;
-	uint64_t		i;
-	int				j;
-	size_t			len;
-	char *			sigStr;
-	char *			apidStr;
-	char **			my_argv;
-	char **			tmp;
 	
 	// sanity check
 	if (my_app == NULL)
@@ -1645,85 +1637,36 @@ _cti_alps_killApp(cti_wlm_obj this, int signum)
 		return 1;
 	}
 	
-	// create the string to pass to exec
-	
-	// allocate the argv array. Need additional entry for null terminator
-	if ((my_argv = calloc(4, sizeof(char *))) == (void *)0)
+	// create a new args obj
+	if ((my_args = _cti_newArgs()) == NULL)
 	{
-		// calloc failed
-		_cti_set_error("calloc failed.");
+		_cti_set_error("_cti_newArgs failed.");
 		return 1;
 	}
 	
 	// first argument should be "apkill"
-	my_argv[0] = strdup(APKILL);
+	if (_cti_addArg(my_args, "%s", APKILL))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
 	
 	// second argument is -signum
-	// determine length of signum
-	len = 0;
-	j = signum;
-	do {
-		++len;
-	} while (j/=10);
-	
-	// add 1 additional char for the '-' and another for the null terminator
-	len += 2;
-	
-	// alloc space for sigStr
-	if ((sigStr = malloc(len*sizeof(char))) == (void *)0)
+	if (_cti_addArg(my_args, "-%d", signum))
 	{
-		// malloc failed
-		
-		// cleanup my_argv array
-		tmp = my_argv;
-		while (*tmp != NULL)
-		{
-			free(*tmp++);
-		}
-		free(my_argv);
-		
-		_cti_set_error("malloc failed.");
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return 1;
 	}
-	
-	// write the signal string
-	snprintf(sigStr, len, "-%d", signum);
-	my_argv[1] = sigStr;
 	
 	// third argument is apid
-	// determine length of apid
-	len = 0;
-	i = my_app->apid;
-	do {
-		++len;
-	} while (i/=10);
-	
-	// add 1 additional char for the null terminator
-	++len;
-	
-	// alloc space for apidStr
-	if ((apidStr = malloc(len*sizeof(char))) == (void *)0)
+	if (_cti_addArg(my_args, "%llu", (long long unsigned int)my_app->apid))
 	{
-		// malloc failed
-		
-		// cleanup my_argv array
-		tmp = my_argv;
-		while (*tmp != NULL)
-		{
-			free(*tmp++);
-		}
-		free(my_argv);
-		
-		_cti_set_error("malloc failed.");
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return 1;
 	}
-	
-	// write the apid string
-	snprintf(apidStr, len, "%llu", (long long unsigned int)my_app->apid);
-	my_argv[2] = apidStr;
-	
-	// set the final null terminator
-	my_argv[3] = NULL;
 	
 	// fork off a process to launch apkill
 	mypid = fork();
@@ -1732,13 +1675,7 @@ _cti_alps_killApp(cti_wlm_obj this, int signum)
 	if (mypid < 0)
 	{
 		_cti_set_error("Fatal fork error.");
-		// cleanup my_argv array
-		tmp = my_argv;
-		while (*tmp != NULL)
-		{
-			free(*tmp++);
-		}
-		free(my_argv);
+		_cti_freeArgs(my_args);
 		return 1;
 	}
 	
@@ -1746,7 +1683,7 @@ _cti_alps_killApp(cti_wlm_obj this, int signum)
 	if (mypid == 0)
 	{
 		// exec apkill
-		execvp(APKILL, my_argv);
+		execvp(APKILL, my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -1754,13 +1691,9 @@ _cti_alps_killApp(cti_wlm_obj this, int signum)
 	}
 	
 	// parent case
-	// cleanup my_argv array
-	tmp = my_argv;
-	while (*tmp != NULL)
-	{
-		free(*tmp++);
-	}
-	free(my_argv);
+	
+	// cleanup
+	_cti_freeArgs(my_args);
 	
 	// wait until the apkill finishes
 	waitpid(mypid, NULL, 0);
@@ -1984,7 +1917,7 @@ cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId)
 	// sanity check
 	if (app_ptr->wlmProto->wlm_type != CTI_WLM_ALPS)
 	{
-		_cti_set_error("cti_getAlpsOverlapOrdinal: WLM mismatch.");
+		_cti_set_error("cti_alps_getAlpsOverlapOrdinal: WLM mismatch.");
 		return -1;
 	}
 	
@@ -1992,7 +1925,7 @@ cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId)
 	my_app = (alpsInfo_t *)app_ptr->_wlmObj;
 	if (my_app == NULL)
 	{
-		_cti_set_error("cti_getAlpsOverlapOrdinal: _wlmObj is NULL!");
+		_cti_set_error("cti_alps_getAlpsOverlapOrdinal: _wlmObj is NULL!");
 		return -1;
 	}
 	
@@ -2004,7 +1937,7 @@ cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId)
 			_cti_set_error("%s", errMsg);
 		} else
 		{
-			_cti_set_error("cti_getAlpsOverlapOrdinal: Unknown _cti_alps_get_overlap_ordinal failure");
+			_cti_set_error("cti_alps_getAlpsOverlapOrdinal: Unknown _cti_alps_get_overlap_ordinal failure");
 		}
 	}
 	

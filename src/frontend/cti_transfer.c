@@ -2850,7 +2850,15 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	
 	// begin adding the args
 	
-	if (_cti_addArg(d_args, "-a %s", jid_str))
+	if (_cti_addArg(d_args, "-a"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(jid_str);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%s", jid_str))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -2860,7 +2868,14 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	}
 	free(jid_str);
 	
-	if (_cti_addArg(d_args, "-p %s", toolPath))
+	if (_cti_addArg(d_args, "-p"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%s", toolPath))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -2868,7 +2883,14 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		return 0;
 	}
 	
-	if (_cti_addArg(d_args, "-w %d", app_ptr->wlmProto->wlm_type))
+	if (_cti_addArg(d_args, "-w"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%d", app_ptr->wlmProto->wlm_type))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -2876,7 +2898,14 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		return 0;
 	}
 	
-	if (_cti_addArg(d_args, "-m %s%d.tar", m_ptr->stage_name, m_ptr->inst))
+	if (_cti_addArg(d_args, "-m"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%s%d.tar", m_ptr->stage_name, m_ptr->inst))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -2884,7 +2913,14 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		return 0;
 	}
 	
-	if (_cti_addArg(d_args, "-d %s", m_ptr->stage_name))
+	if (_cti_addArg(d_args, "-d"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%s", m_ptr->stage_name))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -2892,7 +2928,14 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		return 0;
 	}
 	
-	if (_cti_addArg(d_args, "-i %d", m_ptr->inst))
+	if (_cti_addArg(d_args, "-i"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%d", m_ptr->inst))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -3125,7 +3168,16 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	
 	// begin adding the args
 	
-	if (_cti_addArg(d_args, "-a %s", jid_str))
+	if (_cti_addArg(d_args, "-a"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(jid_str);
+		free(realname);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%s", jid_str))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -3136,7 +3188,15 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	}
 	free(jid_str);
 	
-	if (_cti_addArg(d_args, "-p %s", toolPath))
+	if (_cti_addArg(d_args, "-p"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(realname);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%s", toolPath))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -3147,7 +3207,15 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	
 	if (attribsPath != NULL)
 	{
-		if (_cti_addArg(d_args, "-t %s", attribsPath))
+		if (_cti_addArg(d_args, "-t"))
+		{
+			_cti_set_error("_cti_addArg failed.");
+			_cti_reapManifest(m_ptr->mid);
+			free(realname);
+			_cti_freeArgs(d_args);
+			return 0;
+		}
+		if (_cti_addArg(d_args, "%s", attribsPath))
 		{
 			_cti_set_error("_cti_addArg failed.");
 			_cti_reapManifest(m_ptr->mid);
@@ -3157,7 +3225,15 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		}
 	}
 	
-	if (_cti_addArg(d_args, "-w %d", app_ptr->wlmProto->wlm_type))
+	if (_cti_addArg(d_args, "-w"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(realname);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%d", app_ptr->wlmProto->wlm_type))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -3166,7 +3242,15 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		return 0;
 	}
 	
-	if (_cti_addArg(d_args, "-b %s", realname))
+	if (_cti_addArg(d_args, "-b"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		free(realname);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%s", realname))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -3176,7 +3260,14 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	}
 	free(realname);
 	
-	if (_cti_addArg(d_args, "-d %s", m_ptr->stage_name))
+	if (_cti_addArg(d_args, "-d"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%s", m_ptr->stage_name))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -3184,7 +3275,14 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		return 0;
 	}
 	
-	if (_cti_addArg(d_args, "-i %d", m_ptr->inst))
+	if (_cti_addArg(d_args, "-i"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_reapManifest(m_ptr->mid);
+		_cti_freeArgs(d_args);
+		return 0;
+	}
+	if (_cti_addArg(d_args, "%d", m_ptr->inst))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_reapManifest(m_ptr->mid);
@@ -3195,7 +3293,14 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	// add -m argument if needed
 	if (useManif)
 	{
-		if (_cti_addArg(d_args, "-m %s%d.tar", m_ptr->stage_name, m_ptr->inst))
+		if (_cti_addArg(d_args, "-m"))
+		{
+			_cti_set_error("_cti_addArg failed.");
+			_cti_reapManifest(m_ptr->mid);
+			_cti_freeArgs(d_args);
+			return 0;
+		}
+		if (_cti_addArg(d_args, "%s%d.tar", m_ptr->stage_name, m_ptr->inst))
 		{
 			_cti_set_error("_cti_addArg failed.");
 			_cti_reapManifest(m_ptr->mid);
@@ -3210,8 +3315,20 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	{
 		while (*env != NULL)
 		{
+			// ensure this env string is non-zero
+			if (strlen(*env) <= 0)
+			{
+				continue;
+			}
 			// add this env arg
-			if (_cti_addArg(d_args, "-e %s", *env++))
+			if (_cti_addArg(d_args, "-e"))
+			{
+				_cti_set_error("_cti_addArg failed.");
+				_cti_reapManifest(m_ptr->mid);
+				_cti_freeArgs(d_args);
+				return 0;
+			}
+			if (_cti_addArg(d_args, "%s", *env++))
 			{
 				_cti_set_error("_cti_addArg failed.");
 				_cti_reapManifest(m_ptr->mid);
@@ -3247,6 +3364,11 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		}
 		while (*args != NULL)
 		{
+			// ensure this arg string is non-zero
+			if (strlen(*args) <= 0)
+			{
+				continue;
+			}
 			if (_cti_addArg(d_args, "%s", *args++))
 			{
 				_cti_set_error("_cti_addArg failed.");

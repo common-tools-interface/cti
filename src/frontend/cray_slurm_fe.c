@@ -370,14 +370,28 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 	}
 	free(slurm_util_loc);
 	
-	if (_cti_addArg(my_args, "-j %d", jobid))
+	if (_cti_addArg(my_args, "-j"))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_freeArgs(my_args);
 		return NULL;
 	}
 	
-	if (_cti_addArg(my_args, "-s %d", stepid))
+	if (_cti_addArg(my_args, "%d", jobid))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return NULL;
+	}
+	
+	if (_cti_addArg(my_args, "-s"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return NULL;
+	}
+	
+	if (_cti_addArg(my_args, "%d", stepid))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_freeArgs(my_args);
@@ -1528,7 +1542,13 @@ _cti_cray_slurm_killApp(cti_wlm_obj this, int signum)
 	}
 	
 	// third argument is signal number
-	if (_cti_addArg(my_args, "-s %d", signum))
+	if (_cti_addArg(my_args, "-s"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	if (_cti_addArg(my_args, "%d", signum))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_freeArgs(my_args);
@@ -1892,7 +1912,14 @@ _cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 		return 1;
 	}
 	
-	if (_cti_addArg(my_args, "-j %d", my_app->jobid))
+	if (_cti_addArg(my_args, "-j"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "%d", my_app->jobid))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_freeArgs(my_args);
