@@ -155,6 +155,7 @@ const char * slurm_blacklist_env_vars[] = {
 		"SLURM_EPILOG",
 		"SLURM_GEOMETRY",
 		"SLURM_NETWORK",
+		"SLURM_NPROCS",
 		"SLURM_NTASKS",
 		"SLURM_NTASKS_PER_CORE",
 		"SLURM_NTASKS_PER_NODE",
@@ -2125,7 +2126,7 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	// This corresponds to:
 	//
 	// srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
-	// --cpu_bind=no --core-spec=0 --share --ntasks-per-node=1 --nodes=<numNodes>
+	// --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
 	// --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none 
 	// --input=none --output=none --error=none <tool daemon> <args>
 	//
@@ -2176,15 +2177,6 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	}
 	
 	if (_cti_addArg(my_args, "--cpu_bind=no"))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		close(fd);
-		free(launcher);
-		_cti_freeArgs(my_args);
-		return 1;
-	}
-	
-	if (_cti_addArg(my_args, "--core-spec=0"))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		close(fd);
