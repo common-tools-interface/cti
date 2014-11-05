@@ -145,6 +145,31 @@ const cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
 	_cti_cray_slurm_getAttribsPath			// wlm_getAttribsPath
 };
 
+const char * slurm_blacklist_env_vars[] = {
+		"SLURM_CHECKPOINT",
+		"SLURM_CONN_TYPE",
+		"SLURM_CPUS_PER_TASK",
+		"SLURM_DEPENDENCY",
+		"SLURM_DIST_PLANESIZE",
+		"SLURM_DISTRIBUTION",
+		"SLURM_EPILOG",
+		"SLURM_GEOMETRY",
+		"SLURM_NETWORK",
+		"SLURM_NTASKS",
+		"SLURM_NTASKS_PER_CORE",
+		"SLURM_NTASKS_PER_NODE",
+		"SLURM_NTASKS_PER_SOCKET",
+		"SLURM_PARTITION",
+		"SLURM_PROLOG",
+		"SLURM_REMOTE_CWD",
+		"SLURM_REQ_SWITCH",
+		"SLURM_RESV_PORTS",
+		"SLURM_TASK_EPILOG",
+		"SLURM_TASK_PROLOG",
+		"SLURM_WORKING_DIR",
+		NULL};
+					
+
 /* Constructor/Destructor functions */
 
 static int
@@ -2096,8 +2121,14 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	}
 	
 	// Start adding the args to the my_args array
+	//
 	// This corresponds to:
-	// srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --nodelist=<host1,host2,...> --share <tool daemon> <args>
+	//
+	// srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
+	// --cpu_bind=no --core-spec=0 --share --ntasks-per-node=1 --nodes=<numNodes>
+	// --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none 
+	// --input=none --output=none --error=none <tool daemon> <args>
+	//
 	
 	if (_cti_addArg(my_args, "%s", SRUN))
 	{
@@ -2127,6 +2158,60 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	}
 	
 	if (_cti_addArg(my_args, "--mem-per-cpu=0"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--mem_bind=no"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--cpu_bind=no"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--core-spec=0"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--share"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--ntasks-per-node=1"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--nodes=%d", my_app->layout->numNodes))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		close(fd);
@@ -2170,7 +2255,52 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	}
 	free(hostlist);
 	
-	if (_cti_addArg(my_args, "--share"))
+	if (_cti_addArg(my_args, "--disable-status"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--quiet"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--mpi=none"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--input=none"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--output=none"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		close(fd);
+		free(launcher);
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
+	if (_cti_addArg(my_args, "--error=none"))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		close(fd);
@@ -2187,6 +2317,7 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 		_cti_freeArgs(my_args);
 		return 1;
 	}
+	free(launcher);
 	
 	// merge in the args array if there is one
 	if (args != NULL)
@@ -2216,6 +2347,13 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	// child case
 	if (mypid == 0)
 	{
+		const char **	env_ptr;
+	
+		// Place this process in its own group to prevent signals being passed
+		// to it. This is necessary in case the child code execs before the 
+		// parent can put us into our own group.
+		setpgid(0, 0);
+	
 		// dup2 stdin
 		if (dup2(fd, STDIN_FILENO) < 0)
 		{
@@ -2247,10 +2385,13 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 			close(i);
 		}
 		
-		// Place this process in its own group to prevent signals being passed
-		// to it. This is necessary in case the child code execs before the 
-		// parent can put us into our own group.
-		setpgid(0, 0);
+		// clear out the blacklisted slurm env vars to ensure we don't get weird
+		// behavior
+		env_ptr = slurm_blacklist_env_vars;
+		while (*env_ptr != NULL)
+		{
+			unsetenv(*env_ptr++);
+		}
 		
 		// exec srun
 		execvp(SRUN, my_args->argv);
