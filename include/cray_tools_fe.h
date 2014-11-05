@@ -48,6 +48,14 @@
  *         Used to define the absolute path to the aprun binary. This is used 
  *         when a site has renamed the real aprun binary to something else.
  *
+ * CTI_GDB_LOC_ENV_VAR (optional)
+ *
+ *         Used to define the absolute path to the gdb binary for use with WLMs
+ *         utilizing the MPIR iface. This is used to override the default gdb
+ *         named cti_approved_gdb that is expected to be found in PATH. The gdb
+ *         binary is only used when launching applications through this 
+ *         interface that require the use of the MPIR proctable (e.g. SLURM).
+ *
  * CTI_ATTRIBS_TIMEOUT_ENV_VAR (optional)
  *
  *         Used to define the amount of time the daemon will spend attempting to
@@ -81,6 +89,7 @@
 #define CTI_LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
 #define CTI_DBG_LOG_DIR_ENV_VAR         "CRAY_DBG_LOG_DIR"
 #define CTI_USER_DEF_APRUN_EXE_ENV_VAR  "CRAY_APRUN_PATH"
+#define CTI_GDB_LOC_ENV_VAR             "CRAY_CTI_GDB_PATH"
 #define CTI_ATTRIBS_TIMEOUT_ENV_VAR     "CRAY_CTI_PMI_FOPEN_TIMEOUT"
 #define CTI_EXTRA_SLEEP_ENV_VAR         "CRAY_CTI_PMI_EXTRA_SLEEP"
 #define CTI_CFG_DIR_ENV_VAR             "CRAY_CTI_CFG_DIR"

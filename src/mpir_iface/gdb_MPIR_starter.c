@@ -288,6 +288,7 @@ main(int argc, char *argv[])
 	char *			starter	= NULL;
 	char *			s_args[2] = {0};
 	char *			input_file	= NULL;
+	char *			usr_gdb;
 	MICommand *		cmd;
 	cti_gdb_msg_t *	msg;
 
@@ -506,7 +507,16 @@ main(int argc, char *argv[])
 	//MISessionRegisterLogCallback(_cti_gdb_sess, log_callback);
 	//MISessionRegisterTargetCallback(_cti_gdb_sess, target_callback);
 	
-	MISessionSetGDBPath(_cti_gdb_sess, CTI_GDB_BINARY);
+	// Check for a user defined gdb binary
+	if ((usr_gdb = getenv(GDB_LOC_ENV_VAR)) != NULL)
+	{
+		// user defined gdb was set, so use that
+		MISessionSetGDBPath(_cti_gdb_sess, usr_gdb);
+	} else
+	{
+		// use the default gdb
+		MISessionSetGDBPath(_cti_gdb_sess, CTI_GDB_BINARY);
+	}
 	
 	if (MISessionStartLocal(_cti_gdb_sess, starter) < 0)
 	{

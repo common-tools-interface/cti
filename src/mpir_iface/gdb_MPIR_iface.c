@@ -21,6 +21,10 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -261,6 +265,7 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * con
 	int				s_argc = 0;
 	char **			s_argv;
 	int				i,j;
+	int				fd;
 	
 	// ensure the caller passed valid arguments
 	if (launcher == NULL)
@@ -396,6 +401,36 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * con
 	}
 	// set null terminator
 	s_argv[i] = NULL;
+	
+	// we want to redirect stdin/stdout/stderr to /dev/null since it is not required
+	if ((fd = open("/dev/null", O_RDONLY)) < 0)
+	{
+		perror("open");
+		return;
+	}
+	
+	// dup2 stdin
+	if (dup2(fd, STDIN_FILENO) < 0)
+	{
+		perror("dup2");
+		return;
+	}
+	
+	// dup2 stdout
+	if (dup2(fd, STDOUT_FILENO) < 0)
+	{
+		perror("dup2");
+		return;
+	}
+	
+	// dup2 stderr
+	if (dup2(fd, STDERR_FILENO) < 0)
+	{
+		perror("dup2");
+		return;
+	}
+	
+	close(fd);
 	
 	// exec the starter utility
 	execvp(GDB_MPIR_STARTER, s_argv);
