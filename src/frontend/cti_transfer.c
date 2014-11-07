@@ -2383,7 +2383,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 			// Only check file if it needs to be shipped
 			if (!f_ptr->present)
 			{
-				if (app_ptr->wlmProto->wlm_verifyBinary(app_ptr->_wlmObj, l_ptr->str))
+				if (app_ptr->wlmProto->wlm_verifyLibrary(app_ptr->_wlmObj, l_ptr->str))
 				{
 					// this file is not valid
 					
@@ -2445,7 +2445,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 			// Only check file if it needs to be shipped
 			if (!f_ptr->present)
 			{
-				if (app_ptr->wlmProto->wlm_verifyBinary(app_ptr->_wlmObj, l_ptr->str))
+				if (app_ptr->wlmProto->wlm_verifyLibDir(app_ptr->_wlmObj, l_ptr->str))
 				{
 					// this file is not valid
 					
@@ -2507,7 +2507,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 			// Only check file if it needs to be shipped
 			if (!f_ptr->present)
 			{
-				if (app_ptr->wlmProto->wlm_verifyBinary(app_ptr->_wlmObj, l_ptr->str))
+				if (app_ptr->wlmProto->wlm_verifyFile(app_ptr->_wlmObj, l_ptr->str))
 				{
 					// this file is not valid
 					

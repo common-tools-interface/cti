@@ -30,7 +30,6 @@ src/mpir_iface/Makefile
 src/mpir_iface/cti_starter
 src/slurm_util/.deps
 src/slurm_util/Makefile
-src/slurm_util/Makefile.in
 src/slurm_util/cti_slurm_util
 src/useful/.deps
 src/useful/Makefile

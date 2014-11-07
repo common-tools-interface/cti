@@ -26,7 +26,7 @@
 #include "cti_stack.h"
 
 /* Static prototypes */
-static int				_cti_resizeStack(cti_stack_t *);
+static int	_cti_resizeStack(cti_stack_t *);
 
 // stack implementation
 
