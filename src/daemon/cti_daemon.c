@@ -577,12 +577,74 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	// Relax permissions to ensure we can write to this directory
-	// use the existing perms for group and global settings
-	if (chmod(tool_path, statbuf.st_mode | S_IRWXU) != 0)
+	// Ensure we can write into this directory, otherwise try to relax the permissions
+	if (getuid() == statbuf.st_uid)
 	{
-		fprintf(stderr, "%s: Could not chmod %s\n", CTI_LAUNCHER, tool_path);
-		return 1;
+		// we are the owner - check for RWX
+		if ((statbuf.st_mode & S_IRWXU) ^ S_IRWXU)
+		{
+			// missing perms, so chmod since we are owner
+			if (chmod(tool_path, statbuf.st_mode | S_IRWXU) != 0)
+			{
+				fprintf(stderr, "%s: Could not chmod %s\n", CTI_LAUNCHER, tool_path);
+				return 1;
+			}
+		}
+	} else
+	{
+		// here we cannot chmod, so we need to check for perms on the directory
+		// and fail if we don't have the setup properly for us. In that case, the
+		// system is misconfigured.
+		int 	ngrps;
+		gid_t *	grps;
+		int		i,chk=0;
+		
+		if ((ngrps = getgroups(0, NULL)) < 0)
+		{
+			fprintf(stderr, "%s: ", CTI_LAUNCHER);
+			perror("getgroups");
+			return 1;
+		}
+		if ((grps = malloc(ngrps * sizeof(gid_t))) == NULL)
+		{
+			fprintf(stderr, "%s: malloc failed.", CTI_LAUNCHER);
+			return 1;
+		}
+		if ((ngrps = getgroups(ngrps, grps)) < 0)
+		{
+			fprintf(stderr, "%s: ", CTI_LAUNCHER);
+			perror("getgroups");
+			return 1;
+		}
+		
+		// check to see if we are in the group
+		for (i=0; i < ngrps; ++i)
+		{
+			if (grps[i] == statbuf.st_gid)
+			{
+				// we are in the group - check for RWX
+				if ((statbuf.st_mode & S_IRWXG) ^ S_IRWXG)
+				{
+					// missing perms, no way to recover
+					fprintf(stderr, "%s: Missing group perms in %s\n", CTI_LAUNCHER, tool_path);
+					return 1;
+				}
+				// break from the for loop
+				++chk;
+				break;
+			}
+		}
+		
+		// if chk is true, we are in the group and have proper perms, otherwise check other
+		if (!chk)
+		{
+			if ((statbuf.st_mode & S_IRWXO) ^ S_IRWXO)
+			{
+				// missing perms, no way to recover
+				fprintf(stderr, "%s: Missing others perms in %s\n", CTI_LAUNCHER, tool_path);
+				return 1;
+			}
+		}
 	}
 	
 	// change the working directory to path

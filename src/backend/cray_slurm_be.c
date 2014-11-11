@@ -563,8 +563,6 @@ use_pmi_attribs:
 
 		// use the pmi_attribs file
 		
-		free(file_path);
-		
 		// Call _cti_getPmiAttribsInfo - We require the pmi_attribs file to exist
 		// in order to function properly.
 		if (_cti_attrs == NULL)

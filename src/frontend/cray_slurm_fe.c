@@ -75,6 +75,7 @@ typedef struct
 	srunInv_t *			inv;			// Optional object used for launched applications.
 	cti_mpir_pid_t *	app_pids;		// Optional object used to hold the rank->pid association
 	char *				toolPath;		// Backend staging directory
+	char *				attribsPath;	// Backend Cray specific directory
 	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
 	char *				stagePath;		// directory to stage this instance files in for transfer to BE
 	char **				extraFiles;		// extra files to transfer to BE associated with this app
@@ -212,6 +213,7 @@ _cti_cray_slurm_newSlurmInfo(void)
 	this->inv			= NULL;
 	this->app_pids		= NULL;
 	this->toolPath		= NULL;
+	this->attribsPath	= NULL;
 	this->dlaunch_sent	= 0;
 	this->stagePath		= NULL;
 	this->extraFiles	= NULL;
@@ -234,6 +236,9 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 	
 	if (sinfo->toolPath != NULL)
 		free(sinfo->toolPath);
+		
+	if (sinfo->attribsPath != NULL)
+		free(sinfo->attribsPath);
 		
 	// cleanup staging directory if it exists
 	if (sinfo->stagePath != NULL)
@@ -994,6 +999,7 @@ cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 	uint64_t			apid;	// Cray version of the job+step
 	craySlurmInfo_t	*	sinfo;
 	char *				toolPath;
+	char *				attribsPath;
 	cti_app_id_t		appId = 0;
 
 	// sanity check - Note that 0 is a valid step id.
@@ -1042,13 +1048,22 @@ cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 		}
 		
 		// create the toolPath
-		if (asprintf(&toolPath, CRAY_SLURM_TOOL_DIR, (long long unsigned int)apid) <= 0)
+		if (asprintf(&toolPath, CRAY_SLURM_TOOL_DIR) <= 0)
 		{
 			_cti_set_error("asprintf failed");
 			_cti_cray_slurm_consumeSlurmInfo(sinfo);
 			return 0;
 		}
 		sinfo->toolPath = toolPath;
+		
+		// create the attribsPath
+		if (asprintf(&attribsPath, CRAY_SLURM_CRAY_DIR, (long long unsigned int)sinfo->apid) <= 0)
+		{
+			_cti_set_error("asprintf failed");
+			_cti_cray_slurm_consumeSlurmInfo(sinfo);
+			return 0;
+		}
+		sinfo->attribsPath = attribsPath;
 		
 		// create the new app entry
 		if ((appId = _cti_newAppEntry(&_cti_cray_slurm_wlmProto, (cti_wlm_obj)sinfo)) == 0)
@@ -1959,7 +1974,7 @@ _cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 		return 1;
 	}
 	
-	if (asprintf(&str1, CRAY_SLURM_TOOL_DIR, (long long unsigned int)my_app->apid) <= 0)
+	if (asprintf(&str1, CRAY_SLURM_TOOL_DIR) <= 0)
 	{
 		_cti_set_error("asprintf failed");
 		_cti_freeArgs(my_args);
@@ -1999,6 +2014,20 @@ _cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 	// child case
 	if (mypid == 0)
 	{
+		int fd;
+		
+		// we want to redirect stdin/stdout/stderr to /dev/null
+		fd = open("/dev/null", O_RDONLY);
+		
+		// dup2 stdin
+		dup2(fd, STDIN_FILENO);
+		
+		// dup2 stdout
+		dup2(fd, STDOUT_FILENO);
+		
+		// dup2 stderr
+		dup2(fd, STDERR_FILENO);
+		
 		// exec scancel
 		execvp(SBCAST, my_args->argv);
 		
@@ -2639,14 +2668,12 @@ _cti_cray_slurm_getAttribsPath(cti_wlm_obj this)
 	}
 	
 	// sanity check
-	if (my_app->toolPath == NULL)
+	if (my_app->attribsPath == NULL)
 	{
-		_cti_set_error("toolPath info missing from sinfo obj!");
+		_cti_set_error("attribsPath info missing from sinfo obj!");
 		return NULL;
 	}
 	
-	// Note that for slurm the pmi_attribs file is in the same location as the
-	// toolpath since a toolhelper directory is not being created.
-	return (const char *)my_app->toolPath;
+	return (const char *)my_app->attribsPath;
 }
 
