@@ -2274,15 +2274,6 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 		return 1;
 	}
 	
-	if (_cti_addArg(my_args, "--input=none"))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		close(fd);
-		free(launcher);
-		_cti_freeArgs(my_args);
-		return 1;
-	}
-	
 	if (_cti_addArg(my_args, "--output=none"))
 	{
 		_cti_set_error("_cti_addArg failed.");
