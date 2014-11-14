@@ -65,6 +65,27 @@ _cti_block_signals(void)
 	return rtn;
 }
 
+// Call either this function, or _cti_setpgid_restore, not both!
+int
+_cti_restore_signals(sigset_t *old)
+{
+	// sanity
+	if (old == NULL)
+		return 1;
+		
+	// restore the signal handler
+	if (sigprocmask(SIG_SETMASK, old, NULL))
+	{
+		// sigprocmask failed
+		free(old);
+		return 1;
+	}
+	
+	free(old);
+	
+	return 0;
+}
+
 int
 _cti_setpgid_restore(pid_t child, sigset_t *old)
 {

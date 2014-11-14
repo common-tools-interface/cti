@@ -24,6 +24,7 @@
 #include <sys/types.h>
 
 sigset_t *	_cti_block_signals(void);
+int			_cti_restore_signals(sigset_t *);
 int			_cti_setpgid_restore(pid_t, sigset_t *);
 int			_cti_child_setpgid_restore(sigset_t *);
 int			_cti_child_setpgid_unblock_all(sigset_t *);

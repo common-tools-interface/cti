@@ -25,30 +25,29 @@
 /* struct typedefs */
 struct stringNode
 {
-	int						contains;		// Is this path a string in the list
-	char *					str;			// string value for this node
-	void *					data;			// data value for this entry
-	struct stringNode *		next[CHAR_MAX];	// Child nodes
+	void *					data;				// data value for this entry
+	struct stringNode *		next[CHAR_MAX+1];	// Child nodes
 };
 typedef struct stringNode	stringNode_t;
 
 typedef struct
 {
-	struct stringNode *		root;			// root node of the tree
+	int						nstr;				// number of strings in list
+	struct stringNode *		root;				// root node of the tree
 } stringList_t;
 
 struct stringEntry
 {
-	const char *			str;			// string for this entry
-	void *					data;			// data for this entry
-	struct stringEntry *	next;			// next entry	
+	char *					str;				// string for this entry
+	void *					data;				// actual data for this entry
+	struct stringEntry *	next;				// next entry	
 };
 typedef struct stringEntry	stringEntry_t;
 
 /* function prototypes */
 stringList_t *  _cti_newStringList(void);
 void			_cti_consumeStringList(stringList_t *, void (*)(void *));
-int				_cti_searchStringList(stringList_t *, const char *);
+int				_cti_lenStringList(stringList_t *);
 void *			_cti_lookupValue(stringList_t *, const char *);
 int				_cti_addString(stringList_t *, const char *, void *);
 stringEntry_t *	_cti_getEntries(stringList_t *);

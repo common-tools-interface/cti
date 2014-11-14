@@ -32,8 +32,6 @@
 static stringNode_t *	_cti_newStringNode(void);
 static void 			_cti_consumeStringNode(stringNode_t *, void (*)(void *));
 static stringEntry_t *	_cti_newStringEntry(void);
-static stringNode_t *	_cti_lookupNode(stringList_t *, const char *);
-
 
 // support routines for nodes
 
@@ -62,12 +60,6 @@ _cti_consumeStringNode(stringNode_t *node, void (*free_func)(void *))
 	if (node == NULL)
 		return;
 	
-	// free the string
-	if (node->str)
-	{
-		free(node->str);
-	}
-	
 	// maybe free the data
 	if (node->data && free_func != NULL)
 	{
@@ -75,7 +67,7 @@ _cti_consumeStringNode(stringNode_t *node, void (*free_func)(void *))
 	}
 	
 	// consume children
-	for (i=0; i < CHAR_MAX; ++i)
+	for (i=0; i <= CHAR_MAX; ++i)
 	{
 		if (node->next[i])
 		{
@@ -131,6 +123,9 @@ _cti_newStringList(void)
 		return NULL;
 	}
 	
+	// set length to 0
+	this->nstr = 0;
+	
 	// create the new root node
 	if ((this->root = _cti_newStringNode()) == NULL)
 	{
@@ -142,67 +137,15 @@ _cti_newStringList(void)
 	return this;
 }
 
-static stringNode_t *
-_cti_lookupNode(stringList_t *lst, const char *str)
-{
-	stringNode_t	*cur_node;
-	
-	// sanity check
-	// ensure lst is not null and it has a root node allocated.
-	// ensure str is not null and it is not simply a null terminator.
-	if (lst == NULL || lst->root == NULL || str == NULL || *str == '\0')
-		return NULL;
-		
-	// set initial node
-	cur_node = lst->root;
-	
-	// start walking the string
-	while (*str != '\0')
-	{
-		// sanity - if the char value is negative there is an error with the input.
-		// this trie tree only works with valid ascii characters
-		if (*str < 0)
-		{
-			return NULL;
-		}
-		
-		// point at proper entry in the next array based on this char
-		// we increment the str pointer at this point after access
-		cur_node = cur_node->next[(int)*str++];
-		
-		// check exit condition
-		if (cur_node == NULL)
-		{
-			// the string is not present since there is no subtree for this char
-			return NULL;
-		}
-	}
-	
-	// we are now pointing at the null terminator in the string, so return 
-	// this node
-	return cur_node;
-}
-
+// returns number of strings in tree
 int
-_cti_searchStringList(stringList_t *lst, const char *str)
+_cti_lenStringList(stringList_t *lst)
 {
-	stringNode_t *	node;
-	
 	// sanity check
-	// ensure lst is not null and it has a root node allocated.
-	// ensure str is not null and it is not simply a null terminator.
-	if (lst == NULL || lst->root == NULL || str == NULL || *str == '\0')
+	if (lst == NULL)
 		return 0;
-	
-	// try to find this node
-	if ((node = _cti_lookupNode(lst, str)) == NULL)
-	{
-		// string not present
-		return 0;
-	}
-	
-	// return if this is a valid string
-	return node->contains ? 1:0;
+		
+	return lst->nstr;
 }
 
 void *
@@ -211,16 +154,35 @@ _cti_lookupValue(stringList_t *lst, const char *str)
 	stringNode_t *	node;
 	
 	// sanity check
-	// ensure lst is not null and it has a root node allocated.
+	// ensure lst is not null, it has a root node allocated, and there are entries.
 	// ensure str is not null and it is not simply a null terminator.
-	if (lst == NULL || lst->root == NULL || str == NULL || *str == '\0')
+	if (lst == NULL || lst->root == NULL || lst->nstr == 0 || str == NULL || *str == '\0')
 		return NULL;
 	
 	// try to find this node
-	if ((node = _cti_lookupNode(lst, str)) == NULL)
+	// set initial node
+	node = lst->root;
+	
+	// start walking the string
+	while (*str != '\0')
 	{
-		// string not present
-		return NULL;
+		// sanity - if the char value is negative there is an error with the input.
+		// this trie tree only works with valid ascii characters
+		if (*str < 0 || *str > CHAR_MAX)
+		{
+			return NULL;
+		}
+		
+		// point at proper entry in the next array based on this char
+		// we increment the str pointer at this point after access
+		node = node->next[(int)*str++];
+		
+		// check exit condition
+		if (node == NULL)
+		{
+			// the string is not present since there is no subtree for this char
+			return NULL;
+		}
 	}
 	
 	// return the stored data
@@ -237,7 +199,8 @@ _cti_addString(stringList_t *lst, const char *str, void *data)
 	// sanity check
 	// ensure lst is not null and it has a root node allocated.
 	// ensure str is not null and it is not simply a null terminator.
-	if (lst == NULL || lst->root == NULL || p == NULL || *p == '\0')
+	// ensure data is not null
+	if (lst == NULL || lst->root == NULL || p == NULL || *p == '\0' || data == NULL)
 		return 1;
 	
 	// set initial node
@@ -291,17 +254,16 @@ _cti_addString(stringList_t *lst, const char *str, void *data)
 	}
 	
 	// at this point *p is pointing at the null terminator, this is the end
-	// of the string. We need to set the contains if we haven't already done so.
-	if (!cur_node->contains)
-	{
-		// set the control var
-		cur_node->contains = 1;
-		// set the string value - this is not space efficient, but makes our job
-		// easier later on when we retrieve the strings
-		cur_node->str = strdup(str);
-		// set the string data value if there is one
-		cur_node->data = data;
-	}
+	// of the string. We need to set the data value, or else return with error
+	// since this value was already assigned.
+	if (cur_node->data != NULL)
+		return 1;
+		
+	// set the data value
+	cur_node->data = data;
+	
+	// increment length
+	lst->nstr++;
 	
 	// all done, string has been inserted
 	return 0;
@@ -315,11 +277,14 @@ _cti_getEntries(stringList_t *lst)
 	stringEntry_t *		e_ptr;
 	cti_stack_t *		node_stack = NULL;
 	stringNode_t *		cur_node;
+	cti_stack_t *		prefix_stack = NULL;
+	char *				prefix = NULL;
+	char *				new_prefix;
 	int					j;
 
 	// sanity check
-	// ensure lst is not null and it has a root node allocated
-	if (lst == NULL || lst->root == NULL)
+	// ensure lst is not null and it has a root node allocated and there are entries
+	if (lst == NULL || lst->root == NULL || lst->nstr == 0)
 		return NULL;
 	
 	// create a stack for the nodes
@@ -332,19 +297,22 @@ _cti_getEntries(stringList_t *lst)
 	// set initial node
 	cur_node = lst->root;
 	
+	// create a stack for the prefix
+	if ((prefix_stack = _cti_newStack()) == NULL)
+	{
+		// stack create failed
+		goto _cti_getStrings_error;
+	}
+	
+	// set initial prefix
+	prefix = strdup("");
+	
 	// we want to do a preorder traversal to get the list of strings
 	while (cur_node != NULL)
 	{
 		// visit this node
-		if (cur_node->contains)
+		if (cur_node->data != NULL)
 		{
-			// ensure there is a str
-			if (cur_node->str == NULL)
-			{
-				// no str, we have a bad list data structure
-				goto _cti_getStrings_error;
-			}
-			
 			// create an entry for this string
 			if ((e_ptr = _cti_newStringEntry()) == NULL)
 			{
@@ -353,7 +321,7 @@ _cti_getEntries(stringList_t *lst)
 			}
 			
 			// set this entries value
-			e_ptr->str = cur_node->str;
+			e_ptr->str = strdup(prefix);
 			e_ptr->data = cur_node->data;
 			
 			// put this entry into the return list
@@ -371,11 +339,28 @@ _cti_getEntries(stringList_t *lst)
 			cur_entry = &e_ptr->next;
 		}
 		
-		// push this nodes children in reverse order
-		for (j=CHAR_MAX-1; j >= 0; j--)
+		// push this nodes children in reverse order, create the prefix for each
+		// child
+		for (j=CHAR_MAX; j >= 0; j--)
 		{
-			if (cur_node->next[j])
+			if (cur_node->next[j] != NULL)
 			{
+				// create the new prefix
+				if (asprintf(&new_prefix, "%s%c", prefix, j) <= 0)
+				{
+					// asprintf failed
+					goto _cti_getStrings_error;
+				}
+				
+				if (_cti_push(prefix_stack, new_prefix))
+				{
+					// push operation failed
+					free(new_prefix);
+					goto _cti_getStrings_error;
+				}
+				
+				new_prefix = NULL;
+				
 				if (_cti_push(node_stack, cur_node->next[j]))
 				{
 					// push operation failed
@@ -386,10 +371,14 @@ _cti_getEntries(stringList_t *lst)
 		
 		// pop a node off the stack
 		cur_node = (stringNode_t *)_cti_pop(node_stack);
+		// pop new prefix
+		free(prefix);
+		prefix = (char *)_cti_pop(prefix_stack);
 	}
 	
-	// all done, consume the stack and return the string list
+	// all done, consume the stacks and return the string list
 	_cti_consumeStack(node_stack);
+	_cti_consumeStack(prefix_stack);
 	
 	return rtn;
 	
@@ -399,7 +388,19 @@ _cti_getStrings_error:
 		_cti_cleanupEntries(rtn);
 		
 	if (node_stack)
-		_cti_consumeStack(node_stack); 
+		_cti_consumeStack(node_stack);
+		
+	if (prefix != NULL)
+		free(prefix);
+		
+	if (prefix_stack)
+	{
+		while ((prefix = (char *)_cti_pop(prefix_stack)) != NULL)
+		{
+			free(prefix);
+		}
+		_cti_consumeStack(prefix_stack);
+	}
 	
 	return NULL;
 }
@@ -409,7 +410,10 @@ _cti_cleanupEntries(stringEntry_t *e)
 {
 	if (e == NULL)
 		return;
-			
+	
+	// free the string
+	free(e->str);
+	
 	// free the child
 	_cti_cleanupEntries(e->next);
 	
