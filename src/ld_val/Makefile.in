@@ -234,10 +234,10 @@ noinst_LTLIBRARIES = libld_val.la
 lib_LTLIBRARIES = libaudit.la
 libld_val_la_SOURCES = ld_val.c ld_val_defs.h
 libld_val_la_CFLAGS = $(AM_CFLAGS) -fPIC
-libld_val_la_LDFLAGS = -static -no-undefined
+libld_val_la_LDFLAGS = -static -Wl,--no-undefined -Wl,--as-needed
 libaudit_la_SOURCES = audit.c ld_val_defs.h
 libaudit_la_CFLAGS = $(AM_CFLAGS) -fPIC
-libaudit_la_LDFLAGS = -shared -avoid-version
+libaudit_la_LDFLAGS = -shared -Wl,--no-undefined -Wl,--as-needed -avoid-version
 noinst_HEADERS = ld_val.h
 all: all-am
 

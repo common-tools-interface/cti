@@ -26,4 +26,4 @@ libexec_PROGRAMS		= cti_slurm_util
 cti_slurm_util_SOURCES	= slurm_util.c
 cti_slurm_util_CFLAGS	= $(AM_CFLAGS) $(SLURM_CFLAGS)
 cti_slurm_util_LDADD	= $(SLURM_LIBS)
-cti_slurm_util_LDFLAGS	= $(SLURM_LDFLAGS)
+cti_slurm_util_LDFLAGS	= -Wl,--no-undefined -Wl,--as-needed $(SLURM_LDFLAGS)

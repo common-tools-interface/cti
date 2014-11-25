@@ -25,11 +25,12 @@ noinst_LTLIBRARIES      	=	libmpir_iface.la
 
 libmpir_iface_la_SOURCES	=	gdb_MPIR.c gdb_MPIR.h gdb_MPIR_iface.c gdb_MPIR_iface.h
 libmpir_iface_la_CFLAGS		=	$(AM_CFLAGS) -fPIC -I$(FRONTEND) $(MI_CFLAGS)
-libmpir_iface_la_LDFLAGS    =	-static -no-undefined
+libmpir_iface_la_LDFLAGS    =	-static -Wl,--no-undefined -Wl,--as-needed
 
 libexec_PROGRAMS    		=	cti_starter
 
 cti_starter_SOURCES			=	gdb_MPIR.c gdb_MPIR.h gdb_MPIR_starter.c
 cti_starter_CFLAGS			=	$(AM_CFLAGS) $(MI_CFLAGS)
 cti_starter_LDADD			=	$(MI_LIBS)
-cti_starter_LDFLAGS			=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN/../lib -Wl,-rpath,\$$ORIGIN $(MI_LDFLAGS)
+cti_starter_LDFLAGS			=	-Wl,--no-undefined -Wl,-z,origin -Wl,-rpath,\$$ORIGIN/../lib \
+								-Wl,-rpath,\$$ORIGIN $(MI_LDFLAGS)

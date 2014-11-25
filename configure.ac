@@ -97,8 +97,19 @@ dnl Check for libc
 AC_CHECK_LIB(	[c],
 	     		[free],
 	     		[],
-	     		[AC_MSG_FAILURE([libc not found!!!])]
+	     		[AC_MSG_FAILURE([libc not found.])]
 	     		)
+
+dnl check for librl
+AC_CHECK_LIB(	[rt],
+				[clock_gettime],
+				[AC_DEFINE(	[HAVE_LIBRL],
+								[1],
+								[Define to 1 if you have the rt library (-lrt).]
+							)
+				],
+				[AC_MSG_FAILURE([librt not found.])]
+				)
 
 dnl Check for libalps
 save_LDFLAGS="$LDFLAGS"

@@ -24,16 +24,18 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
 #include <sys/stat.h>
 #include <sys/types.h>
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
 
 #include <archive.h>
 #include <archive_entry.h>
@@ -108,6 +110,9 @@ typedef struct
 // Used to define the increment size when alloc/realloc session_ids array
 #define SESS_INC_SIZE		10
 
+// Used to define block size for file->file copies
+#define CTI_BLOCK_SIZE	65536
+
 /* Static prototypes */
 static const char *		_cti_entryTypeToString(entry_type);
 static fileEntry_t *	_cti_newFileEntry(void);
@@ -128,15 +133,23 @@ static manifest_t *		_cti_findManifest(cti_manifest_id_t);
 static manifest_t *		_cti_newManifest(cti_session_id_t);
 static int				_cti_addManifestToSession(manifest_t *, session_t *);
 static void				_cti_addSessionToApp(appEntry_t *, cti_session_id_t);
-static int				_cti_copyFileToPackage(const char *, const char *, const char *);
-static int				_cti_copyDirectoryToPackage(const char *, const char *, const char *);
+static int				_cti_addDirToArchive(struct archive *, struct archive_entry *, const char *);
+static int				_cti_copyFileToArchive(struct archive *, struct archive_entry *, const char *, const char *, char *);
 static int				_cti_packageManifestAndShip(appEntry_t *, manifest_t *);
 
 /* global variables */
-static sessList_t *			_cti_my_sess	= NULL;
-static cti_session_id_t		_cti_next_sid	= 1;
-static manifList_t *		_cti_my_manifs	= NULL;
-static cti_manifest_id_t	_cti_next_mid	= 1;
+static sessList_t *			_cti_my_sess		= NULL;
+static cti_session_id_t		_cti_next_sid		= 1;
+static manifList_t *		_cti_my_manifs		= NULL;
+static cti_manifest_id_t	_cti_next_mid		= 1;
+static bool					_cti_r_init			= false;	// is initstate()?
+static char *				_cti_r_state[256];			// state for random()
+static const char const		_cti_valid_char[]	= {
+'0','1','2','3','4','5','6','7','8','9',
+'A','B','C','D','E','F','G','H','I','J','K','L','M',
+'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+'a','b','c','d','e','f','g','h','i','j','k','l','m',
+'n','o','p','q','r','s','t','u','v','w','x','y','z' };
 
 /* static functions */
 
@@ -1535,286 +1548,226 @@ cti_addManifestFile(cti_manifest_id_t mid, const char *fstr)
 }
 
 static int
-_cti_copyFileToPackage(const char *loc, const char *name, const char *path)
+_cti_addDirToArchive(struct archive *a, struct archive_entry *entry, const char *d_loc)
 {
-	int				nr, nw;
-	FILE *			f1;
-	FILE *			f2;
-	char *			name_path;
-	char			buffer[BUFSIZ];
-	struct stat		statbuf;
+	int r;
 
-	// sanity check
-	if (loc == NULL || name == NULL || path == NULL)
+	// sanity
+	if (a == NULL || entry == NULL || d_loc == NULL)
 	{
-		_cti_set_error("_cti_copyFileToPackage: invalid args.");
+		_cti_set_error("_cti_addDirToArchive: Bad args.");
 		return 1;
 	}
+	
+	// clear archive header for this use
+	archive_entry_clear(entry);
 
-	if ((f1 = fopen(loc, "r")) == NULL)
+	// setup the archive header
+	archive_entry_set_pathname(entry, d_loc);
+	archive_entry_set_filetype(entry, AE_IFDIR);
+	archive_entry_set_perm(entry, S_IRWXU);
+	while ((r = archive_write_header(a, entry)) == ARCHIVE_RETRY);
+	if (r == ARCHIVE_FATAL)
 	{
-		_cti_set_error("_cti_copyFileToPackage: fopen failed.");
+		_cti_set_error("_cti_addDirToArchive: %s", archive_error_string(a));
 		return 1;
 	}
-	
-	// create the new name path
-	if (asprintf(&name_path, "%s/%s", path, name) <= 0)
-	{
-		_cti_set_error("_cti_copyFileToPackage: asprintf failed.");
-		fclose(f1);
-		return 1;
-	}
-	
-	if ((f2 = fopen(name_path, "w")) == NULL)
-	{
-		_cti_set_error("_cti_copyFileToPackage: fopen failed.");
-		fclose(f1);
-		free(name_path);
-		return 1;
-	}
-		
-	// read/write everything from f1/to f2
-	while ((nr = fread(buffer, sizeof(char), BUFSIZ, f1)) > 0)
-	{
-		if ((nw = fwrite(buffer, sizeof(char), nr, f2)) != nr)
-		{
-			_cti_set_error("_cti_copyFileToPackage: fwrite failed.");
-			fclose(f1);
-			fclose(f2);
-			free(name_path);
-			return 1;
-		}
-	}
-	
-	// close the files
-	fclose(f1);
-	fclose(f2);
-		
-	// set the permissions of the new file to that of the old file
-	if (stat(loc, &statbuf) == -1)
-	{
-		_cti_set_error("_cti_copyFileToPackage: Could not stat %s.", loc);
-		free(name_path);
-		return 1;
-	}
-	if (chmod(name_path, statbuf.st_mode) != 0)
-	{
-		_cti_set_error("_cti_copyFileToPackage: Could not chmod %s.", name_path);
-		free(name_path);
-		return 1;
-	}
-		
-	// cleanup
-	free(name_path);
 	
 	return 0;
 }
 
-// TODO: This could be made smarter by handling symlinks...
 static int
-_cti_copyDirectoryToPackage(const char *loc, const char *name, const char *path)
+_cti_copyFileToArchive(struct archive *a, struct archive_entry *entry, const char *f_loc, const char *a_loc, char *read_buf)
 {
-	DIR *			dir;
-	struct dirent *	d;
-	int				nr, nw;
-	FILE *			f1;
-	FILE *			f2;
-	char *			target_path;
-	char *			name_path;
-	char *			target_name_path;
-	char			buffer[BUFSIZ];
-	struct stat		statbuf;
-
-	// sanity check
-	if (loc == NULL || name == NULL || path == NULL)
+	struct stat		st;
+	int				fd,r;
+	ssize_t			len, a_len;
+	
+	// sanity
+	if (a == NULL || entry == NULL || f_loc == NULL || a_loc == NULL || read_buf == NULL)
 	{
-		_cti_set_error("_cti_copyDirectoryToPackage: invalid args.");
+		_cti_set_error("_cti_copyFileToArchive: Bad args.");
 		return 1;
 	}
 	
-	// stat the reference directory
-	if (stat(loc, &statbuf) == -1)
+	// clear archive header for this use
+	archive_entry_clear(entry);
+	
+	// stat the file
+	if (stat(f_loc, &st))
 	{
-		_cti_set_error("_cti_copyDirectoryToPackage: Could not stat %s.", loc);
+		_cti_set_error("_cti_copyFileToArchive: stat() %s", strerror(errno));
 		return 1;
 	}
 	
-	// Open the reference directory
-	if ((dir = opendir(loc)) == NULL)
+	// Ensure this file is of a supported type
+	if (S_ISDIR(st.st_mode))
 	{
-		_cti_set_error("_cti_copyDirectoryToPackage: Could not opendir %s.", loc);
-		return 1;
-	}
-	
-	// create the new target path
-	if (asprintf(&target_path, "%s/%s", path, name) <= 0)
-	{
-		_cti_set_error("_cti_copyDirectoryToPackage: asprintf failed.");
-		closedir(dir);
-		return 1;
-	}
-	
-	// create the new target directory
-	if (mkdir(target_path, statbuf.st_mode))
-	{
-		_cti_set_error("_cti_copyDirectoryToPackage: mkdir failed.");
-		closedir(dir);
-		free(target_path);
-		return 1;
-	}
-	
-	// Recurse through each file in the reference directory
-	while ((d = readdir(dir)) != NULL)
-	{
-		// ensure this isn't the . or .. file
-		switch (strlen(d->d_name))
+		// This is an entire directory that needs to be added, we need to recurse
+		// through each file in the directory and add it.
+		DIR *				dir;
+		struct dirent *		d;
+		char *				sub_f_loc;
+		char *				sub_a_loc;
+		
+		// Open the directory
+		if ((dir = opendir(f_loc)) == NULL)
 		{
-			case 1:
-				if (d->d_name[0] == '.')
-				{
-					// continue to the outer while loop
-					continue;
-				}
-				break;
-				
-			case 2:
-				if (strcmp(d->d_name, "..") == 0)
-				{
-					// continue to the outer while loop
-					continue;
-				}
-				break;
+			_cti_set_error("_cti_copyFileToArchive: opendir() %s", strerror(errno));
+			return 1;
+		}
+		
+		// setup the archive header for the top level directory
+		archive_entry_copy_stat(entry, &st);
+		archive_entry_set_pathname(entry, a_loc);
+		while ((r = archive_write_header(a, entry)) == ARCHIVE_RETRY);
+		if (r == ARCHIVE_FATAL)
+		{
+			_cti_set_error("_cti_copyFileToArchive: %s", archive_error_string(a));
+			closedir(dir);
+			return 1;
+		}
+		
+		// Recurse through each file in the reference directory
+		errno = 0;
+		while ((d = readdir(dir)) != NULL)
+		{
+			// check for failure on readdir()
+			if (errno != 0)
+			{
+				// readdir failed
+				_cti_set_error("_cti_copyFileToArchive: readdir() %s", strerror(errno));
+				closedir(dir);
+				return 1;
+			}
 			
-			default:
-				break;
-		}
+			// ensure this isn't the . or .. file
+			switch (strlen(d->d_name))
+			{
+				case 1:
+					if (d->d_name[0] == '.')
+					{
+						// continue to the outer while loop
+						continue;
+					}
+					break;
+				
+				case 2:
+					if (strcmp(d->d_name, "..") == 0)
+					{
+						// continue to the outer while loop
+						continue;
+					}
+					break;
+			
+				default:
+					break;
+			}
 		
-		// Create the name path to this file
-		if (asprintf(&name_path, "%s/%s", loc, d->d_name) <= 0)
-		{
-			_cti_set_error("_cti_copyDirectoryToPackage: asprintf failed.");
-			closedir(dir);
-			_cti_removeDirectory(target_path);
-			free(target_path);
-			return 1;
-		}
-		
-		// stat this file
-		if (stat(name_path, &statbuf) == -1)
-		{
-			_cti_set_error("_cti_copyDirectoryToPackage: Could not stat %s.", name_path);
-			closedir(dir);
-			_cti_removeDirectory(target_path);
-			free(target_path);
-			free(name_path);
-			return 1;
-		}
-		
-		// If this is a directory, we need to recursively call this function to copy its contents
-		if (S_ISDIR(statbuf.st_mode))
-		{
-			if (_cti_copyDirectoryToPackage(name_path, d->d_name, target_path))
+			// Create the path strings to this file
+			if (asprintf(&sub_f_loc, "%s/%s", f_loc, d->d_name) <= 0)
+			{
+				_cti_set_error("_cti_copyFileToArchive: asprintf failed.");
+				closedir(dir);
+				return 1;
+			}
+			if (asprintf(&sub_a_loc, "%s/%s", a_loc, d->d_name) <= 0)
+			{
+				_cti_set_error("_cti_copyFileToArchive: asprintf failed.");
+				closedir(dir);
+				free(sub_f_loc);
+				return 1;
+			}
+			
+			// recursively call copy to archive function
+			if (_cti_copyFileToArchive(a, entry, sub_f_loc, sub_a_loc, read_buf))
 			{
 				// error already set
 				closedir(dir);
-				_cti_removeDirectory(target_path);
-				free(target_path);
-				free(name_path);
-				return 1;
-			}
-		} else
-		{
-			// Otherwise we try to copy as usual
-			
-			// open the reference file
-			if ((f1 = fopen(name_path, "r")) == NULL)
-			{
-				_cti_set_error("_cti_copyDirectoryToPackage: fopen failed.");
-				closedir(dir);
-				_cti_removeDirectory(target_path);
-				free(target_path);
-				free(name_path);
-				return 1;
-			}
-			
-			// create the new name path
-			if (asprintf(&target_name_path, "%s/%s", target_path, d->d_name) <= 0)
-			{
-				_cti_set_error("_cti_copyDirectoryToPackage: asprintf failed.");
-				closedir(dir);
-				_cti_removeDirectory(target_path);
-				free(target_path);
-				free(name_path);
-				return 1;
-			}
-			
-			// open the target file
-			if ((f2 = fopen(target_name_path, "w")) == NULL)
-			{
-				_cti_set_error("_cti_copyDirectoryToPackage: fopen failed.");
-				closedir(dir);
-				_cti_removeDirectory(target_path);
-				free(target_path);
-				free(name_path);
-				fclose(f1);
-				free(target_name_path);
-				return 1;
-			}
-			
-			// read/write everything from f1/to f2
-			while ((nr = fread(buffer, sizeof(char), BUFSIZ, f1)) > 0)
-			{
-				if ((nw = fwrite(buffer, sizeof(char), nr, f2)) != nr)
-				{
-					_cti_set_error("_cti_copyDirectoryToPackage: fwrite failed.");
-					closedir(dir);
-					fclose(f1);
-					fclose(f2);
-					_cti_removeDirectory(target_path);
-					free(target_path);
-					free(name_path);
-					free(target_name_path);
-					return 1;
-				}
-			}
-			
-			// close the files
-			fclose(f1);
-			fclose(f2);
-			
-			// set the permissions of the new file to that of the old file
-			if (chmod(target_name_path, statbuf.st_mode) != 0)
-			{
-				_cti_set_error("_cti_copyDirectoryToPackage: Could not chmod %s.", name_path);
-				closedir(dir);
-				_cti_removeDirectory(target_path);
-				free(target_path);
-				free(name_path);
-				free(target_name_path);
+				free(sub_f_loc);
+				free(sub_a_loc);
 				return 1;
 			}
 			
 			// cleanup
-			free(target_name_path);
+			free(sub_f_loc);
+			free(sub_a_loc);
+			errno = 0;
 		}
 		
 		// cleanup
-		free(name_path);
+		closedir(dir);
+		// At this point we are finished, the directory has been copied to the archive.
+		return 0;
+		
+	} else if (!S_ISREG(st.st_mode))
+	{
+		// This is an unsuported file and should not be added to the manifest
+		_cti_set_error("_cti_copyFileToArchive: Invalid file type.");
+		return 1;
 	}
 	
-	// done
-	closedir(dir);
-	free(target_path);
+	// open the file
+	if ((fd = open(f_loc, O_RDONLY)) == -1)
+	{
+		_cti_set_error("_cti_copyFileToArchive: open() %s", strerror(errno));
+		return 1;
+	}
+		
+	// setup the archive header
+	archive_entry_copy_stat(entry, &st);
+	archive_entry_set_pathname(entry, a_loc);
+	while ((r = archive_write_header(a, entry)) == ARCHIVE_RETRY);
+	if (r == ARCHIVE_FATAL)
+	{
+		_cti_set_error("_cti_copyFileToArchive: %s", archive_error_string(a));
+		close(fd);
+		return 1;
+	}
 	
+	// write the data
+	len = read(fd, read_buf, CTI_BLOCK_SIZE);
+	if (len < 0)
+	{
+		_cti_set_error("_cti_copyFileToArchive: read() %s", strerror(errno));
+		close(fd);
+		return 1;
+	}
+	while (len > 0)
+	{
+		a_len = archive_write_data(a, read_buf, len);
+		if (a_len < 0)
+		{
+			_cti_set_error("_cti_copyFileToArchive: %s", archive_error_string(a));
+			close(fd);
+			return 1;
+		}
+		if (a_len != len)
+		{
+			_cti_set_error("_cti_copyFileToArchive: archive_write_data len mismatch!");
+			close(fd);
+			return 1;
+		}
+		len = read(fd, read_buf, CTI_BLOCK_SIZE);
+		if (len < 0)
+		{
+			_cti_set_error("_cti_copyFileToArchive: read() %s", strerror(errno));
+			close(fd);
+			return 1;
+		}
+	}
+	
+	// cleanup
+	close(fd);
 	return 0;
 }
-
+	
 static int
 _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 {
 	const char *			cfg_dir = NULL;		// tmp directory
-	char *					stage_dir = NULL;	// staging directory name
-	char *					stage_path = NULL;	// staging path
+	char *					stage_name = NULL;	// staging path
+	char *					stage_name_env;
 	char *					bin_path = NULL;
 	char *					lib_path = NULL;
 	char *					tmp_path = NULL;
@@ -1822,20 +1775,15 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	stringEntry_t *			l_ptr;
 	stringEntry_t *			o_ptr = NULL;
 	fileEntry_t *			f_ptr;
-	int						has_files = 0;
 	char *					tar_name = NULL;
 	char *					tmp_tar_name;
 	struct archive *		a = NULL;
-	struct archive *		disk = NULL;
 	struct archive_entry *	entry = NULL;
-	ssize_t					len;
-	int						r, fd;
-	char 					buff[16384];
-	char *					t = NULL;
-	char *					orig_path = NULL;
-	int						rtn = 1;			// return value - for error handling
-	int						remove_dir = 1;		// BUG 819725
+	char *					read_buf = NULL;
+	char					path_buf[PATH_MAX];
 	sigset_t *				o_mask = NULL;		// BUG 819725
+	bool					has_files = false;	// tracks if any files need to be shipped
+	int						rtn = 0;			// return value
 	
 	// sanity check
 	if (app_ptr == NULL || m_ptr == NULL)
@@ -1857,97 +1805,113 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		goto packageManifestAndShip_error;
 	}
 	
-	// BUG 819725: Block all signals. We are about to enter a critical section.
-	if ((o_mask = _cti_block_signals()) == NULL)
-	{
-		_cti_set_error("_cti_packageManifestAndShip: Block signals failed!");
-		goto packageManifestAndShip_error;
-	}
-	
-	// Check the manifest to see if it already has a stage_name set, if so this is part of an existing
-	// session and we should use the same directory name
+	// Check the manifest to see if it already has a stage_name set, if so this 
+	// is part of an existing session and we should use the same name
 	if (m_ptr->stage_name == NULL)
 	{
 		// check to see if the caller set a staging directory name, otherwise create a unique one for them
-		if ((stage_dir = getenv(DAEMON_STAGE_VAR)) == NULL)
+		if ((stage_name_env = getenv(DAEMON_STAGE_VAR)) == NULL)
 		{
+			char *	rand_char;
+			
 			// take the default action
-			if (asprintf(&stage_path, "%s/%s", cfg_dir, DEFAULT_STAGE_DIR) <= 0)
+			if (asprintf(&stage_name, "%s", DEFAULT_STAGE_DIR) <= 0)
 			{
 				_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 				goto packageManifestAndShip_error;
 			}
-		
-			// create the temporary directory for the manifest package
-			if (mkdtemp(stage_path) == NULL)
+			
+			// Point at the last 'X' in the string
+			if ((rand_char = strrchr(stage_name, 'X')) == NULL)
 			{
-				_cti_set_error("_cti_packageManifestAndShip: mkdtemp failed.");
+				_cti_set_error("_cti_packageManifestAndShip: Bad stage_name string!");
 				goto packageManifestAndShip_error;
 			}
+			
+			// set state or init the PRNG if we haven't already done so.
+			if (_cti_r_init)
+			{
+				// set the PRNG state
+				if (setstate((char *)_cti_r_state) == NULL)
+				{
+					_cti_set_error("_cti_packageManifestAndShip: setstate failed.");
+					goto packageManifestAndShip_error;
+				}
+			} else
+			{
+				// We need to generate a good seed to avoid collisions. Since this
+				// library can be used by automated tests, it is vital to have a
+				// good seed.
+				struct timespec		tv;
+				unsigned int		pval;
+				unsigned int		seed;
+				
+				// get the current time from epoch with nanoseconds
+				if (clock_gettime(CLOCK_REALTIME, &tv))
+				{
+					_cti_set_error("_cti_packageManifestAndShip: clock_gettime failed.");
+					goto packageManifestAndShip_error;
+				}
+				
+				// generate an appropriate value from the pid, we shift this to
+				// the upper 16 bits of the int. This should avoid problems with
+				// collisions due to slight variations in nano time and adding in
+				// pid offsets.
+				pval = (unsigned int)getpid() << ((sizeof(unsigned int) * CHAR_BIT) - 16);
+				
+				// Generate the seed. This is not crypto safe, but should have enough
+				// entropy to avoid the case where two procs are started at the same
+				// time that use this interface.
+				seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
+				
+				// init the state
+				initstate(seed, (char *)_cti_r_state, sizeof(_cti_r_state));
+				
+				// set init to true
+				_cti_r_init = true;
+			}
+			
+			// now start replacing the 'X' characters in the stage_name string with
+			// randomness
+			do {
+				unsigned int oset;
+				// Generate a random offset into the array. This is random() modded 
+				// with the number of elements in the array.
+				oset = random() % (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
+				// assing this char
+				*rand_char = _cti_valid_char[oset];
+			} while (*(--rand_char) == 'X');
+			
 		} else
 		{
 			// use the user defined directory
-			if (asprintf(&stage_path, "%s/%s", cfg_dir, stage_dir) <= 0)
+			if (asprintf(&stage_name, "%s", stage_name_env) <= 0)
 			{
 				_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 				goto packageManifestAndShip_error;
 			}
-		
-			if (mkdir(stage_path, S_IRWXU))
-			{
-				_cti_set_error("_cti_packageManifestAndShip: mkdir failed.");
-				goto packageManifestAndShip_error;
-			}
-		}
-	
-		// get the stage name since we want to rebase things in the tarball
-		// save this in the m_ptr for later
-		m_ptr->stage_name = _cti_pathToName(stage_path);
-	} else
-	{
-		// use existing name
-		if (asprintf(&stage_path, "%s/%s", cfg_dir, m_ptr->stage_name) <= 0)
-		{
-			_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
-			goto packageManifestAndShip_error;
 		}
 		
-		if (mkdir(stage_path, S_IRWXU))
-		{
-			_cti_set_error("_cti_packageManifestAndShip: mkdir failed.");
-			goto packageManifestAndShip_error;
-		}
+		// set the stage name into the manifest obj - This gets cleaned up
+		// later on
+		m_ptr->stage_name = stage_name;
+		stage_name = NULL;
 	}
 	
-	// now create the required subdirectories
-	if (asprintf(&bin_path, "%s/bin", stage_path) <= 0)
+	// now create the required subdirectory strings
+	if (asprintf(&bin_path, "%s/bin", m_ptr->stage_name) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 		goto packageManifestAndShip_error;
 	}
-	if (asprintf(&lib_path, "%s/lib", stage_path) <= 0)
+	if (asprintf(&lib_path, "%s/lib", m_ptr->stage_name) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 		goto packageManifestAndShip_error;
 	}
-	if (asprintf(&tmp_path, "%s/tmp", stage_path) <= 0)
+	if (asprintf(&tmp_path, "%s/tmp", m_ptr->stage_name) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
-		goto packageManifestAndShip_error;
-	}
-	if (mkdir(bin_path, S_IRWXU))
-	{
-		_cti_set_error("_cti_packageManifestAndShip: mkdir failed.");
-		goto packageManifestAndShip_error;
-	}
-	if (mkdir(lib_path,  S_IRWXU))
-	{
-		_cti_set_error("_cti_packageManifestAndShip: mkdir failed.");
-		goto packageManifestAndShip_error;
-	}
-	if (mkdir(tmp_path, S_IRWXU))
-	{
-		_cti_set_error("_cti_packageManifestAndShip: mkdir failed.");
 		goto packageManifestAndShip_error;
 	}
 	
@@ -2013,6 +1977,83 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		}
 	}
 	
+	// create the tarball name
+	if (asprintf(&tar_name, "%s/%s.tar", cfg_dir, m_ptr->stage_name) <= 0)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
+		goto packageManifestAndShip_error;
+	}
+	
+	// Create the archive write object
+	if ((a = archive_write_new()) == NULL)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: archive_write_new failed.");
+		goto packageManifestAndShip_error;
+	}
+	
+	// Fix for BUG 811393 - use gnutar instead of ustar.
+	if (archive_write_set_format_gnutar(a) != ARCHIVE_OK)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: %s", archive_error_string(a));
+		goto packageManifestAndShip_error;
+	}
+	
+	// BUG 819725: Block all signals. We are about to enter a critical section.
+	if ((o_mask = _cti_block_signals()) == NULL)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: Block signals failed!");
+		goto packageManifestAndShip_error;
+	}
+	
+	// Open the actual tarball on disk
+	if (archive_write_open_filename(a, tar_name) != ARCHIVE_OK)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: %s", archive_error_string(a));
+		goto packageManifestAndShip_error;
+	}
+	
+	// Create the archive entry object. This is reused throughout.
+	if ((entry = archive_entry_new()) == NULL)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: archive_entry_new failed.");
+		goto packageManifestAndShip_error;
+	}
+	
+	// Create top level directory
+	if (_cti_addDirToArchive(a, entry, m_ptr->stage_name))
+	{
+		// error already set
+		goto packageManifestAndShip_error;
+	}
+	
+	// create bin directory
+	if (_cti_addDirToArchive(a, entry, bin_path))
+	{
+		// error already set
+		goto packageManifestAndShip_error;
+	}
+	
+	// create lib directory
+	if (_cti_addDirToArchive(a, entry, lib_path))
+	{
+		// error already set
+		goto packageManifestAndShip_error;
+	}
+	
+	// create tmp directory
+	if (_cti_addDirToArchive(a, entry, tmp_path))
+	{
+		// error already set
+		goto packageManifestAndShip_error;
+	}
+	
+	// allocate memory used when copying files to the tarball
+	if ((read_buf = malloc(CTI_BLOCK_SIZE)) == NULL)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: malloc failed.");
+		goto packageManifestAndShip_error;
+	}
+	
 	// process the files list in the manifest
 	if ((l_ptr = _cti_getEntries(m_ptr->files)) != NULL)
 	{
@@ -2040,14 +2081,21 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 								break;
 							}
 							
-							// copy this binary to the package
-							if (_cti_copyFileToPackage(f_ptr->loc, l_ptr->str, bin_path))
+							// create relative pathname
+							if (snprintf(path_buf, PATH_MAX, "%s/%s", bin_path, l_ptr->str) <= 0)
 							{
-								// error string already set
+								_cti_set_error("_cti_packageManifestAndShip: snprintf failed.");
 								goto packageManifestAndShip_error;
 							}
 							
-							has_files = 1;
+							// copy this file to the archive
+							if (_cti_copyFileToArchive(a, entry, f_ptr->loc, path_buf, read_buf))
+							{
+								// error already set
+								goto packageManifestAndShip_error;
+							}
+							
+							has_files = true;
 							
 							break;
 							
@@ -2059,14 +2107,21 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 								break;
 							}
 							
-							// copy this library to the package
-							if (_cti_copyFileToPackage(f_ptr->loc, l_ptr->str, lib_path))
+							// create relative pathname
+							if (snprintf(path_buf, PATH_MAX, "%s/%s", lib_path, l_ptr->str) <= 0)
 							{
-								// error string already set
+								_cti_set_error("_cti_packageManifestAndShip: snprintf failed.");
 								goto packageManifestAndShip_error;
 							}
 							
-							has_files = 1;
+							// copy this file to the archive
+							if (_cti_copyFileToArchive(a, entry, f_ptr->loc, path_buf, read_buf))
+							{
+								// error already set
+								goto packageManifestAndShip_error;
+							}
+							
+							has_files = true;
 							
 							break;
 							
@@ -2078,14 +2133,21 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 								break;
 							}
 							
-							// copy this library directory to the package
-							if (_cti_copyDirectoryToPackage(f_ptr->loc, l_ptr->str, lib_path))
+							// create relative pathname
+							if (snprintf(path_buf, PATH_MAX, "%s/%s", lib_path, l_ptr->str) <= 0)
 							{
-								// error string already set
+								_cti_set_error("_cti_packageManifestAndShip: snprintf failed.");
 								goto packageManifestAndShip_error;
 							}
 							
-							has_files = 1;
+							// copy this directory to the archive
+							if (_cti_copyFileToArchive(a, entry, f_ptr->loc, path_buf, read_buf))
+							{
+								// error already set
+								goto packageManifestAndShip_error;
+							}
+							
+							has_files = true;
 							
 							break;
 							
@@ -2097,14 +2159,21 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 								break;
 							}
 							
-							// copy this file to the package
-							if (_cti_copyFileToPackage(f_ptr->loc, l_ptr->str, stage_path))
+							// create relative pathname
+							if (snprintf(path_buf, PATH_MAX, "%s/%s", m_ptr->stage_name, l_ptr->str) <= 0)
 							{
-								// error string already set
+								_cti_set_error("_cti_packageManifestAndShip: snprintf failed.");
 								goto packageManifestAndShip_error;
 							}
 							
-							has_files = 1;
+							// copy this file to the archive
+							if (_cti_copyFileToArchive(a, entry, f_ptr->loc, path_buf, read_buf))
+							{
+								// error already set
+								goto packageManifestAndShip_error;
+							}
+							
+							has_files = true;
 							
 							break;
 					}
@@ -2126,119 +2195,20 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		o_ptr = NULL;
 	}
 	
-	// ensure we actually added files to the manifest at this point, otherwise
-	// goto the error handler but return with 2 to indicate the manifest was
-	// empty
-	if (!has_files)
-	{
-		rtn = 2;
-		goto packageManifestAndShip_error;
-	}
-	
-	// create the tarball name
-	if (asprintf(&tar_name, "%s.tar", stage_path) <= 0)
-	{
-		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
-		goto packageManifestAndShip_error;
-	}
-	
-	// Create the tarball
-	a = archive_write_new();
-	archive_write_add_filter_none(a);
-	
-	// Fix for BUG 811393 - use gnutar instead of ustar.
-	archive_write_set_format_gnutar(a);
-	
-	archive_write_open_filename(a, tar_name);
-	
-	disk = archive_read_disk_new();
-	
-	if (archive_read_disk_open(disk, stage_path) != ARCHIVE_OK)
-	{
-		_cti_set_error("%s", archive_error_string(disk));
-		goto packageManifestAndShip_error;
-	}
-	
-	for (;;)
-	{
-		entry = archive_entry_new();
-		r = archive_read_next_header2(disk, entry);
-		if (r == ARCHIVE_EOF)
-		{
-			archive_entry_free(entry);
-			entry = NULL;
-			break;
-		}
-		if (r != ARCHIVE_OK)
-		{
-			_cti_set_error("%s", archive_error_string(disk));
-			goto packageManifestAndShip_error;
-		}
-		archive_read_disk_descend(disk);
-		
-		// rebase the pathname in the header, we need to first grab the existing
-		// pathanme to pass to open.
-		orig_path = strdup(archive_entry_pathname(entry));
-		// point at the start of the rebased path
-		if ((t = strstr(orig_path, m_ptr->stage_name)) == NULL)
-		{
-			_cti_set_error("_cti_packageManifestAndShip: Could not find base name for tar.");
-			goto packageManifestAndShip_error;
-		}
-		// Set the pathanme in the entry
-		archive_entry_set_pathname(entry, t);
-		
-		r = archive_write_header(a, entry);
-		if (r < ARCHIVE_OK)
-		{
-			_cti_set_error("%s", archive_error_string(a));
-			goto packageManifestAndShip_error;
-		}
-		if (r == ARCHIVE_FATAL)
-		{
-			_cti_set_error("_cti_packageManifestAndShip: ARCHIVE_FATAL error occured.");
-			goto packageManifestAndShip_error;
-		}
-		if (r > ARCHIVE_FAILED)
-		{
-			fd = open(orig_path, O_RDONLY);
-			len = read(fd, buff, sizeof(buff));
-			while (len > 0)
-			{
-				if (archive_write_data(a, buff, len) == -1)
-				{
-					_cti_set_error("_cti_packageManifestAndShip: archive_write_data() error occured.");
-					close(fd);
-					goto packageManifestAndShip_error;
-				}
-				len = read(fd, buff, sizeof(buff));
-			}
-			close(fd);
-		}
-		
-		// cleanup
-		free(orig_path);
-		orig_path = NULL;
-		archive_entry_free(entry);
-		entry = NULL;
-	}
-	
-	archive_read_close(disk);
-	archive_read_free(disk);
-	disk = NULL;
-	
-	archive_write_close(a);
+	// cleanup
+	free(read_buf);
+	read_buf = NULL;
+	archive_entry_free(entry);
+	entry = NULL;
 	archive_write_free(a);
 	a = NULL;
 	
-	// BUG 819725: Now that tarball has been created, remove the staging directory.
-	if (_cti_removeDirectory(stage_path))
+	// ensure files were added to the manifest, otherwise return the no files status
+	if (!has_files)
 	{
-		// Normally we don't want to print to stderr, but in this case we should at least try
-		// to do something since we don't return with a warning status.
-		fprintf(stderr, "Failed to remove files from %s, please remove manually.\n", stage_path);
+		rtn = 2;
+		goto skipManifestTransfer;
 	}
-	remove_dir = 0;	
 	
 	// rename the existing tarball based on its instance to prevent a race 
 	// condition where the dlaunch on the compute node has not yet extracted the 
@@ -2246,7 +2216,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	// one.
 	
 	// create the temp tarball name
-	if (asprintf(&tmp_tar_name, "%s%d.tar", stage_path, m_ptr->inst) <= 0)
+	if (asprintf(&tmp_tar_name, "%s/%s%d.tar", cfg_dir, m_ptr->stage_name, m_ptr->inst) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 		goto packageManifestAndShip_error;
@@ -2272,11 +2242,12 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		goto packageManifestAndShip_error;
 	}
 	
+skipManifestTransfer:
+	
 	// clean things up
 	free(bin_path);
 	free(lib_path);
 	free(tmp_path);
-	free(stage_path);
 	remove(tar_name);
 	free(tar_name);
 	
@@ -2288,29 +2259,16 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		fprintf(stderr, "CTI Warning: Failed to restore signals!\n");
 	}
 	
-	return 0;
+	return rtn;
 	
 	// Error handling code starts below
 	// Note that the error string has already been set
 	
 packageManifestAndShip_error:
 
-	// Attempt to cleanup the archive stuff just in case it has been created already
-	if (entry != NULL)
+	if (stage_name != NULL)
 	{
-		archive_entry_free(entry);
-	}
-	
-	if (disk != NULL)
-	{
-		archive_read_close(disk);
-		archive_read_free(disk);
-	}
-	
-	if (a != NULL)
-	{
-		archive_write_close(a);
-		archive_write_free(a);
+		free(stage_name);
 	}
 	
 	if (bin_path != NULL)
@@ -2328,27 +2286,26 @@ packageManifestAndShip_error:
 		free(tmp_path);
 	}
 	
-	// Try to remove any files already copied
-	if (stage_path != NULL && remove_dir)
-	{
-		if (_cti_removeDirectory(stage_path))
-		{
-			// Normally we don't want to print to stderr, but in this case we should at least try
-			// to do something since we don't return with a warning status.
-			fprintf(stderr, "Failed to remove files from %s, please remove manually.\n", stage_path);
-		}
-		free(stage_path);
-	}
-	
 	if (tar_name != NULL)
 	{
 		remove(tar_name);
 		free(tar_name);
 	}
 	
-	if (orig_path != NULL)
+	// Attempt to cleanup the archive stuff just in case it has been created already
+	if (entry != NULL)
 	{
-		free(orig_path);
+		archive_entry_free(entry);
+	}
+	
+	if (a != NULL)
+	{
+		archive_write_free(a);
+	}
+	
+	if (read_buf != NULL)
+	{
+		free(read_buf);
 	}
 	
 	if (o_ptr != NULL)
@@ -2367,7 +2324,7 @@ packageManifestAndShip_error:
 		}
 	}
 
-	return rtn;
+	return 1;
 }
 
 cti_session_id_t
