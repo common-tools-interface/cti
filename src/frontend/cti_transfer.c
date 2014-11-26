@@ -143,13 +143,70 @@ static cti_session_id_t		_cti_next_sid		= 1;
 static manifList_t *		_cti_my_manifs		= NULL;
 static cti_manifest_id_t	_cti_next_mid		= 1;
 static bool					_cti_r_init			= false;	// is initstate()?
-static char *				_cti_r_state[256];			// state for random()
+static char *				_cti_r_state[256];				// state for random()
 static const char const		_cti_valid_char[]	= {
-'0','1','2','3','4','5','6','7','8','9',
-'A','B','C','D','E','F','G','H','I','J','K','L','M',
-'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
-'a','b','c','d','e','f','g','h','i','j','k','l','m',
-'n','o','p','q','r','s','t','u','v','w','x','y','z' };
+	'0','1','2','3','4','5','6','7','8','9',
+	'A','B','C','D','E','F','G','H','I','J','K','L','M',
+	'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+	'a','b','c','d','e','f','g','h','i','j','k','l','m',
+	'n','o','p','q','r','s','t','u','v','w','x','y','z' };
+// stuff used in the signal handler, hence volatile
+static volatile sig_atomic_t	_cti_signaled	= 0;	// True if we were signaled
+static volatile sig_atomic_t	_cti_error		= 0;	// True if we were unable to cleanup in handler
+static volatile sig_atomic_t	_cti_setup		= 0;	// True if _cti_signals is valid
+static volatile cti_signals_t *	_cti_signals	= NULL;	// Old signal handlers
+static volatile const char *	_cti_tar_file	= NULL;	// file to cleanup on signal
+
+/* signal handler to enforce cleanup of tmpfile */
+static void
+_cti_transfer_handler(int sig)
+{
+	// if already signaled, simply return. Since we restore the default signals
+	// in this handler, and we block all other signals while in the handler, it
+	// should be impossible to encounter this scenario.
+	if (_cti_signaled)
+		return;
+	
+	// set signaled to true
+	_cti_signaled = 1;
+	
+	// Ensure that the shared objects have been setup
+	if (!_cti_setup)
+	{
+		_cti_error = 1;
+		return;
+	}
+	
+	// It is safe to read from the global static objects
+	
+	// The following cast is safe since we block all other signals while inside
+	// the handler.
+	if (unlink((char *)_cti_tar_file))
+	{
+		// failed to unlink the tar file
+		_cti_error = 1;
+	}
+	
+	// Restore old signal handlers - again this cast is safe.
+	_cti_restore_handler((cti_signals_t *)_cti_signals);
+	
+	// re-raise the signal
+	raise(sig);
+	
+	// we returned, so we need to figure out what to do next
+	switch (sig)
+	{
+		// Don't return from computational exceptions
+		case SIGILL:
+		case SIGFPE:
+		case SIGSEGV:
+			abort();
+		
+		default:
+			// do nothing
+			break;
+	}
+}
 
 /* static functions */
 
@@ -1781,7 +1838,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	struct archive_entry *	entry = NULL;
 	char *					read_buf = NULL;
 	char					path_buf[PATH_MAX];
-	sigset_t *				o_mask = NULL;		// BUG 819725
+	cti_signals_t *			signals = NULL;		// BUG 819725
 	bool					has_files = false;	// tracks if any files need to be shipped
 	int						rtn = 0;			// return value
 	
@@ -1998,10 +2055,24 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		goto packageManifestAndShip_error;
 	}
 	
-	// BUG 819725: Block all signals. We are about to enter a critical section.
-	if ((o_mask = _cti_block_signals()) == NULL)
+	// BUG 819725: Enter the critical section
+	_cti_signaled = 0;
+	_cti_error = 0;
+	_cti_setup = 0;
+	_cti_signals = NULL;
+	_cti_tar_file = tar_name;
+	if ((signals = _cti_critical_section(_cti_transfer_handler)) == NULL)
 	{
-		_cti_set_error("_cti_packageManifestAndShip: Block signals failed!");
+		_cti_set_error("_cti_packageManifestAndShip: Failed to enter critical section.");
+		goto packageManifestAndShip_error;
+	}
+	
+	// Handle race with signal handler setup
+	_cti_signals = signals;
+	_cti_setup = 1;
+	if (_cti_signaled)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: Termination signal received.");
 		goto packageManifestAndShip_error;
 	}
 	
@@ -2009,6 +2080,20 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	if (archive_write_open_filename(a, tar_name) != ARCHIVE_OK)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: %s", archive_error_string(a));
+		goto packageManifestAndShip_error;
+	}
+	
+	// Handle race with file creation
+	if (_cti_signaled)
+	{
+		// Try to unlink if signal handler was unable to. This can happen if we
+		// were signaled in the write open before file creation, and then the
+		// signal handler returned.
+		if (_cti_error)
+		{
+			unlink(tar_name);
+		}
+		_cti_set_error("_cti_packageManifestAndShip: Termination signal received.");
 		goto packageManifestAndShip_error;
 	}
 	
@@ -2246,18 +2331,18 @@ skipManifestTransfer:
 	
 	// clean things up
 	free(bin_path);
+	bin_path = NULL;
 	free(lib_path);
+	lib_path = NULL;
 	free(tmp_path);
+	tmp_path = NULL;
 	remove(tar_name);
 	free(tar_name);
+	tar_name = NULL;
 	
 	// BUG 819725: Unblock signals. We are done with the critical section
-	if (_cti_restore_signals(o_mask))
-	{
-		// Normally we don't want to print to stderr, but in this case we should at least try
-		// to do something since we don't return with a warning status.
-		fprintf(stderr, "CTI Warning: Failed to restore signals!\n");
-	}
+	_cti_end_critical_section(signals);
+	signals = NULL;
 	
 	return rtn;
 	
@@ -2314,14 +2399,9 @@ packageManifestAndShip_error:
 	}
 	
 	// BUG 819725: Unblock signals. We are done with the critical section
-	if (o_mask != NULL)
+	if (signals != NULL)
 	{
-		if (_cti_restore_signals(o_mask))
-		{
-			// Normally we don't want to print to stderr, but in this case we should at least try
-			// to do something since we don't return with a warning status.
-			fprintf(stderr, "CTI Warning: Failed to restore signals!\n");
-		}
+		_cti_end_critical_section(signals);
 	}
 
 	return 1;

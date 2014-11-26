@@ -20,13 +20,31 @@
 #define _CTI_SIGNAL_H
 
 #include <signal.h>
+#include <stdbool.h>
 
 #include <sys/types.h>
 
-sigset_t *	_cti_block_signals(void);
-int			_cti_restore_signals(sigset_t *);
-int			_cti_setpgid_restore(pid_t, sigset_t *);
-int			_cti_child_setpgid_restore(sigset_t *);
-int			_cti_child_setpgid_unblock_all(sigset_t *);
+typedef struct
+{
+	bool				o_restore;
+	struct sigaction	o_sa[6];
+	sigset_t			o_mask;
+#define SIGQUIT_SA(s)		&(s)->o_sa[0]
+#define SIGILL_SA(s)		&(s)->o_sa[1]
+#define SIGABRT_SA(s)		&(s)->o_sa[2]
+#define SIGFPE_SA(s)		&(s)->o_sa[3]
+#define SIGSEGV_SA(s)		&(s)->o_sa[4]
+#define SIGTERM_SA(s)		&(s)->o_sa[5]
+#define SIGMASK(s)		&(s)->o_mask
+} cti_signals_t;
+
+cti_signals_t *	_cti_critical_section(void (*)(int));
+void			_cti_restore_handler(cti_signals_t *);
+void			_cti_end_critical_section(cti_signals_t *);
+sigset_t *		_cti_block_signals(void);
+int				_cti_restore_signals(sigset_t *);
+int				_cti_setpgid_restore(pid_t, sigset_t *);
+int				_cti_child_setpgid_restore(sigset_t *);
+int				_cti_child_setpgid_unblock_all(sigset_t *);
 
 #endif /* _CTI_SIGNAL_H */

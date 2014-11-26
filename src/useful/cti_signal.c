@@ -30,10 +30,186 @@
 // static prototypes
 static int	_cti_child_sig_common(void);
 
+cti_signals_t *
+_cti_critical_section(void (*handler)(int))
+{
+	cti_signals_t *		this;
+	sigset_t			mask;
+	struct sigaction 	sig_action;
+	
+	// sanity
+	if (handler == NULL)
+	{
+		return NULL;
+	}
+	
+	// create a new signals struct
+	if ((this = malloc(sizeof(cti_signals_t))) == NULL)
+	{
+		// malloc failed
+		return NULL;
+	}
+	memset(this, 0, sizeof(cti_signals_t));
+	
+	// If true, we should restore signals upon ending critical section. If the
+	// handler already restored things, we don't want to restore twice.
+	this->o_restore = true;
+	
+	// block all signals except for termination/error signals we want to handle
+	if (sigfillset(&mask))
+	{
+		// sigfillset failed
+		free(this);
+		return NULL;
+	}
+	if (sigdelset(&mask, SIGQUIT))
+	{
+		// sigdelset failed
+		free(this);
+		return NULL;
+	}
+	if (sigdelset(&mask, SIGILL))
+	{
+		// sigdelset failed
+		free(this);
+		return NULL;
+	}
+	if (sigdelset(&mask, SIGABRT))
+	{
+		// sigdelset failed
+		free(this);
+		return NULL;
+	}
+	if (sigdelset(&mask, SIGFPE))
+	{
+		// sigdelset failed
+		free(this);
+		return NULL;
+	}
+	if (sigdelset(&mask, SIGSEGV))
+	{
+		// sigdelset failed
+		free(this);
+		return NULL;
+	}
+	if (sigdelset(&mask, SIGTERM))
+	{
+		// sigdelset failed
+		free(this);
+		return NULL;
+	}
+	
+	// set the new procmask
+	if (sigprocmask(SIG_BLOCK, &mask, SIGMASK(this)))
+	{
+		// sigprocmask failed
+		free(this);
+		return NULL;
+	}
+	
+	// init the sig_action
+	memset(&sig_action, 0, sizeof(sig_action));
+	sig_action.sa_handler = handler;
+	sig_action.sa_flags = SA_ONSTACK;
+	if (sigfillset(&sig_action.sa_mask))
+	{
+		// sigfillset failed
+		free(this);
+		return NULL;
+	}
+	
+	// setup each sigaction
+	if (sigaction(SIGQUIT,	&sig_action, SIGQUIT_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGILL,	&sig_action, SIGILL_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGABRT,	&sig_action, SIGABRT_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGFPE,	&sig_action, SIGFPE_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGSEGV,	&sig_action, SIGSEGV_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGTERM,	&sig_action, SIGTERM_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	
+	return this;
+}
+
+// Call this to restore the default state of signals inside the handler
+// function
+void
+_cti_restore_handler(cti_signals_t *this)
+{
+	// Do not restore if we get to the cleanup phase
+	this->o_restore = false;
+
+	// reset old signal handlers
+	sigaction(SIGQUIT,	SIGQUIT_SA(this),	NULL);
+	sigaction(SIGILL,	SIGILL_SA(this),	NULL);
+	sigaction(SIGABRT,	SIGABRT_SA(this),	NULL);
+	sigaction(SIGFPE,	SIGFPE_SA(this),	NULL);
+	sigaction(SIGSEGV,	SIGSEGV_SA(this),	NULL);
+	sigaction(SIGTERM,	SIGTERM_SA(this),	NULL);
+	
+	// reset old mask - this might cause another signal to be handled
+	sigprocmask(SIG_SETMASK, SIGMASK(this), NULL);
+}
+
+void
+_cti_end_critical_section(cti_signals_t *this)
+{
+	// sanity
+	if (this == NULL)
+	{
+		return;
+	}
+	
+	if (this->o_restore)
+	{
+		// reset old signal handlers
+		sigaction(SIGQUIT,	SIGQUIT_SA(this),	NULL);
+		sigaction(SIGILL,	SIGILL_SA(this),	NULL);
+		sigaction(SIGABRT,	SIGABRT_SA(this),	NULL);
+		sigaction(SIGFPE,	SIGFPE_SA(this),	NULL);
+		sigaction(SIGSEGV,	SIGSEGV_SA(this),	NULL);
+		sigaction(SIGTERM,	SIGTERM_SA(this),	NULL);
+	
+		// reset old mask
+		sigprocmask(SIG_SETMASK, SIGMASK(this), NULL);
+	}
+	
+	// cleanup
+	free(this);
+}
+
 sigset_t *
 _cti_block_signals(void)
 {
-	sigset_t *	rtn;
+	sigset_t *	this;
 	sigset_t	mask;
 	
 	// We don't want our children to handle signals from the parent. We usually
@@ -41,28 +217,28 @@ _cti_block_signals(void)
 	// happening. But there is a race between the fork and seting the signal
 	// handler in the child. So we need to block everything to avoid the problem.
 	
-	if ((rtn = malloc(sizeof(sigset_t))) == NULL)
+	if ((this = malloc(sizeof(sigset_t))) == NULL)
 	{
 		// malloc failed
 		return NULL;
 	}
-	memset(rtn, 0, sizeof(sigset_t));
+	memset(this, 0, sizeof(sigset_t));
 	
 	if (sigfillset(&mask))
 	{
 		// sigfillset failed
-		free(rtn);
+		free(this);
 		return NULL;
 	}
 	
-	if (sigprocmask(SIG_BLOCK, &mask, rtn))
+	if (sigprocmask(SIG_BLOCK, &mask, this))
 	{
 		// sigprocmask failed
-		free(rtn);
+		free(this);
 		return NULL;
 	}
 	
-	return rtn;
+	return this;
 }
 
 // Call either this function, or _cti_setpgid_restore, not both!
@@ -128,7 +304,7 @@ _cti_child_sig_common(void)
 	
 	// Clear out all signal handlers from the parent so nothing weird can happen
 	// in the child when it unblocks
-	for (i=0; i < NSIG; ++i)
+	for (i=1; i < NSIG; ++i)
 	{
 		sigaction(i, &sig_action, NULL);
 	}
