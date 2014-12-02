@@ -468,7 +468,8 @@ _cti_current_wlm_proto(void)
 const char *
 _cti_getCfgDir(void)
 {
-	char *cfg_dir;
+	char *			cfg_dir;
+	struct stat		st;
 
 	// return if we already have the value
 	if (_cti_cfg_dir != NULL)
@@ -481,9 +482,22 @@ _cti_getCfgDir(void)
 		return NULL;
 	}
 	
+	// ensure this is a directory
+	if (stat(cfg_dir, &st))
+	{
+		_cti_set_error("Unable to stat %s. Ensure environment variables are set.", CFG_DIR_VAR);
+		return NULL;
+	}
+	
+	if (!S_ISDIR(st.st_mode))
+	{
+		_cti_set_error("%s is not a directory. Ensure environment variables are set.", CFG_DIR_VAR);
+		return NULL;
+	}
+	
 	// set the global variable
 	_cti_cfg_dir = strdup(cfg_dir);
-
+	
 	return _cti_cfg_dir;
 }
 

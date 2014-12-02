@@ -135,27 +135,33 @@ static int				_cti_addManifestToSession(manifest_t *, session_t *);
 static void				_cti_addSessionToApp(appEntry_t *, cti_session_id_t);
 static int				_cti_addDirToArchive(struct archive *, struct archive_entry *, const char *);
 static int				_cti_copyFileToArchive(struct archive *, struct archive_entry *, const char *, const char *, char *);
+static void				_cti_transfer_doCleanup(void);
 static int				_cti_packageManifestAndShip(appEntry_t *, manifest_t *);
 
 /* global variables */
-static sessList_t *			_cti_my_sess		= NULL;
-static cti_session_id_t		_cti_next_sid		= 1;
-static manifList_t *		_cti_my_manifs		= NULL;
-static cti_manifest_id_t	_cti_next_mid		= 1;
-static bool					_cti_r_init			= false;	// is initstate()?
-static char *				_cti_r_state[256];				// state for random()
-static const char const		_cti_valid_char[]	= {
+static bool						_cti_doCleanup		= true;		// should we try to cleanup?
+static sessList_t *				_cti_my_sess		= NULL;
+static cti_session_id_t			_cti_next_sid		= 1;
+static manifList_t *			_cti_my_manifs		= NULL;
+static cti_manifest_id_t		_cti_next_mid		= 1;
+static bool						_cti_r_init			= false;	// is initstate()?
+static char *					_cti_r_state[256];				// state for random()
+
+// stuff used in the signal handler, hence volatile
+static volatile sig_atomic_t	_cti_signaled		= 0;	// True if we were signaled
+static volatile sig_atomic_t	_cti_error			= 0;	// True if we were unable to cleanup in handler
+static volatile sig_atomic_t	_cti_setup			= 0;	// True if _cti_signals is valid
+static volatile cti_signals_t *	_cti_signals		= NULL;	// Old signal handlers
+static volatile const char *	_cti_tar_file		= NULL;	// file to cleanup on signal
+static volatile const char *	_cti_hidden_file	= NULL;	// hidden file to cleanup on signal
+
+// valid chars array used in seed generation
+static const char const		_cti_valid_char[]		= {
 	'0','1','2','3','4','5','6','7','8','9',
 	'A','B','C','D','E','F','G','H','I','J','K','L','M',
 	'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
 	'a','b','c','d','e','f','g','h','i','j','k','l','m',
 	'n','o','p','q','r','s','t','u','v','w','x','y','z' };
-// stuff used in the signal handler, hence volatile
-static volatile sig_atomic_t	_cti_signaled	= 0;	// True if we were signaled
-static volatile sig_atomic_t	_cti_error		= 0;	// True if we were unable to cleanup in handler
-static volatile sig_atomic_t	_cti_setup		= 0;	// True if _cti_signals is valid
-static volatile cti_signals_t *	_cti_signals	= NULL;	// Old signal handlers
-static volatile const char *	_cti_tar_file	= NULL;	// file to cleanup on signal
 
 /* signal handler to enforce cleanup of tmpfile */
 static void
@@ -180,10 +186,14 @@ _cti_transfer_handler(int sig)
 	// It is safe to read from the global static objects
 	
 	// The following cast is safe since we block all other signals while inside
-	// the handler.
+	// the handler. Only unlink the hidden file if the tarball unlink worked.
 	if (unlink((char *)_cti_tar_file))
 	{
 		// failed to unlink the tar file
+		_cti_error = 1;
+	} else if (unlink((char *)_cti_hidden_file))
+	{
+		// failed to unlink the hidden file
 		_cti_error = 1;
 	}
 	
@@ -1675,15 +1685,6 @@ _cti_copyFileToArchive(struct archive *a, struct archive_entry *entry, const cha
 		errno = 0;
 		while ((d = readdir(dir)) != NULL)
 		{
-			// check for failure on readdir()
-			if (errno != 0)
-			{
-				// readdir failed
-				_cti_set_error("_cti_copyFileToArchive: readdir() %s", strerror(errno));
-				closedir(dir);
-				return 1;
-			}
-			
 			// ensure this isn't the . or .. file
 			switch (strlen(d->d_name))
 			{
@@ -1736,6 +1737,15 @@ _cti_copyFileToArchive(struct archive *a, struct archive_entry *entry, const cha
 			free(sub_f_loc);
 			free(sub_a_loc);
 			errno = 0;
+		}
+		
+		// check for failure on readdir()
+		if (errno != 0)
+		{
+			// readdir failed
+			_cti_set_error("_cti_copyFileToArchive: readdir() %s", strerror(errno));
+			closedir(dir);
+			return 1;
 		}
 		
 		// cleanup
@@ -1804,6 +1814,138 @@ _cti_copyFileToArchive(struct archive *a, struct archive_entry *entry, const cha
 	close(fd);
 	return 0;
 }
+
+static void
+_cti_transfer_doCleanup(void)
+{
+	const char *		cfg_dir;
+	DIR *				dir;
+	struct dirent *		d;
+	char *				stage_name;
+	char *				p;
+	
+	if (!_cti_doCleanup)
+		return;
+	
+	// Get the configuration directory
+	if ((cfg_dir = _cti_getCfgDir()) == NULL)
+	{
+		return;
+	}
+	
+	// Open the directory
+	if ((dir = opendir(cfg_dir)) == NULL)
+	{
+		return;
+	}
+	
+	// create the pattern to look for - note that the '.' is added since the
+	// file name will be hidden.
+	if (asprintf(&stage_name, ".%s", DEFAULT_STAGE_DIR) <= 0)
+	{
+		closedir(dir);
+		return;
+	}
+	// point at the first 'X' character at the end of the string
+	if ((p = strrchr(stage_name, 'X')) == NULL)
+	{
+		closedir(dir);
+		free(stage_name);
+		return;
+	}
+	while ((p - stage_name) > 0 && *(p-1) == 'X')
+	{
+		--p;
+	}
+	// Set this to null terminator
+	*p = '\0';
+	
+	// Recurse through each file in the reference directory
+	while ((d = readdir(dir)) != NULL)
+	{
+		// ensure this isn't the . or .. file
+		switch (strlen(d->d_name))
+		{
+			case 1:
+				if (d->d_name[0] == '.')
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+				
+			case 2:
+				if (strcmp(d->d_name, "..") == 0)
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+			
+			default:
+				break;
+		}
+		
+		// check this name against the stage_name string
+		if (strncmp(d->d_name, stage_name, strlen(stage_name)) == 0)
+		{
+			FILE *	hfp;
+			pid_t	pid;
+			char *	h_path;
+			char *	n_path;
+			
+			// create path to hidden file
+			if (asprintf(&h_path, "%s/%s", cfg_dir, d->d_name) <= 0)
+			{
+				continue;
+			}
+		
+			// pattern matches, we need to try removing this file
+			if ((hfp = fopen(h_path, "r")) == NULL)
+			{
+				free(h_path);
+				continue;
+			}
+			
+			// read the pid from the file
+			if (fread(&pid, sizeof(pid), 1, hfp) != 1)
+			{
+				free(h_path);
+				fclose(hfp);
+				continue;
+			}
+			
+			fclose(hfp);
+			
+			// ping the process
+			if (kill(pid, 0) == 0)
+			{
+				// process is still alive
+				free(h_path);
+				continue;
+			}
+			
+			// process is dead, we need to remove the tarball
+			if (asprintf(&n_path, "%s/%s", cfg_dir, d->d_name+1) <= 0)
+			{
+				free(h_path);
+				continue;
+			}
+			
+			unlink(n_path);
+			free(n_path);
+			
+			// remove the hidden file
+			unlink(h_path);
+			free(h_path);
+		}
+	}
+	
+	// cleanup
+	closedir(dir);
+	free(stage_name);
+	_cti_doCleanup = false;
+}
 	
 static int
 _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
@@ -1819,7 +1961,9 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	stringEntry_t *			o_ptr = NULL;
 	fileEntry_t *			f_ptr;
 	char *					tar_name = NULL;
-	char *					tmp_tar_name;
+	char *					hidden_tar_name = NULL;
+	FILE *					hfp = NULL;
+	pid_t					pid;
 	struct archive *		a = NULL;
 	struct archive_entry *	entry = NULL;
 	char *					read_buf = NULL;
@@ -1847,6 +1991,9 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		// error already set
 		goto packageManifestAndShip_error;
 	}
+	
+	// try to cleanup
+	_cti_transfer_doCleanup();
 	
 	// Check the manifest to see if it already has a stage_name set, if so this 
 	// is part of an existing session and we should use the same name
@@ -2020,12 +2167,46 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		}
 	}
 	
-	// create the tarball name
-	if (asprintf(&tar_name, "%s/%s.tar", cfg_dir, m_ptr->stage_name) <= 0)
+	// create the tarball name based on its instance to prevent a race 
+	// condition where the dlaunch on the compute node has not yet extracted the 
+	// previously shipped tarball, and we overwrite it with this new one. This
+	// does not impact the name of the directory in the tarball.
+	if (asprintf(&tar_name, "%s/%s%d.tar", cfg_dir, m_ptr->stage_name, m_ptr->inst) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 		goto packageManifestAndShip_error;
 	}
+	
+	// create the hidden name for the cleanup file. This will be checked by future
+	// runs to try assisting in cleanup if we get killed unexpectedly. This is cludge
+	// in an attempt to cleanup. The ideal situation is to be able to tell the kernel
+	// to remove the tarball if the process exits, but no mechanism exists today that
+	// I know about.
+	if (asprintf(&hidden_tar_name, "%s/.%s%d.tar", cfg_dir, m_ptr->stage_name, m_ptr->inst) <= 0)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
+		goto packageManifestAndShip_error;
+	}
+	
+	// open the hidden file and write our pid into it
+	if ((hfp = fopen(hidden_tar_name, "w")) == NULL)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: fopen() %s", strerror(errno));
+		goto packageManifestAndShip_error;
+	}
+	
+	pid = getpid();
+	
+	if (fwrite(&pid, sizeof(pid), 1, hfp) != 1)
+	{
+		_cti_set_error("_cti_packageManifestAndShip: fwrite() %s", strerror(errno));
+		goto packageManifestAndShip_error;
+	}
+	
+	// cleanup - note that the hidden file is cleaned up later on. The only time
+	// it doesn't get cleaned up is if we are killed and unable to clean up.
+	fclose(hfp);
+	hfp = NULL;
 	
 	// Create the archive write object
 	if ((a = archive_write_new()) == NULL)
@@ -2047,6 +2228,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	_cti_setup = 0;
 	_cti_signals = NULL;
 	_cti_tar_file = tar_name;
+	_cti_hidden_file = hidden_tar_name;
 	if ((signals = _cti_critical_section(_cti_transfer_handler)) == NULL)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: Failed to enter critical section.");
@@ -2078,6 +2260,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		if (_cti_error)
 		{
 			unlink(tar_name);
+			unlink(hidden_tar_name);
 		}
 		_cti_set_error("_cti_packageManifestAndShip: Termination signal received.");
 		goto packageManifestAndShip_error;
@@ -2281,50 +2464,6 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		goto skipManifestTransfer;
 	}
 	
-	// rename the existing tarball based on its instance to prevent a race 
-	// condition where the dlaunch on the compute node has not yet extracted the 
-	// previously shipped tarball and we overwrite it with this new
-	// one.
-	
-	// create the temp tarball name
-	if (asprintf(&tmp_tar_name, "%s/%s%d.tar", cfg_dir, m_ptr->stage_name, m_ptr->inst) <= 0)
-	{
-		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
-		goto packageManifestAndShip_error;
-	}
-	
-	// notify the signal handler that it has invalid data, since we are about to
-	// rename the tar file.
-	_cti_setup = 0;
-	
-	// move the tarball
-	if (rename(tar_name, tmp_tar_name))
-	{
-		_cti_set_error("_cti_packageManifestAndShip: Failed to rename tarball to %s.", tmp_tar_name);
-		free(tmp_tar_name);
-		goto packageManifestAndShip_error;
-	}
-	
-	// set the tar_name to the tmp_tar_name
-	free(tar_name);
-	tar_name = tmp_tar_name;
-	
-	// reset tar_name in signal handler, also check to see if a signal came in
-	// while we were doing the rename, if so we need to unlink the file and throw
-	// error.
-	_cti_tar_file = tar_name;
-	_cti_setup = 1;
-	if (_cti_signaled)
-	{
-		// Try to unlink if signal handler was unable to.
-		if (_cti_error)
-		{
-			unlink(tar_name);
-		}
-		_cti_set_error("_cti_packageManifestAndShip: Termination signal received.");
-		goto packageManifestAndShip_error;
-	}
-	
 	// Call the appropriate transfer function based on the wlm
 	if (app_ptr->wlmProto->wlm_shipPackage(app_ptr->_wlmObj, tar_name))
 	{
@@ -2342,9 +2481,14 @@ skipManifestTransfer:
 	lib_path = NULL;
 	free(tmp_path);
 	tmp_path = NULL;
-	remove(tar_name);
+	unlink(tar_name);
+	_cti_tar_file = NULL;
 	free(tar_name);
 	tar_name = NULL;
+	unlink(hidden_tar_name);
+	_cti_hidden_file = NULL;
+	free(hidden_tar_name);
+	hidden_tar_name = NULL;
 	
 	// BUG 819725: Unblock signals. We are done with the critical section
 	_cti_setup = 0;
@@ -2380,8 +2524,21 @@ packageManifestAndShip_error:
 	
 	if (tar_name != NULL)
 	{
-		remove(tar_name);
+		unlink(tar_name);
+		_cti_tar_file = NULL;
 		free(tar_name);
+	}
+	
+	if (hidden_tar_name != NULL)
+	{
+		unlink(hidden_tar_name);
+		_cti_hidden_file = NULL;
+		free(hidden_tar_name);
+	}
+	
+	if (hfp != NULL)
+	{
+		fclose(hfp);
 	}
 	
 	// Attempt to cleanup the archive stuff just in case it has been created already
