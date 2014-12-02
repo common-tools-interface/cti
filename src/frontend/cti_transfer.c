@@ -192,20 +192,6 @@ _cti_transfer_handler(int sig)
 	
 	// re-raise the signal
 	raise(sig);
-	
-	// we returned, so we need to figure out what to do next
-	switch (sig)
-	{
-		// Don't return from computational exceptions
-		case SIGILL:
-		case SIGFPE:
-		case SIGSEGV:
-			abort();
-		
-		default:
-			// do nothing
-			break;
-	}
 }
 
 /* static functions */
@@ -2307,6 +2293,10 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		goto packageManifestAndShip_error;
 	}
 	
+	// notify the signal handler that it has invalid data, since we are about to
+	// rename the tar file.
+	_cti_setup = 0;
+	
 	// move the tarball
 	if (rename(tar_name, tmp_tar_name))
 	{
@@ -2318,6 +2308,22 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	// set the tar_name to the tmp_tar_name
 	free(tar_name);
 	tar_name = tmp_tar_name;
+	
+	// reset tar_name in signal handler, also check to see if a signal came in
+	// while we were doing the rename, if so we need to unlink the file and throw
+	// error.
+	_cti_tar_file = tar_name;
+	_cti_setup = 1;
+	if (_cti_signaled)
+	{
+		// Try to unlink if signal handler was unable to.
+		if (_cti_error)
+		{
+			unlink(tar_name);
+		}
+		_cti_set_error("_cti_packageManifestAndShip: Termination signal received.");
+		goto packageManifestAndShip_error;
+	}
 	
 	// Call the appropriate transfer function based on the wlm
 	if (app_ptr->wlmProto->wlm_shipPackage(app_ptr->_wlmObj, tar_name))
@@ -2341,6 +2347,7 @@ skipManifestTransfer:
 	tar_name = NULL;
 	
 	// BUG 819725: Unblock signals. We are done with the critical section
+	_cti_setup = 0;
 	_cti_end_critical_section(signals);
 	signals = NULL;
 	

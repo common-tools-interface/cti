@@ -55,6 +55,55 @@ _cti_critical_section(void (*handler)(int))
 	// handler already restored things, we don't want to restore twice.
 	this->o_restore = true;
 	
+	// init the sig_action
+	memset(&sig_action, 0, sizeof(sig_action));
+	sig_action.sa_handler = handler;
+	sig_action.sa_flags = 0;
+	if (sigfillset(&sig_action.sa_mask))
+	{
+		// sigfillset failed
+		free(this);
+		return NULL;
+	}
+	
+	// setup each sigaction
+	if (sigaction(SIGQUIT,	&sig_action, SIGQUIT_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGILL,	&sig_action, SIGILL_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGABRT,	&sig_action, SIGABRT_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGFPE,	&sig_action, SIGFPE_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGSEGV,	&sig_action, SIGSEGV_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	if (sigaction(SIGTERM,	&sig_action, SIGTERM_SA(this)))
+	{
+		// sigaction failed
+		free(this);
+		return NULL;
+	}
+	
 	// block all signals except for termination/error signals we want to handle
 	if (sigfillset(&mask))
 	{
@@ -100,58 +149,9 @@ _cti_critical_section(void (*handler)(int))
 	}
 	
 	// set the new procmask
-	if (sigprocmask(SIG_BLOCK, &mask, SIGMASK(this)))
+	if (sigprocmask(SIG_SETMASK, &mask, SIGMASK(this)))
 	{
 		// sigprocmask failed
-		free(this);
-		return NULL;
-	}
-	
-	// init the sig_action
-	memset(&sig_action, 0, sizeof(sig_action));
-	sig_action.sa_handler = handler;
-	sig_action.sa_flags = SA_ONSTACK;
-	if (sigfillset(&sig_action.sa_mask))
-	{
-		// sigfillset failed
-		free(this);
-		return NULL;
-	}
-	
-	// setup each sigaction
-	if (sigaction(SIGQUIT,	&sig_action, SIGQUIT_SA(this)))
-	{
-		// sigaction failed
-		free(this);
-		return NULL;
-	}
-	if (sigaction(SIGILL,	&sig_action, SIGILL_SA(this)))
-	{
-		// sigaction failed
-		free(this);
-		return NULL;
-	}
-	if (sigaction(SIGABRT,	&sig_action, SIGABRT_SA(this)))
-	{
-		// sigaction failed
-		free(this);
-		return NULL;
-	}
-	if (sigaction(SIGFPE,	&sig_action, SIGFPE_SA(this)))
-	{
-		// sigaction failed
-		free(this);
-		return NULL;
-	}
-	if (sigaction(SIGSEGV,	&sig_action, SIGSEGV_SA(this)))
-	{
-		// sigaction failed
-		free(this);
-		return NULL;
-	}
-	if (sigaction(SIGTERM,	&sig_action, SIGTERM_SA(this)))
-	{
-		// sigaction failed
 		free(this);
 		return NULL;
 	}
@@ -231,7 +231,7 @@ _cti_block_signals(void)
 		return NULL;
 	}
 	
-	if (sigprocmask(SIG_BLOCK, &mask, this))
+	if (sigprocmask(SIG_SETMASK, &mask, this))
 	{
 		// sigprocmask failed
 		free(this);
