@@ -1603,8 +1603,9 @@ cti_addManifestFile(cti_manifest_id_t mid, const char *fstr)
 static int
 _cti_addDirToArchive(struct archive *a, struct archive_entry *entry, const char *d_loc)
 {
-	int r;
-
+	struct timespec		tv;
+	int 				r;
+	
 	// sanity
 	if (a == NULL || entry == NULL || d_loc == NULL)
 	{
@@ -1612,13 +1613,21 @@ _cti_addDirToArchive(struct archive *a, struct archive_entry *entry, const char 
 		return 1;
 	}
 	
+	// get the current time
+	clock_gettime(CLOCK_REALTIME, &tv);
+	
 	// clear archive header for this use
 	archive_entry_clear(entry);
-
+	
 	// setup the archive header
 	archive_entry_set_pathname(entry, d_loc);
 	archive_entry_set_filetype(entry, AE_IFDIR);
+	archive_entry_set_size(entry, 0);
 	archive_entry_set_perm(entry, S_IRWXU);
+	archive_entry_set_atime(entry, tv.tv_sec, tv.tv_nsec);
+	archive_entry_set_birthtime(entry, tv.tv_sec, tv.tv_nsec);
+	archive_entry_set_ctime(entry, tv.tv_sec, tv.tv_nsec);
+	archive_entry_set_mtime(entry, tv.tv_sec, tv.tv_nsec);
 	while ((r = archive_write_header(a, entry)) == ARCHIVE_RETRY);
 	if (r == ARCHIVE_FATAL)
 	{
