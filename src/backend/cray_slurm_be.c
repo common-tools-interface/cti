@@ -20,6 +20,7 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -67,12 +68,13 @@ cti_wlm_proto_t				_cti_cray_slurm_wlmProto =
 };
 
 // Global vars
-static computeNode_t *		_cti_thisNode	= NULL;	// compute node information
-static pmi_attribs_t *		_cti_attrs 		= NULL;	// node pmi_attribs information
-static slurmLayout_t *		_cti_layout		= NULL;	// compute node layout for slurm app
-static pid_t *				_cti_slurm_pids	= NULL;	// array of pids here if pmi_attribs is not available
-static uint32_t				_cti_jobid 		= 0;	// global jobid obtained from environment variable
-static uint32_t				_cti_stepid		= 0;	// global stepid obtained from environment variable
+static computeNode_t *		_cti_thisNode		= NULL;	// compute node information
+static pmi_attribs_t *		_cti_attrs 			= NULL;	// node pmi_attribs information
+static slurmLayout_t *		_cti_layout			= NULL;	// compute node layout for slurm app
+static pid_t *				_cti_slurm_pids		= NULL;	// array of pids here if pmi_attribs is not available
+static uint32_t				_cti_jobid 			= 0;	// global jobid obtained from environment variable
+static uint32_t				_cti_stepid			= 0;	// global stepid obtained from environment variable
+static bool					_cti_slurm_isInit	= false;// Has init been called?
 
 /* Constructor/Destructor functions */
 
@@ -81,6 +83,10 @@ _cti_cray_slurm_init(void)
 {
 	char *	apid_str;
 	char *	ptr;
+	
+	// Have we already called init?
+	if (_cti_slurm_isInit)
+		return 0;
 
 	// read information from the environment set by dlaunch
 	if ((ptr = getenv(APID_ENV_VAR)) == NULL)
@@ -108,6 +114,8 @@ _cti_cray_slurm_init(void)
 	// get the jobid and stepid
 	_cti_jobid = (uint32_t)strtoul(apid_str, NULL, 10);
 	_cti_stepid = (uint32_t)strtoul(ptr, NULL, 10);
+	
+	_cti_slurm_isInit = true;
 	
 	// done
 	return 0;

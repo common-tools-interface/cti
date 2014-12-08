@@ -23,6 +23,7 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -47,7 +48,12 @@ static cti_wlm_proto_t	_cti_nonenessProto =
 };
 
 /* global wlm proto object - this is initialized to noneness by default */
-cti_wlm_proto_t *		_cti_wlmProto 	= &_cti_nonenessProto;
+static cti_wlm_proto_t *	_cti_wlmProto 	= &_cti_nonenessProto;
+// fini guard - both the constructor and destructor gets called twice sometimes
+// I have no idea why. It feels like a bug to me. I am alright with having the
+// constructor get called twice, but the destructor should only be called once.
+// Otherwise error messages will be printed out.
+static bool					_cti_isFini		= false;
 
 // Constructor function
 void __attribute__((constructor))
@@ -93,14 +99,20 @@ _cti_init(void)
 }
 
 // Destructor function
-void __attribute__ ((destructor))
+void __attribute__((destructor))
 _cti_fini(void)
 {
+	// Ensure this is only called once
+	if (_cti_isFini)
+		return;
+
 	// call the wlm finish function
 	_cti_wlmProto->wlm_fini();
 	
 	// reset the wlm proto to noneness
 	_cti_wlmProto = &_cti_nonenessProto;
+	
+	_cti_isFini = true;
 	
 	return;
 }
