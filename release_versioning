@@ -16,9 +16,9 @@
 #
 
 craytool_major=6
-craytool_minor=0
+craytool_minor=1
 
-be_current=6
+be_current=7
 be_revision=0
 be_age=0
 
