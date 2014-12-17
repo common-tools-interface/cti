@@ -31,33 +31,33 @@
 #include "cti_be.h"
 
 /* wlm specific proto objects defined elsewhere */
-extern cti_wlm_proto_t	_cti_alps_wlmProto;
-extern cti_wlm_proto_t	_cti_cray_slurm_wlmProto;
+extern cti_be_wlm_proto_t	_cti_be_alps_wlmProto;
+extern cti_be_wlm_proto_t	_cti_be_cray_slurm_wlmProto;
 
 // Global vars
 /* noneness wlm proto object */
-static cti_wlm_proto_t	_cti_nonenessProto =
+static cti_be_wlm_proto_t	_cti_be_nonenessProto =
 {
-	CTI_WLM_NONE,					// wlm_type
-	_cti_wlm_init_none,				// wlm_init
-	_cti_wlm_fini_none,				// wlm_fini
-	_cti_wlm_findAppPids_none,		// wlm_findAppPids
-	_cti_wlm_getNodeHostname_none,	// wlm_getNodeHostname
-	_cti_wlm_getNodeFirstPE_none,	// wlm_getNodeFirstPE
-	_cti_wlm_getNodePEs_none		// wlm_getNodePEs
+	CTI_BE_WLM_NONE,					// wlm_type
+	_cti_be_wlm_init_none,				// wlm_init
+	_cti_be_wlm_fini_none,				// wlm_fini
+	_cti_be_wlm_findAppPids_none,		// wlm_findAppPids
+	_cti_be_wlm_getNodeHostname_none,	// wlm_getNodeHostname
+	_cti_be_wlm_getNodeFirstPE_none,	// wlm_getNodeFirstPE
+	_cti_be_wlm_getNodePEs_none			// wlm_getNodePEs
 };
 
 /* global wlm proto object - this is initialized to noneness by default */
-static cti_wlm_proto_t *	_cti_wlmProto 	= &_cti_nonenessProto;
+static cti_be_wlm_proto_t *	_cti_be_wlmProto 	= &_cti_be_nonenessProto;
 // fini guard - both the constructor and destructor gets called twice sometimes
 // I have no idea why. It feels like a bug to me. I am alright with having the
 // constructor get called twice, but the destructor should only be called once.
 // Otherwise error messages will be printed out.
-static bool					_cti_isFini		= false;
+static bool					_cti_be_isFini		= false;
 
 // Constructor function
 void __attribute__((constructor))
-_cti_init(void)
+_cti_be_init(void)
 {
 	char *	wlm_str;
 
@@ -71,18 +71,18 @@ _cti_init(void)
 	// verify that the wlm string is valid
 	switch (atoi(wlm_str))
 	{
-		case CTI_WLM_ALPS:
-			_cti_wlmProto = &_cti_alps_wlmProto;
+		case CTI_BE_WLM_ALPS:
+			_cti_be_wlmProto = &_cti_be_alps_wlmProto;
 			break;
 		
-		case CTI_WLM_CRAY_SLURM:
-			_cti_wlmProto = &_cti_cray_slurm_wlmProto;
+		case CTI_BE_WLM_CRAY_SLURM:
+			_cti_be_wlmProto = &_cti_be_cray_slurm_wlmProto;
 			break;
 		
-		case CTI_WLM_NONE:
-		case CTI_WLM_SLURM:
+		case CTI_BE_WLM_NONE:
+		case CTI_BE_WLM_SLURM:
 			// These wlm are not supported
-			fprintf(stderr, "wlm %s is not yet supported!\n", cti_wlm_type_toString(atoi(wlm_str)));
+			fprintf(stderr, "wlm %s is not yet supported!\n", cti_be_wlm_type_toString(atoi(wlm_str)));
 			return;
 		
 		default:
@@ -90,54 +90,54 @@ _cti_init(void)
 			return;
 	}
 	
-	if (_cti_wlmProto->wlm_init())
+	if (_cti_be_wlmProto->wlm_init())
 	{
 		// We failed to init, so ensure we set the WLM proto to noneness
-		_cti_wlmProto = &_cti_nonenessProto;
+		_cti_be_wlmProto = &_cti_be_nonenessProto;
 		return;
 	}
 }
 
 // Destructor function
 void __attribute__((destructor))
-_cti_fini(void)
+_cti_be_fini(void)
 {
 	// Ensure this is only called once
-	if (_cti_isFini)
+	if (_cti_be_isFini)
 		return;
 
 	// call the wlm finish function
-	_cti_wlmProto->wlm_fini();
+	_cti_be_wlmProto->wlm_fini();
 	
 	// reset the wlm proto to noneness
-	_cti_wlmProto = &_cti_nonenessProto;
+	_cti_be_wlmProto = &_cti_be_nonenessProto;
 	
-	_cti_isFini = true;
+	_cti_be_isFini = true;
 	
 	return;
 }
 
-cti_wlm_type
-cti_current_wlm(void)
+cti_be_wlm_type
+cti_be_current_wlm(void)
 {
-	return _cti_wlmProto->wlm_type;
+	return _cti_be_wlmProto->wlm_type;
 }
 
 const char *
-cti_wlm_type_toString(cti_wlm_type wlm_type)
+cti_be_wlm_type_toString(cti_be_wlm_type wlm_type)
 {
 	switch (wlm_type)
 	{
-		case CTI_WLM_ALPS:
+		case CTI_BE_WLM_ALPS:
 			return "Cray ALPS";
 			
-		case CTI_WLM_CRAY_SLURM:
+		case CTI_BE_WLM_CRAY_SLURM:
 			return "Cray based SLURM";
 	
-		case CTI_WLM_SLURM:
+		case CTI_BE_WLM_SLURM:
 			return "SLURM";
 			
-		case CTI_WLM_NONE:
+		case CTI_BE_WLM_NONE:
 			return "No WLM detected";
 	}
 	
@@ -146,7 +146,7 @@ cti_wlm_type_toString(cti_wlm_type wlm_type)
 }
 
 char *
-cti_getAppId(void)
+cti_be_getAppId(void)
 {
 	char *	apid_str;
 	
@@ -160,14 +160,14 @@ cti_getAppId(void)
 }
 
 cti_pidList_t *
-cti_findAppPids()
+cti_be_findAppPids()
 {
 	// Call the appropriate function based on the wlm
-	return _cti_wlmProto->wlm_findAppPids();
+	return _cti_be_wlmProto->wlm_findAppPids();
 }
 
 void
-cti_destroyPidList(cti_pidList_t *lst)
+cti_be_destroyPidList(cti_pidList_t *lst)
 {
 	// sanity check
 	if (lst == NULL)
@@ -180,29 +180,29 @@ cti_destroyPidList(cti_pidList_t *lst)
 }
 
 char *
-cti_getNodeHostname()
+cti_be_getNodeHostname()
 {
 	// Call the appropriate function based on the wlm
-	return _cti_wlmProto->wlm_getNodeHostname();
+	return _cti_be_wlmProto->wlm_getNodeHostname();
 }
 
 int
-cti_getNodeFirstPE()
+cti_be_getNodeFirstPE()
 {
 	// Call the appropriate function based on the wlm
-	return _cti_wlmProto->wlm_getNodeFirstPE();
+	return _cti_be_wlmProto->wlm_getNodeFirstPE();
 }
 
 int
-cti_getNodePEs()
+cti_be_getNodePEs()
 {
 	// Call the appropriate function based on the wlm
-	return _cti_wlmProto->wlm_getNodePEs();
+	return _cti_be_wlmProto->wlm_getNodePEs();
 }
 
 // This should be hidden from everyone outside of internal library code
 char *
-_cti_getToolDir()
+_cti_be_getToolDir()
 {
 	char *	tool_str;
 	
@@ -217,7 +217,7 @@ _cti_getToolDir()
 
 // This should be hidden from everyone outside of internal library code
 char *
-_cti_getAttribsDir()
+_cti_be_getAttribsDir()
 {
 	char *	attribs_str;
 	
@@ -231,7 +231,7 @@ _cti_getAttribsDir()
 }
 
 char *
-cti_getRootDir()
+cti_be_getRootDir()
 {
 	char *	root_str;
 	
@@ -245,7 +245,7 @@ cti_getRootDir()
 }
 
 char *
-cti_getBinDir()
+cti_be_getBinDir()
 {
 	char *	bin_str;
 	
@@ -259,7 +259,7 @@ cti_getBinDir()
 }
 
 char *
-cti_getLibDir()
+cti_be_getLibDir()
 {
 	char *	lib_str;
 	
@@ -273,7 +273,7 @@ cti_getLibDir()
 }
 
 char *
-cti_getFileDir()
+cti_be_getFileDir()
 {
 	char *	file_str;
 	
@@ -287,7 +287,7 @@ cti_getFileDir()
 }
 
 char *
-cti_getTmpDir()
+cti_be_getTmpDir()
 {
 	char *	tmp_str;
 	
@@ -304,44 +304,44 @@ cti_getTmpDir()
 /* Noneness functions for wlm proto */
 
 int
-_cti_wlm_init_none(void)
+_cti_be_wlm_init_none(void)
 {
-	fprintf(stderr, "wlm_init() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	fprintf(stderr, "\nwlm_init() not supported for %s\n", cti_be_wlm_type_toString(_cti_be_wlmProto->wlm_type));
 	return 1;
 }
 
 void
-_cti_wlm_fini_none(void)
+_cti_be_wlm_fini_none(void)
 {
-	fprintf(stderr, "wlm_fini() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	fprintf(stderr, "\nwlm_fini() not supported for %s\n", cti_be_wlm_type_toString(_cti_be_wlmProto->wlm_type));
 	return;
 }
 
 cti_pidList_t *
-_cti_wlm_findAppPids_none(void)
+_cti_be_wlm_findAppPids_none(void)
 {
-	fprintf(stderr, "wlm_findAppPids() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	fprintf(stderr, "\nwlm_findAppPids() not supported for %s\n", cti_be_wlm_type_toString(_cti_be_wlmProto->wlm_type));
 	return NULL;
 }
 
 char *
-_cti_wlm_getNodeHostname_none(void)
+_cti_be_wlm_getNodeHostname_none(void)
 {
-	fprintf(stderr, "wlm_getNodeHostname() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	fprintf(stderr, "\nwlm_getNodeHostname() not supported for %s\n", cti_be_wlm_type_toString(_cti_be_wlmProto->wlm_type));
 	return NULL;
 }
 
 int
-_cti_wlm_getNodeFirstPE_none(void)
+_cti_be_wlm_getNodeFirstPE_none(void)
 {
-	fprintf(stderr, "wlm_getNodeFirstPE() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	fprintf(stderr, "\nwlm_getNodeFirstPE() not supported for %s\n", cti_be_wlm_type_toString(_cti_be_wlmProto->wlm_type));
 	return -1;
 }
 
 int
-_cti_wlm_getNodePEs_none(void)
+_cti_be_wlm_getNodePEs_none(void)
 {
-	fprintf(stderr, "wlm_getNodeFirstPE() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	fprintf(stderr, "\nwlm_getNodeFirstPE() not supported for %s\n", cti_be_wlm_type_toString(_cti_be_wlmProto->wlm_type));
 	return -1;
 }
 

@@ -45,26 +45,26 @@ typedef struct
 } computeNode_t;
 
 /* static prototypes */
-static int 					_cti_alps_init(void);
-static void					_cti_alps_fini(void);
-static cti_pidList_t *		_cti_alps_findAppPids(void);
-static char *				_cti_alps_getNodeHostname(void);
-static int					_cti_alps_getNodeFirstPE(void);
-static int					_cti_alps_getNodePEs(void);
-static int					_cti_alps_get_placement_info(uint64_t, alpsAppLayout_t *, int **, int **, int **, int **, struct in_addr **, int **, int **, int **, int **);
-static int					_cti_alps_getComputeNodeInfo(void);
-static int					_cti_alps_getPlacementInfo(void);
+static int 					_cti_be_alps_init(void);
+static void					_cti_be_alps_fini(void);
+static cti_pidList_t *		_cti_be_alps_findAppPids(void);
+static char *				_cti_be_alps_getNodeHostname(void);
+static int					_cti_be_alps_getNodeFirstPE(void);
+static int					_cti_be_alps_getNodePEs(void);
+static int					_cti_be_alps_get_placement_info(uint64_t, alpsAppLayout_t *, int **, int **, int **, int **, struct in_addr **, int **, int **, int **, int **);
+static int					_cti_be_alps_getComputeNodeInfo(void);
+static int					_cti_be_alps_getPlacementInfo(void);
 
 /* alps wlm proto object */
-cti_wlm_proto_t				_cti_alps_wlmProto =
+cti_be_wlm_proto_t			_cti_be_alps_wlmProto =
 {
-	CTI_WLM_ALPS,				// wlm_type
-	_cti_alps_init,				// wlm_init
-	_cti_alps_fini,				// wlm_fini
-	_cti_alps_findAppPids,		// wlm_findAppPids
-	_cti_alps_getNodeHostname,	// wlm_getNodeHostname
-	_cti_alps_getNodeFirstPE,	// wlm_getNodeFirstPE
-	_cti_alps_getNodePEs		// wlm_getNodePEs
+	CTI_BE_WLM_ALPS,				// wlm_type
+	_cti_be_alps_init,				// wlm_init
+	_cti_be_alps_fini,				// wlm_fini
+	_cti_be_alps_findAppPids,		// wlm_findAppPids
+	_cti_be_alps_getNodeHostname,	// wlm_getNodeHostname
+	_cti_be_alps_getNodeFirstPE,	// wlm_getNodeFirstPE
+	_cti_be_alps_getNodePEs			// wlm_getNodePEs
 };
 
 // Global vars
@@ -77,7 +77,7 @@ static uint64_t				_cti_apid 		= 0;	// global apid obtained from environment var
 /* Constructor/Destructor functions */
 
 static int
-_cti_alps_init(void)
+_cti_be_alps_init(void)
 {
 	char *error;
 	char *apid_str;
@@ -134,7 +134,7 @@ _cti_alps_init(void)
 }
 
 static void
-_cti_alps_fini(void)
+_cti_be_alps_fini(void)
 {
 	if (_cti_alps_ptr != NULL)
 	{
@@ -157,7 +157,7 @@ _cti_alps_fini(void)
 	
 	if (_cti_attrs != NULL)
 	{
-		_cti_freePmiAttribs(_cti_attrs);
+		_cti_be_freePmiAttribs(_cti_attrs);
 		_cti_attrs = NULL;
 	}
 	
@@ -167,7 +167,7 @@ _cti_alps_fini(void)
 /* dlopen related wrappers */
 
 static int
-_cti_alps_get_placement_info(uint64_t a1, alpsAppLayout_t *a2, int **a3, int **a4, int **a5, int **a6, struct in_addr **a7, int **a8, int **a9, int **a10, int **a11)
+_cti_be_alps_get_placement_info(uint64_t a1, alpsAppLayout_t *a2, int **a3, int **a4, int **a5, int **a6, struct in_addr **a7, int **a8, int **a9, int **a10, int **a11)
 {
 	// sanity check
 	if (_cti_alps_ptr == NULL)
@@ -179,7 +179,7 @@ _cti_alps_get_placement_info(uint64_t a1, alpsAppLayout_t *a2, int **a3, int **a
 /* Static functions */
 
 static int
-_cti_alps_getComputeNodeInfo()
+_cti_be_alps_getComputeNodeInfo()
 {
 	FILE *alps_fd;			// ALPS NID file stream
 	char file_buf[BUFSIZ];	// file read buffer
@@ -200,7 +200,7 @@ _cti_alps_getComputeNodeInfo()
 	// open up the file defined in the alps header containing our node id (nid)
 	if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)
 	{
-		fprintf(stderr, "_cti_alps_getComputeNodeInfo failed.\n");
+		fprintf(stderr, "_cti_be_alps_getComputeNodeInfo failed.\n");
 		free(my_node);
 		return 1;
 	}
@@ -208,7 +208,7 @@ _cti_alps_getComputeNodeInfo()
 	// we expect this file to have a numeric value giving our current nid
 	if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
 	{
-		fprintf(stderr, "_cti_alps_getComputeNodeInfo failed.\n");
+		fprintf(stderr, "_cti_be_alps_getComputeNodeInfo failed.\n");
 		free(my_node);
 		fclose(alps_fd);
 		return 1;
@@ -226,7 +226,7 @@ _cti_alps_getComputeNodeInfo()
 }
 
 static int
-_cti_alps_getPlacementInfo()
+_cti_be_alps_getPlacementInfo()
 {
 	alpsAppLayout_t *	tmpLayout;
 	
@@ -237,7 +237,7 @@ _cti_alps_getPlacementInfo()
 	// sanity check
 	if (_cti_apid == 0)
 	{
-		fprintf(stderr, "_cti_alps_getPlacementInfo failed.\n");
+		fprintf(stderr, "_cti_be_alps_getPlacementInfo failed.\n");
 		return 1;
 	}
 	
@@ -250,9 +250,9 @@ _cti_alps_getPlacementInfo()
 	memset(tmpLayout, 0, sizeof(alpsAppLayout_t));     // clear it to NULL
 	
 	// get application information from alps
-	if (_cti_alps_get_placement_info(_cti_apid, tmpLayout, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) < 0)
+	if (_cti_be_alps_get_placement_info(_cti_apid, tmpLayout, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) < 0)
 	{
-		fprintf(stderr, "_cti_alps_getPlacementInfo failed.\n");
+		fprintf(stderr, "_cti_be_alps_getPlacementInfo failed.\n");
 		return 1;
 	}
 	
@@ -265,19 +265,19 @@ _cti_alps_getPlacementInfo()
 /* API related calls start here */
 
 static cti_pidList_t *
-_cti_alps_findAppPids()
+_cti_be_alps_findAppPids()
 {
 	cti_pidList_t * rtn;
 	int i;
 	
-	// Call _cti_getPmiAttribsInfo - We require the pmi_attribs file to exist
+	// Call _cti_be_getPmiAttribsInfo - We require the pmi_attribs file to exist
 	// in order to function properly.
 	if (_cti_attrs == NULL)
 	{
-		if ((_cti_attrs = _cti_getPmiAttribsInfo()) == NULL)
+		if ((_cti_attrs = _cti_be_getPmiAttribsInfo()) == NULL)
 		{
 			// Something messed up, so fail.
-			fprintf(stderr, "_cti_alps_findAppPids failed.\n");
+			fprintf(stderr, "_cti_be_alps_findAppPids failed.\n");
 			return NULL;
 		}
 	}
@@ -286,7 +286,7 @@ _cti_alps_findAppPids()
 	if (_cti_attrs->app_rankPidPairs == NULL)
 	{
 		// Something messed up, so fail.
-		fprintf(stderr, "_cti_alps_findAppPids failed.\n");
+		fprintf(stderr, "_cti_be_alps_findAppPids failed.\n");
 		return NULL;
 	}
 	
@@ -318,17 +318,17 @@ _cti_alps_findAppPids()
 }
 
 static char *
-_cti_alps_getNodeHostname()
+_cti_be_alps_getNodeHostname()
 {
 	char * nidHost;
 
 	// ensure the _cti_thisNode exists
 	if (_cti_thisNode == NULL)
 	{
-		if (_cti_alps_getComputeNodeInfo())
+		if (_cti_be_alps_getComputeNodeInfo())
 		{
 			// couldn't get the compute node info for some odd reason
-			fprintf(stderr, "_cti_alps_getNodeHostname failed.\n");
+			fprintf(stderr, "_cti_be_alps_getNodeHostname failed.\n");
 			return NULL;
 		}
 	}
@@ -336,7 +336,7 @@ _cti_alps_getNodeHostname()
 	// create the nid hostname string
 	if (asprintf(&nidHost, ALPS_XT_HOSTNAME_FMT, _cti_thisNode->nid) <= 0)
 	{
-		fprintf(stderr, "_cti_alps_getNodeHostname failed.\n");
+		fprintf(stderr, "_cti_be_alps_getNodeHostname failed.\n");
 		return NULL;
 	}
 	
@@ -345,13 +345,13 @@ _cti_alps_getNodeHostname()
 }
 
 static int
-_cti_alps_getNodeFirstPE()
+_cti_be_alps_getNodeFirstPE()
 {
 	// make sure the _cti_appLayout object has been created
 	if (_cti_appLayout == (alpsAppLayout_t *)NULL)
 	{
 		// make sure we got the alpsAppLayout_t object
-		if (_cti_alps_getPlacementInfo())
+		if (_cti_be_alps_getPlacementInfo())
 		{
 			return -1;
 		}
@@ -361,13 +361,13 @@ _cti_alps_getNodeFirstPE()
 }
 
 static int
-_cti_alps_getNodePEs()
+_cti_be_alps_getNodePEs()
 {
 	// make sure the _cti_appLayout object has been created
 	if (_cti_appLayout == NULL)
 	{
 		// make sure we got the alpsAppLayout_t object
-		if (_cti_alps_getPlacementInfo())
+		if (_cti_be_alps_getPlacementInfo())
 		{
 			return -1;
 		}

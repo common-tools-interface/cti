@@ -31,7 +31,7 @@
 #include "pmi_attribs_parser.h"
 
 pmi_attribs_t *
-_cti_getPmiAttribsInfo(void)
+_cti_be_getPmiAttribsInfo(void)
 {
 	int					i;
 	FILE *				fp;
@@ -58,7 +58,7 @@ _cti_getPmiAttribsInfo(void)
 	// take a long time to startup at scale due to DVS issues.
 	
 	// get attribs path
-	if ((attribs_path = _cti_getAttribsDir()) == NULL)
+	if ((attribs_path = _cti_be_getAttribsDir()) == NULL)
 	{
 		// failed to get the top level location of pmi_attribs file
 		return NULL;
@@ -228,7 +228,7 @@ _cti_getPmiAttribsInfo(void)
 }
 
 void
-_cti_freePmiAttribs(pmi_attribs_t *attr)
+_cti_be_freePmiAttribs(pmi_attribs_t *attr)
 {
 	// sanity check
 	if (attr == NULL)

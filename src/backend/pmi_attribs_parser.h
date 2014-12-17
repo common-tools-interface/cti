@@ -39,8 +39,8 @@ typedef struct
 } pmi_attribs_t;
 
 /* function prototypes */
-pmi_attribs_t *	_cti_getPmiAttribsInfo(void);
-void			_cti_freePmiAttribs(pmi_attribs_t *);
+pmi_attribs_t *	_cti_be_getPmiAttribsInfo(void);
+void			_cti_be_freePmiAttribs(pmi_attribs_t *);
 
 #endif /* _PMI_ATTRIBS_PARSER_H */
 

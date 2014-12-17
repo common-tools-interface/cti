@@ -22,6 +22,7 @@ demos/cti_callback_daemon.c -text
 demos/cti_callback_demo.c -text
 demos/cti_callback_demo.h -text
 demos/cti_info_demo.c -text
+demos/cti_linking_test.c -text
 demos/cti_transfer_demo.c -text
 demos/testing.info -text
 include/cray_tools_be.h -text

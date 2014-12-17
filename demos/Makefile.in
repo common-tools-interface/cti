@@ -45,7 +45,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 EXTRA_PROGRAMS = cti_barrier$(EXEEXT) cti_info$(EXEEXT) \
-	cti_transfer$(EXEEXT) cti_callback$(EXEEXT) \
+	cti_link$(EXEEXT) cti_transfer$(EXEEXT) cti_callback$(EXEEXT) \
 	cti_callback_daemon$(EXEEXT)
 subdir = demos
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
@@ -85,6 +85,12 @@ cti_info_LDADD = $(LDADD)
 cti_info_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(cti_info_CFLAGS) $(CFLAGS) \
 	$(cti_info_LDFLAGS) $(LDFLAGS) -o $@
+am_cti_link_OBJECTS = cti_link-cti_linking_test.$(OBJEXT)
+cti_link_OBJECTS = $(am_cti_link_OBJECTS)
+cti_link_LDADD = $(LDADD)
+cti_link_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+	--mode=link $(CCLD) $(cti_link_CFLAGS) $(CFLAGS) \
+	$(cti_link_LDFLAGS) $(LDFLAGS) -o $@
 am_cti_transfer_OBJECTS = cti_transfer-cti_transfer_demo.$(OBJEXT)
 cti_transfer_OBJECTS = $(am_cti_transfer_OBJECTS)
 cti_transfer_LDADD = $(LDADD)
@@ -105,10 +111,10 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(cti_barrier_SOURCES) $(cti_callback_SOURCES) \
 	$(cti_callback_daemon_SOURCES) $(cti_info_SOURCES) \
-	$(cti_transfer_SOURCES)
+	$(cti_link_SOURCES) $(cti_transfer_SOURCES)
 DIST_SOURCES = $(cti_barrier_SOURCES) $(cti_callback_SOURCES) \
 	$(cti_callback_daemon_SOURCES) $(cti_info_SOURCES) \
-	$(cti_transfer_SOURCES)
+	$(cti_link_SOURCES) $(cti_transfer_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -251,6 +257,9 @@ cti_barrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 cti_info_CFLAGS = $(AM_CFLAGS)
 cti_info_SOURCES = cti_info_demo.c
 cti_info_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
+cti_link_CFLAGS = $(AM_CFLAGS)
+cti_link_SOURCES = cti_linking_test.c
+cti_link_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -lcraytools_be
 cti_transfer_CFLAGS = $(AM_CFLAGS)
 cti_transfer_SOURCES = cti_transfer_demo.c
 cti_transfer_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
@@ -305,6 +314,9 @@ cti_callback_daemon$(EXEEXT): $(cti_callback_daemon_OBJECTS) $(cti_callback_daem
 cti_info$(EXEEXT): $(cti_info_OBJECTS) $(cti_info_DEPENDENCIES) 
 	@rm -f cti_info$(EXEEXT)
 	$(cti_info_LINK) $(cti_info_OBJECTS) $(cti_info_LDADD) $(LIBS)
+cti_link$(EXEEXT): $(cti_link_OBJECTS) $(cti_link_DEPENDENCIES) 
+	@rm -f cti_link$(EXEEXT)
+	$(cti_link_LINK) $(cti_link_OBJECTS) $(cti_link_LDADD) $(LIBS)
 cti_transfer$(EXEEXT): $(cti_transfer_OBJECTS) $(cti_transfer_DEPENDENCIES) 
 	@rm -f cti_transfer$(EXEEXT)
 	$(cti_transfer_LINK) $(cti_transfer_OBJECTS) $(cti_transfer_LDADD) $(LIBS)
@@ -319,6 +331,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_callback-cti_callback_demo.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_callback_daemon-cti_callback_daemon.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_info-cti_info_demo.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_link-cti_linking_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_transfer-cti_transfer_demo.Po@am__quote@
 
 .c.o:
@@ -397,6 +410,20 @@ cti_info-cti_info_demo.obj: cti_info_demo.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_info_demo.c' object='cti_info-cti_info_demo.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_info_CFLAGS) $(CFLAGS) -c -o cti_info-cti_info_demo.obj `if test -f 'cti_info_demo.c'; then $(CYGPATH_W) 'cti_info_demo.c'; else $(CYGPATH_W) '$(srcdir)/cti_info_demo.c'; fi`
+
+cti_link-cti_linking_test.o: cti_linking_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_link_CFLAGS) $(CFLAGS) -MT cti_link-cti_linking_test.o -MD -MP -MF $(DEPDIR)/cti_link-cti_linking_test.Tpo -c -o cti_link-cti_linking_test.o `test -f 'cti_linking_test.c' || echo '$(srcdir)/'`cti_linking_test.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_link-cti_linking_test.Tpo $(DEPDIR)/cti_link-cti_linking_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_linking_test.c' object='cti_link-cti_linking_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_link_CFLAGS) $(CFLAGS) -c -o cti_link-cti_linking_test.o `test -f 'cti_linking_test.c' || echo '$(srcdir)/'`cti_linking_test.c
+
+cti_link-cti_linking_test.obj: cti_linking_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_link_CFLAGS) $(CFLAGS) -MT cti_link-cti_linking_test.obj -MD -MP -MF $(DEPDIR)/cti_link-cti_linking_test.Tpo -c -o cti_link-cti_linking_test.obj `if test -f 'cti_linking_test.c'; then $(CYGPATH_W) 'cti_linking_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_linking_test.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_link-cti_linking_test.Tpo $(DEPDIR)/cti_link-cti_linking_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_linking_test.c' object='cti_link-cti_linking_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_link_CFLAGS) $(CFLAGS) -c -o cti_link-cti_linking_test.obj `if test -f 'cti_linking_test.c'; then $(CYGPATH_W) 'cti_linking_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_linking_test.c'; fi`
 
 cti_transfer-cti_transfer_demo.o: cti_transfer_demo.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_transfer_CFLAGS) $(CFLAGS) -MT cti_transfer-cti_transfer_demo.o -MD -MP -MF $(DEPDIR)/cti_transfer-cti_transfer_demo.Tpo -c -o cti_transfer-cti_transfer_demo.o `test -f 'cti_transfer_demo.c' || echo '$(srcdir)/'`cti_transfer_demo.c
@@ -593,11 +620,12 @@ uninstall-am:
 	tags uninstall uninstall-am
 
 
-demos: cti_barrier cti_info cti_transfer cti_callback cti_callback_daemon
+demos: cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
 	mkdir -p demo_binaries
 	cp testing.info demo_binaries
 	mv cti_barrier demo_binaries
 	mv cti_info demo_binaries
+	mv cti_link demo_binaries
 	mv cti_transfer demo_binaries
 	mv cti_callback demo_binaries
 	mv cti_callback_daemon demo_binaries

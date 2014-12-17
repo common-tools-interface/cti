@@ -35,6 +35,15 @@ enum cti_wlm_type
 };
 typedef enum cti_wlm_type	cti_wlm_type;
 
+enum cti_be_wlm_type
+{
+	CTI_BE_WLM_NONE,	// error/unitialized state
+	CTI_BE_WLM_ALPS,
+	CTI_BE_WLM_CRAY_SLURM,
+	CTI_BE_WLM_SLURM
+};
+typedef enum cti_be_wlm_type	cti_be_wlm_type;
+
 /*******************************************************************************
 ** Generic defines
 *******************************************************************************/

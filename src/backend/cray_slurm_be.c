@@ -45,26 +45,26 @@ typedef struct
 } slurmLayout_t;
 
 /* static prototypes */
-static int 					_cti_cray_slurm_init(void);
-static void					_cti_cray_slurm_fini(void);
-static int					_cti_cray_slurm_getComputeNodeInfo(void);
-static int					_cti_cray_slurm_getSlurmLayout(void);
-static int					_cti_cray_slurm_getSlurmPids(void);
-static cti_pidList_t *		_cti_cray_slurm_findAppPids(void);
-static char *				_cti_cray_slurm_getNodeHostname(void);
-static int					_cti_cray_slurm_getNodeFirstPE(void);
-static int					_cti_cray_slurm_getNodePEs(void);
+static int 					_cti_be_cray_slurm_init(void);
+static void					_cti_be_cray_slurm_fini(void);
+static int					_cti_be_cray_slurm_getComputeNodeInfo(void);
+static int					_cti_be_cray_slurm_getSlurmLayout(void);
+static int					_cti_be_cray_slurm_getSlurmPids(void);
+static cti_pidList_t *		_cti_be_cray_slurm_findAppPids(void);
+static char *				_cti_be_cray_slurm_getNodeHostname(void);
+static int					_cti_be_cray_slurm_getNodeFirstPE(void);
+static int					_cti_be_cray_slurm_getNodePEs(void);
 
 /* cray slurm wlm proto object */
-cti_wlm_proto_t				_cti_cray_slurm_wlmProto =
+cti_be_wlm_proto_t			_cti_be_cray_slurm_wlmProto =
 {
-	CTI_WLM_CRAY_SLURM,					// wlm_type
-	_cti_cray_slurm_init,				// wlm_init
-	_cti_cray_slurm_fini,				// wlm_fini
-	_cti_cray_slurm_findAppPids,		// wlm_findAppPids
-	_cti_cray_slurm_getNodeHostname,	// wlm_getNodeHostname
-	_cti_cray_slurm_getNodeFirstPE,		// wlm_getNodeFirstPE
-	_cti_cray_slurm_getNodePEs			// wlm_getNodePEs
+	CTI_BE_WLM_CRAY_SLURM,				// wlm_type
+	_cti_be_cray_slurm_init,			// wlm_init
+	_cti_be_cray_slurm_fini,			// wlm_fini
+	_cti_be_cray_slurm_findAppPids,		// wlm_findAppPids
+	_cti_be_cray_slurm_getNodeHostname,	// wlm_getNodeHostname
+	_cti_be_cray_slurm_getNodeFirstPE,	// wlm_getNodeFirstPE
+	_cti_be_cray_slurm_getNodePEs		// wlm_getNodePEs
 };
 
 // Global vars
@@ -79,7 +79,7 @@ static bool					_cti_slurm_isInit	= false;// Has init been called?
 /* Constructor/Destructor functions */
 
 static int
-_cti_cray_slurm_init(void)
+_cti_be_cray_slurm_init(void)
 {
 	char *	apid_str;
 	char *	ptr;
@@ -122,7 +122,7 @@ _cti_cray_slurm_init(void)
 }
 
 static void
-_cti_cray_slurm_fini(void)
+_cti_be_cray_slurm_fini(void)
 {
 	// cleanup
 	if (_cti_thisNode != NULL)
@@ -133,7 +133,7 @@ _cti_cray_slurm_fini(void)
 	
 	if (_cti_attrs != NULL)
 	{
-		_cti_freePmiAttribs(_cti_attrs);
+		_cti_be_freePmiAttribs(_cti_attrs);
 		_cti_attrs = NULL;
 	}
 	
@@ -155,7 +155,7 @@ _cti_cray_slurm_fini(void)
 /* Static functions */
 
 static int
-_cti_cray_slurm_getComputeNodeInfo(void)
+_cti_be_cray_slurm_getComputeNodeInfo(void)
 {
 	FILE *			nid_fd;				// NID file stream
 	char 			file_buf[BUFSIZ];	// file read buffer
@@ -175,7 +175,7 @@ _cti_cray_slurm_getComputeNodeInfo(void)
 	// open up the file containing our node id (nid)
 	if ((nid_fd = fopen(ALPS_XT_NID, "r")) == NULL)
 	{
-		fprintf(stderr, "_cti_cray_slurm_getComputeNodeInfo failed.\n");
+		fprintf(stderr, "_cti_be_cray_slurm_getComputeNodeInfo failed.\n");
 		free(my_node);
 		return 1;
 	}
@@ -201,7 +201,7 @@ _cti_cray_slurm_getComputeNodeInfo(void)
 }
 
 static int
-_cti_cray_slurm_getSlurmLayout(void)
+_cti_be_cray_slurm_getSlurmLayout(void)
 {
 	slurmLayout_t *			my_layout;
 	char *					nid_str;
@@ -219,10 +219,10 @@ _cti_cray_slurm_getSlurmLayout(void)
 	// ensure the _cti_thisNode exists
 	if (_cti_thisNode == NULL)
 	{
-		if (_cti_cray_slurm_getComputeNodeInfo())
+		if (_cti_be_cray_slurm_getComputeNodeInfo())
 		{
 			// couldn't get the compute node info for some odd reason
-			fprintf(stderr, "_cti_cray_slurm_getSlurmLayout failed.\n");
+			fprintf(stderr, "_cti_be_cray_slurm_getSlurmLayout failed.\n");
 			return 1;
 		}
 	}
@@ -243,9 +243,9 @@ _cti_cray_slurm_getSlurmLayout(void)
 	}
 	
 	// get the file directory were we can find the layout file
-	if ((file_dir = cti_getFileDir()) == NULL)
+	if ((file_dir = cti_be_getFileDir()) == NULL)
 	{
-		fprintf(stderr, "_cti_cray_slurm_getSlurmLayout failed.\n");
+		fprintf(stderr, "_cti_be_cray_slurm_getSlurmLayout failed.\n");
 		free(nid_str);
 		free(my_layout);
 		return 1;
@@ -345,7 +345,7 @@ _cti_cray_slurm_getSlurmLayout(void)
 }
 
 static int
-_cti_cray_slurm_getSlurmPids(void)
+_cti_be_cray_slurm_getSlurmPids(void)
 {
 	pid_t *					my_pids;
 	char *					file_dir;
@@ -363,16 +363,16 @@ _cti_cray_slurm_getSlurmPids(void)
 	if (_cti_layout == NULL)
 	{
 		// get the layout
-		if (_cti_cray_slurm_getSlurmLayout())
+		if (_cti_be_cray_slurm_getSlurmLayout())
 		{
 			return 1;
 		}
 	}
 	
 	// get the file directory were we can find the pid file
-	if ((file_dir = cti_getFileDir()) == NULL)
+	if ((file_dir = cti_be_getFileDir()) == NULL)
 	{
-		fprintf(stderr, "_cti_cray_slurm_getSlurmPids failed.\n");
+		fprintf(stderr, "_cti_be_cray_slurm_getSlurmPids failed.\n");
 		return 1;
 	}
 	
@@ -472,7 +472,7 @@ _cti_cray_slurm_getSlurmPids(void)
 /* API related calls start here */
 
 static cti_pidList_t *
-_cti_cray_slurm_findAppPids(void)
+_cti_be_cray_slurm_findAppPids(void)
 {
 	char *			tool_path;
 	char *			file_path;
@@ -481,10 +481,10 @@ _cti_cray_slurm_findAppPids(void)
 	int				i;
 	
 	// First lets check to see if the pmi_attribs file exists
-	if ((tool_path = _cti_getToolDir()) == NULL)
+	if ((tool_path = _cti_be_getToolDir()) == NULL)
 	{
 		// Something messed up, so fail.
-		fprintf(stderr, "_cti_getToolDir failed.\n");
+		fprintf(stderr, "_cti_be_getToolDir failed.\n");
 		return NULL;
 	}
 	if (asprintf(&file_path, "%s/%s", tool_path, PMI_ATTRIBS_FILE_NAME) <= 0)
@@ -505,9 +505,9 @@ _cti_cray_slurm_findAppPids(void)
 		// the pmi_attribs method because we probably hit the race condition.
 		
 		// get the file directory were we can find the pid file
-		if ((file_dir = cti_getFileDir()) == NULL)
+		if ((file_dir = cti_be_getFileDir()) == NULL)
 		{
-			fprintf(stderr, "_cti_cray_slurm_findAppPids failed.\n");
+			fprintf(stderr, "_cti_be_cray_slurm_findAppPids failed.\n");
 			return NULL;
 		}
 	
@@ -534,7 +534,7 @@ _cti_cray_slurm_findAppPids(void)
 		if (_cti_slurm_pids == NULL)
 		{
 			// get the pids
-			if (_cti_cray_slurm_getSlurmPids())
+			if (_cti_be_cray_slurm_getSlurmPids())
 			{
 				return NULL;
 			}
@@ -571,14 +571,14 @@ use_pmi_attribs:
 
 		// use the pmi_attribs file
 		
-		// Call _cti_getPmiAttribsInfo - We require the pmi_attribs file to exist
+		// Call _cti_be_getPmiAttribsInfo - We require the pmi_attribs file to exist
 		// in order to function properly.
 		if (_cti_attrs == NULL)
 		{
-			if ((_cti_attrs = _cti_getPmiAttribsInfo()) == NULL)
+			if ((_cti_attrs = _cti_be_getPmiAttribsInfo()) == NULL)
 			{
 				// Something messed up, so fail.
-				fprintf(stderr, "_cti_cray_slurm_findAppPids failed.\n");
+				fprintf(stderr, "_cti_be_cray_slurm_findAppPids failed.\n");
 				return NULL;
 			}
 		}
@@ -587,7 +587,7 @@ use_pmi_attribs:
 		if (_cti_attrs->app_rankPidPairs == NULL)
 		{
 			// Something messed up, so fail.
-			fprintf(stderr, "_cti_cray_slurm_findAppPids failed.\n");
+			fprintf(stderr, "_cti_be_cray_slurm_findAppPids failed.\n");
 			return NULL;
 		}
 		
@@ -620,17 +620,17 @@ use_pmi_attribs:
 }
 
 static char *
-_cti_cray_slurm_getNodeHostname()
+_cti_be_cray_slurm_getNodeHostname()
 {
 	char * nidHost;
 
 	// ensure the _cti_thisNode exists
 	if (_cti_thisNode == NULL)
 	{
-		if (_cti_cray_slurm_getComputeNodeInfo())
+		if (_cti_be_cray_slurm_getComputeNodeInfo())
 		{
 			// couldn't get the compute node info for some odd reason
-			fprintf(stderr, "_cti_cray_slurm_getNodeHostname failed.\n");
+			fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname failed.\n");
 			return NULL;
 		}
 	}
@@ -638,7 +638,7 @@ _cti_cray_slurm_getNodeHostname()
 	// create the nid hostname string
 	if (asprintf(&nidHost, ALPS_XT_HOSTNAME_FMT, _cti_thisNode->nid) <= 0)
 	{
-		fprintf(stderr, "_cti_cray_slurm_getNodeHostname failed.\n");
+		fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname failed.\n");
 		return NULL;
 	}
 	
@@ -648,13 +648,13 @@ _cti_cray_slurm_getNodeHostname()
 
 
 static int
-_cti_cray_slurm_getNodeFirstPE()
+_cti_be_cray_slurm_getNodeFirstPE()
 {
 	// make sure we have the layout
 	if (_cti_layout == NULL)
 	{
 		// get the layout
-		if (_cti_cray_slurm_getSlurmLayout())
+		if (_cti_be_cray_slurm_getSlurmLayout())
 		{
 			return -1;
 		}
@@ -664,13 +664,13 @@ _cti_cray_slurm_getNodeFirstPE()
 }
 
 static int
-_cti_cray_slurm_getNodePEs()
+_cti_be_cray_slurm_getNodePEs()
 {
 	// make sure we have the layout
 	if (_cti_layout == NULL)
 	{
 		// get the layout
-		if (_cti_cray_slurm_getSlurmLayout())
+		if (_cti_be_cray_slurm_getSlurmLayout())
 		{
 			return -1;
 		}

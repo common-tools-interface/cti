@@ -18,7 +18,7 @@
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
 AM_LIBTOOLFLAGS = --quiet
 
-EXTRA_PROGRAMS = cti_barrier cti_info cti_transfer cti_callback cti_callback_daemon
+EXTRA_PROGRAMS = cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
 
 cti_barrier_CFLAGS			= $(AM_CFLAGS)
 cti_barrier_SOURCES			= cti_barrier_demo.c
@@ -27,6 +27,10 @@ cti_barrier_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 cti_info_CFLAGS				= $(AM_CFLAGS)
 cti_info_SOURCES			= cti_info_demo.c
 cti_info_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
+
+cti_link_CFLAGS				= $(AM_CFLAGS)
+cti_link_SOURCES			= cti_linking_test.c
+cti_link_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -lcraytools_be
 
 cti_transfer_CFLAGS			= $(AM_CFLAGS)
 cti_transfer_SOURCES		= cti_transfer_demo.c
@@ -40,11 +44,12 @@ cti_callback_daemon_CFLAGS	= $(AM_CFLAGS)
 cti_callback_daemon_SOURCES = cti_callback_daemon.c
 cti_callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_be
 
-demos: cti_barrier cti_info cti_transfer cti_callback cti_callback_daemon
+demos: cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
 	mkdir -p demo_binaries
 	cp testing.info demo_binaries
 	mv cti_barrier demo_binaries
 	mv cti_info demo_binaries
+	mv cti_link demo_binaries
 	mv cti_transfer demo_binaries
 	mv cti_callback demo_binaries
 	mv cti_callback_daemon demo_binaries
