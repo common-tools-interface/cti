@@ -30,6 +30,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -1669,8 +1670,8 @@ _cti_copyFileToArchive(struct archive *a, struct archive_entry *entry, const cha
 		// through each file in the directory and add it.
 		DIR *				dir;
 		struct dirent *		d;
-		char *				sub_f_loc;
-		char *				sub_a_loc;
+		char 				sub_f_loc[PATH_MAX];
+		char 				sub_a_loc[PATH_MAX];
 		
 		// Open the directory
 		if ((dir = opendir(f_loc)) == NULL)
@@ -1718,17 +1719,16 @@ _cti_copyFileToArchive(struct archive *a, struct archive_entry *entry, const cha
 			}
 		
 			// Create the path strings to this file
-			if (asprintf(&sub_f_loc, "%s/%s", f_loc, d->d_name) <= 0)
+			if (snprintf(sub_f_loc, PATH_MAX, "%s/%s", f_loc, d->d_name) <= 0)
 			{
-				_cti_set_error("_cti_copyFileToArchive: asprintf failed.");
+				_cti_set_error("_cti_copyFileToArchive: snprintf failed.");
 				closedir(dir);
 				return 1;
 			}
-			if (asprintf(&sub_a_loc, "%s/%s", a_loc, d->d_name) <= 0)
+			if (snprintf(sub_a_loc, PATH_MAX, "%s/%s", a_loc, d->d_name) <= 0)
 			{
-				_cti_set_error("_cti_copyFileToArchive: asprintf failed.");
+				_cti_set_error("_cti_copyFileToArchive: snprintf failed.");
 				closedir(dir);
-				free(sub_f_loc);
 				return 1;
 			}
 			
@@ -1737,14 +1737,10 @@ _cti_copyFileToArchive(struct archive *a, struct archive_entry *entry, const cha
 			{
 				// error already set
 				closedir(dir);
-				free(sub_f_loc);
-				free(sub_a_loc);
 				return 1;
 			}
 			
 			// cleanup
-			free(sub_f_loc);
-			free(sub_a_loc);
 			errno = 0;
 		}
 		

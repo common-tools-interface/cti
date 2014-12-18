@@ -20,14 +20,19 @@
 #ifndef _CTI_STRINGLIST_H
 #define _CTI_STRINGLIST_H
 
-#include <limits.h>
-
 /* struct typedefs */
+struct stringVal
+{
+	char *					key;				// key for this entry
+	void *					val;				// value for this entry
+};
+typedef struct stringVal	stringVal_t;
+
 struct stringNode
 {
-	void *					data;				// data value for this entry
-	struct stringNode *		next[CHAR_MAX+1];	// Child nodes
-};
+	struct stringVal *		data;				// data value for this entry
+	struct stringNode *		next[95];			// Child nodes - we only allow ascii characters
+};												// between ' ' and '~', anything else is invalid
 typedef struct stringNode	stringNode_t;
 
 typedef struct
