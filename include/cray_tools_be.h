@@ -55,9 +55,17 @@
  *         application. If CTI_SCRATCH_ENV_VAR was not set in the environment of
  *         aprun, CTI_OLD_SCRATCH_ENV_VAR will not exist in the environment of
  *         the tool daemon.
+ *
+ * CTI_OLD_CWD_ENV_VAR
+ *
+ *         The environment variable that is used to contain the value of
+ *         current working directory of the aprun associated with this tool
+ *         daemon. This is useful if the tool daemon needs to know about the
+ *         directory the application is running in to read or write a file.
  */
 #define CTI_SCRATCH_ENV_VAR     "TMPDIR"
 #define CTI_OLD_SCRATCH_ENV_VAR "CRAYTOOL_OLD_TMPDIR"
+#define CTI_OLD_CWD_ENV_VAR     "CRAYTOOL_OLD_CWD"
 
 #ifdef __cplusplus
 extern "C" {
@@ -80,12 +88,12 @@ typedef struct
 
 enum cti_be_wlm_type
 {
-	CTI_BE_WLM_NONE,	// error/unitialized state
-	CTI_BE_WLM_ALPS,
-	CTI_BE_WLM_CRAY_SLURM,
-	CTI_BE_WLM_SLURM
+    CTI_BE_WLM_NONE,    // error/unitialized state
+    CTI_BE_WLM_ALPS,
+    CTI_BE_WLM_CRAY_SLURM,
+    CTI_BE_WLM_SLURM
 };
-typedef enum cti_be_wlm_type	cti_be_wlm_type;
+typedef enum cti_be_wlm_type cti_be_wlm_type;
 
 /*
  * The Cray tools interface backend calls are defined below.
@@ -107,7 +115,7 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
  *      A cti_be_wlm_type that contains the current WLM in use on the system.
  *
  */
-extern cti_be_wlm_type	cti_be_current_wlm(void);
+extern cti_be_wlm_type cti_be_current_wlm(void);
 
 /*
  * cti_be_wlm_type_toString - Obtain the stringified representation of the 
@@ -124,7 +132,7 @@ extern cti_be_wlm_type	cti_be_current_wlm(void);
  *      A string containing the human readable format.
  *
  */
-extern const char *	cti_be_wlm_type_toString(cti_be_wlm_type wlm_type);
+extern const char * cti_be_wlm_type_toString(cti_be_wlm_type wlm_type);
 
 /*
  * cti_be_getAppId - Returns the Application id in string format of the
@@ -142,7 +150,7 @@ extern const char *	cti_be_wlm_type_toString(cti_be_wlm_type wlm_type);
  *      A string containing the application id, or else NULL on error.
  * 
  */
-extern char *	cti_be_getAppId();
+extern char * cti_be_getAppId();
 
 /*
  * cti_be_findAppPids - Returns a cti_pidList_t containing entries that hold
@@ -163,7 +171,7 @@ extern char *	cti_be_getAppId();
  *      PE rank/PE pid pairings. Returns NULL on error.
  *
  */
-extern cti_pidList_t *	cti_be_findAppPids(void);
+extern cti_pidList_t * cti_be_findAppPids(void);
 
 /*
  * cti_be_destroyPidList - Used to destroy the memory allocated for a 
@@ -182,7 +190,7 @@ extern cti_pidList_t *	cti_be_findAppPids(void);
  *      Void. This function behaves similarly to free().
  *
  */
-extern void	cti_be_destroyPidList(cti_pidList_t *pid_list);
+extern void cti_be_destroyPidList(cti_pidList_t *pid_list);
 
 /*
  * cti_be_getNodeHostname - Returns the hostname of this compute node.
@@ -198,7 +206,7 @@ extern void	cti_be_destroyPidList(cti_pidList_t *pid_list);
  *      A string containing the hostname, or else a null string on error.
  * 
  */
-extern char *	cti_be_getNodeHostname();
+extern char * cti_be_getNodeHostname();
 
 /*
  * cti_be_getNodeFirstPE - Returns the first PE number that resides on this
@@ -219,7 +227,7 @@ extern char *	cti_be_getNodeHostname();
  *      The integer value of the first PE on the node, or else -1 on error.
  * 
  */
-extern int	cti_be_getNodeFirstPE(void);
+extern int cti_be_getNodeFirstPE(void);
 
 /*
  * cti_be_getNodePEs - Returns the number of PEs that reside on this compute 
@@ -235,7 +243,7 @@ extern int	cti_be_getNodeFirstPE(void);
  *      The integer value of the number of PEs on the node, or else -1 on error.
  * 
  */
-extern int	cti_be_getNodePEs(void);
+extern int cti_be_getNodePEs(void);
 
 /*
  * cti_be_getRootDir - Get root directory for this tool daemon.
@@ -255,7 +263,7 @@ extern int	cti_be_getNodePEs(void);
  *      The path string on success, or NULL on error.
  * 
  */
-extern char *	cti_be_getRootDir(void);
+extern char * cti_be_getRootDir(void);
 
 /*
  * cti_be_getBinDir - Get bin directory for this tool daemon.
@@ -275,7 +283,7 @@ extern char *	cti_be_getRootDir(void);
  *      The path string on success, or NULL on error.
  * 
  */
-extern char *	cti_be_getBinDir(void);
+extern char * cti_be_getBinDir(void);
 
 /*
  * cti_be_getLibDir - Get lib directory for this tool daemon.
@@ -295,7 +303,7 @@ extern char *	cti_be_getBinDir(void);
  *      The path string on success, or NULL on error.
  * 
  */
-extern char *	cti_be_getLibDir(void);
+extern char * cti_be_getLibDir(void);
 
 /*
  * cti_be_getFileDir - Get file directory for this tool daemon.
@@ -314,7 +322,7 @@ extern char *	cti_be_getLibDir(void);
  *      The path string on success, or NULL on error.
  * 
  */
-extern char *	cti_be_getFileDir(void);
+extern char * cti_be_getFileDir(void);
 
 /*
  * cti_be_getTmpDir - Get tmp directory for this tool daemon.
@@ -333,7 +341,7 @@ extern char *	cti_be_getFileDir(void);
  *      The path string on success, or NULL on error.
  * 
  */
-extern char *	cti_be_getTmpDir(void);
+extern char * cti_be_getTmpDir(void);
 
 #ifdef __cplusplus
 }

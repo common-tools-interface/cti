@@ -148,6 +148,7 @@ typedef struct
 #define WLM_ENV_VAR						"CRAYTOOL_WLM"						// Backend: Used to hold the enum representation of the wlm (set)
 #define SCRATCH_ENV_VAR					"TMPDIR"							// Backend: Used to denote temporary storage space (set)
 #define OLD_SCRATCH_ENV_VAR				"CRAYTOOL_OLD_TMPDIR"				// Backend: Used to denote the old setting of TMPDIR (set)
+#define OLD_CWD_ENV_VAR					"CRAYTOOL_OLD_CWD"				// Backend: Used to denote the old setting of CWD (set)
 #define TOOL_DIR_VAR						"CRAYTOOL_TOP_LEVEL"				// Backend: KEEP HIDDEN! Used to point at the top level toolhelper dir (set)
 #define ROOT_DIR_VAR						"CRAYTOOL_ROOT_DIR"				// Backend: Used to denote the fake root of the tool daemon (set)
 #define BIN_DIR_VAR						"CRAYTOOL_BIN_DIR"				// Backend: Used to denote where binaries are located (set)

@@ -157,6 +157,7 @@ main(int argc, char **argv)
 	struct archive *		a;
 	struct archive *		ext;
 	struct archive_entry *	entry;
+	char *					cwd;
 	
 	// we require at least 1 argument beyond argv[0]
 	if (argc < 2)
@@ -495,6 +496,18 @@ main(int argc, char **argv)
 		// failure
 		fprintf(stderr, "%s: wlm_init() failed.\n", CTI_LAUNCHER);
 		return 1;
+	}
+	
+	// save the old cwd value into the environment
+	if ((cwd = getcwd(NULL, 0)) != NULL)
+	{
+		if (setenv(OLD_CWD_ENV_VAR, cwd, 1) < 0)
+		{
+			// failure
+			fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
+			return 1;
+		}
+		free(cwd);
 	}
 	
 	// process the env args
