@@ -5,7 +5,7 @@
  *                   or compute nodes. Frontend refers to the location where
  *                   applications are launched.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * © 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -79,11 +79,11 @@
  *
  * CTI_DAEMON_STAGE_DIR_ENV_VAR (optional - CAUTION!)
  *
- *         Used to define the directory root name that will be used to stage 
- *         binaries, libraries, and files to on the compute node. This can be 
- *         used to force multiple sessions to use the same directory structure.
- *         The use of this is not recommended since it is not guarded against 
- *         race conditions and conflicting file names.
+ *         Used to define the directory root name that will be used for a
+ *         sessions unique storage space. This can be used to force multiple
+ *         sessions to use the same directory structure. The use of this is not
+ *         recommended since it is not guarded against race conditions and 
+ *         conflicting file names.
  * 
  */
 #define CTI_LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
@@ -192,8 +192,8 @@ extern const char * cti_wlm_type_toString(cti_wlm_type wlm_type);
  * 
  * Detail
  *      For applications that use the tool interface that wish to operate over
- *      many different launcher sessions, this function can be used to free up
- *      and destroy any internal data structures that were created for use
+ *      many different applications at once, this function can be used to free
+ *      up and destroy any internal data structures that were created for use
  *      with the app_id of the registered application.
  *
  * Arguments
@@ -456,9 +456,8 @@ extern int cti_releaseAppBarrier(cti_app_id_t app_id);
  * 
  * Detail
  *      This function is used to send the provided signal to the app_id 
- *      associated with a valid application session. The app_id must have been
- *      obtained by calling cti_launchAppBarrier or an appropriate register
- *      function.
+ *      associated with a valid application. The app_id must have been obtained
+ *      by calling cti_launchAppBarrier or an appropriate register function.
  *
  * Arguments
  *      app_id -  The cti_app_id_t of the registered application.
@@ -505,21 +504,21 @@ extern uint64_t cti_alps_getApid(pid_t aprunPid);
 
 /*
  * cti_alps_registerApid -  Assists in registering the apid of an already
- *                          running aprun session for use with the Cray tool 
+ *                          running aprun application for use with the Cray tool 
  *                          interface.
  * 
  * Detail
- *      This function is used for registering a valid aprun session that was 
+ *      This function is used for registering a valid aprun application that was 
  *      previously launched through external means for use with the tool 
  *      interface. It is recommended to use the built-in functions to launch 
- *      aprun sessions, however sometimes this is impossible (such is the case 
- *      for a debug attach scenario). In order to use any of the functions
- *      defined in this interface, the apid of the aprun session *must* be
- *      registered. This is done automatically when using the built-in functions
- *      to launch aprun sessions. The apid can be obtained from apstat.
+ *      applications, however sometimes this is impossible (such is the case for
+ *      a debug attach scenario). In order to use any of the functions defined
+ *      in this interface, the apid of the aprun application must be registered.
+ *      This is done automatically when using the built-in functions to launch
+ *      applications. The apid can be obtained from apstat.
  *
  * Arguments
- *      apid - The apid of the aprun session to register.
+ *      apid - The apid of the aprun application to register.
  *
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
@@ -532,10 +531,10 @@ extern cti_app_id_t cti_alps_registerApid(uint64_t apid);
  * cti_alps_getAprunInfo - Obtain information about the aprun process
  *
  * Detail
- *      This function is used to obtain the apid of an aprun session and the
+ *      This function is used to obtain the apid of an aprun application and the
  *      pid_t of the aprun process based on the passed in app_id. It is the 
- *      callers responsibility to free the allocated storage when it is no 
- *      longer needed.
+ *      callers responsibility to free the allocated storage with free() when it
+ *      is no longer needed.
  *
  * Arguments
  *      app_id -  The cti_app_id_t of the registered application.
@@ -585,23 +584,22 @@ typedef struct
 
 /*
  * cti_cray_slurm_registerJobStep - Assists in registering the jobid and stepid
- *                                  of an already running srun session for use
- *                                  with the Cray tool interface.
+ *                                  of an already running srun application for
+ *                                  use with the Cray tool interface.
  * 
  * Detail
- *      This function is used for registering a valid srun session that was
+ *      This function is used for registering a valid srun application that was
  *      previously launched through external means for use with the tool
  *      interface. It is recommended to use the built-in functions to launch
- *      srun sessions, however sometimes this is impossible (such is the case
- *      for a debug attach scenario). In order to use any of the functions
- *      defined in this interface, the jobid and stepid of the srun session
- *      *must* be registered. This is done automatically when using the built-in
- *      functions to launch srun sessions. The jobid/stepid can be obtained from
- *      qstat.
+ *      applications, however sometimes this is impossible (such is the case for
+ *      a debug attach scenario). In order to use any of the functions defined
+ *      in this interface, the jobid and stepid of the srun application must be
+ *      registered. This is done automatically when using the built-in functions
+ *      to launch applications. The jobid/stepid can be obtained from qstat.
  *
  * Arguments
- *      job_id - The job id of the srun session to register.
- *      step_id - The step id of the srun session to register.
+ *      job_id - The job id of the srun application to register.
+ *      step_id - The step id of the srun application to register.
  *
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
@@ -614,9 +612,9 @@ extern cti_app_id_t cti_cray_slurm_registerJobStep( uint32_t job_id,
  * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
  *
  * Detail
- *      This function is used to obtain the jobid/stepid of an srun session
+ *      This function is used to obtain the jobid/stepid of an srun application
  *      based on the registered app_id. It is the callers responsibility to free
- *      the allocated storage when it is no longer needed.
+ *      the allocated storage with free() when it is no longer needed.
  *
  * Arguments
  *      app_id -  The cti_app_id_t of the registered application.
@@ -633,162 +631,99 @@ extern cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
 /*******************************************************************************
  * cti_transfer functions - Functions related to shipping files, shared
  *                          libraries, and binaries to compute nodes and
- *                          possibly launching tool daemons.
+ *                          launching tool daemons.
  *
  * NOTE: The functions defined in this section will keep track of files that
- *       were previously shipped to compute nodes for a session and will not
- *       allow a naming conflict to occur between consecutive calls. This
- *       eliminates redundant shipping of dependencies between multiple calls
- *       in the same session.
+ *       were previously shipped to compute nodes associated with a session and
+ *       will not allow a naming conflict to occur between consecutive calls.
+ *       This eliminates redundant shipping of dependencies between multiple
+ *       calls associated with the same session.
  ******************************************************************************/
 
 /*
- * cti_execToolDaemon - Launch a tool daemon onto compute nodes associated with
- *                      a registered application app_id.
- * 
+ * cti_createSession - Create a new session abstraction that represents a unique
+ *                     storage space on the compute nodes associated with a
+ *                     registered application id.
  * Detail
- *      This function is used to launch a program binary onto compute nodes.
- *      It will take care of shipping the binary, determine shared library
- *      dependencies using the LD_AUDIT interface, ship any required shared
- *      library dependencies to compute nodes, and start the shipped binary
- *      using the daemon_launcher wrapper.
+ *      This function is used to create a new internal session object to be
+ *      associated with the given app_id. The session represents a unique
+ *      directory on the compute nodes that will not collide with other tools
+ *      that make use of this interface. In order to use the other transfer
+ *      functions, a session must first be created. 
  *
- *      The daemon_launcher will take care of setting up the compute node 
- *      environment to ensure that any shared library dependency, file, or
- *      binary that was shipped can be found in PATH/LD_LIBRARY_PATH. The
- *      user can also provide a null terminated list of environment variables
- *      they wish to set in the environment of the tool process. This list
- *      shall be formed in a "envVar=val" manner. The arguments to pass to the
- *      tool program are defined by the provided null terminated list of args.
- *      Note that args[0] is the begining of the program arguments and not the
- *      name of the program itself.
- *      
- *      A cti_manifest_id_t can be provided to ship a manifest of binaries, 
- *      libraries, and files that may be required by the tool daemon. The 
- *      manifest must be created before calling this function and will be 
- *      cleaned up by this function. A unique directory will be created on the
- *      compute node in the temporary storage space associated with the
- *      application. This avoids naming conflicts between other tools using this
- *      interface. This unique directory will contain subdirectories /bin that
- *      contains all binaries and /lib that contains all libraries. Any files
- *      will not be placed in a subdirectory and are available directly in the
- *      current working directory of the tool daemon. All binaires will be found
- *      in the PATH of the tool daemon process, and all libraries will be found
- *      in the LD_LIBRARY_PATH of the tool daemon process.
+ *      The unique directory will have a random name by default to avoid
+ *      collisions with other tool daemons using this interface. It will have
+ *      sub-directories /bin for binaries, /lib for libraries, and /tmp for
+ *      temporary storage. This directory is guaranteed to be cleaned up upon
+ *      tool daemon exit. The directory will not be created on the compute nodes
+ *      until a manifest is shipped or a tool daemon started.
  *
- *      A cti_session_id_t can be provided to associate this tool daemon with an
- *      existing tool daemon's environment previously setup on the compute node.
- *      Any libraries or files that were previously shipped will also be
- *      available to the new tool daemon. This can also be used to exec the tool
- *      daemon inside of a previously shipped manifest that was created by the
- *      call to sendManifest(). If a session id is provided, the return value
- *      from this function will be the same session id on success.
- *
- *      If both cti_manifest_id_t and cti_session_id_t arguments are provided,
- *      the manifest must have been created using the same session, otherwise an
- *      error will occur.
- *
- *      If the debug option evaluates to true, daemon launcher will attempt to 
- *      read the environment variable defined by CTI_DBG_LOG_DIR_ENV_VAR and
- *      create a log file at this location. If the environment variable is not
- *      found or is null, it will create a log file in the /tmp directory on the
- *      compute node. It will then dup the STDOUT/STDERR file channels to this
- *      log file. This is the only way to capture stdout/stderr output from a
- *      tool program on the compute nodes.
+ *      The session will become invalid for future use upon calling the 
+ *      cti_deregisterApp function.
  *
  * Arguments
- *      app_id -  The cti_app_id_t of the registered application.
- *      mid -     The optional manifest id of a previously created manifest, or
- *                0 if no manifest is required.
- *      sid -     The optional session id of a previously created session, or
- *                0 if no session association should be made.
- *      fstr -    The name of the binary to exec onto the compute nodes.
- *                This can either be a fullpath name to the file or else
- *                the file name if the binary is found within the users
- *                PATH.
- *      args -    The null terminated list of arguments to pass to the
- *                fstr binary upon launch.
- *      env -     The null terminated list of environment variables to
- *                set in the environment of the fstr process. The strings
- *                in this list shall be formed in a "envVar=val" manner.
- *      debug -   If true, create a log file at the location provided by
- *                CTI_DBG_LOG_DIR_ENV_VAR. Redirect stdout/stderr to the log
- *                files fd.
+ *      app_id - The cti_app_id_t of the registered application.
  *
  * Returns
  *      A non-zero cti_session_id_t on success, or else 0 on failure.
- * 
+ *
  */
-extern cti_session_id_t cti_execToolDaemon( cti_app_id_t        app_id, 
-                                            cti_manifest_id_t   mid, 
-                                            cti_session_id_t    sid, 
-                                            const char *        fstr, 
-                                            const char * const  args[],
-                                            const char * const  env[],
-                                            int                 debug);
+extern cti_session_id_t cti_createSession(cti_app_id_t app_id);
 
 /*
- * cti_createNewManifest - Create a new manifest to ship additional binaries, 
- *                         libraries, and files when exec'ing a tool daemon.
+ * cti_createManifest - Create a new manifest abstraction that represents a
+ *                      list of binaries, libraries, library directories, and 
+ *                      files to be sent to the session storage space.
  * Detail
- *      This function is used to create a new internal manifest list used to
- *      ship additional binaries, libraries, and files with a tool daemon
- *      process. The internal list will be cleaned up upon passing it as an
- *      argument when launching the tool daemon. Only unique binary, library,
- *      and file names will be added to the manifest. For instance, if multiple
- *      binaries require libc.so, it will only be added once to the manifest.
+ *      This function is used to create a new manifest list of binaries,
+ *      libraries, library directories, and files that need to be shipped to the
+ *      compute nodes for use by a tool daemon. Only uniquely named binaries,
+ *      libraries, library directories, and files are added to the manifest that
+ *      were not already added to this or any already shipped manifest. This
+ *      avoids redundant shipment of files and inadvertent naming collisions.
  *
- *      An optional cti_session_id_t argument can be used to associate the new 
- *      manifest with an existing session created by a call to
- *      cti_execToolDaemon() or cti_sendManifest(). In this case the existing
- *      file hiearchy will be used from the previous call and uniqueness
- *      requirements will apply to the previous manifest. If this is a brand new
- *      instance, pass in 0 for the sid argument.
+ *      Upon adding a file, if it has the same realname as an already added file
+ *      of that type, and the locations match, no error will occur. If the
+ *      locations differ, an error will occur because of the naming collision.
+ *      The files in the manifest are only shipped upon calling cti_sendManifest
+ *      or cti_execToolDaemon at which point the manifest becomes invalid for
+ *      future use.
+ *
+ *      It is valid for multiple manifests associated with the same session id
+ *      to exist at the same time. The manifest will become invalid for future
+ *      use upon passing it to cti_sendManifest or cti_execToolDaemon calls or
+ *      by calling the cti_deregisterApp function.
  *
  * Arguments
- *      sid -     The optional session id of a previously create session, or
- *                0 if no session association should be made.
+ *      sid - The cti_session_id_t of the session.
  *
  * Returns
  *      A non-zero cti_manifest_id_t on success, or else 0 on failure.
  *
  */
-extern cti_manifest_id_t cti_createNewManifest(cti_session_id_t sid);
+extern cti_manifest_id_t cti_createManifest(cti_session_id_t sid);
 
 /*
- * cti_destroyManifest - Cleanup an existing manifest.
- *
- * Detail
- *      This function is used to cleanup the internal memory associated with an
- *      existing manifest. This can be used to force cleanup to happen without
- *      shipping the manifest during error handling.
- *
- * Arguments
- *      mid -     The cti_manifest_id_t of the existing manifest.
- *
- * Returns
- *      Returns no value.
- *
- */
-extern void cti_destroyManifest(cti_manifest_id_t mid);
-
-/*
- * cti_addManifestBinary - Add a program executable to an existing manifest.
+ * cti_addManifestBinary - Add a program binary to a manifest.
  * 
  * Detail
- *      This function is used to add a program binary to an existing manifest
- *      based on the cti_manifest_id_t argument. The program binary along with
- *      any required shared library dependencies determined by the LD_AUDIT 
- *      interface will be added to the manifest. This is useful if a tool daemon
- *      needs to fork/exec another program at some point during its lifetime.
- *      All binaries will be found in the PATH of the tool daemon, and all
- *      libraries will be found in the LD_LIBRARY_PATH of the tool daemon.
+ *      This function is used to add a program binary to a manifest based on the
+ *      cti_manifest_id_t argument. The program binary along with any shared
+ *      library dependencies will be added to the manifest. If the program uses
+ *      dlopen to open libraries, those libraries will need to be manually added
+ *      by calling cti_addManifestLibrary. Sending a program is used when a tool
+ *      daemon needs to fork/exec another program. The binary can be an absolute
+ *      path, a relative path, or file name upon which the PATH environment
+ *      variable will be searched. Upon shipment, the binary can be found in
+ *      PATH and shared library dependencies can be found in LD_LIBRARY_PATH of
+ *      the tool daemon environment or by using the CTI backend API to determine
+ *      the locations.
  *
  * Arguments
- *      mid -     The cti_manifest_id_t of the existing manifest.
- *      fstr -    The name of the binary to add to the manifest. This can either
- *                be a fullpath name to the file or else the file name if the 
- *                binary is found within PATH.
+ *      mid -   The cti_manifest_id_t of the manifest.
+ *      fstr -  The name of the binary to add to the manifest. This can either
+ *              be a fullpath name to the file or else the file name if the 
+ *              binary is found within PATH.
  *
  * Returns
  *      0 on success, or else 1 on failure.
@@ -797,23 +732,23 @@ extern void cti_destroyManifest(cti_manifest_id_t mid);
 extern int cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr);
 
 /*
- * cti_addManifestLibrary - Add a library to an existing manifest.
+ * cti_addManifestLibrary - Add a shared library to a manifest.
  * 
  * Detail
- *      This function is used to add a shared library to an existing manifest
- *      based on the cti_manifest_id_t argument. The library will only be added
- *      to the manifest if it has a unique name to avoid redundant shipping.
- *      this is useful if a tool daemon needs to dlopen a shared library at some
- *      point during its lifetime. All libraries will be found in the 
- *      LD_LIBRARY_PATH of the tool daemon.
+ *      This function is used to add a shared library to a manifest based on the
+ *      cti_manifest_id_t argument. Sending a shared library is used when a tool
+ *      daemon or program dependency needs to dlopen a shared library at some
+ *      point during its lifetime. Upon shipment, shared libraries can be found
+ *      in LD_LIBRARY_PATH of the tool daemon environment or by using the CTI 
+ *      backend API to determine the location.
  *
  * Arguments
- *      mid -     The cti_manifest_id_t of the existing manifest.
+ *      mid -     The cti_manifest_id_t of the manifest.
  *      fstr -    The name of the shared library to add to the manifest. This
  *                can either be a fullpath name to the library or else the 
  *                library name if the library is found within LD_LIBRARY_PATH or
  *                any of the default system locations where shared libraries are
- *                stored.
+ *                stored. The RPATH of the calling executable is not queried.
  *
  * Returns
  *      0 on success, or else 1 on failure.
@@ -822,24 +757,23 @@ extern int cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr);
 extern int cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr);
 
 /*
- * cti_addManifestLibDir - Add a library directory to an existing manifest.
+ * cti_addManifestLibDir - Add a library directory to a manifest.
  * 
  * Detail
- *      This function is used to add a shared library directory to an existing 
- *      manifest based on the cti_manifest_id_t argument. The entire contents of
- *      the provided directory will recursively added. The library directory 
- *      will only be added to the manifest if it has a unique name to avoid 
- *      redundant shipping. This is somewhat unexpected for directories as the
- *      contents should be merged. This is useful if a tool daemon needs to 
- *      dlopen a shared library at some point during its lifetime and a large
- *      number of files needs to be sent. The library directory will NOT be
- *      added to the LD_LIBRARY_PATH of the tool daemon. It is up to the tool
- *      daemon writer to set as needed.
+ *      This function is used to add a shared library directory to a manifest
+ *      based on the cti_manifest_id_t argument. The contents of the directory
+ *      will recursively added to the manifest. Sending a library directory is
+ *      used when a tool daemon needs to dlopen a large number of shared
+ *      libraries. For example, this can be the case for python programs. The
+ *      library directory will not be added to the LD_LIBRARY_PATH of the tool
+ *      daemon environment. It is up to the tool writer to use provided CTI
+ *      backend library calls along with the directory name to locate the shared
+ *      libraries as needed.
  *
  * Arguments
- *      mid -     The cti_manifest_id_t of the existing manifest.
+ *      mid -     The cti_manifest_id_t of the manifest.
  *      fstr -    The name of the shared library directory to add to the 
- *                manifest. This must be a fullpath name of the directory.
+ *                manifest. This must be the fullpath of the directory.
  *
  * Returns
  *      0 on success, or else 1 on failure.
@@ -848,20 +782,21 @@ extern int cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr);
 extern int cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr);
 
 /*
- * cti_addManifestFile - Add a regular file to an existing manifest.
+ * cti_addManifestFile - Add a regular file to a manifest.
  * 
  * Detail
- *      This function is used to add a regular file to an existing manifest
- *      based on the cti_manifest_id_t argument. The file will only be added to
- *      the manifest if it has a unique name to avoid redundant shipping. This
- *      is useful if a tool daemon needs to read a required configuration file
- *      fo a program or any other file that may be required by a tool daemon.
+ *      This function is used to add a regular file to a manifest based on the
+ *      cti_manifest_id_t argument. Sending a regular file is used when a tool
+ *      daemon needs to read from the file. For example, a required 
+ *      configuration file. Upon shipment, the file can be found in PATH of the
+ *      tool daemon environment or by using the CTI backend API to determine the
+ *      location.
  *
  * Arguments
- *      mid -     The cti_manifest_id_t of the existing manifest.
+ *      mid -     The cti_manifest_id_t of the manifest.
  *      fstr -    The name of the file to add to the manifest. This can either 
  *                be a fullpath name to the file or else the file name if the 
- *                file is found within the users PATH.
+ *                file is found within PATH.
  *
  * Returns
  *      0 on success, or else 1 on failure.
@@ -870,52 +805,95 @@ extern int cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr);
 extern int cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
 
 /*
- * cti_sendManifest - Ship a manifest to an app_id and unpack it into temporary
- *                    storage.
- * 
+ * cti_sendManifest - Ship a manifest to a sessions unique storage space and
+ *                    make the files available to a tool daemon.
+ *
  * Detail
- *      This function is used to ship a manifest to the compute nodes and unpack
- *      it into the applications toolhelper directory. This is useful if there 
- *      is a need to interact with third party tools that do not use this this
- *      interface. The returned cti_session_id_t can be used in the future to
- *      send additional manfiests to, or to exec tool daemons. In that case the 
- *      future manifests/tool daemons will share the same directory structure.
+ *      This function is used to ship all files in the manifest to the unique
+ *      storage space of the associated session. Typically this function should
+ *      not be used and the manifest should be shipped with the
+ *      cti_execToolDaemon call instead. This avoids multiple sends across the
+ *      network. A manifest needs to be shipped if additional files are needed
+ *      by a tool daemon after the tool daemon has launched. The provided 
+ *      manifest will become invalid for future use upon calling this function.
  *
- *      The manifest argument must be a valid cti_manifest_id_t that was created 
- *      before calling this function and will be cleaned up by this function. A 
- *      unique directory will be created on the compute node in the
- *      temporary storage space associated with the application. This avoids
- *      naming conflicts between other tools using this interface. This unique
- *      directory will contains subdirectories /bin that contains all binaries
- *      and /lib that contains all libaries. Any files are available directly
- *      in the current working directory of the tool daemon.
- *
- *      If the staging directory unpacked in the applications toolhelper 
- *      directory needs to be static, the CTI_DAEMON_STAGE_DIR_ENV_VAR
- *      environment variable can be used to define the location.
- *
- *      If the debug option evaluates to true, daemon launcher will attempt to 
- *      read the environment variable defined by CTI_DBG_LOG_DIR_ENV_VAR and
- *      create a log file at this location. If the environment variable is not
- *      found or is null, it will create a log file in the /tmp directory on the
- *      compute node. It will then dup the STDOUT/STDERR file channels to this
- *      log file. This is the only way to capture stdout/stderr output from a
- *      tool program on the compute nodes.
+ *      If the debug option is non-zero, the environment variable defined by
+ *      CTI_DBG_LOG_DIR_ENV_VAR will be read and log files will be created in 
+ *      this location. If the environment variable is not defined, log files
+ *      will be created in the /tmp directory on the compute nodes. This log
+ *      will contain all output during shipment of the manifest and can be used
+ *      to locate problems with file shipment.
  *
  * Arguments
- *      app_id -  The cti_app_id_t of the registered application.
- *      mid -     The cti_manifest_id_t of the existing manifest.
- *      debug -   If true, create a log file at the location provided by
- *                CTI_DBG_LOG_DIR_ENV_VAR. Redirect stdout/stderr to the log
- *                files fd.
+ *      mid -   The cti_manifest_id_t of the manifest.
+ *      debug - If non-zero, create a log file at the location provided by
+ *              CTI_DBG_LOG_DIR_ENV_VAR.
  *
  * Returns
- *      A non-zero SESSION_ID on success, or else 0 on failure.
+ *      0 on success, or else 1 on failure.
  * 
  */
-extern cti_session_id_t cti_sendManifest(   cti_app_id_t      app_id, 
-                                            cti_manifest_id_t mid, 
-                                            int               debug);
+extern int cti_sendManifest(cti_manifest_id_t mid, int debug);
+
+/*
+ * cti_execToolDaemon - Launch a tool daemon onto all the compute nodes
+ *                      associated with the provided manifest session.
+ * 
+ * Detail
+ *      This function is used to launch a program binary onto compute nodes.
+ *      It will take care of starting up the binary and ensuring all of the
+ *      files in the manifest are found in its environment as described above.
+ *      One tool daemon will be started per compute node of the application.
+ *
+ *      Any files in the provided manifest argument will be shipped and made
+ *      available to the tool daemon. If no other file dependencies are 
+ *      required, an empty manifest must still be provided by first calling the
+ *      cti_createManifest function with the session associated with the
+ *      registered application. It is not necessary to add the tool daemon
+ *      binary to the manifest before calling this function. The manifest will
+ *      become invalid for future use upon calling this function.
+ *
+ *      The tool daemon will have any shipped binaries found in its PATH, any
+ *      shared libraries found in its LD_LIBRARY_PATH, and have its TMPDIR 
+ *      modified to point at a location that is guaranteed to have read/write 
+ *      access. A null terminated list of environment variables can be provided
+ *      to set in the environment of the tool daemon. Each entry in this list
+ *      should have a "envVar=val" format. Any arguments that need to be passed
+ *      to the tool daemon can be provided by a null termianted list of args.
+ *      In this case, the args[0] is the beginning of actual tool daemon
+ *      arguments and not the name of the tool daemon binary.
+ *
+ *      If the debug option is non-zero, the environment variable defined by
+ *      CTI_DBG_LOG_DIR_ENV_VAR will be read and log files will be created in 
+ *      this location. These log files will contain any output written to 
+ *      stdout/stderr of the tool daemons. Otherwise tool daemon stdout/stderr 
+ *      will be redirected to /dev/null.
+ *
+ * Arguments
+ *      mid -     The cti_manifest_id_t of the manifest.
+ *      fstr -    The name of the tool daemon binary to exec on the compute 
+ *                nodes associated with the session. This can either be a
+ *                fullpath name to the file or else the file name if the binary
+ *                is found within PATH.
+ *      args -    The null terminated list of arguments to pass to the tool
+ *                daemon. This should not start with name of the tool daemon
+ *                binary.
+ *      env -     The null terminated list of environment variables to
+ *                set in the environment of the fstr process. The strings
+ *                in this list shall be formed in a "envVar=val" manner.
+ *      debug -   If true, create log files at the location provided by
+ *                CTI_DBG_LOG_DIR_ENV_VAR. Redirects stdout/stderr of the tool
+ *                daemons to the log files.
+ *
+ * Returns
+ *      0 on success, or else 1 on failure.
+ * 
+ */
+extern int cti_execToolDaemon( cti_manifest_id_t   mid,
+                               const char *        fstr, 
+                               const char * const  args[],
+                               const char * const  env[],
+                               int                 debug);
 
 /*
  * cti_getSessionLockFiles - Get the name(s) of instance dependency lock files.
@@ -928,7 +906,7 @@ extern cti_session_id_t cti_sendManifest(   cti_app_id_t      app_id,
  *      tool daemons.
  *
  * Arguments
- *      sid -     The cti_session_id_t of the existing session.
+ *      sid -     The cti_session_id_t of the session.
  *
  * Returns
  *      A null terminated array of strings, or else NULL on error.
@@ -948,7 +926,7 @@ extern char ** cti_getSessionLockFiles(cti_session_id_t sid);
  *      free the allocated storage when it is no longer needed.
  *
  * Arguments
- *      sid -     The cti_session_id_t of the existing session.
+ *      sid -     The cti_session_id_t of the session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
@@ -968,7 +946,7 @@ extern char * cti_getSessionRootDir(cti_session_id_t sid);
  *      tool daemon binaries are placed within this directory.
  *
  * Arguments
- *      sid -     The cti_session_id_t of the existing session.
+ *      sid -     The cti_session_id_t of the session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
@@ -989,7 +967,7 @@ extern char * cti_getSessionBinDir(cti_session_id_t sid);
  *      tool daemon libraries are placed within this directory.
  *
  * Arguments
- *      sid -     The cti_session_id_t of the existing session.
+ *      sid -     The cti_session_id_t of the session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
@@ -1009,7 +987,7 @@ extern char * cti_getSessionLibDir(cti_session_id_t sid);
  *      files are placed within this directory.
  *
  * Arguments
- *      sid -     The cti_session_id_t of the existing session.
+ *      sid -     The cti_session_id_t of the session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
@@ -1029,7 +1007,7 @@ extern char * cti_getSessionFileDir(cti_session_id_t sid);
  *      shared across sessions and populated by the tool daemon only.
  *
  * Arguments
- *      sid -     The cti_session_id_t of the existing session.
+ *      sid -     The cti_session_id_t of the session.
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.

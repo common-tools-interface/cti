@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_stack.c - Functions relating to creating and maintaining a dynamic stack
  *
- * © 2014 Cray Inc.  All Rights Reserved.
+ * © 2014-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -21,7 +21,6 @@
 #endif /* HAVE_CONFIG_H */
 
 #include <stdlib.h>
-#include <stdio.h>
 
 #include "cti_stack.h"
 

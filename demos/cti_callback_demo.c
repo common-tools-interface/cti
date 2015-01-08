@@ -4,7 +4,7 @@
  *			argv, transfer and launch a simple tool daemon that will
  *			communicate with the frontend over a simple socket connection.
  *
- * © 2011-2014 Cray Inc.	All Rights Reserved.
+ * © 2011-2015 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -294,6 +294,7 @@ main(int argc, char **argv)
 	char **				tool_argv;
 	int					i;
 	cti_session_id_t	mysid;
+	cti_manifest_id_t	mymid;
 	
 	// ensure the user called me correctly
 	if (argc < 2)
@@ -373,8 +374,26 @@ main(int argc, char **argv)
 	tool_argv[1] = my_node.cname;
 	tool_argv[2] = NULL;
 	
+	// create a session for the app
+	if ((mysid = cti_createSession(myapp)) == 0)
+	{
+		fprintf(stderr, "cti_createSession failed!\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
+		return 1;
+	}
+	
+	// Create a manifest based on the session
+	if ((mymid = cti_createManifest(mysid)) == 0)
+	{
+		fprintf(stderr, "Error: cti_createManifest failed!\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
+		return 1;
+	}
+	
 	// Transfer and exec the callback_daemon application
-	if ((mysid = cti_execToolDaemon(myapp, 0, 0, LAUNCHER, (const char * const *)tool_argv, NULL, 0)) == 0)
+	if (cti_execToolDaemon(mymid, LAUNCHER, (const char * const *)tool_argv, NULL, 0))
 	{
 		fprintf(stderr, "cti_execToolDaemon failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -411,6 +430,8 @@ main(int argc, char **argv)
 		cti_killApp(myapp, 9);
 		return 1;
 	}
+	
+	cti_deregisterApp(myapp);
 	
 	return 0;
 }

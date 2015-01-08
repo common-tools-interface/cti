@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_fe.c - cti frontend library functions.
  *
- * © 2014 Cray Inc.  All Rights Reserved.
+ * © 2014-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -35,15 +35,11 @@
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
+#include "cti_transfer.h"
+#include "cti_useful.h"
+
 #include "alps_fe.h"
 #include "cray_slurm_fe.h"
-
-struct appList
-{
-	appEntry_t *		this;
-	struct appList *	next;
-};
-typedef struct appList appList_t;
 
 typedef struct
 {
@@ -53,13 +49,11 @@ typedef struct
 } cti_wlm_detect_t;
 
 /* Static prototypes */
-static int				_cti_addAppEntry(appEntry_t *);
-static void				_cti_consumeAppEntry(appEntry_t *);
-static void				_cti_reapAppEntry(cti_app_id_t);
+static void				_cti_consumeAppEntry(void *);
 
 /* static global vars */
 static cti_app_id_t		_cti_app_id 	= 1;	// start counting from 1
-static appList_t *		_cti_my_apps	= NULL;	// global list pertaining to known application sessions
+static cti_list_t *		_cti_my_apps	= NULL;	// global list pertaining to known application sessions
 static cti_wlm_detect_t	_cti_wlm_detect = {0};	// wlm_detect functions for dlopen
 static char *			_cti_cfg_dir	= NULL;	// config dir that we can use as temporary storage
 
@@ -106,6 +100,9 @@ _cti_init(void)
 	char *	error;
 	int		use_default = 0;
 	int		do_free = 1;
+	
+	// allocate global data structures
+	_cti_my_apps = _cti_newList();
 
 	// XXX: If wlm_detect doesn't work on your system, this will default to ALPS
 	// TODO: Add env var to allow caller to specify what WLM they want to use.
@@ -187,24 +184,9 @@ wlm_detect_err:
 void __attribute__ ((destructor))
 _cti_fini(void)
 {
-	appList_t *	lstPtr = _cti_my_apps;
-	appList_t * next;
-
-	// reap all the registered apps
-	while (lstPtr != NULL)
-	{
-		// point at the next entry
-		next = lstPtr->next;
-		
-		// free this entry
-		_cti_consumeAppEntry(lstPtr->this);
-		
-		// free this lstPtr
-		free(lstPtr);
-		
-		// point at the next entry
-		lstPtr = next;
-	}
+	// cleanup global data structures
+	_cti_consumeList(_cti_my_apps, _cti_consumeAppEntry);
+	_cti_my_apps = NULL;
 	
 	// call the wlm proto fini function
 	_cti_wlmProto->wlm_fini();
@@ -219,143 +201,33 @@ _cti_fini(void)
 ** static functions 
 *********************/
 
-static int
-_cti_addAppEntry(appEntry_t *entry)
-{
-	appList_t *	newEntry;
-	appList_t *	lstPtr;
-	
-	// sanity check
-	if (entry == NULL)
-	{
-		_cti_set_error("_cti_addAppEntry failed.");
-		return 1;
-	}
-	
-	// alloc space for the new list entry
-	if ((newEntry = malloc(sizeof(appList_t))) == (void *)0)
-	{
-		_cti_set_error("malloc failed.");
-		return 1;
-	}
-	memset(newEntry, 0, sizeof(appList_t));     // clear it to NULL
-	
-	// set the appEntry in the new list entry
-	newEntry->this = entry;
-	
-	// if _cti_my_apps is null, this is the new head of the list
-	if ((lstPtr = _cti_my_apps) == NULL)
-	{
-		_cti_my_apps = newEntry;
-	} else
-	{
-		// we need to iterate through the list to find the open next entry
-		while (lstPtr->next != NULL)
-		{
-			lstPtr = lstPtr->next;
-		}
-		lstPtr->next = newEntry;
-	}
-	
-	// done
-	return 0;
-}
-
 static void
-_cti_consumeAppEntry(appEntry_t *entry)
+_cti_consumeAppEntry(void *this)
 {
+	appEntry_t *	entry = (appEntry_t *)this;
+	void *			s_ptr;
+	
 	// sanity check
 	if (entry == NULL)
 		return;
-		
+	
+	// consume sessions associated with this app, they are no longer valid
+	while ((s_ptr = _cti_list_pop(entry->sessions)) != NULL)
+	{
+		_cti_consumeSession(s_ptr);
+	}
+	_cti_consumeList(entry->sessions, NULL);
+	
 	// Check to see if there is a wlm obj
 	if (entry->_wlmObj != NULL)
 	{
 		// Call the appropriate function based on the wlm
 		entry->wlmProto->wlm_destroy(entry->_wlmObj);
 	}
-	
 	entry->_wlmObj = NULL;
-	
-	// Check to see if there is a _transferObj
-	if (entry->_transferObj != NULL)
-	{
-		// Call the transfer destroy function if there is one
-		if (entry->_transferDestroy != NULL)
-		{
-			(*(entry->_transferDestroy))(entry->_transferObj);
-		}
-	}
-	
-	entry->_transferObj = NULL;
 	
 	// nom nom the final appEntry_t object
 	free(entry);
-}
-
-static void
-_cti_reapAppEntry(cti_app_id_t appId)
-{
-	appList_t *	lstPtr;
-	appList_t *	prePtr;
-	
-	// sanity check
-	if (((lstPtr = _cti_my_apps) == NULL) || (appId == 0))
-		return;
-		
-	prePtr = _cti_my_apps;
-	
-	// this shouldn't happen, but doing so will prevent a segfault if the list gets corrupted
-	while (lstPtr->this == NULL)
-	{
-		// if this is the only object in the list, then delete the entire list
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			_cti_my_apps = NULL;
-			free(lstPtr);
-			return;
-		}
-		// otherwise point _cti_my_apps to the lstPtr and free the corrupt entry
-		_cti_my_apps = lstPtr;
-		free(prePtr);
-		prePtr = _cti_my_apps;
-	}
-	
-	// we need to locate the position of the appList_t object that we need to remove
-	while (lstPtr->this->appId != appId)
-	{
-		prePtr = lstPtr;
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			// there are no more entries and we didn't find the appId
-			return;
-		}
-	}
-	
-	// check to see if this was the first entry in the global _cti_my_apps list
-	if (prePtr == lstPtr)
-	{
-		// point the global _cti_my_apps list to the next entry
-		_cti_my_apps = lstPtr->next;
-		// consume the appEntry_t object for this entry in the list
-		_cti_consumeAppEntry(lstPtr->this);
-		// free the list object
-		free(lstPtr);
-	} else
-	{
-		// we are at some point midway through the global _cti_my_apps list
-		
-		// point the previous entries next entry to the list pointers next entry
-		// this bypasses the current list pointer
-		prePtr->next = lstPtr->next;
-		// consume the appEntry_t object for this entry in the list
-		_cti_consumeAppEntry(lstPtr->this);
-		// free the list object
-		free(lstPtr);
-	}
-	
-	// done
-	return;
 }
 
 cti_app_id_t
@@ -379,13 +251,14 @@ _cti_newAppEntry(const cti_wlm_proto_t *wlmProto, cti_wlm_obj wlm_obj)
 	
 	// set the members
 	this->appId = _cti_app_id++;	// assign this to the next id.
+	this->sessions = _cti_newList();
 	this->wlmProto = wlmProto;
 	this->_wlmObj = wlm_obj;
 	
-	// save the new appEntry_t into the global app list
-	if (_cti_addAppEntry(this))
+	// save the new appEntry_t into the global list
+	if(_cti_list_add(_cti_my_apps, this))
 	{
-		// error already set
+		_cti_set_error("_cti_list_add() failed.");
 		_cti_consumeAppEntry(this);
 		return 0;
 	}
@@ -396,17 +269,15 @@ _cti_newAppEntry(const cti_wlm_proto_t *wlmProto, cti_wlm_obj wlm_obj)
 appEntry_t *
 _cti_findAppEntry(cti_app_id_t appId)
 {
-	appList_t *	lstPtr = _cti_my_apps;
+	appEntry_t *	this;
 	
 	// iterate through the _cti_my_apps list
-	while (lstPtr != NULL)
+	_cti_list_reset(_cti_my_apps);
+	while ((this = (appEntry_t *)_cti_list_next(_cti_my_apps)) != NULL)
 	{
-		// return if the appId matches
-		if (lstPtr->this->appId == appId)
-			return lstPtr->this;
-			
-		// make lstPtr point to the next entry
-		lstPtr = lstPtr->next;
+		// return if the appId's match
+		if (this->appId == appId)
+			return this;
 	}
 	
 	// if we get here, an entry for appId doesn't exist
@@ -417,14 +288,15 @@ _cti_findAppEntry(cti_app_id_t appId)
 appEntry_t *
 _cti_findAppEntryByJobId(void *wlm_id)
 {
-	appList_t *	lstPtr = _cti_my_apps;
-	int			found = 0;
+	appEntry_t *	this;
+	int				found = 0;
 	
 	// iterate through the _cti_my_apps list
-	while (lstPtr != NULL)
+	_cti_list_reset(_cti_my_apps);
+	while ((this = (appEntry_t *)_cti_list_next(_cti_my_apps)) != NULL)
 	{
 		// Call the appropriate find function based on the wlm
-		found = lstPtr->this->wlmProto->wlm_cmpJobId(lstPtr->this->_wlmObj, wlm_id);
+		found = this->wlmProto->wlm_cmpJobId(this->_wlmObj, wlm_id);
 		
 		if (found == -1)
 		{
@@ -434,29 +306,12 @@ _cti_findAppEntryByJobId(void *wlm_id)
 	
 		// return if found
 		if (found)
-			return lstPtr->this;
-		
-		// make lstPtr point to the next entry
-		lstPtr = lstPtr->next;
+			return this;
 	}
 	
 	// if we get here, an entry for wlm_id was not found
 	_cti_set_error("The wlm id is not registered.");
 	return NULL;
-}
-
-int
-_cti_setTransferObj(appEntry_t *app_ptr, void *transferObj, obj_destroy transferDestroy)
-{
-	// sanity
-	if (app_ptr == NULL)
-		return 1;
-	
-	// set the members
-	app_ptr->_transferObj = transferObj;
-	app_ptr->_transferDestroy = transferDestroy;
-	
-	return 0;
 }
 
 const cti_wlm_proto_t *
@@ -640,12 +495,21 @@ cti_wlm_type_toString(cti_wlm_type wlm_type)
 void
 cti_deregisterApp(cti_app_id_t appId)
 {
+	appEntry_t *	this;
+	
 	// sanity check
 	if (appId == 0)
 		return;
+		
+	// find the appEntry_t obj
+	if ((this = _cti_findAppEntry(appId)) == NULL)
+		return;
 	
-	// call the _cti_reapAppEntry function for this appId
-	_cti_reapAppEntry(appId);
+	// remove it from the list
+	_cti_list_remove(_cti_my_apps, this);
+	
+	// free the appEntry_t obj
+	_cti_consumeAppEntry(this);
 }
 
 int

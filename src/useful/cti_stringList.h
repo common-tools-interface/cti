@@ -1,8 +1,23 @@
 /******************************************************************************\
  * cti_stringList.h - Header file for the stringList interface. This implements
- *                    a trie tree.
+ *                    an adaptive radix tree. This saves on both time and space.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ *                    This has the benefit of:
+ *
+ *                    * O(k) operations. In many cases, this can be faster than
+ *                      a hash table since the hash function is an O(k) 
+ *                      operation, and hash tables have very poor cache 
+ *                      locality.
+ *                    * Prefix compression.
+ *                    * Ordered iteration.
+ *
+ * Based on BSD based armon/libart found at:
+ *     https://github.com/armon/libart
+ *
+ * For more info on adaptive radix trees, see: 
+ *     http://www-db.in.tum.de/%7Eleis/papers/ART.pdf 
+ *
+ * © 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -20,42 +35,99 @@
 #ifndef _CTI_STRINGLIST_H
 #define _CTI_STRINGLIST_H
 
-/* struct typedefs */
-struct stringVal
-{
-	char *					key;				// key for this entry
-	void *					val;				// value for this entry
-};
-typedef struct stringVal	stringVal_t;
+#include <stdint.h>
 
-struct stringNode
-{
-	struct stringVal *		data;				// data value for this entry
-	struct stringNode *		next[95];			// Child nodes - we only allow ascii characters
-};												// between ' ' and '~', anything else is invalid
-typedef struct stringNode	stringNode_t;
+#define MAX_LABEL_LEN		13	// Pay attention to struct alignment here.
 
+#define NODE4		1
+#define NODE16		2
+#define NODE48		3
+#define NODE256	4
+
+/* typedefs */
+
+/*
+** Leaf node. This holds the actual key/value pair.
+*/
 typedef struct
 {
-	int						nstr;				// number of strings in list
-	struct stringNode *		root;				// root node of the tree
+	void *					val;				// value for this entry
+	uint32_t				key_len;			// length of key
+	unsigned char			key[];				// key for this entry
+} stringLeaf_t;
+
+/*
+** Base node. Each of the sized nodes begin with this type, so we can treat any
+** of them as a stringNode_t pointer, and then cast after querying the type.
+*/
+typedef struct
+{
+	unsigned char	label[MAX_LABEL_LEN];	// 13 bytes
+	uint8_t			label_len;				// 1 byte
+	uint8_t			type;					// 1 byte
+	uint8_t			num_edges;				// 1 byte
+} stringNode_t;
+
+/*
+** Node with 4 edges
+*/
+typedef struct
+{
+	stringNode_t 	node;
+	unsigned char 	keys[4];
+	stringNode_t *	edges[4];
+} stringNode4_t;
+
+/*
+** Node with 16 edges
+*/
+typedef struct
+{
+	stringNode_t 	node;
+	unsigned char 	keys[16];
+	stringNode_t *	edges[16];
+} stringNode16_t;
+
+/*
+** Node with 48 edges, and full 256 key vector for faster lookups
+*/
+typedef struct
+{
+	stringNode_t 	node;
+	unsigned char 	keys[256];
+	stringNode_t *	edges[48];
+} stringNode48_t;
+
+/*
+** Full node with 256 edges
+*/
+typedef struct
+{
+	stringNode_t 	node;
+	stringNode_t *	edges[256];
+} stringNode256_t;
+
+/*
+** Root of tree.
+*/
+typedef struct
+{
+	stringNode_t *			root;	// root node of tree
+	uint64_t				nstr;	// number of keys in list
 } stringList_t;
 
-struct stringEntry
-{
-	char *					str;				// string for this entry
-	void *					data;				// actual data for this entry
-	struct stringEntry *	next;				// next entry	
-};
-typedef struct stringEntry	stringEntry_t;
+/*
+** Caller provided callback function for iterating over a tree
+*/
+typedef int (*cti_stringCallback)(void *opaque, const char *key, void *val);
 
 /* function prototypes */
 stringList_t *  _cti_newStringList(void);
 void			_cti_consumeStringList(stringList_t *, void (*)(void *));
-int				_cti_lenStringList(stringList_t *);
-void *			_cti_lookupValue(stringList_t *, const char *);
 int				_cti_addString(stringList_t *, const char *, void *);
-stringEntry_t *	_cti_getEntries(stringList_t *);
-void			_cti_cleanupEntries(stringEntry_t *);
+void			_cti_removeString(stringList_t *, const char *, void (*)(void *));
+void *			_cti_lookupValue(stringList_t *, const char *);
+int				_cti_lenStringList(stringList_t *);
+int				_cti_forEachString(stringList_t *, cti_stringCallback, void *);
 
 #endif /* _CTI_STRINGLIST_H */

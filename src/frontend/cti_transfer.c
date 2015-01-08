@@ -5,7 +5,7 @@
  *		   associated with an app. This can also be used to launch tool daemons
  *		   on the compute nodes in an automated way.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * © 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -51,6 +51,26 @@
 
 /* Types used here */
 
+// opaque callback type used when calling packageManifestAndShip
+typedef struct
+{
+	char *					bin_path;
+	char *					lib_path;
+	char *					tmp_path;
+	struct archive *		a;
+	struct archive_entry *	entry;
+	char *					read_buf;
+	char					path_buf[PATH_MAX];
+} package_data;
+
+// opaque callback type used when calling resolveManifestConflicts
+typedef struct
+{
+	stringList_t *	sess_files;
+	cti_stack_t *	conflicts;
+} conflict_data;
+
+// Types of files in a file chain
 typedef enum
 {
 	EXEC_ENTRY,
@@ -59,92 +79,78 @@ typedef enum
 	FILE_ENTRY
 } entry_type;
 
+// Actual file chain - we allow conflicting names as long as the file is in a
+// different directory
 struct fileEntry
 {
 	entry_type			type;			// type of file - so we can share trie data structure with other entries
 	char *				loc;			// location of file
-	int					present;		// already shipped?
 	struct fileEntry *	next;			// linked list of fileEntry
 };
 typedef struct fileEntry	fileEntry_t;
 
-typedef struct
-{
-	cti_manifest_id_t	mid;			// manifest id
-	cti_session_id_t	sid;			// optional session id
-	int					inst;			// instance number - used with session to prevent tarball name conflicts
-	char *				stage_name;		// basename of the manifest directory
-	stringList_t *		files;			// list of manifest files
-} manifest_t;
-
+// Session is owned by an appEntry_t
 typedef struct
 {
 	cti_session_id_t	sid;			// session id
-	int					instCnt;		// instance count - set in the manifest to prevent naming conflicts
-	char *				stage_name;		// basename of the manifest directory
-	char *				toolPath;		// toolPath of the app entry - DO NOT FREE THIS!!!
+	appEntry_t *		app_ptr;		// pointer to app_entry associated with session
+	cti_list_t *		manifs;			// list of manifest objects associated with this session
+	int					instCnt;		// manif instance count - prevents naming conflicts for manifest tarballs
+	char *				stage_name;		// basename of the staging directory
+	char *				toolPath;		// toolPath of the app entry
 	stringList_t *		files;			// list of session files
 } session_t;
+#define SESS_APP(x)		(x)->app_ptr
 
-struct manifList
-{
-	manifest_t *		this;
-	struct manifList *	next;
-};
-typedef struct manifList manifList_t;
-
-struct sessList
-{
-	session_t *			this;
-	struct sessList *	next;
-};
-typedef struct sessList sessList_t;
-
-// This gets placed into the appEntry_t struct
+// Manifest is owned by a session_t
 typedef struct
 {
-	int		numSess;
-	int *	session_ids;
-	size_t	len;
-} sessMgr_t;
-
-// Used to define the increment size when alloc/realloc session_ids array
-#define SESS_INC_SIZE		10
+	cti_manifest_id_t	mid;			// manifest id
+	session_t *			sess;			// pointer to session obj
+	stringList_t *		files;			// list of manifest files
+	int					inst;			// instance of manifest - set on ship
+} manifest_t;
+#define MANIF_SESS(x)		(x)->sess
+#define MANIF_APP(x)		(x)->sess->app_ptr
 
 // Used to define block size for file->file copies
 #define CTI_BLOCK_SIZE	65536
 
 /* Static prototypes */
+static void				_cti_transfer_handler(int);
+static void				_cti_transfer_doCleanup(void);
 static const char *		_cti_entryTypeToString(entry_type);
 static fileEntry_t *	_cti_newFileEntry(void);
 static void				_cti_consumeFileEntry(void *);
 static fileEntry_t *	_cti_copyFileEntry(fileEntry_t *);
 static fileEntry_t **	_cti_findFileEntryLoc(fileEntry_t *, entry_type);
 static int				_cti_mergeFileEntry(fileEntry_t *, fileEntry_t *);
-static int				_cti_chainFileEntry(fileEntry_t *, const char *, entry_type, char *, int);
-static int				_cti_addSession(session_t *);
-static void				_cti_reapSession(cti_session_id_t);
-static void				_cti_consumeSession(session_t *);
+static int				_cti_chainFileEntry(fileEntry_t *, const char *, entry_type, char *);
+static session_t *		_cti_newSession(appEntry_t *);
 static session_t *		_cti_findSession(cti_session_id_t);
-static session_t *		_cti_newSession(manifest_t *);
-static int				_cti_addManifest(manifest_t *);
-static void				_cti_reapManifest(cti_manifest_id_t);
-static void				_cti_consumeManifest(manifest_t *);
-static manifest_t *		_cti_findManifest(cti_manifest_id_t);
-static manifest_t *		_cti_newManifest(cti_session_id_t);
-static int				_cti_addManifestToSession(manifest_t *, session_t *);
-static void				_cti_addSessionToApp(appEntry_t *, cti_session_id_t);
+static int				_cti_checkSessionForConflict(session_t *, entry_type, const char *, const char *);
 static int				_cti_addDirToArchive(struct archive *, struct archive_entry *, const char *);
 static int				_cti_copyFileToArchive(struct archive *, struct archive_entry *, const char *, const char *, char *);
-static void				_cti_transfer_doCleanup(void);
-static int				_cti_packageManifestAndShip(appEntry_t *, manifest_t *);
+static manifest_t *		_cti_newManifest(session_t *);
+static void				_cti_consumeManifest(manifest_t *);
+static manifest_t *		_cti_findManifest(cti_manifest_id_t);
+static int				_cti_addManifestToSession_callback(void *, const char *, void *);
+static int				_cti_addManifestToSession(manifest_t *);
+static int				_cti_resolveManifestConflicts_callback(void *, const char *, void *);
+static int				_cti_resolveManifestConflicts(manifest_t *);
+static int				_cti_addBinary(manifest_t *, const char *);
+static int				_cti_addLibrary(manifest_t *, const char *);
+static int				_cti_addLibDir(manifest_t *, const char *);
+static int				_cti_addFile(manifest_t *, const char *);
+static int				_cti_packageManifestAndShip_callback(void *, const char *, void *);
+static int				_cti_packageManifestAndShip(manifest_t *);
 
 /* global variables */
 static bool						_cti_doCleanup		= true;		// should we try to cleanup?
-static sessList_t *				_cti_my_sess		= NULL;
 static cti_session_id_t			_cti_next_sid		= 1;
-static manifList_t *			_cti_my_manifs		= NULL;
+static cti_list_t *				_cti_my_sess		= NULL;
 static cti_manifest_id_t		_cti_next_mid		= 1;
+static cti_list_t *				_cti_my_manifs		= NULL;
 static bool						_cti_r_init			= false;	// is initstate()?
 static char *					_cti_r_state[256];				// state for random()
 
@@ -163,6 +169,10 @@ static const char const		_cti_valid_char[]		= {
 	'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
 	'a','b','c','d','e','f','g','h','i','j','k','l','m',
 	'n','o','p','q','r','s','t','u','v','w','x','y','z' };
+
+/******************************************
+** support routines to try to cleanup
+******************************************/
 
 /* signal handler to enforce cleanup of tmpfile */
 static void
@@ -205,7 +215,141 @@ _cti_transfer_handler(int sig)
 	raise(sig);
 }
 
-/* static functions */
+static void
+_cti_transfer_doCleanup(void)
+{
+	const char *		cfg_dir;
+	DIR *				dir;
+	struct dirent *		d;
+	char *				stage_name;
+	char *				p;
+	
+	if (!_cti_doCleanup)
+		return;
+	
+	// Get the configuration directory
+	if ((cfg_dir = _cti_getCfgDir()) == NULL)
+	{
+		return;
+	}
+	
+	// Open the directory
+	if ((dir = opendir(cfg_dir)) == NULL)
+	{
+		return;
+	}
+	
+	// create the pattern to look for - note that the '.' is added since the
+	// file name will be hidden.
+	if (asprintf(&stage_name, ".%s", DEFAULT_STAGE_DIR) <= 0)
+	{
+		closedir(dir);
+		return;
+	}
+	// point at the first 'X' character at the end of the string
+	if ((p = strrchr(stage_name, 'X')) == NULL)
+	{
+		closedir(dir);
+		free(stage_name);
+		return;
+	}
+	while ((p - stage_name) > 0 && *(p-1) == 'X')
+	{
+		--p;
+	}
+	// Set this to null terminator
+	*p = '\0';
+	
+	// Recurse through each file in the reference directory
+	while ((d = readdir(dir)) != NULL)
+	{
+		// ensure this isn't the . or .. file
+		switch (strlen(d->d_name))
+		{
+			case 1:
+				if (d->d_name[0] == '.')
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+				
+			case 2:
+				if (strcmp(d->d_name, "..") == 0)
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+			
+			default:
+				break;
+		}
+		
+		// check this name against the stage_name string
+		if (strncmp(d->d_name, stage_name, strlen(stage_name)) == 0)
+		{
+			FILE *	hfp;
+			pid_t	pid;
+			char *	h_path;
+			char *	n_path;
+			
+			// create path to hidden file
+			if (asprintf(&h_path, "%s/%s", cfg_dir, d->d_name) <= 0)
+			{
+				continue;
+			}
+		
+			// pattern matches, we need to try removing this file
+			if ((hfp = fopen(h_path, "r")) == NULL)
+			{
+				free(h_path);
+				continue;
+			}
+			
+			// read the pid from the file
+			if (fread(&pid, sizeof(pid), 1, hfp) != 1)
+			{
+				free(h_path);
+				fclose(hfp);
+				continue;
+			}
+			
+			fclose(hfp);
+			
+			// ping the process
+			if (kill(pid, 0) == 0)
+			{
+				// process is still alive
+				free(h_path);
+				continue;
+			}
+			
+			// process is dead, we need to remove the tarball
+			if (asprintf(&n_path, "%s/%s", cfg_dir, d->d_name+1) <= 0)
+			{
+				free(h_path);
+				continue;
+			}
+			
+			unlink(n_path);
+			free(n_path);
+			
+			// remove the hidden file
+			unlink(h_path);
+			free(h_path);
+		}
+	}
+	
+	// cleanup
+	closedir(dir);
+	free(stage_name);
+	_cti_doCleanup = false;
+}
+
+/******************************************
+** support routines for file entry chains
+******************************************/
 
 static const char *
 _cti_entryTypeToString(entry_type type)
@@ -285,7 +429,6 @@ _cti_copyFileEntry(fileEntry_t *entry)
 	{
 		newEntry->loc = strdup(entry->loc);
 	}
-	newEntry->present = entry->present;
 	if (entry->next != NULL)
 	{
 		newEntry->next = _cti_copyFileEntry(entry->next);
@@ -362,7 +505,6 @@ _cti_mergeFileEntry(fileEntry_t *e1, fileEntry_t *e2)
 			{
 				(*ptr)->loc = strdup(e2->loc);
 			}
-			(*ptr)->present = e2->present;
 			(*ptr)->next = NULL;	// do not copy next
 		}
 		
@@ -376,7 +518,7 @@ _cti_mergeFileEntry(fileEntry_t *e1, fileEntry_t *e2)
 // Try to add a new file entry to an existing fileEntry chain. Returns -1 on error,
 // 0 on success, and 1 if the file is already present.
 static int
-_cti_chainFileEntry(fileEntry_t *entry, const char *name, entry_type type, char *loc, int present)
+_cti_chainFileEntry(fileEntry_t *entry, const char *name, entry_type type, char *loc)
 {
 	fileEntry_t **	ptr;
 	
@@ -404,7 +546,6 @@ _cti_chainFileEntry(fileEntry_t *entry, const char *name, entry_type type, char 
 		// set data entries
 		(*ptr)->type = type;
 		(*ptr)->loc  = loc;
-		(*ptr)->present = present;
 		(*ptr)->next = NULL;
 		
 	} else
@@ -428,121 +569,197 @@ _cti_chainFileEntry(fileEntry_t *entry, const char *name, entry_type type, char 
 	return 0;
 }
 
-static int
-_cti_addSession(session_t *sess)
+/********************************
+** support routines for sessions
+********************************/
+
+static session_t *
+_cti_newSession(appEntry_t *app_ptr)
 {
-	sessList_t *	newEntry;
-	sessList_t *	lstPtr;
+	session_t *			s_ptr = NULL;		// points at the new session obj
+	const char *		toolPath;			// tool path associated with this appEntry_t based on the wlm
+	char *				stage_name_env;
 	
-	// sanity check
-	if (sess == NULL)
+	// sanity
+	if (app_ptr == NULL)
 	{
-		_cti_set_error("_cti_addSessList failed.");
-		return 1;
+		_cti_set_error("_cti_newSession: Bad args.");
+		return NULL;
 	}
 	
-	// alloc space for the new list entry
-	if ((newEntry = malloc(sizeof(sessList_t))) == (void *)0)
+	// create the new session_t object
+	if ((s_ptr = malloc(sizeof(session_t))) == NULL)
 	{
 		_cti_set_error("malloc failed.");
-		return 1;
+		goto createSession_error;
 	}
-	memset(newEntry, 0, sizeof(sessList_t));     // clear it to NULL
+	memset(s_ptr, 0, sizeof(session_t));     // clear it to NULL
 	
-	// set the sess in the list entry
-	newEntry->this = sess;
+	// set the sid member
+	// TODO: This could be made smarter by using a hash table instead of the
+	// revolving int/linked list we see now.
+	s_ptr->sid = _cti_next_sid++;
 	
-	// if _cti_my_sess is null, this is the new head of the list
-	if ((lstPtr = _cti_my_sess) == NULL)
+	// set the app_ptr
+	s_ptr->app_ptr = app_ptr;
+	
+	// create the manif list
+	if ((s_ptr->manifs = _cti_newList()) == NULL)
 	{
-		_cti_my_sess = newEntry;
-	} else
-	{
-		// we need to iterate through the list to find the open next entry
-		while (lstPtr->next != NULL)
-		{
-			lstPtr = lstPtr->next;
-		}
-		lstPtr->next = newEntry;
+		_cti_set_error("_cti_newList() failed.");
+		goto createSession_error;
 	}
 	
-	// Done
-	return 0;
-}
-
-static void
-_cti_reapSession(cti_session_id_t sid)
-{
-	sessList_t *	lstPtr;
-	sessList_t *	prePtr;
+	// Set instance count
+	s_ptr->instCnt = 0;
 	
-	// sanity check
-	if (((lstPtr = _cti_my_sess) == NULL) || (sid <= 0))
-		return;
-	
-	prePtr = _cti_my_sess;
-	
-	// this shouldn't happen, but doing so will prevent a segfault if the list gets corrupted
-	while (lstPtr->this == NULL)
+	// Get the tool path for this wlm
+	if ((toolPath = app_ptr->wlmProto->wlm_getToolPath(app_ptr->_wlmObj)) == NULL)
 	{
-		// if this is the only object in the list, then delete the entire list
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			_cti_my_sess = NULL;
-			free(lstPtr);
-			return;
-		}
-		// otherwise point _cti_my_sess to the lstPtr and free the corrupt entry
-		_cti_my_sess = lstPtr;
-		free(prePtr);
-		prePtr = _cti_my_sess;
+		// error already set
+		goto createSession_error;
 	}
+	s_ptr->toolPath = strdup(toolPath);
 	
-	// we need to locate the position of the sessList_t object that we need to remove
-	while (lstPtr->this->sid != sid)
+	// Get the stage_name
+	// check to see if the caller set a staging directory name, otherwise create a unique one for them
+	if ((stage_name_env = getenv(DAEMON_STAGE_VAR)) == NULL)
 	{
-		prePtr = lstPtr;
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			// there are no more entries and we didn't find the sid
-			return;
-		}
-	}
-	
-	// check to see if this was the first entry in the global _cti_my_sess list
-	if (prePtr == lstPtr)
-	{
-		// point the global _cti_my_sess list to the next entry
-		_cti_my_sess = lstPtr->next;
-		// consume the session_t object for this entry in the list
-		_cti_consumeSession(lstPtr->this);
-		// free the list object
-		free(lstPtr);
-	} else
-	{
-		// we are at some point midway through the global _cti_my_sess list
+		char *	rand_char;
 		
-		// point the previous entries next entry to the list pointers next entry
-		// this bypasses the current list pointer
-		prePtr->next = lstPtr->next;
-		// consume the session_t object for this entry in the list
-		_cti_consumeSession(lstPtr->this);
-		// free the list object
-		free(lstPtr);
+		// take the default action
+		if (asprintf(&s_ptr->stage_name, "%s", DEFAULT_STAGE_DIR) <= 0)
+		{
+			_cti_set_error("asprintf failed.");
+			goto createSession_error;
+		}
+		
+		// Point at the last 'X' in the string
+		if ((rand_char = strrchr(s_ptr->stage_name, 'X')) == NULL)
+		{
+			_cti_set_error("Bad stage_name string!");
+			goto createSession_error;
+		}
+			
+		// set state or init the PRNG if we haven't already done so.
+		if (_cti_r_init)
+		{
+			// set the PRNG state
+			if (setstate((char *)_cti_r_state) == NULL)
+			{
+				_cti_set_error("setstate failed.");
+				goto createSession_error;
+			}
+		} else
+		{
+			// We need to generate a good seed to avoid collisions. Since this
+			// library can be used by automated tests, it is vital to have a
+			// good seed.
+			struct timespec		tv;
+			unsigned int		pval;
+			unsigned int		seed;
+			
+			// get the current time from epoch with nanoseconds
+			if (clock_gettime(CLOCK_REALTIME, &tv))
+			{
+				_cti_set_error("clock_gettime failed.");
+				goto createSession_error;
+			}
+			
+			// generate an appropriate value from the pid, we shift this to
+			// the upper 16 bits of the int. This should avoid problems with
+			// collisions due to slight variations in nano time and adding in
+			// pid offsets.
+			pval = (unsigned int)getpid() << ((sizeof(unsigned int) * CHAR_BIT) - 16);
+			
+			// Generate the seed. This is not crypto safe, but should have enough
+			// entropy to avoid the case where two procs are started at the same
+			// time that use this interface.
+			seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
+			
+			// init the state
+			initstate(seed, (char *)_cti_r_state, sizeof(_cti_r_state));
+			
+			// set init to true
+			_cti_r_init = true;
+		}
+		
+		// now start replacing the 'X' characters in the stage_name string with
+		// randomness
+		do {
+			unsigned int oset;
+			// Generate a random offset into the array. This is random() modded 
+			// with the number of elements in the array.
+			oset = random() % (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
+			// assing this char
+			*rand_char = _cti_valid_char[oset];
+		} while (*(--rand_char) == 'X');
+		
+	} else
+	{
+		// use the user defined directory
+		if (asprintf(&s_ptr->stage_name, "%s", stage_name_env) <= 0)
+		{
+			_cti_set_error("asprintf failed.");
+			goto createSession_error;
+		}
 	}
 	
-	// done
-	return;
+	// create the stringList_t object
+	if ((s_ptr->files = _cti_newStringList()) == NULL)
+	{
+		_cti_set_error("_cti_newStringList() failed.");
+		goto createSession_error;
+	}
+	
+	// save the new session object into the app entry
+	if (_cti_list_add(app_ptr->sessions, s_ptr))
+	{
+		_cti_set_error("_cti_list_add() failed.");
+		goto createSession_error;
+	}
+	
+	// save the new session object into the global session list
+	if (_cti_list_add(_cti_my_sess, s_ptr))
+	{
+		_cti_set_error("_cti_list_add() failed.");
+		goto createSession_error;
+	}
+	
+	return s_ptr;
+	
+createSession_error:
+
+	_cti_consumeSession(s_ptr);
+	return NULL;
 }
 
-static void
-_cti_consumeSession(session_t *sess)
+// Note that this is called by the cti_fe layer when cleaning up an appEntry_t
+// so we don't mark it as static.
+void
+_cti_consumeSession(void *arg)
 {
+	session_t *		sess = arg;
+	manifest_t *	m_ptr;
+
 	// sanity check
 	if (sess == NULL)
 		return;
-		
-	// free the basename of the manifest directory
+	
+	// remove session from app entry
+	_cti_list_remove(SESS_APP(sess)->sessions, sess);
+	
+	// remove session from global list
+	_cti_list_remove(_cti_my_sess, sess);
+	
+	// consume manifests associated with this session, they are no longer valid
+	while ((m_ptr = _cti_list_pop(sess->manifs)) != NULL)
+	{
+		_cti_consumeManifest(m_ptr);
+	}
+	_cti_consumeList(sess->manifs, NULL);
+	
+	// free the stage_name
 	if (sess->stage_name != NULL)
 		free(sess->stage_name);
 		
@@ -560,7 +777,7 @@ _cti_consumeSession(session_t *sess)
 static session_t *
 _cti_findSession(cti_session_id_t sid)
 {
-	sessList_t *	lstPtr;
+	session_t *	this;
 	
 	// sanity check
 	if (sid <= 0)
@@ -568,1038 +785,67 @@ _cti_findSession(cti_session_id_t sid)
 		_cti_set_error("Invalid cti_session_id_t %d.", (int)sid);
 	}
 	
-	if ((lstPtr = _cti_my_sess) == NULL)
+	// search the global session list for this sid
+	_cti_list_reset(_cti_my_sess);
+	while ((this = (session_t *)_cti_list_next(_cti_my_sess)) != NULL)
 	{
-		_cti_set_error("cti_session_id_t %d does not exist.", (int)sid);
-		return NULL;
+		// return if the sid match
+		if (this->sid == sid)
+			return this;
 	}
 	
-	// this shouldn't happen, but doing so will prevent a segfault if the list gets corrupted
-	while (lstPtr->this == NULL)
-	{
-		// if this is the only object in the list, then delete the entire list
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			_cti_set_error("cti_session_id_t %d does not exist.", (int)sid);
-			_cti_my_sess = NULL;
-			free(lstPtr);
-			return NULL;
-		}
-		// otherwise point _cti_my_sess to the lstPtr and free the corrupt entry
-		_cti_my_sess = lstPtr;
-	}
-	
-	// we need to locate the position of the sessList_t object that we are looking for
-	while (lstPtr->this->sid != sid)
-	{
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			// there are no more entries and we didn't find the sid
-			_cti_set_error("cti_session_id_t %d does not exist.", (int)sid);
-			return NULL;
-		}
-	}
-	
-	return lstPtr->this;
+	// if we get here, we didn't find the sid
+	_cti_set_error("cti_session_id_t %d does not exist.", (int)sid);
+	return NULL;
 }
 
-static session_t *
-_cti_newSession(manifest_t *m_ptr)
-{
-	session_t *		this;
-	stringEntry_t *	l_ptr = NULL;
-	stringEntry_t *	o_ptr;
-	fileEntry_t *	d_ptr;
-	
-	// sanity check
-	if (m_ptr == NULL)
-	{
-		_cti_set_error("_cti_newSession: Invalid args.");
-		return NULL;
-	}
-	
-	// create the new session_t object
-	if ((this = malloc(sizeof(session_t))) == (void *)0)
-	{
-		_cti_set_error("malloc failed.");
-		return NULL;
-	}
-	memset(this, 0, sizeof(session_t));     // clear it to NULL
-	
-	// set the sid member
-	// TODO: This could be made smarter by using a hash table instead of a revolving int we see now
-	this->sid = _cti_next_sid++;
-	
-	// set the instance count
-	// This gets used in the _cti_newManifest function to keep track of the number of
-	// instances referencing this session. This is to prevent naming conflicts of 
-	// the shipped tarball name.
-	this->instCnt = 1;
-	
-	// set the stage name
-	this->stage_name = strdup(m_ptr->stage_name);
-	
-	// create the stringList_t object
-	if ((this->files = _cti_newStringList()) == NULL)
-	{
-		_cti_set_error("_cti_newStringList() failed.");
-		_cti_consumeSession(this);
-		return NULL;
-	}
-	
-	// copy the files in the manifest over to the session.
-	if ((l_ptr = _cti_getEntries(m_ptr->files)) != NULL)
-	{
-		// save for later
-		o_ptr = l_ptr;
-		while (l_ptr != NULL)
-		{
-			// copy the data entry for the new files list
-			d_ptr = _cti_copyFileEntry(l_ptr->data);
-			if (d_ptr == NULL)
-			{
-				// error occured, is already set
-				_cti_consumeSession(this);
-				_cti_cleanupEntries(o_ptr);
-				return NULL;
-			}
-			// add this string to the files list
-			if (_cti_addString(this->files, l_ptr->str, d_ptr))
-			{
-				// failed to save name into the list
-				_cti_set_error("_cti_addString() failed.");
-				_cti_consumeSession(this);
-				return NULL;
-			}
-			// increment pointers
-			d_ptr = NULL;
-			l_ptr = l_ptr->next;
-		}
-		// cleanup
-		_cti_cleanupEntries(o_ptr);
-	}
-	
-	// save the new session_t object into the global session list
-	if (_cti_addSession(this))
-	{
-		// error string already set
-		_cti_consumeSession(this);
-		return NULL;
-	}
-	
-	return this;
-}
-
+/*
+** Search a session file list for a naming conflict.
+** Returns -1 if realname is not in the files list, returns 0 if file is already
+** present in the session, returns 1 and error is set if naming conflict exists.
+*/
 static int
-_cti_addManifest(manifest_t *manif)
+_cti_checkSessionForConflict(session_t *sess, entry_type type, const char *realname, const char *fullname)
 {
-	manifList_t *	newEntry;
-	manifList_t *	lstPtr;
+	fileEntry_t *	f_ptr;		// pointer to file entry
+	fileEntry_t **	entry;
 	
-	// sanity check
-	if (manif == NULL)
+	// sanity
+	if (sess == NULL || realname == NULL || fullname == NULL)
 	{
-		_cti_set_error("_cti_addManifest failed.");
+		_cti_set_error("_cti_checkSessionForConflict: Bad args.");
 		return 1;
 	}
 	
-	// alloc space for the new list entry
-	if ((newEntry = malloc(sizeof(manifList_t))) == (void *)0)
+	// search the session string list for this filename
+	f_ptr = _cti_lookupValue(sess->files, realname);
+	if (f_ptr != NULL)
 	{
-		_cti_set_error("malloc failed.");
-		return 1;
-	}
-	memset(newEntry, 0, sizeof(manifList_t));     // clear it to NULL
-	
-	// set the manif in the list entry
-	newEntry->this = manif;
-	
-	// if _cti_my_manifs is null, this is the new head of the list
-	if ((lstPtr = _cti_my_manifs) == NULL)
-	{
-		_cti_my_manifs = newEntry;
-	} else
-	{
-		// we need to iterate through the list to find the open next entry
-		while (lstPtr->next != NULL)
+		// check if this realname is already in the session list for type
+		if ((entry = _cti_findFileEntryLoc(f_ptr, type)) != NULL)
 		{
-			lstPtr = lstPtr->next;
-		}
-		lstPtr->next = newEntry;
-	}
-	
-	return 0;
-}
-
-static void
-_cti_reapManifest(cti_manifest_id_t mid)
-{
-	manifList_t *	lstPtr;
-	manifList_t *	prePtr;
-	
-	// sanity check
-	if (((lstPtr = _cti_my_manifs) == NULL) || (mid <= 0))
-		return;
-	
-	prePtr = _cti_my_manifs;
-	
-	// this shouldn't happen, but doing so will prevent a segfault if the list gets corrupted
-	while (lstPtr->this == NULL)
-	{
-		// if this is the only object in the list, then delete the entire list
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			_cti_my_manifs = NULL;
-			free(lstPtr);
-			return;
-		}
-		// otherwise point _cti_my_manifs to the lstPtr and free the corrupt entry
-		_cti_my_manifs = lstPtr;
-		free(prePtr);
-		prePtr = _cti_my_manifs;
-	}
-	
-	// we need to locate the position of the manifList_t object that we need to remove
-	while (lstPtr->this->mid != mid)
-	{
-		prePtr = lstPtr;
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			// there are no more entries and we didn't find the mid
-			return;
-		}
-	}
-	
-	// check to see if this was the first entry in the global _cti_my_manifs list
-	if (prePtr == lstPtr)
-	{
-		// point the global _cti_my_manifs list to the next entry
-		_cti_my_manifs = lstPtr->next;
-		// consume the manifest_t object for this entry in the list
-		_cti_consumeManifest(lstPtr->this);
-		// free the list object
-		free(lstPtr);
-	} else
-	{
-		// we are at some point midway through the global _cti_my_manifs list
-		
-		// point the previous entries next entry to the list pointers next entry
-		// this bypasses the current list pointer
-		prePtr->next = lstPtr->next;
-		// consume the manifest_t object for this entry in the list
-		_cti_consumeManifest(lstPtr->this);
-		// free the list object
-		free(lstPtr);
-	}
-	
-	// done
-	return;
-}
-
-static void
-_cti_consumeManifest(manifest_t *entry)
-{
-	// sanity check
-	if (entry == NULL)
-		return;
-		
-	// free the basename of the manifest directory
-	if (entry->stage_name != NULL)
-		free(entry->stage_name);
-	
-	// eat the string list
-	_cti_consumeStringList(entry->files, &_cti_consumeFileEntry);
-	
-	// nom nom the final manifest_t object
-	free(entry);
-}
-
-static manifest_t *
-_cti_findManifest(cti_manifest_id_t mid)
-{
-	manifList_t *	lstPtr;
-	
-	// sanity check
-	if (mid <= 0)
-	{
-		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
-		return NULL;
-	}
-	
-	if ((lstPtr = _cti_my_manifs) == NULL)
-	{
-		_cti_set_error("cti_manifest_id_t %d does not exist.", (int)mid);
-		return NULL;
-	}
-	
-	// this shouldn't happen, but doing so will prevent a segfault if the list gets corrupted
-	while (lstPtr->this == NULL)
-	{
-		// if this is the only object in the list, then delete the entire list
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			_cti_set_error("cti_manifest_id_t %d does not exist.", (int)mid);
-			_cti_my_manifs = NULL;
-			free(lstPtr);
-			return NULL;
-		}
-		// otherwise point _cti_my_manifs to the lstPtr and free the corrupt entry
-		_cti_my_manifs = lstPtr;
-	}
-	
-	// we need to locate the position of the manifList_t object that we are looking for
-	while (lstPtr->this->mid != mid)
-	{
-		if ((lstPtr = lstPtr->next) == NULL)
-		{
-			// there are no more entries and we didn't find the mid
-			_cti_set_error("cti_manifest_id_t %d does not exist.", (int)mid);
-			return NULL;
-		}
-	}
-	
-	return lstPtr->this;
-}
-
-static manifest_t *
-_cti_newManifest(cti_session_id_t sid)
-{
-	manifest_t *	this;
-	session_t *		s_ptr;
-	stringEntry_t *	l_ptr;
-	stringEntry_t *	o_ptr;
-	fileEntry_t *	f_ptr;
-	
-	// create the new manifest_t object
-	if ((this = malloc(sizeof(manifest_t))) == (void *)0)
-	{
-		_cti_set_error("malloc failed.");
-		return NULL;
-	}
-	memset(this, 0, sizeof(manifest_t));     // clear it to NULL
-	
-	// set the mid member
-	// TODO: This could be made smarter by using a hash table instead of a revolving int we see now
-	this->mid = _cti_next_mid++;
-	
-	// set the provided sid in the manifest
-	this->sid = sid;
-	
-	// create the stringList_t object
-	if ((this->files = _cti_newStringList()) == NULL)
-	{
-		_cti_set_error("_cti_newStringList() failed.");
-		_cti_consumeManifest(this);
-		return NULL;
-	}
-	
-	// Check to see if we need to add session info. Note that the files list
-	// will guarantee uniqueness. We simply need to add the file entry
-	// to this list to prevent it from being shipped.
-	if (sid != 0)
-	{
-		if ((s_ptr = _cti_findSession(sid)) == NULL)
-		{
-			// We failed to find the session for the sid
-			// error string already set
-			_cti_consumeManifest(this);
-			return NULL;
-		}
-		
-		// increment the instance count in the sid
-		s_ptr->instCnt++;
-		
-		// set the instance number based on the instCnt in the sid
-		this->inst = s_ptr->instCnt;
-		
-		// copy the information from the session to the manifest
-		this->stage_name = strdup(s_ptr->stage_name);
-		
-		// copy all of the fileEntry to the manifest files list
-		if ((l_ptr = _cti_getEntries(s_ptr->files)) != NULL)
-		{
-			// save for later
-			o_ptr = l_ptr;
-			while (l_ptr != NULL)
+			// check to see if the locations match
+			if (strncmp((*entry)->loc, fullname, strlen((*entry)->loc)) == 0)
 			{
-				// copy the data entry for the new list
-				f_ptr = _cti_copyFileEntry(l_ptr->data);
-				if (f_ptr == NULL)
-				{
-					// error already set
-					_cti_consumeManifest(this);
-					_cti_cleanupEntries(o_ptr);
-					return NULL;
-				}
-				
-				// set present to 1 since this was part of the session, and we are
-				// guaranteed to have shipped all files at this point
-				f_ptr->present = 1;		// these files were already transfered and checked for validity
-				
-				// add this string to the manifest files list
-				if (_cti_addString(this->files, l_ptr->str, f_ptr))
-				{
-					// failed to save name into the list
-					_cti_set_error("_cti_addString() failed.");
-					_cti_consumeManifest(this);
-					_cti_cleanupEntries(o_ptr);
-					return NULL;
-				}
-				// increment pointers
-				f_ptr = NULL;
-				l_ptr = l_ptr->next;
-			}
-			// cleanup
-			_cti_cleanupEntries(o_ptr);
-		}
-	} else
-	{
-		// this is the first instance of the session that will be created upon
-		// shipping this manifest
-		this->inst = 1;
-	}
-	
-	// save the new manifest_t object into the global manifest list
-	if (_cti_addManifest(this))
-	{
-		// error string already set
-		_cti_consumeManifest(this);
-		return NULL;
-	}
-	
-	return this;
-}
-
-static int
-_cti_addManifestToSession(manifest_t *m_ptr, session_t *s_ptr)
-{
-	stringEntry_t *	l_ptr;	// list of entries
-	stringEntry_t *	o_ptr;	// used to save the original pointer to free it later
-	fileEntry_t *	f_ptr;
-	
-	// sanity check
-	if (m_ptr == NULL || s_ptr == NULL)
-	{
-		_cti_set_error("_cti_addManifestToSession: Invalid args.");
-		return 1;
-	}
-	
-	// copy all of the fileEntry to the session files list
-	if ((l_ptr = _cti_getEntries(m_ptr->files)) != NULL)
-	{
-		// save for later
-		o_ptr = l_ptr;
-		while (l_ptr != NULL)
-		{
-			// check to see if this entry is already in the list
-			f_ptr = _cti_lookupValue(s_ptr->files, l_ptr->str);
-			if (f_ptr)
-			{
-				// string already in the list, we need to merge
-				if (_cti_mergeFileEntry(f_ptr, l_ptr->data))
-				{
-					// error already set
-					_cti_cleanupEntries(o_ptr);
-					return 1;
-				}
+				// file locations match. No conflict, return success since the file is already
+				// in the session
+				return 0;
 			} else
 			{
-				// not in list, so add the chain
-				
-				// copy the data entry
-				f_ptr = _cti_copyFileEntry(l_ptr->data);
-				if (f_ptr == NULL)
-				{
-					// error already set
-					_cti_cleanupEntries(o_ptr);
-					return 1;
-				}
-				
-				if (_cti_addString(s_ptr->files, l_ptr->str, f_ptr))
-				{
-					// failed to save name into the list
-					_cti_set_error("_cti_addString() failed.");
-					_cti_cleanupEntries(o_ptr);
-					_cti_consumeFileEntry(f_ptr);
-					return 1;
-				}
-			}
-			// increment pointers
-			l_ptr = l_ptr->next;
-		}
-		// cleanup
-		_cti_cleanupEntries(o_ptr);
-	}
-	
-	return 0;
-}
-
-static void
-_cti_addSessionToApp(appEntry_t *app_ptr, cti_session_id_t sid)
-{
-	sessMgr_t *	sess_obj;
-	int *		new_ids;
-
-	// sanity check
-	if (app_ptr == NULL || sid == 0)
-		return;
-		
-	if (app_ptr->_transferObj == NULL)
-	{
-		// create a new sessMgr_t for this app entry
-		if ((sess_obj = malloc(sizeof(sessMgr_t))) == (void *)0)
-		{
-			// malloc failed
-			return;
-		}
-		memset(sess_obj, 0, sizeof(sessMgr_t));
-		
-		// setup the sess_obj
-		if ((sess_obj->session_ids = malloc(SESS_INC_SIZE * sizeof(int))) == (void *)0)
-		{
-			// malloc failed
-			free(sess_obj);
-			return;
-		}
-		memset(sess_obj->session_ids, 0, SESS_INC_SIZE * sizeof(int));
-		
-		sess_obj->len = SESS_INC_SIZE;
-		
-		// set the object in the app_ptr
-		_cti_setTransferObj(app_ptr, (void *)sess_obj, _cti_destroyAppSess);
-	} else
-	{
-		sess_obj = (sessMgr_t *)app_ptr->_transferObj;
-		
-		// ensure there is space, otherwise realloc
-		if (sess_obj->numSess == sess_obj->len)
-		{
-			// need to realloc
-			if ((new_ids = realloc(sess_obj->session_ids, (sess_obj->len + SESS_INC_SIZE) * sizeof(int))) == (void *)0)
-			{
-				// malloc failed
-				return;
-			}
-			memset(&new_ids[sess_obj->len], 0, SESS_INC_SIZE * sizeof(int));
-			
-			sess_obj->session_ids = new_ids;
-			sess_obj->len += SESS_INC_SIZE;
-		}
-	}
-	
-	// Put the sid into the session_ids array
-	sess_obj->session_ids[sess_obj->numSess++] = sid;
-}
-
-/* API defined functions start here */
-
-void
-_cti_destroyAppSess(void *obj)
-{
-	sessMgr_t *	sess_obj = (sessMgr_t *)obj;
-	int i;
-
-	// sanity check
-	if (sess_obj == NULL)
-		return;
-		
-	for (i=0; i < sess_obj->numSess; ++i)
-	{
-		_cti_reapSession(sess_obj->session_ids[i]);
-	}
-	
-	free(sess_obj->session_ids);
-	free(sess_obj);
-}
-
-cti_manifest_id_t
-cti_createNewManifest(cti_session_id_t sid)
-{
-	manifest_t *	m_ptr = NULL;
-	
-	if ((m_ptr = _cti_newManifest(sid)) == NULL)
-	{
-		// error string already set
-		return 0;
-	}
-		
-	return m_ptr->mid;
-}
-
-void
-cti_destroyManifest(cti_manifest_id_t mid)
-{
-	_cti_reapManifest(mid);
-}
-
-int
-cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr)
-{
-	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
-	char *			fullname;	// full path name of the binary to add to the manifest
-	char *			realname;	// realname (lacking path info) of the file
-	fileEntry_t *	f_ptr;		// pointer to file entry
-	int				rtn;
-	char **			lib_array;	// the returned list of strings containing the required libraries by the executable
-	char **			tmp;		// temporary pointer used to iterate through lists of strings
-	
-	// sanity check
-	if (mid <= 0)
-	{
-		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
-		return 1;
-	}
-	
-	if (fstr == NULL)
-	{
-		_cti_set_error("cti_addManifestBinary had null fstr.");
-		return 1;
-	}
-		
-	// Find the manifest entry in the global manifest list for the mid
-	if ((m_ptr = _cti_findManifest(mid)) == NULL)
-	{
-		// We failed to find the manifest for the mid
-		// error string already set
-		return 1;
-	}
-	
-	// first we should ensure that the binary exists and convert it to its fullpath name
-	if ((fullname = _cti_pathFind(fstr, NULL)) == NULL)
-	{
-		_cti_set_error("Could not locate the specified file in PATH.");
-		return 1;
-	}
-	
-	// next just grab the real name (without path information) of the executable
-	if ((realname = _cti_pathToName(fullname)) == NULL)
-	{
-		_cti_set_error("Could not convert the fullname to realname.");
-		free(fullname);
-		return 1;
-	}
-	
-	// search the string list for this filename
-	f_ptr = _cti_lookupValue(m_ptr->files, realname);
-	if (f_ptr)
-	{
-		// realname is in string list, so try to chain this entry
-		rtn = _cti_chainFileEntry(f_ptr, realname, EXEC_ENTRY, fullname, 0);
-		if (rtn < 0)
-		{
-			// error already set
-			free(fullname);
-			free(realname);
-			return 1;
-		}
-		if (rtn == 1)
-		{
-			// file locations match. No conflict, return success since the file is already
-			// in the manifest
-			free(fullname);
-			free(realname);
-			return 0;
-		}
-		
-		// if we get here, then we need to add the libraries which is done below.
-	} else
-	{
-		// not found in list, so this is a unique file name
-
-		// create new entry
-		if ((f_ptr = _cti_newFileEntry()) == NULL)
-		{
-			// error already set
-			free(fullname);
-			free(realname);
-			return 1;
-		}
-		
-		// set data entries
-		f_ptr->type = EXEC_ENTRY;
-		f_ptr->loc  = fullname;	// this will get free'ed later on
-		f_ptr->present = 0;
-		f_ptr->next = NULL;
-		
-		// add the string to the string list based on the realname of the file.
-		// we want to avoid conflicts on the realname only.
-		if (_cti_addString(m_ptr->files, realname, f_ptr))
-		{
-			// failed to save name into the list
-			_cti_set_error("_cti_addString() failed.");
-			free(realname);
-			_cti_consumeFileEntry(f_ptr);
-			return 1;
-		}
-		
-		// done, adding of libraries is done below
-	}
-	
-	// call the ld_val interface to determine if this executable has any dso requirements
-	lib_array = _cti_ld_val(fullname);
-	
-	// If this executable has dso requirements. We need to add them to the manifest
-	tmp = lib_array;
-	// ensure the are actual entries before dereferencing tmp
-	if (tmp != NULL)
-	{
-		while (*tmp != NULL)
-		{
-			if (cti_addManifestLibrary(m_ptr->mid, *tmp))
-			{
-				// if we return with non-zero status, catastrophic failure occured
-				// error string already set
+				_cti_set_error("A %s named %s is already present in the session.", _cti_entryTypeToString(type), realname);
 				return 1;
 			}
-			// free this tmp value, we are done with it
-			free(*tmp++);
 		}
-		// free the final lib_array
-		free(lib_array);
 	}
-	
-	// cleanup
-	free(realname);
-	
-	return 0;
+
+	// if we get here, the realname is not in the list
+	return -1;
 }
 
-int
-cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr)
-{
-	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
-	char *			fullname;	// full path name of the library to add to the manifest
-	char *			realname;	// realname (lacking path info) of the library
-	fileEntry_t *	f_ptr;		// pointer to file entry
-	int				rtn;
-	
-	// sanity check
-	if (mid <= 0)
-	{
-		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
-		return 1;
-	}
-	
-	if (fstr == NULL)
-	{
-		_cti_set_error("cti_addManifestLibrary had null fstr.");
-		return 1;
-	}
-	
-	// Find the manifest entry in the global manifest list for the mid
-	if ((m_ptr = _cti_findManifest(mid)) == NULL)
-	{
-		// We failed to find the manifest for the mid
-		// error string already set
-		return 1;
-	}
-	
-	// first we should ensure that the library exists and convert it to its fullpath name
-	if ((fullname = _cti_libFind(fstr)) == NULL)
-	{
-		_cti_set_error("Could not locate %s in LD_LIBRARY_PATH or system location.", fstr);
-		return 1;
-	}
-	
-	// next just grab the real name (without path information) of the library
-	if ((realname = _cti_pathToName(fullname)) == NULL)
-	{
-		_cti_set_error("Could not convert the fullname to realname.");
-		free(fullname);
-		return 1;
-	}
-	
-	// TODO: We need to create a way to ship conflicting libraries. Since most libraries are sym links to
-	// their proper version, name collisions are possible. In the future, the launcher should be able to handle
-	// this by pointing its LD_LIBRARY_PATH to a custom directory containing the conflicting lib. Don't actually
-	// implement this until the need arises.
-	
-	// search the string list for this filename
-	f_ptr = _cti_lookupValue(m_ptr->files, realname);
-	if (f_ptr)
-	{
-		// realname is in string list, so try to chain this entry
-		rtn = _cti_chainFileEntry(f_ptr, realname, LIB_ENTRY, fullname, 0);
-		if (rtn < 0)
-		{
-			// error already set
-			free(fullname);
-			free(realname);
-			return 1;
-		}
-		if (rtn == 1)
-		{
-			// file locations match. No conflict, return success since the file is already
-			// in the manifest
-			free(fullname);
-			free(realname);
-			return 0;
-		}
-		
-	} else
-	{
-		// not found in list, so this is a unique file name
-		
-		// create new entry
-		if ((f_ptr = _cti_newFileEntry()) == NULL)
-		{
-			// error already set
-			free(fullname);
-			free(realname);
-			return 1;
-		}
-		
-		// set data entries
-		f_ptr->type = LIB_ENTRY;
-		f_ptr->loc  = fullname;	// this will get free'ed later on
-		f_ptr->present = 0;
-		f_ptr->next = NULL;
-		
-		// add the string to the string list based on the realname of the file.
-		// we want to avoid conflicts on the realname only.
-		if (_cti_addString(m_ptr->files, realname, f_ptr))
-		{
-			// failed to save name into the list
-			_cti_set_error("_cti_addString() failed.");
-			free(realname);
-			_cti_consumeFileEntry(f_ptr);
-			return 1;
-		}
-	}
-	
-	// cleanup
-	free(realname);
-	
-	return 0;
-}
-
-// TODO: This should be able to merge two directories with the same name but different
-// contents. Right now this doesn't happen. The directory can only be added once. This
-// is probably not desired.
-int
-cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr)
-{
-	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
-	struct stat 	statbuf;
-	char *			fullname;	// full path name of the library directory to add to the manifest
-	char *			realname;	// realname (lacking path info) of the library directory
-	fileEntry_t *	f_ptr;		// pointer to file entry
-	int				rtn;		// rtn value
-	
-	// sanity check
-	if (mid <= 0)
-	{
-		_cti_set_error("cti_addManifestLibDir: Invalid cti_manifest_id_t %d.", (int)mid);
-		return 1;
-	}
-	
-	if (fstr == NULL)
-	{
-		_cti_set_error("cti_addManifestLibDir: Invalid args.");
-		return 1;
-	}
-	
-	// Find the manifest entry in the global manifest list for the mid
-	if ((m_ptr = _cti_findManifest(mid)) == NULL)
-	{
-		// We failed to find the manifest for the mid
-		// error string already set
-		return 1;
-	}
-	
-	// Ensure the provided directory exists
-	if (stat(fstr, &statbuf)) 
-	{
-		/* can't access file */
-		_cti_set_error("cti_addManifestLibDir: Provided path %s does not exist.", fstr);
-		return 1;
-	}
-
-	// ensure the file is a directory
-	if (!S_ISDIR(statbuf.st_mode))
-	{
-		/* file is not a directory */
-		_cti_set_error("cti_addManifestLibDir: Provided path %s is not a directory.", fstr);
-		return 1;
-	}
-	
-	// convert the path to its real fullname (i.e. resolve symlinks and get rid of special chars)
-	if ((fullname = realpath(fstr, NULL)) == NULL)
-	{
-		_cti_set_error("cti_addManifestLibDir: realpath failed.");
-		return 1;
-	}
-
-	// next just grab the real name (without path information) of the library directory
-	if ((realname = _cti_pathToName(fullname)) == NULL)
-	{
-		_cti_set_error("cti_addManifestLibDir: Could not convert the fullname to realname.");
-		free(fullname);
-		return 1;
-	}
-	
-	// search the string list for this filename
-	f_ptr = _cti_lookupValue(m_ptr->files, realname);
-	if (f_ptr)
-	{
-		// realname is in string list, so try to chain this entry
-		rtn = _cti_chainFileEntry(f_ptr, realname, LIBDIR_ENTRY, fullname, 0);
-		if (rtn < 0)
-		{
-			// error already set
-			free(fullname);
-			free(realname);
-			return 1;
-		}
-		if (rtn == 1)
-		{
-			// file locations match. No conflict, return success since the file is already
-			// in the manifest
-			free(fullname);
-			free(realname);
-			return 0;
-		}
-		
-	} else
-	{
-		// not found in list, so this is a unique file name
-		
-		// create new entry
-		if ((f_ptr = _cti_newFileEntry()) == NULL)
-		{
-			// error already set
-			free(fullname);
-			free(realname);
-			return 1;
-		}
-		
-		// set data entries
-		f_ptr->type = LIBDIR_ENTRY;
-		f_ptr->loc  = fullname;	// this will get free'ed later on
-		f_ptr->present = 0;
-		f_ptr->next = NULL;
-		
-		// add the string to the string list based on the realname of the file.
-		// we want to avoid conflicts on the realname only.
-		if (_cti_addString(m_ptr->files, realname, f_ptr))
-		{
-			// failed to save name into the list
-			_cti_set_error("_cti_addString() failed.");
-			free(realname);
-			_cti_consumeFileEntry(f_ptr);
-			return 1;
-		}
-	}
-	
-	// cleanup
-	free(realname);
-	
-	return 0;
-}
-
-int
-cti_addManifestFile(cti_manifest_id_t mid, const char *fstr)
-{
-	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
-	char *			fullname;	// full path name of the file to add to the manifest
-	char *			realname;	// realname (lacking path info) of the file
-	fileEntry_t *	f_ptr;		// pointer to file entry
-	int				rtn;		// rtn value
-	
-	// sanity check
-	if (mid <= 0)
-	{
-		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
-		return 1;
-	}
-	
-	if (fstr == NULL)
-	{
-		_cti_set_error("cti_addManifestFile had null fstr.");
-		return 1;
-	}
-		
-	// Find the manifest entry in the global manifest list for the mid
-	if ((m_ptr = _cti_findManifest(mid)) == NULL)
-	{
-		// We failed to find the manifest for the mid
-		// error string already set
-		return 1;
-	}
-	
-	// first we should ensure that the file exists and convert it to its fullpath name
-	if ((fullname = _cti_pathFind(fstr, NULL)) == NULL)
-	{
-		_cti_set_error("Could not locate the specified file in PATH.");
-		return 1;
-	}
-	
-	// next just grab the real name (without path information) of the library
-	if ((realname = _cti_pathToName(fullname)) == NULL)
-	{
-		_cti_set_error("Could not convert the fullname to realname.");
-		free(fullname);
-		return 1;
-	}
-	
-	// search the string list for this filename
-	f_ptr = _cti_lookupValue(m_ptr->files, realname);
-	if (f_ptr)
-	{
-		// realname is in string list, so try to chain this entry
-		rtn = _cti_chainFileEntry(f_ptr, realname, FILE_ENTRY, fullname, 0);
-		if (rtn < 0)
-		{
-			// error already set
-			free(fullname);
-			free(realname);
-			return 1;
-		}
-		if (rtn == 1)
-		{
-			// file locations match. No conflict, return success since the file is already
-			// in the manifest
-			free(fullname);
-			free(realname);
-			return 0;
-		}
-		
-	} else
-	{
-		// not found in list, so this is a unique file name
-		
-		// create new entry
-		if ((f_ptr = _cti_newFileEntry()) == NULL)
-		{
-			// error already set
-			free(fullname);
-			free(realname);
-			return 1;
-		}
-		
-		// set data entries
-		f_ptr->type = FILE_ENTRY;
-		f_ptr->loc  = fullname;	// this will get free'ed later on
-		f_ptr->present = 0;
-		f_ptr->next = NULL;
-		
-		// add the string to the string list based on the realname of the file.
-		// we want to avoid conflicts on the realname only.
-		if (_cti_addString(m_ptr->files, realname, f_ptr))
-		{
-			// failed to save name into the list
-			_cti_set_error("_cti_addString() failed.");
-			free(realname);
-			_cti_consumeFileEntry(f_ptr);
-			return 1;
-		}
-	}
-	
-	// cleanup
-	free(realname);
-	
-	return 0;
-}
+/********************************
+** support routines for archives
+** Used when shipping manifests.
+********************************/
 
 static int
 _cti_addDirToArchive(struct archive *a, struct archive_entry *entry, const char *d_loc)
@@ -1820,151 +1066,864 @@ _cti_copyFileToArchive(struct archive *a, struct archive_entry *entry, const cha
 	return 0;
 }
 
-static void
-_cti_transfer_doCleanup(void)
+/********************************
+** support routines for manifests
+********************************/
+
+static manifest_t *
+_cti_newManifest(session_t * s_ptr)
 {
-	const char *		cfg_dir;
-	DIR *				dir;
-	struct dirent *		d;
-	char *				stage_name;
-	char *				p;
+	manifest_t *	this;	
 	
-	if (!_cti_doCleanup)
-		return;
-	
-	// Get the configuration directory
-	if ((cfg_dir = _cti_getCfgDir()) == NULL)
+	// sanity
+	if (s_ptr == NULL)
 	{
-		return;
+		_cti_set_error("_cti_newManifest: Bad args.");
+		return NULL;
 	}
 	
-	// Open the directory
-	if ((dir = opendir(cfg_dir)) == NULL)
+	// create the new manifest_t object
+	if ((this = malloc(sizeof(manifest_t))) == (void *)0)
 	{
-		return;
+		_cti_set_error("malloc failed.");
+		return NULL;
+	}
+	memset(this, 0, sizeof(manifest_t));     // clear it to NULL
+	
+	// set the mid member
+	// TODO: This could be made smarter by using a hash table instead of the
+	// revolving int/linked list we see now.
+	this->mid = _cti_next_mid++;
+	
+	// set the sess pointer
+	this->sess = s_ptr;
+	
+	// create the stringList_t object
+	if ((this->files = _cti_newStringList()) == NULL)
+	{
+		_cti_set_error("_cti_newStringList() failed.");
+		_cti_consumeManifest(this);
+		return NULL;
 	}
 	
-	// create the pattern to look for - note that the '.' is added since the
-	// file name will be hidden.
-	if (asprintf(&stage_name, ".%s", DEFAULT_STAGE_DIR) <= 0)
-	{
-		closedir(dir);
-		return;
-	}
-	// point at the first 'X' character at the end of the string
-	if ((p = strrchr(stage_name, 'X')) == NULL)
-	{
-		closedir(dir);
-		free(stage_name);
-		return;
-	}
-	while ((p - stage_name) > 0 && *(p-1) == 'X')
-	{
-		--p;
-	}
-	// Set this to null terminator
-	*p = '\0';
+	this->inst = 0;
 	
-	// Recurse through each file in the reference directory
-	while ((d = readdir(dir)) != NULL)
+	// save the new session object into the session obj
+	if (_cti_list_add(s_ptr->manifs, this))
 	{
-		// ensure this isn't the . or .. file
-		switch (strlen(d->d_name))
+		_cti_set_error("_cti_list_add() failed.");
+		_cti_consumeManifest(this);
+		return NULL;
+	}
+	
+	// save the new manifest object into the global manifest list
+	if (_cti_list_add(_cti_my_manifs, this))
+	{
+		_cti_set_error("_cti_list_add() failed.");
+		_cti_consumeManifest(this);
+		return NULL;
+	}
+	
+	return this;
+}
+
+static void
+_cti_consumeManifest(manifest_t *m_ptr)
+{
+	// sanity check
+	if (m_ptr == NULL)
+		return;
+		
+	// remove manifest from session
+	_cti_list_remove(MANIF_SESS(m_ptr)->manifs, m_ptr);
+	
+	// remove manifest from global list
+	_cti_list_remove(_cti_my_manifs, m_ptr);
+	
+	// eat the string list
+	_cti_consumeStringList(m_ptr->files, &_cti_consumeFileEntry);
+	
+	// nom nom the final manifest_t object
+	free(m_ptr);
+}
+
+static manifest_t *
+_cti_findManifest(cti_manifest_id_t mid)
+{
+	manifest_t *	this;
+	
+	// sanity check
+	if (mid <= 0)
+	{
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
+		return NULL;
+	}
+	
+	// search the global manifest list for this mid
+	_cti_list_reset(_cti_my_manifs);
+	while ((this = (manifest_t *)_cti_list_next(_cti_my_manifs)) != NULL)
+	{
+		// return if the mid match
+		if (this->mid == mid)
+			return this;
+	}
+	
+	// if we get here, we didn't find the sid
+	_cti_set_error("cti_manifest_id_t %d does not exist.", (int)mid);
+	return NULL;
+}
+
+static int
+_cti_addManifestToSession_callback(void *opaque, const char *key, void *val)
+{
+	stringList_t *		sess_files = opaque;
+	fileEntry_t *		f_ptr = val;
+	fileEntry_t *		s_ptr;
+
+	// sanity
+	if (sess_files == NULL || key == NULL || f_ptr == NULL)
+	{
+		_cti_set_error("_cti_addManifestToSession_callback: Bad args.");
+		return 1;
+	}
+	
+	// check if this key is present in the session files
+	s_ptr = _cti_lookupValue(sess_files, key);
+	if (s_ptr != NULL)
+	{
+		// file already in the session, we need to merge
+		if (_cti_mergeFileEntry(s_ptr, f_ptr))
 		{
-			case 1:
-				if (d->d_name[0] == '.')
-				{
-					// continue to the outer while loop
-					continue;
-				}
-				break;
-				
-			case 2:
-				if (strcmp(d->d_name, "..") == 0)
-				{
-					// continue to the outer while loop
-					continue;
-				}
-				break;
-			
-			default:
-				break;
+			// error already set
+			return 1;
+		}
+	} else
+	{
+		// not in session, so add the key
+		
+		// copy the data entry
+		f_ptr = _cti_copyFileEntry(f_ptr);
+		if (f_ptr == NULL)
+		{
+			// error already set
+			return 1;
 		}
 		
-		// check this name against the stage_name string
-		if (strncmp(d->d_name, stage_name, strlen(stage_name)) == 0)
+		// add the file to the session
+		if (_cti_addString(sess_files, key, f_ptr))
 		{
-			FILE *	hfp;
-			pid_t	pid;
-			char *	h_path;
-			char *	n_path;
-			
-			// create path to hidden file
-			if (asprintf(&h_path, "%s/%s", cfg_dir, d->d_name) <= 0)
+			// failed to save name into the list
+			_cti_set_error("_cti_addManifestToSession_callback: _cti_addString() failed.");
+			_cti_consumeFileEntry(f_ptr);
+			return 1;
+		}
+	}
+	
+	return 0;
+}
+
+// Ensure that the session and manifest conflicts have been resolved before
+// calling this function
+static int
+_cti_addManifestToSession(manifest_t *m_ptr)
+{
+	// sanity check
+	if (m_ptr == NULL)
+	{
+		_cti_set_error("_cti_addManifestToSession: Invalid args.");
+		return 1;
+	}
+	
+	return _cti_forEachString(m_ptr->files, _cti_addManifestToSession_callback, MANIF_SESS(m_ptr)->files);
+}
+
+static int
+_cti_resolveManifestConflicts_callback(void *opaque, const char *key, void *val)
+{
+	conflict_data *	cb_data = opaque;
+	fileEntry_t *	m_ptr;
+	fileEntry_t *	s_ptr;
+	fileEntry_t *	last;
+	fileEntry_t *	tmp;
+	fileEntry_t **	entry;
+
+	// sanity
+	if (cb_data == NULL || cb_data->sess_files == NULL || key == NULL || val == NULL)
+	{
+		_cti_set_error("_cti_resolveManifestConflicts_callback: Bad args.");
+		return 1;
+	}
+	
+	// check if this key is present in the session files
+	s_ptr = _cti_lookupValue(cb_data->sess_files, key);
+	if (s_ptr != NULL)
+	{
+		// The filename is present. Loop over each realname in the manifest list
+		m_ptr = val;
+		last = NULL;
+		while (m_ptr != NULL)
+		{
+			// check if this realname is already in the session files for type
+			if ((entry = _cti_findFileEntryLoc(s_ptr, m_ptr->type)) != NULL)
 			{
-				continue;
+				// filename is already present in session. Ensure the locations match.
+				if (strncmp((*entry)->loc, m_ptr->loc, strlen((*entry)->loc)) == 0)
+				{
+					// names match, no error just remove from manifest and continue
+					if (last == NULL && m_ptr->next == NULL)
+					{
+						// If this is the only entry we remove the entire key 
+						// from the manifest upon return
+						if (_cti_push(cb_data->conflicts, (void *)key))
+						{
+							_cti_set_error("_cti_resolveManifestConflicts_callback: _cti_push() failed.");
+							return 1;
+						}
+						m_ptr = NULL;
+					} else if (m_ptr->next == NULL)
+					{
+						// this handles the case where this is the final entry 
+						// in a non-empty chain
+						last->next = NULL;
+						free(m_ptr->loc);
+						free(m_ptr);
+						m_ptr = NULL;
+					} else
+					{
+						// this entry is in the middle of the chain
+						m_ptr->type = m_ptr->next->type;
+						free(m_ptr->loc);
+						m_ptr->loc = m_ptr->next->loc;
+						tmp = m_ptr->next->next;
+						free(m_ptr->next);
+						m_ptr->next = tmp;
+						// no need to update m_ptr
+					}
+				} else
+				{
+					// names do not match, throw error
+					_cti_set_error("A %s named %s is already present in the session.", _cti_entryTypeToString(m_ptr->type), m_ptr->loc);
+					return 1;
+				}
+			} else
+			{
+				// this is a valid file since it isn't in the session. 
+				// Update and continue iterating.
+				last = m_ptr;
+				m_ptr = m_ptr->next;
 			}
+		}
+	}
+	
+	return 0;
+}
+
+static int
+_cti_resolveManifestConflicts(manifest_t *m_ptr)
+{
+	conflict_data *	cb_data;
+	int				rtn;
+	const char *	str;
+	
+	// sanity
+	if (m_ptr == NULL)
+	{
+		_cti_set_error("_cti_resolveManifestConflicts: Bad args.");
+		return 1;
+	}
+	
+	if ((cb_data = malloc(CTI_BLOCK_SIZE)) == NULL)
+	{
+		_cti_set_error("_cti_resolveManifestConflicts: malloc failed.");
+		return 1;
+	}
+	
+	// setup callback data
+	cb_data->sess_files = MANIF_SESS(m_ptr)->files;
+	cb_data->conflicts = _cti_newStack();
+	if (cb_data->conflicts == NULL)
+	{
+		_cti_set_error("_cti_resolveManifestConflicts: _cti_newStack failed.");
+		free(cb_data);
+		return 1;
+	}
+	
+	// iterate over each file in the manifest
+	rtn = _cti_forEachString(m_ptr->files, _cti_resolveManifestConflicts_callback, cb_data);
+	
+	// remove any conflicting file from the manifest
+	while ((str = _cti_pop(cb_data->conflicts)) != NULL)
+	{
+		_cti_removeString(m_ptr->files, str, _cti_consumeFileEntry);
+	}
+	
+	_cti_consumeStack(cb_data->conflicts);
+	free(cb_data);
+	
+	return rtn;
+}
+
+static int
+_cti_addBinary(manifest_t *m_ptr, const char *fstr)
+{
+	char *			fullname;	// full path name of the binary to add to the manifest
+	char *			realname;	// realname (lacking path info) of the file
+	fileEntry_t *	f_ptr;		// pointer to file entry
+	int				rtn;
+	char **			lib_array;	// the returned list of strings containing the required libraries by the executable
+	char **			tmp;		// temporary pointer used to iterate through lists of strings
+	
+	// first we should ensure that the binary exists and convert it to its fullpath name
+	if ((fullname = _cti_pathFind(fstr, NULL)) == NULL)
+	{
+		_cti_set_error("Could not locate the specified file in PATH.");
+		return 1;
+	}
+	
+	// next just grab the real name (without path information) of the executable
+	if ((realname = _cti_pathToName(fullname)) == NULL)
+	{
+		_cti_set_error("Could not convert the fullname to realname.");
+		free(fullname);
+		return 1;
+	}
+	
+	// Check if this file is already in the session
+	rtn = _cti_checkSessionForConflict(MANIF_SESS(m_ptr), EXEC_ENTRY, realname, fullname);
+	if (rtn == 0)
+	{
+		// file locations match. No conflict, return success since the file is already
+		// in the session
+		free(fullname);
+		free(realname);
+		return 0;
+	} else if (rtn == 1)
+	{
+		// realname matches, but fullname conflicts. 
+		// error already set
+		free(fullname);
+		free(realname);
+		return 1;
+	}
+	
+	// realname is not in the session string list
+	
+	// search the manifest string list for this filename
+	f_ptr = _cti_lookupValue(m_ptr->files, realname);
+	if (f_ptr != NULL)
+	{
+		// realname is in string list, so try to chain this entry
+		rtn = _cti_chainFileEntry(f_ptr, realname, EXEC_ENTRY, fullname);
+		if (rtn < 0)
+		{
+			// error already set
+			free(fullname);
+			free(realname);
+			return 1;
+		}
+		if (rtn == 1)
+		{
+			// file locations match. No conflict, return success since the file is already
+			// in the manifest
+			free(fullname);
+			free(realname);
+			return 0;
+		}
 		
-			// pattern matches, we need to try removing this file
-			if ((hfp = fopen(h_path, "r")) == NULL)
+		// if we get here, then we need to add the libraries which is done below.
+	} else
+	{
+		// not found in list, so this is a unique file name
+
+		// create new entry
+		if ((f_ptr = _cti_newFileEntry()) == NULL)
+		{
+			// error already set
+			free(fullname);
+			free(realname);
+			return 1;
+		}
+		
+		// set data entries
+		f_ptr->type = EXEC_ENTRY;
+		f_ptr->loc  = fullname;	// this will get free'ed later on
+		f_ptr->next = NULL;
+		
+		// add the string to the string list based on the realname of the file.
+		// we want to avoid conflicts on the realname only.
+		if (_cti_addString(m_ptr->files, realname, f_ptr))
+		{
+			// failed to save name into the list
+			_cti_set_error("_cti_addString() failed.");
+			free(realname);
+			_cti_consumeFileEntry(f_ptr);
+			return 1;
+		}
+		
+		// done, adding of libraries is done below
+	}
+	
+	// call the ld_val interface to determine if this executable has any dso requirements
+	lib_array = _cti_ld_val(fullname);
+	
+	// If this executable has dso requirements. We need to add them to the manifest
+	tmp = lib_array;
+	// ensure the are actual entries before dereferencing tmp
+	if (tmp != NULL)
+	{
+		while (*tmp != NULL)
+		{
+			if (_cti_addLibrary(m_ptr, *tmp))
 			{
-				free(h_path);
-				continue;
+				// if we return with non-zero status, catastrophic failure occured
+				// error string already set
+				return 1;
 			}
-			
-			// read the pid from the file
-			if (fread(&pid, sizeof(pid), 1, hfp) != 1)
-			{
-				free(h_path);
-				fclose(hfp);
-				continue;
-			}
-			
-			fclose(hfp);
-			
-			// ping the process
-			if (kill(pid, 0) == 0)
-			{
-				// process is still alive
-				free(h_path);
-				continue;
-			}
-			
-			// process is dead, we need to remove the tarball
-			if (asprintf(&n_path, "%s/%s", cfg_dir, d->d_name+1) <= 0)
-			{
-				free(h_path);
-				continue;
-			}
-			
-			unlink(n_path);
-			free(n_path);
-			
-			// remove the hidden file
-			unlink(h_path);
-			free(h_path);
+			// free this tmp value, we are done with it
+			free(*tmp++);
+		}
+		// free the final lib_array
+		free(lib_array);
+	}
+	
+	// cleanup
+	free(realname);
+	
+	return 0;
+}
+
+static int
+_cti_addLibrary(manifest_t *m_ptr, const char *fstr)
+{
+	char *			fullname;	// full path name of the library to add to the manifest
+	char *			realname;	// realname (lacking path info) of the library
+	fileEntry_t *	f_ptr;		// pointer to file entry
+	int				rtn;
+	
+	// first we should ensure that the library exists and convert it to its fullpath name
+	if ((fullname = _cti_libFind(fstr)) == NULL)
+	{
+		_cti_set_error("Could not locate %s in LD_LIBRARY_PATH or system location.", fstr);
+		return 1;
+	}
+	
+	// next just grab the real name (without path information) of the library
+	if ((realname = _cti_pathToName(fullname)) == NULL)
+	{
+		_cti_set_error("Could not convert the fullname to realname.");
+		free(fullname);
+		return 1;
+	}
+	
+	// TODO: We need to create a way to ship conflicting libraries. Since most libraries are sym links to
+	// their proper version, name collisions are possible. In the future, the launcher should be able to handle
+	// this by pointing its LD_LIBRARY_PATH to a custom directory containing the conflicting lib. Don't actually
+	// implement this until the need arises.
+	
+	// Check if this file is already in the session
+	rtn = _cti_checkSessionForConflict(MANIF_SESS(m_ptr), LIB_ENTRY, realname, fullname);
+	if (rtn == 0)
+	{
+		// file locations match. No conflict, return success since the file is already
+		// in the session
+		free(fullname);
+		free(realname);
+		return 0;
+	} else if (rtn == 1)
+	{
+		// realname matches, but fullname conflicts. 
+		// error already set
+		free(fullname);
+		free(realname);
+		return 1;
+	}
+	
+	// realname is not in the session string list
+	
+	// search the string list for this filename
+	f_ptr = _cti_lookupValue(m_ptr->files, realname);
+	if (f_ptr)
+	{
+		// realname is in string list, so try to chain this entry
+		rtn = _cti_chainFileEntry(f_ptr, realname, LIB_ENTRY, fullname);
+		if (rtn < 0)
+		{
+			// error already set
+			free(fullname);
+			free(realname);
+			return 1;
+		}
+		if (rtn == 1)
+		{
+			// file locations match. No conflict, return success since the file is already
+			// in the manifest
+			free(fullname);
+			free(realname);
+			return 0;
+		}
+		
+	} else
+	{
+		// not found in list, so this is a unique file name
+		
+		// create new entry
+		if ((f_ptr = _cti_newFileEntry()) == NULL)
+		{
+			// error already set
+			free(fullname);
+			free(realname);
+			return 1;
+		}
+		
+		// set data entries
+		f_ptr->type = LIB_ENTRY;
+		f_ptr->loc  = fullname;	// this will get free'ed later on
+		f_ptr->next = NULL;
+		
+		// add the string to the string list based on the realname of the file.
+		// we want to avoid conflicts on the realname only.
+		if (_cti_addString(m_ptr->files, realname, f_ptr))
+		{
+			// failed to save name into the list
+			_cti_set_error("_cti_addString() failed.");
+			free(realname);
+			_cti_consumeFileEntry(f_ptr);
+			return 1;
 		}
 	}
 	
 	// cleanup
-	closedir(dir);
-	free(stage_name);
-	_cti_doCleanup = false;
-}
+	free(realname);
 	
+	return 0;
+}
+
+// TODO: This should be able to merge two directories with the same name but different
+// contents. Right now this doesn't happen. The directory can only be added once. This
+// is probably not desired.
 static int
-_cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
+_cti_addLibDir(manifest_t *m_ptr, const char *fstr)
+{
+	struct stat 	statbuf;
+	char *			fullname;	// full path name of the library directory to add to the manifest
+	char *			realname;	// realname (lacking path info) of the library directory
+	fileEntry_t *	f_ptr;		// pointer to file entry
+	int				rtn;		// rtn value
+	
+	// Ensure the provided directory exists
+	if (stat(fstr, &statbuf)) 
+	{
+		/* can't access file */
+		_cti_set_error("Provided path %s does not exist.", fstr);
+		return 1;
+	}
+
+	// ensure the file is a directory
+	if (!S_ISDIR(statbuf.st_mode))
+	{
+		/* file is not a directory */
+		_cti_set_error("Provided path %s is not a directory.", fstr);
+		return 1;
+	}
+	
+	// convert the path to its real fullname (i.e. resolve symlinks and get rid of special chars)
+	if ((fullname = realpath(fstr, NULL)) == NULL)
+	{
+		_cti_set_error("Realpath failed.");
+		return 1;
+	}
+
+	// next just grab the real name (without path information) of the library directory
+	if ((realname = _cti_pathToName(fullname)) == NULL)
+	{
+		_cti_set_error("Could not convert the fullname to realname.");
+		free(fullname);
+		return 1;
+	}
+	
+	// Check if this file is already in the session
+	rtn = _cti_checkSessionForConflict(MANIF_SESS(m_ptr), LIBDIR_ENTRY, realname, fullname);
+	if (rtn == 0)
+	{
+		// file locations match. No conflict, return success since the file is already
+		// in the session
+		free(fullname);
+		free(realname);
+		return 0;
+	} else if (rtn == 1)
+	{
+		// realname matches, but fullname conflicts. 
+		// error already set
+		free(fullname);
+		free(realname);
+		return 1;
+	}
+	
+	// realname is not in the session string list
+	
+	// search the string list for this filename
+	f_ptr = _cti_lookupValue(m_ptr->files, realname);
+	if (f_ptr)
+	{
+		// realname is in string list, so try to chain this entry
+		rtn = _cti_chainFileEntry(f_ptr, realname, LIBDIR_ENTRY, fullname);
+		if (rtn < 0)
+		{
+			// error already set
+			free(fullname);
+			free(realname);
+			return 1;
+		}
+		if (rtn == 1)
+		{
+			// file locations match. No conflict, return success since the file is already
+			// in the manifest
+			free(fullname);
+			free(realname);
+			return 0;
+		}
+		
+	} else
+	{
+		// not found in list, so this is a unique file name
+		
+		// create new entry
+		if ((f_ptr = _cti_newFileEntry()) == NULL)
+		{
+			// error already set
+			free(fullname);
+			free(realname);
+			return 1;
+		}
+		
+		// set data entries
+		f_ptr->type = LIBDIR_ENTRY;
+		f_ptr->loc  = fullname;	// this will get free'ed later on
+		f_ptr->next = NULL;
+		
+		// add the string to the string list based on the realname of the file.
+		// we want to avoid conflicts on the realname only.
+		if (_cti_addString(m_ptr->files, realname, f_ptr))
+		{
+			// failed to save name into the list
+			_cti_set_error("_cti_addString() failed.");
+			free(realname);
+			_cti_consumeFileEntry(f_ptr);
+			return 1;
+		}
+	}
+	
+	// cleanup
+	free(realname);
+	
+	return 0;
+}
+
+static int
+_cti_addFile(manifest_t *m_ptr, const char *fstr)
+{
+	char *			fullname;	// full path name of the file to add to the manifest
+	char *			realname;	// realname (lacking path info) of the file
+	fileEntry_t *	f_ptr;		// pointer to file entry
+	int				rtn;		// rtn value
+	
+	// first we should ensure that the file exists and convert it to its fullpath name
+	if ((fullname = _cti_pathFind(fstr, NULL)) == NULL)
+	{
+		_cti_set_error("Could not locate the specified file in PATH.");
+		return 1;
+	}
+	
+	// next just grab the real name (without path information) of the library
+	if ((realname = _cti_pathToName(fullname)) == NULL)
+	{
+		_cti_set_error("Could not convert the fullname to realname.");
+		free(fullname);
+		return 1;
+	}
+	
+	// Check if this file is already in the session
+	rtn = _cti_checkSessionForConflict(MANIF_SESS(m_ptr), FILE_ENTRY, realname, fullname);
+	if (rtn == 0)
+	{
+		// file locations match. No conflict, return success since the file is already
+		// in the session
+		free(fullname);
+		free(realname);
+		return 0;
+	} else if (rtn == 1)
+	{
+		// realname matches, but fullname conflicts. 
+		// error already set
+		free(fullname);
+		free(realname);
+		return 1;
+	}
+	
+	// realname is not in the session string list
+	
+	// search the string list for this filename
+	f_ptr = _cti_lookupValue(m_ptr->files, realname);
+	if (f_ptr)
+	{
+		// realname is in string list, so try to chain this entry
+		rtn = _cti_chainFileEntry(f_ptr, realname, FILE_ENTRY, fullname);
+		if (rtn < 0)
+		{
+			// error already set
+			free(fullname);
+			free(realname);
+			return 1;
+		}
+		if (rtn == 1)
+		{
+			// file locations match. No conflict, return success since the file is already
+			// in the manifest
+			free(fullname);
+			free(realname);
+			return 0;
+		}
+		
+	} else
+	{
+		// not found in list, so this is a unique file name
+		
+		// create new entry
+		if ((f_ptr = _cti_newFileEntry()) == NULL)
+		{
+			// error already set
+			free(fullname);
+			free(realname);
+			return 1;
+		}
+		
+		// set data entries
+		f_ptr->type = FILE_ENTRY;
+		f_ptr->loc  = fullname;	// this will get free'ed later on
+		f_ptr->next = NULL;
+		
+		// add the string to the string list based on the realname of the file.
+		// we want to avoid conflicts on the realname only.
+		if (_cti_addString(m_ptr->files, realname, f_ptr))
+		{
+			// failed to save name into the list
+			_cti_set_error("_cti_addString() failed.");
+			free(realname);
+			_cti_consumeFileEntry(f_ptr);
+			return 1;
+		}
+	}
+	
+	// cleanup
+	free(realname);
+	
+	return 0;
+}
+
+static int
+_cti_packageManifestAndShip_callback(void *opaque, const char *key, void *val)
+{
+	package_data *	cb_data = opaque;
+	fileEntry_t *	f_ptr = val;
+
+	// sanity
+	if (cb_data == NULL || key == NULL || f_ptr == NULL)
+	{
+		_cti_set_error("_cti_packageManifestAndShip_callback: Bad args.");
+		return 1;
+	}
+	
+	// loop over each file in the chain
+	while (f_ptr != NULL)
+	{
+		// switch on file type
+		switch (f_ptr->type)
+		{
+			case EXEC_ENTRY:
+				// create relative pathname
+				if (snprintf(cb_data->path_buf, PATH_MAX, "%s/%s", cb_data->bin_path, key) <= 0)
+				{
+					_cti_set_error("_cti_packageManifestAndShip_callback: snprintf failed.");
+					return 1;
+				}
+							
+				// copy this file to the archive
+				if (_cti_copyFileToArchive(cb_data->a, cb_data->entry, f_ptr->loc, cb_data->path_buf, cb_data->read_buf))
+				{
+					// error already set
+					return 1;
+				}
+							
+				break;
+					
+			case LIB_ENTRY:
+				// create relative pathname
+				if (snprintf(cb_data->path_buf, PATH_MAX, "%s/%s", cb_data->lib_path, key) <= 0)
+				{
+					_cti_set_error("_cti_packageManifestAndShip_callback: snprintf failed.");
+					return 1;
+				}
+							
+				// copy this file to the archive
+				if (_cti_copyFileToArchive(cb_data->a, cb_data->entry, f_ptr->loc, cb_data->path_buf, cb_data->read_buf))
+				{
+					// error already set
+					return 1;
+				}
+				
+				break;
+				
+			case LIBDIR_ENTRY:
+				// create relative pathname
+				if (snprintf(cb_data->path_buf, PATH_MAX, "%s/%s", cb_data->lib_path, key) <= 0)
+				{
+					_cti_set_error("_cti_packageManifestAndShip_callback: snprintf failed.");
+					return 1;
+				}
+							
+				// copy this file to the archive
+				if (_cti_copyFileToArchive(cb_data->a, cb_data->entry, f_ptr->loc, cb_data->path_buf, cb_data->read_buf))
+				{
+					// error already set
+					return 1;
+				}
+				
+				break;
+				
+			case FILE_ENTRY:
+				// create relative pathname
+				if (snprintf(cb_data->path_buf, PATH_MAX, "%s/%s", cb_data->lib_path, key) <= 0)
+				{
+					_cti_set_error("_cti_packageManifestAndShip_callback: snprintf failed.");
+					return 1;
+				}
+							
+				// copy this file to the archive
+				if (_cti_copyFileToArchive(cb_data->a, cb_data->entry, f_ptr->loc, cb_data->path_buf, cb_data->read_buf))
+				{
+					// error already set
+					return 1;
+				}
+				
+				break;
+		}
+	
+		// point at the next fileEntry in the chain
+		f_ptr = f_ptr->next;
+	}
+	
+	// done
+	return 0;
+}
+
+static int
+_cti_packageManifestAndShip(manifest_t *m_ptr)
 {
 	const char *			cfg_dir = NULL;		// tmp directory
-	char *					stage_name = NULL;	// staging path
-	char *					stage_name_env;
 	char *					bin_path = NULL;
 	char *					lib_path = NULL;
 	char *					tmp_path = NULL;
 	const char * const *	wlm_files;
-	stringEntry_t *			l_ptr;
-	stringEntry_t *			o_ptr = NULL;
-	fileEntry_t *			f_ptr;
 	char *					tar_name = NULL;
 	char *					hidden_tar_name = NULL;
 	FILE *					hfp = NULL;
@@ -1972,15 +1931,95 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	struct archive *		a = NULL;
 	struct archive_entry *	entry = NULL;
 	char *					read_buf = NULL;
-	char					path_buf[PATH_MAX];
+	package_data *			cb_data = NULL;
 	cti_signals_t *			signals = NULL;		// BUG 819725
-	bool					has_files = false;	// tracks if any files need to be shipped
 	int						rtn = 0;			// return value
 	
+	// FIXME: Move the following function call to the future init function
+	// try to cleanup
+	_cti_transfer_doCleanup();
+	
 	// sanity check
-	if (app_ptr == NULL || m_ptr == NULL)
+	if (m_ptr == NULL)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: invalid args.");
+		return 1;
+	}
+	
+	// set inst id in manifest, we increment this in the session only upon success.
+	m_ptr->inst = MANIF_SESS(m_ptr)->instCnt + 1;
+	
+	// Add extra files needed by the WLM. We only do this if it is the first 
+	// instance, otherwise the extra files will have already been shipped.
+	if (MANIF_SESS(m_ptr)->instCnt == 0)
+	{
+		// grab extra binaries
+		if ((wlm_files = MANIF_APP(m_ptr)->wlmProto->wlm_extraBinaries(MANIF_APP(m_ptr)->_wlmObj)) != NULL)
+		{
+			while (*wlm_files != NULL)
+			{
+				if (_cti_addBinary(m_ptr, *wlm_files))
+				{
+					// Failed to add the binary to the manifest - catastrophic failure
+					return 1;
+				}
+				++wlm_files;
+			}
+		}
+		
+		// grab extra libraries
+		if ((wlm_files = MANIF_APP(m_ptr)->wlmProto->wlm_extraLibraries(MANIF_APP(m_ptr)->_wlmObj)) != NULL)
+		{
+			while (*wlm_files != NULL)
+			{
+				if (_cti_addLibrary(m_ptr, *wlm_files))
+				{
+					// Failed to add the binary to the manifest - catastrophic failure
+					return 1;
+				}
+				++wlm_files;
+			}
+		}
+		
+		// grab extra library directories
+		if ((wlm_files = MANIF_APP(m_ptr)->wlmProto->wlm_extraLibDirs(MANIF_APP(m_ptr)->_wlmObj)) != NULL)
+		{
+			while (*wlm_files != NULL)
+			{
+				if (_cti_addLibDir(m_ptr, *wlm_files))
+				{
+					// Failed to add the binary to the manifest - catastrophic failure
+					return 1;
+				}
+				++wlm_files;
+			}
+		}
+		
+		// grab extra files
+		if ((wlm_files = MANIF_APP(m_ptr)->wlmProto->wlm_extraFiles(MANIF_APP(m_ptr)->_wlmObj)) != NULL)
+		{
+			while (*wlm_files != NULL)
+			{
+				if (_cti_addFile(m_ptr, *wlm_files))
+				{
+					// Failed to add the binary to the manifest - catastrophic failure
+					return 1;
+				}
+				++wlm_files;
+			}
+		}
+	}
+	
+	// We need to reconcile the manifest files with the session files a second time.
+	// This avoids the conflict where two manifests contain the same files. A caller
+	// can create two manifests, and add the same file to both. No conflict will be
+	// found since manifest state is not checked between two manifests. When the
+	// first manifest is shipped, the conflicting file will be saved into the
+	// session string list, but would be two late for the second manifest. By
+	// checking the session string list at ship time, we avoid this problem.
+	if (_cti_resolveManifestConflicts(m_ptr))
+	{
+		// error already set
 		return 1;
 	}
 	
@@ -1997,186 +2036,28 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		goto packageManifestAndShip_error;
 	}
 	
-	// try to cleanup
-	_cti_transfer_doCleanup();
-	
-	// Check the manifest to see if it already has a stage_name set, if so this 
-	// is part of an existing session and we should use the same name
-	if (m_ptr->stage_name == NULL)
-	{
-		// check to see if the caller set a staging directory name, otherwise create a unique one for them
-		if ((stage_name_env = getenv(DAEMON_STAGE_VAR)) == NULL)
-		{
-			char *	rand_char;
-			
-			// take the default action
-			if (asprintf(&stage_name, "%s", DEFAULT_STAGE_DIR) <= 0)
-			{
-				_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
-				goto packageManifestAndShip_error;
-			}
-			
-			// Point at the last 'X' in the string
-			if ((rand_char = strrchr(stage_name, 'X')) == NULL)
-			{
-				_cti_set_error("_cti_packageManifestAndShip: Bad stage_name string!");
-				goto packageManifestAndShip_error;
-			}
-			
-			// set state or init the PRNG if we haven't already done so.
-			if (_cti_r_init)
-			{
-				// set the PRNG state
-				if (setstate((char *)_cti_r_state) == NULL)
-				{
-					_cti_set_error("_cti_packageManifestAndShip: setstate failed.");
-					goto packageManifestAndShip_error;
-				}
-			} else
-			{
-				// We need to generate a good seed to avoid collisions. Since this
-				// library can be used by automated tests, it is vital to have a
-				// good seed.
-				struct timespec		tv;
-				unsigned int		pval;
-				unsigned int		seed;
-				
-				// get the current time from epoch with nanoseconds
-				if (clock_gettime(CLOCK_REALTIME, &tv))
-				{
-					_cti_set_error("_cti_packageManifestAndShip: clock_gettime failed.");
-					goto packageManifestAndShip_error;
-				}
-				
-				// generate an appropriate value from the pid, we shift this to
-				// the upper 16 bits of the int. This should avoid problems with
-				// collisions due to slight variations in nano time and adding in
-				// pid offsets.
-				pval = (unsigned int)getpid() << ((sizeof(unsigned int) * CHAR_BIT) - 16);
-				
-				// Generate the seed. This is not crypto safe, but should have enough
-				// entropy to avoid the case where two procs are started at the same
-				// time that use this interface.
-				seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
-				
-				// init the state
-				initstate(seed, (char *)_cti_r_state, sizeof(_cti_r_state));
-				
-				// set init to true
-				_cti_r_init = true;
-			}
-			
-			// now start replacing the 'X' characters in the stage_name string with
-			// randomness
-			do {
-				unsigned int oset;
-				// Generate a random offset into the array. This is random() modded 
-				// with the number of elements in the array.
-				oset = random() % (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
-				// assing this char
-				*rand_char = _cti_valid_char[oset];
-			} while (*(--rand_char) == 'X');
-			
-		} else
-		{
-			// use the user defined directory
-			if (asprintf(&stage_name, "%s", stage_name_env) <= 0)
-			{
-				_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
-				goto packageManifestAndShip_error;
-			}
-		}
-		
-		// set the stage name into the manifest obj - This gets cleaned up
-		// later on
-		m_ptr->stage_name = stage_name;
-		stage_name = NULL;
-	}
-	
-	// now create the required subdirectory strings
-	if (asprintf(&bin_path, "%s/bin", m_ptr->stage_name) <= 0)
+	// create the required subdirectory strings
+	if (asprintf(&bin_path, "%s/bin", MANIF_SESS(m_ptr)->stage_name) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 		goto packageManifestAndShip_error;
 	}
-	if (asprintf(&lib_path, "%s/lib", m_ptr->stage_name) <= 0)
+	if (asprintf(&lib_path, "%s/lib", MANIF_SESS(m_ptr)->stage_name) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 		goto packageManifestAndShip_error;
 	}
-	if (asprintf(&tmp_path, "%s/tmp", m_ptr->stage_name) <= 0)
+	if (asprintf(&tmp_path, "%s/tmp", MANIF_SESS(m_ptr)->stage_name) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 		goto packageManifestAndShip_error;
-	}
-	
-	// Add extra files needed by the WLM now that it is known. We only do this
-	// if it is the first instance, otherwise the extra files will have already
-	// been shipped.
-	if (m_ptr->inst == 1)
-	{
-		// grab extra binaries
-		if ((wlm_files = app_ptr->wlmProto->wlm_extraBinaries(app_ptr->_wlmObj)) != NULL)
-		{
-			while (*wlm_files != NULL)
-			{
-				if (cti_addManifestBinary(m_ptr->mid, *wlm_files))
-				{
-					// Failed to add the binary to the manifest - catastrophic failure
-					goto packageManifestAndShip_error;
-				}
-				++wlm_files;
-			}
-		}
-		
-		// grab extra libraries
-		if ((wlm_files = app_ptr->wlmProto->wlm_extraLibraries(app_ptr->_wlmObj)) != NULL)
-		{
-			while (*wlm_files != NULL)
-			{
-				if (cti_addManifestLibrary(m_ptr->mid, *wlm_files))
-				{
-					// Failed to add the binary to the manifest - catastrophic failure
-					goto packageManifestAndShip_error;
-				}
-				++wlm_files;
-			}
-		}
-		
-		// grab extra library directories
-		if ((wlm_files = app_ptr->wlmProto->wlm_extraLibDirs(app_ptr->_wlmObj)) != NULL)
-		{
-			while (*wlm_files != NULL)
-			{
-				if (cti_addManifestLibDir(m_ptr->mid, *wlm_files))
-				{
-					// Failed to add the binary to the manifest - catastrophic failure
-					goto packageManifestAndShip_error;
-				}
-				++wlm_files;
-			}
-		}
-		
-		// grab extra files
-		if ((wlm_files = app_ptr->wlmProto->wlm_extraFiles(app_ptr->_wlmObj)) != NULL)
-		{
-			while (*wlm_files != NULL)
-			{
-				if (cti_addManifestFile(m_ptr->mid, *wlm_files))
-				{
-					// Failed to add the binary to the manifest - catastrophic failure
-					goto packageManifestAndShip_error;
-				}
-				++wlm_files;
-			}
-		}
 	}
 	
 	// create the tarball name based on its instance to prevent a race 
 	// condition where the dlaunch on the compute node has not yet extracted the 
 	// previously shipped tarball, and we overwrite it with this new one. This
 	// does not impact the name of the directory in the tarball.
-	if (asprintf(&tar_name, "%s/%s%d.tar", cfg_dir, m_ptr->stage_name, m_ptr->inst) <= 0)
+	if (asprintf(&tar_name, "%s/%s%d.tar", cfg_dir, MANIF_SESS(m_ptr)->stage_name, m_ptr->inst) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 		goto packageManifestAndShip_error;
@@ -2187,7 +2068,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	// in an attempt to cleanup. The ideal situation is to be able to tell the kernel
 	// to remove the tarball if the process exits, but no mechanism exists today that
 	// I know about.
-	if (asprintf(&hidden_tar_name, "%s/.%s%d.tar", cfg_dir, m_ptr->stage_name, m_ptr->inst) <= 0)
+	if (asprintf(&hidden_tar_name, "%s/.%s%d.tar", cfg_dir, MANIF_SESS(m_ptr)->stage_name, m_ptr->inst) <= 0)
 	{
 		_cti_set_error("_cti_packageManifestAndShip: asprintf failed.");
 		goto packageManifestAndShip_error;
@@ -2279,7 +2160,7 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 	}
 	
 	// Create top level directory
-	if (_cti_addDirToArchive(a, entry, m_ptr->stage_name))
+	if (_cti_addDirToArchive(a, entry, MANIF_SESS(m_ptr)->stage_name))
 	{
 		// error already set
 		goto packageManifestAndShip_error;
@@ -2312,174 +2193,49 @@ _cti_packageManifestAndShip(appEntry_t *app_ptr, manifest_t *m_ptr)
 		_cti_set_error("_cti_packageManifestAndShip: malloc failed.");
 		goto packageManifestAndShip_error;
 	}
-	
-	// process the files list in the manifest
-	if ((l_ptr = _cti_getEntries(m_ptr->files)) != NULL)
+
+	// malloc callback data type
+	if ((cb_data = malloc(sizeof(package_data))) == NULL)
 	{
-		// save for cleanup later
-		o_ptr = l_ptr;
-		
-		// loop over each entry in the string list
-		while (l_ptr != NULL)
-		{
-			// process each fileEntry in the chain
-			f_ptr = l_ptr->data;
-			while (f_ptr != NULL)
-			{
-				// only process this file if it needs to be shipped
-				if (!f_ptr->present)
-				{
-					// switch on file type
-					switch (f_ptr->type)
-					{
-						case EXEC_ENTRY:
-							// verify that this binary should ship
-							if (app_ptr->wlmProto->wlm_verifyBinary(app_ptr->_wlmObj, l_ptr->str))
-							{
-								// this file is not valid and should not be shipped
-								break;
-							}
-							
-							// create relative pathname
-							if (snprintf(path_buf, PATH_MAX, "%s/%s", bin_path, l_ptr->str) <= 0)
-							{
-								_cti_set_error("_cti_packageManifestAndShip: snprintf failed.");
-								goto packageManifestAndShip_error;
-							}
-							
-							// copy this file to the archive
-							if (_cti_copyFileToArchive(a, entry, f_ptr->loc, path_buf, read_buf))
-							{
-								// error already set
-								goto packageManifestAndShip_error;
-							}
-							
-							has_files = true;
-							
-							break;
-							
-						case LIB_ENTRY:
-							// verify that this library should ship
-							if (app_ptr->wlmProto->wlm_verifyLibrary(app_ptr->_wlmObj, l_ptr->str))
-							{
-								// this file is not valid and should not be shipped
-								break;
-							}
-							
-							// create relative pathname
-							if (snprintf(path_buf, PATH_MAX, "%s/%s", lib_path, l_ptr->str) <= 0)
-							{
-								_cti_set_error("_cti_packageManifestAndShip: snprintf failed.");
-								goto packageManifestAndShip_error;
-							}
-							
-							// copy this file to the archive
-							if (_cti_copyFileToArchive(a, entry, f_ptr->loc, path_buf, read_buf))
-							{
-								// error already set
-								goto packageManifestAndShip_error;
-							}
-							
-							has_files = true;
-							
-							break;
-							
-						case LIBDIR_ENTRY:
-							// verify that this library directory should ship
-							if (app_ptr->wlmProto->wlm_verifyLibDir(app_ptr->_wlmObj, l_ptr->str))
-							{
-								// this file is not valid and should not be shipped
-								break;
-							}
-							
-							// create relative pathname
-							if (snprintf(path_buf, PATH_MAX, "%s/%s", lib_path, l_ptr->str) <= 0)
-							{
-								_cti_set_error("_cti_packageManifestAndShip: snprintf failed.");
-								goto packageManifestAndShip_error;
-							}
-							
-							// copy this directory to the archive
-							if (_cti_copyFileToArchive(a, entry, f_ptr->loc, path_buf, read_buf))
-							{
-								// error already set
-								goto packageManifestAndShip_error;
-							}
-							
-							has_files = true;
-							
-							break;
-							
-						case FILE_ENTRY:
-							// verify that this file should ship
-							if (app_ptr->wlmProto->wlm_verifyFile(app_ptr->_wlmObj, l_ptr->str))
-							{
-								// this file is not valid and should not be shipped
-								break;
-							}
-							
-							// create relative pathname
-							if (snprintf(path_buf, PATH_MAX, "%s/%s", m_ptr->stage_name, l_ptr->str) <= 0)
-							{
-								_cti_set_error("_cti_packageManifestAndShip: snprintf failed.");
-								goto packageManifestAndShip_error;
-							}
-							
-							// copy this file to the archive
-							if (_cti_copyFileToArchive(a, entry, f_ptr->loc, path_buf, read_buf))
-							{
-								// error already set
-								goto packageManifestAndShip_error;
-							}
-							
-							has_files = true;
-							
-							break;
-					}
-					
-					// set present since we have handled this file and added it to the package
-					f_ptr->present = 1;
-				}
-				
-				// point at the next fileEntry in the chain
-				f_ptr = f_ptr->next;
-			}
-			
-			// increment list entry pointer
-			l_ptr = l_ptr->next;
-		}
-		
-		// cleanup
-		_cti_cleanupEntries(o_ptr);
-		o_ptr = NULL;
+		_cti_set_error("_cti_packageManifestAndShip: malloc failed.");
+		goto packageManifestAndShip_error;
 	}
 	
-	// cleanup
-	free(read_buf);
-	read_buf = NULL;
-	archive_entry_free(entry);
-	entry = NULL;
-	archive_write_free(a);
-	a = NULL;
+	// setup the callback data type
+	cb_data->bin_path = bin_path;
+	cb_data->lib_path = lib_path;
+	cb_data->tmp_path = tmp_path;
+	cb_data->a = a;
+	cb_data->entry = entry;
+	cb_data->read_buf = read_buf;
 	
-	// ensure files were added to the manifest, otherwise return the no files status
-	if (!has_files)
+	// Add the manifest files to the tarball
+	if (_cti_forEachString(m_ptr->files, _cti_packageManifestAndShip_callback, cb_data))
 	{
-		rtn = 2;
-		goto skipManifestTransfer;
+		// error already set
+		goto packageManifestAndShip_error;
 	}
 	
 	// Call the appropriate transfer function based on the wlm
-	if (app_ptr->wlmProto->wlm_shipPackage(app_ptr->_wlmObj, tar_name))
+	if (MANIF_APP(m_ptr)->wlmProto->wlm_shipPackage(MANIF_APP(m_ptr)->_wlmObj, tar_name))
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		// Error message already set
 		goto packageManifestAndShip_error;
 	}
 	
-skipManifestTransfer:
+	// increment instCnt in session obj since we shipped successfully
+	MANIF_SESS(m_ptr)->instCnt++;
 	
 	// clean things up
+	free(cb_data);
+	cb_data = NULL;
+	free(read_buf);
+	read_buf = NULL;
+	archive_entry_free(entry);
+	entry = NULL;
+	archive_write_free(a);
+	a = NULL;
 	free(bin_path);
 	bin_path = NULL;
 	free(lib_path);
@@ -2506,11 +2262,6 @@ skipManifestTransfer:
 	// Note that the error string has already been set
 	
 packageManifestAndShip_error:
-
-	if (stage_name != NULL)
-	{
-		free(stage_name);
-	}
 	
 	if (bin_path != NULL)
 	{
@@ -2562,9 +2313,9 @@ packageManifestAndShip_error:
 		free(read_buf);
 	}
 	
-	if (o_ptr != NULL)
+	if (cb_data != NULL)
 	{
-		_cti_cleanupEntries(o_ptr);
+		free(cb_data);
 	}
 	
 	// BUG 819725: Unblock signals. We are done with the critical section
@@ -2576,29 +2327,21 @@ packageManifestAndShip_error:
 	return 1;
 }
 
-cti_session_id_t
-cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
-{
-	appEntry_t *		app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
-	const char *		toolPath;			// tool path associated with this appEntry_t based on the wlm
-	manifest_t *		m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
-	char *				jid_str;			// job identifier string - wlm specific
-	cti_args_t *		d_args;				// args to pass to the daemon launcher
-	session_t *			s_ptr = NULL;		// points at the session to return
-	int					r;
-	cti_session_id_t	rtn;
+/***********************************
+** API defined functions start here
+***********************************/
 
+cti_session_id_t
+cti_createSession(cti_app_id_t appId)
+{
+	appEntry_t *	app_ptr;	// points at the app entry to associate with this session
+	session_t *		s_ptr;
+	
 	// sanity check
 	if (appId == 0)
 	{
 		_cti_set_error("Invalid appId %d.", (int)appId);
-		return 1;
-	}
-	
-	if (mid <= 0)
-	{
-		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
-		return 1;
+		return 0;
 	}
 	
 	// try to find an entry in the my_apps array for the appId
@@ -2609,55 +2352,197 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		return 0;
 	}
 	
+	if ((s_ptr = _cti_newSession(app_ptr)) == NULL)
+	{
+		// error string already set
+		return 0;
+	}
+	
+	return s_ptr->sid;
+}
+
+cti_manifest_id_t
+cti_createManifest(cti_session_id_t sid)
+{
+	session_t *		s_ptr;
+	manifest_t *	m_ptr = NULL;
+	
+	// sanity check
+	if (sid == 0)
+	{
+		_cti_set_error("Invalid sid %d.", (int)sid);
+		return 0;
+	}
+	
+	// Find the session for this sid
+	if ((s_ptr = _cti_findSession(sid)) == NULL)
+	{
+		// sid not found
+		// error string already set
+		return 0;
+	}
+	
+	if ((m_ptr = _cti_newManifest(s_ptr)) == NULL)
+	{
+		// error string already set
+		return 0;
+	}
+	
+	return m_ptr->mid;
+}
+
+int
+cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr)
+{
+	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
+	
+	// sanity check
+	if (mid <= 0)
+	{
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
+		return 1;
+	}
+	
+	if (fstr == NULL)
+	{
+		_cti_set_error("cti_addManifestBinary had null fstr.");
+		return 1;
+	}
+	
+	// Find the manifest entry in the global manifest list for the mid
+	if ((m_ptr = _cti_findManifest(mid)) == NULL)
+	{
+		// We failed to find the manifest for the mid
+		// error string already set
+		return 1;
+	}
+	
+	return _cti_addBinary(m_ptr, fstr);
+}
+
+int
+cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr)
+{
+	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
+	
+	// sanity check
+	if (mid <= 0)
+	{
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
+		return 1;
+	}
+	
+	if (fstr == NULL)
+	{
+		_cti_set_error("cti_addManifestLibrary had null fstr.");
+		return 1;
+	}
+	
+	// Find the manifest entry in the global manifest list for the mid
+	if ((m_ptr = _cti_findManifest(mid)) == NULL)
+	{
+		// We failed to find the manifest for the mid
+		// error string already set
+		return 1;
+	}
+	
+	return _cti_addLibrary(m_ptr, fstr);
+}
+
+int
+cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr)
+{
+	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
+	
+	// sanity check
+	if (mid <= 0)
+	{
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
+		return 1;
+	}
+	
+	if (fstr == NULL)
+	{
+		_cti_set_error("cti_addManifestLibDir had null fstr.");
+		return 1;
+	}
+	
+	// Find the manifest entry in the global manifest list for the mid
+	if ((m_ptr = _cti_findManifest(mid)) == NULL)
+	{
+		// We failed to find the manifest for the mid
+		// error string already set
+		return 1;
+	}
+	
+	return _cti_addLibDir(m_ptr, fstr);
+}
+
+int
+cti_addManifestFile(cti_manifest_id_t mid, const char *fstr)
+{
+	manifest_t *	m_ptr;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
+	
+	// sanity check
+	if (mid <= 0)
+	{
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
+		return 1;
+	}
+	
+	if (fstr == NULL)
+	{
+		_cti_set_error("cti_addManifestFile had null fstr.");
+		return 1;
+	}
+		
+	// Find the manifest entry in the global manifest list for the mid
+	if ((m_ptr = _cti_findManifest(mid)) == NULL)
+	{
+		// We failed to find the manifest for the mid
+		// error string already set
+		return 1;
+	}
+	
+	return _cti_addFile(m_ptr, fstr);
+}
+
+int
+cti_sendManifest(cti_manifest_id_t mid, int dbg)
+{
+	manifest_t *		m_ptr = NULL;	// pointer to the manifest_t object associated with the cti_manifest_id_t argument
+	char *				jid_str = NULL;	// job identifier string - wlm specific
+	cti_args_t *		d_args = NULL;	// args to pass to the daemon launcher
+	int					r;
+
+	// sanity check
+	if (mid <= 0)
+	{
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
+	}
+	
 	// find the manifest_t for the mid
 	if ((m_ptr = _cti_findManifest(mid)) == NULL)
 	{
 		// We failed to find the manifest for the mid
 		// error string already set
-		return 0;
-	}
-	
-	// If there is a sid in the manifest, ensure it is still valid
-	if (m_ptr->sid != 0)
-	{
-		// Bugfix: Make sure to set s_ptr...
-		// Find the session entry in the global session list for the sid
-		if ((s_ptr = _cti_findSession(m_ptr->sid)) == NULL)
-		{
-			// We failed to find the session for the sid
-			// error string already set
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
-		}
+		goto sendManifest_error;
 	}
 	
 	// ship the manifest tarball to the compute nodes
-	r = _cti_packageManifestAndShip(app_ptr, m_ptr);
+	r = _cti_packageManifestAndShip(m_ptr);
 	if (r == 1)
 	{
 		// Failed to ship the manifest - catastrophic failure
 		// error string already set
-		_cti_reapManifest(m_ptr->mid);
-		return 0;
+		goto sendManifest_error;
 	}
 	// if there was nothing to ship, ensure there was a session, otherwise error
 	if (r == 2)
 	{
-		// ensure that there is a session set in the m_ptr
-		if (m_ptr->sid <= 0)
-		{
-			_cti_set_error("cti_manifest_id_t %d was empty!", m_ptr->mid);
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
-		}
-		
-		// return the session id since everything was already shipped
-		rtn = m_ptr->sid;
-		
-		// remove the manifest
-		_cti_reapManifest(m_ptr->mid);
-		
-		return rtn;
+		// remove the manifest and return without error
+		_cti_consumeManifest(m_ptr);
+		return 0;
 	}
 	
 	// now we need to create the argv for the actual call to the WLM wrapper call
@@ -2667,124 +2552,85 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 	// The actual daemon launcher path string is determined by the wlm_startDaemon call
 	// since that is wlm specific
 	
-	if ((jid_str = app_ptr->wlmProto->wlm_getJobId(app_ptr->_wlmObj)) == NULL)
+	if ((jid_str = MANIF_APP(m_ptr)->wlmProto->wlm_getJobId(MANIF_APP(m_ptr)->_wlmObj)) == NULL)
 	{
 		// error already set
-		_cti_reapManifest(m_ptr->mid);
-		return 0;
-	}
-	
-	// Get the tool path for this wlm
-	if ((toolPath = app_ptr->wlmProto->wlm_getToolPath(app_ptr->_wlmObj)) == NULL)
-	{
-		// error already set
-		_cti_reapManifest(m_ptr->mid);
-		free(jid_str);
-		return 0;
+		goto sendManifest_error;
 	}
 	
 	// create a new args obj
 	if ((d_args = _cti_newArgs()) == NULL)
 	{
 		_cti_set_error("_cti_newArgs failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(jid_str);
-		return 0;
-	} 
+		goto sendManifest_error;
+	}
 	
 	// begin adding the args
 	
 	if (_cti_addArg(d_args, "-a"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(jid_str);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
 	if (_cti_addArg(d_args, "%s", jid_str))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(jid_str);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
-	free(jid_str);
 	
 	if (_cti_addArg(d_args, "-p"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
-	if (_cti_addArg(d_args, "%s", toolPath))
+	if (_cti_addArg(d_args, "%s", MANIF_SESS(m_ptr)->toolPath))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
 	
 	if (_cti_addArg(d_args, "-w"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
-	if (_cti_addArg(d_args, "%d", app_ptr->wlmProto->wlm_type))
+	if (_cti_addArg(d_args, "%d", MANIF_APP(m_ptr)->wlmProto->wlm_type))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
 	
 	if (_cti_addArg(d_args, "-m"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
-	if (_cti_addArg(d_args, "%s%d.tar", m_ptr->stage_name, m_ptr->inst))
+	if (_cti_addArg(d_args, "%s%d.tar", MANIF_SESS(m_ptr)->stage_name, m_ptr->inst))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
 	
 	if (_cti_addArg(d_args, "-d"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
-	if (_cti_addArg(d_args, "%s", m_ptr->stage_name))
+	if (_cti_addArg(d_args, "%s", MANIF_SESS(m_ptr)->stage_name))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
 	
 	if (_cti_addArg(d_args, "-i"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
 	if (_cti_addArg(d_args, "%d", m_ptr->inst))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto sendManifest_error;
 	}
 	
 	// add the debug switch if debug is on
@@ -2793,165 +2639,111 @@ cti_sendManifest(cti_app_id_t appId, cti_manifest_id_t mid, int dbg)
 		if (_cti_addArg(d_args, "--debug"))
 		{
 			_cti_set_error("_cti_addArg failed.");
-			_cti_reapManifest(m_ptr->mid);
-			_cti_freeArgs(d_args);
-			return 0;
+			goto sendManifest_error;
 		}
 	}
 	
 	// Done. We now have an argv array to pass
 	
 	// Call the appropriate transfer function based on the wlm
-	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, d_args))
+	if (MANIF_APP(m_ptr)->wlmProto->wlm_startDaemon(MANIF_APP(m_ptr)->_wlmObj, d_args))
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		// Error message already set
-		_cti_freeArgs(d_args);
-		_cti_reapManifest(m_ptr->mid);
-		return 0;
+		goto sendManifest_error;
 	}
-		
-	// cleanup our memory
+	
+	// Merge the manifest into the existing session
+	if (_cti_addManifestToSession(m_ptr))
+	{
+		// we failed to merge the manifest into the session - catastrophic failure
+		// error string already set
+		goto sendManifest_error;
+	}
+	
+	// cleanup
+	_cti_consumeManifest(m_ptr);
+	free(jid_str);
 	_cti_freeArgs(d_args);
 	
-	// create a new session for this tool daemon instance if one doesn't already exist
-	if (m_ptr->sid == 0)
+	return 0;
+	
+sendManifest_error:
+
+	if (m_ptr != NULL)
 	{
-		if ((s_ptr = _cti_newSession(m_ptr)) == NULL)
-		{
-			// we failed to create a new session_t - catastrophic failure
-			// error string already set
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
-		}
-	} else
-	{
-		// Merge the manifest into the existing session
-		if (_cti_addManifestToSession(m_ptr, s_ptr))
-		{
-			// we failed to merge the manifest into the session - catastrophic failure
-			// error string already set
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
-		}
+		_cti_consumeManifest(m_ptr);
 	}
 	
-	// remove the manifest
-	_cti_reapManifest(m_ptr->mid);
+	if (jid_str != NULL)
+	{
+		free(jid_str);
+	}
 	
-	// Associate this session with the app_ptr
-	_cti_addSessionToApp(app_ptr, s_ptr->sid);
-	
-	// copy toolPath into the session
-	s_ptr->toolPath = strdup(toolPath);
-	
-	return s_ptr->sid;
+	if (d_args != NULL)
+	{
+		_cti_freeArgs(d_args);
+	}
+
+	return 1;
 }
 
-cti_session_id_t
-cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t sid, const char *daemon, const char * const args[], const char * const env[], int dbg)
+int
+cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon, const char * const args[], const char * const env[], int dbg)
 {
-	appEntry_t *	app_ptr;			// pointer to the appEntry_t object associated with the provided aprun pid
-	manifest_t *	m_ptr;				// pointer to the manifest_t object associated with the cti_manifest_id_t argument
-	int				useManif = 1;		// controls if a manifest was shipped or not
+	manifest_t *	m_ptr = NULL;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
+	bool			useManif = true;	// controls if a manifest was shipped or not
 	int				r;					// return value from send manif call
-	char *			fullname;			// full path name of the executable to launch as a tool daemon
-	char *			realname;			// realname (lacking path info) of the executable
-	char *			jid_str;			// job id string to pass to the backend. This is wlm specific.
-	const char *	toolPath;			// tool path of backend staging directory. This is wlm specific.
+	char *			fullname = NULL;	// full path name of the executable to launch as a tool daemon
+	char *			realname = NULL;	// realname (lacking path info) of the executable
+	char *			jid_str = NULL;		// job id string to pass to the backend. This is wlm specific.
 	const char *	attribsPath;		// path to pmi_attribs file based on the wlm
-	cti_args_t *	d_args;				// args to pass to the daemon launcher
-	session_t *		s_ptr = NULL;		// points at the session to return
-		
-	// sanity check
-	if (appId == 0)
-	{
-		_cti_set_error("Invalid appId %d.", (int)appId);
-		return 1;
-	}
+	cti_args_t *	d_args = NULL;		// args to pass to the daemon launcher
 	
+	// sanity check
 	if (daemon == NULL)
 	{
 		_cti_set_error("Required tool daemon argument is missing.");
-		return 1;
+		goto execToolDaemon_error;
 	}
 	
-	// try to find an entry in the my_apps array for the appId
-	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	// sanity check
+	if (mid <= 0)
 	{
-		// appId not found in the global my_apps array - unknown appId failure
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
+	}
+	
+	// try to find the manifest_t for the mid
+	if ((m_ptr = _cti_findManifest(mid)) == NULL)
+	{
+		// We failed to find the manifest for the mid
 		// error string already set
-		return 0;
-	}
-	
-	// if the user provided a session, ensure it exists
-	if (sid != 0)
-	{
-		if ((s_ptr = _cti_findSession(sid)) == NULL)
-		{
-			// We failed to find the session for the sid
-			// error string already set
-			return 0;
-		}
-	}
-	
-	// Check to see if the user provided a mid argument and process it
-	if (mid == 0)
-	{
-		// lets create a new manifest_t object
-		if ((m_ptr = _cti_newManifest(sid)) == NULL)
-		{
-			// we failed to create a new manifest_t - catastrophic failure
-			// error string already set
-			return 0;
-		}
-	} else
-	{
-		// try to find the manifest_t for the mid
-		if ((m_ptr = _cti_findManifest(mid)) == NULL)
-		{
-			// We failed to find the manifest for the mid
-			// error string already set
-			return 0;
-		}
-	}
-	
-	// ensure that the session matches in the manifest
-	if (s_ptr != NULL)
-	{
-		if (m_ptr->sid != s_ptr->sid)
-		{
-			// mismatch
-			_cti_set_error("cti_manifest_id_t %d was not created with cti_session_id_t %d.", (int)mid, (int)sid);
-			return 0;
-		}
+		goto execToolDaemon_error;
 	}
 	
 	// add the daemon to the manifest
-	if (cti_addManifestBinary(m_ptr->mid, daemon))
+	if (_cti_addBinary(m_ptr, daemon))
 	{
 		// Failed to add the binary to the manifest - catastrophic failure
 		// error string already set
-		_cti_reapManifest(m_ptr->mid);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	
 	// Ensure that there are files to ship, otherwise there is no need to ship a
 	// tarball, everything we need already has been transfered to the nodes
 	// Try to ship the tarball, if this returns with 2 everything we need already
 	// has been transfered to the nodes and there is no need to ship it again.
-	r = _cti_packageManifestAndShip(app_ptr, m_ptr);
+	r = _cti_packageManifestAndShip(m_ptr);
 	if (r == 1)
 	{
 		// Failed to ship the manifest - catastrophic failure
 		// error string already set
-		_cti_reapManifest(m_ptr->mid);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	if (r == 2)
 	{
 		// manifest was not shipped.
-		useManif = 0;
+		useManif = false;
 	}
 	
 	// now we need to create the argv for the actual call to the WLM wrapper call
@@ -2967,51 +2759,30 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	if ((fullname = _cti_pathFind(daemon, NULL)) == NULL)
 	{
 		_cti_set_error("Could not locate the specified tool daemon binary in PATH.");
-		_cti_reapManifest(m_ptr->mid);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	
 	// next just grab the real name (without path information) of the binary
 	if ((realname = _cti_pathToName(fullname)) == NULL)
 	{
 		_cti_set_error("Could not convert the tool daemon binary fullname to realname.");
-		_cti_reapManifest(m_ptr->mid);
-		free(fullname);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	
-	// done with fullname
-	free(fullname);
-	
-	if ((jid_str = app_ptr->wlmProto->wlm_getJobId(app_ptr->_wlmObj)) == NULL)
+	if ((jid_str = MANIF_APP(m_ptr)->wlmProto->wlm_getJobId(MANIF_APP(m_ptr)->_wlmObj)) == NULL)
 	{
 		// error already set
-		_cti_reapManifest(m_ptr->mid);
-		free(realname);
-		return 0;
-	}
-	
-	// Get the tool path for this wlm
-	if ((toolPath = app_ptr->wlmProto->wlm_getToolPath(app_ptr->_wlmObj)) == NULL)
-	{
-		// error already set
-		_cti_reapManifest(m_ptr->mid);
-		free(jid_str);
-		free(realname);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	
 	// Get the attribs path for this wlm - this is optional and can come back null
-	attribsPath = app_ptr->wlmProto->wlm_getAttribsPath(app_ptr->_wlmObj);
+	attribsPath = MANIF_APP(m_ptr)->wlmProto->wlm_getAttribsPath(MANIF_APP(m_ptr)->_wlmObj);
 	
 	// create a new args obj
 	if ((d_args = _cti_newArgs()) == NULL)
 	{
 		_cti_set_error("_cti_newArgs failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(jid_str);
-		free(realname);
-		return 0;
+		goto execToolDaemon_error;
 	} 
 	
 	// begin adding the args
@@ -3019,38 +2790,23 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	if (_cti_addArg(d_args, "-a"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(jid_str);
-		free(realname);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	if (_cti_addArg(d_args, "%s", jid_str))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(jid_str);
-		free(realname);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
-	free(jid_str);
 	
 	if (_cti_addArg(d_args, "-p"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(realname);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
-	if (_cti_addArg(d_args, "%s", toolPath))
+	if (_cti_addArg(d_args, "%s", MANIF_SESS(m_ptr)->toolPath))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(realname);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	
 	if (attribsPath != NULL)
@@ -3058,84 +2814,57 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		if (_cti_addArg(d_args, "-t"))
 		{
 			_cti_set_error("_cti_addArg failed.");
-			_cti_reapManifest(m_ptr->mid);
-			free(realname);
-			_cti_freeArgs(d_args);
-			return 0;
+			goto execToolDaemon_error;
 		}
 		if (_cti_addArg(d_args, "%s", attribsPath))
 		{
 			_cti_set_error("_cti_addArg failed.");
-			_cti_reapManifest(m_ptr->mid);
-			free(realname);
-			_cti_freeArgs(d_args);
-			return 0;
+			goto execToolDaemon_error;
 		}
 	}
 	
 	if (_cti_addArg(d_args, "-w"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(realname);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
-	if (_cti_addArg(d_args, "%d", app_ptr->wlmProto->wlm_type))
+	if (_cti_addArg(d_args, "%d", MANIF_APP(m_ptr)->wlmProto->wlm_type))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(realname);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	
 	if (_cti_addArg(d_args, "-b"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(realname);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	if (_cti_addArg(d_args, "%s", realname))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		free(realname);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
-	free(realname);
 	
 	if (_cti_addArg(d_args, "-d"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
-	if (_cti_addArg(d_args, "%s", m_ptr->stage_name))
+	if (_cti_addArg(d_args, "%s", MANIF_SESS(m_ptr)->stage_name))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	
 	if (_cti_addArg(d_args, "-i"))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	if (_cti_addArg(d_args, "%d", m_ptr->inst))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	
 	// add -m argument if needed
@@ -3144,16 +2873,12 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		if (_cti_addArg(d_args, "-m"))
 		{
 			_cti_set_error("_cti_addArg failed.");
-			_cti_reapManifest(m_ptr->mid);
-			_cti_freeArgs(d_args);
-			return 0;
+			goto execToolDaemon_error;
 		}
-		if (_cti_addArg(d_args, "%s%d.tar", m_ptr->stage_name, m_ptr->inst))
+		if (_cti_addArg(d_args, "%s%d.tar", MANIF_SESS(m_ptr)->stage_name, m_ptr->inst))
 		{
 			_cti_set_error("_cti_addArg failed.");
-			_cti_reapManifest(m_ptr->mid);
-			_cti_freeArgs(d_args);
-			return 0;
+			goto execToolDaemon_error;
 		}
 	}
 	
@@ -3172,16 +2897,12 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 			if (_cti_addArg(d_args, "-e"))
 			{
 				_cti_set_error("_cti_addArg failed.");
-				_cti_reapManifest(m_ptr->mid);
-				_cti_freeArgs(d_args);
-				return 0;
+				goto execToolDaemon_error;
 			}
 			if (_cti_addArg(d_args, "%s", *env++))
 			{
 				_cti_set_error("_cti_addArg failed.");
-				_cti_reapManifest(m_ptr->mid);
-				_cti_freeArgs(d_args);
-				return 0;
+				goto execToolDaemon_error;
 			}
 		}
 	}
@@ -3192,9 +2913,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		if (_cti_addArg(d_args, "--debug"))
 		{
 			_cti_set_error("_cti_addArg failed.");
-			_cti_reapManifest(m_ptr->mid);
-			_cti_freeArgs(d_args);
-			return 0;
+			goto execToolDaemon_error;
 		}
 	}
 	
@@ -3206,9 +2925,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 		if (_cti_addArg(d_args, "--"))
 		{
 			_cti_set_error("_cti_addArg failed.");
-			_cti_reapManifest(m_ptr->mid);
-			_cti_freeArgs(d_args);
-			return 0;
+			goto execToolDaemon_error;
 		}
 		while (*args != NULL)
 		{
@@ -3220,9 +2937,7 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 			if (_cti_addArg(d_args, "%s", *args++))
 			{
 				_cti_set_error("_cti_addArg failed.");
-				_cti_reapManifest(m_ptr->mid);
-				_cti_freeArgs(d_args);
-				return 0;
+				goto execToolDaemon_error;
 			}
 		}
 	}
@@ -3230,54 +2945,62 @@ cti_execToolDaemon(cti_app_id_t appId, cti_manifest_id_t mid, cti_session_id_t s
 	// Done. We now have an argv array to pass
 	
 	// Call the appropriate transfer function based on the wlm
-	if (app_ptr->wlmProto->wlm_startDaemon(app_ptr->_wlmObj, d_args))
+	if (MANIF_APP(m_ptr)->wlmProto->wlm_startDaemon(MANIF_APP(m_ptr)->_wlmObj, d_args))
 	{
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		// Error message already set
-		_cti_reapManifest(m_ptr->mid);
-		_cti_freeArgs(d_args);
-		return 0;
+		goto execToolDaemon_error;
 	}
 	
-	// cleanup our memory
+	// Merge the manifest into the existing session only if we needed to
+	// transfer any files
+	if (useManif)
+	{
+		if (_cti_addManifestToSession(m_ptr))
+		{
+			// we failed to merge the manifest into the session - catastrophic failure
+			// error string already set
+			goto execToolDaemon_error;
+		}
+	}
+	
+	// cleanup
+	_cti_consumeManifest(m_ptr);
+	free(fullname);
+	free(realname);
+	free(jid_str);
 	_cti_freeArgs(d_args);
 	
-	// create a new session for this tool daemon instance if one doesn't already exist
-	if (s_ptr == NULL)
+	return 0;
+	
+execToolDaemon_error:
+	
+	if (m_ptr != NULL)
 	{
-		if ((s_ptr = _cti_newSession(m_ptr)) == NULL)
-		{
-			// we failed to create a new session_t - catastrophic failure
-			// error string already set
-			_cti_reapManifest(m_ptr->mid);
-			return 0;
-		}
-	} else
-	{
-		// Merge the manifest into the existing session only if we needed to
-		// transfer any files
-		if (useManif)
-		{
-			if (_cti_addManifestToSession(m_ptr, s_ptr))
-			{
-				// we failed to merge the manifest into the session - catastrophic failure
-				// error string already set
-				_cti_reapManifest(m_ptr->mid);
-				return 0;
-			}
-		}
+		_cti_consumeManifest(m_ptr);
 	}
 	
-	// remove the manifest
-	_cti_reapManifest(m_ptr->mid);
+	if (fullname != NULL)
+	{
+		free(fullname);
+	}
 	
-	// Associate this session with the app_ptr
-	_cti_addSessionToApp(app_ptr, s_ptr->sid);
+	if (realname != NULL)
+	{
+		free(realname);
+	}
 	
-	// copy toolPath into the session
-	s_ptr->toolPath = strdup(toolPath);
+	if (jid_str != NULL)
+	{
+		free(jid_str);
+	}
 	
-	return s_ptr->sid;
+	if (d_args != NULL)
+	{
+		_cti_freeArgs(d_args);
+	}
+	
+	return 1;	
 }
 
 char **
@@ -3293,6 +3016,13 @@ cti_getSessionLockFiles(cti_session_id_t sid)
 	{
 		// We failed to find the session for the sid
 		// error string already set
+		return NULL;
+	}
+	
+	// ensure that there are instances in the session
+	if (s_ptr->instCnt == 0)
+	{
+		_cti_set_error("Backed not yet initialized for cti_session_id_t %d.", (int)sid);
 		return NULL;
 	}
 	

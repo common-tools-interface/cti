@@ -87,6 +87,8 @@ src/useful/Makefile.am -text
 src/useful/Makefile.in -text
 src/useful/cti_args.c -text
 src/useful/cti_args.h -text
+src/useful/cti_list.c -text
+src/useful/cti_list.h -text
 src/useful/cti_log.c -text
 src/useful/cti_log.h -text
 src/useful/cti_overwatch.c -text

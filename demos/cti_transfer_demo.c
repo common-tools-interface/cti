@@ -3,7 +3,7 @@
  *			tools interface which will launch an application session from the
  *			given argv and transfer demo files.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * © 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -38,8 +38,8 @@ int
 main(int argc, char **argv)
 {
 	cti_app_id_t		myapp;
-	cti_manifest_id_t	mymid;
 	cti_session_id_t	mysid;
+	cti_manifest_id_t	mymid;
 	char *				file_loc;
 	cti_wlm_type		mywlm;
 	
@@ -58,10 +58,19 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	// Create a new manifest for the file
-	if ((mymid = cti_createNewManifest(0)) == 0)
+	// Create a new session based on the app_id
+	if ((mysid = cti_createSession(myapp)) == 0)
 	{
-		fprintf(stderr, "Error: cti_createNewManifest failed!\n");
+		fprintf(stderr, "Error: cti_createSession failed!\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
+		return 1;
+	}
+	
+	// Create a manifest based on the session
+	if ((mymid = cti_createManifest(mysid)) == 0)
+	{
+		fprintf(stderr, "Error: cti_createManifest failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
 		cti_killApp(myapp, 9);
 		return 1;
@@ -72,17 +81,15 @@ main(int argc, char **argv)
 	{
 		fprintf(stderr, "Error: cti_addManifestFile failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
-		cti_destroyManifest(mymid);
 		cti_killApp(myapp, 9);
 		return 1;
 	}
 	
 	// Send the manifest to the compute node
-	if ((mysid = cti_sendManifest(myapp, mymid, 0)) == 0)
+	if (cti_sendManifest(mymid, 0))
 	{
 		fprintf(stderr, "Error: cti_sendManifest failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
-		cti_destroyManifest(mymid);
 		cti_killApp(myapp, 9);
 		return 1;
 	}

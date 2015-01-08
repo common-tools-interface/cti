@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * cti_fe.h - A header file for the cti frontend interface.
  *
- * © 2014 Cray Inc.	All Rights Reserved.
+ * © 2014-2015 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -24,6 +24,7 @@
 
 #include "cti_defs.h"
 #include "cti_args.h"
+#include "cti_list.h"
 
 /* struct typedefs */
 
@@ -93,23 +94,18 @@ typedef struct
 	const char *			(*wlm_getAttribsPath)(cti_wlm_obj);					// get backend directory where the pmi_attribs file can be found
 } cti_wlm_proto_t;
 
-// This is the function prototype used to destroy an implementation defined obj
-typedef void (*obj_destroy)(void *);
-
 typedef struct
 {
 	cti_app_id_t			appId;				// cti application ID
+	cti_list_t *			sessions;			// sessions associated with this app entry
 	const cti_wlm_proto_t *	wlmProto;			// wlm proto obj of this app
 	cti_wlm_obj				_wlmObj;			// Managed by appropriate wlm implementation for this app entry
-	void *					_transferObj;		// Managed by alps_transfer.c for this app entry
-	obj_destroy				_transferDestroy;	// Used to destroy the transfer object
 } appEntry_t;
 
 /* internal function prototypes */
 cti_app_id_t			_cti_newAppEntry(const cti_wlm_proto_t *, cti_wlm_obj);
 appEntry_t *			_cti_findAppEntry(cti_app_id_t);
 appEntry_t *			_cti_findAppEntryByJobId(cti_wlm_apid);
-int						_cti_setTransferObj(appEntry_t *, void *, obj_destroy);
 const cti_wlm_proto_t *	_cti_current_wlm_proto(void);
 const char *			_cti_getCfgDir(void);
 int						_cti_removeDirectory(const char *);

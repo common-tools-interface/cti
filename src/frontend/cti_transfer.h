@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * cti_transfer.h - A header file for the cti_transfer interface.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * © 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -26,16 +26,18 @@
 typedef int cti_manifest_id_t;
 typedef int cti_session_id_t;
 
+/* internal prototypes */
+void				_cti_consumeSession(void *);
+
 /* function prototypes */
-void				_cti_destroyAppSess(void *);
-cti_manifest_id_t	cti_createNewManifest(cti_session_id_t);
-void				cti_destroyManifest(cti_manifest_id_t);
+cti_session_id_t	cti_createSession(cti_app_id_t);
+cti_manifest_id_t	cti_createManifest(cti_session_id_t);
 int					cti_addManifestBinary(cti_manifest_id_t, const char *);
 int					cti_addManifestLibrary(cti_manifest_id_t, const char *);
 int					cti_addManifestLibDir(cti_manifest_id_t, const char *);
 int					cti_addManifestFile(cti_manifest_id_t, const char *);
-cti_session_id_t	cti_sendManifest(cti_app_id_t, cti_manifest_id_t, int);
-cti_session_id_t	cti_execToolDaemon(cti_app_id_t, cti_manifest_id_t, cti_session_id_t, const char *, const char * const [], const char * const [], int);
+int					cti_sendManifest(cti_manifest_id_t, int);
+int					cti_execToolDaemon(cti_manifest_id_t, const char *, const char * const [], const char * const [], int);
 char **				cti_getSessionLockFiles(cti_session_id_t);
 char *				cti_getSessionRootDir(cti_session_id_t);
 char *				cti_getSessionBinDir(cti_session_id_t);

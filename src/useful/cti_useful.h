@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_useful.h - A standard header file that includes all useful interfaces.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * © 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -20,6 +20,7 @@
 #define _CTI_USEFUL_H
 
 #include "cti_args.h"
+#include "cti_list.h"
 #include "cti_log.h"
 #include "cti_overwatch.h"
 #include "cti_path.h"
