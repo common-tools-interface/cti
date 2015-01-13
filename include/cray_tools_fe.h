@@ -659,7 +659,7 @@ extern cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
  *      until a manifest is shipped or a tool daemon started.
  *
  *      The session will become invalid for future use upon calling the 
- *      cti_deregisterApp function.
+ *      cti_deregisterApp function with the app_id associated with the session.
  *
  * Arguments
  *      app_id - The cti_app_id_t of the registered application.
@@ -669,6 +669,23 @@ extern cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
  *
  */
 extern cti_session_id_t cti_createSession(cti_app_id_t app_id);
+
+/*
+ * cti_sessionIsValid - Test if a cti_session_id_t is still valid
+ * Detail
+ *      This function is used to test if a cti_session_id_t returned from the
+ *      cti_createSession call is still valid. A session becomes invalid for
+ *      future use upon calling the cti_deregisterApp function with the app_id
+ *      associated with the session.
+ *
+ * Arguments
+ *      sid - The cti_session_id_t of the session.
+ *
+ * Returns
+ *      0 if the session is invalid, 1 if the session is still valid.
+ *
+ */
+extern int cti_sessionIsValid(cti_session_id_t sid);
 
 /*
  * cti_createManifest - Create a new manifest abstraction that represents a
@@ -702,6 +719,23 @@ extern cti_session_id_t cti_createSession(cti_app_id_t app_id);
  *
  */
 extern cti_manifest_id_t cti_createManifest(cti_session_id_t sid);
+
+/*
+ * cti_manifestIsValid - Test if a cti_manifest_id_t is still valid
+ * Detail
+ *      This function is used to test if a cti_manifest_id_t returned from the
+ *      cti_createManifest call is still valid. A manifest becomes invalid for
+ *      future use upon passing it to cti_sendManifest or cti_execToolDaemon
+ *      calls or by calling the cti_deregisterApp function.
+ *
+ * Arguments
+ *      mid - The cti_manifest_id_t of the manifest.
+ *
+ * Returns
+ *      0 if the manifest is invalid, 1 if the manifest is still valid.
+ *
+ */
+extern int cti_manifestIsValid(cti_manifest_id_t mid);
 
 /*
  * cti_addManifestBinary - Add a program binary to a manifest.

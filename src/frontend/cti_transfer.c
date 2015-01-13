@@ -56,7 +56,7 @@ typedef struct
 {
 	char *					bin_path;
 	char *					lib_path;
-	char *					tmp_path;
+	char *					file_path;
 	struct archive *		a;
 	struct archive_entry *	entry;
 	char *					read_buf;
@@ -132,7 +132,7 @@ static int				_cti_checkSessionForConflict(session_t *, entry_type, const char *
 static int				_cti_addDirToArchive(struct archive *, struct archive_entry *, const char *);
 static int				_cti_copyFileToArchive(struct archive *, struct archive_entry *, const char *, const char *, char *);
 static manifest_t *		_cti_newManifest(session_t *);
-static void				_cti_consumeManifest(manifest_t *);
+static void				_cti_consumeManifest(void *);
 static manifest_t *		_cti_findManifest(cti_manifest_id_t);
 static int				_cti_addManifestToSession_callback(void *, const char *, void *);
 static int				_cti_addManifestToSession(manifest_t *);
@@ -146,7 +146,6 @@ static int				_cti_packageManifestAndShip_callback(void *, const char *, void *)
 static int				_cti_packageManifestAndShip(manifest_t *);
 
 /* global variables */
-static bool						_cti_doCleanup		= true;		// should we try to cleanup?
 static cti_session_id_t			_cti_next_sid		= 1;
 static cti_list_t *				_cti_my_sess		= NULL;
 static cti_manifest_id_t		_cti_next_mid		= 1;
@@ -169,6 +168,35 @@ static const char const		_cti_valid_char[]		= {
 	'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
 	'a','b','c','d','e','f','g','h','i','j','k','l','m',
 	'n','o','p','q','r','s','t','u','v','w','x','y','z' };
+
+/******************************************
+** Constructor/destructor functions
+******************************************/
+
+// constructor
+void
+_cti_transfer_init(void)
+{
+	// Try to force cleanup of any old files. This happens in case the previous
+	// instance of CTI FE was killed and left files in temp space.
+	_cti_transfer_doCleanup();
+	
+	// create the global lists
+	_cti_my_sess = _cti_newList();
+	_cti_my_manifs = _cti_newList();
+}
+
+// destructor
+void
+_cti_transfer_fini(void)
+{
+	// destroy the lists - these should have already been cleared out
+	_cti_consumeList(_cti_my_sess, _cti_consumeSession);
+	_cti_consumeList(_cti_my_manifs, _cti_consumeManifest);
+	
+	// try to cleanup again
+	_cti_transfer_doCleanup();
+}
 
 /******************************************
 ** support routines to try to cleanup
@@ -223,9 +251,6 @@ _cti_transfer_doCleanup(void)
 	struct dirent *		d;
 	char *				stage_name;
 	char *				p;
-	
-	if (!_cti_doCleanup)
-		return;
 	
 	// Get the configuration directory
 	if ((cfg_dir = _cti_getCfgDir()) == NULL)
@@ -344,7 +369,6 @@ _cti_transfer_doCleanup(void)
 	// cleanup
 	closedir(dir);
 	free(stage_name);
-	_cti_doCleanup = false;
 }
 
 /******************************************
@@ -1128,8 +1152,10 @@ _cti_newManifest(session_t * s_ptr)
 }
 
 static void
-_cti_consumeManifest(manifest_t *m_ptr)
+_cti_consumeManifest(void *arg)
 {
+	manifest_t *m_ptr = arg;
+
 	// sanity check
 	if (m_ptr == NULL)
 		return;
@@ -1891,13 +1917,13 @@ _cti_packageManifestAndShip_callback(void *opaque, const char *key, void *val)
 				break;
 				
 			case FILE_ENTRY:
-				// create relative pathname
-				if (snprintf(cb_data->path_buf, PATH_MAX, "%s/%s", cb_data->lib_path, key) <= 0)
+				// create relative pathname.
+				if (snprintf(cb_data->path_buf, PATH_MAX, "%s/%s", cb_data->file_path, key) <= 0)
 				{
 					_cti_set_error("_cti_packageManifestAndShip_callback: snprintf failed.");
 					return 1;
 				}
-							
+				
 				// copy this file to the archive
 				if (_cti_copyFileToArchive(cb_data->a, cb_data->entry, f_ptr->loc, cb_data->path_buf, cb_data->read_buf))
 				{
@@ -1934,10 +1960,6 @@ _cti_packageManifestAndShip(manifest_t *m_ptr)
 	package_data *			cb_data = NULL;
 	cti_signals_t *			signals = NULL;		// BUG 819725
 	int						rtn = 0;			// return value
-	
-	// FIXME: Move the following function call to the future init function
-	// try to cleanup
-	_cti_transfer_doCleanup();
 	
 	// sanity check
 	if (m_ptr == NULL)
@@ -2204,7 +2226,8 @@ _cti_packageManifestAndShip(manifest_t *m_ptr)
 	// setup the callback data type
 	cb_data->bin_path = bin_path;
 	cb_data->lib_path = lib_path;
-	cb_data->tmp_path = tmp_path;
+	// file path points at the top level directory for now
+	cb_data->file_path = MANIF_SESS(m_ptr)->stage_name;
 	cb_data->a = a;
 	cb_data->entry = entry;
 	cb_data->read_buf = read_buf;
@@ -2340,7 +2363,7 @@ cti_createSession(cti_app_id_t appId)
 	// sanity check
 	if (appId == 0)
 	{
-		_cti_set_error("Invalid appId %d.", (int)appId);
+		_cti_set_error("Invalid cti_app_id_t %d.", (int)appId);
 		return 0;
 	}
 	
@@ -2361,6 +2384,27 @@ cti_createSession(cti_app_id_t appId)
 	return s_ptr->sid;
 }
 
+int
+cti_sessionIsValid(cti_session_id_t sid)
+{
+	// sanity check
+	if (sid == 0)
+	{
+		_cti_set_error("Invalid cti_session_id_t %d.", (int)sid);
+		return 0;
+	}
+	
+	// Find the session for this sid
+	if (_cti_findSession(sid) == NULL)
+	{
+		// sid not found
+		// error string already set
+		return 0;
+	}
+	
+	return 1;
+}
+
 cti_manifest_id_t
 cti_createManifest(cti_session_id_t sid)
 {
@@ -2370,7 +2414,7 @@ cti_createManifest(cti_session_id_t sid)
 	// sanity check
 	if (sid == 0)
 	{
-		_cti_set_error("Invalid sid %d.", (int)sid);
+		_cti_set_error("Invalid cti_session_id_t %d.", (int)sid);
 		return 0;
 	}
 	
@@ -2389,6 +2433,27 @@ cti_createManifest(cti_session_id_t sid)
 	}
 	
 	return m_ptr->mid;
+}
+
+int
+cti_manifestIsValid(cti_manifest_id_t mid)
+{
+	// sanity check
+	if (mid == 0)
+	{
+		_cti_set_error("Invalid cti_manifest_id_t %d.", (int)mid);
+		return 0;
+	}
+	
+	// Find the manifest entry in the global manifest list for the mid
+	if (_cti_findManifest(mid) == NULL)
+	{
+		// We failed to find the manifest for the mid
+		// error string already set
+		return 0;
+	}
+	
+	return 1;
 }
 
 int

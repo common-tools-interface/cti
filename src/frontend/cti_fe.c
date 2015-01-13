@@ -178,6 +178,9 @@ wlm_detect_err:
 		_cti_wlmProto = &_cti_nonenessProto;
 		return;
 	}
+	
+	// init the transfer interface
+	_cti_transfer_init();
 }
 
 // Destructor function
@@ -190,6 +193,9 @@ _cti_fini(void)
 	
 	// call the wlm proto fini function
 	_cti_wlmProto->wlm_fini();
+	
+	// call the transfer fini function
+	_cti_transfer_fini();
 	
 	// reset wlm proto to noneness
 	_cti_wlmProto = &_cti_nonenessProto;

@@ -27,11 +27,15 @@ typedef int cti_manifest_id_t;
 typedef int cti_session_id_t;
 
 /* internal prototypes */
+void				_cti_transfer_init(void);
+void				_cti_transfer_fini(void);
 void				_cti_consumeSession(void *);
 
 /* function prototypes */
 cti_session_id_t	cti_createSession(cti_app_id_t);
+int					cti_sessionIsValid(cti_session_id_t);
 cti_manifest_id_t	cti_createManifest(cti_session_id_t);
+int					cti_manifestIsValid(cti_manifest_id_t);
 int					cti_addManifestBinary(cti_manifest_id_t, const char *);
 int					cti_addManifestLibrary(cti_manifest_id_t, const char *);
 int					cti_addManifestLibDir(cti_manifest_id_t, const char *);

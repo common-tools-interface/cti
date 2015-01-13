@@ -151,7 +151,10 @@ _cti_list_remove(cti_list_t *l, void *elem)
 	if (l->scan->prev == NULL)
 	{
 		l->head = l->scan->next;
-		l->head->prev = NULL;
+		if (l->head != NULL)
+		{
+			l->head->prev = NULL;
+		}
 	// is this the tail
 	} else if (	l->scan->next == NULL)
 	{

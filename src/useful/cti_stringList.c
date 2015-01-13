@@ -1123,6 +1123,7 @@ _cti_lookupValue(stringList_t *lst, const char *key)
 		// Find an edge to recurse to
 		edge = _cti_findEdge(node, key[idx]);
 		node = (edge != 0) ? *edge : NULL;
+		idx++;
 	}
 	
 	// Key is not in tree
