@@ -1,7 +1,7 @@
 /******************************************************************************\
  * alps_fe.c - alps specific frontend library functions.
  *
- * © 2014 Cray Inc.  All Rights Reserved.
+ * © 2014-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -76,6 +76,7 @@ typedef struct
 
 typedef struct
 {
+	cti_app_id_t		appId;			// CTI appid associated with this alpsInfo_t obj
 	uint64_t			apid;			// ALPS apid
 	int					pe0Node;		// ALPS PE0 node id
 	appInfo_t			appinfo;		// ALPS application information
@@ -90,15 +91,12 @@ typedef struct
 /* Static prototypes */
 static int					_cti_alps_init(void);
 static void					_cti_alps_fini(void);
-static int					_cti_alps_cmpJobId(cti_wlm_obj, cti_wlm_apid);
 static char *				_cti_alps_getJobId(cti_wlm_obj);
-static cti_app_id_t			_cti_alps_launchBarrier(const char * const [], int, int, int, int, const char *, const char *, const char * const []);
+static cti_app_id_t			_cti_alps_launch_common(const char * const [], int, int, const char *, const char *, const char * const [], int);
+static cti_app_id_t			_cti_alps_launch(const char * const [], int, int, const char *, const char *, const char * const []);
+static cti_app_id_t			_cti_alps_launchBarrier(const char * const [], int, int, const char *, const char *, const char * const []);
 static int					_cti_alps_releaseBarrier(cti_wlm_obj);
 static int					_cti_alps_killApp(cti_wlm_obj, int);
-static int					_cti_alps_verifyBinary(cti_wlm_obj, const char *);
-static int					_cti_alps_verifyLibrary(cti_wlm_obj, const char *);
-static int					_cti_alps_verifyLibDir(cti_wlm_obj, const char *);
-static int					_cti_alps_verifyFile(cti_wlm_obj, const char *);
 static const char * const *	_cti_alps_extraBinaries(cti_wlm_obj);
 static const char * const *	_cti_alps_extraLibraries(cti_wlm_obj);
 static const char * const *	_cti_alps_extraLibDirs(cti_wlm_obj);
@@ -131,15 +129,11 @@ const cti_wlm_proto_t		_cti_alps_wlmProto =
 	_cti_alps_init,					// wlm_init
 	_cti_alps_fini,					// wlm_fini
 	_cti_alps_consumeAlpsInfo,		// wlm_destroy
-	_cti_alps_cmpJobId,				// wlm_cmpJobId
 	_cti_alps_getJobId,				// wlm_getJobId
+	_cti_alps_launch,				// wlm_launch
 	_cti_alps_launchBarrier,		// wlm_launchBarrier
 	_cti_alps_releaseBarrier,		// wlm_releaseBarrier
 	_cti_alps_killApp,				// wlm_killApp
-	_cti_alps_verifyBinary,			// wlm_verifyBinary
-	_cti_alps_verifyLibrary,		// wlm_verifyLibrary
-	_cti_alps_verifyLibDir,			// wlm_verifyLibDir
-	_cti_alps_verifyFile,			// wlm_verifyFile
 	_cti_alps_extraBinaries,		// wlm_extraBinaries
 	_cti_alps_extraLibraries,		// wlm_extraLibraries
 	_cti_alps_extraLibDirs,			// wlm_extraLibDirs
@@ -163,6 +157,7 @@ static const char * const		_cti_alps_extra_libs[] = {
 	NULL
 };
 
+static cti_list_t *			_cti_alps_info		= NULL;	// list of alpsInfo_t objects registered by this interface
 static cti_alps_funcs_t *	_cti_alps_ptr 		= NULL;	// libalps wrappers
 static serviceNode_t *		_cti_alps_svcNid	= NULL;	// service node information
 
@@ -172,6 +167,10 @@ static int
 _cti_alps_init(void)
 {
 	char *error;
+	
+	// create a new _cti_alps_info list
+	if (_cti_alps_info == NULL)
+		_cti_alps_info = _cti_newList();
 
 	// Only init once.
 	if (_cti_alps_ptr != NULL)
@@ -242,16 +241,16 @@ _cti_alps_init(void)
 static void
 _cti_alps_fini(void)
 {
-	// sanity check
-	if (_cti_alps_ptr == NULL)
-		return;
-		
-	// cleanup
-	dlclose(_cti_alps_ptr->handle);
-	free(_cti_alps_ptr);
-	_cti_alps_ptr = NULL;
-	
-	return;
+	if (_cti_alps_info != NULL)
+		_cti_consumeList(_cti_alps_info, NULL);	// this should have already been cleared out.
+
+	if (_cti_alps_ptr != NULL)
+	{
+		// cleanup
+		dlclose(_cti_alps_ptr->handle);
+		free(_cti_alps_ptr);
+		_cti_alps_ptr = NULL;
+	}
 }
 
 /* dlopen related wrappers */
@@ -387,7 +386,10 @@ _cti_alps_consumeAlpsInfo(cti_wlm_obj this)
 	// sanity check
 	if (alpsInfo == NULL)
 		return;
-
+		
+	// remove this alpsInfo from the global list
+	_cti_list_remove(_cti_alps_info, alpsInfo);
+	
 	// cmdDetail and places were malloc'ed so we might find them tasty
 	if (alpsInfo->cmdDetail != NULL)
 		free(alpsInfo->cmdDetail);
@@ -433,31 +435,6 @@ _cti_alps_consumeAprunInv(aprunInv_t *runPtr)
 	free(runPtr);
 }
 
-static int
-_cti_alps_cmpJobId(cti_wlm_obj this, cti_wlm_apid id)
-{
-	alpsInfo_t *	my_app = (alpsInfo_t *)this;
-	uint64_t		apid;
-	
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("Null wlm obj.");
-		return -1;
-	}
-	
-	// sanity check
-	if (id == NULL)
-	{
-		_cti_set_error("Null job id.");
-		return -1;
-	}
-	
-	apid = *((uint64_t *)id);
-	
-	return my_app->apid == apid;
-}
-
 static char *
 _cti_alps_getJobId(cti_wlm_obj this)
 {
@@ -485,12 +462,19 @@ _cti_alps_getJobId(cti_wlm_obj this)
 cti_app_id_t
 cti_alps_registerApid(uint64_t apid)
 {
-	cti_app_id_t	appId = 0;
+	appEntry_t *	this;
 	alpsInfo_t *	alpsInfo;
 	char *			toolPath;
 	char *			attribsPath;
 	// Used to determine CLE version
 	struct stat 	statbuf;
+
+	// sanity check
+	if (cti_current_wlm() != CTI_WLM_ALPS)
+	{
+		_cti_set_error("Invalid call. ALPS WLM not in use.");
+		return 0;
+	}
 
 	// sanity check
 	if (apid == 0)
@@ -499,123 +483,137 @@ cti_alps_registerApid(uint64_t apid)
 		return 0;
 	}
 	
-	// sanity check
-	if (cti_current_wlm() != CTI_WLM_ALPS)
+	// iterate through the _cti_alps_info list to try to find an entry for this
+	// apid
+	_cti_list_reset(_cti_alps_info);
+	while ((alpsInfo = (alpsInfo_t *)_cti_list_next(_cti_alps_info)) != NULL)
 	{
-		_cti_set_error("Invalid call. ALPS WLM not in use.");
+		// check if the apid's match
+		if (alpsInfo->apid == apid)
+		{
+			// reference this appEntry and return the appid
+			if (_cti_refAppEntry(alpsInfo->appId))
+			{
+				// somehow we have an invalid alpsInfo obj, so free it and
+				// break to re-register this apid
+				_cti_alps_consumeAlpsInfo(alpsInfo);
+				break;
+			}
+			return alpsInfo->appId;
+		}
+	}
+	
+	// aprun pid not found in the global _cti_alps_info list
+	// so lets create a new appEntry_t object for it
+	
+	// create the new alpsInfo_t object
+	if ((alpsInfo = malloc(sizeof(alpsInfo_t))) == NULL)
+	{
+		_cti_set_error("malloc failed.");
 		return 0;
 	}
-		
-	// try to find an entry in the _cti_my_apps list for the apid
-	if (_cti_findAppEntryByJobId((void *)&apid) == NULL)
+	memset(alpsInfo, 0, sizeof(alpsInfo_t));     // clear it to NULL
+	
+	// set the apid
+	alpsInfo->apid = apid;
+	
+	// retrieve detailed information about our app
+	// save this information into the struct
+	if (_cti_alps_get_appinfo(apid, &alpsInfo->appinfo, &alpsInfo->cmdDetail, &alpsInfo->places) != 1)
 	{
-		// aprun pid not found in the global _cti_my_apps list
-		// so lets create a new appEntry_t object for it
-	
-		// create the new alpsInfo_t object
-		if ((alpsInfo = malloc(sizeof(alpsInfo_t))) == NULL)
+		// If we were ready, then set the error message. Otherwise we assume that
+		// dlopen failed and we already set the error string in that case.
+		if (_cti_alps_ready())
 		{
-			_cti_set_error("malloc failed.");
-			return 0;
+			_cti_set_error("alps_get_appinfo() failed.");
 		}
-		memset(alpsInfo, 0, sizeof(alpsInfo_t));     // clear it to NULL
-		
-		// set the apid
-		alpsInfo->apid = apid;
+		_cti_alps_consumeAlpsInfo(alpsInfo);
+		return 0;
+	}
 	
-		// retrieve detailed information about our app
-		// save this information into the struct
-		if (_cti_alps_get_appinfo(apid, &alpsInfo->appinfo, &alpsInfo->cmdDetail, &alpsInfo->places) != 1)
+	// Note that cmdDetail is a two dimensional array with appinfo.numCmds elements.
+	// Note that places is a two dimensional array with appinfo.numPlaces elements.
+	// These both were malloc'ed and need to be free'ed by the user.
+	
+	// save pe0 NID
+	alpsInfo->pe0Node = alpsInfo->places[0].nid;
+	
+	// Check to see if this system is using the new OBS system for the alps
+	// dependencies. This will affect the way we set the toolPath for the backend
+	if (stat(ALPS_OBS_LOC, &statbuf) == -1)
+	{
+		// Could not stat ALPS_OBS_LOC, assume it's using the old format.
+		if (asprintf(&toolPath, OLD_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
 		{
-			// If we were ready, then set the error message. Otherwise we assume that
-			// dlopen failed and we already set the error string in that case.
-			if (_cti_alps_ready())
-			{
-				_cti_set_error("alps_get_appinfo() failed.");
-			}
+			_cti_set_error("asprintf failed");
 			_cti_alps_consumeAlpsInfo(alpsInfo);
 			return 0;
 		}
-	
-		// Note that cmdDetail is a two dimensional array with appinfo.numCmds elements.
-		// Note that places is a two dimensional array with appinfo.numPlaces elements.
-		// These both were malloc'ed and need to be free'ed by the user.
-	
-		// save pe0 NID
-		alpsInfo->pe0Node = alpsInfo->places[0].nid;
-	
-		// Check to see if this system is using the new OBS system for the alps
-		// dependencies. This will affect the way we set the toolPath for the backend
-		if (stat(ALPS_OBS_LOC, &statbuf) == -1)
+		if (asprintf(&attribsPath, OLD_ATTRIBS_DIR, (long long unsigned int)apid) <= 0)
 		{
-			// Could not stat ALPS_OBS_LOC, assume it's using the old format.
-			if (asprintf(&toolPath, OLD_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
-			{
-				_cti_set_error("asprintf failed");
-				_cti_alps_consumeAlpsInfo(alpsInfo);
-				return 0;
-			}
-			if (asprintf(&attribsPath, OLD_ATTRIBS_DIR, (long long unsigned int)apid) <= 0)
-			{
-				_cti_set_error("asprintf failed");
-				_cti_alps_consumeAlpsInfo(alpsInfo);
-				free(toolPath);
-				return 0;
-			}
-		} else
-		{
-			// Assume it's using the OBS format
-			if (asprintf(&toolPath, OBS_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
-			{
-				_cti_set_error("asprintf failed");
-				_cti_alps_consumeAlpsInfo(alpsInfo);
-				return 0;
-			}
-			if (asprintf(&attribsPath, OBS_ATTRIBS_DIR, (long long unsigned int)apid) <= 0)
-			{
-				_cti_set_error("asprintf failed");
-				_cti_alps_consumeAlpsInfo(alpsInfo);
-				free(toolPath);
-				return 0;
-			}
-		}
-		
-		// set the tool and attribs path
-		alpsInfo->toolPath = toolPath;
-		alpsInfo->attribsPath = attribsPath;
-		
-		if ((appId = _cti_newAppEntry(&_cti_alps_wlmProto, (cti_wlm_obj)alpsInfo)) == 0)
-		{
-			// we failed to create a new appEntry_t entry - catastrophic failure
-			// error string already set
+			_cti_set_error("asprintf failed");
 			_cti_alps_consumeAlpsInfo(alpsInfo);
+			free(toolPath);
 			return 0;
 		}
-		
 	} else
 	{
-		// apid was already registerd. This is a failure.
-		_cti_set_error("apid already registered");
+		// Assume it's using the OBS format
+		if (asprintf(&toolPath, OBS_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
+		{
+			_cti_set_error("asprintf failed");
+			_cti_alps_consumeAlpsInfo(alpsInfo);
+			return 0;
+		}
+		if (asprintf(&attribsPath, OBS_ATTRIBS_DIR, (long long unsigned int)apid) <= 0)
+		{
+			_cti_set_error("asprintf failed");
+			_cti_alps_consumeAlpsInfo(alpsInfo);
+			free(toolPath);
+			return 0;
+		}
+	}
+	
+	// set the tool and attribs path
+	alpsInfo->toolPath = toolPath;
+	alpsInfo->attribsPath = attribsPath;
+	
+	if ((this = _cti_newAppEntry(&_cti_alps_wlmProto, (cti_wlm_obj)alpsInfo)) == NULL)
+	{
+		// we failed to create a new appEntry_t entry - catastrophic failure
+		// error string already set
+		_cti_alps_consumeAlpsInfo(alpsInfo);
 		return 0;
 	}
-
-	return appId;
+	
+	// set the appid in the alpsInfo obj
+	alpsInfo->appId = this->appId;
+	
+	// add the alpsInfo obj to our global list
+	if(_cti_list_add(_cti_alps_info, alpsInfo))
+	{
+		_cti_set_error("cti_alps_registerApid: _cti_list_add() failed.");
+		cti_deregisterApp(this->appId);
+		return 0;
+	}
+	
+	return this->appId;
 }
 
 uint64_t
 cti_alps_getApid(pid_t aprunPid)
 {
 	// sanity check
-	if (aprunPid < 0)
-	{
-		_cti_set_error("Invalid pid %d.", (int)aprunPid);
-		return 0;
-	}
-	
-	// sanity check
 	if (cti_current_wlm() != CTI_WLM_ALPS)
 	{
 		_cti_set_error("Invalid call. ALPS WLM not in use.");
+		return 0;
+	}
+
+	// sanity check
+	if (aprunPid < 0)
+	{
+		_cti_set_error("Invalid pid %d.", (int)aprunPid);
 		return 0;
 	}
 		
@@ -1068,10 +1066,12 @@ _cti_alps_filter_pid_entries(const struct dirent *a)
 	return sscanf(a->d_name, "%lu", &pid);
 }
 
+// This is the actual function that can do either a launch with barrier or one
+// without.
 static cti_app_id_t
-_cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput, int redirectInput, 
-							int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath,
-							const char * const env_list[]	)
+_cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+							const char *inputFile, const char *chdirPath,
+							const char * const env_list[], int doBarrier	)
 {
 	aprunInv_t *		myapp;
 	appEntry_t *		appEntry;
@@ -1104,25 +1104,29 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 	}
 	memset(myapp, 0, sizeof(aprunInv_t));     // clear it to NULL
 	
-	// make the pipes for aprun (tells aprun to hold the program at the initial 
-	// barrier)
-	if (pipe(aprunPipeR) < 0)
+	// only do the following if we are using the barrier variant
+	if (doBarrier)
 	{
-		_cti_set_error("Pipe creation failure on aprunPipeR.");
-		_cti_alps_consumeAprunInv(myapp);
-		return 0;
-	}
-	if (pipe(aprunPipeW) < 0)
-	{
-		_cti_set_error("Pipe creation failure on aprunPipeW.");
-		_cti_alps_consumeAprunInv(myapp);
-		return 0;
-	}
+		// make the pipes for aprun (tells aprun to hold the program at the initial 
+		// barrier)
+		if (pipe(aprunPipeR) < 0)
+		{
+			_cti_set_error("Pipe creation failure on aprunPipeR.");
+			_cti_alps_consumeAprunInv(myapp);
+			return 0;
+		}
+		if (pipe(aprunPipeW) < 0)
+		{
+			_cti_set_error("Pipe creation failure on aprunPipeW.");
+			_cti_alps_consumeAprunInv(myapp);
+			return 0;
+		}
 	
-	// set my ends of the pipes in the aprunInv_t structure
-	myapp->pipeOpen = 1;
-	myapp->pipeCtl.pipe_r = aprunPipeR[1];
-	myapp->pipeCtl.pipe_w = aprunPipeW[0];
+		// set my ends of the pipes in the aprunInv_t structure
+		myapp->pipeOpen = 1;
+		myapp->pipeCtl.pipe_r = aprunPipeR[1];
+		myapp->pipeCtl.pipe_w = aprunPipeW[0];
+	}
 	
 	// create the argv array for the actual aprun exec
 	
@@ -1143,20 +1147,24 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 		return 0;
 	}
 	
-	// Add the -P r,w args
-	if (_cti_addArg(my_args, "-P"))
+	// only do the following if we are using the barrier variant
+	if (doBarrier)
 	{
-		_cti_set_error("_cti_addArg failed.");
-		_cti_alps_consumeAprunInv(myapp);
-		_cti_freeArgs(my_args);
-		return 0;
-	}
-	if (_cti_addArg(my_args, "%d,%d", aprunPipeW[1], aprunPipeR[0]))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		_cti_alps_consumeAprunInv(myapp);
-		_cti_freeArgs(my_args);
-		return 0;
+		// Add the -P r,w args
+		if (_cti_addArg(my_args, "-P"))
+		{
+			_cti_set_error("_cti_addArg failed.");
+			_cti_alps_consumeAprunInv(myapp);
+			_cti_freeArgs(my_args);
+			return 0;
+		}
+		if (_cti_addArg(my_args, "%d,%d", aprunPipeW[1], aprunPipeR[0]))
+		{
+			_cti_set_error("_cti_addArg failed.");
+			_cti_alps_consumeAprunInv(myapp);
+			_cti_freeArgs(my_args);
+			return 0;
+		}
 	}
 	
 	// set the rest of the argv for aprun from the passed in args
@@ -1209,13 +1217,17 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 	// a child process.
 	if (mypid == 0)
 	{
-		// close unused ends of pipe
-		close(aprunPipeR[1]);
-		close(aprunPipeW[0]);
+		// only do the following if we are using the barrier variant
+		if (doBarrier)
+		{
+			// close unused ends of pipe
+			close(aprunPipeR[1]);
+			close(aprunPipeW[0]);
+		}
 		
 		// redirect stdout/stderr if directed - do this early so that we can
 		// print out errors to the proper descriptor.
-		if (redirectOutput)
+		if (stdout_fd != -1)
 		{
 			// dup2 stdout
 			if (dup2(stdout_fd, STDOUT_FILENO) < 0)
@@ -1225,7 +1237,10 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 				fprintf(stderr, "CTI error: Unable to redirect aprun stdout.\n");
 				exit(1);
 			}
+		}
 			
+		if (stderr_fd != -1)
+		{
 			// dup2 stderr
 			if (dup2(stderr_fd, STDERR_FILENO) < 0)
 			{
@@ -1236,15 +1251,10 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 			}
 		}
 		
-		if (redirectInput)
+		if (inputFile != NULL)
 		{
 			// open the provided input file if non-null and redirect it to
 			// stdin
-			if (inputFile == NULL)
-			{
-				fprintf(stderr, "CTI error: Provided inputFile argument is null.\n");
-				exit(1);
-			}
 			if ((fd = open(inputFile, O_RDONLY)) < 0)
 			{
 				fprintf(stderr, "CTI error: Unable to open %s for reading.\n", inputFile);
@@ -1318,9 +1328,13 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 	
 	// parent case
 	
-	// close unused ends of pipe
-	close(aprunPipeR[0]);
-	close(aprunPipeW[1]);
+	// only do the following if we are using the barrier variant
+	if (doBarrier)
+	{
+		// close unused ends of pipe
+		close(aprunPipeR[0]);
+		close(aprunPipeW[1]);
+	}
 	
 	// cleanup args
 	_cti_freeArgs(my_args);
@@ -1336,16 +1350,20 @@ _cti_alps_launchBarrier(	const char * const launcher_argv[], int redirectOutput,
 		return 0;
 	}
 	
-	// Wait on pipe read for app to start and get to barrier - once this happens
-	// we know the real aprun is up and running
-	if (read(myapp->pipeCtl.pipe_w, &myapp->pipeCtl.sync_int, sizeof(myapp->pipeCtl.sync_int)) <= 0)
+	// only do the following if we are using the barrier variant
+	if (doBarrier)
 	{
-		_cti_set_error("Control pipe read failed.");
-		// attempt to kill aprun since the caller will not recieve the aprun pid
-		// just in case the aprun process is still hanging around.
-		kill(mypid, DEFAULT_SIG);
-		_cti_alps_consumeAprunInv(myapp);
-		return 0;
+		// Wait on pipe read for app to start and get to barrier - once this happens
+		// we know the real aprun is up and running
+		if (read(myapp->pipeCtl.pipe_w, &myapp->pipeCtl.sync_int, sizeof(myapp->pipeCtl.sync_int)) <= 0)
+		{
+			_cti_set_error("Control pipe read failed.");
+			// attempt to kill aprun since the caller will not recieve the aprun pid
+			// just in case the aprun process is still hanging around.
+			kill(mypid, DEFAULT_SIG);
+			_cti_alps_consumeAprunInv(myapp);
+			return 0;
+		}
 	}
 	
 	// The following code was added to detect if a site is using a wrapper script
@@ -1592,6 +1610,22 @@ continue_on_error:
 	return rtn;
 }
 
+static cti_app_id_t
+_cti_alps_launch(	const char * const a1[], int a2, int a3, const char *a4,
+					const char *a5, const char * const a6[]	)
+{
+	// call the common launch function
+	return _cti_alps_launch_common(a1, a2, a3, a4, a5, a6, 0);
+}
+
+static cti_app_id_t
+_cti_alps_launchBarrier(	const char * const a1[], int a2, int a3, const char *a4,
+							const char *a5, const char * const a6[]	)
+{
+	// call the common launch function
+	return _cti_alps_launch_common(a1, a2, a3, a4, a5, a6, 1);
+}
+
 int
 _cti_alps_releaseBarrier(cti_wlm_obj this)
 {
@@ -1698,41 +1732,6 @@ _cti_alps_killApp(cti_wlm_obj this, int signum)
 	// wait until the apkill finishes
 	waitpid(mypid, NULL, 0);
 	
-	return 0;
-}
-
-static int
-_cti_alps_verifyBinary(cti_wlm_obj this, const char *fstr)
-{
-	// all binaries are valid
-	return 0;
-}
-
-static int
-_cti_alps_verifyLibrary(cti_wlm_obj this, const char *fstr)
-{
-	// XXX: We used to not ship libraries that were already present on the 
-	// compute node as part of CNL. However, this was in error. The following
-	// is from Pete Swanson:
-	//
-	//   Understand that the native compute image is not guaranteed to have the
-    //   same (or by any means all) the libraries that are on the login node.
-	
-	// all libraries are valid
-	return 0;
-}
-
-static int
-_cti_alps_verifyLibDir(cti_wlm_obj this, const char *fstr)
-{
-	// all library directories are valid
-	return 0;
-}
-
-static int
-_cti_alps_verifyFile(cti_wlm_obj this, const char *fstr)
-{
-	// all files are valid
 	return 0;
 }
 

@@ -64,15 +64,11 @@ static const cti_wlm_proto_t	_cti_nonenessProto =
 	_cti_wlm_init_none,
 	_cti_wlm_fini_none,
 	_cti_wlm_destroy_none,
-	_cti_wlm_cmpJobId_none,
 	_cti_wlm_getJobId_none,
+	_cti_wlm_launch_none,
 	_cti_wlm_launchBarrier_none,
 	_cti_wlm_releaseBarrier_none,
 	_cti_wlm_killApp_none,
-	_cti_wlm_verifyBinary_none,
-	_cti_wlm_verifyLibrary_none,
-	_cti_wlm_verifyLibDir_none,
-	_cti_wlm_verifyFile_none,
 	_cti_wlm_extraBinaries_none,
 	_cti_wlm_extraLibraries_none,
 	_cti_wlm_extraLibDirs_none,
@@ -236,22 +232,23 @@ _cti_consumeAppEntry(void *this)
 	free(entry);
 }
 
-cti_app_id_t
+appEntry_t *
 _cti_newAppEntry(const cti_wlm_proto_t *wlmProto, cti_wlm_obj wlm_obj)
 {
 	appEntry_t *	this;
 	
-	if (wlm_obj == NULL)
+	// sanity
+	if (wlmProto == NULL || wlm_obj == NULL)
 	{
-		_cti_set_error("Null wlm_obj.");
-		return 0;
+		_cti_set_error("_cti_newAppEntry: Bad args.");
+		return NULL;
 	}
 	
 	// create the new appEntry_t object
 	if ((this = malloc(sizeof(appEntry_t))) == NULL)
 	{
 		_cti_set_error("malloc failed.");
-		return 0;
+		return NULL;
 	}
 	memset(this, 0, sizeof(appEntry_t));     // clear it to NULL
 	
@@ -260,16 +257,17 @@ _cti_newAppEntry(const cti_wlm_proto_t *wlmProto, cti_wlm_obj wlm_obj)
 	this->sessions = _cti_newList();
 	this->wlmProto = wlmProto;
 	this->_wlmObj = wlm_obj;
+	this->refCnt = 1;
 	
 	// save the new appEntry_t into the global list
 	if(_cti_list_add(_cti_my_apps, this))
 	{
-		_cti_set_error("_cti_list_add() failed.");
+		_cti_set_error("_cti_newAppEntry: _cti_list_add() failed.");
 		_cti_consumeAppEntry(this);
-		return 0;
+		return NULL;
 	}
 	
-	return this->appId;
+	return this;
 }
 
 appEntry_t *
@@ -291,33 +289,26 @@ _cti_findAppEntry(cti_app_id_t appId)
 	return NULL;
 }
 
-appEntry_t *
-_cti_findAppEntryByJobId(void *wlm_id)
+int
+_cti_refAppEntry(cti_app_id_t appId)
 {
 	appEntry_t *	this;
-	int				found = 0;
 	
 	// iterate through the _cti_my_apps list
 	_cti_list_reset(_cti_my_apps);
 	while ((this = (appEntry_t *)_cti_list_next(_cti_my_apps)) != NULL)
 	{
-		// Call the appropriate find function based on the wlm
-		found = this->wlmProto->wlm_cmpJobId(this->_wlmObj, wlm_id);
-		
-		if (found == -1)
+		// inc refCnt if the appId's match
+		if (this->appId == appId)
 		{
-			// error already set
-			return NULL;
+			this->refCnt++;
+			return 0;
 		}
-	
-		// return if found
-		if (found)
-			return this;
 	}
 	
-	// if we get here, an entry for wlm_id was not found
-	_cti_set_error("The wlm id is not registered.");
-	return NULL;
+	// if we get here, an entry for appId doesn't exist
+	_cti_set_error("The appId %d is not registered.", (int)appId);
+	return 1;
 }
 
 const cti_wlm_proto_t *
@@ -510,6 +501,10 @@ cti_deregisterApp(cti_app_id_t appId)
 	// find the appEntry_t obj
 	if ((this = _cti_findAppEntry(appId)) == NULL)
 		return;
+		
+	// dec refCnt and ensure it is 0, otherwise return
+	if (--(this->refCnt) > 0)
+		return;
 	
 	// remove it from the list
 	_cti_list_remove(_cti_my_apps, this);
@@ -538,13 +533,6 @@ cti_getNumAppPEs(cti_app_id_t appId)
 		return 0;
 	}
 	
-	// sanity check
-	if (app_ptr->_wlmObj == NULL)
-	{
-		_cti_set_error("cti_getNumAppPEs: _wlmObj is NULL!");
-		return 0;
-	}
-	
 	// Call the appropriate function based on the wlm
 	return app_ptr->wlmProto->wlm_getNumAppPEs(app_ptr->_wlmObj);
 }
@@ -566,13 +554,6 @@ cti_getNumAppNodes(cti_app_id_t appId)
 	{
 		// couldn't find the entry associated with the apid
 		// error string already set
-		return 0;
-	}
-	
-	// sanity check
-	if (app_ptr->_wlmObj == NULL)
-	{
-		_cti_set_error("cti_getNumAppNodes: _wlmObj is NULL!");
 		return 0;
 	}
 	
@@ -600,13 +581,6 @@ cti_getAppHostsList(cti_app_id_t appId)
 		return 0;
 	}
 	
-	// sanity check
-	if (app_ptr->_wlmObj == NULL)
-	{
-		_cti_set_error("cti_getAppHostsList: _wlmObj is NULL!");
-		return 0;
-	}
-	
 	// Call the appropriate function based on the wlm
 	return app_ptr->wlmProto->wlm_getAppHostsList(app_ptr->_wlmObj);
 }
@@ -628,13 +602,6 @@ cti_getAppHostsPlacement(cti_app_id_t appId)
 	{
 		// couldn't find the entry associated with the apid
 		// error string already set
-		return 0;
-	}
-	
-	// sanity check
-	if (app_ptr->_wlmObj == NULL)
-	{
-		_cti_set_error("cti_getAppHostsPlacement: _wlmObj is NULL!");
 		return 0;
 	}
 	
@@ -682,13 +649,6 @@ cti_getLauncherHostName(cti_app_id_t appId)
 		return 0;
 	}
 	
-	// sanity check
-	if (app_ptr->_wlmObj == NULL)
-	{
-		_cti_set_error("cti_getLauncherHostName: _wlmObj is NULL!");
-		return 0;
-	}
-	
 	// Call the appropriate function based on the wlm
 	return app_ptr->wlmProto->wlm_getLauncherHostName(app_ptr->_wlmObj);
 }
@@ -717,13 +677,6 @@ _cti_wlm_destroy_none(cti_wlm_obj a1)
 	return;
 }
 
-int
-_cti_wlm_cmpJobId_none(cti_wlm_obj a1, cti_wlm_apid a2)
-{
-	_cti_set_error("wlm_cmpJobId() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
-	return -1;
-}
-
 char *
 _cti_wlm_getJobId_none(cti_wlm_obj a1)
 {
@@ -732,7 +685,14 @@ _cti_wlm_getJobId_none(cti_wlm_obj a1)
 }
 
 cti_app_id_t
-_cti_wlm_launchBarrier_none(const char * const a1[], int a2, int a3, int a4, int a5, const char *a6, const char *a7, const char * const a8[])
+_cti_wlm_launch_none(const char * const a1[], int a2, int a3, const char *a4, const char *a5, const char * const a6[])
+{
+	_cti_set_error("wlm_launch() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
+	return 0;
+}
+
+cti_app_id_t
+_cti_wlm_launchBarrier_none(const char * const a1[], int a2, int a3, const char *a4, const char *a5, const char * const a6[])
 {
 	_cti_set_error("wlm_launchBarrier() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 0;
@@ -750,34 +710,6 @@ _cti_wlm_killApp_none(cti_wlm_obj a1, int a2)
 {
 	_cti_set_error("wlm_killApp() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
 	return 1;
-}
-
-int
-_cti_wlm_verifyBinary_none(cti_wlm_obj a1, const char *a2)
-{
-	_cti_set_error("wlm_verifyBinary() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
-	return 0;
-}
-
-int
-_cti_wlm_verifyLibrary_none(cti_wlm_obj a1, const char *a2)
-{
-	_cti_set_error("wlm_verifyLibrary() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
-	return 0;
-}
-
-int
-_cti_wlm_verifyLibDir_none(cti_wlm_obj a1, const char *a2)
-{
-	_cti_set_error("wlm_verifyLibDir() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
-	return 0;
-}
-
-int
-_cti_wlm_verifyFile_none(cti_wlm_obj a1, const char *a2)
-{
-	_cti_set_error("wlm_verifyFile() not supported for %s", cti_wlm_type_toString(_cti_wlmProto->wlm_type));
-	return 0;
 }
 
 const char * const *

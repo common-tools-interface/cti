@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cray_slurm_fe.c - Cray SLURM specific frontend library functions.
  *
- * © 2014 Cray Inc.  All Rights Reserved.
+ * © 2014-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -68,6 +68,7 @@ typedef struct
 
 typedef struct
 {
+	cti_app_id_t		appId;			// CTI appid associated with this alpsInfo_t obj
 	uint32_t			jobid;			// SLURM job id
 	uint32_t			stepid;			// SLURM step id
 	uint64_t			apid;			// Cray variant of step+job id
@@ -91,15 +92,12 @@ static void					_cti_cray_slurm_consumeSrunInv(srunInv_t *);
 static slurmStepLayout_t *	_cti_cray_slurm_newSlurmLayout(int, int);
 static void					_cti_cray_slurm_consumeSlurmLayout(slurmStepLayout_t *);
 static slurmStepLayout_t *	_cti_cray_slurm_getLayout(uint32_t, uint32_t);
-static int					_cti_cray_slurm_cmpJobId(cti_wlm_obj, cti_wlm_apid);
 static char *				_cti_cray_slurm_getJobId(cti_wlm_obj);
-static cti_app_id_t			_cti_cray_slurm_launchBarrier(const char * const [], int, int, int, int, const char *, const char *, const char * const []);
+static cti_app_id_t			_cti_cray_slurm_launch_common(const char * const [], int, int, const char *, const char *, const char * const [], int);
+static cti_app_id_t			_cti_cray_slurm_launch(const char * const [], int, int, const char *, const char *, const char * const []);
+static cti_app_id_t			_cti_cray_slurm_launchBarrier(const char * const [], int, int, const char *, const char *, const char * const []);
 static int					_cti_cray_slurm_releaseBarrier(cti_wlm_obj);
 static int					_cti_cray_slurm_killApp(cti_wlm_obj, int);
-static int					_cti_cray_slurm_verifyBinary(cti_wlm_obj, const char *);
-static int					_cti_cray_slurm_verifyLibrary(cti_wlm_obj, const char *);
-static int					_cti_cray_slurm_verifyLibDir(cti_wlm_obj, const char *);
-static int					_cti_cray_slurm_verifyFile(cti_wlm_obj, const char *);
 static const char * const *	_cti_cray_slurm_extraBinaries(cti_wlm_obj);
 static const char * const *	_cti_cray_slurm_extraLibraries(cti_wlm_obj);
 static const char * const *	_cti_cray_slurm_extraLibDirs(cti_wlm_obj);
@@ -121,15 +119,11 @@ const cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
 	_cti_cray_slurm_init,					// wlm_init
 	_cti_cray_slurm_fini,					// wlm_fini
 	_cti_cray_slurm_consumeSlurmInfo,		// wlm_destroy
-	_cti_cray_slurm_cmpJobId,				// wlm_cmpJobId
 	_cti_cray_slurm_getJobId,				// wlm_getJobId
+	_cti_cray_slurm_launch,					// wlm_launch
 	_cti_cray_slurm_launchBarrier,			// wlm_launchBarrier
 	_cti_cray_slurm_releaseBarrier,			// wlm_releaseBarrier
 	_cti_cray_slurm_killApp,				// wlm_killApp
-	_cti_cray_slurm_verifyBinary,			// wlm_verifyBinary
-	_cti_cray_slurm_verifyLibrary,			// wlm_verifyLibrary
-	_cti_cray_slurm_verifyLibDir,			// wlm_verifyLibDir
-	_cti_cray_slurm_verifyFile,				// wlm_verifyFile
 	_cti_cray_slurm_extraBinaries,			// wlm_extraBinaries
 	_cti_cray_slurm_extraLibraries,			// wlm_extraLibraries
 	_cti_cray_slurm_extraLibDirs,			// wlm_extraLibDirs
@@ -170,13 +164,18 @@ const char * slurm_blacklist_env_vars[] = {
 		"SLURM_TASK_PROLOG",
 		"SLURM_WORKING_DIR",
 		NULL};
-					
+
+static cti_list_t *	_cti_cray_slurm_info	= NULL;	// list of craySlurmInfo_t objects registered by this interface
 
 /* Constructor/Destructor functions */
 
 static int
 _cti_cray_slurm_init(void)
 {
+	// create a new _cti_alps_info list
+	if (_cti_cray_slurm_info == NULL)
+		_cti_cray_slurm_info = _cti_newList();
+
 	// done
 	return 0;
 }
@@ -187,6 +186,9 @@ _cti_cray_slurm_fini(void)
 	// force cleanup to happen on any pending srun launches - we do this to ensure
 	// gdb instances don't get left hanging around.
 	_cti_gdb_cleanupAll();
+	
+	if (_cti_cray_slurm_info != NULL)
+		_cti_consumeList(_cti_cray_slurm_info, NULL);	// this should have already been cleared out.
 
 	// done
 	return;
@@ -206,6 +208,7 @@ _cti_cray_slurm_newSlurmInfo(void)
 	}
 	
 	// init the members
+	this->appId			= 0;
 	this->jobid			= 0;
 	this->stepid		= 0;
 	this->apid			= 0;
@@ -229,6 +232,9 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 	// sanity
 	if (sinfo == NULL)
 		return;
+		
+	// remove this sinfo from the global list
+	_cti_list_remove(_cti_cray_slurm_info, sinfo);
 
 	_cti_cray_slurm_consumeSlurmLayout(sinfo->layout);
 	_cti_cray_slurm_consumeSrunInv(sinfo->inv);
@@ -942,31 +948,6 @@ handle_error:
 	return rtn;
 }
 
-static int
-_cti_cray_slurm_cmpJobId(cti_wlm_obj this, cti_wlm_apid id)
-{
-	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
-	uint64_t			apid;
-	
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("Null wlm obj.");
-		return -1;
-	}
-	
-	// sanity check
-	if (id == NULL)
-	{
-		_cti_set_error("Null job id.");
-		return -1;
-	}
-	
-	apid = *((uint64_t *)id);
-	
-	return my_app->apid == apid;
-}
-
 // Note that we should provide this as a jobid.stepid format. It will make turning
 // it into a Cray apid easier on the backend since we don't lose any information
 // with this format.
@@ -996,18 +977,11 @@ _cti_cray_slurm_getJobId(cti_wlm_obj this)
 cti_app_id_t
 cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 {
+	appEntry_t *		this;
 	uint64_t			apid;	// Cray version of the job+step
 	craySlurmInfo_t	*	sinfo;
 	char *				toolPath;
 	char *				attribsPath;
-	cti_app_id_t		appId = 0;
-
-	// sanity check - Note that 0 is a valid step id.
-	if (jobid == 0)
-	{
-		_cti_set_error("Invalid jobid %d.", (int)jobid);
-		return 0;
-	}
 	
 	// sanity check
 	if (cti_current_wlm() != CTI_WLM_CRAY_SLURM)
@@ -1016,71 +990,100 @@ cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 		return 0;
 	}
 	
+	// sanity check - Note that 0 is a valid step id.
+	if (jobid == 0)
+	{
+		_cti_set_error("Invalid jobid %d.", (int)jobid);
+		return 0;
+	}
+	
 	// create the cray variation of the jobid+stepid
 	apid = CRAY_SLURM_APID(jobid, stepid);
 	
-	// try to find an entry in the _cti_my_apps list for the apid
-	if (_cti_findAppEntryByJobId((cti_wlm_apid)&apid) == NULL)
+	// iterate through the _cti_cray_slurm_info list to try to find an entry for
+	// this apid
+	_cti_list_reset(_cti_cray_slurm_info);
+	while ((sinfo = (craySlurmInfo_t *)_cti_list_next(_cti_cray_slurm_info)) != NULL)
 	{
-		// apid not found in the global _cti_my_apps list
-		// so lets create a new appEntry_t object for it
+		// check if the apid's match
+		if (sinfo->apid == apid)
+		{
+			// reference this appEntry and return the appid
+			if (_cti_refAppEntry(sinfo->appId))
+			{
+				// somehow we have an invalid sinfo obj, so free it and
+				// break to re-register this apid
+				_cti_cray_slurm_consumeSlurmInfo(sinfo);
+				break;
+			}
+			return sinfo->appId;
+		}
+	}
 	
-		// create the new craySlurmInfo_t object
-		if ((sinfo = _cti_cray_slurm_newSlurmInfo()) == NULL)
-		{
-			// error already set
-			return 0;
-		}
-		
-		// set the jobid
-		sinfo->jobid = jobid;
-		// set the stepid
-		sinfo->stepid = stepid;
-		// set the apid
-		sinfo->apid = apid;
-		
-		// retrieve detailed information about our app
-		if ((sinfo->layout = _cti_cray_slurm_getLayout(jobid, stepid)) == NULL)
-		{
-			// error already set
-			_cti_cray_slurm_consumeSlurmInfo(sinfo);
-			return 0;
-		}
-		
-		// create the toolPath
-		if (asprintf(&toolPath, CRAY_SLURM_TOOL_DIR) <= 0)
-		{
-			_cti_set_error("asprintf failed");
-			_cti_cray_slurm_consumeSlurmInfo(sinfo);
-			return 0;
-		}
-		sinfo->toolPath = toolPath;
-		
-		// create the attribsPath
-		if (asprintf(&attribsPath, CRAY_SLURM_CRAY_DIR, (long long unsigned int)sinfo->apid) <= 0)
-		{
-			_cti_set_error("asprintf failed");
-			_cti_cray_slurm_consumeSlurmInfo(sinfo);
-			return 0;
-		}
-		sinfo->attribsPath = attribsPath;
-		
-		// create the new app entry
-		if ((appId = _cti_newAppEntry(&_cti_cray_slurm_wlmProto, (cti_wlm_obj)sinfo)) == 0)
-		{
-			// we failed to create a new appEntry_t entry - catastrophic failure
-			// error string already set
-			_cti_cray_slurm_consumeSlurmInfo(sinfo);
-			return 0;
-		}
-	} else
+	// apid not found in the global _cti_cray_slurm_info list
+	// so lets create a new appEntry_t object for it
+	
+	// create the new craySlurmInfo_t object
+	if ((sinfo = _cti_cray_slurm_newSlurmInfo()) == NULL)
 	{
-		// apid was already registered. This is a failure.
-		_cti_set_error("apid already registered");
+		// error already set
+		return 0;
+	}
+	
+	// set the jobid
+	sinfo->jobid = jobid;
+	// set the stepid
+	sinfo->stepid = stepid;
+	// set the apid
+	sinfo->apid = apid;
+	
+	// retrieve detailed information about our app
+	if ((sinfo->layout = _cti_cray_slurm_getLayout(jobid, stepid)) == NULL)
+	{
+		// error already set
+		_cti_cray_slurm_consumeSlurmInfo(sinfo);
+		return 0;
+	}
+	
+	// create the toolPath
+	if (asprintf(&toolPath, CRAY_SLURM_TOOL_DIR) <= 0)
+	{
+		_cti_set_error("asprintf failed");
+		_cti_cray_slurm_consumeSlurmInfo(sinfo);
+		return 0;
+	}
+	sinfo->toolPath = toolPath;
+	
+	// create the attribsPath
+	if (asprintf(&attribsPath, CRAY_SLURM_CRAY_DIR, (long long unsigned int)sinfo->apid) <= 0)
+	{
+		_cti_set_error("asprintf failed");
+		_cti_cray_slurm_consumeSlurmInfo(sinfo);
+		return 0;
+	}
+	sinfo->attribsPath = attribsPath;
+	
+	// create the new app entry
+	if ((this = _cti_newAppEntry(&_cti_cray_slurm_wlmProto, (cti_wlm_obj)sinfo)) == NULL)
+	{
+		// we failed to create a new appEntry_t entry - catastrophic failure
+		// error string already set
+		_cti_cray_slurm_consumeSlurmInfo(sinfo);
+		return 0;
+	}
+	
+	// set the appid in the sinfo obj
+	sinfo->appId = this->appId;
+	
+	// add the sinfo obj to our global list
+	if(_cti_list_add(_cti_cray_slurm_info, sinfo))
+	{
+		_cti_set_error("cti_cray_slurm_registerJobStep: _cti_list_add() failed.");
+		cti_deregisterApp(this->appId);
 		return 0;
 	}
 
-	return appId;
+	return this->appId;
 }
 
 cti_srunProc_t *
@@ -1135,9 +1138,9 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId)
 }
 
 static cti_app_id_t
-_cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectOutput, int redirectInput, 
-								int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath,
-								const char * const env_list[]	)
+_cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+								const char *inputFile, const char *chdirPath,
+								const char * const env_list[], int doBarrier	)
 {
 	srunInv_t *			myapp;
 	appEntry_t *		appEntry;
@@ -1195,8 +1198,8 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	{
 		const char *	i_file = NULL;
 		
-		// *sigh* I don't know why I just didn't make this a null check...
-		if (redirectInput)
+		// set input file if directed
+		if (inputFile != NULL)
 		{
 			i_file = inputFile;
 		} else
@@ -1283,7 +1286,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	// check for errors
 	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0))
 	{
-		_cti_set_error("_cti_cray_slurm_launchBarrier: strtoul failed.\n");
+		_cti_set_error("strtoul failed.\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
@@ -1291,7 +1294,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	}
 	if (end_p == NULL || *end_p != '\0')
 	{
-		_cti_set_error("_cti_cray_slurm_launchBarrier: strtoul failed.\n");
+		_cti_set_error("strtoul failed.\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
@@ -1321,7 +1324,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	// check for errors
 	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
 	{
-		_cti_set_error("_cti_cray_slurm_launchBarrier: strtoul failed.\n");
+		_cti_set_error("strtoul failed.\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
@@ -1329,7 +1332,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	}
 	if (end_p == NULL || *end_p != '\0')
 	{
-		_cti_set_error("_cti_cray_slurm_launchBarrier: strtoul failed.\n");
+		_cti_set_error("strtoul failed.\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
@@ -1358,8 +1361,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	
 	// fork off a process to start the sattach command
 	mypid = fork();
-		
-		
+	
 	// error case
 	if (mypid < 0)
 	{
@@ -1377,9 +1379,8 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	{
 		int 			fd;
 		cti_args_t *	my_args;
-	
-		// if redirectOutput is true, we use the caller provided fds.
-		if (redirectOutput)
+		
+		if (stdout_fd != -1)
 		{
 			// dup2 stdout
 			if (dup2(stdout_fd, STDOUT_FILENO) < 0)
@@ -1389,7 +1390,10 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 				fprintf(stderr, "CTI error: Unable to redirect srun stdout.\n");
 				exit(1);
 			}
+		}
 		
+		if (stderr_fd != -1)
+		{
 			// dup2 stderr
 			if (dup2(stderr_fd, STDERR_FILENO) < 0)
 			{
@@ -1474,7 +1478,7 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	if ((appEntry = _cti_findAppEntry(rtn)) == NULL)
 	{
 		// this should never happen
-		_cti_set_error("_cti_cray_slurm_launchBarrier: impossible null appEntry error!\n");
+		_cti_set_error("impossible null appEntry error!\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		_cti_gdb_freeMpirPid(pids);
 		
@@ -1486,9 +1490,10 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	if (sinfo == NULL)
 	{
 		// this should never happen
-		_cti_set_error("_cti_cray_slurm_launchBarrier: impossible null sinfo error!\n");
+		_cti_set_error("impossible null sinfo error!\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		_cti_gdb_freeMpirPid(pids);
+		cti_deregisterApp(appEntry->appId);
 		
 		return 0;
 	}
@@ -1499,8 +1504,37 @@ _cti_cray_slurm_launchBarrier(	const char * const launcher_argv[], int redirectO
 	// set the pids
 	sinfo->app_pids = pids;
 	
+	// If we should not wait at the barrier, call the barrier release function.
+	if (!doBarrier)
+	{
+		if (_cti_cray_slurm_releaseBarrier(sinfo))
+		{
+			// error already set - appEntry already holds all info to be cleaned up
+			cti_deregisterApp(appEntry->appId);
+			return 0;
+		}
+	}
+	
 	// return the cti_app_id_t
 	return rtn;
+}
+
+static cti_app_id_t
+_cti_cray_slurm_launch(	const char * const a1[], int a2, int a3,
+						const char *a4, const char *a5,
+						const char * const a6[]	)
+{
+	// call the common launch function
+	return _cti_cray_slurm_launch_common(a1, a2, a3, a4, a5, a6, 0);
+}
+
+static cti_app_id_t
+_cti_cray_slurm_launchBarrier(	const char * const a1[], int a2, int a3,
+								const char *a4, const char *a5,
+								const char * const a6[]	)
+{
+	// call the common launch function
+	return _cti_cray_slurm_launch_common(a1, a2, a3, a4, a5, a6, 1);
 }
 
 static int
@@ -1635,34 +1669,6 @@ _cti_cray_slurm_killApp(cti_wlm_obj this, int signum)
 	// wait until the scancel finishes
 	waitpid(mypid, NULL, 0);
 	
-	return 0;
-}
-
-static int
-_cti_cray_slurm_verifyBinary(cti_wlm_obj this, const char *fstr)
-{
-	// all binaries are valid
-	return 0;
-}
-
-static int
-_cti_cray_slurm_verifyLibrary(cti_wlm_obj this, const char *fstr)
-{
-	// all libraries are valid
-	return 0;
-}
-
-static int
-_cti_cray_slurm_verifyLibDir(cti_wlm_obj this, const char *fstr)
-{
-	// all library directories are valid
-	return 0;
-}
-
-static int
-_cti_cray_slurm_verifyFile(cti_wlm_obj this, const char *fstr)
-{
-	// all files are valid
 	return 0;
 }
 

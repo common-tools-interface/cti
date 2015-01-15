@@ -5,7 +5,7 @@
  *                   or compute nodes. Frontend refers to the location where
  *                   applications are launched.
  *
- * © 2011-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -352,45 +352,37 @@ extern void cti_destroyHostsList(cti_hostsList_t *placement_list);
  ******************************************************************************/
 
 /*
- * cti_launchAppBarrier - Start an application using the application launcher
- *                        with the provided argv array and have the launcher
- *                        hold the application at its startup barrier for 
- *                        MPI/SHMEM/UPC/CAF applications.
- * 
+ * cti_launchApp - Start an application using the application launcher.
+ *
  * Detail
- *      This function is the preferred way for users to use the tool interface
- *      to launch applications.
+ *      This function will launch an application. The application launcher to
+ *      use will be automatically determined based on the current workload 
+ *      manager of the system. It is up to the caller to ensure that valid 
+ *      launcher_argv arguments are provided that correspond to the application
+ *      launcher. The application launcher will either be aprun or srun.
  *
- *      The launcher to use will be automatically determined based on the
- *      current workload manager on the system. It is up to the caller to obtain
- *      valid launcher_argv arguments. This interface will simply pass the
- *      arguments through directly to the launcher program. This launcher is
- *      either aprun, srun, or mpirun.
+ *      The stdout/stderr of the launcher can be redirected to an open file 
+ *      descriptor. This is enabled by providing valid file descriptors that are
+ *      opened for writing to the stdout_fd and/or stderr_fd arguments. If the
+ *      stdout_fd and/or stderr_fd arguments are -1, then the stdout/stderr
+ *      inherited from the caller will be used.
  *
- *      This function will hold the application at its startup barrier until
- *      the barrier release function is called with the app_id returned by this
- *      call. This only applies to applications using programming models that
- *      call some sort of init function (MPI_Init for example).
+ *      The stdin of the launcher can be redirected from a file. This is enabled
+ *      by providing a string with the pathname of the file to the inputFile
+ *      argument. If inputFile is NULL, then the stdin of the launcher will be
+ *      redirected from /dev/null.
  *
- *      This function can redirect the stdin of the launcher to a file. This is 
- *      enabled by setting the argument redirectInput to true and providing a 
- *      string that represents the pathname to the file. If redirectInput is 
- *      false, the function will redirect the stdin of the launcher to /dev/null 
- *      to prevent the launcher  from grabbing any input on stdin which may be
- *      used by other tool programs. 
+ *      The current working directory for the launcher can be changed from its
+ *      current location. This is enabled by providing a string with the
+ *      pathname of the directory to cd to to the chdirPath argument. If 
+ *      chdirPath is NULL, then no cd will take place.
  *
- *      This function can also optionally redirect stdout/stderr to provided
- *      open file descriptors by setting redirectOutput to true (non-zero). If
- *      redirectOutput is false, the default stdout/stderr will be used.
- *
- *      This function can optionally set the current working directory for the 
- *      launcher process. This is useful if the launcher should start somewhere
- *      other than the current PWD if the application creates files based on 
- *      PWD.
- *
- *      This function can optionally set environment variables for the launcher
- *      process. This is useful if the launcher should use an environment
- *      variable that is different than the current value set in the parent.
+ *      The environment of the launcher can be modified. Any environment
+ *      variable to set in the launcher process should be provided as a null
+ *      terminated list of strings of the form "name=value" to the env_list
+ *      argument. All environment variables set in the caller process will be
+ *      inherited by the launcher process. If env_list is NULL, no changes to
+ *      the environment will be made.
  *
  * Arguments
  *      launcher_argv -  A null terminated list of arguments to pass directly to
@@ -398,22 +390,54 @@ extern void cti_destroyHostsList(cti_hostsList_t *placement_list);
  *                       the sense that launcher_argv[0] is the start of the
  *                       actual arguments passed to the launcher and not the
  *                       name of launcher itself.
- *      redirectOutput - Toggles redirecting launcher stdout/stderr to the
- *                       provided file descriptors.
- *      redirectInput -  Toggles redirecting launcher stdin to the provided file
- *                       name.
- *      stdout_fd -      The open file descriptor to redirect stdout to if 
- *                       redirectOutput evaluates to true.
- *      stderr_fd -      The open file descriptor to redirect stderr to if
- *                       redirectOutput evaluates to true.
- *      inputFile -      The pathname of a file to open and redirect stdin to if
- *                       redirectInput evaluates to true.
- *      chdirPath -      The path to change the current working directory of 
- *                       the launcher to, or NULL if no chdir is to take place.
+ *      stdout_fd -      The file descriptor opened for writing to redirect
+ *                       stdout to or -1 if no redirection should take place.
+ *      stderr_fd -      The file descriptor opened for writing to redirect
+ *                       stderr to or -1 if no redirection should take place.
+ *      inputFile -      The pathname of a file to open and redirect stdin or
+ *                       NULL if no redirection should take place. If NULL,
+ *                       /dev/null will be used for stdin.
+ *      chdirPath -      The path to change the current working directory to or 
+ *                       NULL if no cd should take place.
  *      env_list -       A null terminated list of strings of the form 
- *                       "name=value". The value of name in the environment will
- *                       be set to value irrespective of name already existing
- *                       in the environment. 
+ *                       "name=value". The name in the environment will be set
+ *                       to value.
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ * 
+ */
+extern cti_app_id_t cti_launchApp(   const char * const  launcher_argv[],
+                                     int                 stdout_fd,
+                                     int                 stderr_fd,
+                                     const char *        inputFile,
+                                     const char *        chdirPath, 
+                                     const char * const  env_list[]);
+
+/*
+ * cti_launchAppBarrier - Start an application using the application launcher
+ *                        and have the launcher hold the application at its
+ *                        startup barrier for MPI/SHMEM/UPC/CAF applications.
+ *
+ * Detail
+ *      This function will launch and hold an application at its startup barrier
+ *      until cti_launchAppBarrier is called with the app_id returned by this
+ *      call. If the application is not using a programming model like MPI/SHMEM
+ *      /UPC/CAF, the application will not be held at the startup barrier and
+ *      this function should not be used. Use cti_launchApp instead.
+ *
+ *      On Cray systems, the startup barrier is the point at which the 
+ *      application processes have been started, but are being held in a CTOR
+ *      before main() has been called. Holding an application at this point can
+ *      guarantee that tool daemons can be started before the application code
+ *      starts executing.
+ *
+ *      The arguments for this function are identical to cti_launchApp. See the
+ *      cti_launchApp description for more information.
+ *
+ * Arguments
+ *      See the cti_launchApp description for more information.
  *
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
@@ -421,8 +445,6 @@ extern void cti_destroyHostsList(cti_hostsList_t *placement_list);
  * 
  */
 extern cti_app_id_t cti_launchAppBarrier(   const char * const  launcher_argv[],
-                                            int                 redirectOutput,
-                                            int                 redirectInput,
                                             int                 stdout_fd,
                                             int                 stderr_fd,
                                             const char *        inputFile,
