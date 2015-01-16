@@ -2,7 +2,7 @@
 # Makefile.am for the libcraytool and dlaunch components of the craytool 
 # interface.
 #
-# © 2011-2014 Cray Inc.  All Rights Reserved.
+# © 2011-2015 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -19,3 +19,7 @@ SUBDIRS			= ld_val useful mpir_iface frontend backend daemon slurm_util
 
 noinst_HEADERS	= cti_defs.h
 
+if INST_MI
+install-data-hook:
+	cp @LIBMI_LOC@ ${libdir}
+endif

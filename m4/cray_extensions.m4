@@ -1,7 +1,7 @@
 #
 # cray_extensions.m4 Cray configure extensions.
 #
-# ©2012-2014 Cray Inc.  All Rights Reserved.
+# Copyright 2012-2015 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -30,6 +30,157 @@ AC_DEFUN([cray_INIT],
 	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd([source release_versioning; echo $fe_current | tr -d '\n'])])
 	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd([source release_versioning; echo $fe_revision | tr -d '\n'])])
 	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd([source release_versioning; echo $fe_age | tr -d '\n'])])
+])
+
+dnl
+dnl build libarchive automatically
+dnl
+AC_DEFUN([cray_BUILD_LIBARCHIVE],
+[
+	dnl Temporary directory to stage files to
+	_cray_curdir=$(pwd)
+	_cray_stage="$_cray_curdir/external"
+	_cray_hidden_install="$_cray_stage/install"
+	_cray_tmpdir="$_cray_stage/libarchive"
+	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/libarchive/"
+
+	AC_MSG_CHECKING([for libarchive stage directory])
+	
+	dnl check out libarchive source if we haven't done so already
+	AS_IF( [test ! -d "$_cray_tmpdir"],
+			[	AC_MSG_RESULT([no])
+				
+				dnl check required execs
+				AC_PROG_MKDIR_P
+				
+				AC_ARG_VAR([SVN], [Location of svn])
+				
+				AC_PATH_PROG([SVN], [svn], [svn])
+				if test -z "$SVN"; then
+					AC_MSG_ERROR([svn not found.])
+				fi
+				
+				AC_MSG_NOTICE([Checking out libarchive source to $_cray_tmpdir...])
+				
+				dnl ensure the top level stage directory exists
+				if test ! -d "$_cray_stage"; then
+					AS_MKDIR_P([$_cray_stage])
+				fi
+				
+				dnl checkout libarchive
+				$SVN co $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+				if test ! -d "$_cray_tmpdir"; then
+					AC_MSG_ERROR([svn checkout of libarchive failed.])
+				fi
+			],
+			[AC_MSG_RESULT([yes])])
+	
+	dnl ensure the install directory exists
+	if test ! -d "$_cray_hidden_install"; then
+		AS_MKDIR_P([$_cray_hidden_install])
+	fi
+	
+	dnl cd to the checked out source directory
+	cd ${_cray_tmpdir}
+	
+	AC_MSG_NOTICE([Building libarchive...])
+	
+	dnl run configure with options that work on build systems
+	./configure --prefix=${_cray_hidden_install} --disable-shared --with-pic --without-expat --without-xml2 \
+	--without-openssl --without-nettle --without-lzo2 --without-lzma --without-libiconv-prefix --without-iconv \
+	--without-lzmadec --without-bz2lib --without-zlib --disable-bsdtar --disable-bsdcpio \
+	--disable-rpath >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	
+	dnl make
+	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	
+	dnl go home
+	cd ${_cray_curdir}
+	
+	AC_MSG_CHECKING([result of libarchive build])
+	
+	if test -f "$_cray_hidden_install/lib/libarchive.a"; then
+		AC_MSG_RESULT([ok])
+	else
+		AC_MSG_ERROR([libarchive build failed.])
+	fi
+	
+	AC_SUBST([INTERNAL_LIBARCHIVE], [$_cray_hidden_install])
+])
+
+dnl
+dnl build libmi automatically
+dnl
+AC_DEFUN([cray_BUILD_LIBMI],
+[
+	dnl Temporary directory to stage files to
+	_cray_curdir=$(pwd)
+	_cray_stage="$_cray_curdir/external"
+	_cray_hidden_install="$_cray_stage/install"
+	_cray_tmpdir="$_cray_stage/libmi"
+	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/libmi/"
+
+	AC_MSG_CHECKING([for libmi stage directory])
+	
+	dnl check out libmi source if we haven't done so already
+	AS_IF( [test ! -d "$_cray_tmpdir"],
+			[	AC_MSG_RESULT([no])
+				
+				dnl check required execs
+				AC_PROG_MKDIR_P
+				
+				AC_ARG_VAR([SVN], [Location of svn])
+				
+				AC_PATH_PROG([SVN], [svn], [svn])
+				if test -z "$SVN"; then
+					AC_MSG_ERROR([svn not found.])
+				fi
+				
+				AC_MSG_NOTICE([Checking out libmi source to $_cray_tmpdir...])
+				
+				dnl ensure the top level stage directory exists
+				if test ! -d "$_cray_stage"; then
+					AS_MKDIR_P([$_cray_stage])
+				fi
+				
+				dnl checkout libmi
+				$SVN co $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+				if test ! -d "$_cray_tmpdir"; then
+					AC_MSG_ERROR([svn checkout of libmi failed.])
+				fi
+			],
+			[AC_MSG_RESULT([yes])])
+	
+	dnl ensure the install directory exists
+	if test ! -d "$_cray_hidden_install"; then
+		AS_MKDIR_P([$_cray_hidden_install])
+	fi
+	
+	dnl cd to the checked out source directory
+	cd ${_cray_tmpdir}
+	
+	AC_MSG_NOTICE([Building libmi...])
+	
+	dnl run configure with options that work on build systems
+	./configure --prefix=${_cray_hidden_install} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	
+	dnl make
+	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	
+	dnl go home
+	cd ${_cray_curdir}
+	
+	AC_MSG_CHECKING([result of libmi build])
+	
+	if test -f "$_cray_hidden_install/lib/libmi.so"; then
+		AC_MSG_RESULT([ok])
+	else
+		AC_MSG_ERROR([libmi build failed.])
+	fi
+	
+	AC_SUBST([INTERNAL_LIBMI], [$_cray_hidden_install])
 ])
 
 dnl

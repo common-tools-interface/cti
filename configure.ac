@@ -1,7 +1,7 @@
 #
 # configure.ac script for the craytool interface.
 #
-# © 2010-2014 Cray Inc. All Rights Reserved
+# Copyright 2010-2015 Cray Inc. All Rights Reserved
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -19,7 +19,7 @@ AC_PREREQ([2.63])
 dnl We need to use the m4_esyscmd here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT. This is not portable...
 AC_INIT([craytool_interface], [m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])], [andrewg@cray.com])
-AC_COPYRIGHT([© 2011-2014 Cray Inc. All Rights Reserved.])
+AC_COPYRIGHT([Copyright 2011-2015 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/cti_defs.h])
 AC_CONFIG_AUX_DIR([config])
@@ -51,7 +51,8 @@ AC_ARG_WITH([libarchive],
 			    [Specify path to libarchive install.]
 			    )
 	    ],
-	    [libarchive_path=$withval]
+	    [libarchive_path=$withval],
+	    [libarchive_path=no]
 	    )
 
 dnl Check for --with-libmi
@@ -60,7 +61,8 @@ AC_ARG_WITH([libmi],
 							[Specify path to libmi install.]
 							)
 			],
-			[libmi_path=$withval]
+			[libmi_path=$withval],
+			[libmi_path=no]
 			)
 
 ###########################
@@ -89,6 +91,32 @@ cray_SETUP_SLURM_RPMS
 
 dnl Ditto for the wlm_detect libraries
 cray_SETUP_WLM_DETECT_RPMS
+
+############################
+### Optional build deps  ###
+############################
+
+dnl build libarchive if argument wasn't provided
+AC_MSG_CHECKING([for libarchive argument])
+if test "x$libarchive_path" = "xno"; then
+	AC_MSG_RESULT([not found])
+	cray_BUILD_LIBARCHIVE
+	libarchive_path=$INTERNAL_LIBARCHIVE
+else
+	AC_MSG_RESULT([provided])
+fi
+
+dnl build libmi if argument wasn't provided
+AC_MSG_CHECKING([for libmi argument])
+AM_CONDITIONAL([INST_MI], [test "x$libmi_path" = xno])
+if test "x$libmi_path" = "xno"; then
+	AC_MSG_RESULT([not found])
+	cray_BUILD_LIBMI
+	libmi_path=$INTERNAL_LIBMI
+	AC_SUBST([LIBMI_LOC], ["$libmi_path/lib/libmi.so"])
+else
+	AC_MSG_RESULT([provided])
+fi
 
 ############################
 ### Check for libraries. ###
