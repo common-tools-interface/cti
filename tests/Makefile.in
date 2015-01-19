@@ -59,13 +59,13 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
-am_cti_barrier_OBJECTS = cti_barrier-cti_barrier_demo.$(OBJEXT)
+am_cti_barrier_OBJECTS = cti_barrier-cti_barrier_test.$(OBJEXT)
 cti_barrier_OBJECTS = $(am_cti_barrier_OBJECTS)
 cti_barrier_LDADD = $(LDADD)
 cti_barrier_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(cti_barrier_CFLAGS) \
 	$(CFLAGS) $(cti_barrier_LDFLAGS) $(LDFLAGS) -o $@
-am_cti_callback_OBJECTS = cti_callback-cti_callback_demo.$(OBJEXT)
+am_cti_callback_OBJECTS = cti_callback-cti_callback_test.$(OBJEXT)
 cti_callback_OBJECTS = $(am_cti_callback_OBJECTS)
 cti_callback_LDADD = $(LDADD)
 cti_callback_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
@@ -79,7 +79,7 @@ cti_callback_daemon_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) \
 	$(cti_callback_daemon_CFLAGS) $(CFLAGS) \
 	$(cti_callback_daemon_LDFLAGS) $(LDFLAGS) -o $@
-am_cti_info_OBJECTS = cti_info-cti_info_demo.$(OBJEXT)
+am_cti_info_OBJECTS = cti_info-cti_info_test.$(OBJEXT)
 cti_info_OBJECTS = $(am_cti_info_OBJECTS)
 cti_info_LDADD = $(LDADD)
 cti_info_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
@@ -91,7 +91,7 @@ cti_link_LDADD = $(LDADD)
 cti_link_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(cti_link_CFLAGS) $(CFLAGS) \
 	$(cti_link_LDFLAGS) $(LDFLAGS) -o $@
-am_cti_transfer_OBJECTS = cti_transfer-cti_transfer_demo.$(OBJEXT)
+am_cti_transfer_OBJECTS = cti_transfer-cti_transfer_test.$(OBJEXT)
 cti_transfer_OBJECTS = $(am_cti_transfer_OBJECTS)
 cti_transfer_LDADD = $(LDADD)
 cti_transfer_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
@@ -256,19 +256,19 @@ top_srcdir = @top_srcdir@
 AM_CFLAGS = -I$(includedir) -L$(libdir)
 AM_LIBTOOLFLAGS = --quiet
 cti_barrier_CFLAGS = $(AM_CFLAGS)
-cti_barrier_SOURCES = cti_barrier_demo.c
+cti_barrier_SOURCES = cti_barrier_test.c
 cti_barrier_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 cti_info_CFLAGS = $(AM_CFLAGS)
-cti_info_SOURCES = cti_info_demo.c
+cti_info_SOURCES = cti_info_test.c
 cti_info_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 cti_link_CFLAGS = $(AM_CFLAGS)
 cti_link_SOURCES = cti_linking_test.c
 cti_link_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -lcraytools_be
 cti_transfer_CFLAGS = $(AM_CFLAGS)
-cti_transfer_SOURCES = cti_transfer_demo.c
+cti_transfer_SOURCES = cti_transfer_test.c
 cti_transfer_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 cti_callback_CFLAGS = $(AM_CFLAGS)
-cti_callback_SOURCES = cti_callback_demo.c
+cti_callback_SOURCES = cti_callback_test.c
 cti_callback_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -pthread
 cti_callback_daemon_CFLAGS = $(AM_CFLAGS)
 cti_callback_daemon_SOURCES = cti_callback_daemon.c
@@ -331,12 +331,12 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_barrier-cti_barrier_demo.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_callback-cti_callback_demo.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_barrier-cti_barrier_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_callback-cti_callback_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_callback_daemon-cti_callback_daemon.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_info-cti_info_demo.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_info-cti_info_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_link-cti_linking_test.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_transfer-cti_transfer_demo.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_transfer-cti_transfer_test.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -359,33 +359,33 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-cti_barrier-cti_barrier_demo.o: cti_barrier_demo.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_barrier_CFLAGS) $(CFLAGS) -MT cti_barrier-cti_barrier_demo.o -MD -MP -MF $(DEPDIR)/cti_barrier-cti_barrier_demo.Tpo -c -o cti_barrier-cti_barrier_demo.o `test -f 'cti_barrier_demo.c' || echo '$(srcdir)/'`cti_barrier_demo.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_barrier-cti_barrier_demo.Tpo $(DEPDIR)/cti_barrier-cti_barrier_demo.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_barrier_demo.c' object='cti_barrier-cti_barrier_demo.o' libtool=no @AMDEPBACKSLASH@
+cti_barrier-cti_barrier_test.o: cti_barrier_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_barrier_CFLAGS) $(CFLAGS) -MT cti_barrier-cti_barrier_test.o -MD -MP -MF $(DEPDIR)/cti_barrier-cti_barrier_test.Tpo -c -o cti_barrier-cti_barrier_test.o `test -f 'cti_barrier_test.c' || echo '$(srcdir)/'`cti_barrier_test.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_barrier-cti_barrier_test.Tpo $(DEPDIR)/cti_barrier-cti_barrier_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_barrier_test.c' object='cti_barrier-cti_barrier_test.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_barrier_CFLAGS) $(CFLAGS) -c -o cti_barrier-cti_barrier_demo.o `test -f 'cti_barrier_demo.c' || echo '$(srcdir)/'`cti_barrier_demo.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_barrier_CFLAGS) $(CFLAGS) -c -o cti_barrier-cti_barrier_test.o `test -f 'cti_barrier_test.c' || echo '$(srcdir)/'`cti_barrier_test.c
 
-cti_barrier-cti_barrier_demo.obj: cti_barrier_demo.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_barrier_CFLAGS) $(CFLAGS) -MT cti_barrier-cti_barrier_demo.obj -MD -MP -MF $(DEPDIR)/cti_barrier-cti_barrier_demo.Tpo -c -o cti_barrier-cti_barrier_demo.obj `if test -f 'cti_barrier_demo.c'; then $(CYGPATH_W) 'cti_barrier_demo.c'; else $(CYGPATH_W) '$(srcdir)/cti_barrier_demo.c'; fi`
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_barrier-cti_barrier_demo.Tpo $(DEPDIR)/cti_barrier-cti_barrier_demo.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_barrier_demo.c' object='cti_barrier-cti_barrier_demo.obj' libtool=no @AMDEPBACKSLASH@
+cti_barrier-cti_barrier_test.obj: cti_barrier_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_barrier_CFLAGS) $(CFLAGS) -MT cti_barrier-cti_barrier_test.obj -MD -MP -MF $(DEPDIR)/cti_barrier-cti_barrier_test.Tpo -c -o cti_barrier-cti_barrier_test.obj `if test -f 'cti_barrier_test.c'; then $(CYGPATH_W) 'cti_barrier_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_barrier_test.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_barrier-cti_barrier_test.Tpo $(DEPDIR)/cti_barrier-cti_barrier_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_barrier_test.c' object='cti_barrier-cti_barrier_test.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_barrier_CFLAGS) $(CFLAGS) -c -o cti_barrier-cti_barrier_demo.obj `if test -f 'cti_barrier_demo.c'; then $(CYGPATH_W) 'cti_barrier_demo.c'; else $(CYGPATH_W) '$(srcdir)/cti_barrier_demo.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_barrier_CFLAGS) $(CFLAGS) -c -o cti_barrier-cti_barrier_test.obj `if test -f 'cti_barrier_test.c'; then $(CYGPATH_W) 'cti_barrier_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_barrier_test.c'; fi`
 
-cti_callback-cti_callback_demo.o: cti_callback_demo.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_CFLAGS) $(CFLAGS) -MT cti_callback-cti_callback_demo.o -MD -MP -MF $(DEPDIR)/cti_callback-cti_callback_demo.Tpo -c -o cti_callback-cti_callback_demo.o `test -f 'cti_callback_demo.c' || echo '$(srcdir)/'`cti_callback_demo.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_callback-cti_callback_demo.Tpo $(DEPDIR)/cti_callback-cti_callback_demo.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_callback_demo.c' object='cti_callback-cti_callback_demo.o' libtool=no @AMDEPBACKSLASH@
+cti_callback-cti_callback_test.o: cti_callback_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_CFLAGS) $(CFLAGS) -MT cti_callback-cti_callback_test.o -MD -MP -MF $(DEPDIR)/cti_callback-cti_callback_test.Tpo -c -o cti_callback-cti_callback_test.o `test -f 'cti_callback_test.c' || echo '$(srcdir)/'`cti_callback_test.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_callback-cti_callback_test.Tpo $(DEPDIR)/cti_callback-cti_callback_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_callback_test.c' object='cti_callback-cti_callback_test.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_CFLAGS) $(CFLAGS) -c -o cti_callback-cti_callback_demo.o `test -f 'cti_callback_demo.c' || echo '$(srcdir)/'`cti_callback_demo.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_CFLAGS) $(CFLAGS) -c -o cti_callback-cti_callback_test.o `test -f 'cti_callback_test.c' || echo '$(srcdir)/'`cti_callback_test.c
 
-cti_callback-cti_callback_demo.obj: cti_callback_demo.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_CFLAGS) $(CFLAGS) -MT cti_callback-cti_callback_demo.obj -MD -MP -MF $(DEPDIR)/cti_callback-cti_callback_demo.Tpo -c -o cti_callback-cti_callback_demo.obj `if test -f 'cti_callback_demo.c'; then $(CYGPATH_W) 'cti_callback_demo.c'; else $(CYGPATH_W) '$(srcdir)/cti_callback_demo.c'; fi`
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_callback-cti_callback_demo.Tpo $(DEPDIR)/cti_callback-cti_callback_demo.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_callback_demo.c' object='cti_callback-cti_callback_demo.obj' libtool=no @AMDEPBACKSLASH@
+cti_callback-cti_callback_test.obj: cti_callback_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_CFLAGS) $(CFLAGS) -MT cti_callback-cti_callback_test.obj -MD -MP -MF $(DEPDIR)/cti_callback-cti_callback_test.Tpo -c -o cti_callback-cti_callback_test.obj `if test -f 'cti_callback_test.c'; then $(CYGPATH_W) 'cti_callback_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_callback_test.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_callback-cti_callback_test.Tpo $(DEPDIR)/cti_callback-cti_callback_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_callback_test.c' object='cti_callback-cti_callback_test.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_CFLAGS) $(CFLAGS) -c -o cti_callback-cti_callback_demo.obj `if test -f 'cti_callback_demo.c'; then $(CYGPATH_W) 'cti_callback_demo.c'; else $(CYGPATH_W) '$(srcdir)/cti_callback_demo.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_CFLAGS) $(CFLAGS) -c -o cti_callback-cti_callback_test.obj `if test -f 'cti_callback_test.c'; then $(CYGPATH_W) 'cti_callback_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_callback_test.c'; fi`
 
 cti_callback_daemon-cti_callback_daemon.o: cti_callback_daemon.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_daemon_CFLAGS) $(CFLAGS) -MT cti_callback_daemon-cti_callback_daemon.o -MD -MP -MF $(DEPDIR)/cti_callback_daemon-cti_callback_daemon.Tpo -c -o cti_callback_daemon-cti_callback_daemon.o `test -f 'cti_callback_daemon.c' || echo '$(srcdir)/'`cti_callback_daemon.c
@@ -401,19 +401,19 @@ cti_callback_daemon-cti_callback_daemon.obj: cti_callback_daemon.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_callback_daemon_CFLAGS) $(CFLAGS) -c -o cti_callback_daemon-cti_callback_daemon.obj `if test -f 'cti_callback_daemon.c'; then $(CYGPATH_W) 'cti_callback_daemon.c'; else $(CYGPATH_W) '$(srcdir)/cti_callback_daemon.c'; fi`
 
-cti_info-cti_info_demo.o: cti_info_demo.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_info_CFLAGS) $(CFLAGS) -MT cti_info-cti_info_demo.o -MD -MP -MF $(DEPDIR)/cti_info-cti_info_demo.Tpo -c -o cti_info-cti_info_demo.o `test -f 'cti_info_demo.c' || echo '$(srcdir)/'`cti_info_demo.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_info-cti_info_demo.Tpo $(DEPDIR)/cti_info-cti_info_demo.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_info_demo.c' object='cti_info-cti_info_demo.o' libtool=no @AMDEPBACKSLASH@
+cti_info-cti_info_test.o: cti_info_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_info_CFLAGS) $(CFLAGS) -MT cti_info-cti_info_test.o -MD -MP -MF $(DEPDIR)/cti_info-cti_info_test.Tpo -c -o cti_info-cti_info_test.o `test -f 'cti_info_test.c' || echo '$(srcdir)/'`cti_info_test.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_info-cti_info_test.Tpo $(DEPDIR)/cti_info-cti_info_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_info_test.c' object='cti_info-cti_info_test.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_info_CFLAGS) $(CFLAGS) -c -o cti_info-cti_info_demo.o `test -f 'cti_info_demo.c' || echo '$(srcdir)/'`cti_info_demo.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_info_CFLAGS) $(CFLAGS) -c -o cti_info-cti_info_test.o `test -f 'cti_info_test.c' || echo '$(srcdir)/'`cti_info_test.c
 
-cti_info-cti_info_demo.obj: cti_info_demo.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_info_CFLAGS) $(CFLAGS) -MT cti_info-cti_info_demo.obj -MD -MP -MF $(DEPDIR)/cti_info-cti_info_demo.Tpo -c -o cti_info-cti_info_demo.obj `if test -f 'cti_info_demo.c'; then $(CYGPATH_W) 'cti_info_demo.c'; else $(CYGPATH_W) '$(srcdir)/cti_info_demo.c'; fi`
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_info-cti_info_demo.Tpo $(DEPDIR)/cti_info-cti_info_demo.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_info_demo.c' object='cti_info-cti_info_demo.obj' libtool=no @AMDEPBACKSLASH@
+cti_info-cti_info_test.obj: cti_info_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_info_CFLAGS) $(CFLAGS) -MT cti_info-cti_info_test.obj -MD -MP -MF $(DEPDIR)/cti_info-cti_info_test.Tpo -c -o cti_info-cti_info_test.obj `if test -f 'cti_info_test.c'; then $(CYGPATH_W) 'cti_info_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_info_test.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_info-cti_info_test.Tpo $(DEPDIR)/cti_info-cti_info_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_info_test.c' object='cti_info-cti_info_test.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_info_CFLAGS) $(CFLAGS) -c -o cti_info-cti_info_demo.obj `if test -f 'cti_info_demo.c'; then $(CYGPATH_W) 'cti_info_demo.c'; else $(CYGPATH_W) '$(srcdir)/cti_info_demo.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_info_CFLAGS) $(CFLAGS) -c -o cti_info-cti_info_test.obj `if test -f 'cti_info_test.c'; then $(CYGPATH_W) 'cti_info_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_info_test.c'; fi`
 
 cti_link-cti_linking_test.o: cti_linking_test.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_link_CFLAGS) $(CFLAGS) -MT cti_link-cti_linking_test.o -MD -MP -MF $(DEPDIR)/cti_link-cti_linking_test.Tpo -c -o cti_link-cti_linking_test.o `test -f 'cti_linking_test.c' || echo '$(srcdir)/'`cti_linking_test.c
@@ -429,19 +429,19 @@ cti_link-cti_linking_test.obj: cti_linking_test.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_link_CFLAGS) $(CFLAGS) -c -o cti_link-cti_linking_test.obj `if test -f 'cti_linking_test.c'; then $(CYGPATH_W) 'cti_linking_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_linking_test.c'; fi`
 
-cti_transfer-cti_transfer_demo.o: cti_transfer_demo.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_transfer_CFLAGS) $(CFLAGS) -MT cti_transfer-cti_transfer_demo.o -MD -MP -MF $(DEPDIR)/cti_transfer-cti_transfer_demo.Tpo -c -o cti_transfer-cti_transfer_demo.o `test -f 'cti_transfer_demo.c' || echo '$(srcdir)/'`cti_transfer_demo.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_transfer-cti_transfer_demo.Tpo $(DEPDIR)/cti_transfer-cti_transfer_demo.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_transfer_demo.c' object='cti_transfer-cti_transfer_demo.o' libtool=no @AMDEPBACKSLASH@
+cti_transfer-cti_transfer_test.o: cti_transfer_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_transfer_CFLAGS) $(CFLAGS) -MT cti_transfer-cti_transfer_test.o -MD -MP -MF $(DEPDIR)/cti_transfer-cti_transfer_test.Tpo -c -o cti_transfer-cti_transfer_test.o `test -f 'cti_transfer_test.c' || echo '$(srcdir)/'`cti_transfer_test.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_transfer-cti_transfer_test.Tpo $(DEPDIR)/cti_transfer-cti_transfer_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_transfer_test.c' object='cti_transfer-cti_transfer_test.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_transfer_CFLAGS) $(CFLAGS) -c -o cti_transfer-cti_transfer_demo.o `test -f 'cti_transfer_demo.c' || echo '$(srcdir)/'`cti_transfer_demo.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_transfer_CFLAGS) $(CFLAGS) -c -o cti_transfer-cti_transfer_test.o `test -f 'cti_transfer_test.c' || echo '$(srcdir)/'`cti_transfer_test.c
 
-cti_transfer-cti_transfer_demo.obj: cti_transfer_demo.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_transfer_CFLAGS) $(CFLAGS) -MT cti_transfer-cti_transfer_demo.obj -MD -MP -MF $(DEPDIR)/cti_transfer-cti_transfer_demo.Tpo -c -o cti_transfer-cti_transfer_demo.obj `if test -f 'cti_transfer_demo.c'; then $(CYGPATH_W) 'cti_transfer_demo.c'; else $(CYGPATH_W) '$(srcdir)/cti_transfer_demo.c'; fi`
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_transfer-cti_transfer_demo.Tpo $(DEPDIR)/cti_transfer-cti_transfer_demo.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_transfer_demo.c' object='cti_transfer-cti_transfer_demo.obj' libtool=no @AMDEPBACKSLASH@
+cti_transfer-cti_transfer_test.obj: cti_transfer_test.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_transfer_CFLAGS) $(CFLAGS) -MT cti_transfer-cti_transfer_test.obj -MD -MP -MF $(DEPDIR)/cti_transfer-cti_transfer_test.Tpo -c -o cti_transfer-cti_transfer_test.obj `if test -f 'cti_transfer_test.c'; then $(CYGPATH_W) 'cti_transfer_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_transfer_test.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_transfer-cti_transfer_test.Tpo $(DEPDIR)/cti_transfer-cti_transfer_test.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_transfer_test.c' object='cti_transfer-cti_transfer_test.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_transfer_CFLAGS) $(CFLAGS) -c -o cti_transfer-cti_transfer_demo.obj `if test -f 'cti_transfer_demo.c'; then $(CYGPATH_W) 'cti_transfer_demo.c'; else $(CYGPATH_W) '$(srcdir)/cti_transfer_demo.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_transfer_CFLAGS) $(CFLAGS) -c -o cti_transfer-cti_transfer_test.obj `if test -f 'cti_transfer_test.c'; then $(CYGPATH_W) 'cti_transfer_test.c'; else $(CYGPATH_W) '$(srcdir)/cti_transfer_test.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

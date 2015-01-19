@@ -21,11 +21,11 @@ AM_LIBTOOLFLAGS = --quiet
 EXTRA_PROGRAMS = cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
 
 cti_barrier_CFLAGS			= $(AM_CFLAGS)
-cti_barrier_SOURCES			= cti_barrier_demo.c
+cti_barrier_SOURCES			= cti_barrier_test.c
 cti_barrier_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 
 cti_info_CFLAGS				= $(AM_CFLAGS)
-cti_info_SOURCES			= cti_info_demo.c
+cti_info_SOURCES			= cti_info_test.c
 cti_info_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 
 cti_link_CFLAGS				= $(AM_CFLAGS)
@@ -33,11 +33,11 @@ cti_link_SOURCES			= cti_linking_test.c
 cti_link_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -lcraytools_be
 
 cti_transfer_CFLAGS			= $(AM_CFLAGS)
-cti_transfer_SOURCES		= cti_transfer_demo.c
+cti_transfer_SOURCES		= cti_transfer_test.c
 cti_transfer_LDFLAGS		= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 
 cti_callback_CFLAGS			= $(AM_CFLAGS)
-cti_callback_SOURCES		= cti_callback_demo.c
+cti_callback_SOURCES		= cti_callback_test.c
 cti_callback_LDFLAGS		= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe -pthread
 
 cti_callback_daemon_CFLAGS	= $(AM_CFLAGS)
