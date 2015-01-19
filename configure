@@ -17836,7 +17836,7 @@ done
 ################
 ### Finalize ###
 ################
-ac_config_files="$ac_config_files Makefile cray-tools_be.pc cray-tools_fe.pc cray-audit.pc src/Makefile src/backend/Makefile src/daemon/Makefile src/frontend/Makefile src/ld_val/Makefile src/mpir_iface/Makefile src/slurm_util/Makefile src/useful/Makefile demos/Makefile"
+ac_config_files="$ac_config_files Makefile cray-tools_be.pc cray-tools_fe.pc cray-audit.pc src/Makefile src/backend/Makefile src/daemon/Makefile src/frontend/Makefile src/ld_val/Makefile src/mpir_iface/Makefile src/slurm_util/Makefile src/useful/Makefile tests/Makefile"
 
 
 cat >confcache <<\_ACEOF
@@ -18735,7 +18735,7 @@ do
     "src/mpir_iface/Makefile") CONFIG_FILES="$CONFIG_FILES src/mpir_iface/Makefile" ;;
     "src/slurm_util/Makefile") CONFIG_FILES="$CONFIG_FILES src/slurm_util/Makefile" ;;
     "src/useful/Makefile") CONFIG_FILES="$CONFIG_FILES src/useful/Makefile" ;;
-    "demos/Makefile") CONFIG_FILES="$CONFIG_FILES demos/Makefile" ;;
+    "tests/Makefile") CONFIG_FILES="$CONFIG_FILES tests/Makefile" ;;
 
   *) { { $as_echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 $as_echo "$as_me: error: invalid argument: $ac_config_target" >&2;}

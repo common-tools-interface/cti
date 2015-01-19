@@ -187,6 +187,23 @@ extern cti_wlm_type cti_current_wlm(void);
 extern const char * cti_wlm_type_toString(cti_wlm_type wlm_type);
 
 /*
+ * cti_getHostname - Returns the hostname of the current login node.
+ * 
+ * Detail
+ *      This function determines the hostname of the current login node. This
+ *      hostname can be used by tool daemons to create socket connections to
+ *      the frontend.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      A string containing the hostname, or else a null string on error.
+ * 
+ */
+extern char * cti_getHostname();
+
+/*
  * cti_deregisterApp - Assists in cleaning up internal allocated memory
  *                     associated with a previously registered application.
  * 
@@ -204,23 +221,6 @@ extern const char * cti_wlm_type_toString(cti_wlm_type wlm_type);
  *
  */
 extern void cti_deregisterApp(cti_app_id_t app_id);
-
-/*
- * cti_getHostname - Returns the hostname of the current login node.
- * 
- * Detail
- *      This function determines the hostname of the current login node. This
- *      hostname can be used by tool daemons to create socket connections to
- *      the frontend.
- *
- * Arguments
- *      None.
- *
- * Returns
- *      A string containing the hostname, or else a null string on error.
- * 
- */
-extern char * cti_getHostname();
 
 /*
  * cti_getLauncherHostName - Returns the hostname of the login node where the

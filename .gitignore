@@ -7,9 +7,6 @@
 /cray-tools_be.pc
 /cray-tools_fe.pc
 /cscope.out
-demos/.deps
-demos/Makefile
-demos/demo_binaries
 /external
 /install
 /libtool
@@ -35,3 +32,6 @@ src/useful/.deps
 src/useful/Makefile
 src/useful/cti_overwatch
 /stamp-h1
+tests/.deps
+tests/Makefile
+tests/demo_binaries

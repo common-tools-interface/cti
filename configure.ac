@@ -366,7 +366,7 @@ AC_CONFIG_FILES([	Makefile
 					src/mpir_iface/Makefile
 					src/slurm_util/Makefile
 					src/useful/Makefile
-					demos/Makefile
+					tests/Makefile
 ])
 
 AC_OUTPUT

@@ -1,7 +1,7 @@
 #
-# Makefile.am for the demo utilities
+# Makefile.am for the test utilities
 #
-# ©2011-2014 Cray Inc.  All Rights Reserved.
+# ©2011-2015 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -44,14 +44,14 @@ cti_callback_daemon_CFLAGS	= $(AM_CFLAGS)
 cti_callback_daemon_SOURCES = cti_callback_daemon.c
 cti_callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_be
 
-demos: cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
-	mkdir -p demo_binaries
-	cp testing.info demo_binaries
-	mv cti_barrier demo_binaries
-	mv cti_info demo_binaries
-	mv cti_link demo_binaries
-	mv cti_transfer demo_binaries
-	mv cti_callback demo_binaries
-	mv cti_callback_daemon demo_binaries
+tests: cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
+	mkdir -p test_binaries
+	cp testing.info test_binaries
+	mv cti_barrier test_binaries
+	mv cti_info test_binaries
+	mv cti_link test_binaries
+	mv cti_transfer test_binaries
+	mv cti_callback test_binaries
+	mv cti_callback_daemon test_binaries
 
-.PHONY: demos
+.PHONY: tests

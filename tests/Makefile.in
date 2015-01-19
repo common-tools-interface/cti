@@ -15,9 +15,9 @@
 @SET_MAKE@
 
 #
-# Makefile.am for the demo utilities
+# Makefile.am for the test utilities
 #
-# ©2011-2014 Cray Inc.  All Rights Reserved.
+# ©2011-2015 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -47,7 +47,7 @@ host_triplet = @host@
 EXTRA_PROGRAMS = cti_barrier$(EXEEXT) cti_info$(EXEEXT) \
 	cti_link$(EXEEXT) cti_transfer$(EXEEXT) cti_callback$(EXEEXT) \
 	cti_callback_daemon$(EXEEXT)
-subdir = demos
+subdir = tests
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/cray_extensions.m4 \
@@ -286,9 +286,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  demos/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  tests/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign  demos/Makefile
+	  $(AUTOMAKE) --foreign  tests/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -624,17 +624,17 @@ uninstall-am:
 	tags uninstall uninstall-am
 
 
-demos: cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
-	mkdir -p demo_binaries
-	cp testing.info demo_binaries
-	mv cti_barrier demo_binaries
-	mv cti_info demo_binaries
-	mv cti_link demo_binaries
-	mv cti_transfer demo_binaries
-	mv cti_callback demo_binaries
-	mv cti_callback_daemon demo_binaries
+tests: cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
+	mkdir -p test_binaries
+	cp testing.info test_binaries
+	mv cti_barrier test_binaries
+	mv cti_info test_binaries
+	mv cti_link test_binaries
+	mv cti_transfer test_binaries
+	mv cti_callback test_binaries
+	mv cti_callback_daemon test_binaries
 
-.PHONY: demos
+.PHONY: tests
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

@@ -1,7 +1,7 @@
 #
 # Top level Makefile.am for the craytool interface.
 #
-# ©2011-2013 Cray Inc.  All Rights Reserved.
+# Copyright 2011-2015 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -17,7 +17,7 @@
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src demos
+SUBDIRS = src tests
 
 EXTRA_DIST = cray-tools_be.pc.in cray-tools_fe.pc.in cray-audit.pc.in \
 	     release_versioning
@@ -28,7 +28,7 @@ pkgconfig_DATA = cray-tools_be.pc cray-tools_fe.pc \
 
 include_HEADERS = include/cray_tools_be.h include/cray_tools_fe.h
 
-demos:
-	cd demos && $(MAKE) $(AM_MAKEFLAGS) demos
+tests:
+	cd tests && $(MAKE) $(AM_MAKEFLAGS) tests
 
-.PHONY: demos
+.PHONY: tests

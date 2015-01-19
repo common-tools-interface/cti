@@ -17,7 +17,7 @@
 #
 # Top level Makefile.am for the craytool interface.
 #
-# ©2011-2013 Cray Inc.  All Rights Reserved.
+# Copyright 2011-2015 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -239,7 +239,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
-SUBDIRS = src demos
+SUBDIRS = src tests
 EXTRA_DIST = cray-tools_be.pc.in cray-tools_fe.pc.in cray-audit.pc.in \
 	     release_versioning
 
@@ -742,10 +742,10 @@ uninstall-am: uninstall-includeHEADERS uninstall-pkgconfigDATA
 	uninstall-pkgconfigDATA
 
 
-demos:
-	cd demos && $(MAKE) $(AM_MAKEFLAGS) demos
+tests:
+	cd tests && $(MAKE) $(AM_MAKEFLAGS) tests
 
-.PHONY: demos
+.PHONY: tests
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:
