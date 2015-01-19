@@ -1,7 +1,7 @@
 /*********************************************************************************\
- * cti_transfer_demo.c - An example program which takes advantage of the Cray
+ * cti_transfer_test.c - An example program which takes advantage of the Cray
  *			tools interface which will launch an application session from the
- *			given argv and transfer demo files.
+ *			given argv and transfer test files.
  *
  * © 2011-2015 Cray Inc.  All Rights Reserved.
  *

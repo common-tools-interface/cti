@@ -1,10 +1,9 @@
 /******************************************************************************\
- * cti_barrier_demo.c - An example program which takes advantage of the Cray
- *			tools interface which will launch an application from the given
- *			argv, display information about the job, and hold it at the 
- *			startup barrier.
+ * cti_info_test.c - An example program which takes advantage of the Cray
+ *			tools interface which will gather information from the WLM about a
+ *          previously launched job.
  *
- * © 2011-2014 Cray Inc.	All Rights Reserved.
+ * © 2012-2014 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -19,18 +18,36 @@
  *
  ******************************************************************************/
 
+#include <errno.h>
+#include <getopt.h>
+#include <inttypes.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #include "cray_tools_fe.h"
 
+const struct option long_opts[] = {
+			{"apid",		required_argument,	0, 'a'},
+			{"jobid",		required_argument,	0, 'j'},
+			{"stepid",		required_argument,	0, 's'},
+			{"help",		no_argument,		0, 'h'},
+			{0, 0, 0, 0}
+			};
+
 void
 usage(char *name)
 {
-	fprintf(stdout, "USAGE: %s [LAUNCHER STRING]\n", name);
-	fprintf(stdout, "Launch an application using the cti library\n");
-	fprintf(stdout, "and print out information.\n");
+	fprintf(stdout, "USAGE: %s [OPTIONS]...\n", name);
+	fprintf(stdout, "Gather information about a previously launched application\n");
+	fprintf(stdout, "using the Cray tools interface.\n\n");
+	
+	fprintf(stdout, "\t-a, --apid      alps apid - ALPS WLM only\n");
+	fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
+	fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");
+	fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
+	
 	fprintf(stdout, "Written by andrewg@cray.com\n");
 	return;
 }
@@ -38,7 +55,16 @@ usage(char *name)
 int
 main(int argc, char **argv)
 {
-	int rtn = 0;
+	int					opt_ind = 0;
+	int					c;
+	int					rtn = 0;
+	char *				eptr;
+	int					a_arg = 0;
+	int					j_arg = 0;
+	int					s_arg = 0;
+	uint64_t			apid = 0;
+	uint32_t			job_id = 0;
+	uint32_t			step_id = 0;
 	// values returned by the tool_frontend library.
 	cti_wlm_type		mywlm;
 	char *				myhostname;
@@ -58,7 +84,114 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	printf("\nThe following is alps information about your application that the tool interface gathered:\n\n");
+	// process longopts
+	while ((c = getopt_long(argc, argv, "a:j:s:h", long_opts, &opt_ind)) != -1)
+	{
+		switch (c)
+		{
+			case 0:
+				// if this is a flag, do nothing
+				break;
+				
+			case 'a':
+				if (optarg == NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				// This is the apid
+				errno = 0;
+				apid = (uint64_t)strtoll(optarg, &eptr, 10);
+				
+				// check for error
+				if ((errno == ERANGE && apid == ULLONG_MAX)
+						|| (errno != 0 && apid == 0))
+				{
+					perror("strtoll");
+					return 1;
+				}
+				
+				// check for invalid input
+				if (eptr == optarg || *eptr != '\0')
+				{
+					fprintf(stderr, "Invalid --apid argument.\n");
+					return 1;
+				}
+				
+				a_arg = 1;
+				
+				break;
+			
+			case 'j':
+				if (optarg == NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				// This is the job id
+				errno = 0;
+				job_id = (uint32_t)strtol(optarg, &eptr, 10);
+				
+				// check for error
+				if ((errno == ERANGE && job_id == ULONG_MAX)
+						|| (errno != 0 && job_id == 0))
+				{
+					perror("strtol");
+					return 1;
+				}
+				
+				// check for invalid input
+				if (eptr == optarg || *eptr != '\0')
+				{
+					fprintf(stderr, "Invalid --jobid argument.\n");
+					return 1;
+				}
+				
+				j_arg = 1;
+				
+				break;
+				
+			case 's':
+				if (optarg == NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				// This is the step id
+				errno = 0;
+				step_id = (uint32_t)strtol(optarg, &eptr, 10);
+				
+				// check for error
+				if ((errno == ERANGE && step_id == ULONG_MAX)
+						|| (errno != 0 && step_id == 0))
+				{
+					perror("strtol");
+					return 1;
+				}
+				
+				// check for invalid input
+				if (eptr == optarg || *eptr != '\0')
+				{
+					fprintf(stderr, "Invalid --stepid argument.\n");
+					return 1;
+				}
+				
+				s_arg = 1;
+				
+				break;
+				
+			case 'h':
+				usage(argv[0]);
+				return 0;
+				
+			default:
+				usage(argv[0]);
+				return 1;
+		}
+	}
 	
 	/*
 	 * cti_current_wlm - Obtain the current workload manager (WLM) in use on the 
@@ -82,18 +215,44 @@ main(int argc, char **argv)
 		free(myhostname);
 	}
 	
-	/*
-	 * cti_launchAppBarrier - Start an application using the application launcher
-	 *                        with the provided argv array and have the launcher
-	 *                        hold the application at its startup barrier for 
-	 *                        MPI/SHMEM/UPC/CAF applications.
-	 */
-	if ((myapp = cti_launchAppBarrier((const char * const *)&argv[1],0,0,0,0,NULL,NULL,NULL)) == 0)
+	// Check the args to make sure they are valid given the wlm in use
+	switch (mywlm)
 	{
-		fprintf(stderr, "Error: cti_launchAppBarrier failed!\n");
-		fprintf(stderr, "CTI error: %s\n", cti_error_str());
-		return 1;
+		case CTI_WLM_ALPS:
+			if (!a_arg)
+			{
+				fprintf(stderr, "Error: Missing --apid argument. This is required with the ALPS WLM.\n");
+				return 1;
+			}
+			if ((myapp = cti_alps_registerApid(apid)) == 0)
+			{
+				fprintf(stderr, "Error: cti_alps_registerApid failed!\n");
+				fprintf(stderr, "CTI error: %s\n", cti_error_str());
+				return 1;
+			}
+			break;
+			
+		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
+			if (!(j_arg && s_arg))
+			{
+				fprintf(stderr, "Error: Missing --jobid and --stepid argument. This is required for the SLURM WLM.\n");
+				return 1;
+			}
+			if ((myapp = cti_cray_slurm_registerJobStep(job_id, step_id)) == 0)
+			{
+				fprintf(stderr, "Error: cti_cray_slurm_registerJobStep failed!\n");
+				fprintf(stderr, "CTI error: %s\n", cti_error_str());
+				return 1;
+			}
+			break;
+		
+		case CTI_WLM_NONE:
+			fprintf(stderr, "Error: Unsupported WLM in use!\n");
+			return 1;
 	}
+	
+	printf("\nThe following is information about your application that the tool interface gathered:\n\n");
 	
 	// Conduct WLM specific calls
 	switch (mywlm)
@@ -101,14 +260,13 @@ main(int argc, char **argv)
 		case CTI_WLM_ALPS:
 		{
 			cti_aprunProc_t *	myapruninfo;
-			int					ordinal;
-		
+			
 			/*
-			 * cti_getAprunInfo - Obtain information about the aprun process
+			 * cti_alps_getAprunInfo - Obtain information about the aprun process
 			 */
 			if ((myapruninfo = cti_alps_getAprunInfo(myapp)) == NULL)
 			{
-				fprintf(stderr, "Error: cti_getAprunInfo failed!\n");
+				fprintf(stderr, "Error: cti_alps_getAprunInfo failed!\n");
 				fprintf(stderr, "CTI error: %s\n", cti_error_str());
 				rtn = 1;
 			} else
@@ -117,12 +275,6 @@ main(int argc, char **argv)
 				printf("pid_t of aprun: %d\n", myapruninfo->aprunPid);
 				free(myapruninfo);
 			}
-			/*
-			*  cti_alps_getAlpsOverlapOrdinal - Obtain overlap ordinal. This can fail on
-			*                                   some systems.
-			*/
-			ordinal = cti_alps_getAlpsOverlapOrdinal(myapp);
-			printf("alps overlap ordinal: %d\n", ordinal);
 		}
 			break;
 			
@@ -238,19 +390,6 @@ main(int argc, char **argv)
 			printf("On host %s there are %d PEs.\n", myhostplacement->hosts[j].hostname, myhostplacement->hosts[j].numPes);
 		}
 		cti_destroyHostsList(myhostplacement);
-	}
-	
-	printf("\nHit return to release the application from the startup barrier...");
-	
-	// just read a single character from stdin then release the app/exit
-	(void)getchar();
-	
-	if (cti_releaseAppBarrier(myapp))
-	{
-		fprintf(stderr, "Error: cti_releaseAppBarrier failed!\n");
-		fprintf(stderr, "CTI error: %s\n", cti_error_str());
-		cti_killApp(myapp, 9);
-		return 1;
 	}
 	
 	cti_deregisterApp(myapp);

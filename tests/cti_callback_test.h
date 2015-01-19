@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * cti_callback_demo.h - Header file for the cti_callback_demo.
+ * cti_callback_test.h - Header file for the cti_callback_test.
  *
  * © 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -16,8 +16,8 @@
  *
  *********************************************************************************/
 
-#ifndef _CTI_CALLBACK_DEMO_H
-#define _CTI_CALLBACK_DEMO_H
+#ifndef _CTI_CALLBACK_TEST_H
+#define _CTI_CALLBACK_TEST_H
 
 /* internal defines */
 // Port declarations are arbitrary for now. This might cause problems
@@ -70,4 +70,4 @@ void *  callback_listener(void *);
 int     callback_create(void);
 void    callback_destroy(void *);
 
-#endif /* _CTI_CALLBACK_DEMO_H */
+#endif /* _CTI_CALLBACK_TEST_H */

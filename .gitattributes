@@ -95,11 +95,11 @@ src/useful/cti_stringList.h -text
 src/useful/cti_useful.h -text
 tests/Makefile.am -text
 tests/Makefile.in -text
-tests/cti_barrier_demo.c -text
+tests/cti_barrier_test.c -text
 tests/cti_callback_daemon.c -text
-tests/cti_callback_demo.c -text
-tests/cti_callback_demo.h -text
-tests/cti_info_demo.c -text
+tests/cti_callback_test.c -text
+tests/cti_callback_test.h -text
+tests/cti_info_test.c -text
 tests/cti_linking_test.c -text
-tests/cti_transfer_demo.c -text
+tests/cti_transfer_test.c -text
 tests/testing.info -text

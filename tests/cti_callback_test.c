@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * cti_callback_demo.c - An example program which takes advantage of the Cray
+ * cti_callback_test.c - An example program which takes advantage of the Cray
  *			Tool Interface which will launch an aprun session from the given
  *			argv, transfer and launch a simple tool daemon that will
  *			communicate with the frontend over a simple socket connection.
@@ -34,7 +34,7 @@
 
 #include "cray_tools_fe.h"
 
-#include "cti_callback_demo.h"
+#include "cti_callback_test.h"
 
 /* global variables */
 int					registered_nodes = 0;

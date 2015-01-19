@@ -1,8 +1,8 @@
 /*********************************************************************************\
  * cti_callback_daemon.c - The compute node daemon portion of the 
- *                         cti_callback_demo.
+ *                         cti_callback_test.
  *
- * © 2011-2014 Cray Inc.	All Rights Reserved.
+ * © 2011-2015 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -33,7 +33,7 @@
 
 #include "cray_tools_be.h"
 
-#include "cti_callback_demo.h"
+#include "cti_callback_test.h"
 
 const struct option long_opts[] = {
 			{"hostname", required_argument, 0, 'h'},
