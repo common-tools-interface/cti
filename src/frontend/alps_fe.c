@@ -1364,6 +1364,11 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 			_cti_alps_consumeAprunInv(myapp);
 			return 0;
 		}
+	} else
+	{
+		// sleep long enough for the forked process to exec itself so that the
+		// check for wrapped aprun process doesn't fail.
+		sleep(1);
 	}
 	
 	// The following code was added to detect if a site is using a wrapper script

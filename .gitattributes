@@ -99,7 +99,10 @@ tests/cti_barrier_test.c -text
 tests/cti_callback_daemon.c -text
 tests/cti_callback_test.c -text
 tests/cti_callback_test.h -text
+tests/cti_fe_common.c -text
+tests/cti_fe_common.h -text
 tests/cti_info_test.c -text
+tests/cti_launch_test.c -text
 tests/cti_linking_test.c -text
 tests/cti_transfer_test.c -text
 tests/testing.info -text

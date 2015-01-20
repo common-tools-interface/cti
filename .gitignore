@@ -34,4 +34,4 @@ src/useful/cti_overwatch
 /stamp-h1
 tests/.deps
 tests/Makefile
-tests/demo_binaries
+tests/test_binaries

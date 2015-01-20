@@ -489,6 +489,22 @@ cti_wlm_type_toString(cti_wlm_type wlm_type)
 	return "Invalid WLM.";
 }
 
+int
+cti_appIsValid(cti_app_id_t appId)
+{
+	appEntry_t *	this;
+
+	// sanity check
+	if (appId == 0)
+		return 0;
+		
+	// find the appEntry_t obj
+	if ((this = _cti_findAppEntry(appId)) == NULL)
+		return 0;
+		
+	return 1;
+}
+
 void
 cti_deregisterApp(cti_app_id_t appId)
 {

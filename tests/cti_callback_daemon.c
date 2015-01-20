@@ -2,7 +2,7 @@
  * cti_callback_daemon.c - The compute node daemon portion of the 
  *                         cti_callback_test.
  *
- * © 2011-2015 Cray Inc.	All Rights Reserved.
+ * Copyright 2011-2015 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

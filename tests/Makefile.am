@@ -1,7 +1,7 @@
 #
 # Makefile.am for the test utilities
 #
-# ©2011-2015 Cray Inc.  All Rights Reserved.
+# Copyright 2011-2015 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -18,14 +18,19 @@
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
 AM_LIBTOOLFLAGS = --quiet
 
-EXTRA_PROGRAMS = cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
+EXTRA_PROGRAMS = cti_barrier cti_launch cti_info cti_link cti_transfer cti_callback \
+				 cti_callback_daemon
 
 cti_barrier_CFLAGS			= $(AM_CFLAGS)
-cti_barrier_SOURCES			= cti_barrier_test.c
+cti_barrier_SOURCES			= cti_barrier_test.c cti_fe_common.c
 cti_barrier_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 
+cti_launch_CFLAGS			= $(AM_CFLAGS)
+cti_launch_SOURCES			= cti_launch_test.c cti_fe_common.c
+cti_launch_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
+
 cti_info_CFLAGS				= $(AM_CFLAGS)
-cti_info_SOURCES			= cti_info_test.c
+cti_info_SOURCES			= cti_info_test.c cti_fe_common.c
 cti_info_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_fe
 
 cti_link_CFLAGS				= $(AM_CFLAGS)
@@ -44,10 +49,11 @@ cti_callback_daemon_CFLAGS	= $(AM_CFLAGS)
 cti_callback_daemon_SOURCES = cti_callback_daemon.c
 cti_callback_daemon_LDFLAGS = $(LDFLAGS) -Wl,-rpath,$(libdir) -lcraytools_be
 
-tests: cti_barrier cti_info cti_link cti_transfer cti_callback cti_callback_daemon
+tests: cti_barrier cti_launch cti_info cti_link cti_transfer cti_callback cti_callback_daemon
 	mkdir -p test_binaries
 	cp testing.info test_binaries
 	mv cti_barrier test_binaries
+	mv cti_launch test_binaries
 	mv cti_info test_binaries
 	mv cti_link test_binaries
 	mv cti_transfer test_binaries

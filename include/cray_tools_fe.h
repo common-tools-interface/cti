@@ -204,6 +204,22 @@ extern const char * cti_wlm_type_toString(cti_wlm_type wlm_type);
 extern char * cti_getHostname();
 
 /*
+ * cti_appIsValid - Test if a cti_app_id_t is still valid
+ * Detail
+ *      This function is used to test if a cti_app_id_t is still valid. An 
+ *      app_id becomes invalid for future use upon calling the cti_deregisterApp
+ *      function.
+ *
+ * Arguments
+ *      app_id - The cti_app_id_t of the previously registered application.
+ *
+ * Returns
+ *      0 if the app_id is invalid, 1 if the app_id is still valid.
+ *
+ */
+extern int cti_appIsValid(cti_app_id_t app_id);
+
+/*
  * cti_deregisterApp - Assists in cleaning up internal allocated memory
  *                     associated with a previously registered application.
  * 
@@ -211,7 +227,13 @@ extern char * cti_getHostname();
  *      For applications that use the tool interface that wish to operate over
  *      many different applications at once, this function can be used to free
  *      up and destroy any internal data structures that were created for use
- *      with the app_id of the registered application.
+ *      with the app_id of the registered application. The app_id will no longer
+ *      be valid for future use.
+ *
+ *      If the cti_launchApp or cti_launchAppBarrier functions were used to
+ *      start the application, the caller must call cti_deregisterApp before
+ *      exiting. Failing to do so will cause the application process to be
+ *      force killed with SIGKILL.
  *
  * Arguments
  *      app_id - The cti_app_id_t of the previously registered application.

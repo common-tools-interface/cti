@@ -2,7 +2,7 @@
  * cti_linking_test.c - An example program that tests linking in both FE and BE
  *                      libraries at the same time
  *
- * © 2014 Cray Inc.	All Rights Reserved.
+ * Copyright 2014-2015 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

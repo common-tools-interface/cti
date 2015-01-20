@@ -4,7 +4,7 @@
  *			argv, transfer and launch a simple tool daemon that will
  *			communicate with the frontend over a simple socket connection.
  *
- * © 2011-2015 Cray Inc.	All Rights Reserved.
+ * Copyright 2011-2015 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -313,7 +313,7 @@ main(int argc, char **argv)
 	}
 	
 	// call aprun
-	if ((myapp = cti_launchAppBarrier((const char * const *)&argv[1],0,0,0,0,NULL,NULL,NULL)) <= 0)
+	if ((myapp = cti_launchAppBarrier((const char * const *)&argv[1],-1,-1,NULL,NULL,NULL)) <= 0)
 	{
 		fprintf(stderr, "cti_launchAppBarrier failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());

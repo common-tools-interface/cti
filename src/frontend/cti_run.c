@@ -211,10 +211,6 @@ cti_killApp(cti_app_id_t appId, int signum)
 	// Call the appropriate app kill function based on the wlm
 	rtn = app_ptr->wlmProto->wlm_killApp(app_ptr->_wlmObj, signum);
 	
-	// deregister this apid from the interface
-	if (!rtn)
-		cti_deregisterApp(appId);
-	
 	return rtn;
 }
 
