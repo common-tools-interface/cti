@@ -27,7 +27,7 @@ typedef struct
 	FILE *	pipe_w;		// my write stream
 } cti_overwatch_t;
 
-cti_overwatch_t *	_cti_create_overwatch(void);
+cti_overwatch_t *	_cti_create_overwatch(const char *);
 int					_cti_assign_overwatch(cti_overwatch_t *, pid_t);
 void				_cti_exit_overwatch(cti_overwatch_t *);
 

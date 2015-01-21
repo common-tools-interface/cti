@@ -32,10 +32,10 @@
  * read are defined here.  Note that the value of these environment
  * variables are subject to change. Use the defines to guarantee portability.
  *
- * CTI_LIBAUDIT_ENV_VAR (required)
+ * CTI_BASE_DIR_ENV_VAR (required)
  *
- *         Used to define the absolute path to the audit library. This is
- *         required to be defined.
+ *         Used to define the absolute path to the CTI install directory. This
+ *         is required to be defined.
  *
  * CTI_DBG_LOG_DIR_ENV_VAR (optional)
  *
@@ -71,11 +71,10 @@
  *         to wait an order of magnitude less than the amount of time it took to
  *         open the pmi_attribs file.
  *
- * CTI_CFG_DIR_ENV_VAR (required)
+ * CTI_CFG_DIR_ENV_VAR (optional)
  *
  *         Used to define a location to write internal temporary files and 
- *         directories to. The caller must have write permission inside this 
- *         directory.
+ *         directories to. This directory must have permissions 0700!
  *
  * CTI_DAEMON_STAGE_DIR_ENV_VAR (optional - CAUTION!)
  *
@@ -86,7 +85,7 @@
  *         conflicting file names.
  * 
  */
-#define CTI_LIBAUDIT_ENV_VAR            "CRAY_LD_VAL_LIBRARY"
+#define CTI_BASE_DIR_ENV_VAR            "CRAY_CTI_DIR"
 #define CTI_DBG_LOG_DIR_ENV_VAR         "CRAY_DBG_LOG_DIR"
 #define CTI_USER_DEF_APRUN_EXE_ENV_VAR  "CRAY_APRUN_PATH"
 #define CTI_GDB_LOC_ENV_VAR             "CRAY_CTI_GDB_PATH"

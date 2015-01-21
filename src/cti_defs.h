@@ -55,6 +55,7 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
 #define CTI_OVERWATCH_BINARY		"cti_overwatch"									// name of the overwatch binary
 #define DEFAULT_SIG				9													// default signal value to use
 #define WLM_DETECT_LIB_NAME		"libwlm_detect.so"								// wlm_detect library
+#define LD_AUDIT_LIB_NAME		"libaudit.so"										// ld audit library
 
 /*******************************************************************************
 ** MPIR_iface specific information
@@ -138,6 +139,7 @@ typedef struct
 ** define and the library reads in, and (set) are environment variables that
 ** are set in the users environment by the library.
 *******************************************************************************/
+#define BASE_DIR_ENV_VAR					"CRAY_CTI_DIR"						// Frontend: Used to define the base install location (read)
 #define USER_DEF_APRUN_LOC_ENV_VAR		"CRAY_APRUN_PATH"					// Frontend: Used to override the default location of the aprun binary (read)
 #define GDB_LOC_ENV_VAR					"CRAY_CTI_GDB_PATH"				// Frontend: Used to override the default location of gdb for the MPIR_iface (read)
 #define CFG_DIR_VAR						"CRAY_CTI_CFG_DIR"				// Frontend: Used to define a writable location to create the manifest tarball (read)

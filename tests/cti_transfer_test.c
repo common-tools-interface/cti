@@ -116,8 +116,6 @@ main(int argc, char **argv)
 	// Ensure manifest is no longer valid
 	assert(cti_manifestIsValid(mymid) == 0);
 	
-	printf("Sent testing.info to the directory %s on the compute node(s).\n", file_loc);
-	
 	// Get the location of the directory where the file now resides on the
 	// compute node
 	file_loc = cti_getSessionFileDir(mysid);
@@ -127,6 +125,8 @@ main(int argc, char **argv)
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());
 	}
 	assert(file_loc != NULL);
+	
+	printf("Sent testing.info to the directory %s on the compute node(s).\n", file_loc);
 	
 	// Get the current WLM in use so that we can verify based on that
 	mywlm = cti_current_wlm();

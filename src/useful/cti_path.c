@@ -20,6 +20,7 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -27,6 +28,7 @@
 #include <limits.h>
 #include <string.h>
 #include <strings.h>
+#include <stdlib.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -53,12 +55,12 @@ _cti_pathFind(const char *file, const char *envPath)
 	char    *savePtr = NULL;
 	char    *retval;
 
-	if (file == (char *)NULL) 
+	if (file == NULL) 
 	{
-		return (char *)NULL;
+		return NULL;
 	}
 
-	/* Check for possible relative or absolute path */
+	// Check for possible relative or absolute path
 	if (file[0] == '.' || file[0] == '/') 
 	{
 		if (stat(file, &stat_buf) == 0) 
@@ -66,16 +68,17 @@ _cti_pathFind(const char *file, const char *envPath)
 			// stat resolves symbolic links
 			if (!S_ISREG(stat_buf.st_mode))
 			{
-				/* can't execute a directory, or special files */
-				return (char *)NULL;
+				// can't execute a directory, or special files
+				return NULL;
 			} else
 			{
-				return strdup(file);
+				// call realpath to resolve any funny business in the file string
+				return realpath(file, NULL);
 			}
 		} else 
 		{
-			/* can't access file */
-			return (char *)NULL;
+			// can't access file
+			return NULL;
 		}
 	}
 
@@ -85,10 +88,10 @@ _cti_pathFind(const char *file, const char *envPath)
 		envPath = "PATH";
 	}
 
-	if ((tmp = getenv(envPath)) == (char *)NULL)
+	if ((tmp = getenv(envPath)) == NULL)
 	{
-		/* nothing in path to search */
-		return (char *)NULL;
+		// nothing in path to search
+		return NULL;
 	}
 	path = strdup(tmp);
 
@@ -108,7 +111,8 @@ _cti_pathFind(const char *file, const char *envPath)
 			// we can stat it so make sure its a regular file.
 			if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
 			{
-				retval = strdup(buf);
+				// This file matches
+				retval = realpath(buf, NULL);
 				free(path);
 				return retval;
 			}
@@ -120,7 +124,7 @@ _cti_pathFind(const char *file, const char *envPath)
 	free(path);
 	
 	// not found
-	return (char *)NULL;
+	return NULL;
 }
 
 /*
@@ -159,15 +163,16 @@ _cti_libFind(const char *file)
 			if (!S_ISREG(stat_buf.st_mode))
 			{
 				/* can't execute a directory, or special files */
-				return (char *)NULL;
+				return NULL;
 			} else
 			{
-				return strdup(file);
+				// call realpath to resolve any funny business in the file string
+				return realpath(file, NULL);
 			}
 		} else 
 		{
 			/* can't access file */
-			return (char *)NULL;
+			return NULL;
 		}
 	}
 
@@ -194,7 +199,7 @@ _cti_libFind(const char *file)
 				// we can stat it so make sure its a regular file.
 				if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
 				{
-					retval = strdup(buf);
+					retval = realpath(buf, NULL);
 					free(path);
 					return retval;
 				}
@@ -241,7 +246,8 @@ _cti_libFind(const char *file)
 						if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
 						{
 							// found the library
-							retval = res;
+							retval = realpath(res, NULL);
+							free(res);
 							free(base);
 							pclose(fp);
 							return retval;
@@ -271,7 +277,7 @@ _cti_libFind(const char *file)
 			// we can stat it so make sure its a regular file or sym link.
 			if (S_ISREG(stat_buf.st_mode)) 
 			{
-				retval = strdup(buf);
+				retval = realpath(buf, NULL);
 				free(extraPath);
 				return retval;
 			}
@@ -300,7 +306,7 @@ _cti_adjustPaths(const char *path)
 	char *libpath = NULL;
 	
 	// sanity check
-	if (path == (char *)NULL)
+	if (path == NULL)
 		return 1;
 	
 	// stat the directory to get its current perms
@@ -360,3 +366,106 @@ _cti_pathToName(const char *path)
 	return strdup(++end);
 }
 
+// This will act as a rm -rf ...
+int
+_cti_removeDirectory(const char *path)
+{
+	DIR *			dir;
+	struct dirent *	d;
+	char *			name_path;
+	struct stat		statbuf;
+
+	// sanity check
+	if (path == NULL)
+	{
+		//_cti_set_error("_cti_removeDirectory: invalid args.");
+		return 1;
+	}
+	
+	// open the directory
+	if ((dir = opendir(path)) == NULL)
+	{
+		//_cti_set_error("_cti_removeDirectory: Could not opendir %s.", path);
+		return 1;
+	}
+	
+	// Recurse over every file in the directory
+	while ((d = readdir(dir)) != NULL)
+	{
+		// ensure this isn't the . or .. file
+		switch (strlen(d->d_name))
+		{
+			case 1:
+				if (d->d_name[0] == '.')
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+				
+			case 2:
+				if (strcmp(d->d_name, "..") == 0)
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+			
+			default:
+				break;
+		}
+	
+		// create the full path name
+		if (asprintf(&name_path, "%s/%s", path, d->d_name) <= 0)
+		{
+			//_cti_set_error("_cti_removeDirectory: asprintf failed.");
+			closedir(dir);
+			return 1;
+		}
+		
+		// stat the file
+		if (stat(name_path, &statbuf) == -1)
+		{
+			//_cti_set_error("_cti_removeDirectory: Could not stat %s.", name_path);
+			closedir(dir);
+			free(name_path);
+			return 1;
+		}
+		
+		// if this is a directory we need to recursively call this function
+		if (S_ISDIR(statbuf.st_mode))
+		{
+			if (_cti_removeDirectory(name_path))
+			{
+				// error already set
+				closedir(dir);
+				free(name_path);
+				return 1;
+			}
+		} else
+		{
+			// remove the file
+			if (remove(name_path))
+			{
+				//_cti_set_error("_cti_removeDirectory: Could not remove %s.", name_path);
+				closedir(dir);
+				free(name_path);
+				return 1;
+			}
+		}
+		// done with this file
+		free(name_path);
+	}
+	
+	// done with the directory
+	closedir(dir);
+	
+	// remove the directory
+	if (remove(path))
+	{
+		//_cti_set_error("_cti_removeDirectory: Could not remove %s.", path);
+		return 1;
+	}
+	
+	return 0;
+}

@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <archive.h>
 #include <archive_entry.h>
@@ -1087,6 +1088,7 @@ _cti_copyFileToArchive(struct archive *a, struct archive_entry *entry, const cha
 	
 	// cleanup
 	close(fd);
+	
 	return 0;
 }
 
@@ -1398,11 +1400,27 @@ _cti_addBinary(manifest_t *m_ptr, const char *fstr)
 	int				rtn;
 	char **			lib_array;	// the returned list of strings containing the required libraries by the executable
 	char **			tmp;		// temporary pointer used to iterate through lists of strings
+	const char *	ldval_path;
+	
+	// sanity
+	ldval_path = _cti_getLdAuditPath();
+	if (ldval_path == NULL)
+	{
+		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+		return 1;
+	}
 	
 	// first we should ensure that the binary exists and convert it to its fullpath name
 	if ((fullname = _cti_pathFind(fstr, NULL)) == NULL)
 	{
 		_cti_set_error("Could not locate the specified file in PATH.");
+		return 1;
+	}
+	
+	// ensure that the binary has exec perms
+	if (access(fullname, R_OK | X_OK))
+	{
+		_cti_set_error("Specified binary does not have execute permissions.");
 		return 1;
 	}
 	
@@ -1490,7 +1508,7 @@ _cti_addBinary(manifest_t *m_ptr, const char *fstr)
 	}
 	
 	// call the ld_val interface to determine if this executable has any dso requirements
-	lib_array = _cti_ld_val(fullname);
+	lib_array = _cti_ld_val(fullname, ldval_path);
 	
 	// If this executable has dso requirements. We need to add them to the manifest
 	tmp = lib_array;
@@ -2239,6 +2257,12 @@ _cti_packageManifestAndShip(manifest_t *m_ptr)
 		goto packageManifestAndShip_error;
 	}
 	
+	// finalize the archive - this must be done before the tarball is shipped.
+	archive_entry_free(entry);
+	entry = NULL;
+	archive_write_free(a);
+	a = NULL;
+	
 	// Call the appropriate transfer function based on the wlm
 	if (MANIF_APP(m_ptr)->wlmProto->wlm_shipPackage(MANIF_APP(m_ptr)->_wlmObj, tar_name))
 	{
@@ -2250,15 +2274,11 @@ _cti_packageManifestAndShip(manifest_t *m_ptr)
 	// increment instCnt in session obj since we shipped successfully
 	MANIF_SESS(m_ptr)->instCnt++;
 	
-	// clean things up
+	// cleanup
 	free(cb_data);
 	cb_data = NULL;
 	free(read_buf);
 	read_buf = NULL;
-	archive_entry_free(entry);
-	entry = NULL;
-	archive_write_free(a);
-	a = NULL;
 	free(bin_path);
 	bin_path = NULL;
 	free(lib_path);
@@ -2301,20 +2321,6 @@ packageManifestAndShip_error:
 		free(tmp_path);
 	}
 	
-	if (tar_name != NULL)
-	{
-		unlink(tar_name);
-		_cti_tar_file = NULL;
-		free(tar_name);
-	}
-	
-	if (hidden_tar_name != NULL)
-	{
-		unlink(hidden_tar_name);
-		_cti_hidden_file = NULL;
-		free(hidden_tar_name);
-	}
-	
 	if (hfp != NULL)
 	{
 		fclose(hfp);
@@ -2329,6 +2335,20 @@ packageManifestAndShip_error:
 	if (a != NULL)
 	{
 		archive_write_free(a);
+	}
+	
+	if (tar_name != NULL)
+	{
+		unlink(tar_name);
+		_cti_tar_file = NULL;
+		free(tar_name);
+	}
+	
+	if (hidden_tar_name != NULL)
+	{
+		unlink(hidden_tar_name);
+		_cti_hidden_file = NULL;
+		free(hidden_tar_name);
 	}
 	
 	if (read_buf != NULL)
@@ -2824,6 +2844,13 @@ cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon, const char * const
 	if ((fullname = _cti_pathFind(daemon, NULL)) == NULL)
 	{
 		_cti_set_error("Could not locate the specified tool daemon binary in PATH.");
+		goto execToolDaemon_error;
+	}
+	
+	// ensure that the binary has exec perms
+	if (access(fullname, R_OK | X_OK))
+	{
+		_cti_set_error("Specified tool daemon binary does not have execute permissions.");
 		goto execToolDaemon_error;
 	}
 	

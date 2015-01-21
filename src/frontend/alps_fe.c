@@ -1191,12 +1191,23 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		return 0;
 	}
 	
+	const char *owatch_path = _cti_getOverwatchPath();
+	if (owatch_path == NULL)
+	{
+		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+		_cti_alps_consumeAprunInv(myapp);
+		_cti_freeArgs(my_args);
+		_cti_restore_signals(mask);
+		return 0;
+	}
+	
 	// setup overwatch to ensure aprun gets killed off on error
-	if ((myapp->o_watch = _cti_create_overwatch()) == NULL)
+	if ((myapp->o_watch = _cti_create_overwatch(owatch_path)) == NULL)
 	{
 		_cti_set_error("_cti_create_overwatch failed.");
 		_cti_alps_consumeAprunInv(myapp);
 		_cti_freeArgs(my_args);
+		_cti_restore_signals(mask);
 		return 0;
 	}
 	
@@ -1209,6 +1220,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		_cti_set_error("Fatal fork error.");
 		_cti_alps_consumeAprunInv(myapp);
 		_cti_freeArgs(my_args);
+		_cti_restore_signals(mask);
 		return 0;
 	}
 	
@@ -1726,6 +1738,7 @@ _cti_alps_killApp(cti_wlm_obj this, int signum)
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execvp");
 		exit(1);
 	}
 	
@@ -1836,17 +1849,15 @@ _cti_alps_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	if (do_transfer)
 	{
 		// Need to transfer launcher binary
+		const char * launcher_path;
 		
-		// Find the location of the daemon launcher program
-		if ((launcher = _cti_pathFind(CTI_LAUNCHER, NULL)) == NULL)
+		// Get the location of the daemon launcher
+		if ((launcher_path = _cti_getDlaunchPath()) == NULL)
 		{
-			_cti_set_error("Could not locate the launcher application in PATH.");
+			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
 			return 1;
 		}
-		
-		// set transfer value in my_app to true
-		my_app->dlaunch_sent = 1;
-		
+		launcher = strdup(launcher_path);
 	} else
 	{
 		// use existing launcher binary on compute node
@@ -1891,6 +1902,12 @@ _cti_alps_start_daemon(cti_wlm_obj this, cti_args_t * args)
 		return 1;
 	}
 	free(a);
+	
+	if (do_transfer)
+	{
+		// set transfer value in my_app to true
+		my_app->dlaunch_sent = 1;
+	}
 	
 	return 0;
 }

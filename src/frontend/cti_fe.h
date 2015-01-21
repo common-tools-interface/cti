@@ -98,12 +98,17 @@ typedef struct
 } appEntry_t;
 
 /* internal function prototypes */
+const char *			_cti_getLdAuditPath(void);
+const char *			_cti_getOverwatchPath(void);
+const char *			_cti_getGdbPath(void);
+const char *			_cti_getStarterPath(void);
+const char *			_cti_getDlaunchPath(void);
+const char *			_cti_getSlurmUtilPath(void);
+const char *			_cti_getCfgDir(void);
 appEntry_t *			_cti_newAppEntry(const cti_wlm_proto_t *, cti_wlm_obj);
 appEntry_t *			_cti_findAppEntry(cti_app_id_t);
 int						_cti_refAppEntry(cti_app_id_t);
 const cti_wlm_proto_t *	_cti_current_wlm_proto(void);
-const char *			_cti_getCfgDir(void);
-int						_cti_removeDirectory(const char *);
 
 /* API function prototypes */
 cti_wlm_type			cti_current_wlm(void);

@@ -372,7 +372,7 @@ static slurmStepLayout_t *
 _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 {
 	cti_args_t *		my_args;
-	char *				slurm_util_loc;
+	const char *		slurm_util_loc;
 	int					pipe_r[2];		// pipes to read result of command
 	int					pipe_e[2];		// error pipes if error occurs
 	int					mypid;
@@ -393,19 +393,17 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 	
 	// create the args for slurm util
 	
-	if ((slurm_util_loc = _cti_pathFind(SLURM_STEP_UTIL, NULL)) == NULL)
+	if ((slurm_util_loc = _cti_getSlurmUtilPath()) == NULL)
 	{
-		_cti_set_error("Could not locate CTI slurm job step utility in PATH.");
+		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
 		return NULL;
 	}
 	if (_cti_addArg(my_args, "%s", slurm_util_loc))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_freeArgs(my_args);
-		free(slurm_util_loc);
 		return NULL;
 	}
-	free(slurm_util_loc);
 	
 	if (_cti_addArg(my_args, "-j"))
 	{
@@ -508,10 +506,11 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 		close(fd);
 		
 		// exec slurm utility
-		execvp(my_args->argv[0], my_args->argv);
+		execv(my_args->argv[0], my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execv");
 		exit(1);
 	}
 	
@@ -1154,12 +1153,40 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	uint32_t			stepid;
 	cti_mpir_pid_t *	pids;
 	cti_app_id_t		rtn;			// return object
+	const char *		gdb_path;
+	char *				usr_gdb_path = NULL;
+	const char *		starter_path;
 	
+	// get the gdb path
+	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
+	{
+		// use the gdb set in the environment
+		usr_gdb_path = strdup(gdb_path);
+		gdb_path = (const char *)usr_gdb_path;
+	} else
+	{
+		gdb_path = _cti_getGdbPath();
+		if (gdb_path == NULL)
+		{
+			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+			return 0;
+		}
+	}
+	
+	// get the starter path
+	starter_path = _cti_getStarterPath();
+	if (starter_path == NULL)
+	{
+		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+		if (usr_gdb_path != NULL)	free(usr_gdb_path);
+		return 0;
+	}
 
 	// create a new srunInv_t object
 	if ((myapp = _cti_cray_slurm_newSrunInv()) == NULL)
 	{
 		// error already set
+		if (usr_gdb_path != NULL)	free(usr_gdb_path);
 		return 0;
 	}
 	
@@ -1167,6 +1194,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if ((myapp->gdb_id = _cti_gdb_newInstance()) < 0)
 	{
 		// error already set
+		if (usr_gdb_path != NULL)	free(usr_gdb_path);
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		
 		return 0;
@@ -1239,15 +1267,18 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		setpgid(0, 0);
 		
 		// call the exec function - this should not return
-		_cti_gdb_execStarter(myapp->gdb_id, SRUN, launcher_argv, i_file);
+		_cti_gdb_execStarter(myapp->gdb_id, starter_path, gdb_path, SRUN, launcher_argv, i_file);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execvp");
+		perror("execv");
 		exit(1);
 	}
 	
 	// parent case
+	
+	// cleanup
+	if (usr_gdb_path != NULL)	free(usr_gdb_path);
 	
 	// Place the child in its own group. We still need to block SIGINT in case
 	// its delivered to us before we can do this. We need to do this again here
@@ -1659,6 +1690,7 @@ _cti_cray_slurm_killApp(cti_wlm_obj this, int signum)
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execvp");
 		exit(1);
 	}
 	
@@ -2039,6 +2071,7 @@ _cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execvp");
 		exit(1);
 	}
 	
@@ -2116,24 +2149,22 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	if (!my_app->dlaunch_sent)
 	{
 		// Need to transfer launcher binary
+		const char *	launcher_path;
 		
-		// Find the location of the daemon launcher program
-		if ((launcher = _cti_pathFind(CTI_LAUNCHER, NULL)) == NULL)
+		// Get the location of the daemon launcher
+		if ((launcher_path = _cti_getDlaunchPath()) == NULL)
 		{
-			_cti_set_error("Could not locate the launcher application in PATH.");
+			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
 			close(fd);
 			return 1;
 		}
 		
-		if (_cti_cray_slurm_ship_package(this, launcher))
+		if (_cti_cray_slurm_ship_package(this, launcher_path))
 		{
 			// error already set
-			free(launcher);
 			close(fd);
 			return 1;
 		}
-		
-		free(launcher);
 		
 		// set transfer to true
 		my_app->dlaunch_sent = 1;
@@ -2415,6 +2446,8 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 		execvp(SRUN, my_args->argv);
 		
 		// exec shouldn't return
+		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execvp");
 		exit(1);
 	}
 	

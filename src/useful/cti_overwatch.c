@@ -34,8 +34,6 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 
-#include "cti_defs.h"
-
 #include "cti_args.h"
 #include "cti_overwatch.h"
 
@@ -59,13 +57,21 @@ _cti_free_overwatch(cti_overwatch_t *this)
 }
 
 // Signals should be blocked before calling this function.
+// Requires path to overwatch binary to be passed in
 cti_overwatch_t *
-_cti_create_overwatch(void)
+_cti_create_overwatch(const char *path)
 {
 	cti_overwatch_t *	rtn;
 	int 				pipeR[2];	// parent read pipe
 	int 				pipeW[2];	// parent write pipe
 	cti_args_t *		my_args;	// args for overwatch process
+	
+	// sanity check - ensure we can access the binary
+	if (path == NULL || access(path, R_OK | X_OK))
+	{
+		// invalid path
+		return NULL;
+	}
 	
 	// allocate return object
 	if ((rtn = malloc(sizeof(cti_overwatch_t))) == NULL)
@@ -104,7 +110,7 @@ _cti_create_overwatch(void)
 	}
 	
 	// add name of the overwatch binary
-	if (_cti_addArg(my_args, "%s", CTI_OVERWATCH_BINARY))
+	if (_cti_addArg(my_args, "%s", path))
 	{
 		free(rtn);
 		close(pipeR[0]);
@@ -295,10 +301,10 @@ _cti_create_overwatch(void)
 		}
 		
 		// exec the overwatch process
-		execvp(CTI_OVERWATCH_BINARY, my_args->argv);
+		execv(path, my_args->argv);
 		
 		// exec shouldn't return
-		perror("execvp");
+		perror("execv");
 		exit(1);
 	}
 	

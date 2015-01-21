@@ -41,10 +41,10 @@
 #include "ld_val.h"
 
 /* Internal prototypes */
-static int		_cti_save_str(char *);
-static char **	_cti_make_rtn_array(void);
-static char *	_cti_ld_verify(char *);
-static int		_cti_ld_load(char *, char *, char *);
+static int			_cti_save_str(char *);
+static char **		_cti_make_rtn_array(void);
+static const char *	_cti_ld_verify(const char *);
+static int			_cti_ld_load(const char *, const char *, const char *);
 
 /* list of valid linkers */
 // We should check the 64 bit linker first since most
@@ -55,8 +55,9 @@ static const char *_cti_linkers[] = {
 	"/lib64/ld-linux-x86-64.so.2",
 	"/lib/ld-linux.so.2",
 	"/lib64/ld-lsb-x86-64.so.2",
-	"/lib/ld-lsb.so.2",
 	"/lib64/ld-lsb-x86-64.so.3",
+	"/lib64/ld-2.11.3.so",
+	"/lib/ld-lsb.so.2",
 	"/lib/ld-lsb.so.3",
 	NULL
 };
@@ -125,8 +126,8 @@ _cti_make_rtn_array()
 	return rtn;
 }
 
-static char *
-_cti_ld_verify(char *executable)
+static const char *
+_cti_ld_verify(const char *executable)
 {
 	const char *linker = NULL;
 	int pid, status, fc, i=1;
@@ -168,15 +169,16 @@ _cti_ld_verify(char *executable)
 		{
 			// if we recieved an exit status of 0, the verify was successful
 			if (WEXITSTATUS(status) == 0)
-				break;
+				return linker;
 		}
 	}
 	
-	return (char *)linker;
+	// not found
+	return NULL;
 }
 
 static int
-_cti_ld_load(char *linker, char *executable, char *lib)
+_cti_ld_load(const char *linker, const char *executable, const char *lib)
 {
 	int pid, fc;
 	
@@ -241,12 +243,10 @@ _cti_ld_load(char *linker, char *executable, char *lib)
 }
 
 char **
-_cti_ld_val(char *executable)
+_cti_ld_val(const char *executable, const char *ld_audit_path)
 {
-	char *			linker;
+	const char *	linker;
 	int				pid, status;
-	char *			tmp_audit;
-	char *			audit_location;
 	char **			rtn;
 	int				num_read;
 	int				pos;
@@ -257,7 +257,7 @@ _cti_ld_val(char *executable)
 	int				rem;
 	
 	// sanity
-	if (executable == NULL)
+	if (executable == NULL || ld_audit_path == NULL)
 		return NULL;
 	
 	// reset global vars
@@ -283,18 +283,8 @@ _cti_ld_val(char *executable)
 		return NULL;
 	}
 	
-	// get the location of the audit library
-	if ((tmp_audit = getenv(LIBAUDIT_ENV_VAR)) != NULL)
-	{
-		audit_location = strdup(tmp_audit);
-	} else
-	{
-		fprintf(stderr, "CTI error: Could not read CRAY_LD_VAL_LIBRARY to get location of libaudit.so.\n");
-		return NULL;
-	}
-	
 	// Now we load our program using the list command to get its dso's
-	if ((pid = _cti_ld_load(linker, executable, audit_location)) <= 0)
+	if ((pid = _cti_ld_load(linker, executable, ld_audit_path)) <= 0)
 	{
 		fprintf(stderr, "CTI error: Failed to load the program using the linker.\n");
 		return NULL;
@@ -413,8 +403,6 @@ save_str:
 	// All done, make the return array
 	rtn = _cti_make_rtn_array();
 	
-	// cleanup memory
-	free(audit_location);
 	// close read end of the pipe
 	close(_cti_fds[0]);
 	

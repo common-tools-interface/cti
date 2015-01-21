@@ -4,7 +4,7 @@
  *                 simplified to read from a pipe instead of more advanced IPC
  *                 techniques.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * © 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -22,7 +22,6 @@
 #ifndef _LD_VAL_DEFS_H
 #define _LD_VAL_DEFS_H
 
-#define LIBAUDIT_ENV_VAR		"CRAY_LD_VAL_LIBRARY"
 #define LD_AUDIT				"LD_AUDIT"
 
 #define BLOCK_SIZE			16

@@ -20,8 +20,9 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#include <dirent.h>
+#include <errno.h>
 #include <dlfcn.h>
+#include <pwd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -49,13 +50,21 @@ typedef struct
 } cti_wlm_detect_t;
 
 /* Static prototypes */
-static void				_cti_consumeAppEntry(void *);
+static void			_cti_setup_base_dir(void);
+static int			_cti_checkDirPerms(const char *);
+static void			_cti_consumeAppEntry(void *);
 
 /* static global vars */
-static cti_app_id_t		_cti_app_id 	= 1;	// start counting from 1
-static cti_list_t *		_cti_my_apps	= NULL;	// global list pertaining to known application sessions
-static cti_wlm_detect_t	_cti_wlm_detect = {0};	// wlm_detect functions for dlopen
-static char *			_cti_cfg_dir	= NULL;	// config dir that we can use as temporary storage
+static cti_app_id_t		_cti_app_id 		= 1;	// start counting from 1
+static cti_list_t *		_cti_my_apps		= NULL;	// global list pertaining to known application sessions
+static cti_wlm_detect_t	_cti_wlm_detect 	= {0};	// wlm_detect functions for dlopen
+static char *			_cti_cfg_dir		= NULL;	// config dir that we can use as temporary storage
+static char *			_cti_ld_audit_lib	= NULL;	// ld audit library location
+static char *			_cti_overwatch_bin	= NULL;	// overwatch binary location
+static char *			_cti_gdb_bin		= NULL;	// GDB binary location
+static char *			_cti_starter_bin	= NULL;	// MPIR starter binary location
+static char *			_cti_dlaunch_bin	= NULL;	// dlaunch binary location
+static char *			_cti_slurm_util		= NULL;	// slurm utility binary location
 
 /* noneness wlm proto object */
 static const cti_wlm_proto_t	_cti_nonenessProto =
@@ -99,6 +108,13 @@ _cti_init(void)
 	
 	// allocate global data structures
 	_cti_my_apps = _cti_newList();
+	_cti_app_id = 1;
+	
+	// setup base directory info
+	_cti_setup_base_dir();
+	
+	// init the transfer interface
+	_cti_transfer_init();
 
 	// XXX: If wlm_detect doesn't work on your system, this will default to ALPS
 	// TODO: Add env var to allow caller to specify what WLM they want to use.
@@ -174,9 +190,6 @@ wlm_detect_err:
 		_cti_wlmProto = &_cti_nonenessProto;
 		return;
 	}
-	
-	// init the transfer interface
-	_cti_transfer_init();
 }
 
 // Destructor function
@@ -193,6 +206,29 @@ _cti_fini(void)
 	// call the transfer fini function
 	_cti_transfer_fini();
 	
+	// free the location strings
+	if (_cti_cfg_dir != NULL)
+		free(_cti_cfg_dir);
+	_cti_cfg_dir = NULL;
+	if (_cti_ld_audit_lib != NULL)
+		free(_cti_ld_audit_lib);
+	_cti_ld_audit_lib = NULL;
+	if (_cti_overwatch_bin != NULL)
+		free(_cti_overwatch_bin);
+	_cti_overwatch_bin = NULL;
+	if (_cti_gdb_bin != NULL)
+		free(_cti_gdb_bin);
+	_cti_gdb_bin = NULL;
+	if (_cti_starter_bin != NULL)
+		free(_cti_starter_bin);
+	_cti_starter_bin = NULL;
+	if (_cti_dlaunch_bin != NULL)
+		free(_cti_dlaunch_bin);
+	_cti_dlaunch_bin = NULL;
+	if (_cti_slurm_util != NULL)
+		free(_cti_slurm_util);
+	_cti_slurm_util = NULL;
+	
 	// reset wlm proto to noneness
 	_cti_wlmProto = &_cti_nonenessProto;
 	
@@ -200,8 +236,304 @@ _cti_fini(void)
 }
 
 /*********************
-** static functions 
+** internal functions 
 *********************/
+
+static void
+_cti_setup_base_dir(void)
+{
+	char *			base_dir;
+	struct stat		st;
+	
+	// Get the env setting
+	base_dir = getenv(BASE_DIR_ENV_VAR);
+	
+	// make sure this directory exists
+	if (stat(base_dir, &st))
+		return;
+		
+	// make sure it is a directory
+	if (!S_ISDIR(st.st_mode))
+		return;
+		
+	// check if we can access the directory
+	if (access(base_dir, R_OK | X_OK))
+		return;
+		
+	// setup location paths
+	
+	if (asprintf(&_cti_ld_audit_lib, "%s/lib/%s", base_dir, LD_AUDIT_LIB_NAME) > 0)
+	{
+		if (access(_cti_ld_audit_lib, R_OK | X_OK))
+		{
+			free(_cti_ld_audit_lib);
+			_cti_ld_audit_lib = NULL;
+		}
+	} else
+	{
+		_cti_ld_audit_lib = NULL;
+	}
+	
+	if (asprintf(&_cti_overwatch_bin, "%s/libexec/%s", base_dir, CTI_OVERWATCH_BINARY) > 0)
+	{
+		if (access(_cti_overwatch_bin, R_OK | X_OK))
+		{
+			free(_cti_overwatch_bin);
+			_cti_overwatch_bin = NULL;
+		}
+	} else
+	{
+		_cti_overwatch_bin = NULL;
+	}
+	
+	if (asprintf(&_cti_gdb_bin, "%s/libexec/%s", base_dir, CTI_GDB_BINARY) > 0)
+	{
+		if (access(_cti_gdb_bin, R_OK | X_OK))
+		{
+			free(_cti_gdb_bin);
+			_cti_gdb_bin = NULL;
+		}
+	} else
+	{
+		_cti_gdb_bin = NULL;
+	}
+	
+	if (asprintf(&_cti_starter_bin, "%s/libexec/%s", base_dir, GDB_MPIR_STARTER) > 0)
+	{
+		if (access(_cti_starter_bin, R_OK | X_OK))
+		{
+			free(_cti_starter_bin);
+			_cti_starter_bin = NULL;
+		}
+	} else
+	{
+		_cti_starter_bin = NULL;
+	}
+	
+	if (asprintf(&_cti_dlaunch_bin, "%s/libexec/%s", base_dir, CTI_LAUNCHER) > 0)
+	{
+		if (access(_cti_dlaunch_bin, R_OK | X_OK))
+		{
+			free(_cti_dlaunch_bin);
+			_cti_dlaunch_bin = NULL;
+		}
+	} else
+	{
+		_cti_dlaunch_bin = NULL;
+	}
+	
+	if (asprintf(&_cti_slurm_util, "%s/libexec/%s", base_dir, SLURM_STEP_UTIL) > 0)
+	{
+		if (access(_cti_slurm_util, R_OK | X_OK))
+		{
+			free(_cti_slurm_util);
+			_cti_slurm_util = NULL;
+		}
+	} else
+	{
+		_cti_slurm_util = NULL;
+	}
+}
+
+// getter functions for paths
+
+const char *
+_cti_getLdAuditPath(void)
+{
+	return (const char *)_cti_ld_audit_lib;
+}
+
+const char *
+_cti_getOverwatchPath(void)
+{
+	return (const char *)_cti_overwatch_bin;
+}
+
+const char *
+_cti_getGdbPath(void)
+{
+	return (const char *)_cti_gdb_bin;
+}
+
+const char *
+_cti_getStarterPath(void)
+{
+	return (const char *)_cti_starter_bin;
+}
+
+const char *
+_cti_getDlaunchPath(void)
+{
+	return (const char *)_cti_dlaunch_bin;
+}
+
+const char *
+_cti_getSlurmUtilPath(void)
+{
+	return (const char *)_cti_slurm_util;
+}
+
+static int
+_cti_checkDirPerms(const char *dir)
+{
+	struct stat		st;
+	
+	if (dir == NULL)
+		return 1;
+	
+	// Stat the tmp_dir
+	if (stat(dir, &st))
+	{
+		// could not stat the directory
+		return 1;
+	}
+	
+	if (!S_ISDIR(st.st_mode))
+	{
+		// this is not a directory
+		return 1;
+	}
+	
+	// check if we can access the directory
+	if (access(dir, R_OK | W_OK | X_OK))
+	{
+		// directory doesn't have proper permissions
+		return 1;
+	}
+	
+	return 0;
+}
+
+const char *
+_cti_getCfgDir(void)
+{
+	char *			cfg_dir;
+	char *			tmp_dir;
+	struct passwd *	pw;
+	struct stat		st;
+
+	// return if we already have the value
+	if (_cti_cfg_dir != NULL)
+		return _cti_cfg_dir;
+	
+	// get the cfg dir settings
+	if ((cfg_dir = getenv(CFG_DIR_VAR)) == NULL)
+	{
+		// Not found.
+		// Ideally we want to use TMPDIR or /tmp, the directory name should be 
+		// unique to the user.
+		
+		// Check to see if TMPDIR is set
+		tmp_dir = getenv("TMPDIR");
+		
+		// check if can write to tmp_dir
+		if (_cti_checkDirPerms(tmp_dir))
+		{
+			// We couldn't write to tmp_dir, so lets try using /tmp
+			tmp_dir = "/tmp";
+			if (_cti_checkDirPerms(tmp_dir))
+			{
+				// We couldn't write to /tmp, so lets use the home directory
+				tmp_dir = getenv("HOME");
+				
+				// Check if we can write to HOME
+				if (_cti_checkDirPerms(tmp_dir))
+				{
+					// We have no where to create a temporary directory...
+					_cti_set_error("Cannot find suitable config directory. Try setting the %s env variable.", CFG_DIR_VAR);
+					return NULL;
+				}
+			}
+		}
+		
+		// Get the pw info, this is used in the unique name part of cfg directories
+		if ((pw = getpwuid(getuid())) == NULL)
+		{
+			_cti_set_error("_cti_getCfgDir: getpwuid() %s", strerror(errno));
+			return NULL;
+		}
+		
+		// Create the directory name string - we default this to have the name cray_cti-<username>
+		if (asprintf(&cfg_dir, "%s/cray_cti-%s", tmp_dir, pw->pw_name) <= 0)
+		{
+			_cti_set_error("_cti_getCfgDir: asprintf failed.");
+			return NULL;
+		}
+		
+		// Create and setup the directory
+		
+		// try to stat the directory
+		if (stat(cfg_dir, &st))
+		{
+			// the directory doesn't exist so we need to create it
+			// use perms 700
+			if (mkdir(cfg_dir, S_IRWXU))
+			{
+				_cti_set_error("_cti_getCfgDir: mkdir() %s", strerror(errno));
+				return NULL;
+			}
+		} else
+		{
+			// directory already exists, so chmod it if has bad permissions.
+			// We created this directory previously.
+			if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU)
+			{
+				if (chmod(cfg_dir, S_IRWXU))
+				{
+					_cti_set_error("_cti_getCfgDir: chmod() %s", strerror(errno));
+					return NULL;
+				}
+			}
+		}
+		
+		// make sure we have a good path string
+		tmp_dir = cfg_dir;
+		if ((cfg_dir = realpath(tmp_dir, NULL)) == NULL)
+		{
+			_cti_set_error("_cti_getCfgDir: realpath() %s", strerror(errno));
+			free(tmp_dir);
+			return NULL;
+		}
+		free(tmp_dir);
+	} else
+	{
+		// The user set CFG_DIR_VAR, we *ALWAYS* want to use that
+		
+		// Check to see if we can write to this directory
+		if (_cti_checkDirPerms(cfg_dir))
+		{
+			_cti_set_error("Bad directory specified by environment variable %s.", CFG_DIR_VAR);
+			return NULL;
+		}
+		
+		// verify that it has the permissions we expect
+		if (stat(cfg_dir, &st))
+		{
+			// could not stat the directory
+			_cti_set_error("_cti_getCfgDir: stat() %s", strerror(errno));
+			return NULL;
+		}
+		if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU)
+		{
+			// bits other than S_IRWXU are set
+			_cti_set_error("Bad permissions for directory specified by environment variable %s. Only 0700 allowed.", CFG_DIR_VAR);
+			return NULL;
+		}
+		
+		// call realpath on cfg_dir
+		tmp_dir = cfg_dir;
+		if ((cfg_dir = realpath(tmp_dir, NULL)) == NULL)
+		{
+			_cti_set_error("_cti_getCfgDir: realpath() %s", strerror(errno));
+			return NULL;
+		}
+	}
+	
+	// set the global variable
+	_cti_cfg_dir = cfg_dir;
+	
+	return _cti_cfg_dir;
+}
 
 static void
 _cti_consumeAppEntry(void *this)
@@ -315,146 +647,6 @@ const cti_wlm_proto_t *
 _cti_current_wlm_proto(void)
 {
 	return _cti_wlmProto;
-}
-
-const char *
-_cti_getCfgDir(void)
-{
-	char *			cfg_dir;
-	struct stat		st;
-
-	// return if we already have the value
-	if (_cti_cfg_dir != NULL)
-		return _cti_cfg_dir;
-
-	// read the value
-	if ((cfg_dir = getenv(CFG_DIR_VAR)) == NULL)
-	{
-		_cti_set_error("Cannot getenv on %s. Ensure environment variables are set.", CFG_DIR_VAR);
-		return NULL;
-	}
-	
-	// ensure this is a directory
-	if (stat(cfg_dir, &st))
-	{
-		_cti_set_error("Unable to stat %s. Ensure environment variables are set.", CFG_DIR_VAR);
-		return NULL;
-	}
-	
-	if (!S_ISDIR(st.st_mode))
-	{
-		_cti_set_error("%s is not a directory. Ensure environment variables are set.", CFG_DIR_VAR);
-		return NULL;
-	}
-	
-	// set the global variable
-	_cti_cfg_dir = strdup(cfg_dir);
-	
-	return _cti_cfg_dir;
-}
-
-// This will act as a rm -rf ...
-int
-_cti_removeDirectory(const char *path)
-{
-	DIR *			dir;
-	struct dirent *	d;
-	char *			name_path;
-	struct stat		statbuf;
-
-	// sanity check
-	if (path == NULL)
-	{
-		_cti_set_error("_cti_removeDirectory: invalid args.");
-		return 1;
-	}
-	
-	// open the directory
-	if ((dir = opendir(path)) == NULL)
-	{
-		_cti_set_error("_cti_removeDirectory: Could not opendir %s.", path);
-		return 1;
-	}
-	
-	// Recurse over every file in the directory
-	while ((d = readdir(dir)) != NULL)
-	{
-		// ensure this isn't the . or .. file
-		switch (strlen(d->d_name))
-		{
-			case 1:
-				if (d->d_name[0] == '.')
-				{
-					// continue to the outer while loop
-					continue;
-				}
-				break;
-				
-			case 2:
-				if (strcmp(d->d_name, "..") == 0)
-				{
-					// continue to the outer while loop
-					continue;
-				}
-				break;
-			
-			default:
-				break;
-		}
-	
-		// create the full path name
-		if (asprintf(&name_path, "%s/%s", path, d->d_name) <= 0)
-		{
-			_cti_set_error("_cti_removeDirectory: asprintf failed.");
-			closedir(dir);
-			return 1;
-		}
-		
-		// stat the file
-		if (stat(name_path, &statbuf) == -1)
-		{
-			_cti_set_error("_cti_removeDirectory: Could not stat %s.", name_path);
-			closedir(dir);
-			free(name_path);
-			return 1;
-		}
-		
-		// if this is a directory we need to recursively call this function
-		if (S_ISDIR(statbuf.st_mode))
-		{
-			if (_cti_removeDirectory(name_path))
-			{
-				// error already set
-				closedir(dir);
-				free(name_path);
-				return 1;
-			}
-		} else
-		{
-			// remove the file
-			if (remove(name_path))
-			{
-				_cti_set_error("_cti_removeDirectory: Could not remove %s.", name_path);
-				closedir(dir);
-				free(name_path);
-				return 1;
-			}
-		}
-		// done with this file
-		free(name_path);
-	}
-	
-	// done with the directory
-	closedir(dir);
-	
-	// remove the directory
-	if (remove(path))
-	{
-		_cti_set_error("_cti_removeDirectory: Could not remove %s.", path);
-		return 1;
-	}
-	
-	return 0;
 }
 
 /************************

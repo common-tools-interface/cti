@@ -54,6 +54,7 @@ static MIEvent *		_cti_gdb_event;
 const struct option long_opts[] = {
 			{"read",		required_argument,	0, 'r'},
 			{"write",		required_argument,	0, 'w'},
+			{"gdb",			required_argument,	0, 'g'},
 			{"starter",		required_argument,	0, 's'},
 			{"input",		required_argument,	0, 'i'},
 			{"help",		no_argument,		0, 'h'},
@@ -69,6 +70,7 @@ usage(char *name)
 	
 	fprintf(stdout, "\t-r, --read      fd of read control pipe         (required)\n");
 	fprintf(stdout, "\t-w, --write     fd of write control pipe        (required)\n");
+	fprintf(stdout, "\t-g, --gdb       Name of gdb binary              (required)\n");
 	fprintf(stdout, "\t-s, --starter   Name of starter binary          (required)\n");
 	fprintf(stdout, "\t-i, --input     redirect stdin to provided file (optional)\n");
 	fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
@@ -285,22 +287,22 @@ main(int argc, char *argv[])
 	int				c;
 	long int		val;
 	char *			end_p;
+	char *			gdb = NULL;
 	char *			starter	= NULL;
 	char *			s_args[2] = {0};
 	char *			input_file	= NULL;
-	char *			usr_gdb;
 	MICommand *		cmd;
 	cti_gdb_msg_t *	msg;
 
-	// we require at least 3 arguments beyond argv[0]
-	if (argc < 4)
+	// we require at least 4 arguments beyond argv[0]
+	if (argc < 5)
 	{
 		usage(argv[0]);
 		return 1;
 	}
 
 	// parse the provide args
-	while ((c = getopt_long(argc, argv, "r:w:s:i:h", long_opts, &opt_ind)) != -1)
+	while ((c = getopt_long(argc, argv, "r:w:g:s:i:h", long_opts, &opt_ind)) != -1)
 	{
 		switch (c)
 		{
@@ -386,6 +388,29 @@ main(int argc, char *argv[])
 				
 				break;
 				
+			case 'g':
+				if (optarg == NULL)
+				{
+					usage(argv[0]);
+					return 1;
+				}
+				
+				if (gdb != NULL)
+				{
+					free(gdb);
+				}
+				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
+				}
+				
+				// get the gdb binary string
+				gdb = strdup(optarg);
+				
+				break;
+				
 			case 's':
 				if (optarg == NULL)
 				{
@@ -443,7 +468,7 @@ main(int argc, char *argv[])
 	}
 	
 	// post-process required args to make sure we have everything we need
-	if (_cti_gdb_pipe_r == NULL || _cti_gdb_pipe_w == NULL || starter == NULL)
+	if (_cti_gdb_pipe_r == NULL || _cti_gdb_pipe_w == NULL || gdb == NULL || starter == NULL)
 	{
 		usage(argv[0]);
 		return 1;
@@ -507,16 +532,8 @@ main(int argc, char *argv[])
 	//MISessionRegisterLogCallback(_cti_gdb_sess, log_callback);
 	//MISessionRegisterTargetCallback(_cti_gdb_sess, target_callback);
 	
-	// Check for a user defined gdb binary
-	if ((usr_gdb = getenv(GDB_LOC_ENV_VAR)) != NULL)
-	{
-		// user defined gdb was set, so use that
-		MISessionSetGDBPath(_cti_gdb_sess, usr_gdb);
-	} else
-	{
-		// use the default gdb
-		MISessionSetGDBPath(_cti_gdb_sess, CTI_GDB_BINARY);
-	}
+	// Set provided gdb binary path
+	MISessionSetGDBPath(_cti_gdb_sess, gdb);
 	
 	if (MISessionStartLocal(_cti_gdb_sess, starter) < 0)
 	{

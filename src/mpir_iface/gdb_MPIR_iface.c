@@ -255,11 +255,13 @@ _cti_gdb_newInstance(void)
 // This function is called by the child after the fork.
 // It will setup the call to exec the gdb MPIR starter utility.
 void
-_cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * const launcher_args[], const char *input_file)
+_cti_gdb_execStarter(	cti_gdb_id_t gdb_id, const char *starter, const char *gdb, 
+						const char *launcher, const char * const launcher_args[], const char *input_file	)
 {
 	gdbCtlInst_t *	this;
 	char *			pr_arg;
 	char *			pw_arg;
+	char *			g_arg;
 	char *			l_arg;
 	char *			i_arg = NULL;
 	int				s_argc = 0;
@@ -268,7 +270,7 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * con
 	int				fd;
 	
 	// ensure the caller passed valid arguments
-	if (launcher == NULL)
+	if (starter == NULL || gdb == NULL || launcher == NULL)
 	{
 		// post fork - now way to report errors right now!
 		fprintf(stderr, "CTI error: _cti_gdb_execStarter bad args.\n");
@@ -343,6 +345,14 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * con
 		return;
 	}
 	
+	// create the gdb arg
+	if (asprintf(&g_arg, "-g %s", gdb) < 0)
+	{
+		// post fork - no way to report errors right now!
+		perror("asprintf");
+		return;
+	}
+	
 	// create the starter arg
 	if (asprintf(&l_arg, "-s %s", launcher) < 0)
 	{
@@ -367,11 +377,12 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * con
 	//
 	
 	// For the starter process, it requires a -r <fd> and -w <fd> argument for 
-	// the pipe fd numbers, a required -s <starter> argument, an optional 
-	// -i <input> argument for redirect of stdin, followed by -- <launcher args>
+	// the pipe fd numbers, a required -g <gdb> argument, a required -s <starter> 
+	// argument, an optional -i <input> argument for redirect of stdin, 
+	// followed by -- <launcher args>
 	
 	// add required args to the s_argc
-	s_argc += 5;
+	s_argc += 6;
 	
 	// alloc the argc array
 	if ((s_argv = calloc(s_argc, sizeof(char *))) == NULL)
@@ -382,11 +393,12 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * con
 		return;
 	}
 	
-	s_argv[0] = GDB_MPIR_STARTER;
+	s_argv[0] = (char *)starter;
 	s_argv[1] = pr_arg;
 	s_argv[2] = pw_arg;
-	s_argv[3] = l_arg;
-	i = 4;
+	s_argv[3] = g_arg;
+	s_argv[4] = l_arg;
+	i = 5;
 	if (i_arg != NULL)
 	{
 		s_argv[i++] = i_arg;
@@ -396,7 +408,7 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * con
 		s_argv[i++] = "--";
 		for (j=0; launcher_args[j] != NULL; ++j)
 		{
-			s_argv[i++] = (char *)launcher_args[j];	// yes, I know this cast is bad.
+			s_argv[i++] = (char *)launcher_args[j];
 		}
 	}
 	// set null terminator
@@ -433,7 +445,7 @@ _cti_gdb_execStarter(cti_gdb_id_t gdb_id, const char *launcher, const char * con
 	close(fd);
 	
 	// exec the starter utility
-	execvp(GDB_MPIR_STARTER, s_argv);
+	execv(starter, s_argv);
 	
 	// if we get here, an error happened
 	return;
