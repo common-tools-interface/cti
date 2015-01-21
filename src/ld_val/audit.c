@@ -2,7 +2,7 @@
  * audit.c - A custom rtld audit interface to deliver locations of loaded dso's
  *	         over stdout.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

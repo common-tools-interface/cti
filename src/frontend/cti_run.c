@@ -3,7 +3,7 @@
  *	      This provides the tool developer with an easy to use interface to
  *	      start new instances of an application.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

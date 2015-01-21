@@ -2,7 +2,7 @@
  * pmi_attribs_parser.c - A interface to parse the pmi_attribs file that exists
 			  on the compute node.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

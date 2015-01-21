@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_list.c - Functions relating to creating and maintaining a linked list
  *
- * © 2014-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

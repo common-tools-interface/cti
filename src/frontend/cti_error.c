@@ -2,7 +2,7 @@
  * cti_error.c - Global error handling interface. This should be used on the
  *               frontend only.
  *
- * © 2013 Cray Inc.  All Rights Reserved.
+ * Copyright 2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

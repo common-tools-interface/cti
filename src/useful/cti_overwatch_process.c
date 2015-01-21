@@ -2,7 +2,7 @@
  * cti_overwatch_process.c - cti overwatch process used to ensure child
  *                           processes will be cleaned up on unexpected exit.
  *
- * © 2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

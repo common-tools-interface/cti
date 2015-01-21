@@ -17,7 +17,7 @@
  * For more info on adaptive radix trees, see: 
  *     http://www-db.in.tum.de/%7Eleis/papers/ART.pdf 
  *
- * © 2011-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

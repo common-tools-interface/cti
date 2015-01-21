@@ -2,7 +2,7 @@
  * gdb_MPIR.h - A header file for routines and data structures shared between
  *              the iface library calls and the starter process.
  *
- * © 2014 Cray Inc.	All Rights Reserved.
+ * Copyright 2014 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

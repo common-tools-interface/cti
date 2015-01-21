@@ -4,7 +4,7 @@
  *        to obtain application information for backend tool daemons running on
  *        the compute nodes.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

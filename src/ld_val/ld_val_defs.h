@@ -4,7 +4,7 @@
  *                 simplified to read from a pipe instead of more advanced IPC
  *                 techniques.
  *
- * © 2011-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

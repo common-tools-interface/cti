@@ -2,7 +2,7 @@
  * cray_slurm_dl.c - Cray native slurm specific functions for the daemon 
  *                   launcher.
  *
- * © 2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2014 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

@@ -1,7 +1,7 @@
 /******************************************************************************\
  * gdb_MPIR_iface.h - A header file for the gdb MPIR starter interface.
  *
- * © 2014 Cray Inc.	All Rights Reserved.
+ * Copyright 2014 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

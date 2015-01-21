@@ -5,7 +5,7 @@
  *                   or login nodes. Backend refers to the location where
  *                   applications are run.
  *
- * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_path.h - Header file for the path interface.
  *
- * © 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.

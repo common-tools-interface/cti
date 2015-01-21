@@ -5,7 +5,7 @@
  *		   associated with an app. This can also be used to launch tool daemons
  *		   on the compute nodes in an automated way.
  *
- * © 2011-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
