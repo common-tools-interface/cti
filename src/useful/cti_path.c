@@ -72,8 +72,7 @@ _cti_pathFind(const char *file, const char *envPath)
 				return NULL;
 			} else
 			{
-				// call realpath to resolve any funny business in the file string
-				return realpath(file, NULL);
+				return strdup(file);
 			}
 		} else 
 		{
@@ -112,7 +111,7 @@ _cti_pathFind(const char *file, const char *envPath)
 			if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
 			{
 				// This file matches
-				retval = realpath(buf, NULL);
+				retval = strdup(buf);
 				free(path);
 				return retval;
 			}
@@ -166,8 +165,7 @@ _cti_libFind(const char *file)
 				return NULL;
 			} else
 			{
-				// call realpath to resolve any funny business in the file string
-				return realpath(file, NULL);
+				return strdup(file);
 			}
 		} else 
 		{
@@ -199,7 +197,7 @@ _cti_libFind(const char *file)
 				// we can stat it so make sure its a regular file.
 				if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
 				{
-					retval = realpath(buf, NULL);
+					retval = strdup(buf);
 					free(path);
 					return retval;
 				}
@@ -246,7 +244,7 @@ _cti_libFind(const char *file)
 						if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
 						{
 							// found the library
-							retval = realpath(res, NULL);
+							retval = strdup(res);
 							free(res);
 							free(base);
 							pclose(fp);
@@ -277,7 +275,7 @@ _cti_libFind(const char *file)
 			// we can stat it so make sure its a regular file or sym link.
 			if (S_ISREG(stat_buf.st_mode)) 
 			{
-				retval = realpath(buf, NULL);
+				retval = strdup(buf);
 				free(extraPath);
 				return retval;
 			}
