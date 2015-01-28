@@ -201,7 +201,7 @@ _cti_list_next(cti_list_t *l)
 		return NULL;
 		
 	if (l->scan == NULL)
-		l->scan = l->head;
+		return NULL;
 	
 	rtn = l->scan->this;
 	l->scan = l->scan->next;
