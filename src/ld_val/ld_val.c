@@ -159,7 +159,8 @@ _cti_ld_verify(const char *executable)
 			
 			// exec the linker to verify it is able to load our program
 			execl(linker, linker, "--verify", executable, NULL);
-			perror("execl");
+			// exec shouldn't return
+			exit(1);
 		}
 		
 		// parent case
