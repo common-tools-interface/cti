@@ -107,7 +107,7 @@ _cti_checkLaunchArgs(	int stdout_fd, int stderr_fd, const char *inputFile,
 		}
 		
 		// make sure it is a directory
-		if (S_ISDIR(st.st_mode))
+		if (!S_ISDIR(st.st_mode))
 		{
 			_cti_set_error("Invalid chdirPath argument. The file is not a directory.");
 			return 1;
