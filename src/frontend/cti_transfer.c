@@ -124,7 +124,7 @@ static const char *		_cti_entryTypeToString(entry_type);
 static fileEntry_t *	_cti_newFileEntry(void);
 static void				_cti_consumeFileEntry(void *);
 static fileEntry_t *	_cti_copyFileEntry(fileEntry_t *);
-static fileEntry_t **	_cti_findFileEntryLoc(fileEntry_t *, entry_type);
+static int				_cti_findFileEntryLoc(fileEntry_t **, fileEntry_t *, entry_type);
 static int				_cti_mergeFileEntry(fileEntry_t *, fileEntry_t *);
 static int				_cti_chainFileEntry(fileEntry_t *, const char *, entry_type, char *);
 static session_t *		_cti_newSession(appEntry_t *);
@@ -462,44 +462,38 @@ _cti_copyFileEntry(fileEntry_t *entry)
 	return newEntry;
 }
 
-static fileEntry_t **
-_cti_findFileEntryLoc(fileEntry_t *entry, entry_type type)
+static int
+_cti_findFileEntryLoc(fileEntry_t **last, fileEntry_t *entry, entry_type type)
 {
-	fileEntry_t **	ptr;
-	
-	// sanity check
-	if (entry == NULL)
-	{
-		_cti_set_error("_cti_findFileEntryLoc: Bad args.");
-		return NULL;
-	}
-	
-	ptr = &entry;
-	
 	// try to find the type in this fileEntry chain
-	while (*ptr != NULL)
+	do
 	{
-		// check if this entry type matches
-		if ((*ptr)->type == type)
+		// set last to this entry
+		*last = entry;
+		
+		if (entry->type == type)
 		{
-			// found it
-			break;
+			// found entry in chain
+			return 1;
 		}
-		// point at the next entry
-		ptr = &((*ptr)->next);
-	}
+		// point at next entry
+		entry = entry->next;
+	} while (entry != NULL);
 	
-	return ptr;
+	// if we get here, the type isn't in the chain.
+	return 0;
 }
 
 // Merges all unique e2 types to e1. Any types already in e1 are not added.
 // The reason this function exists is if there is a naming collision between
 // bin/lib/libdir/file in the string list which require chaining in the all or
-// parts of the linked list.
+// parts of the linked list. Note that we assume that manifests have already
+// been reconciled with each other when sent. So any naming colisions will 
+// already have been dealt with.
 static int
 _cti_mergeFileEntry(fileEntry_t *e1, fileEntry_t *e2)
 {
-	fileEntry_t **	ptr;
+	fileEntry_t *	ptr;
 
 	// sanity check
 	if (e1 == NULL || e2 == NULL)
@@ -511,26 +505,28 @@ _cti_mergeFileEntry(fileEntry_t *e1, fileEntry_t *e2)
 	while (e2 != NULL)
 	{
 		// check to see if type e2 is already in e1
-		ptr = _cti_findFileEntryLoc(e1, e2->type);
-		
-		// check if ptr is null, if so entry not found
-		if (*ptr == NULL)
+		// only add e2 if it is not already in e1
+		if (_cti_findFileEntryLoc(&ptr, e1, e2->type) == 0)
 		{
 			// unique entry, so add just this entry, we don't want to copy the
-			// next chain in.
-			*ptr = _cti_newFileEntry();
-			if (*ptr == NULL)
+			// entire next chain in.
+			fileEntry_t *new;
+			new = _cti_newFileEntry();
+			if (new == NULL)
 			{
 				// error already set
 				return 1;
 			}
 			// copy the contents
-			(*ptr)->type = e2->type;
+			new->type = e2->type;
 			if (e2->loc)
 			{
-				(*ptr)->loc = strdup(e2->loc);
+				new->loc = strdup(e2->loc);
 			}
-			(*ptr)->next = NULL;	// do not copy next
+			new->next = NULL;	// do not copy next
+			
+			// asign it into the e1 chain
+			ptr->next = new;
 		}
 		
 		// increment e2
@@ -545,7 +541,7 @@ _cti_mergeFileEntry(fileEntry_t *e1, fileEntry_t *e2)
 static int
 _cti_chainFileEntry(fileEntry_t *entry, const char *name, entry_type type, char *loc)
 {
-	fileEntry_t **	ptr;
+	fileEntry_t *	ptr;
 	
 	// sanity
 	if (entry == NULL || name == NULL || loc == NULL)
@@ -554,31 +550,32 @@ _cti_chainFileEntry(fileEntry_t *entry, const char *name, entry_type type, char 
 		return -1;
 	}
 	
-	// check to see if type is already in the chain
-	ptr = _cti_findFileEntryLoc(entry, type);
-	
-	// If NULL we can add the binary to this chain
-	if (*ptr == NULL)
+	// Check to see if the file entry is already in the chain
+	if (_cti_findFileEntryLoc(&ptr, entry, type) == 0)
 	{
+		// entry not in the chain, so add it
 		// create new entry
-		*ptr = _cti_newFileEntry();
-		if (*ptr == NULL)
+		fileEntry_t *	new;
+		new = _cti_newFileEntry();
+		if (new == NULL)
 		{
 			// error already set
 			return -1;
 		}
 		
 		// set data entries
-		(*ptr)->type = type;
-		(*ptr)->loc  = loc;
-		(*ptr)->next = NULL;
+		new->type = type;
+		new->loc  = loc;
+		new->next = NULL;
 		
+		// assign into chain
+		ptr->next = new;
 	} else
 	{
 		// An entry of this type already exists, check to see if we should error
 		// out or silently fail since the caller asked to add a file already in
 		// the manifest
-		if (strncmp((*ptr)->loc, loc, strlen((*ptr)->loc)))
+		if (strncmp(ptr->loc, loc, strlen(ptr->loc)))
 		{
 			// location strings do not match, so error
 			_cti_set_error("A %s named %s has already been added to the manifest.", _cti_entryTypeToString(type), name);
@@ -832,8 +829,8 @@ _cti_findSession(cti_session_id_t sid)
 static int
 _cti_checkSessionForConflict(session_t *sess, entry_type type, const char *realname, const char *fullname)
 {
-	fileEntry_t *	f_ptr;		// pointer to file entry
-	fileEntry_t **	entry;
+	fileEntry_t *	entry;		// pointer to file entry
+	fileEntry_t *	ptr;
 	
 	// sanity
 	if (sess == NULL || realname == NULL || fullname == NULL)
@@ -843,14 +840,14 @@ _cti_checkSessionForConflict(session_t *sess, entry_type type, const char *realn
 	}
 	
 	// search the session string list for this filename
-	f_ptr = _cti_lookupValue(sess->files, realname);
-	if (f_ptr != NULL)
+	entry = _cti_lookupValue(sess->files, realname);
+	if (entry != NULL)
 	{
 		// check if this realname is already in the session list for type
-		if ((entry = _cti_findFileEntryLoc(f_ptr, type)) != NULL)
+		if (_cti_findFileEntryLoc(&ptr, entry, type) == 1)
 		{
 			// check to see if the locations match
-			if (strncmp((*entry)->loc, fullname, strlen((*entry)->loc)) == 0)
+			if (strncmp(ptr->loc, fullname, strlen(ptr->loc)) == 0)
 			{
 				// file locations match. No conflict, return success since the file is already
 				// in the session
@@ -1273,7 +1270,7 @@ _cti_resolveManifestConflicts_callback(void *opaque, const char *key, void *val)
 	fileEntry_t *	s_ptr;
 	fileEntry_t *	last;
 	fileEntry_t *	tmp;
-	fileEntry_t **	entry;
+	fileEntry_t *	ptr;
 
 	// sanity
 	if (cb_data == NULL || cb_data->sess_files == NULL || key == NULL || val == NULL)
@@ -1292,10 +1289,10 @@ _cti_resolveManifestConflicts_callback(void *opaque, const char *key, void *val)
 		while (m_ptr != NULL)
 		{
 			// check if this realname is already in the session files for type
-			if ((entry = _cti_findFileEntryLoc(s_ptr, m_ptr->type)) != NULL)
+			if (_cti_findFileEntryLoc(&ptr, s_ptr, m_ptr->type) == 1)
 			{
 				// filename is already present in session. Ensure the locations match.
-				if (strncmp((*entry)->loc, m_ptr->loc, strlen((*entry)->loc)) == 0)
+				if (strncmp(ptr->loc, m_ptr->loc, strlen(ptr->loc)) == 0)
 				{
 					// names match, no error just remove from manifest and continue
 					if (last == NULL && m_ptr->next == NULL)

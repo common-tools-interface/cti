@@ -2066,7 +2066,7 @@ _cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 		// dup2 stderr
 		dup2(fd, STDERR_FILENO);
 		
-		// exec scancel
+		// exec sbcast
 		execvp(SBCAST, my_args->argv);
 		
 		// exec shouldn't return
@@ -2079,7 +2079,7 @@ _cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 	// cleanup
 	_cti_freeArgs(my_args);
 	
-	// wait until the scancel finishes
+	// wait until the sbcast finishes
 	// FIXME: There is no way to error check right now because the sbcast command
 	// can only send to an entire job, not individual job steps. The /var/spool/alps/<apid>
 	// directory will only exist on nodes associated with this particular job step, and the

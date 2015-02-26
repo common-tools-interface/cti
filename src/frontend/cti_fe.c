@@ -246,7 +246,8 @@ _cti_setup_base_dir(void)
 	struct stat		st;
 	
 	// Get the env setting
-	base_dir = getenv(BASE_DIR_ENV_VAR);
+	if ((base_dir = getenv(BASE_DIR_ENV_VAR)) == NULL)
+		return;
 	
 	// make sure this directory exists
 	if (stat(base_dir, &st))
