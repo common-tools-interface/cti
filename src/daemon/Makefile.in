@@ -44,7 +44,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-libexec_PROGRAMS = cti_dlaunch$(EXEEXT)
+libexec_PROGRAMS = cti_dlaunch@CRAYTOOL_RELEASE_VERSION@$(EXEEXT)
 subdir = src/daemon
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -60,16 +60,20 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(libexecdir)"
 libexecPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(libexec_PROGRAMS)
-am_cti_dlaunch_OBJECTS = cti_dlaunch-cti_daemon.$(OBJEXT) \
-	cti_dlaunch-alps_dl.$(OBJEXT) \
-	cti_dlaunch-cray_slurm_dl.$(OBJEXT)
-cti_dlaunch_OBJECTS = $(am_cti_dlaunch_OBJECTS)
+am_cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_OBJECTS =  \
+	cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.$(OBJEXT) \
+	cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.$(OBJEXT) \
+	cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.$(OBJEXT)
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_OBJECTS =  \
+	$(am_cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_OBJECTS)
 am__DEPENDENCIES_1 =
-cti_dlaunch_DEPENDENCIES = $(USEFUL)/libuseful.la \
-	$(am__DEPENDENCIES_1)
-cti_dlaunch_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(cti_dlaunch_CFLAGS) \
-	$(CFLAGS) $(cti_dlaunch_LDFLAGS) $(LDFLAGS) -o $@
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_DEPENDENCIES =  \
+	$(USEFUL)/libuseful.la $(am__DEPENDENCIES_1)
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_LINK = $(LIBTOOL) --tag=CC \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) \
+	$(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_LDFLAGS) $(LDFLAGS) -o \
+	$@
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -82,8 +86,8 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(cti_dlaunch_SOURCES)
-DIST_SOURCES = $(cti_dlaunch_SOURCES)
+SOURCES = $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_SOURCES)
+DIST_SOURCES = $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -108,7 +112,12 @@ CPPFLAGS = @CPPFLAGS@
 CRAYTOOL_BE_VERSION = @CRAYTOOL_BE_VERSION@
 CRAYTOOL_DIR = @CRAYTOOL_DIR@
 CRAYTOOL_FE_VERSION = @CRAYTOOL_FE_VERSION@
+CRAYTOOL_LAUNCHER = @CRAYTOOL_LAUNCHER@
 CRAYTOOL_RELEASE_VERSION = @CRAYTOOL_RELEASE_VERSION@
+CXX = @CXX@
+CXXCPP = @CXXCPP@
+CXXDEPMODE = @CXXDEPMODE@
+CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
@@ -175,6 +184,7 @@ abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
 ac_ct_CC = @ac_ct_CC@
+ac_ct_CXX = @ac_ct_CXX@
 ac_ct_DUMPBIN = @ac_ct_DUMPBIN@
 am__include = @am__include@
 am__leading_dot = @am__leading_dot@
@@ -226,10 +236,10 @@ SRC = @CRAYTOOL_DIR@/src
 USEFUL = $(SRC)/useful
 AM_CFLAGS = -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
-cti_dlaunch_SOURCES = cti_daemon.c alps_dl.c cray_slurm_dl.c
-cti_dlaunch_CFLAGS = $(AM_CFLAGS) -I$(USEFUL) $(ARCHIVE_CFLAGS)
-cti_dlaunch_LDADD = $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
-cti_dlaunch_LDFLAGS = -all-static -Wl,--no-undefined -Wl,--as-needed $(ARCHIVE_LDFLAGS)
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_SOURCES = cti_daemon.c alps_dl.c cray_slurm_dl.c
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS = $(AM_CFLAGS) -I$(USEFUL) $(ARCHIVE_CFLAGS)
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_LDADD = $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_LDFLAGS = -all-static -Wl,--no-undefined -Wl,--as-needed $(ARCHIVE_LDFLAGS)
 all: all-am
 
 .SUFFIXES:
@@ -291,9 +301,9 @@ clean-libexecPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
-cti_dlaunch$(EXEEXT): $(cti_dlaunch_OBJECTS) $(cti_dlaunch_DEPENDENCIES) 
-	@rm -f cti_dlaunch$(EXEEXT)
-	$(cti_dlaunch_LINK) $(cti_dlaunch_OBJECTS) $(cti_dlaunch_LDADD) $(LIBS)
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@$(EXEEXT): $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_OBJECTS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_DEPENDENCIES) 
+	@rm -f cti_dlaunch@CRAYTOOL_RELEASE_VERSION@$(EXEEXT)
+	$(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_LINK) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_OBJECTS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -301,9 +311,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_dlaunch-alps_dl.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_dlaunch-cray_slurm_dl.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_dlaunch-cti_daemon.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -326,47 +336,47 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
-cti_dlaunch-cti_daemon.o: cti_daemon.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -MT cti_dlaunch-cti_daemon.o -MD -MP -MF $(DEPDIR)/cti_dlaunch-cti_daemon.Tpo -c -o cti_dlaunch-cti_daemon.o `test -f 'cti_daemon.c' || echo '$(srcdir)/'`cti_daemon.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch-cti_daemon.Tpo $(DEPDIR)/cti_dlaunch-cti_daemon.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_daemon.c' object='cti_dlaunch-cti_daemon.o' libtool=no @AMDEPBACKSLASH@
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.o: cti_daemon.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -MT cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.o -MD -MP -MF $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.Tpo -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.o `test -f 'cti_daemon.c' || echo '$(srcdir)/'`cti_daemon.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.Tpo $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_daemon.c' object='cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -c -o cti_dlaunch-cti_daemon.o `test -f 'cti_daemon.c' || echo '$(srcdir)/'`cti_daemon.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.o `test -f 'cti_daemon.c' || echo '$(srcdir)/'`cti_daemon.c
 
-cti_dlaunch-cti_daemon.obj: cti_daemon.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -MT cti_dlaunch-cti_daemon.obj -MD -MP -MF $(DEPDIR)/cti_dlaunch-cti_daemon.Tpo -c -o cti_dlaunch-cti_daemon.obj `if test -f 'cti_daemon.c'; then $(CYGPATH_W) 'cti_daemon.c'; else $(CYGPATH_W) '$(srcdir)/cti_daemon.c'; fi`
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch-cti_daemon.Tpo $(DEPDIR)/cti_dlaunch-cti_daemon.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_daemon.c' object='cti_dlaunch-cti_daemon.obj' libtool=no @AMDEPBACKSLASH@
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.obj: cti_daemon.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -MT cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.obj -MD -MP -MF $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.Tpo -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.obj `if test -f 'cti_daemon.c'; then $(CYGPATH_W) 'cti_daemon.c'; else $(CYGPATH_W) '$(srcdir)/cti_daemon.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.Tpo $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cti_daemon.c' object='cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -c -o cti_dlaunch-cti_daemon.obj `if test -f 'cti_daemon.c'; then $(CYGPATH_W) 'cti_daemon.c'; else $(CYGPATH_W) '$(srcdir)/cti_daemon.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cti_daemon.obj `if test -f 'cti_daemon.c'; then $(CYGPATH_W) 'cti_daemon.c'; else $(CYGPATH_W) '$(srcdir)/cti_daemon.c'; fi`
 
-cti_dlaunch-alps_dl.o: alps_dl.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -MT cti_dlaunch-alps_dl.o -MD -MP -MF $(DEPDIR)/cti_dlaunch-alps_dl.Tpo -c -o cti_dlaunch-alps_dl.o `test -f 'alps_dl.c' || echo '$(srcdir)/'`alps_dl.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch-alps_dl.Tpo $(DEPDIR)/cti_dlaunch-alps_dl.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_dl.c' object='cti_dlaunch-alps_dl.o' libtool=no @AMDEPBACKSLASH@
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.o: alps_dl.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -MT cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.o -MD -MP -MF $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.Tpo -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.o `test -f 'alps_dl.c' || echo '$(srcdir)/'`alps_dl.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.Tpo $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_dl.c' object='cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -c -o cti_dlaunch-alps_dl.o `test -f 'alps_dl.c' || echo '$(srcdir)/'`alps_dl.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.o `test -f 'alps_dl.c' || echo '$(srcdir)/'`alps_dl.c
 
-cti_dlaunch-alps_dl.obj: alps_dl.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -MT cti_dlaunch-alps_dl.obj -MD -MP -MF $(DEPDIR)/cti_dlaunch-alps_dl.Tpo -c -o cti_dlaunch-alps_dl.obj `if test -f 'alps_dl.c'; then $(CYGPATH_W) 'alps_dl.c'; else $(CYGPATH_W) '$(srcdir)/alps_dl.c'; fi`
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch-alps_dl.Tpo $(DEPDIR)/cti_dlaunch-alps_dl.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_dl.c' object='cti_dlaunch-alps_dl.obj' libtool=no @AMDEPBACKSLASH@
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.obj: alps_dl.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -MT cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.obj -MD -MP -MF $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.Tpo -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.obj `if test -f 'alps_dl.c'; then $(CYGPATH_W) 'alps_dl.c'; else $(CYGPATH_W) '$(srcdir)/alps_dl.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.Tpo $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='alps_dl.c' object='cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -c -o cti_dlaunch-alps_dl.obj `if test -f 'alps_dl.c'; then $(CYGPATH_W) 'alps_dl.c'; else $(CYGPATH_W) '$(srcdir)/alps_dl.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-alps_dl.obj `if test -f 'alps_dl.c'; then $(CYGPATH_W) 'alps_dl.c'; else $(CYGPATH_W) '$(srcdir)/alps_dl.c'; fi`
 
-cti_dlaunch-cray_slurm_dl.o: cray_slurm_dl.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -MT cti_dlaunch-cray_slurm_dl.o -MD -MP -MF $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Tpo -c -o cti_dlaunch-cray_slurm_dl.o `test -f 'cray_slurm_dl.c' || echo '$(srcdir)/'`cray_slurm_dl.c
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Tpo $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cray_slurm_dl.c' object='cti_dlaunch-cray_slurm_dl.o' libtool=no @AMDEPBACKSLASH@
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.o: cray_slurm_dl.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -MT cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.o -MD -MP -MF $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.Tpo -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.o `test -f 'cray_slurm_dl.c' || echo '$(srcdir)/'`cray_slurm_dl.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.Tpo $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cray_slurm_dl.c' object='cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -c -o cti_dlaunch-cray_slurm_dl.o `test -f 'cray_slurm_dl.c' || echo '$(srcdir)/'`cray_slurm_dl.c
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.o `test -f 'cray_slurm_dl.c' || echo '$(srcdir)/'`cray_slurm_dl.c
 
-cti_dlaunch-cray_slurm_dl.obj: cray_slurm_dl.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -MT cti_dlaunch-cray_slurm_dl.obj -MD -MP -MF $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Tpo -c -o cti_dlaunch-cray_slurm_dl.obj `if test -f 'cray_slurm_dl.c'; then $(CYGPATH_W) 'cray_slurm_dl.c'; else $(CYGPATH_W) '$(srcdir)/cray_slurm_dl.c'; fi`
-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Tpo $(DEPDIR)/cti_dlaunch-cray_slurm_dl.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cray_slurm_dl.c' object='cti_dlaunch-cray_slurm_dl.obj' libtool=no @AMDEPBACKSLASH@
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.obj: cray_slurm_dl.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -MT cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.obj -MD -MP -MF $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.Tpo -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.obj `if test -f 'cray_slurm_dl.c'; then $(CYGPATH_W) 'cray_slurm_dl.c'; else $(CYGPATH_W) '$(srcdir)/cray_slurm_dl.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.Tpo $(DEPDIR)/cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cray_slurm_dl.c' object='cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch_CFLAGS) $(CFLAGS) -c -o cti_dlaunch-cray_slurm_dl.obj `if test -f 'cray_slurm_dl.c'; then $(CYGPATH_W) 'cray_slurm_dl.c'; else $(CYGPATH_W) '$(srcdir)/cray_slurm_dl.c'; fi`
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS) $(CFLAGS) -c -o cti_dlaunch@CRAYTOOL_RELEASE_VERSION@-cray_slurm_dl.obj `if test -f 'cray_slurm_dl.c'; then $(CYGPATH_W) 'cray_slurm_dl.c'; else $(CYGPATH_W) '$(srcdir)/cray_slurm_dl.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

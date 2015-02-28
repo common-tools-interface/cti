@@ -66,7 +66,7 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
 /*******************************************************************************
 ** Backend defines relating to the compute node
 *******************************************************************************/
-#define CTI_LAUNCHER							"cti_dlaunch"							// name of the tool daemon launcher binary
+// CTI_LAUNCHER is now defined by autoconf in config.h
 // The following needs the 'X' for random char replacement.
 #define DEFAULT_STAGE_DIR					"cti_daemonXXXXXX"					// default directory name for the fake root of the tool daemon
 #define SHELL_ENV_VAR							"SHELL"									// The environment variable to set shell info

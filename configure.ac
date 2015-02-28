@@ -68,13 +68,18 @@ AC_ARG_WITH([libmi],
 ###########################
 ### Check for programs. ###
 ###########################
+AC_PROG_CXX
+AC_PROG_AWK
+AC_PROG_SED
 AC_PROG_CC
 AC_PROG_CC_C99
 AM_PROG_CC_C_O
+AC_PROG_CPP
 AC_PROG_INSTALL
+AC_LIBTOOL_DLOPEN
 AC_PROG_LIBTOOL
 AC_PROG_LN_S
-AC_PROG_SED
+AC_PROG_MAKE_SET
 
 #########################
 ### Setup env options ###
@@ -239,7 +244,9 @@ LDFLAGS="$save_LDFLAGS"
 ###############################
 ### Check for header files. ###
 ###############################
-AC_CHECK_HEADERS([fcntl.h inttypes.h limits.h netinet/in.h stdint.h stdlib.h string.h strings.h unistd.h])
+AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h string.h strings.h sys/ioctl.h sys/param.h sys/socket.h sys/time.h unistd.h])
+					
+AC_HEADER_STDBOOL
 
 dnl Check for alps.h
 save_CFLAGS="$CFLAGS"
@@ -335,25 +342,39 @@ CFLAGS="$save_CFLAGS"
 ### Check for typedefs, structures, and compiler characteristics. ###
 #####################################################################
 AC_TYPE_UID_T
+AC_C_INLINE
 AC_TYPE_INT32_T
 AC_TYPE_INT64_T
+AC_TYPE_OFF_T
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
+AC_TYPE_SSIZE_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
+AC_TYPE_UINT8_T
 
 ####################################
 ### Check for library functions. ###
 ####################################
 AC_FUNC_FORK
+AC_FUNC_GETGROUPS
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
-AC_CHECK_FUNCS([dup2 memset setenv strdup strrchr strstr])
+AC_CHECK_FUNCS([clock_gettime dup2 getcwd inet_ntoa memchr memmove memset mkdir putenv realpath select setenv socket strchr strdup strerror strrchr strstr strtol strtoul strtoull])
+
+########################
+### Define constants ###
+########################
+
+dnl Define the dynamic name of the cti_dlaunch utility that is version specific
+AC_SUBST([CRAYTOOL_LAUNCHER], ["cti_dlaunch$CRAYTOOL_RELEASE_VERSION"])
+AC_DEFINE_UNQUOTED([CTI_LAUNCHER], ["$CRAYTOOL_LAUNCHER"], [Name of CTI daemon launcher binary.])
 
 ################
 ### Finalize ###
 ################
+
 AC_CONFIG_FILES([	Makefile
 					cray-tools_be.pc
 					cray-tools_fe.pc
