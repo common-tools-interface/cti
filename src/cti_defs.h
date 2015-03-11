@@ -6,7 +6,7 @@
  *       easier. The environment variables here should match those found in the
  *       public cray_tools_be.h and cray_tools_fe.h headers.
  *
- * Copyright 2013-2014 Cray Inc.	All Rights Reserved.
+ * Copyright 2013-2015 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -62,6 +62,7 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
 *******************************************************************************/
 #define CTI_GDB_BINARY			"cti_approved_gdb"								// name of gdb binary
 #define GDB_MPIR_STARTER			"cti_starter"										// name of starter binary
+#define GDB_MPIR_ATTACH			"cti_attach"										// name of attach binary
 
 /*******************************************************************************
 ** Backend defines relating to the compute node

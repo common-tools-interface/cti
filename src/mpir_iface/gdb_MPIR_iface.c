@@ -2,7 +2,7 @@
  * gdb_MPIR_iface.c - An interface to start launcher processes and hold at a
  *                    startup barrier
  *
- * Copyright 2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -32,6 +32,7 @@
 
 #include "cti_defs.h"
 #include "cti_error.h"
+#include "cti_useful.h"
 
 #include "gdb_MPIR_iface.h"
 #include "gdb_MPIR.h"
@@ -259,14 +260,7 @@ _cti_gdb_execStarter(	cti_gdb_id_t gdb_id, const char *starter, const char *gdb,
 						const char *launcher, const char * const launcher_args[], const char *input_file	)
 {
 	gdbCtlInst_t *	this;
-	char *			pr_arg;
-	char *			pw_arg;
-	char *			g_arg;
-	char *			l_arg;
-	char *			i_arg = NULL;
-	int				s_argc = 0;
-	char **			s_argv;
-	int				i,j;
+	cti_args_t *	my_args;
 	int				fd;
 	
 	// ensure the caller passed valid arguments
@@ -309,110 +303,116 @@ _cti_gdb_execStarter(	cti_gdb_id_t gdb_id, const char *starter, const char *gdb,
 	close(this->pipeW[1]);
 	
 	//
-	// count the number of starter args
-	//
-	
-	// count the number of args in the launcher_args argument
-	if (launcher_args != NULL)
-	{
-		// add one for the "--" argument
-		++s_argc;
-		for (i=0; launcher_args[i] != NULL; ++i)
-		{
-			++s_argc;
-		}
-	}
-	
-	if (input_file != NULL)
-		++s_argc;
-	
-	//
 	// create the required starter args
 	//
+	// For the starter process, it requires a -r <fd> and -w <fd> argument for 
+	// the pipe fd numbers, a required -g <gdb> argument, a required -s <starter> 
+	// argument, an optional -i <input> argument for redirect of stdin, 
+	// followed by -- <launcher args>
+	//
+	
+	// create a new args obj
+	if ((my_args = _cti_newArgs()) == NULL)
+	{
+		// post fork - no way to report errors right now!
+		fprintf(stderr, "CTI error: _cti_newArgs failed.");
+		return;
+	}
 	
 	// use the read/write ends for the child in the instance
 	// This is opposite of what we set in the parent.
-	if (asprintf(&pr_arg, "-r %d", this->pipeW[0]) < 0)
+	if (_cti_addArg(my_args, "-r"))
 	{
-		// post fork - no way to report errors right now!
-		perror("asprintf");
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return;
 	}
-	if (asprintf(&pw_arg, "-w %d", this->pipeR[1]) < 0)
+	if (_cti_addArg(my_args, "%d", this->pipeW[0]))
 	{
-		// post fork - no way to report errors right now!
-		perror("asprintf");
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	
+	if (_cti_addArg(my_args, "-w"))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	if (_cti_addArg(my_args, "%d", this->pipeR[1]))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return;
 	}
 	
 	// create the gdb arg
-	if (asprintf(&g_arg, "-g %s", gdb) < 0)
+	if (_cti_addArg(my_args, "-g"))
 	{
-		// post fork - no way to report errors right now!
-		perror("asprintf");
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	if (_cti_addArg(my_args, "%s", gdb))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return;
 	}
 	
 	// create the starter arg
-	if (asprintf(&l_arg, "-s %s", launcher) < 0)
+	if (_cti_addArg(my_args, "-s"))
 	{
-		// post fork - no way to report errors right now!
-		perror("asprintf");
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	if (_cti_addArg(my_args, "%s", launcher))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return;
 	}
 	
 	// create input file arg if there is one
 	if (input_file != NULL)
 	{
-		if (asprintf(&i_arg, "-i %s", input_file) < 0)
+		if (_cti_addArg(my_args, "-i"))
 		{
-			// post fork - no way to report errors right now!
-			perror("asprintf");
+			fprintf(stderr, "CTI error: _cti_addArg failed.");
+			_cti_freeArgs(my_args);
+			return;
+		}
+		if (_cti_addArg(my_args, "%s", input_file))
+		{
+			fprintf(stderr, "CTI error: _cti_addArg failed.");
+			_cti_freeArgs(my_args);
 			return;
 		}
 	}
 	
-	//
-	// create the argv array
-	//
-	
-	// For the starter process, it requires a -r <fd> and -w <fd> argument for 
-	// the pipe fd numbers, a required -g <gdb> argument, a required -s <starter> 
-	// argument, an optional -i <input> argument for redirect of stdin, 
-	// followed by -- <launcher args>
-	
-	// add required args to the s_argc
-	s_argc += 6;
-	
-	// alloc the argc array
-	if ((s_argv = calloc(s_argc, sizeof(char *))) == NULL)
-	{
-		// calloc failed
-		// post fork - no way to report errors right now!
-		perror("calloc");
-		return;
-	}
-	
-	s_argv[0] = (char *)starter;
-	s_argv[1] = pr_arg;
-	s_argv[2] = pw_arg;
-	s_argv[3] = g_arg;
-	s_argv[4] = l_arg;
-	i = 5;
-	if (i_arg != NULL)
-	{
-		s_argv[i++] = i_arg;
-	}
+	// Add launcher args if there are any
 	if (launcher_args != NULL)
 	{
-		s_argv[i++] = "--";
-		for (j=0; launcher_args[j] != NULL; ++j)
+		int i;
+	
+		if (_cti_addArg(my_args, "--"))
 		{
-			s_argv[i++] = (char *)launcher_args[j];
+			fprintf(stderr, "CTI error: _cti_addArg failed.");
+			_cti_freeArgs(my_args);
+			return;
+		}
+		for (i=0; launcher_args[i] != NULL; ++i)
+		{
+			if (_cti_addArg(my_args, "%s", launcher_args[i]))
+			{
+				fprintf(stderr, "CTI error: _cti_addArg failed.");
+				_cti_freeArgs(my_args);
+				return;
+			}
 		}
 	}
-	// set null terminator
-	s_argv[i] = NULL;
 	
 	// we want to redirect stdin/stdout/stderr to /dev/null since it is not required
 	if ((fd = open("/dev/null", O_RDONLY)) < 0)
@@ -445,7 +445,165 @@ _cti_gdb_execStarter(	cti_gdb_id_t gdb_id, const char *starter, const char *gdb,
 	close(fd);
 	
 	// exec the starter utility
-	execv(starter, s_argv);
+	execv(starter, my_args->argv);
+	
+	// if we get here, an error happened
+	return;
+}
+
+// This function is called by the child after the fork.
+// It will setup the call to exec the gdb MPIR attach utility.
+void
+_cti_gdb_execAttach(	cti_gdb_id_t gdb_id, const char *attach, const char *gdb, 
+						pid_t starter_pid	)
+{
+	gdbCtlInst_t *	this;
+	cti_args_t *	my_args;
+	int				fd;
+	
+	// ensure the caller passed valid arguments
+	if (attach == NULL || gdb == NULL || starter_pid <= 0)
+	{
+		// post fork - now way to report errors right now!
+		fprintf(stderr, "CTI error: _cti_gdb_execAttach bad args.\n");
+		return;
+	}
+
+	// ensure the caller passed a valid id.
+	if (gdb_id < 0 || gdb_id >= CTI_GDB_TABLE_SIZE)
+	{
+		// post fork - no way to report errors right now!
+		fprintf(stderr, "CTI error: _cti_gdb_execAttach bad args.\n");
+		return;
+	}
+	
+	// point at the instance
+	this = _cti_gdb_hashtable[gdb_id];
+	
+	// validate the instance
+	if (this == NULL)
+	{
+		// post fork - no way to report errors right now!
+		fprintf(stderr, "CTI error: _cti_gdb_execAttach bad args.\n");
+		return;
+	}
+	
+	// ensure the instance hasn't already been init'ed
+	if (this->init)
+	{
+		// post fork - no way to report errors right now!
+		fprintf(stderr, "CTI error: _cti_gdb_execAttach already init!\n");
+		return;
+	}
+	
+	// close unused ends of the pipe
+	close(this->pipeR[0]);
+	close(this->pipeW[1]);
+	
+	//
+	// create the required attach args
+	//
+	// For the attach process, it requires a -r <fd> and -w <fd> argument for 
+	// the pipe fd numbers, a required -g <gdb> argument, a required -p <pid> 
+	// argument.
+	//
+	
+	// create a new args obj
+	if ((my_args = _cti_newArgs()) == NULL)
+	{
+		// post fork - no way to report errors right now!
+		fprintf(stderr, "CTI error: _cti_newArgs failed.");
+		return;
+	}
+	
+	// use the read/write ends for the child in the instance
+	// This is opposite of what we set in the parent.
+	if (_cti_addArg(my_args, "-r"))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	if (_cti_addArg(my_args, "%d", this->pipeW[0]))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	
+	if (_cti_addArg(my_args, "-w"))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	if (_cti_addArg(my_args, "%d", this->pipeR[1]))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	
+	// create the gdb arg
+	if (_cti_addArg(my_args, "-g"))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	if (_cti_addArg(my_args, "%s", gdb))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	
+	// create the pid arg
+	if (_cti_addArg(my_args, "-p"))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	if (_cti_addArg(my_args, "%d", (int)starter_pid))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	
+	// we want to redirect stdin/stdout/stderr to /dev/null since it is not required
+	if ((fd = open("/dev/null", O_RDONLY)) < 0)
+	{
+		perror("open");
+		return;
+	}
+	
+	// dup2 stdin
+	if (dup2(fd, STDIN_FILENO) < 0)
+	{
+		perror("dup2");
+		return;
+	}
+	
+	// dup2 stdout
+	if (dup2(fd, STDOUT_FILENO) < 0)
+	{
+		perror("dup2");
+		return;
+	}
+	
+	// dup2 stderr
+	if (dup2(fd, STDERR_FILENO) < 0)
+	{
+		perror("dup2");
+		return;
+	}
+	
+	close(fd);
+	
+	// exec the attach utility
+	execv(attach, my_args->argv);
 	
 	// if we get here, an error happened
 	return;
@@ -800,11 +958,11 @@ _cti_gdb_getAppPids(cti_gdb_id_t gdb_id)
 	return rtn;
 }
 
-// This function is used to release the application from its startup barrier
-// It also causes gdb to exit and clean things up. After calling this, no further
-// use of the gdb interface is possible.
+// This function is used to release the application from the control of gdb. It
+// causes gdb to exit and clean things up. After calling this, no further use of
+// the gdb interface is possible.
 int
-_cti_gdb_releaseBarrier(cti_gdb_id_t gdb_id)
+_cti_gdb_release(cti_gdb_id_t gdb_id)
 {
 	gdbCtlInst_t *	this;
 	cti_gdb_msg_t *	msg;
@@ -812,7 +970,7 @@ _cti_gdb_releaseBarrier(cti_gdb_id_t gdb_id)
 	// ensure the caller passed a valid id.
 	if (gdb_id < 0 || gdb_id >= CTI_GDB_TABLE_SIZE)
 	{
-		_cti_set_error("_cti_gdb_releaseBarrier: Invalid cti_gdb_id_t.\n");
+		_cti_set_error("_cti_gdb_release: Invalid cti_gdb_id_t.\n");
 		return 1;
 	}
 	
@@ -822,14 +980,14 @@ _cti_gdb_releaseBarrier(cti_gdb_id_t gdb_id)
 	// validate the instance
 	if (this == NULL)
 	{
-		_cti_set_error("_cti_gdb_releaseBarrier: Invalid cti_gdb_id_t.\n");
+		_cti_set_error("_cti_gdb_release: Invalid cti_gdb_id_t.\n");
 		return 1;
 	}
 	
 	// ensure the instance hasn't already been finalized
 	if (this->final)
 	{
-		_cti_set_error("_cti_gdb_releaseBarrier: cti_gdb_id_t is finalized.\n");
+		_cti_set_error("_cti_gdb_release: cti_gdb_id_t is finalized.\n");
 		return 1;
 	}
 	
@@ -842,7 +1000,7 @@ _cti_gdb_releaseBarrier(cti_gdb_id_t gdb_id)
 			_cti_set_error("%s", _cti_gdb_err_string);
 		} else
 		{
-			_cti_set_error("_cti_gdb_releaseBarrier: Unknown gdb_MPIR error!\n");
+			_cti_set_error("_cti_gdb_release: Unknown gdb_MPIR error!\n");
 		}
 		return 1;
 	}
@@ -856,7 +1014,7 @@ _cti_gdb_releaseBarrier(cti_gdb_id_t gdb_id)
 			_cti_set_error("%s", _cti_gdb_err_string);
 		} else
 		{
-			_cti_set_error("_cti_gdb_releaseBarrier: Unknown gdb_MPIR error!\n");
+			_cti_set_error("_cti_gdb_release: Unknown gdb_MPIR error!\n");
 		}
 		_cti_gdb_consumeMsg(msg);
 		return 1;
@@ -873,7 +1031,7 @@ _cti_gdb_releaseBarrier(cti_gdb_id_t gdb_id)
 			_cti_set_error("%s", _cti_gdb_err_string);
 		} else
 		{
-			_cti_set_error("_cti_gdb_releaseBarrier: Unknown gdb_MPIR error!\n");
+			_cti_set_error("_cti_gdb_release: Unknown gdb_MPIR error!\n");
 		}
 		return 1;
 	}
@@ -890,7 +1048,7 @@ _cti_gdb_releaseBarrier(cti_gdb_id_t gdb_id)
 		default:
 			// We don't have error recovery right now, so if an unexpected message
 			// comes in we are screwed.
-			_cti_set_error("_cti_gdb_releaseBarrier: Unexpected message received!\n");
+			_cti_set_error("_cti_gdb_release: Unexpected message received!\n");
 			_cti_gdb_consumeMsg(msg);
 			return 1;
 	}

@@ -63,6 +63,7 @@ static char *			_cti_ld_audit_lib	= NULL;	// ld audit library location
 static char *			_cti_overwatch_bin	= NULL;	// overwatch binary location
 static char *			_cti_gdb_bin		= NULL;	// GDB binary location
 static char *			_cti_starter_bin	= NULL;	// MPIR starter binary location
+static char *			_cti_attach_bin		= NULL;	// MPIR attach binary location
 static char *			_cti_dlaunch_bin	= NULL;	// dlaunch binary location
 static char *			_cti_slurm_util		= NULL;	// slurm utility binary location
 
@@ -222,6 +223,9 @@ _cti_fini(void)
 	if (_cti_starter_bin != NULL)
 		free(_cti_starter_bin);
 	_cti_starter_bin = NULL;
+	if (_cti_attach_bin != NULL)
+		free(_cti_attach_bin);
+	_cti_attach_bin = NULL;
 	if (_cti_dlaunch_bin != NULL)
 		free(_cti_dlaunch_bin);
 	_cti_dlaunch_bin = NULL;
@@ -311,6 +315,18 @@ _cti_setup_base_dir(void)
 		_cti_starter_bin = NULL;
 	}
 	
+	if (asprintf(&_cti_attach_bin, "%s/libexec/%s", base_dir, GDB_MPIR_ATTACH) > 0)
+	{
+		if (access(_cti_attach_bin, R_OK | X_OK))
+		{
+			free(_cti_attach_bin);
+			_cti_attach_bin = NULL;
+		}
+	} else
+	{
+		_cti_attach_bin = NULL;
+	}
+	
 	if (asprintf(&_cti_dlaunch_bin, "%s/libexec/%s", base_dir, CTI_LAUNCHER) > 0)
 	{
 		if (access(_cti_dlaunch_bin, R_OK | X_OK))
@@ -360,6 +376,12 @@ const char *
 _cti_getStarterPath(void)
 {
 	return (const char *)_cti_starter_bin;
+}
+
+const char *
+_cti_getAttachPath(void)
+{
+	return (const char *)_cti_attach_bin;
 }
 
 const char *

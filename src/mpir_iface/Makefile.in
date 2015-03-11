@@ -45,7 +45,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-libexec_PROGRAMS = cti_starter$(EXEEXT)
+libexec_PROGRAMS = cti_starter$(EXEEXT) cti_attach$(EXEEXT)
 subdir = src/mpir_iface
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -69,11 +69,19 @@ libmpir_iface_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 am__installdirs = "$(DESTDIR)$(libexecdir)"
 libexecPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(libexec_PROGRAMS)
+am_cti_attach_OBJECTS = cti_attach-gdb_MPIR.$(OBJEXT) \
+	cti_attach-gdb_MPIR_attach.$(OBJEXT)
+cti_attach_OBJECTS = $(am_cti_attach_OBJECTS)
+am__DEPENDENCIES_1 =
+cti_attach_DEPENDENCIES = $(USEFUL)/libuseful.la $(am__DEPENDENCIES_1)
+cti_attach_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(cti_attach_CFLAGS) \
+	$(CFLAGS) $(cti_attach_LDFLAGS) $(LDFLAGS) -o $@
 am_cti_starter_OBJECTS = cti_starter-gdb_MPIR.$(OBJEXT) \
 	cti_starter-gdb_MPIR_starter.$(OBJEXT)
 cti_starter_OBJECTS = $(am_cti_starter_OBJECTS)
-am__DEPENDENCIES_1 =
-cti_starter_DEPENDENCIES = $(am__DEPENDENCIES_1)
+cti_starter_DEPENDENCIES = $(USEFUL)/libuseful.la \
+	$(am__DEPENDENCIES_1)
 cti_starter_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(cti_starter_CFLAGS) \
 	$(CFLAGS) $(cti_starter_LDFLAGS) $(LDFLAGS) -o $@
@@ -89,8 +97,10 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libmpir_iface_la_SOURCES) $(cti_starter_SOURCES)
-DIST_SOURCES = $(libmpir_iface_la_SOURCES) $(cti_starter_SOURCES)
+SOURCES = $(libmpir_iface_la_SOURCES) $(cti_attach_SOURCES) \
+	$(cti_starter_SOURCES)
+DIST_SOURCES = $(libmpir_iface_la_SOURCES) $(cti_attach_SOURCES) \
+	$(cti_starter_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -238,16 +248,23 @@ top_srcdir = @top_srcdir@
 SRC = @CRAYTOOL_DIR@/src
 MPIR_IFACE = $(SRC)/mpir_iface
 FRONTEND = $(SRC)/frontend
+USEFUL = $(SRC)/useful
 AM_CFLAGS = -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
 noinst_LTLIBRARIES = libmpir_iface.la
 libmpir_iface_la_SOURCES = gdb_MPIR.c gdb_MPIR.h gdb_MPIR_iface.c gdb_MPIR_iface.h
-libmpir_iface_la_CFLAGS = $(AM_CFLAGS) -fPIC -I$(FRONTEND) $(MI_CFLAGS)
+libmpir_iface_la_CFLAGS = $(AM_CFLAGS) -fPIC -I$(FRONTEND) -I$(USEFUL) $(MI_CFLAGS)
 libmpir_iface_la_LDFLAGS = -static -Wl,--no-undefined -Wl,--as-needed
 cti_starter_SOURCES = gdb_MPIR.c gdb_MPIR.h gdb_MPIR_starter.c
-cti_starter_CFLAGS = $(AM_CFLAGS) $(MI_CFLAGS)
-cti_starter_LDADD = $(MI_LIBS)
+cti_starter_CFLAGS = $(AM_CFLAGS) -I$(USEFUL) $(MI_CFLAGS)
+cti_starter_LDADD = $(USEFUL)/libuseful.la $(MI_LIBS)
 cti_starter_LDFLAGS = -Wl,--no-undefined -Wl,-z,origin -Wl,-rpath,\$$ORIGIN/../lib \
+								-Wl,-rpath,\$$ORIGIN $(MI_LDFLAGS)
+
+cti_attach_SOURCES = gdb_MPIR.c gdb_MPIR.h gdb_MPIR_attach.c
+cti_attach_CFLAGS = $(AM_CFLAGS) -I$(USEFUL) $(MI_CFLAGS)
+cti_attach_LDADD = $(USEFUL)/libuseful.la $(MI_LIBS)
+cti_attach_LDFLAGS = -Wl,--no-undefined -Wl,-z,origin -Wl,-rpath,\$$ORIGIN/../lib \
 								-Wl,-rpath,\$$ORIGIN $(MI_LDFLAGS)
 
 all: all-am
@@ -322,6 +339,9 @@ clean-libexecPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
+cti_attach$(EXEEXT): $(cti_attach_OBJECTS) $(cti_attach_DEPENDENCIES) 
+	@rm -f cti_attach$(EXEEXT)
+	$(cti_attach_LINK) $(cti_attach_OBJECTS) $(cti_attach_LDADD) $(LIBS)
 cti_starter$(EXEEXT): $(cti_starter_OBJECTS) $(cti_starter_DEPENDENCIES) 
 	@rm -f cti_starter$(EXEEXT)
 	$(cti_starter_LINK) $(cti_starter_OBJECTS) $(cti_starter_LDADD) $(LIBS)
@@ -332,6 +352,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_attach-gdb_MPIR.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_attach-gdb_MPIR_attach.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_starter-gdb_MPIR.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cti_starter-gdb_MPIR_starter.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libmpir_iface_la-gdb_MPIR.Plo@am__quote@
@@ -371,6 +393,34 @@ libmpir_iface_la-gdb_MPIR_iface.lo: gdb_MPIR_iface.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='gdb_MPIR_iface.c' object='libmpir_iface_la-gdb_MPIR_iface.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libmpir_iface_la_CFLAGS) $(CFLAGS) -c -o libmpir_iface_la-gdb_MPIR_iface.lo `test -f 'gdb_MPIR_iface.c' || echo '$(srcdir)/'`gdb_MPIR_iface.c
+
+cti_attach-gdb_MPIR.o: gdb_MPIR.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_attach_CFLAGS) $(CFLAGS) -MT cti_attach-gdb_MPIR.o -MD -MP -MF $(DEPDIR)/cti_attach-gdb_MPIR.Tpo -c -o cti_attach-gdb_MPIR.o `test -f 'gdb_MPIR.c' || echo '$(srcdir)/'`gdb_MPIR.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_attach-gdb_MPIR.Tpo $(DEPDIR)/cti_attach-gdb_MPIR.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='gdb_MPIR.c' object='cti_attach-gdb_MPIR.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_attach_CFLAGS) $(CFLAGS) -c -o cti_attach-gdb_MPIR.o `test -f 'gdb_MPIR.c' || echo '$(srcdir)/'`gdb_MPIR.c
+
+cti_attach-gdb_MPIR.obj: gdb_MPIR.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_attach_CFLAGS) $(CFLAGS) -MT cti_attach-gdb_MPIR.obj -MD -MP -MF $(DEPDIR)/cti_attach-gdb_MPIR.Tpo -c -o cti_attach-gdb_MPIR.obj `if test -f 'gdb_MPIR.c'; then $(CYGPATH_W) 'gdb_MPIR.c'; else $(CYGPATH_W) '$(srcdir)/gdb_MPIR.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_attach-gdb_MPIR.Tpo $(DEPDIR)/cti_attach-gdb_MPIR.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='gdb_MPIR.c' object='cti_attach-gdb_MPIR.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_attach_CFLAGS) $(CFLAGS) -c -o cti_attach-gdb_MPIR.obj `if test -f 'gdb_MPIR.c'; then $(CYGPATH_W) 'gdb_MPIR.c'; else $(CYGPATH_W) '$(srcdir)/gdb_MPIR.c'; fi`
+
+cti_attach-gdb_MPIR_attach.o: gdb_MPIR_attach.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_attach_CFLAGS) $(CFLAGS) -MT cti_attach-gdb_MPIR_attach.o -MD -MP -MF $(DEPDIR)/cti_attach-gdb_MPIR_attach.Tpo -c -o cti_attach-gdb_MPIR_attach.o `test -f 'gdb_MPIR_attach.c' || echo '$(srcdir)/'`gdb_MPIR_attach.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_attach-gdb_MPIR_attach.Tpo $(DEPDIR)/cti_attach-gdb_MPIR_attach.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='gdb_MPIR_attach.c' object='cti_attach-gdb_MPIR_attach.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_attach_CFLAGS) $(CFLAGS) -c -o cti_attach-gdb_MPIR_attach.o `test -f 'gdb_MPIR_attach.c' || echo '$(srcdir)/'`gdb_MPIR_attach.c
+
+cti_attach-gdb_MPIR_attach.obj: gdb_MPIR_attach.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_attach_CFLAGS) $(CFLAGS) -MT cti_attach-gdb_MPIR_attach.obj -MD -MP -MF $(DEPDIR)/cti_attach-gdb_MPIR_attach.Tpo -c -o cti_attach-gdb_MPIR_attach.obj `if test -f 'gdb_MPIR_attach.c'; then $(CYGPATH_W) 'gdb_MPIR_attach.c'; else $(CYGPATH_W) '$(srcdir)/gdb_MPIR_attach.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/cti_attach-gdb_MPIR_attach.Tpo $(DEPDIR)/cti_attach-gdb_MPIR_attach.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='gdb_MPIR_attach.c' object='cti_attach-gdb_MPIR_attach.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_attach_CFLAGS) $(CFLAGS) -c -o cti_attach-gdb_MPIR_attach.obj `if test -f 'gdb_MPIR_attach.c'; then $(CYGPATH_W) 'gdb_MPIR_attach.c'; else $(CYGPATH_W) '$(srcdir)/gdb_MPIR_attach.c'; fi`
 
 cti_starter-gdb_MPIR.o: gdb_MPIR.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(cti_starter_CFLAGS) $(CFLAGS) -MT cti_starter-gdb_MPIR.o -MD -MP -MF $(DEPDIR)/cti_starter-gdb_MPIR.Tpo -c -o cti_starter-gdb_MPIR.o `test -f 'gdb_MPIR.c' || echo '$(srcdir)/'`gdb_MPIR.c

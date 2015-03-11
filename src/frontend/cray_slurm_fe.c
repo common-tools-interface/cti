@@ -96,7 +96,7 @@ static char *				_cti_cray_slurm_getJobId(cti_wlm_obj);
 static cti_app_id_t			_cti_cray_slurm_launch_common(const char * const [], int, int, const char *, const char *, const char * const [], int);
 static cti_app_id_t			_cti_cray_slurm_launch(const char * const [], int, int, const char *, const char *, const char * const []);
 static cti_app_id_t			_cti_cray_slurm_launchBarrier(const char * const [], int, int, const char *, const char *, const char * const []);
-static int					_cti_cray_slurm_releaseBarrier(cti_wlm_obj);
+static int					_cti_cray_slurm_release(cti_wlm_obj);
 static int					_cti_cray_slurm_killApp(cti_wlm_obj, int);
 static const char * const *	_cti_cray_slurm_extraBinaries(cti_wlm_obj);
 static const char * const *	_cti_cray_slurm_extraLibraries(cti_wlm_obj);
@@ -122,7 +122,7 @@ const cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
 	_cti_cray_slurm_getJobId,				// wlm_getJobId
 	_cti_cray_slurm_launch,					// wlm_launch
 	_cti_cray_slurm_launchBarrier,			// wlm_launchBarrier
-	_cti_cray_slurm_releaseBarrier,			// wlm_releaseBarrier
+	_cti_cray_slurm_release,				// wlm_releaseBarrier
 	_cti_cray_slurm_killApp,				// wlm_killApp
 	_cti_cray_slurm_extraBinaries,			// wlm_extraBinaries
 	_cti_cray_slurm_extraLibraries,			// wlm_extraLibraries
@@ -1136,6 +1136,198 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId)
 	return srunInfo;
 }
 
+cti_srunProc_t *
+cti_cray_slurm_getJobInfo(pid_t srunPid)
+{
+	cti_gdb_id_t		gdb_id;
+	pid_t				gdb_pid;
+	const char *		gdb_path;
+	char *				usr_gdb_path = NULL;
+	const char *		attach_path;
+	char *				sym_str;
+	char *				end_p;
+	uint32_t			jobid;
+	uint32_t			stepid;
+	cti_srunProc_t *	srunInfo; // return object
+	
+	// sanity check
+	if (srunPid <= 0)
+	{
+		_cti_set_error("Invalid srunPid %d.", (int)srunPid);
+		return NULL;
+	}
+	
+	// get the gdb path
+	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
+	{
+		// use the gdb set in the environment
+		usr_gdb_path = strdup(gdb_path);
+		gdb_path = (const char *)usr_gdb_path;
+	} else
+	{
+		gdb_path = _cti_getGdbPath();
+		if (gdb_path == NULL)
+		{
+			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+			return NULL;
+		}
+	}
+	
+	// get the attach path
+	attach_path = _cti_getAttachPath();
+	if (attach_path == NULL)
+	{
+		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+		if (usr_gdb_path != NULL)	free(usr_gdb_path);
+		return NULL;
+	}
+	
+	// Create a new gdb MPIR instance. We want to interact with it.
+	if ((gdb_id = _cti_gdb_newInstance()) < 0)
+	{
+		// error already set
+		if (usr_gdb_path != NULL)	free(usr_gdb_path);
+		
+		return NULL;
+	}
+	
+	// fork off a process to start the mpir attach
+	gdb_pid = fork();
+	
+	// error case
+	if (gdb_pid < 0)
+	{
+		_cti_set_error("Fatal fork error.");
+		_cti_gdb_cleanup(gdb_id);
+		
+		return NULL;
+	}
+	
+	// child case
+	// Note that this should not use the _cti_set_error() interface since it is
+	// a child process.
+	if (gdb_pid == 0)
+	{
+		// call the exec function - this should not return
+		_cti_gdb_execAttach(gdb_id, attach_path, gdb_path, srunPid);
+		
+		// exec shouldn't return
+		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execv");
+		exit(1);
+	}
+	
+	// parent case
+	
+	// cleanup
+	if (usr_gdb_path != NULL)	free(usr_gdb_path);
+	
+	// call the post fork setup - this will ensure gdb was started and this pid
+	// is valid
+	if (_cti_gdb_postFork(gdb_id))
+	{
+		// error message already set
+		_cti_gdb_cleanup(gdb_id);
+		waitpid(gdb_pid, NULL, 0);
+		
+		return NULL;
+	}
+	
+	// get the jobid string for slurm
+	if ((sym_str = _cti_gdb_getSymbolVal(gdb_id, "totalview_jobid")) == NULL)
+	{
+		// error already set
+		_cti_gdb_cleanup(gdb_id);
+		waitpid(gdb_pid, NULL, 0);
+		
+		return NULL;
+	}
+	
+	// convert the string into the actual jobid
+	errno = 0;
+	jobid = (uint32_t)strtoul(sym_str, &end_p, 10);
+	
+	// check for errors
+	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0))
+	{
+		_cti_set_error("strtoul failed.\n");
+		_cti_gdb_cleanup(gdb_id);
+		waitpid(gdb_pid, NULL, 0);
+		free(sym_str);
+		
+		return NULL;
+	}
+	if (end_p == NULL || *end_p != '\0')
+	{
+		_cti_set_error("strtoul failed.\n");
+		_cti_gdb_cleanup(gdb_id);
+		waitpid(gdb_pid, NULL, 0);
+		free(sym_str);
+		
+		return NULL;
+	}
+	
+	free(sym_str);
+	
+	// get the stepid string for slurm
+	if ((sym_str = _cti_gdb_getSymbolVal(gdb_id, "totalview_stepid")) == NULL)
+	{
+		/*
+		// error already set
+		_cti_cray_slurm_consumeSrunInv(myapp);
+		
+		return 0;
+		*/
+		// FIXME: Once totalview_stepid starts showing up we can use it.
+		fprintf(stderr, "cti_fe: Warning: stepid not found! Defaulting to 0.\n");
+		sym_str = strdup("0");
+	}
+	
+	// convert the string into the actual stepid
+	errno = 0;
+	stepid = (uint32_t)strtoul(sym_str, &end_p, 10);
+	
+	// check for errors
+	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
+	{
+		_cti_set_error("strtoul failed.\n");
+		_cti_gdb_cleanup(gdb_id);
+		waitpid(gdb_pid, NULL, 0);
+		free(sym_str);
+		
+		return NULL;
+	}
+	if (end_p == NULL || *end_p != '\0')
+	{
+		_cti_set_error("strtoul failed.\n");
+		_cti_gdb_cleanup(gdb_id);
+		waitpid(gdb_pid, NULL, 0);
+		free(sym_str);
+		
+		return NULL;
+	}
+	
+	free(sym_str);
+	
+	// Cleanup this gdb instance, we are done with it
+	_cti_gdb_cleanup(gdb_id);
+	waitpid(gdb_pid, NULL, 0);
+	
+	// allocate space for the cti_srunProc_t struct
+	if ((srunInfo = malloc(sizeof(cti_srunProc_t))) == NULL)
+	{
+		// malloc failed
+		_cti_set_error("malloc failed.");
+		return NULL;
+	}
+	
+	// set the members
+	srunInfo->jobid = jobid;
+	srunInfo->stepid = stepid;
+	
+	return srunInfo;
+}
+
 static cti_app_id_t
 _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 								const char *inputFile, const char *chdirPath,
@@ -1538,7 +1730,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// If we should not wait at the barrier, call the barrier release function.
 	if (!doBarrier)
 	{
-		if (_cti_cray_slurm_releaseBarrier(sinfo))
+		if (_cti_cray_slurm_release(sinfo))
 		{
 			// error already set - appEntry already holds all info to be cleaned up
 			cti_deregisterApp(appEntry->appId);
@@ -1569,7 +1761,7 @@ _cti_cray_slurm_launchBarrier(	const char * const a1[], int a2, int a3,
 }
 
 static int
-_cti_cray_slurm_releaseBarrier(cti_wlm_obj this)
+_cti_cray_slurm_release(cti_wlm_obj this)
 {
 	craySlurmInfo_t *	my_app = (craySlurmInfo_t *)this;
 
@@ -1588,7 +1780,7 @@ _cti_cray_slurm_releaseBarrier(cti_wlm_obj this)
 	}
 	
 	// call the release function
-	if (_cti_gdb_releaseBarrier(my_app->inv->gdb_id))
+	if (_cti_gdb_release(my_app->inv->gdb_id))
 	{
 		_cti_set_error("srun barrier release operation failed.");
 		return 1;

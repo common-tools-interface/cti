@@ -1,10 +1,10 @@
 /******************************************************************************\
- * gdb_MPIR_starter.c - An interface to start launcher processes and hold at a
- *                    startup barrier. This code is the child that communicates
- *                    to the parent via pipes. This process controls the starter
- *                    process via gdb.
+ * gdb_MPIR_attach.c - An interface to attach to launcher processes and obtain
+ *                     MPIR information. This code is the child that 
+ *                     communicates to the parent via pipes. This process 
+ *                     controls the launcher process via gdb.
  *
- * Copyright 2014-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2015 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -23,16 +23,18 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <sys/types.h>
+#include <sys/select.h>
+
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-#include <sys/select.h>
 
 #include "MI.h"
 
@@ -55,8 +57,7 @@ const struct option long_opts[] = {
 			{"read",		required_argument,	0, 'r'},
 			{"write",		required_argument,	0, 'w'},
 			{"gdb",			required_argument,	0, 'g'},
-			{"starter",		required_argument,	0, 's'},
-			{"input",		required_argument,	0, 'i'},
+			{"pid",			required_argument,	0, 'p'},
 			{"help",		no_argument,		0, 'h'},
 			{0, 0, 0, 0}
 			};
@@ -71,12 +72,8 @@ usage(char *name)
 	fprintf(stdout, "\t-r, --read      fd of read control pipe         (required)\n");
 	fprintf(stdout, "\t-w, --write     fd of write control pipe        (required)\n");
 	fprintf(stdout, "\t-g, --gdb       Name of gdb binary              (required)\n");
-	fprintf(stdout, "\t-s, --starter   Name of starter binary          (required)\n");
-	fprintf(stdout, "\t-i, --input     redirect stdin to provided file (optional)\n");
+	fprintf(stdout, "\t-p, --pid       pid of starter process          (required)\n");
 	fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
-	
-	fprintf(stdout, "Additional starter arguments can be provided by using the special \"--\" argument\n");
-	fprintf(stdout, "followed by the starter arguments.\n");
 }
 
 /* Static prototypes */
@@ -288,11 +285,11 @@ main(int argc, char *argv[])
 	long int		val;
 	char *			end_p;
 	char *			gdb = NULL;
-	char *			starter	= NULL;
-	char *			s_args[2] = {0};
-	char *			input_file	= NULL;
+	pid_t			starter_pid = -1;
 	MICommand *		cmd;
 	cti_gdb_msg_t *	msg;
+	char *			proc_res;
+	int				proc_size;
 
 	// we require at least 4 arguments beyond argv[0]
 	if (argc < 5)
@@ -302,7 +299,7 @@ main(int argc, char *argv[])
 	}
 
 	// parse the provide args
-	while ((c = getopt_long(argc, argv, "r:w:g:s:i:h", long_opts, &opt_ind)) != -1)
+	while ((c = getopt_long(argc, argv, "r:w:g:p:h", long_opts, &opt_ind)) != -1)
 	{
 		switch (c)
 		{
@@ -418,49 +415,43 @@ main(int argc, char *argv[])
 				
 				break;
 				
-			case 's':
+			case 'p':
 				if (optarg == NULL)
 				{
 					usage(argv[0]);
 					return 1;
 				}
 				
-				if (starter != NULL)
+				// convert the string into the actual fd
+				errno = 0;
+				end_p = NULL;
+				val = strtol(optarg, &end_p, 10);
+				
+				// check for errors
+				if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN)) || (errno != 0 && val == 0))
 				{
-					free(starter);
+					perror("strtol");
+					return 1;
 				}
-				
-				// strip leading whitespace
-				while (*optarg == ' ')
+				if (end_p == NULL || *end_p != '\0')
 				{
-					++optarg;
+					perror("strtol");
+					return 1;
 				}
-				
-				// get the starter binary string
-				starter = strdup(optarg);
-				
-				break;
-				
-			case 'i':
-				if (optarg == NULL)
+				if (val > INT_MAX || val <= 0)
 				{
-					usage(argv[0]);
+					fprintf(stderr, "Invalid pid argument.\n");
 					return 1;
 				}
 				
-				if (input_file != NULL)
-				{
-					free(input_file);
-				}
+				starter_pid = (pid_t)val;
 				
-				// strip leading whitespace
-				while (*optarg == ' ')
+				// ensure the starter_pid exists
+				if (kill(starter_pid, 0))
 				{
-					++optarg;
+					fprintf(stderr, "Invalid pid argument. Process does not exist.\n");
+					return 1;
 				}
-				
-				// get the input file string
-				input_file = strdup(optarg);
 				
 				break;
 				
@@ -475,56 +466,10 @@ main(int argc, char *argv[])
 	}
 	
 	// post-process required args to make sure we have everything we need
-	if (_cti_gdb_pipe_r == NULL || _cti_gdb_pipe_w == NULL || gdb == NULL || starter == NULL)
+	if (_cti_gdb_pipe_r == NULL || _cti_gdb_pipe_w == NULL || gdb == NULL || starter_pid == -1)
 	{
 		usage(argv[0]);
 		return 1;
-	}
-
-	// process any additional non-opt arguments
-	for ( ; optind < argc; ++optind)
-	{
-		if (s_args[0] == NULL)
-		{
-			if (asprintf(&s_args[0], "%s", argv[optind]) < 0)
-			{
-				perror("asprintf");
-				return 1;
-			}
-		} else
-		{
-			char *s_ptr = s_args[0];
-			s_args[0] = NULL;
-			if (asprintf(&s_args[0], "%s %s", s_ptr, argv[optind]) < 0)
-			{
-				perror("asprintf");
-				return 1;
-			}
-			free(s_ptr);
-		}
-	}
-	
-	// handle input file if need be
-	if (input_file != NULL)
-	{
-		if (s_args[0] == NULL)
-		{
-			if (asprintf(&s_args[0], "< %s", input_file) < 0)
-			{
-				perror("asprintf");
-				return 1;
-			}
-		} else
-		{
-			char *s_ptr = s_args[0];
-			s_args[0] = NULL;
-			if (asprintf(&s_args[0], "%s < %s", s_ptr, input_file) < 0)
-			{
-				perror("asprintf");
-				return 1;
-			}
-			free(s_ptr);
-		}
 	}
 	
 	// It is safe to write on the _cti_gdb_pipe_w fd now. All future errors should
@@ -542,7 +487,7 @@ main(int argc, char *argv[])
 	// Set provided gdb binary path
 	MISessionSetGDBPath(_cti_gdb_sess, gdb);
 	
-	if (MISessionStartLocal(_cti_gdb_sess, starter) < 0)
+	if (MISessionStartLocal(_cti_gdb_sess, NULL) < 0)
 	{
 		// Send an error message and exit
 		_cti_gdb_sendError(strdup("Could not start debugger!"));
@@ -557,8 +502,8 @@ main(int argc, char *argv[])
 		return 1;
 	}
 	
-	// set arguments for launcher
-	cmd = MIExecArguments(s_args);
+	// Attach to the starter application
+	cmd = MITargetAttach(starter_pid);
 	if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
 	{
 		_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
@@ -574,6 +519,37 @@ main(int argc, char *argv[])
 		return 1;
 	}
 	MICommandFree(cmd);
+	
+	/*
+	** -target-attach is a *asynch* command that will generate a MI event.
+	** we must grab it or it will fubar everything else up.
+	*/
+	// grab the "temporary" breakpoint - we want to ignore it
+	// this is always generated by an attach command.
+	
+	// wait for the asynch command to complete
+	while (!_cti_gdb_ready)
+	{
+		if (MISessionProgress(_cti_gdb_sess) == -1)
+		{
+			_cti_gdb_sendError(strdup("MISessionProgress failed!"));
+			_cti_gdb_cleanupMI();
+			return 1;
+		}
+	}
+	
+	// ensure we got a breakpoint hit event
+	if (_cti_gdb_event == NULL || _cti_gdb_event->type != MIEventTypeBreakpointHit)
+	{
+		_cti_gdb_sendError(strdup("Failed to attach to starter process!"));
+		_cti_gdb_cleanupMI();
+		return 1;
+	}
+	
+	// reset the events
+	_cti_gdb_ready = 0;
+	MIEventFree(_cti_gdb_event);
+	_cti_gdb_event = NULL;
 	
 	// set the lang to c.
 	cmd = MIGDBSet("lang", "c");
@@ -593,25 +569,9 @@ main(int argc, char *argv[])
 	}
 	MICommandFree(cmd);
 	
-	// Insert breakpoint at main
-	cmd = MIBreakInsert(0, 0, NULL, 0, "main", 0);
-	if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
-	{
-		_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
-		MICommandFree(cmd);
-		_cti_gdb_cleanupMI();
-		return 1;
-	}
-	if (!MICommandResultOK(cmd)) 
-	{
-		_cti_gdb_sendError(MICommandResultErrorMessage(cmd));
-		MICommandFree(cmd);
-		_cti_gdb_cleanupMI();
-		return 1;
-	}
-	MICommandFree(cmd);
-	
-	// Insert breakpoint at MPIR_Breakpoint
+	// Insert breakpoint at MPIR_Breakpoint - The MPIR document requires all
+	// starter processes to contain the MPIR_Breakpoint symbol. If it is not
+	// present, the user provided an invalid pid.
 	cmd = MIBreakInsert(0, 0, NULL, 0, "MPIR_Breakpoint", 0);
 	if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
 	{
@@ -622,57 +582,14 @@ main(int argc, char *argv[])
 	}
 	if (!MICommandResultOK(cmd)) 
 	{
-		_cti_gdb_sendError(MICommandResultErrorMessage(cmd));
+		_cti_gdb_sendError("Invalid starter process pid!");
 		MICommandFree(cmd);
 		_cti_gdb_cleanupMI();
 		return 1;
 	}
 	MICommandFree(cmd);
 	
-	// issue a run command, this starts the launcher
-	cmd = MIExecRun();
-	if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
-	{
-		_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
-		MICommandFree(cmd);
-		_cti_gdb_cleanupMI();
-		return 1;
-	}
-	if (!MICommandResultOK(cmd)) 
-	{
-		_cti_gdb_sendError(MICommandResultErrorMessage(cmd));
-		MICommandFree(cmd);
-		_cti_gdb_cleanupMI();
-		return 1;
-	}
-	MICommandFree(cmd);
-	
-	// wait for the async command to complete
-	while (!_cti_gdb_ready)
-	{
-		if (MISessionProgress(_cti_gdb_sess) == -1)
-		{
-			_cti_gdb_sendError(strdup("MISessionProgress failed!"));
-			_cti_gdb_cleanupMI();
-			return 1;
-		}
-	}
-	
-	// ensure we got a breakpoint hit event
-	if (_cti_gdb_event == NULL || _cti_gdb_event->type != MIEventTypeBreakpointHit)
-	{
-		_cti_gdb_sendError(strdup("Failed to run launcher to main!"));
-		_cti_gdb_cleanupMI();
-		return 1;
-	}
-	
-	// reset the events
-	_cti_gdb_ready = 0;
-	MIEventFree(_cti_gdb_event);
-	_cti_gdb_event = NULL;
-	
-	// We are now sitting at main. Now set MPIR_being_debugged to 1.
-	
+	// Set MPIR_being_debugged
 	cmd = MIGDBSet("MPIR_being_debugged=1", NULL);
 	if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
 	{
@@ -690,13 +607,15 @@ main(int argc, char *argv[])
 	}
 	MICommandFree(cmd);
 	
-	// Issue a continue command to hit the MPIR_breakpoint routine
-	cmd = MIExecContinue();
+	// check if the MPIR_proctable_size is non-zero, if it is zero then we need
+	// to continue
+	cmd = MIDataEvaluateExpression("MPIR_proctable_size");
 	if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
 	{
 		_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
 		MICommandFree(cmd);
 		_cti_gdb_cleanupMI();
+		
 		return 1;
 	}
 	if (!MICommandResultOK(cmd)) 
@@ -706,40 +625,73 @@ main(int argc, char *argv[])
 		_cti_gdb_cleanupMI();
 		return 1;
 	}
-	MICommandFree(cmd);
 	
-	// wait for the async command to complete
-	while (!_cti_gdb_ready)
+	// get the string value of the result
+	if ((proc_res = MIGetDataEvaluateExpressionInfo(cmd)) == NULL)
 	{
-		if (MISessionProgress(_cti_gdb_sess) == -1)
-		{
-			_cti_gdb_sendError(strdup("MISessionProgress failed!"));
-			_cti_gdb_cleanupMI();
-			return 1;
-		}
-	}
-	
-	// ensure we got a breakpoint hit event
-	if (_cti_gdb_event == NULL || _cti_gdb_event->type != MIEventTypeBreakpointHit)
-	{
-		_cti_gdb_sendError(strdup("Failed to run launcher to main!"));
+		// this is a fatal error
+		_cti_gdb_sendError(strdup("MIGetDataEvaluateExpressionInfo failed!"));
+		MICommandFree(cmd);
 		_cti_gdb_cleanupMI();
 		return 1;
 	}
 	
+	// cleanup the command
+	MICommandFree(cmd);
 	
+	// convert the proc_res to an int
+	proc_size = atoi(proc_res);
+	free(proc_res);
 	
+	// ensure proc_size is non-zero, otherwise continue
+	if (proc_size <= 0)
+	{
+		// Issue a continue command to hit the MPIR_breakpoint routine
+		cmd = MIExecContinue();
+		if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
+		{
+			_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
+			MICommandFree(cmd);
+			_cti_gdb_cleanupMI();
+			return 1;
+		}
+		if (!MICommandResultOK(cmd)) 
+		{
+			_cti_gdb_sendError(MICommandResultErrorMessage(cmd));
+			MICommandFree(cmd);
+			_cti_gdb_cleanupMI();
+			return 1;
+		}
+		MICommandFree(cmd);
 	
-	// TODO: Ensure we hit the MPIR_Breakpoint routine
+		// wait for the async command to complete
+		while (!_cti_gdb_ready)
+		{
+			if (MISessionProgress(_cti_gdb_sess) == -1)
+			{
+				_cti_gdb_sendError(strdup("MISessionProgress failed!"));
+				_cti_gdb_cleanupMI();
+				return 1;
+			}
+		}
+		
+		// ensure we got a breakpoint hit event
+		if (_cti_gdb_event == NULL || _cti_gdb_event->type != MIEventTypeBreakpointHit)
+		{
+			_cti_gdb_sendError(strdup("Failed to run launcher to main!"));
+			_cti_gdb_cleanupMI();
+			return 1;
+		}
+		
+		// TODO: Ensure we hit the MPIR_Breakpoint routine
+		
+		// reset the events
+		_cti_gdb_ready = 0;
+		MIEventFree(_cti_gdb_event);
+		_cti_gdb_event = NULL;
+	}
 	
-
-	
-	// reset the events
-	_cti_gdb_ready = 0;
-	MIEventFree(_cti_gdb_event);
-	_cti_gdb_event = NULL;
-	
-	// We are now finished with setup. We are sitting at the startup barrier.
+	// We are now finished with setup. We have attached to the starter.
 	// Inform the parent that we are ready for further commands.
 	
 	// create the ready message

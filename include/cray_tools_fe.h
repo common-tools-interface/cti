@@ -626,6 +626,25 @@ typedef struct
 } cti_srunProc_t;
 
 /*
+ * cti_cray_slurm_getJobInfo - Obtain information about the srun process from
+ *                             its pid.
+ *
+ * Detail
+ *      This function is used to obtain the jobid/stepid of an srun application
+ *      based on its pid It is the callers responsibility to free the allocated 
+ *      storage with free() when it is no longer needed.
+ *
+ * Arguments
+ *      srunPid -  The pid_t of the srun process.
+ *
+ * Returns
+ *      A cti_srunProc_t pointer that contains the jobid and stepid of srun.
+ *      NULL is returned on error. The caller should free() the returned pointer
+ *      when finished using it.
+ */
+extern cti_srunProc_t * cti_slurm_getJobInfo(pid_t srunPid);
+
+/*
  * cti_cray_slurm_registerJobStep - Assists in registering the jobid and stepid
  *                                  of an already running srun application for
  *                                  use with the Cray tool interface.
