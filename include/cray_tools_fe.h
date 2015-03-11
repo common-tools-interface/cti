@@ -642,7 +642,7 @@ typedef struct
  *      NULL is returned on error. The caller should free() the returned pointer
  *      when finished using it.
  */
-extern cti_srunProc_t * cti_slurm_getJobInfo(pid_t srunPid);
+extern cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid);
 
 /*
  * cti_cray_slurm_registerJobStep - Assists in registering the jobid and stepid
