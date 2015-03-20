@@ -438,6 +438,14 @@ _cti_getCfgDir(void)
 	// return if we already have the value
 	if (_cti_cfg_dir != NULL)
 		return _cti_cfg_dir;
+		
+	// Get the pw info, this is used in the unique name part of cfg directories
+	// and when doing the final ownership check
+	if ((pw = getpwuid(getuid())) == NULL)
+	{
+		_cti_set_error("_cti_getCfgDir: getpwuid() %s", strerror(errno));
+		return NULL;
+	}
 	
 	// get the cfg dir settings
 	if ((cfg_dir = getenv(CFG_DIR_VAR)) == NULL)
@@ -467,13 +475,6 @@ _cti_getCfgDir(void)
 					return NULL;
 				}
 			}
-		}
-		
-		// Get the pw info, this is used in the unique name part of cfg directories
-		if ((pw = getpwuid(getuid())) == NULL)
-		{
-			_cti_set_error("_cti_getCfgDir: getpwuid() %s", strerror(errno));
-			return NULL;
 		}
 		
 		// Create the directory name string - we default this to have the name cray_cti-<username>
@@ -550,6 +551,23 @@ _cti_getCfgDir(void)
 			_cti_set_error("_cti_getCfgDir: realpath() %s", strerror(errno));
 			return NULL;
 		}
+	}
+	
+	// Ensure we have ownership of this directory, otherwise it is untrusted
+	memset(&st, 0, sizeof(st));
+	if (stat(cfg_dir, &st))
+	{
+		// could not stat the directory
+		_cti_set_error("_cti_getCfgDir: stat() %s", strerror(errno));
+		free(cfg_dir);
+		return NULL;
+	}
+	// verify that we have ownership of this directory
+	if (st.st_uid != pw->pw_uid)
+	{
+		_cti_set_error("_cti_getCfgDir: Directory %s already exists", cfg_dir);
+		free(cfg_dir);
+		return NULL;
 	}
 	
 	// set the global variable
