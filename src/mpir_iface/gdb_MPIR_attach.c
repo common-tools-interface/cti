@@ -538,8 +538,8 @@ main(int argc, char *argv[])
 		}
 	}
 	
-	// ensure we got a breakpoint hit event
-	if (_cti_gdb_event == NULL || _cti_gdb_event->type != MIEventTypeBreakpointHit)
+	// ensure we got an event.
+	if (_cti_gdb_event == NULL)
 	{
 		_cti_gdb_sendError(strdup("Failed to attach to starter process!"));
 		_cti_gdb_cleanupMI();

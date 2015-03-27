@@ -169,7 +169,9 @@ _cti_ld_verify(const char *executable)
 		if (WIFEXITED(status))
 		{
 			// if we recieved an exit status of 0, the verify was successful
-			if (WEXITSTATUS(status) == 0)
+			// if we recieved an exit status of 2, the verify was successful
+			// 2 is returned for libraries.
+			if (WEXITSTATUS(status) == 0 || WEXITSTATUS(status) == 2)
 				return linker;
 		}
 	}

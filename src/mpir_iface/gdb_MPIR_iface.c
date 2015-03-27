@@ -319,6 +319,13 @@ _cti_gdb_execStarter(	cti_gdb_id_t gdb_id, const char *starter, const char *gdb,
 		return;
 	}
 	
+	if (_cti_addArg(my_args, "%s", starter))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return;
+	}
+	
 	// use the read/write ends for the child in the instance
 	// This is opposite of what we set in the parent.
 	if (_cti_addArg(my_args, "-r"))
@@ -513,6 +520,13 @@ _cti_gdb_execAttach(	cti_gdb_id_t gdb_id, const char *attach, const char *gdb,
 	{
 		// post fork - no way to report errors right now!
 		fprintf(stderr, "CTI error: _cti_newArgs failed.");
+		return;
+	}
+	
+	if (_cti_addArg(my_args, "%s", attach))
+	{
+		fprintf(stderr, "CTI error: _cti_addArg failed.");
+		_cti_freeArgs(my_args);
 		return;
 	}
 	

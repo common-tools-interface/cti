@@ -140,7 +140,7 @@ static int				_cti_addManifestToSession(manifest_t *);
 static int				_cti_resolveManifestConflicts_callback(void *, const char *, void *);
 static int				_cti_resolveManifestConflicts(manifest_t *);
 static int				_cti_addBinary(manifest_t *, const char *);
-static int				_cti_addLibrary(manifest_t *, const char *);
+static int				_cti_addLibrary(manifest_t *, const char *, bool);
 static int				_cti_addLibDir(manifest_t *, const char *);
 static int				_cti_addFile(manifest_t *, const char *);
 static int				_cti_packageManifestAndShip_callback(void *, const char *, void *);
@@ -1514,7 +1514,7 @@ _cti_addBinary(manifest_t *m_ptr, const char *fstr)
 	{
 		while (*tmp != NULL)
 		{
-			if (_cti_addLibrary(m_ptr, *tmp))
+			if (_cti_addLibrary(m_ptr, *tmp, false))
 			{
 				// if we return with non-zero status, catastrophic failure occured
 				// error string already set
@@ -1533,13 +1533,26 @@ _cti_addBinary(manifest_t *m_ptr, const char *fstr)
 	return 0;
 }
 
+// The checkDeps bool needs to be true if this function is being called by
+// a function that hasen't called _cti_ld_val yet.
 static int
-_cti_addLibrary(manifest_t *m_ptr, const char *fstr)
+_cti_addLibrary(manifest_t *m_ptr, const char *fstr, bool checkDeps)
 {
 	char *			fullname;	// full path name of the library to add to the manifest
 	char *			realname;	// realname (lacking path info) of the library
 	fileEntry_t *	f_ptr;		// pointer to file entry
 	int				rtn;
+	char **			lib_array;	// the returned list of strings containing the required libraries by the executable
+	char **			tmp;		// temporary pointer used to iterate through lists of strings
+	const char *	ldval_path;
+	
+	// sanity
+	ldval_path = _cti_getLdAuditPath();
+	if (ldval_path == NULL)
+	{
+		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+		return 1;
+	}
 	
 	// first we should ensure that the library exists and convert it to its fullpath name
 	if ((fullname = _cti_libFind(fstr)) == NULL)
@@ -1630,6 +1643,36 @@ _cti_addLibrary(manifest_t *m_ptr, const char *fstr)
 			free(realname);
 			_cti_consumeFileEntry(f_ptr);
 			return 1;
+		}
+	}
+	
+	// If checkDeps is true, we need to also check for library dependencies for
+	// this library. If the caller has already called _cti_ld_val then this
+	// additional check is redundant since the loader already resolved
+	// everything.
+	if (checkDeps)
+	{
+		// call the ld_val interface to determine if this library has any dso requirements
+		lib_array = _cti_ld_val(fullname, ldval_path);
+	
+		// If this executable has dso requirements. We need to add them to the manifest
+		tmp = lib_array;
+		// ensure the are actual entries before dereferencing tmp
+		if (tmp != NULL)
+		{
+			while (*tmp != NULL)
+			{
+				if (_cti_addLibrary(m_ptr, *tmp, false))
+				{
+					// if we return with non-zero status, catastrophic failure occured
+					// error string already set
+					return 1;
+				}
+				// free this tmp value, we are done with it
+				free(*tmp++);
+			}
+			// free the final lib_array
+			free(lib_array);
 		}
 	}
 	
@@ -2009,7 +2052,7 @@ _cti_packageManifestAndShip(manifest_t *m_ptr)
 		{
 			while (*wlm_files != NULL)
 			{
-				if (_cti_addLibrary(m_ptr, *wlm_files))
+				if (_cti_addLibrary(m_ptr, *wlm_files, true))
 				{
 					// Failed to add the binary to the manifest - catastrophic failure
 					return 1;
@@ -2528,7 +2571,7 @@ cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr)
 		return 1;
 	}
 	
-	return _cti_addLibrary(m_ptr, fstr);
+	return _cti_addLibrary(m_ptr, fstr, true);
 }
 
 int
