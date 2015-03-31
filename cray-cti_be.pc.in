@@ -1,0 +1,20 @@
+#
+# (c) 2015 Cray Inc.  All Rights Reserved.  Unpublished Proprietary
+# Information.  This unpublished work is protected to trade secret,
+# copyright and other laws.  Except as permitted by contract or
+# express written permission of Cray Inc., no part of this work or
+# its content may be used, reproduced or disclosed in any form.
+#
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: cray-cti_be
+URL: http://www.cray.com
+Description: The backend component of the Cray tools interface (CTI). Exposes a useful API to tool programs.
+Version: @VERSION@
+Requires:
+Libs: -L${libdir} -lcraytools_be
+Cflags: -I${includedir}

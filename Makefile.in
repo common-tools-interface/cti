@@ -48,11 +48,11 @@ host_triplet = @host@
 subdir = .
 DIST_COMMON = $(am__configure_deps) $(include_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(srcdir)/config.h.in $(srcdir)/cray-audit.pc.in \
-	$(srcdir)/cray-tools_be.pc.in $(srcdir)/cray-tools_fe.pc.in \
-	$(top_srcdir)/configure config/compile config/config.guess \
-	config/config.sub config/depcomp config/install-sh \
-	config/ltmain.sh config/missing
+	$(srcdir)/config.h.in $(srcdir)/cray-cti_be.pc.in \
+	$(srcdir)/cray-cti_fe.pc.in $(top_srcdir)/configure \
+	config/compile config/config.guess config/config.sub \
+	config/depcomp config/install-sh config/ltmain.sh \
+	config/missing
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/cray_extensions.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
@@ -64,7 +64,7 @@ am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
  configure.lineno config.status.lineno
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = config.h
-CONFIG_CLEAN_FILES = cray-tools_be.pc cray-tools_fe.pc cray-audit.pc
+CONFIG_CLEAN_FILES = cray-cti_be.pc cray-cti_fe.pc
 SOURCES =
 DIST_SOURCES =
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
@@ -246,13 +246,9 @@ top_srcdir = @top_srcdir@
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 SUBDIRS = src tests
-EXTRA_DIST = cray-tools_be.pc.in cray-tools_fe.pc.in cray-audit.pc.in \
-	     release_versioning
-
+EXTRA_DIST = cray-cti_be.pc.in cray-cti_fe.pc.in release_versioning
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = cray-tools_be.pc cray-tools_fe.pc \
-		 cray-audit.pc
-
+pkgconfig_DATA = cray-cti_be.pc cray-cti_fe.pc
 include_HEADERS = include/cray_tools_be.h include/cray_tools_fe.h
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
@@ -308,11 +304,9 @@ $(srcdir)/config.h.in:  $(am__configure_deps)
 
 distclean-hdr:
 	-rm -f config.h stamp-h1
-cray-tools_be.pc: $(top_builddir)/config.status $(srcdir)/cray-tools_be.pc.in
+cray-cti_be.pc: $(top_builddir)/config.status $(srcdir)/cray-cti_be.pc.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
-cray-tools_fe.pc: $(top_builddir)/config.status $(srcdir)/cray-tools_fe.pc.in
-	cd $(top_builddir) && $(SHELL) ./config.status $@
-cray-audit.pc: $(top_builddir)/config.status $(srcdir)/cray-audit.pc.in
+cray-cti_fe.pc: $(top_builddir)/config.status $(srcdir)/cray-cti_fe.pc.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 mostlyclean-libtool:
@@ -533,7 +527,7 @@ distdir: $(DISTFILES)
 	      || exit 1; \
 	  fi; \
 	done
-	-find $(distdir) -type d ! -perm -777 -exec chmod a+rwx {} \; -o \
+	-find $(distdir) -type d ! -perm -755 -exec chmod u+rwx,og+rx {} \; -o \
 	  ! -type d ! -perm -444 -links 1 -exec chmod a+r {} \; -o \
 	  ! -type d ! -perm -400 -exec chmod a+r {} \; -o \
 	  ! -type d ! -perm -444 -exec $(install_sh) -c -m a+r {} {} \; \
@@ -585,7 +579,7 @@ distcheck: dist
 	*.zip*) \
 	  unzip $(distdir).zip ;;\
 	esac
-	chmod -R a-w $(distdir); chmod a+w $(distdir)
+	chmod -R a-w $(distdir); chmod u+w $(distdir)
 	mkdir $(distdir)/_build
 	mkdir $(distdir)/_inst
 	chmod a-w $(distdir)

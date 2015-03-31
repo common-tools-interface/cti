@@ -19,12 +19,10 @@ AM_LIBTOOLFLAGS = --quiet
 
 SUBDIRS = src tests
 
-EXTRA_DIST = cray-tools_be.pc.in cray-tools_fe.pc.in cray-audit.pc.in \
-	     release_versioning
+EXTRA_DIST = cray-cti_be.pc.in cray-cti_fe.pc.in release_versioning
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = cray-tools_be.pc cray-tools_fe.pc \
-		 cray-audit.pc
+pkgconfig_DATA = cray-cti_be.pc cray-cti_fe.pc
 
 include_HEADERS = include/cray_tools_be.h include/cray_tools_fe.h
 

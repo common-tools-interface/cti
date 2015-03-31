@@ -23253,7 +23253,7 @@ _ACEOF
 ### Finalize ###
 ################
 
-ac_config_files="$ac_config_files Makefile cray-tools_be.pc cray-tools_fe.pc cray-audit.pc src/Makefile src/backend/Makefile src/daemon/Makefile src/frontend/Makefile src/ld_val/Makefile src/mpir_iface/Makefile src/slurm_util/Makefile src/useful/Makefile tests/Makefile"
+ac_config_files="$ac_config_files Makefile cray-cti_be.pc cray-cti_fe.pc src/Makefile src/backend/Makefile src/daemon/Makefile src/frontend/Makefile src/ld_val/Makefile src/mpir_iface/Makefile src/slurm_util/Makefile src/useful/Makefile tests/Makefile"
 
 
 cat >confcache <<\_ACEOF
@@ -24251,9 +24251,8 @@ do
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
-    "cray-tools_be.pc") CONFIG_FILES="$CONFIG_FILES cray-tools_be.pc" ;;
-    "cray-tools_fe.pc") CONFIG_FILES="$CONFIG_FILES cray-tools_fe.pc" ;;
-    "cray-audit.pc") CONFIG_FILES="$CONFIG_FILES cray-audit.pc" ;;
+    "cray-cti_be.pc") CONFIG_FILES="$CONFIG_FILES cray-cti_be.pc" ;;
+    "cray-cti_fe.pc") CONFIG_FILES="$CONFIG_FILES cray-cti_fe.pc" ;;
     "src/Makefile") CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
     "src/backend/Makefile") CONFIG_FILES="$CONFIG_FILES src/backend/Makefile" ;;
     "src/daemon/Makefile") CONFIG_FILES="$CONFIG_FILES src/daemon/Makefile" ;;

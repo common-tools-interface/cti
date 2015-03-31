@@ -376,9 +376,8 @@ AC_DEFINE_UNQUOTED([CTI_LAUNCHER], ["$CRAYTOOL_LAUNCHER"], [Name of CTI daemon l
 ################
 
 AC_CONFIG_FILES([	Makefile
-					cray-tools_be.pc
-					cray-tools_fe.pc
-					cray-audit.pc
+				 	cray-cti_be.pc
+					cray-cti_fe.pc
 					src/Makefile
 					src/backend/Makefile
 					src/daemon/Makefile

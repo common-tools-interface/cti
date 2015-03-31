@@ -3,9 +3,8 @@
 /config.h
 /config.log
 /config.status
-/cray-audit.pc
-/cray-tools_be.pc
-/cray-tools_fe.pc
+/cray-cti_be.pc
+/cray-cti_fe.pc
 /cscope.out
 /external
 /install
