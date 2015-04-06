@@ -147,6 +147,7 @@ typedef struct
 #define DAEMON_STAGE_VAR    				"CRAY_CTI_STAGE_DIR"				// Frontend: Used to define a directory name for the fake root of the tool daemon (read)
 #define DBG_LOG_ENV_VAR 					"CRAY_DBG_LOG_DIR"				// Frontend: Used to define a directory to write debug logs to (read)
 
+#define BE_GUARD_ENV_VAR					"CRAYTOOL_IAMBACKEND"				// Backend: Set by the daemon launcher to ensure proper setup
 #define APID_ENV_VAR						"CRAYTOOL_APID"					// Backend: Used to hold the string representation of the apid (set)
 #define WLM_ENV_VAR						"CRAYTOOL_WLM"						// Backend: Used to hold the enum representation of the wlm (set)
 #define SCRATCH_ENV_VAR					"TMPDIR"							// Backend: Used to denote temporary storage space (set)

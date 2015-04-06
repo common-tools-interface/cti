@@ -48,11 +48,9 @@ static cti_be_wlm_proto_t	_cti_be_nonenessProto =
 };
 
 /* global wlm proto object - this is initialized to noneness by default */
-static cti_be_wlm_proto_t *	_cti_be_wlmProto 	= &_cti_be_nonenessProto;
-// fini guard - both the constructor and destructor gets called twice sometimes
-// I have no idea why. It feels like a bug to me. I am alright with having the
-// constructor get called twice, but the destructor should only be called once.
-// Otherwise error messages will be printed out.
+static cti_be_wlm_proto_t *	_cti_be_wlmProto	= &_cti_be_nonenessProto;
+// init/fini guard - both the constructor and destructor gets called twice sometimes
+static bool					_cti_be_isInit		= false;
 static bool					_cti_be_isFini		= false;
 
 // Constructor function
@@ -60,6 +58,14 @@ void __attribute__((constructor))
 _cti_be_init(void)
 {
 	char *	wlm_str;
+	
+	// Ensure we have not already called init
+	if (_cti_be_isInit)
+		return;
+	
+	// We do not want to call init if we are running on the frontend
+	if (getenv(BE_GUARD_ENV_VAR) == NULL)
+		return;
 
 	// get the wlm string from the environment
 	if ((wlm_str = getenv(WLM_ENV_VAR)) == NULL)
@@ -96,6 +102,8 @@ _cti_be_init(void)
 		_cti_be_wlmProto = &_cti_be_nonenessProto;
 		return;
 	}
+	
+	_cti_be_isInit = true;
 }
 
 // Destructor function

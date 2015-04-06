@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <dlfcn.h>
 #include <pwd.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -55,17 +56,19 @@ static int			_cti_checkDirPerms(const char *);
 static void			_cti_consumeAppEntry(void *);
 
 /* static global vars */
-static cti_app_id_t		_cti_app_id 		= 1;	// start counting from 1
-static cti_list_t *		_cti_my_apps		= NULL;	// global list pertaining to known application sessions
-static cti_wlm_detect_t	_cti_wlm_detect 	= {0};	// wlm_detect functions for dlopen
-static char *			_cti_cfg_dir		= NULL;	// config dir that we can use as temporary storage
-static char *			_cti_ld_audit_lib	= NULL;	// ld audit library location
-static char *			_cti_overwatch_bin	= NULL;	// overwatch binary location
-static char *			_cti_gdb_bin		= NULL;	// GDB binary location
-static char *			_cti_starter_bin	= NULL;	// MPIR starter binary location
-static char *			_cti_attach_bin		= NULL;	// MPIR attach binary location
-static char *			_cti_dlaunch_bin	= NULL;	// dlaunch binary location
-static char *			_cti_slurm_util		= NULL;	// slurm utility binary location
+static bool				_cti_fe_isInit		= false;	// Have we called init?
+static bool				_cti_fe_isFini		= false;	// Have we called fini?
+static cti_app_id_t		_cti_app_id 		= 1;		// start counting from 1
+static cti_list_t *		_cti_my_apps		= NULL;		// global list pertaining to known application sessions
+static cti_wlm_detect_t	_cti_wlm_detect 	= {0};		// wlm_detect functions for dlopen
+static char *			_cti_cfg_dir		= NULL;		// config dir that we can use as temporary storage
+static char *			_cti_ld_audit_lib	= NULL;		// ld audit library location
+static char *			_cti_overwatch_bin	= NULL;		// overwatch binary location
+static char *			_cti_gdb_bin		= NULL;		// GDB binary location
+static char *			_cti_starter_bin	= NULL;		// MPIR starter binary location
+static char *			_cti_attach_bin		= NULL;		// MPIR attach binary location
+static char *			_cti_dlaunch_bin	= NULL;		// dlaunch binary location
+static char *			_cti_slurm_util		= NULL;		// slurm utility binary location
 
 /* noneness wlm proto object */
 static const cti_wlm_proto_t	_cti_nonenessProto =
@@ -104,8 +107,19 @@ _cti_init(void)
 {
 	char *	active_wlm;
 	char *	error;
-	int		use_default = 0;
-	int		do_free = 1;
+	bool	use_default = false;
+	bool	do_free = true;
+	
+	// only init once
+	if (_cti_fe_isInit)
+		return;
+	
+	// We do not want to call init if we are running on the backend inside of
+	// a tool daemon! It is possible for BE libraries to link against both the
+	// CTI fe and be libs (e.g. MRNet) and we do not want to call the FE init
+	// in that case.
+	if (getenv(BE_GUARD_ENV_VAR) != NULL)
+		return;
 	
 	// allocate global data structures
 	_cti_my_apps = _cti_newList();
@@ -122,7 +136,7 @@ _cti_init(void)
 	
 	if ((_cti_wlm_detect.handle = dlopen(WLM_DETECT_LIB_NAME, RTLD_LAZY)) == NULL)
 	{
-		use_default = 1;
+		use_default = true;
 		goto wlm_detect_err;
 	}
 	
@@ -134,7 +148,7 @@ _cti_init(void)
 	if ((error = dlerror()) != NULL)
 	{
 		dlclose(_cti_wlm_detect.handle);
-		use_default = 1;
+		use_default = true;
 		goto wlm_detect_err;
 	}
 	
@@ -147,12 +161,12 @@ _cti_init(void)
 		if ((error = dlerror()) != NULL)
 		{
 			dlclose(_cti_wlm_detect.handle);
-			use_default = 1;
+			use_default = true;
 			goto wlm_detect_err;
 		}
 		// use the default wlm
 		active_wlm = (char *)(*_cti_wlm_detect.wlm_detect_get_default)();
-		do_free = 0;
+		do_free = false;
 	}
 	
 	// parse the returned result
@@ -165,7 +179,7 @@ _cti_init(void)
 	} else
 	{
 		// fallback to use the default
-		use_default = 1;
+		use_default = true;
 	}
 	
 	// close the wlm_detect handle, we are done with it
@@ -191,12 +205,19 @@ wlm_detect_err:
 		_cti_wlmProto = &_cti_nonenessProto;
 		return;
 	}
+	
+	// set the init guard to true
+	_cti_fe_isInit = true;
 }
 
 // Destructor function
 void __attribute__ ((destructor))
 _cti_fini(void)
 {
+	// Ensure this is only called once
+	if (_cti_fe_isFini)
+		return;
+
 	// cleanup global data structures
 	_cti_consumeList(_cti_my_apps, _cti_consumeAppEntry);
 	_cti_my_apps = NULL;
@@ -235,6 +256,8 @@ _cti_fini(void)
 	
 	// reset wlm proto to noneness
 	_cti_wlmProto = &_cti_nonenessProto;
+	
+	_cti_fe_isFini = true;
 	
 	return;
 }

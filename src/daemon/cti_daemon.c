@@ -833,6 +833,15 @@ main(int argc, char **argv)
 		fclose(lock_file);
 	}
 	
+	// Set the BE_GUARD_ENV_VAR environment variable to signal that we are running
+	// on the backend
+	if (setenv(BE_GUARD_ENV_VAR, "1", 1) < 0)
+	{
+		// failure
+		fprintf(stderr, "%s: setenv failed\n", CTI_LAUNCHER);
+		return 1;
+	}
+	
 	// Set the ROOT_DIR_VAR environment variable to the manifest directory.
 	if (setenv(ROOT_DIR_VAR, manifest_path, 1) < 0)
 	{
