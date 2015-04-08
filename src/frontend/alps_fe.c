@@ -49,7 +49,7 @@ typedef struct
 {
 	void *			handle;
 	uint64_t    	(*alps_get_apid)(int, pid_t);
-	int				(*alps_get_appinfo)(uint64_t, appInfo_t *, cmdDetail_t **, placeList_t **);
+	int				(*alps_get_appinfo_ver2_err)(uint64_t, appInfo_t *, cmdDetail_t **, placeNodeList_t **, char **, int *);
 	const char *	(*alps_launch_tool_helper)(uint64_t, int, int, int, int, char **);
 	int				(*alps_get_overlap_ordinal)(uint64_t, char **, int *);
 } cti_alps_funcs_t;
@@ -80,8 +80,8 @@ typedef struct
 	uint64_t			apid;			// ALPS apid
 	int					pe0Node;		// ALPS PE0 node id
 	appInfo_t			appinfo;		// ALPS application information
-	cmdDetail_t *		cmdDetail;		// ALPS application command information (width, depth, memory, command name)
-	placeList_t *		places;	 		// ALPS application placement information (nid, processors, PE threads)
+	cmdDetail_t *		cmdDetail;		// ALPS application command information (width, depth, memory, command name) of length appinfo.numCmds
+	placeNodeList_t *	places;	 		// ALPS application placement information (nid, processors, PE threads) of length appinfo.numPlaces
 	aprunInv_t *		inv;			// Optional object used for launched applications.
 	char *				toolPath;		// Backend staging directory
 	char *				attribsPath;	// Backend directory where pmi_attribs is located
@@ -111,7 +111,7 @@ static char *				_cti_alps_getHostName(void);
 static char *				_cti_alps_getLauncherHostName(cti_wlm_obj);
 static int					_cti_alps_ready(void);
 static uint64_t				_cti_alps_get_apid(int, pid_t);
-static int					_cti_alps_get_appinfo(uint64_t, appInfo_t *, cmdDetail_t **, placeList_t **);
+static int					_cti_alps_get_appinfo_ver2_err(uint64_t, appInfo_t *, cmdDetail_t **, placeNodeList_t **, char **);
 static const char *			_cti_alps_launch_tool_helper(uint64_t, int, int, int, int, char **);
 static int					_cti_alps_get_overlap_ordinal(uint64_t, char **, int *);
 static void					_cti_alps_consumeAlpsInfo(cti_wlm_obj);
@@ -206,8 +206,8 @@ _cti_alps_init(void)
 		return 1;
 	}
 	
-	// load alps_get_appinfo
-	_cti_alps_ptr->alps_get_appinfo = dlsym(_cti_alps_ptr->handle, "alps_get_appinfo");
+	// load alps_get_appinfo_ver2_err
+	_cti_alps_ptr->alps_get_appinfo_ver2_err = dlsym(_cti_alps_ptr->handle, "alps_get_appinfo_ver2_err");
 	if ((error = dlerror()) != NULL)
 	{
 		_cti_set_error("dlsym: %s", error);
@@ -274,13 +274,19 @@ _cti_alps_get_apid(int arg1, pid_t arg2)
 }
 
 static int
-_cti_alps_get_appinfo(uint64_t arg1, appInfo_t *arg2, cmdDetail_t **arg3, placeList_t **arg4)
+_cti_alps_get_appinfo_ver2_err(uint64_t arg1, appInfo_t *arg2, cmdDetail_t **arg3, placeNodeList_t **arg4, char **arg5)
 {
 	// sanity check
 	if (_cti_alps_ptr == NULL)
+	{
+		if (arg5 != NULL)
+		{
+			*arg5 = "_cti_alps_ptr is NULL!";
+		}
 		return -1;
-		
-	return (*_cti_alps_ptr->alps_get_appinfo)(arg1, arg2, arg3, arg4);
+	}
+	
+	return (*_cti_alps_ptr->alps_get_appinfo_ver2_err)(arg1, arg2, arg3, arg4, arg5, NULL);
 }
 
 static const char *
@@ -519,13 +525,20 @@ cti_alps_registerApid(uint64_t apid)
 	
 	// retrieve detailed information about our app
 	// save this information into the struct
-	if (_cti_alps_get_appinfo(apid, &alpsInfo->appinfo, &alpsInfo->cmdDetail, &alpsInfo->places) != 1)
+	char *appinfo_err = NULL;
+	if (_cti_alps_get_appinfo_ver2_err(apid, &alpsInfo->appinfo, &alpsInfo->cmdDetail, &alpsInfo->places, &appinfo_err) != 1)
 	{
 		// If we were ready, then set the error message. Otherwise we assume that
 		// dlopen failed and we already set the error string in that case.
 		if (_cti_alps_ready())
 		{
-			_cti_set_error("alps_get_appinfo() failed.");
+			if (appinfo_err != NULL)
+			{
+				_cti_set_error("_cti_alps_get_appinfo_ver2_err() failed: %s", appinfo_err);
+			} else
+			{
+				_cti_set_error("_cti_alps_get_appinfo_ver2_err() failed.");
+			}
 		}
 		_cti_alps_consumeAlpsInfo(alpsInfo);
 		return 0;
@@ -733,6 +746,8 @@ static int
 _cti_alps_getNumAppPEs(cti_wlm_obj this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
+	int numPEs = 0;
+	int i;
 
 	// sanity check
 	if (my_app == NULL)
@@ -742,13 +757,19 @@ _cti_alps_getNumAppPEs(cti_wlm_obj this)
 	}
 	
 	// sanity check
-	if (my_app->cmdDetail == NULL)
+	if (my_app->places == NULL)
 	{
 		_cti_set_error("getNumAppPEs operation failed.");
 		return 0;
 	}
 	
-	return my_app->cmdDetail->width;
+	// loop through the placement list
+	for (i=0; i < my_app->appinfo.numPlaces; ++i)
+	{
+		numPEs += my_app->places[i].numPEs;
+	}
+	
+	return numPEs;
 }
 
 static int
@@ -764,22 +785,20 @@ _cti_alps_getNumAppNodes(cti_wlm_obj this)
 	}
 	
 	// sanity check
-	if (my_app->cmdDetail == NULL)
+	if (my_app->places == NULL)
 	{
 		_cti_set_error("getNumAppNodes operation failed.");
 		return 0;
 	}
 	
-	return my_app->cmdDetail->nodeCnt;
+	return my_app->appinfo.numPlaces;
 }
 
 static char **
 _cti_alps_getAppHostsList(cti_wlm_obj this)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
-	int				curNid, numNid;
 	char **			hosts;
-	char *			hostEntry;
 	int				i;
 	
 	// sanity check
@@ -790,21 +809,14 @@ _cti_alps_getAppHostsList(cti_wlm_obj this)
 	}
 	
 	// sanity check
-	if (my_app->cmdDetail == NULL)
-	{
-		_cti_set_error("getAppHostsList operation failed.");
-		return 0;
-	}
-	
-	// sanity check
 	if (my_app->places == NULL)
 	{
 		_cti_set_error("getAppHostsList operation failed.");
 		return 0;
 	}
 	
-	// ensure my_app->cmdDetail->nodeCnt is non-zero
-	if ( my_app->cmdDetail->nodeCnt <= 0 )
+	// ensure my_app->appinfo.numPlaces is non-zero
+	if ( my_app->appinfo.numPlaces <= 0 )
 	{
 		_cti_set_error("Application %d does not have any nodes.", (int)my_app->apid);
 		// no nodes in the application
@@ -812,52 +824,29 @@ _cti_alps_getAppHostsList(cti_wlm_obj this)
 	}
 	
 	// allocate space for the hosts list, add an extra entry for the null terminator
-	if ((hosts = calloc(my_app->cmdDetail->nodeCnt + 1, sizeof(char *))) == (void *)0)
+	if ((hosts = calloc(my_app->appinfo.numPlaces + 1, sizeof(char *))) == (void *)0)
 	{
 		// calloc failed
 		_cti_set_error("calloc failed.");
 		return NULL;
 	}
+	memset(hosts, 0, (my_app->appinfo.numPlaces + 1) * sizeof(char *));
 	
-	// set the first entry
-	numNid = 1;
-	curNid = my_app->places[0].nid;
-	// create the hostname string for this entry and place it into the list
-	if (asprintf(&hostEntry, ALPS_XT_HOSTNAME_FMT, curNid) <= 0)
+	// loop through the placement list
+	for (i=0; i < my_app->appinfo.numPlaces; ++i)
 	{
-		// asprintf failed
-		_cti_set_error("asprintf failed.");
-		return NULL;
-	}
-	hosts[0] = hostEntry;
-	
-	// set the final entry to null, calloc doesn't guarantee null'ed memory
-	hosts[my_app->cmdDetail->nodeCnt] = NULL;
-	
-	// check to see if we can skip iterating through the places list due to there being only one nid allocated
-	if (numNid == my_app->cmdDetail->nodeCnt)
-	{
-		// we are done
-		return hosts;
-	}
-	
-	// iterate through the placelist to find the node id's for the PEs
-	for (i=1; i < my_app->appinfo.numPlaces; i++)
-	{
-		if (curNid == my_app->places[i].nid)
+		if (asprintf(&hosts[i], ALPS_XT_HOSTNAME_FMT, my_app->places[i].nid) <= 0)
 		{
-			continue;
-		}
-		// we have a new unique nid
-		curNid = my_app->places[i].nid;
-		// create the hostname string for this entry and place it into the list
-		if (asprintf(&hostEntry, ALPS_XT_HOSTNAME_FMT, curNid) <= 0)
-		{
+			char **tmp = hosts;
 			// asprintf failed
 			_cti_set_error("asprintf failed.");
+			while (*tmp != NULL)
+			{
+				free(*tmp++);
+			}
+			free(hosts);
 			return NULL;
 		}
-		hosts[numNid++] = hostEntry;
 	}
 	
 	// done
@@ -868,22 +857,11 @@ static cti_hostsList_t *
 _cti_alps_getAppHostsPlacement(cti_wlm_obj this)
 {
 	alpsInfo_t *		my_app = (alpsInfo_t *)this;
-	int					curNid, numNid;
-	int					numPe;
-	cti_host_t *		curHost;
 	cti_hostsList_t *	placement_list;
-	char *				hostEntry;
 	int					i;
 	
 	// sanity check
 	if (my_app == NULL)
-	{
-		_cti_set_error("getAppHostsPlacement operation failed.");
-		return 0;
-	}
-	
-	// sanity check
-	if (my_app->cmdDetail == NULL)
 	{
 		_cti_set_error("getAppHostsPlacement operation failed.");
 		return 0;
@@ -896,8 +874,8 @@ _cti_alps_getAppHostsPlacement(cti_wlm_obj this)
 		return 0;
 	}
 	
-	// ensure the nodeCnt is non-zero
-	if ( my_app->cmdDetail->nodeCnt <= 0 )
+	// ensure my_app->appinfo.numPlaces is non-zero
+	if ( my_app->appinfo.numPlaces <= 0 )
 	{
 		// no nodes in the application
 		_cti_set_error("Application %d does not have any nodes.", (int)my_app->apid);
@@ -913,7 +891,7 @@ _cti_alps_getAppHostsPlacement(cti_wlm_obj this)
 	}
 	
 	// set the number of hosts for the application
-	placement_list->numHosts = my_app->cmdDetail->nodeCnt;
+	placement_list->numHosts = my_app->appinfo.numPlaces;
 	
 	// allocate space for the cti_host_t structs inside the placement_list
 	if ((placement_list->hosts = malloc(placement_list->numHosts * sizeof(cti_host_t))) == (void *)0)
@@ -926,64 +904,21 @@ _cti_alps_getAppHostsPlacement(cti_wlm_obj this)
 	// clear the nodeHostPlacment_t memory
 	memset(placement_list->hosts, 0, placement_list->numHosts * sizeof(cti_host_t));
 	
-	// set the first entry
-	numNid = 1;
-	numPe  = 1;
-	curNid = my_app->places[0].nid;
-	curHost = &placement_list->hosts[0];
-	
-	// create the hostname string for this entry and place it into the list
-	if (asprintf(&hostEntry, ALPS_XT_HOSTNAME_FMT, curNid) <= 0)
+	// loop through the placement list
+	for (i=0; i < placement_list->numHosts; ++i)
 	{
-		// asprintf failed
-		_cti_set_error("asprintf failed.");
-		free(placement_list);
-		return NULL;
-	}
-	curHost->hostname = hostEntry;
-	
-	// check to see if we can skip iterating through the places list due to there being only one nid allocated
-	if (numNid == my_app->cmdDetail->nodeCnt)
-	{
-		// we have no more hostnames to process
-		// all nids in the places list will belong to our current host
-		// so write the numPlaces into the current host type and return
-		curHost->numPes = my_app->appinfo.numPlaces;
-		return placement_list;
-	}
-	
-	// iterate through the placelist to find the node id's for the PEs
-	for (i=1; i < my_app->appinfo.numPlaces; i++)
-	{
-		if (curNid == my_app->places[i].nid)
+		// create the hostname string
+		if (asprintf(&placement_list->hosts[i].hostname, ALPS_XT_HOSTNAME_FMT, my_app->places[i].nid) <= 0)
 		{
-			++numPe;
-			continue;
-		}
-		// new unique nid found
-		// set the number of pes found
-		curHost->numPes = numPe;
-		// reset numPes
-		numPe = 1;
-		
-		// set to the new current nid
-		curNid = my_app->places[i].nid;
-		// create the hostname string for this entry and place it into the list
-		if (asprintf(&hostEntry, ALPS_XT_HOSTNAME_FMT, curNid) <= 0)
-		{
-			// asprintf failed
 			_cti_set_error("asprintf failed.");
+			free(placement_list->hosts);
 			free(placement_list);
 			return NULL;
 		}
-		// change to the next host entry
-		curHost = &placement_list->hosts[numNid++];
-		curHost->hostname = hostEntry;
 		
+		// set num PEs
+		placement_list->hosts[i].numPes = my_app->places[i].numPEs;
 	}
-	
-	// we need to write the last numPE into the current host type
-	curHost->numPes = numPe;
 	
 	// done
 	return placement_list;

@@ -131,6 +131,10 @@ typedef int        cti_manifest_id_t;
  * The Cray tools interface frontend calls are defined below.
  ***********************************************************/
 
+/*******************************************************************************
+ * The following functions can be called at any time.
+ ******************************************************************************/
+
 /*
  * cti_version - Returns the version string of the CTI frontend library.
  * 
@@ -218,6 +222,11 @@ extern const char * cti_wlm_type_toString(cti_wlm_type wlm_type);
  */
 extern char * cti_getHostname();
 
+/*******************************************************************************
+ * The following functions require the application to be started or registered
+ * with the interface before calling. All require a cti_app_id_t argument.
+ ******************************************************************************/
+
 /*
  * cti_appIsValid - Test if a cti_app_id_t is still valid
  * Detail
@@ -284,7 +293,8 @@ extern char * cti_getLauncherHostName(cti_app_id_t app_id);
  * Detail
  *      This function is used to determine the number of PEs (processing
  *      elements) for the application associated with the given app_id. A PE 
- *      typically represents a single rank.
+ *      typically represents a single rank. For MPMD applications, this returns
+ *      the total PEs across all apps.
  *
  * Arguments
  *      app_id -  The cti_app_id_t of the registered application.
@@ -302,7 +312,8 @@ extern int cti_getNumAppPEs(cti_app_id_t app_id);
  * Detail
  *      This function is used to determine the number of compute nodes that
  *      was allocated by the application launcher for the application associated
- *      with the given app_id.
+ *      with the given app_id. For MPMD applications, this returns the number of
+ *      compute nodes allocated across all apps.
  *
  * Arguments
  *      app_id -  The cti_app_id_t of the registered application.
@@ -325,7 +336,8 @@ extern int cti_getNumAppNodes(cti_app_id_t app_id);
  *      compute node assoicated with the given app_id. These hostnames
  *      can be used to communicate with the compute nodes over socket
  *      connections. The list is null terminated. It is the callers 
- *      responsibility to free the returned list of strings.
+ *      responsibility to free the returned list of strings. For MPMD
+ *      applications, this returns the hosts associated with all apps.
  *
  * Arguments
  *      app_id -  The cti_app_id_t of the registered application.
@@ -351,6 +363,7 @@ extern char ** cti_getAppHostsList(cti_app_id_t app_id);
  *      this host. Note that there is a cti_host_t entry for each compute node
  *      hostname that is assoicated with the given app_id. These hostnames can
  *      be used to communicate with the compute nodes over socket connections.
+ *      For MPMD applications, this returns the hosts associated with all apps.
  *
  * Arguments
  *      app_id -  The cti_app_id_t of the registered application.
