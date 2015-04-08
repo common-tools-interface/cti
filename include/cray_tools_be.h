@@ -100,6 +100,22 @@ typedef enum cti_be_wlm_type cti_be_wlm_type;
  */
 
 /*
+ * cti_be_version - Returns the version string of the CTI backend library.
+ * 
+ * Detail
+ *      This function returns the version string of the backend library. This
+ *      can be used to check for compatibility.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      A string containing the current backend library version.
+ * 
+ */
+extern const char * cti_be_version(void);
+
+/*
  * cti_be_current_wlm - Obtain the current workload manager (WLM) in use on the 
  *                      system.
  * 

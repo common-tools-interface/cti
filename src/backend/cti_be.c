@@ -125,6 +125,12 @@ _cti_be_fini(void)
 	return;
 }
 
+const char *
+cti_be_version(void)
+{
+	return CTI_BE_VERSION;
+}
+
 cti_be_wlm_type
 cti_be_current_wlm(void)
 {

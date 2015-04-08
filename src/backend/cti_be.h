@@ -55,6 +55,7 @@ char *				_cti_be_getToolDir(void);
 char *				_cti_be_getAttribsDir(void);
 
 /* function prototypes */
+const char *		cti_be_version(void);
 cti_be_wlm_type		cti_be_current_wlm(void);
 const char *		cti_be_wlm_type_toString(cti_be_wlm_type);
 char *				cti_be_getAppId(void);

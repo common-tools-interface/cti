@@ -1,5 +1,11 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Version number of CTI backend. */
+#undef CTI_BE_VERSION
+
+/* Version number of CTI frontend. */
+#undef CTI_FE_VERSION
+
 /* Name of CTI daemon launcher binary. */
 #undef CTI_LAUNCHER
 

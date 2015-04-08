@@ -717,6 +717,12 @@ _cti_current_wlm_proto(void)
 * API defined functions
 ************************/
 
+const char *
+cti_version(void)
+{
+	return CTI_FE_VERSION;
+}
+
 cti_wlm_type
 cti_current_wlm(void)
 {

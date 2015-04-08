@@ -18,7 +18,7 @@ AC_PREREQ([2.63])
 
 dnl We need to use the m4_esyscmd here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT. This is not portable...
-AC_INIT([craytool_interface], [m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])], [andrewg@cray.com])
+AC_INIT([craytool_interface], m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n']), [andrewg@cray.com])
 AC_COPYRIGHT([Copyright 2011-2015 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/cti_defs.h])
@@ -39,6 +39,9 @@ AC_SUBST([CRAYTOOL_DIR], ["`cd $srcdir && pwd`"])
 AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
 AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
 AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_RELEASE])
+
+AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_BE_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
+AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_FE_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 

@@ -132,6 +132,22 @@ typedef int        cti_manifest_id_t;
  ***********************************************************/
 
 /*
+ * cti_version - Returns the version string of the CTI frontend library.
+ * 
+ * Detail
+ *      This function returns the version string of the frontend library. This
+ *      can be used to check for compatibility.
+ *
+ * Arguments
+ *      None.
+ *
+ * Returns
+ *      A string containing the current frontend library version.
+ * 
+ */
+extern const char * cti_version(void);
+
+/*
  * cti_error_str - Returns an error string associated with a command that
  *                 returned an error value.
  * 

@@ -112,6 +112,7 @@ int						_cti_refAppEntry(cti_app_id_t);
 const cti_wlm_proto_t *	_cti_current_wlm_proto(void);
 
 /* API function prototypes */
+const char *			cti_version(void);
 cti_wlm_type			cti_current_wlm(void);
 const char *			cti_wlm_type_toString(cti_wlm_type);
 char *					cti_getHostname(void);
