@@ -14,6 +14,8 @@ config/missing -text
 /configure.ac -text
 /cray-cti_be.pc.in -text
 /cray-cti_fe.pc.in -text
+external/Makefile.am -text
+external/Makefile.in -text
 include/cray_tools_be.h -text
 include/cray_tools_fe.h -text
 m4/cray_extensions.m4 -text

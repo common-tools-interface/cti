@@ -30,6 +30,20 @@ AC_DEFUN([cray_INIT],
 	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd([source release_versioning; echo $fe_current | tr -d '\n'])])
 	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd([source release_versioning; echo $fe_revision | tr -d '\n'])])
 	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd([source release_versioning; echo $fe_age | tr -d '\n'])])
+	
+	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
+	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
+	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_RELEASE])
+	
+	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_BE_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
+	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_FE_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
+	
+	AC_SUBST([CRAYTOOL_EXTERNAL], [${CRAYTOOL_DIR}/external])
+	AC_SUBST([CRAYTOOL_EXTERNAL_INSTALL], [${CRAYTOOL_DIR}/external/install])
+	
+	if test ! -d "${CRAYTOOL_EXTERNAL_INSTALL}"; then
+		AS_MKDIR_P([${CRAYTOOL_EXTERNAL_INSTALL}])
+	fi
 ])
 
 dnl
@@ -37,11 +51,10 @@ dnl build libarchive automatically
 dnl
 AC_DEFUN([cray_BUILD_LIBARCHIVE],
 [
+	cray_cv_lib_archive_build=no
+
 	dnl Temporary directory to stage files to
-	_cray_curdir=$(pwd)
-	_cray_stage="$_cray_curdir/external"
-	_cray_hidden_install="$_cray_stage/install"
-	_cray_tmpdir="$_cray_stage/libarchive"
+	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libarchive"
 	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/libarchive/"
 
 	AC_MSG_CHECKING([for libarchive stage directory])
@@ -62,23 +75,13 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 				
 				AC_MSG_NOTICE([Checking out libarchive source to $_cray_tmpdir...])
 				
-				dnl ensure the top level stage directory exists
-				if test ! -d "$_cray_stage"; then
-					AS_MKDIR_P([$_cray_stage])
-				fi
-				
 				dnl checkout libarchive
-				$SVN co $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+				$SVN export $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				if test ! -d "$_cray_tmpdir"; then
 					AC_MSG_ERROR([svn checkout of libarchive failed.])
 				fi
 			],
 			[AC_MSG_RESULT([yes])])
-	
-	dnl ensure the install directory exists
-	if test ! -d "$_cray_hidden_install"; then
-		AS_MKDIR_P([$_cray_hidden_install])
-	fi
 	
 	dnl cd to the checked out source directory
 	cd ${_cray_tmpdir}
@@ -86,7 +89,7 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 	AC_MSG_NOTICE([Building libarchive...])
 	
 	dnl run configure with options that work on build systems
-	./configure --prefix=${_cray_hidden_install} --disable-shared --with-pic --without-expat --without-xml2 \
+	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} --disable-shared --with-pic --without-expat --without-xml2 \
 	--without-openssl --without-nettle --without-lzo2 --without-lzma --without-libiconv-prefix --without-iconv \
 	--without-lzmadec --without-bz2lib --without-zlib --disable-bsdtar --disable-bsdcpio \
 	--disable-rpath >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
@@ -96,17 +99,20 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	
 	dnl go home
-	cd ${_cray_curdir}
+	cd ${CRAYTOOL_DIR}
 	
-	AC_MSG_CHECKING([result of libarchive build])
-	
-	if test -f "$_cray_hidden_install/lib/libarchive.a"; then
-		AC_MSG_RESULT([ok])
-	else
-		AC_MSG_ERROR([libarchive build failed.])
+	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libarchive.a"; then
+		cray_cv_lib_archive_build=yes
 	fi
-	
-	AC_SUBST([INTERNAL_LIBARCHIVE], [$_cray_hidden_install])
+])
+
+dnl
+dnl define post-cache libarchive env
+dnl
+AC_DEFUN([cray_ENV_LIBARCHIVE],
+[
+	AC_SUBST([LIBARC_SRC], [${CRAYTOOL_EXTERNAL}/libarchive])
+	AC_SUBST([INTERNAL_LIBARCHIVE], [${CRAYTOOL_EXTERNAL_INSTALL}])
 ])
 
 dnl
@@ -114,11 +120,10 @@ dnl build libmi automatically
 dnl
 AC_DEFUN([cray_BUILD_LIBMI],
 [
+	cray_cv_lib_mi_build=no
+
 	dnl Temporary directory to stage files to
-	_cray_curdir=$(pwd)
-	_cray_stage="$_cray_curdir/external"
-	_cray_hidden_install="$_cray_stage/install"
-	_cray_tmpdir="$_cray_stage/libmi"
+	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libmi"
 	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/libmi/"
 
 	AC_MSG_CHECKING([for libmi stage directory])
@@ -139,23 +144,13 @@ AC_DEFUN([cray_BUILD_LIBMI],
 				
 				AC_MSG_NOTICE([Checking out libmi source to $_cray_tmpdir...])
 				
-				dnl ensure the top level stage directory exists
-				if test ! -d "$_cray_stage"; then
-					AS_MKDIR_P([$_cray_stage])
-				fi
-				
 				dnl checkout libmi
-				$SVN co $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+				$SVN export $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				if test ! -d "$_cray_tmpdir"; then
 					AC_MSG_ERROR([svn checkout of libmi failed.])
 				fi
 			],
 			[AC_MSG_RESULT([yes])])
-	
-	dnl ensure the install directory exists
-	if test ! -d "$_cray_hidden_install"; then
-		AS_MKDIR_P([$_cray_hidden_install])
-	fi
 	
 	dnl cd to the checked out source directory
 	cd ${_cray_tmpdir}
@@ -163,24 +158,95 @@ AC_DEFUN([cray_BUILD_LIBMI],
 	AC_MSG_NOTICE([Building libmi...])
 	
 	dnl run configure with options that work on build systems
-	./configure --prefix=${_cray_hidden_install} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	
 	dnl make
 	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	
 	dnl go home
-	cd ${_cray_curdir}
+	cd ${CRAYTOOL_DIR}
 	
-	AC_MSG_CHECKING([result of libmi build])
-	
-	if test -f "$_cray_hidden_install/lib/libmi.so"; then
-		AC_MSG_RESULT([ok])
-	else
-		AC_MSG_ERROR([libmi build failed.])
+	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libmi.so"; then
+		cray_cv_lib_mi_build=yes
 	fi
+])
+
+dnl
+dnl define post-cache libmi env
+dnl
+AC_DEFUN([cray_ENV_LIBMI],
+[
+	AC_SUBST([LIBMI_SRC], [${CRAYTOOL_EXTERNAL}/libmi])
+	AC_SUBST([INTERNAL_LIBMI], [${CRAYTOOL_EXTERNAL_INSTALL}])
+	AC_SUBST([LIBMI_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libmi.so])
+])
+
+dnl
+dnl build gdb automatically
+dnl
+AC_DEFUN([cray_BUILD_GDB],
+[
+	cray_cv_prog_gdb_build=no
+
+	dnl Temporary directory to stage files to
+	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/gdb"
+	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/ddt_gdb-7.6.2/"
+
+	AC_MSG_CHECKING([for libmi stage directory])
 	
-	AC_SUBST([INTERNAL_LIBMI], [$_cray_hidden_install])
+	dnl check out libmi source if we haven't done so already
+	AS_IF( [test ! -d "$_cray_tmpdir"],
+			[	AC_MSG_RESULT([no])
+				
+				dnl check required execs
+				AC_PROG_MKDIR_P
+				
+				AC_ARG_VAR([SVN], [Location of svn])
+				
+				AC_PATH_PROG([SVN], [svn], [svn])
+				if test -z "$SVN"; then
+					AC_MSG_ERROR([svn not found.])
+				fi
+				
+				AC_MSG_NOTICE([Checking out gdb source to $_cray_tmpdir...])
+				
+				dnl checkout gdb
+				$SVN export $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+				if test ! -d "$_cray_tmpdir"; then
+					AC_MSG_ERROR([svn checkout of gdb failed.])
+				fi
+			],
+			[AC_MSG_RESULT([yes])])
+	
+	dnl cd to the checked out source directory
+	cd ${_cray_tmpdir}
+	
+	AC_MSG_NOTICE([Building gdb...])
+	
+	dnl run configure with options that work on build systems
+	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} --program-prefix="cti_approved_" --disable-rpath --without-separate-debug-dir --without-gdb-datadir --with-mmalloc --without-python >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	
+	dnl make
+	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	
+	dnl go home
+	cd ${CRAYTOOL_DIR}
+	
+	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/bin/cti_approved_gdb"; then
+		cray_cv_prog_gdb_build=yes
+	fi
+])
+
+dnl
+dnl define post-cache gdb env
+dnl
+AC_DEFUN([cray_ENV_GDB],
+[
+	AC_SUBST([GDB_SRC], [${CRAYTOOL_EXTERNAL}/gdb])
+	AC_SUBST([INTERNAL_GDB], [${CRAYTOOL_EXTERNAL_INSTALL}])
+	AC_SUBST([GDB_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/bin/cti_approved_gdb])
 ])
 
 dnl
@@ -199,9 +265,7 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 	XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp1/x86_64/RB-4.2-gem/working/latest-RB-4.2UP00/3rd-party/x86_64/"
 
 	dnl Create a temporary directory to extract the alps libraries to
-	_cray_curdir=$(pwd)
-	_cray_stage="$_cray_curdir/external"
-	_cray_tmpdir="$_cray_stage/alps_base"
+	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/alps_base"
 	
 	AC_MSG_CHECKING([for ALPS stage directory])
 
@@ -258,11 +322,6 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 					AC_MSG_ERROR([XMLRPC RPM directory $XMLRPC_RPM_DIR not found.])
 				fi
 				
-				dnl ensure the top level stage directory exists
-				if test ! -d "$_cray_stage"; then
-					AS_MKDIR_P([$_cray_stage])
-				fi
-				
 				AS_MKDIR_P([$_cray_tmpdir])
 				cd $_cray_tmpdir
 				$RPM2CPIO $ALPS_RPM_1 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
@@ -270,7 +329,7 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 				$RPM2CPIO $ALPS_RPM_3 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				$RPM2CPIO $XMLRPC_RPM_1 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				$RPM2CPIO $XMLRPC_RPM_2 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-				cd $_cray_curdir
+				cd ${CRAYTOOL_DIR}
 			],
 			[AC_MSG_RESULT([yes])])
 	
@@ -293,6 +352,7 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 	
 	AC_MSG_RESULT([yes])
 	
+	AC_SUBST([ALPS_BASE], [${CRAYTOOL_EXTERNAL}/alps_base])
 	AC_SUBST([ALPS_LDFLAGS], ["-L$_cray_tmpdir/usr/lib/alps -L$_cray_tmpdir/usr/lib64"])
 	AC_SUBST([ALPS_CFLAGS], ["-I$_cray_tmpdir/usr/include"])
 ])
@@ -306,9 +366,7 @@ AC_DEFUN([cray_SETUP_WLM_DETECT_RPMS],
 	WLM_DETECT_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp3/x86_64/RB-5.2UP00-ari/working/latest/rpms/x86_64/"
 	
 	dnl Create a temporary directory to extract the wlm_detect libraries to
-	_cray_curdir=$(pwd)
-	_cray_stage="$_cray_curdir/external"
-	_cray_tmpdir="$_cray_stage/wlm_detect_base"
+	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/wlm_detect_base"
 	
 	AC_PROG_AWK
 	
@@ -349,16 +407,11 @@ AC_DEFUN([cray_SETUP_WLM_DETECT_RPMS],
 					AC_MSG_ERROR([wlm_detect rpm directory $WLM_DETECT_RPM_DIR not found.])
 				fi
 				
-				dnl ensure the top level stage directory exists
-				if test ! -d "$_cray_stage"; then
-					AS_MKDIR_P([$_cray_stage])
-				fi
-				
 				AS_MKDIR_P([$_cray_tmpdir])
 				cd $_cray_tmpdir
 				$RPM2CPIO $WLM_DETECT_RPM_1 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				$RPM2CPIO $WLM_DETECT_RPM_2 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-				cd $_cray_curdir
+				cd ${CRAYTOOL_DIR}
 			],
 			[AC_MSG_RESULT([yes])])
 	
@@ -383,6 +436,7 @@ AC_DEFUN([cray_SETUP_WLM_DETECT_RPMS],
 	
 	AC_MSG_RESULT([yes])
 	
+	AC_SUBST([WLM_DETECT_BASE], [${CRAYTOOL_EXTERNAL}/wlm_detect_base])
 	AC_SUBST([WLM_DETECT_LDFLAGS], ["-L$_cray_tmpdir/opt/cray/wlm_detect/$WLM_DETECT_BASE_NAME/lib64"])
 	AC_SUBST([WLM_DETECT_CFLAGS], ["-I$_cray_tmpdir/opt/cray/wlm_detect/$WLM_DETECT_BASE_NAME/include"])
 ])
@@ -397,9 +451,7 @@ AC_DEFUN([cray_SETUP_SLURM_RPMS],
 	SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/trunk/SLE_11_SP2/x86_64/"
 
 	dnl Create a temporary directory to extract the slurm libraries to
-	_cray_curdir=$(pwd)
-	_cray_stage="$_cray_curdir/external"
-	_cray_tmpdir="$_cray_stage/slurm_base"
+	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/slurm_base"
 	
 	AC_PROG_AWK
 	
@@ -431,11 +483,6 @@ AC_DEFUN([cray_SETUP_SLURM_RPMS],
 			
 				AC_MSG_NOTICE([Creating SLURM staging directory in $_cray_tmpdir])
 				
-				dnl ensure the top level stage directory exists
-				if test ! -d "$_cray_stage"; then
-					AS_MKDIR_P([$_cray_stage])
-				fi
-				
 				dnl setup the staging directory
 				AS_MKDIR_P([$_cray_tmpdir])
 				cd $_cray_tmpdir
@@ -446,12 +493,12 @@ AC_DEFUN([cray_SETUP_SLURM_RPMS],
 				dnl ensure the wget worked
 				SLURM_RPM_1=$(find slurm-[[0-9]]* 2>&AS_MESSAGE_LOG_FD)
 				if test ! -e "$SLURM_RPM_1"; then
-					cd $_cray_curdir
+					cd ${CRAYTOOL_DIR}
 					AC_MSG_ERROR([slurm rpm from $SLURM_HTTP_RPM_SITE not found.])
 				fi
 				SLURM_RPM_2=$(find slurm-devel-*)
 				if test ! -e "$SLURM_RPM_2"; then
-					cd $_cray_curdir
+					cd ${CRAYTOOL_DIR}
 					AC_MSG_ERROR([slurm-devel rpm from $SLURM_HTTP_RPM_SITE not found.])
 				fi
 				
@@ -463,7 +510,7 @@ AC_DEFUN([cray_SETUP_SLURM_RPMS],
 				SLURM_LIB_LOC=$(find $_cray_tmpdir -name libslurm.so 2>&AS_MESSAGE_LOG_FD)
 				SLURM_BASE_NAME=$(echo $SLURM_LIB_LOC | $AWK '{match($[1],/slurm\/([[0-9a-f.-]]*.ari)\/lib64\/libslurm.so/,a)}END{print a[[1]]}' 2>&AS_MESSAGE_LOG_FD)
 				if test "x$SLURM_BASE_NAME" = x; then
-					cd $_cray_curdir
+					cd ${CRAYTOOL_DIR}
 					AC_MSG_ERROR([Could not obtain slurm install directory name.])
 				fi
 				
@@ -473,7 +520,7 @@ AC_DEFUN([cray_SETUP_SLURM_RPMS],
 				dnl get rid of libtool junk since it will screw us up
 				rm -f $_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/lib64/*.la
 				
-				cd $_cray_curdir
+				cd ${CRAYTOOL_DIR}
 			],
 			[AC_MSG_RESULT([yes])])
 	
@@ -498,6 +545,7 @@ AC_DEFUN([cray_SETUP_SLURM_RPMS],
 	
 	AC_MSG_RESULT([yes])
 	
+	AC_SUBST([SLURM_BASE], [${CRAYTOOL_EXTERNAL}/slurm_base])
 	AC_SUBST([SLURM_LDFLAGS], ["-L$_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/lib64"])
 	AC_SUBST([SLURM_CFLAGS], ["-I$_cray_tmpdir/opt/slurm/$SLURM_BASE_NAME/include"])
 ])

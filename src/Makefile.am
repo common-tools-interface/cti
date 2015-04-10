@@ -18,8 +18,3 @@
 SUBDIRS			= ld_val useful mpir_iface frontend backend daemon slurm_util
 
 noinst_HEADERS	= cti_defs.h
-
-if INST_MI
-install-data-hook:
-	cp @LIBMI_LOC@ ${libdir}
-endif

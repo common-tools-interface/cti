@@ -17,7 +17,7 @@
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src tests
+SUBDIRS = src tests external
 
 EXTRA_DIST = cray-cti_be.pc.in cray-cti_fe.pc.in release_versioning
 

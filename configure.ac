@@ -32,16 +32,10 @@ AC_USE_SYSTEM_EXTENSIONS
 AM_INIT_AUTOMAKE([foreign -Wall])
 LT_INIT
 
+AC_SUBST([CRAYTOOL_DIR], ["`cd $srcdir && pwd`"])
+
 dnl Pull in Cray specific m4 extensions
 cray_INIT
-
-AC_SUBST([CRAYTOOL_DIR], ["`cd $srcdir && pwd`"])
-AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
-AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
-AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_RELEASE])
-
-AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_BE_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
-AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_FE_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
@@ -49,23 +43,30 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 ### Check for --with tags ###
 #############################
 dnl Check for --with-libarchive
-AC_ARG_WITH([libarchive],
-	    [AS_HELP_STRING([--with-libarchive],
-			    [Specify path to libarchive install.]
-			    )
-	    ],
-	    [libarchive_path=$withval],
-	    [libarchive_path=no]
-	    )
+AC_ARG_WITH(	[libarchive],
+				[AS_HELP_STRING([--with-libarchive],
+								[Specify path to libarchive install.])
+				],
+				[libarchive_path=$withval],
+				[libarchive_path=no]
+			)
 
 dnl Check for --with-libmi
-AC_ARG_WITH([libmi],
-			[AS_HELP_STRING([--with-libmi],
-							[Specify path to libmi install.]
-							)
-			],
-			[libmi_path=$withval],
-			[libmi_path=no]
+AC_ARG_WITH(	[libmi],
+				[AS_HELP_STRING([--with-libmi],
+								[Specify path to libmi install.])
+				],
+				[libmi_path=$withval],
+				[libmi_path=no]
+			)
+
+dnl Check for --with-gdb
+AC_ARG_WITH(	[gdb],
+				[AS_HELP_STRING([--with-gdb],
+								[Build internal gdb.])
+				],
+				[build_gdb=yes],
+				[build_gdb=no]
 			)
 
 ###########################
@@ -106,9 +107,15 @@ cray_SETUP_WLM_DETECT_RPMS
 
 dnl build libarchive if argument wasn't provided
 AC_MSG_CHECKING([for libarchive argument])
+AM_CONDITIONAL([BUILT_ARC], [test "x$libarchive_path" = xno])
 if test "x$libarchive_path" = "xno"; then
 	AC_MSG_RESULT([not found])
-	cray_BUILD_LIBARCHIVE
+	AC_CACHE_VAL([cray_cv_lib_archive_build], [cray_BUILD_LIBARCHIVE])
+	if test "x$cray_cv_lib_archive_build" = xno; then
+		AC_MSG_ERROR([libarchive build failed.])
+	fi
+	AC_CACHE_SAVE
+	cray_ENV_LIBARCHIVE
 	libarchive_path=$INTERNAL_LIBARCHIVE
 else
 	AC_MSG_RESULT([provided])
@@ -116,14 +123,33 @@ fi
 
 dnl build libmi if argument wasn't provided
 AC_MSG_CHECKING([for libmi argument])
-AM_CONDITIONAL([INST_MI], [test "x$libmi_path" = xno])
+AM_CONDITIONAL([BUILT_MI], [test "x$libmi_path" = xno])
 if test "x$libmi_path" = "xno"; then
 	AC_MSG_RESULT([not found])
-	cray_BUILD_LIBMI
+	AC_CACHE_VAL([cray_cv_lib_mi_build], [cray_BUILD_LIBMI])
+	if test "x$cray_cv_lib_mi_build" = xno; then
+		AC_MSG_ERROR([libmi build failed.])
+	fi
+	AC_CACHE_SAVE
+	cray_ENV_LIBMI
 	libmi_path=$INTERNAL_LIBMI
-	AC_SUBST([LIBMI_LOC], ["$libmi_path/lib/libmi.so"])
 else
 	AC_MSG_RESULT([provided])
+fi
+
+dnl build gdb if user asked us to
+AC_MSG_CHECKING([build internal gdb])
+AM_CONDITIONAL([BUILT_GDB], [test "x$build_gdb" = xyes])
+if test "x$build_gdb" = "xyes"; then
+	AC_MSG_RESULT([yes])
+	AC_CACHE_VAL([cray_cv_prog_gdb_build], [cray_BUILD_GDB])
+	if test "x$cray_cv_prog_gdb_build" = xno; then
+		AC_MSG_ERROR([gdb build failed.])
+	fi
+	AC_CACHE_SAVE
+	cray_ENV_GDB
+else
+	AC_MSG_RESULT([no])
 fi
 
 ############################
@@ -381,6 +407,7 @@ AC_DEFINE_UNQUOTED([CTI_LAUNCHER], ["$CRAYTOOL_LAUNCHER"], [Name of CTI daemon l
 AC_CONFIG_FILES([	Makefile
 				 	cray-cti_be.pc
 					cray-cti_fe.pc
+					external/Makefile
 					src/Makefile
 					src/backend/Makefile
 					src/daemon/Makefile
