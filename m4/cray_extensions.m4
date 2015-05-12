@@ -256,19 +256,26 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 [
 	dnl Set this to the CLE base version we are buidling against. Note that this
 	dnl does not include update level information.
-	CLE_RPM_VERS="4.2"
+	CLE_RPM_VERS="5.2"
 
 	dnl Set this to the location of the alps RPMS we should build against
-	ALPS_RPM_DIR="/cray/css/release/cray/build/alps_gemini/sles11sp1/x86_64/RB-4.2UP00/published/latest/RPMS/x86_64/"
+	ALPS_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp3/x86_64/RB-5.2UP00-ari/working/latest-RB-5.2UP00/ALPS/x86_64"
 
 	dnl Set this to the location of the xmlrpc-epi RPMS we should build against
-	XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp1/x86_64/RB-4.2-gem/working/latest-RB-4.2UP00/3rd-party/x86_64/"
+	XMLRPC_RPM_DIR="/cray/css/release/cray/build/xt/sles11sp3/x86_64/RB-5.2UP00-ari/working/latest-RB-5.2UP00/3rd-party/x86_64/"
 
 	dnl Create a temporary directory to extract the alps libraries to
 	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/alps_base"
 	
 	AC_MSG_CHECKING([for ALPS stage directory])
-
+	
+	AC_ARG_VAR([READLINK], [Location of cpio])
+	
+	AC_PATH_PROG([READLINK], [readlink], [readlink])
+	if test -z "$READLINK"; then
+		AC_MSG_ERROR([readlink not found.])
+	fi
+	
 	AS_IF(	[test ! -d "$_cray_tmpdir"],
 			[	AC_MSG_RESULT([no])
 				
@@ -287,27 +294,31 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 				if test -z "$CPIO"; then
 					AC_MSG_ERROR([cpio not found.])
 				fi
-			
+				
 				AC_MSG_NOTICE([Creating ALPS staging directory in $_cray_tmpdir])
 				
 				dnl resolve the names of the alps rpms
 				if test -d "$ALPS_RPM_DIR"; then
-					ALPS_RPM_1=$(find $ALPS_RPM_DIR/alps-$CLE_RPM_VERS.[[0-9\.\-]]*.gem.x86_64.rpm 2>&AS_MESSAGE_LOG_FD)
+					ALPS_RPM_1=$(find $ALPS_RPM_DIR/cray-libalps0-$CLE_RPM_VERS.[[0-9\.\-]]*.ari.x86_64.rpm 2>&AS_MESSAGE_LOG_FD)
 					if test ! -e "$ALPS_RPM_1"; then
-						AC_MSG_ERROR([ALPS RPM alps-$CLE_RPM_VERS not found.])
+						AC_MSG_ERROR([ALPS RPM cray-libalps0-$CLE_RPM_VERS not found.])
 					fi
-					ALPS_RPM_2=$(find $ALPS_RPM_DIR/alps-app-devel-$CLE_RPM_VERS.[[0-9\.\-]]*.gem.x86_64.rpm 2>&AS_MESSAGE_LOG_FD)
+					ALPS_RPM_2=$(find $ALPS_RPM_DIR/cray-libalps-devel-$CLE_RPM_VERS.[[0-9\.\-]]*.ari.x86_64.rpm 2>&AS_MESSAGE_LOG_FD)
 					if test ! -e "$ALPS_RPM_2"; then
-						AC_MSG_ERROR([ALPS RPM alps-app-devel-$CLE_RPM_VERS not found.])
+						AC_MSG_ERROR([ALPS RPM cray-libalps-devel-$CLE_RPM_VERS not found.])
 					fi
-					ALPS_RPM_3=$(find $ALPS_RPM_DIR/alps-devel-$CLE_RPM_VERS.[[0-9\.\-]]*.gem.x86_64.rpm 2>&AS_MESSAGE_LOG_FD)
+					ALPS_RPM_3=$(find $ALPS_RPM_DIR/cray-libalpsutil0-$CLE_RPM_VERS.[[0-9\.\-]]*.ari.x86_64.rpm 2>&AS_MESSAGE_LOG_FD)
 					if test ! -e "$ALPS_RPM_3"; then
+						AC_MSG_ERROR([ALPS RPM cray-libalpsutil0-$CLE_RPM_VERS not found.])
+					fi
+					ALPS_RPM_4=$(find $ALPS_RPM_DIR/cray-libalpsutil-devel-$CLE_RPM_VERS.[[0-9\.\-]]*.ari.x86_64.rpm 2>&AS_MESSAGE_LOG_FD)
+					if test ! -e "$ALPS_RPM_4"; then
 						AC_MSG_ERROR([ALPS RPM alps-devel-$CLE_RPM_VERS not found.])
 					fi
 				else
 					AC_MSG_ERROR([ALPS RPM directory $ALPS_RPM_DIR not found.])
 				fi
-	
+				
 				dnl resolve the names of the xmlrpc rpms
 				if test -d "$XMLRPC_RPM_DIR"; then
 					XMLRPC_RPM_1=$(find $XMLRPC_RPM_DIR/cray-libxmlrpc-epi0-[[0-9\.\-]]*.x86_64.rpm 2>&AS_MESSAGE_LOG_FD)
@@ -327,34 +338,38 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 				$RPM2CPIO $ALPS_RPM_1 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				$RPM2CPIO $ALPS_RPM_2 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				$RPM2CPIO $ALPS_RPM_3 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+				$RPM2CPIO $ALPS_RPM_4 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				$RPM2CPIO $XMLRPC_RPM_1 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				$RPM2CPIO $XMLRPC_RPM_2 | $CPIO -idv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 				cd ${CRAYTOOL_DIR}
 			],
 			[AC_MSG_RESULT([yes])])
 	
+	dnl We need to resolve the stage location since this will change with each alps version.
+	_cray_alps_inst=$($READLINK -m ${_cray_tmpdir}/opt/cray/alps/*)
+	
 	AC_MSG_CHECKING([for presence of ALPS libraries])
 	
-	if test ! -d "$_cray_tmpdir/usr/lib/alps/"; then
+	if test ! -d "${_cray_alps_inst}/lib64/"; then
 		AC_MSG_RESULT([not found])
-		AC_MSG_ERROR([ALPS lib directory $_cray_tmpdir/usr/lib/alps/ not found.])
+		AC_MSG_ERROR([ALPS lib directory $_cray_alps_inst/lib64/ not found.])
 	fi
 	
-	if test ! -d "$_cray_tmpdir/usr/include/"; then
+	if test ! -d "${_cray_alps_inst}/include/"; then
 		AC_MSG_RESULT([not found])
-		AC_MSG_ERROR([ALPS include directory $_cray_tmpdir/usr/include/ not found.])
+		AC_MSG_ERROR([ALPS include directory $_cray_alps_inst/include/ not found.])
 	fi
 	
-	if test ! -d "$_cray_tmpdir/usr/lib64/"; then
+	if test ! -d "${_cray_tmpdir}/usr/lib64"; then
 		AC_MSG_RESULT([not found])
-		AC_MSG_ERROR([XMLRPC lib directory $_cray_tmpdir/usr/lib64/ not found.])
+		AC_MSG_ERROR([XMLRPC lib directory $_cray_tmpdir/usr/lib64 not found.])
 	fi
 	
 	AC_MSG_RESULT([yes])
 	
 	AC_SUBST([ALPS_BASE], [${CRAYTOOL_EXTERNAL}/alps_base])
-	AC_SUBST([ALPS_LDFLAGS], ["-L$_cray_tmpdir/usr/lib/alps -L$_cray_tmpdir/usr/lib64"])
-	AC_SUBST([ALPS_CFLAGS], ["-I$_cray_tmpdir/usr/include"])
+	AC_SUBST([ALPS_LDFLAGS], ["-L${_cray_alps_inst}/lib64 -L${_cray_tmpdir}/usr/lib64"])
+	AC_SUBST([ALPS_CFLAGS], ["-I${_cray_alps_inst}/include"])
 ])
 
 dnl
