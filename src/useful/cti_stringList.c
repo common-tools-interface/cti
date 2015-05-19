@@ -474,8 +474,14 @@ _cti_addEdge16(stringNode16_t *node, stringNode_t **ref, unsigned char c, string
 		{
 			abort();
 		}
-		// copy the key vector and edges
-		memcpy(new->keys, node->keys, node->node.num_edges * sizeof(unsigned char));
+		// copy the key vector, note that we store the full 256 key vector for 
+		// faster lookups
+		int i;
+		for (i=0; i < node->node.num_edges; ++i)
+		{
+			new->keys[node->keys[i]] = i + 1; // offset by 1 to use 0 as the "null" check.
+		}
+		// copy the edges
 		memcpy(new->edges, node->edges, node->node.num_edges * sizeof(void *));
 		// copy the node
 		_cti_copyStringNode((stringNode_t *)new, (stringNode_t *)node);
