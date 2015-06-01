@@ -150,7 +150,6 @@ SLURM_CFLAGS = @SLURM_CFLAGS@
 SLURM_LDFLAGS = @SLURM_LDFLAGS@
 SLURM_LIBS = @SLURM_LIBS@
 STRIP = @STRIP@
-SVN = @SVN@
 VERSION = @VERSION@
 WGET = @WGET@
 WLM_DETECT_BASE = @WLM_DETECT_BASE@
@@ -387,9 +386,9 @@ distclean-local:
 	rm -rf @ALPS_BASE@
 	rm -rf @WLM_DETECT_BASE@
 	rm -rf @SLURM_BASE@
-@BUILT_ARC_TRUE@	rm -rf @LIBARC_SRC@
-@BUILT_MI_TRUE@	rm -rf @LIBMI_SRC@
-@BUILT_GDB_TRUE@	rm -rf @GDB_SRC@
+@BUILT_ARC_TRUE@	cd @LIBARC_SRC@ && $(MAKE) distclean
+@BUILT_MI_TRUE@	cd @LIBMI_SRC@ && $(MAKE) distclean
+@BUILT_GDB_TRUE@	cd @GDB_SRC@ && $(MAKE) distclean
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

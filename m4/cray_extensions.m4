@@ -55,33 +55,14 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 
 	dnl Temporary directory to stage files to
 	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libarchive"
-	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/libarchive/"
 
 	AC_MSG_CHECKING([for libarchive stage directory])
 	
-	dnl check out libarchive source if we haven't done so already
-	AS_IF( [test ! -d "$_cray_tmpdir"],
-			[	AC_MSG_RESULT([no])
-				
-				dnl check required execs
-				AC_PROG_MKDIR_P
-				
-				AC_ARG_VAR([SVN], [Location of svn])
-				
-				AC_PATH_PROG([SVN], [svn], [svn])
-				if test -z "$SVN"; then
-					AC_MSG_ERROR([svn not found.])
-				fi
-				
-				AC_MSG_NOTICE([Checking out libarchive source to $_cray_tmpdir...])
-				
-				dnl checkout libarchive
-				$SVN export $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-				if test ! -d "$_cray_tmpdir"; then
-					AC_MSG_ERROR([svn checkout of libarchive failed.])
-				fi
-			],
-			[AC_MSG_RESULT([yes])])
+	dnl Ensure the libarchive source was checked out
+	AS_IF(	[test ! -d "$_cray_tmpdir"],
+			[AC_MSG_ERROR([git submodule libarchive not found.])],
+			[AC_MSG_RESULT([yes])]
+			)
 	
 	dnl cd to the checked out source directory
 	cd ${_cray_tmpdir}
@@ -124,33 +105,14 @@ AC_DEFUN([cray_BUILD_LIBMI],
 
 	dnl Temporary directory to stage files to
 	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libmi"
-	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/libmi/"
 
 	AC_MSG_CHECKING([for libmi stage directory])
 	
-	dnl check out libmi source if we haven't done so already
-	AS_IF( [test ! -d "$_cray_tmpdir"],
-			[	AC_MSG_RESULT([no])
-				
-				dnl check required execs
-				AC_PROG_MKDIR_P
-				
-				AC_ARG_VAR([SVN], [Location of svn])
-				
-				AC_PATH_PROG([SVN], [svn], [svn])
-				if test -z "$SVN"; then
-					AC_MSG_ERROR([svn not found.])
-				fi
-				
-				AC_MSG_NOTICE([Checking out libmi source to $_cray_tmpdir...])
-				
-				dnl checkout libmi
-				$SVN export $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-				if test ! -d "$_cray_tmpdir"; then
-					AC_MSG_ERROR([svn checkout of libmi failed.])
-				fi
-			],
-			[AC_MSG_RESULT([yes])])
+	dnl Ensure the libmi source was checked out
+	AS_IF(	[test ! -d "$_cray_tmpdir"],
+			[AC_MSG_ERROR([git submodule libmi not found.])],
+			[AC_MSG_RESULT([yes])]
+			)
 	
 	dnl cd to the checked out source directory
 	cd ${_cray_tmpdir}
@@ -191,33 +153,14 @@ AC_DEFUN([cray_BUILD_GDB],
 
 	dnl Temporary directory to stage files to
 	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/gdb"
-	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/ddt_gdb-7.6.2/"
 
 	AC_MSG_CHECKING([for libmi stage directory])
 	
-	dnl check out libmi source if we haven't done so already
-	AS_IF( [test ! -d "$_cray_tmpdir"],
-			[	AC_MSG_RESULT([no])
-				
-				dnl check required execs
-				AC_PROG_MKDIR_P
-				
-				AC_ARG_VAR([SVN], [Location of svn])
-				
-				AC_PATH_PROG([SVN], [svn], [svn])
-				if test -z "$SVN"; then
-					AC_MSG_ERROR([svn not found.])
-				fi
-				
-				AC_MSG_NOTICE([Checking out gdb source to $_cray_tmpdir...])
-				
-				dnl checkout gdb
-				$SVN export $_cray_lib_loc $_cray_tmpdir >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-				if test ! -d "$_cray_tmpdir"; then
-					AC_MSG_ERROR([svn checkout of gdb failed.])
-				fi
-			],
-			[AC_MSG_RESULT([yes])])
+	dnl Ensure the gdb source was checked out
+	AS_IF(	[test ! -d "$_cray_tmpdir"],
+			[AC_MSG_ERROR([git submodule gdb not found.])],
+			[AC_MSG_RESULT([yes])]
+			)
 	
 	dnl cd to the checked out source directory
 	cd ${_cray_tmpdir}
@@ -268,13 +211,6 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/alps_base"
 	
 	AC_MSG_CHECKING([for ALPS stage directory])
-	
-	AC_ARG_VAR([READLINK], [Location of cpio])
-	
-	AC_PATH_PROG([READLINK], [readlink], [readlink])
-	if test -z "$READLINK"; then
-		AC_MSG_ERROR([readlink not found.])
-	fi
 	
 	AS_IF(	[test ! -d "$_cray_tmpdir"],
 			[	AC_MSG_RESULT([no])
@@ -344,6 +280,13 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 				cd ${CRAYTOOL_DIR}
 			],
 			[AC_MSG_RESULT([yes])])
+	
+	AC_ARG_VAR([READLINK], [Location of readlink])
+	
+	AC_PATH_PROG([READLINK], [readlink], [readlink])
+	if test -z "$READLINK"; then
+		AC_MSG_ERROR([readlink not found.])
+	fi
 	
 	dnl We need to resolve the stage location since this will change with each alps version.
 	_cray_alps_inst=$($READLINK -m ${_cray_tmpdir}/opt/cray/alps/*)
@@ -463,7 +406,8 @@ AC_DEFUN([cray_SETUP_SLURM_RPMS],
 [
 	dnl Set this to the http address of the slurm RPMS we should build against
 	dnl TODO: This might need more versions in the future.
-	SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/trunk/SLE_11_SP2/x86_64/"
+	dnl SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/trunk/SLE_11_SP2/x86_64/"
+	SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/14.11/SLE_11_SP3/x86_64/"
 
 	dnl Create a temporary directory to extract the slurm libraries to
 	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/slurm_base"

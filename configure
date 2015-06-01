@@ -811,7 +811,6 @@ BUILT_MI_FALSE
 BUILT_MI_TRUE
 INTERNAL_LIBARCHIVE
 LIBARC_SRC
-SVN
 BUILT_ARC_FALSE
 BUILT_ARC_TRUE
 WLM_DETECT_CFLAGS
@@ -824,9 +823,9 @@ WGET
 ALPS_CFLAGS
 ALPS_LDFLAGS
 ALPS_BASE
+READLINK
 CPIO
 RPM2CPIO
-READLINK
 CXXCPP
 am__fastdepCXX_FALSE
 am__fastdepCXX_TRUE
@@ -971,11 +970,10 @@ CXX
 CXXFLAGS
 CCC
 CXXCPP
-READLINK
 RPM2CPIO
 CPIO
-WGET
-SVN'
+READLINK
+WGET'
 
 
 # Initialize some variables set by options.
@@ -1640,11 +1638,10 @@ Some influential environment variables:
   CXX         C++ compiler command
   CXXFLAGS    C++ compiler flags
   CXXCPP      C++ preprocessor
-  READLINK    Location of cpio
   RPM2CPIO    Location of rpm2cpio
   CPIO        Location of cpio
+  READLINK    Location of readlink
   WGET        Location of wget
-  SVN         Location of svn
 
 Use these variables to override the choices made by `configure' or to help
 it to find libraries and programs with nonstandard names/locations.
@@ -5122,13 +5119,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:5125: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:5122: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:5128: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:5125: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:5131: output\"" >&5)
+  (eval echo "\"\$as_me:5128: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6333,7 +6330,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6336 "configure"' > conftest.$ac_ext
+  echo '#line 6333 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7702,11 +7699,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7705: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7702: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7709: \$? = $ac_status" >&5
+   echo "$as_me:7706: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8041,11 +8038,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8044: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8041: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8048: \$? = $ac_status" >&5
+   echo "$as_me:8045: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8146,11 +8143,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8149: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8146: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8153: \$? = $ac_status" >&5
+   echo "$as_me:8150: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8201,11 +8198,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8204: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8201: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8208: \$? = $ac_status" >&5
+   echo "$as_me:8205: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11001,7 +10998,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11004 "configure"
+#line 11001 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11097,7 +11094,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11100 "configure"
+#line 11097 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -14456,11 +14453,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:14459: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:14456: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:14463: \$? = $ac_status" >&5
+   echo "$as_me:14460: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -14555,11 +14552,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:14558: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:14555: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:14562: \$? = $ac_status" >&5
+   echo "$as_me:14559: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -14607,11 +14604,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:14610: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:14607: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:14614: \$? = $ac_status" >&5
+   echo "$as_me:14611: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -17094,55 +17091,6 @@ fi
 	{ $as_echo "$as_me:$LINENO: checking for ALPS stage directory" >&5
 $as_echo_n "checking for ALPS stage directory... " >&6; }
 
-
-
-	# Extract the first word of "readlink", so it can be a program name with args.
-set dummy readlink; ac_word=$2
-{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_path_READLINK+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  case $READLINK in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_READLINK="$READLINK" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-  for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_READLINK="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-done
-IFS=$as_save_IFS
-
-  test -z "$ac_cv_path_READLINK" && ac_cv_path_READLINK="readlink"
-  ;;
-esac
-fi
-READLINK=$ac_cv_path_READLINK
-if test -n "$READLINK"; then
-  { $as_echo "$as_me:$LINENO: result: $READLINK" >&5
-$as_echo "$READLINK" >&6; }
-else
-  { $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-	if test -z "$READLINK"; then
-		{ { $as_echo "$as_me:$LINENO: error: readlink not found." >&5
-$as_echo "$as_me: error: readlink not found." >&2;}
-   { (exit 1); exit 1; }; }
-	fi
-
 	if test ! -d "$_cray_tmpdir"; then
   	{ $as_echo "$as_me:$LINENO: result: no" >&5
 $as_echo "no" >&6; }
@@ -17396,6 +17344,55 @@ $as_echo "yes" >&6; }
 fi
 
 
+
+
+	# Extract the first word of "readlink", so it can be a program name with args.
+set dummy readlink; ac_word=$2
+{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if test "${ac_cv_path_READLINK+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  case $READLINK in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_READLINK="$READLINK" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_READLINK="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_path_READLINK" && ac_cv_path_READLINK="readlink"
+  ;;
+esac
+fi
+READLINK=$ac_cv_path_READLINK
+if test -n "$READLINK"; then
+  { $as_echo "$as_me:$LINENO: result: $READLINK" >&5
+$as_echo "$READLINK" >&6; }
+else
+  { $as_echo "$as_me:$LINENO: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+	if test -z "$READLINK"; then
+		{ { $as_echo "$as_me:$LINENO: error: readlink not found." >&5
+$as_echo "$as_me: error: readlink not found." >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+
 		_cray_alps_inst=$($READLINK -m ${_cray_tmpdir}/opt/cray/alps/*)
 
 	{ $as_echo "$as_me:$LINENO: checking for presence of ALPS libraries" >&5
@@ -17437,7 +17434,7 @@ $as_echo "yes" >&6; }
 
 
 
-			SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/trunk/SLE_11_SP2/x86_64/"
+				SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/14.11/SLE_11_SP3/x86_64/"
 
 		_cray_tmpdir="${CRAYTOOL_EXTERNAL}/slurm_base"
 
@@ -18134,120 +18131,18 @@ else
 	cray_cv_lib_archive_build=no
 
 		_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libarchive"
-	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/libarchive/"
 
 	{ $as_echo "$as_me:$LINENO: checking for libarchive stage directory" >&5
 $as_echo_n "checking for libarchive stage directory... " >&6; }
 
 		if test ! -d "$_cray_tmpdir"; then
-  	{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-								{ $as_echo "$as_me:$LINENO: checking for a thread-safe mkdir -p" >&5
-$as_echo_n "checking for a thread-safe mkdir -p... " >&6; }
-if test -z "$MKDIR_P"; then
-  if test "${ac_cv_path_mkdir+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH$PATH_SEPARATOR/opt/sfw/bin
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-  for ac_prog in mkdir gmkdir; do
-	 for ac_exec_ext in '' $ac_executable_extensions; do
-	   { test -f "$as_dir/$ac_prog$ac_exec_ext" && $as_test_x "$as_dir/$ac_prog$ac_exec_ext"; } || continue
-	   case `"$as_dir/$ac_prog$ac_exec_ext" --version 2>&1` in #(
-	     'mkdir (GNU coreutils) '* | \
-	     'mkdir (coreutils) '* | \
-	     'mkdir (fileutils) '4.1*)
-	       ac_cv_path_mkdir=$as_dir/$ac_prog$ac_exec_ext
-	       break 3;;
-	   esac
-	 done
-       done
-done
-IFS=$as_save_IFS
-
-fi
-
-  if test "${ac_cv_path_mkdir+set}" = set; then
-    MKDIR_P="$ac_cv_path_mkdir -p"
-  else
-    # As a last resort, use the slow shell script.  Don't cache a
-    # value for MKDIR_P within a source directory, because that will
-    # break other packages using the cache if that directory is
-    # removed, or if the value is a relative name.
-    test -d ./--version && rmdir ./--version
-    MKDIR_P="$ac_install_sh -d"
-  fi
-fi
-{ $as_echo "$as_me:$LINENO: result: $MKDIR_P" >&5
-$as_echo "$MKDIR_P" >&6; }
-
-
-
-
-				# Extract the first word of "svn", so it can be a program name with args.
-set dummy svn; ac_word=$2
-{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_path_SVN+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  case $SVN in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_SVN="$SVN" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-  for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_SVN="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-done
-IFS=$as_save_IFS
-
-  test -z "$ac_cv_path_SVN" && ac_cv_path_SVN="svn"
-  ;;
-esac
-fi
-SVN=$ac_cv_path_SVN
-if test -n "$SVN"; then
-  { $as_echo "$as_me:$LINENO: result: $SVN" >&5
-$as_echo "$SVN" >&6; }
-else
-  { $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-				if test -z "$SVN"; then
-					{ { $as_echo "$as_me:$LINENO: error: svn not found." >&5
-$as_echo "$as_me: error: svn not found." >&2;}
+  { { $as_echo "$as_me:$LINENO: error: git submodule libarchive not found." >&5
+$as_echo "$as_me: error: git submodule libarchive not found." >&2;}
    { (exit 1); exit 1; }; }
-				fi
-
-				{ $as_echo "$as_me:$LINENO: Checking out libarchive source to $_cray_tmpdir..." >&5
-$as_echo "$as_me: Checking out libarchive source to $_cray_tmpdir..." >&6;}
-
-								$SVN export $_cray_lib_loc $_cray_tmpdir >&5 2>&5
-				if test ! -d "$_cray_tmpdir"; then
-					{ { $as_echo "$as_me:$LINENO: error: svn checkout of libarchive failed." >&5
-$as_echo "$as_me: error: svn checkout of libarchive failed." >&2;}
-   { (exit 1); exit 1; }; }
-				fi
-
 else
   { $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
+
 fi
 
 
@@ -18383,120 +18278,18 @@ else
 	cray_cv_lib_mi_build=no
 
 		_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libmi"
-	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/libmi/"
 
 	{ $as_echo "$as_me:$LINENO: checking for libmi stage directory" >&5
 $as_echo_n "checking for libmi stage directory... " >&6; }
 
 		if test ! -d "$_cray_tmpdir"; then
-  	{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-								{ $as_echo "$as_me:$LINENO: checking for a thread-safe mkdir -p" >&5
-$as_echo_n "checking for a thread-safe mkdir -p... " >&6; }
-if test -z "$MKDIR_P"; then
-  if test "${ac_cv_path_mkdir+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH$PATH_SEPARATOR/opt/sfw/bin
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-  for ac_prog in mkdir gmkdir; do
-	 for ac_exec_ext in '' $ac_executable_extensions; do
-	   { test -f "$as_dir/$ac_prog$ac_exec_ext" && $as_test_x "$as_dir/$ac_prog$ac_exec_ext"; } || continue
-	   case `"$as_dir/$ac_prog$ac_exec_ext" --version 2>&1` in #(
-	     'mkdir (GNU coreutils) '* | \
-	     'mkdir (coreutils) '* | \
-	     'mkdir (fileutils) '4.1*)
-	       ac_cv_path_mkdir=$as_dir/$ac_prog$ac_exec_ext
-	       break 3;;
-	   esac
-	 done
-       done
-done
-IFS=$as_save_IFS
-
-fi
-
-  if test "${ac_cv_path_mkdir+set}" = set; then
-    MKDIR_P="$ac_cv_path_mkdir -p"
-  else
-    # As a last resort, use the slow shell script.  Don't cache a
-    # value for MKDIR_P within a source directory, because that will
-    # break other packages using the cache if that directory is
-    # removed, or if the value is a relative name.
-    test -d ./--version && rmdir ./--version
-    MKDIR_P="$ac_install_sh -d"
-  fi
-fi
-{ $as_echo "$as_me:$LINENO: result: $MKDIR_P" >&5
-$as_echo "$MKDIR_P" >&6; }
-
-
-
-
-				# Extract the first word of "svn", so it can be a program name with args.
-set dummy svn; ac_word=$2
-{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_path_SVN+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  case $SVN in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_SVN="$SVN" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-  for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_SVN="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-done
-IFS=$as_save_IFS
-
-  test -z "$ac_cv_path_SVN" && ac_cv_path_SVN="svn"
-  ;;
-esac
-fi
-SVN=$ac_cv_path_SVN
-if test -n "$SVN"; then
-  { $as_echo "$as_me:$LINENO: result: $SVN" >&5
-$as_echo "$SVN" >&6; }
-else
-  { $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-				if test -z "$SVN"; then
-					{ { $as_echo "$as_me:$LINENO: error: svn not found." >&5
-$as_echo "$as_me: error: svn not found." >&2;}
+  { { $as_echo "$as_me:$LINENO: error: git submodule libmi not found." >&5
+$as_echo "$as_me: error: git submodule libmi not found." >&2;}
    { (exit 1); exit 1; }; }
-				fi
-
-				{ $as_echo "$as_me:$LINENO: Checking out libmi source to $_cray_tmpdir..." >&5
-$as_echo "$as_me: Checking out libmi source to $_cray_tmpdir..." >&6;}
-
-								$SVN export $_cray_lib_loc $_cray_tmpdir >&5 2>&5
-				if test ! -d "$_cray_tmpdir"; then
-					{ { $as_echo "$as_me:$LINENO: error: svn checkout of libmi failed." >&5
-$as_echo "$as_me: error: svn checkout of libmi failed." >&2;}
-   { (exit 1); exit 1; }; }
-				fi
-
 else
   { $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
+
 fi
 
 
@@ -18631,120 +18424,18 @@ else
 	cray_cv_prog_gdb_build=no
 
 		_cray_tmpdir="${CRAYTOOL_EXTERNAL}/gdb"
-	_cray_lib_loc="http://svn/svn/debugger-support/lgdb/trunk/third_party/ddt_gdb-7.6.2/"
 
 	{ $as_echo "$as_me:$LINENO: checking for libmi stage directory" >&5
 $as_echo_n "checking for libmi stage directory... " >&6; }
 
 		if test ! -d "$_cray_tmpdir"; then
-  	{ $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-
-								{ $as_echo "$as_me:$LINENO: checking for a thread-safe mkdir -p" >&5
-$as_echo_n "checking for a thread-safe mkdir -p... " >&6; }
-if test -z "$MKDIR_P"; then
-  if test "${ac_cv_path_mkdir+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH$PATH_SEPARATOR/opt/sfw/bin
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-  for ac_prog in mkdir gmkdir; do
-	 for ac_exec_ext in '' $ac_executable_extensions; do
-	   { test -f "$as_dir/$ac_prog$ac_exec_ext" && $as_test_x "$as_dir/$ac_prog$ac_exec_ext"; } || continue
-	   case `"$as_dir/$ac_prog$ac_exec_ext" --version 2>&1` in #(
-	     'mkdir (GNU coreutils) '* | \
-	     'mkdir (coreutils) '* | \
-	     'mkdir (fileutils) '4.1*)
-	       ac_cv_path_mkdir=$as_dir/$ac_prog$ac_exec_ext
-	       break 3;;
-	   esac
-	 done
-       done
-done
-IFS=$as_save_IFS
-
-fi
-
-  if test "${ac_cv_path_mkdir+set}" = set; then
-    MKDIR_P="$ac_cv_path_mkdir -p"
-  else
-    # As a last resort, use the slow shell script.  Don't cache a
-    # value for MKDIR_P within a source directory, because that will
-    # break other packages using the cache if that directory is
-    # removed, or if the value is a relative name.
-    test -d ./--version && rmdir ./--version
-    MKDIR_P="$ac_install_sh -d"
-  fi
-fi
-{ $as_echo "$as_me:$LINENO: result: $MKDIR_P" >&5
-$as_echo "$MKDIR_P" >&6; }
-
-
-
-
-				# Extract the first word of "svn", so it can be a program name with args.
-set dummy svn; ac_word=$2
-{ $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_path_SVN+set}" = set; then
-  $as_echo_n "(cached) " >&6
-else
-  case $SVN in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_SVN="$SVN" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-  for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_SVN="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-done
-IFS=$as_save_IFS
-
-  test -z "$ac_cv_path_SVN" && ac_cv_path_SVN="svn"
-  ;;
-esac
-fi
-SVN=$ac_cv_path_SVN
-if test -n "$SVN"; then
-  { $as_echo "$as_me:$LINENO: result: $SVN" >&5
-$as_echo "$SVN" >&6; }
-else
-  { $as_echo "$as_me:$LINENO: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-				if test -z "$SVN"; then
-					{ { $as_echo "$as_me:$LINENO: error: svn not found." >&5
-$as_echo "$as_me: error: svn not found." >&2;}
+  { { $as_echo "$as_me:$LINENO: error: git submodule gdb not found." >&5
+$as_echo "$as_me: error: git submodule gdb not found." >&2;}
    { (exit 1); exit 1; }; }
-				fi
-
-				{ $as_echo "$as_me:$LINENO: Checking out gdb source to $_cray_tmpdir..." >&5
-$as_echo "$as_me: Checking out gdb source to $_cray_tmpdir..." >&6;}
-
-								$SVN export $_cray_lib_loc $_cray_tmpdir >&5 2>&5
-				if test ! -d "$_cray_tmpdir"; then
-					{ { $as_echo "$as_me:$LINENO: error: svn checkout of gdb failed." >&5
-$as_echo "$as_me: error: svn checkout of gdb failed." >&2;}
-   { (exit 1); exit 1; }; }
-				fi
-
 else
   { $as_echo "$as_me:$LINENO: result: yes" >&5
 $as_echo "yes" >&6; }
+
 fi
 
 

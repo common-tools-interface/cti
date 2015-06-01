@@ -28,11 +28,11 @@ distclean-local:
 	rm -rf @WLM_DETECT_BASE@
 	rm -rf @SLURM_BASE@
 if BUILT_ARC
-	rm -rf @LIBARC_SRC@
+	cd @LIBARC_SRC@ && $(MAKE) distclean
 endif
 if BUILT_MI
-	rm -rf @LIBMI_SRC@
+	cd @LIBMI_SRC@ && $(MAKE) distclean
 endif
 if BUILT_GDB
-	rm -rf @GDB_SRC@
+	cd @GDB_SRC@ && $(MAKE) distclean
 endif
