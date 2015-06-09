@@ -130,8 +130,10 @@ _cti_addArg(cti_args_t *this, const char *fmt, ...)
 	// finish the va_args
 	va_end(ap);
 	
-	// Ensure that there is room for this argument
-	if (this->argc == this->_len)
+	// Ensure that there is room for this argument - note that we always
+	// want the argv to be null terminated, so we need to resize once argc+1 is
+	// equal to _len.
+	if (this->argc + 1 >= this->_len)
 	{
 		// need to resize
 		if (_cti_resizeArgs(this))
