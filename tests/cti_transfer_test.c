@@ -105,7 +105,7 @@ main(int argc, char **argv)
 	assert(cti_manifestIsValid(mymid) != 0);
 	
 	// Send the manifest to the compute node
-	r = cti_sendManifest(mymid, 0);
+	r = cti_sendManifest(mymid);
 	if (r)
 	{
 		fprintf(stderr, "Error: cti_sendManifest failed!\n");

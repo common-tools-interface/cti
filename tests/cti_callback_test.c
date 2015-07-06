@@ -393,7 +393,7 @@ main(int argc, char **argv)
 	}
 	
 	// Transfer and exec the callback_daemon application
-	if (cti_execToolDaemon(mymid, LAUNCHER, (const char * const *)tool_argv, NULL, 0))
+	if (cti_execToolDaemon(mymid, LAUNCHER, (const char * const *)tool_argv, NULL))
 	{
 		fprintf(stderr, "cti_execToolDaemon failed!\n");
 		fprintf(stderr, "CTI error: %s\n", cti_error_str());

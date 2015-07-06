@@ -37,16 +37,23 @@
  *         Used to define the absolute path to the CTI install directory. This
  *         is required to be defined.
  *
- * CTI_DBG_LOG_DIR_ENV_VAR (optional)
- *
- *         Used to define a path to write log files to. This location must be 
- *         cross mounted and accessible by the compute nodes in order to receive
- *         debug logs from tool daemons.
- *
  * CTI_USER_DEF_APRUN_EXE_ENV_VAR (optional)
  *
  *         Used to define the absolute path to the aprun binary. This is used 
  *         when a site has renamed the real aprun binary to something else.
+ *
+ * CTI_DBG_LOG_DIR_ENV_VAR (optional)
+ *
+ *         Used to define a path to write log files to. This location must be 
+ *         cross mounted and accessible by the compute nodes in order to receive
+ *         debug logs from tool daemons. If CTI_DBG_ENV_VAR is set, and this env
+ *         variable is omitted, then the log files will be written to /tmp on
+ *         the compute nodes.
+ *
+ * CTI_DBG_ENV_VAR (optional)
+ *
+ *         Used to turn on redirection of tool daemon stdout/stderr to a log
+ *         file. This should be used in conjuntion with CTI_DBG_LOG_DIR_ENV_VAR.
  *
  * CTI_GDB_LOC_ENV_VAR (optional)
  *
@@ -86,8 +93,9 @@
  * 
  */
 #define CTI_BASE_DIR_ENV_VAR            "CRAY_CTI_DIR"
-#define CTI_DBG_LOG_DIR_ENV_VAR         "CRAY_DBG_LOG_DIR"
 #define CTI_USER_DEF_APRUN_EXE_ENV_VAR  "CRAY_APRUN_PATH"
+#define CTI_DBG_LOG_DIR_ENV_VAR         "CRAY_CTI_LOG_DIR"
+#define CTI_DBG_ENV_VAR                 "CRAY_CTI_DBG"
 #define CTI_GDB_LOC_ENV_VAR             "CRAY_CTI_GDB_PATH"
 #define CTI_ATTRIBS_TIMEOUT_ENV_VAR     "CRAY_CTI_PMI_FOPEN_TIMEOUT"
 #define CTI_EXTRA_SLEEP_ENV_VAR         "CRAY_CTI_PMI_EXTRA_SLEEP"
@@ -942,23 +950,21 @@ extern int cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
  *      by a tool daemon after the tool daemon has launched. The provided 
  *      manifest will become invalid for future use upon calling this function.
  *
- *      If the debug option is non-zero, the environment variable defined by
- *      CTI_DBG_LOG_DIR_ENV_VAR will be read and log files will be created in 
- *      this location. If the environment variable is not defined, log files
- *      will be created in the /tmp directory on the compute nodes. This log
- *      will contain all output during shipment of the manifest and can be used
- *      to locate problems with file shipment.
+ *      If the environment variable CTI_DBG_ENV_VAR is defined, the environment
+ *      variable defined by CTI_DBG_LOG_DIR_ENV_VAR will be read and log files 
+ *      will be created in this location. If CTI_DBG_LOG_DIR_ENV_VAR is not 
+ *      defined, log files will be created in the /tmp directory on the compute 
+ *      nodes. This log will contain all output during shipment of the manifest
+ *      and can be used to locate problems with file shipment.
  *
  * Arguments
  *      mid -   The cti_manifest_id_t of the manifest.
- *      debug - If non-zero, create a log file at the location provided by
- *              CTI_DBG_LOG_DIR_ENV_VAR.
  *
  * Returns
  *      0 on success, or else 1 on failure.
  * 
  */
-extern int cti_sendManifest(cti_manifest_id_t mid, int debug);
+extern int cti_sendManifest(cti_manifest_id_t mid);
 
 /*
  * cti_execToolDaemon - Launch a tool daemon onto all the compute nodes
@@ -988,11 +994,13 @@ extern int cti_sendManifest(cti_manifest_id_t mid, int debug);
  *      In this case, the args[0] is the beginning of actual tool daemon
  *      arguments and not the name of the tool daemon binary.
  *
- *      If the debug option is non-zero, the environment variable defined by
- *      CTI_DBG_LOG_DIR_ENV_VAR will be read and log files will be created in 
- *      this location. These log files will contain any output written to 
- *      stdout/stderr of the tool daemons. Otherwise tool daemon stdout/stderr 
- *      will be redirected to /dev/null.
+ *      If the environment variable CTI_DBG_ENV_VAR is defined, the environment
+ *      variable defined by CTI_DBG_LOG_DIR_ENV_VAR will be read and log files 
+ *      will be created in this location. If CTI_DBG_LOG_DIR_ENV_VAR is not 
+ *      defined, log files will be created in the /tmp directory on the compute 
+ *      nodes. These log files will contain any output written to stdout/stderr
+ *      of the tool daemons. If CTI_DBG_ENV_VAR is not defined, tool daemon 
+ *      stdout/stderr will be redirected to /dev/null.
  *
  * Arguments
  *      mid -     The cti_manifest_id_t of the manifest.
@@ -1006,19 +1014,15 @@ extern int cti_sendManifest(cti_manifest_id_t mid, int debug);
  *      env -     The null terminated list of environment variables to
  *                set in the environment of the fstr process. The strings
  *                in this list shall be formed in a "envVar=val" manner.
- *      debug -   If true, create log files at the location provided by
- *                CTI_DBG_LOG_DIR_ENV_VAR. Redirects stdout/stderr of the tool
- *                daemons to the log files.
  *
  * Returns
  *      0 on success, or else 1 on failure.
  * 
  */
 extern int cti_execToolDaemon( cti_manifest_id_t   mid,
-                               const char *        fstr, 
+                               const char *        fstr,
                                const char * const  args[],
-                               const char * const  env[],
-                               int                 debug);
+                               const char * const  env[]);
 
 /*
  * cti_getSessionLockFiles - Get the name(s) of instance dependency lock files.

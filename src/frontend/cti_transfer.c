@@ -2633,7 +2633,7 @@ cti_addManifestFile(cti_manifest_id_t mid, const char *fstr)
 }
 
 int
-cti_sendManifest(cti_manifest_id_t mid, int dbg)
+cti_sendManifest(cti_manifest_id_t mid)
 {
 	manifest_t *		m_ptr = NULL;	// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	char *				jid_str = NULL;	// job identifier string - wlm specific
@@ -2759,7 +2759,7 @@ cti_sendManifest(cti_manifest_id_t mid, int dbg)
 	}
 	
 	// add the debug switch if debug is on
-	if (dbg)
+	if (getenv(DBG_ENV_VAR) != NULL)
 	{
 		if (_cti_addArg(d_args, "--debug"))
 		{
@@ -2814,7 +2814,7 @@ sendManifest_error:
 }
 
 int
-cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon, const char * const args[], const char * const env[], int dbg)
+cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon, const char * const args[], const char * const env[])
 {
 	manifest_t *	m_ptr = NULL;		// pointer to the manifest_t object associated with the cti_manifest_id_t argument
 	bool			useManif = true;	// controls if a manifest was shipped or not
@@ -3040,7 +3040,7 @@ cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon, const char * const
 	}
 		
 	// add the debug switch if debug is on
-	if (dbg)
+	if (getenv(DBG_ENV_VAR) != NULL)
 	{
 		if (_cti_addArg(d_args, "--debug"))
 		{
