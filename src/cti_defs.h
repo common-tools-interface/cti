@@ -74,6 +74,7 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
 #define SHELL_PATH							"/bin/sh"								// The location of the shell to set SHELL to
 #define PMI_ATTRIBS_FILE_NAME				"pmi_attribs"							// Name of the pmi_attribs file to find pid info
 #define PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT	60										// default timeout in seconds for trying to open pmi_attribs file
+#define PID_FILE								".cti_pids"							// Name of the file containing the pids of the tool daemon processes
 
 /*******************************************************************************
 ** Alps specific information

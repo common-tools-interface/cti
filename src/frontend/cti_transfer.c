@@ -2465,6 +2465,166 @@ cti_sessionIsValid(cti_session_id_t sid)
 	return 1;
 }
 
+int
+cti_destroySession(cti_session_id_t sid)
+{
+	session_t *		s_ptr = NULL;		// points at the session
+	char *			jid_str = NULL;		// job id string to pass to the backend. This is wlm specific.
+	const char *	attribsPath;		// path to pmi_attribs file based on the wlm
+	cti_args_t *	d_args = NULL;		// args to pass to the dlaunch utility
+	
+	// Find the session for this sid
+	if ((s_ptr = _cti_findSession(sid)) == NULL)
+	{
+		// sid not found
+		// error string already set
+		return 0;
+	}
+	
+	// Create the argv for dlaunch which is passed to the WLM wrapper call
+	//
+	// The options passed MUST correspond to the options defined in the daemon_launcher program.
+	//
+	// The actual daemon launcher path string is determined by the wlm_startDaemon call
+	// since that is wlm specific
+	
+	if ((jid_str = SESS_APP(s_ptr)->wlmProto->wlm_getJobId(SESS_APP(s_ptr)->_wlmObj)) == NULL)
+	{
+		// error already set
+		goto destroySession_error;
+	}
+	
+	// Get the attribs path for this wlm - this is optional and can come back null
+	attribsPath = SESS_APP(s_ptr)->wlmProto->wlm_getAttribsPath(SESS_APP(s_ptr)->_wlmObj);
+	
+	// create a new args obj
+	if ((d_args = _cti_newArgs()) == NULL)
+	{
+		_cti_set_error("_cti_newArgs failed.");
+		goto destroySession_error;
+	} 
+	
+	// begin adding the args
+	
+	if (_cti_addArg(d_args, "-a"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	if (_cti_addArg(d_args, "%s", jid_str))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	
+	if (_cti_addArg(d_args, "-p"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	if (_cti_addArg(d_args, "%s", s_ptr->toolPath))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	
+	if (attribsPath != NULL)
+	{
+		if (_cti_addArg(d_args, "-t"))
+		{
+			_cti_set_error("_cti_addArg failed.");
+			goto destroySession_error;
+		}
+		if (_cti_addArg(d_args, "%s", attribsPath))
+		{
+			_cti_set_error("_cti_addArg failed.");
+			goto destroySession_error;
+		}
+	}
+	
+	if (_cti_addArg(d_args, "-w"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	if (_cti_addArg(d_args, "%d", SESS_APP(s_ptr)->wlmProto->wlm_type))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	
+	if (_cti_addArg(d_args, "-d"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	if (_cti_addArg(d_args, "%s", s_ptr->stage_name))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	
+	if (_cti_addArg(d_args, "-i"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	if (_cti_addArg(d_args, "%d", s_ptr->instCnt + 1))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	
+	// Add the cleanup arg. This invokes the cleanup functionality in the dlaunch
+	// utility.
+	if (_cti_addArg(d_args, "-c"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		goto destroySession_error;
+	}
+	
+	// add the debug switch if debug is on
+	if (getenv(DBG_ENV_VAR) != NULL)
+	{
+		if (_cti_addArg(d_args, "--debug"))
+		{
+			_cti_set_error("_cti_addArg failed.");
+			goto destroySession_error;
+		}
+	}
+	
+	// Done. We now have an argv array to pass
+	
+	// Call the appropriate transfer function based on the wlm
+	if (SESS_APP(s_ptr)->wlmProto->wlm_startDaemon(SESS_APP(s_ptr)->_wlmObj, d_args))
+	{
+		// we failed to start dlaunch on the compute nodes for some reason - catastrophic failure
+		// Error message already set
+		goto destroySession_error;
+	}
+	
+	// cleanup
+	_cti_consumeSession(s_ptr);
+	free(jid_str);
+	_cti_freeArgs(d_args);
+	
+	return 0;
+	
+destroySession_error:
+	
+	if (jid_str != NULL)
+	{
+		free(jid_str);
+	}
+	
+	if (d_args != NULL)
+	{
+		_cti_freeArgs(d_args);
+	}
+	
+	return 1;	
+}
+
 cti_manifest_id_t
 cti_createManifest(cti_session_id_t sid)
 {

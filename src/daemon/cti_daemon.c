@@ -24,8 +24,11 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include <dirent.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <signal.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -44,11 +47,12 @@
 #include "cti_daemon.h"
 #include "cti_useful.h"
 
-static int debug_flag = 0;
+static int		debug_flag = 0;
 
 const struct option long_opts[] = {
 			{"apid",		required_argument,	0, 'a'},
 			{"binary",		required_argument,	0, 'b'},
+			{"clean",		no_argument,		0, 'c'},
 			{"directory",	required_argument,	0, 'd'},
 			{"env",			required_argument,	0, 'e'},
 			{"inst",		required_argument,	0, 'i'},
@@ -60,6 +64,13 @@ const struct option long_opts[] = {
 			{"debug",		no_argument,		&debug_flag, 1},
 			{0, 0, 0, 0}
 			};
+			
+struct cti_pids
+{
+	pid_t				pids[32];
+	unsigned int		idx;
+	struct cti_pids *	next;
+};
 			
 /* wlm specific proto objects defined elsewhere */
 extern cti_wlm_proto_t	_cti_alps_wlmProto;
@@ -86,6 +97,7 @@ usage(void)
 	
 	fprintf(stdout, "\t-a, --apid      Application id\n");
 	fprintf(stdout, "\t-b, --binary	   Binary file to execute\n");
+	fprintf(stdout, "\t-c, --clean     Terminate existing tool daemons and cleanup session\n");
 	fprintf(stdout, "\t-d, --directory Use named directory for CWD\n");
 	fprintf(stdout, "\t-e, --env       Specify an environment variable to set\n");
 	fprintf(stdout, "\t                The argument provided to this option must be issued\n");
@@ -126,11 +138,84 @@ copy_data(struct archive *ar, struct archive *aw)
 }
 
 int
+do_lock(int fd, int cmd, int type, off_t offset, int whence, off_t len)
+{
+	struct flock	lock;
+	
+	lock.l_type = type;			// F_RDLCK, F_WRLCK, F_UNLCK
+	lock.l_start = offset;		// byte offset relative to l_whence
+	lock.l_whence = whence;		// SEEK_SET, SEEK_CUR, SEEK_END
+	lock.l_len = len;			// number of bytes (0 means EOF)
+
+	return (fcntl(fd, cmd, &lock));
+}
+
+#define FLOCK(fd)		do_lock((fd), F_SETLK, F_WRLCK, 0, SEEK_SET, 0)
+#define UNFLOCK(fd)	do_lock((fd), F_SETLK, F_UNLCK, 0, SEEK_SET, 0)
+
+void
+remove_dir(char *path)
+{
+	DIR *				dir;
+	struct dirent *		d;
+	char *				file = NULL;
+	
+	if ((dir = opendir(path)) == NULL)
+	{
+		return;
+	}
+	
+	while ((d = readdir(dir)) != NULL)
+	{
+		// ensure this isn't the . or .. file
+		switch (strlen(d->d_name))
+		{
+			case 1:
+				if (d->d_name[0] == '.')
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+				
+			case 2:
+				if (strcmp(d->d_name, "..") == 0)
+				{
+					// continue to the outer while loop
+					continue;
+				}
+				break;
+			
+			default:
+				break;
+		}
+		
+		if (asprintf(&file, "%s/%s", path, d->d_name) <= 0)
+		{
+			fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
+			continue;
+		}
+		
+		if (d->d_type == DT_DIR)
+		{
+			remove_dir(file);
+		}
+		
+		remove(file);
+		free(file);
+		file = NULL;
+	}
+	
+	closedir(dir);
+}
+
+int
 main(int argc, char **argv)
 {
 	struct rlimit	rl;
 	int				opt_ind = 0;
 	int				c, i, sCnt;
+	bool			cleanup = false;
 	int				wlm_arg = CTI_WLM_NONE;
 	char *			wlm_str;
 	char *			apid_str = NULL;
@@ -144,8 +229,11 @@ main(int argc, char **argv)
 	char *			manifest = NULL;
 	int				inst = 1;	// default to 1 if no instance argument is provided
 	char *			manifest_path = NULL;
+	int				o_fd;
 	char *			lock_path = NULL;
 	FILE *			lock_file;
+	pid_t			mypid = -1;
+	char *			pid_path = NULL;
 	char *			bin_path = NULL;
 	char *			lib_path = NULL;
 	char *			file_path = NULL;
@@ -169,7 +257,7 @@ main(int argc, char **argv)
 	// We want to do as little as possible while parsing the opts. This is because
 	// we do not create a log file until after the opts are parsed, and there will
 	// be no valid output until after the log is created on most systems.
-	while ((c = getopt_long(argc, argv, "a:b:d:e:i:m:p:t:w:h", long_opts, &opt_ind)) != -1)
+	while ((c = getopt_long(argc, argv, "a:b:cd:e:i:m:p:t:w:h", long_opts, &opt_ind)) != -1)
 	{
 		switch (c)
 		{
@@ -210,6 +298,12 @@ main(int argc, char **argv)
 				
 				// this is the name of the binary we will exec
 				binary = strdup(optarg);
+				
+				break;
+				
+			case 'c':
+				// set cleanup to true
+				cleanup = true;
 				
 				break;
 				
@@ -436,6 +530,8 @@ main(int argc, char **argv)
 		}
 	}
 	
+	/* It is NOW safe to write to stdout/stderr, the log file has been setup */
+	
 	// print out argv array if debug is turned on
 	if (debug_flag)
 	{
@@ -444,8 +540,6 @@ main(int argc, char **argv)
 			fprintf(stderr, "%s: argv[%d] = \"%s\"\n", CTI_LAUNCHER, i, argv[i]);
 		}
 	}
-	
-	/* It is NOW safe to write to stdout/stderr, the log file has been setup */
 	
 	// Now ensure the user provided a valid wlm argument. 
 	switch (wlm_arg)
@@ -812,6 +906,142 @@ main(int argc, char **argv)
 			*t = '\0';
 		}
 	}
+	
+	// create the path to the pid file
+	if (asprintf(&pid_path, "%s/%s", manifest_path, PID_FILE) <= 0)
+	{
+		fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
+		return 1;
+	}
+	
+	// TODO: Terminate here
+	if (cleanup)
+	{
+		struct cti_pids tool_pid = {{0}};
+		struct cti_pids * pid_ptr = &tool_pid;
+		ssize_t nr;
+		
+		if ((o_fd = open(pid_path, O_RDONLY)) < 0)
+		{
+			fprintf(stderr, "%s: open failed\n", CTI_LAUNCHER);
+			perror("open");
+			return 1;
+		}
+		
+		// lock the file
+		FLOCK(o_fd);
+		
+		do {
+			nr = read(o_fd, &pid_ptr->pids[pid_ptr->idx], sizeof(pid_ptr->pids) - ((sizeof(pid_ptr->pids)/sizeof(pid_ptr->pids[0])) * pid_ptr->idx));
+			if (nr < 0)
+			{
+				fprintf(stderr, "%s: read failed\n", CTI_LAUNCHER);
+				perror("read");
+				return 1;
+			}
+			if (nr > 0)
+			{
+				pid_ptr->idx = nr / sizeof(pid_ptr->pids[0]);
+				if (pid_ptr->idx >= sizeof(pid_ptr->pids)/sizeof(pid_ptr->pids[0]))
+				{
+					// need to grow
+					if ((pid_ptr->next = malloc(sizeof(struct cti_pids))) == NULL)
+					{
+						fprintf(stderr, "%s: malloc failed\n", CTI_LAUNCHER);
+						return 1;
+					}
+					memset(pid_ptr->next, 0, sizeof(struct cti_pids));
+					pid_ptr = pid_ptr->next;
+				}
+			}
+		} while (nr != 0);
+		
+		// send a SIGTERM to each pid
+		pid_ptr = &tool_pid;
+		while (pid_ptr != NULL)
+		{
+			for (i=0; i < pid_ptr->idx; ++i)
+			{
+				if (kill(pid_ptr->pids[i], 0))
+					continue;
+				fprintf(stderr, "%s: inst %d: Sending SIGTERM to %d\n", CTI_LAUNCHER, inst, pid_ptr->pids[i]);
+				kill(pid_ptr->pids[i], SIGTERM);
+			}
+			pid_ptr = pid_ptr->next;
+		}
+		
+		// sleep for 10 seconds
+		fprintf(stderr, "%s: inst %d: Sleeping for 10 seconds...\n", CTI_LAUNCHER, inst);
+		sleep(10);
+		
+		// send a SIGKILL to each pid
+		pid_ptr = &tool_pid;
+		while (pid_ptr != NULL)
+		{
+			for (i=0; i < pid_ptr->idx; ++i)
+			{
+				if (kill(pid_ptr->pids[i], 0))
+					continue;
+				fprintf(stderr, "%s: inst %d: Sending SIGKILL to %d\n", CTI_LAUNCHER, inst, pid_ptr->pids[i]);
+				kill(pid_ptr->pids[i], SIGKILL);
+			}
+			pid_ptr = pid_ptr->next;
+		}
+		
+		// remove the manifest directory
+		fprintf(stderr, "%s: inst %d: Removing directory %s.\n", CTI_LAUNCHER, inst, manifest_path);
+		remove_dir(manifest_path);
+		
+		// remove the lock files
+		for (i = inst-1; i > 0; --i)
+		{
+			// reset sCnt
+			sCnt = 0;
+		
+			// create the path to this instances lock file
+			if (asprintf(&lock_path, "%s/.lock_%s_%d", tool_path, directory, i) <= 0)
+			{
+				fprintf(stderr, "%s: asprintf failed\n", CTI_LAUNCHER);
+				return 1;
+			}
+			
+			unlink(lock_path);
+			free(lock_path);
+		}
+		
+		fprintf(stderr, "%s: inst %d: Cleanup complete.\n", CTI_LAUNCHER, inst);
+		
+		return 0;
+	}
+	
+	// We want to write the pid of this process into the pid file for cleanup
+	// later. Note that if the destroy session function is called, it will need
+	// to wait for this instances lock file to get created, which happens below.
+	// That way we are guaranteed to not miss any tool daemons that were started.
+	
+	// Write this pid into the pid file for cleanup
+	if ((o_fd = open(pid_path, O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR)) < 0)
+	{
+		fprintf(stderr, "%s: open failed\n", CTI_LAUNCHER);
+		perror("open");
+		return 1;
+	}
+	
+	// lock the file
+	FLOCK(o_fd);
+	
+	// get our pid and write it
+	mypid = getpid();
+	if (write(o_fd, &mypid, sizeof(mypid)) < sizeof(mypid))
+	{
+		fprintf(stderr, "%s: write failed\n", CTI_LAUNCHER);
+		perror("write");
+		return 1;
+	}
+	
+	// done
+	UNFLOCK(o_fd);
+	close(o_fd);
 	
 	// create the path to the lock file
 	if (asprintf(&lock_path, "%s/.lock_%s_%d", tool_path, directory, inst) <= 0)

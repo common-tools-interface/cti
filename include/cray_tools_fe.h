@@ -267,6 +267,11 @@ extern int cti_appIsValid(cti_app_id_t app_id);
  *      exiting. Failing to do so will cause the application process to be
  *      force killed with SIGKILL.
  *
+ *      Any tool daemons started on the compute nodes will continue executing
+ *      after calling this function. If the tool daemons need to be killed, 
+ *      the cti_destroySession function needs to be called before calling this
+ *      function.
+ *
  * Arguments
  *      app_id - The cti_app_id_t of the previously registered application.
  *
@@ -785,6 +790,30 @@ extern cti_session_id_t cti_createSession(cti_app_id_t app_id);
  *
  */
 extern int cti_sessionIsValid(cti_session_id_t sid);
+
+/*
+ * cti_destroySession - Kill every tool daemon associated with a cti_session_id_t
+ *                      and make the session invalid for future use.
+ * 
+ * Detail
+ *      This function is used to terminate every tool daemon associated with a
+ *      cti_session_id_t. After calling, the session becomes invalid for future
+ *      use. The tool daemon processes will receive a SIGTERM followed by a
+ *      SIGKILL after 10 seconds. Only the tool daemon process will receive a
+ *      signal. If it has forked off any children, it is the daemons 
+ *      responsibilty to ensure they are also terminated during the ten second
+ *      period before SIGKILL. Any files that reside in the session directory
+ *      on the compute node will be unlinked. 
+ *
+ * Arguments
+ *      sid - The cti_session_id_t of the session.
+ *
+ * Returns
+ *      0 on success, or else 1 on failure. On failure, the session is still
+ *      valid for future use.
+ * 
+ */
+extern int cti_destroySession(cti_session_id_t sid);
 
 /*
  * cti_createManifest - Create a new manifest abstraction that represents a
