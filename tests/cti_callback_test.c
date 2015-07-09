@@ -417,6 +417,15 @@ main(int argc, char **argv)
 	// callbacks complete, kill the listener thread
 	pthread_cancel(my_node.listener);
 	
+	// kill off the backend daemon
+	if (cti_destroySession(mysid))
+	{
+		fprintf(stderr, "cti_destroySession failed!\n");
+		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		cti_killApp(myapp, 9);
+		return 1;
+	}
+	
 	printf("Hit return to release the application from the startup barrier...");
 	
 	// just read a single character from stdin then release the app/exit

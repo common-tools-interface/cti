@@ -207,6 +207,7 @@ remove_dir(char *path)
 	}
 	
 	closedir(dir);
+	remove(path);
 }
 
 int
