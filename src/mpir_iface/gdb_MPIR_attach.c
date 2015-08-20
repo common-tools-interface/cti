@@ -582,7 +582,7 @@ main(int argc, char *argv[])
 	}
 	if (!MICommandResultOK(cmd)) 
 	{
-		_cti_gdb_sendError("Invalid starter process pid!");
+		_cti_gdb_sendError(strdup("Invalid starter process pid!"));
 		MICommandFree(cmd);
 		_cti_gdb_cleanupMI();
 		return 1;
@@ -980,7 +980,7 @@ main(int argc, char *argv[])
 						if (p_size <= 0)
 						{
 							// this is a non fatal error, we can recover
-							_cti_gdb_sendError("Invalid MPIR_proctable_size value.");
+							_cti_gdb_sendError(strdup("Invalid MPIR_proctable_size value."));
 							
 							break;
 						}
@@ -1005,7 +1005,7 @@ main(int argc, char *argv[])
 						if (asprintf(&cmd_str, "MPIR_proctable[%d].pid", p_size) < 0)
 						{
 							// this is a non fatal error, we can recover
-							_cti_gdb_sendError("asprintf failed.");
+							_cti_gdb_sendError(strdup("asprintf failed."));
 							_cti_gdb_freePid(pids);
 							
 							break;
@@ -1020,7 +1020,7 @@ main(int argc, char *argv[])
 							if (snprintf(cmd_str, len+1, "MPIR_proctable[%d].pid", i) < 0)
 							{
 								// this is a non fatal error, we can recover
-								_cti_gdb_sendError("snprintf failed.");
+								_cti_gdb_sendError(strdup("snprintf failed."));
 								++err;
 								
 								break;
