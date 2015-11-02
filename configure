@@ -17434,7 +17434,7 @@ $as_echo "yes" >&6; }
 
 
 
-				SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/14.11/SLE_11_SP3/x86_64/"
+				SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/master/SLE_11_SP3/x86_64/"
 
 		_cray_tmpdir="${CRAYTOOL_EXTERNAL}/slurm_base"
 
