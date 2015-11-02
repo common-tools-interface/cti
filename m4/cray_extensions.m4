@@ -406,8 +406,8 @@ AC_DEFUN([cray_SETUP_SLURM_RPMS],
 [
 	dnl Set this to the http address of the slurm RPMS we should build against
 	dnl TODO: This might need more versions in the future.
-	dnl SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/trunk/SLE_11_SP2/x86_64/"
-	SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/14.11/SLE_11_SP3/x86_64/"
+	dnl SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/master/SLE_11_SP3/x86_64/"
+	SLURM_HTTP_RPM_SITE="http://download.buildservice.us.cray.com/native-slurm:/master/SLE_11_SP3/x86_64/"
 
 	dnl Create a temporary directory to extract the slurm libraries to
 	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/slurm_base"
