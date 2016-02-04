@@ -988,7 +988,7 @@ _cti_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 	char *				attribsPath;
 	
 	// sanity check
-	if (cti_current_wlm() != CTI_WLM_CRAY_SLURM)
+	if (cti_current_wlm() != CTI_WLM_SLURM)
 	{
 		_cti_set_error("Invalid call. Cray SLURM WLM not in use.");
 		return 0;
@@ -1113,7 +1113,7 @@ _cti_slurm_getSrunInfo(cti_app_id_t appId)
 	}
 	
 	// sanity check
-	if (app_ptr->wlmProto->wlm_type != CTI_WLM_CRAY_SLURM)
+	if (app_ptr->wlmProto->wlm_type != CTI_WLM_SLURM)
 	{
 		_cti_set_error("_cti_slurm_getSrunInfo: WLM mismatch.");
 		return NULL;
