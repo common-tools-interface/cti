@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_fe.c - cti frontend library functions.
  *
- * Copyright 2014-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2016 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -42,6 +42,7 @@
 
 #include "alps_fe.h"
 #include "cray_slurm_fe.h"
+#include "slurm_fe.h"
 
 typedef struct
 {
@@ -136,7 +137,15 @@ _cti_init(void)
 	
 	if ((_cti_wlm_detect.handle = dlopen(WLM_DETECT_LIB_NAME, RTLD_LAZY)) == NULL)
 	{
-		use_default = true;
+		// Check to see if we are on a cluster. If so, use the slurm proto
+		struct stat sb;
+		if (stat(CLUSTER_FILE_TEST, &sb) == 0)
+		{
+			_cti_wlmProto = &_cti_slurm_wlmProto;
+		} else
+		{
+			use_default = true;
+		}
 		goto wlm_detect_err;
 	}
 	

@@ -130,10 +130,11 @@ typedef struct
 #define SLURM_STEP_UTIL			"cti_slurm_util"								// name of cti slurm job step info utility
 #define CRAY_SLURM_APID(jobid, stepid)	((stepid * 10000000000) + jobid)	// formula for creating Cray apid from SLURM jobid.stepid
 #define CRAY_SLURM_TOOL_DIR		"/tmp"											// Cray SLURM staging path on compute node
-#define	 CRAY_SLURM_CRAY_DIR		"/var/opt/cray/alps/spool/%llu"				// Location of cray specific directory on compute node - pmi_attribs is here
+#define	CRAY_SLURM_CRAY_DIR		"/var/opt/cray/alps/spool/%llu"				// Location of cray specific directory on compute node - pmi_attribs is here
 #define SLURM_STAGE_DIR			"slurmXXXXXX"									// directory name for staging slurm specific files to transfer
 #define SLURM_LAYOUT_FILE		"slurm_layout"									// name of file containing layout information
 #define SLURM_PID_FILE			"slurm_pid"									// name of file containing pid information
+#define CLUSTER_FILE_TEST		"/etc/redhat-release"
 
 /*******************************************************************************
 ** Environment variables that are set/maintained by this library
