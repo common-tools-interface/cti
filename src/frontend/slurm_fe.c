@@ -145,7 +145,7 @@ const cti_wlm_proto_t		_cti_slurm_wlmProto =
 	_cti_slurm_getAttribsPath			// wlm_getAttribsPath
 };
 
-const char * slurm_blacklist_env_vars[] = {
+const char * slurm_cs_blacklist_env_vars[] = {
 		"SLURM_CHECKPOINT",
 		"SLURM_CONN_TYPE",
 		"SLURM_CPUS_PER_TASK",
@@ -979,7 +979,7 @@ _cti_slurm_getJobId(cti_wlm_obj this)
 
 // this function creates a new appEntry_t object for the app
 cti_app_id_t
-cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
+_cti_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 {
 	appEntry_t *		this;
 	uint64_t			apid;	// Cray version of the job+step
@@ -1082,7 +1082,7 @@ cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 	// add the sinfo obj to our global list
 	if(_cti_list_add(_cti_slurm_info, sinfo))
 	{
-		_cti_set_error("cti_cray_slurm_registerJobStep: _cti_list_add() failed.");
+		_cti_set_error("_cti_slurm_registerJobStep: _cti_list_add() failed.");
 		cti_deregisterApp(this->appId);
 		return 0;
 	}
@@ -1091,7 +1091,7 @@ cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 }
 
 cti_srunProc_t *
-cti_cray_slurm_getSrunInfo(cti_app_id_t appId)
+_cti_slurm_getSrunInfo(cti_app_id_t appId)
 {
 	appEntry_t *		app_ptr;
 	craySlurmInfo_t	*	sinfo;
@@ -1115,7 +1115,7 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId)
 	// sanity check
 	if (app_ptr->wlmProto->wlm_type != CTI_WLM_CRAY_SLURM)
 	{
-		_cti_set_error("cti_cray_slurm_getSrunInfo: WLM mismatch.");
+		_cti_set_error("_cti_slurm_getSrunInfo: WLM mismatch.");
 		return NULL;
 	}
 	
@@ -1142,7 +1142,7 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId)
 }
 
 cti_srunProc_t *
-cti_cray_slurm_getJobInfo(pid_t srunPid)
+_cti_slurm_getJobInfo(pid_t srunPid)
 {
 	cti_gdb_id_t		gdb_id;
 	pid_t				gdb_pid;
@@ -1693,7 +1693,7 @@ _cti_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd, int
 	myapp->sattach_pid = mypid;
 	
 	// register this app with the application interface
-	if ((rtn = cti_cray_slurm_registerJobStep(jobid, stepid)) == 0)
+	if ((rtn = _cti_slurm_registerJobStep(jobid, stepid)) == 0)
 	{
 		// failed to register the jobid/stepid, error is already set.
 		_cti_slurm_consumeSrunInv(myapp);
@@ -2633,7 +2633,7 @@ _cti_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 		
 		// clear out the blacklisted slurm env vars to ensure we don't get weird
 		// behavior
-		env_ptr = slurm_blacklist_env_vars;
+		env_ptr = slurm_cs_blacklist_env_vars;
 		while (*env_ptr != NULL)
 		{
 			unsetenv(*env_ptr++);
