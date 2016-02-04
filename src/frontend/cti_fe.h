@@ -35,6 +35,12 @@ typedef uint64_t cti_app_id_t;
 
 typedef struct
 {
+	uint32_t	jobid;
+	uint32_t	stepid;
+} cti_srunProc_t;
+
+typedef struct
+{
 	char *				hostname;
 	int					numPes;
 } cti_host_t;

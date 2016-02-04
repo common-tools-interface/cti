@@ -28,12 +28,6 @@
 /* wlm proto object */
 extern const cti_wlm_proto_t	_cti_cray_slurm_wlmProto;
 
-typedef struct
-{
-	uint32_t	jobid;
-	uint32_t	stepid;
-} cti_srunProc_t;
-
 /* function prototypes */
 cti_app_id_t		cti_cray_slurm_registerJobStep(uint32_t, uint32_t);
 cti_srunProc_t *	cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
