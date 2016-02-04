@@ -73,7 +73,8 @@ am_libcraytools_fe_la_OBJECTS = libcraytools_fe_la-cti_fe.lo \
 	libcraytools_fe_la-cti_run.lo libcraytools_fe_la-cti_error.lo \
 	libcraytools_fe_la-cti_transfer.lo \
 	libcraytools_fe_la-alps_fe.lo \
-	libcraytools_fe_la-cray_slurm_fe.lo
+	libcraytools_fe_la-cray_slurm_fe.lo \
+	libcraytools_fe_la-slurm_fe.lo
 libcraytools_fe_la_OBJECTS = $(am_libcraytools_fe_la_OBJECTS)
 libcraytools_fe_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) \
@@ -256,7 +257,7 @@ AM_LIBTOOLFLAGS = --quiet
 lib_LTLIBRARIES = libcraytools_fe.la
 libcraytools_fe_la_SOURCES = cti_fe.c cti_fe.h cti_run.c cti_run.h cti_error.c cti_error.h \
 								cti_transfer.c cti_transfer.h alps_fe.c alps_fe.h cray_slurm_fe.c \
-								cray_slurm_fe.h
+								cray_slurm_fe.h slurm_fe.c slurm_fe.h
 
 libcraytools_fe_la_CFLAGS = $(AM_CFLAGS) -fPIC -I$(MPIR_IFACE) -I$(LDVAL) -I$(USEFUL) \
 								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS)
@@ -343,6 +344,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-cti_fe.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-cti_run.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-cti_transfer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_fe_la-slurm_fe.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -406,6 +408,13 @@ libcraytools_fe_la-cray_slurm_fe.lo: cray_slurm_fe.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='cray_slurm_fe.c' object='libcraytools_fe_la-cray_slurm_fe.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-cray_slurm_fe.lo `test -f 'cray_slurm_fe.c' || echo '$(srcdir)/'`cray_slurm_fe.c
+
+libcraytools_fe_la-slurm_fe.lo: slurm_fe.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -MT libcraytools_fe_la-slurm_fe.lo -MD -MP -MF $(DEPDIR)/libcraytools_fe_la-slurm_fe.Tpo -c -o libcraytools_fe_la-slurm_fe.lo `test -f 'slurm_fe.c' || echo '$(srcdir)/'`slurm_fe.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_fe_la-slurm_fe.Tpo $(DEPDIR)/libcraytools_fe_la-slurm_fe.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='slurm_fe.c' object='libcraytools_fe_la-slurm_fe.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_fe_la_CFLAGS) $(CFLAGS) -c -o libcraytools_fe_la-slurm_fe.lo `test -f 'slurm_fe.c' || echo '$(srcdir)/'`slurm_fe.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
