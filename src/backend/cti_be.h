@@ -1,5 +1,8 @@
 /******************************************************************************\
- * alps_backend.h - A header file for the alps_backend interface.
+ * cti_be.h - A interface to interact with placement information on compute
+ *		  nodes. This provides the tool developer with an easy to use interface
+ *        to obtain application information for backend tool daemons running on
+ *        the compute nodes.
  *
  * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
  *
@@ -15,7 +18,7 @@
  * $Author$
  *
  ******************************************************************************/
- 
+
 #ifndef _CTI_BE_H
 #define _CTI_BE_H
 
@@ -79,4 +82,3 @@ int					_cti_be_wlm_getNodeFirstPE_none(void);
 int					_cti_be_wlm_getNodePEs_none(void);
 
 #endif /* _CTI_BE_H */
-
