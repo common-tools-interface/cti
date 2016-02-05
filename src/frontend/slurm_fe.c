@@ -2818,55 +2818,16 @@ _cti_slurm_getAppHostsPlacement(cti_wlm_obj this)
 static char *
 _cti_slurm_getHostName(void)
 {
-	FILE *	nid_fd;				// Cray NID file stream
-	char	file_buf[BUFSIZ];	// file read buffer
-	int		nid = 0;			// nid of this node
-	char *	eptr;
-	char *	hostname;			// hostname to return
-	
-	// open up the file containing our node id (nid) - since we are using the
-	// Cray variant of native slurm this is required to work.
-	if ((nid_fd = fopen(ALPS_XT_NID, "r")) == NULL)
+
+	char host[HOST_NAME_MAX+1];
+
+	if (gethostname(&host, HOST_NAME_MAX+1))
 	{
-		_cti_set_error("fopen on %s failed.", ALPS_XT_NID);
+		_cti_set_error("gethostname failed.");
 		return NULL;
 	}
-	
-	// we expect this file to have a numeric value giving our current nid
-	if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
-	{
-		_cti_set_error("fgets on %s failed.", ALPS_XT_NID);
-		fclose(nid_fd);
-		return NULL;
-	}
-	// convert this to an integer value
-	nid = (int)strtol(file_buf, &eptr, 10);
-	
-	// close the file stream
-	fclose(nid_fd);
-	
-	// check for error
-	if ((errno == ERANGE && nid == INT_MAX)
-			|| (errno != 0 && nid == 0))
-	{
-		_cti_set_error("strtol failed.");
-		return NULL;
-	}
-	
-	// check for invalid input
-	if (eptr == file_buf)
-	{
-		_cti_set_error("Bad data in %s", ALPS_XT_NID);
-		return NULL;
-	}
-	
-	if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, nid) < 0)
-	{
-		_cti_set_error("asprintf failed.");
-		return NULL;
-	}
-	
-	return hostname;
+
+	return strdup(host);
 }
 
 static const char *
