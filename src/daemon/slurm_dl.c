@@ -33,7 +33,7 @@ static int	_cti_slurm_init(void);
 static int	_cti_slurm_getNodeID(void);
 
 /* cray slurm wlm proto object */
-cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
+cti_wlm_proto_t		_cti_slurm_wlmProto =
 {
 	CTI_WLM_SLURM,			// wlm_type
 	_cti_slurm_init,		// wlm_init
