@@ -57,7 +57,7 @@ _cti_slurm_getNodeID(void)
 
 	if (gethostname(&host, HOST_NAME_MAX+1))
 	{
-		_cti_set_error("gethostname failed.");
+		fprintf(stderr, "gethostname failed.\n");
 		return NULL;
 	}
 
