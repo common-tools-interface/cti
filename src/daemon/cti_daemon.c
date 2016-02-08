@@ -75,6 +75,7 @@ struct cti_pids
 /* wlm specific proto objects defined elsewhere */
 extern cti_wlm_proto_t	_cti_alps_wlmProto;
 extern cti_wlm_proto_t	_cti_cray_slurm_wlmProto;
+extern cti_wlm_proto_t	_cti_slurm_wlmProto;
 
 /* noneness wlm proto object */
 static cti_wlm_proto_t	_cti_nonenessProto =
@@ -501,6 +502,9 @@ main(int argc, char **argv)
 			break;
 			
 		case CTI_WLM_SLURM:	
+			_cti_wlmProto = &_cti_slurm_wlmProto;
+			break;
+
 		case CTI_WLM_NONE:
 		default:
 			// the wlmProto defaults to noneness, so break
@@ -547,11 +551,11 @@ main(int argc, char **argv)
 	{
 		case CTI_WLM_ALPS:
 		case CTI_WLM_CRAY_SLURM:
+		case CTI_WLM_SLURM:
 			// These wlm are valid
 			break;
 		
 		case CTI_WLM_NONE:
-		case CTI_WLM_SLURM:
 			// These wlm are not supported
 			fprintf(stderr, "%s: WLM provided by wlm argument is not yet supported!\n", CTI_LAUNCHER);
 			return 1;
