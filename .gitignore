@@ -50,14 +50,3 @@ cscope.out
 *.la
 *~
 *.swp
-Makefile.in
-external/Makefile.in
-src/Makefile.in
-src/backend/Makefile.in
-src/daemon/Makefile.in
-src/frontend/Makefile.in
-src/ld_val/Makefile.in
-src/mpir_iface/Makefile.in
-src/slurm_util/Makefile.in
-src/useful/Makefile.in
-tests/Makefile.in
