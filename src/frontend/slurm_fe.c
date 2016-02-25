@@ -2021,7 +2021,7 @@ _cti_slurm_extraFiles(cti_wlm_obj this)
 	for (i=0; i < my_app->layout->numNodes; ++i)
 	{
 		// ensure we have good hostname information
-		if (strlen(my_app->layout->hosts[i].host) != (sizeof(layout_entry.host) - 1))
+		if (strlen(my_app->layout->hosts[i].host) > (sizeof(layout_entry.host) - 1))
 		{
 			// No way to continue, the hostname will not fit in our fixed size buffer
 			// TODO: How to handle this error?
@@ -2060,6 +2060,8 @@ _cti_slurm_extraFiles(cti_wlm_obj this)
 			free(layoutPath);
 			return NULL;
 		}
+	
+		fprintf(stderr, "SLURM PID FILE: %s\n", pidPath );
 	
 		// Open the pid file
 		if ((myFile = fopen(pidPath, "wb")) == NULL)

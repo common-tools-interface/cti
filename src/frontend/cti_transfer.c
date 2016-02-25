@@ -1605,7 +1605,7 @@ _cti_addLibrary(manifest_t *m_ptr, const char *fstr, bool checkDeps)
 			// error already set
 			free(fullname);
 			free(realname);
-			return 1;
+			return 0; //FIXME: Temporary fix, should return 1
 		}
 		if (rtn == 1)
 		{
