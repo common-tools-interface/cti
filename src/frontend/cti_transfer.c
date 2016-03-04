@@ -575,7 +575,19 @@ _cti_chainFileEntry(fileEntry_t *entry, const char *name, entry_type type, char 
 		// An entry of this type already exists, check to see if we should error
 		// out or silently fail since the caller asked to add a file already in
 		// the manifest
-		if (strncmp(ptr->loc, loc, strlen(ptr->loc)))
+		
+		char* realPath1 = malloc(PATH_MAX + 1);
+		char* realPath2 = malloc(PATH_MAX + 1);
+		
+		realpath(ptr->loc, realPath1);
+		realpath(loc, realPath2);
+		
+		int pathConflict = strncmp(realPath1, realPath2, strlen(realPath1));
+		
+		free(realPath1);
+		free(realPath2);
+		
+		if (pathConflict)
 		{
 			// location strings do not match, so error
 			_cti_set_error("A %s named %s has already been added to the manifest.", _cti_entryTypeToString(type), name);
@@ -847,7 +859,19 @@ _cti_checkSessionForConflict(session_t *sess, entry_type type, const char *realn
 		if (_cti_findFileEntryLoc(&ptr, entry, type) == 1)
 		{
 			// check to see if the locations match
-			if (strncmp(ptr->loc, fullname, strlen(ptr->loc)) == 0)
+			
+			char* realPath1 = malloc(PATH_MAX + 1);
+			char* realPath2 = malloc(PATH_MAX + 1);
+			
+			realpath(ptr->loc, realPath1);
+			realpath(fullname, realPath2);
+			
+			int pathConflict = strncmp(realPath1, realPath2, strlen(realPath1));
+			
+			free(realPath1);
+			free(realPath2);
+			
+			if (!pathConflict)
 			{
 				// file locations match. No conflict, return success since the file is already
 				// in the session
@@ -1292,7 +1316,19 @@ _cti_resolveManifestConflicts_callback(void *opaque, const char *key, void *val)
 			if (_cti_findFileEntryLoc(&ptr, s_ptr, m_ptr->type) == 1)
 			{
 				// filename is already present in session. Ensure the locations match.
-				if (strncmp(ptr->loc, m_ptr->loc, strlen(ptr->loc)) == 0)
+				
+				char* realPath1 = malloc(PATH_MAX + 1);
+				char* realPath2 = malloc(PATH_MAX + 1);
+				
+				realpath(ptr->loc, realPath1);
+				realpath(m_ptr->loc, realPath2);
+				
+				int pathConflict = strncmp(realPath1, realPath2, strlen(realPath1));
+				
+				free(realPath1);
+				free(realPath2);
+				
+				if (!pathConflict)
 				{
 					// names match, no error just remove from manifest and continue
 					if (last == NULL && m_ptr->next == NULL)
@@ -1605,7 +1641,7 @@ _cti_addLibrary(manifest_t *m_ptr, const char *fstr, bool checkDeps)
 			// error already set
 			free(fullname);
 			free(realname);
-			return 0; //FIXME: Temporary fix, should return 1
+			return 1;
 		}
 		if (rtn == 1)
 		{
