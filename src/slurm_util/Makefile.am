@@ -17,4 +17,4 @@
 ###################################
 # WARNING: THIS IS GPL DIRECTORY!!
 ###################################
-libexec_SCRIPTS		= slurm_step_util.sh
+libexec_SCRIPTS		= cti_slurm_step_util.sh
