@@ -20,7 +20,7 @@
  * $Author$
  *
  ******************************************************************************/
-
+#include <limits.h>
 #ifndef _CTI_DEFS_H
 #define _CTI_DEFS_H
 
@@ -106,7 +106,7 @@ typedef struct
 // Followed by numNodes of the following:
 typedef struct
 {
-	char	host[9];	// hostname of this node in nidXXXXX\0 format - 9 chars total
+	char	host[HOST_NAME_MAX];	// hostname of this node
 	int		PEsHere;	// Number of PEs placed on this node
 	int		firstPE;	// first PE on this node
 }	slurmLayoutFile_t;

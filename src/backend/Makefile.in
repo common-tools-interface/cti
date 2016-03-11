@@ -69,7 +69,8 @@ libcraytools_be_la_DEPENDENCIES =
 am_libcraytools_be_la_OBJECTS = libcraytools_be_la-cti_be.lo \
 	libcraytools_be_la-alps_be.lo \
 	libcraytools_be_la-cray_slurm_be.lo \
-	libcraytools_be_la-pmi_attribs_parser.lo
+	libcraytools_be_la-pmi_attribs_parser.lo \
+	libcraytools_be_la-slurm_be.lo
 libcraytools_be_la_OBJECTS = $(am_libcraytools_be_la_OBJECTS)
 libcraytools_be_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) \
@@ -243,7 +244,7 @@ AM_CFLAGS = -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
 lib_LTLIBRARIES = libcraytools_be.la
 libcraytools_be_la_SOURCES = cti_be.c alps_be.c cray_slurm_be.c \
-								pmi_attribs_parser.c
+								pmi_attribs_parser.c slurm_be.c
 
 libcraytools_be_la_CFLAGS = $(AM_CFLAGS) -fPIC $(ALPS_CFLAGS)
 libcraytools_be_la_LIBADD = -ldl
@@ -321,6 +322,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_be_la-cray_slurm_be.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_be_la-cti_be.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_be_la-pmi_attribs_parser.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libcraytools_be_la-slurm_be.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -370,6 +372,13 @@ libcraytools_be_la-pmi_attribs_parser.lo: pmi_attribs_parser.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='pmi_attribs_parser.c' object='libcraytools_be_la-pmi_attribs_parser.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_be_la_CFLAGS) $(CFLAGS) -c -o libcraytools_be_la-pmi_attribs_parser.lo `test -f 'pmi_attribs_parser.c' || echo '$(srcdir)/'`pmi_attribs_parser.c
+
+libcraytools_be_la-slurm_be.lo: slurm_be.c
+@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_be_la_CFLAGS) $(CFLAGS) -MT libcraytools_be_la-slurm_be.lo -MD -MP -MF $(DEPDIR)/libcraytools_be_la-slurm_be.Tpo -c -o libcraytools_be_la-slurm_be.lo `test -f 'slurm_be.c' || echo '$(srcdir)/'`slurm_be.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/libcraytools_be_la-slurm_be.Tpo $(DEPDIR)/libcraytools_be_la-slurm_be.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='slurm_be.c' object='libcraytools_be_la-slurm_be.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libcraytools_be_la_CFLAGS) $(CFLAGS) -c -o libcraytools_be_la-slurm_be.lo `test -f 'slurm_be.c' || echo '$(srcdir)/'`slurm_be.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

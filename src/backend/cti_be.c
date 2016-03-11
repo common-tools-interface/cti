@@ -33,6 +33,7 @@
 /* wlm specific proto objects defined elsewhere */
 extern cti_be_wlm_proto_t	_cti_be_alps_wlmProto;
 extern cti_be_wlm_proto_t	_cti_be_cray_slurm_wlmProto;
+extern cti_be_wlm_proto_t	_cti_be_slurm_wlmProto;
 
 // Global vars
 /* noneness wlm proto object */
@@ -84,9 +85,12 @@ _cti_be_init(void)
 		case CTI_BE_WLM_CRAY_SLURM:
 			_cti_be_wlmProto = &_cti_be_cray_slurm_wlmProto;
 			break;
-		
-		case CTI_BE_WLM_NONE:
+			
 		case CTI_BE_WLM_SLURM:
+			_cti_be_wlmProto = &_cti_be_slurm_wlmProto;
+			break;
+			
+		case CTI_BE_WLM_NONE:
 			// These wlm are not supported
 			fprintf(stderr, "wlm %s is not yet supported!\n", cti_be_wlm_type_toString(atoi(wlm_str)));
 			return;
