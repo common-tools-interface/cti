@@ -624,7 +624,7 @@ cti_alps_getApid(pid_t aprunPid)
 	}
 
 	// sanity check
-	if (aprunPid < 0)
+	if (aprunPid <= 0)
 	{
 		_cti_set_error("Invalid pid %d.", (int)aprunPid);
 		return 0;
