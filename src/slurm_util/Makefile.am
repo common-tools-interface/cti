@@ -17,13 +17,4 @@
 ###################################
 # WARNING: THIS IS GPL DIRECTORY!!
 ###################################
-
-AM_CFLAGS				= -Wall
-AM_LIBTOOLFLAGS			= --quiet
-
-libexec_PROGRAMS		= cti_slurm_util
-
-cti_slurm_util_SOURCES	= slurm_util.c
-cti_slurm_util_CFLAGS	= $(AM_CFLAGS) $(SLURM_CFLAGS)
-cti_slurm_util_LDADD	= $(SLURM_LIBS)
-cti_slurm_util_LDFLAGS	= -Wl,--no-undefined -Wl,--as-needed $(SLURM_LDFLAGS)
+libexec_SCRIPTS		= cti_slurm_step_util.sh

@@ -95,9 +95,6 @@ dnl to the alps libraries and headers respectively. It will also modify LDFLAGS,
 dnl CFLAGS, and CPPFLAGS.
 cray_SETUP_ALPS_RPMS
 
-dnl Ditto for the slurm libraries
-cray_SETUP_SLURM_RPMS
-
 dnl Ditto for the wlm_detect libraries
 cray_SETUP_WLM_DETECT_RPMS
 
@@ -176,7 +173,7 @@ AC_CHECK_LIB(	[rt],
 dnl Check for libalps
 save_LDFLAGS="$LDFLAGS"
 LDFLAGS="$LDFLAGS $ALPS_LDFLAGS"
-AC_CHECK_LIB(	[alps], 
+AC_CHECK_LIB(	[alps],
 				[alpsGetMyNid],
 				[AC_DEFINE(	[HAVE_LIBALPS],
 								[1],
@@ -187,7 +184,7 @@ AC_CHECK_LIB(	[alps],
 				[-lxmlrpc-epi]
 				)
 dnl Check for libalpsutil
-AC_CHECK_LIB(	[alpsutil], 
+AC_CHECK_LIB(	[alpsutil],
 				[alps_get_placement_info],
 				[AC_DEFINE(	[HAVE_LIBALPSUTIL],
 								[1],
@@ -195,24 +192,10 @@ AC_CHECK_LIB(	[alpsutil],
 							)
 				],
 				[AC_MSG_FAILURE([libalpsutil not found.])]
-				)	
+				)
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
-dnl Check for libslurm
-dnl TODO: Add extra versions as needed
-save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $SLURM_LDFLAGS"
-AC_CHECK_LIB(	[slurm],
-				[slurm_api_version],
-				[AC_DEFINE(	[HAVE_SLURM],
-								[1],
-								[Define to 1 if you have the slurm library (-lslurm).]
-							)
-				],
-				[AC_MSG_FAILURE([libslurm not found.])]
-				)
-AC_SUBST([SLURM_LIBS], ["-lslurm"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
@@ -274,7 +257,7 @@ LDFLAGS="$save_LDFLAGS"
 ### Check for header files. ###
 ###############################
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h string.h strings.h sys/ioctl.h sys/param.h sys/socket.h sys/time.h unistd.h])
-					
+
 AC_HEADER_STDBOOL
 
 dnl Check for alps.h
@@ -313,15 +296,6 @@ AC_CHECK_HEADER([alps/libalpsutil.h],
 dnl restore flags
 CFLAGS="$save_CFLAGS"
 
-dnl Check for libslurm headers
-save_CFLAGS="$CFLAGS"
-save_CPPFLAGS="$CPPFLAGS"
-CFLAGS="$CFLAGS $SLURM_CFLAGS"
-CPPFLAGS="$CPPFLAGS $SLURM_CFLAGS"
-AC_CHECK_HEADER(	[slurm/slurm.h],
-					[],
-					[AC_MSG_FAILURE([slurm/slurm.h not found.])]
-					)
 dnl restore flags
 CFLAGS="$save_CFLAGS"
 CPPFLAGS="$save_CPPFLAGS"

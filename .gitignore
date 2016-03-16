@@ -45,8 +45,8 @@ tests/.deps
 tests/Makefile
 tests/test_binaries
 cscope.out
-*.o
-*.lo
-*.la
+**.o
+**.lo
+**.la
 *~
 *.swp

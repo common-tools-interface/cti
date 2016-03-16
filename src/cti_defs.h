@@ -20,7 +20,7 @@
  * $Author$
  *
  ******************************************************************************/
-
+#include <limits.h>
 #ifndef _CTI_DEFS_H
 #define _CTI_DEFS_H
 
@@ -106,7 +106,7 @@ typedef struct
 // Followed by numNodes of the following:
 typedef struct
 {
-	char	host[9];	// hostname of this node in nidXXXXX\0 format - 9 chars total
+	char	host[HOST_NAME_MAX];	// hostname of this node
 	int		PEsHere;	// Number of PEs placed on this node
 	int		firstPE;	// first PE on this node
 }	slurmLayoutFile_t;
@@ -127,7 +127,7 @@ typedef struct
 #define SATTACH					"sattach"										// name of slurm io redirect binary
 #define SCANCEL					"scancel"										// name of slurm job signal binary
 #define SBCAST						"sbcast"										// name of slurm transfer binary
-#define SLURM_STEP_UTIL			"cti_slurm_util"								// name of cti slurm job step info utility
+#define SLURM_STEP_UTIL			"cti_slurm_step_util.sh"								// name of cti slurm job step info utility
 #define CRAY_SLURM_APID(jobid, stepid)	((stepid * 10000000000) + jobid)	// formula for creating Cray apid from SLURM jobid.stepid
 #define CRAY_SLURM_TOOL_DIR		"/tmp"											// Cray SLURM staging path on compute node
 #define	CRAY_SLURM_CRAY_DIR		"/var/opt/cray/alps/spool/%llu"				// Location of cray specific directory on compute node - pmi_attribs is here

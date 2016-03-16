@@ -105,9 +105,6 @@
 /* Define to 1 if you have the `setenv' function. */
 #undef HAVE_SETENV
 
-/* Define to 1 if you have the slurm library (-lslurm). */
-#undef HAVE_SLURM
-
 /* Define to 1 if you have the `socket' function. */
 #undef HAVE_SOCKET
 

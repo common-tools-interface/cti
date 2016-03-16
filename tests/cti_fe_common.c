@@ -37,22 +37,22 @@ cti_test_fe(cti_app_id_t appId)
 	// internal variables
 	char **	i;
 	int		j;
-	
+
 	// Sanity of passed in arg
 	assert(cti_appIsValid(appId) != 0);
-	
+
 	// test cti_error_str
 	assert(cti_error_str() != NULL);
-	
+
 	printf("\nThe following is information about your application that the tool interface gathered:\n\n");
-	
+
 	/*
-	 * cti_current_wlm - Obtain the current workload manager (WLM) in use on the 
+	 * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
 	 *                   system.
 	 */
 	mywlm = cti_current_wlm();
 	assert(mywlm != CTI_WLM_NONE);
-	
+
 	/*
 	 * cti_wlm_type_toString - Obtain stringified version of cti_wlm_type.
 	 */
@@ -64,7 +64,7 @@ cti_test_fe(cti_app_id_t appId)
 	}
 	assert(mywlm_str != NULL);
 	printf("Current workload manager: %s\n", mywlm_str);
-	
+
 	/*
 	 * cti_getHostname - Returns the hostname of the current login node.
 	 */
@@ -78,7 +78,7 @@ cti_test_fe(cti_app_id_t appId)
 	printf("Current hostname: %s\n", myhostname);
 	free(myhostname);
 	myhostname = NULL;
-	
+
 	// Conduct WLM specific calls
 	switch (mywlm)
 	{
@@ -86,7 +86,7 @@ cti_test_fe(cti_app_id_t appId)
 		{
 			cti_aprunProc_t *	myapruninfo;
 			int					ordinal;
-		
+
 			/*
 			 * cti_getAprunInfo - Obtain information about the aprun process
 			 */
@@ -101,7 +101,7 @@ cti_test_fe(cti_app_id_t appId)
 			printf("pid_t of aprun: %d\n", myapruninfo->aprunPid);
 			free(myapruninfo);
 			myapruninfo = NULL;
-			
+
 			/*
 			*  cti_alps_getAlpsOverlapOrdinal - Obtain overlap ordinal. This can fail on
 			*                                   some systems.
@@ -117,11 +117,11 @@ cti_test_fe(cti_app_id_t appId)
 			printf("alps overlap ordinal: %d\n", ordinal);
 		}
 			break;
-			
+
 		case CTI_WLM_CRAY_SLURM:
 		{
 			cti_srunProc_t *	mysruninfo;
-			
+
 			/*
 			 * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
 			 */
@@ -138,29 +138,32 @@ cti_test_fe(cti_app_id_t appId)
 			mysruninfo = NULL;
 		}
 			break;
-			
+
 		default:
 			// do nothing
 			printf("Unsupported wlm!\n");
 			assert(0);
 			break;
 	}
-	
+
 	/*
 	 * cti_getLauncherHostName - Returns the hostname of the login node where the
 	 *                           application launcher process resides.
 	 */
-	mylauncherhostname = cti_getLauncherHostName(appId);
-	if (mylauncherhostname == NULL)
-	{
-		fprintf(stderr, "Error: cti_getLauncherHostName failed!\n");
-		fprintf(stderr, "CTI error: %s\n", cti_error_str());
+	 if(mywlm != CTI_WLM_CRAY_SLURM)
+	 {
+		mylauncherhostname = cti_getLauncherHostName(appId);
+		if (mylauncherhostname == NULL)
+		{
+			fprintf(stderr, "Error: cti_getLauncherHostName failed!\n");
+			fprintf(stderr, "CTI error: %s\n", cti_error_str());
+		}
+		assert(mylauncherhostname != NULL);
+		printf("hostname where aprun resides: %s\n", mylauncherhostname);
+		free(mylauncherhostname);
+		mylauncherhostname = NULL;
 	}
-	assert(mylauncherhostname != NULL);
-	printf("hostname where aprun resides: %s\n", mylauncherhostname);
-	free(mylauncherhostname);
-	mylauncherhostname = NULL;
-	
+
 	/*
 	 * cti_getNumAppPEs -	Returns the number of processing elements in the application
 	 *						associated with the apid.
@@ -173,7 +176,7 @@ cti_test_fe(cti_app_id_t appId)
 	}
 	assert(mynumpes != 0);
 	printf("Number of application PEs: %d\n", mynumpes);
-	
+
 	/*
 	 * cti_getNumAppNodes -	Returns the number of compute nodes allocated for the
 	 *						application associated with the aprun pid.
@@ -186,7 +189,7 @@ cti_test_fe(cti_app_id_t appId)
 	}
 	assert(mynumnodes != 0);
 	printf("Number of compute nodes used by application: %d\n", mynumnodes);
-	
+
 	/*
 	 * cti_getAppHostsList - Returns a null terminated array of strings containing
 	 *						the hostnames of the compute nodes allocated by ALPS
@@ -208,7 +211,7 @@ cti_test_fe(cti_app_id_t appId)
 	}
 	free(myhostlist);
 	myhostlist = NULL;
-	
+
 	/*
 	 * cti_getAppHostsPlacement -	Returns a cti_hostsList_t containing cti_host_t
 	 *								entries that contain the hostname of the compute
@@ -231,9 +234,9 @@ cti_test_fe(cti_app_id_t appId)
 	}
 	cti_destroyHostsList(myhostplacement);
 	myhostplacement = NULL;
-	
+
 	/*
-	 * cti_killApp - Send a signal using the appropriate launcher kill mechanism to 
+	 * cti_killApp - Send a signal using the appropriate launcher kill mechanism to
 	 *               an application launcher.
 	 */
 	j = cti_killApp(appId, 0);
@@ -244,4 +247,3 @@ cti_test_fe(cti_app_id_t appId)
 	}
 	assert(j == 0);
 }
-
