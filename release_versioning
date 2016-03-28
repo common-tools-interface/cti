@@ -1,7 +1,7 @@
 #
 # Release and shared library version control for the craytool interface.
 #
-# ©2011-2014 Cray Inc.  All Rights Reserved.
+# 2011-2016 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -15,14 +15,14 @@
 # $Author$
 #
 
-craytool_major=7
+craytool_major=1
 craytool_minor=0
 
-be_current=7
+be_current=1
 be_revision=0
 be_age=0
 
-fe_current=7
+fe_current=1
 fe_revision=0
 fe_age=0
 
