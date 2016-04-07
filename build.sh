@@ -6,3 +6,6 @@ mkdir install;
 make;
 make install;
 make tests;
+
+mkdir install/docs
+cp extras/docs/ATTRIBUTIONS_cti.txt install/docs
