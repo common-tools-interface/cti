@@ -18,7 +18,7 @@ AC_PREREQ([2.63])
 
 dnl We need to use the m4_esyscmd here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT. This is not portable...
-AC_INIT([craytool_interface], m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n']), [andrewg@cray.com])
+AC_INIT([craytool_interface], m4_esyscmd([source $PWD/release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n']), [andrewg@cray.com])
 AC_COPYRIGHT([Copyright 2011-2015 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/cti_defs.h])

@@ -20,16 +20,16 @@ dnl This is not portable due to tr -d and source...
 dnl
 AC_DEFUN([cray_INIT],
 [
-	dnl Pull in the revision information from the release_versioning file
-	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([source release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])])
+	dnl Pull in the revision information from the $PWD/release_versioning file
+	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([source $PWD/release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])])
 
-	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd([source release_versioning; echo $be_current | tr -d '\n'])])
-	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd([source release_versioning; echo $be_revision | tr -d '\n'])])
-	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd([source release_versioning; echo $be_age | tr -d '\n'])])
+	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd([source $PWD/release_versioning; echo $be_current | tr -d '\n'])])
+	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd([source $PWD/release_versioning; echo $be_revision | tr -d '\n'])])
+	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd([source $PWD/release_versioning; echo $be_age | tr -d '\n'])])
 
-	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd([source release_versioning; echo $fe_current | tr -d '\n'])])
-	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd([source release_versioning; echo $fe_revision | tr -d '\n'])])
-	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd([source release_versioning; echo $fe_age | tr -d '\n'])])
+	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd([source $PWD/release_versioning; echo $fe_current | tr -d '\n'])])
+	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd([source $PWD/release_versioning; echo $fe_revision | tr -d '\n'])])
+	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd([source $PWD/release_versioning; echo $fe_age | tr -d '\n'])])
 
 	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
 	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
