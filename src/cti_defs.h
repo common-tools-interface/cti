@@ -48,6 +48,7 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
 ** Generic defines
 *******************************************************************************/
 #define CTI_BUF_SIZE				4096
+#define DEFAULT_CTI_LOCS "/opt/cray/cti/default", "/opt/cray/pe/cti/default", NULL
 
 /*******************************************************************************
 ** Frontend defines relating to the login node 

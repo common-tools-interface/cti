@@ -70,6 +70,7 @@ static char *			_cti_starter_bin	= NULL;		// MPIR starter binary location
 static char *			_cti_attach_bin		= NULL;		// MPIR attach binary location
 static char *			_cti_dlaunch_bin	= NULL;		// dlaunch binary location
 static char *			_cti_slurm_util		= NULL;		// slurm utility binary location
+static char * _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
 
 /* noneness wlm proto object */
 static const cti_wlm_proto_t	_cti_nonenessProto =
@@ -275,28 +276,40 @@ _cti_fini(void)
 ** internal functions 
 *********************/
 
+int is_accessible_directory(char* path){
+	// make sure this directory exists
+	struct stat		st;
+	if (stat(path, &st))
+		return 0;
+		
+	// make sure it is a directory
+	if (!S_ISDIR(st.st_mode))
+		return 0;
+		
+	// check if we can access the directory
+	if (access(path, R_OK | X_OK))
+		return 0;
+	
+	return 1;
+}
+
 static void
 _cti_setup_base_dir(void)
 {
 	char *			base_dir;
-	struct stat		st;
+
+	base_dir = getenv(BASE_DIR_ENV_VAR);	
+
+	if ( (base_dir == NULL) || !is_accessible_directory(base_dir) ){
+	  int i;
+	  for(i=0; _cti_default_dir_locs[i] != NULL; i++){
+	    if(is_accessible_directory(_cti_default_dir_locs[i])){
+	      base_dir = _cti_default_dir_locs[i];
+	      break;
+	    }
+	  }
+	}     
 	
-	// Get the env setting
-	if ((base_dir = getenv(BASE_DIR_ENV_VAR)) == NULL)
-		return;
-	
-	// make sure this directory exists
-	if (stat(base_dir, &st))
-		return;
-		
-	// make sure it is a directory
-	if (!S_ISDIR(st.st_mode))
-		return;
-		
-	// check if we can access the directory
-	if (access(base_dir, R_OK | X_OK))
-		return;
-		
 	// setup location paths
 	
 	if (asprintf(&_cti_ld_audit_lib, "%s/lib/%s", base_dir, LD_AUDIT_LIB_NAME) > 0)
