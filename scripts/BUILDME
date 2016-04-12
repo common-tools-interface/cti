@@ -1,0 +1,25 @@
+CRAY CTI BUILDME
+
+Package version is specified in the definitions.py file, via the PACKAGE_BRANCH variable
+
+To build RPM run the following command:
+
+  To build a package from a specific CTI build:
+    Use -b flag followed by install path
+      ./package_cti -b ../install
+
+  To build to temporary/local directory:
+    Use the -t flag as the last arg
+      ./package_cti -b ../install -t
+
+  To package and deploy to pkgs dir:
+    Exclude the -t flag
+      ./package_cti -b ../install
+
+  To package the latest build to pkgs dir:
+    Exclude the -b flag and install path
+      ./package_cti
+
+  To package a final package to pkgs dir:
+    Include the -f flag
+      ./package_cti -f

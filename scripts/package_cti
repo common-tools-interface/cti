@@ -1,0 +1,361 @@
+#!/usr/bin/env python
+
+import sys, os, distutils.dir_util, distutils.file_util, tarfile, fnmatch
+from optparse import OptionParser
+
+#cti specific modules
+import definitions
+import cti_spec
+import cti_module
+import set_default_cti
+
+#handle any user passed options
+parser = OptionParser()
+parser.add_option("-b","--builddir",dest="builddir",help="the directory containing the build")
+parser.add_option("-t", "--test", action="store_true", dest="test")
+parser.add_option("-f","--final", action="store_true", dest="is_final",default=False)
+(options, args) = parser.parse_args()
+
+is_final   = options.is_final
+
+#retrieve some package details
+primary_version               = definitions.primary_version
+package_dir                   = definitions.pkgs_dir
+cti_build_dir                 = definitions.bld_dir
+build_version_two_digit       = definitions.ver_two_dig
+build_version_two_digit_nodot = definitions.ver_two_dig_nodot
+release_date                  = definitions.release_date() 
+script_dir                    = os.getcwd()
+
+
+
+if options.builddir == None:
+  print "Using lastest build from Buildbot: " + cti_build_dir
+  package_info = definitions.fetch_revision()
+  revision_number = package_info[0]
+  build_version = package_info[1]
+  release_number = package_info[2]
+  rpm_name = package_info[3]
+  os_ver = package_info[4]
+
+  
+else:
+  #verify that the folders that should be in the build dir, are present  
+  cti_build_dir = options.builddir 
+  last_char=cti_build_dir[-1]
+  if [last_char != "/" ]:
+    cti_build_dir = cti_build_dir + "/"
+
+  package_info = definitions.fetch_revision()
+  revision_number = package_info[0]
+  build_version = package_info[1]
+  release_number = package_info[2]
+  rpm_name = package_info[3]
+  os_ver = package_info[4]
+
+  print "using --build arg: " + cti_build_dir
+  for directory in ["/lib","/libexec","/include", "/docs"]:
+    t_dir = cti_build_dir+directory
+    if not os.path.exists(t_dir):
+      print "the build dir you specified is missing: " + t_dir 
+      print "Exiting!"
+      exit(1)
+
+
+
+if is_final:
+  rev_str = '*'+primary_version+'-*'+revision_number+'*rpm'
+  build_version = primary_version
+else:
+  rev_str = '*'+build_version+'*'+revision_number+'*rpm'
+
+
+for file in os.listdir(package_dir):
+  if fnmatch.fnmatch(file, rev_str):
+    print "a package for this revision of CTI has already been packaged, stopping the build/package process...."
+    sys.exit(1)
+
+
+#define some paths
+top_dir         = os.getcwd()
+work_dir        = top_dir + "/tmp"
+rpm_build_dir   = work_dir + "/package"
+rpm_install_dir = rpm_build_dir + "/cray-cti-" + build_version
+rpm_module_dir  = rpm_install_dir + "/modulefile"
+rpm_cti_dir     = rpm_install_dir + "/cray-cti"
+#man_path        = "/cray/css/ulib/pubs/cti/man/xt_lgdbm/trunk/newest/"
+parent_dir      = top_dir.rsplit('/',1)[0]
+
+
+#spec file
+spec_file = "cti.spec"
+#modulefile
+module_dest = rpm_module_dir + "/" + build_version
+#set_default script
+set_default_script_dest = rpm_install_dir + "/set_default_cray-cti_" + build_version
+
+#the source tarball
+folder_name = "cray-cti-" + build_version
+tar_name = folder_name + ".tar.gz"
+tar_dest = rpm_build_dir + "/rpm/SOURCES"
+
+#begin the work
+
+#destroy the previous working directory 
+if os.path.exists(work_dir):
+  distutils.dir_util.remove_tree(work_dir)
+
+#create the rpm_build_dir and child directories
+for directory in [work_dir, rpm_build_dir, rpm_install_dir, rpm_module_dir, rpm_cti_dir]:
+  print "making directory" + directory
+  os.mkdir(directory)
+
+#generate the modulefile
+module_content = cti_module.content.replace('<version>', build_version)
+new_mod = open(module_dest, 'w+')
+new_mod.write(module_content)
+new_mod.close()
+
+#generate the spec file
+spec_dest = "cti.spec"
+spec_content = cti_spec.content.replace("[namespace]", "cray")
+spec_content = spec_content.replace( "[intranamespace_name]", "cti")
+spec_content = spec_content.replace( "[package_branch_two_digit]", build_version_two_digit)
+spec_content = spec_content.replace( "[package_branch_two_digit_nodot]", build_version_two_digit_nodot)
+spec_content = spec_content.replace( "[version]", build_version)
+spec_content = spec_content.replace( "[rpm_release]", release_number)
+spec_content = spec_content.replace( "[package_revision]", revision_number)
+spec_content = spec_content.replace( "[sles_sub]", os_ver)
+spec_content = spec_content.replace("[tarball]",tar_name)
+spec_content = spec_content.replace("[script_dir]", script_dir)
+
+spec_file = open(spec_dest, 'w+')
+spec_file.write(spec_content)
+spec_file.close()
+
+
+for dir in ['/lib','/include','/libexec', '/docs']:
+  distutils.dir_util.copy_tree(cti_build_dir+dir, rpm_cti_dir+dir)
+
+
+#take care of the set_default script
+set_def_content = set_default_cti.content.replace('[version_string]', build_version)
+new_set_def = open(set_default_script_dest, "w+")
+new_set_def.write(set_def_content)
+new_set_def.close()
+
+cur_dir = os.getcwd()
+
+#release info - is in scripts directory
+os.chdir(rpm_cti_dir)
+
+if os_ver == "" or os_ver == "_sles12":
+  release_script = "/release_info_sles"
+elif os_ver == "_el6":
+  release_script = "/release_info_cs"
+
+with open("out.txt", "w+") as out:
+  for line in open(top_dir + release_script):
+    a = line.replace("%VERSION%", build_version)
+    b = a.replace("%RELEASE%", release_number)
+    c = b.replace("%REVISION%", revision_number)
+    d = c.replace("%RELEASEDATE%", release_date)
+    e = d.replace("%os%",os_ver)
+    out.write(e)
+
+outpath = rpm_cti_dir + "/release_info"
+distutils.file_util.move_file("out.txt",outpath)
+print "outpath: " + outpath
+
+#man pages 
+#man_dir = rpm_cti_dir+'/man'
+#distutils.dir_util.copy_tree(man_path+"/man1", man_dir+"/man1")
+#distutils.file_util.copy_file(man_path+"/whatis", man_dir)
+
+os.chdir(cur_dir)
+
+#setup the RPM directories
+for path in ['/rpm/SOURCES','/rpm/BUILD','/rpm/RPMS/x86_64']:
+  distutils.dir_util.mkpath(rpm_build_dir+path)
+
+#tar up the package source 
+cur_dir = os.getcwd()
+os.chdir(rpm_build_dir)
+tar = tarfile.open(tar_name, "w:gz")
+tar.add(folder_name)
+tar.close()
+distutils.file_util.copy_file(tar_name,tar_dest)
+os.chdir(cur_dir)
+ 
+#build the rpm
+rpmbuild_dest = rpm_build_dir + "/rpm"
+print rpmbuild_dest
+os.chdir(rpmbuild_dest)
+buildcall = "rpmbuild -bb --define \"_tmppath %s\" --define \"_topdir `pwd`\" %s/%s" % (rpm_build_dir,cur_dir,spec_dest)
+print buildcall
+os.system(buildcall)
+
+#now lets put together the install manifest
+os.chdir(rpm_build_dir+"/rpm/RPMS/x86_64")
+yaml_template='''---
+#----------------------------------------------------------------------------
+# IMPORTANT: do not rename sections! The installer uses section names
+# to detect changes made to sections, using the MD5 algorithm.
+#----------------------------------------------------------------------------
+section-1:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : kdavis@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL 
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE:
+        ALL_EXCEPT:
+            - SEASTAR
+    OPERATION             : INSTALL
+    OS_VERSION:
+        ALL_EXCEPT:
+            - 2.2
+            - 2.1
+            - 3.0
+            - 3.1
+            - 4.2
+            - 5.1
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : HARDWARE
+
+section-2:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : kdavis@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS:
+        ALL_EXCEPT:
+            - chpbld01
+            - chpbld02
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : INSTALL
+    OS_VERSION:
+        ALL_EXCEPT:
+            - SLES10
+            - sles11sp0
+            - sles11sp1
+            - sles11sp2
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : WHITEBOX
+
+section-3:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : kdavis@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE:
+        ALL_EXCEPT:
+            - SEASTAR
+    OPERATION             : UPDATE
+    OS_VERSION:
+        ALL_EXCEPT:
+            - 2.2
+            - 2.1
+            - 3.0
+            - 3.1
+            - 4.2
+            - 5.1
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : HARDWARE
+    COMMANDS: |
+            OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
+            if [[ $OS_VER -lt 12 ]]
+            then
+              pref=/opt/cray
+            else
+              pref=/opt/cray/pe
+            fi
+            $pref/admin-pe/set_default_files/set_default_cray-cti_<version>
+
+section-4:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : kdavis@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS:
+        ALL_EXCEPT:
+            - chpbld01
+            - chpbld02
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : UPDATE
+    OS_VERSION:
+        ALL_EXCEPT:
+            - SLES10
+            - sles11sp0
+            - sles11sp1
+            - sles11sp2
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : WHITEBOX
+    COMMANDS: |
+            OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
+            if [[ $OS_VER -lt 12 ]]
+            then
+              pref=/opt/cray
+            else
+              pref=/opt/cray/pe
+            fi
+            $pref/admin-pe/set_default_files/set_default_cray-cti_<version>
+
+section-5:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : 2017-09-19
+    EMAILS                : kdavis@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : REMOVE
+    OS_VERSION            : ALL
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : ALL
+    COMMANDS: |
+        rpm -e cti-<version>-<release>_<revision>
+
+--- |
+#Remove previous versions of this rpm
+for package in  $(rpm -qa | grep ^cray-cti-<version>)
+do
+  rpm -e $package
+done
+
+OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
+if [[ $OS_VER -lt 12 ]]
+then
+  pref="--prefix=/opt/cray"
+else  
+  pref=
+fi
+
+rpm -hiv $pref --oldpackage cray-cti-<version>-<release>_<revision><os>.x86_64.rpm
+
+'''
+manifest_dest = rpm_name + ".yaml"
+manifest_content = yaml_template.replace("<version>", build_version)
+manifest_content = manifest_content.replace("<release>", release_number)
+manifest_content = manifest_content.replace("<revision>", revision_number)
+manifest_content = manifest_content.replace("<os>", os_ver)
+manifest_yaml = open(manifest_dest, "w+")
+manifest_yaml.write(manifest_content)
+manifest_yaml.close()
+
+
+if options.test == None:
+  print "Packaging to release location."
+  #copy rpm and yaml to pkgs_dir
+  rpm_folder = "%s/rpm/RPMS/x86_64/" % rpm_build_dir
+  os.chdir(rpm_folder)
+  for f in [rpm_name, rpm_name+".yaml"]:
+    distutils.file_util.copy_file(f, package_dir)
+else:
+  print "Packaging to sandbox."
+  
