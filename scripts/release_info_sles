@@ -17,7 +17,10 @@ with a parallel job.
 ALPS and Cray SLURM are the currently supported WLMs.
 
 This is installed primarily for those Cray supplied tools
-that need such capabilities.
+that need such capabilities. The module is not typically
+loaded, but can be for the sake of experimental swapping to
+other CTI releases.
+
 
 Purpose:
 ---------
@@ -58,8 +61,9 @@ Installation instructions:
       To make cti %VERSION% the default version of cray-cti, execute:
       /opt/cray/admin-pe/set_default_files/set_default_cray-cti_%VERSION%
 
+
    Installation instructions for CLE 6.0:
-   --------------------------------------
+   =============================================
       rpm -ivh cray-cti-%VERSION%-%RELEASE%_%REVISION%%os%.x86_64.rpm
 
       To make cti %VERSION% the default version of cray-cti, execute:

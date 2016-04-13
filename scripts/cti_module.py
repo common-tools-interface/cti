@@ -7,15 +7,19 @@ content='''#%Module#############################################################
  #
  
  set CRAY_CTI_LEVEL   <version> 
- set CRAY_CTI_CURPATH  [install_dir]/cray-cti/$CRAY_CTI_LEVEL
+ set CRAY_CTI_CURPATH  [install_dir]/cti/$CRAY_CTI_LEVEL
  
  setenv CRAY_CTI_VERSION  $CRAY_CTI_LEVEL
  setenv CRAY_CTI_DIR $CRAY_CTI_CURPATH
- setenv CRAY_CTI_LIB_DIR $CRAY_CTI_CURPATH/lib
- 
- append-path	PE_PRODUCT_LIST   CRAY-CTI
- prepend-path	PATH $CRAY_CTI_CURPATH/bin
- prepend-path	MANPATH $CRAY_CTI_CURPATH/man
+ setenv PE_CTI_MODULE_NAME cray-cti
+
+ append-path   PE_PRODUCT_LIST CRAY-CTI
+ prepend-path  LD_LIBRARY_PATH $CRAY_CTI_CURPATH/lib
+ prepend-path  PE_PKGCONFIG_PRODUCTS PE_CTI
+ prepend-path  PE_CTI_PKGCONFIG_LIBS craytools_fe:craytools_be
+ prepend-path  PE_PKGCONFIG_LIBS craytools_fe:craytools_be
+ prepend-path  PKG_CONFIG_PATH $CRAY_CTI_CURPATH/lib/pkgconfig
+
 
  if { [ file exists ${CRAY_CTI_CURPATH}/release_info ] } {
        set REL_INFO [ exec cat ${CRAY_CTI_CURPATH}/release_info ]

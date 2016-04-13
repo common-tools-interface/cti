@@ -3,6 +3,7 @@ content='''%define namespace [namespace]
 %define intranamespace_name [intranamespace_name]
 %define two_dig_version [package_branch_two_digit]
 %define two_dig_nodot_version [package_branch_two_digit_nodot]
+%define scripts_d [script_dir]
 
 #%define man_source /cray/css/compiler/comp_rel/pubs/manpages/lgdb/%{two_dig_version}/xt_lgdb_%{two_dig_nodot_version}.cpio
 
@@ -17,6 +18,9 @@ Source: [tarball]
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 Prefix: /opt/cray/pe
 
+
+%define _use_internal_dependency_generator 0
+%define __find_requires %{scripts_d}/find-requires
 %define debug_package%{nil}
 
 %description
@@ -64,10 +68,10 @@ rm -rf $RPM_BUILD_ROOT
 %dir %{_namespace_prefix}
 %dir %{_name_prefix}
 %dir %{_version_prefix}
-#%dir %{_version_prefix}/docs
-#%dir %{_version_prefix}/libexec
-#%dir %{_version_prefix}/lib
-#%dir %{_version_prefix}/include
+%dir %{_version_prefix}/docs
+%dir %{_version_prefix}/libexec
+%dir %{_version_prefix}/lib
+%dir %{_version_prefix}/include
 
 %{_version_prefix}/libexec/
 %{_version_prefix}/libexec/cti_overwatch
@@ -92,8 +96,8 @@ rm -rf $RPM_BUILD_ROOT
 %{_version_prefix}/lib/libcraytools_be.a
 %{_version_prefix}/lib/libmi.so
 %{_version_prefix}/lib/pkgconfig/
-%{_version_prefix}/lib/pkgconfig/cray-cti_be.pc
-%{_version_prefix}/lib/pkgconfig/cray-cti_fe.pc
+%{_version_prefix}/lib/pkgconfig/craytools_be.pc
+%{_version_prefix}/lib/pkgconfig/craytools_fe.pc
 
 
 %{_version_prefix}/include
@@ -116,13 +120,21 @@ rm -rf $RPM_BUILD_ROOT
 # cti or CRAY_INSTALL_DEFAULT=1 and previous default was deleted
 #
 
-
-
 #Set the install path in the modulefile & set_default script(s)
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX,g" \
 $RPM_INSTALL_PREFIX/modulefiles/%{name}/%{version} \
 $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{name}_%{version} \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/set_default_%{name}_%{version}
+
+sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version},g" \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/lib/pkgconfig/craytools_be.pc
+
+sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version},g" \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/lib/pkgconfig/craytools_fe.pc
+
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version} | grep "libcraytools_fe\.so\.1" \
+| sed "/.*\.so\.[0-9]\.[0-9]/d" > $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/.cray_dynamic_file_list
 
 
 # prevent echo of new directory as it messes up install output
@@ -139,6 +151,7 @@ fi
 %preun
 # Cleanup default link if it point to this
 # version-%{intranamespace_name}-%{intranamespace_name}
+rm $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/.cray_dynamic_file_list
 default_link="${RPM_INSTALL_PREFIX}/%{intranamespace_name}/default"
 version="%{version}"
 

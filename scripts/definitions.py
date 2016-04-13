@@ -93,14 +93,15 @@ def fetch_version(primary_ver, final, revision_number):
       convert = lambda text: int(text) if text.isdigit() else text
       alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)',key) ]
       onlyfiles.sort(key=alphanum_key)
-      
+      print onlyfiles 
       last_package = onlyfiles.pop()
       
       #determine the 4 digit version number
-      last_package_ver = last_package.replace("cti-","")
+      last_package_ver = last_package.replace("cray-cti-","")
       last_package_ver = last_package_ver.split("-")[0]
+      #print "lpv " + str(last_package_ver)
       version_list = last_package_ver.split(".")
-   
+      #print "vlist" + str(version_list)
       oldrev = last_package.split("_")[1]
       oldrev=oldrev.split(".")
       oldrev=oldrev[1]
@@ -109,6 +110,7 @@ def fetch_version(primary_ver, final, revision_number):
         #increment 4th digit
         #figure out the new last digit, regex above ensures 4 digits
         new_last_digit = str(int(version_list[3]) + 1)
+        
         #replace the last digit of the version number
         version_list.pop()
         version_list.append(new_last_digit)

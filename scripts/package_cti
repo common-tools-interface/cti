@@ -28,7 +28,6 @@ release_date                  = definitions.release_date()
 script_dir                    = os.getcwd()
 
 
-
 if options.builddir == None:
   print "Using lastest build from Buildbot: " + cti_build_dir
   package_info = definitions.fetch_revision()
@@ -60,7 +59,6 @@ else:
       print "the build dir you specified is missing: " + t_dir 
       print "Exiting!"
       exit(1)
-
 
 
 if is_final:
@@ -128,14 +126,13 @@ spec_content = spec_content.replace( "[package_revision]", revision_number)
 spec_content = spec_content.replace( "[sles_sub]", os_ver)
 spec_content = spec_content.replace("[tarball]",tar_name)
 spec_content = spec_content.replace("[script_dir]", script_dir)
-
 spec_file = open(spec_dest, 'w+')
 spec_file.write(spec_content)
 spec_file.close()
 
 
 for dir in ['/lib','/include','/libexec', '/docs']:
-  distutils.dir_util.copy_tree(cti_build_dir+dir, rpm_cti_dir+dir)
+  distutils.dir_util.copy_tree(cti_build_dir+dir,rpm_cti_dir+dir,preserve_symlinks=1)
 
 
 #take care of the set_default script
@@ -186,7 +183,8 @@ tar.add(folder_name)
 tar.close()
 distutils.file_util.copy_file(tar_name,tar_dest)
 os.chdir(cur_dir)
- 
+
+
 #build the rpm
 rpmbuild_dest = rpm_build_dir + "/rpm"
 print rpmbuild_dest
@@ -214,13 +212,11 @@ section-1:
             - SEASTAR
     OPERATION             : INSTALL
     OS_VERSION:
-        ALL_EXCEPT:
-            - 2.2
-            - 2.1
-            - 3.0
-            - 3.1
-            - 4.2
-            - 5.1
+            - 5.2
+            - 6.0
+            - 6.1
+            - 6.2
+            - 6.3
     RPM_LIST              : NONE
     SYSTEM_TYPE           : HARDWARE
 
@@ -237,11 +233,8 @@ section-2:
     NETWORK_TYPE          : NONE
     OPERATION             : INSTALL
     OS_VERSION:
-        ALL_EXCEPT:
-            - SLES10
-            - sles11sp0
-            - sles11sp1
-            - sles11sp2
+            - sles11sp3
+            - sles12
     RPM_LIST              : NONE
     SYSTEM_TYPE           : WHITEBOX
 
@@ -257,13 +250,11 @@ section-3:
             - SEASTAR
     OPERATION             : UPDATE
     OS_VERSION:
-        ALL_EXCEPT:
-            - 2.2
-            - 2.1
-            - 3.0
-            - 3.1
-            - 4.2
-            - 5.1
+            - 5.2
+            - 6.0
+            - 6.1
+            - 6.2
+            - 6.3
     RPM_LIST              : NONE
     SYSTEM_TYPE           : HARDWARE
     COMMANDS: |
@@ -289,11 +280,8 @@ section-4:
     NETWORK_TYPE          : NONE
     OPERATION             : UPDATE
     OS_VERSION:
-        ALL_EXCEPT:
-            - SLES10
-            - sles11sp0
-            - sles11sp1
-            - sles11sp2
+            - sles11sp3
+            - sles12
     RPM_LIST              : NONE
     SYSTEM_TYPE           : WHITEBOX
     COMMANDS: |
@@ -315,11 +303,18 @@ section-5:
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : REMOVE
-    OS_VERSION            : ALL
+    OS_VERSION:
+        - 5.2
+        - 6.0
+        - 6.1
+        - 6.2
+        - 6.3
+        - sles11sp3
+        - sles12
     RPM_LIST              : NONE
     SYSTEM_TYPE           : ALL
     COMMANDS: |
-        rpm -e cti-<version>-<release>_<revision>
+        rpm -e cray-cti-<version>-<release>_<revision>
 
 --- |
 #Remove previous versions of this rpm
@@ -336,7 +331,7 @@ else
   pref=
 fi
 
-rpm -hiv $pref --oldpackage cray-cti-<version>-<release>_<revision><os>.x86_64.rpm
+rpm -ivh $pref --oldpackage cray-cti-<version>-<release>_<revision><os>.x86_64.rpm
 
 '''
 manifest_dest = rpm_name + ".yaml"

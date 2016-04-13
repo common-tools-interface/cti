@@ -1,0 +1,20 @@
+#
+# (c) 2015 Cray Inc.  All Rights Reserved.  Unpublished Proprietary
+# Information.  This unpublished work is protected to trade secret,
+# copyright and other laws.  Except as permitted by contract or
+# express written permission of Cray Inc., no part of this work or
+# its content may be used, reproduced or disclosed in any form.
+#
+
+prefix=[install_dir]
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: cray-cti_fe
+URL: http://www.cray.com
+Description: The frontend component of the Cray tools interface (CTI). Exposes a useful API to tool programs.
+Version: 1.0
+Requires:
+Libs: -L${libdir} -lcraytools_fe
+Cflags: -I${includedir}
