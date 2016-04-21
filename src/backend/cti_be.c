@@ -331,7 +331,6 @@ _cti_be_wlm_init_none(void)
 void
 _cti_be_wlm_fini_none(void)
 {
-	fprintf(stderr, "\nwlm_fini() not supported for %s\n", cti_be_wlm_type_toString(_cti_be_wlmProto->wlm_type));
 	return;
 }
 
