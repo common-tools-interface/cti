@@ -33,6 +33,6 @@ cp $PWD/scripts/craytools_be.pc  $BUILD_DIR/install/lib/pkgconfig/craytools_be.p
 cp $PWD/scripts/craytools_fe.pc  $BUILD_DIR/install/lib/pkgconfig/craytools_fe.pc
 chmod a+rwx $BUILD_DIR/install/lib/pkgconfig/craytools_be.pc
 chmod a+rwx $BUILD_DIR/install/lib/pkgconfig/craytools_fe.pc
-cd $2
-ln -s $DATE latest
+#cd $2
+#ln -s $DATE latest
 
