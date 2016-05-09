@@ -53,14 +53,17 @@ install -D cray-cti/release_info %{buildroot}%{_version_prefix}/
 echo "%{version}-%{release}" > %{buildroot}%{_version_prefix}/.cray_rpm_release
 mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/
 install -D set_default_%{namespace}-%{intranamespace_name}_%{version} %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{version}
+mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/
+install -D set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{version} %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{version}
 install -D set_default_%{namespace}-%{intranamespace_name}_%{version} %{buildroot}%{_version_prefix}/
+install -D set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{version} %{buildroot}%{_version_prefix}/
 mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTIONS_cti.%{version}.txt
 
 # hardlink duplicate files to save space
 #%fdupes %{buildroot}
 
 %clean
-rm -rf $RPM_BUILD_ROOT
+#rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
@@ -111,6 +114,8 @@ rm -rf $RPM_BUILD_ROOT
 %{_version_prefix}/release_info
 %{_version_prefix}/ATTRIBUTIONS_cti.%{version}.txt
 %{_version_prefix}/docs/ATTRIBUTIONS_cti.txt
+%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{version}
+%{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{version}
 
 
 %post
@@ -124,7 +129,9 @@ rm -rf $RPM_BUILD_ROOT
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX,g" \
 $RPM_INSTALL_PREFIX/modulefiles/%{name}/%{version} \
 $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{name}_%{version} \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/set_default_%{name}_%{version}
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/set_default_%{name}_%{version} \
+$RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{name}_%{version} \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/set_pkgconfig_default_%{name}_%{version}
 
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version},g" \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/lib/pkgconfig/craytools_be.pc
@@ -132,8 +139,7 @@ $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/lib/pkgconfig/craytools_be
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version},g" \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/lib/pkgconfig/craytools_fe.pc
 
-
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version} | grep "libcraytools_fe\.so\.1" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version} | grep "libcraytools_[bf]e\.so\.1" \
 | sed "/.*\.so\.[0-9]\.[0-9]/d" > $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{version}/.cray_dynamic_file_list
 
 
