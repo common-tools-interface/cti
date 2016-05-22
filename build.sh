@@ -1,5 +1,5 @@
 #!/bin/bash
-#1
+#2
 module purge;
 #DATE=`date +%s`
 #DATE=`date -d @$DATE "+%Y-%m-%d"`
