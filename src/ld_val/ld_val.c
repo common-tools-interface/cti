@@ -245,6 +245,18 @@ _cti_ld_load(const char *linker, const char *executable, const char *lib)
 	return pid;
 }
 
+int _cti_ld_is_blacklisted(char* dynamic_library){
+	static char * _cti_manifest_blacklist[] = {MANIFEST_BLACKLIST};
+	int i;
+	for(i=0; _cti_manifest_blacklist[i] != NULL; i++){
+	  if(strstr(dynamic_library,_cti_manifest_blacklist[i])){
+	      return 1;
+	    }
+	}
+
+	return 0;
+}
+
 char **
 _cti_ld_val(const char *executable, const char *ld_audit_path)
 {
@@ -357,7 +369,9 @@ _cti_ld_val(const char *executable, const char *ld_audit_path)
 				if (strncmp(linker, libstr, strlen(linker)))
 				{
 					// strings don't match, we want to save it.
-					goto save_str;
+					if(!_cti_ld_is_blacklisted(libstr)){
+						goto save_str;
+					}
 				} else
 				{
 					// set found and free this string. Do not save it.
