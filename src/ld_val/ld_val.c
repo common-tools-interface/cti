@@ -245,11 +245,11 @@ _cti_ld_load(const char *linker, const char *executable, const char *lib)
 	return pid;
 }
 
-int _cti_ld_is_blacklisted(char* dynamic_library){
+bool _cti_ld_is_blacklisted(char* dynamic_library){
 	static char * _cti_manifest_blacklist[] = {MANIFEST_BLACKLIST};
 	int i;
 	for(i=0; _cti_manifest_blacklist[i] != NULL; i++){
-	  if(strstr(dynamic_library,_cti_manifest_blacklist[i])){
+	  if(strstr(dynamic_library, _cti_manifest_blacklist[i])){
 	      return 1;
 	    }
 	}
