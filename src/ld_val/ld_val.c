@@ -253,8 +253,6 @@ _cti_ld_load(const char *linker, const char *executable, const char *lib)
 */
 bool _cti_ld_is_blacklisted(char* dynamic_library){
 	static char * _cti_manifest_blacklist[] = {MANIFEST_BLACKLIST};
-	
-	//
 
 	int i;
 	for(i=0; _cti_manifest_blacklist[i] != NULL; i++){
