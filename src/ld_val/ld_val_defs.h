@@ -30,9 +30,4 @@
 
 #define MANIFEST_BLACKLIST "/lib", "/lib64", NULL
 
-typedef int bool;
-
-#define true 1
-#define false 0
-
 #endif /* _LD_VAL_DEFS_H */

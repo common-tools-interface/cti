@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <stdbool.h>
 
 #include "ld_val_defs.h"
 #include "ld_val.h"
