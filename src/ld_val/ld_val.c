@@ -247,14 +247,15 @@ _cti_ld_load(const char *linker, const char *executable, const char *lib)
 
 bool _cti_ld_is_blacklisted(char* dynamic_library){
 	static char * _cti_manifest_blacklist[] = {MANIFEST_BLACKLIST};
+	
 	int i;
 	for(i=0; _cti_manifest_blacklist[i] != NULL; i++){
-	  if(strstr(dynamic_library, _cti_manifest_blacklist[i])){
-	      return 1;
-	    }
+		if(strncmp(_cti_manifest_blacklist[i], dynamic_library, strlen(_cti_manifest_blacklist[i])) == 0){
+	    	return true;
+		}
 	}
 
-	return 0;
+	return false;
 }
 
 char **
@@ -369,9 +370,7 @@ _cti_ld_val(const char *executable, const char *ld_audit_path)
 				if (strncmp(linker, libstr, strlen(linker)))
 				{
 					// strings don't match, we want to save it.
-					if(!_cti_ld_is_blacklisted(libstr)){
-						goto save_str;
-					}
+					goto save_str;
 				} else
 				{
 					// set found and free this string. Do not save it.
@@ -381,13 +380,15 @@ _cti_ld_val(const char *executable, const char *ld_audit_path)
 			} else
 			{
 save_str:
-				if ((_cti_save_str(libstr)) <= 0)
-				{
-					fprintf(stderr, "CTI error: Unable to save temp string.\n");
-					// prevent zombie
-					kill(pid, SIGKILL);
-					waitpid(pid, &status, 0);
-					return NULL;
+				if(!_cti_ld_is_blacklisted(libstr)){
+					if ((_cti_save_str(libstr)) <= 0)
+					{
+						fprintf(stderr, "CTI error: Unable to save temp string.\n");
+						// prevent zombie
+						kill(pid, SIGKILL);
+						waitpid(pid, &status, 0);
+						return NULL;
+					}
 				}
 			}
 			
