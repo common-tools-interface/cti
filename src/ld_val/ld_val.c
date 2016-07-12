@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <stdbool.h>
 
 #include "ld_val_defs.h"
 #include "ld_val.h"
@@ -245,6 +246,24 @@ _cti_ld_load(const char *linker, const char *executable, const char *lib)
 	return pid;
 }
 
+/*_cti_ld_is_blacklisted:
+ *Determine whether a dynamic library resolved by ld_val is on the blacklist
+ *which means that it should not be shipped to the compute nodes as this could cause incompatibilities. 
+ *dynamic_library: fully qualified path to the dynamic shared object to check
+*/
+bool _cti_ld_is_blacklisted(char* dynamic_library){
+	static char * _cti_manifest_blacklist[] = {MANIFEST_BLACKLIST};
+
+	int i;
+	for(i=0; _cti_manifest_blacklist[i] != NULL; i++){
+		if(strncmp(_cti_manifest_blacklist[i], dynamic_library, strlen(_cti_manifest_blacklist[i])) == 0){
+	    	return true;
+		}
+	}
+
+	return false;
+}
+
 char **
 _cti_ld_val(const char *executable, const char *ld_audit_path)
 {
@@ -367,13 +386,15 @@ _cti_ld_val(const char *executable, const char *ld_audit_path)
 			} else
 			{
 save_str:
-				if ((_cti_save_str(libstr)) <= 0)
-				{
-					fprintf(stderr, "CTI error: Unable to save temp string.\n");
-					// prevent zombie
-					kill(pid, SIGKILL);
-					waitpid(pid, &status, 0);
-					return NULL;
+				if(!_cti_ld_is_blacklisted(libstr)){
+					if ((_cti_save_str(libstr)) <= 0)
+					{
+						fprintf(stderr, "CTI error: Unable to save temp string.\n");
+						// prevent zombie
+						kill(pid, SIGKILL);
+						waitpid(pid, &status, 0);
+						return NULL;
+					}
 				}
 			}
 			

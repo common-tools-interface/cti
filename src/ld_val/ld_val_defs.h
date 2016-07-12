@@ -28,4 +28,6 @@
 // Do not make this larger than the pipe capacity.
 #define READ_BUF_LEN			1024
 
+#define MANIFEST_BLACKLIST "/lib", "/lib64", NULL
+
 #endif /* _LD_VAL_DEFS_H */
