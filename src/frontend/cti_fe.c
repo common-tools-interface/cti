@@ -751,6 +751,41 @@ cti_current_wlm(void)
 	return _cti_wlmProto->wlm_type;
 }
 
+int 
+cti_setAttribute(cti_attr_type attrib, const char *value)
+{
+    switch (attrib)
+    {
+        case CTI_ATTR_STAGE_DEPENDENCIES:
+
+            // Sanity
+            if (value == NULL) 
+            {
+                _cti_set_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for 'value'."); 
+                return 1;
+            }
+
+            if (value[0] == '0')
+            {
+                _cti_setStageDeps(false);
+                return 0;
+            }
+            if (value[0] == '1')
+            {
+                _cti_setStageDeps(true);
+                return 0;
+            }
+            _cti_set_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '%c'", value[0]); 
+            return 1;
+
+        default:
+            _cti_set_error("Invalid cti_attr_type '%d'.", (int)attrib); 
+            return 1;
+    }
+
+	return 0;
+}
+
 const char *
 cti_wlm_type_toString(cti_wlm_type wlm_type)
 {

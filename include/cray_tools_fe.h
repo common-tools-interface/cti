@@ -107,6 +107,20 @@ extern "C" {
 #endif
 
 /* 
+ *  This enum enumerates the various attributes that 
+ *  can be set by cti_setAttribute.
+ */
+enum cti_attr_type
+{
+    CTI_ATTR_STAGE_DEPENDENCIES,    // Define whether binary and library 
+                                    // dependencies should be automatically 
+                                    // staged by cti_addManifestBinary and 
+                                    // cti_addManifestLIbrary: 0 or 1
+                                    // Defaults to 1.
+};
+typedef enum cti_attr_type  cti_attr_type;
+
+/* 
  * The following are types used as return values for some API calls.
  */
 typedef struct
@@ -229,6 +243,26 @@ extern const char * cti_wlm_type_toString(cti_wlm_type wlm_type);
  * 
  */
 extern char * cti_getHostname();
+
+/*
+ * cti_setAttribute - Set 'attrib' to 'value'
+ *
+ * Detail
+ *      This function sets the attribute 'attrib' to 'value'. The actual
+ *      "setting" implementation is defined by the code specific to 'attrib'.
+ *
+ * Arguments
+ *      attrib - The cti_attr_type
+ *                 CTI_ATTR_STAGE_DEPENDENCIES:
+ *                   Set to "0" or "1" to disable/enable auto staging of dependencies.
+ *                   The startup value is set to '1'.
+ *      value  - A string containing appropriate values for a given attrib.
+ *
+ * Returns
+ *      0 on success, or else 1 on failure
+ *
+ */
+extern int cti_setAttribute(cti_attr_type attrib, const char *value):
 
 /*******************************************************************************
  * The following functions require the application to be started or registered

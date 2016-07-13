@@ -139,7 +139,7 @@ static int				_cti_addManifestToSession_callback(void *, const char *, void *);
 static int				_cti_addManifestToSession(manifest_t *);
 static int				_cti_resolveManifestConflicts_callback(void *, const char *, void *);
 static int				_cti_resolveManifestConflicts(manifest_t *);
-static int				_cti_addBinary(manifest_t *, const char *);
+static int				_cti_addBinary(manifest_t *, const char *, bool);
 static int				_cti_addLibrary(manifest_t *, const char *, bool);
 static int				_cti_addLibDir(manifest_t *, const char *);
 static int				_cti_addFile(manifest_t *, const char *);
@@ -153,6 +153,7 @@ static cti_manifest_id_t		_cti_next_mid		= 1;
 static cti_list_t *				_cti_my_manifs		= NULL;
 static bool						_cti_r_init			= false;	// is initstate()?
 static char *					_cti_r_state[256];				// state for random()
+static bool                     _cti_stage_deps     = true;     // should lib and bin dependencies be staged?
 
 // stuff used in the signal handler, hence volatile
 static volatile sig_atomic_t	_cti_signaled		= 0;	// True if we were signaled
@@ -1425,7 +1426,7 @@ _cti_resolveManifestConflicts(manifest_t *m_ptr)
 }
 
 static int
-_cti_addBinary(manifest_t *m_ptr, const char *fstr)
+_cti_addBinary(manifest_t *m_ptr, const char *fstr, bool checkDeps)
 {
 	char *			fullname;	// full path name of the binary to add to the manifest
 	char *			realname;	// realname (lacking path info) of the file
@@ -1528,6 +1529,7 @@ _cti_addBinary(manifest_t *m_ptr, const char *fstr)
 		
 		// add the string to the string list based on the realname of the file.
 		// we want to avoid conflicts on the realname only.
+        fprintf(stderr, "addBinary: addString of '%s'\n", realname);// ????
 		if (_cti_addString(m_ptr->files, realname, f_ptr))
 		{
 			// failed to save name into the list
@@ -1540,29 +1542,32 @@ _cti_addBinary(manifest_t *m_ptr, const char *fstr)
 		// done, adding of libraries is done below
 	}
 	
-	// call the ld_val interface to determine if this executable has any dso requirements
-	lib_array = _cti_ld_val(fullname, ldval_path);
-	
-	// If this executable has dso requirements. We need to add them to the manifest
-	tmp = lib_array;
-	// ensure the are actual entries before dereferencing tmp
-	if (tmp != NULL)
-	{
-		while (*tmp != NULL)
-		{
-			if (_cti_addLibrary(m_ptr, *tmp, false))
-			{
-				// if we return with non-zero status, catastrophic failure occured
-				// error string already set
-				return 1;
-			}
-			// free this tmp value, we are done with it
-			free(*tmp++);
-		}
-		// free the final lib_array
-		free(lib_array);
-	}
-	
+    if (checkDeps) // Should we auto stage dependencies?
+    {
+        // call the ld_val interface to determine if this executable has any dso requirements
+        lib_array = _cti_ld_val(fullname, ldval_path);
+        
+        // If this executable has dso requirements. We need to add them to the manifest
+        tmp = lib_array;
+        // ensure the are actual entries before dereferencing tmp
+        if (tmp != NULL)
+        {
+            while (*tmp != NULL)
+            {
+                if (_cti_addLibrary(m_ptr, *tmp, false))
+                {
+                    // if we return with non-zero status, catastrophic failure occured
+                    // error string already set
+                    return 1;
+                }
+                // free this tmp value, we are done with it
+                free(*tmp++);
+            }
+            // free the final lib_array
+            free(lib_array);
+        }
+    }
+        
 	// cleanup
 	free(realname);
 	
@@ -1672,6 +1677,7 @@ _cti_addLibrary(manifest_t *m_ptr, const char *fstr, bool checkDeps)
 		
 		// add the string to the string list based on the realname of the file.
 		// we want to avoid conflicts on the realname only.
+        fprintf(stderr, "addLibrary: addString of '%s'\n", realname);// ????
 		if (_cti_addString(m_ptr->files, realname, f_ptr))
 		{
 			// failed to save name into the list
@@ -2074,7 +2080,7 @@ _cti_packageManifestAndShip(manifest_t *m_ptr)
 		{
 			while (*wlm_files != NULL)
 			{
-				if (_cti_addBinary(m_ptr, *wlm_files))
+				if (_cti_addBinary(m_ptr, *wlm_files, true))
 				{
 					// Failed to add the binary to the manifest - catastrophic failure
 					return 1;
@@ -2446,6 +2452,13 @@ packageManifestAndShip_error:
 	return 1;
 }
 
+// Set accessor
+void
+_cti_setStageDeps(bool stageDeps)
+{
+  _cti_stage_deps = stageDeps;
+}
+
 /***********************************
 ** API defined functions start here
 ***********************************/
@@ -2738,7 +2751,7 @@ cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr)
 		return 1;
 	}
 	
-	return _cti_addBinary(m_ptr, fstr);
+	return _cti_addBinary(m_ptr, fstr, _cti_stage_deps);
 }
 
 int
@@ -2767,7 +2780,7 @@ cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr)
 		return 1;
 	}
 	
-	return _cti_addLibrary(m_ptr, fstr, true);
+	return _cti_addLibrary(m_ptr, fstr, _cti_stage_deps);
 }
 
 int
@@ -3043,7 +3056,7 @@ cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon, const char * const
 	}
 	
 	// add the daemon to the manifest
-	if (_cti_addBinary(m_ptr, daemon))
+	if (_cti_addBinary(m_ptr, daemon, _cti_stage_deps))
 	{
 		// Failed to add the binary to the manifest - catastrophic failure
 		// error string already set
