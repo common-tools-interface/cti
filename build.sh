@@ -1,6 +1,5 @@
 #!/bin/bash
-#2
-module purge;
+
 #DATE=`date +%s`
 #DATE=`date -d @$DATE "+%Y-%m-%d"`
 if [[ $1 == "-d" && ! -z $2 ]]
