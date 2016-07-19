@@ -285,14 +285,11 @@ bool _cti_ld_is_blacklisted(char* dynamic_library){
 		int i;
 		for(i=0; currentToken != NULL; i++)
 		{
-			currentToken = strtok(NULL, ":");
-			if(currentToken != NULL)
+			if(strncmp(currentToken, dynamic_library, strlen(currentToken)) == 0)
 			{
-				if(strncmp(currentToken, dynamic_library, strlen(currentToken)) == 0)
-				{
-		    		return true;
-				}
+	    		return true;
 			}
+			currentToken = strtok(NULL, ":");
 		}
 
 		return false;
