@@ -246,22 +246,57 @@ _cti_ld_load(const char *linker, const char *executable, const char *lib)
 	return pid;
 }
 
-/*_cti_ld_is_blacklisted:
- *Determine whether a dynamic library resolved by ld_val is on the blacklist
- *which means that it should not be shipped to the compute nodes as this could cause incompatibilities. 
- *dynamic_library: fully qualified path to the dynamic shared object to check
+/*
+ * _cti_ld_is_blacklisted: Determine whether a dynamic library resolved by ld_val is on the blacklist.
+ *
+ * Detail:
+ * 		This function returns a boolean which represents whether a dynamic library resolved by ld_val is on the blacklist 
+ * 		which means that it should not be shipped to the compute nodes as this could cause incompatibilities. 
+ *
+ * Arguments:
+ * 		dynamic_library: fully qualified path to the dynamic shared object to check
+ *
+ * Return:
+ * 		A boolean representing whether the specified dynamic library is on the blacklist
+ *
 */
 bool _cti_ld_is_blacklisted(char* dynamic_library){
-	static char * _cti_manifest_blacklist[] = {MANIFEST_BLACKLIST};
+	char* _cti_blacklist_env_var_value = getenv(MANIFEST_BLACKLIST_ENV_VAR);
 
-	int i;
-	for(i=0; _cti_manifest_blacklist[i] != NULL; i++){
-		if(strncmp(_cti_manifest_blacklist[i], dynamic_library, strlen(_cti_manifest_blacklist[i])) == 0){
-	    	return true;
+	if( _cti_blacklist_env_var_value == NULL )
+	{
+		char * _cti_manifest_blacklist[] = {MANIFEST_BLACKLIST};
+
+		int i;
+		for(i=0; _cti_manifest_blacklist[i] != NULL; i++)
+		{
+			if(strncmp(_cti_manifest_blacklist[i], dynamic_library, strlen(_cti_manifest_blacklist[i])) == 0)
+			{
+		    	return true;
+			}
 		}
-	}
 
-	return false;
+		return false;
+	}
+	else
+	{
+		char* currentToken  = strtok(strdup(_cti_blacklist_env_var_value), ":");
+
+		int i;
+		for(i=0; currentToken != NULL; i++)
+		{
+			currentToken = strtok(NULL, ":");
+			if(currentToken != NULL)
+			{
+				if(strncmp(currentToken, dynamic_library, strlen(currentToken)) == 0)
+				{
+		    		return true;
+				}
+			}
+		}
+
+		return false;
+	}
 }
 
 char **
