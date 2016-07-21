@@ -278,11 +278,11 @@ bool _cti_ld_is_blacklisted(char* dynamic_library){
 
 	char* currentToken  = strtok(cti_manifest_blacklist, ":");
 
-	int i;
-	for(i=0; currentToken != NULL; i++)
+	while(currentToken != NULL)
 	{
 		if(strncmp(currentToken, dynamic_library, strlen(currentToken)) == 0)
 		{
+			free(cti_manifest_blacklist_head);
     		return true;
 		}
 		currentToken = strtok(NULL, ":");
