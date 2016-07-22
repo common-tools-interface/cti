@@ -112,7 +112,7 @@ extern "C" {
  */
 enum cti_attr_type
 {
-    CTI_ATTR_STAGE_DEPENDENCIES,    // Define whether binary and library 
+    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library 
                                     // dependencies should be automatically 
                                     // staged by cti_addManifestBinary and 
                                     // cti_addManifestLIbrary: 0 or 1
@@ -262,7 +262,7 @@ extern char * cti_getHostname();
  *      0 on success, or else 1 on failure
  *
  */
-extern int cti_setAttribute(cti_attr_type attrib, const char *value):
+extern int cti_setAttribute(cti_attr_type attrib, const char *value);
 
 /*******************************************************************************
  * The following functions require the application to be started or registered
