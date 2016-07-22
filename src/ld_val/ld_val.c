@@ -246,20 +246,49 @@ _cti_ld_load(const char *linker, const char *executable, const char *lib)
 	return pid;
 }
 
-/*_cti_ld_is_blacklisted:
- *Determine whether a dynamic library resolved by ld_val is on the blacklist
- *which means that it should not be shipped to the compute nodes as this could cause incompatibilities. 
- *dynamic_library: fully qualified path to the dynamic shared object to check
+/*
+ * _cti_ld_is_blacklisted: Determine whether a dynamic library resolved by ld_val is on the blacklist.
+ *
+ * Detail:
+ * 		This function returns a boolean which represents whether a dynamic library resolved by ld_val is on the blacklist 
+ * 		which means that it should not be shipped to the compute nodes as this could cause incompatibilities. The default
+ *		blacklist is defined by MANIFEST_BLACKLIST as a C string containing a colon separated list of directories and can
+ * 		be overridden by the environment variable defined by MANIFEST_BLACKLIST_ENV_VAR using the same format.
+ *
+ * Arguments:
+ * 		dynamic_library: fully qualified path to the dynamic shared object to check
+ *
+ * Return:
+ * 		A boolean representing whether the specified dynamic library is on the blacklist
+ *
 */
 bool _cti_ld_is_blacklisted(char* dynamic_library){
-	static char * _cti_manifest_blacklist[] = {MANIFEST_BLACKLIST};
+	char* cti_manifest_blacklist_env = getenv(MANIFEST_BLACKLIST_ENV_VAR);
+	char* cti_manifest_blacklist = NULL;
 
-	int i;
-	for(i=0; _cti_manifest_blacklist[i] != NULL; i++){
-		if(strncmp(_cti_manifest_blacklist[i], dynamic_library, strlen(_cti_manifest_blacklist[i])) == 0){
-	    	return true;
-		}
+	if( cti_manifest_blacklist_env == NULL )
+	{
+		cti_manifest_blacklist = strdup(MANIFEST_BLACKLIST);
 	}
+	else{
+		cti_manifest_blacklist = strdup(cti_manifest_blacklist_env);
+	}
+
+	char* cti_manifest_blacklist_head = cti_manifest_blacklist;
+
+	char* currentToken  = strtok(cti_manifest_blacklist, ":");
+
+	while(currentToken != NULL)
+	{
+		if(strncmp(currentToken, dynamic_library, strlen(currentToken)) == 0)
+		{
+			free(cti_manifest_blacklist_head);
+    		return true;
+		}
+		currentToken = strtok(NULL, ":");
+	}
+
+	free(cti_manifest_blacklist_head);
 
 	return false;
 }

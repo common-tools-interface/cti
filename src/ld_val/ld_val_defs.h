@@ -28,6 +28,8 @@
 // Do not make this larger than the pipe capacity.
 #define READ_BUF_LEN			1024
 
-#define MANIFEST_BLACKLIST "/lib", "/lib64", NULL
+#define MANIFEST_BLACKLIST "/lib:/lib64"
+
+#define MANIFEST_BLACKLIST_ENV_VAR "CRAY_CTI_BLACKLIST_DIRS"
 
 #endif /* _LD_VAL_DEFS_H */
