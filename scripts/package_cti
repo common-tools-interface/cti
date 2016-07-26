@@ -147,7 +147,7 @@ cur_dir = os.getcwd()
 #release info - is in scripts directory
 os.chdir(rpm_cti_dir)
 
-if os_ver == "" or os_ver == "_sles12":
+if os_ver == "_sles11" or os_ver == "_sles12":
   release_script = "/release_info_sles"
 elif os_ver == "_el6":
   release_script = "/release_info_cs"

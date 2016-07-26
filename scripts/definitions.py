@@ -5,7 +5,7 @@ from os.path import isfile, join
 from distutils.version import LooseVersion
 from datetime import date
 from datetime import datetime
-#1
+
 product_dir           = "/cray/css/pe/pkgs/cti"
 bld_dir               = ""
 arch                  = "x86_64"
@@ -59,9 +59,9 @@ def fetch_os():
   elif os_sub == "12":
     bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
     return "_sles12"
-  else:
+  elif os_sub == "11":
     bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
-    return ''
+    return "_sles11"
 
 
 def release_date():
