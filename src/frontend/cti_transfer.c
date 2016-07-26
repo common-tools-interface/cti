@@ -1529,7 +1529,6 @@ _cti_addBinary(manifest_t *m_ptr, const char *fstr, bool checkDeps)
 		
 		// add the string to the string list based on the realname of the file.
 		// we want to avoid conflicts on the realname only.
-        fprintf(stderr, "addBinary: addString of '%s'\n", realname);// ????
 		if (_cti_addString(m_ptr->files, realname, f_ptr))
 		{
 			// failed to save name into the list
@@ -1677,7 +1676,6 @@ _cti_addLibrary(manifest_t *m_ptr, const char *fstr, bool checkDeps)
 		
 		// add the string to the string list based on the realname of the file.
 		// we want to avoid conflicts on the realname only.
-        fprintf(stderr, "addLibrary: addString of '%s'\n", realname);// ????
 		if (_cti_addString(m_ptr->files, realname, f_ptr))
 		{
 			// failed to save name into the list
