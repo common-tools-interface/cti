@@ -26,6 +26,8 @@
 typedef int cti_manifest_id_t;
 typedef int cti_session_id_t;
 
+extern void _cti_setStageDeps(bool stageDeps);
+
 /* internal prototypes */
 void				_cti_transfer_init(void);
 void				_cti_transfer_fini(void);

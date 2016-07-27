@@ -155,4 +155,18 @@ char *					_cti_wlm_getLauncherHostName_none(cti_wlm_obj);
 const char *			_cti_wlm_getToolPath_none(cti_wlm_obj);
 const char *			_cti_wlm_getAttribsPath_none(cti_wlm_obj);
 
+/* 
+ *  This enum enumerates the various attributes that 
+ *  can be set by cti_setAttribute.
+ */
+enum cti_attr_type
+{
+    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library 
+                                    // dependencies should be automatically 
+                                    // staged by cti_addManifestBinary and 
+                                    // cti_addManifestLIbrary: 0 or 1
+                                    // Defaults to 1.
+};
+typedef enum cti_attr_type  cti_attr_type;
+
 #endif /* _CTI_FE_H */
