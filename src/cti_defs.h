@@ -165,5 +165,7 @@ typedef struct
 #define PMI_ATTRIBS_DIR_VAR				"CRAYTOOL_PMI_ATTRIBS_DIR"		// Backend: Used to denote where the pmi_attribs file is located (set)
 #define PMI_ATTRIBS_TIMEOUT_ENV_VAR		"CRAY_CTI_PMI_FOPEN_TIMEOUT"		// Backend: Used to define a sleep timeout period for creation of pmi_attribs file (read)
 #define PMI_EXTRA_SLEEP_ENV_VAR			"CRAY_CTI_PMI_EXTRA_SLEEP"		// Backend: Used to sleep a fixed period of time after the pmi_attribs file has been opened (read)
+#define LIBALPS_ENABLE_DSL 				"LIBALPS_ENABLE_DSL"
+#define CTI_LIBALPS_ENABLE_DSL			"CRAY_CTI_LIBALPS_ENABLE_DSL"
 
 #endif /* _CTI_DEFS_H */
