@@ -16,8 +16,6 @@ content='''#%Module#############################################################
  append-path   PE_PRODUCT_LIST CRAY-CTI
  prepend-path  LD_LIBRARY_PATH $CRAY_CTI_CURPATH/lib
  prepend-path  PE_PKGCONFIG_PRODUCTS PE_CTI
- prepend-path  PE_CTI_PKGCONFIG_LIBS craytools_fe:craytools_be
- prepend-path  PE_PKGCONFIG_LIBS craytools_fe:craytools_be
  prepend-path  PKG_CONFIG_PATH $CRAY_CTI_CURPATH/lib/pkgconfig
 
 
