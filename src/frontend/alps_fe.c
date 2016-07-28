@@ -1002,23 +1002,27 @@ _cti_alps_filter_pid_entries(const struct dirent *a)
 }
 
 /*
- * _cti_enableDsl: Ensure DSL is enabled for the alps tool helper unless explicitly overridden
+ * _cti_alps_set_dsl_var: Ensure DSL is enabled for the alps tool helper unless explicitly overridden
  *
  * Detail:
- * 		Sets the environment variable defined in LIBALPS_ENABLE_DSL which enables the DSL service
+ * 		Sets the environment variable defined in LIBALPS_ENABLE_DSL_ENV_VAR which enables the DSL service
  *		in the alps tool helper. This can be overriden with the environment variable defined by
- *		CTI_LIBALPS_ENABLE_DSL. If this environment variable is set to 0, DSL will be disabled.
+ *		CTI_LIBALPS_ENABLE_DSL_ENV_VAR. If this environment variable is set to 0, DSL will be disabled.
  *
  * Arguments:
  * 		None
  *
-*/
-void _cti_enableDsl(){
-	setenv(LIBALPS_ENABLE_DSL, "1", 1);
-	char* cti_libalps_enable_dsl = getenv(CTI_LIBALPS_ENABLE_DSL);
-	if(cti_libalps_enable_dsl != NULL){
-		if( strcmp(cti_libalps_enable_dsl,"0") == 0 ){
-			unsetenv(LIBALPS_ENABLE_DSL);
+ */
+static void 
+_cti_alps_set_dsl_env_var()
+{
+	setenv(LIBALPS_ENABLE_DSL_ENV_VAR, "1", 1);
+	char* cti_libalps_enable_dsl = getenv(CTI_LIBALPS_ENABLE_DSL_ENV_VAR);
+	if(cti_libalps_enable_dsl != NULL)
+	{
+		if( strcmp(cti_libalps_enable_dsl,"0") == 0 )
+		{
+			unsetenv(LIBALPS_ENABLE_DSL_ENV_VAR);
 		}		
 	}
 }
@@ -1104,7 +1108,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		return 0;
 	}
 
-	_cti_enableDsl();
+	_cti_alps_set_dsl_env_var();
 	
 	// only do the following if we are using the barrier variant
 	if (doBarrier)
