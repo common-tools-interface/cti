@@ -1002,7 +1002,7 @@ _cti_alps_filter_pid_entries(const struct dirent *a)
 }
 
 /*
- * _cti_alps_set_dsl_var: Ensure DSL is enabled for the alps tool helper unless explicitly overridden
+ * _cti_alps_set_dsl_env_var: Ensure DSL is enabled for the alps tool helper unless explicitly overridden
  *
  * Detail:
  * 		Sets the environment variable defined in LIBALPS_ENABLE_DSL_ENV_VAR which enables the DSL service
