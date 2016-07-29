@@ -1001,6 +1001,32 @@ _cti_alps_filter_pid_entries(const struct dirent *a)
 	return sscanf(a->d_name, "%lu", &pid);
 }
 
+/*
+ * _cti_alps_set_dsl_env_var: Ensure DSL is enabled for the alps tool helper unless explicitly overridden
+ *
+ * Detail:
+ * 		Sets the environment variable defined in LIBALPS_ENABLE_DSL_ENV_VAR which enables the DSL service
+ *		in the alps tool helper. This can be overriden with the environment variable defined by
+ *		CTI_LIBALPS_ENABLE_DSL_ENV_VAR. If this environment variable is set to 0, DSL will be disabled.
+ *
+ * Arguments:
+ * 		None
+ *
+ */
+static void 
+_cti_alps_set_dsl_env_var()
+{
+	setenv(LIBALPS_ENABLE_DSL_ENV_VAR, "1", 1);
+	char* cti_libalps_enable_dsl = getenv(CTI_LIBALPS_ENABLE_DSL_ENV_VAR);
+	if(cti_libalps_enable_dsl != NULL)
+	{
+		if( strcmp(cti_libalps_enable_dsl,"0") == 0 )
+		{
+			unsetenv(LIBALPS_ENABLE_DSL_ENV_VAR);
+		}		
+	}
+}
+
 // This is the actual function that can do either a launch with barrier or one
 // without.
 static cti_app_id_t
@@ -1081,6 +1107,8 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		_cti_freeArgs(my_args);
 		return 0;
 	}
+
+	_cti_alps_set_dsl_env_var();
 	
 	// only do the following if we are using the barrier variant
 	if (doBarrier)
