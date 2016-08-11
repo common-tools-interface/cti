@@ -47,7 +47,7 @@ else:
     cti_build_dir = cti_build_dir + "/"
 
   print "using --build arg: " + cti_build_dir
-  for directory in ["/lib","/libexec","/include", "/docs"]:
+  for directory in ["/lib","/libexec","/include", "/docs", "/examples"]:
     t_dir = cti_build_dir+directory
     if not os.path.exists(t_dir):
       print "the build dir you specified is missing: " + t_dir 
@@ -125,7 +125,7 @@ spec_file.write(spec_content)
 spec_file.close()
 
 
-for dir in ['/lib','/include','/libexec', '/docs']:
+for dir in ['/lib','/include','/libexec', '/docs', '/examples']:
   distutils.dir_util.copy_tree(cti_build_dir+dir,rpm_cti_dir+dir,preserve_symlinks=1)
 
 

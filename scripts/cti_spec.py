@@ -75,6 +75,12 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %dir %{_version_prefix}/libexec
 %dir %{_version_prefix}/lib
 %dir %{_version_prefix}/include
+%dir %{_version_prefix}/examples
+
+%{_version_prefix}/examples/
+%{_version_prefix}/examples/cti_transfer_example.c
+%{_version_prefix}/examples/Makefile
+%{_version_prefix}/examples/testing.info
 
 %{_version_prefix}/libexec/
 %{_version_prefix}/libexec/cti_overwatch
@@ -87,12 +93,12 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib
 %{_version_prefix}/lib/libaudit.so
 %{_version_prefix}/lib/libaudit.la
-%{_version_prefix}/lib/libcraytools_fe.so.1.0.0
+%{_version_prefix}/lib/libcraytools_fe.so.1.1.0
 %{_version_prefix}/lib/libcraytools_fe.so.1
 %{_version_prefix}/lib/libcraytools_fe.so
 %{_version_prefix}/lib/libcraytools_fe.la
 %{_version_prefix}/lib/libcraytools_fe.a
-%{_version_prefix}/lib/libcraytools_be.so.1.0.0
+%{_version_prefix}/lib/libcraytools_be.so.1.1.0
 %{_version_prefix}/lib/libcraytools_be.so.1
 %{_version_prefix}/lib/libcraytools_be.so
 %{_version_prefix}/lib/libcraytools_be.la

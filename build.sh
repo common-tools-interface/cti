@@ -25,6 +25,8 @@ make tests;
 
 mkdir $BUILD_DIR/docs
 cp $PWD/extras/docs/ATTRIBUTIONS_cti.txt $BUILD_DIR/docs
+mkdir $BUILD_DIR/examples
+cp -R $PWD/examples/* $BUILD_DIR/examples
 
 rm -f $BUILD_DIR/lib/pkgconfig/*
 cp $PWD/scripts/craytools_be.pc  $BUILD_DIR/lib/pkgconfig/craytools_be.pc
