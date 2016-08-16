@@ -48,14 +48,14 @@ def fetch_os():
   elif os.path.isfile("/etc/redhat-release"):
     with open("/etc/redhat-release", "r") as f:
       for line in f:
-        if line.find("CentOS release") != -1:
-          os_sub = 'el6'
+        if line.find("CentOS ") != -1:
+          os_sub = 'el7'
           break
 
   os_sub = os_sub.strip()
-  if os_sub == "el6":
+  if os_sub == "el7":
     bld_dir = "/cray/css/ulib/cti/builds_cs/latest/install/"
-    return "_el6"
+    return "_el7"
   elif os_sub == "12":
     bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
     return "_sles12"

@@ -149,7 +149,7 @@ os.chdir(rpm_cti_dir)
 
 if os_ver == "_sles11" or os_ver == "_sles12":
   release_script = "/release_info_sles"
-elif os_ver == "_el6":
+elif os_ver == "_el7":
   release_script = "/release_info_cs"
 
 with open("out.txt", "w+") as out:
