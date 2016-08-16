@@ -14,7 +14,8 @@
 # $Rev$
 # $Author$
 #
-# Note: After changing this file one must 'autoreconf -ifv'
+# Note: After changing this file one must 'autoreconf -ifv' AND 'configure'
+#       needs to be committed.
 #
 # LIBTOOLS VERSIONING SYSTEM
 # --------------------------
