@@ -251,53 +251,53 @@ _cti_create_overwatch(const char *path)
 		if (sigemptyset(&sig_action.sa_mask))
 		{
 			perror("sigemptyset");
-			exit(1);
+			_exit(1);
 		}
 		if (sigaction(SIGUSR1, &sig_action, NULL))
 		{
 			perror("sigaction");
-			exit(1);
+			_exit(1);
 		}
 		if (sigaction(SIGUSR2, &sig_action, NULL))
 		{
 			perror("sigaction");
-			exit(1);
+			_exit(1);
 		}
 		
 		// ensure SIGUSR1 and SIGUSR2 are unblocked
 		if (sigemptyset(&mask))
 		{
 			perror("sigemptyset");
-			exit(1);
+			_exit(1);
 		}
 		if (sigaddset(&mask, SIGUSR1))
 		{
 			perror("sigaddset");
-			exit(1);
+			_exit(1);
 		}
 		if (sigaddset(&mask, SIGUSR2))
 		{
 			perror("sigaddset");
-			exit(1);
+			_exit(1);
 		}
 		if (sigprocmask(SIG_UNBLOCK, &mask, NULL))
 		{
 			perror("sigprocmask");
-			exit(1);
+			_exit(1);
 		}
 		
 		// set parent death signal to send SIGUSR1
 		if (prctl(PR_SET_PDEATHSIG, SIGUSR1))
 		{
 			perror("prctl");
-			exit(1);
+			_exit(1);
 		}
 		
 		// ensure parent isn't already dead
 		if (getppid() == 1)
 		{
 			// exit since parent is already dead
-			exit(0);
+			_exit(0);
 		}
 		
 		// exec the overwatch process
@@ -305,7 +305,7 @@ _cti_create_overwatch(const char *path)
 		
 		// exec shouldn't return
 		perror("execv");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case

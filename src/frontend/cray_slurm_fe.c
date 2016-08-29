@@ -476,7 +476,7 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 			// XXX: How to properly print this error? The parent won't be
 			// expecting the error message on this stream since dup2 failed.
 			fprintf(stderr, "CTI error: Unable to redirect stdout.\n");
-			exit(1);
+			_exit(1);
 		}
 		
 		// dup2 stderr
@@ -485,7 +485,7 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 			// XXX: How to properly print this error? The parent won't be
 			// expecting the error message on this stream since dup2 failed.
 			fprintf(stderr, "CTI error: Unable to redirect stderr.\n");
-			exit(1);
+			_exit(1);
 		}
 		
 		// we want to redirect stdin to /dev/null since it is not required
@@ -493,7 +493,7 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 		{
 			// XXX: How to properly print this error?
 			fprintf(stderr, "CTI error: Unable to open /dev/null for reading.\n");
-			exit(1);
+			_exit(1);
 		}
 		
 		// dup2 the fd onto STDIN_FILENO
@@ -501,7 +501,7 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 		{
 			// XXX: How to properly print this error?
 			fprintf(stderr, "CTI error: Unable to redirect stdin.\n");
-			exit(1);
+			_exit(1);
 		}
 		close(fd);
 		
@@ -511,7 +511,7 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execv");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case
@@ -1214,7 +1214,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execv");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case
@@ -1434,7 +1434,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 			if (chdir(chdirPath))
 			{
 				fprintf(stderr, "CTI error: Unable to chdir to provided path.\n");
-				exit(1);
+				_exit(1);
 			}
 		}
 		
@@ -1447,7 +1447,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 				if (putenv(strdup(env_list[i])))
 				{
 					fprintf(stderr, "CTI error: Unable to putenv provided env_list.\n");
-					exit(1);
+					_exit(1);
 				}
 			}
 		}
@@ -1464,7 +1464,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execv");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case
@@ -1611,7 +1611,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 				// XXX: How to properly print this error? The parent won't be
 				// expecting the error message on this stream since dup2 failed.
 				fprintf(stderr, "CTI error: Unable to redirect srun stdout.\n");
-				exit(1);
+				_exit(1);
 			}
 		}
 		
@@ -1623,7 +1623,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 				// XXX: How to properly print this error? The parent won't be
 				// expecting the error message on this stream since dup2 failed.
 				fprintf(stderr, "CTI error: Unable to redirect srun stderr.\n");
-				exit(1);
+				_exit(1);
 			}
 		}
 		
@@ -1632,14 +1632,14 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		if ((fd = open("/dev/null", O_RDONLY)) < 0)
 		{
 			fprintf(stderr, "CTI error: Unable to open /dev/null for reading.\n");
-			exit(1);
+			_exit(1);
 		}
 		
 		// dup2 the fd onto STDIN_FILENO
 		if (dup2(fd, STDIN_FILENO) < 0)
 		{
 			fprintf(stderr, "CTI error: Unable to redirect aprun stdin.\n");
-			exit(1);
+			_exit(1);
 		}
 		close(fd);
 		
@@ -1647,7 +1647,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		if ((my_args = _cti_newArgs()) == NULL)
 		{
 			fprintf(stderr, "CTI error: _cti_newArgs failed.");
-			exit(1);
+			_exit(1);
 		}
 		
 		// create the args for sattach
@@ -1656,21 +1656,21 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		{
 			fprintf(stderr, "CTI error: _cti_addArg failed.");
 			_cti_freeArgs(my_args);
-			exit(1);
+			_exit(1);
 		}
 		
 		if (_cti_addArg(my_args, "-Q"))
 		{
 			fprintf(stderr, "CTI error: _cti_addArg failed.");
 			_cti_freeArgs(my_args);
-			exit(1);
+			_exit(1);
 		}
 		
 		if (_cti_addArg(my_args, "%u.%u", jobid, stepid))
 		{
 			fprintf(stderr, "CTI error: _cti_addArg failed.");
 			_cti_freeArgs(my_args);
-			exit(1);
+			_exit(1);
 		}
 		
 		// exec sattach
@@ -1679,7 +1679,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execvp");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case
@@ -1883,7 +1883,7 @@ _cti_cray_slurm_killApp(cti_wlm_obj this, int signum)
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execvp");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case
@@ -2264,7 +2264,7 @@ _cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execvp");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case
@@ -2599,21 +2599,21 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 		if (dup2(fd, STDIN_FILENO) < 0)
 		{
 			// XXX: How to handle error?
-			exit(1);
+			_exit(1);
 		}
 		
 		// dup2 stdout
 		if (dup2(fd, STDOUT_FILENO) < 0)
 		{
 			// XXX: How to handle error?
-			exit(1);
+			_exit(1);
 		}
 		
 		// dup2 stderr
 		if (dup2(fd, STDERR_FILENO) < 0)
 		{
 			// XXX: How to handle error?
-			exit(1);
+			_exit(1);
 		}
 		
 		// close all open file descriptors above STDERR
@@ -2640,7 +2640,7 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execvp");
-		exit(1);
+		_exit(1);
 	}
 	
 	// Place the child in its own group.

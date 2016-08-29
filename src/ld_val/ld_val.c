@@ -161,7 +161,7 @@ _cti_ld_verify(const char *executable)
 			// exec the linker to verify it is able to load our program
 			execl(linker, linker, "--verify", executable, NULL);
 			// exec shouldn't return
-			exit(1);
+			_exit(1);
 		}
 		
 		// parent case
@@ -217,7 +217,7 @@ _cti_ld_load(const char *linker, const char *executable, const char *lib)
 		if (dup2(_cti_fds[1], STDERR_FILENO) < 0)
 		{
 			fprintf(stderr, "CTI error: Unable to redirect LD_AUDIT stderr.\n");
-			exit(1);
+			_exit(1);
 		}
 		
 		// redirect stdout to /dev/null - we don't really care if this fails.
@@ -229,13 +229,13 @@ _cti_ld_load(const char *linker, const char *executable, const char *lib)
 		{
 			perror("setenv");
 			fprintf(stderr, "CTI error: Failed to set LD_AUDIT environment variable.\n");
-			exit(1);
+			_exit(1);
 		}
 		
 		// exec the linker with --list to get a list of our dso's
 		execl(linker, linker, "--list", executable, NULL);
 		perror("execl");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case

@@ -1210,7 +1210,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 				// XXX: How to properly print this error? The parent won't be
 				// expecting the error message on this stream since dup2 failed.
 				fprintf(stderr, "CTI error: Unable to redirect aprun stdout.\n");
-				exit(1);
+				_exit(1);
 			}
 		}
 			
@@ -1222,7 +1222,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 				// XXX: How to properly print this error? The parent won't be
 				// expecting the error message on this stream since dup2 failed.
 				fprintf(stderr, "CTI error: Unable to redirect aprun stderr.\n");
-				exit(1);
+				_exit(1);
 			}
 		}
 		
@@ -1233,7 +1233,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 			if ((fd = open(inputFile, O_RDONLY)) < 0)
 			{
 				fprintf(stderr, "CTI error: Unable to open %s for reading.\n", inputFile);
-				exit(1);
+				_exit(1);
 			}
 		} else
 		{
@@ -1241,7 +1241,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 			if ((fd = open("/dev/null", O_RDONLY)) < 0)
 			{
 				fprintf(stderr, "CTI error: Unable to open /dev/null for reading.\n");
-				exit(1);
+				_exit(1);
 			}
 		}
 		
@@ -1249,7 +1249,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		if (dup2(fd, STDIN_FILENO) < 0)
 		{
 			fprintf(stderr, "CTI error: Unable to redirect aprun stdin.\n");
-			exit(1);
+			_exit(1);
 		}
 		close(fd);
 		
@@ -1259,7 +1259,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 			if (chdir(chdirPath))
 			{
 				fprintf(stderr, "CTI error: Unable to chdir to provided path.\n");
-				exit(1);
+				_exit(1);
 			}
 		}
 		
@@ -1272,7 +1272,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 				if (putenv(strdup(env_list[i])))
 				{
 					fprintf(stderr, "CTI error: Unable to putenv provided env_list.\n");
-					exit(1);
+					_exit(1);
 				}
 			}
 		}
@@ -1282,7 +1282,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		{
 			// no way to guarantee cleanup
 			fprintf(stderr, "CTI error: _cti_assign_overwatch failed.\n");
-			exit(1);
+			_exit(1);
 		}
 		
 		// restore signals
@@ -1298,7 +1298,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execvp");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case
@@ -1702,7 +1702,7 @@ _cti_alps_killApp(cti_wlm_obj this, int signum)
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execvp");
-		exit(1);
+		_exit(1);
 	}
 	
 	// parent case
