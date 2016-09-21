@@ -21,9 +21,9 @@ that need such capabilities.
 
 Purpose:
 ---------
-  This is feature release.
+  This is a bugfix release.
 
-  1. Support for disabling staging of binary dependencies by CTI
+  1. Switch from using exit to _exit for the child case of forked processes so that the destructors for the calling tool are not invoked
 
 
 
