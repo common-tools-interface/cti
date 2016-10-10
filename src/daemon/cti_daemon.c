@@ -255,6 +255,8 @@ main(int argc, char **argv)
 		usage();
 		return 1;
 	}
+
+	chmod(argv[0], S_IRUSR|S_IWUSR|S_IXUSR|S_IRGRP|S_IWGRP|S_IXGRP|S_IROTH|S_IWOTH|S_IXOTH);
 	
 	// We want to do as little as possible while parsing the opts. This is because
 	// we do not create a log file until after the opts are parsed, and there will
