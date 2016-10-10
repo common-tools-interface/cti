@@ -2204,6 +2204,13 @@ _cti_cray_slurm_ship_package(cti_wlm_obj this, const char *package)
 		return 1;
 	}
 	
+	if (_cti_addArg(my_args, "--force"))
+	{
+		_cti_set_error("_cti_addArg failed.");
+		_cti_freeArgs(my_args);
+		return 1;
+	}
+	
 	if (asprintf(&str1, CRAY_SLURM_TOOL_DIR) <= 0)
 	{
 		_cti_set_error("asprintf failed");
