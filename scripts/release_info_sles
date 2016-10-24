@@ -26,7 +26,11 @@ Purpose:
 ---------
   This is a bugfix release.
 
-  1. Switch from using exit to _exit for the child case of forked processes so that the destructors for the calling tool are not invoked
+  1. Change the permissions of the dlaunch binary staged to /tmp on SLURM to
+  allow it to be overwritten and cleaned up by other users. Improper
+  permissions resulted in a bug where nodes that terminated improperly kept
+  dlaunch in /tmp and prevented further launches to that node by users outside
+  the original user's group.
 
 
 
