@@ -58,10 +58,10 @@ Installation instructions:
 
    Installation instructions for CS:  
    =============================================
-      rpm -ivh --prefix=/opt/cray cray-cti-%VERSION%-%RELEASE%_%REVISION%%os%.x86_64.rpm
+      rpm -ivh --prefix=/opt/cray cray-cti-%VERSION%-%REVISION%-%RELEASE%os%.x86_64.rpm
 
       To make cti %VERSION% the default version of cray-cti, execute:
-      /opt/cray/admin-pe/set_default_files/set_default_cray-cti_%VERSION%
+      /opt/cray/admin-pe/set_default_files/set_default_cray-cti-%VERSION%
 
 
  Certain components, files or programs contained within this package or

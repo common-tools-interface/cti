@@ -31,7 +31,8 @@ def fetch_release(base_name, rev_num,pkgs_dir):
   itt_list.reverse()
   rval = 0
   for i in itt_list:
-    tmp_name = pkgs_dir + "/" + base_name + "-" + str(i) + "_" + "*" + "." + rev_num + rpm_tail
+    tmp_name = pkgs_dir + "/" + base_name + "-" + "*" + "." + rev_num + "-" + str(i) + osver + rpm_tail
+    print tmp_name
     if glob.glob(tmp_name):
       rval = i + 1
       break
@@ -55,13 +56,13 @@ def fetch_os():
   os_sub = os_sub.strip()
   if os_sub == "el7":
     bld_dir = "/cray/css/ulib/cti/builds_cs/latest/install/"
-    return "_el7"
+    return ".el7"
   elif os_sub == "12":
     bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
-    return "_sles12"
+    return ".sles12"
   elif os_sub == "11":
     bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
-    return "_sles11"
+    return ".sles11"
 
 
 def release_date():
@@ -91,6 +92,8 @@ def fetch_latest_version(final,revision,pkgs_dir):
   #get a list of sub directories representing the products 2 digit release version
   onlyfiles = glob.glob(pkgs_dir + "/*.rpm")
 
+  print revision
+
   if len(onlyfiles) == 0:
     #there aren't any pkgs for this new two digit version yet.
      #build the version from the 2 digit version
@@ -111,17 +114,12 @@ def fetch_latest_version(final,revision,pkgs_dir):
     alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)',key) ]
     onlyfiles.sort(key=os.path.getmtime)
     last_package = onlyfiles.pop()
-
     #determine the 4 digit version number
-    last_package_ver = last_package.replace("cray-cti-","")
-    last_package_ver = last_package_ver.split("-")[0]
-
-    #get latest version number
-    version = last_package_ver.split("/")[7]
-    version_list = last_package_ver.split(".")
-    
+    rpmName = last_package.split("/")[7].replace("cray-cti-","")
+    version = rpmName.split("-")[0]
+    version_list = version.split(".")
     #get old revision
-    oldrev = last_package.split("_")[1]
+    oldrev = rpmName.split("-")[1]
     oldrev=oldrev.split(".")
     oldrev=oldrev[1]
 
@@ -173,8 +171,8 @@ def fetch_latest_version(final,revision,pkgs_dir):
 	   #remove 4th digit
 	   version_list.pop()
 	   new_version_str = ".".join(version_list)
-
-    new_version_str = new_version_str.split("/")[7]  
+    
+    #new_version_str = new_version_str.split("/")[7]  
     return new_version_str
     
 
@@ -194,10 +192,9 @@ def fetch_newData():
   rev_number  = os.popen(rev_command).read()
   rev_number  = rev_number.rstrip()
 
-  branch = "git branch"
+  branch = "git rev-parse --abbrev-ref HEAD"
   branch = os.popen(branch).read()
   branch = branch.rstrip()
-  branch = branch[2:]
   print "Packaging from: " + branch
   if final == True and branch == 'master':
     print "You indicated this should be a final build, but you are packaging from " + branch
@@ -223,7 +220,7 @@ def fetch_newData():
 
   base_name = "cray-cti-" + version
   release_number = fetch_release(base_name, rev_number,pkgs_dir)
-  package_name = base_name + "-" + release_number + "_" + timestmp_revnbr + osver
+  package_name = base_name + "-" + timestmp_revnbr + "-" + release_number + osver
   rpm_name = package_name + "." + arch + ".rpm"
 
   return

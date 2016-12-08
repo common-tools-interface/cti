@@ -57,7 +57,7 @@ else:
 if options.static_version != False:
   build_version = options.static_version
   release_number = str(0)
-  rpm_name = "cray-cti-" + build_version + "-" + release_number + "_" + revision_number + os_ver + ".x86_64.rpm"
+  rpm_name = "cray-cti-" + build_version + "-" + revision_number + "-" + release_number + os_ver + ".x86_64.rpm"
   if is_final:
     if len(build_version) <= 4 or len(build_version) > 5:
       print "Ensure your release version has 3 digits. Exiting..."
@@ -73,7 +73,7 @@ print "Packaging: " + rpm_name
 top_dir         = os.getcwd()
 work_dir        = top_dir + "/tmp"
 rpm_build_dir   = work_dir + "/package"
-rpm_install_dir = rpm_build_dir + "/cray-cti-" + build_version
+rpm_install_dir = rpm_build_dir + "/cray-cti-" + build_version + "-" + revision_number
 rpm_module_dir  = rpm_install_dir + "/modulefile"
 rpm_cti_dir     = rpm_install_dir + "/cray-cti"
 #man_path        = "/cray/css/ulib/pubs/cti/man/xt_lgdbm/trunk/newest/"
@@ -85,11 +85,11 @@ spec_file = "cti.spec"
 #modulefile
 module_dest = rpm_module_dir + "/" + build_version
 #set_default script
-set_default_script_dest = rpm_install_dir + "/set_default_cray-cti_" + build_version
-set_pkgconfig_default_script_dest = rpm_install_dir + "/set_pkgconfig_default_cray-cti_" + build_version
+set_default_script_dest = rpm_install_dir + "/set_default_cray-cti-" + build_version
+set_pkgconfig_default_script_dest = rpm_install_dir + "/set_pkgconfig_default_cray-cti-" + build_version
 
 #the source tarball
-folder_name = "cray-cti-" + build_version
+folder_name = "cray-cti-" + build_version + "-" + revision_number
 tar_name = folder_name + ".tar.gz"
 tar_dest = rpm_build_dir + "/rpm/SOURCES"
 
@@ -147,9 +147,9 @@ cur_dir = os.getcwd()
 #release info - is in scripts directory
 os.chdir(rpm_cti_dir)
 
-if os_ver == "_sles11" or os_ver == "_sles12":
+if os_ver == ".sles11" or os_ver == ".sles12":
   release_script = "/release_info_sles"
-elif os_ver == "_el7":
+elif os_ver == ".el7":
   release_script = "/release_info_cs"
 
 with open("out.txt", "w+") as out:
@@ -266,7 +266,7 @@ section-3:
             else
               pref=/opt/cray/pe
             fi
-            $pref/admin-pe/set_default_files/set_default_cray-cti_<version>
+            $pref/admin-pe/set_default_files/set_default_cray-cti-<version>
 
 section-4:
     ACCELERATOR           : NONE
@@ -293,7 +293,7 @@ section-4:
             else
               pref=/opt/cray/pe
             fi
-            $pref/admin-pe/set_default_files/set_default_cray-cti_<version>
+            $pref/admin-pe/set_default_files/set_default_cray-cti-<version>
 
 section-5:
     ACCELERATOR           : NONE
@@ -315,7 +315,7 @@ section-5:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : ALL
     COMMANDS: |
-        rpm -e cray-cti-<version>-<release>_<revision>
+        rpm -e cray-cti-<version>-<revision>-<release>
 
 --- |
 #Remove previous versions of this rpm
@@ -332,7 +332,7 @@ else
   pref=
 fi
 
-rpm -ivh $pref --oldpackage cray-cti-<version>-<release>_<revision><os>.x86_64.rpm
+rpm -ivh $pref --oldpackage cray-cti-<version>-<revision>-<release><os>.x86_64.rpm
 
 '''
 manifest_dest = rpm_name + ".yaml"

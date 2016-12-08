@@ -60,18 +60,18 @@ Installation instructions:
 
    Installation instructions for CLE 5.2:
    =============================================
-      rpm -ivh --prefix=/opt/cray cray-cti-%VERSION%-%RELEASE%_%REVISION%%os%.x86_64.rpm
+      rpm -ivh --prefix=/opt/cray cray-cti-%VERSION%-%REVISION%-%RELEASE%os%.x86_64.rpm
 
       To make cti %VERSION% the default version of cray-cti, execute:
-      /opt/cray/admin-pe/set_default_files/set_default_cray-cti_%VERSION%
+      /opt/cray/admin-pe/set_default_files/set_default_cray-cti-%VERSION%
 
 
    Installation instructions for CLE 6.0:
    =============================================
-      rpm -ivh cray-cti-%VERSION%-%RELEASE%_%REVISION%%os%.x86_64.rpm
+      rpm -ivh cray-cti-%VERSION%-%REVISION%-%RELEASE%os%.x86_64.rpm
 
       To make cti %VERSION% the default version of cray-cti, execute:
-      /opt/cray/pe/admin-pe/set_default_files/set_default_cray-cti_%VERSION%
+      /opt/cray/pe/admin-pe/set_default_files/set_default_cray-cti-%VERSION%
 
  Certain components, files or programs contained within this package or
  product are Copyright 2007-2016 Cray Inc. All rights reserved.
