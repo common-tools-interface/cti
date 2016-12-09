@@ -137,7 +137,7 @@ def fetch_latest_version(final,revision,pkgs_dir):
       if final == False:
           #then there is a new revision
           #get third digit and increment
-          third_digit = version_list[3]
+          third_digit = version_list[2]
 
           #increment third digit
           third_digit = str(int(third_digit) + 1)
@@ -159,7 +159,7 @@ def fetch_latest_version(final,revision,pkgs_dir):
          if oldrev != revision:
            #increment 4th digit
            #figure out the new last digit
-           new_last_digit = str(int(version_list[4]) + 1)
+           new_last_digit = str(int(version_list[3]) + 1)
 
            #replace the last digit of the version number
            version_list.pop()
