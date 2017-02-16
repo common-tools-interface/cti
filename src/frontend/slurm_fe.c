@@ -1,7 +1,7 @@
 /******************************************************************************\
  * slurm_fe.c - Cray SLURM specific frontend library functions.
  *
- * Copyright 2014-2016 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -979,7 +979,7 @@ _cti_slurm_getJobId(cti_wlm_obj this)
 
 // this function creates a new appEntry_t object for the app
 cti_app_id_t
-_cti_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
+cti_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 {
 	appEntry_t *		this;
 	uint64_t			apid;	// Cray version of the job+step
@@ -1082,7 +1082,7 @@ _cti_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 	// add the sinfo obj to our global list
 	if(_cti_list_add(_cti_slurm_info, sinfo))
 	{
-		_cti_set_error("_cti_slurm_registerJobStep: _cti_list_add() failed.");
+		_cti_set_error("cti_slurm_registerJobStep: _cti_list_add() failed.");
 		cti_deregisterApp(this->appId);
 		return 0;
 	}
@@ -1693,7 +1693,7 @@ _cti_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd, int
 	myapp->sattach_pid = mypid;
 	
 	// register this app with the application interface
-	if ((rtn = _cti_slurm_registerJobStep(jobid, stepid)) == 0)
+	if ((rtn = cti_slurm_registerJobStep(jobid, stepid)) == 0)
 	{
 		// failed to register the jobid/stepid, error is already set.
 		_cti_slurm_consumeSrunInv(myapp);
@@ -2823,7 +2823,7 @@ _cti_slurm_getHostName(void)
 
 	char host[HOST_NAME_MAX+1];
 
-	if (gethostname(&host, HOST_NAME_MAX+1))
+	if (gethostname(host, HOST_NAME_MAX+1))
 	{
 		_cti_set_error("gethostname failed.");
 		return NULL;

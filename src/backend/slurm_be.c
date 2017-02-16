@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * slurm_be.c - Native slurm specific backend library functions.
  *
- * Copyright 2016 Cray Inc.  All Rights Reserved.
+ * Copyright 2016-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -68,52 +68,12 @@ cti_be_wlm_proto_t			_cti_be_slurm_wlmProto =
 static pmi_attribs_t *		_cti_attrs 			= NULL;	// node pmi_attribs information
 static slurmLayout_t *		_cti_layout			= NULL;	// compute node layout for slurm app
 static pid_t *				_cti_slurm_pids		= NULL;	// array of pids here if pmi_attribs is not available
-static uint32_t				_cti_jobid 			= 0;	// global jobid obtained from environment variable
-static uint32_t				_cti_stepid			= 0;	// global stepid obtained from environment variable
-static bool					_cti_slurm_isInit	= false;// Has init been called?
 
 /* Constructor/Destructor functions */
 
 static int
 _cti_be_slurm_init(void)
 {
-	char *	apid_str;
-	char *	ptr;
-	
-	// Have we already called init?
-	if (_cti_slurm_isInit)
-		return 0;
-
-	// read information from the environment set by dlaunch
-	if ((ptr = getenv(APID_ENV_VAR)) == NULL)
-	{
-		// Things were not setup properly, missing env vars!
-		fprintf(stderr, "Env var %s not set!", APID_ENV_VAR);
-		return 1;
-	}
-	
-	// make a copy of the env var
-	apid_str = strdup(ptr);
-	
-	// find the '.' that seperates jobid from stepid
-	if ((ptr = strchr(apid_str, '.')) == NULL)
-	{
-		// Things were not setup properly!
-		fprintf(stderr, "Env var %s has invalid value!", APID_ENV_VAR);
-		free(apid_str);
-		return 1;
-	}
-	
-	// set the '.' to a null term
-	*ptr++ = '\0';
-	
-	// get the jobid and stepid
-	_cti_jobid = (uint32_t)strtoul(apid_str, NULL, 10);
-	_cti_stepid = (uint32_t)strtoul(ptr, NULL, 10);
-	
-	_cti_slurm_isInit = true;
-	
-	// done
 	return 0;
 }
 
@@ -425,7 +385,7 @@ _cti_be_slurm_findAppPids(void)
 		// get the file directory were we can find the pid file
 		if ((file_dir = cti_be_getFileDir()) == NULL)
 		{
-			fprintf(stderr, "_cti_be_slurm_findAppPids failed.\n");
+			fprintf(stderr, "_cti_be_slurm_findAppPids failed (Neither PMI_ATTRIBS nor SLURM_PID_FILE exist).\n");
 			return NULL;
 		}
 	
@@ -496,7 +456,7 @@ use_pmi_attribs:
 			if ((_cti_attrs = _cti_be_getPmiAttribsInfo()) == NULL)
 			{
 				// Something messed up, so fail.
-				fprintf(stderr, "_cti_be_slurm_findAppPids failed.\n");
+				fprintf(stderr, "_cti_be_slurm_findAppPids failed (_cti_be_getPmiAttribsInfo NULL).\n");
 				return NULL;
 			}
 		}
@@ -505,7 +465,7 @@ use_pmi_attribs:
 		if (_cti_attrs->app_rankPidPairs == NULL)
 		{
 			// Something messed up, so fail.
-			fprintf(stderr, "_cti_be_slurm_findAppPids failed.\n");
+			fprintf(stderr, "_cti_be_slurm_findAppPids failed (app_rankPidPairs NULL).\n");
 			return NULL;
 		}
 		

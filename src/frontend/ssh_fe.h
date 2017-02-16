@@ -1,7 +1,8 @@
 /******************************************************************************\
- * cti_path.h - Header file for the path interface.
+ * slurm_fe.h - A header file for the cluster slurm specific frontend 
+ *              interface.
  *
- * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
+ * Copyright 2017 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -16,14 +17,18 @@
  *
  ******************************************************************************/
 
-#ifndef _CTI_PATH_H
-#define _CTI_PATH_H
+#ifndef _SSH_FE_H
+#define _SSH_FE_H
 
-char *	_cti_pathFind(const char *, const char *);
-char *	_cti_libFind(const char *);
-int		_cti_adjustPaths(const char *);
-char *	_cti_pathToName(const char *);
-char *	_cti_pathToDir(const char *);
-int		_cti_removeDirectory(const char *);
+#include <stdint.h>
+#include <sys/types.h>
 
-#endif /* _CTI_PATH_H */
+#include "cti_fe.h"
+
+/* wlm proto object */
+extern const cti_wlm_proto_t	_cti_ssh_wlmProto;
+
+/* function prototypes */
+cti_app_id_t		cti_ssh_registerJobStep(pid_t launcher_pid);
+
+#endif /* _SSH_FE_H */

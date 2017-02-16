@@ -1,7 +1,7 @@
 /******************************************************************************\
  * slurm_dl.c - Cluster slurm specific functions for the daemon launcher.
  *
- * Copyright 2016 Cray Inc.  All Rights Reserved.
+ * Copyright 2016-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -55,12 +55,20 @@ _cti_slurm_getNodeID(void)
 {
 	char host[HOST_NAME_MAX+1];
 
-	if (gethostname(&host, HOST_NAME_MAX+1))
+	if (gethostname(host, HOST_NAME_MAX+1))
 	{
 		fprintf(stderr, "gethostname failed.\n");
-		return NULL;
+		return 0;
 	}
 
-	return strdup(host);
+	int result = 0;
+	int len = strlen(host);
+
+	int i;
+	for(i=0; i<len; i++){
+		result += host[i];
+	}
+
+	return result;
 }
 

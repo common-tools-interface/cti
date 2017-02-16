@@ -43,6 +43,7 @@
 #include "alps_fe.h"
 #include "cray_slurm_fe.h"
 #include "slurm_fe.h"
+#include "ssh_fe.h"
 
 typedef struct
 {
@@ -133,9 +134,15 @@ _cti_init(void)
 	// init the transfer interface
 	_cti_transfer_init();
 
-	// XXX: If wlm_detect doesn't work on your system, this will default to ALPS
-	// TODO: Add env var to allow caller to specify what WLM they want to use.
-	
+	// Use the fallback (ssh) implementation with the desired launcher if the launcher name
+	// environment variable is set 
+	char* launcher_name_env;
+	if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
+	{
+		_cti_wlmProto = &_cti_ssh_wlmProto;
+		goto wlm_detect_err;
+	}
+
 	if ((_cti_wlm_detect.handle = dlopen(WLM_DETECT_LIB_NAME, RTLD_LAZY)) == NULL)
 	{
 		// Check to see if we are on a cluster. If so, use the slurm proto
@@ -143,7 +150,8 @@ _cti_init(void)
 		if (stat(CLUSTER_FILE_TEST, &sb) == 0)
 		{
 			_cti_wlmProto = &_cti_slurm_wlmProto;
-		} else
+		} 
+		else
 		{
 			use_default = true;
 		}
@@ -799,6 +807,9 @@ cti_wlm_type_toString(cti_wlm_type wlm_type)
 	
 		case CTI_WLM_SLURM:
 			return "SLURM";
+
+		case CTI_WLM_SSH:
+			return "Fallback (SSH based) workload manager";
 			
 		case CTI_WLM_NONE:
 			return "No WLM detected";

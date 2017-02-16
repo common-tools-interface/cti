@@ -2,7 +2,7 @@
  * gdb_MPIR.h - A header file for routines and data structures shared between
  *              the iface library calls and the starter process.
  *
- * Copyright 2014 Cray Inc.	All Rights Reserved.
+ * Copyright 2014-2017 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -33,7 +33,9 @@ enum cti_gdb_msgtype
 	MSG_ID,
 	MSG_PID,
 	MSG_READY,
-	MSG_RELEASE
+	MSG_RELEASE,
+	MSG_PROCTABLE,
+	MSG_LAUNCHER_PID
 };
 typedef enum cti_gdb_msgtype cti_gdb_msgtype_t;
 
@@ -48,13 +50,24 @@ typedef struct
 	pid_t *		pid;
 } cti_pid_t;
 
+// Full proctable information for use with general implementation that does not 
+// necessarily conform to the previous assumption
+typedef struct
+{
+	size_t num_pids; //number of ranks
+	pid_t* pids; //pid of each rank
+	char** hostnames; //host corresponding to each rank of size num_pids
+} cti_mpir_proctable_t;
+
 // This is a union in order to be extendible into the future if need be.
 // Simply add another type to the union if we expect a different type of value
 // to be returned.
 typedef union
 {
-	char *		msg_string;
-	cti_pid_t *	msg_pid;
+	char *					msg_string;
+	cti_pid_t *				msg_pid;
+	cti_mpir_proctable_t* 	msg_proctable;
+	pid_t 					launcher_pid;
 } cti_gdb_msgpayload_t;
 
 typedef struct
@@ -74,6 +87,8 @@ cti_gdb_msg_t *	_cti_gdb_createMsg(cti_gdb_msgtype_t, ...);
 void			_cti_gdb_consumeMsg(cti_gdb_msg_t *);
 int				_cti_gdb_sendMsg(FILE *, cti_gdb_msg_t *);
 cti_gdb_msg_t *	_cti_gdb_recvMsg(FILE *);
+cti_mpir_proctable_t* _cti_gdb_newProctable(size_t num_pids);
+void 			_cti_gdb_freeProctable(cti_mpir_proctable_t *this);
 
 #endif /* _GDB_MPIR_H */
 

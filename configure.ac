@@ -1,7 +1,7 @@
 #
 # configure.ac script for the craytool interface.
 #
-# Copyright 2010-2015 Cray Inc. All Rights Reserved
+# Copyright 2010-2017 Cray Inc. All Rights Reserved
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -58,6 +58,24 @@ AC_ARG_WITH(	[libmi],
 				],
 				[libmi_path=$withval],
 				[libmi_path=no]
+			)
+
+dnl Check for --with-libssl
+AC_ARG_WITH(	[libssl],
+				[AS_HELP_STRING([--with-libssl],
+								[Specify path to libssl install.])
+				],
+				[libssl_path=$withval],
+				[libssl_path=no]
+			)
+
+dnl Check for --with-libssh
+AC_ARG_WITH(	[libssh],
+				[AS_HELP_STRING([--with-libssh],
+								[Specify path to libssh install.])
+				],
+				[libssh_path=$withval],
+				[libssh_path=no]
 			)
 
 dnl Check for --with-gdb
@@ -130,6 +148,38 @@ if test "x$libmi_path" = "xno"; then
 	AC_CACHE_SAVE
 	cray_ENV_LIBMI
 	libmi_path=$INTERNAL_LIBMI
+else
+	AC_MSG_RESULT([provided])
+fi
+
+dnl build openssl if argument wasn't provided
+AC_MSG_CHECKING([for libssl argument])
+AM_CONDITIONAL([BUILT_SSL], [test "x$libssl_path" = xno])
+if test "x$libssl_path" = "xno"; then
+	AC_MSG_RESULT([not found])
+	AC_CACHE_VAL([cray_cv_lib_ssl_build], [cray_BUILD_LIBSSL])
+	if test "x$cray_cv_lib_ssl_build" = xno; then
+		AC_MSG_ERROR([libssl build failed.])
+	fi
+	AC_CACHE_SAVE
+	cray_ENV_LIBSSL
+	libssl_path=$INTERNAL_LIBSSL
+else
+	AC_MSG_RESULT([provided])
+fi
+
+dnl build libssh if argument wasn't provided
+AC_MSG_CHECKING([for libssh argument])
+AM_CONDITIONAL([BUILT_SSH], [test "x$libssh_path" = xno])
+if test "x$libssh_path" = "xno"; then
+	AC_MSG_RESULT([not found])
+	AC_CACHE_VAL([cray_cv_lib_ssh_build], [cray_BUILD_LIBSSH])
+	if test "x$cray_cv_lib_ssh_build" = xno; then
+		AC_MSG_ERROR([libssh build failed.])
+	fi
+	AC_CACHE_SAVE
+	cray_ENV_LIBSSH
+	libssh_path=$INTERNAL_LIBSSH
 else
 	AC_MSG_RESULT([provided])
 fi
@@ -253,6 +303,44 @@ AC_SUBST([MI_LIBS], ["-lmi"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
+dnl Check for libssl
+save_LDFLAGS="$LDFLAGS"
+if test -f "$libssl_path/lib/libssl.so"; then
+	AC_SUBST([SSL_LDFLAGS], ["-L$libssl_path/lib"])
+	LDFLAGS="$LDFLAGS $SSL_LDFLAGS -lcrypto"
+fi
+AC_CHECK_LIB(	[ssl],
+				[SSL_new],
+				[AC_DEFINE(	[HAVE_SSL],
+								[1],
+								[Define to 1 if you have the ssl library (-lssl).]
+							)
+				],
+			 	[AC_MSG_ERROR([libssl.so not found.])]
+			 	)
+AC_SUBST([SSL_LIBS], ["-lssl"])
+dnl restore flags
+LDFLAGS="$save_LDFLAGS"
+
+dnl Check for libssh
+save_LDFLAGS="$LDFLAGS"
+if test -f "$libssh_path/lib/libssh.so"; then
+	AC_SUBST([SSH_LDFLAGS], ["-L$libssh_path/lib"])
+	LDFLAGS="$LDFLAGS $SSH_LDFLAGS"
+fi
+AC_CHECK_LIB(	[ssh],
+				[ssh_new],
+				[AC_DEFINE(	[HAVE_SSH],
+								[1],
+								[Define to 1 if you have the ssh library (-lssh).]
+							)
+				],
+			 	[AC_MSG_ERROR([libssh.so not found.])]
+			 	)
+AC_SUBST([SSH_LIBS], ["-lssh"])
+dnl restore flags
+LDFLAGS="$save_LDFLAGS"
+
 ###############################
 ### Check for header files. ###
 ###############################
@@ -336,6 +424,20 @@ fi
 AC_CHECK_HEADER([MI.h],
 				[],
 				[AC_MSG_FAILURE([MI.h not found.])],
+				[]
+				)
+dnl restore flags
+CFLAGS="$save_CFLAGS"
+
+dnl Check for libssh headers
+save_CFLAGS="$CFLAGS"
+if test -f "$libssh_path/include/libssh/libssh.h"; then
+	AC_SUBST([SSH_CFLAGS], ["-I$libssh_path/include"])
+	CFLAGS="$CFLAGS $SSH_CFLAGS"
+fi
+AC_CHECK_HEADER([libssh/libssh.h],
+				[],
+				[AC_MSG_FAILURE([libssh.h not found.])],
 				[]
 				)
 dnl restore flags

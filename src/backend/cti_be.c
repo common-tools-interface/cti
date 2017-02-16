@@ -4,7 +4,7 @@
  *        to obtain application information for backend tool daemons running on
  *        the compute nodes.
  *
- * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -85,7 +85,8 @@ _cti_be_init(void)
 		case CTI_BE_WLM_CRAY_SLURM:
 			_cti_be_wlmProto = &_cti_be_cray_slurm_wlmProto;
 			break;
-			
+		
+		case CTI_BE_WLM_SSH:
 		case CTI_BE_WLM_SLURM:
 			_cti_be_wlmProto = &_cti_be_slurm_wlmProto;
 			break;
@@ -154,6 +155,9 @@ cti_be_wlm_type_toString(cti_be_wlm_type wlm_type)
 	
 		case CTI_BE_WLM_SLURM:
 			return "SLURM";
+		
+		case CTI_BE_WLM_SSH:
+			return "Fallback (SSH based) workload manager";
 			
 		case CTI_BE_WLM_NONE:
 			return "No WLM detected";

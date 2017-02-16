@@ -5,7 +5,7 @@
  *                   or login nodes. Backend refers to the location where
  *                   applications are run.
  *
- * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -91,7 +91,8 @@ enum cti_be_wlm_type
     CTI_BE_WLM_NONE,    // error/unitialized state
     CTI_BE_WLM_ALPS,
     CTI_BE_WLM_CRAY_SLURM,
-    CTI_BE_WLM_SLURM
+    CTI_BE_WLM_SLURM,
+    CTI_BE_WLM_SSH
 };
 typedef enum cti_be_wlm_type cti_be_wlm_type;
 
