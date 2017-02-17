@@ -29,7 +29,7 @@
 extern const cti_wlm_proto_t	_cti_slurm_wlmProto;
 
 /* function prototypes */
-cti_app_id_t		cti_slurm_registerJobStep(uint32_t, uint32_t);
+cti_app_id_t		cti_slurm_registerJobStep(pid_t launcher_pid);
 cti_srunProc_t *	cti_slurm_getSrunInfo(cti_app_id_t appId);
 
 // TODO: cti_slurm_getJobInfo(pid_t)

@@ -482,17 +482,24 @@ _cti_ssh_createLayout(cti_mpir_proctable_t* proctable)
 static sshLayout_t* 
 _cti_ssh_getLayout(pid_t launcher_pid)
 {
-	sigset_t			mask, omask;	// used to ignore SIGINT
-	pid_t				mypid;
+	cti_gdb_id_t		gdb_id;
+	pid_t				gdb_pid;
 	const char *		gdb_path;
 	char *				usr_gdb_path = NULL;
 	const char *		attach_path;
-	cti_mpir_proctable_t* proctable;
-	cti_gdb_id_t 		gdb_id;
+	cti_mpir_proctable_t*	proctable; // return object
 	
-	// Get the gdb location to pass to the starter
+	// sanity check
+	if (launcher_pid <= 0)
+	{
+		_cti_set_error("Invalid launcher pid %d.", (int)launcher_pid);
+		return NULL;
+	}
+	
+	// get the gdb path
 	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
 	{
+		// use the gdb set in the environment
 		usr_gdb_path = strdup(gdb_path);
 		gdb_path = (const char *)usr_gdb_path;
 	} else
@@ -501,11 +508,11 @@ _cti_ssh_getLayout(pid_t launcher_pid)
 		if (gdb_path == NULL)
 		{
 			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-			return 0;
+			return NULL;
 		}
 	}
 	
-	// Get the attach path
+	// get the attach path
 	attach_path = _cti_getAttachPath();
 	if (attach_path == NULL)
 	{
@@ -520,33 +527,26 @@ _cti_ssh_getLayout(pid_t launcher_pid)
 		// error already set
 		if (usr_gdb_path != NULL)	free(usr_gdb_path);
 		
-		return 0;
+		return NULL;
 	}
-
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGINT);
-	sigprocmask(SIG_BLOCK, &mask, &omask);
 	
-	// Fork off a process to start the mpir starter
-	mypid = fork();
+	// fork off a process to start the mpir attach
+	gdb_pid = fork();
 	
-	if (mypid < 0)
+	// error case
+	if (gdb_pid < 0)
 	{
 		_cti_set_error("Fatal fork error.");
+		_cti_gdb_cleanup(gdb_id);
 		
-		return 0;
+		return NULL;
 	}
 	
+	// child case
 	// Note that this should not use the _cti_set_error() interface since it is
 	// a child process.
-	if (mypid == 0)
+	if (gdb_pid == 0)
 	{
-		// Place this process in its own group to prevent signals being passed
-		// to it. This is necessary in case the child code execs before the 
-		// parent can put us into our own group. This is so that we won't get
-		// the ctrl-c when aprun re-inits the signal handlers.
-		setpgid(0, 0);
-		
 		// call the exec function - this should not return
 		_cti_gdb_execAttach(gdb_id, attach_path, gdb_path, launcher_pid);
 		
@@ -556,29 +556,32 @@ _cti_ssh_getLayout(pid_t launcher_pid)
 		_exit(1);
 	}
 	
+	// parent case
+	
+	// cleanup
 	if (usr_gdb_path != NULL)	free(usr_gdb_path);
-
-	// Place the child in its own group. We still need to block SIGINT in case
-	// its delivered to us before we can do this. We need to do this again here
-	// in case this code runs before the child code while we are still blocking 
-	// ctrl-c
-	setpgid(mypid, mypid);
 	
-	// unblock ctrl-c
-	sigprocmask(SIG_SETMASK, &omask, NULL);
-	
-	// call the post fork setup - this will get us to the startup barrier
-	if (_cti_gdb_postFork(mypid))
+	// call the post fork setup - this will ensure gdb was started and this pid
+	// is valid
+	if (_cti_gdb_postFork(gdb_id))
 	{
-		return 0;
+		// error message already set
+		_cti_gdb_cleanup(gdb_id);
+		waitpid(gdb_pid, NULL, 0);
+		
+		return NULL;
 	}
-	
+
 	//Harvest and process the proctable to return
-	if ((proctable = _cti_gdb_getProctable(mypid)) == NULL)
+	if ((proctable = _cti_gdb_getProctable(gdb_id)) == NULL)
 	{	
 		return 0;
 	}
-
+	
+	// Cleanup this gdb instance, we are done with it
+	_cti_gdb_cleanup(gdb_id);
+	waitpid(gdb_pid, NULL, 0);
+	
 	return _cti_ssh_createLayout(proctable);
 }
 
@@ -752,7 +755,7 @@ _cti_ssh_registerJob(pid_t launcher_pid, bool get_layout, sshLayout_t* layout)
  */
 cti_app_id_t
 cti_ssh_registerJob(pid_t launcher_pid){
-	return _cti_ssh_registerJob(launcher_pid, false, NULL);
+	return _cti_ssh_registerJob(launcher_pid, true, NULL);
 }
 
 /*

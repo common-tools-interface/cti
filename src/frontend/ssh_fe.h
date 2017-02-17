@@ -29,6 +29,6 @@
 extern const cti_wlm_proto_t	_cti_ssh_wlmProto;
 
 /* function prototypes */
-cti_app_id_t		cti_ssh_registerJobStep(pid_t launcher_pid);
+cti_app_id_t		cti_ssh_registerJob(pid_t launcher_pid);
 
 #endif /* _SSH_FE_H */
