@@ -47,6 +47,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <libssh/libssh.h>
+#include <dlfcn.h>
 
 /* Types used here */
 
@@ -158,12 +159,43 @@ const cti_wlm_proto_t		_cti_ssh_wlmProto =
 	_cti_ssh_getAttribsPath			// wlm_getAttribsPath
 };
 
-const char * ssh_forwarded_env_vars[] = {
+const char * _cti_ssh_forwarded_env_vars[] = {
 	DBG_LOG_ENV_VAR,
 	DBG_ENV_VAR,
 	LIBALPS_ENABLE_DSL_ENV_VAR,
 	CTI_LIBALPS_ENABLE_DSL_ENV_VAR,
 	NULL
+};
+
+typedef struct
+{
+	void* handle;
+	int(*ssh_channel_close)(ssh_channel channel);
+	void (*ssh_channel_free)(ssh_channel channel);
+	ssh_channel(*ssh_channel_new)(ssh_session session);
+	int(*ssh_channel_open_session)(ssh_channel channel);
+	int (*ssh_channel_request_env) (ssh_channel channel, const char *name, const char *value);
+	int (*ssh_channel_request_exec) (ssh_channel channel, const char *cmd);
+	int (*ssh_channel_send_eof) (ssh_channel channel);
+	int (*ssh_connect) (ssh_session session);
+	void (*ssh_disconnect) (ssh_session session);
+	void (*ssh_free) (ssh_session session);
+	const char * (*ssh_get_error) (void *error);
+	int (*ssh_is_server_known) (ssh_session session);
+	ssh_session (*ssh_new) (void);
+	int (*ssh_options_set) (ssh_session session, enum ssh_options_e type, const void *value);
+	int (*ssh_scp_close) (ssh_scp scp);
+	void (*ssh_scp_free) (ssh_scp scp);
+	int (*ssh_scp_init) (ssh_scp scp);
+	ssh_scp (*ssh_scp_new) (ssh_session session, int mode, const char *location);
+	int (*ssh_scp_push_file) (ssh_scp scp, const char *filename, size_t size, int mode);
+	int (*ssh_scp_write) (ssh_scp scp, const void *buffer, size_t len);
+	int (*ssh_userauth_publickey_auto) (ssh_session session, const char *username, const char *passphrase);
+	int (*ssh_write_knownhost) (ssh_session session);
+} libssh_funcs_t;
+
+libssh_funcs_t _cti_ssh_libssh_funcs = {
+	.handle = NULL
 };
 
 static cti_list_t *	_cti_ssh_info	= NULL;	// list of sshInfo_t objects registered by this interface
@@ -183,7 +215,6 @@ _cti_ssh_init(void)
 	// create a new _cti_alps_info list
 	if (_cti_ssh_info == NULL)
 		_cti_ssh_info = _cti_newList();
-
 	// done
 	return 0;
 }
@@ -1467,7 +1498,7 @@ _cti_ssh_extraFiles(cti_wlm_obj app_info)
 int _cti_ssh_verify_server(ssh_session session)
 {
   int state;
-  state = ssh_is_server_known(session);
+  state = _cti_ssh_libssh_funcs.ssh_is_server_known(session);
   switch (state)
   {
     case SSH_SERVER_KNOWN_OK:
@@ -1487,14 +1518,14 @@ int _cti_ssh_verify_server(ssh_session session)
       /* fallback to SSH_SERVER_NOT_KNOWN behavior */
     case SSH_SERVER_NOT_KNOWN:
       fprintf(stderr,"Warning: backend node not in known_hosts. Updating known_hosts.\n");
-      if (ssh_write_knownhost(session) < 0)
+      if (_cti_ssh_libssh_funcs.ssh_write_knownhost(session) < 0)
       {
         fprintf(stderr, "Error %s\n", strerror(errno));
         return 1;
       }
       break;
     case SSH_SERVER_ERROR:
-      fprintf(stderr, "Error %s", ssh_get_error(session));
+      fprintf(stderr, "Error %s", _cti_ssh_libssh_funcs.ssh_get_error(session));
       return 1;
   }
   return 0;
@@ -1519,43 +1550,71 @@ ssh_session _cti_ssh_start_session(char* hostname)
 {
 	ssh_session my_ssh_session;
 	int rc;
+	if ( _cti_ssh_libssh_funcs.handle == NULL){
+		if( (_cti_ssh_libssh_funcs.handle = dlopen("libssh.so", RTLD_LAZY)) == NULL){
+			_cti_set_error("dlopen failed.");
+			return NULL;
+		}
+		_cti_ssh_libssh_funcs.ssh_channel_close = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_close");
+		_cti_ssh_libssh_funcs.ssh_channel_free = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_free");
+		_cti_ssh_libssh_funcs.ssh_channel_new = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_new");
+		_cti_ssh_libssh_funcs.ssh_channel_open_session = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_open_session");
+		_cti_ssh_libssh_funcs.ssh_channel_request_env = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_request_env");
+		_cti_ssh_libssh_funcs.ssh_channel_request_exec = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_request_exec");
+		_cti_ssh_libssh_funcs.ssh_channel_send_eof = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_send_eof");
+		_cti_ssh_libssh_funcs.ssh_connect = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_connect");
+		_cti_ssh_libssh_funcs.ssh_disconnect = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_disconnect");
+		_cti_ssh_libssh_funcs.ssh_free = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_free");
+		_cti_ssh_libssh_funcs.ssh_get_error = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_get_error");
+		_cti_ssh_libssh_funcs.ssh_is_server_known = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_is_server_known");
+		_cti_ssh_libssh_funcs.ssh_new = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_new");
+		_cti_ssh_libssh_funcs.ssh_options_set = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_options_set");
+		_cti_ssh_libssh_funcs.ssh_scp_close = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_close");
+		_cti_ssh_libssh_funcs.ssh_scp_free = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_free");
+		_cti_ssh_libssh_funcs.ssh_scp_init = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_init");
+		_cti_ssh_libssh_funcs.ssh_scp_new = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_new");
+		_cti_ssh_libssh_funcs.ssh_scp_push_file = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_push_file");
+		_cti_ssh_libssh_funcs.ssh_scp_write = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_write");
+		_cti_ssh_libssh_funcs.ssh_userauth_publickey_auto = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_userauth_publickey_auto");
+		_cti_ssh_libssh_funcs.ssh_write_knownhost = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_write_knownhost");
+	}
 	
 	// Open session and set hostname to which to connect
-	my_ssh_session = ssh_new();
+	my_ssh_session = _cti_ssh_libssh_funcs.ssh_new();
 	if (my_ssh_session == NULL){
-		_cti_set_error("Error allocating new ssh session: %s\n", ssh_get_error(my_ssh_session));
+		_cti_set_error("Error allocating new ssh session: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(my_ssh_session));
 		return NULL;
 	}
-	ssh_options_set(my_ssh_session, SSH_OPTIONS_HOST, hostname);
+	_cti_ssh_libssh_funcs.ssh_options_set(my_ssh_session, SSH_OPTIONS_HOST, hostname);
 	
 	// Connect to remote host
-	rc = ssh_connect(my_ssh_session);
+	rc = _cti_ssh_libssh_funcs.ssh_connect(my_ssh_session);
 	if (rc != SSH_OK)
 	{
-		_cti_set_error("ssh connection error: %s\n", ssh_get_error(my_ssh_session));
-		ssh_free(my_ssh_session);
+		_cti_set_error("ssh connection error: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(my_ssh_session));
+		_cti_ssh_libssh_funcs.ssh_free(my_ssh_session);
 		return NULL;
 	}
 	
 	// Verify the identity of the remote host
 	if (_cti_ssh_verify_server(my_ssh_session))
 	{
-		_cti_set_error("Could not verify backend node identity: %s\n", ssh_get_error(my_ssh_session));
-		ssh_disconnect(my_ssh_session);
-		ssh_free(my_ssh_session);
+		_cti_set_error("Could not verify backend node identity: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(my_ssh_session));
+		_cti_ssh_libssh_funcs.ssh_disconnect(my_ssh_session);
+		_cti_ssh_libssh_funcs.ssh_free(my_ssh_session);
 		return NULL;
 	}
 	
 	// Authenticate user with the remote host using public key authentication
-	rc = ssh_userauth_publickey_auto(my_ssh_session, NULL, NULL);
+	rc = _cti_ssh_libssh_funcs.ssh_userauth_publickey_auto(my_ssh_session, NULL, NULL);
 	switch(rc)
 	{
 		case SSH_AUTH_PARTIAL:
 		case SSH_AUTH_DENIED:
 		case SSH_AUTH_ERROR:
-	 		_cti_set_error("Authentication failed: %s. CTI requires paswordless (public key) ssh authentication to the backends. Contact your system administrator about setting this up.\n", ssh_get_error(my_ssh_session));   
-			ssh_disconnect(my_ssh_session);
-			ssh_free(my_ssh_session);
+	 		_cti_set_error("Authentication failed: %s. CTI requires paswordless (public key) ssh authentication to the backends. Contact your system administrator about setting this up.\n", _cti_ssh_libssh_funcs.ssh_get_error(my_ssh_session));   
+			_cti_ssh_libssh_funcs.ssh_disconnect(my_ssh_session);
+			_cti_ssh_libssh_funcs.ssh_free(my_ssh_session);
 			return NULL;
 			break;
 		default:
@@ -1589,17 +1648,17 @@ int _cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, char*
 	int rc;
 
 	// Start a new ssh channel session
-	channel = ssh_channel_new(session);
+	channel = _cti_ssh_libssh_funcs.ssh_channel_new(session);
 	if (channel == NULL){
-		_cti_set_error("Error allocating ssh channel: %s\n", ssh_get_error(session));
+		_cti_set_error("Error allocating ssh channel: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(session));
 		return 1;
 	}
 	
-	rc = ssh_channel_open_session(channel);
+	rc = _cti_ssh_libssh_funcs.ssh_channel_open_session(channel);
 	if (rc != SSH_OK)
 	{
-		_cti_set_error("Error starting session on ssh channel: %s\n", ssh_get_error(session));
-		ssh_channel_free(channel);
+		_cti_set_error("Error starting session on ssh channel: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(session));
+		_cti_ssh_libssh_funcs.ssh_channel_free(channel);
 		return 1;
 	}
 
@@ -1609,26 +1668,26 @@ int _cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, char*
 	while(current!= NULL && *current != NULL){
 		const char* variable_value = getenv(*current);
 		if(variable_value != NULL){
-			rc = ssh_channel_request_env(channel, *current, variable_value);
+			rc = _cti_ssh_libssh_funcs.ssh_channel_request_env(channel, *current, variable_value);
 		}
 
 		current++;
 	}
 
 	// Request execution of the command on the remote host	
-	rc = ssh_channel_request_exec(channel, _cti_flattenArgs(args));
+	rc = _cti_ssh_libssh_funcs.ssh_channel_request_exec(channel, _cti_flattenArgs(args));
 	if (rc != SSH_OK)
 	{
-		_cti_set_error("Execution of ssh command failed: %s\n", ssh_get_error(session));
-		ssh_channel_close(channel);
-		ssh_channel_free(channel);
+		_cti_set_error("Execution of ssh command failed: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(session));
+		_cti_ssh_libssh_funcs.ssh_channel_close(channel);
+		_cti_ssh_libssh_funcs.ssh_channel_free(channel);
 		return 1;
 	}
 
 	// End the channel
-	ssh_channel_send_eof(channel);
-	ssh_channel_close(channel);
-	ssh_channel_free(channel);
+	_cti_ssh_libssh_funcs.ssh_channel_send_eof(channel);
+	_cti_ssh_libssh_funcs.ssh_channel_close(channel);
+	_cti_ssh_libssh_funcs.ssh_channel_free(channel);
 
 	return 0;
 }
@@ -1658,18 +1717,18 @@ int _cti_ssh_copy_file_to_remote(ssh_session session, const char* source_path, c
 	int rc;
 
 	// Start a new scp session
-	scp = ssh_scp_new(session, SSH_SCP_WRITE, _cti_pathToDir(destination_path));
+	scp = _cti_ssh_libssh_funcs.ssh_scp_new(session, SSH_SCP_WRITE, _cti_pathToDir(destination_path));
 	if (scp == NULL)
 	{
-		_cti_set_error("Error allocating scp session: %s\n", ssh_get_error(session));
+		_cti_set_error("Error allocating scp session: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(session));
 		return 1;
 	}
 
-	rc = ssh_scp_init(scp);
+	rc = _cti_ssh_libssh_funcs.ssh_scp_init(scp);
 	if (rc != SSH_OK)
 	{
-		_cti_set_error("Error initializing scp session: %s\n", ssh_get_error(session));
-		ssh_scp_free(scp);
+		_cti_set_error("Error initializing scp session: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(session));
+		_cti_ssh_libssh_funcs.ssh_scp_free(scp);
 		return 1;
 	}
 
@@ -1694,10 +1753,10 @@ int _cti_ssh_copy_file_to_remote(ssh_session session, const char* source_path, c
 	asprintf(&relative_destination, "/%s", _cti_pathToName(destination_path));
 
 	// Create an empty file with the correct length on the remote host
-	rc = ssh_scp_push_file(scp, relative_destination, file_size, mode);
+	rc = _cti_ssh_libssh_funcs.ssh_scp_push_file(scp, relative_destination, file_size, mode);
 	if (rc != SSH_OK)
 	{
-		_cti_set_error("Can't open remote file: %s\n", ssh_get_error(session));
+		_cti_set_error("Can't open remote file: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(session));
 		return 1;
 	}
 
@@ -1717,16 +1776,16 @@ int _cti_ssh_copy_file_to_remote(ssh_session session, const char* source_path, c
 		  _cti_set_error("Error in reading from file : %s\n", source_path);
 		  return 1;
 		}
-		rc = ssh_scp_write(scp, current_block, current_count*sizeof(char));
+		rc = _cti_ssh_libssh_funcs.ssh_scp_write(scp, current_block, current_count*sizeof(char));
 		if (rc != SSH_OK)
 		{
-			_cti_set_error("Can't write to remote file: %s\n", ssh_get_error(session));
+			_cti_set_error("Can't write to remote file: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(session));
 			return 1;
 		}
 	}
 
-	ssh_scp_close(scp);
-	ssh_scp_free(scp);
+	_cti_ssh_libssh_funcs.ssh_scp_close(scp);
+	_cti_ssh_libssh_funcs.ssh_scp_free(scp);
 	return 0;
 }
 
@@ -1739,8 +1798,8 @@ int _cti_ssh_copy_file_to_remote(ssh_session session, const char* source_path, c
  */
 void _cti_ssh_end_session(ssh_session session)
 {
-	ssh_disconnect(session);
-	ssh_free(session);
+	_cti_ssh_libssh_funcs.ssh_disconnect(session);
+	_cti_ssh_libssh_funcs.ssh_free(session);
 }
 
 /*
@@ -1921,7 +1980,7 @@ _cti_ssh_start_daemon(cti_wlm_obj app_info, cti_args_t * args)
 			// Something went wrong with creating the ssh session (error message is already set)
 			return 1;
 		}
-		if(_cti_ssh_execute_remote_command(current_session, my_args, ssh_forwarded_env_vars)){
+		if(_cti_ssh_execute_remote_command(current_session, my_args, _cti_ssh_forwarded_env_vars)){
 			// Something went wrong with the ssh command (error message is already set)
 			return 1;
 		}

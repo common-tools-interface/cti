@@ -30,7 +30,7 @@ libcraytools_fe_la_SOURCES	=	cti_fe.c cti_fe.h cti_run.c cti_run.h cti_error.c c
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(MPIR_IFACE) -I$(LDVAL) -I$(USEFUL) \
 								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS)
 libcraytools_fe_la_LIBADD	=	$(USEFUL)/libuseful.la $(LDVAL)/libld_val.la \
-								$(MPIR_IFACE)/libmpir_iface.la -ldl -lrt -lssh \
+								$(MPIR_IFACE)/libmpir_iface.la -ldl -lrt \
 								$(ARCHIVE_LIBS)
 libcraytools_fe_la_LDFLAGS	=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info $(CRAYTOOL_FE_VERSION) \
 								$(ARCHIVE_LDFLAGS)

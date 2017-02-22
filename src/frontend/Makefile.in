@@ -17,7 +17,7 @@
 #
 # Makefile.am for the frontend components of the craytool interface.
 #
-# Copyright2014 Cray Inc.  All Rights Reserved.
+# Copyright 2014-2017 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -191,8 +191,6 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SSH_CFLAGS = @SSH_CFLAGS@
-SSH_LDFLAGS = @SSH_LDFLAGS@
-SSH_LIBS = @SSH_LIBS@
 SSL_LDFLAGS = @SSL_LDFLAGS@
 SSL_LIBS = @SSL_LIBS@
 STRIP = @STRIP@
@@ -269,7 +267,7 @@ libcraytools_fe_la_CFLAGS = $(AM_CFLAGS) -fPIC -I$(MPIR_IFACE) -I$(LDVAL) -I$(US
 								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS)
 
 libcraytools_fe_la_LIBADD = $(USEFUL)/libuseful.la $(LDVAL)/libld_val.la \
-								$(MPIR_IFACE)/libmpir_iface.la -ldl -lrt -lssh \
+								$(MPIR_IFACE)/libmpir_iface.la -ldl -lrt \
 								$(ARCHIVE_LIBS)
 
 libcraytools_fe_la_LDFLAGS = -Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info $(CRAYTOOL_FE_VERSION) \

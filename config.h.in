@@ -108,9 +108,6 @@
 /* Define to 1 if you have the `socket' function. */
 #undef HAVE_SOCKET
 
-/* Define to 1 if you have the ssh library (-lssh). */
-#undef HAVE_SSH
-
 /* Define to 1 if you have the ssl library (-lssl). */
 #undef HAVE_SSL
 
@@ -216,9 +213,6 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
-
-/* Define to the home page for this package. */
-#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION

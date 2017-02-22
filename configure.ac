@@ -322,25 +322,6 @@ AC_SUBST([SSL_LIBS], ["-lssl"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
-dnl Check for libssh
-save_LDFLAGS="$LDFLAGS"
-if test -f "$libssh_path/lib/libssh.so"; then
-	AC_SUBST([SSH_LDFLAGS], ["-L$libssh_path/lib"])
-	LDFLAGS="$LDFLAGS $SSH_LDFLAGS"
-fi
-AC_CHECK_LIB(	[ssh],
-				[ssh_new],
-				[AC_DEFINE(	[HAVE_SSH],
-								[1],
-								[Define to 1 if you have the ssh library (-lssh).]
-							)
-				],
-			 	[AC_MSG_ERROR([libssh.so not found.])]
-			 	)
-AC_SUBST([SSH_LIBS], ["-lssh"])
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
 ###############################
 ### Check for header files. ###
 ###############################

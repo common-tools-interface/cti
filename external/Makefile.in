@@ -17,7 +17,7 @@
 #
 # Makefile.am for the external components of the craytool interface.
 #
-# Copyright 2015 Cray Inc.  All Rights Reserved.
+# Copyright 2015-2017 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -152,8 +152,6 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SSH_CFLAGS = @SSH_CFLAGS@
-SSH_LDFLAGS = @SSH_LDFLAGS@
-SSH_LIBS = @SSH_LIBS@
 SSL_LDFLAGS = @SSL_LDFLAGS@
 SSL_LIBS = @SSL_LIBS@
 STRIP = @STRIP@
