@@ -49,7 +49,21 @@ _cti_slurm_init(void)
 	
 	return 0;
 }
-
+/*
+ * _cti_slurm_getNodeID - Gets the id for the current node
+ * 
+ * Detail
+ *      Returns an unique id for the current node. Currently, this function
+ *      sums the characters in the hostname as a cheap hash unique to a particular node
+ *		that won't collide in most cases. Apart from the hostname, I don't know of any other source of
+ *		information that could reliably be used to differentiate nodes on clusters where
+ *		the alps nid files do not exist. Currently, this is only used for uniquely naming backend debug logs.
+ *		TODO: Perhaps this could be improved by using a real hash such as CRC
+ *
+ * Returns
+ *      An int representing an unique id for the current node
+ * 
+ */
 static int
 _cti_slurm_getNodeID(void)
 {

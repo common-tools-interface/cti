@@ -767,8 +767,8 @@ extern cti_app_id_t cti_cray_slurm_registerJobStep( uint32_t job_id,
 extern cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
 
 /*
- * cti_slurm_registerJobStep - Registers an already running application for
- *                                  use with the Cray tool interface.
+ * cti_slurm_registerJobStep - Registers an already running application on native SLURM for
+ *                             use with the Cray tool interface.
  * 
  * Detail
  *      This function is used for registering a valid slurm application that was
@@ -776,12 +776,12 @@ extern cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
  *      interface. It is recommended to use the built-in functions to launch
  *      applications, however sometimes this is impossible (such is the case for
  *      a debug attach scenario). In order to use any of the functions defined
- *      in this interface, the pid of the srun process which launched the application must be
+ *      in this interface, the pid of the launcher process must be
  *      registered. This is done automatically when using the built-in functions
  *      to launch applications.
  *
  * Arguments
- *      launcher_pid - The pid of the srun process which started the application
+ *      launcher_pid - The pid of the launcher process which started the application
  *
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
