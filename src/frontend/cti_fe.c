@@ -104,7 +104,13 @@ static const cti_wlm_proto_t	_cti_nonenessProto =
 /* global wlm proto object - this is initialized to noneness by default */
 static const cti_wlm_proto_t *	_cti_wlmProto = &_cti_nonenessProto;
 
-// Constructor function
+/*
+ * This routine initializes CTI so it is set up for usage by the executable with which it is linked.
+ * Part of this includes automatically determining the active Workload Manager. The
+ * user can force SSH as the "WLM" by setting the environment variable CTI_LAUNCHER_NAME.
+ * In the case of complete failure to determine the WLM, the default value of _cti_nonenessProto
+ * is used.
+*/
 void __attribute__((constructor))
 _cti_init(void)
 {
@@ -140,7 +146,7 @@ _cti_init(void)
 	if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
 	{
 		_cti_wlmProto = &_cti_ssh_wlmProto;
-		goto wlm_detect_err;
+		goto init_wlm;
 	}
 
 	if ((_cti_wlm_detect.handle = dlopen(WLM_DETECT_LIB_NAME, RTLD_LAZY)) == NULL)
@@ -155,7 +161,7 @@ _cti_init(void)
 		{
 			use_default = true;
 		}
-		goto wlm_detect_err;
+		goto init_wlm;
 	}
 	
 	// Clear any existing error
@@ -167,7 +173,7 @@ _cti_init(void)
 	{
 		dlclose(_cti_wlm_detect.handle);
 		use_default = true;
-		goto wlm_detect_err;
+		goto init_wlm;
 	}
 	
 	// try to get the active wlm
@@ -180,7 +186,7 @@ _cti_init(void)
 		{
 			dlclose(_cti_wlm_detect.handle);
 			use_default = true;
-			goto wlm_detect_err;
+			goto init_wlm;
 		}
 		// use the default wlm
 		active_wlm = (char *)(*_cti_wlm_detect.wlm_detect_get_default)();
@@ -209,7 +215,7 @@ _cti_init(void)
 		free(active_wlm);
 	}
 	
-wlm_detect_err:
+init_wlm:
 
 	// check if wlm_detect failed, in which case we should use the default
 	if (use_default)
