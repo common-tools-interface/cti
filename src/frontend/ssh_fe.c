@@ -407,17 +407,14 @@ _cti_ssh_consumeSshInfo(sshInfo_t *this)
 		_cti_ssh_consumeSshInv(this->inv);
 	}
 
-	if(this->toolPath != NULL){
-		free(this->toolPath);
-	}
+	free(this->toolPath);
+	this->toolPath = NULL;
 
-	if(this->attribsPath != NULL){
-		free(this->attribsPath);
-	}
+	free(this->attribsPath);
+	this->attribsPath = NULL;
 
-	if(this->stagePath != NULL){
-		free(this->stagePath);
-	}
+	free(this->stagePath);
+	this->stagePath = NULL;
 
 	if(this->extraFiles != NULL){
 		int i=0;
