@@ -347,6 +347,7 @@ _cti_adjustPaths(const char *path)
 	return 0;
 }
 
+/* "a/b/c" => "c" */
 char *
 _cti_pathToName(const char *path)
 {
@@ -364,6 +365,7 @@ _cti_pathToName(const char *path)
 	return strdup(++end);
 }
 
+/* "a/b/c" => "a/b" */
 char *
 _cti_pathToDir(const char *path)
 {

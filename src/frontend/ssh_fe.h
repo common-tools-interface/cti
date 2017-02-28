@@ -1,6 +1,5 @@
 /******************************************************************************\
- * slurm_fe.h - A header file for the cluster slurm specific frontend 
- *              interface.
+ * ssh_fe.h - A header file for the fallback (SSH based) workload manager
  *
  * Copyright 2017 Cray Inc.	All Rights Reserved.
  *
