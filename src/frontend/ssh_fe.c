@@ -77,7 +77,7 @@ typedef struct
 	cti_app_id_t		appId;			// CTI appid associated with this alpsInfo_t obj
 	pid_t 				launcher_pid;	// PID of the launcher
 	sshLayout_t *		layout;			// Layout of job step
-	sshInv_t *			inv;			// Optional object used for launched applications.
+	sshInv_t *			inv;			// Object used to store the gdb pid information for interfacing with MPIR
 	
 	char *				toolPath;		// Backend staging directory
 	char *				attribsPath;    // PMI_ATTRIBS location on the backend
@@ -1617,8 +1617,6 @@ ssh_session _cti_ssh_start_session(char* hostname)
 			_cti_ssh_libssh_funcs.ssh_free(my_ssh_session);
 			return NULL;
 			break;
-		default:
-			break;
 	}
 
 	return my_ssh_session;
@@ -1628,9 +1626,8 @@ ssh_session _cti_ssh_start_session(char* hostname)
  * _cti_ssh_execute_remote_command - Execute a command on a remote host through an open ssh session
  *
  * Detail
- *		Sends the file specified by source_path to the remote host connected on session
- *		at the location destination_path on the remote host with permissions specified by
- *		mode.
+ *		Executes a command with the specified arguments and environment on the remote host
+ *		connected by the specified session.
  *
  * Arguments
  *      ssh_session - 	The ssh session on which the remote host is connected
@@ -1803,10 +1800,10 @@ void _cti_ssh_end_session(ssh_session session)
 }
 
 /*
- * _cti_ssh_ship_package - Ship a package to the backends.
+ * _cti_ssh_ship_package - Ship the cti manifest package tarball to the backends.
  *
  * Detail
- *		Ships the package specified by package to each backend node 
+ *		Ships the cti manifest package specified by package to each backend node 
  *		in the application using SSH.
  *
  * Arguments
@@ -2243,27 +2240,12 @@ _cti_ssh_getToolPath(cti_wlm_obj app_info)
  *      app_info - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
- *      A C-string representing the path to the attribs file
+ *      NULL to represent the attribs file not being used for this implementation
  * 
  */
 static const char *
 _cti_ssh_getAttribsPath(cti_wlm_obj app_info)
 {
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
-	
-	// Sanity check the arguments
-	if (my_app == NULL)
-	{
-		_cti_set_error("getToolPath operation failed.");
-		return NULL;
-	}
-	
-	if (my_app->attribsPath == NULL)
-	{
-		_cti_set_error("toolPath app_info missing from sinfo obj!");
-		return NULL;
-	}
-
-	return (const char *)my_app->attribsPath;
+	return NULL;
 }
 

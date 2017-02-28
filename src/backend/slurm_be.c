@@ -352,62 +352,32 @@ _cti_be_slurm_getSlurmPids(void)
 static cti_pidList_t *
 _cti_be_slurm_findAppPids(void)
 {
-	char *			tool_path;
+	char *			file_dir;
 	char *			file_path;
 	struct stat 	statbuf;
 	cti_pidList_t * rtn;
 	int				i;
 	
-	// First lets check to see if the pmi_attribs file exists
-	if ((tool_path = _cti_be_getToolDir()) == NULL)
+	// get the file directory were we can find the pid file
+	if ((file_dir = cti_be_getFileDir()) == NULL)
 	{
-		// Something messed up, so fail.
-		fprintf(stderr, "_cti_be_getToolDir failed.\n");
+		fprintf(stderr, "cti_be_getFileDir failed.\n");
 		return NULL;
 	}
-	if (asprintf(&file_path, "%s/%s", tool_path, PMI_ATTRIBS_FILE_NAME) <= 0)
+
+	// create the path to the pid file
+	if (asprintf(&file_path, "%s/%s", file_dir, SLURM_PID_FILE) <= 0)
 	{
 		fprintf(stderr, "asprintf failed.\n");
+		free(file_dir);
 		return NULL;
 	}
-	free(tool_path);
-	if (stat(file_path, &statbuf) == -1)
+
+	if (stat(file_path, &statbuf) == 0)
 	{
-		// pmi_attribs file doesn't exist
-		char *	file_dir;
-		
-		free(file_path);
-		
-		// Check if the SLURM_PID_FILE exists and use that if we don't see
-		// the pmi_attribs file right away, otherwise we will fallback and use
-		// the pmi_attribs method because we probably hit the race condition.
-		
-		// get the file directory were we can find the pid file
-		if ((file_dir = cti_be_getFileDir()) == NULL)
-		{
-			fprintf(stderr, "_cti_be_slurm_findAppPids failed (Neither PMI_ATTRIBS nor SLURM_PID_FILE exist).\n");
-			return NULL;
-		}
-	
-		// create the path to the pid file
-		if (asprintf(&file_path, "%s/%s", file_dir, SLURM_PID_FILE) <= 0)
-		{
-			fprintf(stderr, "asprintf failed.\n");
-			free(file_dir);
-			return NULL;
-		}
-		// cleanup
+		// pid file exists
 		free(file_dir);
-		
-		if (stat(file_path, &statbuf) == -1)
-		{
-			// use the pmi_attribs method
-			free(file_path);
-			goto use_pmi_attribs;
-		}
 		free(file_path);
-		
-		// the pid file exists, so lets use that for now
 		
 		if (_cti_slurm_pids == NULL)
 		{
@@ -447,7 +417,7 @@ _cti_be_slurm_findAppPids(void)
 	
 use_pmi_attribs:
 
-		// use the pmi_attribs file
+		// slurm_pid not found, so use the pmi_attribs file
 		
 		// Call _cti_be_getPmiAttribsInfo - We require the pmi_attribs file to exist
 		// in order to function properly.
