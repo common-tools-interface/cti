@@ -603,7 +603,7 @@ _cti_ssh_getLayout(pid_t launcher_pid)
 	//Harvest and process the proctable to return
 	if ((proctable = _cti_gdb_getProctable(gdb_id)) == NULL)
 	{	
-		return 0;
+		return NULL;
 	}
 	
 	// Cleanup this gdb instance, we are done with it

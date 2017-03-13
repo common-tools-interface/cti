@@ -352,42 +352,11 @@ _cti_be_slurm_getSlurmPids(void)
 static cti_pidList_t *
 _cti_be_slurm_findAppPids(void)
 {
-	char *			file_dir;
-	char *			file_path;
-	struct stat 	statbuf;
 	cti_pidList_t * rtn;
 	int				i;
-	
-	// get the file directory were we can find the pid file
-	if ((file_dir = cti_be_getFileDir()) == NULL)
-	{
-		fprintf(stderr, "cti_be_getFileDir failed.\n");
-		return NULL;
-	}
 
-	// create the path to the pid file
-	if (asprintf(&file_path, "%s/%s", file_dir, SLURM_PID_FILE) <= 0)
-	{
-		fprintf(stderr, "asprintf failed.\n");
-		free(file_dir);
-		return NULL;
-	}
-
-	if (stat(file_path, &statbuf) == 0)
-	{
-		// pid file exists
-		free(file_dir);
-		free(file_path);
-		
-		if (_cti_slurm_pids == NULL)
-		{
-			// get the pids
-			if (_cti_be_slurm_getSlurmPids())
-			{
-				return NULL;
-			}
-		}
-		
+	if (_cti_be_slurm_getSlurmPids() == 0)
+	{	
 		// allocate the return object
 		if ((rtn = malloc(sizeof(cti_pidList_t))) == (void *)0)
 		{
@@ -414,9 +383,6 @@ _cti_be_slurm_findAppPids(void)
 		
 	} else
 	{
-	
-use_pmi_attribs:
-
 		// slurm_pid not found, so use the pmi_attribs file
 		
 		// Call _cti_be_getPmiAttribsInfo - We require the pmi_attribs file to exist
