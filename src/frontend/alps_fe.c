@@ -1116,7 +1116,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	}
 	
 	// add the initial aprun argv
-	if (_cti_addArg(my_args, "%s", _cti_alps_launcher_name))
+	if (_cti_addArg(my_args, "%s", _cti_alps_getLauncherName()))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_alps_consumeAprunInv(myapp);
@@ -1309,7 +1309,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		}
 		
 		// exec aprun
-		execvp(_cti_alps_launcher_name, my_args->argv);
+		execvp(_cti_alps_getLauncherName(), my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
