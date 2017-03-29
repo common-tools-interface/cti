@@ -86,7 +86,6 @@ typedef struct
 	char *				toolPath;		// Backend staging directory
 	char *				attribsPath;	// Backend directory where pmi_attribs is located
 	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
-	char *				launcher_name;	// Name of the launcher binary to use
 } alpsInfo_t;
 
 /* Static prototypes */
