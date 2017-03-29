@@ -162,7 +162,9 @@ typedef slurmPidFile_t cti_pidFile_t;
 #define DAEMON_STAGE_VAR    				"CRAY_CTI_STAGE_DIR"				// Frontend: Used to define a directory name for the fake root of the tool daemon (read)
 #define DBG_LOG_ENV_VAR 					"CRAY_DBG_LOG_DIR"				// Frontend: Used to define a directory to write debug logs to (read)
 #define DBG_ENV_VAR 						"CRAY_CTI_DBG"						// Frontend: Used to turn on debug logging to files (read)
-#define CTI_LAUNCHER_NAME				"CRAY_CTI_LAUNCHER_NAME"  			//Frontend: Used to explicitly tell CTI to use the fallback (SSH) implementation and which launcher to use 
+#define CTI_LAUNCHER_NAME				"CRAY_CTI_LAUNCHER_NAME"  		//Frontend: Used to explicitly tell CTI the path to the launcher binary to use 
+#define CTI_WLM				"CRAY_CTI_WLM"  				//Frontend: Used to explicitly tell CTI which workload manager to use. Accepts "alps", "slurm", and "generic"
+
 
 #define BE_GUARD_ENV_VAR					"CRAYTOOL_IAMBACKEND"				// Backend: Set by the daemon launcher to ensure proper setup
 #define APID_ENV_VAR						"CRAYTOOL_APID"					// Backend: Used to hold the string representation of the apid (set)

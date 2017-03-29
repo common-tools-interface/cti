@@ -56,6 +56,7 @@ typedef struct
 static void			_cti_setup_base_dir(void);
 static int			_cti_checkDirPerms(const char *);
 static void			_cti_consumeAppEntry(void *);
+bool				_cti_is_cluster_system();
 
 /* static global vars */
 static bool				_cti_fe_isInit		= false;	// Have we called init?
@@ -140,20 +141,44 @@ _cti_init(void)
 	// init the transfer interface
 	_cti_transfer_init();
 
-	// Use the fallback (ssh) implementation with the desired launcher if the launcher name
-	// environment variable is set 
-	char* launcher_name_env;
-	if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
+	// Use the workload manager in the environment variable if it is set 
+	char* wlm_name_env;
+	if ((wlm_name_env = getenv(CTI_WLM)) != NULL)
 	{
-		_cti_wlmProto = &_cti_ssh_wlmProto;
+		if(strcasecmp(wlm_name_env, "alps") == 0)
+		{
+			_cti_wlmProto = &_cti_alps_wlmProto;
+		}
+		else if(strcasecmp(wlm_name_env, "slurm") == 0)
+		{
+			// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
+			struct stat sb;
+			if (_cti_is_cluster_system())
+			{
+				_cti_wlmProto = &_cti_slurm_wlmProto;
+			} 
+			else
+			{
+				_cti_wlmProto = &_cti_cray_slurm_wlmProto;
+			}
+		}
+		else if(strcasecmp(wlm_name_env, "generic") == 0)
+		{
+			_cti_wlmProto = &_cti_ssh_wlmProto;
+		}
+		else
+		{
+			fprintf(stderr, "%s\n", "Invalid workload manager option. Defaulting to generic.");			
+			_cti_wlmProto = &_cti_ssh_wlmProto;
+		}
+
 		goto init_wlm;
 	}
 
 	if ((_cti_wlm_detect.handle = dlopen(WLM_DETECT_LIB_NAME, RTLD_LAZY)) == NULL)
 	{
 		// Check to see if we are on a cluster. If so, use the slurm proto
-		struct stat sb;
-		if (stat(CLUSTER_FILE_TEST, &sb) == 0)
+		if (_cti_is_cluster_system())
 		{
 			_cti_wlmProto = &_cti_slurm_wlmProto;
 		} 
@@ -289,6 +314,18 @@ _cti_fini(void)
 /*********************
 ** internal functions 
 *********************/
+
+bool _cti_is_cluster_system(){
+	struct stat sb;
+	if (stat(CLUSTER_FILE_TEST, &sb) == 0)
+	{
+		return true;
+	} 
+	else
+	{
+		return false;
+	}
+}
 
 int is_accessible_directory(char* path){
 	// make sure this directory exists
