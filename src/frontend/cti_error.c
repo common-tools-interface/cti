@@ -23,8 +23,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
 
 #include "cti_error.h"
+#include "cti_defs.h"
 
 #define DEFAULT_ERR_STR	"Unknown CTI error"
 
@@ -49,6 +52,42 @@ _cti_set_error(char *fmt, ...)
 	vasprintf(&_cti_err_string, fmt, ap);
 
 	va_end(ap);
+}
+
+/*
+ * _cti_is_valid_environment - Validate values of CTI environment variables
+ * 
+ * Detail
+ *      This function validates the values of set CTI environment variables.
+ *		Currently this is set up to validate that CRAY_CTI_LAUNCHER_NAME
+ *		is indeed an available executable. This can be extended further to
+ *		validate new environment variables as they come up.
+ *
+ * Returns
+ *      true if the set CTI environment variables contain valid values, false otherwise
+ * 
+ */
+bool _cti_is_valid_environment(){
+	// Check that the specified launcher exists
+	char* launcher_name_env;
+	if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
+	{
+		char* launcher_name_command;
+		if(strcmp(launcher_name_env, "") == 0){
+			_cti_set_error("Provided launcher path is empty.");
+			return false;
+		}
+
+		asprintf(&launcher_name_command, "command -v %s > /dev/null 2>&1", launcher_name_env);
+		int status = system(launcher_name_command);
+		if ( (status == -1) || WEXITSTATUS(status) ) {
+			// Command doesn't exist...
+			_cti_set_error("Provided launcher '%s' cannot be found.\n", launcher_name_env);
+			return false;
+		}
+	}
+
+	return true;
 }
 
 // The internal library should not have access to this function, that is why

@@ -5,7 +5,7 @@
  *		     and allows users to specify environment variable settings
  *		     that a tool daemon should inherit.
  *
- * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -502,7 +502,8 @@ main(int argc, char **argv)
 		case CTI_WLM_CRAY_SLURM:
 			_cti_wlmProto = &_cti_cray_slurm_wlmProto;
 			break;
-			
+		
+		case CTI_WLM_SSH:
 		case CTI_WLM_SLURM:	
 			_cti_wlmProto = &_cti_slurm_wlmProto;
 			break;
@@ -554,6 +555,7 @@ main(int argc, char **argv)
 		case CTI_WLM_ALPS:
 		case CTI_WLM_CRAY_SLURM:
 		case CTI_WLM_SLURM:
+		case CTI_WLM_SSH:
 			// These wlm are valid
 			break;
 		

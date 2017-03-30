@@ -5,7 +5,7 @@
  *                   or compute nodes. Frontend refers to the location where
  *                   applications are launched.
  *
- * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -140,7 +140,8 @@ enum cti_wlm_type
     CTI_WLM_NONE,    // error/unitialized state
     CTI_WLM_ALPS,
     CTI_WLM_CRAY_SLURM,
-    CTI_WLM_SLURM
+    CTI_WLM_SLURM,
+    CTI_WLM_SSH
 };
 typedef enum cti_wlm_type  cti_wlm_type;
 
@@ -765,6 +766,51 @@ extern cti_app_id_t cti_cray_slurm_registerJobStep( uint32_t job_id,
  */
 extern cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
 
+/*
+ * cti_slurm_registerJobStep - Registers an already running application on native SLURM for
+ *                             use with the Cray tool interface.
+ * 
+ * Detail
+ *      This function is used for registering a valid slurm application that was
+ *      previously launched through external means for use with the tool
+ *      interface. It is recommended to use the built-in functions to launch
+ *      applications, however sometimes this is impossible (such is the case for
+ *      a debug attach scenario). In order to use any of the functions defined
+ *      in this interface, the pid of the launcher process must be
+ *      registered. This is done automatically when using the built-in functions
+ *      to launch applications.
+ *
+ * Arguments
+ *      launcher_pid - The pid of the launcher process which started the application
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ * 
+ */
+extern cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid);
+
+/*
+ * _cti_ssh_registerJob - Registers an already running application for
+ *                                  use with the Cray tool interface.
+ * 
+ * Detail
+ *      This function is used for registering a valid application that was
+ *      previously launched through external means for use with the tool
+ *      interface. It is recommended to use the built-in functions to launch
+ *      applications, however sometimes this is impossible (such is the case for
+ *      a debug attach scenario). In order to use any of the functions defined
+ *      in this interface, the pid of the launcher must be supplied.
+ *
+ * Arguments
+ *      launcher_pid - The pid of the running launcher to which to attach
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ * 
+ */
+extern cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid);
 
 /*******************************************************************************
  * cti_transfer functions - Functions related to shipping files, shared

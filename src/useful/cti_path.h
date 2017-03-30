@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_path.h - Header file for the path interface.
  *
- * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -23,6 +23,7 @@ char *	_cti_pathFind(const char *, const char *);
 char *	_cti_libFind(const char *);
 int		_cti_adjustPaths(const char *);
 char *	_cti_pathToName(const char *);
+char *	_cti_pathToDir(const char *);
 int		_cti_removeDirectory(const char *);
 
 #endif /* _CTI_PATH_H */

@@ -160,6 +160,7 @@ static const char * const		_cti_alps_extra_libs[] = {
 static cti_list_t *			_cti_alps_info		= NULL;	// list of alpsInfo_t objects registered by this interface
 static cti_alps_funcs_t *	_cti_alps_ptr 		= NULL;	// libalps wrappers
 static serviceNode_t *		_cti_alps_svcNid	= NULL;	// service node information
+static char*				_cti_alps_launcher_name = NULL; //path to the launcher binary
 
 /* Constructor/Destructor functions */
 
@@ -175,7 +176,7 @@ _cti_alps_init(void)
 	// Only init once.
 	if (_cti_alps_ptr != NULL)
 		return 0;
-		
+			
 	// Create a new cti_alps_funcs_t
 	if ((_cti_alps_ptr = malloc(sizeof(cti_alps_funcs_t))) == NULL)
 	{
@@ -461,6 +462,21 @@ _cti_alps_getJobId(cti_wlm_obj this)
 	}
 	
 	return rtn;
+}
+
+static char *
+_cti_alps_getLauncherName()
+{
+	char* launcher_name_env;
+	if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
+	{
+		_cti_alps_launcher_name = strdup(launcher_name_env);
+	}
+	else{
+		_cti_alps_launcher_name = APRUN;
+	}
+
+	return _cti_alps_launcher_name;
 }
 
 // this function creates a new appEntry_t object for the app
@@ -1056,6 +1072,11 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	// return object
 	cti_app_id_t		rtn;
 
+	if(!_cti_is_valid_environment()){
+		// error already set
+		return 0;
+	}
+
 	// create a new aprunInv_t object
 	if ((myapp = malloc(sizeof(aprunInv_t))) == (void *)0)
 	{
@@ -1100,7 +1121,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	}
 	
 	// add the initial aprun argv
-	if (_cti_addArg(my_args, "%s", APRUN))
+	if (_cti_addArg(my_args, "%s", _cti_alps_getLauncherName()))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_alps_consumeAprunInv(myapp);
@@ -1293,7 +1314,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		}
 		
 		// exec aprun
-		execvp(APRUN, my_args->argv);
+		execvp(_cti_alps_getLauncherName(), my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");

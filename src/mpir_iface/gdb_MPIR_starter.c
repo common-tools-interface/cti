@@ -4,7 +4,7 @@
  *                    to the parent via pipes. This process controls the starter
  *                    process via gdb.
  *
- * Copyright 2014-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -630,23 +630,22 @@ main(int argc, char *argv[])
 	MICommandFree(cmd);
 	
 	// issue a run command, this starts the launcher
-	cmd = MIExecRun();
-	if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
+	MICommand* exec_run_cmd = MIExecRun();
+	if (_cti_gdb_SendMICommand(_cti_gdb_sess, exec_run_cmd))
 	{
 		_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
-		MICommandFree(cmd);
+		MICommandFree(exec_run_cmd);
 		_cti_gdb_cleanupMI();
 		return 1;
 	}
-	if (!MICommandResultOK(cmd)) 
+	if (!MICommandResultOK(exec_run_cmd)) 
 	{
-		_cti_gdb_sendError(MICommandResultErrorMessage(cmd));
-		MICommandFree(cmd);
+		_cti_gdb_sendError(MICommandResultErrorMessage(exec_run_cmd));
+		MICommandFree(exec_run_cmd);
 		_cti_gdb_cleanupMI();
 		return 1;
 	}
-	MICommandFree(cmd);
-	
+
 	// wait for the async command to complete
 	while (!_cti_gdb_ready)
 	{
@@ -671,6 +670,22 @@ main(int argc, char *argv[])
 	MIEventFree(_cti_gdb_event);
 	_cti_gdb_event = NULL;
 	
+	//Get the launcher pid from the result of exec-run
+	MIResultRecord* exec_run_return_record = MICommandResult(exec_run_cmd);
+	pid_t launcher_pid = -1;
+	MIResult * result;
+	for (MIListSet(exec_run_return_record->results); (result = (MIResult *)MIListGet(exec_run_return_record->results)) != NULL; ) {
+		MIValue * value = result->value;
+		char * str = NULL;
+		if (value->type == MIValueTypeConst) {
+			str = value->cstring;
+		}
+		if (strcmp(result->variable, "pid") == 0) {
+			launcher_pid = (int)strtol(str, NULL, 10);
+		}
+	}
+	MICommandFree(exec_run_cmd);
+
 	// We are now sitting at main. Now set MPIR_being_debugged to 1.
 	
 	cmd = MIGDBSet("MPIR_being_debugged=1", NULL);
@@ -1167,7 +1182,304 @@ main(int argc, char *argv[])
 						
 						break;
 					}
-					
+
+					case MSG_PROCTABLE:
+					{
+						char *			res;
+						int				p_size;
+						cti_mpir_proctable_t *		proctable;
+						char *			cmd_str;
+						int				len, i;
+						int				err = 0;
+						
+						// cleanup the message, we are done with it
+						_cti_gdb_consumeMsg(msg);
+						
+						// evaluate the value of MPIR_proctable_size
+						cmd = MIDataEvaluateExpression("MPIR_proctable_size");
+						if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
+						{
+							// this is a fatal error
+							_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
+							MICommandFree(cmd);
+							_cti_gdb_cleanupMI();
+							
+							return 1;
+						}
+						if (!MICommandResultOK(cmd)) 
+						{
+							// this is a non fatal error, we can recover
+							_cti_gdb_sendError(MICommandResultErrorMessage(cmd));
+							MICommandFree(cmd);
+							
+							break;
+						}
+						
+						// get the string value of the result
+						if ((res = MIGetDataEvaluateExpressionInfo(cmd)) == NULL)
+						{
+							// this is a fatal error
+							_cti_gdb_sendError(strdup("MIGetDataEvaluateExpressionInfo failed!"));
+							MICommandFree(cmd);
+							_cti_gdb_cleanupMI();
+							
+							return 1;
+						}
+						
+						// cleanup the command
+						MICommandFree(cmd);
+						
+						// convert the res to an int
+						p_size = atoi(res);
+						free(res);
+						
+						// ensure p_size is non-zero
+						if (p_size <= 0)
+						{
+							// this is a non fatal error, we can recover
+							_cti_gdb_sendError("Invalid MPIR_proctable_size value.");
+							
+							break;
+						}
+						
+						// create a cti_proctable_t obj
+						if ((proctable = _cti_gdb_newProctable(p_size)) == NULL)
+						{
+							// this is a non fatal error, we can recover
+							if (_cti_gdb_err_string != NULL)
+							{
+								_cti_gdb_sendError(strdup(_cti_gdb_err_string));
+							} else
+							{
+								_cti_gdb_sendError(strdup("Unknown gdb_MPIR error!\n"));
+							}
+							
+							break;
+						}
+						
+						// create the command string based on p_size, this will ensure
+						// that our array is big enough to hold any of the commands
+						if (asprintf(&cmd_str, "MPIR_proctable[%d].host_name", p_size) < 0)
+						{
+							// this is a non fatal error, we can recover
+							_cti_gdb_sendError("asprintf failed.");
+							_cti_gdb_freeProctable(proctable);
+							
+							break;
+						}
+						// save the length of this string
+						len = strlen(cmd_str);
+
+						proctable->num_pids = p_size;
+						
+						// start grabbing the pids for each rank
+						for (i=0; i < p_size; ++i)
+						{
+							// create the command string
+							if (snprintf(cmd_str, len+1, "MPIR_proctable[%d].pid", i) < 0)
+							{
+								// this is a non fatal error, we can recover
+								_cti_gdb_sendError("snprintf failed.");
+								++err;
+								
+								break;
+							}
+							
+							// evaluate the value of pid
+							cmd = MIDataEvaluateExpression(cmd_str);
+							if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
+							{
+								// this is a fatal error
+								_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
+								MICommandFree(cmd);
+								_cti_gdb_cleanupMI();
+								free(cmd_str);
+								_cti_gdb_freeProctable(proctable);
+								
+								return 1;
+							}
+							if (!MICommandResultOK(cmd))
+							{
+								// this is a non fatal error, we can recover
+								_cti_gdb_sendError(MICommandResultErrorMessage(cmd));
+								MICommandFree(cmd);
+								++err;
+								
+								break;
+							}
+							
+							// get the string value of the result
+							if ((res = MIGetDataEvaluateExpressionInfo(cmd)) == NULL)
+							{
+								// this is a fatal error
+								_cti_gdb_sendError(strdup("MIGetDataEvaluateExpressionInfo failed!"));
+								MICommandFree(cmd);
+								_cti_gdb_cleanupMI();
+								free(cmd_str);
+								_cti_gdb_freeProctable(proctable);
+								
+								return 1;
+							}
+							
+							// set the pid
+							proctable->pids[i] = atoi(res);
+
+							//TODO: anything else to reset here?
+							free(res);
+							res = NULL;
+							MICommandFree(cmd);
+
+							char* hostname_cmd_str;
+
+							// create the command string
+							if (asprintf(&hostname_cmd_str, "*MPIR_proctable[%d].host_name@strlen(MPIR_proctable[%d].host_name)", i, i) < 0)
+							{
+								// this is a non fatal error, we can recover
+								_cti_gdb_sendError("snprintf failed.");
+								++err;
+								
+								break;
+							}
+
+							
+							// evaluate the value of pid
+							cmd = MIDataEvaluateExpression(hostname_cmd_str);
+							if (_cti_gdb_SendMICommand(_cti_gdb_sess, cmd))
+							{
+								// this is a fatal error
+								_cti_gdb_sendError(strdup("_cti_gdb_SendMICommand failed!"));
+								MICommandFree(cmd);
+								_cti_gdb_cleanupMI();
+								_cti_gdb_freeProctable(proctable);
+								
+								return 1;
+							}
+							if (!MICommandResultOK(cmd))
+							{
+								// this is a non fatal error, we can recover
+								_cti_gdb_sendError(MICommandResultErrorMessage(cmd));
+								MICommandFree(cmd);
+								++err;
+								
+								break;
+							}
+							
+							// get the string value of the result
+							if ((res = MIGetDataEvaluateExpressionInfo(cmd)) == NULL)
+							{
+								// this is a fatal error
+								_cti_gdb_sendError(strdup("MIGetDataEvaluateExpressionInfo failed!"));
+								MICommandFree(cmd);
+								_cti_gdb_cleanupMI();
+								_cti_gdb_freeProctable(proctable);
+								
+								return 1;
+							}
+
+							//Remove the quotes around the string supplied by MI
+							int result_length = strlen(res)+1;
+							proctable->hostnames[i] = malloc(result_length-2);
+							memcpy(proctable->hostnames[i], res+1, result_length-3);
+							proctable->hostnames[i][result_length-3] = '\0';
+							
+							// done with iteration
+							free(res);
+							MICommandFree(cmd);
+						}
+						
+						// cleanup
+						free(cmd_str);
+						
+						if (err)
+						{
+							// error occured - error msg already sent
+							_cti_gdb_freeProctable(proctable);
+							
+							break;
+						}
+						
+						// create the pid message
+						if ((msg = _cti_gdb_createMsg(MSG_PROCTABLE, proctable)) == NULL)
+						{
+							// send the error message
+							if (_cti_gdb_err_string != NULL)
+							{
+								_cti_gdb_sendError(strdup(_cti_gdb_err_string));
+							} else
+							{
+								_cti_gdb_sendError(strdup("Unknown gdb_MPIR error!\n"));
+							}
+							_cti_gdb_cleanupMI();
+							
+							return 1;
+						}
+						
+						// send the message
+						if (_cti_gdb_sendMsg(_cti_gdb_pipe_w, msg))
+						{
+							// send the error message
+							if (_cti_gdb_err_string != NULL)
+							{
+								_cti_gdb_sendError(strdup(_cti_gdb_err_string));
+							} else
+							{
+								_cti_gdb_sendError(strdup("Unknown gdb_MPIR error!\n"));
+							}
+							_cti_gdb_cleanupMI();
+							_cti_gdb_consumeMsg(msg);
+							
+							return 1;
+						}
+						
+						// cleanup
+						_cti_gdb_consumeMsg(msg);
+						
+						break;
+					}
+
+					case MSG_LAUNCHER_PID:
+					{
+						// cleanup the message, we are done with it
+						_cti_gdb_consumeMsg(msg);
+
+						// create the pid message
+						if ((msg = _cti_gdb_createMsg(MSG_LAUNCHER_PID, launcher_pid)) == NULL)
+						{
+							// send the error message
+							if (_cti_gdb_err_string != NULL)
+							{
+								_cti_gdb_sendError(strdup(_cti_gdb_err_string));
+							} else
+							{
+								_cti_gdb_sendError(strdup("Unknown gdb_MPIR error!\n"));
+							}
+							_cti_gdb_cleanupMI();
+							
+							return 1;
+						}
+						
+						// send the message
+						if (_cti_gdb_sendMsg(_cti_gdb_pipe_w, msg))
+						{
+							// send the error message
+							if (_cti_gdb_err_string != NULL)
+							{
+								_cti_gdb_sendError(strdup(_cti_gdb_err_string));
+							} else
+							{
+								_cti_gdb_sendError(strdup("Unknown gdb_MPIR error!\n"));
+							}
+							_cti_gdb_cleanupMI();
+							_cti_gdb_consumeMsg(msg);
+							
+							return 1;
+						}
+						
+						// cleanup
+						_cti_gdb_consumeMsg(msg);
+						
+						break;
+					}
 					case MSG_RELEASE:
 						// cleanup the message, we are done with it
 						_cti_gdb_consumeMsg(msg);

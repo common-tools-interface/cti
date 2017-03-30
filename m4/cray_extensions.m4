@@ -1,7 +1,7 @@
 #
 # cray_extensions.m4 Cray configure extensions.
 #
-# Copyright 2012-2015 Cray Inc.  All Rights Reserved.
+# Copyright 2012-2017 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -142,6 +142,105 @@ AC_DEFUN([cray_ENV_LIBMI],
 	AC_SUBST([LIBMI_SRC], [${CRAYTOOL_EXTERNAL}/libmi])
 	AC_SUBST([INTERNAL_LIBMI], [${CRAYTOOL_EXTERNAL_INSTALL}])
 	AC_SUBST([LIBMI_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libmi.so])
+])
+
+dnl
+dnl build libssl automatically
+dnl
+AC_DEFUN([cray_BUILD_LIBSSL],
+[
+	cray_cv_lib_ssl_build=no
+
+	dnl Temporary directory to stage files to
+	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/openssl"
+
+	AC_MSG_CHECKING([for libssl stage directory])
+
+	dnl Ensure the libssl source was checked out
+	AS_IF(	[test ! -d "$_cray_tmpdir"],
+			[AC_MSG_ERROR([git submodule libssl not found.])],
+			[AC_MSG_RESULT([yes])]
+			)
+
+	dnl cd to the checked out source directory
+	cd ${_cray_tmpdir}
+
+	AC_MSG_NOTICE([Building libssl...])
+
+	dnl run configure with options that work on build systems
+	./config --prefix=${CRAYTOOL_EXTERNAL_INSTALL} --openssldir=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	dnl make
+	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make install_sw >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	dnl go home
+	cd ${CRAYTOOL_DIR}
+
+	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssl.so"; then
+		cray_cv_lib_ssl_build=yes
+	fi
+])
+
+dnl
+dnl define post-cache libssl env
+dnl
+AC_DEFUN([cray_ENV_LIBSSL],
+[
+	AC_SUBST([LIBSSL_SRC], [${CRAYTOOL_EXTERNAL}/openssl])
+	AC_SUBST([INTERNAL_LIBSSL], [${CRAYTOOL_EXTERNAL_INSTALL}])
+	AC_SUBST([LIBSSL_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssl.so])
+])
+
+dnl
+dnl build libssh automatically
+dnl
+AC_DEFUN([cray_BUILD_LIBSSH],
+[
+	cray_cv_lib_ssh_build=no
+
+	dnl Temporary directory to stage files to
+	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libssh"
+
+	AC_MSG_CHECKING([for libssh stage directory])
+
+	dnl Ensure the libssh source was checked out
+	AS_IF(	[test ! -d "$_cray_tmpdir"],
+			[AC_MSG_ERROR([git submodule libssh not found.])],
+			[AC_MSG_RESULT([yes])]
+			)
+
+	dnl cd to the checked out source directory
+	cd ${_cray_tmpdir}
+
+	AC_MSG_NOTICE([Building libssh...])
+
+	dnl configure using cmake
+	rm -rf build
+	mkdir -p build
+	cd build
+	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} OPENSSL_ROOT_DIR={CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	
+	dnl make
+	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	dnl go home
+	cd ${CRAYTOOL_DIR}
+
+	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssh.so"; then
+		cray_cv_lib_ssh_build=yes
+	fi
+])
+
+dnl
+dnl define post-cache libssh env
+dnl
+AC_DEFUN([cray_ENV_LIBSSH],
+[
+	AC_SUBST([LIBSSH_SRC], [${CRAYTOOL_EXTERNAL}/libssh])
+	AC_SUBST([INTERNAL_LIBSSH], [${CRAYTOOL_EXTERNAL_INSTALL}])
+	AC_SUBST([LIBSSH_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssh.so])
 ])
 
 dnl

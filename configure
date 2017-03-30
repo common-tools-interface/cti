@@ -791,8 +791,11 @@ ac_includes_default="\
 ac_subst_vars='LTLIBOBJS
 CRAYTOOL_LAUNCHER
 LIBOBJS
+SSH_CFLAGS
 MI_CFLAGS
 ARCHIVE_CFLAGS
+SSL_LIBS
+SSL_LDFLAGS
 MI_LIBS
 MI_LDFLAGS
 ARCHIVE_LIBS
@@ -803,6 +806,16 @@ INTERNAL_GDB
 GDB_SRC
 BUILT_GDB_FALSE
 BUILT_GDB_TRUE
+LIBSSH_LOC
+INTERNAL_LIBSSH
+LIBSSH_SRC
+BUILT_SSH_FALSE
+BUILT_SSH_TRUE
+LIBSSL_LOC
+INTERNAL_LIBSSL
+LIBSSL_SRC
+BUILT_SSL_FALSE
+BUILT_SSL_TRUE
 LIBMI_LOC
 INTERNAL_LIBMI
 LIBMI_SRC
@@ -950,6 +963,8 @@ with_gnu_ld
 enable_libtool_lock
 with_libarchive
 with_libmi
+with_libssl
+with_libssh
 with_gdb
 '
       ac_precious_vars='build_alias
@@ -1616,6 +1631,10 @@ Optional Packages:
   --with-libarchive       Specify path to libarchive install.
 
   --with-libmi            Specify path to libmi install.
+
+  --with-libssl           Specify path to libssl install.
+
+  --with-libssh           Specify path to libssh install.
 
   --with-gdb              Build internal gdb.
 
@@ -5112,13 +5131,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:5115: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:5134: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:5118: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:5137: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:5121: output\"" >&5)
+  (eval echo "\"\$as_me:5140: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6323,7 +6342,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6326 "configure"' > conftest.$ac_ext
+  echo '#line 6345 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7692,11 +7711,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7695: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7714: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7699: \$? = $ac_status" >&5
+   echo "$as_me:7718: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8031,11 +8050,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8034: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8053: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8038: \$? = $ac_status" >&5
+   echo "$as_me:8057: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -8136,11 +8155,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8139: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8158: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8143: \$? = $ac_status" >&5
+   echo "$as_me:8162: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8191,11 +8210,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8194: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8213: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8198: \$? = $ac_status" >&5
+   echo "$as_me:8217: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -10991,7 +11010,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 10994 "configure"
+#line 11013 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11087,7 +11106,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11090 "configure"
+#line 11109 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11418,6 +11437,26 @@ if test "${with_libmi+set}" = set; then
   withval=$with_libmi; libmi_path=$withval
 else
   libmi_path=no
+
+fi
+
+
+
+# Check whether --with-libssl was given.
+if test "${with_libssl+set}" = set; then
+  withval=$with_libssl; libssl_path=$withval
+else
+  libssl_path=no
+
+fi
+
+
+
+# Check whether --with-libssh was given.
+if test "${with_libssh+set}" = set; then
+  withval=$with_libssh; libssh_path=$withval
+else
+  libssh_path=no
 
 fi
 
@@ -14446,11 +14485,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:14449: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:14488: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:14453: \$? = $ac_status" >&5
+   echo "$as_me:14492: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -14545,11 +14584,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:14548: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:14587: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:14552: \$? = $ac_status" >&5
+   echo "$as_me:14591: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -14597,11 +14636,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:14600: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:14639: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:14604: \$? = $ac_status" >&5
+   echo "$as_me:14643: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -18030,6 +18069,301 @@ else
 $as_echo "provided" >&6; }
 fi
 
+{ $as_echo "$as_me:$LINENO: checking for libssl argument" >&5
+$as_echo_n "checking for libssl argument... " >&6; }
+ if test "x$libssl_path" = xno; then
+  BUILT_SSL_TRUE=
+  BUILT_SSL_FALSE='#'
+else
+  BUILT_SSL_TRUE='#'
+  BUILT_SSL_FALSE=
+fi
+
+if test "x$libssl_path" = "xno"; then
+	{ $as_echo "$as_me:$LINENO: result: not found" >&5
+$as_echo "not found" >&6; }
+	if test "${cray_cv_lib_ssl_build+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+	cray_cv_lib_ssl_build=no
+
+		_cray_tmpdir="${CRAYTOOL_EXTERNAL}/openssl"
+
+	{ $as_echo "$as_me:$LINENO: checking for libssl stage directory" >&5
+$as_echo_n "checking for libssl stage directory... " >&6; }
+
+		if test ! -d "$_cray_tmpdir"; then
+  { { $as_echo "$as_me:$LINENO: error: git submodule libssl not found." >&5
+$as_echo "$as_me: error: git submodule libssl not found." >&2;}
+   { (exit 1); exit 1; }; }
+else
+  { $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+fi
+
+
+		cd ${_cray_tmpdir}
+
+	{ $as_echo "$as_me:$LINENO: Building libssl..." >&5
+$as_echo "$as_me: Building libssl..." >&6;}
+
+		./config --prefix=${CRAYTOOL_EXTERNAL_INSTALL} --openssldir=${CRAYTOOL_EXTERNAL_INSTALL} >&5 2>&5
+
+		make >&5 2>&5
+	make install_sw >&5 2>&5
+
+		cd ${CRAYTOOL_DIR}
+
+	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssl.so"; then
+		cray_cv_lib_ssl_build=yes
+	fi
+
+fi
+
+	if test "x$cray_cv_lib_ssl_build" = xno; then
+		{ { $as_echo "$as_me:$LINENO: error: libssl build failed." >&5
+$as_echo "$as_me: error: libssl build failed." >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+	cat >confcache <<\_ACEOF
+# This file is a shell script that caches the results of configure
+# tests run on this system so they can be shared between configure
+# scripts and configure runs, see configure's option --config-cache.
+# It is not useful on other systems.  If it contains results you don't
+# want to keep, you may remove or edit it.
+#
+# config.status only pays attention to the cache file if you give it
+# the --recheck option to rerun configure.
+#
+# `ac_cv_env_foo' variables (set or unset) will be overridden when
+# loading this file, other *unset* `ac_cv_foo' will be assigned the
+# following values.
+
+_ACEOF
+
+# The following way of writing the cache mishandles newlines in values,
+# but we know of no workaround that is simple, portable, and efficient.
+# So, we kill variables containing newlines.
+# Ultrix sh set writes to stderr and can't be redirected directly,
+# and sets the high bit in the cache file unless we assign to the vars.
+(
+  for ac_var in `(set) 2>&1 | sed -n 's/^\([a-zA-Z_][a-zA-Z0-9_]*\)=.*/\1/p'`; do
+    eval ac_val=\$$ac_var
+    case $ac_val in #(
+    *${as_nl}*)
+      case $ac_var in #(
+      *_cv_*) { $as_echo "$as_me:$LINENO: WARNING: cache variable $ac_var contains a newline" >&5
+$as_echo "$as_me: WARNING: cache variable $ac_var contains a newline" >&2;} ;;
+      esac
+      case $ac_var in #(
+      _ | IFS | as_nl) ;; #(
+      BASH_ARGV | BASH_SOURCE) eval $ac_var= ;; #(
+      *) $as_unset $ac_var ;;
+      esac ;;
+    esac
+  done
+
+  (set) 2>&1 |
+    case $as_nl`(ac_space=' '; set) 2>&1` in #(
+    *${as_nl}ac_space=\ *)
+      # `set' does not quote correctly, so add quotes (double-quote
+      # substitution turns \\\\ into \\, and sed turns \\ into \).
+      sed -n \
+	"s/'/'\\\\''/g;
+	  s/^\\([_$as_cr_alnum]*_cv_[_$as_cr_alnum]*\\)=\\(.*\\)/\\1='\\2'/p"
+      ;; #(
+    *)
+      # `set' quotes correctly as required by POSIX, so do not add quotes.
+      sed -n "/^[_$as_cr_alnum]*_cv_[_$as_cr_alnum]*=/p"
+      ;;
+    esac |
+    sort
+) |
+  sed '
+     /^ac_cv_env_/b end
+     t clear
+     :clear
+     s/^\([^=]*\)=\(.*[{}].*\)$/test "${\1+set}" = set || &/
+     t end
+     s/^\([^=]*\)=\(.*\)$/\1=${\1=\2}/
+     :end' >>confcache
+if diff "$cache_file" confcache >/dev/null 2>&1; then :; else
+  if test -w "$cache_file"; then
+    test "x$cache_file" != "x/dev/null" &&
+      { $as_echo "$as_me:$LINENO: updating cache $cache_file" >&5
+$as_echo "$as_me: updating cache $cache_file" >&6;}
+    cat confcache >$cache_file
+  else
+    { $as_echo "$as_me:$LINENO: not updating unwritable cache $cache_file" >&5
+$as_echo "$as_me: not updating unwritable cache $cache_file" >&6;}
+  fi
+fi
+rm -f confcache
+
+	LIBSSL_SRC=${CRAYTOOL_EXTERNAL}/openssl
+
+	INTERNAL_LIBSSL=${CRAYTOOL_EXTERNAL_INSTALL}
+
+	LIBSSL_LOC=${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssl.so
+
+
+	libssl_path=$INTERNAL_LIBSSL
+else
+	{ $as_echo "$as_me:$LINENO: result: provided" >&5
+$as_echo "provided" >&6; }
+fi
+
+{ $as_echo "$as_me:$LINENO: checking for libssh argument" >&5
+$as_echo_n "checking for libssh argument... " >&6; }
+ if test "x$libssh_path" = xno; then
+  BUILT_SSH_TRUE=
+  BUILT_SSH_FALSE='#'
+else
+  BUILT_SSH_TRUE='#'
+  BUILT_SSH_FALSE=
+fi
+
+if test "x$libssh_path" = "xno"; then
+	{ $as_echo "$as_me:$LINENO: result: not found" >&5
+$as_echo "not found" >&6; }
+	if test "${cray_cv_lib_ssh_build+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+
+	cray_cv_lib_ssh_build=no
+
+		_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libssh"
+
+	{ $as_echo "$as_me:$LINENO: checking for libssh stage directory" >&5
+$as_echo_n "checking for libssh stage directory... " >&6; }
+
+		if test ! -d "$_cray_tmpdir"; then
+  { { $as_echo "$as_me:$LINENO: error: git submodule libssh not found." >&5
+$as_echo "$as_me: error: git submodule libssh not found." >&2;}
+   { (exit 1); exit 1; }; }
+else
+  { $as_echo "$as_me:$LINENO: result: yes" >&5
+$as_echo "yes" >&6; }
+
+fi
+
+
+		cd ${_cray_tmpdir}
+
+	{ $as_echo "$as_me:$LINENO: Building libssh..." >&5
+$as_echo "$as_me: Building libssh..." >&6;}
+
+		rm -rf build
+	mkdir -p build
+	cd build
+	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} OPENSSL_ROOT_DIR={CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_BUILD_TYPE=Debug .. >&5 2>&5
+
+		make >&5 2>&5
+	make install >&5 2>&5
+
+		cd ${CRAYTOOL_DIR}
+
+	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssh.so"; then
+		cray_cv_lib_ssh_build=yes
+	fi
+
+fi
+
+	if test "x$cray_cv_lib_ssh_build" = xno; then
+		{ { $as_echo "$as_me:$LINENO: error: libssh build failed." >&5
+$as_echo "$as_me: error: libssh build failed." >&2;}
+   { (exit 1); exit 1; }; }
+	fi
+	cat >confcache <<\_ACEOF
+# This file is a shell script that caches the results of configure
+# tests run on this system so they can be shared between configure
+# scripts and configure runs, see configure's option --config-cache.
+# It is not useful on other systems.  If it contains results you don't
+# want to keep, you may remove or edit it.
+#
+# config.status only pays attention to the cache file if you give it
+# the --recheck option to rerun configure.
+#
+# `ac_cv_env_foo' variables (set or unset) will be overridden when
+# loading this file, other *unset* `ac_cv_foo' will be assigned the
+# following values.
+
+_ACEOF
+
+# The following way of writing the cache mishandles newlines in values,
+# but we know of no workaround that is simple, portable, and efficient.
+# So, we kill variables containing newlines.
+# Ultrix sh set writes to stderr and can't be redirected directly,
+# and sets the high bit in the cache file unless we assign to the vars.
+(
+  for ac_var in `(set) 2>&1 | sed -n 's/^\([a-zA-Z_][a-zA-Z0-9_]*\)=.*/\1/p'`; do
+    eval ac_val=\$$ac_var
+    case $ac_val in #(
+    *${as_nl}*)
+      case $ac_var in #(
+      *_cv_*) { $as_echo "$as_me:$LINENO: WARNING: cache variable $ac_var contains a newline" >&5
+$as_echo "$as_me: WARNING: cache variable $ac_var contains a newline" >&2;} ;;
+      esac
+      case $ac_var in #(
+      _ | IFS | as_nl) ;; #(
+      BASH_ARGV | BASH_SOURCE) eval $ac_var= ;; #(
+      *) $as_unset $ac_var ;;
+      esac ;;
+    esac
+  done
+
+  (set) 2>&1 |
+    case $as_nl`(ac_space=' '; set) 2>&1` in #(
+    *${as_nl}ac_space=\ *)
+      # `set' does not quote correctly, so add quotes (double-quote
+      # substitution turns \\\\ into \\, and sed turns \\ into \).
+      sed -n \
+	"s/'/'\\\\''/g;
+	  s/^\\([_$as_cr_alnum]*_cv_[_$as_cr_alnum]*\\)=\\(.*\\)/\\1='\\2'/p"
+      ;; #(
+    *)
+      # `set' quotes correctly as required by POSIX, so do not add quotes.
+      sed -n "/^[_$as_cr_alnum]*_cv_[_$as_cr_alnum]*=/p"
+      ;;
+    esac |
+    sort
+) |
+  sed '
+     /^ac_cv_env_/b end
+     t clear
+     :clear
+     s/^\([^=]*\)=\(.*[{}].*\)$/test "${\1+set}" = set || &/
+     t end
+     s/^\([^=]*\)=\(.*\)$/\1=${\1=\2}/
+     :end' >>confcache
+if diff "$cache_file" confcache >/dev/null 2>&1; then :; else
+  if test -w "$cache_file"; then
+    test "x$cache_file" != "x/dev/null" &&
+      { $as_echo "$as_me:$LINENO: updating cache $cache_file" >&5
+$as_echo "$as_me: updating cache $cache_file" >&6;}
+    cat confcache >$cache_file
+  else
+    { $as_echo "$as_me:$LINENO: not updating unwritable cache $cache_file" >&5
+$as_echo "$as_me: not updating unwritable cache $cache_file" >&6;}
+  fi
+fi
+rm -f confcache
+
+	LIBSSH_SRC=${CRAYTOOL_EXTERNAL}/libssh
+
+	INTERNAL_LIBSSH=${CRAYTOOL_EXTERNAL_INSTALL}
+
+	LIBSSH_LOC=${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssh.so
+
+
+	libssh_path=$INTERNAL_LIBSSH
+else
+	{ $as_echo "$as_me:$LINENO: result: provided" >&5
+$as_echo "provided" >&6; }
+fi
+
 { $as_echo "$as_me:$LINENO: checking build internal gdb" >&5
 $as_echo_n "checking build internal gdb... " >&6; }
  if test "x$build_gdb" = xyes; then
@@ -18783,6 +19117,95 @@ $as_echo "$as_me: error: libmi.so not found." >&2;}
 fi
 
 MI_LIBS="-lmi"
+
+LDFLAGS="$save_LDFLAGS"
+
+save_LDFLAGS="$LDFLAGS"
+if test -f "$libssl_path/lib/libssl.so"; then
+	SSL_LDFLAGS="-L$libssl_path/lib"
+
+	LDFLAGS="$LDFLAGS $SSL_LDFLAGS -lcrypto"
+fi
+{ $as_echo "$as_me:$LINENO: checking for SSL_new in -lssl" >&5
+$as_echo_n "checking for SSL_new in -lssl... " >&6; }
+if test "${ac_cv_lib_ssl_SSL_new+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lssl  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char SSL_new ();
+int
+main ()
+{
+return SSL_new ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext && {
+	 test "$cross_compiling" = yes ||
+	 $as_test_x conftest$ac_exeext
+       }; then
+  ac_cv_lib_ssl_SSL_new=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_ssl_SSL_new=no
+fi
+
+rm -rf conftest.dSYM
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_lib_ssl_SSL_new" >&5
+$as_echo "$ac_cv_lib_ssl_SSL_new" >&6; }
+if test "x$ac_cv_lib_ssl_SSL_new" = x""yes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define HAVE_SSL 1
+_ACEOF
+
+
+else
+  { { $as_echo "$as_me:$LINENO: error: libssl.so not found." >&5
+$as_echo "$as_me: error: libssl.so not found." >&2;}
+   { (exit 1); exit 1; }; }
+
+fi
+
+SSL_LIBS="-lssl"
 
 LDFLAGS="$save_LDFLAGS"
 
@@ -20034,6 +20457,73 @@ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
 { { $as_echo "$as_me:$LINENO: error: MI.h not found.
 See \`config.log' for more details." >&5
 $as_echo "$as_me: error: MI.h not found.
+See \`config.log' for more details." >&2;}
+   { (exit 1); exit 1; }; }; }
+fi
+
+
+CFLAGS="$save_CFLAGS"
+
+save_CFLAGS="$CFLAGS"
+if test -f "$libssh_path/include/libssh/libssh.h"; then
+	SSH_CFLAGS="-I$libssh_path/include"
+
+	CFLAGS="$CFLAGS $SSH_CFLAGS"
+fi
+{ $as_echo "$as_me:$LINENO: checking for libssh/libssh.h" >&5
+$as_echo_n "checking for libssh/libssh.h... " >&6; }
+if test "${ac_cv_header_libssh_libssh_h+set}" = set; then
+  $as_echo_n "(cached) " >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+
+
+#include <libssh/libssh.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:$LINENO: $ac_try_echo\""
+$as_echo "$ac_try_echo") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_cv_header_libssh_libssh_h=yes
+else
+  $as_echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_header_libssh_libssh_h=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:$LINENO: result: $ac_cv_header_libssh_libssh_h" >&5
+$as_echo "$ac_cv_header_libssh_libssh_h" >&6; }
+if test "x$ac_cv_header_libssh_libssh_h" = x""yes; then
+  :
+else
+  { { $as_echo "$as_me:$LINENO: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+{ { $as_echo "$as_me:$LINENO: error: libssh.h not found.
+See \`config.log' for more details." >&5
+$as_echo "$as_me: error: libssh.h not found.
 See \`config.log' for more details." >&2;}
    { (exit 1); exit 1; }; }; }
 fi
@@ -22724,6 +23214,20 @@ if test -z "${BUILT_MI_TRUE}" && test -z "${BUILT_MI_FALSE}"; then
   { { $as_echo "$as_me:$LINENO: error: conditional \"BUILT_MI\" was never defined.
 Usually this means the macro was only invoked conditionally." >&5
 $as_echo "$as_me: error: conditional \"BUILT_MI\" was never defined.
+Usually this means the macro was only invoked conditionally." >&2;}
+   { (exit 1); exit 1; }; }
+fi
+if test -z "${BUILT_SSL_TRUE}" && test -z "${BUILT_SSL_FALSE}"; then
+  { { $as_echo "$as_me:$LINENO: error: conditional \"BUILT_SSL\" was never defined.
+Usually this means the macro was only invoked conditionally." >&5
+$as_echo "$as_me: error: conditional \"BUILT_SSL\" was never defined.
+Usually this means the macro was only invoked conditionally." >&2;}
+   { (exit 1); exit 1; }; }
+fi
+if test -z "${BUILT_SSH_TRUE}" && test -z "${BUILT_SSH_FALSE}"; then
+  { { $as_echo "$as_me:$LINENO: error: conditional \"BUILT_SSH\" was never defined.
+Usually this means the macro was only invoked conditionally." >&5
+$as_echo "$as_me: error: conditional \"BUILT_SSH\" was never defined.
 Usually this means the macro was only invoked conditionally." >&2;}
    { (exit 1); exit 1; }; }
 fi

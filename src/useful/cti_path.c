@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_path.c - Functions relating to searching and setting path variables.
  *
- * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -347,6 +347,7 @@ _cti_adjustPaths(const char *path)
 	return 0;
 }
 
+/* "a/b/c" => "c" */
 char *
 _cti_pathToName(const char *path)
 {
@@ -362,6 +363,26 @@ _cti_pathToName(const char *path)
 	// increment end to point one char past the final '/'
 	// and strdup from that point to the null term
 	return strdup(++end);
+}
+
+/* "a/b/c" => "a/b" */
+char *
+_cti_pathToDir(const char *path)
+{
+	char *  end;
+	char * result = strdup(path);
+	
+	// locate the last instance of '/' in the path
+	end = strrchr(path, '/');
+	
+	// sanity check
+	if (end == NULL)
+		return NULL;
+
+	//End the string just before the final slash
+	result[end-path] = '\0';
+	
+	return result;
 }
 
 // This will act as a rm -rf ...

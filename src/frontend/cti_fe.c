@@ -43,6 +43,7 @@
 #include "alps_fe.h"
 #include "cray_slurm_fe.h"
 #include "slurm_fe.h"
+#include "ssh_fe.h"
 
 typedef struct
 {
@@ -55,6 +56,7 @@ typedef struct
 static void			_cti_setup_base_dir(void);
 static int			_cti_checkDirPerms(const char *);
 static void			_cti_consumeAppEntry(void *);
+bool				_cti_is_cluster_system();
 
 /* static global vars */
 static bool				_cti_fe_isInit		= false;	// Have we called init?
@@ -103,7 +105,13 @@ static const cti_wlm_proto_t	_cti_nonenessProto =
 /* global wlm proto object - this is initialized to noneness by default */
 static const cti_wlm_proto_t *	_cti_wlmProto = &_cti_nonenessProto;
 
-// Constructor function
+/*
+ * This routine initializes CTI so it is set up for usage by the executable with which it is linked.
+ * Part of this includes automatically determining the active Workload Manager. The
+ * user can force SSH as the "WLM" by setting the environment variable CTI_LAUNCHER_NAME.
+ * In the case of complete failure to determine the WLM, the default value of _cti_nonenessProto
+ * is used.
+*/
 void __attribute__((constructor))
 _cti_init(void)
 {
@@ -133,21 +141,52 @@ _cti_init(void)
 	// init the transfer interface
 	_cti_transfer_init();
 
-	// XXX: If wlm_detect doesn't work on your system, this will default to ALPS
-	// TODO: Add env var to allow caller to specify what WLM they want to use.
-	
+	// Use the workload manager in the environment variable if it is set 
+	char* wlm_name_env;
+	if ((wlm_name_env = getenv(CTI_WLM)) != NULL)
+	{
+		if(strcasecmp(wlm_name_env, "alps") == 0)
+		{
+			_cti_wlmProto = &_cti_alps_wlmProto;
+		}
+		else if(strcasecmp(wlm_name_env, "slurm") == 0)
+		{
+			// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
+			struct stat sb;
+			if (_cti_is_cluster_system())
+			{
+				_cti_wlmProto = &_cti_slurm_wlmProto;
+			} 
+			else
+			{
+				_cti_wlmProto = &_cti_cray_slurm_wlmProto;
+			}
+		}
+		else if(strcasecmp(wlm_name_env, "generic") == 0)
+		{
+			_cti_wlmProto = &_cti_ssh_wlmProto;
+		}
+		else
+		{
+			fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlm_name_env, CTI_WLM);			
+			_cti_wlmProto = &_cti_nonenessProto;
+		}
+
+		goto init_wlm;
+	}
+
 	if ((_cti_wlm_detect.handle = dlopen(WLM_DETECT_LIB_NAME, RTLD_LAZY)) == NULL)
 	{
 		// Check to see if we are on a cluster. If so, use the slurm proto
-		struct stat sb;
-		if (stat(CLUSTER_FILE_TEST, &sb) == 0)
+		if (_cti_is_cluster_system())
 		{
 			_cti_wlmProto = &_cti_slurm_wlmProto;
-		} else
+		} 
+		else
 		{
 			use_default = true;
 		}
-		goto wlm_detect_err;
+		goto init_wlm;
 	}
 	
 	// Clear any existing error
@@ -159,7 +198,7 @@ _cti_init(void)
 	{
 		dlclose(_cti_wlm_detect.handle);
 		use_default = true;
-		goto wlm_detect_err;
+		goto init_wlm;
 	}
 	
 	// try to get the active wlm
@@ -172,7 +211,7 @@ _cti_init(void)
 		{
 			dlclose(_cti_wlm_detect.handle);
 			use_default = true;
-			goto wlm_detect_err;
+			goto init_wlm;
 		}
 		// use the default wlm
 		active_wlm = (char *)(*_cti_wlm_detect.wlm_detect_get_default)();
@@ -201,7 +240,7 @@ _cti_init(void)
 		free(active_wlm);
 	}
 	
-wlm_detect_err:
+init_wlm:
 
 	// check if wlm_detect failed, in which case we should use the default
 	if (use_default)
@@ -275,6 +314,11 @@ _cti_fini(void)
 /*********************
 ** internal functions 
 *********************/
+
+bool _cti_is_cluster_system(){
+	struct stat sb;
+	return (stat(CLUSTER_FILE_TEST, &sb) == 0);
+}
 
 int is_accessible_directory(char* path){
 	// make sure this directory exists
@@ -799,6 +843,9 @@ cti_wlm_type_toString(cti_wlm_type wlm_type)
 	
 		case CTI_WLM_SLURM:
 			return "SLURM";
+
+		case CTI_WLM_SSH:
+			return "Fallback (SSH based) workload manager";
 			
 		case CTI_WLM_NONE:
 			return "No WLM detected";

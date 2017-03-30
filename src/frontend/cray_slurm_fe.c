@@ -166,7 +166,7 @@ const char * slurm_blacklist_env_vars[] = {
 		NULL};
 
 static cti_list_t *	_cti_cray_slurm_info	= NULL;	// list of craySlurmInfo_t objects registered by this interface
-
+static char* 		_cti_cray_slurm_launcher_name = NULL;
 /* Constructor/Destructor functions */
 
 static int
@@ -972,6 +972,23 @@ _cti_cray_slurm_getJobId(cti_wlm_obj this)
 	return rtn;
 }
 
+static char *
+_cti_cray_slurm_getLauncherName()
+{
+	if(_cti_cray_slurm_launcher_name == NULL){
+		char* launcher_name_env;
+		if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
+		{
+			_cti_cray_slurm_launcher_name = strdup(launcher_name_env);
+		}
+		else{
+			_cti_cray_slurm_launcher_name = SRUN;
+		}
+	}
+
+	return _cti_cray_slurm_launcher_name;
+}
+
 // this function creates a new appEntry_t object for the app
 cti_app_id_t
 cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
@@ -1348,6 +1365,11 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	const char *		gdb_path;
 	char *				usr_gdb_path = NULL;
 	const char *		starter_path;
+
+	if(!_cti_is_valid_environment()){
+		// error already set
+		return 0;
+	}
 	
 	// get the gdb path
 	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
@@ -1459,7 +1481,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		setpgid(0, 0);
 		
 		// call the exec function - this should not return
-		_cti_gdb_execStarter(myapp->gdb_id, starter_path, gdb_path, SRUN, launcher_argv, i_file);
+		_cti_gdb_execStarter(myapp->gdb_id, starter_path, gdb_path, _cti_cray_slurm_getLauncherName(), launcher_argv, i_file);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -2396,7 +2418,7 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	// --input=none --output=none --error=none <tool daemon> <args>
 	//
 	
-	if (_cti_addArg(my_args, "%s", SRUN))
+	if (_cti_addArg(my_args, "%s", _cti_cray_slurm_getLauncherName()))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		close(fd);
@@ -2642,7 +2664,7 @@ _cti_cray_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 		}
 		
 		// exec srun
-		execvp(SRUN, my_args->argv);
+		execvp(_cti_cray_slurm_getLauncherName(), my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");

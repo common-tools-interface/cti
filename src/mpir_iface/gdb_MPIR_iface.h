@@ -1,7 +1,7 @@
 /******************************************************************************\
  * gdb_MPIR_iface.h - A header file for the gdb MPIR starter interface.
  *
- * Copyright 2014-2015 Cray Inc.	All Rights Reserved.
+ * Copyright 2014-2017 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -20,6 +20,7 @@
 #define _GDB_MPIR_IFACE_H
 
 #include <sys/types.h>
+#include "gdb_MPIR.h"
 
 // gdb identifier
 typedef int cti_gdb_id_t;
@@ -47,6 +48,8 @@ void				_cti_gdb_execAttach(cti_gdb_id_t, const char *, const char *, pid_t);
 int					_cti_gdb_postFork(cti_gdb_id_t);
 char *				_cti_gdb_getSymbolVal(cti_gdb_id_t, const char *);
 cti_mpir_pid_t *	_cti_gdb_getAppPids(cti_gdb_id_t);
+cti_mpir_proctable_t * _cti_gdb_getProctable(cti_gdb_id_t gdb_id);
+pid_t 				_cti_gdb_getLauncherPid(cti_gdb_id_t gdb_id);
 void				_cti_gdb_freeMpirPid(cti_mpir_pid_t *);
 // After calling release, no further calls with this instance is possible. The child
 // will have exited.

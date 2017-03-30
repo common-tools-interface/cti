@@ -1,7 +1,7 @@
 /******************************************************************************\
  * slurm_fe.c - Cray SLURM specific frontend library functions.
  *
- * Copyright 2014-2016 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -116,6 +116,8 @@ static cti_hostsList_t *	_cti_slurm_getAppHostsPlacement(cti_wlm_obj);
 static char *				_cti_slurm_getHostName(void);
 static const char *			_cti_slurm_getToolPath(cti_wlm_obj);
 static const char *			_cti_slurm_getAttribsPath(cti_wlm_obj);
+cti_mpir_pid_t *			_cti_slurm_getPids(pid_t srunPid);
+cti_srunProc_t *			_cti_slurm_getJobInfo(pid_t srunPid);
 
 /* cray slurm wlm proto object */
 const cti_wlm_proto_t		_cti_slurm_wlmProto =
@@ -171,6 +173,7 @@ const char * slurm_cs_blacklist_env_vars[] = {
 		NULL};
 
 static cti_list_t *	_cti_slurm_info	= NULL;	// list of craySlurmInfo_t objects registered by this interface
+static char* 		_cti_slurm_launcher_name = NULL; // path to the launcher binary
 
 /* Constructor/Destructor functions */
 
@@ -977,6 +980,296 @@ _cti_slurm_getJobId(cti_wlm_obj this)
 	return rtn;
 }
 
+static char *
+_cti_slurm_getLauncherName()
+{
+	if(_cti_slurm_launcher_name == NULL){
+		char* launcher_name_env;
+		if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
+		{
+			_cti_slurm_launcher_name = strdup(launcher_name_env);
+		}
+		else{
+			_cti_slurm_launcher_name = SRUN;
+		}
+	}
+
+	return _cti_slurm_launcher_name;
+}
+
+// this function creates a new appEntry_t object for the app
+cti_app_id_t
+cti_slurm_registerJobStep(pid_t launcher_pid)
+{
+	appEntry_t *		this;
+	uint64_t			apid;	// Cray version of the job+step
+	craySlurmInfo_t	*	sinfo;
+	char *				toolPath;
+	char *				attribsPath;
+	
+	// sanity check
+	if (cti_current_wlm() != CTI_WLM_SLURM)
+	{
+		_cti_set_error("Invalid call. SLURM WLM not in use.");
+		return 0;
+	}
+	
+	if (launcher_pid < 0)
+	{
+		_cti_set_error("Invalid launcher pid");
+		return 0;
+	}
+	
+	// create the cray variation of the jobid+stepid
+	cti_srunProc_t* app_info =  _cti_slurm_getJobInfo(launcher_pid);
+	apid = CRAY_SLURM_APID(app_info->jobid, app_info->stepid);
+	
+	// iterate through the _cti_slurm_info list to try to find an entry for
+	// this apid
+	_cti_list_reset(_cti_slurm_info);
+	while ((sinfo = (craySlurmInfo_t *)_cti_list_next(_cti_slurm_info)) != NULL)
+	{
+		// check if the apid's match
+		if (sinfo->apid == apid)
+		{
+			// reference this appEntry and return the appid
+			if (_cti_refAppEntry(sinfo->appId))
+			{
+				// somehow we have an invalid sinfo obj, so free it and
+				// break to re-register this apid
+				_cti_slurm_consumeSlurmInfo(sinfo);
+				break;
+			}
+			return sinfo->appId;
+		}
+	}
+	
+	// apid not found in the global _cti_slurm_info list
+	// so lets create a new appEntry_t object for it
+	
+	// create the new craySlurmInfo_t object
+	if ((sinfo = _cti_slurm_newSlurmInfo()) == NULL)
+	{
+		// error already set
+		return 0;
+	}
+	
+	// set the jobid
+	sinfo->jobid = app_info->jobid;
+	// set the stepid
+	sinfo->stepid = app_info->stepid;
+	// set the apid
+	sinfo->apid = apid;
+	
+	// retrieve detailed information about our app
+	if ((sinfo->layout = _cti_slurm_getLayout(app_info->jobid, app_info->stepid)) == NULL)
+	{
+		// error already set
+		_cti_slurm_consumeSlurmInfo(sinfo);
+		return 0;
+	}
+	
+	// create the toolPath
+	if (asprintf(&toolPath, CRAY_SLURM_TOOL_DIR) <= 0)
+	{
+		_cti_set_error("asprintf failed");
+		_cti_slurm_consumeSlurmInfo(sinfo);
+		return 0;
+	}
+	sinfo->toolPath = toolPath;
+	
+	// create the attribsPath
+	if (asprintf(&attribsPath, CRAY_SLURM_TOOL_DIR) <= 0)
+	{
+		_cti_set_error("asprintf failed");
+		_cti_slurm_consumeSlurmInfo(sinfo);
+		return 0;
+	}
+	sinfo->attribsPath = attribsPath;
+	
+	// create the new app entry
+	if ((this = _cti_newAppEntry(&_cti_slurm_wlmProto, (cti_wlm_obj)sinfo)) == NULL)
+	{
+		// we failed to create a new appEntry_t entry - catastrophic failure
+		// error string already set
+		_cti_slurm_consumeSlurmInfo(sinfo);
+		return 0;
+	}
+	
+	// set the appid in the sinfo obj
+	sinfo->appId = this->appId;
+
+	// Get the pid information from the proctable
+	sinfo->app_pids = _cti_slurm_getPids(launcher_pid);
+	
+	// add the sinfo obj to our global list
+	if(_cti_list_add(_cti_slurm_info, sinfo))
+	{
+		_cti_set_error("cti_slurm_registerJobStep: _cti_list_add() failed.");
+		cti_deregisterApp(this->appId);
+		return 0;
+	}
+
+	return this->appId;
+}
+
+cti_srunProc_t *
+_cti_slurm_getSrunInfo(cti_app_id_t appId)
+{
+	appEntry_t *		app_ptr;
+	craySlurmInfo_t	*	sinfo;
+	cti_srunProc_t *	srunInfo;
+	
+	// sanity check
+	if (appId == 0)
+	{
+		_cti_set_error("Invalid appId %d.", (int)appId);
+		return NULL;
+	}
+	
+	// try to find an entry in the _cti_my_apps list for the apid
+	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
+	{
+		// couldn't find the entry associated with the apid
+		// error string already set
+		return NULL;
+	}
+	
+	// sanity check
+	if (app_ptr->wlmProto->wlm_type != CTI_WLM_SLURM)
+	{
+		_cti_set_error("_cti_slurm_getSrunInfo: WLM mismatch.");
+		return NULL;
+	}
+	
+	// sanity check
+	sinfo = (craySlurmInfo_t *)app_ptr->_wlmObj;
+	if (sinfo == NULL)
+	{
+		_cti_set_error("cti_cray_slurm_getSrunInfo: _wlmObj is NULL!");
+		return NULL;
+	}
+	
+	// allocate space for the cti_srunProc_t struct
+	if ((srunInfo = malloc(sizeof(cti_srunProc_t))) == NULL)
+	{
+		// malloc failed
+		_cti_set_error("malloc failed.");
+		return NULL;
+	}
+	
+	srunInfo->jobid = sinfo->jobid;
+	srunInfo->stepid = sinfo->stepid;
+	
+	return srunInfo;
+}
+
+cti_mpir_pid_t *
+_cti_slurm_getPids(pid_t srunPid)
+{
+	cti_gdb_id_t		gdb_id;
+	pid_t				gdb_pid;
+	const char *		gdb_path;
+	char *				usr_gdb_path = NULL;
+	const char *		attach_path;
+	cti_mpir_pid_t * 	pids;
+	
+	// sanity check
+	if (srunPid <= 0)
+	{
+		_cti_set_error("Invalid srunPid %d.", (int)srunPid);
+		return NULL;
+	}
+	
+	// get the gdb path
+	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
+	{
+		// use the gdb set in the environment
+		usr_gdb_path = strdup(gdb_path);
+		gdb_path = (const char *)usr_gdb_path;
+	} else
+	{
+		gdb_path = _cti_getGdbPath();
+		if (gdb_path == NULL)
+		{
+			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+			return NULL;
+		}
+	}
+	
+	// get the attach path
+	attach_path = _cti_getAttachPath();
+	if (attach_path == NULL)
+	{
+		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+		if (usr_gdb_path != NULL)	free(usr_gdb_path);
+		return NULL;
+	}
+	
+	// Create a new gdb MPIR instance. We want to interact with it.
+	if ((gdb_id = _cti_gdb_newInstance()) < 0)
+	{
+		// error already set
+		if (usr_gdb_path != NULL)	free(usr_gdb_path);
+		
+		return NULL;
+	}
+	
+	// fork off a process to start the mpir attach
+	gdb_pid = fork();
+	
+	// error case
+	if (gdb_pid < 0)
+	{
+		_cti_set_error("Fatal fork error.");
+		_cti_gdb_cleanup(gdb_id);
+		
+		return NULL;
+	}
+	
+	// child case
+	// Note that this should not use the _cti_set_error() interface since it is
+	// a child process.
+	if (gdb_pid == 0)
+	{
+		// call the exec function - this should not return
+		_cti_gdb_execAttach(gdb_id, attach_path, gdb_path, srunPid);
+		
+		// exec shouldn't return
+		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execv");
+		_exit(1);
+	}
+	
+	// parent case
+	
+	// cleanup
+	if (usr_gdb_path != NULL)	free(usr_gdb_path);
+	
+	// call the post fork setup - this will ensure gdb was started and this pid
+	// is valid
+	if (_cti_gdb_postFork(gdb_id))
+	{
+		// error message already set
+		_cti_gdb_cleanup(gdb_id);
+		waitpid(gdb_pid, NULL, 0);
+		
+		return NULL;
+	}
+
+	if ((pids = _cti_gdb_getAppPids(gdb_id)) == NULL)
+	{
+		// error already set		
+		return 0;
+	}
+	
+	// Cleanup this gdb instance, we are done with it
+	_cti_gdb_cleanup(gdb_id);
+	waitpid(gdb_pid, NULL, 0);
+	
+	return pids;
+}
+
 // this function creates a new appEntry_t object for the app
 cti_app_id_t
 _cti_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
@@ -1088,57 +1381,6 @@ _cti_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 	}
 
 	return this->appId;
-}
-
-cti_srunProc_t *
-_cti_slurm_getSrunInfo(cti_app_id_t appId)
-{
-	appEntry_t *		app_ptr;
-	craySlurmInfo_t	*	sinfo;
-	cti_srunProc_t *	srunInfo;
-	
-	// sanity check
-	if (appId == 0)
-	{
-		_cti_set_error("Invalid appId %d.", (int)appId);
-		return NULL;
-	}
-	
-	// try to find an entry in the _cti_my_apps list for the apid
-	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
-	{
-		// couldn't find the entry associated with the apid
-		// error string already set
-		return NULL;
-	}
-	
-	// sanity check
-	if (app_ptr->wlmProto->wlm_type != CTI_WLM_SLURM)
-	{
-		_cti_set_error("_cti_slurm_getSrunInfo: WLM mismatch.");
-		return NULL;
-	}
-	
-	// sanity check
-	sinfo = (craySlurmInfo_t *)app_ptr->_wlmObj;
-	if (sinfo == NULL)
-	{
-		_cti_set_error("cti_cray_slurm_getSrunInfo: _wlmObj is NULL!");
-		return NULL;
-	}
-	
-	// allocate space for the cti_srunProc_t struct
-	if ((srunInfo = malloc(sizeof(cti_srunProc_t))) == NULL)
-	{
-		// malloc failed
-		_cti_set_error("malloc failed.");
-		return NULL;
-	}
-	
-	srunInfo->jobid = sinfo->jobid;
-	srunInfo->stepid = sinfo->stepid;
-	
-	return srunInfo;
 }
 
 cti_srunProc_t *
@@ -1353,6 +1595,11 @@ _cti_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd, int
 	const char *		gdb_path;
 	char *				usr_gdb_path = NULL;
 	const char *		starter_path;
+
+	if(!_cti_is_valid_environment()){
+		// error already set
+		return 0;
+	}
 	
 	// get the gdb path
 	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
@@ -1464,7 +1711,7 @@ _cti_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd, int
 		setpgid(0, 0);
 		
 		// call the exec function - this should not return
-		_cti_gdb_execStarter(myapp->gdb_id, starter_path, gdb_path, SRUN, launcher_argv, i_file);
+		_cti_gdb_execStarter(myapp->gdb_id, starter_path, gdb_path, _cti_slurm_getLauncherName(), launcher_argv, i_file);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -2396,7 +2643,7 @@ _cti_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 	// --input=none --output=none --error=none <tool daemon> <args>
 	//
 	
-	if (_cti_addArg(my_args, "%s", SRUN))
+	if (_cti_addArg(my_args, "%s", _cti_slurm_getLauncherName()))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		close(fd);
@@ -2642,7 +2889,7 @@ _cti_slurm_start_daemon(cti_wlm_obj this, cti_args_t * args)
 		}
 		
 		// exec srun
-		execvp(SRUN, my_args->argv);
+		execvp(_cti_slurm_getLauncherName(), my_args->argv);
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -2823,7 +3070,7 @@ _cti_slurm_getHostName(void)
 
 	char host[HOST_NAME_MAX+1];
 
-	if (gethostname(&host, HOST_NAME_MAX+1))
+	if (gethostname(host, HOST_NAME_MAX+1))
 	{
 		_cti_set_error("gethostname failed.");
 		return NULL;

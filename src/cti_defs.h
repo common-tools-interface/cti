@@ -6,7 +6,7 @@
  *       easier. The environment variables here should match those found in the
  *       public cray_tools_be.h and cray_tools_fe.h headers.
  *
- * Copyright 2013-2015 Cray Inc.	All Rights Reserved.
+ * Copyright 2013-2017 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -31,7 +31,8 @@ enum cti_wlm_type
 	CTI_WLM_NONE,	// error/unitialized state
 	CTI_WLM_ALPS,
 	CTI_WLM_CRAY_SLURM,
-	CTI_WLM_SLURM
+	CTI_WLM_SLURM,
+	CTI_WLM_SSH
 };
 typedef enum cti_wlm_type	cti_wlm_type;
 
@@ -40,7 +41,8 @@ enum cti_be_wlm_type
 	CTI_BE_WLM_NONE,	// error/unitialized state
 	CTI_BE_WLM_ALPS,
 	CTI_BE_WLM_CRAY_SLURM,
-	CTI_BE_WLM_SLURM
+	CTI_BE_WLM_SLURM,
+	CTI_BE_WLM_SSH
 };
 typedef enum cti_be_wlm_type	cti_be_wlm_type;
 
@@ -124,6 +126,11 @@ typedef struct
 	pid_t	pid;		// pid_t of this PE
 }	slurmPidFile_t;
 
+typedef slurmLayoutFileHeader_t cti_layoutFileHeader_t;
+typedef slurmLayoutFile_t cti_layoutFile_t;
+typedef slurmPidFileHeader_t cti_pidFileheader_t;
+typedef slurmPidFile_t cti_pidFile_t;
+
 #define SRUN						"srun"											// name of slurm job launcher binary
 #define SATTACH					"sattach"										// name of slurm io redirect binary
 #define SCANCEL					"scancel"										// name of slurm job signal binary
@@ -136,6 +143,11 @@ typedef struct
 #define SLURM_LAYOUT_FILE		"slurm_layout"									// name of file containing layout information
 #define SLURM_PID_FILE			"slurm_pid"									// name of file containing pid information
 #define CLUSTER_FILE_TEST		"/etc/redhat-release"
+
+#define SSH_STAGE_DIR SLURM_STAGE_DIR
+#define SSH_LAYOUT_FILE SLURM_LAYOUT_FILE
+#define SSH_PID_FILE SLURM_PID_FILE
+#define SSH_TOOL_DIR CRAY_SLURM_TOOL_DIR
 
 /*******************************************************************************
 ** Environment variables that are set/maintained by this library
@@ -150,6 +162,9 @@ typedef struct
 #define DAEMON_STAGE_VAR    				"CRAY_CTI_STAGE_DIR"				// Frontend: Used to define a directory name for the fake root of the tool daemon (read)
 #define DBG_LOG_ENV_VAR 					"CRAY_DBG_LOG_DIR"				// Frontend: Used to define a directory to write debug logs to (read)
 #define DBG_ENV_VAR 						"CRAY_CTI_DBG"						// Frontend: Used to turn on debug logging to files (read)
+#define CTI_LAUNCHER_NAME				"CRAY_CTI_LAUNCHER_NAME"  		//Frontend: Used to explicitly tell CTI the path to the launcher binary to use 
+#define CTI_WLM				"CRAY_CTI_WLM"  				//Frontend: Used to explicitly tell CTI which workload manager to use. Accepts "alps", "slurm", and "generic"
+
 
 #define BE_GUARD_ENV_VAR					"CRAYTOOL_IAMBACKEND"				// Backend: Set by the daemon launcher to ensure proper setup
 #define APID_ENV_VAR						"CRAYTOOL_APID"					// Backend: Used to hold the string representation of the apid (set)

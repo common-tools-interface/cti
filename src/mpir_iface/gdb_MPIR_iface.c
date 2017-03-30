@@ -2,7 +2,7 @@
  * gdb_MPIR_iface.c - An interface to start launcher processes and hold at a
  *                    startup barrier
  *
- * Copyright 2014-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2017 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -35,7 +35,6 @@
 #include "cti_useful.h"
 
 #include "gdb_MPIR_iface.h"
-#include "gdb_MPIR.h"
 
 // This will correspond to the number of allowed gdb instances to be started at
 // any one period of time. It is prone to fragmentation when generating a valid
@@ -964,6 +963,216 @@ _cti_gdb_getAppPids(cti_gdb_id_t gdb_id)
 			_cti_set_error("_cti_gdb_getAppPids: Unexpected message received!\n");
 			_cti_gdb_consumeMsg(msg);
 			return NULL;
+	}
+	
+	// Cleanup msg
+	_cti_gdb_consumeMsg(msg);
+	
+	return rtn;
+}
+
+cti_mpir_proctable_t *
+_cti_gdb_getProctable(cti_gdb_id_t gdb_id){
+	gdbCtlInst_t *		this;
+	cti_gdb_msg_t *		msg;
+	cti_mpir_proctable_t *	rtn;
+
+	// ensure the caller passed a valid id.
+	if (gdb_id < 0 || gdb_id >= CTI_GDB_TABLE_SIZE)
+	{
+		_cti_set_error("_cti_gdb_getAppPids: Invalid cti_gdb_id_t.\n");
+		return NULL;
+	}
+	
+	// point at the instance
+	this = _cti_gdb_hashtable[gdb_id];
+	
+	// validate the instance
+	if (this == NULL)
+	{
+		_cti_set_error("_cti_gdb_getAppPids: Invalid cti_gdb_id_t.\n");
+		return NULL;
+	}
+	
+	// ensure the instance hasn't already been finalized
+	if (this->final)
+	{
+		_cti_set_error("_cti_gdb_getAppPids: cti_gdb_id_t is finalized.\n");
+		return NULL;
+	}
+	
+	// create the request message
+	if ((msg = _cti_gdb_createMsg(MSG_PROCTABLE, (cti_pid_t *)NULL)) == NULL)
+	{
+		// set the error message if there is one
+		if (_cti_gdb_err_string != NULL)
+		{
+			_cti_set_error("%s", _cti_gdb_err_string);
+		} else
+		{
+			_cti_set_error("_cti_gdb_getAppPids: Unknown gdb_MPIR error!\n");
+		}
+		return NULL;
+	}
+	
+	// send the message
+	if (_cti_gdb_sendMsg(this->pipe_w, msg))
+	{
+		// this is a fatal error
+		if (_cti_gdb_err_string != NULL)
+		{
+			_cti_set_error("%s", _cti_gdb_err_string);
+		} else
+		{
+			_cti_set_error("_cti_gdb_getAppPids: Unknown gdb_MPIR error!\n");
+		}
+		_cti_gdb_consumeMsg(msg);
+		return NULL;
+	}
+	// cleanup the message we just sent
+	_cti_gdb_consumeMsg(msg);
+	
+	// recv response
+	if ((msg = _cti_gdb_recvMsg(this->pipe_r)) == NULL)
+	{
+		// this is a fatal error
+		if (_cti_gdb_err_string != NULL)
+		{
+			_cti_set_error("%s", _cti_gdb_err_string);
+		} else
+		{
+			_cti_set_error("_cti_gdb_getSymbolVal: Unknown gdb_MPIR error!\n");
+		}
+		return NULL;
+	}
+	
+	// process the response
+	switch (msg->msg_type)
+	{
+		// This is what we expect
+		case MSG_PROCTABLE:
+			if (msg->msg_payload.msg_proctable == NULL)
+			{
+				_cti_set_error("_cti_gdb_getProctable: Missing proctable information in response.\n");
+				_cti_gdb_consumeMsg(msg);
+				return NULL;
+			}
+			
+			rtn = _cti_gdb_newProctable(msg->msg_payload.msg_proctable->num_pids);
+			int current_pid;
+			for(current_pid = 0; current_pid<msg->msg_payload.msg_proctable->num_pids; current_pid++){
+				rtn->hostnames[current_pid] = strdup(msg->msg_payload.msg_proctable->hostnames[current_pid]);
+				rtn->pids[current_pid] = msg->msg_payload.msg_proctable->pids[current_pid];
+			}
+			
+			break;
+			
+		// anything else is an error
+		default:
+			// We don't have error recovery right now, so if an unexpected message
+			// comes in we are screwed.
+			_cti_set_error("_cti_gdb_getProctable: Unexpected message received!\n");
+			_cti_gdb_consumeMsg(msg);
+			return NULL;
+	}
+	
+	// Cleanup msg
+	_cti_gdb_consumeMsg(msg);
+	
+	return rtn;
+}
+
+pid_t 				
+_cti_gdb_getLauncherPid(cti_gdb_id_t gdb_id)
+{
+	gdbCtlInst_t *		this;
+	cti_gdb_msg_t *		msg;
+	pid_t				rtn;
+
+	// ensure the caller passed a valid id.
+	if (gdb_id < 0 || gdb_id >= CTI_GDB_TABLE_SIZE)
+	{
+		_cti_set_error("_cti_gdb_getAppPids: Invalid cti_gdb_id_t.\n");
+		return -1;
+	}
+	
+	// point at the instance
+	this = _cti_gdb_hashtable[gdb_id];
+	
+	// validate the instance
+	if (this == NULL)
+	{
+		_cti_set_error("_cti_gdb_getAppPids: Invalid cti_gdb_id_t.\n");
+		return -1;
+	}
+	
+	// ensure the instance hasn't already been finalized
+	if (this->final)
+	{
+		_cti_set_error("_cti_gdb_getAppPids: cti_gdb_id_t is finalized.\n");
+		return -1;
+	}
+	
+	// create the request message
+	if ((msg = _cti_gdb_createMsg(MSG_LAUNCHER_PID, -1)) == NULL)
+	{
+		// set the error message if there is one
+		if (_cti_gdb_err_string != NULL)
+		{
+			_cti_set_error("%s", _cti_gdb_err_string);
+		} else
+		{
+			_cti_set_error("_cti_gdb_getAppPids: Unknown gdb_MPIR error!\n");
+		}
+		return -1;
+	}
+	
+	// send the message
+	if (_cti_gdb_sendMsg(this->pipe_w, msg))
+	{
+		// this is a fatal error
+		if (_cti_gdb_err_string != NULL)
+		{
+			_cti_set_error("%s", _cti_gdb_err_string);
+		} else
+		{
+			_cti_set_error("_cti_gdb_getAppPids: Unknown gdb_MPIR error!\n");
+		}
+		_cti_gdb_consumeMsg(msg);
+		return -1;
+	}
+	// cleanup the message we just sent
+	_cti_gdb_consumeMsg(msg);
+	
+	// recv response
+	if ((msg = _cti_gdb_recvMsg(this->pipe_r)) == NULL)
+	{
+		// this is a fatal error
+		if (_cti_gdb_err_string != NULL)
+		{
+			_cti_set_error("%s", _cti_gdb_err_string);
+		} else
+		{
+			_cti_set_error("_cti_gdb_getSymbolVal: Unknown gdb_MPIR error!\n");
+		}
+		return -1;
+	}
+	
+	// process the response
+	switch (msg->msg_type)
+	{
+		// This is what we expect
+		case MSG_LAUNCHER_PID:
+			rtn = msg->msg_payload.launcher_pid;
+			break;
+			
+		// anything else is an error
+		default:
+			// We don't have error recovery right now, so if an unexpected message
+			// comes in we are screwed.
+			_cti_set_error("_cti_gdb_getProctable: Unexpected message received!\n");
+			_cti_gdb_consumeMsg(msg);
+			return -1;
 	}
 	
 	// Cleanup msg

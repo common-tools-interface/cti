@@ -108,6 +108,9 @@
 /* Define to 1 if you have the `socket' function. */
 #undef HAVE_SOCKET
 
+/* Define to 1 if you have the ssl library (-lssl). */
+#undef HAVE_SSL
+
 /* Define to 1 if stdbool.h conforms to C99. */
 #undef HAVE_STDBOOL_H
 
