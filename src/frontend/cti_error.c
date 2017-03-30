@@ -73,9 +73,10 @@ bool _cti_is_valid_environment(){
 	{
 		char* launcher_name_command;
 		asprintf(&launcher_name_command, "command -v %s > /dev/null 2>&1", launcher_name_env);
-		if (system(launcher_name_command)) {
+		int status = system(launcher_name_command);
+		if ( (status == -1) || WEXITSTATUS(status) ) {
 			// Command doesn't exist...
-			_cti_set_error("Provided launcher %s cannot be found.\n", launcher_name_env);
+			_cti_set_error("Provided launcher '%s' cannot be found.\n", launcher_name_env);
 			return false;
 		}
 	}
