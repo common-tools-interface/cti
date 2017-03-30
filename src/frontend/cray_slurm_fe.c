@@ -1365,6 +1365,11 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	const char *		gdb_path;
 	char *				usr_gdb_path = NULL;
 	const char *		starter_path;
+
+	if(!_cti_is_valid_environment()){
+		// error already set
+		return 0;
+	}
 	
 	// get the gdb path
 	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)

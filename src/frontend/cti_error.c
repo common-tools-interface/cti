@@ -23,8 +23,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "cti_error.h"
+#include "cti_defs.h"
 
 #define DEFAULT_ERR_STR	"Unknown CTI error"
 
@@ -49,6 +51,23 @@ _cti_set_error(char *fmt, ...)
 	vasprintf(&_cti_err_string, fmt, ap);
 
 	va_end(ap);
+}
+
+bool _cti_is_valid_environment(){
+	// Check that the specified launcher exists
+	char* launcher_name_env;
+	if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
+	{
+		char* launcher_name_command;
+		asprintf(&launcher_name_command, "command -v %s > /dev/null 2>&1", launcher_name_env);
+		if (system(launcher_name_command)) {
+			// Command doesn't exist...
+			_cti_set_error("Provided launcher %s cannot be found.\n", launcher_name_env);
+			return false;
+		}
+	}
+
+	return true;
 }
 
 // The internal library should not have access to this function, that is why

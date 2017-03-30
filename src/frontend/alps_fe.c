@@ -176,7 +176,7 @@ _cti_alps_init(void)
 	// Only init once.
 	if (_cti_alps_ptr != NULL)
 		return 0;
-		
+			
 	// Create a new cti_alps_funcs_t
 	if ((_cti_alps_ptr = malloc(sizeof(cti_alps_funcs_t))) == NULL)
 	{
@@ -1071,6 +1071,11 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	sigset_t *			mask;
 	// return object
 	cti_app_id_t		rtn;
+
+	if(!_cti_is_valid_environment()){
+		// error already set
+		return 0;
+	}
 
 	// create a new aprunInv_t object
 	if ((myapp = malloc(sizeof(aprunInv_t))) == (void *)0)

@@ -168,8 +168,8 @@ _cti_init(void)
 		}
 		else
 		{
-			fprintf(stderr, "%s\n", "Invalid workload manager option. Defaulting to generic.");			
-			_cti_wlmProto = &_cti_ssh_wlmProto;
+			fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlm_name_env, CTI_WLM);			
+			_cti_wlmProto = &_cti_nonenessProto;
 		}
 
 		goto init_wlm;
@@ -317,14 +317,7 @@ _cti_fini(void)
 
 bool _cti_is_cluster_system(){
 	struct stat sb;
-	if (stat(CLUSTER_FILE_TEST, &sb) == 0)
-	{
-		return true;
-	} 
-	else
-	{
-		return false;
-	}
+	return (stat(CLUSTER_FILE_TEST, &sb) == 0);
 }
 
 int is_accessible_directory(char* path){
