@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "cti_error.h"
 #include "cti_defs.h"
@@ -72,6 +73,11 @@ bool _cti_is_valid_environment(){
 	if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
 	{
 		char* launcher_name_command;
+		if(strcmp(launcher_name_env, "") == 0){
+			_cti_set_error("Provided launcher path is empty.");
+			return false;
+		}
+
 		asprintf(&launcher_name_command, "command -v %s > /dev/null 2>&1", launcher_name_env);
 		int status = system(launcher_name_command);
 		if ( (status == -1) || WEXITSTATUS(status) ) {
