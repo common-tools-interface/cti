@@ -53,6 +53,19 @@ _cti_set_error(char *fmt, ...)
 	va_end(ap);
 }
 
+/*
+ * _cti_is_valid_environment - Validate values of CTI environment variables
+ * 
+ * Detail
+ *      This function validates the values of set CTI environment variables.
+ *		Currently this is set up to validate that CRAY_CTI_LAUNCHER_NAME
+ *		is indeed an available executable. This can be extended further to
+ *		validate new environment variables as they come up.
+ *
+ * Returns
+ *      true if the set CTI environment variables contain valid values, false otherwise
+ * 
+ */
 bool _cti_is_valid_environment(){
 	// Check that the specified launcher exists
 	char* launcher_name_env;
