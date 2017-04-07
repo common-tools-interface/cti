@@ -20,6 +20,7 @@ if BUILT_MI
 endif
 if BUILT_SSL
 	cp @LIBSSL_LOC@ ${libdir}
+	cp @LIBCRYPTO_LOC@ ${libdir}
 endif
 if BUILT_SSH
 	cp @LIBSSH_LOC@ ${libdir}
