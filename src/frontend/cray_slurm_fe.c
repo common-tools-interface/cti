@@ -2864,6 +2864,7 @@ _cti_cray_slurm_getHostName(void)
 		return NULL;
 	}
 	// convert this to an integer value
+    errno = 0;
 	nid = (int)strtol(file_buf, &eptr, 10);
 	
 	// close the file stream
