@@ -94,7 +94,7 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib
 %{_version_prefix}/lib/libaudit.so
 %{_version_prefix}/lib/libaudit.la
-%{_version_prefix}/lib/libcraytools_fe.so.1.1.0
+%{_version_prefix}/lib/libcraytools_fe.so.1.2.0
 %{_version_prefix}/lib/libcraytools_fe.so.1
 %{_version_prefix}/lib/libcraytools_fe.so
 %{_version_prefix}/lib/libcraytools_fe.la
@@ -105,6 +105,9 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib/libcraytools_be.la
 %{_version_prefix}/lib/libcraytools_be.a
 %{_version_prefix}/lib/libmi.so
+%{_version_prefix}/lib/libssl.so
+%{_version_prefix}/lib/libssh.so
+%{_version_prefix}/lib/libcrypto.so
 %{_version_prefix}/lib/pkgconfig/
 %{_version_prefix}/lib/pkgconfig/craytools_be.pc
 %{_version_prefix}/lib/pkgconfig/craytools_fe.pc
