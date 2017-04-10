@@ -32,7 +32,6 @@ def fetch_release(base_name, rev_num,pkgs_dir):
   rval = 0
   for i in itt_list:
     tmp_name = pkgs_dir + "/" + base_name + "-" + "*" + "." + rev_num + "-" + str(i) + osver + rpm_tail
-    print tmp_name
     if glob.glob(tmp_name):
       rval = i + 1
       break

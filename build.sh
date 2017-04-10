@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#DATE=`date +%s`
-#DATE=`date -d @$DATE "+%Y-%m-%d"`
+cmake_module="cmake/3.5.2"
+
 if [[ $1 == "-d" && ! -z $2 ]]
 then
   BUILD_DIR=$2
@@ -18,6 +18,19 @@ else
 fi
 echo "Building to " $BUILD_DIR
 
+if [ -e "/etc/redhat-release" ]; then
+  if [[ -e /usr/share/Modules/init/bash ]]; then
+    source /usr/share/Modules/init/bash
+  fi
+else
+  if [[ -e /opt/modules/default/init/bash ]]; then
+    source /opt/modules/default/init/bash
+  fi
+fi
+
+module purge 2>/dev/null
+module load $cmake_module
+module list
 ./configure --prefix=$BUILD_DIR --with-gdb;
 make;
 make install
