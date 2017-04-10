@@ -26,12 +26,7 @@ Purpose:
 ---------
   This is a bugfix release.
 
-  1. Change the permissions of the dlaunch binary staged to /tmp on SLURM to
-  allow it to be overwritten and cleaned up by other users. Improper
-  permissions resulted in a bug where nodes that terminated improperly kept
-  dlaunch in /tmp and prevented further launches to that node by users outside
-  the original user's group.
-
+    - Fix a failure of cti_getHostname() if on nid0000 on a SLURM system.
 
 
 Product and OS Dependencies:
