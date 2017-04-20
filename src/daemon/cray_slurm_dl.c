@@ -55,38 +55,75 @@ _cti_cray_slurm_init(void)
 	return 0;
 }
 
-/*
-** XXX: This is the same thing as what we do for alps since we can rely on
-**      a similar setup.
+/******************************************************************************
+   _cti_cray_slurm_getNodeID - Gets the id for the current node
+   
+   Detail
+        I return a unique id for the current node.
+
+        On Cray nodes this can be done with very little overhead
+        by reading the nid number out of /proc. If that is not
+        available I fall back to just doing a libc gethostname call
+        to get the name and then return a hash of that name.
+
+        As an opaque implementation detail, I cache the results
+        for successive calls.
+
+   Returns
+        An int representing an unique id for the current node
+   
 */
 static int
 _cti_cray_slurm_getNodeID(void)
 {
+	static  int cachedNid = -1;
 	FILE *	nid_fd;
-	int		nid;
 	char	file_buf[BUFSIZ];
+
+    // Determined the nid already?
+    if (cachedNid != -1)
+        return cachedNid;
 
 	// read the nid from the system location
 	// open up the file containing our node id (nid)
-	if ((nid_fd = fopen(ALPS_XT_NID, "r")) == NULL)
+	if ((nid_fd = fopen(ALPS_XT_NID, "r")) != NULL)
 	{
-		fprintf(stderr, "%s: %s not found.\n", CTI_LAUNCHER, ALPS_XT_NID);
-		return -1;
-	}
+	    // we expect this file to have a numeric value giving our current nid
+	    if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
+	    {
+		    fprintf(stderr, "%s: _cti_cray_slurm_getNodeID:fgets failed.\n", CTI_LAUNCHER);
+		    return -1;
+	    }
 		
-	// we expect this file to have a numeric value giving our current nid
-	if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
-	{
-		fprintf(stderr, "%s: fgets failed.\n", CTI_LAUNCHER);
-		return -1;
-	}
-		
-	// convert this to an integer value
-	nid = atoi(file_buf);
+	    // convert this to an integer value
+	    cachedNid = atoi(file_buf);
 	
-	// close the file stream
-	fclose(nid_fd);
+	    // close the file stream
+	    fclose(nid_fd);
 	
-	return nid;
-}
+    }
 
+    else // Fallback to hash of standard hostname
+    {
+        // Get the hostname
+        char hostname[HOST_NAME_MAX+1];
+
+        if (gethostname(hostname, HOST_NAME_MAX) < 0)
+        {
+            fprintf(stderr, "%s", "_cti_cray_slurm_getNodeID: gethostname() failed!\n");
+            return -1;
+        }
+
+        // Hash the hostname
+        char *p = hostname;
+        unsigned int hash = 0;
+        int c;
+
+        while ((c = *(p++)))
+            hash = c + (hash << 6) + (hash << 16) - hash;
+
+        cachedNid = (int)hash;
+    }
+
+    return cachedNid;
+}

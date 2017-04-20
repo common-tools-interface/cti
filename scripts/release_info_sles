@@ -26,10 +26,8 @@ Purpose:
 ---------
   This is a feature release.
 
-  1. Add support for launching with non default MPIR capable application launchers through the 'generic' workload manager on systems that support ssh to compute nodes
-  2. Extend API to provide cti_ssh_registerJob for registering running applications with CTI in the above scenario
-  3. Fix a failure of cti_getHostname() if on nid0000 on a SLURM system.
-
+  CTI (and tools that use it such as ATP, STAT, and lgdb)
+  now supports SLURM systems that host 'srun' on a whitebox.
 
 Product and OS Dependencies:
 -----------------------------

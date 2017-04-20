@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 
 #include <limits.h>
+#include <errno.h>
 
 #include "cti_be.h"
 #include "pmi_attribs_parser.h"
@@ -433,25 +434,94 @@ _cti_be_slurm_findAppPids(void)
 	return rtn;
 }
 
+/*
+   I return a pointer to the hostname of the node I am running
+   on. On Cray nodes this can be done with very little overhead
+   by reading the nid number out of /proc. If that is not
+   available I fall back to just doing a libc gethostname call
+   to get the name. If the fall back is used, the name will
+   not necessarily be in the form of "nidxxxxx".
+
+   The caller is responsible for freeing the returned
+   string.
+
+   As an opaque implementation detail, I cache the results
+   for successive calls.
+ */
 static char *
 _cti_be_slurm_getNodeHostname()
 {
-	char * hostname = malloc(HOST_NAME_MAX);
-	
-	//Malloc failure
-	if(hostname == NULL){
-		fprintf(stderr, "_cti_be_slurm_getNodeHostname: Could not allocate %d bytes for hostname\n", HOST_NAME_MAX);
-		return NULL;
-	}
-	
-	if(gethostname(hostname, HOST_NAME_MAX) < 0){
-		fprintf(stderr, "%s", "_cti_be_slurm_getNodeHostname: gethostname() failed!");
-		return NULL;
-	}
-	
-	return hostname;
-}
+    static char *hostname = NULL; // Cache the result
 
+    // Determined the answer previously?
+    if (hostname)
+        return strdup(hostname);    // return cached value
+
+	// Try the Cray /proc extension short cut
+    FILE *nid_fp;             // NID file stream
+	if ((nid_fp = fopen(ALPS_XT_NID, "r")) != NULL)
+	{
+	    // we expect this file to have a numeric value giving our current nid
+        char file_buf[BUFSIZ];   // file read buffer
+	    if (fgets(file_buf, BUFSIZ, nid_fp) == NULL)
+	    {
+		    fprintf(stderr, "_cti_be_slurm_getNodeHostname fgets failed.\n");
+		    fclose(nid_fp);
+		    return NULL;
+	    }
+
+	    // close the file stream
+	    fclose(nid_fp);
+
+	    // convert this to an integer value
+        errno = 0;
+        char *  eptr;
+	    int nid = (int)strtol(file_buf, &eptr, 10);
+
+        // check for error
+        if ((errno == ERANGE && nid == INT_MAX)
+                || (errno != 0 && nid == 0))
+        {
+            fprintf(stderr, "_cti_be_slurm_getNodeHostname: strtol failed.\n");
+            return NULL;
+        }
+
+        // check for invalid input
+        if (eptr == file_buf)
+        {
+            fprintf(stderr, "_cti_be_slurm_getNodeHostname: Bad data in %s\n", ALPS_XT_NID);
+            return NULL;
+        }
+
+	    // create the nid hostname string
+	    if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, nid) <= 0)
+	    {
+		    fprintf(stderr, "_cti_be_slurm_getNodeHostname asprintf failed.\n");
+            free(hostname);
+            hostname = NULL;
+		    return NULL;
+	    }
+	}
+
+    else // Fallback to standard hostname
+    {
+	    // allocate memory for the hostname
+	    if ((hostname = malloc(HOST_NAME_MAX)) == NULL)
+	    {
+		    fprintf(stderr, "_cti_be_slurm_getNodeHostname: malloc failed.\n");
+		    return NULL;
+	    }
+
+        if (gethostname(hostname, HOST_NAME_MAX) < 0)
+        {
+            fprintf(stderr, "%s", "_cti_be_slurm_getNodeHostname: gethostname() failed!\n");
+            hostname = NULL;
+		    return NULL;
+        }
+    }
+
+    return strdup(hostname); // One way or the other
+}
 
 static int
 _cti_be_slurm_getNodeFirstPE()
