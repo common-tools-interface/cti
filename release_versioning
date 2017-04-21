@@ -58,10 +58,10 @@ craytool_major=1
 craytool_minor=0
 
 be_current=2
-be_revision=0
+be_revision=1
 be_age=1
 
 fe_current=3
-fe_revision=1
+fe_revision=2
 fe_age=2
 

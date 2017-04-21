@@ -49,40 +49,76 @@ _cti_slurm_init(void)
 	
 	return 0;
 }
-/*
- * _cti_slurm_getNodeID - Gets the id for the current node
- * 
- * Detail
- *      Returns an unique id for the current node. Currently, this function
- *      sums the characters in the hostname as a cheap hash unique to a particular node
- *		that won't collide in most cases. Apart from the hostname, I don't know of any other source of
- *		information that could reliably be used to differentiate nodes on clusters where
- *		the alps nid files do not exist. Currently, this is only used for uniquely naming backend debug logs.
- *		TODO: Perhaps this could be improved by using a real hash such as CRC
- *
- * Returns
- *      An int representing an unique id for the current node
- * 
- */
+
+/******************************************************************************
+   _cti_slurm_getNodeID - Gets the id for the current node
+   
+   Detail
+        I return a unique id for the current node.
+
+        On Cray nodes this can be done with very little overhead
+        by reading the nid number out of /proc. If that is not
+        available I fall back to just doing a libc gethostname call
+        to get the name and then return a hash of that name.
+
+        As an opaque implementation detail, I cache the results
+        for successive calls.
+
+   Returns
+        An int representing an unique id for the current node
+   
+*/
 static int
 _cti_slurm_getNodeID(void)
 {
-	char host[HOST_NAME_MAX+1];
+	static  int cachedNid = -1;
+	FILE *	nid_fd;
+	char	file_buf[BUFSIZ];
 
-	if (gethostname(host, HOST_NAME_MAX+1))
+    // Determined the nid already?
+    if (cachedNid != -1)
+        return cachedNid;
+
+	// read the nid from the system location
+	// open up the file containing our node id (nid)
+	if ((nid_fd = fopen(ALPS_XT_NID, "r")) != NULL)
 	{
-		fprintf(stderr, "gethostname failed.\n");
-		return 0;
-	}
+	    // we expect this file to have a numeric value giving our current nid
+	    if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
+	    {
+		    fprintf(stderr, "%s: _cti_slurm_getNodeID:fgets failed.\n", CTI_LAUNCHER);
+		    return -1;
+	    }
+		
+	    // convert this to an integer value
+	    cachedNid = atoi(file_buf);
+	
+	    // close the file stream
+	    fclose(nid_fd);
+	
+    }
 
-	int result = 0;
-	int len = strlen(host);
+    else // Fallback to hash of standard hostname
+    {
+        // Get the hostname
+        char hostname[HOST_NAME_MAX+1];
 
-	int i;
-	for(i=0; i<len; i++){
-		result += host[i];
-	}
+        if (gethostname(hostname, HOST_NAME_MAX) < 0)
+        {
+            fprintf(stderr, "%s", "_cti_slurm_getNodeID: gethostname() failed!\n");
+            return -1;
+        }
 
-	return result;
+        // Hash the hostname
+        char *p = hostname;
+        unsigned int hash = 0;
+        int c;
+
+        while ((c = *(p++)))
+            hash = c + (hash << 6) + (hash << 16) - hash;
+
+        cachedNid = (int)hash;
+    }
+
+    return cachedNid;
 }
-

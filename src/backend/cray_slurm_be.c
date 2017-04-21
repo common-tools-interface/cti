@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -35,11 +36,6 @@
 // types used here
 typedef struct
 {
-	int		nid;	// compute node id
-} computeNode_t;
-
-typedef struct
-{
 	int		PEsHere;	// Number of PEs placed on this node
 	int		firstPE;	// first PE on this node
 } slurmLayout_t;
@@ -47,7 +43,6 @@ typedef struct
 /* static prototypes */
 static int 					_cti_be_cray_slurm_init(void);
 static void					_cti_be_cray_slurm_fini(void);
-static int					_cti_be_cray_slurm_getComputeNodeInfo(void);
 static int					_cti_be_cray_slurm_getSlurmLayout(void);
 static int					_cti_be_cray_slurm_getSlurmPids(void);
 static cti_pidList_t *		_cti_be_cray_slurm_findAppPids(void);
@@ -68,7 +63,6 @@ cti_be_wlm_proto_t			_cti_be_cray_slurm_wlmProto =
 };
 
 // Global vars
-static computeNode_t *		_cti_thisNode		= NULL;	// compute node information
 static pmi_attribs_t *		_cti_attrs 			= NULL;	// node pmi_attribs information
 static slurmLayout_t *		_cti_layout			= NULL;	// compute node layout for slurm app
 static pid_t *				_cti_slurm_pids		= NULL;	// array of pids here if pmi_attribs is not available
@@ -125,12 +119,6 @@ static void
 _cti_be_cray_slurm_fini(void)
 {
 	// cleanup
-	if (_cti_thisNode != NULL)
-	{
-		free(_cti_thisNode);
-		_cti_thisNode = NULL;
-	}
-	
 	if (_cti_attrs != NULL)
 	{
 		_cti_be_freePmiAttribs(_cti_attrs);
@@ -155,56 +143,9 @@ _cti_be_cray_slurm_fini(void)
 /* Static functions */
 
 static int
-_cti_be_cray_slurm_getComputeNodeInfo(void)
-{
-	FILE *			nid_fd;				// NID file stream
-	char 			file_buf[BUFSIZ];	// file read buffer
-	computeNode_t *	my_node;			// struct containing compute node info
-	
-	// sanity
-	if (_cti_thisNode != NULL)
-		return 0;
-	
-	// allocate the computeNode_t object
-	if ((my_node = malloc(sizeof(computeNode_t))) == NULL)
-	{
-		fprintf(stderr, "malloc failed.\n");
-		return 1;
-	}
-	
-	// open up the file containing our node id (nid)
-	if ((nid_fd = fopen(ALPS_XT_NID, "r")) == NULL)
-	{
-		fprintf(stderr, "_cti_be_cray_slurm_getComputeNodeInfo failed.\n");
-		free(my_node);
-		return 1;
-	}
-	
-	// we expect this file to have a numeric value giving our current nid
-	if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
-	{
-		fprintf(stderr, "_cti_nid_fd_getComputeNodeInfo failed.\n");
-		free(my_node);
-		fclose(nid_fd);
-		return 1;
-	}
-	// convert this to an integer value
-	my_node->nid = atoi(file_buf);
-	
-	// close the file stream
-	fclose(nid_fd);
-	
-	// set the global pointer
-	_cti_thisNode = my_node;
-	
-	return 0;
-}
-
-static int
 _cti_be_cray_slurm_getSlurmLayout(void)
 {
 	slurmLayout_t *			my_layout;
-	char *					nid_str;
 	char *					file_dir;
 	char *					layoutPath;
 	FILE *					my_file;
@@ -215,38 +156,25 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 	// sanity
 	if (_cti_layout != NULL)
 		return 0;
-	
-	// ensure the _cti_thisNode exists
-	if (_cti_thisNode == NULL)
-	{
-		if (_cti_be_cray_slurm_getComputeNodeInfo())
-		{
-			// couldn't get the compute node info for some odd reason
-			fprintf(stderr, "_cti_be_cray_slurm_getSlurmLayout failed.\n");
-			return 1;
-		}
-	}
-	
-	// create the nid string for this node, we will strcmp with it later
-	if (asprintf(&nid_str, "%d", _cti_thisNode->nid) <= 0)
-	{
-		fprintf(stderr, "asprintf failed.\n");
-		return 1;
-	}
+		
+	char* hostname = _cti_be_cray_slurm_getNodeHostname();
+    if (!hostname)
+    {
+		fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname failed.\n");
+        return 1;
+    }
 	
 	// allocate the slurmLayout_t object
 	if ((my_layout = malloc(sizeof(slurmLayout_t))) == NULL)
 	{
 		fprintf(stderr, "malloc failed.\n");
-		free(nid_str);
 		return 1;
 	}
 	
 	// get the file directory were we can find the layout file
 	if ((file_dir = cti_be_getFileDir()) == NULL)
 	{
-		fprintf(stderr, "_cti_be_cray_slurm_getSlurmLayout failed.\n");
-		free(nid_str);
+		fprintf(stderr, "cti_be_getFileDir failed.\n");
 		free(my_layout);
 		return 1;
 	}
@@ -255,7 +183,6 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 	if (asprintf(&layoutPath, "%s/%s", file_dir, SLURM_LAYOUT_FILE) <= 0)
 	{
 		fprintf(stderr, "asprintf failed.\n");
-		free(nid_str);
 		free(my_layout);
 		free(file_dir);
 		return 1;
@@ -267,7 +194,6 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 	if ((my_file = fopen(layoutPath, "rb")) == NULL)
 	{
 		fprintf(stderr, "Could not open %s for reading\n", layoutPath);
-		free(nid_str);
 		free(my_layout);
 		free(layoutPath);
 		return 1;
@@ -277,7 +203,6 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 	if (fread(&layout_hdr, sizeof(slurmLayoutFileHeader_t), 1, my_file) != 1)
 	{
 		fprintf(stderr, "Could not read %s\n", layoutPath);
-		free(nid_str);
 		free(my_layout);
 		free(layoutPath);
 		fclose(my_file);
@@ -288,7 +213,6 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 	if ((layout = calloc(layout_hdr.numNodes, sizeof(slurmLayoutFile_t))) == NULL)
 	{
 		fprintf(stderr, "calloc failed.\n");
-		free(nid_str);
 		free(my_layout);
 		free(layoutPath);
 		fclose(my_file);
@@ -299,7 +223,6 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 	if (fread(layout, sizeof(slurmLayoutFile_t), layout_hdr.numNodes, my_file) != layout_hdr.numNodes)
 	{
 		fprintf(stderr, "Bad data in %s\n", layoutPath);
-		free(nid_str);
 		free(my_layout);
 		free(layoutPath);
 		fclose(my_file);
@@ -313,19 +236,18 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 	
 	// find the entry for this nid, we need to offset into the host name based on
 	// this nid
-	offset = strlen(layout[0].host) - strlen(nid_str);
+	offset = strlen(layout[0].host) - strlen(hostname);
 	
 	for (i=0; i < layout_hdr.numNodes; ++i)
 	{
 		// check if this entry corresponds to our nid
-		if (strncmp(layout[i].host + offset, nid_str, strlen(nid_str)) == 0)
+		if (strncmp(layout[i].host + offset, hostname, strlen(hostname)) == 0)
 		{
 			// found it
 			my_layout->PEsHere = layout[i].PEsHere;
 			my_layout->firstPE = layout[i].firstPE;
 			
 			// cleanup
-			free(nid_str);
 			free(layout);
 			
 			// set global value
@@ -336,9 +258,8 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 		}
 	}
 	
-	// if we get here, we didn't find the nid in the layout list!
-	fprintf(stderr, "Could not find layout entry for nid %s\n", nid_str);
-	free(nid_str);
+	// if we get here, we didn't find the host in the layout list!
+	fprintf(stderr, "Could not find layout entry for hostname %s\n", hostname);
 	free(my_layout);
 	free(layout);
 	return 1;
@@ -619,31 +540,93 @@ use_pmi_attribs:
 	return rtn;
 }
 
+/*
+   I return a pointer to the hostname of the node I am running
+   on. On Cray nodes this can be done with very little overhead
+   by reading the nid number out of /proc. If that is not
+   available I fall back to just doing a libc gethostname call
+   to get the name. If the fall back is used, the name will
+   not necessarily be in the form of "nidxxxxx".
+
+   The caller is responsible for freeing the returned
+   string.
+
+   As an opaque implementation detail, I cache the results
+   for successive calls.
+ */
 static char *
 _cti_be_cray_slurm_getNodeHostname()
 {
-	char * nidHost;
+    static char *hostname = NULL; // Cache the result
 
-	// ensure the _cti_thisNode exists
-	if (_cti_thisNode == NULL)
+    // Determined the answer previously?
+    if (hostname)
+        return strdup(hostname);    // return cached value
+
+	// Try the Cray /proc extension short cut
+    FILE *nid_fp;             // NID file stream
+	if ((nid_fp = fopen(ALPS_XT_NID, "r")) != NULL)
 	{
-		if (_cti_be_cray_slurm_getComputeNodeInfo())
-		{
-			// couldn't get the compute node info for some odd reason
-			fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname failed.\n");
-			return NULL;
-		}
+	    // we expect this file to have a numeric value giving our current nid
+        char file_buf[BUFSIZ];   // file read buffer
+	    if (fgets(file_buf, BUFSIZ, nid_fp) == NULL)
+	    {
+		    fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname fgets failed.\n");
+		    fclose(nid_fp);
+		    return NULL;
+	    }
+
+	    // close the file stream
+	    fclose(nid_fp);
+
+	    // convert this to an integer value
+        errno = 0;
+        char *  eptr;
+	    int nid = (int)strtol(file_buf, &eptr, 10);
+
+        // check for error
+        if ((errno == ERANGE && nid == INT_MAX)
+                || (errno != 0 && nid == 0))
+        {
+            fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname: strtol failed.\n");
+            return NULL;
+        }
+
+        // check for invalid input
+        if (eptr == file_buf)
+        {
+            fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname: Bad data in %s\n", ALPS_XT_NID);
+            return NULL;
+        }
+
+	    // create the nid hostname string
+	    if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, nid) <= 0)
+	    {
+		    fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname asprintf failed.\n");
+            free(hostname);
+            hostname = NULL;
+		    return NULL;
+	    }
 	}
-	
-	// create the nid hostname string
-	if (asprintf(&nidHost, ALPS_XT_HOSTNAME_FMT, _cti_thisNode->nid) <= 0)
-	{
-		fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname failed.\n");
-		return NULL;
-	}
-	
-	// return the nid hostname
-	return nidHost;
+
+    else // Fallback to standard hostname
+    {
+	    // allocate memory for the hostname
+	    if ((hostname = malloc(HOST_NAME_MAX)) == NULL)
+	    {
+		    fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname: malloc failed.\n");
+		    return NULL;
+	    }
+
+        if (gethostname(hostname, HOST_NAME_MAX) < 0)
+        {
+            fprintf(stderr, "%s", "_cti_be_cray_slurm_getNodeHostname: gethostname() failed!\n");
+            hostname = NULL;
+		    return NULL;
+        }
+    }
+
+    return strdup(hostname); // One way or the other
 }
 
 
