@@ -11349,21 +11349,21 @@ CRAYTOOL_DIR="`cd $srcdir && pwd`"
 
 
 
-	CRAYTOOL_BE_VERSION=2:0:1
+	CRAYTOOL_BE_VERSION=2:1:1
 
-	CRAYTOOL_FE_VERSION=3:1:2
+	CRAYTOOL_FE_VERSION=3:2:2
 
 	CRAYTOOL_RELEASE_VERSION=1.0
 
 
 
 cat >>confdefs.h <<_ACEOF
-#define CTI_BE_VERSION "2.0.1"
+#define CTI_BE_VERSION "2.1.1"
 _ACEOF
 
 
 cat >>confdefs.h <<_ACEOF
-#define CTI_FE_VERSION "3.1.2"
+#define CTI_FE_VERSION "3.2.2"
 _ACEOF
 
 
@@ -18261,8 +18261,7 @@ $as_echo "$as_me: Building libssh..." >&6;}
 		rm -rf build
 	mkdir -p build
 	cd build
-	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DOPENSSL_ROOT_DIR=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_BUILD_TYPE=Debug .. >&5 2>&5
-
+	LDFLAGS='-Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags' cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DOPENSSL_ROOT_DIR=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_BUILD_TYPE=Debug .. >&5 2>&5
 		make >&5 2>&5
 	make install >&5 2>&5
 
