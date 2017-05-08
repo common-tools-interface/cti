@@ -29,7 +29,7 @@ Cray Tools Interface.
 
 # version
 %define major_version %(echo %{build_version} | awk -v n=1 'BEGIN { FS = "." } ; { print $n }')
-%define minor_version %(echo %{bild_version} | awk -v n=2 'BEGIN { FS = "." } ; { print $n }')
+%define minor_version %(echo %{build_version} | awk -v n=2 'BEGIN { FS = "." } ; { print $n }')
 
 # _prefix
 %define _namespace_prefix %{prefix}
@@ -53,11 +53,11 @@ install -D modulefile/%{build_version} %{buildroot}%{_name_moduledir}/%{build_ve
 install -D cray-cti/release_info %{buildroot}%{_version_prefix}/
 echo "%{build_version}-%{release}" > %{buildroot}%{_version_prefix}/.cray_rpm_release
 mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/
-install -D set_default_%{name} %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/set_default_%{name}
+install -D set_default_%{namespace}-%{intranamespace_name}_%{build_version} %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/
-install -D set_pkgconfig_default_%{name} %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{name}
-install -D set_default_%{name} %{buildroot}%{_version_prefix}/
-install -D set_pkgconfig_default_%{name} %{buildroot}%{_version_prefix}/
+install -D set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
+install -D set_default_%{namespace}-%{intranamespace_name}_%{build_version} %{buildroot}%{_version_prefix}/
+install -D set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} %{buildroot}%{_version_prefix}/
 mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTIONS_cti.%{build_version}.txt
 
 # hardlink duplicate files to save space
@@ -117,15 +117,15 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/include/cray_tools_be.h
 %{_version_prefix}/include/cray_tools_fe.h
 
-%{_namespace_prefix}/admin-pe/set_default_files/set_default_%{name}
+%{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 %{_name_moduledir}/%{build_version}
 %{_version_prefix}/.cray_rpm_release
-%{_version_prefix}/set_default_%{name}
+%{_version_prefix}/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 %{_version_prefix}/release_info
 %{_version_prefix}/ATTRIBUTIONS_cti.%{build_version}.txt
 %{_version_prefix}/docs/ATTRIBUTIONS_cti.txt
-%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{name}
-%{_version_prefix}/set_pkgconfig_default_%{name}
+%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
+%{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
 
 %post
@@ -138,10 +138,10 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 #Set the install path in the modulefile & set_default script(s)
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX,g" \
 $RPM_INSTALL_PREFIX/modulefiles/%{namespace}-%{intranamespace_name}/%{build_version} \
-$RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{name} \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_default_%{name} \
-$RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{name} \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_pkgconfig_default_%{name}
+$RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
+$RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version},g" \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/craytools_be.pc
@@ -158,9 +158,9 @@ if [[ $RPM_INSTALL_PREFIX = "/opt/cray" ]] || [[ $RPM_INSTALL_PREFIX = "/opt/cra
   then
     if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f $RPM_INSTALL_PREFIX/modulefiles/%{intranamespace_name}/.version ]
     then
-      $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{name}
+      $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
     else
-      echo "%{name} has been installed as non-default."
+      echo "%{namespace}-%{intranamespace_name}_%{build_version} has been installed as non-default."
     fi
 fi
 
