@@ -200,7 +200,9 @@ def fetch_newData():
     print "Exiting. . ."
     exit(1)
   
-  dt_time = datetime.utcnow()
+  time_command = "git log -s -1 --format=%ci $tm | tail -n1 | cut -d' ' -f1-2"
+  dt_time = os.popen(time_command).read()
+  dt_time = dt_time.rstrip()
   dt_time = str(dt_time).replace(":","")
   dt_time = str(dt_time).replace("-","")
   dt_time = str(dt_time).replace(" ","")
