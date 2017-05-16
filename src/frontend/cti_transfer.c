@@ -879,8 +879,8 @@ _cti_checkSessionForConflict(session_t *sess, entry_type type, const char *realn
 				return 0;
 			} else
 			{
-				_cti_set_error("A %s named %s is already present in the session.", _cti_entryTypeToString(type), realname);
-				return 1;
+				fprintf("Warning: A %s named %s is already present in the session.", _cti_entryTypeToString(type), realname);
+				return 0;
 			}
 		}
 	}
