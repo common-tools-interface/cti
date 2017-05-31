@@ -24,10 +24,10 @@ other CTI releases.
 
 Purpose:
 ---------
-  This is a feature release.
+  This is a bugfix release.
 
-  CTI (and tools that use it such as ATP, STAT, and lgdb)
-  now supports SLURM systems that host 'srun' on a whitebox.
+  1. Fix an issue related to dlopen of bundled libraries with the generic workload manager
+  2. Fix an issue with launching from whiteboxes on slurm
 
 Product and OS Dependencies:
 -----------------------------
