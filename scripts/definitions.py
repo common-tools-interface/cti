@@ -91,8 +91,6 @@ def fetch_latest_version(final,revision,pkgs_dir):
   #get a list of sub directories representing the products 2 digit release version
   onlyfiles = glob.glob(pkgs_dir + "/*.rpm")
 
-  print revision
-
   if len(onlyfiles) == 0:
     #there aren't any pkgs for this new two digit version yet.
      #build the version from the 2 digit version
@@ -212,7 +210,6 @@ def fetch_newData():
   timestmp_revnbr = str(dt_time) + "." + str(rev_number)
   
   osver = fetch_os()
-  print "os ver: " +  osver  
   two_digit_version = fetch_packageDir()
   pkgs_dir = product_dir + "/" + two_digit_version
   version = fetch_latest_version(final,rev_number,pkgs_dir)
