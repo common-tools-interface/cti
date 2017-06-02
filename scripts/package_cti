@@ -265,7 +265,7 @@ section-3:
             else
               pref=/opt/cray/pe
             fi
-            $pref/admin-pe/set_default_files/set_default_cray-cti-<version>
+            $pref/admin-pe/set_default_files/set_default_cray-cti_<version>
 
 section-4:
     ACCELERATOR           : NONE
@@ -292,7 +292,7 @@ section-4:
             else
               pref=/opt/cray/pe
             fi
-            $pref/admin-pe/set_default_files/set_default_cray-cti-<version>
+            $pref/admin-pe/set_default_files/set_default_cray-cti_<version>
 
 section-5:
     ACCELERATOR           : NONE
