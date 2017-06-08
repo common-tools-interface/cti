@@ -384,9 +384,9 @@ uninstall-am:
 
 install-data-local:
 @BUILT_MI_TRUE@	cp @LIBMI_LOC@ ${libdir}
-@BUILT_SSL_TRUE@	cp @LIBSSL_LOC@ ${libdir}
-@BUILT_SSL_TRUE@	cp @LIBCRYPTO_LOC@ ${libdir}
-@BUILT_SSH_TRUE@	cp @LIBSSH_LOC@ ${libdir}
+@BUILT_SSL_TRUE@	cp @LIBSSL_LOC@ ${libdir}/libssl.so.1.1
+@BUILT_SSL_TRUE@	cp @LIBCRYPTO_LOC@ ${libdir}/libcrypto.so.1.1
+@BUILT_SSH_TRUE@	cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
 @BUILT_GDB_TRUE@	cp @GDB_LOC@ ${libexecdir}
 
 distclean-local:

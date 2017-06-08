@@ -19,11 +19,11 @@ if BUILT_MI
 	cp @LIBMI_LOC@ ${libdir}
 endif
 if BUILT_SSL
-	cp @LIBSSL_LOC@ ${libdir}
-	cp @LIBCRYPTO_LOC@ ${libdir}
+	cp @LIBSSL_LOC@ ${libdir}/libssl.so.1.1
+	cp @LIBCRYPTO_LOC@ ${libdir}/libcrypto.so.1.1
 endif
 if BUILT_SSH
-	cp @LIBSSH_LOC@ ${libdir}
+	cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
 endif
 if BUILT_GDB
 	cp @GDB_LOC@ ${libexecdir}

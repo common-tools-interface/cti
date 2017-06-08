@@ -1554,7 +1554,7 @@ ssh_session _cti_ssh_start_session(char* hostname)
 	ssh_session my_ssh_session;
 	int rc;
 	if ( _cti_ssh_libssh_funcs.handle == NULL){
-		if( (_cti_ssh_libssh_funcs.handle = dlopen("libssh.so", RTLD_LAZY)) == NULL){
+		if( (_cti_ssh_libssh_funcs.handle = dlopen("libssh.so.4", RTLD_LAZY)) == NULL){
 			_cti_set_error("dlopen failed.");
 			return NULL;
 		}
