@@ -105,9 +105,9 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib/libcraytools_be.la
 %{_version_prefix}/lib/libcraytools_be.a
 %{_version_prefix}/lib/libmi.so
-%{_version_prefix}/lib/libssl.so
-%{_version_prefix}/lib/libssh.so
-%{_version_prefix}/lib/libcrypto.so
+%{_version_prefix}/lib/libssl.so.*
+%{_version_prefix}/lib/libssh.so.*
+%{_version_prefix}/lib/libcrypto.so.*
 %{_version_prefix}/lib/pkgconfig/
 %{_version_prefix}/lib/pkgconfig/craytools_be.pc
 %{_version_prefix}/lib/pkgconfig/craytools_fe.pc
