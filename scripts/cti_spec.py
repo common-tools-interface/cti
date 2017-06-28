@@ -156,7 +156,7 @@ find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcray
 # prevent echo of new directory as it messes up install output
 if [[ $RPM_INSTALL_PREFIX = "/opt/cray" ]] || [[ $RPM_INSTALL_PREFIX = "/opt/cray/pe" ]]
   then
-    if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f $RPM_INSTALL_PREFIX/modulefiles/%{intranamespace_name}/.version ]
+    if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f $RPM_INSTALL_PREFIX/modulefiles/%{namespace}-%{intranamespace_name}/.version ]
     then
       $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
     else
