@@ -7,7 +7,7 @@ content='''#%Module#############################################################
  #
  
  set CRAY_CTI_LEVEL   <version> 
- set CRAY_CTI_CURPATH  [install_dir]/cti/$CRAY_CTI_LEVEL
+ set CRAY_CTI_CURPATH  [file dirname ${ModulesCurrentModulefile}]/../../cti/$CRAY_CTI_LEVEL
  
  setenv CRAY_CTI_VERSION  $CRAY_CTI_LEVEL
  setenv CRAY_CTI_DIR $CRAY_CTI_CURPATH

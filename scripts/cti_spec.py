@@ -137,7 +137,6 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 
 #Set the install path in the modulefile & set_default script(s)
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX,g" \
-$RPM_INSTALL_PREFIX/modulefiles/%{namespace}-%{intranamespace_name}/%{build_version} \
 $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
 $RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} \
