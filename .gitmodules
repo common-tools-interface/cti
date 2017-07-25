@@ -1,10 +1,9 @@
+[submodule "external/libarchive"]
+	path = external/libarchive
+	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libarchive.git
 [submodule "external/libmi"]
 	path = external/libmi
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libmi.git
 [submodule "external/gdb"]
 	path = external/gdb
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/ddt_gdb-7.6.2.git
-[submodule "external/libarchive"]
-	path = external/libarchive
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libarchive.git
-	branch = release/3.3.1
