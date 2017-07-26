@@ -39,4 +39,6 @@ uint64_t			cti_alps_getApid(pid_t);
 cti_aprunProc_t *	cti_alps_getAprunInfo(cti_app_id_t);
 int					cti_alps_getAlpsOverlapOrdinal(cti_app_id_t);
 
+#define LAUNCH_TOOL_RETRY 5
+
 #endif /* _ALPS_FE_H */

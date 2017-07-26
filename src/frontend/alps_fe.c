@@ -1788,16 +1788,16 @@ _cti_alps_ship_package(cti_wlm_obj this, const char *package)
 	// now ship the tarball to the compute node - discard const qualifier because alps isn't const correct
 	size_t checks = 0; // problem on crystal where alps_launch_tool_helper will report bad apid
 	fflush(stderr); // suppress stderr for "gzip: broken pipe"
-	int saved_stderr = dup(2);
+	int saved_stderr = dup(STDERR_FILENO);
 	int new_stderr = open("/dev/null", O_WRONLY);
-	dup2(new_stderr, 2);
+	dup2(new_stderr, STDERR_FILENO);
 	close(new_stderr);
-	while ((++checks < 5) && ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, 1, 0, 1, &p)) != NULL))
+	while ((++checks < LAUNCH_TOOL_RETRY) && ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, 1, 0, 1, &p)) != NULL))
 	{
 		usleep(500000);
 	}
 	fflush(stderr);
-	dup2(saved_stderr, 2);
+	dup2(saved_stderr, STDERR_FILENO);
 	close(saved_stderr);
 	
 	if (errmsg != NULL) {
