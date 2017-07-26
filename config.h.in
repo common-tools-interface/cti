@@ -46,12 +46,6 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define to 1 if you have the alps library (-lalps). */
-#undef HAVE_LIBALPS
-
-/* Define to 1 if you have the alpsutil library (-lalpsutil). */
-#undef HAVE_LIBALPSUTIL
-
 /* Define to 1 if you have the `c' library (-lc). */
 #undef HAVE_LIBC
 
@@ -176,9 +170,6 @@
 
 /* Define to 1 if you have the <vfork.h> header file. */
 #undef HAVE_VFORK_H
-
-/* Define to 1 if you have the wlm_detect library (-lwlm_detect). */
-#undef HAVE_WLM_DETECT
 
 /* Define to 1 if `fork' works. */
 #undef HAVE_WORKING_FORK

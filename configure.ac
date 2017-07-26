@@ -195,51 +195,6 @@ AC_CHECK_LIB(	[rt],
 				[AC_MSG_FAILURE([librt not found.])]
 				)
 
-dnl Check for libalps
-save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $ALPS_LDFLAGS"
-AC_CHECK_LIB(	[alps],
-				[alpsGetMyNid],
-				[AC_DEFINE(	[HAVE_LIBALPS],
-								[1],
-								[Define to 1 if you have the alps library (-lalps).]
-							)
-				],
-				[AC_MSG_FAILURE([libalps not found.])],
-				[-lxmlrpc-epi]
-				)
-dnl Check for libalpsutil
-AC_CHECK_LIB(	[alpsutil],
-				[alps_get_placement_info],
-				[AC_DEFINE(	[HAVE_LIBALPSUTIL],
-								[1],
-								[Define to 1 if you have the alpsutil library (-lalpsutil).]
-							)
-				],
-				[AC_MSG_FAILURE([libalpsutil not found.])]
-				)
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
-dnl Check for libwlm_detect
-save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $WLM_DETECT_LDFLAGS"
-AC_CHECK_LIB(	[wlm_detect],
-				[wlm_detect_get_default],
-				[AC_DEFINE(	[HAVE_WLM_DETECT],
-								[1],
-								[Define to 1 if you have the wlm_detect library (-lwlm_detect).]
-							)
-				],
-				[AC_MSG_FAILURE([libwlm_detect not found.])]
-				)
-AC_SUBST([WLM_DETECT_LIBS], ["-lwlm_detect"])
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
 dnl Check for libarchive
 save_LDFLAGS="$LDFLAGS"
 if test -f "$libarchive_path/lib/libarchive.a"; then
