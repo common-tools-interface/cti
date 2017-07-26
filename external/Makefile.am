@@ -18,10 +18,6 @@ install-data-local:
 if BUILT_MI
 	cp @LIBMI_LOC@ ${libdir}
 endif
-if BUILT_SSL
-	cp @LIBSSL_LOC@ ${libdir}/libssl.so.1.1
-	cp @LIBCRYPTO_LOC@ ${libdir}/libcrypto.so.1.1
-endif
 if BUILT_SSH
 	cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
 endif
@@ -42,9 +38,6 @@ if BUILT_MI
 endif
 if BUILT_GDB
 	cd @GDB_SRC@ && $(MAKE) distclean
-endif
-if BUILT_SSL
-	cd @LIBSSL_SRC@ && $(MAKE) distclean
 endif
 if BUILT_SSH
 	cd @LIBSSH_SRC@ && rm -r build
