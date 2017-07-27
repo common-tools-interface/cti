@@ -1768,7 +1768,7 @@ static int
 _cti_alps_ship_package(cti_wlm_obj this, const char *package)
 {
 	alpsInfo_t *	my_app = (alpsInfo_t *)this;
-	const char *	errmsg;					// errmsg that is possibly returned by call to alps_launch_tool_helper
+	const char *	errmsg = NULL;					// errmsg that is possibly returned by call to alps_launch_tool_helper
 	char *			p = (char *)package;	// discard const qualifier because alps isn't const correct
 	
 	// sanity check
@@ -1786,8 +1786,21 @@ _cti_alps_ship_package(cti_wlm_obj this, const char *package)
 	}
 	
 	// now ship the tarball to the compute node - discard const qualifier because alps isn't const correct
-	if ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, 1, 0, 1, &p)) != NULL)
+	size_t checks = 0; // problem on crystal where alps_launch_tool_helper will report bad apid
+	fflush(stderr); // suppress stderr for "gzip: broken pipe"
+	int saved_stderr = dup(STDERR_FILENO);
+	int new_stderr = open("/dev/null", O_WRONLY);
+	dup2(new_stderr, STDERR_FILENO);
+	close(new_stderr);
+	while ((++checks < LAUNCH_TOOL_RETRY) && ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, 1, 0, 1, &p)) != NULL))
 	{
+		usleep(500000);
+	}
+	fflush(stderr);
+	dup2(saved_stderr, STDERR_FILENO);
+	close(saved_stderr);
+	
+	if (errmsg != NULL) {
 		// we failed to ship the file to the compute nodes for some reason - catastrophic failure
 		//
 		// If we were ready, then set the error message. Otherwise we assume that
