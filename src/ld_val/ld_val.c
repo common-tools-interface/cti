@@ -57,6 +57,7 @@ static const char *_cti_linkers[] = {
 	"/lib/ld-linux.so.2",
 	"/lib64/ld-lsb-x86-64.so.2",
 	"/lib64/ld-lsb-x86-64.so.3",
+	"/lib/ld-linux-aarch64.so.1",
 	"/lib64/ld-2.11.3.so",
 	"/lib/ld-lsb.so.2",
 	"/lib/ld-lsb.so.3",
