@@ -111,60 +111,46 @@ static struct pkd_state *torture_pkd_setup(enum pkd_hostkey_type_e type,
     return NULL;
 }
 
-static int torture_pkd_teardown(void **state) {
+static void torture_pkd_teardown(void **state) {
     struct pkd_result result = { .ok = 0 };
 
     (void) state;
 
     pkd_stop(&result);
     assert_int_equal(result.ok, 1);
-
-    return 0;
 }
 
 /*
  * one setup for each server keytype ------------------------------------
  */
 
-static int torture_pkd_setup_noop(void **state) {
+static void torture_pkd_setup_noop(void **state) {
     *state = (void *) torture_pkd_setup(PKD_RSA, NULL /*path*/);
-
-    return 0;
 }
 
-static int torture_pkd_setup_rsa(void **state) {
+static void torture_pkd_setup_rsa(void **state) {
     setup_rsa_key();
     *state = (void *) torture_pkd_setup(PKD_RSA, LIBSSH_RSA_TESTKEY);
-
-    return 0;
 }
 
-static int torture_pkd_setup_dsa(void **state) {
+static void torture_pkd_setup_dsa(void **state) {
     setup_dsa_key();
     *state = (void *) torture_pkd_setup(PKD_DSA, LIBSSH_DSA_TESTKEY);
-
-    return 0;
 }
 
-static int torture_pkd_setup_ecdsa_256(void **state) {
+static void torture_pkd_setup_ecdsa_256(void **state) {
     setup_ecdsa_keys();
     *state = (void *) torture_pkd_setup(PKD_ECDSA, LIBSSH_ECDSA_256_TESTKEY);
-
-    return 0;
 }
 
-static int torture_pkd_setup_ecdsa_384(void **state) {
+static void torture_pkd_setup_ecdsa_384(void **state) {
     setup_ecdsa_keys();
     *state = (void *) torture_pkd_setup(PKD_ECDSA, LIBSSH_ECDSA_384_TESTKEY);
-
-    return 0;
 }
 
-static int torture_pkd_setup_ecdsa_521(void **state) {
+static void torture_pkd_setup_ecdsa_521(void **state) {
     setup_ecdsa_keys();
     *state = (void *) torture_pkd_setup(PKD_ECDSA, LIBSSH_ECDSA_521_TESTKEY);
-
-    return 0;
 }
 
 /*
@@ -364,16 +350,16 @@ PKDTESTS_MAC(emit_keytest, dropbear, DROPBEAR_MAC_CMD)
       { emit_unit_test(client, testname, sshcmd, setup, teardown) } },
 
 #define emit_unit_test(client, testname, sshcmd, setup, teardown) \
-    cmocka_unit_test_setup_teardown(torture_pkd_ ## client ## _ ## testname, \
-                                    torture_pkd_ ## setup, \
-                                    torture_pkd_ ## teardown)
+    unit_test_setup_teardown(torture_pkd_ ## client ## _ ## testname, \
+                             torture_pkd_ ## setup, \
+                             torture_pkd_ ## teardown)
 
 #define emit_unit_test_comma(client, testname, sshcmd, setup, teardown) \
     emit_unit_test(client, testname, sshcmd, setup, teardown),
 
 struct {
     const char *testname;
-    const struct CMUnitTest test[3]; /* requires setup + test + teardown */
+    const UnitTest test[3]; /* requires setup + test + teardown */
 } testmap[] = {
     /* OpenSSH */
     PKDTESTS_DEFAULT(emit_testmap, openssh_dsa, OPENSSH_CMD)
@@ -409,15 +395,14 @@ struct {
     emit_testmap(client, noop, "", setup_noop, teardown)
 
     /* NULL tail entry */
-    { .testname = NULL, {
-        { .name = NULL, }, { .name = NULL }, { .name = NULL } } }
+    { NULL, { { NULL, NULL, 0 }, { NULL, NULL, 0 }, { NULL, NULL, 0 } } }
 };
 
 static int pkd_run_tests(void) {
     int rc = -1;
     int tindex = 0;
 
-    const struct CMUnitTest openssh_tests[] = {
+    const UnitTest openssh_tests[] = {
         PKDTESTS_DEFAULT(emit_unit_test_comma, openssh_dsa, OPENSSH_CMD)
         PKDTESTS_KEX(emit_unit_test_comma, openssh_dsa, OPENSSH_KEX_CMD)
         PKDTESTS_CIPHER(emit_unit_test_comma, openssh_dsa, OPENSSH_CIPHER_CMD)
@@ -443,18 +428,18 @@ static int pkd_run_tests(void) {
         PKDTESTS_MAC(emit_unit_test_comma, openssh_ed, OPENSSH_MAC_CMD)
     };
 
-    const struct CMUnitTest dropbear_tests[] = {
+    const UnitTest dropbear_tests[] = {
         PKDTESTS_DEFAULT(emit_unit_test_comma, dropbear, DROPBEAR_CMD)
         PKDTESTS_CIPHER(emit_unit_test_comma, dropbear, DROPBEAR_CIPHER_CMD)
         PKDTESTS_MAC(emit_unit_test_comma, dropbear, DROPBEAR_MAC_CMD)
     };
 
-    const struct CMUnitTest noop_tests[] = {
+    const UnitTest noop_tests[] = {
         emit_unit_test(client, noop, "", setup_noop, teardown)
     };
 
     /* Test list is populated depending on which clients are enabled. */
-    struct CMUnitTest all_tests[(sizeof(openssh_tests) / sizeof(openssh_tests[0])) +
+    UnitTest all_tests[(sizeof(openssh_tests) / sizeof(openssh_tests[0])) +
                        (sizeof(dropbear_tests) / sizeof(dropbear_tests[0])) +
                        (sizeof(noop_tests) / sizeof(noop_tests[0]))];
     memset(&all_tests[0], 0x0, sizeof(all_tests));
@@ -476,10 +461,10 @@ static int pkd_run_tests(void) {
     tindex += (sizeof(noop_tests) / sizeof(noop_tests[0]));
 
     if (pkd_dargs.opts.testname == NULL) {
-        rc = _cmocka_run_group_tests("all tests", all_tests, tindex, NULL, NULL);
+        rc = _run_tests(all_tests, tindex);
     } else {
         int i = 0;
-        const struct CMUnitTest *found = NULL;
+        const UnitTest *found = NULL;
         const char *testname = pkd_dargs.opts.testname;
 
         while (testmap[i].testname != NULL) {
@@ -491,7 +476,7 @@ static int pkd_run_tests(void) {
         }
 
         if (found != NULL) {
-            rc = _cmocka_run_group_tests("found", found, 3, NULL, NULL);
+            rc = _run_tests(found, 3);
         } else {
             fprintf(stderr, "Did not find test '%s'\n", testname);
         }

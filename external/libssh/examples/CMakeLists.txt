@@ -11,9 +11,9 @@ include_directories(
   ${CMAKE_BINARY_DIR}
 )
 
-if (ARGP_INCLUDE_DIR)
-    include_directories(${ARGP_INCLUDE_DIR})
-endif()
+if (BSD OR SOLARIS OR OSX)
+    find_package(Argp)
+endif (BSD OR SOLARIS OR OSX)
 
 if (UNIX AND NOT WIN32)
     add_executable(libssh_scp libssh_scp.c ${examples_SRCS})
@@ -33,24 +33,24 @@ if (UNIX AND NOT WIN32)
     add_executable(samplessh sample.c ${examples_SRCS})
     target_link_libraries(samplessh ${LIBSSH_SHARED_LIBRARY})
 
-    if (WITH_SERVER AND ARGP_LIBRARY)
+    if (WITH_SERVER)
         if (HAVE_LIBUTIL)
             add_executable(ssh_server_fork ssh_server_fork.c)
-            target_link_libraries(ssh_server_fork ${LIBSSH_SHARED_LIBRARY} ${ARGP_LIBRARY} util)
+            target_link_libraries(ssh_server_fork ${LIBSSH_SHARED_LIBRARY} ${ARGP_LIBRARIES} util)
         endif (HAVE_LIBUTIL)
 
         if (WITH_GSSAPI AND GSSAPI_FOUND)
             add_executable(samplesshd-cb samplesshd-cb.c)
-            target_link_libraries(samplesshd-cb ${LIBSSH_SHARED_LIBRARY} ${ARGP_LIBRARY})
+            target_link_libraries(samplesshd-cb ${LIBSSH_SHARED_LIBRARY} ${ARGP_LIBRARIES})
 
             add_executable(proxy proxy.c)
-            target_link_libraries(proxy ${LIBSSH_SHARED_LIBRARY} ${ARGP_LIBRARY})
+            target_link_libraries(proxy ${LIBSSH_SHARED_LIBRARY} ${ARGP_LIBRARIES})
         endif (WITH_GSSAPI AND GSSAPI_FOUND)
 
         add_executable(samplesshd-kbdint samplesshd-kbdint.c)
-        target_link_libraries(samplesshd-kbdint ${LIBSSH_SHARED_LIBRARY} ${ARGP_LIBRARY})
+        target_link_libraries(samplesshd-kbdint ${LIBSSH_SHARED_LIBRARY} ${ARGP_LIBRARIES})
 
-    endif (WITH_SERVER AND ARGP_LIBRARY)
+    endif (WITH_SERVER)
 endif (UNIX AND NOT WIN32)
 
 add_executable(exec exec.c ${examples_SRCS})

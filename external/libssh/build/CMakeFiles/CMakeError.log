@@ -1,0 +1,221 @@
+Determining if the pthread_create exist failed with the following output:
+Change Dir: /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_d2e7d/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_d2e7d.dir/build.make CMakeFiles/cmTC_d2e7d.dir/build
+gmake[1]: Entering directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_d2e7d.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE    -o CMakeFiles/cmTC_d2e7d.dir/CheckSymbolExists.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c: In function 'main':
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8: error: ISO C forbids conversion of function pointer to object pointer type
+gmake[1]: *** [CMakeFiles/cmTC_d2e7d.dir/CheckSymbolExists.c.o] Error 1
+gmake[1]: Leaving directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+gmake: *** [cmTC_d2e7d/fast] Error 2
+
+File /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_da408/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_da408.dir/build.make CMakeFiles/cmTC_da408.dir/build
+gmake[1]: Entering directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_da408.dir/CheckFunctionExists.c.o
+/usr/bin/cc    -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_da408.dir/CheckFunctionExists.c.o   -c /opt/cmake/3.5.2/share/cmake-3.5/Modules/CheckFunctionExists.c
+Linking C executable cmTC_da408
+/opt/cmake/3.5.2/bin/cmake -E cmake_link_script CMakeFiles/cmTC_da408.dir/link.txt --verbose=1
+/usr/bin/cc   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -DCHECK_FUNCTION_EXISTS=pthread_create    CMakeFiles/cmTC_da408.dir/CheckFunctionExists.c.o  -o cmTC_da408 -rdynamic -lpthreads 
+/usr/lib64/gcc/x86_64-suse-linux/4.3/../../../../x86_64-suse-linux/bin/ld: cannot find -lpthreads
+collect2: ld returned 1 exit status
+gmake[1]: *** [cmTC_da408] Error 1
+gmake[1]: Leaving directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+gmake: *** [cmTC_da408/fast] Error 2
+
+
+Determining if the include file util.h exists failed with the following output:
+Change Dir: /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_4705a/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_4705a.dir/build.make CMakeFiles/cmTC_4705a.dir/build
+gmake[1]: Entering directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_4705a.dir/CheckIncludeFile.c.o
+/usr/bin/cc    -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE    -o CMakeFiles/cmTC_4705a.dir/CheckIncludeFile.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c:1:18: error: util.h: No such file or directory
+gmake[1]: *** [CMakeFiles/cmTC_4705a.dir/CheckIncludeFile.c.o] Error 1
+gmake[1]: Leaving directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+gmake: *** [cmTC_4705a/fast] Error 2
+
+
+Determining if the include file libutil.h exists failed with the following output:
+Change Dir: /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_de142/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_de142.dir/build.make CMakeFiles/cmTC_de142.dir/build
+gmake[1]: Entering directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_de142.dir/CheckIncludeFile.c.o
+/usr/bin/cc    -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE    -o CMakeFiles/cmTC_de142.dir/CheckIncludeFile.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c:1:21: error: libutil.h: No such file or directory
+gmake[1]: *** [CMakeFiles/cmTC_de142.dir/CheckIncludeFile.c.o] Error 1
+gmake[1]: Leaving directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+gmake: *** [cmTC_de142/fast] Error 2
+
+
+Determining if the ntohll exist failed with the following output:
+Change Dir: /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_a7435/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_a7435.dir/build.make CMakeFiles/cmTC_a7435.dir/build
+gmake[1]: Entering directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_a7435.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE    -o CMakeFiles/cmTC_a7435.dir/CheckSymbolExists.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c: In function 'main':
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8: error: 'ntohll' undeclared (first use in this function)
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8: error: (Each undeclared identifier is reported only once
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8: error: for each function it appears in.)
+gmake[1]: *** [CMakeFiles/cmTC_a7435.dir/CheckSymbolExists.c.o] Error 1
+gmake[1]: Leaving directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+gmake: *** [cmTC_a7435/fast] Error 2
+
+File /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <arpa/inet.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef ntohll
+  return ((int*)(&ntohll))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the htonll exist failed with the following output:
+Change Dir: /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_d7fed/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_d7fed.dir/build.make CMakeFiles/cmTC_d7fed.dir/build
+gmake[1]: Entering directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_d7fed.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE    -o CMakeFiles/cmTC_d7fed.dir/CheckSymbolExists.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c: In function 'main':
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8: error: 'htonll' undeclared (first use in this function)
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8: error: (Each undeclared identifier is reported only once
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8: error: for each function it appears in.)
+gmake[1]: *** [CMakeFiles/cmTC_d7fed.dir/CheckSymbolExists.c.o] Error 1
+gmake[1]: Leaving directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+gmake: *** [cmTC_d7fed/fast] Error 2
+
+File /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <arpa/inet.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef htonll
+  return ((int*)(&htonll))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function __strtoull exists failed with the following output:
+Change Dir: /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_da3cb/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_da3cb.dir/build.make CMakeFiles/cmTC_da3cb.dir/build
+gmake[1]: Entering directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_da3cb.dir/CheckFunctionExists.c.o
+/usr/bin/cc    -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -DCHECK_FUNCTION_EXISTS=__strtoull   -o CMakeFiles/cmTC_da3cb.dir/CheckFunctionExists.c.o   -c /opt/cmake/3.5.2/share/cmake-3.5/Modules/CheckFunctionExists.c
+Linking C executable cmTC_da3cb
+/opt/cmake/3.5.2/bin/cmake -E cmake_link_script CMakeFiles/cmTC_da3cb.dir/link.txt --verbose=1
+/usr/bin/cc   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -DCHECK_FUNCTION_EXISTS=__strtoull    CMakeFiles/cmTC_da3cb.dir/CheckFunctionExists.c.o  -o cmTC_da3cb -rdynamic -lrt 
+CMakeFiles/cmTC_da3cb.dir/CheckFunctionExists.c.o: In function `main':
+CheckFunctionExists.c:(.text+0x15): undefined reference to `__strtoull'
+collect2: ld returned 1 exit status
+gmake[1]: *** [cmTC_da3cb] Error 1
+gmake[1]: Leaving directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+gmake: *** [cmTC_da3cb/fast] Error 2
+
+
+Performing C SOURCE FILE Test HAVE_MSC_THREAD_LOCAL_STORAGE failed with the following output:
+Change Dir: /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_0ca3c/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_0ca3c.dir/build.make CMakeFiles/cmTC_0ca3c.dir/build
+gmake[1]: Entering directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_0ca3c.dir/src.c.o
+/usr/bin/cc    -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -DHAVE_MSC_THREAD_LOCAL_STORAGE   -o CMakeFiles/cmTC_0ca3c.dir/src.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/src.c
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/src.c:2: error: return type defaults to 'int'
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/src.c:2: warning: no previous prototype for '__declspec'
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/src.c: In function '__declspec':
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/src.c:4: error: expected '=', ',', ';', 'asm' or '__attribute__' before '{' token
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/src.c:6: error: type of 'thread' defaults to 'int'
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/src.c:2: error: declaration for parameter 'tls' but no such parameter
+/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/src.c:6: error: expected '{' at end of input
+gmake[1]: *** [CMakeFiles/cmTC_0ca3c.dir/src.c.o] Error 1
+gmake[1]: Leaving directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+gmake: *** [cmTC_0ca3c/fast] Error 2
+
+Source file was:
+
+__declspec(thread) int tls;
+
+int main(void) {
+    return 0;
+}
+Determining if the system is big endian passed with the following output:
+Change Dir: /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_2ed9f/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_2ed9f.dir/build.make CMakeFiles/cmTC_2ed9f.dir/build
+gmake[1]: Entering directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_2ed9f.dir/TestEndianess.c.o
+/usr/bin/cc    -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE    -o CMakeFiles/cmTC_2ed9f.dir/TestEndianess.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp/TestEndianess.c
+Linking C executable cmTC_2ed9f
+/opt/cmake/3.5.2/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2ed9f.dir/link.txt --verbose=1
+/usr/bin/cc   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE     CMakeFiles/cmTC_2ed9f.dir/TestEndianess.c.o  -o cmTC_2ed9f -rdynamic 
+gmake[1]: Leaving directory `/.AUTO/cray/css.users/azahdeh/projects/cti_sles/external/libssh/build/CMakeFiles/CMakeTmp'
+
+TestEndianess.c:
+/* A 16 bit integer is required. */
+typedef unsigned short cmakeint16;
+
+/* On a little endian machine, these 16bit ints will give "THIS IS LITTLE ENDIAN."
+   On a big endian machine the characters will be exchanged pairwise. */
+const cmakeint16 info_little[] =  {0x4854, 0x5349, 0x4920, 0x2053, 0x494c, 0x5454, 0x454c, 0x4520, 0x444e, 0x4149, 0x2e4e, 0x0000};
+
+/* on a big endian machine, these 16bit ints will give "THIS IS BIG ENDIAN."
+   On a little endian machine the characters will be exchanged pairwise. */
+const cmakeint16 info_big[] =     {0x5448, 0x4953, 0x2049, 0x5320, 0x4249, 0x4720, 0x454e, 0x4449, 0x414e, 0x2e2e, 0x0000};
+
+#ifdef __CLASSIC_C__
+int main(argc, argv) int argc; char *argv[];
+#else
+int main(int argc, char *argv[])
+#endif
+{
+  int require = 0;
+  require += info_little[argc];
+  require += info_big[argc];
+  (void)argv;
+  return require;
+}
+
+

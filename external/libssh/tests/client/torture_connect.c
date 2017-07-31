@@ -23,69 +23,36 @@
 
 #include "torture.h"
 #include <libssh/libssh.h>
-#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
-#endif /* HAVE_SYS_TIME_H */
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <errno.h>
-#include <pwd.h>
-
+#define HOST "localhost"
 /* Should work until Apnic decides to assign it :) */
 #define BLACKHOLE "1.1.1.1"
 
-static int sshd_setup(void **state)
-{
-    torture_setup_sshd_server(state);
+static void setup(void **state) {
+    int verbosity=torture_libssh_verbosity();
+    ssh_session session = ssh_new();
 
-    return 0;
+    ssh_options_set(session, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
+
+    *state = session;
 }
 
-static int sshd_teardown(void **state) {
-    torture_teardown_sshd_server(state);
-
-    return 0;
-}
-
-static int session_setup(void **state)
-{
-    struct torture_state *s = *state;
-    int verbosity = torture_libssh_verbosity();
-    struct passwd *pwd;
-    int rc;
-
-    pwd = getpwnam("bob");
-    assert_non_null(pwd);
-
-    rc = setuid(pwd->pw_uid);
-    assert_return_code(rc, errno);
-
-    s->ssh.session = ssh_new();
-    assert_non_null(s->ssh.session);
-
-    ssh_options_set(s->ssh.session, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
-
-    return 0;
-}
-
-static int session_teardown(void **state)
-{
-    struct torture_state *s = *state;
-
-    ssh_disconnect(s->ssh.session);
-    ssh_free(s->ssh.session);
-
-    return 0;
+static void teardown(void **state) {
+    ssh_session session = *state;
+    ssh_disconnect(session);
+    ssh_free(session);
 }
 
 static void torture_connect_nonblocking(void **state) {
-    struct torture_state *s = *state;
-    ssh_session session = s->ssh.session;
+    ssh_session session = *state;
+
     int rc;
 
-    rc = ssh_options_set(session, SSH_OPTIONS_HOST, TORTURE_SSH_SERVER);
+    rc = ssh_options_set(session, SSH_OPTIONS_HOST, HOST);
     assert_true(rc == SSH_OK);
     ssh_set_blocking(session,0);
 
@@ -97,10 +64,8 @@ static void torture_connect_nonblocking(void **state) {
     assert_true(rc == SSH_OK);
 }
 
-#if 0 /* This does not work with socket_wrapper */
 static void torture_connect_timeout(void **state) {
-    struct torture_state *s = *state;
-    ssh_session session = s->ssh.session;
+    ssh_session session = *state;
     struct timeval before, after;
     int rc;
     long timeout = 2;
@@ -125,15 +90,13 @@ static void torture_connect_timeout(void **state) {
       sec--;
     assert_in_range(sec, 1, 3);
 }
-#endif
 
 static void torture_connect_double(void **state) {
-    struct torture_state *s = *state;
-    ssh_session session = s->ssh.session;
+    ssh_session session = *state;
 
     int rc;
 
-    rc = ssh_options_set(session, SSH_OPTIONS_HOST, TORTURE_SSH_SERVER);
+    rc = ssh_options_set(session, SSH_OPTIONS_HOST, HOST);
     assert_true(rc == SSH_OK);
     rc = ssh_connect(session);
     assert_true(rc == SSH_OK);
@@ -149,15 +112,12 @@ static void torture_connect_failure(void **state) {
      * ssh_new/ssh_disconnect/ssh_free sequence doesn't crash/leak
      * and the behavior of a double ssh_disconnect
      */
-    struct torture_state *s = *state;
-    ssh_session session = s->ssh.session;
-
+    ssh_session session = *state;
     ssh_disconnect(session);
 }
 
 static void torture_connect_socket(void **state) {
-    struct torture_state *s = *state;
-    ssh_session session = s->ssh.session;
+    ssh_session session = *state;
 
     int rc;
     int sock_fd = 0;
@@ -168,7 +128,7 @@ static void torture_connect_socket(void **state) {
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(22);
-    server_addr.sin_addr.s_addr = inet_addr(TORTURE_SSH_SERVER);
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     rc = connect(sock_fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
     assert_true(rc == 0);
@@ -181,20 +141,18 @@ static void torture_connect_socket(void **state) {
 
 int torture_run_tests(void) {
     int rc;
-    struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup_teardown(torture_connect_nonblocking, session_setup, session_teardown),
-        cmocka_unit_test_setup_teardown(torture_connect_double, session_setup, session_teardown),
-        cmocka_unit_test_setup_teardown(torture_connect_failure, session_setup, session_teardown),
-#if 0
-        cmocka_unit_test_setup_teardown(torture_connect_timeout, session_setup, session_teardown),
-#endif
-        cmocka_unit_test_setup_teardown(torture_connect_socket, session_setup, session_teardown),
+    UnitTest tests[] = {
+        unit_test_setup_teardown(torture_connect_nonblocking, setup, teardown),
+        unit_test_setup_teardown(torture_connect_double, setup, teardown),
+        unit_test_setup_teardown(torture_connect_failure, setup, teardown),
+        unit_test_setup_teardown(torture_connect_timeout, setup, teardown),
+        unit_test_setup_teardown(torture_connect_socket, setup, teardown),
     };
 
     ssh_init();
 
     torture_filter_tests(tests);
-    rc = cmocka_run_group_tests(tests, sshd_setup, sshd_teardown);
+    rc = run_tests(tests);
 
     ssh_finalize();
     return rc;

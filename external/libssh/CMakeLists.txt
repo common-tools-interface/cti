@@ -8,7 +8,7 @@ set(APPLICATION_NAME ${PROJECT_NAME})
 
 set(APPLICATION_VERSION_MAJOR "0")
 set(APPLICATION_VERSION_MINOR "7")
-set(APPLICATION_VERSION_PATCH "0")
+set(APPLICATION_VERSION_PATCH "5")
 
 set(APPLICATION_VERSION "${APPLICATION_VERSION_MAJOR}.${APPLICATION_VERSION_MINOR}.${APPLICATION_VERSION_PATCH}")
 
@@ -19,7 +19,7 @@ set(APPLICATION_VERSION "${APPLICATION_VERSION_MAJOR}.${APPLICATION_VERSION_MINO
 #     Increment AGE. Set REVISION to 0
 #   If the source code was changed, but there were no interface changes:
 #     Increment REVISION.
-set(LIBRARY_VERSION "4.4.0")
+set(LIBRARY_VERSION "4.4.2")
 set(LIBRARY_SOVERSION "4")
 
 # where to look first for cmake modules, before ${CMAKE_ROOT}/Modules/ is checked
@@ -73,10 +73,6 @@ if (WITH_NACL)
         set(WITH_NACL OFF)
     endif (NOT NACL_FOUND)
 endif (WITH_NACL)
-
-if (BSD OR SOLARIS OR OSX)
-    find_package(Argp)
-endif (BSD OR SOLARIS OR OSX)
 
 # config.h checks
 include(ConfigureChecks.cmake)

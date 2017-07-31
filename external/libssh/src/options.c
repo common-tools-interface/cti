@@ -164,9 +164,9 @@ int ssh_options_copy(ssh_session src, ssh_session *dest) {
 
 int ssh_options_set_algo(ssh_session session, int algo,
     const char *list) {
-  if (!ssh_verify_existing_algo(algo, list)) {
+  if (!verify_existing_algo(algo, list)) {
     ssh_set_error(session, SSH_REQUEST_DENIED,
-        "Setting method: no algorithm for method \"%s\" (%s)",
+        "Setting method: no algorithm for method \"%s\" (%s)\n",
         ssh_kex_get_description(algo), list);
     return -1;
   }
@@ -925,17 +925,6 @@ int ssh_options_get_port(ssh_session session, unsigned int* port_target) {
  *                It may include "%s" which will be replaced by the
  *                user home directory.
  *
- *              - SSH_OPTIONS_ADD_IDENTITY:
- *                Add a new identity file (const char *,format string) to
- *                the identity list.\n
- *                \n
- *                By default identity, id_dsa and id_rsa are checked.\n
- *                \n
- *                The identity used authenticate with public key will be
- *                prepended to the list.
- *                It may include "%s" which will be replaced by the
- *                user home directory.
- *
  *              - SSH_OPTIONS_PROXYCOMMAND:
  *                Get the proxycommand necessary to log into the
  *                remote host. When not explicitly set, it will be read
@@ -1179,9 +1168,7 @@ int ssh_options_getopt(ssh_session session, int *argcptr, char **argv) {
     }
   }
 
-  if (port != NULL) {
-    ssh_options_set(session, SSH_OPTIONS_PORT_STR, port);
-  }
+  ssh_options_set(session, SSH_OPTIONS_PORT_STR, port);
 
   ssh_options_set(session, SSH_OPTIONS_SSH1, &ssh1);
   ssh_options_set(session, SSH_OPTIONS_SSH2, &ssh2);

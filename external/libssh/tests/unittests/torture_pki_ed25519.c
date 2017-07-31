@@ -110,14 +110,14 @@ static void torture_pki_ed25519_verify_bad(void **state){
 
 int torture_run_tests(void) {
     int rc;
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(torture_pki_ed25519_sign),
-        cmocka_unit_test(torture_pki_ed25519_verify),
-        cmocka_unit_test(torture_pki_ed25519_verify_bad)
+    const UnitTest tests[] = {
+        unit_test(torture_pki_ed25519_sign),
+        unit_test(torture_pki_ed25519_verify),
+        unit_test(torture_pki_ed25519_verify_bad)
     };
 
     ssh_init();
-    rc = cmocka_run_group_tests(tests, NULL, NULL);
+    rc=run_tests(tests);
     ssh_finalize();
     return rc;
 }

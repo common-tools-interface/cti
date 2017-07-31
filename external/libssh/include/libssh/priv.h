@@ -185,6 +185,10 @@ int gettimeofday(struct timeval *__p, void *__t);
 # define LIBSSH_MEM_PROTECTION
 #endif
 
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+
 /* forward declarations */
 struct ssh_common_struct;
 struct ssh_kex_struct;
@@ -254,10 +258,6 @@ int decompress_buffer(ssh_session session,ssh_buffer buf, size_t maxlen);
 
 /* match.c */
 int match_hostname(const char *host, const char *pattern, unsigned int len);
-
-/* connector.c */
-int ssh_connector_set_event(ssh_connector connector, ssh_event event);
-int ssh_connector_remove_event(ssh_connector connector);
 
 #ifndef MIN
 #define MIN(a,b) ((a) < (b) ? (a) : (b))

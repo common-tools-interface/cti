@@ -47,11 +47,7 @@ int main(void){ return 0; }
 endif(CMAKE_COMPILER_IS_GNUCC AND NOT MINGW AND NOT OS2)
 
 # HEADER FILES
-set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
-set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${ARGP_INCLUDE_DIR})
 check_include_file(argp.h HAVE_ARGP_H)
-set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
-
 check_include_file(pty.h HAVE_PTY_H)
 check_include_file(utmp.h HAVE_UTMP_H)
 check_include_file(termios.h HAVE_TERMIOS_H)
@@ -59,14 +55,11 @@ check_include_file(unistd.h HAVE_UNISTD_H)
 check_include_file(util.h HAVE_UTIL_H)
 check_include_file(libutil.h HAVE_LIBUTIL_H)
 check_include_file(sys/time.h HAVE_SYS_TIME_H)
-check_include_file(sys/utime.h HAVE_SYS_UTIME_H)
 check_include_file(sys/param.h HAVE_SYS_PARAM_H)
 check_include_file(arpa/inet.h HAVE_ARPA_INET_H)
 check_include_file(byteswap.h HAVE_BYTESWAP_H)
 
 if (WIN32)
-  check_include_file(io.h HAVE_IO_H)
-
   check_include_files("winsock2.h;ws2tcpip.h;wspiapi.h" HAVE_WSPIAPI_H)
   if (NOT HAVE_WSPIAPI_H)
     message(STATUS "WARNING: Without wspiapi.h, this build will only work on Windows XP and newer versions")
@@ -98,22 +91,6 @@ if (OPENSSL_FOUND)
 
     set(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
     check_include_file(openssl/ecdsa.h HAVE_OPENSSL_ECDSA_H)
-
-    set(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
-    set(CMAKE_REQUIRED_LIBRARIES ${OPENSSL_CRYPTO_LIBRARY})
-    check_function_exists(EVP_aes_128_ctr HAVE_OPENSSL_EVP_AES_CTR)
-
-    set(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
-    set(CMAKE_REQUIRED_LIBRARIES ${OPENSSL_CRYPTO_LIBRARY})
-    check_function_exists(EVP_aes_128_cbc HAVE_OPENSSL_EVP_AES_CBC)
-
-    set(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
-    set(CMAKE_REQUIRED_LIBRARIES ${OPENSSL_CRYPTO_LIBRARY})
-    check_function_exists(CRYPTO_THREADID_set_callback HAVE_OPENSSL_CRYPTO_THREADID_SET_CALLBACK)
-
-    set(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
-    set(CMAKE_REQUIRED_LIBRARIES ${OPENSSL_CRYPTO_LIBRARY})
-    check_function_exists(CRYPTO_ctr128_encrypt HAVE_OPENSSL_CRYPTO_CTR128_ENCRYPT)
 endif()
 
 if (CMAKE_HAVE_PTHREAD_H)
@@ -214,8 +191,8 @@ endif (OPENSSL_FOUND)
 if (GCRYPT_FOUND)
     set(HAVE_LIBGCRYPT 1)
     if (GCRYPT_VERSION VERSION_GREATER "1.4.6")
-        set(HAVE_GCRYPT_ECC 1)
-        set(HAVE_ECC 1)
+        #set(HAVE_GCRYPT_ECC 1)
+        #set(HAVE_ECC 1)
     endif (GCRYPT_VERSION VERSION_GREATER "1.4.6")
 endif (GCRYPT_FOUND)
 
