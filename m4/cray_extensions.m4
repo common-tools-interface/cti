@@ -119,6 +119,8 @@ AC_DEFUN([cray_BUILD_LIBMI],
 
 	AC_MSG_NOTICE([Building libmi...])
 
+	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
 	dnl run configure with options that work on build systems
 	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 

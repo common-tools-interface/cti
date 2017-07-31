@@ -17292,6 +17292,8 @@ fi
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: Building libmi..." >&5
 $as_echo "$as_me: Building libmi..." >&6;}
 
+	autoreconf -ifv >&5 2>&5
+
 		./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&5 2>&5
 
 		make >&5 2>&5
