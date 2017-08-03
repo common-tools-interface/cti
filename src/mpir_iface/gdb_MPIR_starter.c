@@ -1071,7 +1071,7 @@ main(int argc, char *argv[])
 						
 						// create the command string based on p_size, this will ensure
 						// that our array is big enough to hold any of the commands
-						if (asprintf(&cmd_str, "*((int*)(MPIR_proctable+%lu))", p_size*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, pid)) < 0)
+						if (asprintf(&cmd_str, "*((int*)((void*)MPIR_proctable+%lu))", p_size*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, pid)) < 0)
 						{
 							// this is a non fatal error, we can recover
 							_cti_gdb_sendError("asprintf failed.");
@@ -1086,7 +1086,7 @@ main(int argc, char *argv[])
 						for (i=0; i < p_size; ++i)
 						{
 							// create the command string
-							if (snprintf(cmd_str, len+1, "*((int*)(MPIR_proctable+%lu))", i*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, pid)) < 0)
+							if (snprintf(cmd_str, len+1, "*((int*)((void*)MPIR_proctable+%lu))", i*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, pid)) < 0)
 							{
 								// this is a non fatal error, we can recover
 								_cti_gdb_sendError("snprintf failed.");
@@ -1265,7 +1265,7 @@ main(int argc, char *argv[])
 						
 						// create the command string based on p_size, this will ensure
 						// that our array is big enough to hold any of the commands
-						if (asprintf(&cmd_str, "*((int*)(MPIR_proctable+%lu))", p_size*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, pid)) < 0)
+						if (asprintf(&cmd_str, "*((int*)((void*)MPIR_proctable+%lu))", p_size*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, pid)) < 0)
 						{
 							// this is a non fatal error, we can recover
 							_cti_gdb_sendError("asprintf failed.");
@@ -1282,7 +1282,7 @@ main(int argc, char *argv[])
 						for (i=0; i < p_size; ++i)
 						{
 							// create the command string
-							if (snprintf(cmd_str, len+1, "*((int*)(MPIR_proctable+%lu))", i*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, pid)) < 0)
+							if (snprintf(cmd_str, len+1, "*((int*)((void*)MPIR_proctable+%lu))", i*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, pid)) < 0)
 							{
 								// this is a non fatal error, we can recover
 								_cti_gdb_sendError("snprintf failed.");
@@ -1338,7 +1338,7 @@ main(int argc, char *argv[])
 							char* hostname_cmd_str;
 
 							// create the command string
-							if (asprintf(&hostname_cmd_str, "*(*((char**)(MPIR_proctable+%lu)))@strlen(*((char**)(MPIR_proctable+%lu)))", i*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, host_name), i*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, host_name)) < 0)
+							if (asprintf(&hostname_cmd_str, "*(*((char**)((void*)MPIR_proctable+%lu)))@strlen(*((char**)((void*)MPIR_proctable+%lu)))", i*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, host_name), i*sizeof(MPIR_PROCDESC)+offsetof(MPIR_PROCDESC, host_name)) < 0)
 							{
 								// this is a non fatal error, we can recover
 								_cti_gdb_sendError("snprintf failed.");
