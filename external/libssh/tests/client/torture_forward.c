@@ -24,87 +24,71 @@
 #include "torture.h"
 #include <libssh/libssh.h>
 
-#include <errno.h>
-#include <sys/types.h>
-#include <pwd.h>
-
-static int sshd_setup(void **state)
+static void setup(void **state)
 {
-    torture_setup_sshd_server(state);
+    ssh_session session;
+    const char *host;
+    const char *user;
+    const char *password;
 
-    return 0;
+    host = getenv("TORTURE_HOST");
+    if (host == NULL) {
+        host = "localhost";
+    }
+
+    user = getenv("TORTURE_USER");
+    password = getenv("TORTURE_PASSWORD");
+
+    session = torture_ssh_session(host, NULL, user, password);
+
+    assert_non_null(session);
+    *state = session;
 }
 
-static int sshd_teardown(void **state) {
-    torture_teardown_sshd_server(state);
-
-    return 0;
-}
-
-static int session_setup(void **state)
+static void teardown(void **state)
 {
-    struct torture_state *s = *state;
-    struct passwd *pwd;
-    int rc;
+    ssh_session session = (ssh_session) *state;
 
-    pwd = getpwnam("bob");
-    assert_non_null(pwd);
+    assert_non_null(session);
 
-    rc = setuid(pwd->pw_uid);
-    assert_return_code(rc, errno);
-
-    s->ssh.session = torture_ssh_session(TORTURE_SSH_SERVER,
-                                         NULL,
-                                         TORTURE_SSH_USER_ALICE,
-                                         NULL);
-    assert_non_null(s->ssh.session);
-
-    return 0;
-}
-
-static int session_teardown(void **state)
-{
-    struct torture_state *s = *state;
-
-    ssh_disconnect(s->ssh.session);
-    ssh_free(s->ssh.session);
-
-    return 0;
+    if (ssh_is_connected(session)) {
+            ssh_disconnect(session);
+    }
+    ssh_free(session);
 }
 
 static void torture_ssh_forward(void **state)
 {
-    struct torture_state *s = *state;
-    ssh_session session = s->ssh.session;
+    ssh_session session = (ssh_session) *state;
+#if 0
     ssh_channel c;
-    int dport;
+#endif
     int bound_port;
     int rc;
 
-    rc = ssh_channel_listen_forward(session, "127.0.0.21", 8080, &bound_port);
+    rc = ssh_channel_listen_forward(session, "127.0.0.1", 8080, &bound_port);
     assert_int_equal(rc, SSH_OK);
 
-    c = ssh_channel_accept_forward(session, 10, &dport);
-    /* We do not get a listener and run into the timeout here */
-    assert_null(c);
+#if 0
+    c = ssh_forward_accept(session, 60000);
+    assert_non_null(c);
 
     ssh_channel_send_eof(c);
     ssh_channel_close(c);
+#endif
 }
 
 int torture_run_tests(void) {
     int rc;
 
-    struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup_teardown(torture_ssh_forward,
-                                        session_setup,
-                                        session_teardown),
+    UnitTest tests[] = {
+        unit_test_setup_teardown(torture_ssh_forward, setup, teardown),
     };
 
     ssh_init();
 
     torture_filter_tests(tests);
-    rc = cmocka_run_group_tests(tests, sshd_setup, sshd_teardown);
+    rc = run_tests(tests);
 
     ssh_finalize();
     return rc;

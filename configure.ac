@@ -60,15 +60,6 @@ AC_ARG_WITH(	[libmi],
 				[libmi_path=no]
 			)
 
-dnl Check for --with-libssl
-AC_ARG_WITH(	[libssl],
-				[AS_HELP_STRING([--with-libssl],
-								[Specify path to libssl install.])
-				],
-				[libssl_path=$withval],
-				[libssl_path=no]
-			)
-
 dnl Check for --with-libssh
 AC_ARG_WITH(	[libssh],
 				[AS_HELP_STRING([--with-libssh],
@@ -152,22 +143,6 @@ else
 	AC_MSG_RESULT([provided])
 fi
 
-dnl build openssl if argument wasn't provided
-AC_MSG_CHECKING([for libssl argument])
-AM_CONDITIONAL([BUILT_SSL], [test "x$libssl_path" = xno])
-if test "x$libssl_path" = "xno"; then
-	AC_MSG_RESULT([not found])
-	AC_CACHE_VAL([cray_cv_lib_ssl_build], [cray_BUILD_LIBSSL])
-	if test "x$cray_cv_lib_ssl_build" = xno; then
-		AC_MSG_ERROR([libssl build failed.])
-	fi
-	AC_CACHE_SAVE
-	cray_ENV_LIBSSL
-	libssl_path=$INTERNAL_LIBSSL
-else
-	AC_MSG_RESULT([provided])
-fi
-
 dnl build libssh if argument wasn't provided
 AC_MSG_CHECKING([for libssh argument])
 AM_CONDITIONAL([BUILT_SSH], [test "x$libssh_path" = xno])
@@ -220,51 +195,6 @@ AC_CHECK_LIB(	[rt],
 				[AC_MSG_FAILURE([librt not found.])]
 				)
 
-dnl Check for libalps
-save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $ALPS_LDFLAGS"
-AC_CHECK_LIB(	[alps],
-				[alpsGetMyNid],
-				[AC_DEFINE(	[HAVE_LIBALPS],
-								[1],
-								[Define to 1 if you have the alps library (-lalps).]
-							)
-				],
-				[AC_MSG_FAILURE([libalps not found.])],
-				[-lxmlrpc-epi]
-				)
-dnl Check for libalpsutil
-AC_CHECK_LIB(	[alpsutil],
-				[alps_get_placement_info],
-				[AC_DEFINE(	[HAVE_LIBALPSUTIL],
-								[1],
-								[Define to 1 if you have the alpsutil library (-lalpsutil).]
-							)
-				],
-				[AC_MSG_FAILURE([libalpsutil not found.])]
-				)
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
-dnl Check for libwlm_detect
-save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $WLM_DETECT_LDFLAGS"
-AC_CHECK_LIB(	[wlm_detect],
-				[wlm_detect_get_default],
-				[AC_DEFINE(	[HAVE_WLM_DETECT],
-								[1],
-								[Define to 1 if you have the wlm_detect library (-lwlm_detect).]
-							)
-				],
-				[AC_MSG_FAILURE([libwlm_detect not found.])]
-				)
-AC_SUBST([WLM_DETECT_LIBS], ["-lwlm_detect"])
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
 dnl Check for libarchive
 save_LDFLAGS="$LDFLAGS"
 if test -f "$libarchive_path/lib/libarchive.a"; then
@@ -300,25 +230,6 @@ AC_CHECK_LIB(	[mi],
 			 	[AC_MSG_ERROR([libmi.so not found.])]
 			 	)
 AC_SUBST([MI_LIBS], ["-lmi"])
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
-dnl Check for libssl
-save_LDFLAGS="$LDFLAGS"
-if test -f "$libssl_path/lib/libssl.so"; then
-	AC_SUBST([SSL_LDFLAGS], ["-L$libssl_path/lib"])
-	LDFLAGS="$LDFLAGS $SSL_LDFLAGS -lcrypto"
-fi
-AC_CHECK_LIB(	[ssl],
-				[SSL_new],
-				[AC_DEFINE(	[HAVE_SSL],
-								[1],
-								[Define to 1 if you have the ssl library (-lssl).]
-							)
-				],
-			 	[AC_MSG_ERROR([libssl.so not found.])]
-			 	)
-AC_SUBST([SSL_LIBS], ["-lssl"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 

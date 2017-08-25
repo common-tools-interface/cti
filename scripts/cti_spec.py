@@ -22,7 +22,7 @@ Provides: cray-cti = %{build_version}
 
 %define _use_internal_dependency_generator 0
 %define __find_requires %{scripts_d}/find-requires
-%define debug_package%{nil}
+%define debug_package %{nil}
 
 %description
 Cray Tools Interface.
@@ -105,9 +105,7 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib/libcraytools_be.la
 %{_version_prefix}/lib/libcraytools_be.a
 %{_version_prefix}/lib/libmi.so
-%{_version_prefix}/lib/libssl.so.*
 %{_version_prefix}/lib/libssh.so.*
-%{_version_prefix}/lib/libcrypto.so.*
 %{_version_prefix}/lib/pkgconfig/
 %{_version_prefix}/lib/pkgconfig/craytools_be.pc
 %{_version_prefix}/lib/pkgconfig/craytools_fe.pc

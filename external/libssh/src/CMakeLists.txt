@@ -115,7 +115,6 @@ set(libssh_SRCS
   client.c
   config.c
   connect.c
-  connector.c
   curve25519.c
   dh.c
   ecdh.c
@@ -125,6 +124,7 @@ set(libssh_SRCS
   kex.c
   known_hosts.c
   legacy.c
+  libcrypto.c
   log.c
   match.c
   messages.c
@@ -158,18 +158,12 @@ if (WITH_GCRYPT)
         libgcrypt.c
         gcrypt_missing.c
         pki_gcrypt.c
-        ecdh_gcrypt.c
        )
 else (WITH_GCRYPT)
     set(libssh_SRCS
         ${libssh_SRCS}
         pki_crypto.c
-        ecdh_crypto.c
-        libcrypto.c
        )
-    if(OPENSSL_VERSION VERSION_LESS "1.1.0")
-        set(libssh_SRCS ${libssh_SRCS} libcrypto-compat.c)
-    endif()
 endif (WITH_GCRYPT)
 
 if (WITH_SFTP)

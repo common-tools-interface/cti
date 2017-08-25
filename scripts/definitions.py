@@ -8,7 +8,8 @@ from datetime import datetime
 
 product_dir           = "/cray/css/pe/pkgs/cti"
 bld_dir               = ""
-arch                  = "x86_64"
+arch                  = ""
+arch_name             = ""
 final                 = False
 pkgs_dir              = ""
 two_digit_version     = ""
@@ -20,28 +21,38 @@ release_number        = ""
 rpm_name              = ""
 osver                 = ""
 revision_number       = ""
+prefix                = "/opt/cray"
+
 
 for arg in sys.argv:
   if arg == '-f':
     final = True
 
 def fetch_release(base_name, rev_num,pkgs_dir):
-  rpm_tail = ".x86_64.rpm"
   itt_list = range(20)
   itt_list.reverse()
   rval = 0
   for i in itt_list:
-    tmp_name = pkgs_dir + "/" + base_name + "-" + "*" + "." + rev_num + "-" + str(i) + osver + rpm_tail
+    tmp_name = pkgs_dir + "/" + base_name + "-" + "*" + "." + rev_num + "-" + str(i) + osver + arch + ".rpm"
     if glob.glob(tmp_name):
       rval = i + 1
       break
   return str(rval)  
 
+
 def fetch_os():
   global bld_dir
+  global arch
+  global arch_name
   if os.path.isfile("/etc/SuSE-release"):
     with open("/etc/SuSE-release", "r") as f:
       for line in f:
+        if line.find("aarch64") != -1:
+          arch = "aarch64"
+          arch_name = "ARM"
+        elif line.find("x86_64") != -1:
+          arch = "x86_64"
+    
         if line.find("VERSION") != -1:
           os_sub = line.replace("VERSION = ", "")
           break
@@ -50,6 +61,7 @@ def fetch_os():
       for line in f:
         if line.find("CentOS ") != -1:
           os_sub = 'el7'
+	  arch_name = "CS"
           break
 
   os_sub = os_sub.strip()
@@ -58,10 +70,16 @@ def fetch_os():
     return ".el7"
   elif os_sub == "12":
     bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
+    arch_name = "sles12"
+    prefix = "/opt/cray/pe"
     return ".sles12"
   elif os_sub == "11":
     bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
+    arch_name = "sles11"
     return ".sles11"
+  elif os_sub == "aarch64":
+    bld_dir = "/cray/css/ulib/cti/builds_arm/latest/install/"
+    return ".aarch64"
 
 
 def release_date():
@@ -184,7 +202,7 @@ def fetch_newData():
   global rpm_name
   global osver
   global ver_two_dig_nodot
-
+ 
   rev_command = "git rev-parse HEAD"
   rev_number  = os.popen(rev_command).read()
   rev_number  = rev_number.rstrip()

@@ -34,6 +34,9 @@ rpm_name                      = definitions.rpm_name
 os_ver                        = definitions.osver
 package_dir                   = definitions.pkgs_dir
 cti_build_dir                 = definitions.bld_dir
+arch_name                     = definitions.arch_name
+arch                          = definitions.arch
+prefix                        = definitions.prefix
 
 
 if options.builddir == None:
@@ -54,10 +57,11 @@ else:
       print "Exiting!"
       exit(1)
 
+
 if options.static_version != False:
   build_version = options.static_version
   release_number = str(0)
-  rpm_name = "cray-cti-" + build_version + "-" + revision_number + "-" + release_number + os_ver + ".x86_64.rpm"
+  rpm_name = "cray-cti-" + build_version + "-" + revision_number + "-" + release_number + os_ver + arch + ".rpm"
   if is_final:
     if len(build_version) <= 4 or len(build_version) > 5:
       print "Ensure your release version has 3 digits. Exiting..."
@@ -68,6 +72,7 @@ if options.static_version != False:
       exit(1)
 
 print "Packaging: " + rpm_name
+
 
 #define some paths
 top_dir         = os.getcwd()
@@ -146,33 +151,31 @@ cur_dir = os.getcwd()
 #release info - is in scripts directory
 os.chdir(rpm_cti_dir)
 
-if os_ver == ".sles11" or os_ver == ".sles12":
-  release_script = "/release_info_sles"
-elif os_ver == ".el7":
-  release_script = "/release_info_cs"
-
 with open("out.txt", "w+") as out:
-  for line in open(top_dir + release_script):
+  for line in open(top_dir + "/release_info"):
     a = line.replace("%VERSION%", build_version)
     b = a.replace("%RELEASE%", release_number)
     c = b.replace("%REVISION%", revision_number)
     d = c.replace("%RELEASEDATE%", release_date)
-    e = d.replace("%os%",os_ver)
-    out.write(e)
+    e = d.replace("%OS%",os_ver)
+    f = e.replace("%ARCH_NAME%", arch_name)
+    g = f.replace("%ARCH%", arch)
+    if os_ver != "sles12":
+      h = g.replace("%PREFIX%", "--prefix=" + prefix)
+    else:
+      h = g.replace("%PREFIX%", "")
+
+    out.write(h)
 
 outpath = rpm_cti_dir + "/release_info"
 distutils.file_util.move_file("out.txt",outpath)
 print "outpath: " + outpath
 
-#man pages 
-#man_dir = rpm_cti_dir+'/man'
-#distutils.dir_util.copy_tree(man_path+"/man1", man_dir+"/man1")
-#distutils.file_util.copy_file(man_path+"/whatis", man_dir)
 
 os.chdir(cur_dir)
 
 #setup the RPM directories
-for path in ['/rpm/SOURCES','/rpm/BUILD','/rpm/RPMS/x86_64']:
+for path in ['/rpm/SOURCES','/rpm/BUILD','/rpm/RPMS/' + arch]:
   distutils.dir_util.mkpath(rpm_build_dir+path)
 
 #tar up the package source 
@@ -194,7 +197,7 @@ print buildcall
 os.system(buildcall)
 
 #now lets put together the install manifest
-os.chdir(rpm_build_dir+"/rpm/RPMS/x86_64")
+os.chdir(rpm_build_dir+"/rpm/RPMS/" + arch)
 yaml_template='''---
 #----------------------------------------------------------------------------
 # IMPORTANT: do not rename sections! The installer uses section names
@@ -331,7 +334,7 @@ else
   pref=
 fi
 
-rpm -ivh $pref --oldpackage cray-cti-<version>-<revision>-<release><os>.x86_64.rpm
+rpm -ivh $pref --oldpackage cray-cti-<version>-<revision>-<release><os>.<arch>.rpm
 
 '''
 manifest_dest = rpm_name + ".yaml"
@@ -339,6 +342,7 @@ manifest_content = yaml_template.replace("<version>", build_version)
 manifest_content = manifest_content.replace("<release>", release_number)
 manifest_content = manifest_content.replace("<revision>", revision_number)
 manifest_content = manifest_content.replace("<os>", os_ver)
+manifest_content = manifest_content.replace("<arch>", arch)
 manifest_yaml = open(manifest_dest, "w+")
 manifest_yaml.write(manifest_content)
 manifest_yaml.close()
@@ -347,7 +351,7 @@ manifest_yaml.close()
 if options.test == None:
   print "Packaging to release location."
   #copy rpm and yaml to pkgs_dir
-  rpm_folder = "%s/rpm/RPMS/x86_64/" % rpm_build_dir
+  rpm_folder = "%s/rpm/RPMS/" + arch + "/" % rpm_build_dir
   os.chdir(rpm_folder)
   for f in [rpm_name, rpm_name+".yaml"]:
     distutils.file_util.copy_file(f, package_dir)

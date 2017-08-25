@@ -47,7 +47,7 @@ struct ssh_key_struct {
 #ifdef HAVE_LIBGCRYPT
     gcry_sexp_t dsa;
     gcry_sexp_t rsa;
-    gcry_sexp_t ecdsa;
+    void *ecdsa;
 #elif HAVE_LIBCRYPTO
     DSA *dsa;
     RSA *rsa;
@@ -60,7 +60,6 @@ struct ssh_key_struct {
     ed25519_pubkey *ed25519_pubkey;
     ed25519_privkey *ed25519_privkey;
     void *cert;
-    enum ssh_keytypes_e cert_type;
 };
 
 struct ssh_signature_struct {
@@ -69,7 +68,7 @@ struct ssh_signature_struct {
 #ifdef HAVE_LIBGCRYPT
     gcry_sexp_t dsa_sig;
     gcry_sexp_t rsa_sig;
-    gcry_sexp_t ecdsa_sig;
+    void *ecdsa_sig;
 #elif defined HAVE_LIBCRYPTO
     DSA_SIG *dsa_sig;
     ssh_string rsa_sig;
@@ -112,10 +111,6 @@ int ssh_pki_export_pubkey_rsa1(const ssh_key key,
                                const char *host,
                                char *rsa1,
                                size_t rsa1_len);
-
-int ssh_pki_import_cert_blob(const ssh_string cert_blob,
-                             ssh_key *pkey);
-
 
 /* SSH Signing Functions */
 ssh_string ssh_pki_do_sign(ssh_session session, ssh_buffer sigbuf,

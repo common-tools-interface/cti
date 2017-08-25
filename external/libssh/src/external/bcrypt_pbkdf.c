@@ -63,13 +63,13 @@
 static void
 bcrypt_hash(uint8_t *sha2pass, uint8_t *sha2salt, uint8_t *out)
 {
-	ssh_blf_ctx state;
+	blf_ctx state;
 	uint8_t ciphertext[BCRYPT_HASHSIZE] =
 	    "OxychromaticBlowfishSwatDynamite";
 	uint32_t cdata[BCRYPT_BLOCKS];
 	int i;
 	uint16_t j;
-	uint16_t shalen = SHA512_DIGEST_LENGTH;
+	size_t shalen = SHA512_DIGEST_LENGTH;
 
 	/* key expansion */
 	Blowfish_initstate(&state);
@@ -85,7 +85,7 @@ bcrypt_hash(uint8_t *sha2pass, uint8_t *sha2salt, uint8_t *out)
 		cdata[i] = Blowfish_stream2word(ciphertext, sizeof(ciphertext),
 		    &j);
 	for (i = 0; i < 64; i++)
-		ssh_blf_enc(&state, cdata, sizeof(cdata) / sizeof(uint64_t));
+		blf_enc(&state, cdata, sizeof(cdata) / sizeof(uint64_t));
 
 	/* copy out */
 	for (i = 0; i < BCRYPT_BLOCKS; i++) {

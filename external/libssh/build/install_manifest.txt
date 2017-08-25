@@ -1,0 +1,17 @@
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/pkgconfig/libssh.pc
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/pkgconfig/libssh_threads.pc
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/pkgconfig/libssh.pc
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/pkgconfig/libssh_threads.pc
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/cmake/libssh/libssh-config.cmake
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/cmake/libssh/libssh-config-version.cmake
+/cray/css/users/azahdeh/projects/cti_sles/external/install/include/libssh/callbacks.h
+/cray/css/users/azahdeh/projects/cti_sles/external/install/include/libssh/libssh.h
+/cray/css/users/azahdeh/projects/cti_sles/external/install/include/libssh/ssh2.h
+/cray/css/users/azahdeh/projects/cti_sles/external/install/include/libssh/legacy.h
+/cray/css/users/azahdeh/projects/cti_sles/external/install/include/libssh/libsshpp.hpp
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/libssh.so.4.4.2
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/libssh.so.4
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/libssh.so
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/libssh_threads.so.4.4.2
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/libssh_threads.so.4
+/cray/css/users/azahdeh/projects/cti_sles/external/install/lib/libssh_threads.so

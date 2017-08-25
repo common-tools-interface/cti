@@ -789,22 +789,6 @@ LIBSSH_API sftp_statvfs_t sftp_fstatvfs(sftp_file file);
 LIBSSH_API void sftp_statvfs_free(sftp_statvfs_t statvfs_o);
 
 /**
- * @brief Synchronize a file's in-core state with storage device
- *
- * This calls the "fsync@openssh.com" extention. You should check if the
- * extensions is supported using:
- *
- * @code
- * int supported = sftp_extension_supported(sftp, "fsync@openssh.com", "1");
- * @endcode
- *
- * @param file          The opened sftp file handle to sync
- *
- * @return              0 on success, < 0 on error with ssh and sftp error set.
- */
-LIBSSH_API int sftp_fsync(sftp_file file);
-
-/**
  * @brief Canonicalize a sftp path.
  *
  * @param sftp          The sftp session handle.
@@ -977,16 +961,6 @@ void sftp_handle_remove(sftp_session sftp, void *handle);
 #define SSH_FXF_TRUNC 0x10
 #define SSH_FXF_EXCL 0x20
 #define SSH_FXF_TEXT 0x40
-
-/* file type flags */
-#define SSH_S_IFMT   00170000
-#define SSH_S_IFSOCK 0140000
-#define SSH_S_IFLNK  0120000
-#define SSH_S_IFREG  0100000
-#define SSH_S_IFBLK  0060000
-#define SSH_S_IFDIR  0040000
-#define SSH_S_IFCHR  0020000
-#define SSH_S_IFIFO  0010000
 
 /* rename flags */
 #define SSH_FXF_RENAME_OVERWRITE  0x00000001

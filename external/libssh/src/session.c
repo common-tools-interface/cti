@@ -31,6 +31,9 @@
 #include "libssh/crypto.h"
 #include "libssh/server.h"
 #include "libssh/socket.h"
+#ifdef WITH_SSH1
+#include "libssh/ssh1.h"
+#endif /* WITH_SSH1 */
 #include "libssh/ssh2.h"
 #include "libssh/agent.h"
 #include "libssh/packet.h"
@@ -92,7 +95,7 @@ ssh_session ssh_new(void) {
   session->maxchannel = FIRST_CHANNEL;
 
 #ifndef _WIN32
-    session->agent = ssh_agent_new(session);
+    session->agent = agent_new(session);
     if (session->agent == NULL) {
       goto err;
     }
@@ -231,7 +234,7 @@ void ssh_free(ssh_session session) {
   crypto_free(session->next_crypto);
 
 #ifndef _WIN32
-  ssh_agent_free(session->agent);
+  agent_free(session->agent);
 #endif /* _WIN32 */
 
   ssh_key_free(session->srv.dsa_key);
@@ -830,19 +833,23 @@ void ssh_socket_exception_callback(int code, int errno_code, void *user){
  * @return              SSH_OK on success, SSH_ERROR otherwise.
  */
 int ssh_send_ignore (ssh_session session, const char *data) {
+#ifdef WITH_SSH1
+    const int type = session->version == 1 ? SSH_MSG_IGNORE : SSH2_MSG_IGNORE;
+#else /* WITH_SSH1 */
+    const int type = SSH2_MSG_IGNORE;
+#endif /* WITH_SSH1 */
     int rc;
 
     if (ssh_socket_is_open(session->socket)) {
-
         rc = ssh_buffer_pack(session->out_buffer,
                              "bs",
-                             SSH2_MSG_IGNORE,
+                             type,
                              data);
         if (rc != SSH_OK){
             ssh_set_error_oom(session);
             goto error;
         }
-        ssh_packet_send(session);
+        packet_send(session);
         ssh_handle_packets(session, 0);
     }
 
@@ -868,17 +875,27 @@ int ssh_send_debug (ssh_session session, const char *message, int always_display
     int rc;
 
     if (ssh_socket_is_open(session->socket)) {
-        rc = ssh_buffer_pack(session->out_buffer,
-                             "bbsd",
-                             SSH2_MSG_DEBUG,
-                             always_display != 0 ? 1 : 0,
-                             message,
-                             0); /* empty language tag */
+#ifdef WITH_SSH1
+        if (session->version == 1) {
+            rc = ssh_buffer_pack(session->out_buffer,
+                                 "bs",
+                                 SSH_MSG_DEBUG,
+                                 message);
+        } else
+#endif /* WITH_SSH1 */
+        {
+            rc = ssh_buffer_pack(session->out_buffer,
+                                 "bbsd",
+                                 SSH2_MSG_DEBUG,
+                                 always_display != 0 ? 1 : 0,
+                                 message,
+                                 0); /* empty language tag */
+        }
         if (rc != SSH_OK) {
             ssh_set_error_oom(session);
             goto error;
         }
-        ssh_packet_send(session);
+        packet_send(session);
         ssh_handle_packets(session, 0);
     }
 

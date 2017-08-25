@@ -31,6 +31,7 @@ fi
 module purge 2>/dev/null
 module load $cmake_module
 module list
+autoreconf -ifv
 ./configure --prefix=$BUILD_DIR --with-gdb;
 make;
 make install

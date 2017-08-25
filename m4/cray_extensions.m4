@@ -119,6 +119,8 @@ AC_DEFUN([cray_BUILD_LIBMI],
 
 	AC_MSG_NOTICE([Building libmi...])
 
+	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
 	dnl run configure with options that work on build systems
 	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
@@ -142,55 +144,6 @@ AC_DEFUN([cray_ENV_LIBMI],
 	AC_SUBST([LIBMI_SRC], [${CRAYTOOL_EXTERNAL}/libmi])
 	AC_SUBST([INTERNAL_LIBMI], [${CRAYTOOL_EXTERNAL_INSTALL}])
 	AC_SUBST([LIBMI_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libmi.so])
-])
-
-dnl
-dnl build libssl automatically
-dnl
-AC_DEFUN([cray_BUILD_LIBSSL],
-[
-	cray_cv_lib_ssl_build=no
-
-	dnl Temporary directory to stage files to
-	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/openssl"
-
-	AC_MSG_CHECKING([for libssl stage directory])
-
-	dnl Ensure the libssl source was checked out
-	AS_IF(	[test ! -d "$_cray_tmpdir"],
-			[AC_MSG_ERROR([git submodule libssl not found.])],
-			[AC_MSG_RESULT([yes])]
-			)
-
-	dnl cd to the checked out source directory
-	cd ${_cray_tmpdir}
-
-	AC_MSG_NOTICE([Building libssl...])
-
-	dnl run configure with options that work on build systems
-	./config --prefix=${CRAYTOOL_EXTERNAL_INSTALL} --openssldir=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-
-	dnl make
-	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-	make install_sw >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-
-	dnl go home
-	cd ${CRAYTOOL_DIR}
-
-	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssl.so"; then
-		cray_cv_lib_ssl_build=yes
-	fi
-])
-
-dnl
-dnl define post-cache libssl env
-dnl
-AC_DEFUN([cray_ENV_LIBSSL],
-[
-	AC_SUBST([LIBSSL_SRC], [${CRAYTOOL_EXTERNAL}/openssl])
-	AC_SUBST([INTERNAL_LIBSSL], [${CRAYTOOL_EXTERNAL_INSTALL}])
-	AC_SUBST([LIBSSL_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssl.so])
-	AC_SUBST([LIBCRYPTO_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libcrypto.so])
 ])
 
 dnl
@@ -220,7 +173,7 @@ AC_DEFUN([cray_BUILD_LIBSSH],
 	rm -rf build
 	mkdir -p build
 	cd build
-	LDFLAGS='-Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags' cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DOPENSSL_ROOT_DIR=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	LDFLAGS='-Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags' cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	dnl make
 	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD

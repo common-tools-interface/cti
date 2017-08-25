@@ -1,66 +1,60 @@
-# - Try to find ARGP
+# - Try to find Argp
 # Once done this will define
 #
-#  ARGP_ROOT_DIR - Set this variable to the root installation of ARGP
+#  ARGP_FOUND - system has Argp
+#  ARGP_INCLUDE_DIRS - the Argp include directory
+#  ARGP_LIBRARIES - Link these to use Argp
+#  ARGP_DEFINITIONS - Compiler switches required for using Argp
 #
-# Read-Only variables:
-#  ARGP_FOUND - system has ARGP
-#  ARGP_INCLUDE_DIR - the ARGP include directory
-#  ARGP_LIBRARIES - Link these to use ARGP
-#  ARGP_DEFINITIONS - Compiler switches required for using ARGP
+#  Copyright (c) 2010 Andreas Schneider <asn@cryptomilk.org>
 #
-#=============================================================================
-#  Copyright (c) 2011-2016 Andreas Schneider <asn@cryptomilk.org>
-#
-#  Distributed under the OSI-approved BSD License (the "License");
-#  see accompanying file Copyright.txt for details.
-#
-#  This software is distributed WITHOUT ANY WARRANTY; without even the
-#  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-#  See the License for more information.
-#=============================================================================
+#  Redistribution and use is allowed according to the terms of the New
+#  BSD license.
+#  For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 #
 
-set(_ARGP_ROOT_HINTS
-)
 
-set(_ARGP_ROOT_PATHS
-    "$ENV{PROGRAMFILES}/argp"
-)
+if (ARGP_LIBRARIES AND ARGP_INCLUDE_DIRS)
+  # in cache already
+  set(ARGP_FOUND TRUE)
+else (ARGP_LIBRARIES AND ARGP_INCLUDE_DIRS)
 
-find_path(ARGP_ROOT_DIR
+  find_path(ARGP_INCLUDE_DIR
     NAMES
-        include/argp.h
-    HINTS
-        ${_ARGP_ROOT_HINTS}
+      argp.h
     PATHS
-        ${_ARGP_ROOT_PATHS}
-)
-mark_as_advanced(ARGP_ROOT_DIR)
-
-find_path(ARGP_INCLUDE_DIR
-    NAMES
-        argp.h
-    PATHS
-        ${ARGP_ROOT_DIR}/include
-)
-
-find_library(ARGP_LIBRARY
-    NAMES
-        argp
-    PATHS
-        ${ARGP_ROOT_DIR}/lib
-)
-
-if (ARGP_LIBRARY)
-  set(ARGP_LIBRARIES
-      ${ARGP_LIBRARIES}
-      ${ARGP_LIBRARY}
+      /usr/include
+      /usr/local/include
+      /opt/local/include
+      /sw/include
   )
-endif (ARGP_LIBRARY)
 
-include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(ARGP DEFAULT_MSG ARGP_LIBRARIES ARGP_INCLUDE_DIR)
+  find_library(ARGP_LIBRARY
+    NAMES
+      argp
+    PATHS
+      /usr/lib
+      /usr/local/lib
+      /opt/local/lib
+      /sw/lib
+  )
 
-# show the ARGP_INCLUDE_DIR and ARGP_LIBRARIES variables only in the advanced view
-mark_as_advanced(ARGP_INCLUDE_DIR ARGP_LIBRARIES)
+  set(ARGP_INCLUDE_DIRS
+    ${ARGP_INCLUDE_DIR}
+  )
+
+  if (ARGP_LIBRARY)
+    set(ARGP_LIBRARIES
+        ${ARGP_LIBRARIES}
+        ${ARGP_LIBRARY}
+    )
+  endif (ARGP_LIBRARY)
+
+  include(FindPackageHandleStandardArgs)
+  find_package_handle_standard_args(Argp DEFAULT_MSG ARGP_LIBRARIES ARGP_INCLUDE_DIRS)
+
+  # show the ARGP_INCLUDE_DIRS and ARGP_LIBRARIES variables only in the advanced view
+  mark_as_advanced(ARGP_INCLUDE_DIRS ARGP_LIBRARIES)
+
+endif (ARGP_LIBRARIES AND ARGP_INCLUDE_DIRS)
+
