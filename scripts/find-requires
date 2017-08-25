@@ -106,16 +106,21 @@ for f in "${liblist[@]}" "${exelist[@]}" ; do
                 if ("'$lib64'" != "" && ! -z $2 && \
                      $2 != "liblzma.so.5") { 
                     sub(/$/, "()'$lib64'", $2) ;
+		    sub(/0:/, "()'$lib64'", $2);
+		    sub(/:/, "()'$lib64'", $2);
                     print $2;
                 }
             }
 	}
 	/^Version References:$/ { START=2; }
 	(START==2) && /required from/ {
+	    sub(/0:/, "", $3);
 	    sub(/:/, "", $3);
 	    LIBNAME=$3;
 	}
 	(START==2) && (LIBNAME!="") && ($4!="") {
+	    sub(/0:/, "", $4);
+	    sub(/:/, "", $4);
 	    print LIBNAME "(" $4 ")'$lib64'";
 	}
     '
