@@ -351,7 +351,7 @@ manifest_yaml.close()
 if options.test == None:
   print "Packaging to release location."
   #copy rpm and yaml to pkgs_dir
-  rpm_folder = "%s/rpm/RPMS/" + arch + "/" % rpm_build_dir
+  rpm_folder = rpm_build_dir + "/rpm/RPMS/" + arch
   os.chdir(rpm_folder)
   for f in [rpm_name, rpm_name+".yaml"]:
     distutils.file_util.copy_file(f, package_dir)
