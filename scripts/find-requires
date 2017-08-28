@@ -104,7 +104,9 @@ for f in "${liblist[@]}" "${exelist[@]}" ; do
 	(START==1) && /NEEDED/ {
             if (needed) {
                 if ("'$lib64'" != "" && ! -z $2 && \
-                     $2 != "liblzma.so.5") { 
+                     $2 != "liblzma.so.5" && \
+		     $2 != "libcrypto.so.1(libcrypto.so.10)(64bit)" && \
+		     $2 != "libcrypto.so.1(OPENSSL_1.0.1_EC)(64bit)") { 
                     sub(/$/, "()'$lib64'", $2) ;
 		    sub(/0:/, "()'$lib64'", $2);
 		    sub(/:/, "()'$lib64'", $2);
@@ -121,7 +123,10 @@ for f in "${liblist[@]}" "${exelist[@]}" ; do
 	(START==2) && (LIBNAME!="") && ($4!="") {
 	    sub(/0:/, "", $4);
 	    sub(/:/, "", $4);
-	    print LIBNAME "(" $4 ")'$lib64'";
+	    
+	    if ( LIBNAME != "libcrypto.so.1"){
+	        print LIBNAME "(" $4 ")'$lib64'";
+	    }
 	}
     '
 done | sort -u

@@ -62,6 +62,7 @@ def fetch_os():
         if line.find("CentOS ") != -1:
           os_sub = 'el7'
 	  arch_name = "CS"
+	  arch = "x86_64"
           break
 
   os_sub = os_sub.strip()
