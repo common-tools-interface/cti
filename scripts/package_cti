@@ -135,16 +135,16 @@ for dir in ['/lib','/include','/libexec', '/docs', '/examples']:
 
 
 #take care of the set_default script
-with open("set_default_cti", "w+") as out:
-  fin = open(set_default_cti,'r')
-  set_def_content = fin.read()
-  set_def_content = set_def_content.replace('[version_string]', build_version)
-  set_def_content = set_def_content.replace('[product_name]', "cti")
-  set_def_content = set_def_content.replace('[module_dir]',"[install_dir]/modulefiles")
-  set_def_content = set_def_content.replace('[module_name_list]',"cray-cti")
-  new_set_def = open(set_default_script_dest, "w+")
-  new_set_def.write(set_def_content)
-  new_set_def.close()
+fin = open(set_default_cti,'r')
+set_def_content = fin.read()
+set_def_content = set_def_content.replace('[version_string]', build_version)
+set_def_content = set_def_content.replace('[product_name]', "cti")
+set_def_content = set_def_content.replace('[module_dir]',"[install_dir]/modulefiles")
+set_def_content = set_def_content.replace('[module_name_list]',"cray-cti")
+new_set_def = open(set_default_script_dest, "w+")
+new_set_def.write(set_def_content)
+new_set_def.close()
+fin.close()
 
 #take care of the set_pkgconfig_default script
 set_pkgdef_content = set_pkgconfig_default_cti.content.replace('[version_string]',build_version)
