@@ -7,7 +7,6 @@ from optparse import OptionParser
 import definitions
 import cti_spec
 import cti_module
-import set_default_cti
 import set_pkgconfig_default_cti
 
 #handle any user passed options
@@ -82,12 +81,14 @@ rpm_install_dir = rpm_build_dir + "/cray-cti-" + build_version + "-" + revision_
 rpm_module_dir  = rpm_install_dir + "/modulefile"
 rpm_cti_dir     = rpm_install_dir + "/cray-cti"
 parent_dir      = top_dir.rsplit('/',1)[0]
-
+set_default_cti = top_dir + "/set_default/set_default_template"
 
 #spec file
 spec_file = "cti.spec"
+
 #modulefile
 module_dest = rpm_module_dir + "/" + build_version
+
 #set_default script
 set_default_script_dest = rpm_install_dir + "/set_default_cray-cti_" + build_version
 set_pkgconfig_default_script_dest = rpm_install_dir + "/set_pkgconfig_default_cray-cti_" + build_version
@@ -134,10 +135,16 @@ for dir in ['/lib','/include','/libexec', '/docs', '/examples']:
 
 
 #take care of the set_default script
-set_def_content = set_default_cti.content.replace('[version_string]', build_version)
-new_set_def = open(set_default_script_dest, "w+")
-new_set_def.write(set_def_content)
-new_set_def.close()
+with open("set_default_cti", "w+") as out:
+  fin = open(set_default_cti,'r')
+  set_def_content = fin.read()
+  set_def_content = set_def_content.replace('[version_string]', build_version)
+  set_def_content = set_def_content.replace('[product_name]', "cti")
+  set_def_content = set_def_content.replace('[module_dir]',"[install_dir]/modulefiles")
+  set_def_content = set_def_content.replace('[module_name_list]',"cray-cti")
+  new_set_def = open(set_default_script_dest, "w+")
+  new_set_def.write(set_def_content)
+  new_set_def.close()
 
 #take care of the set_pkgconfig_default script
 set_pkgdef_content = set_pkgconfig_default_cti.content.replace('[version_string]',build_version)
