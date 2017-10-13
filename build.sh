@@ -13,26 +13,42 @@ else
   fi
   mkdir $BUILD_DIR
   chmod a+rwx $BUILD_DIR
-  #mkdir $BUILD_DIR/install
-  #chmod a+rwx $BUILD_DIR/install
 fi
 echo "Building to " $BUILD_DIR
 
-if [ -e "/etc/redhat-release" ]; then
-  if [[ -e /usr/share/Modules/init/bash ]]; then
-    source /usr/share/Modules/init/bash
+function source_module_script() {
+  if [ -e "/etc/redhat-release" ]; then
+    if [[ -e /usr/share/Modules/init/bash ]]; then
+      source /usr/share/Modules/init/bash
+    fi
+  else
+    if [[ -e $modules_prefix/modules/default/init/bash ]]; then
+      source $modules_prefix/modules/default/init/bash
+    fi
   fi
-else
-  if [[ -e /opt/modules/default/init/bash ]]; then
-    source /opt/modules/default/init/bash
-  fi
-fi
+}
+
+function set_prefix(){
+    SLES_VER=$(cat /etc/SuSE-release 2>&1 /dev/null | grep VERSION | cut -f3 -d" ")
+    if [[ $SLES_VER -lt 12 ]]
+    then
+	modules_prefix=/opt
+    else
+	modules_prefix=/opt/cray/pe
+    fi
+}
+
+set_prefix
+source_module_script
 
 module purge 2>/dev/null
 module load $cmake_module
 module list
+
 autoreconf -ifv
+
 ./configure --prefix=$BUILD_DIR --with-gdb;
+
 make;
 make install
 make tests;
@@ -48,3 +64,4 @@ cp $PWD/scripts/craytools_fe.pc  $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
 chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_be.pc
 chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
 
+echo "Done"
