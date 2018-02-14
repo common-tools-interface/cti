@@ -1,0 +1,6 @@
+1. Build dynamically
+2. Add the examples directory to PATH env var:
+3. ./cti_transfer -L53 -n8
+
+Done
+
