@@ -8,39 +8,32 @@ Release Date:
 
 Product Description:
 --------------------
-CRAY CTI (Cray Tools Interface) is a library that abstracts debugger
-tool support to a common interface regardless of the underlying
-work load manager. It facilitates the staging of files and
-the launch of tool daemons on the compute nodes associated
-with a parallel job.
+  CRAY CTI (Cray Tools Interface) is a library that abstracts debugger
+  tool support to a common interface regardless of the underlying
+  work load manager. It facilitates the staging of files and
+  the launch of tool daemons on the compute nodes associated
+  with a parallel job.
 
-ALPS and Cray SLURM are the currently supported WLMs.
+  ALPS and Cray SLURM are the currently supported WLMs.
 
-This is installed primarily for those Cray supplied tools
-that need such capabilities.
+  This is installed primarily for those Cray supplied tools
+  that need such capabilities.
 
+  
 Purpose:
 ---------
-  This is a bugfix release.
-
-  1. Fix an issue related to dlopen of bundled libraries with the generic workload manager
-  2. Fix an issue with launching from whiteboxes on slurm
-
+  Cray CTI support for ARM architecture. 
 
 
 Product and OS Dependencies:
 -----------------------------
-  The CRAY CTI %VERSION% release is supported on the following Cray systems
-  running Cray Linux Environment(CLE) operating system
-    - Cray XE and XK systems running CLE 5.2
-        Running either ALPS or SLURM 15.8
-    - Cray XC systems with CLE version 5.1 or later
-        Running either ALPS or SLURM 15.8
-    - Cray CS systems
+  The CRAY CTI %VERSION% release is supported on the following Cray systems:
+    - Cray XC systems with CLE release 6.0 or later
 
   Product Dependencies:
-    - craype 2.1.2 or later is required on Cray XE and Cray
-      XK systems running CLE 5.2 and on all Cray XC systems.
+    - craype 2.5.14 or later is required on Cray XC ARM
+      systems running CLE 6.0.
+
 
 Documentation:
 ---------------
