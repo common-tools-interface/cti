@@ -57,7 +57,7 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
 *******************************************************************************/
 #define CTI_OVERWATCH_BINARY		"cti_overwatch"									// name of the overwatch binary
 #define DEFAULT_SIG				9													// default signal value to use
-#define WLM_DETECT_LIB_NAME		"libwlm_detect.so"								// wlm_detect library
+#define WLM_DETECT_LIB_NAME		"libwlm_detect.so.0"								// wlm_detect library
 #define LD_AUDIT_LIB_NAME		"libaudit.so"										// ld audit library
 
 /*******************************************************************************
@@ -89,8 +89,8 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
 #define ALPS_XT_NID				"/proc/cray_xt/nid"								// file where nid info is located
 #define ALPS_XT_HOSTNAME_FMT		"nid%05d"											// hostname format string
 #define ALPS_OBS_LOC				"/opt/cray/alps"									// used to test if the system is using the OBS format
-#define ALPS_FE_LIB_NAME			"libalps.so"										// name of the alps library used on the frontend
-#define ALPS_BE_LIB_NAME			"libalpsutil.so"									// name of the alps library used on the backend
+#define ALPS_FE_LIB_NAME			"libalps.so.0"										// name of the alps library used on the frontend
+#define ALPS_BE_LIB_NAME			"libalpsutil.so.0"									// name of the alps library used on the backend
 #define OLD_TOOLHELPER_DIR		"/var/spool/alps/%llu/toolhelper%llu"			// old alps toolhelper path format on compute node
 #define OBS_TOOLHELPER_DIR		"/var/opt/cray/alps/spool/%llu/toolhelper%llu"// new alps toolhelper path format on compute node
 #define OLD_ATTRIBS_DIR			"/var/spool/alps/%llu"							// old pmi_attribs path format on compute node
