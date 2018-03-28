@@ -38,6 +38,7 @@ function set_prefix(){
     fi
 }
 
+#_______________________ Start of main code ______________________________
 set_prefix
 source_module_script
 
