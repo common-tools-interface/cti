@@ -22,7 +22,9 @@ Product Description:
   
 Purpose:
 ---------
-  Cray CTI support for ARM architecture. 
+  This is a bug fix release.
+
+  Fixes CAST-17926 ATP frontend issue
 
 
 Product and OS Dependencies:
