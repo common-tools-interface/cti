@@ -30,9 +30,13 @@ Purpose:
 Product and OS Dependencies:
 -----------------------------
   The CRAY CTI %VERSION% release is supported on the following Cray systems:
+    - Cray XE and XK systems running CLE 5.2
     - Cray XC systems with CLE release 6.0 or later
+    - Cray CS systems
 
   Product Dependencies:
+    - craype 2.1.2 or later is required on Cray XE/XK systems 
+      running CLE 5.2 and on all Cray XC systems.
     - craype 2.5.14 or later is required on Cray XC ARM
       systems running CLE 6.0.
 
@@ -57,4 +61,4 @@ Installation instructions:
 
 
  Certain components, files or programs contained within this package or
- product are Copyright 2007-2016 Cray Inc. All rights reserved.
+ product are Copyright 2007-2018 Cray Inc. All rights reserved.
