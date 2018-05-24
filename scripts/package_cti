@@ -2,6 +2,7 @@
 
 import sys, os, distutils.dir_util, distutils.file_util, tarfile, fnmatch
 from optparse import OptionParser
+from datetime import datetime,date
 
 #cti specific modules
 import definitions
@@ -36,7 +37,11 @@ cti_build_dir                 = definitions.bld_dir
 arch_name                     = definitions.arch_name
 arch                          = definitions.arch
 prefix                        = definitions.prefix
-
+arSles11_WB                   = "sles11sp3"
+arSles11_HW                   = "5.2"
+arSles12_WB                   = "sles12"
+arSles12_HW                   = "6.0,6.1,6.2,6.3"
+arSYSTEM_TYPE                 = ['HARDWARE','WHITEBOX','AARCH64']
 
 if options.builddir == None:
   print "Using lastest build from Buildbot: " + cti_build_dir
@@ -167,12 +172,13 @@ with open("out.txt", "w+") as out:
     e = d.replace("%OS%",os_ver)
     f = e.replace("%ARCH_NAME%", arch_name)
     g = f.replace("%ARCH%", arch)
-    if os_ver != "sles12":
-      h = g.replace("%PREFIX%", "--prefix=" + prefix)
+    h = g.replace("%PREF%",prefix)
+    if os_ver != ".sles12":
+      i = h.replace("%PREFIX%", "--prefix=" + prefix)
     else:
-      h = g.replace("%PREFIX%", "")
+      i = h.replace("%PREFIX%", "")
 
-    out.write(h)
+    out.write(i)
 
 outpath = rpm_cti_dir + "/release_info"
 distutils.file_util.move_file("out.txt",outpath)
@@ -221,14 +227,9 @@ section-1:
         ALL_EXCEPT:
             - SEASTAR
     OPERATION             : INSTALL
-    OS_VERSION:
-            - 5.2
-            - 6.0
-            - 6.1
-            - 6.2
-            - 6.3
+    OS_VERSION            : [OS_HW]
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : HARDWARE
+    SYSTEM_TYPE           : [SYSTEM_TYPE_HW]
 
 section-2:
     ACCELERATOR           : NONE
@@ -242,11 +243,9 @@ section-2:
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : INSTALL
-    OS_VERSION:
-            - sles11sp3
-            - sles12
+    OS_VERSION            : [OS_WB]
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : WHITEBOX
+    SYSTEM_TYPE           : [SYSTEM_TYPE_WB]
 
 section-3:
     ACCELERATOR           : NONE
@@ -259,14 +258,9 @@ section-3:
         ALL_EXCEPT:
             - SEASTAR
     OPERATION             : UPDATE
-    OS_VERSION:
-            - 5.2
-            - 6.0
-            - 6.1
-            - 6.2
-            - 6.3
+    OS_VERSION            : [OS_HW]
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : HARDWARE
+    SYSTEM_TYPE           : [SYSTEM_TYPE_HW]
     COMMANDS: |
             OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
             if [[ $OS_VER -lt 12 ]]
@@ -289,11 +283,9 @@ section-4:
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : UPDATE
-    OS_VERSION:
-            - sles11sp3
-            - sles12
+    OS_VERSION            : [OS_WB]
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : WHITEBOX
+    SYSTEM_TYPE           : [SYSTEM_TYPE_WB]
     COMMANDS: |
             OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
             if [[ $OS_VER -lt 12 ]]
@@ -306,23 +298,16 @@ section-4:
 
 section-5:
     ACCELERATOR           : NONE
-    EFFECTIVE_DATE        : 2017-09-19
+    EFFECTIVE_DATE        : [REMOVAL_DATE]
     EMAILS                : kdavis@cray.com
     EMAIL_BUILDER         : NO
     HOSTS                 : ALL
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : REMOVE
-    OS_VERSION:
-        - 5.2
-        - 6.0
-        - 6.1
-        - 6.2
-        - 6.3
-        - sles11sp3
-        - sles12
+    OS_VERSION            : [OS_HW],[OS_WB]
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : ALL
+    SYSTEM_TYPE           : [SYSTEM_TYPE_REMOVE]
     COMMANDS: |
         rpm -e cray-cti-<version>-<revision>-<release>
 
@@ -344,12 +329,62 @@ fi
 rpm -ivh $pref --oldpackage cray-cti-<version>-<revision>-<release><os>.<arch>.rpm
 
 '''
+
+#determine what to use for [OS_WB], [OS_HW], [SYSTEM_TYPE]
+os_list_hw=""
+os_list_wb=""
+system_type_hw=""
+system_type_wb=""
+system_type_remove=""
+
+print "os_ver: " + os_ver
+print "arch: " + arch
+
+if os_ver == ".sles11":
+  os_list_hw=arSles11_HW
+  os_list_wb=arSles11_WB
+  system_type_hw=arSYSTEM_TYPE[0]
+  system_type_wb=arSYSTEM_TYPE[1]
+  system_type_remove=system_type_hw + "," + system_type_wb
+elif os_ver == ".sles12" and arch == "x86_64":
+  os_list_hw=arSles12_HW
+  os_list_wb=arSles12_WB
+  system_type_hw=arSYSTEM_TYPE[0]
+  system_type_wb=arSYSTEM_TYPE[1]
+  system_type_remove=system_type_hw + "," + system_type_wb
+elif os_ver == ".sles12" and arch == "aarch64":
+  os_list_hw=arSles12_HW
+  os_list_wb=arSles12_WB
+  system_type_hw=arSYSTEM_TYPE[2]
+  system_type_wb=arSYSTEM_TYPE[2]
+  system_type_remove=arSYSTEM_TYPE[2]
+
+
+print "os_list_hw: " + os_list_hw
+print "os_list_wb: " +  os_list_wb
+print "system_type_hw: " + system_type_hw
+print "system_type_wb:" + system_type_wb
+print "system_type_remove: " + system_type_remove
+
+
+#add 7 years to current date to get removal date for yaml
+current_date=date.today()
+removal_date=date(current_date.year +7,current_date.month, current_date.day)
+removal_date=str(removal_date)
+print "removal date: " + str(removal_date)
+
 manifest_dest = rpm_name + ".yaml"
 manifest_content = yaml_template.replace("<version>", build_version)
 manifest_content = manifest_content.replace("<release>", release_number)
 manifest_content = manifest_content.replace("<revision>", revision_number)
 manifest_content = manifest_content.replace("<os>", os_ver)
 manifest_content = manifest_content.replace("<arch>", arch)
+manifest_content = manifest_content.replace("[OS_HW]", os_list_hw)
+manifest_content = manifest_content.replace("[OS_WB]", os_list_wb)
+manifest_content = manifest_content.replace("[SYSTEM_TYPE_WB]", system_type_wb)
+manifest_content = manifest_content.replace("[SYSTEM_TYPE_HW]", system_type_hw)
+manifest_content = manifest_content.replace("[SYSTEM_TYPE_REMOVE]", system_type_remove)
+manifest_content = manifest_content.replace("[REMOVAL_DATE]", removal_date)
 manifest_yaml = open(manifest_dest, "w+")
 manifest_yaml.write(manifest_content)
 manifest_yaml.close()
