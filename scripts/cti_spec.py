@@ -21,7 +21,7 @@ Prefix: /opt/cray/pe
 
 %define _use_internal_dependency_generator 0
 %define __find_requires %{scripts_d}/find-requires
-%define debug_package%{nil}
+%define debug_package %{nil}
 
 %description
 Cray Tools Interface.
@@ -93,14 +93,10 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib
 %{_version_prefix}/lib/libaudit.so
 %{_version_prefix}/lib/libaudit.la
-%{_version_prefix}/lib/libcraytools_fe.so.1.1.0
-%{_version_prefix}/lib/libcraytools_fe.so.1
-%{_version_prefix}/lib/libcraytools_fe.so
+%{_version_prefix}/lib/libcraytools_fe.so*
 %{_version_prefix}/lib/libcraytools_fe.la
 %{_version_prefix}/lib/libcraytools_fe.a
-%{_version_prefix}/lib/libcraytools_be.so.1.1.0
-%{_version_prefix}/lib/libcraytools_be.so.1
-%{_version_prefix}/lib/libcraytools_be.so
+%{_version_prefix}/lib/libcraytools_be.so*
 %{_version_prefix}/lib/libcraytools_be.la
 %{_version_prefix}/lib/libcraytools_be.a
 %{_version_prefix}/lib/libmi.so
