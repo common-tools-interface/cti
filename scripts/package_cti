@@ -82,8 +82,7 @@ print "Packaging: " + rpm_name
 top_dir         = os.getcwd()
 work_dir        = top_dir + "/tmp"
 rpm_build_dir   = work_dir + "/package"
-rpm_install_dir = rpm_build_dir + "/cray-cti-" + build_version
-#+ "-" + revision_number
+rpm_install_dir = rpm_build_dir + "/cray-cti-" + build_version + "-" + revision_number
 rpm_module_dir  = rpm_install_dir + "/modulefile"
 rpm_cti_dir     = rpm_install_dir + "/cray-cti"
 parent_dir      = top_dir.rsplit('/',1)[0]
@@ -100,8 +99,7 @@ set_default_script_dest = rpm_install_dir + "/set_default_cray-cti_" + build_ver
 set_pkgconfig_default_script_dest = rpm_install_dir + "/set_pkgconfig_default_cray-cti_" + build_version
 
 #the source tarball
-folder_name = "cray-cti-" + build_version
-#+ "-" + revision_number
+folder_name = "cray-cti-" + build_version + "-" + revision_number
 tar_name = folder_name + ".tar.gz"
 tar_dest = rpm_build_dir + "/rpm/SOURCES"
 
