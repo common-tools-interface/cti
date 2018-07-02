@@ -22,6 +22,7 @@ rpm_name              = ""
 osver                 = ""
 revision_number       = ""
 prefix                = "/opt/cray"
+release_date          = ""
 
 
 for arg in sys.argv:
@@ -44,6 +45,7 @@ def fetch_os():
   global bld_dir
   global arch
   global arch_name
+  global prefix
   if os.path.isfile("/etc/SuSE-release"):
     with open("/etc/SuSE-release", "r") as f:
       for line in f:
@@ -64,23 +66,25 @@ def fetch_os():
 	  arch_name = "CS"
 	  arch = "x86_64"
           break
-
+ 
   os_sub = os_sub.strip()
   if os_sub == "el7":
     bld_dir = "/cray/css/ulib/cti/builds_cs/latest/install/"
     return ".el7"
   elif os_sub == "12":
-    bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
-    arch_name = "sles12"
-    prefix = "/opt/cray/pe"
-    return ".sles12"
+     prefix = "/opt/cray/pe"
+     
+     if arch == "x86_64":
+       bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
+       arch_name = "sles12"
+     elif arch == "aarch64":
+       bld_dir = "/cray/css/ulib/cti/builds_arm/latest/install/"
+
+     return ".sles12"
   elif os_sub == "11":
     bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
     arch_name = "sles11"
     return ".sles11"
-  elif os_sub == "aarch64":
-    bld_dir = "/cray/css/ulib/cti/builds_arm/latest/install/"
-    return ".aarch64"
 
 
 def release_date():
@@ -204,7 +208,11 @@ def fetch_newData():
   global rpm_name
   global osver
   global ver_two_dig_nodot
- 
+  global release_date
+
+
+  release_date = release_date()
+    
   rev_command = "git rev-parse HEAD"
   rev_number  = os.popen(rev_command).read()
   rev_number  = rev_number.rstrip()
@@ -213,11 +221,17 @@ def fetch_newData():
   branch = os.popen(branch).read()
   branch = branch.rstrip()
   print "Packaging from: " + branch
+
+
   if final == True and branch == 'master':
     print "You indicated this should be a final build, but you are packaging from " + branch
     print "Exiting. . ."
     exit(1)
-  
+  elif final == True and branch[0:7] == 'release': 
+    release_date = branch.split('_')[1]
+    release_date = release_date[:2] + "-" + release_date[2:4] + "-" + release_date[4:]
+    print "Release Date: " + release_date
+
   time_command = "git log -s -1 --format=%ci $tm | tail -n1 | cut -d' ' -f1-2"
   dt_time = os.popen(time_command).read()
   dt_time = dt_time.rstrip()
