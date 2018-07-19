@@ -22,7 +22,12 @@ USEFUL          = $(SRC)/useful
 AM_CFLAGS		= -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
 
-noinst_LTLIBRARIES      	=	libmpir_iface.la
+noinst_LTLIBRARIES      	=	libmpir_iface.la libmpir_iface_new.la
+
+libmpir_iface_new_la_SOURCES	=	mpir_iface.cpp mpir_iface.h MPIRInstance.cpp MPIRInstance.hpp MPIRInferior.cpp MPIRInferior.hpp
+libmpir_iface_new_la_CXXFLAGS	=	$(AM_CXXFLAGS) -fPIC $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
+libmpir_iface_new_la_LIBADD		=	$(DYNINST_LIBS) $(BOOST_LIBS)
+libmpir_iface_new_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed $(DYNINST_LDFLAGS) $(BOOST_LDFLAGS)
 
 libmpir_iface_la_SOURCES	=	gdb_MPIR.c gdb_MPIR.h gdb_MPIR_iface.c gdb_MPIR_iface.h
 libmpir_iface_la_CFLAGS		=	$(AM_CFLAGS) -fPIC -I$(FRONTEND) -I$(USEFUL) $(MI_CFLAGS)
