@@ -1,5 +1,7 @@
 #include "MPIRInferior.hpp"
 
+/* todo: block signals? */
+
 /* inferior implementations */
 MPIRInferior::MPIRInferior(std::string const& launcher,
 	std::vector<std::string> const& launcherArgv, std::map<int, int> remapFds) :
@@ -38,4 +40,5 @@ MPIRInferior::~MPIRInferior() {
 	Process::removeEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, on_breakpoint);
 
 	proc->detach();
+	DEBUG(std::cerr, "~MPIRInferior: detached from " << std::to_string(proc->getPid()) << std::endl);
 }

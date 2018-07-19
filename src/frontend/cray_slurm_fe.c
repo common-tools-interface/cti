@@ -41,15 +41,14 @@
 #include "cti_error.h"
 #include "cti_useful.h"
 
-#include "gdb_MPIR_iface.h"
+#include "mpir_iface.h"
 
 /* Types used here */
 
 typedef struct
 {
-	cti_gdb_id_t	gdb_id;
-	pid_t			gdb_pid;			// pid of the gdb process for the mpir starter
-	pid_t			sattach_pid;		// Optional pid of the sattach process if we are redirecting io
+	mpir_id_t	mpir_id;
+	pid_t		sattach_pid;		// Optional pid of the sattach process if we are redirecting io
 } srunInv_t;
 
 typedef struct
@@ -74,7 +73,7 @@ typedef struct
 	uint64_t			apid;			// Cray variant of step+job id
 	slurmStepLayout_t *	layout;			// Layout of job step
 	srunInv_t *			inv;			// Optional object used for launched applications.
-	cti_mpir_pid_t *	app_pids;		// Optional object used to hold the rank->pid association
+	cti_mpir_procTable_t *app_pids;		// Optional object used to hold the rank->pid association
 	char *				toolPath;		// Backend staging directory
 	char *				attribsPath;	// Backend Cray specific directory
 	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
@@ -183,9 +182,8 @@ _cti_cray_slurm_init(void)
 static void
 _cti_cray_slurm_fini(void)
 {
-	// force cleanup to happen on any pending srun launches - we do this to ensure
-	// gdb instances don't get left hanging around.
-	_cti_gdb_cleanupAll();
+	// force cleanup to happen on any pending srun launches
+	_cti_mpir_releaseAllInstances();
 	
 	if (_cti_cray_slurm_info != NULL)
 		_cti_consumeList(_cti_cray_slurm_info, NULL);	// this should have already been cleared out.
@@ -238,7 +236,7 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 
 	_cti_cray_slurm_consumeSlurmLayout(sinfo->layout);
 	_cti_cray_slurm_consumeSrunInv(sinfo->inv);
-	_cti_gdb_freeMpirPid(sinfo->app_pids);
+	_cti_mpir_deleteProcTable(sinfo->app_pids);
 	
 	if (sinfo->toolPath != NULL)
 		free(sinfo->toolPath);
@@ -283,8 +281,7 @@ _cti_cray_slurm_newSrunInv(void)
 	}
 	
 	// init the members
-	this->gdb_id = -1;
-	this->gdb_pid = -1;
+	this->mpir_id = -1;
 	this->sattach_pid = -1;
 	
 	return this;
@@ -297,17 +294,11 @@ _cti_cray_slurm_consumeSrunInv(srunInv_t *this)
 	if (this == NULL)
 		return;
 	
-	if (this->gdb_id >= 0)
+	if (this->mpir_id >= 0)
 	{
-		_cti_gdb_cleanup(this->gdb_id);
+		_cti_mpir_releaseInstance(this->mpir_id);
 	}
-	
-	if (this->gdb_pid >= 0)
-	{
-		// wait for the starter to exit
-		waitpid(this->gdb_pid, NULL, 0);
-	}
-	
+
 	if (this->sattach_pid >= 0)
 	{
 		// kill sattach
@@ -1156,11 +1147,8 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId)
 cti_srunProc_t *
 cti_cray_slurm_getJobInfo(pid_t srunPid)
 {
-	cti_gdb_id_t		gdb_id;
-	pid_t				gdb_pid;
-	const char *		gdb_path;
-	char *				usr_gdb_path = NULL;
-	const char *		attach_path;
+	mpir_id_t			mpir_id;
+	const char *		launcher_path;
 	char *				sym_str;
 	char *				end_p;
 	uint32_t			jobid;
@@ -1174,89 +1162,26 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 		return NULL;
 	}
 	
-	// get the gdb path
-	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
-	{
-		// use the gdb set in the environment
-		usr_gdb_path = strdup(gdb_path);
-		gdb_path = (const char *)usr_gdb_path;
-	} else
-	{
-		gdb_path = _cti_getGdbPath();
-		if (gdb_path == NULL)
-		{
-			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-			return NULL;
-		}
-	}
-	
-	// get the attach path
-	attach_path = _cti_getAttachPath();
-	if (attach_path == NULL)
+	// get the launcher path
+	launcher_path = _cti_pathFind(SRUN, NULL);
+	if (launcher_path == NULL)
 	{
 		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
 		return NULL;
 	}
 	
-	// Create a new gdb MPIR instance. We want to interact with it.
-	if ((gdb_id = _cti_gdb_newInstance()) < 0)
+	// Create a new MPIR instance. We want to interact with it.
+	if ((mpir_id = _cti_mpir_newAttachInstance(launcher_path, srunPid)) < 0)
 	{
 		// error already set
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
-		
 		return NULL;
 	}
-	
-	// fork off a process to start the mpir attach
-	gdb_pid = fork();
-	
-	// error case
-	if (gdb_pid < 0)
-	{
-		_cti_set_error("Fatal fork error.");
-		_cti_gdb_cleanup(gdb_id);
-		
-		return NULL;
-	}
-	
-	// child case
-	// Note that this should not use the _cti_set_error() interface since it is
-	// a child process.
-	if (gdb_pid == 0)
-	{
-		// call the exec function - this should not return
-		_cti_gdb_execAttach(gdb_id, attach_path, gdb_path, srunPid);
-		
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execv");
-		_exit(1);
-	}
-	
-	// parent case
-	
-	// cleanup
-	if (usr_gdb_path != NULL)	free(usr_gdb_path);
-	
-	// call the post fork setup - this will ensure gdb was started and this pid
-	// is valid
-	if (_cti_gdb_postFork(gdb_id))
-	{
-		// error message already set
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
-		
-		return NULL;
-	}
-	
+
 	// get the jobid string for slurm
-	if ((sym_str = _cti_gdb_getSymbolVal(gdb_id, "totalview_jobid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_jobid")) == NULL)
 	{
 		// error already set
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
-		
+		_cti_mpir_releaseInstance(mpir_id);
 		return NULL;
 	}
 	
@@ -1268,8 +1193,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0))
 	{
 		_cti_set_error("strtoul failed.\n");
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return NULL;
@@ -1277,8 +1201,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	if (end_p == NULL || *end_p != '\0')
 	{
 		_cti_set_error("strtoul failed.\n");
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return NULL;
@@ -1287,7 +1210,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	free(sym_str);
 	
 	// get the stepid string for slurm
-	if ((sym_str = _cti_gdb_getSymbolVal(gdb_id, "totalview_stepid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_stepid")) == NULL)
 	{
 		/*
 		// error already set
@@ -1303,32 +1226,26 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	// convert the string into the actual stepid
 	errno = 0;
 	stepid = (uint32_t)strtoul(sym_str, &end_p, 10);
+	free(sym_str);
 	
 	// check for errors
 	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
 	{
 		_cti_set_error("strtoul failed.\n");
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
-		free(sym_str);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return NULL;
 	}
 	if (end_p == NULL || *end_p != '\0')
 	{
 		_cti_set_error("strtoul failed.\n");
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
-		free(sym_str);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return NULL;
 	}
 	
-	free(sym_str);
-	
-	// Cleanup this gdb instance, we are done with it
-	_cti_gdb_cleanup(gdb_id);
-	waitpid(gdb_pid, NULL, 0);
+	// Cleanup this mpir instance, we are done with it
+	_cti_mpir_releaseInstance(mpir_id);
 	
 	// allocate space for the cti_srunProc_t struct
 	if ((srunInfo = malloc(sizeof(cti_srunProc_t))) == NULL)
@@ -1353,46 +1270,26 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	srunInv_t *			myapp;
 	appEntry_t *		appEntry;
 	craySlurmInfo_t	*	sinfo;
-	int					i;
-	sigset_t			mask, omask;	// used to ignore SIGINT
 	pid_t				mypid;
 	char *				sym_str;
 	char *				end_p;
 	uint32_t			jobid;
 	uint32_t			stepid;
-	cti_mpir_pid_t *	pids;
+	cti_mpir_procTable_t *	pids;
 	cti_app_id_t		rtn;			// return object
-	const char *		gdb_path;
-	char *				usr_gdb_path = NULL;
-	const char *		starter_path;
+	const char *		launcher_path;
 
 	if(!_cti_is_valid_environment()){
 		// error already set
 		return 0;
 	}
-	
-	// get the gdb path
-	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
-	{
-		// use the gdb set in the environment
-		usr_gdb_path = strdup(gdb_path);
-		gdb_path = (const char *)usr_gdb_path;
-	} else
-	{
-		gdb_path = _cti_getGdbPath();
-		if (gdb_path == NULL)
-		{
-			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-			return 0;
-		}
-	}
-	
-	// get the starter path
-	starter_path = _cti_getStarterPath();
-	if (starter_path == NULL)
+
+	// get the launcher path
+	launcher_path = _cti_pathFind(SRUN, NULL);
+	fprintf(stderr, "using new mpir interface. launcher_path: %s\n", launcher_path);
+	if (launcher_path == NULL)
 	{
 		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
 		return 0;
 	}
 
@@ -1400,123 +1297,20 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if ((myapp = _cti_cray_slurm_newSrunInv()) == NULL)
 	{
 		// error already set
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
 		return 0;
 	}
 	
-	// Create a new gdb MPIR instance. We want to interact with it.
-	if ((myapp->gdb_id = _cti_gdb_newInstance()) < 0)
+	// Create a new MPIR instance. We want to interact with it.
+	if ((myapp->mpir_id = _cti_mpir_newLaunchInstance(launcher_path, launcher_argv, inputFile)) < 0)
 	{
 		// error already set
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		
-		return 0;
-	}
-	
-	// We don't want slurm to pass along signals the caller recieves to the
-	// application process. In order to stop this from happening we need to put
-	// the child into a different process group.
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGINT);
-	sigprocmask(SIG_BLOCK, &mask, &omask);
-	
-	// fork off a process to start the mpir starter
-	mypid = fork();
-	
-	// error case
-	if (mypid < 0)
-	{
-		_cti_set_error("Fatal fork error.");
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		
-		return 0;
-	}
-	
-	// child case
-	// Note that this should not use the _cti_set_error() interface since it is
-	// a child process.
-	if (mypid == 0)
-	{
-		const char *	i_file = NULL;
-		
-		// set input file if directed
-		if (inputFile != NULL)
-		{
-			i_file = inputFile;
-		} else
-		{
-			// want to make sure srun doesn't suck up any input from us
-			i_file = "/dev/null";
-		}
-		
-		// chdir if directed
-		if (chdirPath != NULL)
-		{
-			if (chdir(chdirPath))
-			{
-				fprintf(stderr, "CTI error: Unable to chdir to provided path.\n");
-				_exit(1);
-			}
-		}
-		
-		// if env_list is not null, call putenv for each entry in the list
-		if (env_list != NULL)
-		{
-			for (i=0; env_list[i] != NULL; ++i)
-			{
-				// putenv returns non-zero on error
-				if (putenv(strdup(env_list[i])))
-				{
-					fprintf(stderr, "CTI error: Unable to putenv provided env_list.\n");
-					_exit(1);
-				}
-			}
-		}
-		
-		// Place this process in its own group to prevent signals being passed
-		// to it. This is necessary in case the child code execs before the 
-		// parent can put us into our own group. This is so that we won't get
-		// the ctrl-c when aprun re-inits the signal handlers.
-		setpgid(0, 0);
-		
-		// call the exec function - this should not return
-		_cti_gdb_execStarter(myapp->gdb_id, starter_path, gdb_path, _cti_cray_slurm_getLauncherName(), launcher_argv, i_file);
-		
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execv");
-		_exit(1);
-	}
-	
-	// parent case
-	
-	// cleanup
-	if (usr_gdb_path != NULL)	free(usr_gdb_path);
-	
-	// Place the child in its own group. We still need to block SIGINT in case
-	// its delivered to us before we can do this. We need to do this again here
-	// in case this code runs before the child code while we are still blocking 
-	// ctrl-c
-	setpgid(mypid, mypid);
-	
-	// save the pid for later so that we can waitpid() on it when finished
-	myapp->gdb_pid = mypid;
-	
-	// unblock ctrl-c
-	sigprocmask(SIG_SETMASK, &omask, NULL);
-	
-	// call the post fork setup - this will get us to the startup barrier
-	if (_cti_gdb_postFork(myapp->gdb_id))
-	{
-		// error message already set
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		
 		return 0;
 	}
 	
 	// get the jobid string for slurm
-	if ((sym_str = _cti_gdb_getSymbolVal(myapp->gdb_id, "totalview_jobid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(myapp->mpir_id, "totalview_jobid")) == NULL)
 	{
 		// error already set
 		_cti_cray_slurm_consumeSrunInv(myapp);
@@ -1531,7 +1325,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// check for errors
 	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0))
 	{
-		_cti_set_error("strtoul failed.\n");
+		_cti_set_error("strtoul failed (parse).\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
@@ -1539,17 +1333,16 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	}
 	if (end_p == NULL || *end_p != '\0')
 	{
-		_cti_set_error("strtoul failed.\n");
+		_cti_set_error("strtoul failed (partial parse).\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
 		return 0;
 	}
-	
 	free(sym_str);
 	
 	// get the stepid string for slurm
-	if ((sym_str = _cti_gdb_getSymbolVal(myapp->gdb_id, "totalview_stepid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(myapp->mpir_id, "totalview_stepid")) == NULL)
 	{
 		/*
 		// error already set
@@ -1569,7 +1362,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// check for errors
 	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
 	{
-		_cti_set_error("strtoul failed.\n");
+		_cti_set_error("strtoul failed (parse).\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
@@ -1577,14 +1370,14 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	}
 	if (end_p == NULL || *end_p != '\0')
 	{
-		_cti_set_error("strtoul failed.\n");
+		_cti_set_error("strtoul failed (partial parse).\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
 		return 0;
 	}
-	
 	free(sym_str);
+	fprintf(stderr, "got jobid %u, stepid %u\n", jobid, stepid);
 	
 	// get the pid information from slurm
 	// FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
@@ -1592,13 +1385,14 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// ctor, which is called after the slurm startup barrier, meaning it will not
 	// yet be created when launching. So we need to send over a file containing
 	// the information to the compute nodes.
-	if ((pids = _cti_gdb_getAppPids(myapp->gdb_id)) == NULL)
+	if ((pids = _cti_mpir_newProcTable(myapp->mpir_id)) == NULL)
 	{
-		// error already set
+		_cti_set_error("failed to get proctable.\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
 		
 		return 0;
 	}
+	fprintf(stderr, "proctable done\n");
 	
 	// We now need to fork off an sattach process.
 	// For SLURM, sattach makes the iostreams of srun available. This process
@@ -1612,7 +1406,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	{
 		_cti_set_error("Fatal fork error.");
 		_cti_cray_slurm_consumeSrunInv(myapp);
-		_cti_gdb_freeMpirPid(pids);
+		_cti_mpir_deleteProcTable(pids);
 	
 		return 0;
 	}
@@ -1714,7 +1508,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	{
 		// failed to register the jobid/stepid, error is already set.
 		_cti_cray_slurm_consumeSrunInv(myapp);
-		_cti_gdb_freeMpirPid(pids);
+		_cti_mpir_deleteProcTable(pids);
 		
 		return 0;
 	}
@@ -1725,7 +1519,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		// this should never happen
 		_cti_set_error("impossible null appEntry error!\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
-		_cti_gdb_freeMpirPid(pids);
+		_cti_mpir_deleteProcTable(pids);
 		
 		return 0;
 	}
@@ -1737,7 +1531,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		// this should never happen
 		_cti_set_error("impossible null sinfo error!\n");
 		_cti_cray_slurm_consumeSrunInv(myapp);
-		_cti_gdb_freeMpirPid(pids);
+		_cti_mpir_deleteProcTable(pids);
 		cti_deregisterApp(appEntry->appId);
 		
 		return 0;
@@ -1802,22 +1596,12 @@ _cti_cray_slurm_release(cti_wlm_obj this)
 	}
 	
 	// call the release function
-	if (_cti_gdb_release(my_app->inv->gdb_id))
+	if (_cti_mpir_releaseInstance(my_app->inv->mpir_id))
 	{
 		_cti_set_error("srun barrier release operation failed.");
 		return 1;
 	}
-	
-	// cleanup the gdb instance, we are done with it. This will release memory
-	// and free up the hash table for more possible gdb instances. It is
-	// important to do this step here and not later on.
-	_cti_gdb_cleanup(my_app->inv->gdb_id);
-	my_app->inv->gdb_id = -1;
-	
-	// wait for the starter to exit
-	waitpid(my_app->inv->gdb_pid, NULL, 0);
-	my_app->inv->gdb_pid = -1;
-	
+
 	// done
 	return 0;
 }
@@ -2106,7 +1890,7 @@ _cti_cray_slurm_extraFiles(cti_wlm_obj this)
 		for (i=0; i < my_app->app_pids->num_pids; ++i)
 		{
 			// set this entry
-			pid_entry.pid = my_app->app_pids->pid[i];
+			pid_entry.pid = my_app->app_pids->pids[i];
 			
 			// write this entry
 			if (fwrite(&pid_entry, sizeof(slurmPidFile_t), 1, myFile) != 1)

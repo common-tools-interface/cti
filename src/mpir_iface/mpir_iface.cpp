@@ -8,13 +8,13 @@
 
 std::map<mpir_id_t, std::unique_ptr<MPIRInstance>> mpirInstances;
 
-static const mpir_id_t INSTANCE_ERROR = 0;
+static const mpir_id_t INSTANCE_ERROR = -1;
 mpir_id_t newId() {
 	static mpir_id_t nextId = 1;
 	return nextId++;
 }
 
-mpir_id_t _cti_mpir_newInstance(const char *launcher, const char * const launcher_args[],
+mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const launcher_args[],
 	const char *input_file) {
 
 	mpir_id_t id = newId();
@@ -45,7 +45,7 @@ mpir_id_t _cti_mpir_newInstance(const char *launcher, const char * const launche
 	return id;
 }
 
-mpir_id_t _cti_mpir_attachInstance(const char *launcher, pid_t pid) {
+mpir_id_t _cti_mpir_newAttachInstance(const char *launcher, pid_t pid) {
 	mpir_id_t id = newId();
 
 	try {
@@ -69,11 +69,11 @@ void _cti_mpir_releaseAllInstances(void) {
 	mpirInstances.clear();
 }
 
-char* _cti_mpir_getSymbolVal(mpir_id_t id, const char *symbol) {
+char* _cti_mpir_getStringAt(mpir_id_t id, const char *symbol) {
 	auto it = mpirInstances.find(id);
 	if (it == mpirInstances.end()) { return NULL; }
 
-	return it->second->dupVariable(symbol);
+	return strdup(it->second->readStringAt(symbol).c_str());
 }
 
 cti_mpir_procTable_t* _cti_mpir_newProcTable(mpir_id_t id) {
@@ -116,3 +116,40 @@ pid_t _cti_mpir_getLauncherPid(mpir_id_t id) {
 
 	return it->second->getLauncherPid();
 }
+
+/* fake stubs */
+cti_gdb_id_t		_cti_gdb_newInstance(void) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return -1; }
+void				_cti_gdb_cleanup(cti_gdb_id_t id) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return; }
+void				_cti_gdb_cleanupAll(void) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return; }
+void				_cti_gdb_execStarter(cti_gdb_id_t id, const char *a, const char *b, const char *c, const char * const d[], const char *e) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return; }
+void				_cti_gdb_execAttach(cti_gdb_id_t id, const char *a, const char *b, pid_t c) { return; }
+int					_cti_gdb_postFork(cti_gdb_id_t a) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return 1; }
+char *				_cti_gdb_getSymbolVal(cti_gdb_id_t a, const char *b) { return NULL; }
+cti_mpir_pid_t *	_cti_gdb_getAppPids(cti_gdb_id_t id) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return NULL; }
+cti_mpir_proctable_t * _cti_gdb_getProctable(cti_gdb_id_t gdb_id) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return NULL; }
+pid_t 				_cti_gdb_getLauncherPid(cti_gdb_id_t gdb_id) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return 0; }
+void				_cti_gdb_freeMpirPid(cti_mpir_pid_t *idp) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return; }
+int					_cti_gdb_release(cti_gdb_id_t id) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return 1; }
+void 			_cti_gdb_freeProctable(cti_mpir_proctable_t *a) {
+	throw std::runtime_error("called _cti_gdb_stub");
+	return; }

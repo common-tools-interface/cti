@@ -14,6 +14,8 @@ class MPIRInstance {
 	MPIRInferior inferior;
 
 public:
+	using Address = Dyninst::Address;
+
 	/* constructors */
 	MPIRInstance(std::string const& launcher, std::vector<std::string> const& launcherArgv,
 		std::map<int, int> remapFds = {});
@@ -21,8 +23,8 @@ public:
 
 	/* MPIR standard data structures */
 	typedef struct {
-		Dyninst::Address host_name;
-		Dyninst::Address executable_name;
+		Address host_name;
+		Address executable_name;
 		pid_t pid;
 	} MPIR_ProcDescElem;
 
@@ -50,10 +52,12 @@ public:
 	/* memory access */
 
 	template <typename T>
-	void readAddress(T* buf, Dyninst::Address address, size_t len);
+	void readAddress(T* buf, Address address, size_t len) {
+		inferior.proc->readMemory(reinterpret_cast<void*>(buf), address, len);
+	}
 
-	/* read variable and return new bytes */
-	char* dupVariable(std::string const& symName);
+	/* read c-string pointed to by symbol */
+	std::string readStringAt(std::string const& symName);
 
 	/* read variable into given buffer */
 	template <typename T>

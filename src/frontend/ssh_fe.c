@@ -42,7 +42,7 @@
 #include "cti_useful.h"
 #include "cti_path.h"
 
-#include "gdb_MPIR_iface.h"
+#include "mpir_iface.h"
 #include "cti_stringList.h"
 #include <stdbool.h>
 #include <stdlib.h>

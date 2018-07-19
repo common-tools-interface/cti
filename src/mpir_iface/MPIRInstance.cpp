@@ -48,7 +48,7 @@ void MPIRInstance::runToMPIRBreakpoint() {
 
 		/* read MPIR_debug_state. note that can only read on stopped thread */
 		if (inferior.proc->hasStoppedThread()) {
-			MPIRInstance::readVariable<MPIRDebugState>(&debugState, "MPIR_debug_state");
+			MPIRInstance::readVariable(&debugState, "MPIR_debug_state");
 		}
 	}
 
@@ -58,14 +58,9 @@ void MPIRInstance::runToMPIRBreakpoint() {
 /* memory access functions */
 
 template <typename T>
-void MPIRInstance::readAddress(T* buf, Dyninst::Address address, size_t len) {
-	inferior.proc->readMemory(reinterpret_cast<void*>(buf), address, len);
-}
-
-template <typename T>
 void MPIRInstance::readVariable(T* buf, std::string const& symName) {
 	Symbol *sym = inferior.getSymbol(symName);
-	assert(sizeof(T) >= sym->getSize());
+	assert(sizeof(T) == sym->getSize());
 	readAddress(buf, sym->getOffset(), sym->getSize());
 }
 
@@ -73,7 +68,7 @@ template <typename T>
 void MPIRInstance::readArrayElem(T* buf, std::string const& symName, size_t idx) {
 	Dyninst::Address elem_addr;
 	{ Dyninst::Address array_start;
-		readVariable<Dyninst::Address>(&array_start, symName);
+		readVariable(&array_start, symName);
 		elem_addr = array_start + idx * sizeof(void*);
 	}
 
@@ -82,19 +77,20 @@ void MPIRInstance::readArrayElem(T* buf, std::string const& symName, size_t idx)
 
 static const size_t BUFSIZE = 64;
 std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
-	size_t num_pids;
-	readVariable<size_t>(&num_pids, "MPIR_proctable_size");
+	int num_pids = 0;
+	readVariable(&num_pids, "MPIR_proctable_size");
+	DEBUG(std::cerr, "procTable has size " << std::to_string(num_pids) << std::endl);
 
 	std::vector<MPIR_ProcTableElem> procTable;
 
 	/* copy elements */
-	for (size_t i = 0; i < num_pids; i++) {
+	for (int i = 0; i < num_pids; i++) {
 		MPIR_ProcDescElem procDesc;
 		readArrayElem<MPIR_ProcDescElem>(&procDesc, "MPIR_proctable", i);
 
 		/* read hostname */
 		char buf[BUFSIZE + 1];
-		readAddress<char>(buf, procDesc.host_name, BUFSIZE);
+		readAddress(buf, procDesc.host_name, BUFSIZE);
 		buf[BUFSIZE] = '\0';
 
 		/* copy hostname */
@@ -107,12 +103,21 @@ std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
 	return procTable;
 }
 
-char* MPIRInstance::dupVariable(std::string const& symName) {
-	Symbol *sym = inferior.getSymbol(symName);
-	char *buf = new char[sym->getSize()];
-	readAddress(buf, sym->getOffset(), sym->getSize());
+std::string MPIRInstance::readStringAt(std::string const& symName) {
+	/* get address */
+	MPIRInstance::Address strAddress;
+	readVariable(&strAddress, symName);
 
-	return buf;
+	/* read string */
+	std::string result;
+	{ char c = ' ';
+		while (c) {
+			readAddress(&c, strAddress++, 1);
+			if (c) { result.push_back(c); }
+		}
+	}
+
+	return result;
 }
 
 template <typename T>

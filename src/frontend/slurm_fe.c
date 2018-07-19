@@ -46,7 +46,7 @@
 #include "cti_error.h"
 #include "cti_useful.h"
 
-#include "gdb_MPIR_iface.h"
+#include "mpir_iface.h"
 
 /* Types used here */
 

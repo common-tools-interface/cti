@@ -106,9 +106,6 @@ typedef struct
 /* internal function prototypes */
 const char *			_cti_getLdAuditPath(void);
 const char *			_cti_getOverwatchPath(void);
-const char *			_cti_getGdbPath(void);
-const char *			_cti_getStarterPath(void);
-const char *			_cti_getAttachPath(void);
 const char *			_cti_getDlaunchPath(void);
 const char *			_cti_getSlurmUtilPath(void);
 const char *			_cti_getCfgDir(void);

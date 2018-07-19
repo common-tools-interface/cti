@@ -11,8 +11,8 @@
 #include <PCProcess.h>
 #include <Event.h>
 
-//#define DEBUG(str, x) do { str << x; } while (0)
-#define DEBUG(str, x)
+#define DEBUG(str, x) do { str << x; } while (0)
+//#define DEBUG(str, x)
 
 /* inferior: manages dyninst process info, symbols, breakpoints */
 
@@ -68,7 +68,6 @@ class MPIRInferior {
 		return Process::cbProcStop;
 	}
 public:
-
 	Process::ptr proc;
 
 	/* breakpoint management */
