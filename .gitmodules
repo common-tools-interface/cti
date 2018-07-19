@@ -1,12 +1,6 @@
 [submodule "external/libarchive"]
 	path = external/libarchive
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libarchive.git
-[submodule "external/libmi"]
-	path = external/libmi
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libmi.git
-[submodule "external/gdb"]
-	path = external/gdb
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/ddt_gdb-7.6.2.git
 [submodule "scripts/set_default"]
 	path = scripts/set_default
 	url = ssh://git@stash.us.cray.com:7999/pe-cenv/set_default.git
