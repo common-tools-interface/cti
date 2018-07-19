@@ -60,6 +60,24 @@ AC_ARG_WITH(	[libmi],
 				[libmi_path=no]
 			)
 
+dnl Check for --with-libboost
+AC_ARG_WITH(	[libboost],
+				[AS_HELP_STRING([--with-libboost],
+								[Specify path to libboost install.])
+				],
+				[libboost_path=$withval],
+				[libboost_path=no]
+			)
+
+dnl Check for --with-libdyninstAPI
+AC_ARG_WITH(	[libdyninstAPI],
+				[AS_HELP_STRING([--with-libdyninstAPI],
+								[Specify path to libdyninstAPI install.])
+				],
+				[libdyninstAPI_path=$withval],
+				[libdyninstAPI_path=no]
+			)
+
 dnl Check for --with-libssh
 AC_ARG_WITH(	[libssh],
 				[AS_HELP_STRING([--with-libssh],
@@ -143,6 +161,25 @@ else
 	AC_MSG_RESULT([provided])
 fi
 
+
+dnl error if libboost argument wasn't provided
+AC_MSG_CHECKING([for libboost argument])
+if test "x$libboost_path" = "xno"; then
+	AC_MSG_RESULT([not found])
+	AC_MSG_ERROR([provide location of libboost.])
+else
+	AC_MSG_RESULT([provided])
+fi
+
+dnl error if libdyninstAPI argument wasn't provided
+AC_MSG_CHECKING([for libdyninstAPI argument])
+if test "x$libdyninstAPI_path" = "xno"; then
+	AC_MSG_RESULT([not found])
+	AC_MSG_ERROR([provide location of libdyninstAPI.])
+else
+	AC_MSG_RESULT([provided])
+fi
+
 dnl build libssh if argument wasn't provided
 AC_MSG_CHECKING([for libssh argument])
 AM_CONDITIONAL([BUILT_SSH], [test "x$libssh_path" = xno])
@@ -179,10 +216,10 @@ fi
 ############################
 dnl Check for libc
 AC_CHECK_LIB(	[c],
-	     		[free],
-	     		[],
-	     		[AC_MSG_FAILURE([libc not found.])]
-	     		)
+				[free],
+				[],
+				[AC_MSG_FAILURE([libc not found.])]
+				)
 
 dnl check for librl
 AC_CHECK_LIB(	[rt],
@@ -230,6 +267,35 @@ AC_CHECK_LIB(	[mi],
 			 	[AC_MSG_ERROR([libmi.so not found.])]
 			 	)
 AC_SUBST([MI_LIBS], ["-lmi"])
+dnl restore flags
+LDFLAGS="$save_LDFLAGS"
+
+dnl Check for libboost
+save_LDFLAGS="$LDFLAGS"
+if test -f "$libboost_path/lib/libboost_thread.so"; then
+	AC_SUBST([BOOST_LDFLAGS], ["-L$libboost_path/lib"])
+	LDFLAGS="$LDFLAGS $BOOST_LDFLAGS"
+fi
+AC_SUBST([BOOST_LIBS], ["-lboost_thread -lboost_system -lboost_date_time -lboost_atomic -lboost_chrono"])
+dnl restore flags
+LDFLAGS="$save_LDFLAGS"
+
+dnl Check for libdyninstAPI
+save_LDFLAGS="$LDFLAGS"
+if test -f "$libdyninstAPI_path/lib/libdyninstAPI.so"; then
+	AC_SUBST([DYNINST_LDFLAGS], ["-L$libdyninstAPI_path/lib"])
+	LDFLAGS="$LDFLAGS $DYNINST_LDFLAGS"
+fi
+AC_CHECK_LIB(	[dyninstAPI],
+				[_ZN6BPatchC1Ev],
+				[AC_DEFINE(	[HAVE_DYNINST],
+								[1],
+								[Define to 1 if you have the dyninstAPI library (-ldyninstAPi).]
+							)
+				],
+			 	[AC_MSG_ERROR([libdyninstAPI.so not found.])]
+			 	)
+AC_SUBST([DYNINST_LIBS], ["-ldyninstAPI -lcommon -ldynElf -ldynDwarf -lpcontrol -lsymtabAPI"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
@@ -306,6 +372,33 @@ AC_CHECK_HEADER([archive.h],
 		)
 dnl restore flags
 CFLAGS="$save_CFLAGS"
+
+dnl Check for libdyninstAPI headers
+save_CFLAGS="$CFLAGS"
+save_CXXFLAGS="$CXXFLAGS"
+if test -f "$libdyninstAPI_path/include/dynC.h"; then
+	AC_SUBST([DYNINST_CFLAGS], ["-I$libdyninstAPI_path$/include"])
+	AC_SUBST([DYNINST_CXXFLAGS], ["-I$libdyninstAPI_path$/include"])
+	CFLAGS="$CFLAGS $DYNINST_CFLAGS"
+	CXXFLAGS="$CXXFLAGS $DYNINST_CXXFLAGS"
+fi
+dnl restore flags
+CFLAGS="$save_CFLAGS"
+CXXFLAGS="$save_CXXFLAGS"
+
+
+dnl Check for libboost headers
+save_CFLAGS="$CFLAGS"
+save_CXXFLAGS="$CXXFLAGS"
+if test -f "$libboost_path/include/boost/shared_ptr.hpp"; then
+	AC_SUBST([BOOST_CFLAGS], ["-I$libboost_path$/include"])
+	AC_SUBST([BOOST_CXXFLAGS], ["-I$libboost_path$/include"])
+	CFLAGS="$CFLAGS $BOOST_CFLAGS"
+	CXXFLAGS="$CXXFLAGS $BOOST_CXXFLAGS"
+fi
+dnl restore flags
+CFLAGS="$save_CFLAGS"
+CXXFLAGS="$save_CXXFLAGS"
 
 dnl Check for libmi headers
 save_CFLAGS="$CFLAGS"
