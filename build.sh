@@ -173,19 +173,20 @@ fi
 # Deliver DSOs on install
 if [[ $doingInstall == "1" ]]
 then
-  mkdir -p $BUILD_DIR/libDSO
-  cp $swPrefix/lib/libsymtabAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/libDSO
-  cp $swPrefix/lib/libdynDwarf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/libDSO
-  cp $swPrefix/lib/libdynElf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/libDSO
-  cp $swPrefix/lib/libpcontrol.so.$swSO_Major.$swSO_Minor $BUILD_DIR/libDSO
-  cp $swPrefix/lib/libcommon.so.$swSO_Major.$swSO_Minor $BUILD_DIR/libDSO
+  mkdir -p $BUILD_DIR/lib/
+  cp $swPrefix/lib/libdyninstAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+  cp $swPrefix/lib/libsymtabAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+  cp $swPrefix/lib/libdynDwarf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+  cp $swPrefix/lib/libdynElf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+  cp $swPrefix/lib/libpcontrol.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+  cp $swPrefix/lib/libcommon.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
 
-  cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/libDSO
-  cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/libDSO
-  cp $boost_inst_base/lib/libboost_date_time.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/libDSO
-  cp $boost_inst_base/lib/libboost_atomic.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/libDSO
-  cp $boost_inst_base/lib/libboost_chrono.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/libDSO
-  chmod -R 755 $BUILD_DIR/libDSO
+  cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+  cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+  cp $boost_inst_base/lib/libboost_date_time.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+  cp $boost_inst_base/lib/libboost_atomic.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+  cp $boost_inst_base/lib/libboost_chrono.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+  chmod -R 755 $BUILD_DIR/lib/
 fi
 
 #_______________________ Start of main code ______________________________
@@ -203,15 +204,15 @@ autoreconf -ifv
 # Deliver DSOs and commnode on install
 if [[ $doingInstall == "1" ]]
 then
-  mkdir -p $BUILD_DIR/libDSO $BUILD_DIR/libexec
+  mkdir -p $BUILD_DIR/lib/ $BUILD_DIR/libexec
   if [ $OS == "x86_64" ]
   then
-    cp $elfDir/lib/libelf.so.1 $BUILD_DIR/libDSO
+    cp $elfDir/lib/libelf.so.1 $BUILD_DIR/lib/
   elif [ $OS = "aarch64" ]
   then
-    cp $elfDir/lib64/libelf.so.1 $BUILD_DIR/libDSO
+    cp $elfDir/lib64/libelf.so.1 $BUILD_DIR/lib/
   fi
-  chmod -R 755 $BUILD_DIR/libDSO $BUILD_DIR/libexec
+  chmod -R 755 $BUILD_DIR/lib/ $BUILD_DIR/libexec
 fi
 
 make DWARF_HOME=$dwarfDir \
