@@ -1,6 +1,0 @@
-Name: libssh
-Description: The SSH Library
-Version: 0.7.5
-Libs: -L/cray/css/users/azahdeh/projects/cti_sles/external/install/lib -lssh
-Cflags: -I/cray/css/users/azahdeh/projects/cti_sles/external/install/include
-

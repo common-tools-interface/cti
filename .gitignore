@@ -4,6 +4,7 @@ Makefile.in
 autom4te.cache
 config.cache
 config.h
+config.h.in
 config.log
 config.status
 cray-cti_be.pc
@@ -61,3 +62,4 @@ scripts/tmp
 *.marks
 *.pyc
 *.spec
+testing.info
