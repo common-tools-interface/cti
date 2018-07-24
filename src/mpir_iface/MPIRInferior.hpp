@@ -7,12 +7,15 @@
 // dyninst symtab
 #include <Symtab.h>
 
+// signal control
+#include <signal.h>
+
 // dyninst processcontrol
 #include <PCProcess.h>
 #include <Event.h>
 
-#define DEBUG(str, x) do { str << x; } while (0)
-//#define DEBUG(str, x)
+//#define DEBUG(str, x) do { str << x; } while (0)
+#define DEBUG(str, x)
 
 /* inferior: manages dyninst process info, symbols, breakpoints */
 
@@ -40,6 +43,35 @@ class MPIRInferior {
 		}
 
 		Symtab *get() const { return symtab_ptr; }
+	};
+
+	/* RAII for signal blocking */
+	class SignalGuard {
+		const int IGNORED_SIGNALS[13] {
+			64, 63, 39, 33, 32, SIGUSR1, SIGUSR2, SIGCONT, SIGTSTP,
+			SIGCHLD, SIGPROF, SIGALRM, SIGVTALRM
+		};
+
+	public:
+		SignalGuard() {
+			struct sigaction ignore_action { SIG_IGN };
+
+			for (auto sig : IGNORED_SIGNALS) {
+				if (sigaction(sig, &ignore_action, NULL) == -1) { 
+					std::cerr << "failed to block signal " + std::to_string(sig) << std::endl;
+				}
+			}
+		}
+
+		~SignalGuard() {
+			struct sigaction default_action { SIG_DFL };
+
+			for (auto sig : IGNORED_SIGNALS) {
+				if (sigaction(sig, &default_action, NULL) == -1) {
+					std::cerr << "failed to unblock signal " + std::to_string(sig) << std::endl;
+				}
+			}
+		}
 	};
 
 	/* symbol table members */

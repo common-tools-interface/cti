@@ -17,14 +17,16 @@
 ###################################
 # WARNING: THIS IS GPL DIRECTORY!!
 ###################################
-AM_CXXFLAGS				= -Wall -std=c++11
-AM_LIBTOOLFLAGS			= --quiet
 
-USEFUL_INCLUDES = -I@CRAYTOOL_DIR@/src/useful
+USEFUL = @CRAYTOOL_DIR@/src/useful
 
-libexec_PROGRAMS		= cti_slurm_util
+SRC             = @CRAYTOOL_DIR@/src
+AM_CXXFLAGS		= -Wall -std=c++11 -I$(SRC) -I$(USEFUL)
+AM_LIBTOOLFLAGS = --quiet
 
-cti_slurm_util_SOURCES	= cti_slurm_util.cpp
-cti_slurm_util_CXXFLAGS	= $(AM_CXXFLAGS) $(USEFUL_INCLUDES)
-cti_slurm_util_LDADD	=
-cti_slurm_util_LDFLAGS	= -Wl,--no-undefined -Wl,--as-needed
+noinst_LTLIBRARIES      	=	libslurm_util.la
+
+libslurm_util_la_SOURCES	=	slurm_util.cpp slurm_util.h
+libslurm_util_la_CXXFLAGS	=	$(AM_CXXFLAGS) -fPIC
+libslurm_util_la_LIBADD		=	
+libslurm_util_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed

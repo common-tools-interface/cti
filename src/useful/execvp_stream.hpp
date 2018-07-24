@@ -74,8 +74,8 @@ public:
 	static const int stdout = 1;
 	static const int stderr = 2;
 
-	Pipe() {
-		if (pipe(fds)) {
+	Pipe(int flags = 0) {
+		if (pipe2(fds, flags)) {
 			throw std::runtime_error("Pipe error");
 		}
 
@@ -214,14 +214,17 @@ class ExecvpOutput {
 	pid_t child;
 public:
 	ExecvpOutput(const char *binaryName, Argv const& argv) :
-		pipeInBuf(p.getReadFd()), pipein(&pipeInBuf) {
+		pipeInBuf(p.getReadFd()), pipein(&pipeInBuf), child(fork()) {
 
-		if ((child = fork()) == 0) { // child side of fork
+		if (child < 0) {
+			throw std::runtime_error(std::string("fork() for ") + binaryName + " failed!");
+		} else if (child == 0) { // child side of fork
 			/* prepare the output pipe */
 			p.closeRead();
 			dup2(p.getWriteFd(), Pipe::stdout);
 
 			execvp(binaryName, argv.get());
+			throw std::runtime_error(std::string("execvp() on ") + binaryName + " failed!");
 		}
 
 		/* create istream from output pipe */
@@ -230,7 +233,10 @@ public:
 
 	int getExitStatus() {
 		int status;
-		waitpid(child, &status, 0);
+		if (waitpid(child, &status, 0) < 0) {
+			throw std::runtime_error(
+				std::string("waitpid() on ") + std::to_string(child) + " failed!");
+		}
 		return WEXITSTATUS(status);
 	}
 
