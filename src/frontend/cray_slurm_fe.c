@@ -296,15 +296,19 @@ _cti_cray_slurm_consumeSrunInv(srunInv_t *this)
 	
 	if (this->mpir_id >= 0)
 	{
+		fprintf(stderr, "consumeSrunInv: releasing MPIR inst. pid %d\n", _cti_mpir_getLauncherPid(this->mpir_id));
 		_cti_mpir_releaseInstance(this->mpir_id);
 	}
 
+#if 0
 	if (this->sattach_pid >= 0)
 	{
 		// kill sattach
 		kill(this->sattach_pid, DEFAULT_SIG);
+		fprintf(stderr, "waitpid: consumeSrunInv sattach_pid %d\n", this->sattach_pid);
 		waitpid(this->sattach_pid, NULL, 0);
 	}
+#endif
 	
 	// free the object from memory
 	free(this);
@@ -374,7 +378,7 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 	int					cont = 1;
 	char *				read_buf;
 	slurmStepLayout_t *	rtn = NULL;
-	
+
 	// create a new args obj
 	if ((my_args = _cti_newArgs()) == NULL)
 	{
@@ -439,7 +443,7 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 		
 		return NULL;
 	}
-	
+
 	// fork off a process for the slurm utility
 	mypid = fork();
 	
@@ -470,15 +474,6 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 			_exit(1);
 		}
 		
-		// dup2 stderr
-		if (dup2(pipe_e[1], STDERR_FILENO) < 0)
-		{
-			// XXX: How to properly print this error? The parent won't be
-			// expecting the error message on this stream since dup2 failed.
-			fprintf(stderr, "CTI error: Unable to redirect stderr.\n");
-			_exit(1);
-		}
-		
 		// we want to redirect stdin to /dev/null since it is not required
 		if ((fd = open("/dev/null", O_RDONLY)) < 0)
 		{
@@ -495,6 +490,21 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 			_exit(1);
 		}
 		close(fd);
+
+		fprintf(stderr, "execv: ");
+		for (const char** arg = my_args->argv; *arg != NULL; arg++) {
+			fprintf(stderr, "%s, ", *arg);
+		}
+		fprintf(stderr, "\n");
+
+		// dup2 stderr
+		if (dup2(pipe_e[1], STDERR_FILENO) < 0)
+		{
+			// XXX: How to properly print this error? The parent won't be
+			// expecting the error message on this stream since dup2 failed.
+			fprintf(stderr, "CTI error: Unable to redirect stderr.\n");
+			_exit(1);
+		}
 		
 		// exec slurm utility
 		execv(my_args->argv[0], my_args->argv);
@@ -603,12 +613,14 @@ _cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
 	
 	// set the null terminator
 	read_buf[n] = '\0';
-	
+
 	// wait until the command finishes
-	if (waitpid(mypid, &status, 0) != mypid)
+	errno = 0;
+	if (waitpid(mypid, &status, 0) < 0)
 	{
+		fprintf(stderr, "waitpid failed: slurm_getLayout sutil %d\n", mypid);
 		// waitpid failed
-		_cti_set_error("waitpid failed.");
+		_cti_set_error(strerror(errno));
 		free(read_buf);
 		close(pipe_r[0]);
 		close(pipe_e[0]);
@@ -1180,7 +1192,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	// get the jobid string for slurm
 	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_jobid")) == NULL)
 	{
-		// error already set
+		_cti_set_error("failed to get jobid string via MPIR.\n");
 		_cti_mpir_releaseInstance(mpir_id);
 		return NULL;
 	}
@@ -1245,6 +1257,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	}
 	
 	// Cleanup this mpir instance, we are done with it
+	fprintf(stderr, "finished slurm_getJobInfo. releasing...\n");
 	_cti_mpir_releaseInstance(mpir_id);
 	
 	// allocate space for the cti_srunProc_t struct
@@ -1270,7 +1283,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	srunInv_t *			myapp;
 	appEntry_t *		appEntry;
 	craySlurmInfo_t	*	sinfo;
-	pid_t				mypid;
 	char *				sym_str;
 	char *				end_p;
 	uint32_t			jobid;
@@ -1299,9 +1311,19 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		// error already set
 		return 0;
 	}
+
+	// optionally open input file
+	int input_fd = -1;
+	if (inputFile != NULL) {
+		errno = 0;
+		input_fd = open(inputFile, O_RDONLY);
+		if (input_fd < 0) {
+			_cti_set_error("Failed to open input file %s: ", inputFile, strerror(errno));
+		}
+	}
 	
 	// Create a new MPIR instance. We want to interact with it.
-	if ((myapp->mpir_id = _cti_mpir_newLaunchInstance(launcher_path, launcher_argv, inputFile)) < 0)
+	if ((myapp->mpir_id = _cti_mpir_newLaunchInstance(launcher_path, launcher_argv, env_list, input_fd, stdout_fd, stderr_fd)) < 0)
 	{
 		// error already set
 		_cti_cray_slurm_consumeSrunInv(myapp);
@@ -1377,7 +1399,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		return 0;
 	}
 	free(sym_str);
-	fprintf(stderr, "got jobid %u, stepid %u\n", jobid, stepid);
 	
 	// get the pid information from slurm
 	// FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
@@ -1392,17 +1413,17 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		
 		return 0;
 	}
-	fprintf(stderr, "proctable done\n");
-	
+
+#if 0
 	// We now need to fork off an sattach process.
 	// For SLURM, sattach makes the iostreams of srun available. This process
 	// will exit when the srun process exits. 
 	
 	// fork off a process to start the sattach command
-	mypid = fork();
+	myapp->sattach_pid = fork();
 	
 	// error case
-	if (mypid < 0)
+	if (myapp->sattach_pid < 0)
 	{
 		_cti_set_error("Fatal fork error.");
 		_cti_cray_slurm_consumeSrunInv(myapp);
@@ -1414,34 +1435,12 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// child case
 	// Note that this should not use the _cti_set_error() interface since it is
 	// a child process.
-	if (mypid == 0)
+	if (myapp->sattach_pid == 0)
 	{
 		int 			fd;
 		cti_args_t *	my_args;
-		
-		if (stdout_fd != -1)
-		{
-			// dup2 stdout
-			if (dup2(stdout_fd, STDOUT_FILENO) < 0)
-			{
-				// XXX: How to properly print this error? The parent won't be
-				// expecting the error message on this stream since dup2 failed.
-				fprintf(stderr, "CTI error: Unable to redirect srun stdout.\n");
-				_exit(1);
-			}
-		}
-		
-		if (stderr_fd != -1)
-		{
-			// dup2 stderr
-			if (dup2(stderr_fd, STDERR_FILENO) < 0)
-			{
-				// XXX: How to properly print this error? The parent won't be
-				// expecting the error message on this stream since dup2 failed.
-				fprintf(stderr, "CTI error: Unable to redirect srun stderr.\n");
-				_exit(1);
-			}
-		}
+
+		fprintf(stderr, "sattach forked: preparing %d\n", getpid());
 		
 		// we set the input redirection in the mpir interface call. So we just
 		// redirect stdin to /dev/null for sattach.
@@ -1488,6 +1487,32 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 			_cti_freeArgs(my_args);
 			_exit(1);
 		}
+
+		if (stdout_fd != -1)
+		{
+			// dup2 stdout
+			if (dup2(stdout_fd, STDOUT_FILENO) < 0)
+			{
+				// XXX: How to properly print this error? The parent won't be
+				// expecting the error message on this stream since dup2 failed.
+				fprintf(stderr, "CTI error: Unable to redirect srun stdout.\n");
+				_exit(1);
+			}
+		}
+
+		if (stderr_fd != -1)
+		{
+			// dup2 stderr
+			if (dup2(stderr_fd, STDERR_FILENO) < 0)
+			{
+				// XXX: How to properly print this error? The parent won't be
+				// expecting the error message on this stream since dup2 failed.
+				fprintf(stderr, "CTI error: Unable to redirect srun stderr.\n");
+				_exit(1);
+			}
+		}
+
+		fprintf(stderr, "sattach %s %s %s\n", my_args->argv[1], my_args->argv[2], my_args->argv[3]);
 		
 		// exec sattach
 		execvp(SATTACH, my_args->argv);
@@ -1499,10 +1524,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	}
 	
 	// parent case
-	
-	// save the pid for later so that we can waitpid() on it when finished
-	myapp->sattach_pid = mypid;
-	
+#endif
 	// register this app with the application interface
 	if ((rtn = cti_cray_slurm_registerJobStep(jobid, stepid)) == 0)
 	{
@@ -1546,6 +1568,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// If we should not wait at the barrier, call the barrier release function.
 	if (!doBarrier)
 	{
+		fprintf(stderr, "releasing from launch_common (barrier: %d)\n", doBarrier);
 		if (_cti_cray_slurm_release(sinfo))
 		{
 			// error already set - appEntry already holds all info to be cleaned up
@@ -1596,6 +1619,7 @@ _cti_cray_slurm_release(cti_wlm_obj this)
 	}
 	
 	// call the release function
+	sleep(1);
 	if (_cti_mpir_releaseInstance(my_app->inv->mpir_id))
 	{
 		_cti_set_error("srun barrier release operation failed.");

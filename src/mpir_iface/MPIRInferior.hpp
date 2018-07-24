@@ -88,7 +88,7 @@ public:
 
 	/* create a new process with arguments */
 	MPIRInferior(std::string const& launcher, std::vector<std::string> const& launcherArgv,
-		std::map<int, int> remapFds = {});
+		std::vector<std::string> envVars = {}, std::map<int, int> remapFds = {});
 	/* attach to existing process */
 	MPIRInferior(std::string const& launcher, Dyninst::PID pid);
 	~MPIRInferior();

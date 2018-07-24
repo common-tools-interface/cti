@@ -15,7 +15,7 @@ extern "C" {
 
 	/* function prototypes */
 	mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const launcher_args[],
-		const char *input_file);
+		const char * const env_list[], int stdin_fd, int stdout_fd, int stderr_fd);
 	mpir_id_t _cti_mpir_newAttachInstance(const char *launcher, pid_t pid);
 
 	int _cti_mpir_releaseInstance(mpir_id_t id);

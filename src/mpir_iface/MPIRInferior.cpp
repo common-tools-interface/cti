@@ -4,9 +4,10 @@
 
 /* inferior implementations */
 MPIRInferior::MPIRInferior(std::string const& launcher,
-	std::vector<std::string> const& launcherArgv, std::map<int, int> remapFds) :
+	std::vector<std::string> const& launcherArgv, 
+	std::vector<std::string> envVars, std::map<int, int> remapFds) :
 	symtab(launcher),
-	proc(Process::createProcess(launcher, launcherArgv, {}, remapFds)) {
+	proc(Process::createProcess(launcher, launcherArgv, envVars, remapFds)) {
 
 	/* prepare breakpoint callback */
 	Process::registerEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, on_breakpoint);

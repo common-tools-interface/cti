@@ -2,8 +2,9 @@
 
 /* create new process instance */
 MPIRInstance::MPIRInstance(std::string const& launcher,
-	std::vector<std::string> const& launcherArgv, std::map<int, int> remapFds) :
-	inferior(launcher, launcherArgv, remapFds) {
+	std::vector<std::string> const& launcherArgv,
+	std::vector<std::string> envVars, std::map<int, int> remapFds) :
+	inferior(launcher, launcherArgv, envVars, remapFds) {
 
 	/* read symbols, set breakpoints, etc. */
 	setupMPIRStandard();

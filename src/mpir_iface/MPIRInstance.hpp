@@ -18,7 +18,7 @@ public:
 
 	/* constructors */
 	MPIRInstance(std::string const& launcher, std::vector<std::string> const& launcherArgv,
-		std::map<int, int> remapFds = {});
+		std::vector<std::string> envVars = {}, std::map<int, int> remapFds = {});
 	MPIRInstance(std::string const& attacher, pid_t pid);
 
 	/* MPIR standard data structures */

@@ -15,7 +15,7 @@ mpir_id_t newId() {
 }
 
 mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const launcher_args[],
-	const char *input_file) {
+	const char * const env_list[], int stdin_fd, int stdout_fd, int stderr_fd) {
 
 	mpir_id_t id = newId();
 
@@ -25,19 +25,19 @@ mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const l
 		launcherArgv.emplace_back(*arg);
 	}
 
-	/* optionally use file input */
-	std::map<int, int> remapFds;
-	if (input_file != NULL) {
-		int inputFd = open(input_file, O_RDONLY);
-		if (inputFd < 0) {
-			perror("open");
-			return INSTANCE_ERROR;
-		}
-		remapFds[inputFd] = 0;
+	/* todo: env_list */
+	if (env_list) {
+		fprintf(stderr, "not implemented: env_list\n");
 	}
 
+	/* optionally use file input */
+	std::map<int, int> remapFds;
+	if (stdin_fd  >= 0) { remapFds[stdin_fd] = STDIN_FILENO;  }
+	if (stdout_fd >= 0) { remapFds[stdin_fd] = STDOUT_FILENO; }
+	if (stderr_fd >= 0) { remapFds[stdin_fd] = STDERR_FILENO; }
+
 	try {
-		mpirInstances.emplace(id, new MPIRInstance(std::string(launcher), launcherArgv, remapFds));
+		mpirInstances.emplace(id, new MPIRInstance(std::string(launcher), launcherArgv, {}, remapFds));
 	} catch (...) {
 		return INSTANCE_ERROR;
 	}
@@ -60,6 +60,8 @@ mpir_id_t _cti_mpir_newAttachInstance(const char *launcher, pid_t pid) {
 int _cti_mpir_releaseInstance(mpir_id_t id) {
 	auto it = mpirInstances.find(id);
 	if (it == mpirInstances.end()) { return 1; }
+
+	DEBUG(std::cerr, "releasing id " << id << std::endl);
 
 	mpirInstances.erase(it);
 	return 0;
