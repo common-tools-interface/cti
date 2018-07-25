@@ -49,18 +49,12 @@
 
 typedef struct
 {
-	mpir_id_t	mpir_id;
-	pid_t		sattach_pid;		// Optional pid of the sattach process if we are redirecting io
-} srunInv_t;
-
-typedef struct
-{
 	cti_app_id_t		appId;			// CTI appid associated with this alpsInfo_t obj
 	uint32_t			jobid;			// SLURM job id
 	uint32_t			stepid;			// SLURM step id
 	uint64_t			apid;			// Cray variant of step+job id
 	slurmStepLayout_t *	layout;			// Layout of job step
-	srunInv_t *			inv;			// Optional object used for launched applications.
+	mpir_id_t			mpir_id;		// MPIR instance handle
 	cti_mpir_procTable_t *app_pids;		// Optional object used to hold the rank->pid association
 	char *				toolPath;		// Backend staging directory
 	char *				attribsPath;	// Backend Cray specific directory
@@ -74,8 +68,6 @@ static int					_cti_cray_slurm_init(void);
 static void					_cti_cray_slurm_fini(void);
 static craySlurmInfo_t *	_cti_cray_slurm_newSlurmInfo(void);
 static void 				_cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj);
-static srunInv_t *			_cti_cray_slurm_newSrunInv(void);
-static void					_cti_cray_slurm_consumeSrunInv(srunInv_t *);
 static char *				_cti_cray_slurm_getJobId(cti_wlm_obj);
 static cti_app_id_t			_cti_cray_slurm_launch_common(const char * const [], int, int, const char *, const char *, const char * const [], int);
 static cti_app_id_t			_cti_cray_slurm_launch(const char * const [], int, int, const char *, const char *, const char * const []);
@@ -196,7 +188,7 @@ _cti_cray_slurm_newSlurmInfo(void)
 	this->stepid		= 0;
 	this->apid			= 0;
 	this->layout		= NULL;
-	this->inv			= NULL;
+	this->mpir_id		= -1;
 	this->app_pids		= NULL;
 	this->toolPath		= NULL;
 	this->attribsPath	= NULL;
@@ -220,7 +212,6 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 	_cti_list_remove(_cti_cray_slurm_info, sinfo);
 
 	_cti_cray_slurm_freeLayout(sinfo->layout);
-	_cti_cray_slurm_consumeSrunInv(sinfo->inv);
 	_cti_mpir_deleteProcTable(sinfo->app_pids);
 	
 	if (sinfo->toolPath != NULL)
@@ -250,42 +241,6 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 	}
 	
 	free(sinfo);
-}
-
-static srunInv_t *
-_cti_cray_slurm_newSrunInv(void)
-{
-	srunInv_t *	this;
-
-	if ((this = malloc(sizeof(srunInv_t))) == NULL)
-	{
-		// Malloc failed
-		_cti_set_error("malloc failed.");
-		
-		return NULL;
-	}
-	
-	// init the members
-	this->mpir_id = -1;
-	this->sattach_pid = -1;
-	
-	return this;
-}
-
-static void
-_cti_cray_slurm_consumeSrunInv(srunInv_t *this)
-{
-	// sanity
-	if (this == NULL)
-		return;
-	
-	if (this->mpir_id >= 0)
-	{
-		_cti_mpir_releaseInstance(this->mpir_id);
-	}
-	
-	// free the object from memory
-	free(this);
 }
 
 // Note that we should provide this as a jobid.stepid format. It will make turning
@@ -564,7 +519,6 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	{
 		/*
 		// error already set
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		
 		return 0;
 		*/
@@ -617,8 +571,8 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 								const char *inputFile, const char *chdirPath,
 								const char * const env_list[], int doBarrier	)
 {
-	srunInv_t *			myapp;
 	appEntry_t *		appEntry;
+	mpir_id_t			mpir_id;
 	craySlurmInfo_t	*	sinfo;
 	char *				sym_str;
 	char *				end_p;
@@ -641,13 +595,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		return 0;
 	}
 
-	// create a new srunInv_t object
-	if ((myapp = _cti_cray_slurm_newSrunInv()) == NULL)
-	{
-		// error already set
-		return 0;
-	}
-
 	// optionally open input file
 	int input_fd = -1;
 	if (inputFile != NULL) {
@@ -659,19 +606,17 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	}
 	
 	// Create a new MPIR instance. We want to interact with it.
-	if ((myapp->mpir_id = _cti_mpir_newLaunchInstance(launcher_path, launcher_argv, env_list, input_fd, stdout_fd, stderr_fd)) < 0)
+	if ((mpir_id = _cti_mpir_newLaunchInstance(launcher_path, launcher_argv, env_list, input_fd, stdout_fd, stderr_fd)) < 0)
 	{
 		// error already set
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		
+
 		return 0;
 	}
 	
 	// get the jobid string for slurm
-	if ((sym_str = _cti_mpir_getStringAt(myapp->mpir_id, "totalview_jobid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_jobid")) == NULL)
 	{
 		// error already set
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		
 		return 0;
 	}
@@ -684,7 +629,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0))
 	{
 		_cti_set_error("strtoul failed (parse).\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
 		return 0;
@@ -692,7 +636,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if (end_p == NULL || *end_p != '\0')
 	{
 		_cti_set_error("strtoul failed (partial parse).\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
 		return 0;
@@ -700,11 +643,10 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	free(sym_str);
 	
 	// get the stepid string for slurm
-	if ((sym_str = _cti_mpir_getStringAt(myapp->mpir_id, "totalview_stepid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_stepid")) == NULL)
 	{
 		/*
 		// error already set
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		
 		return 0;
 		*/
@@ -721,7 +663,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
 	{
 		_cti_set_error("strtoul failed (parse).\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
 		return 0;
@@ -729,7 +670,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if (end_p == NULL || *end_p != '\0')
 	{
 		_cti_set_error("strtoul failed (partial parse).\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		free(sym_str);
 		
 		return 0;
@@ -742,10 +682,9 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// ctor, which is called after the slurm startup barrier, meaning it will not
 	// yet be created when launching. So we need to send over a file containing
 	// the information to the compute nodes.
-	if ((pids = _cti_mpir_newProcTable(myapp->mpir_id)) == NULL)
+	if ((pids = _cti_mpir_newProcTable(mpir_id)) == NULL)
 	{
 		_cti_set_error("failed to get proctable.\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		
 		return 0;
 	}
@@ -754,7 +693,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if ((rtn = cti_cray_slurm_registerJobStep(jobid, stepid)) == 0)
 	{
 		// failed to register the jobid/stepid, error is already set.
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		_cti_mpir_deleteProcTable(pids);
 		
 		return 0;
@@ -765,7 +703,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	{
 		// this should never happen
 		_cti_set_error("impossible null appEntry error!\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		_cti_mpir_deleteProcTable(pids);
 		
 		return 0;
@@ -777,7 +714,6 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	{
 		// this should never happen
 		_cti_set_error("impossible null sinfo error!\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
 		_cti_mpir_deleteProcTable(pids);
 		cti_deregisterApp(appEntry->appId);
 		
@@ -785,7 +721,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	}
 	
 	// set the inv
-	sinfo->inv = myapp;
+	sinfo->mpir_id = mpir_id;
 	
 	// set the pids
 	sinfo->app_pids = pids;
@@ -835,16 +771,8 @@ _cti_cray_slurm_release(cti_wlm_obj this)
 		return 1;
 	}
 	
-	// sanity check
-	if (my_app->inv == NULL)
-	{
-		_cti_set_error("srun barrier release operation failed.");
-		return 1;
-	}
-	
 	// call the release function
-	sleep(1);
-	if (_cti_mpir_releaseInstance(my_app->inv->mpir_id))
+	if (_cti_mpir_releaseInstance(my_app->mpir_id))
 	{
 		_cti_set_error("srun barrier release operation failed.");
 		return 1;

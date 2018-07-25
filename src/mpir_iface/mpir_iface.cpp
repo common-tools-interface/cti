@@ -119,6 +119,7 @@ pid_t _cti_mpir_getLauncherPid(mpir_id_t id) {
 	return it->second->getLauncherPid();
 }
 
+#ifdef IN_PROGRESS
 /* fake stubs */
 cti_gdb_id_t		_cti_gdb_newInstance(void) {
 	throw std::runtime_error("called _cti_gdb_stub");
@@ -155,3 +156,4 @@ int					_cti_gdb_release(cti_gdb_id_t id) {
 void 			_cti_gdb_freeProctable(cti_mpir_proctable_t *a) {
 	throw std::runtime_error("called _cti_gdb_stub");
 	return; }
+#endif

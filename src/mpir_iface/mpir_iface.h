@@ -31,6 +31,8 @@ extern "C" {
 	typedef int cti_gdb_id_t;
 
 
+#if 1
+#define IN_PROGRESS
 /* fake stubs for transistion */
 typedef struct {
 	size_t		num_pids;
@@ -58,6 +60,7 @@ pid_t 				_cti_gdb_getLauncherPid(cti_gdb_id_t gdb_id);
 void				_cti_gdb_freeMpirPid(cti_mpir_pid_t *);
 int					_cti_gdb_release(cti_gdb_id_t);
 void 			_cti_gdb_freeProctable(cti_mpir_proctable_t *);
+#endif
 
 #ifdef __cplusplus
 }
