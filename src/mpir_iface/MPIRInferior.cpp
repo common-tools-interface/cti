@@ -1,6 +1,10 @@
 #include "MPIRInferior.hpp"
 
-/* todo: block signals? */
+/* todo: block signals?
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGINT);
+	sigprocmask(SIG_BLOCK, &mask, &omask);
+	*/
 
 /* inferior implementations */
 MPIRInferior::MPIRInferior(std::string const& launcher,

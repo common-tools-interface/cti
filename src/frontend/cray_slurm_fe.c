@@ -212,6 +212,7 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 	_cti_list_remove(_cti_cray_slurm_info, sinfo);
 
 	_cti_cray_slurm_freeLayout(sinfo->layout);
+	_cti_mpir_releaseInstance(sinfo->mpir_id);
 	_cti_mpir_deleteProcTable(sinfo->app_pids);
 	
 	if (sinfo->toolPath != NULL)
@@ -519,6 +520,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	{
 		/*
 		// error already set
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 		*/
@@ -530,13 +532,13 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	// convert the string into the actual stepid
 	errno = 0;
 	stepid = (uint32_t)strtoul(sym_str, &end_p, 10);
-	free(sym_str);
 	
 	// check for errors
 	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
 	{
 		_cti_set_error("strtoul failed.\n");
 		_cti_mpir_releaseInstance(mpir_id);
+		free(sym_str);
 		
 		return NULL;
 	}
@@ -544,9 +546,12 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	{
 		_cti_set_error("strtoul failed.\n");
 		_cti_mpir_releaseInstance(mpir_id);
+		free(sym_str);
 		
 		return NULL;
 	}
+
+	free(sym_str);
 	
 	// Cleanup this mpir instance, we are done with it
 	_cti_mpir_releaseInstance(mpir_id);
@@ -602,13 +607,14 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		input_fd = open(inputFile, O_RDONLY);
 		if (input_fd < 0) {
 			_cti_set_error("Failed to open input file %s: ", inputFile, strerror(errno));
+			return 0;
 		}
 	}
 	
 	// Create a new MPIR instance. We want to interact with it.
 	if ((mpir_id = _cti_mpir_newLaunchInstance(launcher_path, launcher_argv, env_list, input_fd, stdout_fd, stderr_fd)) < 0)
 	{
-		// error already set
+			_cti_set_error("Failed to launch %s", launcher_argv[0]);
 
 		return 0;
 	}
@@ -617,6 +623,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_jobid")) == NULL)
 	{
 		// error already set
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
@@ -629,6 +636,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0))
 	{
 		_cti_set_error("strtoul failed (parse).\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return 0;
@@ -636,6 +644,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if (end_p == NULL || *end_p != '\0')
 	{
 		_cti_set_error("strtoul failed (partial parse).\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return 0;
@@ -647,6 +656,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	{
 		/*
 		// error already set
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 		*/
@@ -663,6 +673,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
 	{
 		_cti_set_error("strtoul failed (parse).\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return 0;
@@ -670,6 +681,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	if (end_p == NULL || *end_p != '\0')
 	{
 		_cti_set_error("strtoul failed (partial parse).\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return 0;
@@ -694,6 +706,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	{
 		// failed to register the jobid/stepid, error is already set.
 		_cti_mpir_deleteProcTable(pids);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
@@ -704,6 +717,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		// this should never happen
 		_cti_set_error("impossible null appEntry error!\n");
 		_cti_mpir_deleteProcTable(pids);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
@@ -715,6 +729,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		// this should never happen
 		_cti_set_error("impossible null sinfo error!\n");
 		_cti_mpir_deleteProcTable(pids);
+		_cti_mpir_releaseInstance(mpir_id);
 		cti_deregisterApp(appEntry->appId);
 		
 		return 0;
@@ -777,6 +792,7 @@ _cti_cray_slurm_release(cti_wlm_obj this)
 		_cti_set_error("srun barrier release operation failed.");
 		return 1;
 	}
+	my_app->mpir_id = -1;
 
 	// done
 	return 0;
