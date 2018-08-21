@@ -24,8 +24,6 @@ MPIR_IFACE		= $(SRC)/mpir_iface
 SLURM_UTIL		= $(SRC)/slurm_util
 
 AM_CFLAGS		= -Wall -I$(SRC)
-AM_CPPFLAGS		= $(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
-AM_LDFLAGS		= $(DYNINST_LDFLAGS)
 AM_LIBTOOLFLAGS = --quiet
 
 lib_LTLIBRARIES = libcraytools_fe.la
@@ -37,8 +35,7 @@ libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(MPIR_IFACE) -I$(SLURM_UTIL) -
 								-I$(USEFUL) $(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS)
 libcraytools_fe_la_LIBADD	=	$(USEFUL)/libuseful.la $(LDVAL)/libld_val.la \
 								$(MPIR_IFACE)/libmpir_iface.la $(SLURM_UTIL)/libslurm_util.la \
-								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS) $(BOOST_LIBS)
-								$(BOOST_SYSTEM_LIB) $(BOOST_THREAD_LIB)
+								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS)
 libcraytools_fe_la_LDFLAGS	=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info $(CRAYTOOL_FE_VERSION) \
 								$(ARCHIVE_LDFLAGS)
 

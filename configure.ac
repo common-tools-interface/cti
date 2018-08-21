@@ -39,45 +39,6 @@ cray_INIT
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-#############################
-### Check for --with tags ###
-#############################
-dnl Check for --with-libarchive
-AC_ARG_WITH(	[libarchive],
-				[AS_HELP_STRING([--with-libarchive],
-								[Specify path to libarchive install.])
-				],
-				[libarchive_path=$withval],
-				[libarchive_path=no]
-			)
-
-dnl Check for --with-libboost
-AC_ARG_WITH(	[libboost],
-				[AS_HELP_STRING([--with-libboost],
-								[Specify path to libboost install.])
-				],
-				[libboost_path=$withval],
-				[libboost_path=no]
-			)
-
-dnl Check for --with-libdyninstAPI
-AC_ARG_WITH(	[libdyninstAPI],
-				[AS_HELP_STRING([--with-libdyninstAPI],
-								[Specify path to libdyninstAPI install.])
-				],
-				[libdyninstAPI_path=$withval],
-				[libdyninstAPI_path=no]
-			)
-
-dnl Check for --with-libssh
-AC_ARG_WITH(	[libssh],
-				[AS_HELP_STRING([--with-libssh],
-								[Specify path to libssh install.])
-				],
-				[libssh_path=$withval],
-				[libssh_path=no]
-			)
-
 ###########################
 ### Check for programs. ###
 ###########################
@@ -93,6 +54,38 @@ AC_LIBTOOL_DLOPEN
 AC_PROG_LIBTOOL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
+
+#############################
+### Check for --with tags ###
+#############################
+dnl Check for --with-libarchive
+AC_ARG_WITH(	[libarchive],
+				[AS_HELP_STRING([--with-libarchive],
+								[Specify path to libarchive install.])
+				],
+				[libarchive_path=$withval],
+				[libarchive_path=no]
+			)
+
+dnl This macro runs check for --with-boost
+AX_BOOST_BASE([1.57],, [AC_MSG_ERROR([valgrind4hpc needs libboost >=1.57, but it was not found in your system])])
+AX_BOOST_SYSTEM
+
+dnl This macro runs check for --with-dyninst
+AX_DYNINST
+dnl Check for dyninst
+if test -z "$DYNINST_VERS"; then
+	AC_MSG_ERROR([dyninst not found (try --with-dyninst or fix build.sh)])
+fi
+
+dnl Check for --with-libssh
+AC_ARG_WITH(	[libssh],
+				[AS_HELP_STRING([--with-libssh],
+								[Specify path to libssh install.])
+				],
+				[libssh_path=$withval],
+				[libssh_path=no]
+			)
 
 #########################
 ### Setup env options ###
@@ -123,24 +116,6 @@ if test "x$libarchive_path" = "xno"; then
 	AC_CACHE_SAVE
 	cray_ENV_LIBARCHIVE
 	libarchive_path=$INTERNAL_LIBARCHIVE
-else
-	AC_MSG_RESULT([provided])
-fi
-
-dnl error if libboost argument wasn't provided
-AC_MSG_CHECKING([for libboost argument])
-if test "x$libboost_path" = "xno"; then
-	AC_MSG_RESULT([not found])
-	AC_MSG_ERROR([provide location of libboost.])
-else
-	AC_MSG_RESULT([provided])
-fi
-
-dnl error if libdyninstAPI argument wasn't provided
-AC_MSG_CHECKING([for libdyninstAPI argument])
-if test "x$libdyninstAPI_path" = "xno"; then
-	AC_MSG_RESULT([not found])
-	AC_MSG_ERROR([provide location of libdyninstAPI.])
 else
 	AC_MSG_RESULT([provided])
 fi
@@ -198,35 +173,6 @@ AC_CHECK_LIB(	[archive],
 				[AC_MSG_ERROR([libarchive.a not found.])]
 				)
 AC_SUBST([ARCHIVE_LIBS], ["-larchive"])
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
-dnl Check for libboost
-save_LDFLAGS="$LDFLAGS"
-if test -f "$libboost_path/lib/libboost_thread.so"; then
-	AC_SUBST([BOOST_LDFLAGS], ["-L$libboost_path/lib"])
-	LDFLAGS="$LDFLAGS $BOOST_LDFLAGS"
-fi
-AC_SUBST([BOOST_LIBS], ["-lboost_thread -lboost_system -lboost_date_time -lboost_atomic -lboost_chrono"])
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
-dnl Check for libdyninstAPI
-save_LDFLAGS="$LDFLAGS"
-if test -f "$libdyninstAPI_path/lib/libdyninstAPI.so"; then
-	AC_SUBST([DYNINST_LDFLAGS], ["-L$libdyninstAPI_path/lib"])
-	LDFLAGS="$LDFLAGS $DYNINST_LDFLAGS"
-fi
-AC_CHECK_LIB(	[dyninstAPI],
-				[_ZN6BPatchC1Ev],
-				[AC_DEFINE(	[HAVE_DYNINST],
-								[1],
-								[Define to 1 if you have the dyninstAPI library (-ldyninstAPi).]
-							)
-				],
-			 	[AC_MSG_ERROR([libdyninstAPI.so not found.])]
-			 	)
-AC_SUBST([DYNINST_LIBS], ["-ldyninstAPI -lcommon -ldynElf -ldynDwarf -lpcontrol -lsymtabAPI"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
@@ -303,33 +249,6 @@ AC_CHECK_HEADER([archive.h],
 		)
 dnl restore flags
 CFLAGS="$save_CFLAGS"
-
-dnl Check for libdyninstAPI headers
-save_CFLAGS="$CFLAGS"
-save_CXXFLAGS="$CXXFLAGS"
-if test -f "$libdyninstAPI_path/include/dynC.h"; then
-	AC_SUBST([DYNINST_CFLAGS], ["-I$libdyninstAPI_path$/include"])
-	AC_SUBST([DYNINST_CXXFLAGS], ["-I$libdyninstAPI_path$/include"])
-	CFLAGS="$CFLAGS $DYNINST_CFLAGS"
-	CXXFLAGS="$CXXFLAGS $DYNINST_CXXFLAGS"
-fi
-dnl restore flags
-CFLAGS="$save_CFLAGS"
-CXXFLAGS="$save_CXXFLAGS"
-
-
-dnl Check for libboost headers
-save_CFLAGS="$CFLAGS"
-save_CXXFLAGS="$CXXFLAGS"
-if test -f "$libboost_path/include/boost/shared_ptr.hpp"; then
-	AC_SUBST([BOOST_CFLAGS], ["-I$libboost_path$/include"])
-	AC_SUBST([BOOST_CXXFLAGS], ["-I$libboost_path$/include"])
-	CFLAGS="$CFLAGS $BOOST_CFLAGS"
-	CXXFLAGS="$CXXFLAGS $BOOST_CXXFLAGS"
-fi
-dnl restore flags
-CFLAGS="$save_CFLAGS"
-CXXFLAGS="$save_CXXFLAGS"
 
 dnl Check for libssh headers
 save_CFLAGS="$CFLAGS"

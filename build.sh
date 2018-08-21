@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 cmake_module="cmake/3.5.2"
 
@@ -23,21 +24,11 @@ boostSO_Fix=0
 dwarfDir=""
 dwarfVer=18.1.0
 ulib=/cray/css/ulib
-buildDyninstAPI=1       # default to building DyninstAPI
 buildRelease=0           # default to not being a build release
 swDebugStr="-DCMAKE_BUILD_TYPE=RelWithDebInfo"
 boost_inst_base=""
 boost_inc=""
 boost_full_name=${boostSO_Major}_${boostSO_Minor}_${boostSO_Fix}
-
-doingInstall=0
-for arg in $args
-do
-  if [[ $arg = "install" ]]
-  then
-    doingInstall=1
-  fi
-done
 
 function source_module_script() {
   if [ -e "/etc/redhat-release" ]; then
@@ -121,6 +112,13 @@ swBuildDir=$swSourceDir
 swInstallDir=$PWD/external/install
 swPrefix=$swInstallDir
 
+
+if [ -e "$swInstallDir/lib/libdyninstAPI.so" ]; then
+  buildDyninstAPI=0
+else
+  buildDyninstAPI=1
+fi
+
 if [[ $buildDyninstAPI == 1 ]]
 then
   echo "--------------------------------------------- Building DyninstAPI"
@@ -170,25 +168,6 @@ then
   make install
 fi
 
-# Deliver DSOs on install
-if [[ $doingInstall == "1" ]]
-then
-  mkdir -p $BUILD_DIR/lib/
-  cp $swPrefix/lib/libdyninstAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-  cp $swPrefix/lib/libsymtabAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-  cp $swPrefix/lib/libdynDwarf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-  cp $swPrefix/lib/libdynElf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-  cp $swPrefix/lib/libpcontrol.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-  cp $swPrefix/lib/libcommon.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-
-  cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
-  cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
-  cp $boost_inst_base/lib/libboost_date_time.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
-  cp $boost_inst_base/lib/libboost_atomic.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
-  cp $boost_inst_base/lib/libboost_chrono.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
-  chmod -R 755 $BUILD_DIR/lib/
-fi
-
 #_______________________ Start of main code ______________________________
 source_module_script
 
@@ -199,7 +178,7 @@ module list
 cd $topLevel
 autoreconf -ifv
 
-./configure --prefix=$BUILD_DIR --with-libboost=$boost_inst_base --with-libdyninstAPI=$swInstallDir
+./configure --prefix=$BUILD_DIR --with-boost=$boost_inst_base --with-dyninst=$swInstallDir --with-dyninst-libdir=$swInstallDir/lib
 
 # Deliver DSOs and commnode on install
 if [[ $doingInstall == "1" ]]
@@ -221,7 +200,22 @@ make DWARF_HOME=$dwarfDir \
 make install
 make tests;
 
-cd ..
+# install DSOs
+mkdir -p $BUILD_DIR/lib/
+cp $swPrefix/lib/libdyninstAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $swPrefix/lib/libsymtabAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $swPrefix/lib/libdynDwarf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $swPrefix/lib/libdynElf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $swPrefix/lib/libpcontrol.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $swPrefix/lib/libcommon.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+cp $boost_inst_base/lib/libboost_date_time.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+cp $boost_inst_base/lib/libboost_atomic.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+cp $boost_inst_base/lib/libboost_chrono.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+chmod -R 755 $BUILD_DIR/lib/
+
+cd $topLevel
 mkdir -p $BUILD_DIR/docs
 cp $PWD/extras/docs/ATTRIBUTIONS_cti.txt $BUILD_DIR/docs
 mkdir $BUILD_DIR/examples

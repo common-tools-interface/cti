@@ -250,18 +250,12 @@ AC_DEFUN([_AX_BOOST_BASE_RUNDETECT],[
 
             if test -n "$BOOST_ROOT" ; then
                 for libsubdir in $libsubdirs ; do
-                    if ls "$BOOST_ROOT/stage/$libsubdir/libboost_"* >/dev/null 2>&1 ; then break; fi
+                    if ls "$BOOST_ROOT/$libsubdir/libboost_"* >/dev/null 2>&1 ; then break; fi
                 done
-                if test -d "$BOOST_ROOT" && test -r "$BOOST_ROOT" && test -d "$BOOST_ROOT/stage/$libsubdir" && test -r "$BOOST_ROOT/stage/$libsubdir"; then
-                    version_dir=`expr //$BOOST_ROOT : '.*/\(.*\)'`
-                    stage_version=`echo $version_dir | sed 's/boost_//' | sed 's/_/./g'`
-                        stage_version_shorten=`expr $stage_version : '\([[0-9]]*\.[[0-9]]*\)'`
-                    V_CHECK=`expr $stage_version_shorten \>\= $_version`
-                    if test "x$V_CHECK" = "x1" && test -z "$_AX_BOOST_BASE_boost_lib_path" ; then
-                        AC_MSG_NOTICE(We will use a staged boost library from $BOOST_ROOT)
-                        BOOST_CPPFLAGS="-I$BOOST_ROOT"
-                        BOOST_LDFLAGS="-L$BOOST_ROOT/stage/$libsubdir"
-                    fi
+                if test -d "$BOOST_ROOT" && test -r "$BOOST_ROOT" && test -d "$BOOST_ROOT/$libsubdir" && test -r "$BOOST_ROOT/$libsubdir"; then
+                    AC_MSG_NOTICE(We will use a staged boost library from $BOOST_ROOT)
+                    BOOST_CPPFLAGS="-I$BOOST_ROOT/include"
+                    BOOST_LDFLAGS="-L$BOOST_ROOT/$libsubdir"
                 fi
             fi
         fi
