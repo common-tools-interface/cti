@@ -933,7 +933,7 @@ _cti_alps_getAppHostsPlacement(cti_wlm_obj this)
 		}
 		
 		// set num PEs
-		placement_list->hosts[i].numPes = my_app->places[i].numPEs;
+		placement_list->hosts[i].numPEs = my_app->places[i].numPEs;
 	}
 	
 	// done

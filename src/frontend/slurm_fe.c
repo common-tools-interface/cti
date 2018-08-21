@@ -858,6 +858,7 @@ _cti_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd, int
 	if ((pids = _cti_mpir_newProcTable(mpir_id)) == NULL)
 	{
 		_cti_set_error("failed to get proctable.\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
@@ -1964,7 +1965,7 @@ _cti_slurm_getAppHostsPlacement(cti_wlm_obj this)
 	for (i=0; i < my_app->layout->numNodes; ++i)
 	{
 		placement_list->hosts[i].hostname = strdup(my_app->layout->hosts[i].host);
-		placement_list->hosts[i].numPes = my_app->layout->hosts[i].PEsHere;
+		placement_list->hosts[i].numPEs = my_app->layout->hosts[i].PEsHere;
 	}
 	
 	// done

@@ -53,12 +53,6 @@
 
 typedef struct
 {
-	cti_gdb_id_t	gdb_id;
-	pid_t			gdb_pid;			// pid of the gdb process for the mpir starter
-} sshInv_t;
-
-typedef struct
-{
 	char *			host;				// hostname of this node
 	int				PEsHere;			// Number of PEs running on this node
 	int				firstPE;			// First PE number on this node
@@ -77,7 +71,7 @@ typedef struct
 	cti_app_id_t		appId;			// CTI appid associated with this alpsInfo_t obj
 	pid_t 				launcher_pid;	// PID of the launcher
 	sshLayout_t *		layout;			// Layout of job step
-	sshInv_t *			inv;			// Object used to store the gdb pid information for interfacing with MPIR
+	mpir_id_t			mpir_id;			// MPIR instance handle
 	
 	char *				toolPath;		// Backend staging directory
 	char *				attribsPath;    // PMI_ATTRIBS location on the backend
@@ -91,14 +85,12 @@ static int					_cti_ssh_init(void);
 static void					_cti_ssh_fini(void);
 static void 				_cti_ssh_destroy(cti_wlm_obj app_info);
 static void					_cti_ssh_consumeSshLayout(sshLayout_t *this);
-static sshInv_t * 			_cti_ssh_newSshInv(void);
 static sshInfo_t * 			_cti_ssh_newSshInfo(void);
-static void 				_cti_ssh_consumeSshInv(sshInv_t *this);
 static void					_cti_ssh_consumeSshInfo(sshInfo_t *this);
-static sshLayout_t* 	_cti_ssh_createLayout(cti_mpir_proctable_t* proctable);
+static sshLayout_t* 	_cti_ssh_createLayout(cti_mpir_procTable_t* proctable);
 static sshLayout_t* 	_cti_ssh_getLayout(pid_t launcher_pid);
 static char * 				_cti_ssh_getJobId(cti_wlm_obj app_info);
-cti_app_id_t 				_cti_ssh_registerJob(pid_t launcher_pid, bool get_layout, sshLayout_t* layout);
+cti_app_id_t 				_cti_ssh_registerJob(pid_t launcher_pid, sshLayout_t* layout);
 cti_app_id_t 				cti_ssh_registerJob(pid_t launcher_pid);
 static cti_app_id_t 		_cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 													const char *inputFile, const char *chdirPath,
@@ -227,9 +219,8 @@ _cti_ssh_init(void)
 static void
 _cti_ssh_fini(void)
 {
-	// force cleanup to happen on any pending srun launches - we do this to ensure
-	// gdb instances don't get left hanging around.
-	_cti_gdb_cleanupAll();
+	// force cleanup to happen on any pending srun launches
+	_cti_mpir_releaseAllInstances();
 	
 	if (_cti_ssh_info != NULL)
 		_cti_consumeList(_cti_ssh_info, NULL);	// this should have already been cleared out.
@@ -258,7 +249,7 @@ _cti_ssh_destroy(cti_wlm_obj app_info)
 	_cti_list_remove(_cti_ssh_info, sinfo);
 
 	_cti_ssh_consumeSshLayout(sinfo->layout);
-	_cti_ssh_consumeSshInv(sinfo->inv);
+	_cti_mpir_releaseInstance(sinfo->mpir_id);
 	
 	if (sinfo->toolPath != NULL)
 		free(sinfo->toolPath);
@@ -316,46 +307,6 @@ _cti_ssh_consumeSshLayout(sshLayout_t *this)
 }
 
 /*
- * _cti_ssh_newSshInv - Creates a new sshInv_t object
- *
- * Returns
- *      The newly created sshInv_t object
- *
- */
-static sshInv_t *
-_cti_ssh_newSshInv(void)
-{
-	sshInv_t *	this;
-
-	if ((this = malloc(sizeof(sshInv_t))) == NULL)
-	{
-		// Malloc failed
-		_cti_set_error("malloc failed.");
-		
-		return NULL;
-	}
-	
-	// init the members
-	this->gdb_id = -1;
-	this->gdb_pid = -1;
-	
-	return this;
-}
-
-/*
- * _cti_ssh_consumeSshInv - Destroy an sshInv_t object
- *
- * Arguments
- *      this - A pointer to the sshInv_t to destroy
- *
- */
-static void
-_cti_ssh_consumeSshInv(sshInv_t *this)
-{
-	free(this);
-}
-
-/*
  * _cti_ssh_newSshInfo - Creates a new sshInfo_t object
  *
  * Returns
@@ -376,7 +327,7 @@ _cti_ssh_newSshInfo(void)
 	}
 
 	this->layout = NULL;
-	this->inv = NULL;
+	this->mpir_id = -1;
 	this->toolPath = NULL;
 	this->attribsPath = NULL;
 	this->stagePath = NULL;
@@ -404,9 +355,8 @@ _cti_ssh_consumeSshInfo(sshInfo_t *this)
 		_cti_ssh_consumeSshLayout(this->layout);
 	}
 
-	if(this->inv != NULL){
-		_cti_ssh_consumeSshInv(this->inv);
-	}
+	// release mpir instance
+	_cti_mpir_releaseInstance(this->mpir_id);
 
 	free(this->toolPath);
 	this->toolPath = NULL;
@@ -431,18 +381,18 @@ _cti_ssh_consumeSshInfo(sshInfo_t *this)
 }
 
 /*
- * _cti_ssh_createLayout - Transforms the cti_mpir_proctable_t harvested from the launcher
+ * _cti_ssh_createLayout - Transforms the cti_mpir_procTable_t harvested from the launcher
  *						   into the internal sshLayout_t data structure
  *
  * Arguments
- *      proctable - The cti_mpir_proctable_t to transform
+ *      proctable - The cti_mpir_procTable_t to transform
  *
  * Returns
  *      A sshLayout_t* that contains the layout of the application
  * 
  */
 static sshLayout_t* 
-_cti_ssh_createLayout(cti_mpir_proctable_t* proctable)
+_cti_ssh_createLayout(cti_mpir_procTable_t* proctable)
 {
 	sshLayout_t * layout = malloc(sizeof(sshLayout_t));
 	layout->numPEs = proctable->num_pids;
@@ -511,12 +461,7 @@ _cti_ssh_createLayout(cti_mpir_proctable_t* proctable)
 static sshLayout_t* 
 _cti_ssh_getLayout(pid_t launcher_pid)
 {
-	cti_gdb_id_t		gdb_id;
-	pid_t				gdb_pid;
-	const char *		gdb_path;
-	char *				usr_gdb_path = NULL;
-	const char *		attach_path;
-	cti_mpir_proctable_t*	proctable; // return object
+	cti_mpir_procTable_t*	proctable; // return object
 	
 	// sanity check
 	if (launcher_pid <= 0)
@@ -524,93 +469,10 @@ _cti_ssh_getLayout(pid_t launcher_pid)
 		_cti_set_error("Invalid launcher pid %d.", (int)launcher_pid);
 		return NULL;
 	}
-	
-	// get the gdb path
-	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
-	{
-		// use the gdb set in the environment
-		usr_gdb_path = strdup(gdb_path);
-		gdb_path = (const char *)usr_gdb_path;
-	} else
-	{
-		gdb_path = _cti_getGdbPath();
-		if (gdb_path == NULL)
-		{
-			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-			return NULL;
-		}
-	}
-	
-	// get the attach path
-	attach_path = _cti_getAttachPath();
-	if (attach_path == NULL)
-	{
-		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
-		return NULL;
-	}
-	
-	// Create a new gdb MPIR instance. We want to interact with it.
-	if ((gdb_id = _cti_gdb_newInstance()) < 0)
-	{
-		// error already set
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
-		
-		return NULL;
-	}
-	
-	// fork off a process to start the mpir attach
-	gdb_pid = fork();
-	
-	// error case
-	if (gdb_pid < 0)
-	{
-		_cti_set_error("Fatal fork error.");
-		_cti_gdb_cleanup(gdb_id);
-		
-		return NULL;
-	}
-	
-	// child case
-	// Note that this should not use the _cti_set_error() interface since it is
-	// a child process.
-	if (gdb_pid == 0)
-	{
-		// call the exec function - this should not return
-		_cti_gdb_execAttach(gdb_id, attach_path, gdb_path, launcher_pid);
-		
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execv");
-		_exit(1);
-	}
-	
-	// parent case
-	
-	// cleanup
-	if (usr_gdb_path != NULL)	free(usr_gdb_path);
-	
-	// call the post fork setup - this will ensure gdb was started and this pid
-	// is valid
-	if (_cti_gdb_postFork(gdb_id))
-	{
-		// error message already set
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
-		
-		return NULL;
-	}
 
-	//Harvest and process the proctable to return
-	if ((proctable = _cti_gdb_getProctable(gdb_id)) == NULL)
-	{	
-		return NULL;
-	}
-	
-	// Cleanup this gdb instance, we are done with it
-	_cti_gdb_cleanup(gdb_id);
-	waitpid(gdb_pid, NULL, 0);
-	
+	_cti_set_error("_cti_ssh_getLayout on pid %d not implemented.", (int)launcher_pid);
+	return NULL;
+
 	return _cti_ssh_createLayout(proctable);
 }
 
@@ -657,9 +519,7 @@ _cti_ssh_getJobId(cti_wlm_obj app_info)
  *
  * Arguments
  *      launcher_pid - The pid of the running launcher to which to attach if the layout is needed.
- *      get_layout - A bool representing whether or not this function should attach to the running
- *		launcher to harvest the layout information from the MPIR_Proctable or simply use
- *		the supplied layout information
+ *      layout - pointer to existing layout information (or fetch if NULL)
  *
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
@@ -667,7 +527,7 @@ _cti_ssh_getJobId(cti_wlm_obj app_info)
  * 
  */
 cti_app_id_t
-_cti_ssh_registerJob(pid_t launcher_pid, bool get_layout, sshLayout_t* layout)
+_cti_ssh_registerJob(pid_t launcher_pid, sshLayout_t* layout)
 {
 	appEntry_t *		this;
 	sshInfo_t	*	sinfo;
@@ -712,7 +572,7 @@ _cti_ssh_registerJob(pid_t launcher_pid, bool get_layout, sshLayout_t* layout)
 	// This is needed because only one gdb can be attached to the launcher at a time and 
 	// in the case of launch, there is already a gdb attached. So for the launch case the
 	// layout is harvested using the already attached gdb and supplied to register.
-	if(get_layout){
+	if (layout == NULL){
 		if ((sinfo->layout = _cti_ssh_getLayout(launcher_pid)) == NULL)
 		{
 			// error already set
@@ -784,7 +644,7 @@ _cti_ssh_registerJob(pid_t launcher_pid, bool get_layout, sshLayout_t* layout)
  */
 cti_app_id_t
 cti_ssh_registerJob(pid_t launcher_pid){
-	return _cti_ssh_registerJob(launcher_pid, true, NULL);
+	return _cti_ssh_registerJob(launcher_pid, NULL);
 }
 
 /*
@@ -821,188 +681,64 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 								const char *inputFile, const char *chdirPath,
 								const char * const env_list[], int doBarrier	)
 {
-	sshInv_t *			myapp;
 	appEntry_t *		appEntry;
+	mpir_id_t			mpir_id;	
 	sshInfo_t	*		sinfo;
-	int					i;
-	sigset_t			mask, omask;	// used to ignore SIGINT
-	pid_t				mypid;
-	cti_mpir_proctable_t *	proctable;
+	cti_mpir_procTable_t *	proctable;
 	cti_app_id_t		rtn;
-	const char *		gdb_path;
-	char *				usr_gdb_path = NULL;
-	const char *		starter_path;
+	const char*			launcher_path;
 	
 	if(!_cti_is_valid_environment()){
 		// error already set
 		return 0;
 	}
-	
-	// Get the gdb location to pass to the starter
-	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
+
+	// get the launcher path
+	launcher_path = _cti_pathFind(SRUN, NULL);
+	if (launcher_path == NULL)
 	{
-		usr_gdb_path = strdup(gdb_path);
-		gdb_path = (const char *)usr_gdb_path;
-	} else
-	{
-		gdb_path = _cti_getGdbPath();
-		if (gdb_path == NULL)
-		{
-			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
+		return 0;
+	}
+
+	// optionally open input file
+	int input_fd = -1;
+	if (inputFile != NULL) {
+		errno = 0;
+		input_fd = open(inputFile, O_RDONLY);
+		if (input_fd < 0) {
+			_cti_set_error("Failed to open input file %s: ", inputFile, strerror(errno));
 			return 0;
 		}
 	}
 	
-	starter_path = _cti_getStarterPath();
-	if (starter_path == NULL)
+	// Create a new MPIR instance. We want to interact with it.
+	if ((mpir_id = _cti_mpir_newLaunchInstance(launcher_path, launcher_argv, env_list, input_fd, stdout_fd, stderr_fd)) < 0)
 	{
-		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
-		return 0;
-	}
+		_cti_set_error("Failed to launch %s", launcher_argv[0]);
 
-	if ((myapp = _cti_ssh_newSshInv()) == NULL)
-	{
-		// error already set
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
-		return 0;
-	}
-	
-	// Create a new gdb MPIR instance for holding the launcher and harvesting the MPIR_Proctable
-	if ((myapp->gdb_id = _cti_gdb_newInstance()) < 0)
-	{
-		// error already set
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
-		_cti_ssh_consumeSshInv(myapp);
-		
-		return 0;
-	}
-
-	// We don't want the launcher to pass along signals the caller recieves to the
-	// application process. In order to stop this from happening we need to put
-	// the child into a different process group.
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGINT);
-	sigprocmask(SIG_BLOCK, &mask, &omask);
-	
-	// Fork off a process to become the MPIR starter
-	mypid = fork();
-	
-	if (mypid < 0)
-	{
-		_cti_set_error("Fatal fork error.");
-		_cti_ssh_consumeSshInv(myapp);
-		
-		return 0;
-	}
-	
-	// Note that this should not use the _cti_set_error() interface since it is
-	// a child process.
-	if (mypid == 0)
-	{
-		const char *	i_file = NULL;
-		
-		// Set input file if directed
-		if (inputFile != NULL)
-		{
-			i_file = inputFile;
-		} else
-		{
-			i_file = "/dev/null";
-		}
-		
-		// Chdir if directed
-		if (chdirPath != NULL)
-		{
-			if (chdir(chdirPath))
-			{
-				fprintf(stderr, "CTI error: Unable to chdir to provided path.\n");
-				_exit(1);
-			}
-		}
-		
-		// If env_list is not null, call putenv for each entry in the list
-		if (env_list != NULL)
-		{
-			for (i=0; env_list[i] != NULL; ++i)
-			{
-				// putenv returns non-zero on error
-				if (putenv(strdup(env_list[i])))
-				{
-					fprintf(stderr, "CTI error: Unable to putenv provided env_list.\n");
-					_exit(1);
-				}
-			}
-		}
-		
-		// Place this process in its own group to prevent signals being passed
-		// to it. This is necessary in case the child code execs before the 
-		// parent can put us into our own group. This is so that we won't get
-		// the ctrl-c when aprun re-inits the signal handlers.
-		setpgid(0, 0);
-
-		char* launcher_name_env;
-		char* launcher_name;
-		if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
-		{
-			launcher_name = strdup(launcher_name_env);
-		}
-		else{
-			fprintf(stderr, "CTI error: could not get launcher name. Required environment variable %s not set.\n", CTI_LAUNCHER_NAME);
-			_exit(1);
-		}
-		
-		// call the exec function - this should not return
-		_cti_gdb_execStarter(myapp->gdb_id, starter_path, gdb_path, launcher_name, launcher_argv, i_file);
-		
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execv");
-		_exit(1);
-	}
-
-	if (usr_gdb_path != NULL)	free(usr_gdb_path);
-	
-	// Place the child in its own group. We still need to block SIGINT in case
-	// its delivered to us before we can do this. We need to do this again here
-	// in case this code runs before the child code while we are still blocking 
-	// ctrl-c
-	setpgid(mypid, mypid);
-	
-	// save the pid for later so that we can waitpid() on it when finished
-	myapp->gdb_pid = mypid;
-	
-	// Unblock ctrl-c
-	sigprocmask(SIG_SETMASK, &omask, NULL);
-	
-	// Call the post fork setup - this will get us to the startup barrier
-	if (_cti_gdb_postFork(myapp->gdb_id))
-	{
-		// error message already set
-		_cti_ssh_consumeSshInv(myapp);
-		
 		return 0;
 	}
 	
 	// Harvest and process the MPIR_Proctable which holds application layout information
-	if ((proctable = _cti_gdb_getProctable(myapp->gdb_id)) == NULL)
+	if ((proctable = _cti_mpir_newProcTable(mpir_id)) == NULL)
 	{
-		// error already set
-		_cti_ssh_consumeSshInv(myapp);
+		_cti_set_error("failed to get proctable.\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
 
 	sshLayout_t* layout = _cti_ssh_createLayout(proctable);
 
-	pid_t launcher_pid = _cti_gdb_getLauncherPid(myapp->gdb_id);
+	pid_t launcher_pid = _cti_mpir_getLauncherPid(mpir_id);
 	
 	// Register this app with the application interface
-	if ((rtn = _cti_ssh_registerJob(launcher_pid, false, layout)) == 0)
+	if ((rtn = _cti_ssh_registerJob(launcher_pid, layout)) == 0)
 	{
 		// Failed to register the jobid/stepid, error is already set.
-		_cti_ssh_consumeSshInv(myapp);
-		_cti_gdb_freeProctable(proctable);
+		_cti_mpir_deleteProcTable(proctable);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
@@ -1011,8 +747,8 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 	if ((appEntry = _cti_findAppEntry(rtn)) == NULL)
 	{
 		_cti_set_error("impossible null appEntry error!\n");
-		_cti_ssh_consumeSshInv(myapp);
-		_cti_gdb_freeProctable(proctable);
+		_cti_mpir_deleteProcTable(proctable);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
@@ -1022,14 +758,15 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 	if (sinfo == NULL)
 	{
 		_cti_set_error("impossible null sinfo error!\n");
-		_cti_ssh_consumeSshInv(myapp);
-		_cti_gdb_freeProctable(proctable);
+		_cti_mpir_deleteProcTable(proctable);
+		_cti_mpir_releaseInstance(mpir_id);
 		cti_deregisterApp(appEntry->appId);
 		
 		return 0;
 	}
 	
-	sinfo->inv = myapp;
+	// set the inv
+	sinfo->mpir_id = mpir_id;
 	
 	// Release the application from the startup barrier according to the doBarrier flag
 	if (!doBarrier)
@@ -1138,29 +875,14 @@ _cti_ssh_release(cti_wlm_obj app_info)
 		_cti_set_error("barrier release operation failed.");
 		return 1;
 	}
-	
-	if (my_app->inv == NULL)
+
+	// call the release function
+	if (_cti_mpir_releaseInstance(my_app->mpir_id))
 	{
-		_cti_set_error("barrier release operation failed.");
+		_cti_set_error("srun barrier release operation failed.");
 		return 1;
 	}
-	
-	// Instruct gdb to tell the launcher to release the application from the startup barrier
-	if (_cti_gdb_release(my_app->inv->gdb_id))
-	{
-		_cti_set_error("barrier release operation failed.");
-		return 1;
-	}
-	
-	// cleanup the gdb instance, we are done with it. This will release memory
-	// and free up the hash table for more possible gdb instances. It is
-	// important to do this step here and not later on.
-	_cti_gdb_cleanup(my_app->inv->gdb_id);
-	my_app->inv->gdb_id = -1;
-	
-	// wait for the starter to exit
-	waitpid(my_app->inv->gdb_pid, NULL, 0);
-	my_app->inv->gdb_pid = -1;
+	my_app->mpir_id = -1;
 	
 	return 0;
 }
@@ -2170,7 +1892,7 @@ _cti_ssh_getAppHostsPlacement(cti_wlm_obj app_info)
 	for (i=0; i < my_app->layout->numNodes; ++i)
 	{
 		placement_list->hosts[i].hostname = strdup(my_app->layout->hosts[i].host);
-		placement_list->hosts[i].numPes = my_app->layout->hosts[i].PEsHere;
+		placement_list->hosts[i].numPEs = my_app->layout->hosts[i].PEsHere;
 	}
 	
 	return placement_list;

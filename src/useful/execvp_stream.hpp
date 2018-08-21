@@ -3,9 +3,10 @@
 
 // useful: file descriptors to streambuf
 
-
+#include <stdexcept>
 #include <sstream>
 #include <streambuf>
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>

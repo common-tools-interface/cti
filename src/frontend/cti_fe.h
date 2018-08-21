@@ -42,7 +42,7 @@ typedef struct
 typedef struct
 {
 	char *				hostname;
-	int					numPes;
+	int					numPEs;
 } cti_host_t;
 
 typedef struct

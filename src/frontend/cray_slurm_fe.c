@@ -1808,7 +1808,7 @@ _cti_cray_slurm_getAppHostsPlacement(cti_wlm_obj this)
 	for (i=0; i < my_app->layout->numNodes; ++i)
 	{
 		placement_list->hosts[i].hostname = strdup(my_app->layout->hosts[i].host);
-		placement_list->hosts[i].numPes = my_app->layout->hosts[i].PEsHere;
+		placement_list->hosts[i].numPEs = my_app->layout->hosts[i].PEsHere;
 	}
 	
 	// done

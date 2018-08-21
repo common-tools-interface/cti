@@ -61,13 +61,6 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
 #define LD_AUDIT_LIB_NAME		"libaudit.so"										// ld audit library
 
 /*******************************************************************************
-** MPIR_iface specific information
-*******************************************************************************/
-#define CTI_GDB_BINARY			"cti_approved_gdb"								// name of gdb binary
-#define GDB_MPIR_STARTER			"cti_starter"										// name of starter binary
-#define GDB_MPIR_ATTACH			"cti_attach"										// name of attach binary
-
-/*******************************************************************************
 ** Backend defines relating to the compute node
 *******************************************************************************/
 // CTI_LAUNCHER is now defined by autoconf in config.h
@@ -157,7 +150,6 @@ typedef slurmPidFile_t cti_pidFile_t;
 *******************************************************************************/
 #define BASE_DIR_ENV_VAR					"CRAY_CTI_DIR"						// Frontend: Used to define the base install location (read)
 #define USER_DEF_APRUN_LOC_ENV_VAR		"CRAY_APRUN_PATH"					// Frontend: Used to override the default location of the aprun binary (read)
-#define GDB_LOC_ENV_VAR					"CRAY_CTI_GDB_PATH"				// Frontend: Used to override the default location of gdb for the MPIR_iface (read)
 #define CFG_DIR_VAR						"CRAY_CTI_CFG_DIR"				// Frontend: Used to define a writable location to create the manifest tarball (read)
 #define DAEMON_STAGE_VAR    				"CRAY_CTI_STAGE_DIR"				// Frontend: Used to define a directory name for the fake root of the tool daemon (read)
 #define DBG_LOG_ENV_VAR 					"CRAY_DBG_LOG_DIR"				// Frontend: Used to define a directory to write debug logs to (read)
