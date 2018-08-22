@@ -28,8 +28,6 @@ extern "C" {
 
 	pid_t _cti_mpir_getLauncherPid(mpir_id_t id);
 
-	typedef int cti_gdb_id_t;
-
 #ifdef __cplusplus
 }
 #endif

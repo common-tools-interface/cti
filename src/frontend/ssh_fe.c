@@ -569,9 +569,6 @@ _cti_ssh_registerJob(pid_t launcher_pid, sshLayout_t* layout)
 	sinfo->launcher_pid = launcher_pid;
 
 	// Get the layout from the proctable if directed, otherwise return the supplied layout.
-	// This is needed because only one gdb can be attached to the launcher at a time and 
-	// in the case of launch, there is already a gdb attached. So for the launch case the
-	// layout is harvested using the already attached gdb and supplied to register.
 	if (layout == NULL){
 		if ((sinfo->layout = _cti_ssh_getLayout(launcher_pid)) == NULL)
 		{
