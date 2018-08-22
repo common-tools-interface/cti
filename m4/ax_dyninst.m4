@@ -59,8 +59,7 @@ AC_DEFUN([AX_DYNINST], [
     DYNINST_VERS="$dyninst_vers"
 
     DYNINST_CPPFLAGS="$DYNINST_CPPFLAGS"
-    DYNINST_LIBS="-ldyninstAPI -lcommon -lsymtabAPI -linstructionAPI -lparseAPI -lpatchAPI -lstackwalk -lpcontrol -ldynElf -ldynDwarf -lsymLite" 
-    DYNINST_SYMTABAPI_LIBS="-lcommon -lsymtabAPI -linstructionAPI -lparseAPI -ldynElf -ldynDwarf -lsymLite"
+    DYNINST_LIBS="-lcommon -lsymtabAPI -lpcontrol -ldynElf -ldynDwarf"
 
 
     AC_LANG_PUSH(C++)
@@ -77,9 +76,9 @@ AC_DEFUN([AX_DYNINST], [
     AC_MSG_CHECKING([for Dyninst API library and headers])
 
     AC_LINK_IFELSE([AC_LANG_PROGRAM([[
-	    #include <BPatch.h>
+	    #include <Symbol.h>
         ]], [[
-	    BPatch bpatch();
+	    Dyninst::SymtabAPI::Symbol symbol;
         ]])], [ AC_MSG_RESULT(yes)
 
             AM_CONDITIONAL(HAVE_DYNINST, true)
@@ -92,7 +91,6 @@ AC_DEFUN([AX_DYNINST], [
             DYNINST_LDFLAGS=""
             DYNINST_LIBS=""
             DYNINST_LIBDIR=""
-            DYNINST_SYMTABAPI_LIBS=""
             DYNINST_DIR=""
             DYNINST_VERS=""
         ]
@@ -108,7 +106,6 @@ AC_DEFUN([AX_DYNINST], [
     AC_SUBST(DYNINST_LDFLAGS)
     AC_SUBST(DYNINST_LIBS)
     AC_SUBST(DYNINST_LIBDIR)
-    AC_SUBST(DYNINST_SYMTABAPI_LIBS)
     AC_SUBST(DYNINST_DIR)
     AC_SUBST(DYNINST_VERS)
 

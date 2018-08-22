@@ -82,12 +82,18 @@ function set_OS(){
   export gccVer
 }
 
+#_______________________ Start of main code ______________________________
+source_module_script
+
+
+module purge 2>/dev/null
+module load $cmake_module
+
 set_OS
 set_prefix
 
-
 #
-# Build DyninstAPIAPI
+# Build DyninstAPI
 #
 PLATFORM=
 if [ $OS == "x86_64" ]
@@ -167,13 +173,6 @@ then
   make
   make install
 fi
-
-#_______________________ Start of main code ______________________________
-source_module_script
-
-module purge 2>/dev/null
-module load $cmake_module
-module list
 
 cd $topLevel
 autoreconf -ifv
