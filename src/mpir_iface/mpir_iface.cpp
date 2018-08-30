@@ -25,9 +25,12 @@ mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const l
 		launcherArgv.emplace_back(*arg);
 	}
 
-	/* todo: env_list */
-	if (env_list) {
-		fprintf(stderr, "not implemented: env_list\n");
+	/* env_list null-terminated strings in format <var>=<val>*/
+	std::vector<std::string> envVars;
+	if (env_list != nullptr) {
+		for (const char* const* arg = env_list; *arg != nullptr; arg++) {
+			envVars.emplace_back(*arg);
+		}
 	}
 
 	/* optionally use file input */
@@ -37,7 +40,7 @@ mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const l
 	if (stderr_fd >= 0) { remapFds[stdin_fd] = STDERR_FILENO; }
 
 	try {
-		mpirInstances.emplace(id, new MPIRInstance(std::string(launcher), launcherArgv, {}, remapFds));
+		mpirInstances.emplace(id, new MPIRInstance(std::string(launcher), launcherArgv, envVars, remapFds));
 	} catch (...) {
 		return INSTANCE_ERROR;
 	}
