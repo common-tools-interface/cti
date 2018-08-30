@@ -18,25 +18,21 @@
 AM_CXXFLAGS				= -Wall -std=c++11
 
 SRC             = @CRAYTOOL_DIR@/src
-LDVAL           = $(SRC)/ld_val
-USEFUL          = $(SRC)/useful
-CTI_TRANSFER		= $(SRC)/cti_transfer
-MPIR_IFACE		= $(SRC)/mpir_iface
-SLURM_UTIL		= $(SRC)/slurm_util
-
-AM_CFLAGS		= -Wall -I$(SRC)
+AM_CFLAGS		= -Wall
 AM_LIBTOOLFLAGS = --quiet
 
 lib_LTLIBRARIES = libcraytools_fe.la
 
-libcraytools_fe_la_SOURCES	=	cti_fe.c cti_fe.h cti_run.c cti_run.h cti_error.c cti_error.h \
+libcraytools_fe_la_SOURCES	=	cti_fe.c cti_fe.h cti_run.c cti_run.h cti_transfer.cpp \
+								cti_transfer.h cti_error.c cti_error.h \
 								alps_fe.c alps_fe.h cray_slurm_fe.c \
 								cray_slurm_fe.h slurm_fe.c slurm_fe.h ssh_fe.c ssh_fe.h
-libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(MPIR_IFACE) -I$(SLURM_UTIL) -I$(LDVAL) -I$(CTI_TRANSFER) \
-								-I$(USEFUL) $(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS)
-libcraytools_fe_la_LIBADD	=	$(USEFUL)/libuseful.la $(LDVAL)/libld_val.la \
-								$(MPIR_IFACE)/libmpir_iface.la $(SLURM_UTIL)/libslurm_util.la \
-								$(CTI_TRANSFER)/libcti_transfer.la \
+libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
+								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS)
+libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) $(libcraytools_fe_la_CFLAGS)
+libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la $(SRC)/ld_val/libld_val.la \
+								$(SRC)/mpir_iface/libmpir_iface.la $(SRC)/slurm_util/libslurm_util.la \
+								$(SRC)/cti_transfer/libcti_transfer.la \
 								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS)
 libcraytools_fe_la_LDFLAGS	=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info $(CRAYTOOL_FE_VERSION) \
 								$(ARCHIVE_LDFLAGS)

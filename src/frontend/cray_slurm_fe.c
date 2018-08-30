@@ -35,15 +35,17 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+
 #include "cray_slurm_fe.h"
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
-#include "cti_useful.h"
 
-#include "mpir_iface.h"
+#include "useful/cti_useful.h"
 
-#include "slurm_util.h"
+#include "mpir_iface/mpir_iface.h"
+
+#include "slurm_util/slurm_util.h"
 
 /* Types used here */
 

@@ -38,10 +38,13 @@
 #include "alps/apInfo.h"
 
 #include "alps_fe.h"
+
 #include "cti_fe.h"
-#include "cti_defs.h"
 #include "cti_error.h"
-#include "cti_useful.h"
+
+#include "cti_defs.h"
+
+#include "useful/cti_useful.h"
 
 /* Types used here */
 

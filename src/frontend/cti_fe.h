@@ -19,9 +19,19 @@
 #ifndef _CTI_FE_H
 #define _CTI_FE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "cti_defs.h"
-#include "cti_args.h"
-#include "cti_list.h"
+
+#include "useful/cti_args.h"
+#include "useful/cti_list.h"
+
+// Internal identifier used by callers to interface with the library. When they
+// request functionality that operates on applications, they must pass this
+// identifier in.
+typedef uint64_t cti_app_id_t;
 
 /* struct typedefs */
 
@@ -157,5 +167,9 @@ enum cti_attr_type
                                     // Defaults to 1.
 };
 typedef enum cti_attr_type  cti_attr_type;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CTI_FE_H */

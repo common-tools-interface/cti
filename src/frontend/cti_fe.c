@@ -32,13 +32,15 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "wlm_detect.h"
-
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
+
 #include "cti_transfer.h"
-#include "cti_useful.h"
+
+#include "useful/cti_useful.h"
+
+#include "wlm_detect.h"
 
 #include "alps_fe.h"
 #include "cray_slurm_fe.h"

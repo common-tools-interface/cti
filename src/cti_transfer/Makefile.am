@@ -15,12 +15,13 @@
 ## $Author$
 
 SRC             = @CRAYTOOL_DIR@/src
-AM_CXXFLAGS	=	-Wall -I$(SRC) -std=c++11
+FRONTEND        = $(SRC)/frontend
+AM_CXXFLAGS	=	-Wall -I$(SRC) -I$(FRONTEND) -std=c++11
 AM_LIBTOOLFLAGS = --quiet
 
 noinst_LTLIBRARIES	=	libcti_transfer.la
 
-libcti_transfer_la_SOURCES	=	cti_transfer.cpp cti_transfer.h Manifest.cpp Manifest.hpp Session.cpp Session.hpp
+libcti_transfer_la_SOURCES	=	Manifest.cpp Manifest.hpp Session.cpp Session.hpp
 libcti_transfer_la_CXXFLAGS		= $(AM_CXXFLAGS) -fPIC $(BOOST_CXXFLAGS)
 libcti_transfer_la_CPPFLAGS	=	$(BOOST_CPPFLAGS)
 libcti_transfer_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed $(BOOST_LDFLAGS)

@@ -28,11 +28,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-// Internal identifier used by callers to interface with the library. When they
-// request functionality that operates on applications, they must pass this
-// identifier in.
-typedef uint64_t cti_app_id_t;
-
 // WLM identifier. This is system specific. Right now only one WLM at a time
 // is supported.
 enum cti_wlm_type

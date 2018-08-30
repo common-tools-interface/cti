@@ -34,7 +34,7 @@
 static char *	_cti_err_string = NULL;
 
 void
-_cti_set_error(char *fmt, ...)
+_cti_set_error(const char *fmt, ...)
 {
 	va_list ap;
 

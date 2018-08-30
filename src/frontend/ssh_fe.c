@@ -36,14 +36,17 @@
 #include <sys/wait.h>
 
 #include "ssh_fe.h"
+
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
-#include "cti_useful.h"
-#include "cti_path.h"
 
-#include "mpir_iface.h"
-#include "cti_stringList.h"
+#include "useful/cti_useful.h"
+#include "useful/cti_path.h"
+#include "useful/cti_stringList.h"
+
+#include "mpir_iface/mpir_iface.h"
+
 #include <stdbool.h>
 #include <stdlib.h>
 #include <libssh/libssh.h>
