@@ -30,27 +30,10 @@
 
 #include "slurm_util.h"
 
+#include "ArgvDefs.hpp"
+
 using Option    = Argv::Option;
 using Parameter = Argv::Parameter;
-
-// sattach standard options
-struct SattachArgv : public Argv {
-	static constexpr Parameter InputFilter { "input-filter", 1 };
-	static constexpr Parameter OutputFilter { "output-filter", 2 };
-	static constexpr Parameter ErrorFilter { "error-filter", 3 };
-
-	static constexpr Option PrependWithTaskLabel { "label", 4 };
-	static constexpr Option DisplayLayout { "layout", 5 };
-	static constexpr Option RunInPty { "pty", 6 };
-	static constexpr Option QuietOutput { "quiet", 7 };
-	static constexpr Option VerboseOutput { "verbose", 8 };
-
-	static constexpr GNUOption long_options[] = {
-		InputFilter, OutputFilter, ErrorFilter,
-		PrependWithTaskLabel, DisplayLayout, RunInPty, QuietOutput, VerboseOutput,
-	long_options_done };
-};
-
 
 slurmStepLayout_t *_cti_cray_slurm_getLayout(uint32_t job_id, uint32_t step_id) {
 	// create dotted argument for sattach
@@ -111,8 +94,11 @@ slurmStepLayout_t *_cti_cray_slurm_getLayout(uint32_t job_id, uint32_t step_id) 
 	std::getline(sattachStream, sattachLine);
 
 	// "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
-	slurmNodeLayout_t *curNodeLayout = &layout->hosts[0];
-	while (std::getline(sattachStream, sattachLine)) {
+	for (int i = 0; std::getline(sattachStream, sattachLine); i++) {
+		if (i >= layout->numNodes) {
+			throw std::runtime_error("malformed sattach output: too many nodes!");
+		}
+
 		// split the summary line
 		std::string nodeNum, hostname, numPEs, pe_0;
 		std::tie(std::ignore, nodeNum, hostname, numPEs, std::ignore, pe_0) =
@@ -122,12 +108,9 @@ slurmStepLayout_t *_cti_cray_slurm_getLayout(uint32_t job_id, uint32_t step_id) 
 		hostname = hostname.substr(1, hostname.length() - 3);
 
 		// fill out node layout
-		curNodeLayout->host = strdup(hostname.c_str());
-		curNodeLayout->PEsHere = std::stoi(numPEs);
-		curNodeLayout->firstPE = std::stoi(pe_0);
-
-		// next node layout
-		curNodeLayout++;
+		layout->hosts[i].host    = strdup(hostname.c_str());
+		layout->hosts[i].PEsHere = std::stoi(numPEs);
+		layout->hosts[i].firstPE = std::stoi(pe_0);
 	}
 
 	return layout;

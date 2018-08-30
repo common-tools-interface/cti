@@ -311,6 +311,7 @@ AC_CONFIG_FILES([	Makefile
 					src/frontend/Makefile
 					src/ld_val/Makefile
 					src/mpir_iface/Makefile
+					src/cti_transfer/Makefile
 					src/slurm_util/Makefile
 					src/useful/Makefile
 					tests/Makefile

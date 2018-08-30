@@ -19,19 +19,11 @@
 #ifndef _CTI_FE_H
 #define _CTI_FE_H
 
-#include <stdint.h>
-#include <sys/types.h>
-
 #include "cti_defs.h"
 #include "cti_args.h"
 #include "cti_list.h"
 
 /* struct typedefs */
-
-// Internal identifier used by callers to interface with the library. When they
-// request functionality that operates on applications, they must pass this
-// identifier in.
-typedef uint64_t cti_app_id_t;
 
 typedef struct
 {
