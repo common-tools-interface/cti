@@ -24,26 +24,31 @@
 #include <iostream>
 #include <string>
 
-#include <execvp_stream.hpp>
+#include <strong_argv.hpp>
+#include <string_split.hpp>
+#include <ExecvpOutput.hpp>
 
 #include "slurm_util.h"
 
+using Option    = Argv::Option;
+using Parameter = Argv::Parameter;
+
 // sattach standard options
-struct SattachArgv : Argv {
-	SattachArgv(ProgramName const& name) : Argv(name) {}
-	static constexpr ProgramName SattachArgv0 = { "sattach" };
+struct SattachArgv : public Argv {
+	static constexpr Parameter InputFilter { "input-filter", 1 };
+	static constexpr Parameter OutputFilter { "output-filter", 2 };
+	static constexpr Parameter ErrorFilter { "error-filter", 3 };
 
-	static constexpr Parameter InputFilter  = { "--input-filter" };
-	static constexpr Parameter OutputFilter = { "--output-filter" };
-	static constexpr Parameter ErrorFilter  = { "--error-filter" };
+	static constexpr Option PrependWithTaskLabel { "label", 4 };
+	static constexpr Option DisplayLayout { "layout", 5 };
+	static constexpr Option RunInPty { "pty", 6 };
+	static constexpr Option QuietOutput { "quiet", 7 };
+	static constexpr Option VerboseOutput { "verbose", 8 };
 
-	static constexpr Option PrependWithTaskLabel = { "--label" };
-	static constexpr Option DisplayLayout        = { "--layout" };
-	static constexpr Option RunInPty             = { "--pty" };
-	static constexpr Option QuietOutput          = { "--quiet" };
-	static constexpr Option VerboseOutput        = { "--verbose" };
-
-	static constexpr Argument JobIdDotStepId     = {};
+	static constexpr GNUOption long_options[] = {
+		InputFilter, OutputFilter, ErrorFilter,
+		PrependWithTaskLabel, DisplayLayout, RunInPty, QuietOutput, VerboseOutput,
+	long_options_done };
 };
 
 
@@ -56,14 +61,16 @@ slurmStepLayout_t *_cti_cray_slurm_getLayout(uint32_t job_id, uint32_t step_id) 
 	}
 
 	// create sattach instance
-	SattachArgv sattachArgv(SattachArgv::SattachArgv0);
+	OutgoingArgv<SattachArgv> sattachArgv("sattach");
 	{ using SA = SattachArgv;
 		sattachArgv.add(SA::DisplayLayout);
-		sattachArgv.add(SA::JobIdDotStepId, jobIdDotStepId);
+		sattachArgv.add(SA::Argument(jobIdDotStepId));
 	}
 
 	// create sattach output capture object
-	ExecvpOutput sattachOutput("sattach", sattachArgv);
+	ExecvpOutput sattachOutput("sattach", sattachArgv.get());
+	std::istream& sattachStream(sattachOutput.stream());
+	std::string sattachLine;
 
 	// create layout container
 	slurmStepLayout_t *layout = new slurmStepLayout_t;
@@ -76,21 +83,21 @@ slurmStepLayout_t *_cti_cray_slurm_getLayout(uint32_t job_id, uint32_t step_id) 
 	*/
 
 	// "Job step layout:"
-	if (auto layoutHeader = sattachOutput.optional_getline()) {
-		if (layoutHeader->compare("Job step layout:")) {
+	if (std::getline(sattachStream, sattachLine)) {
+		if (sattachLine.compare("Job step layout:")) {
 			throw std::runtime_error(
-				std::string("sattach layout: wrong format: ") + *layoutHeader);
+				std::string("sattach layout: wrong format: ") + sattachLine);
 		}
 	} else {
 		throw std::runtime_error("sattach layout: wrong format: expected header");
 	}
 
 	// "  {numPEs} tasks, {numNodes} nodes ({hostname}...)"
-	if (auto layoutSummary = sattachOutput.optional_getline()) {
+	if (std::getline(sattachStream, sattachLine)) {
 		// split the summary line
 		std::string numPEs, numNodes;
 		std::tie(numPEs, std::ignore, numNodes) =
-			split::string<3>(split::removeLeadingWhitespace(layoutSummary.value()));
+			split::string<3>(split::removeLeadingWhitespace(sattachLine));
 
 		// fill out sattach layout
 		layout->numPEs = std::stoi(numPEs);
@@ -101,15 +108,15 @@ slurmStepLayout_t *_cti_cray_slurm_getLayout(uint32_t job_id, uint32_t step_id) 
 	}
 
 	// seperator line
-	sattachOutput.optional_getline();
+	std::getline(sattachStream, sattachLine);
 
 	// "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
 	slurmNodeLayout_t *curNodeLayout = &layout->hosts[0];
-	while (auto nodeLayout = sattachOutput.optional_getline()) {
+	while (std::getline(sattachStream, sattachLine)) {
 		// split the summary line
 		std::string nodeNum, hostname, numPEs, pe_0;
 		std::tie(std::ignore, nodeNum, hostname, numPEs, std::ignore, pe_0) =
-			split::string<6>(split::removeLeadingWhitespace(nodeLayout.value()));
+			split::string<6>(split::removeLeadingWhitespace(sattachLine));
 
 		// remove parens and comma from hostname
 		hostname = hostname.substr(1, hostname.length() - 3);
