@@ -78,3 +78,9 @@ std::string Session::generateStagePath() {
 
 	return stagePath;
 }
+
+std::weak_ptr<Manifest> Session::createManifest() {
+	auto manifest = std::make_shared<Manifest>(std::shared_ptr<Session>(this));
+	manifests.emplace_back(manifest);
+	return std::weak_ptr<Manifest>(manifest);
+}
