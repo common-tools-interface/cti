@@ -6,20 +6,27 @@
 #include "Manifest.hpp"
 #include "Session.hpp"
 
-extern "C" {
-	#include "cti_fe.h"
-	#include "useful/cti_useful.h"
-	#include "ld_val/ld_val.h"
-}
+#include "cti_fe.h"
+#include "useful/cti_useful.h"
+#include "ld_val/ld_val.h"
 
-static CharPtr getPath(const std::string& fileName) {
+/* wrappers for CTI helper functions */
+
+static CharPtr findPath(const std::string& fileName) {
 	if (auto fullPath = CharPtr(_cti_pathFind(fileName.c_str(), nullptr), free)) {
 		return fullPath;
 	} else { // _cti_pathFind failed with nullptr result
-		throw std::runtime_error("Could not locate the specified file in PATH.");
+		throw std::runtime_error(fileName + ": Could not locate in PATH.");
 	}
 }
 
+static CharPtr findLib(const std::string& fileName) {
+	if (auto fullPath = CharPtr(_cti_libFind(fileName.c_str()), free)) {
+		return fullPath;
+	} else { // _cti_libFind failed with nullptr result
+		throw std::runtime_error(fileName + ": Could not locate in LD_LIBRARY_PATH or system location.");
+	}
+}
 static CharPtr getRealName(const std::string& filePath) {
 	if (auto realName = CharPtr(_cti_pathToName(filePath.c_str()), free)) {
 		return realName;
@@ -28,56 +35,78 @@ static CharPtr getRealName(const std::string& filePath) {
 	}
 }
 
-static void addLibDeps(Manifest& manifest, const std::string& filePath) {
+// add dynamic library dependencies to manifest
+void Manifest::addLibDeps(const std::string& filePath) {
 	// get array of library paths using ld_val libArray
 	if (auto libArray = StringArray(
-		_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath())
+			_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath())
 		)) {
 
 		// add to manifest
-		for (char** elem = libArray.get(); elem != nullptr; elem++) {
-			manifest.addLibrary(*elem, Manifest::DepsPolicy::Ignore);
+		for (char** elem = libArray.get(); *elem != nullptr; elem++) {
+			addLibrary(*elem, Manifest::DepsPolicy::Ignore);
 		}
 	} else { // _cti_ld_val failed with nullptr result
 		throw std::runtime_error("ld_val audit failed to get dependencies");
 	}
 }
 
+/* manifest file add implementations */
+
+// add file to manifest if session reports no conflict on realname / filepath
+void Manifest::checkAndAdd(const std::shared_ptr<Session>& liveSession,
+	const std::string& folder, const std::string& filePath, const std::string& realName) {
+
+	// check for conflicts in session
+	switch (liveSession->hasFileConflict(folder, realName, filePath)) {
+		case Session::Conflict::None: break;
+		case Session::Conflict::AlreadyAdded: return;
+		case Session::Conflict::NameOverwrite:
+			throw std::runtime_error(realName + ": session conflict");
+	}
+
+	// add to manifest registry
+	folders[folder].emplace(realName);
+}
+
 void Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
-	if (auto liveSession = sessionPtr.lock()) {
-		// get path and real name of file
-		const std::string filePath(getPath(rawName).get());
-		const std::string realName(getRealName(filePath).get());
+	// get path and real name of file
+	const std::string filePath(findPath(rawName).get());
+	const std::string realName(getRealName(filePath).get());
 
-		// check permissions
-		if (access(filePath.c_str(), R_OK | X_OK)) {
-			throw std::runtime_error("Specified binary does not have execute permissions.");
-		}
+	// check permissions
+	if (access(filePath.c_str(), R_OK | X_OK)) {
+		throw std::runtime_error("Specified binary does not have execute permissions.");
+	}
 
-		// check for conflicts in session
-		{ using C = Session::Conflict;
-			switch (liveSession->hasFileConflict("bin", realName, filePath)) {
-			case C::None:          break;
-			case C::AlreadyAdded:  return;
-			case C::NameOverwrite:
-				throw std::runtime_error(realName + ": session conflict");
-			}
-		}
+	checkAndAdd(getSessionHandle(), "bin", filePath, realName);
 
-		// add to manifest registry
-		folders["bin"].emplace(realName);
-
-		// add libraries if needed
-		if (depsPolicy == DepsPolicy::Stage) {
-			addLibDeps(*this, filePath);
-		}
-	} else { // could not promote session pointer
-		throw std::runtime_error("Session is not valid.");
+	// add libraries if needed
+	if (depsPolicy == DepsPolicy::Stage) {
+		addLibDeps(filePath);
 	}
 }
 
 void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
-	throw std::runtime_error("not implemented");
+	auto liveSession = getSessionHandle();
+
+	// get path and real name of file
+	const std::string filePath(findLib(rawName).get());
+	const std::string realName(getRealName(filePath).get());
+
+	/* TODO: We need to create a way to ship conflicting libraries. Since
+		most libraries are sym links to their proper version, name collisions
+		are possible. In the future, the launcher should be able to handle
+		this by pointing its LD_LIBRARY_PATH to a custom directory containing
+		the conflicting lib. Don't actually implement this until the need arises.
+	*/
+
+	checkAndAdd(liveSession, "lib", filePath, realName);
+
+	// add libraries if needed
+	if (depsPolicy == DepsPolicy::Stage) {
+		addLibDeps(filePath);
+	}
 }
 
 void Manifest::addLibDir(const std::string& rawName) {
@@ -85,5 +114,23 @@ void Manifest::addLibDir(const std::string& rawName) {
 }
 
 void Manifest::addFile(const std::string& rawName) {
+	// get path and real name of file
+	const std::string filePath(findPath(rawName).get());
+	const std::string realName(getRealName(filePath).get());
+
+	checkAndAdd(getSessionHandle(), "", filePath, realName);
+}
+
+/* manifest finalizer implementations */
+
+#include <iostream>
+void Manifest::send() {
+	for (auto folderIt : folders) {
+		std::cerr << "directory '" << folderIt.first << "':" << std::endl;
+		for (auto fileIt : folderIt.second) {
+			std::cerr << "\t'" << fileIt << "'" << std::endl;
+		}
+	}
+
 	throw std::runtime_error("not implemented");
 }

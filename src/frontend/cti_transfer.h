@@ -20,18 +20,19 @@
 #ifndef _CTI_TRANSFER_H
 #define _CTI_TRANSFER_H
 
+#include "cti_defs.h"
+
+typedef int cti_manifest_id_t;
+typedef int cti_session_id_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-	#include "cti_defs.h"
-
-	typedef int cti_manifest_id_t;
-	typedef int cti_session_id_t;
-
 	/* session prototypes */
 	cti_session_id_t	cti_createSession(cti_app_id_t appId);
 	int					cti_sessionIsValid(cti_session_id_t sid);
+	int					cti_destroySession(cti_session_id_t sid);
 
 	char **				cti_getSessionLockFiles(cti_session_id_t sid);
 	char *				cti_getSessionRootDir(cti_session_id_t sid);

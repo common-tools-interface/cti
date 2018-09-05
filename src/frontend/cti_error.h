@@ -20,11 +20,11 @@
 #ifndef _CTI_ERROR_H
 #define _CTI_ERROR_H
 
+#include <stdarg.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdarg.h>
 
 void	_cti_set_error(const char *, ...);
 

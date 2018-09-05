@@ -28,6 +28,10 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // WLM identifier. This is system specific. Right now only one WLM at a time
 // is supported.
 enum cti_wlm_type
@@ -178,5 +182,9 @@ typedef slurmPidFile_t cti_pidFile_t;
 #define PMI_EXTRA_SLEEP_ENV_VAR			"CRAY_CTI_PMI_EXTRA_SLEEP"		// Backend: Used to sleep a fixed period of time after the pmi_attribs file has been opened (read)
 #define LIBALPS_ENABLE_DSL_ENV_VAR 			"LIBALPS_ENABLE_DSL" 			//Backend: Alps environment variable for controlling whether the DSL feature is enabled (set)
 #define CTI_LIBALPS_ENABLE_DSL_ENV_VAR		"CRAY_CTI_LIBALPS_ENABLE_DSL" 	//Backend: Used to explicitly disable the Alps DSL feature if set to 0. (read)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CTI_DEFS_H */

@@ -19,11 +19,11 @@
 #ifndef _CTI_FE_H
 #define _CTI_FE_H
 
+#include "cti_defs.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "cti_defs.h"
 
 #include "useful/cti_args.h"
 #include "useful/cti_list.h"

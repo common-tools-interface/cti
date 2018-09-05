@@ -4,13 +4,11 @@
 
 #include <string.h>
 
+#include "cti_fe.h"
+#include "cti_error.h"
+
 #include "cti_transfer/Manifest.hpp"
 #include "cti_transfer/Session.hpp"
-
-extern "C" {
-	#include "cti_fe.h"
-	#include "cti_error.h"
-}
 
 #include "cti_transfer.h"
 
@@ -32,8 +30,7 @@ static cti_manifest_id_t newManifestId() noexcept {
 /* session implementations */
 
 // run code that can throw and use it to set cti error instead
-static int
-runSafely(std::function<void()> f) noexcept {
+static int runSafely(std::function<void()> f) noexcept {
 	try { // try to run the function
 		f();
 		return 0;
@@ -44,17 +41,14 @@ runSafely(std::function<void()> f) noexcept {
 	}
 }
 
-cti_session_id_t cti_createSession(cti_session_id_t appId, bool stageDeps) {
+cti_session_id_t cti_createSession(cti_app_id_t appId) {
 	cti_session_id_t sid = newSessionId();
 
 	// construct throwing lambda that can be called by runSafely
 	auto emplaceSession = [&]() {
 		// get appPtr from appId
 		if (appEntry_t *appPtr = _cti_findAppEntry(appId)) {
-			// emplace new session in the list
-			sessions.emplace(std::piecewise_construct,
-				std::forward_as_tuple(sid),
-				std::forward_as_tuple(appPtr));
+			sessions.emplace(sid, appPtr);
 		} else {
 			throw std::runtime_error(
 				"cannot create session: appId %d not found" + std::to_string(appId));
@@ -68,7 +62,17 @@ int cti_sessionIsValid(cti_session_id_t sid) {
 	return sessions.find(sid) != sessions.end();
 }
 
-Session& getSessionHandle(const std::string& caller, cti_session_id_t sid) {
+int cti_destroySession(cti_session_id_t sid) {
+	if (!cti_sessionIsValid(sid)) {
+		throw std::runtime_error("cti_destroySession: invalid session id " + std::to_string(sid));
+	}
+
+	sessions.erase(sid);
+
+	return 0;
+}
+
+static Session& getSessionHandle(const std::string& caller, cti_session_id_t sid) {
 	if (!cti_sessionIsValid(sid)) {
 		throw std::runtime_error(caller + ": invalid session id " + std::to_string(sid));
 	}
@@ -149,12 +153,9 @@ cti_manifest_id_t cti_createManifest(cti_session_id_t sid) {
 
 	// construct throwing lambda that can be called by runSafely
 	auto emplaceManifest = [&]() {
-		// get session and emplace manifest
+		// get session and create manifest
 		Session& session = getSessionHandle("cti_createManifest", sid);
-
-		manifests.emplace(std::piecewise_construct,
-			std::forward_as_tuple(mid),
-			std::forward_as_tuple(session.createManifest()));
+		manifests[mid] = session.createManifest();
 	};
 
 	return runSafely(emplaceManifest) ? MANIFEST_ERROR : mid;
@@ -164,7 +165,7 @@ int cti_manifestIsValid(cti_manifest_id_t mid) {
 	return manifests.find(mid) != manifests.end();
 }
 
-std::shared_ptr<Manifest>
+static std::shared_ptr<Manifest>
 getManifestHandle(const std::string& caller, cti_manifest_id_t mid) {
 	// lookup manifest in mid map
 	auto it = manifests.find(mid);
@@ -202,26 +203,33 @@ int cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
 	});
 }
 
-int cti_sendManifest(cti_manifest_id_t mid);
+int cti_sendManifest(cti_manifest_id_t mid) {
+	return runSafely([&](){
+		getManifestHandle("cti_sendManifest", mid)->send();
+	});
+}
 
 /* tool daemon prototypes */
 int cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon_path,
-	const char * const daemon_args[], const char * const env_vars[]);
+	const char * const daemon_args[], const char * const env_vars[]) {
+	throw std::runtime_error("not implemented: cti_execToolDaemon");
+}
 
 #ifdef TRANSITION_DEFS
+#include <iostream>
 void _cti_setStageDeps(bool stageDeps) {
-	throw std::runtime_error("not implemented: _cti_setStageDeps");
+	std::cerr << "deprecated: _cti_setStageDeps" << std::endl;
 }
 
 void _cti_transfer_init(void) {
-	throw std::runtime_error("not implemented: _cti_transfer_init");
+	std::cerr << "deprecated: _cti_setStageDeps" << std::endl;
 }
 
 void _cti_transfer_fini(void) {
-	throw std::runtime_error("not implemented: _cti_transfer_fini");
+	std::cerr << "deprecated: _cti_setStageDeps" << std::endl;
 }
 
 void _cti_consumeSession(void *) {
-	throw std::runtime_error("not implemented: _cti_consumeSession");
+	std::cerr << "deprecated: _cti_consumeSession" << std::endl;
 }
 #endif

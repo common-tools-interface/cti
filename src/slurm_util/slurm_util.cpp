@@ -120,5 +120,5 @@ void _cti_cray_slurm_freeLayout(slurmStepLayout_t *layout) {
 	for (int i = 0; i < layout->numNodes; i++) {
 		free(layout->hosts[i].host);
 	}
-	delete layout->hosts;
+	delete[] layout->hosts;
 }
