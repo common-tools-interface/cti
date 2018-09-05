@@ -29,8 +29,6 @@ extern "C" {
 	typedef int cti_manifest_id_t;
 	typedef int cti_session_id_t;
 
-	void _cti_setStageDeps(bool stageDeps);
-
 	/* session prototypes */
 	cti_session_id_t	cti_createSession(cti_app_id_t appId);
 	int					cti_sessionIsValid(cti_session_id_t sid);
@@ -46,10 +44,10 @@ extern "C" {
 	cti_manifest_id_t	cti_createManifest(cti_session_id_t sid);
 	int					cti_manifestIsValid(cti_manifest_id_t mid);
 
-	int					cti_addManifestBinary(cti_manifest_id_t mid, const char * path);
-	int					cti_addManifestLibrary(cti_manifest_id_t mid, const char * path);
-	int					cti_addManifestLibDir(cti_manifest_id_t mid, const char * path);
-	int					cti_addManifestFile(cti_manifest_id_t mid, const char * path);
+	int					cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName);
+	int					cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName);
+	int					cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName);
+	int					cti_addManifestFile(cti_manifest_id_t mid, const char * rawName);
 
 	int					cti_sendManifest(cti_manifest_id_t mid);
 
@@ -59,9 +57,10 @@ extern "C" {
 
 #if 1
 #define TRANSITION_DEFS
-void	_cti_transfer_init(void);
-void	_cti_transfer_fini(void);
-void	_cti_consumeSession(void *);
+void _cti_setStageDeps(bool stageDeps);
+void _cti_transfer_init(void);
+void _cti_transfer_fini(void);
+void _cti_consumeSession(void *);
 #endif
 
 #ifdef __cplusplus

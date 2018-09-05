@@ -7,8 +7,10 @@
 #include "cti_transfer/Manifest.hpp"
 #include "cti_transfer/Session.hpp"
 
-#include "cti_fe.h"
-#include "cti_error.h"
+extern "C" {
+	#include "cti_fe.h"
+	#include "cti_error.h"
+}
 
 #include "cti_transfer.h"
 
@@ -29,80 +31,95 @@ static cti_manifest_id_t newManifestId() noexcept {
 
 /* session implementations */
 
-cti_session_id_t cti_createSession(cti_session_id_t appId) {
+// run code that can throw and use it to set cti error instead
+static int
+runSafely(std::function<void()> f) noexcept {
+	try { // try to run the function
+		f();
+		return 0;
+	} catch (const std::exception& ex) {
+		// if we get an exception, set cti error instead
+		_cti_set_error(ex.what());
+		return 1;
+	}
+}
+
+cti_session_id_t cti_createSession(cti_session_id_t appId, bool stageDeps) {
 	cti_session_id_t sid = newSessionId();
 
-	// get appPtr from appId
-	appEntry_t *appPtr = _cti_findAppEntry(appId);
-	if (appPtr == nullptr) {
-		_cti_set_error("cannot create session: appId %d not found", appId);
-		return SESSION_ERROR;
-	}
-
-	// emplace new session in the list
-	try {
-		sessions.emplace(std::piecewise_construct,
-			std::forward_as_tuple(sid),
-			std::forward_as_tuple(appPtr));
-	} catch (std::exception& ex) {
-		if (ex.what()[0]) {
-			_cti_set_error(ex.what());
+	// construct throwing lambda that can be called by runSafely
+	auto emplaceSession = [&]() {
+		// get appPtr from appId
+		if (appEntry_t *appPtr = _cti_findAppEntry(appId)) {
+			// emplace new session in the list
+			sessions.emplace(std::piecewise_construct,
+				std::forward_as_tuple(sid),
+				std::forward_as_tuple(appPtr));
+		} else {
+			throw std::runtime_error(
+				"cannot create session: appId %d not found" + std::to_string(appId));
 		}
-		return SESSION_ERROR;
-	}
+	};
 
-	return sid;
+	return runSafely(emplaceSession) ? SESSION_ERROR : sid;
 }
 
 int cti_sessionIsValid(cti_session_id_t sid) {
 	return sessions.find(sid) != sessions.end();
 }
 
-char** cti_getSessionLockFiles(cti_session_id_t sid) {
+Session& getSessionHandle(const std::string& caller, cti_session_id_t sid) {
 	if (!cti_sessionIsValid(sid)) {
-		_cti_set_error("cti_getSessionLockFiles: invalid session id %d", sid);
-		return NULL;
+		throw std::runtime_error(caller + ": invalid session id " + std::to_string(sid));
 	}
 
-	// fetch session handle
-	Session& session = sessions.at(sid);
-
-	// ensure there's at least one manifest instance
-	if (session.getNumManifests() == 0) {
-		_cti_set_error("cti_getSessionLockFiles: backend not initialized for session id %d", sid);
-		return NULL;
-	}
-
-	// create return array
-	char **result = (char**)malloc(sizeof(char*) * (session.getNumManifests() + 1));
-	if (result == nullptr) {
-		_cti_set_error("cti_getSessionLockFiles: malloc failed for session id %d", sid);
-		return NULL;
-	}
-
-	// create the strings
-	for (size_t i = 0; i < session.getNumManifests(); i++) {
-		std::stringstream ss;
-		ss << session.toolPath << "/.lock_" << session.stagePath << "_" << i;
-		result[i] = strdup(ss.str().c_str());
-	}
-	result[session.getNumManifests()] = nullptr;
-
-	return result;
+	return sessions.at(sid);
 }
 
-// return a heap string pointer to session root path plus subdirectory
-static char* sessionPathAppend(const std::string& caller, cti_session_id_t sid,
-		const std::string& str) {
-	if (!cti_sessionIsValid(sid)) {
-		_cti_set_error("%s: invalid session id %d", caller.c_str(), sid);
-		return NULL;
-	}
+char** cti_getSessionLockFiles(cti_session_id_t sid) {
+	char **result;
 
-	Session& session = sessions.at(sid);
-	std::stringstream ss;
-	ss << session.toolPath << "/" << session.stagePath << str;
-	return strdup(ss.str().c_str());
+	// construct throwing lambda that can be called by runSafely
+	auto getLockFiles = [&]() {
+		Session& session = getSessionHandle("cti_getSessionLockFiles", sid);
+
+		// ensure there's at least one manifest instance
+		if (session.getNumManifests() == 0) {
+			throw std::runtime_error("cti_getSessionLockFiles: backend not initialized for session id " + std::to_string(sid));
+		}
+
+		// create return array
+		result = (char**)malloc(sizeof(char*) * (session.getNumManifests() + 1));
+		if (result == nullptr) {
+			throw std::runtime_error("cti_getSessionLockFiles: malloc failed for session id " + std::to_string(sid));
+		}
+
+		// create the strings
+		for (size_t i = 0; i < session.getNumManifests(); i++) {
+			std::stringstream ss;
+			ss << session.toolPath << "/.lock_" << session.stagePath << "_" << i;
+			result[i] = strdup(ss.str().c_str());
+		}
+		result[session.getNumManifests()] = nullptr;
+	};
+
+	return runSafely(getLockFiles) ? nullptr : result;
+}
+
+// fill in a heap string pointer to session root path plus subdirectory
+static char* sessionPathAppend(const std::string& caller, 
+	cti_session_id_t sid, const std::string& str) {
+	char *result;
+
+	auto constructPath = [&]() {
+		// get session and construct string
+		Session& session = getSessionHandle(caller, sid);
+		std::stringstream ss;
+		ss << session.toolPath << "/" << session.stagePath << str;
+		result = strdup(ss.str().c_str());
+	};
+
+	return runSafely(constructPath) ? nullptr : result;
 }
 
 char* cti_getSessionRootDir(cti_session_id_t sid) {
@@ -128,38 +145,62 @@ char* cti_getSessionTmpDir(cti_session_id_t sid) {
 /* manifest implementations */
 
 cti_manifest_id_t cti_createManifest(cti_session_id_t sid) {
-	if (!cti_sessionIsValid(sid)) {
-		_cti_set_error("cti_createManifest: invalid session id %d", sid);
-		return MANIFEST_ERROR;
-	}
-
-	// fetch session handle
-	Session& session = sessions.at(sid);
 	cti_manifest_id_t mid = newManifestId();
 
-	// emplace new manifest in the list
-	try {
+	// construct throwing lambda that can be called by runSafely
+	auto emplaceManifest = [&]() {
+		// get session and emplace manifest
+		Session& session = getSessionHandle("cti_createManifest", sid);
+
 		manifests.emplace(std::piecewise_construct,
 			std::forward_as_tuple(mid),
 			std::forward_as_tuple(session.createManifest()));
-	} catch (std::exception& ex) {
-		if (ex.what()[0]) {
-			_cti_set_error(ex.what());
-		}
-		return MANIFEST_ERROR;
-	}
+	};
 
-	return mid;
+	return runSafely(emplaceManifest) ? MANIFEST_ERROR : mid;
 }
 
 int cti_manifestIsValid(cti_manifest_id_t mid) {
 	return manifests.find(mid) != manifests.end();
 }
 
-int cti_addManifestBinary(cti_manifest_id_t mid, const char * path);
-int cti_addManifestLibrary(cti_manifest_id_t mid, const char * path);
-int cti_addManifestLibDir(cti_manifest_id_t mid, const char * path);
-int cti_addManifestFile(cti_manifest_id_t mid, const char * path);
+std::shared_ptr<Manifest>
+getManifestHandle(const std::string& caller, cti_manifest_id_t mid) {
+	// lookup manifest in mid map
+	auto it = manifests.find(mid);
+	if (it != manifests.end()) {
+		// try and promote weak manifest pointer to shared pointer
+		if (auto manifestPtr = manifests.at(mid).lock()) {
+			return manifestPtr;
+		}
+	}
+
+	throw std::runtime_error(caller + ": invalid manifest id " + std::to_string(mid));
+}
+
+int cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
+	return runSafely([&](){
+		getManifestHandle("cti_addManifestBinary", mid)->addBinary(rawName);
+	});
+}
+
+int cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
+	return runSafely([&](){
+		getManifestHandle("cti_addManifestLibrary", mid)->addLibrary(rawName);
+	});
+}
+
+int cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
+	return runSafely([&](){
+		getManifestHandle("cti_addManifestLibDir", mid)->addLibDir(rawName);
+	});
+}
+
+int cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
+	return runSafely([&](){
+		getManifestHandle("cti_addManifestFile", mid)->addFile(rawName);
+	});
+}
 
 int cti_sendManifest(cti_manifest_id_t mid);
 

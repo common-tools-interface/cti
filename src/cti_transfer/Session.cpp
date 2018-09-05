@@ -84,3 +84,26 @@ std::weak_ptr<Manifest> Session::createManifest() {
 	manifests.emplace_back(manifest);
 	return std::weak_ptr<Manifest>(manifest);
 }
+
+Session::Conflict Session::hasFileConflict(const std::string& folder, const std::string& realName, const std::string& filePath) const {
+	auto folderContentsPair = transferedFolders.find(folder);
+	if (folderContentsPair != transferedFolders.end()) {
+		const auto& folder = folderContentsPair->second;
+
+		const auto& filePathPair = folder.find(realName);
+		if (filePathPair != folder.end()) {
+
+			auto transferedPath = CharPtr(
+				realpath(filePathPair->second.c_str(), nullptr),
+			free);
+			auto candidatePath  = CharPtr(realpath(filePath.c_str(), nullptr), free);
+			if (!std::string(transferedPath.get()).compare(std::string(candidatePath.get()))) {
+				return Conflict::AlreadyAdded;
+			} else {
+				return Conflict::NameOverwrite;
+			}
+		}
+	}
+
+	return Conflict::None;
+}
