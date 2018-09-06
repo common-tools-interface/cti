@@ -14,11 +14,6 @@ class CTIPRNG {
 	char _cti_r_state[256];
 public:
 	CTIPRNG() {
-		// set the PRNG state
-		if (setstate((char *)_cti_r_state) == NULL) {
-			throw std::runtime_error("setstate failed.");
-		}
-
 		// We need to generate a good seed to avoid collisions. Since this
 		// library can be used by automated tests, it is vital to have a
 		// good seed.
@@ -44,6 +39,11 @@ public:
 		
 		// init the state
 		initstate(seed, (char *)_cti_r_state, sizeof(_cti_r_state));
+
+		// set the PRNG state
+		if (setstate((char *)_cti_r_state) == NULL) {
+			throw std::runtime_error("setstate failed.");
+		}
 	}
 
 	char genChar() {
@@ -79,10 +79,10 @@ std::string Session::generateStagePath() {
 	return stagePath;
 }
 
-std::weak_ptr<Manifest> Session::createManifest() {
-	auto manifest = std::make_shared<Manifest>(std::shared_ptr<Session>(this));
-	manifests.emplace_back(manifest);
-	return std::weak_ptr<Manifest>(manifest);
+std::shared_ptr<Manifest> Session::createManifest() {
+	auto manifestPtr = std::shared_ptr<Manifest>(new Manifest(shared_from_this()));
+	manifests.push_back(manifestPtr);
+	return manifestPtr;
 }
 
 Session::Conflict Session::hasFileConflict(const std::string& folder, const std::string& realName, const std::string& filePath) const {

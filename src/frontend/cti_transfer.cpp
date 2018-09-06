@@ -12,7 +12,7 @@
 
 #include "cti_transfer.h"
 
-std::map<cti_session_id_t, Session> sessions;
+std::map<cti_session_id_t, std::shared_ptr<Session>> sessions;
 static const cti_session_id_t SESSION_ERROR = 0;
 static cti_session_id_t newSessionId() noexcept {
 	static cti_session_id_t nextId = 1;
@@ -20,7 +20,7 @@ static cti_session_id_t newSessionId() noexcept {
 }
 
 // manifest objects are created by and owned by session objects
-std::map<cti_manifest_id_t, std::weak_ptr<Manifest>> manifests;
+std::map<cti_manifest_id_t, std::shared_ptr<Manifest>> manifests;
 static const cti_manifest_id_t MANIFEST_ERROR = 0;
 static cti_manifest_id_t newManifestId() noexcept {
 	static cti_manifest_id_t nextId = 1;
@@ -45,17 +45,17 @@ cti_session_id_t cti_createSession(cti_app_id_t appId) {
 	cti_session_id_t sid = newSessionId();
 
 	// construct throwing lambda that can be called by runSafely
-	auto emplaceSession = [&]() {
+	auto insertSession = [&]() {
 		// get appPtr from appId
 		if (appEntry_t *appPtr = _cti_findAppEntry(appId)) {
-			sessions.emplace(sid, appPtr);
+			sessions.insert({sid, std::shared_ptr<Session>(new Session(appPtr))});
 		} else {
 			throw std::runtime_error(
 				"cannot create session: appId %d not found" + std::to_string(appId));
 		}
 	};
 
-	return runSafely(emplaceSession) ? SESSION_ERROR : sid;
+	return runSafely(insertSession) ? SESSION_ERROR : sid;
 }
 
 int cti_sessionIsValid(cti_session_id_t sid) {
@@ -72,7 +72,8 @@ int cti_destroySession(cti_session_id_t sid) {
 	return 0;
 }
 
-static Session& getSessionHandle(const std::string& caller, cti_session_id_t sid) {
+static std::shared_ptr<Session>
+getSessionHandle(const std::string& caller, cti_session_id_t sid) {
 	if (!cti_sessionIsValid(sid)) {
 		throw std::runtime_error(caller + ": invalid session id " + std::to_string(sid));
 	}
@@ -85,26 +86,26 @@ char** cti_getSessionLockFiles(cti_session_id_t sid) {
 
 	// construct throwing lambda that can be called by runSafely
 	auto getLockFiles = [&]() {
-		Session& session = getSessionHandle("cti_getSessionLockFiles", sid);
+		auto sessionPtr = getSessionHandle("cti_getSessionLockFiles", sid);
 
 		// ensure there's at least one manifest instance
-		if (session.getNumManifests() == 0) {
+		if (sessionPtr->getNumManifests() == 0) {
 			throw std::runtime_error("cti_getSessionLockFiles: backend not initialized for session id " + std::to_string(sid));
 		}
 
 		// create return array
-		result = (char**)malloc(sizeof(char*) * (session.getNumManifests() + 1));
+		result = (char**)malloc(sizeof(char*) * (sessionPtr->getNumManifests() + 1));
 		if (result == nullptr) {
 			throw std::runtime_error("cti_getSessionLockFiles: malloc failed for session id " + std::to_string(sid));
 		}
 
 		// create the strings
-		for (size_t i = 0; i < session.getNumManifests(); i++) {
+		for (size_t i = 0; i < sessionPtr->getNumManifests(); i++) {
 			std::stringstream ss;
-			ss << session.toolPath << "/.lock_" << session.stagePath << "_" << i;
+			ss << sessionPtr->toolPath << "/.lock_" << sessionPtr->stagePath << "_" << i;
 			result[i] = strdup(ss.str().c_str());
 		}
-		result[session.getNumManifests()] = nullptr;
+		result[sessionPtr->getNumManifests()] = nullptr;
 	};
 
 	return runSafely(getLockFiles) ? nullptr : result;
@@ -117,9 +118,9 @@ static char* sessionPathAppend(const std::string& caller,
 
 	auto constructPath = [&]() {
 		// get session and construct string
-		Session& session = getSessionHandle(caller, sid);
+		auto sessionPtr = getSessionHandle(caller, sid);
 		std::stringstream ss;
-		ss << session.toolPath << "/" << session.stagePath << str;
+		ss << sessionPtr->toolPath << "/" << sessionPtr->stagePath << str;
 		result = strdup(ss.str().c_str());
 	};
 
@@ -152,13 +153,13 @@ cti_manifest_id_t cti_createManifest(cti_session_id_t sid) {
 	cti_manifest_id_t mid = newManifestId();
 
 	// construct throwing lambda that can be called by runSafely
-	auto emplaceManifest = [&]() {
+	auto insertManifest = [&]() {
 		// get session and create manifest
-		Session& session = getSessionHandle("cti_createManifest", sid);
-		manifests[mid] = session.createManifest();
+		auto sessionPtr = getSessionHandle("cti_createManifest", sid);
+		manifests.insert({mid, sessionPtr->createManifest()});
 	};
 
-	return runSafely(emplaceManifest) ? MANIFEST_ERROR : mid;
+	return runSafely(insertManifest) ? MANIFEST_ERROR : mid;
 }
 
 int cti_manifestIsValid(cti_manifest_id_t mid) {
@@ -167,16 +168,11 @@ int cti_manifestIsValid(cti_manifest_id_t mid) {
 
 static std::shared_ptr<Manifest>
 getManifestHandle(const std::string& caller, cti_manifest_id_t mid) {
-	// lookup manifest in mid map
-	auto it = manifests.find(mid);
-	if (it != manifests.end()) {
-		// try and promote weak manifest pointer to shared pointer
-		if (auto manifestPtr = manifests.at(mid).lock()) {
-			return manifestPtr;
-		}
+	if (!cti_manifestIsValid(mid)) {
+		throw std::runtime_error(caller + ": invalid manifest id " + std::to_string(mid));
 	}
 
-	throw std::runtime_error(caller + ": invalid manifest id " + std::to_string(mid));
+	return manifests.at(mid);
 }
 
 int cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
@@ -212,6 +208,7 @@ int cti_sendManifest(cti_manifest_id_t mid) {
 /* tool daemon prototypes */
 int cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon_path,
 	const char * const daemon_args[], const char * const env_vars[]) {
+	cti_sendManifest(mid);
 	throw std::runtime_error("not implemented: cti_execToolDaemon");
 }
 

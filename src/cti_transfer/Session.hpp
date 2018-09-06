@@ -20,7 +20,7 @@ auto stringArrayDeleter = [](char** arr){
 	for (char** elem = arr; *elem != nullptr; elem++) { free(*elem); }
 };
 
-class Session final {
+class Session final : public std::enable_shared_from_this<Session> {
 public: // types
 	enum class Conflict {
 		None = 0,     // file is not present in session
@@ -42,7 +42,7 @@ public: // variables
 	const std::string toolPath;
 
 public: // interface
-	Session(appEntry_t *appPtr_) :
+	explicit Session(appEntry_t *appPtr_) :
 		appPtr(appPtr_),
 		stagePath(generateStagePath()),
 		toolPath(appPtr->wlmProto->wlm_getToolPath(appPtr->_wlmObj)) {}
@@ -51,7 +51,7 @@ public: // interface
 	inline const cti_wlm_proto_t* getWLM() const { return appPtr->wlmProto; }
 
 	// create new manifest and register ownership
-	std::weak_ptr<Manifest> createManifest();
+	std::shared_ptr<Manifest> createManifest();
 
 	/* fileName: filename as provided by client
 	   realName: basename following symlinks

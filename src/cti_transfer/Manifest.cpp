@@ -10,6 +10,7 @@
 #include "useful/cti_useful.h"
 #include "ld_val/ld_val.h"
 
+
 /* wrappers for CTI helper functions */
 
 static CharPtr findPath(const std::string& fileName) {
@@ -39,15 +40,13 @@ static CharPtr getRealName(const std::string& filePath) {
 void Manifest::addLibDeps(const std::string& filePath) {
 	// get array of library paths using ld_val libArray
 	if (auto libArray = StringArray(
-			_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath())
-		)) {
+			_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath()),
+		stringArrayDeleter)) {
 
 		// add to manifest
 		for (char** elem = libArray.get(); *elem != nullptr; elem++) {
 			addLibrary(*elem, Manifest::DepsPolicy::Ignore);
 		}
-	} else { // _cti_ld_val failed with nullptr result
-		throw std::runtime_error("ld_val audit failed to get dependencies");
 	}
 }
 
