@@ -53,8 +53,8 @@ extern "C" {
 	int					cti_sendManifest(cti_manifest_id_t mid);
 
 	/* tool daemon prototypes */
-	int					cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon_path,
-		const char * const daemon_args[], const char * const env_vars[]);
+	int					cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
+	const char * const daemonArgs[], const char * const envVars[]);
 
 #if 1
 #define TRANSITION_DEFS

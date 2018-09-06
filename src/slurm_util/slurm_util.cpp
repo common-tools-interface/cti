@@ -24,9 +24,9 @@
 #include <iostream>
 #include <string>
 
-#include <strong_argv.hpp>
-#include <string_split.hpp>
-#include <ExecvpOutput.hpp>
+#include "useful/strong_argv.hpp"
+#include "useful/string_split.hpp"
+#include "useful/ExecvpOutput.hpp"
 
 #include "slurm_util.h"
 

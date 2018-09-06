@@ -28,11 +28,19 @@ static CharPtr findLib(const std::string& fileName) {
 		throw std::runtime_error(fileName + ": Could not locate in LD_LIBRARY_PATH or system location.");
 	}
 }
-static CharPtr getRealName(const std::string& filePath) {
+static CharPtr getNameFromPath(const std::string& filePath) {
 	if (auto realName = CharPtr(_cti_pathToName(filePath.c_str()), free)) {
 		return realName;
 	} else { // _cti_pathToName failed with nullptr result
 		throw std::runtime_error("Could not convert the fullname to realname.");
+	}
+}
+
+static CharPtr getRealPath(const std::string& filePath) {
+	if (auto realPath = CharPtr(realpath(filePath.c_str(), nullptr), free)) {
+		return realPath;
+	} else { // realpath failed with nullptr result
+		throw std::runtime_error("realpath failed.");
 	}
 }
 
@@ -66,12 +74,13 @@ void Manifest::checkAndAdd(const std::shared_ptr<Session>& liveSession,
 
 	// add to manifest registry
 	folders[folder].emplace(realName);
+	sourcePaths[realName] = filePath;
 }
 
 void Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
 	// get path and real name of file
 	const std::string filePath(findPath(rawName).get());
-	const std::string realName(getRealName(filePath).get());
+	const std::string realName(getNameFromPath(filePath).get());
 
 	// check permissions
 	if (access(filePath.c_str(), R_OK | X_OK)) {
@@ -91,7 +100,7 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 
 	// get path and real name of file
 	const std::string filePath(findLib(rawName).get());
-	const std::string realName(getRealName(filePath).get());
+	const std::string realName(getNameFromPath(filePath).get());
 
 	/* TODO: We need to create a way to ship conflicting libraries. Since
 		most libraries are sym links to their proper version, name collisions
@@ -108,14 +117,18 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 	}
 }
 
-void Manifest::addLibDir(const std::string& rawName) {
-	throw std::runtime_error("not implemented");
+void Manifest::addLibDir(const std::string& rawPath) {
+	// get real path and real name of directory
+	const std::string realPath(getRealPath(rawPath).get());
+	const std::string realName(getNameFromPath(realPath).get());
+
+	checkAndAdd(getSessionHandle(), "lib", realPath, realName);
 }
 
 void Manifest::addFile(const std::string& rawName) {
 	// get path and real name of file
 	const std::string filePath(findPath(rawName).get());
-	const std::string realName(getRealName(filePath).get());
+	const std::string realName(getNameFromPath(filePath).get());
 
 	checkAndAdd(getSessionHandle(), "", filePath, realName);
 }
@@ -127,9 +140,20 @@ void Manifest::send() {
 	for (auto folderIt : folders) {
 		std::cerr << "directory '" << folderIt.first << "':" << std::endl;
 		for (auto fileIt : folderIt.second) {
-			std::cerr << "\t'" << fileIt << "'" << std::endl;
+			std::cerr << "\t'" << fileIt << "' -> " << sourcePaths[fileIt] << std::endl;
 		}
 	}
 
-	throw std::runtime_error("not implemented");
+	throw std::runtime_error("send not implemented");
+}
+
+void Manifest::execToolDaemon(const char * const daemonPath, const char * const daemonArgs[], const char * const envVars[]) {
+	for (auto folderIt : folders) {
+		std::cerr << "directory '" << folderIt.first << "':" << std::endl;
+		for (auto fileIt : folderIt.second) {
+			std::cerr << "\t'" << fileIt << "' -> " << sourcePaths[fileIt] << std::endl;
+		}
+	}
+
+	throw std::runtime_error("execToolDaemon not implemented");
 }

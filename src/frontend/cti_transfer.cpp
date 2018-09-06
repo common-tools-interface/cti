@@ -27,19 +27,19 @@ static cti_manifest_id_t newManifestId() noexcept {
 	return nextId++;
 }
 
-/* session implementations */
-
 // run code that can throw and use it to set cti error instead
-static int runSafely(std::function<void()> f) noexcept {
+static int runSafely(std::string const& caller, std::function<void()> f) noexcept {
 	try { // try to run the function
 		f();
 		return 0;
 	} catch (const std::exception& ex) {
 		// if we get an exception, set cti error instead
-		_cti_set_error(ex.what());
+		_cti_set_error((caller + ex.what()).c_str());
 		return 1;
 	}
 }
+
+/* session implementations */
 
 cti_session_id_t cti_createSession(cti_app_id_t appId) {
 	cti_session_id_t sid = newSessionId();
@@ -51,11 +51,11 @@ cti_session_id_t cti_createSession(cti_app_id_t appId) {
 			sessions.insert({sid, std::shared_ptr<Session>(new Session(appPtr))});
 		} else {
 			throw std::runtime_error(
-				"cannot create session: appId %d not found" + std::to_string(appId));
+				"failed, appId not found: " + std::to_string(appId));
 		}
 	};
 
-	return runSafely(insertSession) ? SESSION_ERROR : sid;
+	return runSafely("cti_createSession", insertSession) ? SESSION_ERROR : sid;
 }
 
 int cti_sessionIsValid(cti_session_id_t sid) {
@@ -63,19 +63,22 @@ int cti_sessionIsValid(cti_session_id_t sid) {
 }
 
 int cti_destroySession(cti_session_id_t sid) {
-	if (!cti_sessionIsValid(sid)) {
-		throw std::runtime_error("cti_destroySession: invalid session id " + std::to_string(sid));
-	}
+	// construct throwing lambda that can be called by runSafely
+	auto destroySession = [&]() {
+		if (!cti_sessionIsValid(sid)) {
+			throw std::runtime_error("invalid session id " + std::to_string(sid));
+		}
 
-	sessions.erase(sid);
+		sessions.erase(sid);
+	};
 
-	return 0;
+	return runSafely("cti_destroySession", destroySession);
 }
 
 static std::shared_ptr<Session>
-getSessionHandle(const std::string& caller, cti_session_id_t sid) {
+getSessionHandle(cti_session_id_t sid) {
 	if (!cti_sessionIsValid(sid)) {
-		throw std::runtime_error(caller + ": invalid session id " + std::to_string(sid));
+		throw std::runtime_error("invalid session id " + std::to_string(sid));
 	}
 
 	return sessions.at(sid);
@@ -86,17 +89,17 @@ char** cti_getSessionLockFiles(cti_session_id_t sid) {
 
 	// construct throwing lambda that can be called by runSafely
 	auto getLockFiles = [&]() {
-		auto sessionPtr = getSessionHandle("cti_getSessionLockFiles", sid);
+		auto sessionPtr = getSessionHandle(sid);
 
 		// ensure there's at least one manifest instance
 		if (sessionPtr->getNumManifests() == 0) {
-			throw std::runtime_error("cti_getSessionLockFiles: backend not initialized for session id " + std::to_string(sid));
+			throw std::runtime_error("backend not initialized for session id " + std::to_string(sid));
 		}
 
 		// create return array
 		result = (char**)malloc(sizeof(char*) * (sessionPtr->getNumManifests() + 1));
 		if (result == nullptr) {
-			throw std::runtime_error("cti_getSessionLockFiles: malloc failed for session id " + std::to_string(sid));
+			throw std::runtime_error("malloc failed for session id " + std::to_string(sid));
 		}
 
 		// create the strings
@@ -108,7 +111,7 @@ char** cti_getSessionLockFiles(cti_session_id_t sid) {
 		result[sessionPtr->getNumManifests()] = nullptr;
 	};
 
-	return runSafely(getLockFiles) ? nullptr : result;
+	return runSafely("cti_getSessionLockFiles", getLockFiles) ? nullptr : result;
 }
 
 // fill in a heap string pointer to session root path plus subdirectory
@@ -118,13 +121,13 @@ static char* sessionPathAppend(const std::string& caller,
 
 	auto constructPath = [&]() {
 		// get session and construct string
-		auto sessionPtr = getSessionHandle(caller, sid);
+		auto sessionPtr = getSessionHandle(sid);
 		std::stringstream ss;
 		ss << sessionPtr->toolPath << "/" << sessionPtr->stagePath << str;
 		result = strdup(ss.str().c_str());
 	};
 
-	return runSafely(constructPath) ? nullptr : result;
+	return runSafely(caller, constructPath) ? nullptr : result;
 }
 
 char* cti_getSessionRootDir(cti_session_id_t sid) {
@@ -155,11 +158,11 @@ cti_manifest_id_t cti_createManifest(cti_session_id_t sid) {
 	// construct throwing lambda that can be called by runSafely
 	auto insertManifest = [&]() {
 		// get session and create manifest
-		auto sessionPtr = getSessionHandle("cti_createManifest", sid);
+		auto sessionPtr = getSessionHandle(sid);
 		manifests.insert({mid, sessionPtr->createManifest()});
 	};
 
-	return runSafely(insertManifest) ? MANIFEST_ERROR : mid;
+	return runSafely("cti_createManifest", insertManifest) ? MANIFEST_ERROR : mid;
 }
 
 int cti_manifestIsValid(cti_manifest_id_t mid) {
@@ -167,49 +170,50 @@ int cti_manifestIsValid(cti_manifest_id_t mid) {
 }
 
 static std::shared_ptr<Manifest>
-getManifestHandle(const std::string& caller, cti_manifest_id_t mid) {
+getManifestHandle(cti_manifest_id_t mid) {
 	if (!cti_manifestIsValid(mid)) {
-		throw std::runtime_error(caller + ": invalid manifest id " + std::to_string(mid));
+		throw std::runtime_error("invalid manifest id " + std::to_string(mid));
 	}
 
 	return manifests.at(mid);
 }
 
 int cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely([&](){
-		getManifestHandle("cti_addManifestBinary", mid)->addBinary(rawName);
+	return runSafely("cti_addManifestBinary", [&](){
+		getManifestHandle(mid)->addBinary(rawName);
 	});
 }
 
 int cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely([&](){
-		getManifestHandle("cti_addManifestLibrary", mid)->addLibrary(rawName);
+	return runSafely("cti_addManifestLibrary", [&](){
+		getManifestHandle(mid)->addLibrary(rawName);
 	});
 }
 
 int cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely([&](){
-		getManifestHandle("cti_addManifestLibDir", mid)->addLibDir(rawName);
+	return runSafely("cti_addManifestLibDir", [&](){
+		getManifestHandle(mid)->addLibDir(rawName);
 	});
 }
 
 int cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely([&](){
-		getManifestHandle("cti_addManifestFile", mid)->addFile(rawName);
+	return runSafely("cti_addManifestFile", [&](){
+		getManifestHandle(mid)->addFile(rawName);
 	});
 }
 
 int cti_sendManifest(cti_manifest_id_t mid) {
-	return runSafely([&](){
-		getManifestHandle("cti_sendManifest", mid)->send();
+	return runSafely("cti_sendManifest", [&](){
+		getManifestHandle(mid)->send();
 	});
 }
 
 /* tool daemon prototypes */
-int cti_execToolDaemon(cti_manifest_id_t mid, const char *daemon_path,
-	const char * const daemon_args[], const char * const env_vars[]) {
-	cti_sendManifest(mid);
-	throw std::runtime_error("not implemented: cti_execToolDaemon");
+int cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
+	const char * const daemonArgs[], const char * const envVars[]) {
+	return runSafely("cti_execToolDaemon", [&](){
+		getManifestHandle(mid)->execToolDaemon(daemonPath, daemonArgs, envVars);
+	});
 }
 
 #ifdef TRANSITION_DEFS

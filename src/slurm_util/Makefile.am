@@ -21,7 +21,7 @@
 USEFUL = @CRAYTOOL_DIR@/src/useful
 
 SRC             = @CRAYTOOL_DIR@/src
-AM_CXXFLAGS		= -Wall -std=c++11 -I$(SRC) -I$(USEFUL)
+AM_CXXFLAGS		= -Wall -std=c++11 -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
 
 noinst_LTLIBRARIES      	=	libslurm_util.la

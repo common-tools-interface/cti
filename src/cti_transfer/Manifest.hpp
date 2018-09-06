@@ -18,7 +18,9 @@ public: // types
 
 private: // variables
 	const std::weak_ptr<Session> sessionPtr;
+
 	std::map<std::string, std::set<std::string>> folders;
+	std::map<std::string, std::string> sourcePaths;
 
 private: // helper functions
 	// add dynamic library dependencies to manifest
@@ -39,9 +41,10 @@ public: // interface
 	Manifest(std::shared_ptr<Session> sessionPtr_) : sessionPtr(sessionPtr_) {}
 	void addBinary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
 	void addLibrary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
-	void addLibDir(const std::string& rawName);
+	void addLibDir(const std::string& rawPath);
 	void addFile(const std::string& rawName);
 
 	void send();
+	void execToolDaemon(const char * const daemonPath, const char * const daemonArgs[], const char * const envVars[]);
 };
 

@@ -1,5 +1,5 @@
-#ifndef _STRONG_ARGV_HPP
-#define _STRONG_ARGV_HPP
+#ifndef STRONG_ARGV_HPP_
+#define STRONG_ARGV_HPP_
 
 #include <vector>
 #include <string>
@@ -123,7 +123,5 @@ public:
 		return argv + optind;
 	}
 };
-
-constexpr Argv::GNUOption Argv::long_options_done;
 
 #endif
