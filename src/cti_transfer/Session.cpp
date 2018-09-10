@@ -120,7 +120,7 @@ void Session::shipWLMBaseFiles() {
 	}
 
 	// ship basefile manifest
-	baseFileManifest->finalizeAndExtract();
+	baseFileManifest->finalize().extractRemotely();
 }
 
 int Session::startDaemon(char * const argv[]) {

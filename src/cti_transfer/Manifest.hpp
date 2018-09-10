@@ -11,6 +11,33 @@
 using FoldersMap = std::map<std::string, std::set<std::string>>;
 using PathMap = std::map<std::string, std::string>;
 
+/* object created as a result of finalizing a manifest. represents a remote archive ready
+	for the cti daemon to extract / run tooldaemon with
+*/
+class ShippedPackage final {
+private: // variables
+	const std::string archiveName;
+	std::shared_ptr<Session> liveSession;
+	const size_t instanceCount;
+
+private: // functions
+	void invalidate() { liveSession.reset(); }
+
+public: // interface
+
+	// run WLM shipping routine to stage archivePath
+	ShippedPackage(const std::string& archivePath, const std::string& archiveName_,
+		std::shared_ptr<Session> liveSession_, size_t instanceCount_);
+
+	// object finalized after running extraction routines
+	void extractRemotely();
+	void extractAndRunRemotely(const char * const daemonPath,
+		const char * const daemonArgs[], const char * const envVars[]);
+};
+
+/* in-progress file list that is owned by a session. finalize() into a tarball package
+	that is present on compute nodes
+ */
 class Manifest final {
 public: // types
 	enum class DepsPolicy {
@@ -45,9 +72,6 @@ private: // helper functions
 		const std::string& folder, const std::string& filePath,
 		const std::string& realName);
 
-	// package files from manifest and ship, return name of new archive
-	std::string shipAndFinalize();
-
 public: // interface
 	Manifest(size_t instanceCount_, std::shared_ptr<Session> sessionPtr_) :
 		sessionPtr(sessionPtr_),
@@ -55,12 +79,13 @@ public: // interface
 		lockFilePath(sessionPtr_->toolPath + "/.lock_" + sessionPtr_->stageName +
 			"_" + std::to_string(instanceCount)) {}
 
+	// add files and optionally their dependencies to manifest
 	void addBinary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
 	void addLibrary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
 	void addLibDir(const std::string& rawPath);
 	void addFile(const std::string& rawName);
 
-	void finalizeAndExtract();
-	void finalizeAndRun(const char * const daemonPath, const char * const daemonArgs[], const char * const envVars[]);
+	// package files from manifest and ship, return remotely extractable object
+	ShippedPackage finalize();
 };
 

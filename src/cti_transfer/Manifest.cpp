@@ -135,16 +135,12 @@ void Manifest::addFile(const std::string& rawName) {
 
 /* manifest transfer / wlm interface implementations */
 
-#include "ArgvDefs.hpp"
 #include "Archive.hpp"
 
-#include <iostream>
-std::string Manifest::shipAndFinalize() {
+ShippedPackage Manifest::finalize() {
 	auto liveSession = getSessionHandle();
 
 	// todo: resolveManifestConflicts with liveSession
-	// if no files to ship, return
-	if (empty()) { return ""; }
 
 	const std::string archiveName(liveSession->stageName + std::to_string(instanceCount) +
 		".tar");
@@ -163,14 +159,11 @@ std::string Manifest::shipAndFinalize() {
 		}
 	}
 
-	// create archive on disk
-	const std::string archivePath(liveSession->configPath + "/" + archiveName);
-
+	// create archive
 	// todo: block signals handle race with file creation
-	Archive archive(archivePath);
+	Archive archive(liveSession->configPath + "/" + archiveName);
 
-	// setup basic entries
-	DEBUG("ship " << instanceCount << ": " << instanceCount << ": addDirEntry" << std::endl);
+	// setup basic archive entries
 	archive.addDirEntry(liveSession->stageName);
 	archive.addDirEntry(liveSession->stageName + "/bin");
 	archive.addDirEntry(liveSession->stageName + "/lib");
@@ -186,22 +179,36 @@ std::string Manifest::shipAndFinalize() {
 		}
 	}
 
-	DEBUG("ship " << instanceCount << ": finalizing and shipping" << std::endl);
-	const std::string& finalizedArchivePath = archive.finalize();
-	liveSession->shipPackage(finalizedArchivePath.c_str());
-	// todo: end block signals
+	// merge manifest into session
+	DEBUG("finalizeAndExtract " << instanceCount << ": merge into session" << std::endl);
+	liveSession->mergeTransfered(folders, sourcePaths);
 
 	// manifest is finalized, no changes can be made
 	sessionPtr.reset();
 
-	return archiveName;
+	ShippedPackage shippedPackage(archive.finalize(), archiveName, liveSession,
+		instanceCount);
+
+	// todo: end block signals
+
+	return shippedPackage;
 }
 
-void Manifest::finalizeAndExtract() {
-	auto liveSession = getSessionHandle();
+/* package implementations */
 
-	// ship with helper
-	const std::string& archiveName = shipAndFinalize();
+#include "ArgvDefs.hpp"
+
+ShippedPackage::ShippedPackage(const std::string& archivePath,
+	const std::string& archiveName_, std::shared_ptr<Session> liveSession_,
+	size_t instanceCount_) :
+		archiveName(archiveName_),
+		liveSession(liveSession_),
+		instanceCount(instanceCount_) {
+
+	liveSession->shipPackage(archivePath.c_str());
+}
+
+void ShippedPackage::extractRemotely() {
 	if (archiveName.empty()) { return; }
 
 	// create DaemonArgv
@@ -221,19 +228,11 @@ void Manifest::finalizeAndExtract() {
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
 	liveSession->startDaemon(daemonArgv.get() + 1);
 
-	// merge manifest into session
-	DEBUG("finalizeAndExtract " << instanceCount << ": merge into session" << std::endl);
-	liveSession->mergeTransfered(folders, sourcePaths);
-
-	DEBUG("finalizeAndExtract " << instanceCount << ": done" << std::endl);
+	invalidate();
 }
 
-void Manifest::finalizeAndRun(const char * const daemonBinary, const char * const daemonArgs[], const char * const envVars[]) {
-	auto liveSession = getSessionHandle();
-
-	// add daemon binary and ship manifest files if applicable
-	addBinary(daemonBinary);
-	const std::string& archiveName = shipAndFinalize(); // won't add manifest arg if empty
+void ShippedPackage::extractAndRunRemotely(const char * const daemonBinary,
+	const char * const daemonArgs[], const char * const envVars[]) {
 
 	// get real name of daemon binary
 	const std::string binaryName(getNameFromPath(findPath(daemonBinary).get()).get());
@@ -278,5 +277,5 @@ void Manifest::finalizeAndRun(const char * const daemonBinary, const char * cons
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
 	liveSession->startDaemon(rawArgVec.get() + 1);
 
-	DEBUG("finalizeAndRun: done" << std::endl);
+	invalidate();
 }

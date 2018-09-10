@@ -207,7 +207,9 @@ int cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
 
 int cti_sendManifest(cti_manifest_id_t mid) {
 	return runSafely("cti_sendManifest", [&](){
-		getManifestHandle(mid)->finalizeAndExtract();
+		auto manifestPtr = getManifestHandle(mid);
+
+		manifestPtr->finalize().extractRemotely();
 		manifests.erase(mid);
 	});
 }
@@ -216,7 +218,10 @@ int cti_sendManifest(cti_manifest_id_t mid) {
 int cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 	const char * const daemonArgs[], const char * const envVars[]) {
 	return runSafely("cti_execToolDaemon", [&](){
-		getManifestHandle(mid)->finalizeAndRun(daemonPath, daemonArgs, envVars);
+		auto manifestPtr = getManifestHandle(mid);
+
+		manifestPtr->addBinary(daemonPath);
+		manifestPtr->finalize().extractAndRunRemotely(daemonPath, daemonArgs, envVars);
 		manifests.erase(mid);
 	});
 }

@@ -41,8 +41,15 @@ private: // functions
 public: // interface
 	// create archive on disk and set format
 	Archive(const std::string& archivePath);
+
+	Archive(Archive&& moved) :
+		archPtr(std::move(moved.archPtr)),
+		entryScratchpad(std::move(moved.entryScratchpad)),
+		archivePath(std::move(moved.archivePath)) {}
+
 	// remove archive from disk
 	~Archive();
+
 	// finalize and return path to tarball; after, only valid operations are to destruct
 	const std::string& finalize() {
 		archPtr.reset();
