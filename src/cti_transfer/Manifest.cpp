@@ -139,67 +139,144 @@ void Manifest::addFile(const std::string& rawName) {
 #include "Archive.hpp"
 
 #include <iostream>
-void Manifest::ship() {
+std::string Manifest::shipAndFinalize() {
 	auto liveSession = getSessionHandle();
 
-	// create archive
+	// todo: resolveManifestConflicts with liveSession
+	// if no files to ship, return
+	if (empty()) { return ""; }
+
+	const std::string archiveName(liveSession->stageName + std::to_string(instanceCount) +
+		".tar");
+
+	// create the hidden name for the cleanup file. This will be checked by future
+	// runs to try assisting in cleanup if we get killed unexpectedly. This is cludge
+	// in an attempt to cleanup. The ideal situation is to be able to tell the kernel
+	// to remove the tarball if the process exits, but no mechanism exists today that
+	// I know about.
+	{ const std::string cleanupFilePath(liveSession->configPath + "/." + archiveName);
+		auto cleanupFileHandle = UniquePtrDestr<FILE>(
+			fopen(cleanupFilePath.c_str(), "w"), fclose);
+		pid_t pid = getpid();
+		if (fwrite(&pid, sizeof(pid), 1, cleanupFileHandle.get()) != 1) {
+			throw std::runtime_error("fwrite to cleanup file failed.");
+		}
+	}
+
+	// create archive on disk
+	const std::string archivePath(liveSession->configPath + "/" + archiveName);
+
 	// todo: block signals handle race with file creation
-	Archive archive(liveSession->stagePath,	liveSession->stagePath +
-		std::to_string(instanceCount) + ".tar");
-	// todo: end block signals
+	Archive archive(archivePath);
 
 	// setup basic entries
-	DEBUG("ship: addDirEntry" << std::endl);
-	archive.addDirEntry(liveSession->stagePath);
-	archive.addDirEntry(liveSession->stagePath + "/bin");
-	archive.addDirEntry(liveSession->stagePath + "/lib");
-	archive.addDirEntry(liveSession->stagePath + "/tmp");
+	DEBUG("ship " << instanceCount << ": " << instanceCount << ": addDirEntry" << std::endl);
+	archive.addDirEntry(liveSession->stageName);
+	archive.addDirEntry(liveSession->stageName + "/bin");
+	archive.addDirEntry(liveSession->stageName + "/lib");
+	archive.addDirEntry(liveSession->stageName + "/tmp");
 
 	// add files to archive
 	for (auto folderIt : folders) {
 		for (auto fileIt : folderIt.second) {
-			const std::string archivePath(liveSession->stagePath + "/" + folderIt.first +
+			const std::string destPath(liveSession->stageName + "/" + folderIt.first +
 				"/" + fileIt);
-			DEBUG("ship: addPath(" << archivePath << ", " << sourcePaths[fileIt] << ")" << std::endl);
-			archive.addPath(archivePath, sourcePaths[fileIt]);
+			DEBUG("ship " << instanceCount << ": addPath(" << destPath << ", " << sourcePaths[fileIt] << ")" << std::endl);
+			archive.addPath(destPath, sourcePaths[fileIt]);
 		}
 	}
 
-	DEBUG("ship: finalizing" << std::endl);
-	const std::string& finalizedArchivePath = archive.eject();
+	DEBUG("ship " << instanceCount << ": finalizing and shipping" << std::endl);
+	const std::string& finalizedArchivePath = archive.finalize();
+	liveSession->shipPackage(finalizedArchivePath.c_str());
+	// todo: end block signals
+
+	// manifest is finalized, no changes can be made
+	sessionPtr.reset();
+
+	return archiveName;
+}
+
+void Manifest::finalizeAndExtract() {
+	auto liveSession = getSessionHandle();
+
+	// ship with helper
+	const std::string& archiveName = shipAndFinalize();
+	if (archiveName.empty()) { return; }
 
 	// create DaemonArgv
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
-		daemonArgv.add(DA::ApID, liveSession->jobId);
-		daemonArgv.add(DA::ToolPath, liveSession->toolPath);
-		daemonArgv.add(DA::WLMEnum, liveSession->wlmEnum);
-		daemonArgv.add(DA::ManifestName, finalizedArchivePath);
-		daemonArgv.add(DA::Directory, liveSession->stagePath);
-		daemonArgv.add(DA::InstSeqNum, std::to_string(instanceCount));
-		daemonArgv.add(DA::Directory, liveSession->stagePath);
+		daemonArgv.add(DA::ApID,         liveSession->jobId);
+		daemonArgv.add(DA::ToolPath,     liveSession->toolPath);
+		daemonArgv.add(DA::WLMEnum,      liveSession->wlmEnum);
+		daemonArgv.add(DA::ManifestName, archiveName);
+		daemonArgv.add(DA::Directory,    liveSession->stageName);
+		daemonArgv.add(DA::InstSeqNum,   std::to_string(instanceCount));
 		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
 	}
 
 	// call transfer function with DaemonArgv
-	DEBUG("ship: starting daemon" << std::endl);
+	DEBUG("finalizeAndExtract " << instanceCount << ": starting daemon" << std::endl);
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
 	liveSession->startDaemon(daemonArgv.get() + 1);
 
 	// merge manifest into session
-	DEBUG("ship: merge into session" << std::endl);
+	DEBUG("finalizeAndExtract " << instanceCount << ": merge into session" << std::endl);
 	liveSession->mergeTransfered(folders, sourcePaths);
 
-	DEBUG("ship: done" << std::endl);
+	DEBUG("finalizeAndExtract " << instanceCount << ": done" << std::endl);
 }
 
-void Manifest::execToolDaemon(const char * const daemonPath, const char * const daemonArgs[], const char * const envVars[]) {
-	for (auto folderIt : folders) {
-		std::cerr << "directory '" << folderIt.first << "':" << std::endl;
-		for (auto fileIt : folderIt.second) {
-			std::cerr << "\t'" << fileIt << "' -> " << sourcePaths[fileIt] << std::endl;
+void Manifest::finalizeAndRun(const char * const daemonBinary, const char * const daemonArgs[], const char * const envVars[]) {
+	auto liveSession = getSessionHandle();
+
+	// add daemon binary and ship manifest files if applicable
+	addBinary(daemonBinary);
+	const std::string& archiveName = shipAndFinalize(); // won't add manifest arg if empty
+
+	// get real name of daemon binary
+	const std::string binaryName(getNameFromPath(findPath(daemonBinary).get()).get());
+
+	// create DaemonArgv
+	DEBUG("finalizeAndRun: creating daemonArgv for " << daemonBinary << std::endl);
+	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+	{ using DA = DaemonArgv;
+		daemonArgv.add(DA::ApID,         liveSession->jobId);
+		daemonArgv.add(DA::ToolPath,     liveSession->toolPath);
+		if (!liveSession->attribsPath.empty()) {
+			daemonArgv.add(DA::PMIAttribsPath, liveSession->attribsPath);
+		}
+		daemonArgv.add(DA::WLMEnum,      liveSession->wlmEnum);
+		if (!archiveName.empty()) { daemonArgv.add(DA::ManifestName, archiveName); }
+		daemonArgv.add(DA::Binary,       binaryName);
+		daemonArgv.add(DA::Directory,    liveSession->stageName);
+		daemonArgv.add(DA::InstSeqNum,   std::to_string(instanceCount));
+		daemonArgv.add(DA::Directory,    liveSession->stageName);
+		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
+	}
+
+	// add env vars
+	if (envVars != nullptr) {
+		for (const char* const* var = envVars; *var != nullptr; var++) {
+			daemonArgv.add(DaemonArgv::EnvVariable, *var);
 		}
 	}
 
-	throw std::runtime_error("execToolDaemon not implemented");
+	ManagedArgv rawArgVec(daemonArgv.eject());
+
+	// add daemon arguments
+	if (daemonArgs != nullptr) {
+		rawArgVec.add("--");
+		for (const char* const* var = daemonArgs; *var != nullptr; var++) {
+			rawArgVec.add(*var);
+		}
+	}
+
+	// call launch function with DaemonArgv
+	DEBUG("finalizeAndRun: starting daemon" << std::endl);
+	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
+	liveSession->startDaemon(rawArgVec.get() + 1);
+
+	DEBUG("finalizeAndRun: done" << std::endl);
 }

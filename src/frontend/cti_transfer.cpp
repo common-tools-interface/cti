@@ -126,7 +126,7 @@ static char* sessionPathAppend(const std::string& caller,
 		// get session and construct string
 		auto sessionPtr = getSessionHandle(sid);
 		std::stringstream ss;
-		ss << sessionPtr->toolPath << "/" << sessionPtr->stagePath << str;
+		ss << sessionPtr->toolPath << "/" << sessionPtr->stageName << str;
 		result = strdup(ss.str().c_str());
 	};
 
@@ -207,7 +207,8 @@ int cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
 
 int cti_sendManifest(cti_manifest_id_t mid) {
 	return runSafely("cti_sendManifest", [&](){
-		getManifestHandle(mid)->ship();
+		getManifestHandle(mid)->finalizeAndExtract();
+		manifests.erase(mid);
 	});
 }
 
@@ -215,7 +216,8 @@ int cti_sendManifest(cti_manifest_id_t mid) {
 int cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 	const char * const daemonArgs[], const char * const envVars[]) {
 	return runSafely("cti_execToolDaemon", [&](){
-		getManifestHandle(mid)->execToolDaemon(daemonPath, daemonArgs, envVars);
+		getManifestHandle(mid)->finalizeAndRun(daemonPath, daemonArgs, envVars);
+		manifests.erase(mid);
 	});
 }
 

@@ -49,7 +49,9 @@ private: // helper functions
 	static std::string generateStagePath();
 
 public: // variables
-	const std::string stagePath;
+	const std::string configPath;
+	const std::string stageName;
+	const std::string attribsPath;
 	const std::string toolPath;
 	const std::string jobId;
 	const std::string wlmEnum;
@@ -65,7 +67,11 @@ public: // interface
 	// create and add wlm basefiles to manifest
 	void shipWLMBaseFiles();
 
+	// wlm wrappers
 	int startDaemon(char * const argv[]);
+	inline int shipPackage(const char *tar_name) {
+		return getWLM()->wlm_shipPackage(appPtr->_wlmObj, tar_name);
+	}
 
 	// create new manifest and register ownership
 	std::shared_ptr<Manifest> createManifest();

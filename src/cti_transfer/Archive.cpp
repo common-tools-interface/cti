@@ -18,7 +18,7 @@ EntryPtr& Archive::freshEntry() {
 	}
 }
 
-Archive::Archive(const std::string& stagePath, const std::string& archivePath_) :
+Archive::Archive(const std::string& archivePath_) :
 	archPtr(archive_write_new(), archive_write_free),
 	entryScratchpad(archive_entry_new(), archive_entry_free),
 	archivePath(archivePath_) {

@@ -19,7 +19,7 @@ public: // types
 	};
 
 private: // variables
-	const std::weak_ptr<Session> sessionPtr;
+	std::weak_ptr<Session> sessionPtr;
 	const size_t instanceCount;
 
 	FoldersMap folders;
@@ -29,6 +29,14 @@ public: // variables
 	const std::string lockFilePath;
 
 private: // helper functions
+	inline bool empty() { return sourcePaths.empty(); }
+
+	// promote session pointer to a shared pointer (otherwise throw)
+	inline std::shared_ptr<Session> getSessionHandle() {
+		if (auto liveSession = sessionPtr.lock()) { return liveSession; }
+		throw std::runtime_error("Manifest is not valid, already shipped.");
+	}
+
 	// add dynamic library dependencies to manifest
 	void addLibDeps(const std::string& filePath);
 
@@ -37,17 +45,14 @@ private: // helper functions
 		const std::string& folder, const std::string& filePath,
 		const std::string& realName);
 
-	// promote session pointer to a shared pointer (otherwise throw)
-	inline std::shared_ptr<Session> getSessionHandle() {
-		if (auto liveSession = sessionPtr.lock()) { return liveSession; }
-		throw std::runtime_error("Manifest's session is not valid.");
-	}
+	// package files from manifest and ship, return name of new archive
+	std::string shipAndFinalize();
 
 public: // interface
 	Manifest(size_t instanceCount_, std::shared_ptr<Session> sessionPtr_) :
 		sessionPtr(sessionPtr_),
 		instanceCount(instanceCount_),
-		lockFilePath(sessionPtr_->toolPath + "/.lock_" + sessionPtr_->stagePath +
+		lockFilePath(sessionPtr_->toolPath + "/.lock_" + sessionPtr_->stageName +
 			"_" + std::to_string(instanceCount)) {}
 
 	void addBinary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
@@ -55,7 +60,7 @@ public: // interface
 	void addLibDir(const std::string& rawPath);
 	void addFile(const std::string& rawName);
 
-	void ship();
-	void execToolDaemon(const char * const daemonPath, const char * const daemonArgs[], const char * const envVars[]);
+	void finalizeAndExtract();
+	void finalizeAndRun(const char * const daemonPath, const char * const daemonArgs[], const char * const envVars[]);
 };
 

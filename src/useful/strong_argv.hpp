@@ -23,11 +23,15 @@ public:
 		}
 	}
 
-	/* move constructor: just move the array */
-	ManagedArgv(ManagedArgv&& moved) : argv(std::move(moved.argv)) {}
+	/* move constructor: destructive move the array */
+	ManagedArgv(ManagedArgv&& moved) {
+		std::copy(moved.argv.begin(), moved.argv.end(), std::back_inserter(argv));
+		moved.argv.clear();
+	}
 
 	size_t size() const { return argv.size(); }
 	char** get() { return argv.data(); }
+
 
 	void add(std::string const& str) {
 		argv.insert(argv.end() - 1, strdup(str.c_str()));
@@ -67,7 +71,8 @@ public:
 		argv.add(binary);
 	}
 
-	char* const *get() { return argv.get(); }
+	char* const *get()    { return argv.get(); }
+	ManagedArgv&& eject() { return std::move(argv); }
 
 	void add(Argv::Option const& opt) {
 		if (opt.name == nullptr) {

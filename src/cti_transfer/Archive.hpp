@@ -40,11 +40,11 @@ private: // functions
 
 public: // interface
 	// create archive on disk and set format
-	Archive(const std::string& stagePath, const std::string& archivePath);
+	Archive(const std::string& archivePath);
 	// remove archive from disk
 	~Archive();
 	// finalize and return path to tarball; after, only valid operations are to destruct
-	const std::string& eject() {
+	const std::string& finalize() {
 		archPtr.reset();
 		entryScratchpad.reset();
 		{ std::string cmd("cp " + archivePath + " /cray/css/users/adangelo/stash/valgrind4hpc/tests/archive.tar"); system(cmd.c_str()); }

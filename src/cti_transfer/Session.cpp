@@ -59,35 +59,39 @@ public:
 };
 
 std::string Session::generateStagePath() {
-	std::string stagePath;
+	std::string stageName;
 
 	// check to see if the caller set a staging directory name, otherwise generate one
 	if (const char* customStagePath = getenv(DAEMON_STAGE_VAR)) {
-		stagePath = customStagePath;
+		stageName = customStagePath;
 	} else {
 		// remove placeholder Xs from DEFAULT_STAGE_DIR
 		const std::string stageFormat(DEFAULT_STAGE_DIR);
-		stagePath = stageFormat.substr(0, stageFormat.find("X"));
+		stageName = stageFormat.substr(0, stageFormat.find("X"));
 
 		// now start replacing the 'X' characters in the stage_name string with
 		// randomness
 		CTIPRNG prng;
-		for (size_t i = 0; i < (stageFormat.length() - stagePath.length()); i++) {
-			stagePath.push_back(prng.genChar());
+		size_t numChars = stageFormat.length() - stageName.length();
+		for (size_t i = 0; i < numChars; i++) {
+			stageName.push_back(prng.genChar());
 		}
 	}
 
-	return stagePath;
+	return stageName;
 }
 
+static std::string emptyFromNullPtr(const char* cstr) {
+	return cstr ? std::string(cstr) : "";
+}
 Session::Session(appEntry_t *appPtr_) :
 	appPtr(appPtr_),
-	stagePath(generateStagePath()),
+	configPath(emptyFromNullPtr(_cti_getCfgDir())),
+	stageName(generateStagePath()),
+	attribsPath(emptyFromNullPtr(appPtr->wlmProto->wlm_getAttribsPath(appPtr->_wlmObj))),
 	toolPath(appPtr->wlmProto->wlm_getToolPath(appPtr->_wlmObj)),
 	jobId(CharPtr(appPtr->wlmProto->wlm_getJobId(appPtr->_wlmObj), free).get()), 
-	wlmEnum(std::to_string(appPtr->wlmProto->wlm_type)) {
-		DEBUG("stagePath: " << stagePath << std::endl);
-	}
+	wlmEnum(std::to_string(appPtr->wlmProto->wlm_type)) {}
 
 void Session::shipWLMBaseFiles() {
 	auto baseFileManifest = createManifest();
@@ -116,7 +120,7 @@ void Session::shipWLMBaseFiles() {
 	}
 
 	// ship basefile manifest
-	baseFileManifest->ship();
+	baseFileManifest->finalizeAndExtract();
 }
 
 int Session::startDaemon(char * const argv[]) {
@@ -124,7 +128,7 @@ int Session::startDaemon(char * const argv[]) {
 	for (char * const* arg = argv; *arg != nullptr; arg++) {
 		_cti_addArg(cti_argv.get(), *arg);
 	}
-	return appPtr->wlmProto->wlm_startDaemon(appPtr->_wlmObj, cti_argv.get());
+	return getWLM()->wlm_startDaemon(appPtr->_wlmObj, cti_argv.get());
 }
 
 std::shared_ptr<Manifest> Session::createManifest() {
