@@ -1,4 +1,5 @@
 #include "Session.hpp"
+#include "Manifest.hpp"
 
 // getpid
 #include <sys/types.h>
@@ -79,31 +80,95 @@ std::string Session::generateStagePath() {
 	return stagePath;
 }
 
-std::shared_ptr<Manifest> Session::createManifest() {
-	auto manifestPtr = std::shared_ptr<Manifest>(new Manifest(shared_from_this()));
-	manifests.push_back(manifestPtr);
-	return manifestPtr;
+Session::Session(appEntry_t *appPtr_) :
+	appPtr(appPtr_),
+	stagePath(generateStagePath()),
+	toolPath(appPtr->wlmProto->wlm_getToolPath(appPtr->_wlmObj)),
+	jobId(CharPtr(appPtr->wlmProto->wlm_getJobId(appPtr->_wlmObj), free).get()), 
+	wlmEnum(std::to_string(appPtr->wlmProto->wlm_type)) {
+		DEBUG("stagePath: " << stagePath << std::endl);
+	}
+
+void Session::shipWLMBaseFiles() {
+	auto baseFileManifest = createManifest();
+
+	auto wlmProto = appPtr->wlmProto;
+	auto wlmObj = appPtr->_wlmObj;
+	if (const char * const *elem = wlmProto->wlm_extraBinaries(wlmObj)) {
+		for (; *elem != nullptr; elem++) {
+			baseFileManifest->addBinary(*elem);
+		}
+	}
+	if (const char * const *elem = wlmProto->wlm_extraLibraries(wlmObj)) {
+		for (; *elem != nullptr; elem++) {
+			baseFileManifest->addLibrary(*elem);
+		}
+	}
+	if (const char * const *elem = wlmProto->wlm_extraLibDirs(wlmObj)) {
+		for (; *elem != nullptr; elem++) {
+			baseFileManifest->addLibDir(*elem);
+		}
+	}
+	if (const char * const *elem = wlmProto->wlm_extraFiles(wlmObj)) {
+		for (; *elem != nullptr; elem++) {
+			baseFileManifest->addFile(*elem);
+		}
+	}
+
+	// ship basefile manifest
+	baseFileManifest->ship();
 }
 
-Session::Conflict Session::hasFileConflict(const std::string& folder, const std::string& realName, const std::string& filePath) const {
-	auto folderContentsPair = transferedFolders.find(folder);
-	if (folderContentsPair != transferedFolders.end()) {
-		const auto& folder = folderContentsPair->second;
+int Session::startDaemon(char * const argv[]) {
+	auto cti_argv = UniquePtrDestr<cti_args_t>(_cti_newArgs(), _cti_freeArgs);
+	for (char * const* arg = argv; *arg != nullptr; arg++) {
+		_cti_addArg(cti_argv.get(), *arg);
+	}
+	return appPtr->wlmProto->wlm_startDaemon(appPtr->_wlmObj, cti_argv.get());
+}
 
-		const auto& filePathPair = folder.find(realName);
-		if (filePathPair != folder.end()) {
+std::shared_ptr<Manifest> Session::createManifest() {
+	manifests.push_back(std::make_shared<Manifest>(
+		manifests.size(), shared_from_this()
+	));
+	return manifests.back();
+}
 
-			auto transferedPath = CharPtr(
-				realpath(filePathPair->second.c_str(), nullptr),
-			free);
-			auto candidatePath  = CharPtr(realpath(filePath.c_str(), nullptr), free);
-			if (!std::string(transferedPath.get()).compare(std::string(candidatePath.get()))) {
-				return Conflict::AlreadyAdded;
-			} else {
-				return Conflict::NameOverwrite;
-			}
+Session::Conflict Session::hasFileConflict(const std::string& folder,
+	const std::string& realName, const std::string& candidatePath) const {
+
+	auto namePathPair = sourcePaths.find(realName);
+	if (namePathPair != sourcePaths.end()) {
+		if (!namePathPair->first.compare(candidatePath)) {
+			return Conflict::AlreadyAdded;
+		} else {
+			return Conflict::NameOverwrite;
 		}
 	}
 
 	return Conflict::None;
+}
+
+void Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) {
+	for (auto folderContentsPair : newFolders) {
+		const std::string& folderName = folderContentsPair.first;
+		const std::set<std::string>& folderContents = folderContentsPair.second;
+
+		folders[folderName].insert(folderContents.begin(), folderContents.end());
+	}
+
+	for (auto namePathPair : newPaths) {
+		const std::string& fileName = namePathPair.first;
+		const std::string& filePath = namePathPair.first;
+
+		if (sourcePaths.find(fileName) != sourcePaths.end()) {
+			throw std::runtime_error(
+				std::string("tried to merge transfered file ") + fileName +
+				" but it was already in the session!");
+		}
+
+		sourcePaths[fileName] = filePath;
+	}
+
+	shippedManifests++;
 }

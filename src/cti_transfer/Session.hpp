@@ -6,10 +6,12 @@
 #include <map>
 #include <memory>
 
-#include "Manifest.hpp"
-
 #include "cti_defs.h"
 #include "frontend/cti_fe.h"
+
+#include <iostream>
+#define DEBUG(x) do { std::cerr << x; } while (0)
+//#define DEBUG(x)
 
 #include <functional>
 template <typename T>
@@ -19,6 +21,12 @@ using StringArray = UniquePtrDestr<char*>;
 auto stringArrayDeleter = [](char** arr){
 	for (char** elem = arr; *elem != nullptr; elem++) { free(*elem); }
 };
+
+using FoldersMap = std::map<std::string, std::set<std::string>>;
+using PathMap = std::map<std::string, std::string>;
+
+// forward declare Manifest
+class Manifest;
 
 class Session final : public std::enable_shared_from_this<Session> {
 public: // types
@@ -31,7 +39,10 @@ public: // types
 private: // variables
 	const appEntry_t  *appPtr;
 	std::vector<std::shared_ptr<Manifest>> manifests;
-	std::map<std::string, std::map<std::string, std::string>> transferedFolders;
+	size_t shippedManifests = 0;
+
+	FoldersMap folders;
+	PathMap sourcePaths;
 
 private: // helper functions
 	// generate a staging path according to CTI path rules
@@ -40,15 +51,21 @@ private: // helper functions
 public: // variables
 	const std::string stagePath;
 	const std::string toolPath;
+	const std::string jobId;
+	const std::string wlmEnum;
 
 public: // interface
-	explicit Session(appEntry_t *appPtr_) :
-		appPtr(appPtr_),
-		stagePath(generateStagePath()),
-		toolPath(appPtr->wlmProto->wlm_getToolPath(appPtr->_wlmObj)) {}
+	explicit Session(appEntry_t *appPtr_);
 
-	inline size_t getNumManifests() const { return manifests.size(); }
+	inline const std::vector<std::shared_ptr<Manifest>>& getManifests() const {
+		return manifests;
+	}
 	inline const cti_wlm_proto_t* getWLM() const { return appPtr->wlmProto; }
+
+	// create and add wlm basefiles to manifest
+	void shipWLMBaseFiles();
+
+	int startDaemon(char * const argv[]);
 
 	// create new manifest and register ownership
 	std::shared_ptr<Manifest> createManifest();
@@ -60,5 +77,8 @@ public: // interface
 	   - realpath(fileName) == realpath(realName) -> AlreadyAdded
 	   - realpath(fileName) != realpath(realName) -> NameOverwrite
 	   */
-	Conflict hasFileConflict(const std::string& folder, const std::string& realName, const std::string& filePath) const;
+	Conflict hasFileConflict(const std::string& folder, const std::string& realName, const std::string& candidatePath) const;
+
+	// merge manifest contents into directory of transfered files
+	void mergeTransfered(const FoldersMap& folders, const PathMap& paths);
 };

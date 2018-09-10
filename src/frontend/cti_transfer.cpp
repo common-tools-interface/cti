@@ -34,7 +34,7 @@ static int runSafely(std::string const& caller, std::function<void()> f) noexcep
 		return 0;
 	} catch (const std::exception& ex) {
 		// if we get an exception, set cti error instead
-		_cti_set_error((caller + ex.what()).c_str());
+		_cti_set_error((caller + ": " + ex.what()).c_str());
 		return 1;
 	}
 }
@@ -48,7 +48,11 @@ cti_session_id_t cti_createSession(cti_app_id_t appId) {
 	auto insertSession = [&]() {
 		// get appPtr from appId
 		if (appEntry_t *appPtr = _cti_findAppEntry(appId)) {
-			sessions.insert({sid, std::shared_ptr<Session>(new Session(appPtr))});
+			DEBUG("createSession: make_shared" << std::endl);
+			auto newSession = std::make_shared<Session>(appPtr);
+			DEBUG("createSession: shipWLMBaseFiles" << std::endl);
+			newSession->shipWLMBaseFiles();
+			sessions.insert(std::make_pair(sid, newSession));
 		} else {
 			throw std::runtime_error(
 				"failed, appId not found: " + std::to_string(appId));
@@ -90,25 +94,24 @@ char** cti_getSessionLockFiles(cti_session_id_t sid) {
 	// construct throwing lambda that can be called by runSafely
 	auto getLockFiles = [&]() {
 		auto sessionPtr = getSessionHandle(sid);
+		const auto& manifests = sessionPtr->getManifests();
 
 		// ensure there's at least one manifest instance
-		if (sessionPtr->getNumManifests() == 0) {
+		if (manifests.size() == 0) {
 			throw std::runtime_error("backend not initialized for session id " + std::to_string(sid));
 		}
 
 		// create return array
-		result = (char**)malloc(sizeof(char*) * (sessionPtr->getNumManifests() + 1));
+		result = (char**)malloc(sizeof(char*) * (manifests.size() + 1));
 		if (result == nullptr) {
 			throw std::runtime_error("malloc failed for session id " + std::to_string(sid));
 		}
 
 		// create the strings
-		for (size_t i = 0; i < sessionPtr->getNumManifests(); i++) {
-			std::stringstream ss;
-			ss << sessionPtr->toolPath << "/.lock_" << sessionPtr->stagePath << "_" << i;
-			result[i] = strdup(ss.str().c_str());
+		for (size_t i = 0; i < manifests.size(); i++) {
+			result[i] = strdup(manifests[i]->lockFilePath.c_str());
 		}
-		result[sessionPtr->getNumManifests()] = nullptr;
+		result[manifests.size()] = nullptr;
 	};
 
 	return runSafely("cti_getSessionLockFiles", getLockFiles) ? nullptr : result;
@@ -204,7 +207,7 @@ int cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
 
 int cti_sendManifest(cti_manifest_id_t mid) {
 	return runSafely("cti_sendManifest", [&](){
-		getManifestHandle(mid)->send();
+		getManifestHandle(mid)->ship();
 	});
 }
 

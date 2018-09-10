@@ -6,8 +6,10 @@
 #include <memory>
 #include <set>
 
-// forward declare Session
-class Session;
+#include "Session.hpp"
+
+using FoldersMap = std::map<std::string, std::set<std::string>>;
+using PathMap = std::map<std::string, std::string>;
 
 class Manifest final {
 public: // types
@@ -18,9 +20,13 @@ public: // types
 
 private: // variables
 	const std::weak_ptr<Session> sessionPtr;
+	const size_t instanceCount;
 
-	std::map<std::string, std::set<std::string>> folders;
-	std::map<std::string, std::string> sourcePaths;
+	FoldersMap folders;
+	PathMap sourcePaths;
+
+public: // variables
+	const std::string lockFilePath;
 
 private: // helper functions
 	// add dynamic library dependencies to manifest
@@ -38,13 +44,18 @@ private: // helper functions
 	}
 
 public: // interface
-	Manifest(std::shared_ptr<Session> sessionPtr_) : sessionPtr(sessionPtr_) {}
+	Manifest(size_t instanceCount_, std::shared_ptr<Session> sessionPtr_) :
+		sessionPtr(sessionPtr_),
+		instanceCount(instanceCount_),
+		lockFilePath(sessionPtr_->toolPath + "/.lock_" + sessionPtr_->stagePath +
+			"_" + std::to_string(instanceCount)) {}
+
 	void addBinary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
 	void addLibrary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
 	void addLibDir(const std::string& rawPath);
 	void addFile(const std::string& rawName);
 
-	void send();
+	void ship();
 	void execToolDaemon(const char * const daemonPath, const char * const daemonArgs[], const char * const envVars[]);
 };
 

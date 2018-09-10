@@ -133,18 +133,64 @@ void Manifest::addFile(const std::string& rawName) {
 	checkAndAdd(getSessionHandle(), "", filePath, realName);
 }
 
-/* manifest finalizer implementations */
+/* manifest transfer / wlm interface implementations */
+
+#include "ArgvDefs.hpp"
+#include "Archive.hpp"
 
 #include <iostream>
-void Manifest::send() {
+void Manifest::ship() {
+	auto liveSession = getSessionHandle();
+
+	// create archive
+	// todo: block signals handle race with file creation
+	Archive archive(liveSession->stagePath,	liveSession->stagePath +
+		std::to_string(instanceCount) + ".tar");
+	// todo: end block signals
+
+	// setup basic entries
+	DEBUG("ship: addDirEntry" << std::endl);
+	archive.addDirEntry(liveSession->stagePath);
+	archive.addDirEntry(liveSession->stagePath + "/bin");
+	archive.addDirEntry(liveSession->stagePath + "/lib");
+	archive.addDirEntry(liveSession->stagePath + "/tmp");
+
+	// add files to archive
 	for (auto folderIt : folders) {
-		std::cerr << "directory '" << folderIt.first << "':" << std::endl;
 		for (auto fileIt : folderIt.second) {
-			std::cerr << "\t'" << fileIt << "' -> " << sourcePaths[fileIt] << std::endl;
+			const std::string archivePath(liveSession->stagePath + "/" + folderIt.first +
+				"/" + fileIt);
+			DEBUG("ship: addPath(" << archivePath << ", " << sourcePaths[fileIt] << ")" << std::endl);
+			archive.addPath(archivePath, sourcePaths[fileIt]);
 		}
 	}
 
-	throw std::runtime_error("send not implemented");
+	DEBUG("ship: finalizing" << std::endl);
+	const std::string& finalizedArchivePath = archive.eject();
+
+	// create DaemonArgv
+	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+	{ using DA = DaemonArgv;
+		daemonArgv.add(DA::ApID, liveSession->jobId);
+		daemonArgv.add(DA::ToolPath, liveSession->toolPath);
+		daemonArgv.add(DA::WLMEnum, liveSession->wlmEnum);
+		daemonArgv.add(DA::ManifestName, finalizedArchivePath);
+		daemonArgv.add(DA::Directory, liveSession->stagePath);
+		daemonArgv.add(DA::InstSeqNum, std::to_string(instanceCount));
+		daemonArgv.add(DA::Directory, liveSession->stagePath);
+		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
+	}
+
+	// call transfer function with DaemonArgv
+	DEBUG("ship: starting daemon" << std::endl);
+	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
+	liveSession->startDaemon(daemonArgv.get() + 1);
+
+	// merge manifest into session
+	DEBUG("ship: merge into session" << std::endl);
+	liveSession->mergeTransfered(folders, sourcePaths);
+
+	DEBUG("ship: done" << std::endl);
 }
 
 void Manifest::execToolDaemon(const char * const daemonPath, const char * const daemonArgs[], const char * const envVars[]) {
