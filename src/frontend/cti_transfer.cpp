@@ -72,7 +72,6 @@ int cti_destroySession(cti_session_id_t sid) {
 		if (!cti_sessionIsValid(sid)) {
 			throw std::runtime_error("invalid session id " + std::to_string(sid));
 		}
-
 		sessions.erase(sid);
 	};
 

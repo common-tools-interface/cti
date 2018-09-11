@@ -58,6 +58,7 @@ public: // variables
 
 public: // interface
 	explicit Session(appEntry_t *appPtr_);
+	~Session();
 
 	inline const std::vector<std::shared_ptr<Manifest>>& getManifests() const {
 		return manifests;
@@ -67,7 +68,7 @@ public: // interface
 	// create and add wlm basefiles to manifest
 	void shipWLMBaseFiles();
 
-	// wlm wrappers
+	// wlm / daemon wrappers
 	int startDaemon(char * const argv[]);
 	inline int shipPackage(const char *tar_name) {
 		return getWLM()->wlm_shipPackage(appPtr->_wlmObj, tar_name);

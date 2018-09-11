@@ -22,7 +22,7 @@ private: // variables
 	const size_t instanceCount;
 
 private: // functions
-	void invalidate() { sessionPtr.reset(); }
+	inline void invalidate() { sessionPtr.reset(); }
 
 public: // interface
 
@@ -58,6 +58,7 @@ public: // variables
 
 private: // helper functions
 	inline bool empty() { return sourcePaths.empty(); }
+	inline void invalidate() { sessionPtr.reset(); }
 
 	// add dynamic library dependencies to manifest
 	void addLibDeps(const std::string& filePath);

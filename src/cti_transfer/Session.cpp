@@ -93,31 +93,48 @@ Session::Session(appEntry_t *appPtr_) :
 	jobId(CharPtr(appPtr->wlmProto->wlm_getJobId(appPtr->_wlmObj), free).get()), 
 	wlmEnum(std::to_string(appPtr->wlmProto->wlm_type)) {}
 
+#include "ArgvDefs.hpp"
+Session::~Session() {
+	DEBUG("~Session: creating daemonArgv for cleanup" << std::endl);
+
+	// create DaemonArgv
+	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+	{ using DA = DaemonArgv;
+		daemonArgv.add(DA::ApID,         jobId);
+		daemonArgv.add(DA::ToolPath,     toolPath);
+		if (!attribsPath.empty()) { daemonArgv.add(DA::PMIAttribsPath, attribsPath); }
+		daemonArgv.add(DA::WLMEnum,      wlmEnum);
+		daemonArgv.add(DA::Directory,    stageName);
+		daemonArgv.add(DA::InstSeqNum,   std::to_string(shippedManifests + 1));
+		daemonArgv.add(DA::Clean);
+		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
+	}
+
+	// call cleanup function with DaemonArgv
+	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
+	DEBUG("~Session: launching daemon for cleanup" << std::endl);
+	startDaemon(daemonArgv.get() + 1);
+}
+
+
 void Session::shipWLMBaseFiles() {
 	auto baseFileManifest = createManifest();
 
 	auto wlmProto = appPtr->wlmProto;
 	auto wlmObj = appPtr->_wlmObj;
-	if (const char * const *elem = wlmProto->wlm_extraBinaries(wlmObj)) {
-		for (; *elem != nullptr; elem++) {
-			baseFileManifest->addBinary(*elem);
-		}
-	}
-	if (const char * const *elem = wlmProto->wlm_extraLibraries(wlmObj)) {
-		for (; *elem != nullptr; elem++) {
-			baseFileManifest->addLibrary(*elem);
-		}
-	}
-	if (const char * const *elem = wlmProto->wlm_extraLibDirs(wlmObj)) {
-		for (; *elem != nullptr; elem++) {
-			baseFileManifest->addLibDir(*elem);
-		}
-	}
-	if (const char * const *elem = wlmProto->wlm_extraFiles(wlmObj)) {
-		for (; *elem != nullptr; elem++) {
-			baseFileManifest->addFile(*elem);
-		}
-	}
+
+	using CStr = const char * const;
+	auto forEachCStrArr = [&](std::function<void(CStr)> adder, CStr* arr) {
+		if (arr != nullptr) { for (; *arr != nullptr; arr++) { adder(*arr); } }
+	};
+	forEachCStrArr([&](CStr cstr) { baseFileManifest->addBinary(cstr);  },
+		wlmProto->wlm_extraBinaries(wlmObj));
+	forEachCStrArr([&](CStr cstr) { baseFileManifest->addLibrary(cstr); },
+		wlmProto->wlm_extraLibraries(wlmObj));
+	forEachCStrArr([&](CStr cstr) { baseFileManifest->addLibDir(cstr);  },
+		wlmProto->wlm_extraLibDirs(wlmObj));
+	forEachCStrArr([&](CStr cstr) { baseFileManifest->addFile(cstr);    },
+		wlmProto->wlm_extraFiles(wlmObj));
 
 	// ship basefile manifest and run remote extraction
 	baseFileManifest->finalizeAndShip().extract();

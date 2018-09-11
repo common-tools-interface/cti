@@ -107,14 +107,25 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 	const std::string filePath(findLib(rawName).get());
 	const std::string realName(getNameFromPath(filePath).get());
 
+	auto liveSession = getSessionHandle(sessionPtr);
+
+	// check for conflicts in session
 	/* TODO: We need to create a way to ship conflicting libraries. Since
 		most libraries are sym links to their proper version, name collisions
 		are possible. In the future, the launcher should be able to handle
 		this by pointing its LD_LIBRARY_PATH to a custom directory containing
 		the conflicting lib. Don't actually implement this until the need arises.
 	*/
-
-	checkAndAdd("lib", filePath, realName);
+	switch (liveSession->hasFileConflict("lib", realName, filePath)) {
+		case Session::Conflict::None:
+			// add to manifest registry
+			folders["lib"].emplace(realName);
+			sourcePaths[realName] = filePath;
+		case Session::Conflict::AlreadyAdded: return;
+		case Session::Conflict::NameOverwrite:
+			throw std::runtime_error(realName + ": session conflict");
+			// todo: add to custom library directory
+	}
 
 	// add libraries if needed
 	if (depsPolicy == DepsPolicy::Stage) {
@@ -142,7 +153,7 @@ void Manifest::addFile(const std::string& rawName) {
 
 #include "Archive.hpp"
 // create manifest archive with libarchive and ship package with WLM transfer function
-static RemotePackage shipManifest(const std::shared_ptr<Session>& liveSession,
+static RemotePackage createAndShipArchive(const std::shared_ptr<Session>& liveSession,
 	const std::string& archiveName, const FoldersMap& folders, const PathMap& filePaths,
 	size_t instanceCount) {
 
@@ -199,16 +210,15 @@ RemotePackage Manifest::finalizeAndShip() {
 	}
 
 	// create manifest archive with libarchive and ship package with WLM transfer function
-	auto remotePackage = shipManifest(liveSession, archiveName, folders, sourcePaths,
-		instanceCount);
+	auto remotePackage = createAndShipArchive(liveSession, archiveName, folders, 
+		sourcePaths, instanceCount);
 
 	// merge manifest into session
 	DEBUG("finalizeAndExtract " << instanceCount << ": merge into session" << std::endl);
 	liveSession->mergeTransfered(folders, sourcePaths);
 
 	// manifest is finalized, no changes can be made
-	sessionPtr.reset();
-
+	invalidate();
 	return remotePackage;
 }
 
