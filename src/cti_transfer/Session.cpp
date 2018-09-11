@@ -155,10 +155,12 @@ std::shared_ptr<Manifest> Session::createManifest() {
 	return manifests.back();
 }
 
-Session::Conflict Session::hasFileConflict(const std::string& folder,
+Session::Conflict Session::hasFileConflict(const std::string& folderName,
 	const std::string& realName, const std::string& candidatePath) const {
 
-	auto namePathPair = sourcePaths.find(realName);
+	// has /folderName/realName been shipped to the backend?
+	const std::string fileArchivePath(folderName + "/" + realName);
+	auto namePathPair = sourcePaths.find(fileArchivePath);
 	if (namePathPair != sourcePaths.end()) {
 		if (!namePathPair->first.compare(candidatePath)) {
 			return Conflict::AlreadyAdded;
@@ -170,26 +172,32 @@ Session::Conflict Session::hasFileConflict(const std::string& folder,
 	return Conflict::None;
 }
 
-void Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) {
+std::vector<FolderFilePair>
+Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) {
+	std::vector<FolderFilePair> toRemove;
+
 	for (auto folderContentsPair : newFolders) {
 		const std::string& folderName = folderContentsPair.first;
 		const std::set<std::string>& folderContents = folderContentsPair.second;
 
-		folders[folderName].insert(folderContents.begin(), folderContents.end());
-	}
+		for (auto fileName : folderContents) {
+			// mark fileName to be located at /folderName/fileName
+			folders[folderName].insert(fileName);
 
-	for (auto namePathPair : newPaths) {
-		const std::string& fileName = namePathPair.first;
-		const std::string& filePath = namePathPair.first;
-
-		if (sourcePaths.find(fileName) != sourcePaths.end()) {
-			throw std::runtime_error(
-				std::string("tried to merge transfered file ") + fileName +
-				" but it was already in the session!");
+			// map /folderName/fileName to source file path newPaths[fileName]
+			const std::string fileArchivePath(folderName + "/" + fileName);
+			if (sourcePaths.find(fileArchivePath) != sourcePaths.end()) {
+				throw std::runtime_error(
+					std::string("tried to merge transfered file ") + fileArchivePath +
+					" but it was already in the session!");
+			} else {
+				// duplicate, tell manifest to not bother shipping
+				toRemove.push_back(std::make_pair(folderName, fileName));
+			}
+			sourcePaths[fileArchivePath] = newPaths.at(fileName);
 		}
-
-		sourcePaths[fileName] = filePath;
 	}
-
 	shippedManifests++;
+
+	return toRemove;
 }

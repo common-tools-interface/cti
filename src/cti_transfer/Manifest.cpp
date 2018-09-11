@@ -110,12 +110,6 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 	auto liveSession = getSessionHandle(sessionPtr);
 
 	// check for conflicts in session
-	/* TODO: We need to create a way to ship conflicting libraries. Since
-		most libraries are sym links to their proper version, name collisions
-		are possible. In the future, the launcher should be able to handle
-		this by pointing its LD_LIBRARY_PATH to a custom directory containing
-		the conflicting lib. Don't actually implement this until the need arises.
-	*/
 	switch (liveSession->hasFileConflict("lib", realName, filePath)) {
 		case Session::Conflict::None:
 			// add to manifest registry
@@ -123,8 +117,15 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 			sourcePaths[realName] = filePath;
 		case Session::Conflict::AlreadyAdded: return;
 		case Session::Conflict::NameOverwrite:
-			throw std::runtime_error(realName + ": session conflict");
-			// todo: add to custom library directory
+			/* the launcher handles by pointing its LD_LIBRARY_PATH to the 
+				override directory containing the conflicting lib.
+			*/
+			if (ldLibraryOverrideFolder.empty()) {
+				ldLibraryOverrideFolder = "lib." + std::to_string(instanceCount);
+			}
+
+			folders[ldLibraryOverrideFolder].emplace(realName);
+			sourcePaths[realName] = filePath;
 	}
 
 	// add libraries if needed
@@ -190,8 +191,6 @@ static RemotePackage createAndShipArchive(const std::shared_ptr<Session>& liveSe
 RemotePackage Manifest::finalizeAndShip() {
 	auto liveSession = getSessionHandle(sessionPtr);
 
-	// todo: resolveManifestConflicts with liveSession
-
 	const std::string archiveName(liveSession->stageName + std::to_string(instanceCount) +
 		".tar");
 
@@ -208,14 +207,22 @@ RemotePackage Manifest::finalizeAndShip() {
 			throw std::runtime_error("fwrite to cleanup file failed.");
 		}
 	}
+	
+	// merge manifest into session and get back list of files to remove
+	DEBUG("finalizeAndShip " << instanceCount << ": merge into session" << std::endl);
+	{ auto toRemove = liveSession->mergeTransfered(folders, sourcePaths);
+		for (auto folderFilePair : toRemove) {
+			folders[folderFilePair.first].erase(folderFilePair.second);
+			sourcePaths.erase(folderFilePair.second);
+		}
+	}
+	if (!ldLibraryOverrideFolder.empty()) {
+		liveSession->pushLdLibraryPath(ldLibraryOverrideFolder);
+	}
 
 	// create manifest archive with libarchive and ship package with WLM transfer function
 	auto remotePackage = createAndShipArchive(liveSession, archiveName, folders, 
 		sourcePaths, instanceCount);
-
-	// merge manifest into session
-	DEBUG("finalizeAndExtract " << instanceCount << ": merge into session" << std::endl);
-	liveSession->mergeTransfered(folders, sourcePaths);
 
 	// manifest is finalized, no changes can be made
 	invalidate();
@@ -277,6 +284,9 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 		daemonArgv.add(DA::ToolPath,     liveSession->toolPath);
 		if (!liveSession->attribsPath.empty()) {
 			daemonArgv.add(DA::PMIAttribsPath, liveSession->attribsPath);
+		}
+		if (!liveSession->getLdLibraryPath().empty()) {
+			daemonArgv.add(DA::LdLibraryPath, liveSession->getLdLibraryPath());
 		}
 		daemonArgv.add(DA::WLMEnum,      liveSession->wlmEnum);
 		if (!archiveName.empty()) { daemonArgv.add(DA::ManifestName, archiveName); }

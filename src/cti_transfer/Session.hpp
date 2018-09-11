@@ -24,6 +24,7 @@ auto stringArrayDeleter = [](char** arr){
 
 using FoldersMap = std::map<std::string, std::set<std::string>>;
 using PathMap = std::map<std::string, std::string>;
+using FolderFilePair = std::pair<std::string, std::string>;
 
 // forward declare Manifest
 class Manifest;
@@ -47,6 +48,7 @@ private: // variables
 private: // helper functions
 	// generate a staging path according to CTI path rules
 	static std::string generateStagePath();
+	std::string ldLibraryPath;
 
 public: // variables
 	const std::string configPath;
@@ -84,8 +86,16 @@ public: // interface
 	   - realpath(fileName) == realpath(realName) -> AlreadyAdded
 	   - realpath(fileName) != realpath(realName) -> NameOverwrite
 	   */
-	Conflict hasFileConflict(const std::string& folder, const std::string& realName, const std::string& candidatePath) const;
+	Conflict hasFileConflict(const std::string& folderName, const std::string& realName,
+		const std::string& candidatePath) const;
 
 	// merge manifest contents into directory of transfered files
-	void mergeTransfered(const FoldersMap& folders, const PathMap& paths);
+	std::vector<FolderFilePair> mergeTransfered(const FoldersMap& folders,
+		const PathMap& paths);
+
+	inline void pushLdLibraryPath(std::string folderName) {
+		ldLibraryPath = folderName + ":" + ldLibraryPath;
+	}
+
+	inline const std::string& getLdLibraryPath() const { return ldLibraryPath; }
 };

@@ -297,7 +297,7 @@ _cti_libFind(const char *file)
  * can not be guaranteed to be writable.
  */
 int
-_cti_adjustPaths(const char *path)
+_cti_adjustPaths(const char *path, const char* libPath)
 {
 	struct stat statbuf;
 	char *binpath = NULL;
@@ -332,8 +332,10 @@ _cti_adjustPaths(const char *path)
 	
 	free(binpath);
 	
-	if (asprintf(&libpath, "%s/lib", path) <= 0)
-		return 1;
+	if (libPath == NULL) {
+		if (asprintf(&libpath, "%s/lib", path) <= 0)
+			return 1;
+	}
 	
 	// set path to the LD_LIBRARY_PATH variable
 	if (setenv("LD_LIBRARY_PATH", libpath, 1) != 0)

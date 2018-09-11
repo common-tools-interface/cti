@@ -53,6 +53,8 @@ private: // variables
 	FoldersMap folders;
 	PathMap sourcePaths;
 
+	std::string ldLibraryOverrideFolder;
+
 public: // variables
 	const std::string lockFilePath;
 

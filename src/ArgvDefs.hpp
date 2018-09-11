@@ -32,12 +32,13 @@ struct DaemonArgv : public Argv {
 	static constexpr Parameter ManifestName   { "manifest",  'm' };
 	static constexpr Parameter ToolPath       { "path",      'p' };
 	static constexpr Parameter PMIAttribsPath { "apath",     't' };
+	static constexpr Parameter LdLibraryPath  { "ldlibpath", 'l' };
 	static constexpr Parameter WLMEnum        { "wlm",       'w' };
 
 	static constexpr GNUOption long_options[] = {
 		Clean, Help, Debug,
-		ApID, Binary, Directory, EnvVariable, InstSeqNum, ManifestName, ToolPath, PMIAttribsPath,
-			WLMEnum,
+		ApID, Binary, Directory, EnvVariable, InstSeqNum, ManifestName, ToolPath, 
+			PMIAttribsPath, LdLibraryPath, WLMEnum,
 	long_options_done };
 };
 
@@ -75,7 +76,7 @@ constexpr Argv::GNUOption SA::long_options[];
 using DA = DaemonArgv;
 constexpr Option    DA::Clean, DA::Help, DA::Debug;
 constexpr Parameter DA::ApID, DA::Binary, DA::Directory, DA::EnvVariable, DA::InstSeqNum,
-	DA::ManifestName, DA::ToolPath, DA::PMIAttribsPath, DA::WLMEnum;
+	DA::ManifestName, DA::ToolPath, DA::PMIAttribsPath, DA::LdLibraryPath, DA::WLMEnum;
 constexpr Argv::GNUOption DA::long_options[];
 
 #endif

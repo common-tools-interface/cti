@@ -223,6 +223,7 @@ main(int argc, char **argv)
 	char *			apid_str = NULL;
 	char *			tool_path = NULL;
 	char *			attribs_path = NULL;
+	char *			ld_lib_path = NULL;
 	FILE *			log;
 	struct stat 	statbuf;
 	char *			binary = NULL; 
@@ -430,6 +431,25 @@ main(int argc, char **argv)
 				attribs_path = strdup(optarg);
 				
 				break;
+
+			case 'l':
+				if (optarg == NULL)
+				{
+					usage();
+					return 1;
+				}
+				
+				// strip leading whitespace
+				while (*optarg == ' ')
+				{
+					++optarg;
+				}
+				
+				// this is the argument to set LD_LIBRARY_PATH envvar
+				// This is optional, some implementations might not use it.
+				ld_lib_path = strdup(optarg);
+				
+				break;
 				
 			case 'w':
 				if (optarg == NULL)
@@ -537,7 +557,7 @@ main(int argc, char **argv)
 			apid_str = NULL;
 		}
 	}
-	
+
 	/* It is NOW safe to write to stdout/stderr, the log file has been setup */
 	
 	// print out argv array if debug is turned on
@@ -1175,7 +1195,7 @@ main(int argc, char **argv)
 	}
 	
 	// call _cti_adjustPaths so that we chdir to where we shipped stuff over to and setup PATH/LD_LIBRARY_PATH
-	if (_cti_adjustPaths(manifest_path))
+	if (_cti_adjustPaths(manifest_path, ld_lib_path))
 	{
 		fprintf(stderr, "%s: Could not adjust paths.\n", CTI_LAUNCHER);
 		free(tool_path);
