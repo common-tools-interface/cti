@@ -38,10 +38,6 @@ Archive::Archive(const std::string& archivePath_) :
 	// todo: unblock signals
 }
 
-Archive::~Archive() {
-	unlink(archivePath.c_str());
-}
-
 static void archiveWriteRetry(ArchPtr& archPtr, EntryPtr& entryPtr) {
 	while (true) {
 		switch (archive_write_header(archPtr.get(), entryPtr.get())) {

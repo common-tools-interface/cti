@@ -10,6 +10,11 @@
 #include "useful/cti_useful.h"
 #include "ld_val/ld_val.h"
 
+// promote session pointer to a shared pointer (otherwise throw)
+inline std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionPtr) {
+	if (auto liveSession = sessionPtr.lock()) { return liveSession; }
+	throw std::runtime_error("Manifest is not valid, already shipped.");
+}
 
 /* wrappers for CTI helper functions */
 
@@ -61,8 +66,10 @@ void Manifest::addLibDeps(const std::string& filePath) {
 /* manifest file add implementations */
 
 // add file to manifest if session reports no conflict on realname / filepath
-void Manifest::checkAndAdd(const std::shared_ptr<Session>& liveSession,
-	const std::string& folder, const std::string& filePath, const std::string& realName) {
+void Manifest::checkAndAdd(const std::string& folder, const std::string& filePath,
+	const std::string& realName) {
+
+	auto liveSession = getSessionHandle(sessionPtr);
 
 	// check for conflicts in session
 	switch (liveSession->hasFileConflict(folder, realName, filePath)) {
@@ -87,7 +94,7 @@ void Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
 		throw std::runtime_error("Specified binary does not have execute permissions.");
 	}
 
-	checkAndAdd(getSessionHandle(), "bin", filePath, realName);
+	checkAndAdd("bin", filePath, realName);
 
 	// add libraries if needed
 	if (depsPolicy == DepsPolicy::Stage) {
@@ -96,8 +103,6 @@ void Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
 }
 
 void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
-	auto liveSession = getSessionHandle();
-
 	// get path and real name of file
 	const std::string filePath(findLib(rawName).get());
 	const std::string realName(getNameFromPath(filePath).get());
@@ -109,7 +114,7 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 		the conflicting lib. Don't actually implement this until the need arises.
 	*/
 
-	checkAndAdd(liveSession, "lib", filePath, realName);
+	checkAndAdd("lib", filePath, realName);
 
 	// add libraries if needed
 	if (depsPolicy == DepsPolicy::Stage) {
@@ -122,7 +127,7 @@ void Manifest::addLibDir(const std::string& rawPath) {
 	const std::string realPath(getRealPath(rawPath).get());
 	const std::string realName(getNameFromPath(realPath).get());
 
-	checkAndAdd(getSessionHandle(), "lib", realPath, realName);
+	checkAndAdd("lib", realPath, realName);
 }
 
 void Manifest::addFile(const std::string& rawName) {
@@ -130,15 +135,49 @@ void Manifest::addFile(const std::string& rawName) {
 	const std::string filePath(findPath(rawName).get());
 	const std::string realName(getNameFromPath(filePath).get());
 
-	checkAndAdd(getSessionHandle(), "", filePath, realName);
+	checkAndAdd("", filePath, realName);
 }
 
 /* manifest transfer / wlm interface implementations */
 
 #include "Archive.hpp"
+// create manifest archive with libarchive and ship package with WLM transfer function
+static RemotePackage shipManifest(const std::shared_ptr<Session>& liveSession,
+	const std::string& archiveName, const FoldersMap& folders, const PathMap& filePaths,
+	size_t instanceCount) {
 
-ShippedPackage Manifest::finalize() {
-	auto liveSession = getSessionHandle();
+	// todo: block signals handle race with file creation
+
+	// create and fill archive
+	Archive archive(liveSession->configPath + "/" + archiveName);
+
+	// setup basic archive entries
+	archive.addDirEntry(liveSession->stageName);
+	archive.addDirEntry(liveSession->stageName + "/bin");
+	archive.addDirEntry(liveSession->stageName + "/lib");
+	archive.addDirEntry(liveSession->stageName + "/tmp");
+
+	// add files to archive
+	for (auto folderIt : folders) {
+		for (auto fileIt : folderIt.second) {
+			const std::string destPath(liveSession->stageName + "/" + folderIt.first +
+				"/" + fileIt);
+			DEBUG("ship " << instanceCount << ": addPath(" << destPath << ", " << filePaths.at(fileIt) << ")" << std::endl);
+			archive.addPath(destPath, filePaths.at(fileIt));
+		}
+	}
+
+	// ship package and finalize manifest with session
+	RemotePackage remotePackage(std::move(archive), archiveName, liveSession,
+		instanceCount);
+
+	// todo: end block signals
+
+	return remotePackage;
+}
+
+RemotePackage Manifest::finalizeAndShip() {
+	auto liveSession = getSessionHandle(sessionPtr);
 
 	// todo: resolveManifestConflicts with liveSession
 
@@ -159,25 +198,9 @@ ShippedPackage Manifest::finalize() {
 		}
 	}
 
-	// create archive
-	// todo: block signals handle race with file creation
-	Archive archive(liveSession->configPath + "/" + archiveName);
-
-	// setup basic archive entries
-	archive.addDirEntry(liveSession->stageName);
-	archive.addDirEntry(liveSession->stageName + "/bin");
-	archive.addDirEntry(liveSession->stageName + "/lib");
-	archive.addDirEntry(liveSession->stageName + "/tmp");
-
-	// add files to archive
-	for (auto folderIt : folders) {
-		for (auto fileIt : folderIt.second) {
-			const std::string destPath(liveSession->stageName + "/" + folderIt.first +
-				"/" + fileIt);
-			DEBUG("ship " << instanceCount << ": addPath(" << destPath << ", " << sourcePaths[fileIt] << ")" << std::endl);
-			archive.addPath(destPath, sourcePaths[fileIt]);
-		}
-	}
+	// create manifest archive with libarchive and ship package with WLM transfer function
+	auto remotePackage = shipManifest(liveSession, archiveName, folders, sourcePaths,
+		instanceCount);
 
 	// merge manifest into session
 	DEBUG("finalizeAndExtract " << instanceCount << ": merge into session" << std::endl);
@@ -186,30 +209,27 @@ ShippedPackage Manifest::finalize() {
 	// manifest is finalized, no changes can be made
 	sessionPtr.reset();
 
-	ShippedPackage shippedPackage(archive.finalize(), archiveName, liveSession,
-		instanceCount);
-
-	// todo: end block signals
-
-	return shippedPackage;
+	return remotePackage;
 }
 
 /* package implementations */
 
 #include "ArgvDefs.hpp"
 
-ShippedPackage::ShippedPackage(const std::string& archivePath,
-	const std::string& archiveName_, std::shared_ptr<Session> liveSession_,
-	size_t instanceCount_) :
+RemotePackage::RemotePackage(Archive&& archiveToShip, const std::string& archiveName_,
+	std::shared_ptr<Session> liveSession, size_t instanceCount_) :
 		archiveName(archiveName_),
-		liveSession(liveSession_),
+		sessionPtr(liveSession),
 		instanceCount(instanceCount_) {
 
-	liveSession->shipPackage(archivePath.c_str());
-}
+	const std::string& finalizedArchivePath = archiveToShip.finalize();
+	liveSession->shipPackage(finalizedArchivePath.c_str());
+} // archiveToShip destructor: remove archive from disk
 
-void ShippedPackage::extractRemotely() {
+void RemotePackage::extract() {
 	if (archiveName.empty()) { return; }
+
+	auto liveSession = getSessionHandle(sessionPtr);
 
 	// create DaemonArgv
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
@@ -231,8 +251,10 @@ void ShippedPackage::extractRemotely() {
 	invalidate();
 }
 
-void ShippedPackage::extractAndRunRemotely(const char * const daemonBinary,
+void RemotePackage::extractAndRun(const char * const daemonBinary,
 	const char * const daemonArgs[], const char * const envVars[]) {
+
+	auto liveSession = getSessionHandle(sessionPtr);
 
 	// get real name of daemon binary
 	const std::string binaryName(getNameFromPath(findPath(daemonBinary).get()).get());
@@ -262,9 +284,8 @@ void ShippedPackage::extractAndRunRemotely(const char * const daemonBinary,
 		}
 	}
 
-	ManagedArgv rawArgVec(daemonArgv.eject());
-
 	// add daemon arguments
+	ManagedArgv rawArgVec(daemonArgv.eject());
 	if (daemonArgs != nullptr) {
 		rawArgVec.add("--");
 		for (const char* const* var = daemonArgs; *var != nullptr; var++) {

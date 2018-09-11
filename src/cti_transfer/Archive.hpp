@@ -48,7 +48,11 @@ public: // interface
 		archivePath(std::move(moved.archivePath)) {}
 
 	// remove archive from disk
-	~Archive();
+	~Archive() {
+		if (archPtr != nullptr) {
+			unlink(archivePath.c_str());
+		}
+	}
 
 	// finalize and return path to tarball; after, only valid operations are to destruct
 	const std::string& finalize() {
