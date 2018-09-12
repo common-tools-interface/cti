@@ -1,33 +1,27 @@
 #pragma once
 
+/* Session: state object representing a remote staging directory where packages of files
+	to support CTI programs are unpacked and stored. Manages conflicts between files
+	present on remote systems and in-progress, unshipped file lists (Manifests).
+*/
+
 #include <string>
 #include <vector>
-#include <set>
-#include <map>
+
+// pointer management
 #include <memory>
 
-#include "cti_defs.h"
-#include "frontend/cti_fe.h"
-
-#include <iostream>
-#define DEBUG(x) do { std::cerr << x; } while (0)
-//#define DEBUG(x)
-
-#include <functional>
-template <typename T>
-using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
-using CharPtr = UniquePtrDestr<char>;
-using StringArray = UniquePtrDestr<char*>;
-auto stringArrayDeleter = [](char** arr){
-	for (char** elem = arr; *elem != nullptr; elem++) { free(*elem); }
-};
-
+// file registry
+#include <map>
+#include <unordered_map>
+#include <set>
 using FoldersMap = std::map<std::string, std::set<std::string>>;
-using PathMap = std::map<std::string, std::string>;
+using PathMap = std::unordered_map<std::string, std::string>;
 using FolderFilePair = std::pair<std::string, std::string>;
 
-// forward declare Manifest
-class Manifest;
+#include "cti_wrappers.hpp"
+
+class Manifest; // forward declare Manifest
 
 class Session final : public std::enable_shared_from_this<Session> {
 public: // types
@@ -38,7 +32,7 @@ public: // types
 	};
 
 private: // variables
-	const appEntry_t  *appPtr;
+	appEntry_t  *appPtr;
 	std::vector<std::shared_ptr<Manifest>> manifests;
 	size_t shippedManifests = 0;
 
@@ -60,12 +54,15 @@ public: // variables
 
 public: // interface
 	explicit Session(appEntry_t *appPtr_);
-	~Session();
 
-	inline const std::vector<std::shared_ptr<Manifest>>& getManifests() const {
-		return manifests;
-	}
+	// accessors
+	inline auto getManifests() const -> const decltype(manifests)& { return manifests; }
 	inline const cti_wlm_proto_t* getWLM() const { return appPtr->wlmProto; }
+	inline const std::string& getLdLibraryPath() const { return ldLibraryPath; }
+	inline void invalidate() { appPtr = nullptr; manifests.clear(); }
+
+	// launch cti_daemon to clean up the session stage directory. invalidates the session
+	void launchCleanup();
 
 	// create and add wlm basefiles to manifest
 	void shipWLMBaseFiles();
@@ -80,22 +77,26 @@ public: // interface
 	std::shared_ptr<Manifest> createManifest();
 
 	/* fileName: filename as provided by client
-	   realName: basename following symlinks
-	   conflict rules:
-	   - realName not in the provided folder -> None
-	   - realpath(fileName) == realpath(realName) -> AlreadyAdded
-	   - realpath(fileName) != realpath(realName) -> NameOverwrite
-	   */
+		realName: basename following symlinks
+		conflict rules:
+		- realName not in the provided folder -> None
+		- realpath(fileName) == realpath(realName) -> AlreadyAdded
+		- realpath(fileName) != realpath(realName) -> NameOverwrite
+		*/
 	Conflict hasFileConflict(const std::string& folderName, const std::string& realName,
 		const std::string& candidatePath) const;
 
-	// merge manifest contents into directory of transfered files
+	/* merge manifest contents into directory of transfered files, return list of
+		duplicate files that don't need to be shipped
+		*/
 	std::vector<FolderFilePair> mergeTransfered(const FoldersMap& folders,
 		const PathMap& paths);
 
+	/* prepend a manifest's alternate lib directory path to daemon LD_LIBRARY_PATH
+		override argument
+		*/
 	inline void pushLdLibraryPath(std::string folderName) {
-		ldLibraryPath = folderName + ":" + ldLibraryPath;
+		const std::string remoteLibDirPath(toolPath + "/" + stageName + "/" + folderName);
+		ldLibraryPath = remoteLibDirPath + ":" + ldLibraryPath;
 	}
-
-	inline const std::string& getLdLibraryPath() const { return ldLibraryPath; }
 };

@@ -21,8 +21,11 @@ AM_LIBTOOLFLAGS = --quiet
 
 noinst_LTLIBRARIES	=	libcti_transfer.la
 
-libcti_transfer_la_SOURCES	=	Manifest.cpp Manifest.hpp Session.cpp Session.hpp \
-								Archive.cpp Archive.hpp
+libcti_transfer_la_SOURCES	=	cti_wrappers.hpp \
+								Archive.cpp Archive.hpp \
+								RemotePackage.cpp RemotePackage.hpp \
+								Manifest.cpp Manifest.hpp \
+								Session.cpp Session.hpp
 libcti_transfer_la_CXXFLAGS		= $(AM_CXXFLAGS) -fPIC $(BOOST_CXXFLAGS) $(ARCHIVE_CFLAGS)
 libcti_transfer_la_CPPFLAGS	=	$(BOOST_CPPFLAGS)
 libcti_transfer_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed \

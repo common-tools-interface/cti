@@ -94,8 +94,8 @@ Session::Session(appEntry_t *appPtr_) :
 	wlmEnum(std::to_string(appPtr->wlmProto->wlm_type)) {}
 
 #include "ArgvDefs.hpp"
-Session::~Session() {
-	DEBUG("~Session: creating daemonArgv for cleanup" << std::endl);
+void Session::launchCleanup() {
+	DEBUG_PRINT("launchCleanup: creating daemonArgv for cleanup" << std::endl);
 
 	// create DaemonArgv
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
@@ -112,8 +112,11 @@ Session::~Session() {
 
 	// call cleanup function with DaemonArgv
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-	DEBUG("~Session: launching daemon for cleanup" << std::endl);
+	DEBUG_PRINT("launchCleanup: launching daemon for cleanup" << std::endl);
 	startDaemon(daemonArgv.get() + 1);
+
+	// session is finalized, no changes can be made
+	invalidate();
 }
 
 
@@ -155,6 +158,11 @@ std::shared_ptr<Manifest> Session::createManifest() {
 	return manifests.back();
 }
 
+static bool isSameFile(const std::string& filePath, const std::string& candidatePath) {
+	// todo: could do something with file hashing?
+	return !(filePath.compare(candidatePath));
+}
+
 Session::Conflict Session::hasFileConflict(const std::string& folderName,
 	const std::string& realName, const std::string& candidatePath) const {
 
@@ -162,7 +170,7 @@ Session::Conflict Session::hasFileConflict(const std::string& folderName,
 	const std::string fileArchivePath(folderName + "/" + realName);
 	auto namePathPair = sourcePaths.find(fileArchivePath);
 	if (namePathPair != sourcePaths.end()) {
-		if (!namePathPair->first.compare(candidatePath)) {
+		if (isSameFile(namePathPair->first, candidatePath)) {
 			return Conflict::AlreadyAdded;
 		} else {
 			return Conflict::NameOverwrite;
@@ -191,10 +199,14 @@ Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) 
 					std::string("tried to merge transfered file ") + fileArchivePath +
 					" but it was already in the session!");
 			} else {
-				// duplicate, tell manifest to not bother shipping
-				toRemove.push_back(std::make_pair(folderName, fileName));
+				if (isSameFile(sourcePaths[fileArchivePath], newPaths.at(fileName))) {
+					// duplicate, tell manifest to not bother shipping
+					toRemove.push_back(std::make_pair(folderName, fileName));
+				} else {
+					// register new file as coming from Manifest's source
+					sourcePaths[fileArchivePath] = newPaths.at(fileName);
+				}
 			}
-			sourcePaths[fileArchivePath] = newPaths.at(fileName);
 		}
 	}
 	shippedManifests++;

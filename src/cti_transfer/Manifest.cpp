@@ -1,61 +1,21 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <string>
-
 #include "Manifest.hpp"
 #include "Session.hpp"
 
-#include "cti_fe.h"
-#include "useful/cti_useful.h"
-#include "ld_val/ld_val.h"
+#include "cti_wrappers.hpp"
 
 // promote session pointer to a shared pointer (otherwise throw)
-inline std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionPtr) {
+static std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionPtr) {
 	if (auto liveSession = sessionPtr.lock()) { return liveSession; }
 	throw std::runtime_error("Manifest is not valid, already shipped.");
 }
 
-/* wrappers for CTI helper functions */
-
-static CharPtr findPath(const std::string& fileName) {
-	if (auto fullPath = CharPtr(_cti_pathFind(fileName.c_str(), nullptr), free)) {
-		return fullPath;
-	} else { // _cti_pathFind failed with nullptr result
-		throw std::runtime_error(fileName + ": Could not locate in PATH.");
-	}
-}
-
-static CharPtr findLib(const std::string& fileName) {
-	if (auto fullPath = CharPtr(_cti_libFind(fileName.c_str()), free)) {
-		return fullPath;
-	} else { // _cti_libFind failed with nullptr result
-		throw std::runtime_error(fileName + ": Could not locate in LD_LIBRARY_PATH or system location.");
-	}
-}
-static CharPtr getNameFromPath(const std::string& filePath) {
-	if (auto realName = CharPtr(_cti_pathToName(filePath.c_str()), free)) {
-		return realName;
-	} else { // _cti_pathToName failed with nullptr result
-		throw std::runtime_error("Could not convert the fullname to realname.");
-	}
-}
-
-static CharPtr getRealPath(const std::string& filePath) {
-	if (auto realPath = CharPtr(realpath(filePath.c_str(), nullptr), free)) {
-		return realPath;
-	} else { // realpath failed with nullptr result
-		throw std::runtime_error("realpath failed.");
-	}
-}
-
 // add dynamic library dependencies to manifest
 void Manifest::addLibDeps(const std::string& filePath) {
-	// get array of library paths using ld_val libArray
-	if (auto libArray = StringArray(
-			_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath()),
-		stringArrayDeleter)) {
-
+	// get array of library paths using ld_val libArray helper
+	if (auto libArray = getFileDependencies(filePath)) {
 		// add to manifest
 		for (char** elem = libArray.get(); *elem != nullptr; elem++) {
 			addLibrary(*elem, Manifest::DepsPolicy::Ignore);
@@ -153,10 +113,9 @@ void Manifest::addFile(const std::string& rawName) {
 /* manifest transfer / wlm interface implementations */
 
 #include "Archive.hpp"
-// create manifest archive with libarchive and ship package with WLM transfer function
-static RemotePackage createAndShipArchive(const std::shared_ptr<Session>& liveSession,
-	const std::string& archiveName, const FoldersMap& folders, const PathMap& filePaths,
-	size_t instanceCount) {
+
+RemotePackage Manifest::createAndShipArchive(const std::string& archiveName,
+	const std::shared_ptr<Session>& liveSession) {
 
 	// todo: block signals handle race with file creation
 
@@ -174,8 +133,8 @@ static RemotePackage createAndShipArchive(const std::shared_ptr<Session>& liveSe
 		for (auto fileIt : folderIt.second) {
 			const std::string destPath(liveSession->stageName + "/" + folderIt.first +
 				"/" + fileIt);
-			DEBUG("ship " << instanceCount << ": addPath(" << destPath << ", " << filePaths.at(fileIt) << ")" << std::endl);
-			archive.addPath(destPath, filePaths.at(fileIt));
+			DEBUG_PRINT("ship " << instanceCount << ": addPath(" << destPath << ", " << sourcePaths.at(fileIt) << ")" << std::endl);
+			archive.addPath(destPath, sourcePaths.at(fileIt));
 		}
 	}
 
@@ -209,7 +168,7 @@ RemotePackage Manifest::finalizeAndShip() {
 	}
 	
 	// merge manifest into session and get back list of files to remove
-	DEBUG("finalizeAndShip " << instanceCount << ": merge into session" << std::endl);
+	DEBUG_PRINT("finalizeAndShip " << instanceCount << ": merge into session" << std::endl);
 	{ auto toRemove = liveSession->mergeTransfered(folders, sourcePaths);
 		for (auto folderFilePair : toRemove) {
 			folders[folderFilePair.first].erase(folderFilePair.second);
@@ -221,102 +180,9 @@ RemotePackage Manifest::finalizeAndShip() {
 	}
 
 	// create manifest archive with libarchive and ship package with WLM transfer function
-	auto remotePackage = createAndShipArchive(liveSession, archiveName, folders, 
-		sourcePaths, instanceCount);
+	auto remotePackage = createAndShipArchive(archiveName, liveSession);
 
 	// manifest is finalized, no changes can be made
 	invalidate();
 	return remotePackage;
-}
-
-/* package implementations */
-
-#include "ArgvDefs.hpp"
-
-RemotePackage::RemotePackage(Archive&& archiveToShip, const std::string& archiveName_,
-	std::shared_ptr<Session> liveSession, size_t instanceCount_) :
-		archiveName(archiveName_),
-		sessionPtr(liveSession),
-		instanceCount(instanceCount_) {
-
-	const std::string& finalizedArchivePath = archiveToShip.finalize();
-	liveSession->shipPackage(finalizedArchivePath.c_str());
-} // archiveToShip destructor: remove archive from disk
-
-void RemotePackage::extract() {
-	if (archiveName.empty()) { return; }
-
-	auto liveSession = getSessionHandle(sessionPtr);
-
-	// create DaemonArgv
-	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
-	{ using DA = DaemonArgv;
-		daemonArgv.add(DA::ApID,         liveSession->jobId);
-		daemonArgv.add(DA::ToolPath,     liveSession->toolPath);
-		daemonArgv.add(DA::WLMEnum,      liveSession->wlmEnum);
-		daemonArgv.add(DA::ManifestName, archiveName);
-		daemonArgv.add(DA::Directory,    liveSession->stageName);
-		daemonArgv.add(DA::InstSeqNum,   std::to_string(instanceCount));
-		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
-	}
-
-	// call transfer function with DaemonArgv
-	DEBUG("finalizeAndExtract " << instanceCount << ": starting daemon" << std::endl);
-	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-	liveSession->startDaemon(daemonArgv.get() + 1);
-
-	invalidate();
-}
-
-void RemotePackage::extractAndRun(const char * const daemonBinary,
-	const char * const daemonArgs[], const char * const envVars[]) {
-
-	auto liveSession = getSessionHandle(sessionPtr);
-
-	// get real name of daemon binary
-	const std::string binaryName(getNameFromPath(findPath(daemonBinary).get()).get());
-
-	// create DaemonArgv
-	DEBUG("finalizeAndRun: creating daemonArgv for " << daemonBinary << std::endl);
-	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
-	{ using DA = DaemonArgv;
-		daemonArgv.add(DA::ApID,         liveSession->jobId);
-		daemonArgv.add(DA::ToolPath,     liveSession->toolPath);
-		if (!liveSession->attribsPath.empty()) {
-			daemonArgv.add(DA::PMIAttribsPath, liveSession->attribsPath);
-		}
-		if (!liveSession->getLdLibraryPath().empty()) {
-			daemonArgv.add(DA::LdLibraryPath, liveSession->getLdLibraryPath());
-		}
-		daemonArgv.add(DA::WLMEnum,      liveSession->wlmEnum);
-		if (!archiveName.empty()) { daemonArgv.add(DA::ManifestName, archiveName); }
-		daemonArgv.add(DA::Binary,       binaryName);
-		daemonArgv.add(DA::Directory,    liveSession->stageName);
-		daemonArgv.add(DA::InstSeqNum,   std::to_string(instanceCount));
-		daemonArgv.add(DA::Directory,    liveSession->stageName);
-		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
-	}
-
-	// add env vars
-	if (envVars != nullptr) {
-		for (const char* const* var = envVars; *var != nullptr; var++) {
-			daemonArgv.add(DaemonArgv::EnvVariable, *var);
-		}
-	}
-
-	// add daemon arguments
-	ManagedArgv rawArgVec(daemonArgv.eject());
-	if (daemonArgs != nullptr) {
-		rawArgVec.add("--");
-		for (const char* const* var = daemonArgs; *var != nullptr; var++) {
-			rawArgVec.add(*var);
-		}
-	}
-
-	// call launch function with DaemonArgv
-	DEBUG("finalizeAndRun: starting daemon" << std::endl);
-	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-	liveSession->startDaemon(rawArgVec.get() + 1);
-
-	invalidate();
 }

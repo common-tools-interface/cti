@@ -48,9 +48,7 @@ cti_session_id_t cti_createSession(cti_app_id_t appId) {
 	auto insertSession = [&]() {
 		// get appPtr from appId
 		if (appEntry_t *appPtr = _cti_findAppEntry(appId)) {
-			DEBUG("createSession: make_shared" << std::endl);
 			auto newSession = std::make_shared<Session>(appPtr);
-			DEBUG("createSession: shipWLMBaseFiles" << std::endl);
 			newSession->shipWLMBaseFiles();
 			sessions.insert(std::make_pair(sid, newSession));
 		} else {
@@ -66,18 +64,6 @@ int cti_sessionIsValid(cti_session_id_t sid) {
 	return sessions.find(sid) != sessions.end();
 }
 
-int cti_destroySession(cti_session_id_t sid) {
-	// construct throwing lambda that can be called by runSafely
-	auto destroySession = [&]() {
-		if (!cti_sessionIsValid(sid)) {
-			throw std::runtime_error("invalid session id " + std::to_string(sid));
-		}
-		sessions.erase(sid);
-	};
-
-	return runSafely("cti_destroySession", destroySession);
-}
-
 static std::shared_ptr<Session>
 getSessionHandle(cti_session_id_t sid) {
 	if (!cti_sessionIsValid(sid)) {
@@ -85,6 +71,13 @@ getSessionHandle(cti_session_id_t sid) {
 	}
 
 	return sessions.at(sid);
+}
+
+int cti_destroySession(cti_session_id_t sid) {
+	return runSafely("cti_destroySession", [&]() {
+		getSessionHandle(sid)->launchCleanup();
+		sessions.erase(sid);
+	});
 }
 
 char** cti_getSessionLockFiles(cti_session_id_t sid) {
@@ -206,9 +199,7 @@ int cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
 
 int cti_sendManifest(cti_manifest_id_t mid) {
 	return runSafely("cti_sendManifest", [&](){
-		auto manifestPtr = getManifestHandle(mid);
-
-		auto remotePackage = manifestPtr->finalizeAndShip();
+		auto remotePackage = getManifestHandle(mid)->finalizeAndShip();
 		remotePackage.extract();
 		manifests.erase(mid);
 	});
