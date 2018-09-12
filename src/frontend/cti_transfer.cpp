@@ -152,9 +152,7 @@ cti_manifest_id_t cti_createManifest(cti_session_id_t sid) {
 
 	// construct throwing lambda that can be called by runSafely
 	auto insertManifest = [&]() {
-		// get session and create manifest
-		auto sessionPtr = getSessionHandle(sid);
-		manifests.insert({mid, sessionPtr->createManifest()});
+		manifests.insert({mid, getSessionHandle(sid)->createManifest()});
 	};
 
 	return runSafely("cti_createManifest", insertManifest) ? MANIFEST_ERROR : mid;
@@ -218,21 +216,23 @@ int cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 	});
 }
 
-#ifdef TRANSITION_DEFS
-#include <iostream>
+bool _cti_stage_deps = true; // extern defined in cti_transfer.h
 void _cti_setStageDeps(bool stageDeps) {
-	std::cerr << "deprecated: _cti_setStageDeps" << std::endl;
+	_cti_stage_deps = stageDeps;
 }
 
+#ifdef TRANSITION_DEFS
+#include <iostream>
+
 void _cti_transfer_init(void) {
-	std::cerr << "deprecated: _cti_setStageDeps" << std::endl;
+	DEBUG_PRINT("deprecated: _cti_transfer_init" << std::endl);
 }
 
 void _cti_transfer_fini(void) {
-	std::cerr << "deprecated: _cti_setStageDeps" << std::endl;
+	DEBUG_PRINT("deprecated: _cti_transfer_fini" << std::endl);
 }
 
 void _cti_consumeSession(void *) {
-	std::cerr << "deprecated: _cti_consumeSession" << std::endl;
+	DEBUG_PRINT("deprecated: _cti_consumeSession" << std::endl);
 }
 #endif

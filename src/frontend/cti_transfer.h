@@ -17,6 +17,14 @@
  *
  *********************************************************************************/
 
+/* Object heirarchy
+	Session: manages file conflicts between remote systems and unshipped Manifests
+	   | manages...
+	Manifest: file list that is finalized into an Archive and merged into Session
+	   | produces...
+	RemotePackage: remote tarball ready for cti_daemon to extract / run ToolDaemon with
+*/
+
 #ifndef _CTI_TRANSFER_H
 #define _CTI_TRANSFER_H
 
@@ -56,9 +64,12 @@ extern "C" {
 	int					cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 	const char * const daemonArgs[], const char * const envVars[]);
 
+	/* global setStageDeps for backwards compatability */
+	extern bool _cti_stage_deps; // located in cti_transfer/cti_transfer.cpp
+	void _cti_setStageDeps(bool stageDeps);
+
 #if 1
 #define TRANSITION_DEFS
-void _cti_setStageDeps(bool stageDeps);
 void _cti_transfer_init(void);
 void _cti_transfer_fini(void);
 void _cti_consumeSession(void *);

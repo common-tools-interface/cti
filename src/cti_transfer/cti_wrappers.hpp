@@ -16,9 +16,9 @@ auto stringArrayDeleter = [](char** arr){
 // cti frontend definitions
 #include "cti_defs.h"
 #include "frontend/cti_fe.h"
+#include "cti_transfer.h"
 
 // debug declares
-#define DEBUG
 #ifdef DEBUG
 	#include <iostream>
 	#define DEBUG_PRINT(x) do { std::cerr << x; } while (0)
@@ -64,6 +64,10 @@ static inline CharPtr getRealPath(const std::string& filePath) {
 #include "ld_val/ld_val.h"
 
 static inline StringArray getFileDependencies(const std::string& filePath) {
-	return StringArray(_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath()),
-		stringArrayDeleter);
+	if (_cti_stage_deps) {
+		return StringArray(_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath()),
+			stringArrayDeleter);
+	} else {
+		return nullptr;
+	}
 }

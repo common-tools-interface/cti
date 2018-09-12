@@ -9,15 +9,15 @@ static std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionP
 	throw std::runtime_error("Manifest is not valid, already shipped.");
 }
 
-RemotePackage::RemotePackage(Archive&& archiveToShip, const std::string& archiveName_,
-	std::shared_ptr<Session> liveSession, size_t instanceCount_) :
+RemotePackage::RemotePackage(const std::string& archivePath, 
+	const std::string& archiveName_, std::shared_ptr<Session> liveSession,
+	size_t instanceCount_) :
 		archiveName(archiveName_),
 		sessionPtr(liveSession),
 		instanceCount(instanceCount_) {
 
-	const std::string& finalizedArchivePath = archiveToShip.finalize();
-	liveSession->shipPackage(finalizedArchivePath.c_str());
-} // archiveToShip destructor: remove archive from disk
+	liveSession->shipPackage(archivePath.c_str());
+}
 
 void RemotePackage::extract() {
 	if (archiveName.empty()) { return; }

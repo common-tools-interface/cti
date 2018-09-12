@@ -139,13 +139,13 @@ RemotePackage Manifest::createAndShipArchive(const std::string& archiveName,
 	}
 
 	// ship package and finalize manifest with session
-	RemotePackage remotePackage(std::move(archive), archiveName, liveSession,
+	RemotePackage remotePackage(archive.finalize(), archiveName, liveSession,
 		instanceCount);
 
 	// todo: end block signals
 
 	return remotePackage;
-}
+} // archive destructor: remove archive from local disk
 
 RemotePackage Manifest::finalizeAndShip() {
 	auto liveSession = getSessionHandle(sessionPtr);
