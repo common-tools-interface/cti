@@ -130,11 +130,11 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 
 #Set the install path in the modulefile & set_default script(s)
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX,g" \
-$RPM_INSTALL_PREFIX/modulefiles/%{name}/%{build_version} \
-$RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{name}_%{build_version} \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_default_%{name}_%{build_version} \
-$RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{name}_%{build_version} \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_pkgconfig_default_%{name}_%{build_version}
+$RPM_INSTALL_PREFIX/modulefiles/%{namespace}-%{intranamespace_name}/%{build_version} \
+$RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
+$RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version},g" \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/craytools_be.pc
@@ -145,23 +145,18 @@ $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/crayto
 find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcraytools_[bf]e\.so\.1" \
 | sed "/.*\.so\.[0-9]\.[0-9]/d" > $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-
 # prevent echo of new directory as it messes up install output
 if [[ $RPM_INSTALL_PREFIX = "/opt/cray" ]] || [[ $RPM_INSTALL_PREFIX = "/opt/cray/pe" ]]
   then
-    if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f $RPM_INSTALL_PREFIX/modulefiles/%{name}/.version ]
+    if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f $RPM_INSTALL_PREFIX/modulefiles/%{namespace}-%{intranamespace_name}/.version ]
     then
-      $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{name}_%{build_version}
+      $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
     else
-      echo "%{name}_%{build_version} has been installed as non-default."
+      echo "%{namespace}-%{intranamespace_name}_%{build_version} has been installed as non-default."
     fi
 fi
 
 %preun
-if [ $1 == 0 ]; then
-  exit 0
-fi
-
 # Cleanup default link if it point to this
 # version-%{intranamespace_name}-%{intranamespace_name}
 rm $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
@@ -182,6 +177,13 @@ then
   fi
 fi
 
+
+%postun
+if [ $1 == 1 ]
+then
+  exit 0
+fi
+
 if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{intranamespace_name}` ]]
 then
   rm -rf ${RPM_INSTALL_PREFIX}/%{intranamespace_name}
@@ -192,11 +194,6 @@ then
   rm -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}
 fi
 
-%posttrans -p /bin/sh
-if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f %{prefix}/modulefiles/%{namespace}-%{intranamespace_name}/.version ]
-then
-  %{prefix}/admin-pe/set_default_files/set_default_%{name}_%{build_version}
-fi
 
 %changelog
 
