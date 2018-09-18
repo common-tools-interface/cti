@@ -2,13 +2,16 @@
 
 #include <string>
 
-#include "MPIRInferior.hpp"
+#include "Inferior.hpp"
 
 /* instance: implements mpir standard */
 
 class MPIRInstance {
+private: // types
+	using Address = Inferior::Address;
+
 private: // variables
-	MPIRInferior inferior;
+	Inferior inferior;
 
 public: // interface
 
@@ -17,14 +20,14 @@ public: // interface
 		std::vector<std::string> envVars = {}, std::map<int, int> remapFds = {});
 	MPIRInstance(std::string const& attacher, pid_t pid);
 
-	/* MPIR standard data structures */
+	/* MPIR standard data structures (present in Inferior's memory) */
 	typedef struct {
-		MPIRInferior::Address host_name;
-		MPIRInferior::Address executable_name;
+		Address host_name;
+		Address executable_name;
 		pid_t pid;
 	} MPIR_ProcDescElem;
 
-	enum MPIRDebugState {
+	enum MPIRDebugState : int {
 		Unknown = -1,
 		Null = 0,
 		DebugSpawned = 1,

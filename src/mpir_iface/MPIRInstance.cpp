@@ -1,7 +1,6 @@
 #include "MPIRInstance.hpp"
 
-using Symbol  = MPIRInferior::Symbol;
-using Address = MPIRInferior::Address;
+using Symbol  = Inferior::Symbol;
 
 /* create new process instance */
 MPIRInstance::MPIRInstance(std::string const& launcher,
@@ -33,32 +32,12 @@ void MPIRInstance::setupMPIRStandard() {
 	inferior.addSymbol("MPIR_proctable_size");
 
 	/* set up breakpoints */
-	inferior.setBreakpoint("MPIR_Breakpoint", &MPIRInferior::stop_on_breakpoint);
+	inferior.setBreakpoint("MPIR_Breakpoint");
 
 	/* set MPIR_being_debugged = 1 */
-	inferior.writeMemory(inferior.getSymbol("MPIR_being_debugged")->getOffset(), 1);
+	inferior.writeVariable("MPIR_being_debugged", 1);
 }
 
-
-/* memory access helpers */
-
-template <typename T>
-static void readVariable(MPIRInferior& inf, T* buf, std::string const& symName) {
-	const Symbol *sym = inf.getSymbol(symName);
-	assert(sizeof(T) == sym->getSize());
-	inf.readMemory(buf, sym->getOffset(), sym->getSize());
-}
-
-template <typename T>
-static void readArrayElem(MPIRInferior& inf, T* buf, std::string const& symName, size_t idx) {
-	Address elem_addr;
-	{ Address array_start;
-		readVariable(inf, &array_start, symName);
-		elem_addr = array_start + idx * sizeof(void*);
-	}
-
-	inf.readMemory(buf, elem_addr, sizeof(T));
-}
 
 /* instance implementations */
 
@@ -66,35 +45,43 @@ void MPIRInstance::runToMPIRBreakpoint() {
 	DEBUG(std::cerr, "running inferior til MPIR_Breakpoint" << std::endl);
 	MPIRDebugState debugState = MPIRDebugState::Unknown;
 
-	while (debugState != MPIRDebugState::DebugSpawned) {
+	do {
+		DEBUG(std::cerr, "MPIR_debug_state: " << debugState << std::endl);
+		DEBUG(std::cerr, "MPIR_being_debugged: " << inferior.readVariable<int>("MPIR_being_debugged") << std::endl);
 		inferior.continueRun();
 		/* inferior now in stopped state. read MPIR_debug_state */
-		readVariable(inferior, &debugState, "MPIR_debug_state");
-	}
-
+		debugState = inferior.readVariable<MPIRDebugState>("MPIR_debug_state");
+	} while (debugState != MPIRDebugState::DebugSpawned);
 }
 
+template <typename T>
+static T readArrayElem(Inferior& inf, std::string const& symName, size_t idx) {
+	Inferior::Address elem_addr;
+	{ auto array_start = inf.readVariable<Inferior::Address>(symName);
+		elem_addr = array_start + idx * sizeof(void*);
+	}
+	return inf.readMemory<T>(elem_addr);
+}
+
+#include <sstream>
 static const size_t BUFSIZE = 64;
 std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
-	int num_pids = 0;
-	readVariable(inferior, &num_pids, "MPIR_proctable_size");
+	auto num_pids = inferior.readVariable<int>("MPIR_proctable_size");
 	DEBUG(std::cerr, "procTable has size " << std::to_string(num_pids) << std::endl);
 
 	std::vector<MPIR_ProcTableElem> procTable;
 
 	/* copy elements */
 	for (int i = 0; i < num_pids; i++) {
-		MPIR_ProcDescElem procDesc;
-		readArrayElem<MPIR_ProcDescElem>(inferior, &procDesc, "MPIR_proctable", i);
+		auto procDesc = readArrayElem<MPIR_ProcDescElem>(inferior, "MPIR_proctable", i);
 
 		/* read hostname */
-		char buf[BUFSIZE + 1];
-		inferior.readMemory(buf, procDesc.host_name, BUFSIZE);
+		auto buf = inferior.readMemory<std::array<char, BUFSIZE+1>>(procDesc.host_name);
 		buf[BUFSIZE] = '\0';
 
 		/* copy hostname */
 		{ std::stringstream ss;
-			ss << buf;
+			ss << buf.data();
 			procTable.emplace_back(MPIR_ProcTableElem{procDesc.pid, ss.str()});
 		}
 	}
@@ -104,16 +91,12 @@ std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
 
 std::string MPIRInstance::readStringAt(std::string const& symName) {
 	/* get address */
-	Address strAddress;
-	readVariable(inferior, &strAddress, symName);
+	auto strAddress = inferior.readVariable<Address>(symName);
 
 	/* read string */
 	std::string result;
-	{ char c = ' ';
-		while (c) {
-			inferior.readMemory(&c, strAddress++, 1);
-			if (c) { result.push_back(c); }
-		}
+	while (char c = inferior.readMemory<char>(strAddress++)) {
+		result.push_back(c);
 	}
 
 	return result;

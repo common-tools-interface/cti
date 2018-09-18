@@ -1,5 +1,7 @@
 #include <memory>
 
+#include <unistd.h>
+#include <string.h>
 #include <fcntl.h>
 
 #include "MPIRInstance.hpp"
@@ -110,8 +112,8 @@ void _cti_mpir_deleteProcTable(cti_mpir_procTable_t *proc_table) {
 	for (size_t i = 0; i < proc_table->num_pids; i++) {
 		free(proc_table->hostnames[i]);
 	}
-	delete[] proc_table->hostnames;
-	delete[] proc_table->pids;
+	delete proc_table->hostnames;
+	delete proc_table->pids;
 	delete proc_table;
 }
 
