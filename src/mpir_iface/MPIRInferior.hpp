@@ -48,38 +48,54 @@ public:
 
 /* inferior: manages dyninst process info, symbols, breakpoints */
 
+template <typename T>
+using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
+
 class MPIRInferior {
-	using Symbol = Dyninst::SymtabAPI::Symbol;
+
+public: // types
+	using Symbol  = Dyninst::SymtabAPI::Symbol;
+	using Address = Dyninst::Address;
+
+private: // types
 	using Process = Dyninst::ProcControlAPI::Process;
 	using Breakpoint = Dyninst::ProcControlAPI::Breakpoint;
 
-	using SymbolMap = std::map<std::string, Symbol*>;
+	using SymbolMap = std::map<std::string, const Symbol*>;
 
 	/* RAII for symtab pointer */
 	class SymtabHandle {
 		using Symtab = Dyninst::SymtabAPI::Symtab;
 
-		Symtab *symtab_ptr = NULL;
-	public:
-		SymtabHandle(std::string const& binary) {
+		UniquePtrDestr<Symtab> symtab;
+		static Symtab* make_Symtab(std::string const& binary) {
+			Symtab *symtab_ptr;
 			if (!Symtab::openFile(symtab_ptr, binary)) {
 				throw std::runtime_error("Symtab failed to open file");
 			}
+			return symtab_ptr;
 		}
+	public:
+		SymtabHandle(std::string const& binary) :
+			symtab(make_Symtab(binary), Symtab::closeSymtab) {}
 
-		~SymtabHandle() {
-			Symtab::closeSymtab(symtab_ptr);
+		std::vector<Symbol*> findSymbol(std::string const& symName) {
+			std::vector<Symbol*> result;
+			symtab->findSymbol(result, symName);
+			return result;
 		}
-
-		Symtab *get() const { return symtab_ptr; }
 	};
 
+private: // variables
 	/* block signals during MPIR control of process */
 	SignalGuard signalGuard;
 
-	/* symbol table members */
+	/* dyninst symbol / proc members */
 	SymtabHandle symtab;
 	SymbolMap symbols;
+	Process::ptr proc;
+
+private: // functions
 
 	/* ensure event is a breakpoint event, then invoke the function-specific handler */
 	static Process::cb_ret_t on_breakpoint(Dyninst::ProcControlAPI::Event::const_ptr genericEv) {
@@ -102,8 +118,22 @@ class MPIRInferior {
 		DEBUG(std::cerr, "invalid event type for on_breakpoint" << std::endl);
 		return Process::cbProcStop;
 	}
-public:
-	Process::ptr proc;
+
+public: // interface
+
+	/* process interaction */
+	inline pid_t getPid() { return proc->getPid(); }
+	void continueRun();
+
+	template <typename T>
+	inline void writeMemory(Address address, T const& data, size_t len = sizeof(T)) {
+		proc->writeMemory(address, reinterpret_cast<const void*>(&data), len);
+	}
+
+	template <typename T>
+	inline void readMemory(T* buf, Address address, size_t len) {
+		proc->readMemory(reinterpret_cast<void*>(buf), address, len);
+	}
 
 	/* breakpoint management */
 	using HandlerFnType = Process::cb_ret_t();
@@ -112,7 +142,7 @@ public:
 
 	/* symbol management */
 	void addSymbol(std::string const& symName);
-	Symbol* getSymbol(std::string const& symName) {
+	const Symbol* getSymbol(std::string const& symName) {
 		// if symbol address not found yet, find it
 		if (symbols.find(symName) == symbols.end()) {
 			addSymbol(symName);

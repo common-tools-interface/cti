@@ -19,6 +19,14 @@ MPIRInferior::MPIRInferior(std::string const& launcher, Dyninst::PID pid) :
 	Process::registerEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, on_breakpoint);
 }
 
+void MPIRInferior::continueRun() {
+	/* note that can only read on stopped thread */
+	do {
+		proc->continueProc();
+		Process::handleEvents(true); // blocks til event received
+	} while (!proc->hasStoppedThread());
+}
+
 void MPIRInferior::setBreakpoint(std::string const& fnName, HandlerFnType* handlerPtr) {
 	Dyninst::Address address = getSymbol(fnName)->getOffset();
 	Breakpoint::ptr breakpoint = Breakpoint::newBreakpoint();
@@ -27,8 +35,8 @@ void MPIRInferior::setBreakpoint(std::string const& fnName, HandlerFnType* handl
 }
 
 void MPIRInferior::addSymbol(std::string const& symName) {
-	std::vector<Symbol *> foundSyms;
-	if (symtab.get()->findSymbol(foundSyms, symName)) {
+	auto foundSyms = symtab.findSymbol(symName);
+	if (!foundSyms.empty()) {
 		symbols[symName] = foundSyms[0];
 	} else {
 		throw std::runtime_error(std::string("error: ") + symName + " not found");

@@ -7,14 +7,10 @@
 /* instance: implements mpir standard */
 
 class MPIRInstance {
-	using Symbol = Dyninst::SymtabAPI::Symbol;
-	using Process = Dyninst::ProcControlAPI::Process;
-	using Breakpoint = Dyninst::ProcControlAPI::Breakpoint;
-
+private: // variables
 	MPIRInferior inferior;
 
-public:
-	using Address = Dyninst::Address;
+public: // interface
 
 	/* constructors */
 	MPIRInstance(std::string const& launcher, std::vector<std::string> const& launcherArgv,
@@ -23,8 +19,8 @@ public:
 
 	/* MPIR standard data structures */
 	typedef struct {
-		Address host_name;
-		Address executable_name;
+		MPIRInferior::Address host_name;
+		MPIRInferior::Address executable_name;
 		pid_t pid;
 	} MPIR_ProcDescElem;
 
@@ -41,7 +37,7 @@ public:
 
 	/* inferior access functions */
 
-	pid_t getLauncherPid() { return inferior.proc->getPid(); }
+	pid_t getLauncherPid() { return inferior.getPid(); }
 
 	typedef struct {
 		pid_t pid;
@@ -51,21 +47,6 @@ public:
 
 	/* memory access */
 
-	template <typename T>
-	void readAddress(T* buf, Address address, size_t len) {
-		inferior.proc->readMemory(reinterpret_cast<void*>(buf), address, len);
-	}
-
 	/* read c-string pointed to by symbol */
 	std::string readStringAt(std::string const& symName);
-
-	/* read variable into given buffer */
-	template <typename T>
-	void readVariable(T* buf, std::string const& symName);
-
-	template <typename T>
-	void readArrayElem(T* buf, std::string const& symName, size_t idx);
-
-	template <typename T>
-	void writeVariable(std::string const& symName, T const& data, size_t len = sizeof(T));
 };
