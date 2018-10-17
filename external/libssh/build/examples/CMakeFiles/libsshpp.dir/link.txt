@@ -1,1 +1,0 @@
-/usr/bin/c++   -g   CMakeFiles/libsshpp.dir/libsshpp.cpp.o  -o libsshpp -rdynamic ../src/libssh.so.4.4.2 -lrt -lcrypto -Wl,-rpath,/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src 

@@ -923,6 +923,15 @@ SSH_PACKET_CALLBACK(ssh_packet_userauth_info_response){
 
       goto error;
     }
+  } else if (session->kbdint->nanswers > 0) {
+      uint32_t n;
+
+      for (n = 0; n < session->kbdint->nanswers; n++) {
+            BURN_STRING(session->kbdint->answers[n]);
+            SAFE_FREE(session->kbdint->answers[n]);
+      }
+      SAFE_FREE(session->kbdint->answers);
+      session->kbdint->nanswers = 0;
   }
 
   SSH_LOG(SSH_LOG_PACKET,"kbdint: %d answers",nanswers);
@@ -942,7 +951,8 @@ SSH_PACKET_CALLBACK(ssh_packet_userauth_info_response){
                 " mismatch: p=%u a=%u", session->kbdint->nprompts, nanswers);
   }
   session->kbdint->nanswers = nanswers;
-  session->kbdint->answers = malloc(nanswers * sizeof(char *));
+
+  session->kbdint->answers = calloc(1, nanswers * sizeof(char *));
   if (session->kbdint->answers == NULL) {
     session->kbdint->nanswers = 0;
     ssh_set_error_oom(session);
@@ -951,7 +961,6 @@ SSH_PACKET_CALLBACK(ssh_packet_userauth_info_response){
 
     goto error;
   }
-  memset(session->kbdint->answers, 0, nanswers * sizeof(char *));
 
   for (i = 0; i < nanswers; i++) {
     tmp = buffer_get_ssh_string(packet);
@@ -1101,6 +1110,7 @@ int ssh_message_channel_request_open_reply_accept_channel(ssh_message msg, ssh_c
     chan->remote_maxpacket = msg->channel_request_open.packet_size;
     chan->remote_window = msg->channel_request_open.window;
     chan->state = SSH_CHANNEL_STATE_OPEN;
+    chan->flags &= ~SSH_CHANNEL_FLAG_NOT_BOUND;
 
     rc = ssh_buffer_pack(session->out_buffer,
                          "bdddd",
@@ -1355,6 +1365,7 @@ SSH_PACKET_CALLBACK(ssh_packet_global_request){
                     msg->global_request.bind_port);
             session->common.callbacks->global_request_function(session, msg, session->common.callbacks->userdata);
         } else {
+            SAFE_FREE(request);
             ssh_message_queue(session, msg);
             return rc;
         }
@@ -1375,6 +1386,7 @@ SSH_PACKET_CALLBACK(ssh_packet_global_request){
         if(ssh_callbacks_exists(session->common.callbacks, global_request_function)) {
             session->common.callbacks->global_request_function(session, msg, session->common.callbacks->userdata);
         } else {
+            SAFE_FREE(request);
             ssh_message_queue(session, msg);
             return rc;
         }

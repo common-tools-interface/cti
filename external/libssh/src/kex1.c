@@ -36,6 +36,10 @@
 #include "libssh/ssh1.h"
 #include "libssh/wrapper.h"
 
+#if defined(HAVE_LIBCRYPTO)
+#include "libcrypto-compat.h"
+#endif
+
 /* SSHv1 functions */
 
 /* makes a STRING contating 3 strings : ssh-rsa1,e and n */
@@ -46,6 +50,10 @@ static ssh_string make_rsa1_string(ssh_string e, ssh_string n){
   ssh_string ret = NULL;
 
   buffer = ssh_buffer_new();
+  if (buffer == NULL) {
+      goto error;
+  }
+
   rsa = ssh_string_from_char("ssh-rsa1");
   if (rsa == NULL) {
       goto error;
@@ -119,8 +127,8 @@ static int modulus_smaller(ssh_public_key k1, ssh_public_key k2){
     n2=gcry_sexp_nth_mpi(sexp,1,GCRYMPI_FMT_USG);
     gcry_sexp_release(sexp);
 #elif defined HAVE_LIBCRYPTO
-    n1=k1->rsa_pub->n;
-    n2=k2->rsa_pub->n;
+    RSA_get0_key(k1->rsa_pub, (const BIGNUM **)&n1, NULL, NULL);
+    RSA_get0_key(k2->rsa_pub, (const BIGNUM **)&n2, NULL, NULL);
 #endif
     if(bignum_cmp(n1,n2)<0)
         res=1;

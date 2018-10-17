@@ -43,6 +43,8 @@
 #include <openssl/hmac.h>
 #include <openssl/opensslv.h>
 #include <openssl/rand.h>
+#include <openssl/modes.h>
+#include "libcrypto-compat.h"
 
 #ifdef HAVE_OPENSSL_AES_H
 #define HAS_AES
@@ -133,18 +135,19 @@ static const EVP_MD *nid_to_evpmd(int nid)
 void evp(int nid, unsigned char *digest, int len, unsigned char *hash, unsigned int *hlen)
 {
     const EVP_MD *evp_md = nid_to_evpmd(nid);
-    EVP_MD_CTX md;
+    EVP_MD_CTX *md = EVP_MD_CTX_new();
 
-    EVP_DigestInit(&md, evp_md);
-    EVP_DigestUpdate(&md, digest, len);
-    EVP_DigestFinal(&md, hash, hlen);
+    EVP_DigestInit(md, evp_md);
+    EVP_DigestUpdate(md, digest, len);
+    EVP_DigestFinal(md, hash, hlen);
+    EVP_MD_CTX_free(md);
 }
 
 EVPCTX evp_init(int nid)
 {
     const EVP_MD *evp_md = nid_to_evpmd(nid);
 
-    EVPCTX ctx = malloc(sizeof(EVP_MD_CTX));
+    EVPCTX ctx = EVP_MD_CTX_new();
     if (ctx == NULL) {
         return NULL;
     }
@@ -322,32 +325,33 @@ void ssh_mac_final(unsigned char *md, ssh_mac_ctx ctx) {
 HMACCTX hmac_init(const void *key, int len, enum ssh_hmac_e type) {
   HMACCTX ctx = NULL;
 
-  ctx = malloc(sizeof(*ctx));
+  ctx = HMAC_CTX_new();
   if (ctx == NULL) {
     return NULL;
   }
 
 #ifndef OLD_CRYPTO
-  HMAC_CTX_init(ctx); // openssl 0.9.7 requires it.
+  HMAC_CTX_reset(ctx); // openssl 0.9.7 requires it.
 #endif
 
   switch(type) {
     case SSH_HMAC_SHA1:
-      HMAC_Init(ctx, key, len, EVP_sha1());
+      HMAC_Init_ex(ctx, key, len, EVP_sha1(), NULL);
       break;
     case SSH_HMAC_SHA256:
-      HMAC_Init(ctx, key, len, EVP_sha256());
+      HMAC_Init_ex(ctx, key, len, EVP_sha256(), NULL);
       break;
     case SSH_HMAC_SHA384:
-      HMAC_Init(ctx, key, len, EVP_sha384());
+      HMAC_Init_ex(ctx, key, len, EVP_sha384(), NULL);
       break;
     case SSH_HMAC_SHA512:
-      HMAC_Init(ctx, key, len, EVP_sha512());
+      HMAC_Init_ex(ctx, key, len, EVP_sha512(), NULL);
       break;
     case SSH_HMAC_MD5:
-      HMAC_Init(ctx, key, len, EVP_md5());
+      HMAC_Init_ex(ctx, key, len, EVP_md5(), NULL);
       break;
     default:
+      HMAC_CTX_free(ctx);
       SAFE_FREE(ctx);
       ctx = NULL;
   }
@@ -363,7 +367,8 @@ void hmac_final(HMACCTX ctx, unsigned char *hashmacbuf, unsigned int *len) {
   HMAC_Final(ctx,hashmacbuf,len);
 
 #ifndef OLD_CRYPTO
-  HMAC_CTX_cleanup(ctx);
+  HMAC_CTX_free(ctx);
+  ctx = NULL;
 #else
   HMAC_cleanup(ctx);
 #endif
@@ -455,7 +460,12 @@ static void aes_ctr128_encrypt(struct ssh_cipher_struct *cipher, void *in, void 
    * Same for num, which is being used to store the current offset in blocksize in CTR
    * function.
    */
+#ifdef HAVE_OPENSSL_CRYPTO_CTR128_ENCRYPT
+  CRYPTO_ctr128_encrypt(in, out, len, cipher->key, cipher->IV, tmp_buffer,
+    &num, (block128_f)AES_encrypt);
+# else
   AES_ctr128_encrypt(in, out, len, cipher->key, cipher->IV, tmp_buffer, &num);
+#endif /* HAVE_OPENSSL_CRYPTO_CTR128_ENCRYPT */
 }
 #endif /* BROKEN_AES_CTR */
 #endif /* HAS_AES */

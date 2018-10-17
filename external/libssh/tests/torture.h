@@ -46,6 +46,10 @@
     assert_true(code >= 0)
 #endif /* assert_return_code */
 
+#define TORTURE_SSH_SERVER "127.0.0.10"
+
+#define TORTURE_SSH_USER_ALICE "alice"
+
 #define TORTURE_TESTKEY_PASSWORD "libssh-rocks"
 
 /* Used by main to communicate with parse_opt. */
@@ -60,10 +64,23 @@ struct torture_sftp {
     char *testdir;
 };
 
+struct torture_state {
+    char *socket_dir;
+    char *pcap_file;
+    char *srv_pidfile;
+    char *srv_config;
+};
+
+#ifndef ZERO_STRUCT
+#define ZERO_STRUCT(x) memset((char *)&(x), 0, sizeof(x))
+#endif
+
 void torture_cmdline_parse(int argc, char **argv, struct argument_s *arguments);
 
 int torture_rmdirs(const char *path);
 int torture_isdir(const char *path);
+
+int torture_terminate_process(const char *pidfile);
 
 /*
  * Returns the verbosity level asked by user
@@ -93,6 +110,12 @@ void torture_write_file(const char *filename, const char *data);
 
 #define torture_filter_tests(tests) _torture_filter_tests(tests, sizeof(tests) / sizeof(tests)[0])
 void _torture_filter_tests(UnitTest *tests, size_t ntests);
+
+void torture_setup_socket_dir(void **state);
+void torture_setup_sshd_server(void **state);
+
+void torture_teardown_socket_dir(void **state);
+void torture_teardown_sshd_server(void **state);
 
 /*
  * This function must be defined in every unit test file.
