@@ -3,36 +3,22 @@
 #include "torture.h"
 #include "sftp.c"
 
-#include <errno.h>
-#include <sys/types.h>
-#include <pwd.h>
-
-static int sshd_setup(void **state)
-{
-    torture_setup_sshd_server(state);
-
-    return 0;
-}
-
-static int sshd_teardown(void **state) {
-    torture_teardown_sshd_server(state);
-
-    return 0;
-}
-
 static void setup(void **state) {
     ssh_session session;
     struct torture_sftp *t;
-    struct passwd *pwd;
+    const char *host;
+    const char *user;
+    const char *password;
 
-    pwd = getpwnam("bob");
-    assert_non_null(pwd);
-    setuid(pwd->pw_uid);
+    host = getenv("TORTURE_HOST");
+    if (host == NULL) {
+        host = "localhost";
+    }
 
-    session = torture_ssh_session(TORTURE_SSH_SERVER,
-                                  NULL,
-                                  TORTURE_SSH_USER_ALICE,
-                                  NULL);
+    user = getenv("TORTURE_USER");
+    password = getenv("TORTURE_PASSWORD");
+
+    session = torture_ssh_session(host, NULL, user, password);
     assert_false(session == NULL);
     t = torture_sftp_session(session);
     assert_false(t == NULL);
@@ -75,7 +61,6 @@ static void torture_sftp_mkdir(void **state) {
 
 int torture_run_tests(void) {
     int rc;
-    struct torture_state *s = NULL;
     UnitTest tests[] = {
         unit_test_setup_teardown(torture_sftp_mkdir, setup, teardown)
     };
@@ -83,9 +68,7 @@ int torture_run_tests(void) {
     ssh_init();
 
     torture_filter_tests(tests);
-    sshd_setup((void **)&s);
     rc = run_tests(tests);
-    sshd_teardown((void **)&s);
     ssh_finalize();
 
     return rc;

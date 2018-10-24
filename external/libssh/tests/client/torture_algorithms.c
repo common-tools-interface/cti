@@ -25,37 +25,11 @@
 #include "libssh/libssh.h"
 #include "libssh/priv.h"
 
-#include <errno.h>
-#include <sys/types.h>
-#include <pwd.h>
-
-static int sshd_setup(void **state)
-{
-    torture_setup_sshd_server(state);
-
-    return 0;
-}
-
-static int sshd_teardown(void **state) {
-    torture_teardown_sshd_server(state);
-
-    return 0;
-}
 
 static void setup(void **state) {
     int verbosity=torture_libssh_verbosity();
     ssh_session session = ssh_new();
-    struct passwd *pwd;
-    int rc;
-
-    pwd = getpwnam("bob");
-    assert_non_null(pwd);
-
-    rc = setuid(pwd->pw_uid);
-    assert_return_code(rc, errno);
-
     ssh_options_set(session, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
-    ssh_options_set(session, SSH_OPTIONS_HOST, TORTURE_SSH_SERVER);
     *state = session;
 }
 
@@ -65,6 +39,9 @@ static void teardown(void **state) {
 
 static void test_algorithm(ssh_session session, const char *algo, const char *hmac) {
     int rc;
+
+    rc = ssh_options_set(session, SSH_OPTIONS_HOST, "localhost");
+    assert_true(rc == SSH_OK);
 
     rc = ssh_options_set(session, SSH_OPTIONS_CIPHERS_C_S, algo);
     assert_true(rc == SSH_OK);
@@ -174,7 +151,6 @@ static void torture_algorithms_3des_cbc_hmac_sha2_512(void **state) {
     test_algorithm(*state, "3des-cbc", "hmac-sha2-512");
 }
 
-#if ((OPENSSH_VERSION_MAJOR == 7 && OPENSSH_VERSION_MINOR < 6) || OPENSSH_VERSION_MAJOR <= 6)
 static void torture_algorithms_blowfish_cbc_hmac_sha1(void **state) {
     test_algorithm(*state, "blowfish-cbc", "hmac-sha1");
 }
@@ -186,11 +162,13 @@ static void torture_algorithms_blowfish_cbc_hmac_sha2_256(void **state) {
 static void torture_algorithms_blowfish_cbc_hmac_sha2_512(void **state) {
     test_algorithm(*state, "blowfish-cbc", "hmac-sha2-512");
 }
-#endif
 
 static void torture_algorithms_zlib(void **state) {
     ssh_session session = *state;
     int rc;
+
+    rc = ssh_options_set(session,SSH_OPTIONS_HOST,"localhost");
+    assert_true(rc == SSH_OK);
 
     rc = ssh_options_set(session, SSH_OPTIONS_COMPRESSION_C_S, "zlib");
 #ifdef WITH_ZLIB
@@ -228,6 +206,9 @@ static void torture_algorithms_zlib(void **state) {
 static void torture_algorithms_zlib_openssh(void **state) {
     ssh_session session = *state;
     int rc;
+
+    rc = ssh_options_set(session,SSH_OPTIONS_HOST,"localhost");
+    assert_true(rc == SSH_OK);
 
     rc = ssh_options_set(session, SSH_OPTIONS_COMPRESSION_C_S, "zlib@openssh.com");
 #ifdef WITH_ZLIB
@@ -268,6 +249,9 @@ static void torture_algorithms_ecdh_sha2_nistp256(void **state) {
     ssh_session session = *state;
     int rc;
 
+    rc = ssh_options_set(session,SSH_OPTIONS_HOST,"localhost");
+    assert_true(rc == SSH_OK);
+
     rc = ssh_options_set(session, SSH_OPTIONS_KEY_EXCHANGE, "ecdh-sha2-nistp256");
     assert_true(rc == SSH_OK);
 
@@ -287,6 +271,9 @@ static void torture_algorithms_dh_group1(void **state) {
     ssh_session session = *state;
     int rc;
 
+    rc = ssh_options_set(session,SSH_OPTIONS_HOST,"localhost");
+    assert_true(rc == SSH_OK);
+
     rc = ssh_options_set(session, SSH_OPTIONS_KEY_EXCHANGE, "diffie-hellman-group1-sha1");
     assert_true(rc == SSH_OK);
 
@@ -302,7 +289,6 @@ static void torture_algorithms_dh_group1(void **state) {
 }
 int torture_run_tests(void) {
     int rc;
-    struct torture_state *s = NULL;
     UnitTest tests[] = {
         unit_test_setup_teardown(torture_algorithms_aes128_cbc_hmac_sha1, setup, teardown),
         unit_test_setup_teardown(torture_algorithms_aes128_cbc_hmac_sha2_256, setup, teardown),
@@ -325,11 +311,9 @@ int torture_run_tests(void) {
         unit_test_setup_teardown(torture_algorithms_3des_cbc_hmac_sha1, setup, teardown),
         unit_test_setup_teardown(torture_algorithms_3des_cbc_hmac_sha2_256, setup, teardown),
         unit_test_setup_teardown(torture_algorithms_3des_cbc_hmac_sha2_512, setup, teardown),
-#if ((OPENSSH_VERSION_MAJOR == 7 && OPENSSH_VERSION_MINOR < 6) || OPENSSH_VERSION_MAJOR <= 6)
         unit_test_setup_teardown(torture_algorithms_blowfish_cbc_hmac_sha1, setup, teardown),
         unit_test_setup_teardown(torture_algorithms_blowfish_cbc_hmac_sha2_256, setup, teardown),
         unit_test_setup_teardown(torture_algorithms_blowfish_cbc_hmac_sha2_512, setup, teardown),
-#endif
         unit_test_setup_teardown(torture_algorithms_zlib, setup, teardown),
         unit_test_setup_teardown(torture_algorithms_zlib_openssh, setup, teardown),
         unit_test_setup_teardown(torture_algorithms_dh_group1,setup,teardown),
@@ -340,9 +324,7 @@ int torture_run_tests(void) {
 
     ssh_init();
     torture_filter_tests(tests);
-    sshd_setup((void **)&s);
     rc = run_tests(tests);
-    sshd_teardown((void **)&s);
     ssh_finalize();
 
     return rc;

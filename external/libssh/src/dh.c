@@ -1039,29 +1039,6 @@ int ssh_get_publickey_hash(const ssh_key key,
             *hlen = SHA_DIGEST_LEN;
         }
         break;
-    case SSH_PUBLICKEY_HASH_SHA256:
-        {
-            SHA256CTX ctx;
-
-            h = malloc(SHA256_DIGEST_LEN);
-            if (h == NULL) {
-                rc = -1;
-                goto out;
-            }
-
-            ctx = sha256_init();
-            if (ctx == NULL) {
-                free(h);
-                rc = -1;
-                goto out;
-            }
-
-            sha256_update(ctx, ssh_string_data(blob), ssh_string_len(blob));
-            sha256_final(h, ctx);
-
-            *hlen = SHA256_DIGEST_LEN;
-        }
-        break;
     case SSH_PUBLICKEY_HASH_MD5:
         {
             MD5CTX ctx;
@@ -1095,38 +1072,6 @@ int ssh_get_publickey_hash(const ssh_key key,
 out:
     ssh_string_free(blob);
     return rc;
-}
-
-/**
- * @internal
- *
- * @brief Convert a buffer into an unpadded base64 string.
- * The caller has to free the memory.
- *
- * @param  hash         What should be converted to a base64 string.
- *
- * @param  len          Length of the buffer to convert.
- *
- * @return              The base64 string or NULL on error.
- *
- * @see ssh_string_free_char()
- */
-static char *ssh_get_b64_unpadded(const unsigned char *hash, size_t len)
-{
-    char *b64_padded = NULL;
-    char *b64_unpadded = NULL;
-    size_t k;
-
-    b64_padded = (char *)bin_to_base64(hash, (int)len);
-    if (b64_padded == NULL) {
-        return NULL;
-    }
-    for (k = strlen(b64_padded); k != 0 && b64_padded[k-1] == '='; k--);
-
-    b64_unpadded = strndup(b64_padded, k);
-    SAFE_FREE(b64_padded);
-
-    return b64_unpadded;
 }
 
 /**
@@ -1164,110 +1109,6 @@ char *ssh_get_hexa(const unsigned char *what, size_t len) {
   hexa[hlen - 1] = '\0';
 
   return hexa;
-}
-
-/**
- * @brief Get a hash as a human-readable hex- or base64-string.
- *
- * This gets an allocated fingerprint hash. It is a hex strings if the given
- * hash is a md5 sum.  If it is a SHA sum, it will return an unpadded base64
- * strings.  Either way, the output is prepended by the hash-type.
- *
- * @param  type         Which sort of hash is given.
- *
- * @param  hash         What should be converted to a base64 string.
- *
- * @param  len          Length of the buffer to convert.
- *
- * @return Returns the allocated fingerprint hash or NULL on error.
- *
- * @see ssh_string_free_char()
- */
-char *ssh_get_fingerprint_hash(enum ssh_publickey_hash_type type,
-                               unsigned char *hash,
-                               size_t len)
-{
-    const char *prefix = "UNKNOWN";
-    char *fingerprint = NULL;
-    char *str = NULL;
-    size_t str_len;
-    int rc;
-
-    switch (type) {
-    case SSH_PUBLICKEY_HASH_SHA1:
-    case SSH_PUBLICKEY_HASH_SHA256:
-        fingerprint = ssh_get_b64_unpadded(hash, len);
-        break;
-    case SSH_PUBLICKEY_HASH_MD5:
-        fingerprint = ssh_get_hexa(hash, len);
-        break;
-    }
-    if (fingerprint == NULL) {
-        return NULL;
-    }
-
-    switch (type) {
-    case SSH_PUBLICKEY_HASH_MD5:
-        prefix = "MD5";
-        break;
-    case SSH_PUBLICKEY_HASH_SHA1:
-        prefix = "SHA1";
-        break;
-    case SSH_PUBLICKEY_HASH_SHA256:
-        prefix = "SHA256";
-        break;
-    }
-
-    str_len = strlen(prefix);
-    if (str_len + 1 + strlen(fingerprint) + 1 < str_len) {
-        SAFE_FREE(fingerprint);
-        return NULL;
-    }
-    str_len += 1 + strlen(fingerprint) + 1;
-
-    str = malloc(str_len);
-    if (str == NULL) {
-        SAFE_FREE(fingerprint);
-        return NULL;
-    }
-    rc = snprintf(str, str_len, "%s:%s", prefix, fingerprint);
-    SAFE_FREE(fingerprint);
-    if (rc < 0 || rc < (int)(str_len - 1)) {
-        SAFE_FREE(str);
-    }
-
-    return str;
-}
-
-/**
- * @brief Print a hash as a human-readable hex- or base64-string.
- *
- * This function prints hex strings if the given hash is a md5 sum.
- * But prints unpadded base64 strings for sha sums.
- * Either way, the output is prepended by the hash-type.
- *
- * @param  type         Which sort of hash is given.
- *
- * @param  hash         What should be converted to a base64 string.
- *
- * @param  len          Length of the buffer to convert.
- */
-void ssh_print_hash(enum ssh_publickey_hash_type type,
-                    unsigned char *hash,
-                    size_t len)
-{
-    char *fingerprint = NULL;
-
-    fingerprint = ssh_get_fingerprint_hash(type,
-                                           hash,
-                                           len);
-    if (fingerprint == NULL) {
-        return;
-    }
-
-    fprintf(stderr, "%s\n", fingerprint);
-
-    SAFE_FREE(fingerprint);
 }
 
 /**

@@ -1,0 +1,372 @@
+[
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/agent.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/agent.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/agent.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/auth.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/auth.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/auth.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/base64.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/base64.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/base64.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/bignum.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/bignum.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/bignum.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/buffer.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/buffer.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/buffer.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/callbacks.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/callbacks.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/callbacks.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/channels.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/channels.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/channels.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/client.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/client.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/client.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/config.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/config.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/config.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/connect.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/connect.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/connect.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/curve25519.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/curve25519.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/curve25519.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/dh.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/dh.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/dh.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/ecdh.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/ecdh.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/ecdh.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/error.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/error.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/error.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/getpass.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/getpass.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/getpass.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/init.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/init.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/init.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/kex.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/kex.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/kex.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/known_hosts.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/known_hosts.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/known_hosts.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/legacy.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/legacy.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/legacy.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/libcrypto.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/libcrypto.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/libcrypto.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/log.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/log.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/log.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/match.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/match.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/match.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/messages.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/messages.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/messages.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/misc.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/misc.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/misc.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/options.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/options.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/options.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/packet.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/packet.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/packet.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/packet_cb.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/packet_cb.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/packet_cb.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/packet_crypt.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/packet_crypt.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/packet_crypt.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/pcap.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pcap.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pcap.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/pki.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pki.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pki.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/pki_container_openssh.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pki_container_openssh.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pki_container_openssh.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/pki_ed25519.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pki_ed25519.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pki_ed25519.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/poll.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/poll.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/poll.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/session.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/session.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/session.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/scp.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/scp.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/scp.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/socket.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/socket.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/socket.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/string.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/string.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/string.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/threads.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/threads.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/threads.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/wrapper.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/wrapper.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/wrapper.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/external/bcrypt_pbkdf.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/bcrypt_pbkdf.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/bcrypt_pbkdf.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/external/blowfish.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/blowfish.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/blowfish.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/external/ed25519.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/ed25519.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/ed25519.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/external/fe25519.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/fe25519.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/fe25519.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/external/ge25519.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/ge25519.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/ge25519.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/external/sc25519.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/sc25519.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/sc25519.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/pki_crypto.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pki_crypto.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/pki_crypto.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_shared.dir/external/curve25519_ref.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/curve25519_ref.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/external/curve25519_ref.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src/threads",
+  "command": "/usr/bin/cc  -DLIBSSH_EXPORTS -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/src/threads -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/threads -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g -fPIC   -fvisibility=hidden -o CMakeFiles/ssh_threads_shared.dir/pthread.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/threads/pthread.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/src/threads/pthread.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/libssh_scp.dir/libssh_scp.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/libssh_scp.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/libssh_scp.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/libssh_scp.dir/authentication.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/libssh_scp.dir/knownhosts.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/libssh_scp.dir/connect_ssh.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/scp_download.dir/scp_download.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/scp_download.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/scp_download.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/scp_download.dir/authentication.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/scp_download.dir/knownhosts.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/scp_download.dir/connect_ssh.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/c++    -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build  -g   -o CMakeFiles/libsshpp_noexcept.dir/libsshpp_noexcept.cpp.o -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/libsshpp_noexcept.cpp",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/libsshpp_noexcept.cpp"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/sshnetcat.dir/sshnetcat.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/sshnetcat.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/sshnetcat.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/sshnetcat.dir/authentication.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/sshnetcat.dir/knownhosts.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/sshnetcat.dir/connect_ssh.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/samplessh.dir/sample.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/sample.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/sample.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/samplessh.dir/authentication.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/samplessh.dir/knownhosts.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/samplessh.dir/connect_ssh.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/exec.dir/exec.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/exec.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/exec.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/exec.dir/authentication.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/exec.dir/knownhosts.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/exec.dir/connect_ssh.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/senddata.dir/senddata.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/senddata.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/senddata.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/senddata.dir/authentication.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/authentication.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/senddata.dir/knownhosts.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/knownhosts.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/cc   -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build   -std=gnu99 -pedantic -pedantic-errors -Wall -Wextra -Wshadow -Wmissing-prototypes -Wdeclaration-after-statement -Wunused -Wfloat-equal -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fPIC -fstack-protector -D_LARGEFILE64_SOURCE -g   -o CMakeFiles/senddata.dir/connect_ssh.c.o   -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/connect_ssh.c"
+},
+{
+  "directory": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples",
+  "command": "/usr/bin/c++    -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/include -I/cray/css/users/azahdeh/projects/cti_sles/external/libssh/build  -g   -o CMakeFiles/libsshpp.dir/libsshpp.cpp.o -c /cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/libsshpp.cpp",
+  "file": "/cray/css/users/azahdeh/projects/cti_sles/external/libssh/examples/libsshpp.cpp"
+}
+]

@@ -3,40 +3,24 @@
 #include "torture.h"
 #include "sftp.c"
 
-#include <sys/types.h>
-#include <pwd.h>
-
 #define MAX_XFER_BUF_SIZE 16384
-
-static int sshd_setup(void **state)
-{
-    torture_setup_sshd_server(state);
-
-    return 0;
-}
-
-static int sshd_teardown(void **state) {
-    torture_teardown_sshd_server(state);
-
-    return 0;
-}
 
 static void setup(void **state) {
     ssh_session session;
     struct torture_sftp *t;
-    struct passwd *pwd;
-    int rc;
+    const char *host;
+    const char *user;
+    const char *password;
 
-    pwd = getpwnam("bob");
-    assert_non_null(pwd);
+    host = getenv("TORTURE_HOST");
+    if (host == NULL) {
+        host = "localhost";
+    }
 
-    rc = setuid(pwd->pw_uid);
-    assert_return_code(rc, errno);
+    user = getenv("TORTURE_USER");
+    password = getenv("TORTURE_PASSWORD");
 
-    session = torture_ssh_session(TORTURE_SSH_SERVER,
-                                  NULL,
-                                  TORTURE_SSH_USER_ALICE,
-                                  NULL);
+    session = torture_ssh_session(host, NULL, user, password);
     assert_false(session == NULL);
     t = torture_sftp_session(session);
     assert_false(t == NULL);
@@ -88,7 +72,6 @@ static void torture_sftp_read_blocking(void **state) {
 
 int torture_run_tests(void) {
     int rc;
-    struct torture_state *s = NULL;
     UnitTest tests[] = {
         unit_test_setup_teardown(torture_sftp_read_blocking, setup, teardown)
     };
@@ -96,9 +79,7 @@ int torture_run_tests(void) {
     ssh_init();
 
     torture_filter_tests(tests);
-    sshd_setup((void **)&s);
     rc = run_tests(tests);
-    sshd_teardown((void **)&s);
     ssh_finalize();
 
     return rc;

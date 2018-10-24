@@ -24,42 +24,24 @@
 #include "torture.h"
 #include <libssh/libssh.h>
 
-#include <errno.h>
-#include <sys/types.h>
-#include <pwd.h>
-
-static int sshd_setup(void **state)
-{
-    torture_setup_sshd_server(state);
-
-    return 0;
-}
-
-static int sshd_teardown(void **state) {
-    torture_teardown_sshd_server(state);
-
-    return 0;
-}
-
 static void setup(void **state)
 {
     ssh_session session;
-    struct passwd *pwd;
-    int rc;
+    const char *host;
+    const char *user;
+    const char *password;
 
-    pwd = getpwnam("bob");
-    assert_non_null(pwd);
+    host = getenv("TORTURE_HOST");
+    if (host == NULL) {
+        host = "localhost";
+    }
 
-    rc = setuid(pwd->pw_uid);
-    assert_return_code(rc, errno);
+    user = getenv("TORTURE_USER");
+    password = getenv("TORTURE_PASSWORD");
 
-    session = torture_ssh_session(TORTURE_SSH_SERVER,
-                                  NULL,
-                                  TORTURE_SSH_USER_ALICE,
-                                  NULL);
+    session = torture_ssh_session(host, NULL, user, password);
 
     assert_non_null(session);
-
     *state = session;
 }
 
@@ -78,25 +60,26 @@ static void teardown(void **state)
 static void torture_ssh_forward(void **state)
 {
     ssh_session session = (ssh_session) *state;
+#if 0
     ssh_channel c;
-    int dport;
+#endif
     int bound_port;
     int rc;
 
-    rc = ssh_channel_listen_forward(session, "127.0.0.21", 8080, &bound_port);
+    rc = ssh_channel_listen_forward(session, "127.0.0.1", 8080, &bound_port);
     assert_int_equal(rc, SSH_OK);
 
-    c = ssh_channel_accept_forward(session, 10, &dport);
-    /* We do not get a listener and run into the timeout here */
-    assert_null(c);
+#if 0
+    c = ssh_forward_accept(session, 60000);
+    assert_non_null(c);
 
     ssh_channel_send_eof(c);
     ssh_channel_close(c);
+#endif
 }
 
 int torture_run_tests(void) {
     int rc;
-    struct torture_state *s = NULL;
 
     UnitTest tests[] = {
         unit_test_setup_teardown(torture_ssh_forward, setup, teardown),
@@ -105,9 +88,7 @@ int torture_run_tests(void) {
     ssh_init();
 
     torture_filter_tests(tests);
-    sshd_setup((void **)&s);
     rc = run_tests(tests);
-    sshd_teardown((void **)&s);
 
     ssh_finalize();
     return rc;

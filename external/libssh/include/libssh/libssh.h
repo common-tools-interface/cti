@@ -79,7 +79,7 @@
 /* libssh version */
 #define LIBSSH_VERSION_MAJOR  0
 #define LIBSSH_VERSION_MINOR  7
-#define LIBSSH_VERSION_MICRO  6
+#define LIBSSH_VERSION_MICRO  5
 
 #define LIBSSH_VERSION_INT SSH_VERSION_INT(LIBSSH_VERSION_MAJOR, \
                                            LIBSSH_VERSION_MINOR, \
@@ -444,8 +444,7 @@ LIBSSH_API int ssh_get_publickey(ssh_session session, ssh_key *key);
 
 enum ssh_publickey_hash_type {
     SSH_PUBLICKEY_HASH_SHA1,
-    SSH_PUBLICKEY_HASH_MD5,
-    SSH_PUBLICKEY_HASH_SHA256
+    SSH_PUBLICKEY_HASH_MD5
 };
 LIBSSH_API int ssh_get_publickey_hash(const ssh_key key,
                                       enum ssh_publickey_hash_type type,
@@ -564,10 +563,6 @@ LIBSSH_API int ssh_pki_export_pubkey_file(const ssh_key key,
 
 LIBSSH_API const char *ssh_pki_key_ecdsa_name(const ssh_key key);
 
-LIBSSH_API char *ssh_get_fingerprint_hash(enum ssh_publickey_hash_type type,
-                                          unsigned char *hash,
-                                          size_t len);
-LIBSSH_API void ssh_print_hash(enum ssh_publickey_hash_type type, unsigned char *hash, size_t len);
 LIBSSH_API void ssh_print_hexa(const char *descr, const unsigned char *what, size_t len);
 LIBSSH_API int ssh_send_ignore (ssh_session session, const char *data);
 LIBSSH_API int ssh_send_debug (ssh_session session, const char *message, int always_display);

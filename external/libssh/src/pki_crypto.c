@@ -31,7 +31,6 @@
 #include <openssl/dsa.h>
 #include <openssl/err.h>
 #include <openssl/rsa.h>
-#include "libcrypto-compat.h"
 
 #ifdef HAVE_OPENSSL_EC_H
 #include <openssl/ec.h>
@@ -231,10 +230,7 @@ ssh_key pki_key_dup(const ssh_key key, int demote)
     }
 
     switch (key->type) {
-    case SSH_KEYTYPE_DSS: {
-        const BIGNUM *p = NULL, *q = NULL, *g = NULL,
-          *pub_key = NULL, *priv_key = NULL;
-        BIGNUM *np, *nq, *ng, *npub_key, *npriv_key;
+    case SSH_KEYTYPE_DSS:
         new->dsa = DSA_new();
         if (new->dsa == NULL) {
             goto fail;
@@ -247,54 +243,36 @@ ssh_key pki_key_dup(const ssh_key key, int demote)
          * pub_key  = public key y = g^x
          * priv_key = private key x
          */
-        DSA_get0_pqg(key->dsa, &p, &q, &g);
-        np = BN_dup(p);
-        nq = BN_dup(q);
-        ng = BN_dup(g);
-        if (np == NULL || nq == NULL || ng == NULL) {
-            BN_free(np);
-            BN_free(nq);
-            BN_free(ng);
+        new->dsa->p = BN_dup(key->dsa->p);
+        if (new->dsa->p == NULL) {
             goto fail;
         }
 
-        rc = DSA_set0_pqg(new->dsa, np, nq, ng);
-        if (rc == 0) {
-            BN_free(np);
-            BN_free(nq);
-            BN_free(ng);
+        new->dsa->q = BN_dup(key->dsa->q);
+        if (new->dsa->q == NULL) {
             goto fail;
         }
 
-        DSA_get0_key(key->dsa, &pub_key, &priv_key);
-        npub_key = BN_dup(pub_key);
-        if (npub_key == NULL) {
+        new->dsa->g = BN_dup(key->dsa->g);
+        if (new->dsa->g == NULL) {
             goto fail;
         }
 
-        rc = DSA_set0_key(new->dsa, npub_key, NULL);
-        if (rc == 0) {
+        new->dsa->pub_key = BN_dup(key->dsa->pub_key);
+        if (new->dsa->pub_key == NULL) {
             goto fail;
         }
 
         if (!demote && (key->flags & SSH_KEY_FLAG_PRIVATE)) {
-            npriv_key = BN_dup(priv_key);
-            if (npriv_key == NULL) {
-                goto fail;
-            }
-
-            rc = DSA_set0_key(new->dsa, NULL, npriv_key);
-            if (rc == 0) {
+            new->dsa->priv_key = BN_dup(key->dsa->priv_key);
+            if (new->dsa->priv_key == NULL) {
                 goto fail;
             }
         }
 
         break;
-    }
     case SSH_KEYTYPE_RSA:
-    case SSH_KEYTYPE_RSA1: {
-        const BIGNUM *n = NULL, *e = NULL, *d = NULL;
-        BIGNUM *nn, *ne, *nd;
+    case SSH_KEYTYPE_RSA1:
         new->rsa = RSA_new();
         if (new->rsa == NULL) {
             goto fail;
@@ -310,82 +288,62 @@ ssh_key pki_key_dup(const ssh_key key, int demote)
          * dmq1 = d mod (q-1)
          * iqmp = q^-1 mod p
          */
-        RSA_get0_key(key->rsa, &n, &e, &d);
-        nn = BN_dup(n);
-        ne = BN_dup(e);
-        if (nn == NULL || ne == NULL) {
-            BN_free(nn);
-            BN_free(ne);
+        new->rsa->n = BN_dup(key->rsa->n);
+        if (new->rsa->n == NULL) {
             goto fail;
         }
 
-        rc = RSA_set0_key(new->rsa, nn, ne, NULL);
-        if (rc == 0) {
-            BN_free(nn);
-            BN_free(ne);
+        new->rsa->e = BN_dup(key->rsa->e);
+        if (new->rsa->e == NULL) {
             goto fail;
         }
 
         if (!demote && (key->flags & SSH_KEY_FLAG_PRIVATE)) {
-            const BIGNUM *p = NULL, *q = NULL, *dmp1 = NULL,
-              *dmq1 = NULL, *iqmp = NULL;
-            BIGNUM *np, *nq, *ndmp1, *ndmq1, *niqmp;
-
-            nd = BN_dup(d);
-            if (nd == NULL) {
-                goto fail;
-            }
-
-            rc = RSA_set0_key(new->rsa, NULL, NULL, nd);
-            if (rc == 0) {
+            new->rsa->d = BN_dup(key->rsa->d);
+            if (new->rsa->d == NULL) {
                 goto fail;
             }
 
             /* p, q, dmp1, dmq1 and iqmp may be NULL in private keys, but the
              * RSA operations are much faster when these values are available.
              */
-            RSA_get0_factors(key->rsa, &p, &q);
-            if (p != NULL && q != NULL) { /* need to set both of them */
-                np = BN_dup(p);
-                nq = BN_dup(q);
-                if (np == NULL || nq == NULL) {
-                    BN_free(np);
-                    BN_free(nq);
-                    goto fail;
-                }
-
-                rc = RSA_set0_factors(new->rsa, np, nq);
-                if (rc == 0) {
-                    BN_free(np);
-                    BN_free(nq);
+            if (key->rsa->p != NULL) {
+                new->rsa->p = BN_dup(key->rsa->p);
+                if (new->rsa->p == NULL) {
                     goto fail;
                 }
             }
 
-            RSA_get0_crt_params(key->rsa, &dmp1, &dmq1, &iqmp);
-            if (dmp1 != NULL || dmq1 != NULL || iqmp != NULL) {
-                ndmp1 = BN_dup(dmp1);
-                ndmq1 = BN_dup(dmq1);
-                niqmp = BN_dup(iqmp);
-                if (ndmp1 == NULL || ndmq1 == NULL || niqmp == NULL) {
-                    BN_free(ndmp1);
-                    BN_free(ndmq1);
-                    BN_free(niqmp);
+            if (key->rsa->q != NULL) {
+                new->rsa->q = BN_dup(key->rsa->q);
+                if (new->rsa->q == NULL) {
                     goto fail;
                 }
+            }
 
-                rc =  RSA_set0_crt_params(new->rsa, ndmp1, ndmq1, niqmp);
-                if (rc == 0) {
-                    BN_free(ndmp1);
-                    BN_free(ndmq1);
-                    BN_free(niqmp);
+            if (key->rsa->dmp1 != NULL) {
+                new->rsa->dmp1 = BN_dup(key->rsa->dmp1);
+                if (new->rsa->dmp1 == NULL) {
+                    goto fail;
+                }
+            }
+
+            if (key->rsa->dmq1 != NULL) {
+                new->rsa->dmq1 = BN_dup(key->rsa->dmq1);
+                if (new->rsa->dmq1 == NULL) {
+                    goto fail;
+                }
+            }
+
+            if (key->rsa->iqmp != NULL) {
+                new->rsa->iqmp = BN_dup(key->rsa->iqmp);
+                if (new->rsa->iqmp == NULL) {
                     goto fail;
                 }
             }
         }
 
         break;
-    }
     case SSH_KEYTYPE_ECDSA:
 #ifdef HAVE_OPENSSL_ECC
         new->ecdsa_nid = key->ecdsa_nid;
@@ -508,64 +466,51 @@ int pki_key_compare(const ssh_key k1,
                     enum ssh_keycmp_e what)
 {
     switch (k1->type) {
-        case SSH_KEYTYPE_DSS: {
-            const BIGNUM *p1, *p2, *q1, *q2, *g1, *g2,
-                *pub_key1, *pub_key2, *priv_key1, *priv_key2;
+        case SSH_KEYTYPE_DSS:
             if (DSA_size(k1->dsa) != DSA_size(k2->dsa)) {
                 return 1;
             }
-            DSA_get0_pqg(k1->dsa, &p1, &q1, &g1);
-            DSA_get0_pqg(k2->dsa, &p2, &q2, &g2);
-            if (bignum_cmp(p1, p2) != 0) {
+            if (bignum_cmp(k1->dsa->p, k2->dsa->p) != 0) {
                 return 1;
             }
-            if (bignum_cmp(q1, q2) != 0) {
+            if (bignum_cmp(k1->dsa->q, k2->dsa->q) != 0) {
                 return 1;
             }
-            if (bignum_cmp(g1, g2) != 0) {
+            if (bignum_cmp(k1->dsa->g, k2->dsa->g) != 0) {
                 return 1;
             }
-            DSA_get0_key(k1->dsa, &pub_key1, &priv_key1);
-            DSA_get0_key(k2->dsa, &pub_key2, &priv_key2);
-            if (bignum_cmp(pub_key1, pub_key2) != 0) {
+            if (bignum_cmp(k1->dsa->pub_key, k2->dsa->pub_key) != 0) {
                 return 1;
             }
 
             if (what == SSH_KEY_CMP_PRIVATE) {
-                if (bignum_cmp(priv_key1, priv_key2) != 0) {
+                if (bignum_cmp(k1->dsa->priv_key, k2->dsa->priv_key) != 0) {
                     return 1;
                 }
             }
             break;
-        }
         case SSH_KEYTYPE_RSA:
-        case SSH_KEYTYPE_RSA1: {
-            const BIGNUM *e1, *e2, *n1, *n2, *p1, *p2, *q1, *q2;
+        case SSH_KEYTYPE_RSA1:
             if (RSA_size(k1->rsa) != RSA_size(k2->rsa)) {
                 return 1;
             }
-            RSA_get0_key(k1->rsa, &n1, &e1, NULL);
-            RSA_get0_key(k2->rsa, &n2, &e2, NULL);
-            if (bignum_cmp(e1, e2) != 0) {
+            if (bignum_cmp(k1->rsa->e, k2->rsa->e) != 0) {
                 return 1;
             }
-            if (bignum_cmp(n1, n2) != 0) {
+            if (bignum_cmp(k1->rsa->n, k2->rsa->n) != 0) {
                 return 1;
             }
 
             if (what == SSH_KEY_CMP_PRIVATE) {
-                RSA_get0_factors(k1->rsa, &p1, &q1);
-                RSA_get0_factors(k2->rsa, &p2, &q2);
-                if (bignum_cmp(p1, p2) != 0) {
+                if (bignum_cmp(k1->rsa->p, k2->rsa->p) != 0) {
                     return 1;
                 }
 
-                if (bignum_cmp(q1, q2) != 0) {
+                if (bignum_cmp(k1->rsa->q, k2->rsa->q) != 0) {
                     return 1;
                 }
             }
             break;
-        }
         case SSH_KEYTYPE_ECDSA:
 #ifdef HAVE_OPENSSL_ECC
             {
@@ -874,32 +819,19 @@ int pki_pubkey_build_dss(ssh_key key,
                          ssh_string q,
                          ssh_string g,
                          ssh_string pubkey) {
-    int rc;
-    BIGNUM *bp, *bq, *bg, *bpub_key;
-
     key->dsa = DSA_new();
     if (key->dsa == NULL) {
         return SSH_ERROR;
     }
 
-    bp = make_string_bn(p);
-    bq = make_string_bn(q);
-    bg = make_string_bn(g);
-    bpub_key = make_string_bn(pubkey);
-    if (bp == NULL || bq == NULL ||
-        bg == NULL || bpub_key == NULL) {
-        DSA_free(key->dsa);
-        return SSH_ERROR;
-    }
-
-    rc = DSA_set0_pqg(key->dsa, bp, bq, bg);
-    if (rc == 0) {
-        DSA_free(key->dsa);
-        return SSH_ERROR;
-    }
-
-    rc = DSA_set0_key(key->dsa, bpub_key, NULL);
-    if (rc == 0) {
+    key->dsa->p = make_string_bn(p);
+    key->dsa->q = make_string_bn(q);
+    key->dsa->g = make_string_bn(g);
+    key->dsa->pub_key = make_string_bn(pubkey);
+    if (key->dsa->p == NULL ||
+        key->dsa->q == NULL ||
+        key->dsa->g == NULL ||
+        key->dsa->pub_key == NULL) {
         DSA_free(key->dsa);
         return SSH_ERROR;
     }
@@ -910,23 +842,15 @@ int pki_pubkey_build_dss(ssh_key key,
 int pki_pubkey_build_rsa(ssh_key key,
                          ssh_string e,
                          ssh_string n) {
-    int rc;
-    BIGNUM *be, *bn;
-
     key->rsa = RSA_new();
     if (key->rsa == NULL) {
         return SSH_ERROR;
     }
 
-    be = make_string_bn(e);
-    bn = make_string_bn(n);
-    if (be == NULL || bn == NULL) {
-        RSA_free(key->rsa);
-        return SSH_ERROR;
-    }
-
-    rc = RSA_set0_key(key->rsa, bn, be, NULL);
-    if (rc == 0) {
+    key->rsa->e = make_string_bn(e);
+    key->rsa->n = make_string_bn(n);
+    if (key->rsa->e == NULL ||
+        key->rsa->n == NULL) {
         RSA_free(key->rsa);
         return SSH_ERROR;
     }
@@ -965,26 +889,23 @@ ssh_string pki_publickey_to_blob(const ssh_key key)
     }
 
     switch (key->type) {
-        case SSH_KEYTYPE_DSS: {
-            const BIGNUM *bp, *bq, *bg, *bpub_key;
-            DSA_get0_pqg(key->dsa, &bp, &bq, &bg);
-            p = make_bignum_string((BIGNUM *)bp);
+        case SSH_KEYTYPE_DSS:
+            p = make_bignum_string(key->dsa->p);
             if (p == NULL) {
                 goto fail;
             }
 
-            q = make_bignum_string((BIGNUM *)bq);
+            q = make_bignum_string(key->dsa->q);
             if (q == NULL) {
                 goto fail;
             }
 
-            g = make_bignum_string((BIGNUM *)bg);
+            g = make_bignum_string(key->dsa->g);
             if (g == NULL) {
                 goto fail;
             }
 
-            DSA_get0_key(key->dsa, &bpub_key, NULL);
-            n = make_bignum_string((BIGNUM *)bpub_key);
+            n = make_bignum_string(key->dsa->pub_key);
             if (n == NULL) {
                 goto fail;
             }
@@ -1016,17 +937,14 @@ ssh_string pki_publickey_to_blob(const ssh_key key)
             n = NULL;
 
             break;
-        }
         case SSH_KEYTYPE_RSA:
-        case SSH_KEYTYPE_RSA1: {
-            const BIGNUM *be, *bn;
-            RSA_get0_key(key->rsa, &bn, &be, NULL);
-            e = make_bignum_string((BIGNUM *)be);
+        case SSH_KEYTYPE_RSA1:
+            e = make_bignum_string(key->rsa->e);
             if (e == NULL) {
                 goto fail;
             }
 
-            n = make_bignum_string((BIGNUM *)bn);
+            n = make_bignum_string(key->rsa->n);
             if (n == NULL) {
                 goto fail;
             }
@@ -1046,7 +964,6 @@ ssh_string pki_publickey_to_blob(const ssh_key key)
             n = NULL;
 
             break;
-        }
         case SSH_KEYTYPE_ECDSA:
 #ifdef HAVE_OPENSSL_ECC
             rc = ssh_buffer_reinit(buffer);
@@ -1148,15 +1065,13 @@ int pki_export_pubkey_rsa1(const ssh_key key,
     char *e;
     char *n;
     int rsa_size = RSA_size(key->rsa);
-    const BIGNUM *be, *bn;
 
-    RSA_get0_key(key->rsa, &bn, &be, NULL);
-    e = bignum_bn2dec(be);
+    e = bignum_bn2dec(key->rsa->e);
     if (e == NULL) {
         return SSH_ERROR;
     }
 
-    n = bignum_bn2dec(bn);
+    n = bignum_bn2dec(key->rsa->n);
     if (n == NULL) {
         OPENSSL_free(e);
         return SSH_ERROR;
@@ -1221,7 +1136,6 @@ static ssh_string pki_dsa_signature_to_blob(const ssh_signature sig)
 {
     char buffer[40] = { 0 };
     ssh_string sig_blob = NULL;
-    const BIGNUM *pr, *ps;
 
     ssh_string r;
     int r_len, r_offset_in, r_offset_out;
@@ -1229,13 +1143,12 @@ static ssh_string pki_dsa_signature_to_blob(const ssh_signature sig)
     ssh_string s;
     int s_len, s_offset_in, s_offset_out;
 
-    DSA_SIG_get0(sig->dsa_sig, &pr, &ps);
-    r = make_bignum_string((BIGNUM *)pr);
+    r = make_bignum_string(sig->dsa_sig->r);
     if (r == NULL) {
         return NULL;
     }
 
-    s = make_bignum_string((BIGNUM *)ps);
+    s = make_bignum_string(sig->dsa_sig->s);
     if (s == NULL) {
         ssh_string_free(r);
         return NULL;
@@ -1288,15 +1201,13 @@ ssh_string pki_signature_to_blob(const ssh_signature sig)
             ssh_string s;
             ssh_buffer b;
             int rc;
-            const BIGNUM *pr, *ps;
 
             b = ssh_buffer_new();
             if (b == NULL) {
                 return NULL;
             }
 
-            ECDSA_SIG_get0(sig->ecdsa_sig, &pr, &ps);
-            r = make_bignum_string((BIGNUM *)pr);
+            r = make_bignum_string(sig->ecdsa_sig->r);
             if (r == NULL) {
                 ssh_buffer_free(b);
                 return NULL;
@@ -1308,7 +1219,7 @@ ssh_string pki_signature_to_blob(const ssh_signature sig)
                 return NULL;
             }
 
-            s = make_bignum_string((BIGNUM *)ps);
+            s = make_bignum_string(sig->ecdsa_sig->s);
             if (s == NULL) {
                 ssh_buffer_free(b);
                 return NULL;
@@ -1413,7 +1324,6 @@ ssh_signature pki_signature_from_blob(const ssh_key pubkey,
     ssh_string s;
     size_t len;
     int rc;
-    BIGNUM *pr = NULL, *ps = NULL;
 
     sig = ssh_signature_new();
     if (sig == NULL) {
@@ -1453,9 +1363,9 @@ ssh_signature pki_signature_from_blob(const ssh_key pubkey,
             }
             ssh_string_fill(r, ssh_string_data(sig_blob), 20);
 
-            pr = make_string_bn(r);
+            sig->dsa_sig->r = make_string_bn(r);
             ssh_string_free(r);
-            if (pr == NULL) {
+            if (sig->dsa_sig->r == NULL) {
                 ssh_signature_free(sig);
                 return NULL;
             }
@@ -1467,15 +1377,9 @@ ssh_signature pki_signature_from_blob(const ssh_key pubkey,
             }
             ssh_string_fill(s, (char *)ssh_string_data(sig_blob) + 20, 20);
 
-            ps = make_string_bn(s);
+            sig->dsa_sig->s = make_string_bn(s);
             ssh_string_free(s);
-            if (ps == NULL) {
-                ssh_signature_free(sig);
-                return NULL;
-            }
-
-            rc = DSA_SIG_set0(sig->dsa_sig, pr, ps);
-            if (rc == 0) {
+            if (sig->dsa_sig->s == NULL) {
                 ssh_signature_free(sig);
                 return NULL;
             }
@@ -1523,10 +1427,10 @@ ssh_signature pki_signature_from_blob(const ssh_key pubkey,
                 ssh_print_hexa("r", ssh_string_data(r), ssh_string_len(r));
 #endif
 
-                pr = make_string_bn(r);
+                make_string_bn_inplace(r, sig->ecdsa_sig->r);
                 ssh_string_burn(r);
                 ssh_string_free(r);
-                if (pr == NULL) {
+                if (sig->ecdsa_sig->r == NULL) {
                     ssh_buffer_free(b);
                     ssh_signature_free(sig);
                     return NULL;
@@ -1544,16 +1448,10 @@ ssh_signature pki_signature_from_blob(const ssh_key pubkey,
                 ssh_print_hexa("s", ssh_string_data(s), ssh_string_len(s));
 #endif
 
-                ps = make_string_bn(s);
+                make_string_bn_inplace(s, sig->ecdsa_sig->s);
                 ssh_string_burn(s);
                 ssh_string_free(s);
-                if (ps == NULL) {
-                    ssh_signature_free(sig);
-                    return NULL;
-                }
-
-                rc = ECDSA_SIG_set0(sig->ecdsa_sig, pr, ps);
-                if (rc == 0) {
+                if (sig->ecdsa_sig->s == NULL) {
                     ssh_signature_free(sig);
                     return NULL;
                 }
@@ -1680,12 +1578,8 @@ ssh_signature pki_do_sign(const ssh_key privkey,
             }
 
 #ifdef DEBUG_CRYPTO
-            {
-                const BIGNUM *pr, *ps;
-                DSA_SIG_get0(sig->dsa_sig, &pr, &ps);
-                ssh_print_bignum("r", (BIGNUM *) pr);
-                ssh_print_bignum("s", (BIGNUM *) ps);
-            }
+            ssh_print_bignum("r", sig->dsa_sig->r);
+            ssh_print_bignum("s", sig->dsa_sig->s);
 #endif
 
             break;
@@ -1707,12 +1601,8 @@ ssh_signature pki_do_sign(const ssh_key privkey,
             }
 
 # ifdef DEBUG_CRYPTO
-            {
-                const BIGNUM *pr, *ps;
-                ECDSA_SIG_get0(sig->ecdsa_sig, &pr, &ps);
-                ssh_print_bignum("r", (BIGNUM *) pr);
-                ssh_print_bignum("s", (BIGNUM *) ps);
-            }
+            ssh_print_bignum("r", sig->ecdsa_sig->r);
+            ssh_print_bignum("s", sig->ecdsa_sig->s);
 # endif /* DEBUG_CRYPTO */
 
             break;
