@@ -214,7 +214,9 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 	_cti_list_remove(_cti_cray_slurm_info, sinfo);
 
 	_cti_cray_slurm_freeLayout(sinfo->layout);
-	_cti_mpir_releaseInstance(sinfo->mpir_id);
+	if (sinfo->mpir_id >= 0) {
+		_cti_mpir_releaseInstance(sinfo->mpir_id);
+	}
 	_cti_mpir_deleteProcTable(sinfo->app_pids);
 	
 	if (sinfo->toolPath != NULL)
@@ -602,15 +604,16 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		return 0;
 	}
 
-	// optionally open input file
+	// open input file (or /dev/null to avoid stdin contention)
 	int input_fd = -1;
-	if (inputFile != NULL) {
-		errno = 0;
-		input_fd = open(inputFile, O_RDONLY);
-		if (input_fd < 0) {
-			_cti_set_error("Failed to open input file %s: ", inputFile, strerror(errno));
-			return 0;
-		}
+	if (inputFile == NULL) {
+		inputFile = "/dev/null";
+	}
+	errno = 0;
+	input_fd = open(inputFile, O_RDONLY);
+	if (input_fd < 0) {
+		_cti_set_error("Failed to open input file %s: ", inputFile, strerror(errno));
+		return 0;
 	}
 	
 	// Create a new MPIR instance. We want to interact with it.

@@ -72,8 +72,15 @@ void Archive::addDirEntry(const std::string& entryPath) {
 
 void Archive::addDir(const std::string& entryPath, const std::string& dirPath) {
 	if (auto dirHandle = UniquePtrDestr<DIR>(opendir(dirPath.c_str()), closedir)) {
+		errno = 0;
 		for (struct dirent *d = readdir(dirHandle.get()); d != nullptr;
 			d = readdir(dirHandle.get())) {
+
+			// check for failure on readdir
+			if (errno != 0) {
+				throw std::runtime_error(dirPath + " had readdir failure: " + 
+					strerror(errno));
+			}
 
 			// make sure not . or ..
 			if (!strncmp(d->d_name, ".", 1) || !strncmp(d->d_name, "..", 2)) {
@@ -83,16 +90,18 @@ void Archive::addDir(const std::string& entryPath, const std::string& dirPath) {
 			// recursively add to archive
 			addPath(entryPath + "/" + d->d_name, dirPath + "/" + d->d_name);
 		}
-
-		// check for failure on readdir
-		if (errno != 0) {
-			throw std::runtime_error(dirPath + " had readdir failure: " + 
-				strerror(errno));
-		}
 	} else {
 		throw std::runtime_error(dirPath + " failed opendir call");
 	}
 }
+
+
+struct FdHandle {
+	const int fd;
+	FdHandle(const std::string& path) : fd(open(path.c_str(), O_RDONLY)) {}
+	~FdHandle() { close(fd); }
+	operator const void*() const { return (fd >= 0) ? this : nullptr; }
+};
 
 void Archive::addFile(const std::string& entryPath, const std::string& filePath) {
 	// copy data from file to archive

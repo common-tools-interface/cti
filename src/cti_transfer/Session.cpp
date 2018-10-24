@@ -1,6 +1,8 @@
 #include "Session.hpp"
 #include "Manifest.hpp"
 
+#include "cti_wrappers.hpp"
+
 // getpid
 #include <sys/types.h>
 #include <unistd.h>
@@ -119,6 +121,14 @@ void Session::launchCleanup() {
 	invalidate();
 }
 
+using CStr = const char * const;
+static void forEachCStrArr(std::function<void(CStr)> func, CStr* arr) {
+	if (arr != nullptr) {
+		for (CStr* elemPtr = arr; *elemPtr != nullptr; elemPtr++) {
+			func(*elemPtr);
+		}
+	}
+}
 
 void Session::shipWLMBaseFiles() {
 	auto baseFileManifest = createManifest();
@@ -126,10 +136,6 @@ void Session::shipWLMBaseFiles() {
 	auto wlmProto = appPtr->wlmProto;
 	auto wlmObj = appPtr->_wlmObj;
 
-	using CStr = const char * const;
-	auto forEachCStrArr = [&](std::function<void(CStr)> adder, CStr* arr) {
-		if (arr != nullptr) { for (; *arr != nullptr; arr++) { adder(*arr); } }
-	};
 	forEachCStrArr([&](CStr cstr) { baseFileManifest->addBinary(cstr);  },
 		wlmProto->wlm_extraBinaries(wlmObj));
 	forEachCStrArr([&](CStr cstr) { baseFileManifest->addLibrary(cstr); },
@@ -145,9 +151,9 @@ void Session::shipWLMBaseFiles() {
 
 int Session::startDaemon(char * const argv[]) {
 	auto cti_argv = UniquePtrDestr<cti_args_t>(_cti_newArgs(), _cti_freeArgs);
-	for (char * const* arg = argv; *arg != nullptr; arg++) {
-		_cti_addArg(cti_argv.get(), *arg);
-	}
+	forEachCStrArr([&](CStr arg) {
+		_cti_addArg(cti_argv.get(), arg);
+	}, argv);
 	return getWLM()->wlm_startDaemon(appPtr->_wlmObj, cti_argv.get());
 }
 

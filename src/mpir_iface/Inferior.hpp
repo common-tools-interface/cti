@@ -12,8 +12,8 @@
 #include <PCProcess.h>
 #include <Event.h>
 
-//#define DEBUG(str, x) do { str << x; } while (0)
-#define DEBUG(str, x)
+#define DEBUG(str, x) do { str << x; } while (0)
+// #define DEBUG(str, x)
 
 /* RAII for signal blocking */
 #include <signal.h>
@@ -115,7 +115,7 @@ public: // interface
 
 	/* create a new process with arguments */
 	Inferior(std::string const& launcher, std::vector<std::string> const& launcherArgv,
-		std::vector<std::string> envVars = {}, std::map<int, int> remapFds = {});
+		std::vector<std::string> const& envVars = {}, std::map<int, int> const& remapFds = {});
 	/* attach to existing process */
 	Inferior(std::string const& launcher, pid_t pid);
 	~Inferior();

@@ -23,9 +23,14 @@ stop_on_breakpoint(Dyninst::ProcControlAPI::Event::const_ptr genericEv) {
 
 Inferior::Inferior(std::string const& launcher,
 	std::vector<std::string> const& launcherArgv, 
-	std::vector<std::string> envVars, std::map<int, int> remapFds) :
+	std::vector<std::string> const& envVars,
+	std::map<int, int> const& remapFds) :
 	symtab(make_Symtab(launcher), Symtab::closeSymtab),
 	proc(Process::createProcess(launcher, launcherArgv, envVars, remapFds)) {
+
+	if (!proc) {
+		throw std::runtime_error("failed to launch " + launcher);
+	}
 
 	/* prepare breakpoint callback */
 	Process::registerEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);

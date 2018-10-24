@@ -58,7 +58,7 @@ template <typename T>
 static T readArrayElem(Inferior& inf, std::string const& symName, size_t idx) {
 	Inferior::Address elem_addr;
 	{ auto array_start = inf.readVariable<Inferior::Address>(symName);
-		elem_addr = array_start + idx * sizeof(void*);
+		elem_addr = array_start + idx * sizeof(T);
 	}
 	return inf.readMemory<T>(elem_addr);
 }
@@ -82,6 +82,7 @@ std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
 		/* copy hostname */
 		{ std::stringstream ss;
 			ss << buf.data();
+			DEBUG(std::cerr, "procTable[" << i << "]: " << procDesc.pid << ", " << ss.str() << std::endl);
 			procTable.emplace_back(MPIR_ProcTableElem{procDesc.pid, ss.str()});
 		}
 	}

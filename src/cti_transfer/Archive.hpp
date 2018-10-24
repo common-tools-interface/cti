@@ -14,13 +14,6 @@ private: // types
 	template <typename T>
 	using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
 
-	struct FdHandle {
-		const int fd;
-		FdHandle(const std::string& path) : fd(open(path.c_str(), O_RDONLY)) {}
-		~FdHandle() { close(fd); }
-		operator const void*() const { return (fd >= 0) ? this : nullptr; }
-	};
-
 public: // types
 	using ArchPtr = UniquePtrDestr<struct archive>;
 	using EntryPtr = UniquePtrDestr<struct archive_entry>;
@@ -58,7 +51,6 @@ public: // interface
 	const std::string& finalize() {
 		archPtr.reset();
 		entryScratchpad.reset();
-		{ std::string cmd("cp " + archivePath + " /cray/css/users/adangelo/stash/valgrind4hpc/tests/archive.tar"); system(cmd.c_str()); }
 		return archivePath;
 	}
 	// create archive directory entry

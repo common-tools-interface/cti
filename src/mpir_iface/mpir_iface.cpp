@@ -18,6 +18,7 @@ mpir_id_t newId() {
 
 mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const launcher_args[],
 	const char * const env_list[], int stdin_fd, int stdout_fd, int stderr_fd) {
+	DEBUG(std::cerr, "_cti_mpir_newLaunchInstance" << std::endl);
 
 	mpir_id_t id = newId();
 
@@ -35,12 +36,18 @@ mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const l
 		}
 	}
 
-	/* optionally use file input */
-	std::map<int, int> remapFds;
-	if (stdin_fd  >= 0) { remapFds[stdin_fd] = STDIN_FILENO;  }
-	if (stdout_fd >= 0) { remapFds[stdin_fd] = STDOUT_FILENO; }
-	if (stderr_fd >= 0) { remapFds[stdin_fd] = STDERR_FILENO; }
+	/* provide proper input / output fds */
+	if (stdin_fd < 0) {
+		DEBUG(std::cerr, "stdin: " << stdin_fd << " stdout: " << stdout_fd << " stderr: " << stderr_fd << std::endl);
+		return INSTANCE_ERROR;
+	}
+	std::map<int, int> remapFds {
+		{stdin_fd,  STDIN_FILENO}
+	};
+	if (stdout_fd >= 0) { remapFds[stdout_fd] = STDOUT_FILENO; }
+	if (stderr_fd >= 0) { remapFds[stderr_fd] = STDERR_FILENO; }
 
+	/* construct the instance */
 	try {
 		mpirInstances.emplace(id, new MPIRInstance(std::string(launcher), launcherArgv, envVars, remapFds));
 	} catch (...) {
@@ -51,6 +58,7 @@ mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const l
 }
 
 mpir_id_t _cti_mpir_newAttachInstance(const char *launcher, pid_t pid) {
+	DEBUG(std::cerr, "_cti_mpir_newAttachInstance" << std::endl);
 	mpir_id_t id = newId();
 
 	try {
@@ -63,6 +71,7 @@ mpir_id_t _cti_mpir_newAttachInstance(const char *launcher, pid_t pid) {
 }
 
 int _cti_mpir_releaseInstance(mpir_id_t id) {
+	DEBUG(std::cerr, "_cti_mpir_releaseInstance" << std::endl);
 	auto it = mpirInstances.find(id);
 	if (it == mpirInstances.end()) { return 1; }
 
@@ -73,10 +82,12 @@ int _cti_mpir_releaseInstance(mpir_id_t id) {
 }
 
 void _cti_mpir_releaseAllInstances(void) {
+	DEBUG(std::cerr, "_cti_mpir_releaseAllInstances" << std::endl);
 	mpirInstances.clear();
 }
 
 char* _cti_mpir_getStringAt(mpir_id_t id, const char *symbol) {
+	DEBUG(std::cerr, "_cti_mpir_getStringAt" << std::endl);
 	auto it = mpirInstances.find(id);
 	if (it == mpirInstances.end()) { return NULL; }
 
@@ -84,6 +95,7 @@ char* _cti_mpir_getStringAt(mpir_id_t id, const char *symbol) {
 }
 
 cti_mpir_procTable_t* _cti_mpir_newProcTable(mpir_id_t id) {
+	DEBUG(std::cerr, "_cti_mpir_newProcTable" << std::endl);
 	auto it = mpirInstances.find(id);
 	if (it == mpirInstances.end()) { return NULL; }
 
@@ -107,17 +119,19 @@ cti_mpir_procTable_t* _cti_mpir_newProcTable(mpir_id_t id) {
 }
 
 void _cti_mpir_deleteProcTable(cti_mpir_procTable_t *proc_table) {
+	DEBUG(std::cerr, "_cti_mpir_deleteProcTable" << std::endl);
 	if (proc_table == NULL) { return; }
 
 	for (size_t i = 0; i < proc_table->num_pids; i++) {
 		free(proc_table->hostnames[i]);
 	}
-	delete proc_table->hostnames;
-	delete proc_table->pids;
-	delete proc_table;
+	delete[] proc_table->hostnames;
+	delete[] proc_table->pids;
+	delete   proc_table;
 }
 
 pid_t _cti_mpir_getLauncherPid(mpir_id_t id) {
+	DEBUG(std::cerr, "_cti_mpir_getLauncherPid" << std::endl);
 	auto it = mpirInstances.find(id);
 	if (it == mpirInstances.end()) { return 0; }
 
