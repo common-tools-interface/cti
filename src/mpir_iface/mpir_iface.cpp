@@ -8,23 +8,35 @@
 
 #include "mpir_iface.h"
 
-std::map<mpir_id_t, std::unique_ptr<MPIRInstance>> mpirInstances;
+static std::map<mpir_id_t, std::unique_ptr<MPIRInstance>> mpirInstances;
 
 static const mpir_id_t INSTANCE_ERROR = -1;
-mpir_id_t newId() {
+static mpir_id_t newId() noexcept {
 	static mpir_id_t nextId = 1;
 	return nextId++;
 }
 
+template <typename FuncType, typename ResultType = decltype(std::declval<FuncType>()())>
+inline static ResultType runSafely(std::string const& caller, FuncType func,
+	ResultType onError = ResultType()) noexcept {
+
+	try { // try to run the function
+		DEBUG(std::cerr, caller << std::endl);
+		return func();
+	} catch (const std::exception& ex) {
+		return onError;
+	}
+}
+
 mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const launcher_args[],
 	const char * const env_list[], int stdin_fd, int stdout_fd, int stderr_fd) {
-	DEBUG(std::cerr, "_cti_mpir_newLaunchInstance" << std::endl);
+	return runSafely("_cti_mpir_newLaunchInstance", [&](){
 
 	mpir_id_t id = newId();
 
 	/* construct argv array & instance*/
 	std::vector<std::string> launcherArgv{launcher};
-	for (const char* const* arg = launcher_args; *arg != NULL; arg++) {
+	for (const char* const* arg = launcher_args; *arg != nullptr; arg++) {
 		launcherArgv.emplace_back(*arg);
 	}
 
@@ -55,7 +67,7 @@ mpir_id_t _cti_mpir_newLaunchInstance(const char *launcher, const char * const l
 	}
 
 	return id;
-}
+});}
 
 mpir_id_t _cti_mpir_newAttachInstance(const char *launcher, pid_t pid) {
 	DEBUG(std::cerr, "_cti_mpir_newAttachInstance" << std::endl);
@@ -89,15 +101,16 @@ void _cti_mpir_releaseAllInstances(void) {
 char* _cti_mpir_getStringAt(mpir_id_t id, const char *symbol) {
 	DEBUG(std::cerr, "_cti_mpir_getStringAt" << std::endl);
 	auto it = mpirInstances.find(id);
-	if (it == mpirInstances.end()) { return NULL; }
+	if (it == mpirInstances.end()) { return nullptr; }
 
 	return strdup(it->second->readStringAt(symbol).c_str());
 }
 
 cti_mpir_procTable_t* _cti_mpir_newProcTable(mpir_id_t id) {
-	DEBUG(std::cerr, "_cti_mpir_newProcTable" << std::endl);
+	return runSafely("_cti_mpir_newProcTable", [&](){
+
 	auto it = mpirInstances.find(id);
-	if (it == mpirInstances.end()) { return NULL; }
+	if (it == mpirInstances.end()) { return static_cast<cti_mpir_procTable_t*>(nullptr); }
 
 	cti_mpir_procTable_t *procTable_C = new cti_mpir_procTable_t;
 
@@ -116,11 +129,11 @@ cti_mpir_procTable_t* _cti_mpir_newProcTable(mpir_id_t id) {
 	}
 
 	return procTable_C;
-}
+});}
 
 void _cti_mpir_deleteProcTable(cti_mpir_procTable_t *proc_table) {
 	DEBUG(std::cerr, "_cti_mpir_deleteProcTable" << std::endl);
-	if (proc_table == NULL) { return; }
+	if (proc_table == nullptr) { return; }
 
 	for (size_t i = 0; i < proc_table->num_pids; i++) {
 		free(proc_table->hostnames[i]);
