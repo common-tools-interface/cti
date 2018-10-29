@@ -115,7 +115,7 @@ void Manifest::addFile(const std::string& rawName) {
 #include "Archive.hpp"
 
 RemotePackage Manifest::createAndShipArchive(const std::string& archiveName,
-	const std::shared_ptr<Session>& liveSession) {
+	std::shared_ptr<Session>& liveSession) {
 
 	// todo: block signals handle race with file creation
 
@@ -139,8 +139,7 @@ RemotePackage Manifest::createAndShipArchive(const std::string& archiveName,
 	}
 
 	// ship package and finalize manifest with session
-	RemotePackage remotePackage(archive.finalize(), archiveName, liveSession,
-		instanceCount);
+	RemotePackage remotePackage(archive.finalize(), archiveName, liveSession, instanceCount);
 
 	// todo: end block signals
 

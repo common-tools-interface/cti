@@ -221,18 +221,6 @@ void _cti_setStageDeps(bool stageDeps) {
 	_cti_stage_deps = stageDeps;
 }
 
-#ifdef TRANSITION_DEFS
-#include <iostream>
-
-void _cti_transfer_init(void) {
-	DEBUG_PRINT("deprecated: _cti_transfer_init" << std::endl);
-}
-
 void _cti_transfer_fini(void) {
-	DEBUG_PRINT("deprecated: _cti_transfer_fini" << std::endl);
+	sessions.clear();
 }
-
-void _cti_consumeSession(void *) {
-	DEBUG_PRINT("deprecated: _cti_consumeSession" << std::endl);
-}
-#endif

@@ -44,13 +44,13 @@ private: // helper functions
 
 	// create manifest archive with libarchive and ship package with WLM transfer function
 	RemotePackage createAndShipArchive(const std::string& archiveName,
-		const std::shared_ptr<Session>& liveSession);
+		std::shared_ptr<Session>& liveSession);
 
 public: // interface
-	Manifest(size_t instanceCount_, std::shared_ptr<Session> liveSession) :
-		sessionPtr(liveSession),
+	Manifest(size_t instanceCount_, Session& owningSession) :
+		sessionPtr(owningSession.shared_from_this()),
 		instanceCount(instanceCount_),
-		lockFilePath(liveSession->toolPath + "/.lock_" + liveSession->stageName +
+		lockFilePath(owningSession.toolPath + "/.lock_" + owningSession.stageName +
 			"_" + std::to_string(instanceCount)) {}
 
 	// add files and optionally their dependencies to manifest

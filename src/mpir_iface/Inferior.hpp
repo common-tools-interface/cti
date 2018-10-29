@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <type_traits>
 
 // dyninst symtab
 #include <Symtab.h>
@@ -12,8 +13,8 @@
 #include <PCProcess.h>
 #include <Event.h>
 
-#define DEBUG(str, x) do { str << x; } while (0)
-// #define DEBUG(str, x)
+// #define DEBUG(str, x) do { str << x; } while (0)
+#define DEBUG(str, x)
 
 /* RAII for signal blocking */
 #include <signal.h>
@@ -87,20 +88,24 @@ public: // interface
 	/* templated over char buf source / dest functions */
 	template <typename T>
 	void writeMemory(Address sourceAddr, T const& data) {
+		static_assert(std::is_trivially_copyable<T>::value);
 		writeFromBuf(sourceAddr, reinterpret_cast<const char*>(&data), sizeof(T));
 	}
 	template <typename T>
 	void writeVariable(std::string const& destName, T const& data) {
+		static_assert(std::is_trivially_copyable<T>::value);
 		writeFromBuf(destName, reinterpret_cast<const char*>(&data), sizeof(T));
 	}
 	template <typename T>
 	T readMemory(Address sourceAddr) {
+		static_assert(std::is_trivially_copyable<T>::value);
 		T result;
 		readToBuf(reinterpret_cast<char*>(&result), sourceAddr, sizeof(T));
 		return result;
 	}
 	template <typename T>
 	T readVariable(std::string const& sourceName) {
+		static_assert(std::is_trivially_copyable<T>::value);
 		T result;
 		readToBuf(reinterpret_cast<char*>(&result), sourceName, sizeof(T));
 		return result;

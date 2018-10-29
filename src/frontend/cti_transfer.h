@@ -68,12 +68,7 @@ extern "C" {
 	extern bool _cti_stage_deps; // located in cti_transfer/cti_transfer.cpp
 	void _cti_setStageDeps(bool stageDeps);
 
-#if 1
-#define TRANSITION_DEFS
-void _cti_transfer_init(void);
-void _cti_transfer_fini(void);
-void _cti_consumeSession(void *);
-#endif
+	void _cti_transfer_fini(void);
 
 #ifdef __cplusplus
 }

@@ -9,9 +9,8 @@ static std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionP
 	throw std::runtime_error("Manifest is not valid, already shipped.");
 }
 
-RemotePackage::RemotePackage(const std::string& archivePath, 
-	const std::string& archiveName_, std::shared_ptr<Session> liveSession,
-	size_t instanceCount_) :
+RemotePackage::RemotePackage(const std::string& archivePath,  const std::string& archiveName_,
+	std::shared_ptr<Session>& liveSession, size_t instanceCount_) :
 		archiveName(archiveName_),
 		sessionPtr(liveSession),
 		instanceCount(instanceCount_) {

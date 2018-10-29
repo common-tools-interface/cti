@@ -158,9 +158,7 @@ int Session::startDaemon(char * const argv[]) {
 }
 
 std::shared_ptr<Manifest> Session::createManifest() {
-	manifests.push_back(std::make_shared<Manifest>(
-		manifests.size(), shared_from_this()
-	));
+	manifests.push_back(std::make_shared<Manifest>(manifests.size(), *this));
 	return manifests.back();
 }
 

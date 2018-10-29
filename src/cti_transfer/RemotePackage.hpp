@@ -24,7 +24,7 @@ public: // interface
 
 	// run WLM shipping routine to stage archivePath
 	RemotePackage(const std::string& archivePath, const std::string& archiveName_,
-		std::shared_ptr<Session> liveSession, size_t instanceCount_);
+		std::shared_ptr<Session>& liveSession, size_t instanceCount_);
 
 	// object finalized after running extraction routines
 	void extract();
