@@ -24,6 +24,8 @@ boostSO_Fix=0
 dwarfDir=""
 dwarfVer=18.1.0
 ulib=/cray/css/ulib
+redhat_release_file="/etc/redhat-release"
+suse_release_file="/etc/SuSE-release"
 buildRelease=0           # default to not being a build release
 swDebugStr="-DCMAKE_BUILD_TYPE=RelWithDebInfo"
 boost_inst_base=""
@@ -31,55 +33,66 @@ boost_inc=""
 boost_full_name=${boostSO_Major}_${boostSO_Minor}_${boostSO_Fix}
 
 function source_module_script() {
-  if [ -e "/etc/redhat-release" ]; then
+  if [ -e $redhat_release_file ]; then
+    # centos
     if [[ -e /usr/share/Modules/init/bash ]]; then
       source /usr/share/Modules/init/bash
     fi
   else
+    # get sles version
+    SLES_VER=$(cat $suse_release_file 2>&1 /dev/null | grep VERSION | cut -f3 -d" ")
+    if [[ $SLES_VER -lt 12 ]]; then
+      modules_prefix=/opt
+    else
+      modules_prefix=/opt/cray/pe
+    fi
+
+    # load sles script
     if [[ -e $modules_prefix/modules/default/init/bash ]]; then
       source $modules_prefix/modules/default/init/bash
     fi
   fi
 }
 
-function set_prefix(){
-    SLES_VER=$(cat /etc/SuSE-release 2>&1 /dev/null | grep VERSION | cut -f3 -d" ")
-    if [[ $SLES_VER -lt 12 ]]
-    then
-	modules_prefix=/opt
-    else
-	modules_prefix=/opt/cray/pe
-    fi
-}
-
 function set_OS(){
-
-  OS=$(cat /etc/SuSE-release | head -1 | cut -d'(' -f2 | cut -d')' -f1)
-  SLES_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
-  if [[ $OS == "aarch64" ]]
-  then
-  gccVer=6.1.0
-  boost_inst_base=$ulib/boost/1_66_aarch64/boost_${boost_full_name}/install
-  boost_inc=$boost_inst_base/include
-        elfDir=/usr             # Fixme: this is too ephemeral ???
-        dwarfDir=$ulib/aarch64/dwarf/$dwarfVer
-  elif [[ $OS == "x86_64" ]]
-  then
-        gccVer=6.1.0
-        boost_inst_base=$ulib/boost/1_66/boost_${boost_full_name}/install
-  boost_inc=$boost_inst_base/include
-        elfDir=/cray/css/users/debugger/elf/elfutils-0.168/install/
-        if [[ $SLES_VER = 11 ]]
-        then
-          dwarfDir=$ulib/sles11/dwarf/$dwarfVer
-        fi
-        if [[ $SLES_VER = 12 ]]
-        then
-          dwarfDir=$ulib/dwarf/$dwarfVer
-        fi
+  # set OS, arch
+  if [ -e "$redhat_release_file" ]; then
+    OS="CentOS"
+    arch=x86_64
+  elif [ -e "$suse_release_file" ]; then
+    arch=$(cat $suse_release_file | head -1 | cut -d'(' -f2 | cut -d')' -f1)
+    SLES_VER=$(cat $suse_release_file | grep VERSION | cut -f3 -d" ")
+    if [[ $SLES_VER = 11 ]]; then
+      OS="SLES11"
+    elif [[ $SLES_VER = 12 ]]; then
+      OS="SLES12"
+    fi
   fi
+  export OS
+  export arch
+
+  gccVer=6.1.0
   module load gcc/$gccVer
   export gccVer
+
+  # use OS and arch to set right gcc, boost, libelf, libdwarf
+  if [[ $arch == "aarch64" ]]; then
+    boost_inst_base=$ulib/boost/1_66_aarch64/boost_${boost_full_name}/install
+    boost_inc=$boost_inst_base/include
+    elfDir=/usr             # Fixme: this is too ephemeral ???
+    dwarfDir=$ulib/aarch64/dwarf/$dwarfVer
+  elif [[ $arch == "x86_64" ]]; then
+    boost_inst_base=$ulib/boost/1_66/boost_${boost_full_name}/install
+    boost_inc=$boost_inst_base/include
+    elfDir=/cray/css/users/debugger/elf/elfutils-0.168/install/
+    if [[ $OS == "SLES11" ]]; then
+      dwarfDir=$ulib/sles11/dwarf/$dwarfVer
+    elif [[ $OS == "SLES12" ]]; then
+      dwarfDir=$ulib/dwarf/$dwarfVer
+    elif [[ $OS == "CentOS" ]]; then
+      dwarfDir=$ulib/dwarf/$dwarfVer
+    fi
+  fi
 }
 
 #_______________________ Start of main code ______________________________
@@ -90,18 +103,15 @@ module purge 2>/dev/null
 module load $cmake_module
 
 set_OS
-set_prefix
 
 #
 # Build DyninstAPI
 #
 PLATFORM=
-if [ $OS == "x86_64" ]
-then
+if [[ $arch == "x86_64" ]]; then
   export PLATFORM=x86_64_cnl
   export PLATFORM=x86_64-unknown-linux2.4 # Is PLATFORM even needed?
-elif [ $OS == 'aarch64' ]
-then
+elif [[ $arch == "aarch64" ]]; then
   export PLATFORM=aarch64-unknown-linux-gnu
 fi
 echo "PLATFORM IS: $PLATFORM"
@@ -132,9 +142,9 @@ then
   mkdir -p $swBuildDir
   cd $swBuildDir
   #updated for Aarch64  (c++ to g++)
-  if [[ $OS == "x86_64" ]]
+  echo arch: "$arch"
+  if [[ $arch == "x86_64" ]]
   then
-    echo OS: "$OS"
     cmake $swSourceDir \
       $swDebugStr \
       -DCMAKE_C_COMPILER=/opt/gcc/$gccVer/bin/gcc \
@@ -151,9 +161,8 @@ then
 
       #-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 
-  elif [[ $OS == "aarch64" ]]
+  elif [[ $arch == "aarch64" ]]
   then
-    echo OS: "$OS"
     cmake $swSourceDir \
       $swDebugStr \
       -DCMAKE_C_COMPILER=/opt/gcc/$gccVer/bin/gcc \
@@ -183,10 +192,10 @@ autoreconf -ifv
 if [[ $doingInstall == "1" ]]
 then
   mkdir -p $BUILD_DIR/lib/ $BUILD_DIR/libexec
-  if [ $OS == "x86_64" ]
+  if [ $arch == "x86_64" ]
   then
     cp $elfDir/lib/libelf.so.1 $BUILD_DIR/lib/
-  elif [ $OS = "aarch64" ]
+  elif [ $arch = "aarch64" ]
   then
     cp $elfDir/lib64/libelf.so.1 $BUILD_DIR/lib/
   fi
