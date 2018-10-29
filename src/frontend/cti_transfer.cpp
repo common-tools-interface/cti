@@ -12,7 +12,7 @@
 
 #include "cti_transfer.h"
 
-std::map<cti_session_id_t, std::shared_ptr<Session>> sessions;
+static std::unordered_map<cti_session_id_t, std::shared_ptr<Session>> sessions;
 static const cti_session_id_t SESSION_ERROR = 0;
 static cti_session_id_t newSessionId() noexcept {
 	static cti_session_id_t nextId = 1;
@@ -20,7 +20,7 @@ static cti_session_id_t newSessionId() noexcept {
 }
 
 // manifest objects are created by and owned by session objects
-std::map<cti_manifest_id_t, std::shared_ptr<Manifest>> manifests;
+static std::unordered_map<cti_manifest_id_t, std::shared_ptr<Manifest>> manifests;
 static const cti_manifest_id_t MANIFEST_ERROR = 0;
 static cti_manifest_id_t newManifestId() noexcept {
 	static cti_manifest_id_t nextId = 1;
@@ -48,9 +48,13 @@ cti_session_id_t cti_createSession(cti_app_id_t appId) {
 	auto insertSession = [&]() {
 		// get appPtr from appId
 		if (appEntry_t *appPtr = _cti_findAppEntry(appId)) {
+			// create session instance
 			auto newSession = std::make_shared<Session>(appPtr);
 			newSession->shipWLMBaseFiles();
 			sessions.insert(std::make_pair(sid, newSession));
+
+			// add pointer to sid to appEntry's session list
+			ctiListAdd(appPtr->sessions, new cti_session_id_t(sid));
 		} else {
 			throw std::runtime_error(
 				"failed, appId not found: " + std::to_string(appId));
@@ -220,6 +224,22 @@ bool _cti_stage_deps = true; // extern defined in cti_transfer.h
 void _cti_setStageDeps(bool stageDeps) {
 	_cti_stage_deps = stageDeps;
 }
+
+void _cti_consumeSession(void* rawSidPtr) {
+	if (rawSidPtr == nullptr) {
+		return;
+	}
+
+	auto sidPtr = static_cast<cti_session_id_t*>(rawSidPtr);
+	runSafely("_cti_consumeSession", [&]() {
+		auto const& sessionHandle = getSessionHandle(*sidPtr);
+		ctiListRemove(sessionHandle->appPtr->sessions, sidPtr);
+	});
+	cti_destroySession(*sidPtr);
+	delete sidPtr;
+}
+
+void _cti_transfer_init(void) { /* no-op */ }
 
 void _cti_transfer_fini(void) {
 	sessions.clear();

@@ -61,6 +61,16 @@ static inline CharPtr getRealPath(const std::string& filePath) {
 	}
 }
 
+static inline void ctiListAdd(cti_list_t *list, void *elem) {
+	if (_cti_list_add(list, elem)) {
+		throw std::runtime_error("_cti_list_add failed.");
+	}
+}
+
+static inline void ctiListRemove(cti_list_t *list, void *elem) {
+	_cti_list_remove(list, elem);
+}
+
 #include "ld_val/ld_val.h"
 
 static inline StringArray getFileDependencies(const std::string& filePath) {

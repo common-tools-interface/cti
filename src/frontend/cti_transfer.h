@@ -68,6 +68,10 @@ extern "C" {
 	extern bool _cti_stage_deps; // located in cti_transfer/cti_transfer.cpp
 	void _cti_setStageDeps(bool stageDeps);
 
+	/* destroy session via appentry's session list */
+	void _cti_consumeSession(void* sidPtr);
+
+	void _cti_transfer_init(void);
 	void _cti_transfer_fini(void);
 
 #ifdef __cplusplus

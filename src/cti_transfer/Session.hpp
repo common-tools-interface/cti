@@ -32,7 +32,6 @@ public: // types
 	};
 
 private: // variables
-	appEntry_t  *appPtr;
 	std::vector<std::shared_ptr<Manifest>> manifests;
 	size_t shippedManifests = 0;
 
@@ -45,6 +44,7 @@ private: // helper functions
 	std::string ldLibraryPath;
 
 public: // variables
+	appEntry_t  *appPtr;
 	const std::string configPath;
 	const std::string stageName;
 	const std::string attribsPath;
