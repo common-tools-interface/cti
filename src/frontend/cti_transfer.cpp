@@ -7,6 +7,7 @@
 #include "cti_fe.h"
 #include "cti_error.h"
 
+#include "frontend/Frontend.hpp"
 #include "cti_transfer/Manifest.hpp"
 #include "cti_transfer/Session.hpp"
 
@@ -46,19 +47,9 @@ cti_session_id_t cti_createSession(cti_app_id_t appId) {
 
 	// construct throwing lambda that can be called by runSafely
 	auto insertSession = [&]() {
-		// get appPtr from appId
-		if (appEntry_t *appPtr = _cti_findAppEntry(appId)) {
-			// create session instance
-			auto newSession = std::make_shared<Session>(appPtr);
-			newSession->shipWLMBaseFiles();
-			sessions.insert(std::make_pair(sid, newSession));
-
-			// add pointer to sid to appEntry's session list
-			ctiListAdd(appPtr->sessions, new cti_session_id_t(sid));
-		} else {
-			throw std::runtime_error(
-				"failed, appId not found: " + std::to_string(appId));
-		}
+		// create session instance
+		auto newSession = std::make_shared<Session>(_cti_getFrontend(), appId);
+		sessions.insert(std::make_pair(sid, newSession));
 	};
 
 	return runSafely("cti_createSession", insertSession) ? SESSION_ERROR : sid;

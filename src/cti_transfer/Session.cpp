@@ -83,17 +83,34 @@ std::string Session::generateStagePath() {
 	return stageName;
 }
 
-static std::string emptyFromNullPtr(const char* cstr) {
-	return cstr ? std::string(cstr) : "";
-}
-Session::Session(appEntry_t *appPtr_) :
-	appPtr(appPtr_),
-	configPath(emptyFromNullPtr(_cti_getCfgDir())),
+Session::Session(Frontend const& frontend_, Frontend::AppId appId_) :
+	frontend(frontend_),
+	appId(appId_),
+	configPath(_cti_getCfgDir()),
 	stageName(generateStagePath()),
-	attribsPath(emptyFromNullPtr(appPtr->wlmProto->wlm_getAttribsPath(appPtr->_wlmObj))),
-	toolPath(appPtr->wlmProto->wlm_getToolPath(appPtr->_wlmObj)),
-	jobId(CharPtr(appPtr->wlmProto->wlm_getJobId(appPtr->_wlmObj), free).get()), 
-	wlmEnum(std::to_string(appPtr->wlmProto->wlm_type)) {}
+	attribsPath(frontend.getAttribsPath(appId)),
+	toolPath(frontend.getToolPath(appId)),
+	jobId(frontend.getJobId(appId)), 
+	wlmEnum(std::to_string(frontend.getWLMType())) {
+
+	// create and add wlm basefiles to manifest
+	auto baseFileManifest = createManifest();
+	for (auto const& path : frontend.getExtraBinaries()) {
+		baseFileManifest->addBinary(path);
+	}
+	for (auto const& path : frontend.getExtraLibraries()) {
+		baseFileManifest->addLibrary(path);
+	}
+	for (auto const& path : frontend.getExtraLibDirs()) {
+		baseFileManifest->addLibDir(path);
+	}
+	for (auto const& path : frontend.getExtraFiles()) {
+		baseFileManifest->addFile(path);
+	}
+
+	// ship basefile manifest and run remote extraction
+	baseFileManifest->finalizeAndShip().extract();
+}
 
 #include "ArgvDefs.hpp"
 void Session::launchCleanup() {
@@ -121,40 +138,8 @@ void Session::launchCleanup() {
 	invalidate();
 }
 
-using CStr = const char * const;
-static void forEachCStrArr(std::function<void(CStr)> func, CStr* arr) {
-	if (arr != nullptr) {
-		for (CStr* elemPtr = arr; *elemPtr != nullptr; elemPtr++) {
-			func(*elemPtr);
-		}
-	}
-}
-
-void Session::shipWLMBaseFiles() {
-	auto baseFileManifest = createManifest();
-
-	auto wlmProto = appPtr->wlmProto;
-	auto wlmObj = appPtr->_wlmObj;
-
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addBinary(cstr);  },
-		wlmProto->wlm_extraBinaries(wlmObj));
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addLibrary(cstr); },
-		wlmProto->wlm_extraLibraries(wlmObj));
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addLibDir(cstr);  },
-		wlmProto->wlm_extraLibDirs(wlmObj));
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addFile(cstr);    },
-		wlmProto->wlm_extraFiles(wlmObj));
-
-	// ship basefile manifest and run remote extraction
-	baseFileManifest->finalizeAndShip().extract();
-}
-
-int Session::startDaemon(char * const argv[]) {
-	auto cti_argv = UniquePtrDestr<cti_args_t>(_cti_newArgs(), _cti_freeArgs);
-	forEachCStrArr([&](CStr arg) {
-		_cti_addArg(cti_argv.get(), arg);
-	}, argv);
-	return getWLM()->wlm_startDaemon(appPtr->_wlmObj, cti_argv.get());
+void Session::startDaemon(char * const argv[]) {
+	frontend.startDaemon(appId, argv);
 }
 
 std::shared_ptr<Manifest> Session::createManifest() {

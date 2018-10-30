@@ -75,7 +75,7 @@ static inline void ctiListRemove(cti_list_t *list, void *elem) {
 
 static inline StringArray getFileDependencies(const std::string& filePath) {
 	if (_cti_stage_deps) {
-		return StringArray(_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath()),
+		return StringArray(_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath().c_str()),
 			stringArrayDeleter);
 	} else {
 		return nullptr;

@@ -19,6 +19,7 @@ using FoldersMap = std::map<std::string, std::set<std::string>>;
 using PathMap = std::unordered_map<std::string, std::string>;
 using FolderFilePair = std::pair<std::string, std::string>;
 
+#include "frontend/Frontend.hpp"
 #include "cti_wrappers.hpp"
 
 class Manifest; // forward declare Manifest
@@ -44,7 +45,9 @@ private: // helper functions
 	std::string ldLibraryPath;
 
 public: // variables
-	appEntry_t  *appPtr;
+	Frontend const& frontend;
+	Frontend::AppId const appId;
+
 	const std::string configPath;
 	const std::string stageName;
 	const std::string attribsPath;
@@ -53,24 +56,20 @@ public: // variables
 	const std::string wlmEnum;
 
 public: // interface
-	explicit Session(appEntry_t *appPtr_);
+	explicit Session(Frontend const& frontend, Frontend::AppId appId);
 
 	// accessors
 	inline auto getManifests() const -> const decltype(manifests)& { return manifests; }
-	inline const cti_wlm_proto_t* getWLM() const { return appPtr->wlmProto; }
 	inline const std::string& getLdLibraryPath() const { return ldLibraryPath; }
-	inline void invalidate() { appPtr = nullptr; manifests.clear(); }
+	inline void invalidate() { manifests.clear(); }
 
 	// launch cti_daemon to clean up the session stage directory. invalidates the session
 	void launchCleanup();
 
-	// create and add wlm basefiles to manifest
-	void shipWLMBaseFiles();
-
 	// wlm / daemon wrappers
-	int startDaemon(char * const argv[]);
-	inline int shipPackage(const char *tar_name) {
-		return getWLM()->wlm_shipPackage(appPtr->_wlmObj, tar_name);
+	void startDaemon(char * const argv[]);
+	inline void shipPackage(std::string const& tarPath) {
+		frontend.shipPackage(appId, tarPath);
 	}
 
 	// create new manifest and register ownership
