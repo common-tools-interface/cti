@@ -26,15 +26,15 @@
 // This is the wlm interface that all wlm implementations should implement.
 class Frontend {
 public:  // types
+	using CStr      = const char*;
+	using CArgArray = const char* const[];
+
 	using AppId     = cti_app_id_t;
+
 	struct CTIHost {
 		std::string hostname;
 		size_t      numPEs;
 	};
-
-private: // types
-	using CStr      = const char*;
-	using CArgArray = const char* const[];
 
 public: // interface
 

@@ -53,7 +53,6 @@
 
 /* Static prototypes */
 static void			_cti_setup_base_dir(void);
-static int			_cti_checkDirPerms(const char *);
 bool				_cti_is_cluster_system();
 
 /* static global vars */
