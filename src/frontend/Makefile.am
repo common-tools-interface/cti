@@ -24,14 +24,14 @@ AM_LIBTOOLFLAGS = --quiet
 lib_LTLIBRARIES = libcraytools_fe.la
 
 libcraytools_fe_la_SOURCES	=	cti_fe.h cti_fe.cpp \
-								cti_run.c cti_run.h \
+								cti_run.cpp cti_run.h \
 								cti_transfer.cpp cti_transfer.h \
 								cti_error.c cti_error.h \
 								Frontend.hpp \
-								alps_fe.c alps_fe.h \
-								cray_slurm_fe.c cray_slurm_fe.h \
-								slurm_fe.c slurm_fe.h \
-								ssh_fe.c ssh_fe.h
+								alps_fe.c alps_fe.hpp \
+								cray_slurm_fe.c cray_slurm_fe.hpp \
+								slurm_fe.c slurm_fe.hpp \
+								ssh_fe.c ssh_fe.hpp
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
 								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS)
 libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) $(libcraytools_fe_la_CFLAGS)
