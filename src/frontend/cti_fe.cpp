@@ -64,7 +64,7 @@ static std::string _cti_slurm_util;   // slurm utility binary location
 static std::vector<std::string> const _cti_default_dir_locs = {DEFAULT_CTI_LOCS};
 
 /* global wlm frontend object */
-static std::unique_ptr<Frontend> currentFrontend = nullptr;
+std::unique_ptr<Frontend> currentFrontend = nullptr;
 
 /*
  * This routine initializes CTI so it is set up for usage by the executable with which it is linked.
@@ -203,7 +203,7 @@ _cti_setup_base_dir(void) {
 
 // getter functions for paths
 
-Frontend const& _cti_getCurrentFrontend() {
+Frontend& _cti_getCurrentFrontend() {
 	if (!currentFrontend) {
 		throw std::runtime_error("frontend not initialized");
 	}

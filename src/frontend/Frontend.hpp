@@ -108,7 +108,7 @@ public: // interface
 };
 
 /* internal frontend management */
-Frontend const& _cti_getCurrentFrontend();
+Frontend& _cti_getCurrentFrontend();
 
 std::string const _cti_getLdAuditPath(void);
 std::string const _cti_getOverwatchPath(void);
