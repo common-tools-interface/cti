@@ -16,18 +16,15 @@
  *
  ******************************************************************************/
 
-#ifndef _SSH_FE_H
-#define _SSH_FE_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "cti_fe.h"
+#include "frontend/Frontend.hpp"
 
-/* wlm proto object */
-extern const cti_wlm_proto_t	_cti_ssh_wlmProto;
+class SSHFrontend : public Frontend {
 
-/* function prototypes */
-cti_app_id_t		cti_ssh_registerJob(pid_t launcher_pid);
-
-#endif /* _SSH_FE_H */
+public: // interface
+	AppId registerJob(pid_t launcher_pid);
+};

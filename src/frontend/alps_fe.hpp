@@ -16,29 +16,24 @@
  *
  *********************************************************************************/
 
-#ifndef _ALPS_FE_H
-#define _ALPS_FE_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "cti_fe.h"
+#include "frontend/Frontend.hpp"
 
-/* wlm proto object */
-extern const cti_wlm_proto_t	_cti_alps_wlmProto;
+class ALPSFrontend : public Frontend {
 
-typedef struct
-{
-	uint64_t	apid;
-	pid_t		aprunPid;
-} cti_aprunProc_t;
+public: // types
+	struct AprunInfo {
+		uint64_t apid;
+		pid_t aprunPid;
+	};
 
-/* function prototypes */
-cti_app_id_t		cti_alps_registerApid(uint64_t);
-uint64_t			cti_alps_getApid(pid_t);
-cti_aprunProc_t *	cti_alps_getAprunInfo(cti_app_id_t);
-int					cti_alps_getAlpsOverlapOrdinal(cti_app_id_t);
-
-#define LAUNCH_TOOL_RETRY 5
-
-#endif /* _ALPS_FE_H */
+public: // interface
+	AppId registerApid(uint64_t apid);
+	uint64_t getApid(pid_t appPid);
+	AprunInfo getAprunInfo(AppId appId);
+	int getAlpsOverlapOrdinal(AppId appId);
+};

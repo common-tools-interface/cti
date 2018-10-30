@@ -17,21 +17,22 @@
  *
  ******************************************************************************/
 
-#ifndef _SLURM_FE_H
-#define _SLURM_FE_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "cti_fe.h"
+#include "frontend/Frontend.hpp"
 
-/* wlm proto object */
-extern const cti_wlm_proto_t	_cti_slurm_wlmProto;
+class SLURMFrontend : public Frontend {
 
-/* function prototypes */
-cti_app_id_t		cti_slurm_registerJobStep(pid_t launcher_pid);
-cti_srunProc_t *	cti_slurm_getSrunInfo(cti_app_id_t appId);
+public: // types
+	struct SrunInfo {
+		uint32_t jobid;
+		uint32_t stepid;
+	};
 
-// TODO: cti_slurm_getJobInfo(pid_t)
-
-#endif /* _SLURM_FE_H */
+public: // interface
+	AppId registerJobStep(pid_t launcher_pid);
+	SrunInfo getSrunInfo(cti_app_id_t appId);
+};
