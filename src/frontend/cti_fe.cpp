@@ -228,7 +228,6 @@ std::string const _cti_getSlurmUtilPath(void) {
 }
 
 std::string const _cti_getCfgDir(void) {
-
 	if (!_cti_cfg_dir.empty()) {
 		return _cti_cfg_dir;
 	}

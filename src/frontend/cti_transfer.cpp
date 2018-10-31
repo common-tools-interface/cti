@@ -48,7 +48,7 @@ cti_session_id_t cti_createSession(cti_app_id_t appId) {
 	// construct throwing lambda that can be called by runSafely
 	auto insertSession = [&]() {
 		// create session instance
-		auto newSession = std::make_shared<Session>(_cti_getFrontend(), appId);
+		auto newSession = std::make_shared<Session>(_cti_getCurrentFrontend(), appId);
 		sessions.insert(std::make_pair(sid, newSession));
 	};
 
@@ -222,10 +222,6 @@ void _cti_consumeSession(void* rawSidPtr) {
 	}
 
 	auto sidPtr = static_cast<cti_session_id_t*>(rawSidPtr);
-	runSafely("_cti_consumeSession", [&]() {
-		auto const& sessionHandle = getSessionHandle(*sidPtr);
-		ctiListRemove(sessionHandle->appPtr->sessions, sidPtr);
-	});
 	cti_destroySession(*sidPtr);
 	delete sidPtr;
 }

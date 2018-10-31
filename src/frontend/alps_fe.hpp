@@ -42,12 +42,12 @@ public: // wlm interface
 	                    CStr inputFile, CStr chdirPath, CArgArray env_list);
 	void releaseBarrier(AppId appId);
 	void killApp(AppId appId, int signal);
-	std::vector<std::string> const getExtraBinaries() const;
+
 	std::vector<std::string> const getExtraLibraries() const;
-	std::vector<std::string> const getExtraLibDirs() const;
-	std::vector<std::string> const getExtraFiles() const;
+
 	void shipPackage(AppId appId, std::string const& tarPath) const;
 	void startDaemon(AppId appId, CArgArray argv) const;
+
 	size_t getNumAppPEs(AppId appId) const;
 	size_t getNumAppNodes(AppId appId) const;
 	std::vector<std::string> const getAppHostsList(AppId appId) const;
@@ -58,8 +58,10 @@ public: // wlm interface
 	std::string const getAttribsPath(AppId appId) const;
 
 public: // interface
+	ALPSFrontend();
+	~ALPSFrontend();
 	AppId registerApid(uint64_t apid);
 	uint64_t getApid(pid_t appPid);
-	AprunInfo getAprunInfo(AppId appId);
+	AprunInfo* getAprunInfo(AppId appId);
 	int getAlpsOverlapOrdinal(AppId appId);
 };
