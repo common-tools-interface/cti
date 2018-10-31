@@ -34,6 +34,7 @@ public:  // types
 	struct CTIHost {
 		std::string hostname;
 		size_t      numPEs;
+		CTIHost(std::string&& hostname_, size_t numPEs_) : hostname(hostname_), numPEs(numPEs_) {}
 	};
 
 public: // interface

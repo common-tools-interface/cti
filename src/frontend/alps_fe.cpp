@@ -440,9 +440,6 @@ cti_alps_registerApid(uint64_t apid, Frontend::AppId newAppId)
 		return 0;
 	}
 	
-	// aprun pid not found in the global _cti_alps_info list
-	// so lets create a new appEntry_t object for it
-	
 	// create the new alpsInfo_t object
 	if ((alpsInfo = (decltype(alpsInfo))malloc(sizeof(alpsInfo_t))) == NULL)
 	{
@@ -1579,12 +1576,6 @@ _cti_alps_killApp(alpsInfo_t* my_app, int signum)
 	return 0;
 }
 
-static const char * const *
-_cti_alps_extraLibraries(alpsInfo_t* my_app)
-{
-	return _cti_alps_extra_libs;
-}
-
 #define LAUNCH_TOOL_RETRY 5
 
 static int
@@ -1852,109 +1843,209 @@ const ALPSFrontend::getJobId(AppId appId) const {
 AppId
 ALPSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr,
                      CStr inputFile, CStr chdirPath, CArgArray env_list) {
-	
+	auto const appId = newAppId();
+	if (auto alpsInfoPtr = _cti_alps_launch(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, appId)) {
+		appList[appId] = std::unique_ptr<alpsInfo_t>(alpsInfoPtr);
+		return appId;
+	} else {
+		throw std::runtime_error(std::string("launch: ") + cti_error_str());
+	}
 }
 
 AppId
 ALPSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
                             CStr inputFile, CStr chdirPath, CArgArray env_list) {
-	
+	auto const appId = newAppId();
+	if (auto alpsInfoPtr = _cti_alps_launchBarrier(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, appId)) {
+		appList[appId] = std::unique_ptr<alpsInfo_t>(alpsInfoPtr);
+		return appId;
+	} else {
+		throw std::runtime_error(std::string("launchBarrier: ") + cti_error_str());
+	}
 }
 
 void
 ALPSFrontend::releaseBarrier(AppId appId) {
-	
+	if (_cti_alps_releaseBarrier(getInfoPtr(appId))) {
+		throw std::runtime_error(std::string("releaseBarrier: ") + cti_error_str());
+	}
 }
 
 void
 ALPSFrontend::killApp(AppId appId, int signal) {
-	
+	if (_cti_alps_killApp(getInfoPtr(appId), signal)) {
+		throw std::runtime_error(std::string("releaseBarrier: ") + cti_error_str());
+	}
 }
 
 
 std::vector<std::string> const
 ALPSFrontend::getExtraLibraries() const {
-	
+	std::vector<std::string> result;
+	for (const char* const* libPath = _cti_alps_extra_libs; *libPath != nullptr; libPath++) {
+		result.emplace_back(*libPath);
+	}
+	return result;
 }
 
 
 void
 ALPSFrontend::shipPackage(AppId appId, std::string const& tarPath) const {
-	
+	if (_cti_alps_ship_package(getInfoPtr(appId), tarPath.c_str())) {
+		throw std::runtime_error(std::string("shipPackage: ") + cti_error_str());
+	}
 }
 
 void
 ALPSFrontend::startDaemon(AppId appId, CArgArray argv) const {
-	
+	auto cti_argv = _cti_newArgs();
+	for (const char* const* arg = argv; *arg != nullptr; arg++) {
+		_cti_addArg(cti_argv, *arg);
+	}
+	if (_cti_alps_start_daemon(getInfoPtr(appId), cti_argv)) {
+		_cti_freeArgs(cti_argv);
+		throw std::runtime_error(std::string("startDaemon: ") + cti_error_str());
+	}
+	_cti_freeArgs(cti_argv);
 }
 
 
 size_t
 ALPSFrontend::getNumAppPEs(AppId appId) const {
-	
+	if (auto numAppPEs = _cti_alps_getNumAppPEs(getInfoPtr(appId))) {
+		return numAppPEs;
+	} else {
+		throw std::runtime_error(std::string("getNumAppPEs: ") + cti_error_str());
+	}
 }
 
 size_t
 ALPSFrontend::getNumAppNodes(AppId appId) const {
-	
+	if (auto numAppNodes = _cti_alps_getNumAppNodes(getInfoPtr(appId))) {
+		return numAppNodes;
+	} else {
+		throw std::runtime_error(std::string("getNumAppPEs: ") + cti_error_str());
+	}
 }
 
 std::vector<std::string> const
 ALPSFrontend::getAppHostsList(AppId appId) const {
-	
+	if (auto appHostsList = _cti_alps_getAppHostsList(getInfoPtr(appId))) {
+		std::vector<std::string> result;
+		for (char** host = appHostsList; *host != nullptr; host++) {
+			result.emplace_back(*host);
+			free(host);
+		}
+		free(appHostsList);
+		return result;
+	} else {
+		throw std::runtime_error(std::string("getNumAppPEs: ") + cti_error_str());
+	}
 }
 
 std::vector<CTIHost> const
 ALPSFrontend::getAppHostsPlacement(AppId appId) const {
-	
+	if (auto appHostsPlacement = _cti_alps_getAppHostsPlacement(getInfoPtr(appId))) {
+		std::vector<CTIHost> result;
+		for (int i = 0; i < appHostsPlacement->numHosts; i++) {
+			result.emplace_back(appHostsPlacement->hosts[i].hostname, appHostsPlacement->hosts[i].numPEs);
+		}
+		cti_destroyHostsList(appHostsPlacement);
+		return result;
+	} else {
+		throw std::runtime_error(std::string("getAppHostsPlacement: ") + cti_error_str());
+	}
 }
 
 std::string const
 ALPSFrontend::getHostName(void) const {
-	
+	if (auto hostname = _cti_alps_getHostName()) {
+		return hostname;
+	} else {
+		throw std::runtime_error(std::string("getHostName: ") + cti_error_str());
+	}
 }
 
 std::string const
 ALPSFrontend::getLauncherHostName(AppId appId) const {
-	
+	if (auto launcherHostname = _cti_alps_getLauncherHostName(getInfoPtr(appId))) {
+		return launcherHostname;
+	} else {
+		throw std::runtime_error(std::string("getLauncherHostName: ") + cti_error_str());
+	}
 }
 
 std::string const
 ALPSFrontend::getToolPath(AppId appId) const {
-	
+	if (auto toolPath = _cti_alps_getToolPath(getInfoPtr(appId))) {
+		return toolPath;
+	} else {
+		throw std::runtime_error(std::string("getToolPath: ") + cti_error_str());
+	}
 }
 
 std::string const
 ALPSFrontend::getAttribsPath(AppId appId) const {
-	
+	if (auto attribsPath = _cti_alps_getAttribsPath(getInfoPtr(appId))) {
+		return attribsPath;
+	} else {
+		throw std::runtime_error(std::string("getAttribsPath: ") + cti_error_str());
+	}
 }
 
 /* extended frontend implementation */
 
 ALPSFrontend::ALPSFrontend() {
-	
+	_cti_alps_init();
 }
 
 ALPSFrontend::~ALPSFrontend() {
-	
+	_cti_alps_fini();
 }
 
 AppId
 ALPSFrontend::registerApid(uint64_t apid) {
 	// iterate through the _cti_alps_info list to try to find an existing entry for this apid
+	for (auto const& appIdInfoPair : appList) {
+		if (appIdInfoPair.second->apid == apid) {
+			return appIdInfoPair.first;
+		}
+	}
+
+	// aprun pid not found in the global _cti_alps_info list
+	// so lets create a new appEntry_t object for it
+	auto appId = newAppId();
+	if (auto alpsInfoPtr = cti_alps_registerApid(apid, appId)) {
+		appList[appId] = std::unique_ptr<alpsInfo_t>(alpsInfoPtr);
+		return appId;
+	} else {
+		throw std::runtime_error(std::string("registerApid: ") + cti_error_str());
+	}
 }
 
 uint64_t
-getApid(pid_t appPid) {
-	
+ALPSFrontend::getApid(pid_t appPid) {
+	if (auto apid = cti_alps_getApid(appPid)) {
+		return apid;
+	} else {
+		throw std::runtime_error(std::string("getApid: ") + cti_error_str());
+	}
 }
 
 ALPSFrontend::AprunInfo*
-getAprunInfo(AppId appId) {
-	
+ALPSFrontend::getAprunInfo(AppId appId) {
+	if (auto aprunInfo = cti_alps_getAprunInfo(getInfoPtr(appId))) {
+		return aprunInfo;
+	} else {
+		throw std::runtime_error(std::string("getAprunInfo: ") + cti_error_str());
+	}
 }
 
 int
-getAlpsOverlapOrdinal(AppId appId) {
-	
+ALPSFrontend::getAlpsOverlapOrdinal(AppId appId) {
+	if (auto alpsOverlapOrdinal = cti_alps_getAlpsOverlapOrdinal(getInfoPtr(appId))) {
+		return alpsOverlapOrdinal;
+	} else {
+		throw std::runtime_error(std::string("getAlpsOverlapOrdinal: ") + cti_error_str());
+	}
 }
