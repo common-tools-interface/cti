@@ -39,7 +39,6 @@
 
 #include "cti_fe.h"
 #include "cti_error.h"
-#include "cti_appentry.h"
 
 #include "frontend/Frontend.hpp"
 #include "alps_fe.hpp"
@@ -353,16 +352,11 @@ _cti_alps_consumeAprunInv(aprunInv_t *runPtr)
 }
 
 static void
-_cti_alps_consumeAlpsInfo(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_consumeAlpsInfo(alpsInfo_t* alpsInfo)
 {
-	alpsInfo_t	*alpsInfo = (alpsInfo_t *)opaqueInfoPtr;
-
 	// sanity check
 	if (alpsInfo == NULL)
 		return;
-		
-	// remove this alpsInfo from the global list
-	_cti_list_remove(_cti_alps_info, alpsInfo);
 	
 	// cmdDetail and places were malloc'ed so we might find them tasty
 	if (alpsInfo->cmdDetail != NULL)
@@ -386,9 +380,8 @@ _cti_alps_consumeAlpsInfo(cti_wlm_obj opaqueInfoPtr)
 }
 
 static char *
-_cti_alps_getJobId(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_getJobId(alpsInfo_t* my_app)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
 	char *			rtn = NULL;
 	
 	// sanity check
@@ -424,10 +417,9 @@ _cti_alps_getLauncherName()
 
 // this function creates a new appEntry_t object for the app
 // used by the alps_run functions
-cti_app_id_t
-cti_alps_registerApid(uint64_t apid)
+alpsInfo_t *
+cti_alps_registerApid(uint64_t apid, Frontend::AppId newAppId)
 {
-	appEntry_t *	opaqueInfoPtr;
 	alpsInfo_t *	alpsInfo;
 	char *			toolPath;
 	char *			attribsPath;
@@ -446,26 +438,6 @@ cti_alps_registerApid(uint64_t apid)
 	{
 		_cti_set_error("Invalid apid %d.", (int)apid);
 		return 0;
-	}
-	
-	// iterate through the _cti_alps_info list to try to find an entry for this
-	// apid
-	_cti_list_reset(_cti_alps_info);
-	while ((alpsInfo = (alpsInfo_t *)_cti_list_next(_cti_alps_info)) != NULL)
-	{
-		// check if the apid's match
-		if (alpsInfo->apid == apid)
-		{
-			// reference this appEntry and return the appid
-			if (_cti_refAppEntry(alpsInfo->appId))
-			{
-				// somehow we have an invalid alpsInfo obj, so free it and
-				// break to re-register this apid
-				_cti_alps_consumeAlpsInfo(alpsInfo);
-				break;
-			}
-			return alpsInfo->appId;
-		}
 	}
 	
 	// aprun pid not found in the global _cti_alps_info list
@@ -546,33 +518,15 @@ cti_alps_registerApid(uint64_t apid)
 		}
 	}
 	
-	// set the tool and attribs path
+	// set the appid, tool and attribs path
 	alpsInfo->toolPath = toolPath;
 	alpsInfo->attribsPath = attribsPath;
-	
-	if ((opaqueInfoPtr = _cti_newAppEntry(&_cti_getCurrentFrontend(), (cti_wlm_obj)alpsInfo)) == NULL)
-	{
-		// we failed to create a new appEntry_t entry - catastrophic failure
-		// error string already set
-		_cti_alps_consumeAlpsInfo(alpsInfo);
-		return 0;
-	}
-	
-	// set the appid in the alpsInfo obj
-	alpsInfo->appId = opaqueInfoPtr->appId;
-	
-	// add the alpsInfo obj to our global list
-	if(_cti_list_add(_cti_alps_info, alpsInfo))
-	{
-		_cti_set_error("cti_alps_registerApid: _cti_list_add() failed.");
-		cti_deregisterApp(opaqueInfoPtr->appId);
-		return 0;
-	}
-	
-	return opaqueInfoPtr->appId;
+	alpsInfo->appId = newAppId;
+
+	return alpsInfo;
 }
 
-uint64_t
+static uint64_t
 cti_alps_getApid(pid_t aprunPid)
 {
 	// sanity check
@@ -603,37 +557,12 @@ cti_alps_getApid(pid_t aprunPid)
 	return _cti_alps_get_apid(_cti_alps_svcNid->nid, aprunPid);
 }
 
-ALPSFrontend::AprunInfo *
-cti_alps_getAprunInfo(cti_app_id_t appId)
+static ALPSFrontend::AprunInfo *
+cti_alps_getAprunInfo(alpsInfo_t* alpsInfo)
 {
-	appEntry_t *		app_ptr;
-	alpsInfo_t *		alpsInfo;
 	ALPSFrontend::AprunInfo*	aprunInfo;
-	
+
 	// sanity check
-	if (appId == 0)
-	{
-		_cti_set_error("Invalid appId %d.", (int)appId);
-		return NULL;
-	}
-	
-	// try to find an entry in the _cti_my_apps list for the apid
-	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
-	{
-		// couldn't find the entry associated with the apid
-		// error string already set
-		return NULL;
-	}
-	
-	// sanity check
-	if (app_ptr->wlmProto->wlm_type != CTI_WLM_ALPS)
-	{
-		_cti_set_error("Invalid call. ALPS WLM not in use.");
-		return NULL;
-	}
-	
-	// sanity check
-	alpsInfo = (alpsInfo_t *)app_ptr->_wlmObj;
 	if (alpsInfo == NULL)
 	{
 		_cti_set_error("cti_alps_getAprunInfo: _wlmObj is NULL!");
@@ -680,9 +609,8 @@ _cti_alps_getHostName(void)
 }
 
 static char *
-_cti_alps_getLauncherHostName(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_getLauncherHostName(alpsInfo_t* my_app)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
 	char *			hostname;
 
 	// sanity check
@@ -702,9 +630,8 @@ _cti_alps_getLauncherHostName(cti_wlm_obj opaqueInfoPtr)
 }
 
 static int
-_cti_alps_getNumAppPEs(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_getNumAppPEs(alpsInfo_t* my_app)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
 	int numPEs = 0;
 	int i;
 
@@ -732,9 +659,8 @@ _cti_alps_getNumAppPEs(cti_wlm_obj opaqueInfoPtr)
 }
 
 static int
-_cti_alps_getNumAppNodes(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_getNumAppNodes(alpsInfo_t* my_app)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
 
 	// sanity check
 	if (my_app == NULL)
@@ -754,9 +680,8 @@ _cti_alps_getNumAppNodes(cti_wlm_obj opaqueInfoPtr)
 }
 
 static char **
-_cti_alps_getAppHostsList(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_getAppHostsList(alpsInfo_t* my_app)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
 	char **			hosts;
 	int				i;
 	
@@ -813,9 +738,8 @@ _cti_alps_getAppHostsList(cti_wlm_obj opaqueInfoPtr)
 }
 
 static cti_hostsList_t *
-_cti_alps_getAppHostsPlacement(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_getAppHostsPlacement(alpsInfo_t* my_app)
 {
-	alpsInfo_t *		my_app = (alpsInfo_t *)opaqueInfoPtr;
 	cti_hostsList_t *	placement_list;
 	int					i;
 	
@@ -988,13 +912,12 @@ _cti_alps_set_dsl_env_var()
 
 // This is the actual function that can do either a launch with barrier or one
 // without.
-static cti_app_id_t
+static alpsInfo_t*
 _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 							const char *inputFile, const char *chdirPath,
-							const char * const env_list[], int doBarrier	)
+							const char * const env_list[], int doBarrier, cti_app_id_t newAppId)
 {
 	aprunInv_t *		myapp;
-	appEntry_t *		appEntry;
 	alpsInfo_t *		alpsInfo;
 	uint64_t 			apid;
 	pid_t				mypid;
@@ -1012,8 +935,6 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	FILE *				proc_stat = NULL;
 	int					proc_ppid;
 	sigset_t *			mask;
-	// return object
-	cti_app_id_t		rtn;
 
 	if(!_cti_is_valid_environment()){
 		// error already set
@@ -1520,61 +1441,40 @@ continue_on_error:
 	}
 	
 	// register this app with the application interface
-	if ((rtn = cti_alps_registerApid(apid)) == 0)
+	if ((alpsInfo = cti_alps_registerApid(apid, newAppId)) == nullptr)
 	{
 		// failed to register apid, error is already set
 		kill(myapp->aprunPid, DEFAULT_SIG);
 		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
-	
-	// assign the run specific objects to the application obj
-	if ((appEntry = _cti_findAppEntry(rtn)) == NULL)
-	{
-		// this should never happen
-		kill(myapp->aprunPid, DEFAULT_SIG);
-		_cti_alps_consumeAprunInv(myapp);
-		return 0;
-	}
-	
-	// sanity check
-	alpsInfo = (alpsInfo_t *)appEntry->_wlmObj;
-	if (alpsInfo == NULL)
-	{
-		// this should never happen
-		kill(myapp->aprunPid, DEFAULT_SIG);
-		_cti_alps_consumeAprunInv(myapp);
-		return 0;
-	}
-	
+
 	// set the inv
 	alpsInfo->inv = myapp;
 	
-	// return the cti_app_id_t
-	return rtn;
+	// return the alpsInfo_t
+	return alpsInfo;
 }
 
-static cti_app_id_t
+static alpsInfo_t*
 _cti_alps_launch(	const char * const a1[], int a2, int a3, const char *a4,
-					const char *a5, const char * const a6[]	)
+					const char *a5, const char * const a6[], cti_app_id_t newAppId)
 {
 	// call the common launch function
-	return _cti_alps_launch_common(a1, a2, a3, a4, a5, a6, 0);
+	return _cti_alps_launch_common(a1, a2, a3, a4, a5, a6, 0, newAppId);
 }
 
-static cti_app_id_t
+static alpsInfo_t*
 _cti_alps_launchBarrier(	const char * const a1[], int a2, int a3, const char *a4,
-							const char *a5, const char * const a6[]	)
+							const char *a5, const char * const a6[], cti_app_id_t newAppId)
 {
 	// call the common launch function
-	return _cti_alps_launch_common(a1, a2, a3, a4, a5, a6, 1);
+	return _cti_alps_launch_common(a1, a2, a3, a4, a5, a6, 1, newAppId);
 }
 
 int
-_cti_alps_releaseBarrier(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_releaseBarrier(alpsInfo_t* my_app)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
-
 	// sanity check
 	if (my_app == NULL)
 	{
@@ -1602,9 +1502,8 @@ _cti_alps_releaseBarrier(cti_wlm_obj opaqueInfoPtr)
 }
 
 static int
-_cti_alps_killApp(cti_wlm_obj opaqueInfoPtr, int signum)
+_cti_alps_killApp(alpsInfo_t* my_app, int signum)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
 	cti_args_t *	my_args;
 	int				mypid;
 	
@@ -1681,38 +1580,16 @@ _cti_alps_killApp(cti_wlm_obj opaqueInfoPtr, int signum)
 }
 
 static const char * const *
-_cti_alps_extraBinaries(cti_wlm_obj opaqueInfoPtr)
-{
-	// no extra binaries needed
-	return NULL;
-}
-
-static const char * const *
-_cti_alps_extraLibraries(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_extraLibraries(alpsInfo_t* my_app)
 {
 	return _cti_alps_extra_libs;
-}
-
-static const char * const *
-_cti_alps_extraLibDirs(cti_wlm_obj opaqueInfoPtr)
-{
-	// no extra library directories needed
-	return NULL;
-}
-
-static const char * const *
-_cti_alps_extraFiles(cti_wlm_obj opaqueInfoPtr)
-{
-	// no extra files needed
-	return NULL;
 }
 
 #define LAUNCH_TOOL_RETRY 5
 
 static int
-_cti_alps_ship_package(cti_wlm_obj opaqueInfoPtr, const char *package)
+_cti_alps_ship_package(alpsInfo_t* my_app, const char *package)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
 	const char *	errmsg = NULL;					// errmsg that is possibly returned by call to alps_launch_tool_helper
 	char *			p = (char *)package;	// discard const qualifier because alps isn't const correct
 	
@@ -1761,9 +1638,8 @@ _cti_alps_ship_package(cti_wlm_obj opaqueInfoPtr, const char *package)
 }
 
 static int
-_cti_alps_start_daemon(cti_wlm_obj opaqueInfoPtr, cti_args_t * args)
+_cti_alps_start_daemon(alpsInfo_t* my_app, cti_args_t * args)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
 	int				do_transfer;
 	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
 	char *			launcher;
@@ -1853,38 +1729,12 @@ _cti_alps_start_daemon(cti_wlm_obj opaqueInfoPtr, cti_args_t * args)
 	return 0;
 }
 
-int
-cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId)
+static int
+cti_alps_getAlpsOverlapOrdinal(alpsInfo_t* my_app)
 {
-	appEntry_t *	app_ptr;
-	alpsInfo_t *	my_app;
 	char *			errMsg = NULL;
 	int				rtn;
 	
-	// sanity check
-	if (appId == 0)
-	{
-		_cti_set_error("Invalid appId %d.", (int)appId);
-		return -1;
-	}
-	
-	// try to find an entry in the _cti_my_apps list for the apid
-	if ((app_ptr = _cti_findAppEntry(appId)) == NULL)
-	{
-		// couldn't find the entry associated with the apid
-		// error string already set
-		return -1;
-	}
-	
-	// sanity check
-	if (app_ptr->wlmProto->wlm_type != CTI_WLM_ALPS)
-	{
-		_cti_set_error("cti_alps_getAlpsOverlapOrdinal: WLM mismatch.");
-		return -1;
-	}
-	
-	// sanity check
-	my_app = (alpsInfo_t *)app_ptr->_wlmObj;
 	if (my_app == NULL)
 	{
 		_cti_set_error("cti_alps_getAlpsOverlapOrdinal: _wlmObj is NULL!");
@@ -1907,9 +1757,8 @@ cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId)
 }
 
 static const char *
-_cti_alps_getToolPath(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_getToolPath(alpsInfo_t* my_app)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
 	
 	// sanity check
 	if (my_app == NULL)
@@ -1929,10 +1778,8 @@ _cti_alps_getToolPath(cti_wlm_obj opaqueInfoPtr)
 }
 
 static const char *
-_cti_alps_getAttribsPath(cti_wlm_obj opaqueInfoPtr)
+_cti_alps_getAttribsPath(alpsInfo_t* my_app)
 {
-	alpsInfo_t *	my_app = (alpsInfo_t *)opaqueInfoPtr;
-	
 	// sanity check
 	if (my_app == NULL)
 	{
@@ -1954,6 +1801,8 @@ _cti_alps_getAttribsPath(cti_wlm_obj opaqueInfoPtr)
 #include <string>
 #include <unordered_map>
 
+#include <memory>
+
 #include <stdexcept>
 
 /* wlm interface implementation */
@@ -1961,24 +1810,43 @@ _cti_alps_getAttribsPath(cti_wlm_obj opaqueInfoPtr)
 using AppId   = Frontend::AppId;
 using CTIHost = Frontend::CTIHost;
 
+/* active app management */
+
+std::unordered_map<AppId, std::unique_ptr<alpsInfo_t>> appList;
+static const AppId APP_ERROR = 0;
+static AppId newAppId() noexcept {
+	static AppId nextId = 1;
+	return nextId++;
+}
+
+static alpsInfo_t*
+getInfoPtr(AppId appId) {
+	auto infoPtr = appList.find(appId);
+	if (infoPtr != appList.end()) {
+		return infoPtr->second.get();
+	}
+
+	throw std::runtime_error("invalid appId: " + std::to_string(appId));
+}
+
 bool
 ALPSFrontend::appIsValid(AppId appId) const {
-	
+	return appList.find(appId) != appList.end();
 }
 
 void
 ALPSFrontend::deregisterApp(AppId appId) const {
-	
+	appList.erase(appId);
 }
 
 cti_wlm_type
 ALPSFrontend::getWLMType() const {
-	
+	return CTI_WLM_ALPS;
 }
 
 std::string
 const ALPSFrontend::getJobId(AppId appId) const {
-	
+	return _cti_alps_getJobId(getInfoPtr(appId));
 }
 
 AppId
@@ -2061,8 +1929,8 @@ ALPSFrontend::getAttribsPath(AppId appId) const {
 	
 }
 
-
 /* extended frontend implementation */
+
 ALPSFrontend::ALPSFrontend() {
 	
 }
@@ -2073,7 +1941,7 @@ ALPSFrontend::~ALPSFrontend() {
 
 AppId
 ALPSFrontend::registerApid(uint64_t apid) {
-	
+	// iterate through the _cti_alps_info list to try to find an existing entry for this apid
 }
 
 uint64_t
