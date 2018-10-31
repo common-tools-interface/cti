@@ -27,11 +27,12 @@ libcraytools_fe_la_SOURCES	=	cti_fe.h cti_fe.cpp \
 								cti_run.cpp cti_run.h \
 								cti_transfer.cpp cti_transfer.h \
 								cti_error.c cti_error.h \
+								cti_appentry.cpp cti_appentry.h \
 								Frontend.hpp \
-								alps_fe.c alps_fe.hpp \
-								cray_slurm_fe.c cray_slurm_fe.hpp \
-								slurm_fe.c slurm_fe.hpp \
-								ssh_fe.c ssh_fe.hpp
+								alps_fe.cpp alps_fe.hpp \
+								cray_slurm_fe.cpp cray_slurm_fe.hpp \
+								slurm_fe.cpp slurm_fe.hpp \
+								ssh_fe.cpp ssh_fe.hpp
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
 								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS)
 libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) $(libcraytools_fe_la_CFLAGS)
@@ -43,4 +44,3 @@ libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS)
 libcraytools_fe_la_LDFLAGS	=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info $(CRAYTOOL_FE_VERSION) \
 								$(ARCHIVE_LDFLAGS)
-
