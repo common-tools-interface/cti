@@ -37,26 +37,17 @@
 
 #include "alps/apInfo.h"
 
+#include "cti_defs.h"
 #include "cti_fe.h"
 #include "cti_error.h"
 
 #include "frontend/Frontend.hpp"
 #include "alps_fe.hpp"
 
-#include "cti_defs.h"
-
 #include "useful/cti_useful.h"
+#include "useful/Dlopen.hpp"
 
 /* Types used here */
-
-typedef struct
-{
-	void *			handle;
-	uint64_t    	(*alps_get_apid)(int, pid_t);
-	int				(*alps_get_appinfo_ver2_err)(uint64_t, appInfo_t *, cmdDetail_t **, placeNodeList_t **, char **, int *);
-	const char *	(*alps_launch_tool_helper)(uint64_t, int, int, int, int, char **);
-	int				(*alps_get_overlap_ordinal)(uint64_t, char **, int *);
-} cti_alps_funcs_t;
 
 typedef struct
 {
@@ -99,183 +90,36 @@ static const char * const		_cti_alps_extra_libs[] = {
 	NULL
 };
 
-static cti_list_t *			_cti_alps_info		= NULL;	// list of alpsInfo_t objects registered by this interface
-static cti_alps_funcs_t *	_cti_alps_ptr 		= NULL;	// libalps wrappers
 static serviceNode_t *		_cti_alps_svcNid	= NULL;	// service node information
 static char*				_cti_alps_launcher_name = NULL; //path to the launcher binary
 
-/* Constructor/Destructor functions */
+/* dynamically loaded functions from libalps */
 
-static int
-_cti_alps_init(void)
-{
-	char *error;
-	
-	// create a new _cti_alps_info list
-	if (_cti_alps_info == NULL)
-		_cti_alps_info = _cti_newList();
+class LibALPS {
+private: // types
+	struct FnTypes {
+		using alps_get_apid = uint64_t(int, pid_t);
+		using alps_get_appinfo_ver2_err = int(uint64_t, appInfo_t *, cmdDetail_t **, placeNodeList_t **, char **, int *);
+		using alps_launch_tool_helper = char*(uint64_t, int, int, int, int, char **);
+		using alps_get_overlap_ordinal = int(uint64_t, char **, int *);
+	};
 
-	// Only init once.
-	if (_cti_alps_ptr != NULL)
-		return 0;
-			
-	// Create a new cti_alps_funcs_t
-	if ((_cti_alps_ptr = (decltype(_cti_alps_ptr))malloc(sizeof(cti_alps_funcs_t))) == NULL)
-	{
-		_cti_set_error("malloc failed.");
-		return 1;
+public: // variables
+	std::function<FnTypes::alps_get_apid>             alps_get_apid;
+	std::function<FnTypes::alps_get_appinfo_ver2_err> alps_get_appinfo_ver2_err;
+	std::function<FnTypes::alps_launch_tool_helper>   alps_launch_tool_helper;
+	std::function<FnTypes::alps_get_overlap_ordinal>  alps_get_overlap_ordinal;
+
+public: // interface
+	LibALPS() {
+		Dlopen::Handle libAlps(ALPS_FE_LIB_NAME);
+		alps_get_apid = libAlps.load<FnTypes::alps_get_apid>("alps_get_apid");
+		alps_get_appinfo_ver2_err = libAlps.load<FnTypes::alps_get_appinfo_ver2_err>("alps_get_appinfo_ver2_err");
+		alps_launch_tool_helper = libAlps.load<FnTypes::alps_launch_tool_helper>("alps_launch_tool_helper");
+		alps_get_overlap_ordinal = libAlps.load<FnTypes::alps_get_overlap_ordinal>("alps_get_overlap_ordinal");
 	}
-	memset(_cti_alps_ptr, 0, sizeof(cti_alps_funcs_t));     // clear it to NULL
-	
-	if ((_cti_alps_ptr->handle = dlopen(ALPS_FE_LIB_NAME, RTLD_LAZY)) == NULL)
-	{
-		_cti_set_error("dlopen: %s", dlerror());
-		free(_cti_alps_ptr);
-		_cti_alps_ptr = NULL;
-		return 1;
-	}
-	
-	// Clear any existing error
-	dlerror();
-	
-	// load alps_get_apid
-	_cti_alps_ptr->alps_get_apid = (decltype(cti_alps_funcs_t::alps_get_apid))dlsym(_cti_alps_ptr->handle, "alps_get_apid");
-	if ((error = dlerror()) != NULL)
-	{
-		_cti_set_error("dlsym: %s", error);
-		dlclose(_cti_alps_ptr->handle);
-		free(_cti_alps_ptr);
-		_cti_alps_ptr = NULL;
-		return 1;
-	}
-	
-	// load alps_get_appinfo_ver2_err
-	_cti_alps_ptr->alps_get_appinfo_ver2_err = (decltype(cti_alps_funcs_t::alps_get_appinfo_ver2_err))dlsym(_cti_alps_ptr->handle, "alps_get_appinfo_ver2_err");
-	if ((error = dlerror()) != NULL)
-	{
-		_cti_set_error("dlsym: %s", error);
-		dlclose(_cti_alps_ptr->handle);
-		free(_cti_alps_ptr);
-		_cti_alps_ptr = NULL;
-		return 1;
-	}
-	
-	// load alps_launch_tool_helper
-	_cti_alps_ptr->alps_launch_tool_helper = (decltype(cti_alps_funcs_t::alps_launch_tool_helper))dlsym(_cti_alps_ptr->handle, "alps_launch_tool_helper");
-	if ((error = dlerror()) != NULL)
-	{
-		_cti_set_error("dlsym: %s", error);
-		dlclose(_cti_alps_ptr->handle);
-		free(_cti_alps_ptr);
-		_cti_alps_ptr = NULL;
-		return 1;
-	}
-	
-	// load alps_get_overlap_ordinal
-	// XXX: It is alright for this load to fail as some versions of libalps
-	//       will be missing this function. In that case, we should always
-	//       return error
-	_cti_alps_ptr->alps_get_overlap_ordinal = (decltype(cti_alps_funcs_t::alps_get_overlap_ordinal))dlsym(_cti_alps_ptr->handle, "alps_get_overlap_ordinal");
-	
-	// done
-	return 0;
-}
-
-static void
-_cti_alps_fini(void)
-{
-	if (_cti_alps_info != NULL)
-		_cti_consumeList(_cti_alps_info, NULL);	// this should have already been cleared out.
-
-	if (_cti_alps_ptr != NULL)
-	{
-		// cleanup
-		dlclose(_cti_alps_ptr->handle);
-		free(_cti_alps_ptr);
-		_cti_alps_ptr = NULL;
-	}
-}
-
-/* dlopen related wrappers */
-
-// This returns true if init finished okay, otherwise it returns false. We assume in that
-// case the the cti_error was already set.
-static int
-_cti_alps_ready(void)
-{
-	return (_cti_alps_ptr != NULL);
-}
-
-static uint64_t
-_cti_alps_get_apid(int arg1, pid_t arg2)
-{
-	// sanity check
-	if (_cti_alps_ptr == NULL)
-		return 0;
-	
-	return (*_cti_alps_ptr->alps_get_apid)(arg1, arg2);
-}
-
-static int
-_cti_alps_get_appinfo_ver2_err(uint64_t arg1, appInfo_t *arg2, cmdDetail_t **arg3, placeNodeList_t **arg4, char **arg5)
-{
-	// sanity check
-	if (_cti_alps_ptr == NULL)
-	{
-		if (arg5 != NULL)
-		{
-			*arg5 = "_cti_alps_ptr is NULL!";
-		}
-		return -1;
-	}
-	
-	return (*_cti_alps_ptr->alps_get_appinfo_ver2_err)(arg1, arg2, arg3, arg4, arg5, NULL);
-}
-
-static const char *
-_cti_alps_launch_tool_helper(uint64_t arg1, int arg2, int arg3, int arg4, int arg5, char **arg6)
-{
-	// sanity check
-	if (_cti_alps_ptr == NULL)
-		return "_cti_alps_ptr is NULL!";
-		
-	return (*_cti_alps_ptr->alps_launch_tool_helper)(arg1, arg2, arg3, arg4, arg5, arg6);
-}
-
-static int
-_cti_alps_get_overlap_ordinal(uint64_t arg1, char **arg2, int *arg3)
-{
-	// sanity check
-	if (_cti_alps_ptr == NULL)
-	{
-		if (arg2 != NULL)
-		{
-			*arg2 = "_cti_alps_get_overlap_ordinal: _cti_alps_ptr is NULL!";
-		}
-		if (arg3 != NULL)
-		{
-			*arg3 = -1;
-		}
-		return -1;
-	}
-	
-	// Ensure that the function pointer is not null, if it is null we need to
-	// exit with error. We expect some alps libraries not to support this function.
-	if (_cti_alps_ptr->alps_get_overlap_ordinal == NULL)
-	{
-		if (arg2 != NULL)
-		{
-			*arg2 = "alps_get_overlap_ordinal() not supported.";
-		}
-		if (arg3 != NULL)
-		{
-			*arg3 = -1;
-		}
-		return -1;
-	}
-	
-	return (*_cti_alps_ptr->alps_get_overlap_ordinal)(arg1, arg2, arg3);
-}
+};
+static const LibALPS libAlps;
 
 /*
 *       _cti_alps_getSvcNodeInfo - read nid from alps defined system locations
@@ -454,19 +298,14 @@ cti_alps_registerApid(uint64_t apid, Frontend::AppId newAppId)
 	// retrieve detailed information about our app
 	// save this information into the struct
 	char *appinfo_err = NULL;
-	if (_cti_alps_get_appinfo_ver2_err(apid, &alpsInfo->appinfo, &alpsInfo->cmdDetail, &alpsInfo->places, &appinfo_err) != 1)
+	if (libAlps.alps_get_appinfo_ver2_err(apid, &alpsInfo->appinfo, &alpsInfo->cmdDetail, &alpsInfo->places, &appinfo_err, nullptr) != 1)
 	{
-		// If we were ready, then set the error message. Otherwise we assume that
 		// dlopen failed and we already set the error string in that case.
-		if (_cti_alps_ready())
+		if (appinfo_err != NULL) {
+			_cti_set_error("alps_get_appinfo_ver2_err() failed: %s", appinfo_err);
+		} else
 		{
-			if (appinfo_err != NULL)
-			{
-				_cti_set_error("_cti_alps_get_appinfo_ver2_err() failed: %s", appinfo_err);
-			} else
-			{
-				_cti_set_error("_cti_alps_get_appinfo_ver2_err() failed.");
-			}
+			_cti_set_error("alps_get_appinfo_ver2_err() failed.");
 		}
 		_cti_alps_consumeAlpsInfo(alpsInfo);
 		return 0;
@@ -551,7 +390,7 @@ cti_alps_getApid(pid_t aprunPid)
 		}
 	}
 	
-	return _cti_alps_get_apid(_cti_alps_svcNid->nid, aprunPid);
+	return libAlps.alps_get_apid(_cti_alps_svcNid->nid, aprunPid);
 }
 
 static ALPSFrontend::AprunInfo *
@@ -1605,7 +1444,7 @@ _cti_alps_ship_package(alpsInfo_t* my_app, const char *package)
 	int new_stderr = open("/dev/null", O_WRONLY);
 	dup2(new_stderr, STDERR_FILENO);
 	close(new_stderr);
-	while ((++checks < LAUNCH_TOOL_RETRY) && ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, 1, 0, 1, &p)) != NULL))
+	while ((++checks < LAUNCH_TOOL_RETRY) && ((errmsg = libAlps.alps_launch_tool_helper(my_app->apid, my_app->pe0Node, 1, 0, 1, &p)) != NULL))
 	{
 		usleep(500000);
 	}
@@ -1618,10 +1457,7 @@ _cti_alps_ship_package(alpsInfo_t* my_app, const char *package)
 		//
 		// If we were ready, then set the error message. Otherwise we assume that
 		// dlopen failed and we already set the error string in that case.
-		if (_cti_alps_ready())
-		{
-			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
-		}
+		_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
 		return 1;
 	}
 	
@@ -1696,16 +1532,13 @@ _cti_alps_start_daemon(alpsInfo_t* my_app, cti_args_t * args)
 	free(args_flat);
 	
 	// launch the tool daemon onto the compute nodes
-	if ((errmsg = _cti_alps_launch_tool_helper(my_app->apid, my_app->pe0Node, do_transfer, 1, 1, &a)) != NULL)
+	if ((errmsg = libAlps.alps_launch_tool_helper(my_app->apid, my_app->pe0Node, do_transfer, 1, 1, &a)) != NULL)
 	{
 		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
 		//
 		// If we were ready, then set the error message. Otherwise we assume that
 		// dlopen failed and we already set the error string in that case.
-		if (_cti_alps_ready())
-		{
-			_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
-		}
+		_cti_set_error("alps_launch_tool_helper error: %s", errmsg);
 		free(a);
 		return 1;
 	}
@@ -1732,7 +1565,7 @@ cti_alps_getAlpsOverlapOrdinal(alpsInfo_t* my_app)
 		return -1;
 	}
 	
-	rtn = _cti_alps_get_overlap_ordinal(my_app->apid, &errMsg, NULL);
+	rtn = libAlps.alps_get_overlap_ordinal(my_app->apid, &errMsg, NULL);
 	if (rtn < 0)
 	{
 		if (errMsg != NULL)
@@ -1740,7 +1573,7 @@ cti_alps_getAlpsOverlapOrdinal(alpsInfo_t* my_app)
 			_cti_set_error("%s", errMsg);
 		} else
 		{
-			_cti_set_error("cti_alps_getAlpsOverlapOrdinal: Unknown _cti_alps_get_overlap_ordinal failure");
+			_cti_set_error("cti_alps_getAlpsOverlapOrdinal: Unknown alps_get_overlap_ordinal failure");
 		}
 	}
 	
@@ -1996,11 +1829,11 @@ ALPSFrontend::getAttribsPath(AppId appId) const {
 /* extended frontend implementation */
 
 ALPSFrontend::ALPSFrontend() {
-	_cti_alps_init();
+	
 }
 
 ALPSFrontend::~ALPSFrontend() {
-	_cti_alps_fini();
+	
 }
 
 AppId
