@@ -92,6 +92,7 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 	DEBUG_PRINT("extractAndRun: starting daemon" << std::endl);
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
 	liveSession->startDaemon(rawArgVec.get() + 1);
+	DEBUG_PRINT("daemon started" << std::endl);
 
 	invalidate();
 }

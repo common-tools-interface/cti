@@ -21,7 +21,6 @@
 #endif /* HAVE_CONFIG_H */
 
 #include <dirent.h>
-#include <dlfcn.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
@@ -104,6 +103,9 @@ private: // types
 		using alps_get_overlap_ordinal = int(uint64_t, char **, int *);
 	};
 
+private: // variables
+	Dlopen::Handle libAlpsHandle;
+
 public: // variables
 	std::function<FnTypes::alps_get_apid>             alps_get_apid;
 	std::function<FnTypes::alps_get_appinfo_ver2_err> alps_get_appinfo_ver2_err;
@@ -111,13 +113,12 @@ public: // variables
 	std::function<FnTypes::alps_get_overlap_ordinal>  alps_get_overlap_ordinal;
 
 public: // interface
-	LibALPS() {
-		Dlopen::Handle libAlps(ALPS_FE_LIB_NAME);
-		alps_get_apid = libAlps.load<FnTypes::alps_get_apid>("alps_get_apid");
-		alps_get_appinfo_ver2_err = libAlps.load<FnTypes::alps_get_appinfo_ver2_err>("alps_get_appinfo_ver2_err");
-		alps_launch_tool_helper = libAlps.load<FnTypes::alps_launch_tool_helper>("alps_launch_tool_helper");
-		alps_get_overlap_ordinal = libAlps.load<FnTypes::alps_get_overlap_ordinal>("alps_get_overlap_ordinal");
-	}
+	LibALPS()
+		: libAlpsHandle(ALPS_FE_LIB_NAME)
+		, alps_get_apid(libAlpsHandle.load<FnTypes::alps_get_apid>("alps_get_apid"))
+		, alps_get_appinfo_ver2_err(libAlpsHandle.load<FnTypes::alps_get_appinfo_ver2_err>("alps_get_appinfo_ver2_err"))
+		, alps_launch_tool_helper(libAlpsHandle.load<FnTypes::alps_launch_tool_helper>("alps_launch_tool_helper"))
+		, alps_get_overlap_ordinal(libAlpsHandle.load<FnTypes::alps_get_overlap_ordinal>("alps_get_overlap_ordinal")) {}
 };
 static const LibALPS libAlps;
 
@@ -261,8 +262,8 @@ _cti_alps_getLauncherName()
 
 // this function creates a new appEntry_t object for the app
 // used by the alps_run functions
-alpsInfo_t *
-cti_alps_registerApid(uint64_t apid, Frontend::AppId newAppId)
+static alpsInfo_t *
+_cti_alps_registerApid(uint64_t apid, Frontend::AppId newAppId)
 {
 	alpsInfo_t *	alpsInfo;
 	char *			toolPath;
@@ -363,7 +364,7 @@ cti_alps_registerApid(uint64_t apid, Frontend::AppId newAppId)
 }
 
 static uint64_t
-cti_alps_getApid(pid_t aprunPid)
+_cti_alps_getApid(pid_t aprunPid)
 {
 	// sanity check
 	if (cti_current_wlm() != CTI_WLM_ALPS)
@@ -394,7 +395,7 @@ cti_alps_getApid(pid_t aprunPid)
 }
 
 static ALPSFrontend::AprunInfo *
-cti_alps_getAprunInfo(alpsInfo_t* alpsInfo)
+_cti_alps_getAprunInfo(alpsInfo_t* alpsInfo)
 {
 	ALPSFrontend::AprunInfo*	aprunInfo;
 
@@ -1277,7 +1278,7 @@ continue_on_error:
 	}
 	
 	// register this app with the application interface
-	if ((alpsInfo = cti_alps_registerApid(apid, newAppId)) == nullptr)
+	if ((alpsInfo = _cti_alps_registerApid(apid, newAppId)) == nullptr)
 	{
 		// failed to register apid, error is already set
 		kill(myapp->aprunPid, DEFAULT_SIG);
@@ -1554,7 +1555,7 @@ _cti_alps_start_daemon(alpsInfo_t* my_app, cti_args_t * args)
 }
 
 static int
-cti_alps_getAlpsOverlapOrdinal(alpsInfo_t* my_app)
+_cti_alps_getAlpsOverlapOrdinal(alpsInfo_t* my_app)
 {
 	char *			errMsg = NULL;
 	int				rtn;
@@ -1763,11 +1764,11 @@ ALPSFrontend::getNumAppNodes(AppId appId) const {
 
 std::vector<std::string> const
 ALPSFrontend::getAppHostsList(AppId appId) const {
-	if (auto appHostsList = _cti_alps_getAppHostsList(getInfoPtr(appId))) {
+	if (char** appHostsList = _cti_alps_getAppHostsList(getInfoPtr(appId))) {
 		std::vector<std::string> result;
 		for (char** host = appHostsList; *host != nullptr; host++) {
 			result.emplace_back(*host);
-			free(host);
+			free(*host);
 		}
 		free(appHostsList);
 		return result;
@@ -1848,7 +1849,7 @@ ALPSFrontend::registerApid(uint64_t apid) {
 	// aprun pid not found in the global _cti_alps_info list
 	// so lets create a new appEntry_t object for it
 	auto appId = newAppId();
-	if (auto alpsInfoPtr = cti_alps_registerApid(apid, appId)) {
+	if (auto alpsInfoPtr = _cti_alps_registerApid(apid, appId)) {
 		appList[appId] = std::unique_ptr<alpsInfo_t>(alpsInfoPtr);
 		return appId;
 	} else {
@@ -1858,7 +1859,7 @@ ALPSFrontend::registerApid(uint64_t apid) {
 
 uint64_t
 ALPSFrontend::getApid(pid_t appPid) {
-	if (auto apid = cti_alps_getApid(appPid)) {
+	if (auto apid = _cti_alps_getApid(appPid)) {
 		return apid;
 	} else {
 		throw std::runtime_error(std::string("getApid: ") + cti_error_str());
@@ -1867,7 +1868,7 @@ ALPSFrontend::getApid(pid_t appPid) {
 
 ALPSFrontend::AprunInfo*
 ALPSFrontend::getAprunInfo(AppId appId) {
-	if (auto aprunInfo = cti_alps_getAprunInfo(getInfoPtr(appId))) {
+	if (auto aprunInfo = _cti_alps_getAprunInfo(getInfoPtr(appId))) {
 		return aprunInfo;
 	} else {
 		throw std::runtime_error(std::string("getAprunInfo: ") + cti_error_str());
@@ -1876,9 +1877,10 @@ ALPSFrontend::getAprunInfo(AppId appId) {
 
 int
 ALPSFrontend::getAlpsOverlapOrdinal(AppId appId) {
-	if (auto alpsOverlapOrdinal = cti_alps_getAlpsOverlapOrdinal(getInfoPtr(appId))) {
+	if (auto alpsOverlapOrdinal = _cti_alps_getAlpsOverlapOrdinal(getInfoPtr(appId))) {
 		return alpsOverlapOrdinal;
 	} else {
 		throw std::runtime_error(std::string("getAlpsOverlapOrdinal: ") + cti_error_str());
 	}
 }
+

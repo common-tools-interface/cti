@@ -111,8 +111,7 @@ public: // interface
 /* internal frontend management */
 Frontend& _cti_getCurrentFrontend();
 
-std::string const _cti_getLdAuditPath(void);
-std::string const _cti_getOverwatchPath(void);
-std::string const _cti_getDlaunchPath(void);
-std::string const _cti_getSlurmUtilPath(void);
-std::string const _cti_getCfgDir(void);
+std::string const& _cti_getLdAuditPath(void);
+std::string const& _cti_getOverwatchPath(void);
+std::string const& _cti_getDlaunchPath(void);
+std::string const& _cti_getCfgDir(void);

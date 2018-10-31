@@ -91,26 +91,7 @@ Session::Session(Frontend const& frontend_, Frontend::AppId appId_) :
 	attribsPath(frontend.getAttribsPath(appId)),
 	toolPath(frontend.getToolPath(appId)),
 	jobId(frontend.getJobId(appId)), 
-	wlmEnum(std::to_string(frontend.getWLMType())) {
-
-	// create and add wlm basefiles to manifest
-	auto baseFileManifest = createManifest();
-	for (auto const& path : frontend.getExtraBinaries()) {
-		baseFileManifest->addBinary(path);
-	}
-	for (auto const& path : frontend.getExtraLibraries()) {
-		baseFileManifest->addLibrary(path);
-	}
-	for (auto const& path : frontend.getExtraLibDirs()) {
-		baseFileManifest->addLibDir(path);
-	}
-	for (auto const& path : frontend.getExtraFiles()) {
-		baseFileManifest->addFile(path);
-	}
-
-	// ship basefile manifest and run remote extraction
-	baseFileManifest->finalizeAndShip().extract();
-}
+	wlmEnum(std::to_string(frontend.getWLMType())) {}
 
 #include "ArgvDefs.hpp"
 void Session::launchCleanup() {

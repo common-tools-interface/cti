@@ -26,10 +26,7 @@
 class ALPSFrontend : public Frontend {
 
 public: // types
-	struct AprunInfo {
-		uint64_t apid;
-		pid_t aprunPid;
-	};
+	using AprunInfo = cti_aprunProc_t;
 
 public: // wlm interface
 	bool appIsValid(AppId appId) const;

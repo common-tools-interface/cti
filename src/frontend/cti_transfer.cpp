@@ -42,6 +42,28 @@ static int runSafely(std::string const& caller, std::function<void()> f) noexcep
 
 /* session implementations */
 
+// create and add wlm basefiles to manifest. run this after creating a Session
+static void shipWLMBaseFiles(Session& liveSession) {
+	auto& frontend = _cti_getCurrentFrontend();
+
+	auto baseFileManifest = liveSession.createManifest();
+	for (auto const& path : frontend.getExtraBinaries()) {
+		baseFileManifest->addBinary(path);
+	}
+	for (auto const& path : frontend.getExtraLibraries()) {
+		baseFileManifest->addLibrary(path);
+	}
+	for (auto const& path : frontend.getExtraLibDirs()) {
+		baseFileManifest->addLibDir(path);
+	}
+	for (auto const& path : frontend.getExtraFiles()) {
+		baseFileManifest->addFile(path);
+	}
+
+	// ship basefile manifest and run remote extraction
+	baseFileManifest->finalizeAndShip().extract();
+}
+
 cti_session_id_t cti_createSession(cti_app_id_t appId) {
 	cti_session_id_t sid = newSessionId();
 
@@ -49,6 +71,7 @@ cti_session_id_t cti_createSession(cti_app_id_t appId) {
 	auto insertSession = [&]() {
 		// create session instance
 		auto newSession = std::make_shared<Session>(_cti_getCurrentFrontend(), appId);
+		shipWLMBaseFiles(*newSession);
 		sessions.insert(std::make_pair(sid, newSession));
 	};
 

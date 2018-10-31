@@ -63,8 +63,7 @@ static std::string _cti_cfg_dir;      // config dir that we can use as temporary
 static std::string _cti_ld_audit_lib; // ld audit library location
 static std::string _cti_overwatch_bin;// overwatch binary location
 static std::string _cti_dlaunch_bin;  // dlaunch binary location
-static std::string _cti_slurm_util;   // slurm utility binary location
-static std::vector<std::string> const _cti_default_dir_locs = {DEFAULT_CTI_LOCS};
+static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
 
 /* global wlm frontend object */
 std::unique_ptr<Frontend> currentFrontend = nullptr;
@@ -148,6 +147,9 @@ _cti_init(void) {
 		fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
 		currentFrontend = shim::make_unique<DefaultFrontend>();
 	}
+	if (!currentFrontend) {
+		fprintf(stderr, "Workload manager argument '%s' produced null frontend!\n", wlmName.c_str());
+	}
 }
 
 // Destructor function
@@ -190,9 +192,9 @@ _cti_setup_base_dir(void) {
 
 	const char * base_dir_env = getenv(BASE_DIR_ENV_VAR);
 	if ((base_dir_env == nullptr) || !_cti_hasDirPerms(base_dir_env, R_OK | X_OK)) {
-		for (auto const& defaultPath : _cti_default_dir_locs) {
-			if (_cti_hasDirPerms(defaultPath, R_OK | X_OK)) {
-				baseDir = defaultPath;
+		for (const char* const* pathPtr = _cti_default_dir_locs; *pathPtr != nullptr; pathPtr++) {
+			if (_cti_hasDirPerms(*pathPtr, R_OK | X_OK)) {
+				baseDir = std::string(*pathPtr);
 				break;
 			}
 		}
@@ -207,36 +209,34 @@ _cti_setup_base_dir(void) {
 	_cti_ld_audit_lib  = verifyPath(baseDir + "/lib/"     + LD_AUDIT_LIB_NAME);
 	_cti_overwatch_bin = verifyPath(baseDir + "/libexec/" + CTI_OVERWATCH_BINARY);
 	_cti_dlaunch_bin   = verifyPath(baseDir + "/libexec/" + CTI_LAUNCHER);
-	_cti_slurm_util    = verifyPath(baseDir + "/libexec/" + SLURM_STEP_UTIL);
 }
 
 // getter functions for paths
 
 Frontend& _cti_getCurrentFrontend() {
 	if (!currentFrontend) {
-		throw std::runtime_error("frontend not initialized");
+		_cti_init();
+		if (!currentFrontend) {
+			throw std::runtime_error("frontend failed to initialize");
+		}
 	}
 
 	return *currentFrontend;
 }
 
-std::string const _cti_getLdAuditPath(void) {
+std::string const& _cti_getLdAuditPath(void) {
 	return _cti_ld_audit_lib;
 }
 
-std::string const _cti_getOverwatchPath(void) {
+std::string const& _cti_getOverwatchPath(void) {
 	return _cti_overwatch_bin;
 }
 
-std::string const _cti_getDlaunchPath(void) {
+std::string const& _cti_getDlaunchPath(void) {
 	return _cti_dlaunch_bin;
 }
 
-std::string const _cti_getSlurmUtilPath(void) {
-	return _cti_slurm_util;
-}
-
-std::string const _cti_getCfgDir(void) {
+std::string const& _cti_getCfgDir(void) {
 	if (!_cti_cfg_dir.empty()) {
 		return _cti_cfg_dir;
 	}
@@ -270,9 +270,9 @@ std::string const _cti_getCfgDir(void) {
 	// Create the directory name string - we default this to have the name cray_cti-<username>
 	std::string cfgPath;
 	if (!customCfgDir.empty()) {
-		cfgPath = cfgDir + "/cray_cti-" + username;
-	} else if (!cfgDir.empty()) {
 		cfgPath = customCfgDir + "/cray_cti-" + username;
+	} else if (!cfgDir.empty()) {
+		cfgPath = cfgDir + "/cray_cti-" + username;
 	} else {
 		// We have no where to create a temporary directory...
 		throw std::runtime_error(std::string("Cannot find suitable config directory. Try setting the env variable ") + CFG_DIR_VAR);
@@ -337,7 +337,7 @@ std::string const _cti_getCfgDir(void) {
 	}
 
 	_cti_cfg_dir = cfgPath;
-	return cfgPath;
+	return _cti_cfg_dir;
 }
 
 /************************
@@ -351,7 +351,11 @@ cti_version(void) {
 
 cti_wlm_type
 cti_current_wlm(void) {
-	return currentFrontend->getWLMType();
+	if (currentFrontend) {
+		return currentFrontend->getWLMType();
+	} else {
+		return CTI_WLM_NONE;
+	}
 }
 
 const char *
@@ -377,52 +381,74 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 	return "Invalid WLM.";
 }
 
+template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
+static ReturnType runSafely(std::string const& caller, FuncType func) {
+	try {
+		return func();
+	} catch (std::exception const& ex) {
+		_cti_set_error((caller + ": " + ex.what()).c_str());
+		return ReturnType();
+	}
+}
+
 int
 cti_appIsValid(cti_app_id_t appId) {
-	return currentFrontend->appIsValid(appId);
+	return runSafely("cti_appIsValid", [&](){
+		return _cti_getCurrentFrontend().appIsValid(appId);
+	});
 }
 
 void
 cti_deregisterApp(cti_app_id_t appId) {
-	return currentFrontend->deregisterApp(appId);
+	return runSafely("cti_deregisterApp", [&](){
+		return _cti_getCurrentFrontend().deregisterApp(appId);
+	});
 }
 
 int
 cti_getNumAppPEs(cti_app_id_t appId) {
-	return currentFrontend->getNumAppPEs(appId);
+	return runSafely("cti_getNumAppPEs", [&](){
+		return _cti_getCurrentFrontend().getNumAppPEs(appId);
+	});
 }
 
 int
 cti_getNumAppNodes(cti_app_id_t appId) {
-	return currentFrontend->getNumAppNodes(appId);
+	return runSafely("cti_getNumAppNodes", [&](){
+		return _cti_getCurrentFrontend().getNumAppNodes(appId);
+	});
 }
 
 char **
 cti_getAppHostsList(cti_app_id_t appId) {
-	auto const hostList = currentFrontend->getAppHostsList(appId);
+	return runSafely("cti_getAppHostsList", [&](){
+		auto const hostList = _cti_getCurrentFrontend().getAppHostsList(appId);
 
-	char **host_list = (char**)malloc(hostList.size() * sizeof(char*));
-	for (size_t i = 0; i < hostList.size(); i++) {
-		host_list[i] = strdup(hostList[i].c_str());
-	}
+		char **host_list = (char**)malloc(hostList.size() * sizeof(char*));
+		for (size_t i = 0; i < hostList.size(); i++) {
+			host_list[i] = strdup(hostList[i].c_str());
+		}
 
-	return host_list;
+		return host_list;
+	});
 }
 
 cti_hostsList_t *
 cti_getAppHostsPlacement(cti_app_id_t appId) {
-	auto const hostPlacement = currentFrontend->getAppHostsPlacement(appId);
+	return runSafely("cti_getAppHostsPlacement", [&](){
+		auto const hostPlacement = _cti_getCurrentFrontend().getAppHostsPlacement(appId);
 
-	cti_hostsList_t *result = (cti_hostsList_t*)malloc(sizeof(cti_hostsList_t));
-	result->hosts = (cti_host_t*)malloc(sizeof(cti_host_t) * hostPlacement.size());
+		cti_hostsList_t *result = (cti_hostsList_t*)malloc(sizeof(cti_hostsList_t));
+		result->hosts = (cti_host_t*)malloc(sizeof(cti_host_t) * hostPlacement.size());
 
-	result->numHosts = hostPlacement.size();
-	for (size_t i = 0; i < hostPlacement.size(); i++) {
-		result->hosts[i].hostname = strdup(hostPlacement[i].hostname.c_str());
-		result->hosts[i].numPEs   = hostPlacement[i].numPEs;
-	}
+		result->numHosts = hostPlacement.size();
+		for (size_t i = 0; i < hostPlacement.size(); i++) {
+			result->hosts[i].hostname = strdup(hostPlacement[i].hostname.c_str());
+			result->hosts[i].numPEs   = hostPlacement[i].numPEs;
+		}
 
-	return result;
+		return result;
+	});
 }
 
 void
@@ -442,10 +468,72 @@ cti_destroyHostsList(cti_hostsList_t *placement_list) {
 
 char *
 cti_getHostname() {
-	return strdup(currentFrontend->getHostName().c_str());
+	return runSafely("cti_getHostname", [&](){
+		return strdup(_cti_getCurrentFrontend().getHostName().c_str());
+	});
 }
 
 char *
 cti_getLauncherHostName(cti_app_id_t appId) {
-	return strdup(currentFrontend->getLauncherHostName(appId).c_str());
+	return runSafely("cti_getLauncherHostName", [&](){
+		return strdup(_cti_getCurrentFrontend().getLauncherHostName(appId).c_str());
+	});
+}
+
+/* WLM-specific function implementation */
+
+uint64_t cti_alps_getApid(pid_t aprunPid) {
+	if (auto alpsPtr = dynamic_cast<ALPSFrontend*>(currentFrontend.get())) {
+		return alpsPtr->getApid(aprunPid);
+	} else {
+		_cti_set_error("Invalid call. ALPS WLM not in use.");
+		return 0;
+	}
+}
+
+cti_app_id_t cti_alps_registerApid(uint64_t apid) {
+	if (auto alpsPtr = dynamic_cast<ALPSFrontend*>(currentFrontend.get())) {
+		return alpsPtr->registerApid(apid);
+	} else {
+		_cti_set_error("Invalid call. ALPS WLM not in use.");
+		return 0;
+	}
+}
+
+cti_aprunProc_t * cti_alps_getAprunInfo(cti_app_id_t app_id) {
+	if (auto alpsPtr = dynamic_cast<ALPSFrontend*>(currentFrontend.get())) {
+		return alpsPtr->getAprunInfo(app_id);
+	} else {
+		_cti_set_error("Invalid call. ALPS WLM not in use.");
+		return nullptr;
+	}
+}
+
+int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_id) {
+	if (auto alpsPtr = dynamic_cast<ALPSFrontend*>(currentFrontend.get())) {
+		return alpsPtr->getAlpsOverlapOrdinal(app_id);
+	} else {
+		_cti_set_error("Invalid call. ALPS WLM not in use.");
+		return 0;
+	}
+}
+
+cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid) {
+	return nullptr;
+}
+
+cti_app_id_t cti_cray_slurm_registerJobStep( uint32_t job_id, uint32_t step_id) {
+	return 0;
+}
+
+cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
+	return nullptr;
+}
+
+cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid) {
+	return 0;
+}
+
+cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid) {
+	return 0;
 }

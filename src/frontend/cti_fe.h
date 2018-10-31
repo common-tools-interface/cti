@@ -58,6 +58,28 @@ char **	 				cti_getAppHostsList(cti_app_id_t);
 cti_hostsList_t *		cti_getAppHostsPlacement(cti_app_id_t);
 void					cti_destroyHostsList(cti_hostsList_t *);
 
+/* WLM-specific functions */
+
+typedef struct {
+	uint64_t			apid;
+	pid_t				aprunPid;
+} cti_aprunProc_t;
+
+typedef struct {
+	uint32_t			jobid;
+	uint32_t			stepid;
+} cti_srunProc_t;
+
+uint64_t cti_alps_getApid(pid_t aprunPid);
+cti_app_id_t cti_alps_registerApid(uint64_t apid);
+cti_aprunProc_t * cti_alps_getAprunInfo(cti_app_id_t app_id);
+int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_Id);
+cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid);
+cti_app_id_t cti_cray_slurm_registerJobStep( uint32_t job_id, uint32_t step_id);
+cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
+cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid);
+cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid);
+
 #ifdef __cplusplus
 }
 #endif
