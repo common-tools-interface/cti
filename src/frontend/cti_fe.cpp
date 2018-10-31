@@ -47,9 +47,12 @@
 #include "wlm_detect.h"
 
 #include "alps_fe.hpp"
+
+#if 0
 #include "cray_slurm_fe.hpp"
 #include "slurm_fe.hpp"
 #include "ssh_fe.hpp"
+#endif
 
 /* Static prototypes */
 static void			_cti_setup_base_dir(void);
@@ -128,12 +131,18 @@ _cti_init(void) {
 	} else if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
 		// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
 		if (_cti_is_cluster_system()) {
+			#ifdef SLURMFrontend
 			currentFrontend = shim::make_unique<SLURMFrontend>();
+			#endif
 		} else {
+			#ifdef CraySLURMFrontend
 			currentFrontend = shim::make_unique<CraySLURMFrontend>();
+			#endif
 		}
 	} else if (!wlmName.compare("generic")) {
+		#ifdef SSHFrontend
 		currentFrontend = shim::make_unique<SSHFrontend>();
+		#endif
 	} else {
 		// fallback to use the default
 		fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
