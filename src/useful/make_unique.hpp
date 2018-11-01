@@ -15,6 +15,9 @@
 
 #include <memory>
 
+template <typename T>
+using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
+
 namespace shim {
 
 #ifdef __cpp_lib_make_unique

@@ -45,6 +45,7 @@
 
 #include "useful/cti_useful.h"
 #include "useful/Dlopen.hpp"
+#include "useful/make_unique.hpp"
 
 /* Types used here */
 
@@ -53,20 +54,112 @@ typedef struct
 	int				nid;		// service node id
 } serviceNode_t;
 
-typedef struct
-{
-	int 			pipe_r;
-	int 			pipe_w;
+struct BarrierControl {
+	int 			readEnd;
+	int 			writeEnd;
 	int 			sync_int;
-} barrierCtl_t;
+	bool initialized;
 
-typedef struct
-{
-	pid_t				aprunPid;
-	int					pipeOpen;
-	barrierCtl_t		pipeCtl;
-	cti_overwatch_t *	o_watch;		// overwatch handler to enforce cleanup
-} aprunInv_t;
+	void assign(int readEnd_, int writeEnd_) {
+		if (initialized) {
+			throw std::runtime_error("Control pipe already initialized.");
+		}
+		readEnd = readEnd;
+		writeEnd = writeEnd;
+		initialized = true;
+	}
+
+	void close() {
+		if (!initialized) {
+			throw std::runtime_error("Control pipe not initialized.");
+		}
+
+		::close(readEnd);
+		::close(writeEnd);
+	}
+
+	void wait() {
+		if (!initialized) {
+			throw std::runtime_error("Control pipe not initialized.");
+		}
+
+		if (read(writeEnd, &sync_int, sizeof(sync_int)) <= 0) {
+			throw std::runtime_error("Control pipe read failed.");
+		}
+	}
+
+	void release() {
+		if (!initialized) {
+			throw std::runtime_error("Control pipe not initialized.");
+		}
+
+		// Conduct a pipe write for alps to release app from the startup barrier.
+		// Just write back what we read earlier.
+		if (write(readEnd, &sync_int, sizeof(sync_int)) <= 0) {
+			throw std::runtime_error("Aprun barrier release operation failed.");
+		}
+	}
+
+	void invalidate() {
+		readEnd = -1;
+		writeEnd = -1;
+		initialized = false;
+	}
+
+	BarrierControl()
+		: initialized{false} {}
+
+	BarrierControl(int readEnd_, int writeEnd_)
+		: readEnd{readEnd_}
+		, writeEnd{writeEnd_}
+		, initialized{true} {}
+
+	BarrierControl& operator=(BarrierControl&& moved) {
+		assign(moved.readEnd, moved.writeEnd);
+		moved.invalidate();
+		return *this;
+	}
+
+	BarrierControl(BarrierControl&& moved) : BarrierControl(moved.readEnd, moved.writeEnd) {
+		moved.invalidate();
+	}
+
+	~BarrierControl() {
+		if (initialized) {
+			close();
+		}
+	}
+};
+
+// setup overwatch to ensure aprun gets killed off on error
+struct OverwatchHandle {
+	UniquePtrDestr<cti_overwatch_t> owatchPtr;
+
+	OverwatchHandle() {}
+
+	OverwatchHandle(std::string const& overwatchPath) {
+		if (!overwatchPath.empty()) {
+
+			// overwatch handler to enforce cleanup
+			owatchPtr = UniquePtrDestr<cti_overwatch_t>(
+				_cti_create_overwatch(overwatchPath.c_str()),
+				_cti_exit_overwatch);
+
+			// check results
+			if (!owatchPtr) {
+				throw std::runtime_error("_cti_create_overwatch failed.");
+			}
+		} else {
+			throw std::runtime_error("_cti_getOverwatchPath empty.");
+		}
+	}
+
+	void assign(pid_t appPid) {
+		if (_cti_assign_overwatch(owatchPtr.get(), appPid)) {
+			throw std::runtime_error("_cti_assign_overwatch failed.");
+		}
+	}
+};
 
 typedef struct
 {
@@ -75,8 +168,12 @@ typedef struct
 	int					pe0Node;		// ALPS PE0 node id
 	appInfo_t			appinfo;		// ALPS application information
 	cmdDetail_t *		cmdDetail;		// ALPS application command information (width, depth, memory, command name) of length appinfo.numCmds
-	placeNodeList_t *	places;	 		// ALPS application placement information (nid, processors, PE threads) of length appinfo.numPlaces
-	aprunInv_t *		inv;			// Optional object used for launched applications.
+	placeNodeList_t *	places;			// ALPS application placement information (nid, processors, PE threads) of length appinfo.numPlaces
+
+	pid_t				aprunPid;		// Optional objects used for launched applications.
+	BarrierControl		startupBarrier;
+	OverwatchHandle		overwatchHandle;
+
 	char *				toolPath;		// Backend staging directory
 	char *				attribsPath;	// Backend directory where pmi_attribs is located
 	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
@@ -173,30 +270,6 @@ _cti_alps_getSvcNodeInfo()
 }
 
 static void
-_cti_alps_consumeAprunInv(aprunInv_t *runPtr)
-{
-	// sanity
-	if (runPtr == NULL)
-		return;
-
-	// close the open pipe fds
-	if (runPtr->pipeOpen)
-	{
-		close(runPtr->pipeCtl.pipe_r);
-		close(runPtr->pipeCtl.pipe_w);
-	}
-	
-	// free the overwatch handler
-	if (runPtr->o_watch != NULL)
-	{
-		_cti_exit_overwatch(runPtr->o_watch);
-	}
-	
-	// free the object from memory
-	free(runPtr);
-}
-
-static void
 _cti_alps_consumeAlpsInfo(alpsInfo_t* alpsInfo)
 {
 	// sanity check
@@ -208,10 +281,6 @@ _cti_alps_consumeAlpsInfo(alpsInfo_t* alpsInfo)
 		free(alpsInfo->cmdDetail);
 	if (alpsInfo->places != NULL)
 		free(alpsInfo->places);
-	
-	// try to free the inv object
-	if (alpsInfo->inv != NULL)
-		_cti_alps_consumeAprunInv(alpsInfo->inv);
 	
 	// free the toolPath
 	if (alpsInfo->toolPath != NULL)
@@ -754,13 +823,15 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 							const char *inputFile, const char *chdirPath,
 							const char * const env_list[], int doBarrier, cti_app_id_t newAppId)
 {
-	aprunInv_t *		myapp;
 	alpsInfo_t *		alpsInfo;
 	uint64_t 			apid;
-	pid_t				mypid;
+	pid_t				forkedPid;
+	pid_t				aprunPid = 0;
 	cti_args_t *		my_args;
 	int					i, fd;
+
 	// pipes for aprun
+	BarrierControl		startupBarrier;
 	int					aprunPipeR[2];
 	int					aprunPipeW[2];
 	// used for determining if the aprun binary is a wrapper script
@@ -777,15 +848,6 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		// error already set
 		return 0;
 	}
-
-	// create a new aprunInv_t object
-	if ((myapp = (decltype(myapp))malloc(sizeof(aprunInv_t))) == (void *)0)
-	{
-		// Malloc failed
-		_cti_set_error("malloc failed.");
-		return 0;
-	}
-	memset(myapp, 0, sizeof(aprunInv_t));     // clear it to NULL
 	
 	// only do the following if we are using the barrier variant
 	if (doBarrier)
@@ -795,20 +857,16 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		if (pipe(aprunPipeR) < 0)
 		{
 			_cti_set_error("Pipe creation failure on aprunPipeR.");
-			_cti_alps_consumeAprunInv(myapp);
 			return 0;
 		}
 		if (pipe(aprunPipeW) < 0)
 		{
 			_cti_set_error("Pipe creation failure on aprunPipeW.");
-			_cti_alps_consumeAprunInv(myapp);
 			return 0;
 		}
 	
-		// set my ends of the pipes in the aprunInv_t structure
-		myapp->pipeOpen = 1;
-		myapp->pipeCtl.pipe_r = aprunPipeR[1];
-		myapp->pipeCtl.pipe_w = aprunPipeW[0];
+		// initialize the barrier pipes
+		startupBarrier.assign(aprunPipeR[1], aprunPipeW[0]);
 	}
 	
 	// create the argv array for the actual aprun exec
@@ -817,7 +875,6 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	if ((my_args = _cti_newArgs()) == NULL)
 	{
 		_cti_set_error("_cti_newArgs failed.");
-		_cti_alps_consumeAprunInv(myapp);
 		return 0;
 	}
 	
@@ -825,7 +882,6 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	if (_cti_addArg(my_args, "%s", _cti_alps_getLauncherName()))
 	{
 		_cti_set_error("_cti_addArg failed.");
-		_cti_alps_consumeAprunInv(myapp);
 		_cti_freeArgs(my_args);
 		return 0;
 	}
@@ -839,14 +895,12 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		if (_cti_addArg(my_args, "-P"))
 		{
 			_cti_set_error("_cti_addArg failed.");
-			_cti_alps_consumeAprunInv(myapp);
 			_cti_freeArgs(my_args);
 			return 0;
 		}
 		if (_cti_addArg(my_args, "%d,%d", aprunPipeW[1], aprunPipeR[0]))
 		{
 			_cti_set_error("_cti_addArg failed.");
-			_cti_alps_consumeAprunInv(myapp);
 			_cti_freeArgs(my_args);
 			return 0;
 		}
@@ -860,7 +914,6 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 			if (_cti_addArg(my_args, "%s", launcher_argv[i]))
 			{
 				_cti_set_error("_cti_addArg failed.");
-				_cti_alps_consumeAprunInv(myapp);
 				_cti_freeArgs(my_args);
 				return 0;
 			}
@@ -871,39 +924,28 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	if ((mask = _cti_block_signals()) == NULL)
 	{
 		_cti_set_error("_cti_block_signals failed.");
-		_cti_alps_consumeAprunInv(myapp);
 		_cti_freeArgs(my_args);
 		return 0;
 	}
-	
-	const char *owatch_path = _cti_getOverwatchPath().c_str();
-	if (owatch_path == NULL)
-	{
-		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-		_cti_alps_consumeAprunInv(myapp);
-		_cti_freeArgs(my_args);
-		_cti_restore_signals(mask);
-		return 0;
-	}
-	
+
 	// setup overwatch to ensure aprun gets killed off on error
-	if ((myapp->o_watch = _cti_create_overwatch(owatch_path)) == NULL)
-	{
+	OverwatchHandle overwatchHandle;
+	try {
+		overwatchHandle = OverwatchHandle(_cti_getOverwatchPath());
+	} catch (...) {
 		_cti_set_error("_cti_create_overwatch failed.");
-		_cti_alps_consumeAprunInv(myapp);
 		_cti_freeArgs(my_args);
 		_cti_restore_signals(mask);
 		return 0;
 	}
 	
 	// fork off a process to launch aprun
-	mypid = fork();
+	forkedPid = fork();
 	
 	// error case
-	if (mypid < 0)
+	if (forkedPid < 0)
 	{
 		_cti_set_error("Fatal fork error.");
-		_cti_alps_consumeAprunInv(myapp);
 		_cti_freeArgs(my_args);
 		_cti_restore_signals(mask);
 		return 0;
@@ -912,7 +954,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	// child case
 	// Note that this should not use the _cti_set_error() interface since it is
 	// a child process.
-	if (mypid == 0)
+	if (forkedPid == 0)
 	{
 		// only do the following if we are using the barrier variant
 		if (doBarrier)
@@ -1000,8 +1042,9 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		}
 		
 		// assign the overwatch process to our pid
-		if (_cti_assign_overwatch(myapp->o_watch, getpid()))
-		{
+		try {
+			overwatchHandle.assign(getpid());
+		} catch (...) {
 			// no way to guarantee cleanup
 			fprintf(stderr, "CTI error: _cti_assign_overwatch failed.\n");
 			_exit(1);
@@ -1037,13 +1080,12 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	_cti_freeArgs(my_args);
 	
 	// restore signals
-	if (_cti_setpgid_restore(mypid, mask))
+	if (_cti_setpgid_restore(forkedPid, mask))
 	{
 		_cti_set_error("_cti_setpgid_restore failed.");
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
-		kill(mypid, DEFAULT_SIG);
-		_cti_alps_consumeAprunInv(myapp);
+		kill(forkedPid, DEFAULT_SIG);
 		return 0;
 	}
 	
@@ -1052,13 +1094,13 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	{
 		// Wait on pipe read for app to start and get to barrier - once this happens
 		// we know the real aprun is up and running
-		if (read(myapp->pipeCtl.pipe_w, &myapp->pipeCtl.sync_int, sizeof(myapp->pipeCtl.sync_int)) <= 0)
-		{
+		try {
+			startupBarrier.wait();
+		} catch (...) {
 			_cti_set_error("Control pipe read failed.");
 			// attempt to kill aprun since the caller will not recieve the aprun pid
 			// just in case the aprun process is still hanging around.
-			kill(mypid, DEFAULT_SIG);
-			_cti_alps_consumeAprunInv(myapp);
+			kill(forkedPid, DEFAULT_SIG);
 			return 0;
 		}
 	} else
@@ -1078,7 +1120,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	// first read the link of the exe in /proc for the aprun pid.
 	
 	// create the path to the /proc/<pid>/exe location
-	if (asprintf(&aprun_proc_path, "/proc/%lu/exe", (unsigned long)mypid) < 0)
+	if (asprintf(&aprun_proc_path, "/proc/%lu/exe", (unsigned long)forkedPid) < 0)
 	{
 		_cti_set_error("asprintf failed.");
 		goto continue_on_error;
@@ -1119,8 +1161,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 			free(aprun_exe_path);
 			// attempt to kill aprun since the caller will not recieve the aprun pid
 			// just in case the aprun process is still hanging around.
-			kill(mypid, DEFAULT_SIG);
-			_cti_alps_consumeAprunInv(myapp);
+			kill(forkedPid, DEFAULT_SIG);
 			return 0;
 		}
 		
@@ -1137,8 +1178,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 				free(aprun_exe_path);
 				// attempt to kill aprun since the caller will not recieve the aprun pid
 				// just in case the aprun process is still hanging around.
-				kill(mypid, DEFAULT_SIG);
-				_cti_alps_consumeAprunInv(myapp);
+				kill(forkedPid, DEFAULT_SIG);
 				// free the file_list
 				for (i=0; i < file_list_len; ++i)
 				{
@@ -1156,8 +1196,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 				free(aprun_exe_path);
 				// attempt to kill aprun since the caller will not recieve the aprun pid
 				// just in case the aprun process is still hanging around.
-				kill(mypid, DEFAULT_SIG);
-				_cti_alps_consumeAprunInv(myapp);
+				kill(forkedPid, DEFAULT_SIG);
 				// free the file_list
 				for (i=0; i < file_list_len; ++i)
 				{
@@ -1194,7 +1233,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 			proc_stat = NULL;
 			
 			// check to see if the ppid matches the pid of our child
-			if (proc_ppid == mypid)
+			if (proc_ppid == forkedPid)
 			{
 				// it matches, check to see if this is the real aprun
 				
@@ -1210,8 +1249,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 					free(aprun_exe_path);
 					// attempt to kill aprun since the caller will not recieve the aprun pid
 					// just in case the aprun process is still hanging around.
-					kill(mypid, DEFAULT_SIG);
-					_cti_alps_consumeAprunInv(myapp);
+					kill(forkedPid, DEFAULT_SIG);
 					// free the file_list
 					for (i=0; i < file_list_len; ++i)
 					{
@@ -1236,9 +1274,8 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 				// check if this is the real aprun
 				if (!_cti_alps_checkPathForWrappedAprun(aprun_exe_path))
 				{
-					// success! This is the real aprun
-					// set the aprunPid of the real aprun in the aprunInv_t structure
-					myapp->aprunPid = (pid_t)strtoul((file_list[i])->d_name, NULL, 10);
+					// success! This is the real aprun. stored in the appinfo later
+					aprunPid = (pid_t)strtoul((file_list[i])->d_name, NULL, 10);
 					
 					// cleanup memory
 					free(aprun_proc_path);
@@ -1262,18 +1299,20 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		free(aprun_exe_path);
 	
 continue_on_error:
-		// set aprunPid in aprunInv_t structure
-		myapp->aprunPid = mypid;
+		aprunPid = forkedPid;
 	}
-	
+
+	if (aprunPid == 0) {
+		throw std::runtime_error("could not determine the aprun pid during launch");
+	}
+
 	// set the apid associated with the pid of aprun
-	if ((apid = cti_alps_getApid(myapp->aprunPid)) == 0)
+	if ((apid = cti_alps_getApid(aprunPid)) == 0)
 	{
 		_cti_set_error("Could not obtain apid associated with pid of aprun.");
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
-		kill(myapp->aprunPid, DEFAULT_SIG);
-		_cti_alps_consumeAprunInv(myapp);
+		kill(aprunPid, DEFAULT_SIG);
 		return 0;
 	}
 	
@@ -1281,14 +1320,15 @@ continue_on_error:
 	if ((alpsInfo = _cti_alps_registerApid(apid, newAppId)) == nullptr)
 	{
 		// failed to register apid, error is already set
-		kill(myapp->aprunPid, DEFAULT_SIG);
-		_cti_alps_consumeAprunInv(myapp);
+		kill(aprunPid, DEFAULT_SIG);
 		return 0;
 	}
 
-	// set the inv
-	alpsInfo->inv = myapp;
-	
+	// complete, move the launch coordination objects into alpsInfo obj
+	alpsInfo->aprunPid = aprunPid;
+	alpsInfo->startupBarrier  = std::move(startupBarrier);
+	alpsInfo->overwatchHandle = std::move(overwatchHandle);
+
 	// return the alpsInfo_t
 	return alpsInfo;
 }
@@ -1307,35 +1347,6 @@ _cti_alps_launchBarrier(	const char * const a1[], int a2, int a3, const char *a4
 {
 	// call the common launch function
 	return _cti_alps_launch_common(a1, a2, a3, a4, a5, a6, 1, newAppId);
-}
-
-int
-_cti_alps_releaseBarrier(alpsInfo_t* my_app)
-{
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("Aprun barrier release operation failed.");
-		return 1;
-	}
-	
-	// sanity check
-	if (my_app->inv == NULL)
-	{
-		_cti_set_error("Aprun barrier release operation failed.");
-		return 1;
-	}
-	
-	// Conduct a pipe write for alps to release app from the startup barrier.
-	// Just write back what we read earlier.
-	if (write(my_app->inv->pipeCtl.pipe_r, &my_app->inv->pipeCtl.sync_int, sizeof(my_app->inv->pipeCtl.sync_int)) <= 0)
-	{
-		_cti_set_error("Aprun barrier release operation failed.");
-		return 1;
-	}
-	
-	// done
-	return 0;
 }
 
 static int
@@ -1700,9 +1711,7 @@ ALPSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
 
 void
 ALPSFrontend::releaseBarrier(AppId appId) {
-	if (_cti_alps_releaseBarrier(getInfoPtr(appId))) {
-		throw std::runtime_error(std::string("releaseBarrier: ") + cti_error_str());
-	}
+	getInfoPtr(appId)->startupBarrier.release();
 }
 
 void
