@@ -66,16 +66,16 @@ public: // interface
 	virtual void killApp(AppId appId, int signal) = 0;
 
 	// extra wlm specific binaries required by backend library
-	virtual std::vector<std::string> const getExtraBinaries() const { return {}; }
+	virtual std::vector<std::string> const getExtraBinaries(AppId appId) const { return {}; }
 
 	// extra wlm specific libraries required by backend library
-	virtual std::vector<std::string> const getExtraLibraries() const { return {}; }
+	virtual std::vector<std::string> const getExtraLibraries(AppId appId) const { return {}; }
 
 	// extra wlm specific library directories required by backend library
-	virtual std::vector<std::string> const getExtraLibDirs() const { return {}; }
+	virtual std::vector<std::string> const getExtraLibDirs(AppId appId) const { return {}; }
 
 	// extra wlm specific files required by backend library
-	virtual std::vector<std::string> const getExtraFiles() const { return {}; }
+	virtual std::vector<std::string> const getExtraFiles(AppId appId) const { return {}; }
 
 	// ship package to backends
 	virtual void shipPackage(AppId appId, std::string const& tarPath) const = 0;

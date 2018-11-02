@@ -1496,7 +1496,7 @@ using CTIHost = Frontend::CTIHost;
 
 /* active app management */
 
-static std::unordered_map<AppId, std::unique_ptr<alpsInfo_t>> appList;
+static std::unordered_map<AppId, UniquePtrDestr<alpsInfo_t>> appList;
 static const AppId APP_ERROR = 0;
 static AppId newAppId() noexcept {
 	static AppId nextId = 1;
@@ -1528,8 +1528,8 @@ ALPSFrontend::getWLMType() const {
 	return CTI_WLM_ALPS;
 }
 
-std::string
-const ALPSFrontend::getJobId(AppId appId) const {
+std::string const
+ALPSFrontend::getJobId(AppId appId) const {
 	return _cti_alps_getJobId(getInfoPtr(appId));
 }
 
@@ -1538,7 +1538,7 @@ ALPSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr,
                      CStr inputFile, CStr chdirPath, CArgArray env_list) {
 	auto const appId = newAppId();
 	if (auto alpsInfoPtr = _cti_alps_launch(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, appId)) {
-		appList[appId] = std::unique_ptr<alpsInfo_t>(alpsInfoPtr);
+		appList[appId] = UniquePtrDestr<alpsInfo_t>(alpsInfoPtr, _cti_alps_consumeAlpsInfo);
 		return appId;
 	} else {
 		throw std::runtime_error(std::string("launch: ") + cti_error_str());
@@ -1550,7 +1550,7 @@ ALPSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
                             CStr inputFile, CStr chdirPath, CArgArray env_list) {
 	auto const appId = newAppId();
 	if (auto alpsInfoPtr = _cti_alps_launchBarrier(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, appId)) {
-		appList[appId] = std::unique_ptr<alpsInfo_t>(alpsInfoPtr);
+		appList[appId] = UniquePtrDestr<alpsInfo_t>(alpsInfoPtr, _cti_alps_consumeAlpsInfo);
 		return appId;
 	} else {
 		throw std::runtime_error(std::string("launchBarrier: ") + cti_error_str());
@@ -1565,13 +1565,13 @@ ALPSFrontend::releaseBarrier(AppId appId) {
 void
 ALPSFrontend::killApp(AppId appId, int signal) {
 	if (_cti_alps_killApp(getInfoPtr(appId), signal)) {
-		throw std::runtime_error(std::string("releaseBarrier: ") + cti_error_str());
+		throw std::runtime_error(std::string("killApp: ") + cti_error_str());
 	}
 }
 
 
 std::vector<std::string> const
-ALPSFrontend::getExtraLibraries() const {
+ALPSFrontend::getExtraLibraries(AppId unused) const {
 	std::vector<std::string> result;
 	for (const char* const* libPath = _cti_alps_extra_libs; *libPath != nullptr; libPath++) {
 		result.emplace_back(*libPath);

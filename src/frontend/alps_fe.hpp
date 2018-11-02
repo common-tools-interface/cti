@@ -40,7 +40,7 @@ public: // wlm interface
 	void releaseBarrier(AppId appId);
 	void killApp(AppId appId, int signal);
 
-	std::vector<std::string> const getExtraLibraries() const;
+	std::vector<std::string> const getExtraLibraries(AppId appId) const;
 
 	void shipPackage(AppId appId, std::string const& tarPath) const;
 	void startDaemon(AppId appId, CArgArray argv) const;

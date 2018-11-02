@@ -47,16 +47,16 @@ static void shipWLMBaseFiles(Session& liveSession) {
 	auto& frontend = _cti_getCurrentFrontend();
 
 	auto baseFileManifest = liveSession.createManifest();
-	for (auto const& path : frontend.getExtraBinaries()) {
+	for (auto const& path : frontend.getExtraBinaries(liveSession.appId)) {
 		baseFileManifest->addBinary(path);
 	}
-	for (auto const& path : frontend.getExtraLibraries()) {
+	for (auto const& path : frontend.getExtraLibraries(liveSession.appId)) {
 		baseFileManifest->addLibrary(path);
 	}
-	for (auto const& path : frontend.getExtraLibDirs()) {
+	for (auto const& path : frontend.getExtraLibDirs(liveSession.appId)) {
 		baseFileManifest->addLibDir(path);
 	}
-	for (auto const& path : frontend.getExtraFiles()) {
+	for (auto const& path : frontend.getExtraFiles(liveSession.appId)) {
 		baseFileManifest->addFile(path);
 	}
 

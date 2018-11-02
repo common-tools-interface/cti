@@ -134,9 +134,7 @@ _cti_init(void) {
 			currentFrontend = shim::make_unique<SLURMFrontend>();
 			#endif
 		} else {
-			#ifdef CraySLURMFrontend
 			currentFrontend = shim::make_unique<CraySLURMFrontend>();
-			#endif
 		}
 	} else if (!wlmName.compare("generic")) {
 		#ifdef SSHFrontend
