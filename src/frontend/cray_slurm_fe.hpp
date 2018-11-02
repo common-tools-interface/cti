@@ -43,10 +43,7 @@ public: // wlm interface
 	                    CStr inputFile, CStr chdirPath, CArgArray env_list);
 	void releaseBarrier(AppId appId);
 	void killApp(AppId appId, int signal);
-	std::vector<std::string> const getExtraBinaries() const;
-	std::vector<std::string> const getExtraLibraries() const;
-	std::vector<std::string> const getExtraLibDirs() const;
-	std::vector<std::string> const getExtraFiles() const;
+	std::vector<std::string> const getExtraFiles(AppId appId) const;
 	void shipPackage(AppId appId, std::string const& tarPath) const;
 	void startDaemon(AppId appId, CArgArray argv) const;
 	size_t getNumAppPEs(AppId appId) const;
@@ -59,6 +56,7 @@ public: // wlm interface
 	std::string const getAttribsPath(AppId appId) const;
 
 public: // interface
+	~CraySLURMFrontend();
 	AppId registerJobStep(uint32_t jobid, uint32_t stepid);
-	SrunInfo getSrunInfo(cti_app_id_t appId);
+	SrunInfo* getSrunInfo(AppId appId);
 };
