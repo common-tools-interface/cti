@@ -55,8 +55,6 @@ public: // wlm interface
 	std::string const getAttribsPath(AppId appId) const;
 
 public: // interface
-	ALPSFrontend();
-	~ALPSFrontend();
 	AppId registerApid(uint64_t apid);
 	uint64_t getApid(pid_t appPid);
 	AprunInfo* getAprunInfo(AppId appId);
