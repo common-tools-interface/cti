@@ -4,6 +4,16 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 
+template <class T>
+class NonCopyable {
+protected:
+	NonCopyable() {}
+	~NonCopyable() {}
+private: 
+	NonCopyable(const NonCopyable&);
+	NonCopyable& operator= (const NonCopyable&);
+};
+
 namespace Dlopen {
 
 	/* helper function to force cast a void* function pointer to a typed C++ std::function */
@@ -16,7 +26,7 @@ namespace Dlopen {
 	}
 
 	/* RAII class for dlopen handle. throws runtime error if loading failed */
-	class Handle {
+	class Handle : private NonCopyable<Handle> {
 	private:
 		void *handle = NULL;
 

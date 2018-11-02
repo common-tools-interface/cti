@@ -46,6 +46,7 @@
 #include "useful/cti_useful.h"
 #include "useful/Dlopen.hpp"
 #include "useful/make_unique.hpp"
+#include "useful/strong_argv.hpp"
 
 /* Types used here */
 
@@ -54,36 +55,43 @@ typedef struct
 	int				nid;		// service node id
 } serviceNode_t;
 
-struct BarrierControl {
-	int 			readEnd;
-	int 			writeEnd;
-	int 			sync_int;
+struct BarrierControl : private NonCopyable<BarrierControl> {
+	int readPipe[2], writePipe[2];
+	int sync_int;
 	bool initialized;
 
-	void assign(int readEnd_, int writeEnd_) {
-		if (initialized) {
-			throw std::runtime_error("Control pipe already initialized.");
+	void closeIfValid(int& fd) {
+		if (fd < 0) {
+			return;
+		} else {
+			::close(fd);
+			fd = -1;
 		}
-		readEnd = readEnd;
-		writeEnd = writeEnd;
-		initialized = true;
 	}
 
-	void close() {
+	// return barrier read, write FD to pass to aprun
+	std::pair<int, int> setupChild() {
 		if (!initialized) {
 			throw std::runtime_error("Control pipe not initialized.");
 		}
+		closeIfValid(readPipe[1]);
+		closeIfValid(writePipe[0]);
+		return {writePipe[1], readPipe[0]};
+	}
 
-		::close(readEnd);
-		::close(writeEnd);
+	void setupParent() {
+		if (!initialized) {
+			throw std::runtime_error("Control pipe not initialized.");
+		}
+		closeIfValid(readPipe[0]);
+		closeIfValid(writePipe[1]);
 	}
 
 	void wait() {
 		if (!initialized) {
 			throw std::runtime_error("Control pipe not initialized.");
 		}
-
-		if (read(writeEnd, &sync_int, sizeof(sync_int)) <= 0) {
+		if (read(writePipe[0], &sync_int, sizeof(sync_int)) <= 0) {
 			throw std::runtime_error("Control pipe read failed.");
 		}
 	}
@@ -92,42 +100,46 @@ struct BarrierControl {
 		if (!initialized) {
 			throw std::runtime_error("Control pipe not initialized.");
 		}
-
 		// Conduct a pipe write for alps to release app from the startup barrier.
 		// Just write back what we read earlier.
-		if (write(readEnd, &sync_int, sizeof(sync_int)) <= 0) {
+		if (write(readPipe[1], &sync_int, sizeof(sync_int)) <= 0) {
 			throw std::runtime_error("Aprun barrier release operation failed.");
 		}
 	}
 
 	void invalidate() {
-		readEnd = -1;
-		writeEnd = -1;
+		readPipe[0] = -1;
+		readPipe[1] = -1;
+		writePipe[0] = -1;
+		writePipe[1] = -1;
 		initialized = false;
 	}
 
-	BarrierControl()
-		: initialized{false} {}
+	void closeAll() {
+		closeIfValid(readPipe[0]);
+		closeIfValid(readPipe[1]);
+		closeIfValid(writePipe[0]);
+		closeIfValid(writePipe[1]);
+	}
 
-	BarrierControl(int readEnd_, int writeEnd_)
-		: readEnd{readEnd_}
-		, writeEnd{writeEnd_}
-		, initialized{true} {}
+	BarrierControl() : initialized{true} {
+		if ((pipe(readPipe) < 0) || (pipe(writePipe) < 0)) {
+			throw std::runtime_error("Pipe creation failure.");
+		}
+	}
 
 	BarrierControl& operator=(BarrierControl&& moved) {
-		assign(moved.readEnd, moved.writeEnd);
+		readPipe[0]  = moved.readPipe[0];
+		readPipe[1]  = moved.readPipe[1];
+		writePipe[0] = moved.writePipe[0];
+		writePipe[1] = moved.writePipe[1];
+		initialized  = moved.initialized;
 		moved.invalidate();
 		return *this;
 	}
 
-	BarrierControl(BarrierControl&& moved) : BarrierControl(moved.readEnd, moved.writeEnd) {
-		moved.invalidate();
-	}
-
 	~BarrierControl() {
-		if (initialized) {
-			close();
-		}
+		closeAll();
 	}
 };
 
@@ -157,6 +169,44 @@ struct OverwatchHandle {
 	void assign(pid_t appPid) {
 		if (_cti_assign_overwatch(owatchPtr.get(), appPid)) {
 			throw std::runtime_error("_cti_assign_overwatch failed.");
+		}
+	}
+};
+
+struct CTISignalGuard {
+	sigset_t *mask;
+
+	CTISignalGuard() : mask{_cti_block_signals()} {
+		if (!mask) {
+			throw std::runtime_error("_cti_block_signals failed.");
+		}
+	}
+
+	~CTISignalGuard() {
+		if (mask) {
+			_cti_restore_signals(mask);
+		}
+	}
+
+	void restoreChildSignals() {
+		if (mask) {
+			if (_cti_child_setpgid_restore(mask)) {
+				// don't fail, but print out an error
+				fprintf(stderr, "CTI error: _cti_child_setpgid_restore failed!\n");
+			}
+			mask = nullptr;
+		}
+	}
+
+	void restoreParentSignals(pid_t childPid) {
+		if (mask) {
+			if (_cti_setpgid_restore(childPid, mask)) {
+				// attempt to kill aprun since the caller will not recieve the aprun pid
+				// just in case the aprun process is still hanging around.
+				kill(childPid, DEFAULT_SIG);
+				throw std::runtime_error("_cti_setpgid_restore failed.");
+			}
+			mask = nullptr;
 		}
 	}
 };
@@ -714,7 +764,7 @@ _cti_alps_getAppHostsPlacement(alpsInfo_t* my_app)
 }
 
 static int	
-_cti_alps_checkPathForWrappedAprun(char *aprun_path)
+_cti_alps_checkPathForWrappedAprun(const char *aprun_path)
 {
 	char *			usr_aprun_path;
 	char *			default_obs_realpath = NULL;
@@ -816,6 +866,116 @@ _cti_alps_set_dsl_env_var()
 	}
 }
 
+// The following code was added to detect if a site is using a wrapper script
+// around aprun. Some sites use these as prologue/epilogue. I know this
+// functionality has been added to alps, but sites are still using the
+// wrapper. If this is no longer true in the future, rip this stuff out.
+static pid_t
+getWrappedAprunPid(pid_t forkedPid) {
+	// FIXME: This doesn't handle multiple layers of depth.
+
+	// first read the link of the exe in /proc for the aprun pid.
+	auto readLink = [](const char* const path) {
+		char buf[PATH_MAX];
+		ssize_t len = ::readlink(path, buf, sizeof(buf)-1);
+		if (len >= 0) {
+			buf[len] = '\0';
+			return std::string(buf);
+		} else {
+			return std::string();
+		}
+	};
+
+	// create the path to the /proc/<pid>/exe location
+	std::string const forkedExeLink("/proc/" + std::to_string(forkedPid) + "/exe");
+	
+	// alloc size for the path buffer, base this on PATH_MAX. Note that /proc
+	// is not posix compliant so trying to do the right thing by calling lstat
+	// won't work.
+	std::string forkedExePath = readLink(forkedExeLink.c_str());
+	if (forkedExePath.empty()) {
+		return forkedPid;
+		throw std::runtime_error(std::string("readlink failed on ") + forkedExeLink);
+	}
+
+	// check the link path to see if its the real aprun binary
+	if (_cti_alps_checkPathForWrappedAprun(forkedExePath.c_str())) {
+		// aprun is wrapped, we need to start harvesting stuff out from /proc.
+
+		// start by getting all the /proc/<pid>/ files
+		std::vector<UniquePtrDestr<struct dirent>> direntList;
+		{ struct dirent **rawDirentList;
+			size_t numDirents = 0;
+			int direntListLen = scandir("/proc", &rawDirentList, _cti_alps_filter_pid_entries, nullptr);
+			if (direntListLen < 0) {
+				kill(forkedPid, DEFAULT_SIG);
+				throw std::runtime_error("Could not enumerate /proc for real aprun process.");
+			} else {
+				for (size_t i = 0; i < numDirents; i++) {
+					direntList.emplace_back(rawDirentList[i], ::free);
+				}
+			}
+		}
+
+		// loop over each entry reading in its ppid from its stat file
+		for (auto const& dirent : direntList) {
+
+			// create the path to the /proc/<pid>/stat for this entry
+			std::string const childStatPath("/proc/" + std::string(dirent->d_name) + "/stat");
+
+			pid_t proc_ppid;
+
+			// open the stat file for reading the ppid
+			if (auto statFile = fopen(childStatPath.c_str(), "r")) {
+
+				// parse the stat file for the ppid
+				int parsedFields = fscanf(statFile, "%*d %*s %*c %d", &proc_ppid);
+
+				// close the stat file
+				fclose(statFile);
+
+				// verify fscanf result
+				if (parsedFields != 1) {
+					// could not get the ppid?? continue to the next entry
+					continue;
+				}
+			} else {
+				// ignore this entry and go onto the next
+				continue;
+			}
+
+			// check to see if the ppid matches the pid of our child
+			if (proc_ppid == forkedPid) {
+				// it matches, check to see if this is the real aprun
+
+				// create the path to the /proc/<pid>/exe for this entry
+				std::string const childExeLink("/proc/" + std::string(dirent->d_name) + "/exe");
+				
+				// read the exe link to get what its pointing at
+				std::string const childExePath(readLink(childExeLink.c_str()));
+				if (childExePath.empty()) {
+					// if the readlink failed, ignore the error and continue to
+					// the next entry. Its possible that this could fail under
+					// certain scenarios like the process is running as root.
+					continue;
+				}
+				
+				// check if this is the real aprun
+				if (!_cti_alps_checkPathForWrappedAprun(childExePath.c_str())) {
+					// success! This is the real aprun. stored in the appinfo later
+					return (pid_t)strtoul(dirent->d_name, nullptr, 10);
+				}
+			}
+		}
+
+		// we did not find the child aprun process. We should error out at
+		// this point since we will error out later in an alps call anyways.
+		throw std::runtime_error("Could not find child aprun process of wrapped aprun command.");
+	} else {
+		return forkedPid;
+	}
+}
+
 // This is the actual function that can do either a launch with barrier or one
 // without.
 static alpsInfo_t*
@@ -823,147 +983,59 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 							const char *inputFile, const char *chdirPath,
 							const char * const env_list[], int doBarrier, cti_app_id_t newAppId)
 {
-	alpsInfo_t *		alpsInfo;
-	uint64_t 			apid;
-	pid_t				forkedPid;
-	pid_t				aprunPid = 0;
-	cti_args_t *		my_args;
-	int					i, fd;
-
-	// pipes for aprun
-	BarrierControl		startupBarrier;
-	int					aprunPipeR[2];
-	int					aprunPipeW[2];
-	// used for determining if the aprun binary is a wrapper script
-	char *				aprun_proc_path = NULL;
-	char *				aprun_exe_path;
-	struct dirent **	file_list;
-	int					file_list_len;
-	char *				proc_stat_path = NULL;
-	FILE *				proc_stat = NULL;
-	int					proc_ppid;
-	sigset_t *			mask;
+	alpsInfo_t *		alpsInfo = nullptr;
+	pid_t				forkedPid = 0;
 
 	if(!_cti_is_valid_environment()){
 		// error already set
 		return 0;
 	}
-	
-	// only do the following if we are using the barrier variant
-	if (doBarrier)
-	{
-		// make the pipes for aprun (tells aprun to hold the program at the initial 
-		// barrier)
-		if (pipe(aprunPipeR) < 0)
-		{
-			_cti_set_error("Pipe creation failure on aprunPipeR.");
-			return 0;
-		}
-		if (pipe(aprunPipeW) < 0)
-		{
-			_cti_set_error("Pipe creation failure on aprunPipeW.");
-			return 0;
-		}
-	
-		// initialize the barrier pipes
-		startupBarrier.assign(aprunPipeR[1], aprunPipeW[0]);
-	}
-	
-	// create the argv array for the actual aprun exec
-	
-	// create a new args obj
-	if ((my_args = _cti_newArgs()) == NULL)
-	{
-		_cti_set_error("_cti_newArgs failed.");
-		return 0;
-	}
-	
-	// add the initial aprun argv
-	if (_cti_addArg(my_args, "%s", _cti_alps_getLauncherName()))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		_cti_freeArgs(my_args);
-		return 0;
-	}
 
+	// Ensure DSL is enabled for the alps tool helper unless explicitly overridden
 	_cti_alps_set_dsl_env_var();
-	
-	// only do the following if we are using the barrier variant
-	if (doBarrier)
-	{
-		// Add the -P r,w args
-		if (_cti_addArg(my_args, "-P"))
-		{
-			_cti_set_error("_cti_addArg failed.");
-			_cti_freeArgs(my_args);
-			return 0;
-		}
-		if (_cti_addArg(my_args, "%d,%d", aprunPipeW[1], aprunPipeR[0]))
-		{
-			_cti_set_error("_cti_addArg failed.");
-			_cti_freeArgs(my_args);
-			return 0;
-		}
-	}
-	
-	// set the rest of the argv for aprun from the passed in args
-	if (launcher_argv != NULL)
-	{
-		for (i=0; launcher_argv[i] != NULL; ++i)
-		{
-			if (_cti_addArg(my_args, "%s", launcher_argv[i]))
-			{
-				_cti_set_error("_cti_addArg failed.");
-				_cti_freeArgs(my_args);
-				return 0;
-			}
-		}
-	}
-	
-	// setup signals
-	if ((mask = _cti_block_signals()) == NULL)
-	{
-		_cti_set_error("_cti_block_signals failed.");
-		_cti_freeArgs(my_args);
-		return 0;
-	}
+
+	// initialize startup barrier
+	BarrierControl startupBarrier;
+
+	// setup signal guard
+	CTISignalGuard signalGuard;
 
 	// setup overwatch to ensure aprun gets killed off on error
-	OverwatchHandle overwatchHandle;
-	try {
-		overwatchHandle = OverwatchHandle(_cti_getOverwatchPath());
-	} catch (...) {
-		_cti_set_error("_cti_create_overwatch failed.");
-		_cti_freeArgs(my_args);
-		_cti_restore_signals(mask);
-		return 0;
-	}
+	OverwatchHandle overwatchHandle(_cti_getOverwatchPath());
 	
 	// fork off a process to launch aprun
 	forkedPid = fork();
 	
 	// error case
-	if (forkedPid < 0)
-	{
-		_cti_set_error("Fatal fork error.");
-		_cti_freeArgs(my_args);
-		_cti_restore_signals(mask);
+	if (forkedPid < 0) {
+		throw std::runtime_error("Fatal fork error.");
 		return 0;
 	}
 	
 	// child case
-	// Note that this should not use the _cti_set_error() interface since it is
-	// a child process.
-	if (forkedPid == 0)
-	{
-		// only do the following if we are using the barrier variant
-		if (doBarrier)
-		{
-			// close unused ends of pipe
-			close(aprunPipeR[1]);
-			close(aprunPipeW[0]);
+	// Note that this should not use the _cti_set_error() interface since it is a child process.
+	if (forkedPid == 0) {
+
+		// create the argv array for the actual aprun exec and add the initial aprun argv
+		ManagedArgv aprunArgv;
+		aprunArgv.add(_cti_alps_getLauncherName());
+
+		if (doBarrier) {
+			int barrierReadFd, barrierWriteFd;
+			std::tie(barrierReadFd, barrierWriteFd) = startupBarrier.setupChild();
+
+			// Add the pipe r/w fd args
+			aprunArgv.add("-P");
+			aprunArgv.add(std::to_string(barrierReadFd) + "," + std::to_string(barrierWriteFd));
 		}
-		
+
+		// set the rest of the argv for aprun from the passed in args
+		if (launcher_argv != nullptr) {
+			for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+				aprunArgv.add(*arg);
+			}
+		}
+
 		// redirect stdout/stderr if directed - do this early so that we can
 		// print out errors to the proper descriptor.
 		if (stdout_fd != -1)
@@ -989,33 +1061,23 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 				_exit(1);
 			}
 		}
-		
-		if (inputFile != NULL)
-		{
-			// open the provided input file if non-null and redirect it to
-			// stdin
-			if ((fd = open(inputFile, O_RDONLY)) < 0)
-			{
-				fprintf(stderr, "CTI error: Unable to open %s for reading.\n", inputFile);
-				_exit(1);
-			}
-		} else
-		{
-			// we don't want this aprun to suck up stdin of the tool program
-			if ((fd = open("/dev/null", O_RDONLY)) < 0)
-			{
-				fprintf(stderr, "CTI error: Unable to open /dev/null for reading.\n");
-				_exit(1);
-			}
-		}
-		
-		// dup2 the fd onto STDIN_FILENO
-		if (dup2(fd, STDIN_FILENO) < 0)
-		{
-			fprintf(stderr, "CTI error: Unable to redirect aprun stdin.\n");
+
+		// open the provided input file if non-null and redirect it to stdin
+
+		// we don't want this aprun to suck up stdin of the tool program, so use /dev/null if no inputFile is provided
+		const char* stdin_path = inputFile ? inputFile : "/dev/null";
+		int new_stdin = open(stdin_path, O_RDONLY);
+		if (new_stdin < 0) {
+			fprintf(stderr, "CTI error: Unable to open %s for reading.\n", stdin_path);
 			_exit(1);
+		} else {
+			// redirect new_stdin to STDIN_FILENO
+			if (dup2(new_stdin, STDIN_FILENO) < 0) {
+				fprintf(stderr, "CTI error: Unable to redirect aprun stdin.\n");
+				_exit(1);
+			}
+			close(new_stdin);
 		}
-		close(fd);
 		
 		// chdir if directed
 		if (chdirPath != NULL)
@@ -1030,7 +1092,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		// if env_list is not null, call putenv for each entry in the list
 		if (env_list != NULL)
 		{
-			for (i=0; env_list[i] != NULL; ++i)
+			for (int i=0; env_list[i] != NULL; ++i)
 			{
 				// putenv returns non-zero on error
 				if (putenv(strdup(env_list[i])))
@@ -1051,47 +1113,26 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		}
 		
 		// restore signals
-		if (_cti_child_setpgid_restore(mask))
-		{
-			// don't fail, but print out an error
-			fprintf(stderr, "CTI error: _cti_child_setpgid_restore failed!\n");
-		}
+		signalGuard.restoreChildSignals();
 		
 		// exec aprun
-		execvp(_cti_alps_getLauncherName(), my_args->argv);
+		execvp(_cti_alps_getLauncherName(), aprunArgv.get());
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
 		perror("execvp");
 		_exit(1);
 	}
-	
+
 	// parent case
-	
-	// only do the following if we are using the barrier variant
-	if (doBarrier)
-	{
-		// close unused ends of pipe
-		close(aprunPipeR[0]);
-		close(aprunPipeW[1]);
-	}
-	
-	// cleanup args
-	_cti_freeArgs(my_args);
-	
+
 	// restore signals
-	if (_cti_setpgid_restore(forkedPid, mask))
-	{
-		_cti_set_error("_cti_setpgid_restore failed.");
-		// attempt to kill aprun since the caller will not recieve the aprun pid
-		// just in case the aprun process is still hanging around.
-		kill(forkedPid, DEFAULT_SIG);
-		return 0;
-	}
+	signalGuard.restoreParentSignals(forkedPid);
 	
 	// only do the following if we are using the barrier variant
-	if (doBarrier)
-	{
+	if (doBarrier) {
+		startupBarrier.setupParent();
+
 		// Wait on pipe read for app to start and get to barrier - once this happens
 		// we know the real aprun is up and running
 		try {
@@ -1103,223 +1144,30 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 			kill(forkedPid, DEFAULT_SIG);
 			return 0;
 		}
-	} else
-	{
+	} else {
 		// sleep long enough for the forked process to exec itself so that the
 		// check for wrapped aprun process doesn't fail.
 		sleep(1);
 	}
-	
-	// The following code was added to detect if a site is using a wrapper script
-	// around aprun. Some sites use these as prologue/epilogue. I know this
-	// functionality has been added to alps, but sites are still using the
-	// wrapper. If this is no longer true in the future, rip this stuff out.
-	
-	// FIXME: This doesn't handle multiple layers of depth.
-	
-	// first read the link of the exe in /proc for the aprun pid.
-	
-	// create the path to the /proc/<pid>/exe location
-	if (asprintf(&aprun_proc_path, "/proc/%lu/exe", (unsigned long)forkedPid) < 0)
-	{
-		_cti_set_error("asprintf failed.");
-		goto continue_on_error;
-	}
-	
-	// alloc size for the path buffer, base this on PATH_MAX. Note that /proc
-	// is not posix compliant so trying to do the right thing by calling lstat
-	// won't work.
-	if ((aprun_exe_path = (decltype(aprun_exe_path))malloc(PATH_MAX)) == (void *)0)
-	{
-		// Malloc failed
-		_cti_set_error("malloc failed.");
-		free(aprun_proc_path);
-		goto continue_on_error;
-	}
-	// set it to null, this also guarantees that we will have a null terminator.
-	memset(aprun_exe_path, 0, PATH_MAX);
-	
-	// read the link
-	if (readlink(aprun_proc_path, aprun_exe_path, PATH_MAX-1) < 0)
-	{
-		_cti_set_error("readlink failed on aprun %s.", aprun_proc_path);
-		free(aprun_proc_path);
-		free(aprun_exe_path);
-		goto continue_on_error;
-	}
-	
-	// check the link path to see if its the real aprun binary
-	if (_cti_alps_checkPathForWrappedAprun(aprun_exe_path))
-	{
-		// aprun is wrapped, we need to start harvesting stuff out from /proc.
-		
-		// start by getting all the /proc/<pid>/ files
-		if ((file_list_len = scandir("/proc", &file_list, _cti_alps_filter_pid_entries, NULL)) < 0)
-		{
-			_cti_set_error("Could not enumerate /proc for real aprun process.");
-			free(aprun_proc_path);
-			free(aprun_exe_path);
-			// attempt to kill aprun since the caller will not recieve the aprun pid
-			// just in case the aprun process is still hanging around.
-			kill(forkedPid, DEFAULT_SIG);
-			return 0;
-		}
-		
-		// loop over each entry reading in its ppid from its stat file
-		for (i=0; i <= file_list_len; ++i)
-		{
-			// if i is equal to file_list_len, then we are at an error condition
-			// we did not find the child aprun process. We should error out at
-			// this point since we will error out later in an alps call anyways.
-			if (i == file_list_len)
-			{
-				_cti_set_error("Could not find child aprun process of wrapped aprun command.");
-				free(aprun_proc_path);
-				free(aprun_exe_path);
-				// attempt to kill aprun since the caller will not recieve the aprun pid
-				// just in case the aprun process is still hanging around.
-				kill(forkedPid, DEFAULT_SIG);
-				// free the file_list
-				for (i=0; i < file_list_len; ++i)
-				{
-					free(file_list[i]);
-				}
-				free(file_list);
-				return 0;
-			}
-		
-			// create the path to the /proc/<pid>/stat for this entry
-			if (asprintf(&proc_stat_path, "/proc/%s/stat", (file_list[i])->d_name) < 0)
-			{
-				_cti_set_error("asprintf failed.");
-				free(aprun_proc_path);
-				free(aprun_exe_path);
-				// attempt to kill aprun since the caller will not recieve the aprun pid
-				// just in case the aprun process is still hanging around.
-				kill(forkedPid, DEFAULT_SIG);
-				// free the file_list
-				for (i=0; i < file_list_len; ++i)
-				{
-					free(file_list[i]);
-				}
-				free(file_list);
-				return 0;
-			}
-			
-			// open the stat file for reading
-			if ((proc_stat = fopen(proc_stat_path, "r")) == NULL)
-			{
-				// ignore this entry and go onto the next
-				free(proc_stat_path);
-				proc_stat_path = NULL;
-				continue;
-			}
-			
-			// free the proc_stat_path
-			free(proc_stat_path);
-			proc_stat_path = NULL;
-			
-			// parse the stat file for the ppid
-			if (fscanf(proc_stat, "%*d %*s %*c %d", &proc_ppid) != 1)
-			{
-				// could not get the ppid?? continue to the next entry
-				fclose(proc_stat);
-				proc_stat = NULL;
-				continue;
-			}
-			
-			// close the stat file
-			fclose(proc_stat);
-			proc_stat = NULL;
-			
-			// check to see if the ppid matches the pid of our child
-			if (proc_ppid == forkedPid)
-			{
-				// it matches, check to see if this is the real aprun
-				
-				// free the existing aprun_proc_path
-				free(aprun_proc_path);
-				aprun_proc_path = NULL;
-				
-				// allocate the new aprun_proc_path
-				if (asprintf(&aprun_proc_path, "/proc/%s/exe", (file_list[i])->d_name) < 0)
-				{
-					_cti_set_error("asprintf failed.");
-					free(aprun_proc_path);
-					free(aprun_exe_path);
-					// attempt to kill aprun since the caller will not recieve the aprun pid
-					// just in case the aprun process is still hanging around.
-					kill(forkedPid, DEFAULT_SIG);
-					// free the file_list
-					for (i=0; i < file_list_len; ++i)
-					{
-						free(file_list[i]);
-					}
-					free(file_list);
-					return 0;
-				}
-				
-				// reset aprun_exe_path to null.
-				memset(aprun_exe_path, 0, PATH_MAX);
-				
-				// read the exe link to get what its pointing at
-				if (readlink(aprun_proc_path, aprun_exe_path, PATH_MAX-1) < 0)
-				{
-					// if the readlink failed, ignore the error and continue to
-					// the next entry. Its possible that this could fail under
-					// certain scenarios like the process is running as root.
-					continue;
-				}
-				
-				// check if this is the real aprun
-				if (!_cti_alps_checkPathForWrappedAprun(aprun_exe_path))
-				{
-					// success! This is the real aprun. stored in the appinfo later
-					aprunPid = (pid_t)strtoul((file_list[i])->d_name, NULL, 10);
-					
-					// cleanup memory
-					free(aprun_proc_path);
-					free(aprun_exe_path);
-					
-					// free the file_list
-					for (i=0; i < file_list_len; ++i)
-					{
-						free(file_list[i]);
-					}
-					free(file_list);
-					// done
-					break;
-				}
-			}
-		}
-	} else
-	{
-		// cleanup memory
-		free(aprun_proc_path);
-		free(aprun_exe_path);
-	
-continue_on_error:
-		aprunPid = forkedPid;
-	}
 
+	pid_t aprunPid = getWrappedAprunPid(forkedPid);
 	if (aprunPid == 0) {
 		throw std::runtime_error("could not determine the aprun pid during launch");
 	}
 
 	// set the apid associated with the pid of aprun
-	if ((apid = cti_alps_getApid(aprunPid)) == 0)
-	{
-		_cti_set_error("Could not obtain apid associated with pid of aprun.");
+	uint64_t apid = cti_alps_getApid(aprunPid);
+	if (apid == 0) {
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
 		kill(aprunPid, DEFAULT_SIG);
-		return 0;
+		throw std::runtime_error("Could not obtain apid associated with pid of aprun.");
 	}
 	
 	// register this app with the application interface
 	if ((alpsInfo = _cti_alps_registerApid(apid, newAppId)) == nullptr)
 	{
-		// failed to register apid, error is already set
+		// failed to register apid, _cti_set_error is already set
 		kill(aprunPid, DEFAULT_SIG);
 		return 0;
 	}
