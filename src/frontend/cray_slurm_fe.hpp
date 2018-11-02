@@ -59,6 +59,6 @@ public: // wlm interface
 	std::string const getAttribsPath(AppId appId) const;
 
 public: // interface
-	AppId registerJobStep(pid_t launcher_pid);
+	AppId registerJobStep(uint32_t jobid, uint32_t stepid);
 	SrunInfo getSrunInfo(cti_app_id_t appId);
 };

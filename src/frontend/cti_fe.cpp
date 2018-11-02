@@ -48,8 +48,8 @@
 
 #include "alps_fe.hpp"
 
-#if 0
 #include "cray_slurm_fe.hpp"
+#if 0
 #include "slurm_fe.hpp"
 #include "ssh_fe.hpp"
 #endif

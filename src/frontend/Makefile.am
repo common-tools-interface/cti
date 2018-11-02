@@ -30,7 +30,7 @@ libcraytools_fe_la_SOURCES	=	cti_fe.h cti_fe.cpp \
 								cti_appentry.cpp cti_appentry.h \
 								Frontend.hpp \
 								alps_fe.cpp alps_fe.hpp \
-								# cray_slurm_fe.cpp cray_slurm_fe.hpp \
+								cray_slurm_fe.cpp cray_slurm_fe.hpp \
 								# slurm_fe.cpp slurm_fe.hpp \
 								# ssh_fe.cpp ssh_fe.hpp
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \

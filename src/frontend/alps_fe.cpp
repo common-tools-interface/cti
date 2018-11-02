@@ -379,10 +379,10 @@ _cti_alps_getLauncherName()
 	return _cti_alps_launcher_name;
 }
 
-// this function creates a new appEntry_t object for the app
+// this function creates a new alpsInfo_t object for the app
 // used by the alps_run functions
 static alpsInfo_t *
-_cti_alps_registerApid(uint64_t apid, Frontend::AppId newAppId)
+_cti_alps_registerApid(uint64_t apid, cti_app_id_t newAppId)
 {
 	alpsInfo_t *	alpsInfo;
 	char *			toolPath;
@@ -1496,7 +1496,7 @@ using CTIHost = Frontend::CTIHost;
 
 /* active app management */
 
-std::unordered_map<AppId, std::unique_ptr<alpsInfo_t>> appList;
+static std::unordered_map<AppId, std::unique_ptr<alpsInfo_t>> appList;
 static const AppId APP_ERROR = 0;
 static AppId newAppId() noexcept {
 	static AppId nextId = 1;
@@ -1704,7 +1704,7 @@ ALPSFrontend::registerApid(uint64_t apid) {
 	}
 
 	// aprun pid not found in the global _cti_alps_info list
-	// so lets create a new appEntry_t object for it
+	// so lets create a new alpsInfo_t object for it
 	auto appId = newAppId();
 	if (auto alpsInfoPtr = _cti_alps_registerApid(apid, appId)) {
 		appList[appId] = std::unique_ptr<alpsInfo_t>(alpsInfoPtr);
