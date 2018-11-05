@@ -26,6 +26,7 @@ dwarfVer=18.1.0
 ulib=/cray/css/ulib
 redhat_release_file="/etc/redhat-release"
 suse_release_file="/etc/SuSE-release"
+os_release_file="/etc/os-release"
 buildRelease=0           # default to not being a build release
 swDebugStr="-DCMAKE_BUILD_TYPE=RelWithDebInfo"
 boost_inst_base=""
@@ -59,6 +60,14 @@ function set_OS(){
   if [ -e "$redhat_release_file" ]; then
     OS="CentOS"
     arch=x86_64
+  elif [ -e "$os_release_file" ]; then
+    arch=$(uname -m)
+    SLES_VER=$(cat /etc/os-release | grep VERSION= | cut -d \" -f2)
+    if [[ $SLES_VER = 12 ]]; then
+      OS="SLES12"
+    elif [[ $SLES_VER = 15 ]]; then
+      OS="SLES15"
+    fi
   elif [ -e "$suse_release_file" ]; then
     arch=$(cat $suse_release_file | head -1 | cut -d'(' -f2 | cut -d')' -f1)
     SLES_VER=$(cat $suse_release_file | grep VERSION | cut -f3 -d" ")
