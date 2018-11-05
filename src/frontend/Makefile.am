@@ -31,8 +31,8 @@ libcraytools_fe_la_SOURCES	=	cti_fe.h cti_fe.cpp \
 								Frontend.hpp \
 								alps_fe.cpp alps_fe.hpp \
 								cray_slurm_fe.cpp cray_slurm_fe.hpp \
-								# slurm_fe.cpp slurm_fe.hpp \
-								# ssh_fe.cpp ssh_fe.hpp
+								ssh_fe.cpp ssh_fe.hpp \
+								# slurm_fe.cpp slurm_fe.hpp
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
 								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS)
 libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) $(libcraytools_fe_la_CFLAGS)

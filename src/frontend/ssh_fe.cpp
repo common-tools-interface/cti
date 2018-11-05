@@ -35,8 +35,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include "ssh_fe.h"
-
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
@@ -46,6 +44,8 @@
 #include "useful/cti_stringList.h"
 
 #include "mpir_iface/mpir_iface.h"
+
+#include "ssh_fe.hpp"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -83,77 +83,6 @@ typedef struct
 	char **				extraFiles;		// extra files to transfer to BE associated with this app
 } sshInfo_t;
 
-/* Static prototypes */
-static int					_cti_ssh_init(void);
-static void					_cti_ssh_fini(void);
-static void 				_cti_ssh_destroy(cti_wlm_obj app_info);
-static void					_cti_ssh_consumeSshLayout(sshLayout_t *this);
-static sshInfo_t * 			_cti_ssh_newSshInfo(void);
-static void					_cti_ssh_consumeSshInfo(sshInfo_t *this);
-static sshLayout_t* 	_cti_ssh_createLayout(cti_mpir_procTable_t* proctable);
-static sshLayout_t* 	_cti_ssh_getLayout(pid_t launcher_pid);
-static char * 				_cti_ssh_getJobId(cti_wlm_obj app_info);
-cti_app_id_t 				_cti_ssh_registerJob(pid_t launcher_pid, sshLayout_t* layout);
-cti_app_id_t 				cti_ssh_registerJob(pid_t launcher_pid);
-static cti_app_id_t 		_cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-													const char *inputFile, const char *chdirPath,
-													const char * const env_list[], int doBarrier	);
-static cti_app_id_t 		_cti_ssh_launch(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-												const char *inputFile, const char *chdirPath,
-												const char * const env_list[]		);
-static cti_app_id_t 		_cti_ssh_launchBarrier(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-													const char *inputFile, const char *chdirPath,
-													const char * const env_list[]	);
-static int 					_cti_ssh_release(cti_wlm_obj app_info);
-static int 					_cti_ssh_killApp(cti_wlm_obj app_info, int signum);
-static const char * const * _cti_ssh_extraBinaries(cti_wlm_obj app_info);
-static const char * const * _cti_ssh_extraLibraries(cti_wlm_obj app_info);
-static const char * const * _cti_ssh_extraLibDirs(cti_wlm_obj app_info);
-static const char * const * _cti_ssh_extraFiles(cti_wlm_obj app_info);
-int 						_cti_ssh_verify_server(ssh_session session);
-ssh_session 				_cti_ssh_start_session(char* hostname);
-int 						_cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, char** environment);
-int 						_cti_ssh_copy_file_to_remote(ssh_session session, const char* source_path, const char* destination_path, 
-								int mode);
-void 						_cti_ssh_end_session(ssh_session session);
-static int 					_cti_ssh_ship_package(cti_wlm_obj app_info, const char *package);
-static int 					_cti_ssh_start_daemon(cti_wlm_obj app_info, cti_args_t * args);
-static int 					_cti_ssh_getNumAppPEs(cti_wlm_obj app_info);
-static int 					_cti_ssh_getNumAppNodes(cti_wlm_obj app_info);
-static char ** 				_cti_ssh_getAppHostsList(cti_wlm_obj app_info);
-static cti_hostsList_t * 	_cti_ssh_getAppHostsPlacement(cti_wlm_obj app_info);
-static char * 				_cti_ssh_getHostName(void);
-static const char * 		_cti_ssh_getToolPath(cti_wlm_obj app_info);
-static const char * 		_cti_ssh_getAttribsPath(cti_wlm_obj app_info);
-
-/* cray ssh wlm proto object */
-const cti_wlm_proto_t		_cti_ssh_wlmProto =
-{
-	CTI_WLM_SSH,						// wlm_type
-	_cti_ssh_init,					// wlm_init
-	_cti_ssh_fini,					// wlm_fini
-	_cti_ssh_destroy,		// wlm_destroy
-	_cti_ssh_getJobId,				// wlm_getJobId
-	_cti_ssh_launch,					// wlm_launch
-	_cti_ssh_launchBarrier,			// wlm_launchBarrier
-	_cti_ssh_release,					// wlm_releaseBarrier
-	_cti_ssh_killApp,					// wlm_killApp
-	_cti_ssh_extraBinaries,			// wlm_extraBinaries
-	_cti_ssh_extraLibraries,			// wlm_extraLibraries
-	_cti_ssh_extraLibDirs,			// wlm_extraLibDirs
-	_cti_ssh_extraFiles,				// wlm_extraFiles
-	_cti_ssh_ship_package,			// wlm_shipPackage
-	_cti_ssh_start_daemon,			// wlm_startDaemon
-	_cti_ssh_getNumAppPEs,			// wlm_getNumAppPEs
-	_cti_ssh_getNumAppNodes,			// wlm_getNumAppNodes
-	_cti_ssh_getAppHostsList,			// wlm_getAppHostsList
-	_cti_ssh_getAppHostsPlacement,	// wlm_getAppHostsPlacement
-	_cti_ssh_getHostName,				// wlm_getHostName
-	_cti_wlm_getLauncherHostName_none,	// wlm_getLauncherHostName
-	_cti_ssh_getToolPath,				// wlm_getToolPath
-	_cti_ssh_getAttribsPath			// wlm_getAttribsPath
-};
-
 const char * _cti_ssh_forwarded_env_vars[] = {
 	DBG_LOG_ENV_VAR,
 	DBG_ENV_VAR,
@@ -161,6 +90,12 @@ const char * _cti_ssh_forwarded_env_vars[] = {
 	CTI_LIBALPS_ENABLE_DSL_ENV_VAR,
 	NULL
 };
+
+static void _cti_ssh_consumeSshLayout(sshLayout_t* layout);
+static ssh_session _cti_ssh_start_session(char* hostname);
+static void _cti_ssh_end_session(ssh_session session);
+static int _cti_ssh_release(sshInfo_t *my_app);
+static int _cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, const char* const environment[]);
 
 typedef struct
 {
@@ -236,14 +171,12 @@ _cti_ssh_fini(void)
  * cti_ssh_destroy - Used to destroy the cti_wlm_obj defined by this impelementation
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  */
 static void 
-_cti_ssh_destroy(cti_wlm_obj app_info)
+_cti_ssh_destroy(sshInfo_t* sinfo)
 {
-	sshInfo_t *	sinfo = (sshInfo_t *)app_info;
-
 	// sanity
 	if (sinfo == NULL)
 		return;
@@ -284,29 +217,29 @@ _cti_ssh_destroy(cti_wlm_obj app_info)
  * _cti_ssh_consumeSshLayout - Destroy an sshLayout_t object
  *
  * Arguments
- *      this - A pointer to the sshLayout_t to destroy
+ *      layout - A pointer to the sshLayout_t to destroy
  *
  */
 static void
-_cti_ssh_consumeSshLayout(sshLayout_t *this)
+_cti_ssh_consumeSshLayout(sshLayout_t *layout)
 {
 	int i;
 
 	// sanity
-	if (this == NULL)
+	if (layout == NULL)
 		return;
 		
-	for (i=0; i < this->numNodes; ++i)
+	for (i=0; i < layout->numNodes; ++i)
 	{
-		if (this->hosts[i].host != NULL)
+		if (layout->hosts[i].host != NULL)
 		{
-			free(this->hosts[i].host);
-			free(this->hosts[i].pids);
+			free(layout->hosts[i].host);
+			free(layout->hosts[i].pids);
 		}
 	}
 	
-	free(this->hosts);
-	free(this);
+	free(layout->hosts);
+	free(layout);
 }
 
 /*
@@ -319,9 +252,9 @@ _cti_ssh_consumeSshLayout(sshLayout_t *this)
 static sshInfo_t *
 _cti_ssh_newSshInfo(void)
 {
-	sshInfo_t *	this;
+	sshInfo_t *	sinfo;
 
-	if ((this = malloc(sizeof(sshInfo_t))) == NULL)
+	if ((sinfo = (decltype(sinfo))malloc(sizeof(sshInfo_t))) == NULL)
 	{
 		// Malloc failed
 		_cti_set_error("malloc failed.");
@@ -329,15 +262,15 @@ _cti_ssh_newSshInfo(void)
 		return NULL;
 	}
 
-	this->layout = NULL;
-	this->mpir_id = -1;
-	this->toolPath = NULL;
-	this->attribsPath = NULL;
-	this->stagePath = NULL;
-	this->extraFiles = NULL;
-	this->dlaunch_sent = false;
+	sinfo->layout = NULL;
+	sinfo->mpir_id = -1;
+	sinfo->toolPath = NULL;
+	sinfo->attribsPath = NULL;
+	sinfo->stagePath = NULL;
+	sinfo->extraFiles = NULL;
+	sinfo->dlaunch_sent = false;
 	
-	return this;
+	return sinfo;
 }
 
 /*
@@ -348,39 +281,39 @@ _cti_ssh_newSshInfo(void)
  *
  */
 static void
-_cti_ssh_consumeSshInfo(sshInfo_t *this)
+_cti_ssh_consumeSshInfo(sshInfo_t *sinfo)
 {
-	if(this == NULL){
+	if(sinfo == NULL){
 		return;
 	}
 
-	if(this->layout != NULL){
-		_cti_ssh_consumeSshLayout(this->layout);
+	if(sinfo->layout != NULL){
+		_cti_ssh_consumeSshLayout(sinfo->layout);
 	}
 
 	// release mpir instance
-	_cti_mpir_releaseInstance(this->mpir_id);
+	_cti_mpir_releaseInstance(sinfo->mpir_id);
 
-	free(this->toolPath);
-	this->toolPath = NULL;
+	free(sinfo->toolPath);
+	sinfo->toolPath = NULL;
 
-	free(this->attribsPath);
-	this->attribsPath = NULL;
+	free(sinfo->attribsPath);
+	sinfo->attribsPath = NULL;
 
-	free(this->stagePath);
-	this->stagePath = NULL;
+	free(sinfo->stagePath);
+	sinfo->stagePath = NULL;
 
-	if(this->extraFiles != NULL){
+	if(sinfo->extraFiles != NULL){
 		int i=0;
-		while(this->extraFiles[i] != NULL){
-			free(this->extraFiles[i]);
+		while(sinfo->extraFiles[i] != NULL){
+			free(sinfo->extraFiles[i]);
 			i++;
 		}
 
-		free(this->extraFiles);
+		free(sinfo->extraFiles);
 	}
 
-	free(this);
+	free(sinfo);
 }
 
 /*
@@ -397,7 +330,7 @@ _cti_ssh_consumeSshInfo(sshInfo_t *this)
 static sshLayout_t* 
 _cti_ssh_createLayout(cti_mpir_procTable_t* proctable)
 {
-	sshLayout_t * layout = malloc(sizeof(sshLayout_t));
+	sshLayout_t * layout = (decltype(layout))malloc(sizeof(sshLayout_t));
 	layout->numPEs = proctable->num_pids;
 	layout->hosts = NULL;
 
@@ -423,18 +356,18 @@ _cti_ssh_createLayout(cti_mpir_procTable_t* proctable)
 			host_index = num_nodes;
 
 			num_nodes++;
-			layout->hosts = realloc(layout->hosts, sizeof(sshHostEntry_t)*num_nodes);
+			layout->hosts = (decltype(layout->hosts))realloc(layout->hosts, sizeof(sshHostEntry_t)*num_nodes);
 			layout->hosts[host_index].host = current_node;
 			layout->hosts[host_index].PEsHere = 1;
 			layout->hosts[host_index].firstPE = current_pe;
-			layout->hosts[host_index].pids = malloc(sizeof(pid_t));
+			layout->hosts[host_index].pids = (decltype(layout->hosts[host_index].pids))malloc(sizeof(pid_t));
 			layout->hosts[host_index].pids[0] = current_pid;
 		}
 		// Host exists, update it to accomodate the new PE
 		else{
 			host_index = *index;
 			layout->hosts[host_index].PEsHere++;
-			layout->hosts[host_index].pids = realloc(layout->hosts[host_index].pids, sizeof(pid_t)*layout->hosts[host_index].PEsHere);
+			layout->hosts[host_index].pids = (decltype(layout->hosts[host_index].pids))realloc(layout->hosts[host_index].pids, sizeof(pid_t)*layout->hosts[host_index].PEsHere);
 			layout->hosts[host_index].pids[layout->hosts[host_index].PEsHere-1] = current_pid;
 		}
 
@@ -484,16 +417,14 @@ _cti_ssh_getLayout(pid_t launcher_pid)
  * 
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      A C-string representing the job identifier
  * 
  */
 static char *
-_cti_ssh_getJobId(cti_wlm_obj app_info)
-{
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
+_cti_ssh_getJobId(sshInfo_t *my_app) {
 	char *				rtn = NULL;
 	
 	// sanity check
@@ -529,10 +460,9 @@ _cti_ssh_getJobId(cti_wlm_obj app_info)
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-cti_app_id_t
-_cti_ssh_registerJob(pid_t launcher_pid, sshLayout_t* layout)
+static sshInfo_t*
+_cti_ssh_registerJob(pid_t launcher_pid, cti_app_id_t newAppId, sshLayout_t* layout = nullptr)
 {
-	appEntry_t *		this;
 	sshInfo_t	*	sinfo;
 	
 	// Sanity check arguments
@@ -541,26 +471,7 @@ _cti_ssh_registerJob(pid_t launcher_pid, sshLayout_t* layout)
 		_cti_set_error("Invalid call. SSH WLM not in use.");
 		return 0;
 	}
-	
-	// Look for and return an existing registration if one exists
-	_cti_list_reset(_cti_ssh_info);
-	while ((sinfo = (sshInfo_t *)_cti_list_next(_cti_ssh_info)) != NULL)
-	{
-		// check if the apid's match
-		if (sinfo->launcher_pid == launcher_pid)
-		{
-			// reference this appEntry and return the appid
-			if (_cti_refAppEntry(sinfo->appId))
-			{
-				// somehow we have an invalid sinfo obj, so free it and
-				// break to re-register this apid
-				_cti_ssh_consumeSshInfo(sinfo);
-				break;
-			}
-			return sinfo->appId;
-		}
-	}
-	
+
 	// Create a new registration for the application 
 
 	if ((sinfo = _cti_ssh_newSshInfo()) == NULL)
@@ -599,52 +510,10 @@ _cti_ssh_registerJob(pid_t launcher_pid, sshLayout_t* layout)
 		_cti_ssh_consumeSshInfo(sinfo);
 		return 0;
 	}
-	
-	// Create the new app entry
-	if ((this = _cti_newAppEntry(&_cti_ssh_wlmProto, (cti_wlm_obj)sinfo)) == NULL)
-	{
-		// we failed to create a new appEntry_t entry - catastrophic failure
-		// error string already set
-		_cti_ssh_consumeSshInfo(sinfo);
-		return 0;
-	}
 
-	sinfo->appId = this->appId;
-	
-	// Add the sinfo obj to our global list
-	if(_cti_list_add(_cti_ssh_info, sinfo))
-	{
-		_cti_set_error("cti_ssh_registerJob: _cti_list_add() failed.");
-		cti_deregisterApp(this->appId);
-		return 0;
-	}
+	sinfo->appId = newAppId;
 
-	return this->appId;
-}
-
-/*
- * _cti_ssh_registerJob - Registers an already running application for
- *                                  use with the Cray tool interface.
- * 
- * Detail
- *      This function is used for registering a valid application that was
- *      previously launched through external means for use with the tool
- *      interface. It is recommended to use the built-in functions to launch
- *      applications, however sometimes this is impossible (such is the case for
- *      a debug attach scenario). In order to use any of the functions defined
- *      in this interface, the pid of the launcher must be supplied.
- *
- * Arguments
- *      launcher_pid - The pid of the running launcher to which to attach
- *
- * Returns
- *      A cti_app_id_t that contains the id registered in this interface. This
- *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
- */
-cti_app_id_t
-cti_ssh_registerJob(pid_t launcher_pid){
-	return _cti_ssh_registerJob(launcher_pid, NULL);
+	return sinfo;
 }
 
 /*
@@ -676,16 +545,14 @@ cti_ssh_registerJob(pid_t launcher_pid){
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-static cti_app_id_t
+static sshInfo_t*
 _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 								const char *inputFile, const char *chdirPath,
-								const char * const env_list[], int doBarrier	)
+								const char * const env_list[], int doBarrier, cti_app_id_t newAppId)
 {
-	appEntry_t *		appEntry;
 	mpir_id_t			mpir_id;	
 	sshInfo_t	*		sinfo;
 	cti_mpir_procTable_t *	proctable;
-	cti_app_id_t		rtn;
 	const char*			launcher_path;
 	
 	if(!_cti_is_valid_environment()){
@@ -734,7 +601,7 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 	pid_t launcher_pid = _cti_mpir_getLauncherPid(mpir_id);
 	
 	// Register this app with the application interface
-	if ((rtn = _cti_ssh_registerJob(launcher_pid, layout)) == 0)
+	if ((sinfo = _cti_ssh_registerJob(launcher_pid, newAppId, layout)) == nullptr)
 	{
 		// Failed to register the jobid/stepid, error is already set.
 		_cti_mpir_deleteProcTable(proctable);
@@ -742,29 +609,7 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 		
 		return 0;
 	}
-	
-	// Update entries in the application object
-	if ((appEntry = _cti_findAppEntry(rtn)) == NULL)
-	{
-		_cti_set_error("impossible null appEntry error!\n");
-		_cti_mpir_deleteProcTable(proctable);
-		_cti_mpir_releaseInstance(mpir_id);
-		
-		return 0;
-	}
-	
-	sinfo = (sshInfo_t *)appEntry->_wlmObj;
 
-	if (sinfo == NULL)
-	{
-		_cti_set_error("impossible null sinfo error!\n");
-		_cti_mpir_deleteProcTable(proctable);
-		_cti_mpir_releaseInstance(mpir_id);
-		cti_deregisterApp(appEntry->appId);
-		
-		return 0;
-	}
-	
 	// set the inv
 	sinfo->mpir_id = mpir_id;
 	
@@ -773,12 +618,11 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 	{
 		if (_cti_ssh_release(sinfo))
 		{
-			cti_deregisterApp(appEntry->appId);
 			return 0;
 		}
 	}
 	
-	return rtn;
+	return sinfo;
 }
 
 /*
@@ -808,13 +652,13 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-static cti_app_id_t
+static sshInfo_t*
 _cti_ssh_launch(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 					const char *inputFile, const char *chdirPath,
-					const char * const env_list[]		)
+					const char * const env_list[], cti_app_id_t newAppId)
 {
 	return _cti_ssh_launch_common(launcher_argv, stdout_fd, stderr_fd, inputFile, 
-								  chdirPath, env_list, 0);
+								  chdirPath, env_list, 0, newAppId);
 }
 
 /*
@@ -844,13 +688,13 @@ _cti_ssh_launch(	const char * const launcher_argv[], int stdout_fd, int stderr_f
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-static cti_app_id_t
+static sshInfo_t*
 _cti_ssh_launchBarrier(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 						const char *inputFile, const char *chdirPath,
-						const char * const env_list[]	)
+						const char * const env_list[], cti_app_id_t newAppId)
 {
 	return _cti_ssh_launch_common(launcher_argv, stdout_fd, stderr_fd, inputFile, 
-								  chdirPath, env_list, 1);
+								  chdirPath, env_list, 1, newAppId);
 }
 
 /*
@@ -858,16 +702,15 @@ _cti_ssh_launchBarrier(	const char * const launcher_argv[], int stdout_fd, int s
  * 
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      1 on error, 0 on success
  * 
  */
 static int
-_cti_ssh_release(cti_wlm_obj app_info)
+_cti_ssh_release(sshInfo_t *my_app)
 {
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
 
 	// Sanity check the arguments
 	if (my_app == NULL)
@@ -896,7 +739,7 @@ _cti_ssh_release(cti_wlm_obj app_info)
  *		whose pids are provided by the MPIR_PROCTABLE
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *		signum - An int representing the type of signal to send to the application
  *
  * Returns
@@ -904,9 +747,8 @@ _cti_ssh_release(cti_wlm_obj app_info)
  * 
  */
 static int
-_cti_ssh_killApp(cti_wlm_obj app_info, int signum)
+_cti_ssh_killApp(sshInfo_t *my_app, int signum)
 {
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
 	cti_args_t* kill_args;
 
 	//Connect through ssh to each node and send a kill command to every pid on that node
@@ -967,14 +809,14 @@ _cti_ssh_killApp(cti_wlm_obj app_info, int signum)
  *		so this function always returns NULL.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      NULL to signify no extra binaries are needed
  * 
  */
 static const char * const *
-_cti_ssh_extraBinaries(cti_wlm_obj app_info)
+_cti_ssh_extraBinaries(sshInfo_t *my_app)
 {
 	return NULL;
 }
@@ -988,14 +830,14 @@ _cti_ssh_extraBinaries(cti_wlm_obj app_info)
  *		so this function always returns NULL.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      NULL to signify no extra libraries are needed
  * 
  */
 static const char * const *
-_cti_ssh_extraLibraries(cti_wlm_obj app_info)
+_cti_ssh_extraLibraries(sshInfo_t *my_app)
 {
 	return NULL;
 }
@@ -1009,14 +851,14 @@ _cti_ssh_extraLibraries(cti_wlm_obj app_info)
  *		directories, so this function always returns NULL.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      NULL to signify no extra library directories are needed
  * 
  */
 static const char * const *
-_cti_ssh_extraLibDirs(cti_wlm_obj app_info)
+_cti_ssh_extraLibDirs(sshInfo_t *my_app)
 {
 	return NULL;
 }
@@ -1032,7 +874,7 @@ _cti_ssh_extraLibDirs(cti_wlm_obj app_info)
  *		Returns an array of paths to the two files created.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      An array of paths to the two files created containing the path to the layout file
@@ -1040,10 +882,7 @@ _cti_ssh_extraLibDirs(cti_wlm_obj app_info)
  * 
  */
 static const char * const *
-_cti_ssh_extraFiles(cti_wlm_obj app_info)
-{
-	sshInfo_t *		my_app = (sshInfo_t *)app_info;
-	const char *			cfg_dir;
+_cti_ssh_extraFiles(sshInfo_t *my_app) {
 	FILE *					myFile;
 	char *					layoutPath;
 	cti_layoutFileHeader_t	layout_hdr;
@@ -1074,14 +913,14 @@ _cti_ssh_extraFiles(cti_wlm_obj app_info)
 	// Check to see if we should create the staging directory
 	if (my_app->stagePath == NULL)
 	{
-		if ((cfg_dir = _cti_getCfgDir()) == NULL)
+		if (!_cti_getCfgDir().empty())
 		{
 			_cti_set_error("Could not get CTI configuration directory.");
 			return NULL;
 		}
 		
 		// Prepare the path to the stage directory
-		if (asprintf(&my_app->stagePath, "%s/%s", cfg_dir, SSH_STAGE_DIR) <= 0)
+		if (asprintf(&my_app->stagePath, "%s/%s", _cti_getCfgDir().c_str(), SSH_STAGE_DIR) <= 0)
 		{
 			_cti_set_error("asprintf failed.");
 			my_app->stagePath = NULL;
@@ -1196,7 +1035,7 @@ _cti_ssh_extraFiles(cti_wlm_obj app_info)
 
 	// Create the null terminated extraFiles array to store the paths to the files
 	// that were just created
-	if ((my_app->extraFiles = calloc(NUM_EXTRA_FILES+1, sizeof(char *))) == NULL)
+	if ((my_app->extraFiles = (decltype(my_app->extraFiles))calloc(NUM_EXTRA_FILES+1, sizeof(char *))) == NULL)
 	{
 		_cti_set_error("calloc failed.");
 		free(layoutPath);
@@ -1280,28 +1119,28 @@ ssh_session _cti_ssh_start_session(char* hostname)
 			_cti_set_error("dlopen failed.");
 			return NULL;
 		}
-		_cti_ssh_libssh_funcs.ssh_channel_close = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_close");
-		_cti_ssh_libssh_funcs.ssh_channel_free = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_free");
-		_cti_ssh_libssh_funcs.ssh_channel_new = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_new");
-		_cti_ssh_libssh_funcs.ssh_channel_open_session = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_open_session");
-		_cti_ssh_libssh_funcs.ssh_channel_request_env = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_request_env");
-		_cti_ssh_libssh_funcs.ssh_channel_request_exec = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_request_exec");
-		_cti_ssh_libssh_funcs.ssh_channel_send_eof = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_send_eof");
-		_cti_ssh_libssh_funcs.ssh_connect = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_connect");
-		_cti_ssh_libssh_funcs.ssh_disconnect = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_disconnect");
-		_cti_ssh_libssh_funcs.ssh_free = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_free");
-		_cti_ssh_libssh_funcs.ssh_get_error = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_get_error");
-		_cti_ssh_libssh_funcs.ssh_is_server_known = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_is_server_known");
-		_cti_ssh_libssh_funcs.ssh_new = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_new");
-		_cti_ssh_libssh_funcs.ssh_options_set = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_options_set");
-		_cti_ssh_libssh_funcs.ssh_scp_close = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_close");
-		_cti_ssh_libssh_funcs.ssh_scp_free = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_free");
-		_cti_ssh_libssh_funcs.ssh_scp_init = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_init");
-		_cti_ssh_libssh_funcs.ssh_scp_new = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_new");
-		_cti_ssh_libssh_funcs.ssh_scp_push_file = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_push_file");
-		_cti_ssh_libssh_funcs.ssh_scp_write = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_write");
-		_cti_ssh_libssh_funcs.ssh_userauth_publickey_auto = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_userauth_publickey_auto");
-		_cti_ssh_libssh_funcs.ssh_write_knownhost = dlsym(_cti_ssh_libssh_funcs.handle, "ssh_write_knownhost");
+		_cti_ssh_libssh_funcs.ssh_channel_close = (decltype(		_cti_ssh_libssh_funcs.ssh_channel_close))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_close");
+		_cti_ssh_libssh_funcs.ssh_channel_free = (decltype(		_cti_ssh_libssh_funcs.ssh_channel_free))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_free");
+		_cti_ssh_libssh_funcs.ssh_channel_new = (decltype(		_cti_ssh_libssh_funcs.ssh_channel_new))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_new");
+		_cti_ssh_libssh_funcs.ssh_channel_open_session = (decltype(		_cti_ssh_libssh_funcs.ssh_channel_open_session))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_open_session");
+		_cti_ssh_libssh_funcs.ssh_channel_request_env = (decltype(		_cti_ssh_libssh_funcs.ssh_channel_request_env))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_request_env");
+		_cti_ssh_libssh_funcs.ssh_channel_request_exec = (decltype(		_cti_ssh_libssh_funcs.ssh_channel_request_exec))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_request_exec");
+		_cti_ssh_libssh_funcs.ssh_channel_send_eof = (decltype(		_cti_ssh_libssh_funcs.ssh_channel_send_eof))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_channel_send_eof");
+		_cti_ssh_libssh_funcs.ssh_connect = (decltype(		_cti_ssh_libssh_funcs.ssh_connect))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_connect");
+		_cti_ssh_libssh_funcs.ssh_disconnect = (decltype(		_cti_ssh_libssh_funcs.ssh_disconnect))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_disconnect");
+		_cti_ssh_libssh_funcs.ssh_free = (decltype(		_cti_ssh_libssh_funcs.ssh_free))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_free");
+		_cti_ssh_libssh_funcs.ssh_get_error = (decltype(		_cti_ssh_libssh_funcs.ssh_get_error))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_get_error");
+		_cti_ssh_libssh_funcs.ssh_is_server_known = (decltype(		_cti_ssh_libssh_funcs.ssh_is_server_known))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_is_server_known");
+		_cti_ssh_libssh_funcs.ssh_new = (decltype(		_cti_ssh_libssh_funcs.ssh_new))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_new");
+		_cti_ssh_libssh_funcs.ssh_options_set = (decltype(		_cti_ssh_libssh_funcs.ssh_options_set))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_options_set");
+		_cti_ssh_libssh_funcs.ssh_scp_close = (decltype(		_cti_ssh_libssh_funcs.ssh_scp_close))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_close");
+		_cti_ssh_libssh_funcs.ssh_scp_free = (decltype(		_cti_ssh_libssh_funcs.ssh_scp_free))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_free");
+		_cti_ssh_libssh_funcs.ssh_scp_init = (decltype(		_cti_ssh_libssh_funcs.ssh_scp_init))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_init");
+		_cti_ssh_libssh_funcs.ssh_scp_new = (decltype(		_cti_ssh_libssh_funcs.ssh_scp_new))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_new");
+		_cti_ssh_libssh_funcs.ssh_scp_push_file = (decltype(		_cti_ssh_libssh_funcs.ssh_scp_push_file))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_push_file");
+		_cti_ssh_libssh_funcs.ssh_scp_write = (decltype(		_cti_ssh_libssh_funcs.ssh_scp_write))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_scp_write");
+		_cti_ssh_libssh_funcs.ssh_userauth_publickey_auto = (decltype(		_cti_ssh_libssh_funcs.ssh_userauth_publickey_auto))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_userauth_publickey_auto");
+		_cti_ssh_libssh_funcs.ssh_write_knownhost = (decltype(		_cti_ssh_libssh_funcs.ssh_write_knownhost))dlsym(_cti_ssh_libssh_funcs.handle, "ssh_write_knownhost");
 	}
 	
 	// Open session and set hostname to which to connect
@@ -1364,7 +1203,7 @@ ssh_session _cti_ssh_start_session(char* hostname)
  *      1 on error, 0 on success
  * 
  */
-int _cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, char** environment)
+int _cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, const char* const environment[])
 {
 	ssh_channel channel;
 	int rc;
@@ -1386,7 +1225,7 @@ int _cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, char*
 
 	// Forward environment variables before execution. May not be supported on 
 	// all systems if user environments are disabled by the ssh server
-	char** current = environment;
+	const char* const* current = environment;
 	while(current!= NULL && *current != NULL){
 		const char* variable_value = getenv(*current);
 		if(variable_value != NULL){
@@ -1532,7 +1371,7 @@ void _cti_ssh_end_session(ssh_session session)
  *		in the application using SSH.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *		package - A C-string specifying the path to the package to ship
  *
  * Returns
@@ -1540,10 +1379,8 @@ void _cti_ssh_end_session(ssh_session session)
  * 
  */
 static int
-_cti_ssh_ship_package(cti_wlm_obj app_info, const char *package)
+_cti_ssh_ship_package(sshInfo_t *my_app, const char *package)
 {
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
-	
 	// Sanity check the arguments
 	if (my_app == NULL)
 	{
@@ -1601,7 +1438,7 @@ _cti_ssh_ship_package(cti_wlm_obj app_info, const char *package)
  *		to each node in the application using SSH.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *		args - A cti_args_t object holding the arguments to pass to the daemon
  *
  * Returns
@@ -1609,9 +1446,8 @@ _cti_ssh_ship_package(cti_wlm_obj app_info, const char *package)
  * 
  */
 static int
-_cti_ssh_start_daemon(cti_wlm_obj app_info, cti_args_t * args)
+_cti_ssh_start_daemon(sshInfo_t *my_app, cti_args_t * args)
 {
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
 	char *				launcher;
 	int					i;
 	
@@ -1643,14 +1479,13 @@ _cti_ssh_start_daemon(cti_wlm_obj app_info, cti_args_t * args)
 	// Transfer the dlaunch binary to the backends if it has not yet been transferred
 	if (!my_app->dlaunch_sent)
 	{
-		const char *	launcher_path;
-		if ((launcher_path = _cti_getDlaunchPath()) == NULL)
+		if (!_cti_getDlaunchPath().empty())
 		{
 			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
 			return 1;
 		}
 		
-		if (_cti_ssh_ship_package(app_info, launcher_path))
+		if (_cti_ssh_ship_package(my_app, _cti_getDlaunchPath().c_str()))
 		{
 			return 1;
 		}
@@ -1718,16 +1553,14 @@ _cti_ssh_start_daemon(cti_wlm_obj app_info, cti_args_t * args)
  * _cti_ssh_getNumAppPEs - Gets the number of PEs on which the application is running.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      An int representing the number of PEs on which the application is running
  * 
  */
 static int
-_cti_ssh_getNumAppPEs(cti_wlm_obj app_info)
-{
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
+_cti_ssh_getNumAppPEs(sshInfo_t *my_app) {
 	
 	// Sanity check the arguments
 	if (my_app == NULL)
@@ -1749,16 +1582,14 @@ _cti_ssh_getNumAppPEs(cti_wlm_obj app_info)
  * _cti_ssh_getNumAppNodes - Gets the number of nodes on which the application is running.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      An int representing the number of nodes on which the application is running
  * 
  */
 static int
-_cti_ssh_getNumAppNodes(cti_wlm_obj app_info)
-{
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
+_cti_ssh_getNumAppNodes(sshInfo_t *my_app) {
 	
 	// Sanity check the arguments
 	if (my_app == NULL)
@@ -1780,16 +1611,14 @@ _cti_ssh_getNumAppNodes(cti_wlm_obj app_info)
  * _cti_ssh_getAppHostsList - Gets a list of hostnames on which the application is running.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      A NULL terminated array of C-strings representing the list of hostnames
  * 
  */
 static char **
-_cti_ssh_getAppHostsList(cti_wlm_obj app_info)
-{
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
+_cti_ssh_getAppHostsList(sshInfo_t *my_app) {
 	char **				hosts;
 	int					i;
 	
@@ -1813,7 +1642,7 @@ _cti_ssh_getAppHostsList(cti_wlm_obj app_info)
 	}
 	
 	// Construct the null termintated hosts list from the internal sshLayout_t representation
-	if ((hosts = calloc(my_app->layout->numNodes + 1, sizeof(char *))) == NULL)
+	if ((hosts = (decltype(hosts))calloc(my_app->layout->numNodes + 1, sizeof(char *))) == NULL)
 	{
 		_cti_set_error("calloc failed.");
 		return NULL;
@@ -1838,16 +1667,14 @@ _cti_ssh_getAppHostsList(cti_wlm_obj app_info)
  		the number of PEs at each host.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      A pointer to a cti_hostsList_t containing the placement information
  * 
  */
 static cti_hostsList_t *
-_cti_ssh_getAppHostsPlacement(cti_wlm_obj app_info)
-{
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
+_cti_ssh_getAppHostsPlacement(sshInfo_t *my_app) {
 	cti_hostsList_t *	placement_list;
 	int					i;
 	
@@ -1872,7 +1699,7 @@ _cti_ssh_getAppHostsPlacement(cti_wlm_obj app_info)
 	
 	// Construct the cti_hostsList_t output from the internal sshLayout_t representation
 
-	if ((placement_list = malloc(sizeof(cti_hostsList_t))) == NULL)
+	if ((placement_list = (decltype(placement_list))malloc(sizeof(cti_hostsList_t))) == NULL)
 	{
 		_cti_set_error("malloc failed.");
 		return NULL;
@@ -1880,7 +1707,7 @@ _cti_ssh_getAppHostsPlacement(cti_wlm_obj app_info)
 	
 	placement_list->numHosts = my_app->layout->numNodes;
 	
-	if ((placement_list->hosts = malloc(placement_list->numHosts * sizeof(cti_host_t))) == NULL)
+	if ((placement_list->hosts = (decltype(placement_list->hosts))malloc(placement_list->numHosts * sizeof(cti_host_t))) == NULL)
 	{
 		_cti_set_error("malloc failed.");
 		free(placement_list);
@@ -1925,16 +1752,14 @@ _cti_ssh_getHostName(void)
  * 						  on the backend.
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      A C-string representing the path of the backend staging directory
  * 
  */
 static const char *
-_cti_ssh_getToolPath(cti_wlm_obj app_info)
-{
-	sshInfo_t *	my_app = (sshInfo_t *)app_info;
+_cti_ssh_getToolPath(sshInfo_t *my_app) {
 	
 	// Sanity check the arguments
 	if (my_app == NULL)
@@ -1945,7 +1770,7 @@ _cti_ssh_getToolPath(cti_wlm_obj app_info)
 	
 	if (my_app->toolPath == NULL)
 	{
-		_cti_set_error("toolPath app_info missing from sinfo obj!");
+		_cti_set_error("toolPath my_app missing from sinfo obj!");
 		return NULL;
 	}
 
@@ -1962,14 +1787,14 @@ _cti_ssh_getToolPath(cti_wlm_obj app_info)
  *		To get the application layout, this implementation uses the SLURM_PID file
  *
  * Arguments
- *      app_info - A cti_wlm_obj that represents the info struct for the application
+ *      my_app - A cti_wlm_obj that represents the info struct for the application
  *
  * Returns
  *      NULL to represent the attribs file not being used for this implementation
  * 
  */
 static const char *
-_cti_ssh_getAttribsPath(cti_wlm_obj app_info)
+_cti_ssh_getAttribsPath(sshInfo_t *my_app)
 {
 	return NULL;
 }
