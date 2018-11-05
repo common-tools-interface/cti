@@ -235,7 +235,6 @@ static const char * const		_cti_alps_extra_libs[] = {
 	NULL
 };
 
-static serviceNode_t *		_cti_alps_svcNid	= NULL;	// service node information
 static char*				_cti_alps_launcher_name = NULL; //path to the launcher binary
 
 /* dynamically loaded functions from libalps */
@@ -277,43 +276,32 @@ static const LibALPS libAlps;
 *       or else NULL on error.
 *
 */
-static serviceNode_t *
-_cti_alps_getSvcNodeInfo()
-{
-	FILE *alps_fd;	  // ALPS NID file stream
-	char file_buf[BUFSIZ];  // file read buffer
-	serviceNode_t *my_node; // return struct containing service node info
-	
-	// allocate the serviceNode_t object, its the callers responsibility to
-	// free this.
-	if ((my_node = (decltype(my_node))malloc(sizeof(serviceNode_t))) == (void *)0)
-	{
-		throw std::runtime_error("malloc failed.");
+struct ALPSSvcNodeInfo {
+	serviceNode_t nodeInfo;
+
+	ALPSSvcNodeInfo(const char* const nidPath) {
+		int nid;
+		if (FILE *nidFile = fopen(nidPath, "r")) {
+			char file_buf[BUFSIZ];  // file read buffer
+
+			// we expect this file to have a numeric value giving our current nid
+			if (fgets(file_buf, BUFSIZ, nidFile)) {
+				nid = atoi(file_buf); // convert this to an integer value
+				fclose(nidFile); // close the file stream
+			} else {
+				fclose(nidFile); // close the file stream
+				throw std::runtime_error("fgets failed:" + std::string(nidPath));
+			}
+		} else {
+			throw std::runtime_error("fopen failed:" + std::string(nidPath));
+		}
+
+		nodeInfo.nid = nid;
 	}
-	memset(my_node, 0, sizeof(serviceNode_t));     // clear it to NULL
-	
-	// open up the file defined in the alps header containing our node id (nid)
-	if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)
-	{
-		free(my_node);
-		throw std::runtime_error("fopen failed:" + std::string(ALPS_XT_NID));
-	}
-	
-	// we expect this file to have a numeric value giving our current nid
-	if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
-	{
-		free(my_node);
-		fclose(alps_fd);
-		throw std::runtime_error("fgets failed:" + std::string(ALPS_XT_NID));
-	}
-	// convert this to an integer value
-	my_node->nid = atoi(file_buf);
-	
-	// close the file stream
-	fclose(alps_fd);
-	
-	return my_node;
-}
+
+	int getNid() const { return nodeInfo.nid; }
+};
+static ALPSSvcNodeInfo svcNodeInfo(ALPS_XT_NID);
 
 static void
 _cti_alps_consumeAlpsInfo(alpsInfo_t* alpsInfo)
@@ -473,13 +461,8 @@ _cti_alps_getApid(pid_t aprunPid)
 	if (aprunPid <= 0) {
 		throw std::runtime_error("Invalid pid " + std::to_string(aprunPid));
 	}
-		
-	// ensure the _cti_alps_svcNid exists
-	if (_cti_alps_svcNid == nullptr) {
-		_cti_alps_svcNid = _cti_alps_getSvcNodeInfo(); // non-null, throws
-	}
-	
-	return libAlps.alps_get_apid(_cti_alps_svcNid->nid, aprunPid);
+
+	return libAlps.alps_get_apid(svcNodeInfo.getNid(), aprunPid);
 }
 
 static ALPSFrontend::AprunInfo*
@@ -500,33 +483,25 @@ _cti_alps_getAprunInfo(alpsInfo_t& my_app)
 	return aprunInfo;
 }
 
-static char *
-_cti_alps_getHostName(void)
-{
-	char *hostname;
-
-	// ensure the _cti_alps_svcNid exists
-	if (_cti_alps_svcNid == nullptr) {
-		_cti_alps_svcNid = _cti_alps_getSvcNodeInfo(); // non-null, throws
-	}
-
-	if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, _cti_alps_svcNid->nid) < 0) {
+template <typename... Args>
+static std::string
+string_asprintf(const char* const formatCStr, Args... args) {
+	char *rawResult = nullptr;
+	if (asprintf(&rawResult, formatCStr, args...) < 0) {
 		throw std::runtime_error("asprintf failed.");
 	}
-
-	return hostname;
+	UniquePtrDestr<char> result(rawResult, ::free);
+	return std::string(result.get());
 }
 
-static char *
-_cti_alps_getLauncherHostName(alpsInfo_t& my_app)
-{
-	char *			hostname;
+static std::string
+_cti_alps_getHostName(void) {
+	return string_asprintf(ALPS_XT_HOSTNAME_FMT, svcNodeInfo.getNid());
+}
 
-	if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, my_app.appinfo.aprunNid) < 0) {
-		throw std::runtime_error("asprintf failed.");
-	}
-
-	return hostname;
+static std::string
+_cti_alps_getLauncherHostName(alpsInfo_t& my_app) {
+	return string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.appinfo.aprunNid);
 }
 
 static int
