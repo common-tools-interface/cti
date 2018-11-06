@@ -363,88 +363,6 @@ _cti_alps_getApid(pid_t aprunPid) {
 	return libAlps.alps_get_apid(svcNodeInfo.getNid(), aprunPid);
 }
 
-static ALPSFrontend::AprunInfo
-_cti_alps_getAprunInfo(AlpsInfo& my_app) {
-	ALPSFrontend::AprunInfo aprunInfo;
-	aprunInfo.apid = my_app.apid;
-	aprunInfo.aprunPid = my_app.alpsAppInfo.aprunPid;
-	return aprunInfo;
-}
-
-static std::string
-_cti_alps_getHostName(void) {
-	return string_asprintf(ALPS_XT_HOSTNAME_FMT, svcNodeInfo.getNid());
-}
-
-static std::string
-_cti_alps_getLauncherHostName(AlpsInfo& my_app) {
-	return string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.alpsAppInfo.aprunNid);
-}
-
-static int
-_cti_alps_getNumAppPEs(AlpsInfo& my_app) {
-	// loop through the placement list
-	int numPEs = 0;
-	for (int i = 0; i < my_app.alpsAppInfo.numPlaces; ++i) {
-		numPEs += my_app.places.get()[i].numPEs;
-	}
-
-	return numPEs;
-}
-
-static int
-_cti_alps_getNumAppNodes(AlpsInfo& my_app)
-{
-	return my_app.alpsAppInfo.numPlaces;
-}
-
-static std::vector<std::string>
-_cti_alps_getAppHostsList(AlpsInfo& my_app) {
-	std::vector<std::string> hosts;
-
-	// ensure my_app.alpsAppInfo.numPlaces is non-zero
-	if ( my_app.alpsAppInfo.numPlaces <= 0 ) {
-		// no nodes in the application
-		throw std::runtime_error("Application " + std::to_string(my_app.apid) + "does not have any nodes.");
-	}
-
-	// set the number of hosts for the application
-	size_t numHosts = my_app.alpsAppInfo.numPlaces;
-	hosts.reserve(numHosts);
-
-	// loop through the placement list
-	for (size_t i = 0; i < numHosts; ++i) {
-		hosts.emplace_back(std::move(string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.places.get()[i].nid)));
-	}
-
-	return hosts;
-}
-
-static std::vector<Frontend::CTIHost>
-_cti_alps_getAppHostsPlacement(AlpsInfo& my_app) {
-	std::vector<Frontend::CTIHost> placement_list;
-
-	// ensure my_app.alpsAppInfo.numPlaces is non-zero
-	if ( my_app.alpsAppInfo.numPlaces <= 0 ) {
-		// no nodes in the application
-		throw std::runtime_error("Application " + std::to_string(my_app.apid) + "does not have any nodes.");
-	}
-
-	// set the number of hosts for the application
-	size_t numHosts = my_app.alpsAppInfo.numPlaces;
-	placement_list.reserve(numHosts);
-
-	// loop through the placement list
-	for (size_t i = 0; i < numHosts; i++) {
-		// create the hostname string and set the number of PEs
-		placement_list.emplace_back(
-			std::move(string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.places.get()[i].nid)),
-			my_app.places.get()[i].numPEs);
-	}
-
-	return placement_list;
-}
-
 static bool
 _cti_alps_pathIsWrappedAprun(const char *aprun_path) {
 	auto realPath = [&](const char* path) {
@@ -773,7 +691,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	}
 
 	// set the apid associated with the pid of aprun
-	uint64_t apid = cti_alps_getApid(aprunPid);
+	uint64_t apid = _cti_alps_getApid(aprunPid);
 	if (apid == 0) {
 		// attempt to kill aprun since the caller will not recieve the aprun pid
 		// just in case the aprun process is still hanging around.
@@ -794,138 +712,6 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	} catch (std::exception const& ex) {
 		kill(aprunPid, DEFAULT_SIG);
 		throw ex;
-	}
-}
-
-static void
-_cti_alps_killApp(AlpsInfo& my_app, int signum) {
-	// create a new args obj
-	ManagedArgv apkillArgv;
-	apkillArgv.add(APKILL); // first argument should be "apkill"
-	apkillArgv.add("-" + std::to_string(signum)); // second argument is -signum
-	apkillArgv.add(std::to_string(my_app.apid)); // third argument is apid
-
-	// fork off a process to launch apkill
-	pid_t forkedPid = fork();
-
-	// error case
-	if (forkedPid < 0) {
-		throw std::runtime_error("Fatal fork error.");
-	}
-
-	// child case
-	if (forkedPid == 0) {
-		// exec apkill
-		execvp(APKILL, apkillArgv.get());
-
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execvp");
-		_exit(1);
-	}
-
-	// parent case: wait until the apkill finishes
-	waitpid(forkedPid, nullptr, 0);
-}
-
-static const size_t LAUNCH_TOOL_RETRY = 5;
-
-static void
-_cti_alps_ship_package(AlpsInfo& my_app, std::string const& tarPath) {
-
- 	// suppress stderr for "gzip: broken pipe"
-	int saved_stderr = dup(STDERR_FILENO);
-	fflush(stderr);
-	{ int new_stderr = open("/dev/null", O_WRONLY);
-		dup2(new_stderr, STDERR_FILENO);
-		close(new_stderr);
-	}
-
-	// ship the tarball to the compute node
-
-	// discard const qualifier because alps isn't const correct
-	auto rawTarPath = UniquePtrDestr<char>(strdup(tarPath.c_str()), ::free);
-	char *nonconstTarPath = (char*)rawTarPath.get();
-
-	const char* errmsg = nullptr;
-	// checks: problem on crystal where alps_launch_tool_helper will report bad apid
-	for (size_t checks = 0; checks < LAUNCH_TOOL_RETRY; checks++) {
-		// if errmsg is nonnull, we failed to ship the file to the compute nodes for some reason - catastrophic failure
-		errmsg = libAlps.alps_launch_tool_helper(my_app.apid, my_app.pe0Node, 1, 0, 1, &nonconstTarPath);
-		if (!errmsg) {
-			break;
-		}
-
-		usleep(500000);
-	}
-
-	// unsuppress stderr
-	fflush(stderr);
-	dup2(saved_stderr, STDERR_FILENO);
-	close(saved_stderr);
-
-	// if there was an error rethrow it
-	if (errmsg != nullptr) {
-		throw std::runtime_error("alps_launch_tool_helper error: " + std::string(errmsg));
-	}
-}
-
-static void
-_cti_alps_start_daemon(AlpsInfo& my_app, const char * const argv[]) {
-	// sanity check
-	if (argv == nullptr) {
-		throw std::runtime_error("argv array is null!");
-	}
-
-	// Create the launcher path based on the value of dlaunch_sent in AlpsInfo. If this is
-	// false, we have not yet transfered the dlaunch utility to the compute nodes, so we need
-	// to find the location of it on our end and have alps transfer it.
-	std::string launcherPath;
-	if (my_app.dlaunch_sent) {
-		// use existing launcher binary on compute node
-		launcherPath = my_app.toolPath + "/" + CTI_LAUNCHER;
-	} else {
-		// Need to transfer launcher binary
-		if (_cti_getDlaunchPath().empty()) {
-			throw std::runtime_error("Required environment variable not set: " + std::string(BASE_DIR_ENV_VAR));
-		}
-		launcherPath = _cti_getDlaunchPath();
-	}
-
-	// get the flattened args string since alps needs to use that
-	std::string argvString{launcherPath};
-	for (const char* const* arg = argv; *arg != nullptr; arg++) {
-		argvString.push_back(' ');
-		argvString += std::string(*arg);
-	}
-
-	// discard const qualifier because alps isn't const correct
-	auto rawArgvString = UniquePtrDestr<char>(strdup(argvString.c_str()), ::free);
-	char *nonconstArgvString = (char*)rawArgvString.get();
-
-	// launch the tool daemon onto the compute nodes
-	if (const char* errmsg = libAlps.alps_launch_tool_helper(my_app.apid, my_app.pe0Node,
-		!my_app.dlaunch_sent, 1, 1, &nonconstArgvString)) {
-
-		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
-		throw std::runtime_error("alps_launch_tool_helper error: " + std::string(errmsg));
-	}
-
-	// set transfer value in my_app to true if applicable
-	if (!my_app.dlaunch_sent) {
-		my_app.dlaunch_sent = true;
-	}
-}
-
-static int
-_cti_alps_getAlpsOverlapOrdinal(AlpsInfo& my_app) {
-	char *errmsg = nullptr;
-	int rtn = libAlps.alps_get_overlap_ordinal(my_app.apid, &errmsg, nullptr);
-	if (rtn < 0) {
-		throw std::runtime_error(errmsg ? errmsg :
-			"cti_alps_getAlpsOverlapOrdinal: Unknown alps_get_overlap_ordinal failure");
-	} else {
-		return rtn;
 	}
 }
 
@@ -1004,7 +790,35 @@ ALPSFrontend::releaseBarrier(AppId appId) {
 
 void
 ALPSFrontend::killApp(AppId appId, int signal) {
-	_cti_alps_killApp(getAppInfo(appId), signal);
+	AlpsInfo& my_app = getAppInfo(appId);
+
+	// create a new args obj
+	ManagedArgv apkillArgv;
+	apkillArgv.add(APKILL); // first argument should be "apkill"
+	apkillArgv.add("-" + std::to_string(signal)); // second argument is -signal
+	apkillArgv.add(std::to_string(my_app.apid)); // third argument is apid
+
+	// fork off a process to launch apkill
+	pid_t forkedPid = fork();
+
+	// error case
+	if (forkedPid < 0) {
+		throw std::runtime_error("Fatal fork error.");
+	}
+
+	// child case
+	if (forkedPid == 0) {
+		// exec apkill
+		execvp(APKILL, apkillArgv.get());
+
+		// exec shouldn't return
+		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execvp");
+		_exit(1);
+	}
+
+	// parent case: wait until the apkill finishes
+	waitpid(forkedPid, nullptr, 0);
 }
 
 
@@ -1016,45 +830,174 @@ ALPSFrontend::getExtraLibraries(AppId unused) const {
 	return result;
 }
 
+static const size_t LAUNCH_TOOL_RETRY = 5;
+
 void
 ALPSFrontend::shipPackage(AppId appId, std::string const& tarPath) const {
-	_cti_alps_ship_package(getAppInfo(appId), tarPath);
+	AlpsInfo& my_app = getAppInfo(appId);
+
+	// suppress stderr for "gzip: broken pipe"
+	int saved_stderr = dup(STDERR_FILENO);
+	fflush(stderr);
+	{ int new_stderr = open("/dev/null", O_WRONLY);
+		dup2(new_stderr, STDERR_FILENO);
+		close(new_stderr);
+	}
+
+	// ship the tarball to the compute node
+
+	// discard const qualifier because alps isn't const correct
+	auto rawTarPath = UniquePtrDestr<char>(strdup(tarPath.c_str()), ::free);
+	char *nonconstTarPath = (char*)rawTarPath.get();
+
+	const char* errmsg = nullptr;
+	// checks: problem on crystal where alps_launch_tool_helper will report bad apid
+	for (size_t checks = 0; checks < LAUNCH_TOOL_RETRY; checks++) {
+		// if errmsg is nonnull, we failed to ship the file to the compute nodes for some reason - catastrophic failure
+		errmsg = libAlps.alps_launch_tool_helper(my_app.apid, my_app.pe0Node, 1, 0, 1, &nonconstTarPath);
+		if (!errmsg) {
+			break;
+		}
+
+		usleep(500000);
+	}
+
+	// unsuppress stderr
+	fflush(stderr);
+	dup2(saved_stderr, STDERR_FILENO);
+	close(saved_stderr);
+
+	// if there was an error rethrow it
+	if (errmsg != nullptr) {
+		throw std::runtime_error("alps_launch_tool_helper error: " + std::string(errmsg));
+	}
 }
 
 void
 ALPSFrontend::startDaemon(AppId appId, CArgArray argv) const {
-	_cti_alps_start_daemon(getAppInfo(appId), argv);
+	AlpsInfo& my_app = getAppInfo(appId);
+
+	// sanity check
+	if (argv == nullptr) {
+		throw std::runtime_error("argv array is null!");
+	}
+
+	// Create the launcher path based on the value of dlaunch_sent in AlpsInfo. If this is
+	// false, we have not yet transfered the dlaunch utility to the compute nodes, so we need
+	// to find the location of it on our end and have alps transfer it.
+	std::string launcherPath;
+	if (my_app.dlaunch_sent) {
+		// use existing launcher binary on compute node
+		launcherPath = my_app.toolPath + "/" + CTI_LAUNCHER;
+	} else {
+		// Need to transfer launcher binary
+		if (_cti_getDlaunchPath().empty()) {
+			throw std::runtime_error("Required environment variable not set: " + std::string(BASE_DIR_ENV_VAR));
+		}
+		launcherPath = _cti_getDlaunchPath();
+	}
+
+	// get the flattened args string since alps needs to use that
+	std::string argvString{launcherPath};
+	for (const char* const* arg = argv; *arg != nullptr; arg++) {
+		argvString.push_back(' ');
+		argvString += std::string(*arg);
+	}
+
+	// discard const qualifier because alps isn't const correct
+	auto rawArgvString = UniquePtrDestr<char>(strdup(argvString.c_str()), ::free);
+	char *nonconstArgvString = (char*)rawArgvString.get();
+
+	// launch the tool daemon onto the compute nodes
+	if (const char* errmsg = libAlps.alps_launch_tool_helper(my_app.apid, my_app.pe0Node,
+		!my_app.dlaunch_sent, 1, 1, &nonconstArgvString)) {
+
+		// we failed to launch the launcher on the compute nodes for some reason - catastrophic failure
+		throw std::runtime_error("alps_launch_tool_helper error: " + std::string(errmsg));
+	}
+
+	// set transfer value in my_app to true if applicable
+	if (!my_app.dlaunch_sent) {
+		my_app.dlaunch_sent = true;
+	}
 }
 
 
 size_t
 ALPSFrontend::getNumAppPEs(AppId appId) const {
-	return _cti_alps_getNumAppPEs(getAppInfo(appId));
+	AlpsInfo& my_app = getAppInfo(appId);
+
+	// loop through the placement list
+	int numPEs = 0;
+	for (int i = 0; i < my_app.alpsAppInfo.numPlaces; ++i) {
+		numPEs += my_app.places.get()[i].numPEs;
+	}
+
+	return numPEs;
 }
 
 size_t
 ALPSFrontend::getNumAppNodes(AppId appId) const {
-	return _cti_alps_getNumAppNodes(getAppInfo(appId));
+	return getAppInfo(appId).alpsAppInfo.numPlaces;
 }
 
 std::vector<std::string> const
 ALPSFrontend::getAppHostsList(AppId appId) const {
-	return _cti_alps_getAppHostsList(getAppInfo(appId));
+	AlpsInfo& my_app = getAppInfo(appId);
+	std::vector<std::string> hosts;
+
+	// ensure my_app.alpsAppInfo.numPlaces is non-zero
+	if (my_app.alpsAppInfo.numPlaces <= 0 ) {
+		// no nodes in the application
+		throw std::runtime_error("Application " + std::to_string(my_app.apid) + "does not have any nodes.");
+	}
+
+	// set the number of hosts for the application
+	size_t numHosts = my_app.alpsAppInfo.numPlaces;
+	hosts.reserve(numHosts);
+
+	// loop through the placement list
+	for (size_t i = 0; i < numHosts; ++i) {
+		hosts.emplace_back(std::move(string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.places.get()[i].nid)));
+	}
+
+	return hosts;
 }
 
 std::vector<CTIHost> const
 ALPSFrontend::getAppHostsPlacement(AppId appId) const {
-	return _cti_alps_getAppHostsPlacement(getAppInfo(appId));
+	AlpsInfo& my_app = getAppInfo(appId);
+	std::vector<Frontend::CTIHost> placement_list;
+
+	// ensure my_app.alpsAppInfo.numPlaces is non-zero
+	if (my_app.alpsAppInfo.numPlaces <= 0 ) {
+		// no nodes in the application
+		throw std::runtime_error("Application " + std::to_string(my_app.apid) + "does not have any nodes.");
+	}
+
+	// set the number of hosts for the application
+	size_t numHosts = my_app.alpsAppInfo.numPlaces;
+	placement_list.reserve(numHosts);
+
+	// loop through the placement list
+	for (size_t i = 0; i < numHosts; i++) {
+		// create the hostname string and set the number of PEs
+		placement_list.emplace_back(
+			std::move(string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.places.get()[i].nid)),
+			my_app.places.get()[i].numPEs);
+	}
+
+	return placement_list;
 }
 
 std::string const
 ALPSFrontend::getHostName(void) const {
-	return _cti_alps_getHostName();
+	return string_asprintf(ALPS_XT_HOSTNAME_FMT, svcNodeInfo.getNid());
 }
 
 std::string const
 ALPSFrontend::getLauncherHostName(AppId appId) const {
-	return _cti_alps_getLauncherHostName(getAppInfo(appId));
+	return string_asprintf(ALPS_XT_HOSTNAME_FMT, getAppInfo(appId).alpsAppInfo.aprunNid);
 }
 
 std::string const
@@ -1091,10 +1034,22 @@ ALPSFrontend::getApid(pid_t appPid) {
 
 ALPSFrontend::AprunInfo
 ALPSFrontend::getAprunInfo(AppId appId) {
-	return _cti_alps_getAprunInfo(getAppInfo(appId));
+	AlpsInfo& my_app = getAppInfo(appId);
+
+	ALPSFrontend::AprunInfo aprunInfo;
+	aprunInfo.apid = my_app.apid;
+	aprunInfo.aprunPid = my_app.alpsAppInfo.aprunPid;
+	return aprunInfo;
 }
 
 int
 ALPSFrontend::getAlpsOverlapOrdinal(AppId appId) {
-	return _cti_alps_getAlpsOverlapOrdinal(getAppInfo(appId));
+	char *errmsg = nullptr;
+	int rtn = libAlps.alps_get_overlap_ordinal(getAppInfo(appId).apid, &errmsg, nullptr);
+	if (rtn < 0) {
+		throw std::runtime_error(errmsg ? errmsg :
+			"cti_alps_getAlpsOverlapOrdinal: Unknown alps_get_overlap_ordinal failure");
+	} else {
+		return rtn;
+	}
 }
