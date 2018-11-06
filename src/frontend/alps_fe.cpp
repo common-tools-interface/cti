@@ -49,10 +49,16 @@
 
 /* Types used here */
 
-typedef struct
-{
-	int				nid;		// service node id
-} serviceNode_t;
+template <typename... Args>
+static std::string
+string_asprintf(const char* const formatCStr, Args... args) {
+	char *rawResult = nullptr;
+	if (asprintf(&rawResult, formatCStr, args...) < 0) {
+		throw std::runtime_error("asprintf failed.");
+	}
+	UniquePtrDestr<char> result(rawResult, ::free);
+	return std::string(result.get());
+}
 
 struct BarrierControl : private NonCopyable<BarrierControl> {
 	int readPipe[2], writePipe[2];
@@ -210,24 +216,6 @@ struct CTISignalGuard {
 	}
 };
 
-typedef struct
-{
-	cti_app_id_t		appId;			// CTI appid associated with this alpsInfo_t obj
-	uint64_t			apid;			// ALPS apid
-	int					pe0Node;		// ALPS PE0 node id
-	appInfo_t			appinfo;		// ALPS application information
-	cmdDetail_t *		cmdDetail;		// ALPS application command information (width, depth, memory, command name) of length appinfo.numCmds
-	placeNodeList_t *	places;			// ALPS application placement information (nid, processors, PE threads) of length appinfo.numPlaces
-
-	pid_t				aprunPid;		// Optional objects used for launched applications.
-	BarrierControl		startupBarrier;
-	OverwatchHandle		overwatchHandle;
-
-	char *				toolPath;		// Backend staging directory
-	char *				attribsPath;	// Backend directory where pmi_attribs is located
-	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
-} alpsInfo_t;
-
 /* static global variables */
 
 static const char * const		_cti_alps_extra_libs[] = {
@@ -277,10 +265,9 @@ static const LibALPS libAlps;
 *
 */
 struct ALPSSvcNodeInfo {
-	serviceNode_t nodeInfo;
+	int nid;
 
 	ALPSSvcNodeInfo(const char* const nidPath) {
-		int nid;
 		if (FILE *nidFile = fopen(nidPath, "r")) {
 			char file_buf[BUFSIZ];  // file read buffer
 
@@ -295,159 +282,91 @@ struct ALPSSvcNodeInfo {
 		} else {
 			throw std::runtime_error("fopen failed:" + std::string(nidPath));
 		}
-
-		nodeInfo.nid = nid;
 	}
 
-	int getNid() const { return nodeInfo.nid; }
+	int getNid() const { return nid; }
 };
 static ALPSSvcNodeInfo svcNodeInfo(ALPS_XT_NID);
 
-static void
-_cti_alps_consumeAlpsInfo(alpsInfo_t* alpsInfo)
-{
-	// sanity check
-	if (alpsInfo == NULL)
-		return;
-	
-	// cmdDetail and places were malloc'ed so we might find them tasty
-	if (alpsInfo->cmdDetail != NULL)
-		free(alpsInfo->cmdDetail);
-	if (alpsInfo->places != NULL)
-		free(alpsInfo->places);
-	
-	// free the toolPath
-	if (alpsInfo->toolPath != NULL)
-		free(alpsInfo->toolPath);
+static std::string const
+_cti_alps_getLauncherName() {
+	if (char* launcher_name_env = getenv(CTI_LAUNCHER_NAME)) {
+		return std::string(launcher_name_env);
+	} else {
+		return std::string(APRUN);
+	}
+}
+
+// object containing all needed information for a running alps app. obtained on construction from libAlps
+struct AlpsInfo {
+	cti_app_id_t		appId;			// CTI appid associated with this AlpsInfo obj
+	uint64_t			apid;			// ALPS apid
+	int					pe0Node;		// ALPS PE0 node id
+	appInfo_t			alpsAppInfo;	// ALPS application information
+	cmdDetail_t *		cmdDetail;		// ALPS application command information (width, depth, memory, command name) of length appinfo.numCmds
+	placeNodeList_t *	places;			// ALPS application placement information (nid, processors, PE threads) of length appinfo.numPlaces
+
+	pid_t				aprunPid;		// Optional objects used for launched applications.
+	BarrierControl		startupBarrier;
+	OverwatchHandle		overwatchHandle;
+
+	std::string			toolPath;				// Backend staging directory
+	std::string			attribsPath;			// Backend directory where pmi_attribs is located
+	bool				dlaunch_sent = false;	// True if we have already transfered the dlaunch utility
+
+	AlpsInfo(uint64_t apid_, cti_app_id_t appId_) : appId(appId_), apid(apid_) {
+		// ensure proper wlm in use
+		if (cti_current_wlm() != CTI_WLM_ALPS) {
+			throw std::runtime_error("Invalid call. ALPS WLM not in use.");
+		}
+
+		// ensure valid apid
+		if (apid == 0) {
+			throw std::runtime_error("Invalid apid " + std::to_string(apid));
+		}
+
+		// retrieve detailed information about our app
+		{ char *appinfo_err = NULL;
+			if (libAlps.alps_get_appinfo_ver2_err(apid, &alpsAppInfo, &cmdDetail, &places, &appinfo_err, nullptr) != 1) {
+				if (appinfo_err != nullptr) {
+					throw std::runtime_error("alps_get_appinfo_ver2_err() failed: " + std::string(appinfo_err));
+				} else {
+					throw std::runtime_error("alps_get_appinfo_ver2_err() failed.");
+				}
+			}
+		}
+
+		// Note that cmdDetail is a two dimensional array with appinfo.numCmds elements.
+		// Note that places is a two dimensional array with appinfo.numPlaces elements.
+		// These both were malloc'ed and need to be free'ed by the user.
 		
-	// free the attribsPath
-	if (alpsInfo->attribsPath != NULL)
-		free(alpsInfo->attribsPath);
-	
-	free(alpsInfo);
-}
+		// save pe0 NID
+		pe0Node = places[0].nid;
 
-static char *
-_cti_alps_getJobId(alpsInfo_t& my_app)
-{
-	char *			rtn = NULL;
-	
-	if (asprintf(&rtn, "%llu", (long long unsigned int)my_app.apid) <= 0)
-	{
-		throw std::runtime_error("asprintf failed.");
-	}
-	
-	return rtn;
-}
-
-static char *
-_cti_alps_getLauncherName()
-{
-	char* launcher_name_env;
-	if ((launcher_name_env = getenv(CTI_LAUNCHER_NAME)) != NULL)
-	{
-		_cti_alps_launcher_name = strdup(launcher_name_env);
-	}
-	else{
-		_cti_alps_launcher_name = APRUN;
-	}
-
-	return _cti_alps_launcher_name;
-}
-
-// this function creates a new alpsInfo_t object for the app
-// used by the alps_run functions
-static alpsInfo_t*
-_cti_alps_registerApid(uint64_t apid, cti_app_id_t newAppId)
-{
-	alpsInfo_t *	alpsInfo;
-	char *			toolPath;
-	char *			attribsPath;
-	// Used to determine CLE version
-	struct stat 	statbuf;
-
-	// sanity check
-	if (cti_current_wlm() != CTI_WLM_ALPS)
-	{
-		throw std::runtime_error("Invalid call. ALPS WLM not in use.");
-	}
-
-	// sanity check
-	if (apid == 0)
-	{
-		throw std::runtime_error("Invalid apid " + std::to_string(apid));
-	}
-	
-	// create the new alpsInfo_t object
-	if ((alpsInfo = (decltype(alpsInfo))malloc(sizeof(alpsInfo_t))) == NULL)
-	{
-		throw std::runtime_error("malloc failed.");
-	}
-	memset(alpsInfo, 0, sizeof(alpsInfo_t));     // clear it to NULL
-	
-	// set the apid
-	alpsInfo->apid = apid;
-	
-	// retrieve detailed information about our app
-	// save this information into the struct
-	char *appinfo_err = NULL;
-	if (libAlps.alps_get_appinfo_ver2_err(apid, &alpsInfo->appinfo, &alpsInfo->cmdDetail, &alpsInfo->places, &appinfo_err, nullptr) != 1)
-	{
-		_cti_alps_consumeAlpsInfo(alpsInfo);
-		// dlopen failed and we already set the error string in that case.
-		if (appinfo_err != NULL) {
-			throw std::runtime_error("alps_get_appinfo_ver2_err() failed: " + std::string(appinfo_err));
-		} else {
-			throw std::runtime_error("alps_get_appinfo_ver2_err() failed.");
+		// Check to see if this system is using the new OBS system for the alps
+		// dependencies. This will affect the way we set the toolPath for the backend
+		{ struct stat statbuf;
+			if (stat(ALPS_OBS_LOC, &statbuf) < 0) {
+				// Could not stat ALPS_OBS_LOC, assume it's using the old format.
+				toolPath = string_asprintf(OLD_TOOLHELPER_DIR, apid, apid);
+				attribsPath = string_asprintf(OLD_ATTRIBS_DIR, apid);
+			} else {
+				// Assume it's using the OBS format
+				toolPath = string_asprintf(OBS_TOOLHELPER_DIR, apid, apid);
+				attribsPath = string_asprintf(OBS_ATTRIBS_DIR, apid);
+			}
 		}
 	}
-	
-	// Note that cmdDetail is a two dimensional array with appinfo.numCmds elements.
-	// Note that places is a two dimensional array with appinfo.numPlaces elements.
-	// These both were malloc'ed and need to be free'ed by the user.
-	
-	// save pe0 NID
-	alpsInfo->pe0Node = alpsInfo->places[0].nid;
-	
-	// Check to see if this system is using the new OBS system for the alps
-	// dependencies. This will affect the way we set the toolPath for the backend
-	if (stat(ALPS_OBS_LOC, &statbuf) == -1)
-	{
-		// Could not stat ALPS_OBS_LOC, assume it's using the old format.
-		if (asprintf(&toolPath, OLD_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
-		{
-			_cti_alps_consumeAlpsInfo(alpsInfo);
-			throw std::runtime_error("asprintf failed");
+
+	~AlpsInfo() {
+		if (cmdDetail != nullptr) {
+			free(cmdDetail);
 		}
-		if (asprintf(&attribsPath, OLD_ATTRIBS_DIR, (long long unsigned int)apid) <= 0)
-		{
-			_cti_alps_consumeAlpsInfo(alpsInfo);
-			free(toolPath);
-			throw std::runtime_error("asprintf failed");
-		}
-	} else
-	{
-		// Assume it's using the OBS format
-		if (asprintf(&toolPath, OBS_TOOLHELPER_DIR, (long long unsigned int)apid, (long long unsigned int)apid) <= 0)
-		{
-			_cti_alps_consumeAlpsInfo(alpsInfo);
-			throw std::runtime_error("asprintf failed");
-		}
-		if (asprintf(&attribsPath, OBS_ATTRIBS_DIR, (long long unsigned int)apid) <= 0)
-		{
-			_cti_alps_consumeAlpsInfo(alpsInfo);
-			free(toolPath);
-			throw std::runtime_error("asprintf failed");
+		if (places != nullptr) {
+			free(places);
 		}
 	}
-	
-	// set the appid, tool and attribs path
-	alpsInfo->toolPath = toolPath;
-	alpsInfo->attribsPath = attribsPath;
-	alpsInfo->appId = newAppId;
-
-	return alpsInfo;
-}
+};
 
 static uint64_t
 _cti_alps_getApid(pid_t aprunPid)
@@ -466,7 +385,7 @@ _cti_alps_getApid(pid_t aprunPid)
 }
 
 static ALPSFrontend::AprunInfo*
-_cti_alps_getAprunInfo(alpsInfo_t& my_app)
+_cti_alps_getAprunInfo(AlpsInfo& my_app)
 {
 	ALPSFrontend::AprunInfo*	aprunInfo;
 
@@ -478,20 +397,9 @@ _cti_alps_getAprunInfo(alpsInfo_t& my_app)
 	}
 	
 	aprunInfo->apid = my_app.apid;
-	aprunInfo->aprunPid = my_app.appinfo.aprunPid;
+	aprunInfo->aprunPid = my_app.alpsAppInfo.aprunPid;
 	
 	return aprunInfo;
-}
-
-template <typename... Args>
-static std::string
-string_asprintf(const char* const formatCStr, Args... args) {
-	char *rawResult = nullptr;
-	if (asprintf(&rawResult, formatCStr, args...) < 0) {
-		throw std::runtime_error("asprintf failed.");
-	}
-	UniquePtrDestr<char> result(rawResult, ::free);
-	return std::string(result.get());
 }
 
 static std::string
@@ -500,12 +408,12 @@ _cti_alps_getHostName(void) {
 }
 
 static std::string
-_cti_alps_getLauncherHostName(alpsInfo_t& my_app) {
-	return string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.appinfo.aprunNid);
+_cti_alps_getLauncherHostName(AlpsInfo& my_app) {
+	return string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.alpsAppInfo.aprunNid);
 }
 
 static int
-_cti_alps_getNumAppPEs(alpsInfo_t& my_app)
+_cti_alps_getNumAppPEs(AlpsInfo& my_app)
 {
 	int numPEs = 0;
 	int i;
@@ -517,7 +425,7 @@ _cti_alps_getNumAppPEs(alpsInfo_t& my_app)
 	}
 	
 	// loop through the placement list
-	for (i=0; i < my_app.appinfo.numPlaces; ++i)
+	for (i=0; i < my_app.alpsAppInfo.numPlaces; ++i)
 	{
 		numPEs += my_app.places[i].numPEs;
 	}
@@ -526,7 +434,7 @@ _cti_alps_getNumAppPEs(alpsInfo_t& my_app)
 }
 
 static int
-_cti_alps_getNumAppNodes(alpsInfo_t& my_app)
+_cti_alps_getNumAppNodes(AlpsInfo& my_app)
 {
 
 	// sanity check
@@ -535,11 +443,11 @@ _cti_alps_getNumAppNodes(alpsInfo_t& my_app)
 		throw std::runtime_error("getNumAppNodes operation failed.");
 	}
 	
-	return my_app.appinfo.numPlaces;
+	return my_app.alpsAppInfo.numPlaces;
 }
 
 static char **
-_cti_alps_getAppHostsList(alpsInfo_t& my_app)
+_cti_alps_getAppHostsList(AlpsInfo& my_app)
 {
 	char **			hosts;
 	int				i;
@@ -550,21 +458,21 @@ _cti_alps_getAppHostsList(alpsInfo_t& my_app)
 		throw std::runtime_error("getAppHostsList operation failed.");
 	}
 	
-	// ensure my_app.appinfo.numPlaces is non-zero
-	if ( my_app.appinfo.numPlaces <= 0 )
+	// ensure my_app.alpsAppInfo.numPlaces is non-zero
+	if ( my_app.alpsAppInfo.numPlaces <= 0 )
 	{
 		throw std::runtime_error("Application " + std::to_string(my_app.apid) + "does not have any nodes.");
 	}
 	
 	// allocate space for the hosts list, add an extra entry for the null terminator
-	if ((hosts = (decltype(hosts))calloc(my_app.appinfo.numPlaces + 1, sizeof(char *))) == (void *)0)
+	if ((hosts = (decltype(hosts))calloc(my_app.alpsAppInfo.numPlaces + 1, sizeof(char *))) == (void *)0)
 	{
 		throw std::runtime_error("calloc failed.");
 	}
-	memset(hosts, 0, (my_app.appinfo.numPlaces + 1) * sizeof(char *));
+	memset(hosts, 0, (my_app.alpsAppInfo.numPlaces + 1) * sizeof(char *));
 	
 	// loop through the placement list
-	for (i=0; i < my_app.appinfo.numPlaces; ++i)
+	for (i=0; i < my_app.alpsAppInfo.numPlaces; ++i)
 	{
 		if (asprintf(&hosts[i], ALPS_XT_HOSTNAME_FMT, my_app.places[i].nid) <= 0)
 		{
@@ -584,7 +492,7 @@ _cti_alps_getAppHostsList(alpsInfo_t& my_app)
 }
 
 static cti_hostsList_t *
-_cti_alps_getAppHostsPlacement(alpsInfo_t& my_app)
+_cti_alps_getAppHostsPlacement(AlpsInfo& my_app)
 {
 	cti_hostsList_t *	placement_list;
 	int					i;
@@ -595,8 +503,8 @@ _cti_alps_getAppHostsPlacement(alpsInfo_t& my_app)
 		throw std::runtime_error("getAppHostsPlacement operation failed.");
 	}
 	
-	// ensure my_app.appinfo.numPlaces is non-zero
-	if ( my_app.appinfo.numPlaces <= 0 )
+	// ensure my_app.alpsAppInfo.numPlaces is non-zero
+	if ( my_app.alpsAppInfo.numPlaces <= 0 )
 	{
 		// no nodes in the application
 		throw std::runtime_error("Application " + std::to_string(my_app.apid) + "does not have any nodes.");
@@ -609,7 +517,7 @@ _cti_alps_getAppHostsPlacement(alpsInfo_t& my_app)
 	}
 	
 	// set the number of hosts for the application
-	placement_list->numHosts = my_app.appinfo.numPlaces;
+	placement_list->numHosts = my_app.alpsAppInfo.numPlaces;
 	
 	// allocate space for the cti_host_t structs inside the placement_list
 	if ((placement_list->hosts = (decltype(placement_list->hosts))malloc(placement_list->numHosts * sizeof(cti_host_t))) == (void *)0) {
@@ -853,14 +761,10 @@ getWrappedAprunPid(pid_t forkedPid) {
 
 // This is the actual function that can do either a launch with barrier or one
 // without.
-static alpsInfo_t*
+static std::unique_ptr<AlpsInfo>
 _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 							const char *inputFile, const char *chdirPath,
-							const char * const env_list[], int doBarrier, cti_app_id_t newAppId)
-{
-	alpsInfo_t *		alpsInfo = nullptr;
-	pid_t				forkedPid = 0;
-
+							const char * const env_list[], int doBarrier, cti_app_id_t newAppId) {
 	// Ensure DSL is enabled for the alps tool helper unless explicitly overridden
 	_cti_alps_set_dsl_env_var();
 
@@ -874,7 +778,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 	OverwatchHandle overwatchHandle(_cti_getOverwatchPath());
 	
 	// fork off a process to launch aprun
-	forkedPid = fork();
+	pid_t forkedPid = fork();
 	
 	// error case
 	if (forkedPid < 0) {
@@ -985,7 +889,7 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		signalGuard.restoreChildSignals();
 		
 		// exec aprun
-		execvp(_cti_alps_getLauncherName(), aprunArgv.get());
+		execvp(_cti_alps_getLauncherName().c_str(), aprunArgv.get());
 		
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -1031,42 +935,25 @@ _cti_alps_launch_common(	const char * const launcher_argv[], int stdout_fd, int 
 		kill(aprunPid, DEFAULT_SIG);
 		throw std::runtime_error("Could not obtain apid associated with pid of aprun.");
 	}
-	
+
 	// register this app with the application interface
 	try {
-		alpsInfo = _cti_alps_registerApid(apid, newAppId); // non-null, throws
+		auto alpsInfo = shim::make_unique<AlpsInfo>(apid, newAppId);
+
+		// complete, move the launch coordination objects into alpsInfo obj
+		alpsInfo->aprunPid = aprunPid;
+		alpsInfo->startupBarrier  = std::move(startupBarrier);
+		alpsInfo->overwatchHandle = std::move(overwatchHandle);
+
+		return alpsInfo;
 	} catch (std::exception const& ex) {
 		kill(aprunPid, DEFAULT_SIG);
 		throw ex;
 	}
-
-	// complete, move the launch coordination objects into alpsInfo obj
-	alpsInfo->aprunPid = aprunPid;
-	alpsInfo->startupBarrier  = std::move(startupBarrier);
-	alpsInfo->overwatchHandle = std::move(overwatchHandle);
-
-	// return the alpsInfo_t
-	return alpsInfo;
-}
-
-static alpsInfo_t*
-_cti_alps_launch(	const char * const a1[], int a2, int a3, const char *a4,
-					const char *a5, const char * const a6[], cti_app_id_t newAppId)
-{
-	// call the common launch function
-	return _cti_alps_launch_common(a1, a2, a3, a4, a5, a6, 0, newAppId);
-}
-
-static alpsInfo_t*
-_cti_alps_launchBarrier(	const char * const a1[], int a2, int a3, const char *a4,
-							const char *a5, const char * const a6[], cti_app_id_t newAppId)
-{
-	// call the common launch function
-	return _cti_alps_launch_common(a1, a2, a3, a4, a5, a6, 1, newAppId);
 }
 
 static void
-_cti_alps_killApp(alpsInfo_t& my_app, int signum)
+_cti_alps_killApp(AlpsInfo& my_app, int signum)
 {
 	// create a new args obj
 	ManagedArgv apkillArgv;
@@ -1099,7 +986,7 @@ _cti_alps_killApp(alpsInfo_t& my_app, int signum)
 #define LAUNCH_TOOL_RETRY 5
 
 static void
-_cti_alps_ship_package(alpsInfo_t& my_app, const char *package)
+_cti_alps_ship_package(AlpsInfo& my_app, const char *package)
 {
 	const char *	errmsg = NULL;					// errmsg that is possibly returned by call to alps_launch_tool_helper
 	char *			p = (char *)package;	// discard const qualifier because alps isn't const correct
@@ -1135,7 +1022,7 @@ _cti_alps_ship_package(alpsInfo_t& my_app, const char *package)
 }
 
 static void
-_cti_alps_start_daemon(alpsInfo_t& my_app, const char * const argv[])
+_cti_alps_start_daemon(AlpsInfo& my_app, const char * const argv[])
 {
 	int				do_transfer;
 	const char *	errmsg;				// errmsg that is possibly returned by call to alps_launch_tool_helper
@@ -1148,7 +1035,7 @@ _cti_alps_start_daemon(alpsInfo_t& my_app, const char * const argv[])
 		throw std::runtime_error("argv array is null!");
 	}
 	
-	// Create the launcher path based on the value of dlaunch_sent in alpsInfo_t. If this is
+	// Create the launcher path based on the value of dlaunch_sent in AlpsInfo. If this is
 	// false, we have not yet transfered the dlaunch utility to the compute nodes, so we need
 	// to find the location of it on our end and have alps transfer it.
 	do_transfer = my_app.dlaunch_sent ? 0:1;
@@ -1165,7 +1052,7 @@ _cti_alps_start_daemon(alpsInfo_t& my_app, const char * const argv[])
 	} else
 	{
 		// use existing launcher binary on compute node
-		if (asprintf(&launcher, "%s/%s", my_app.toolPath, CTI_LAUNCHER) <= 0)
+		if (asprintf(&launcher, "%s/%s", my_app.toolPath.c_str(), CTI_LAUNCHER) <= 0)
 		{
 			throw std::runtime_error("asprintf failed.");
 		}
@@ -1208,7 +1095,7 @@ _cti_alps_start_daemon(alpsInfo_t& my_app, const char * const argv[])
 }
 
 static int
-_cti_alps_getAlpsOverlapOrdinal(alpsInfo_t& my_app)
+_cti_alps_getAlpsOverlapOrdinal(AlpsInfo& my_app)
 {
 	char *			errMsg = NULL;
 	int				rtn;
@@ -1228,29 +1115,6 @@ _cti_alps_getAlpsOverlapOrdinal(alpsInfo_t& my_app)
 	return rtn;
 }
 
-static const char *
-_cti_alps_getToolPath(alpsInfo_t& my_app)
-{
-	// sanity check
-	if (my_app.toolPath == NULL)
-	{
-		throw std::runtime_error("toolPath info missing from alps info obj!");
-	}
-
-	return (const char *)my_app.toolPath;
-}
-
-static const char *
-_cti_alps_getAttribsPath(alpsInfo_t& my_app) {
-	// sanity check
-	if (my_app.attribsPath == NULL)
-	{
-		throw std::runtime_error("attribsPath info missing from alps info obj!");
-	}
-
-	return (const char *)my_app.attribsPath;
-}
-
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -1266,14 +1130,14 @@ using CTIHost = Frontend::CTIHost;
 
 /* active app management */
 
-static std::unordered_map<AppId, UniquePtrDestr<alpsInfo_t>> appList;
+static std::unordered_map<AppId, std::unique_ptr<AlpsInfo>> appList;
 static const AppId APP_ERROR = 0;
 static AppId newAppId() noexcept {
 	static AppId nextId = 1;
 	return nextId++;
 }
 
-static alpsInfo_t&
+static AlpsInfo&
 getAppInfo(AppId appId) {
 	auto infoPtr = appList.find(appId);
 	if (infoPtr != appList.end()) {
@@ -1300,16 +1164,14 @@ ALPSFrontend::getWLMType() const {
 
 std::string const
 ALPSFrontend::getJobId(AppId appId) const {
-	return _cti_alps_getJobId(getAppInfo(appId));
+	return std::to_string(getAppInfo(appId).apid);
 }
 
 AppId
 ALPSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr,
                      CStr inputFile, CStr chdirPath, CArgArray env_list) {
 	auto const appId = newAppId();
-	appList[appId] = UniquePtrDestr<alpsInfo_t>(
-		_cti_alps_launch(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, appId),
-		_cti_alps_consumeAlpsInfo);
+	appList.insert(std::make_pair(appId, std::move(_cti_alps_launch_common(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, 0, appId))));
 	return appId;
 }
 
@@ -1317,9 +1179,7 @@ AppId
 ALPSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
                             CStr inputFile, CStr chdirPath, CArgArray env_list) {
 	auto const appId = newAppId();
-	appList[appId] = UniquePtrDestr<alpsInfo_t>(
-		_cti_alps_launchBarrier(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, appId),
-		_cti_alps_consumeAlpsInfo);
+	appList.insert(std::make_pair(appId, std::move(_cti_alps_launch_common(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, 1, appId))));
 	return appId;
 }
 
@@ -1400,12 +1260,12 @@ ALPSFrontend::getLauncherHostName(AppId appId) const {
 
 std::string const
 ALPSFrontend::getToolPath(AppId appId) const {
-	return _cti_alps_getToolPath(getAppInfo(appId));
+	return getAppInfo(appId).toolPath;
 }
 
 std::string const
 ALPSFrontend::getAttribsPath(AppId appId) const {
-	return _cti_alps_getAttribsPath(getAppInfo(appId));
+	return getAppInfo(appId).attribsPath;
 }
 
 /* extended frontend implementation */
@@ -1419,11 +1279,9 @@ ALPSFrontend::registerApid(uint64_t apid) {
 		}
 	}
 
-	// aprun pid not found in the global _cti_alps_info list, so lets create a new alpsInfo_t object for it
+	// aprun pid not found in the global _cti_alps_info list, so lets create a new AlpsInfo object for it
 	auto appId = newAppId();
-	appList[appId] = UniquePtrDestr<alpsInfo_t>(
-		_cti_alps_registerApid(apid, appId),
-		_cti_alps_consumeAlpsInfo);
+	appList.insert(std::make_pair(appId, shim::make_unique<AlpsInfo>(apid, appId)));
 	return appId;
 }
 
