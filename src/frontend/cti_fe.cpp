@@ -417,15 +417,17 @@ cti_getNumAppNodes(cti_app_id_t appId) {
 	});
 }
 
+#include <iostream>
 char **
 cti_getAppHostsList(cti_app_id_t appId) {
 	return runSafely("cti_getAppHostsList", [&](){
 		auto const hostList = _cti_getCurrentFrontend().getAppHostsList(appId);
 
-		char **host_list = (char**)malloc(hostList.size() * sizeof(char*));
+		char **host_list = (char**)malloc(sizeof(char*) * (hostList.size() + 1));
 		for (size_t i = 0; i < hostList.size(); i++) {
 			host_list[i] = strdup(hostList[i].c_str());
 		}
+		host_list[hostList.size()] = nullptr;
 
 		return host_list;
 	});
@@ -500,7 +502,13 @@ cti_app_id_t cti_alps_registerApid(uint64_t apid) {
 
 cti_aprunProc_t * cti_alps_getAprunInfo(cti_app_id_t app_id) {
 	if (auto alpsPtr = dynamic_cast<ALPSFrontend*>(currentFrontend.get())) {
-		return alpsPtr->getAprunInfo(app_id);
+		if (auto result = (cti_aprunProc_t*)malloc(sizeof(cti_aprunProc_t))) {
+			*result = alpsPtr->getAprunInfo(app_id);
+			return result;
+		} else {
+			_cti_set_error("malloc failed.");
+			return nullptr;
+		}
 	} else {
 		_cti_set_error("Invalid call. ALPS WLM not in use.");
 		return nullptr;
