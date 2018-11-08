@@ -32,49 +32,50 @@ swDebugStr="-DCMAKE_BUILD_TYPE=RelWithDebInfo"
 boost_inst_base=""
 boost_inc=""
 boost_full_name=${boostSO_Major}_${boostSO_Minor}_${boostSO_Fix}
+arch=""
+SLES_VER=
+OS=""
+modules_prefix=""
 
 function source_module_script() {
-  if [ -e $redhat_release_file ]; then
+  
+  if [ -e $redhat_release_file ]
+  then
     # centos
     if [[ -e /usr/share/Modules/init/bash ]]; then
       source /usr/share/Modules/init/bash
     fi
-  else
-    # get sles version
-    SLES_VER=$(cat $suse_release_file 2>&1 /dev/null | grep VERSION | cut -f3 -d" ")
-    if [[ $SLES_VER -lt 12 ]]; then
-      modules_prefix=/opt
-    else
-      modules_prefix=/opt/cray/pe
-    fi
-
-    # load sles script
-    if [[ -e $modules_prefix/modules/default/init/bash ]]; then
-      source $modules_prefix/modules/default/init/bash
-    fi
+  # load sles script
+  elif [[ -e $modules_prefix/modules/default/init/bash ]]; then
+    source $modules_prefix/modules/default/init/bash
   fi
+  
+  if [[ $SLES_VER -lt 12 ]]; then
+    modules_prefix=/opt
+  else
+    modules_prefix=/opt/cray/pe
+  fi  
 }
 
 function set_OS(){
   # set OS, arch
+  arch=`uname -m`
   if [ -e "$redhat_release_file" ]; then
     OS="CentOS"
-    arch=x86_64
+    SLES_VER="SLES12"
   elif [ -e "$os_release_file" ]; then
-    arch=$(uname -m)
-    SLES_VER=$(cat /etc/os-release | grep VERSION= | cut -d \" -f2)
+    SLES_VER=$(cat /etc/os-release | grep VERSION | head -1 | cut -d'"' -f2)
     if [[ $SLES_VER = 12 ]]; then
-      OS="SLES12"
+      OS="SLES$SLES_VER"
     elif [[ $SLES_VER = 15 ]]; then
-      OS="SLES15"
+      OS="SLES$SLES_VER"
     fi
   elif [ -e "$suse_release_file" ]; then
-    arch=$(cat $suse_release_file | head -1 | cut -d'(' -f2 | cut -d')' -f1)
     SLES_VER=$(cat $suse_release_file | grep VERSION | cut -f3 -d" ")
     if [[ $SLES_VER = 11 ]]; then
-      OS="SLES11"
+      OS="SLES$SLES_VER"
     elif [[ $SLES_VER = 12 ]]; then
-      OS="SLES12"
+      OS="SLES$SLES_VER"
     fi
   fi
   export OS
@@ -105,13 +106,13 @@ function set_OS(){
 }
 
 #_______________________ Start of main code ______________________________
-source_module_script
 
 
 module purge 2>/dev/null
-module load $cmake_module
 
 set_OS
+source_module_script
+module load $cmake_module
 
 #
 # Build DyninstAPI
@@ -225,6 +226,15 @@ cp $swPrefix/lib/libdynDwarf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
 cp $swPrefix/lib/libdynElf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
 cp $swPrefix/lib/libpcontrol.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
 cp $swPrefix/lib/libcommon.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+
+cp $swPrefix/lib/libstackwalk.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $swPrefix/lib/libpatchAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $swPrefix/lib/libparseAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $swPrefix/lib/libinstructionAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp $swPrefix/lib/libdynDwarf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+
+cp $dwarfDir/lib/libdwarf.so.$dwarfVer $BUILD_DIR/lib/
+
 cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_date_time.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/

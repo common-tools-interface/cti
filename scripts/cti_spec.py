@@ -85,11 +85,7 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 
 %{_version_prefix}/libexec/
 %{_version_prefix}/libexec/cti_overwatch
-%{_version_prefix}/libexec/cti_slurm_step_util.sh
-%{_version_prefix}/libexec/cti_starter
-%{_version_prefix}/libexec/cti_attach
 %{_version_prefix}/libexec/cti_dlaunch1.0
-%{_version_prefix}/libexec/cti_approved_gdb
 
 %{_version_prefix}/lib
 %{_version_prefix}/lib/libaudit.so
@@ -100,10 +96,15 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib/libcraytools_be.so*
 %{_version_prefix}/lib/libcraytools_be.la
 %{_version_prefix}/lib/libcraytools_be.a
-%{_version_prefix}/lib/libmi.so
 %{_version_prefix}/lib/pkgconfig/
 %{_version_prefix}/lib/pkgconfig/craytools_be.pc
 %{_version_prefix}/lib/pkgconfig/craytools_fe.pc
+
+%{_version_prefix}/lib/libstackwalk.so*
+%{_version_prefix}/lib/libparseAPI.so*
+%{_version_prefix}/lib/libinstructionAPI.so*
+%{_version_prefix}/lib/libpatchAPI.so*
+%{_version_prefix}/lib/libdwarf.so*
 
 
 %{_version_prefix}/include
