@@ -1,5 +1,6 @@
 /*********************************************************************************\
- * cti_transfer.h - A header file for the cti_transfer interface.
+ * cti_transfer.h - Defines the legacy cti_transfer interface for managing session
+ * and manifest information, as well as launching tool daemons with staged files.
  *
  * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
  *
@@ -16,39 +17,65 @@
  *
  *********************************************************************************/
 
+/* Object heirarchy
+	Session: manages file conflicts between remote systems and unshipped Manifests
+	   | manages...
+	Manifest: file list that is finalized into an Archive and merged into Session
+	   | produces...
+	RemotePackage: remote tarball ready for cti_daemon to extract / run ToolDaemon with
+*/
+
 #ifndef _CTI_TRANSFER_H
 #define _CTI_TRANSFER_H
 
-#include <stdint.h>
-
-#include "cti_fe.h"
+#include "cti_defs.h"
 
 typedef int cti_manifest_id_t;
 typedef int cti_session_id_t;
 
-extern void _cti_setStageDeps(bool stageDeps);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* internal prototypes */
-void				_cti_transfer_init(void);
-void				_cti_transfer_fini(void);
-void				_cti_consumeSession(void *);
+	/* session prototypes */
+	cti_session_id_t	cti_createSession(cti_app_id_t appId);
+	int					cti_sessionIsValid(cti_session_id_t sid);
+	int					cti_destroySession(cti_session_id_t sid);
 
-/* function prototypes */
-cti_session_id_t	cti_createSession(cti_app_id_t);
-int					cti_sessionIsValid(cti_session_id_t);
-cti_manifest_id_t	cti_createManifest(cti_session_id_t);
-int					cti_manifestIsValid(cti_manifest_id_t);
-int					cti_addManifestBinary(cti_manifest_id_t, const char *);
-int					cti_addManifestLibrary(cti_manifest_id_t, const char *);
-int					cti_addManifestLibDir(cti_manifest_id_t, const char *);
-int					cti_addManifestFile(cti_manifest_id_t, const char *);
-int					cti_sendManifest(cti_manifest_id_t);
-int					cti_execToolDaemon(cti_manifest_id_t, const char *, const char * const [], const char * const []);
-char **				cti_getSessionLockFiles(cti_session_id_t);
-char *				cti_getSessionRootDir(cti_session_id_t);
-char *				cti_getSessionBinDir(cti_session_id_t);
-char *				cti_getSessionLibDir(cti_session_id_t);
-char *				cti_getSessionFileDir(cti_session_id_t);
-char *				cti_getSessionTmpDir(cti_session_id_t);
+	char **				cti_getSessionLockFiles(cti_session_id_t sid);
+	char *				cti_getSessionRootDir(cti_session_id_t sid);
+	char *				cti_getSessionBinDir(cti_session_id_t sid);
+	char *				cti_getSessionLibDir(cti_session_id_t sid);
+	char *				cti_getSessionFileDir(cti_session_id_t sid);
+	char *				cti_getSessionTmpDir(cti_session_id_t sid);
+
+	/* manifest prototypes */
+	cti_manifest_id_t	cti_createManifest(cti_session_id_t sid);
+	int					cti_manifestIsValid(cti_manifest_id_t mid);
+
+	int					cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName);
+	int					cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName);
+	int					cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName);
+	int					cti_addManifestFile(cti_manifest_id_t mid, const char * rawName);
+
+	int					cti_sendManifest(cti_manifest_id_t mid);
+
+	/* tool daemon prototypes */
+	int					cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
+	const char * const daemonArgs[], const char * const envVars[]);
+
+	/* global setStageDeps for backwards compatability */
+	extern bool _cti_stage_deps; // located in cti_transfer/cti_transfer.cpp
+	void _cti_setStageDeps(bool stageDeps);
+
+	/* destroy session via appentry's session list */
+	void _cti_consumeSession(void* sidPtr);
+
+	void _cti_transfer_init(void);
+	void _cti_transfer_fini(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CTI_TRANSFER_H */

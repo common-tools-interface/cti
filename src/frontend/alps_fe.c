@@ -38,10 +38,13 @@
 #include "alps/apInfo.h"
 
 #include "alps_fe.h"
+
 #include "cti_fe.h"
-#include "cti_defs.h"
 #include "cti_error.h"
-#include "cti_useful.h"
+
+#include "cti_defs.h"
+
+#include "useful/cti_useful.h"
 
 /* Types used here */
 
@@ -933,7 +936,7 @@ _cti_alps_getAppHostsPlacement(cti_wlm_obj this)
 		}
 		
 		// set num PEs
-		placement_list->hosts[i].numPes = my_app->places[i].numPEs;
+		placement_list->hosts[i].numPEs = my_app->places[i].numPEs;
 	}
 	
 	// done

@@ -17,4 +17,16 @@
 ###################################
 # WARNING: THIS IS GPL DIRECTORY!!
 ###################################
-libexec_SCRIPTS		= cti_slurm_step_util.sh
+
+USEFUL = @CRAYTOOL_DIR@/src/useful
+
+SRC             = @CRAYTOOL_DIR@/src
+AM_CXXFLAGS		= -Wall -std=c++11 -I$(SRC)
+AM_LIBTOOLFLAGS = --quiet
+
+noinst_LTLIBRARIES      	=	libslurm_util.la
+
+libslurm_util_la_SOURCES	=	slurm_util.cpp slurm_util.h
+libslurm_util_la_CXXFLAGS	=	$(AM_CXXFLAGS) -fPIC
+libslurm_util_la_LIBADD		=	
+libslurm_util_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed

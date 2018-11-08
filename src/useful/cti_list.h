@@ -21,7 +21,7 @@
 
 struct cti_list_e
 {
-	void *					this;
+	void *					data;
 	struct cti_list_e *		prev;
 	struct cti_list_e *		next;
 };

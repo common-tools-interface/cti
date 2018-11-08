@@ -19,19 +19,21 @@
 #ifndef _CTI_FE_H
 #define _CTI_FE_H
 
-#include <stdint.h>
-#include <sys/types.h>
-
 #include "cti_defs.h"
-#include "cti_args.h"
-#include "cti_list.h"
 
-/* struct typedefs */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "useful/cti_args.h"
+#include "useful/cti_list.h"
 
 // Internal identifier used by callers to interface with the library. When they
 // request functionality that operates on applications, they must pass this
 // identifier in.
 typedef uint64_t cti_app_id_t;
+
+/* struct typedefs */
 
 typedef struct
 {
@@ -42,7 +44,7 @@ typedef struct
 typedef struct
 {
 	char *				hostname;
-	int					numPes;
+	int					numPEs;
 } cti_host_t;
 
 typedef struct
@@ -106,9 +108,6 @@ typedef struct
 /* internal function prototypes */
 const char *			_cti_getLdAuditPath(void);
 const char *			_cti_getOverwatchPath(void);
-const char *			_cti_getGdbPath(void);
-const char *			_cti_getStarterPath(void);
-const char *			_cti_getAttachPath(void);
 const char *			_cti_getDlaunchPath(void);
 const char *			_cti_getSlurmUtilPath(void);
 const char *			_cti_getCfgDir(void);
@@ -168,5 +167,9 @@ enum cti_attr_type
                                     // Defaults to 1.
 };
 typedef enum cti_attr_type  cti_attr_type;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CTI_FE_H */

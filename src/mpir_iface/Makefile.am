@@ -15,29 +15,13 @@
 ## $Author$
 
 SRC             = @CRAYTOOL_DIR@/src
-MPIR_IFACE		= $(SRC)/mpir_iface
-FRONTEND		= $(SRC)/frontend
-USEFUL          = $(SRC)/useful
-
-AM_CFLAGS		= -Wall -I$(SRC)
+AM_CXXFLAGS	=	-Wall -I$(SRC) -std=c++11
 AM_LIBTOOLFLAGS = --quiet
 
 noinst_LTLIBRARIES      	=	libmpir_iface.la
 
-libmpir_iface_la_SOURCES	=	gdb_MPIR.c gdb_MPIR.h gdb_MPIR_iface.c gdb_MPIR_iface.h
-libmpir_iface_la_CFLAGS		=	$(AM_CFLAGS) -fPIC -I$(FRONTEND) -I$(USEFUL) $(MI_CFLAGS)
-libmpir_iface_la_LDFLAGS    =	-static -Wl,--no-undefined -Wl,--as-needed
-
-libexec_PROGRAMS    		=	cti_starter cti_attach
-
-cti_starter_SOURCES			=	gdb_MPIR.c gdb_MPIR.h gdb_MPIR_starter.c
-cti_starter_CFLAGS			=	$(AM_CFLAGS) -I$(USEFUL) $(MI_CFLAGS)
-cti_starter_LDADD			=	$(USEFUL)/libuseful.la $(MI_LIBS)
-cti_starter_LDFLAGS			=	-Wl,--no-undefined -Wl,-z,origin -Wl,-rpath,\$$ORIGIN/../lib \
-								-Wl,-rpath,\$$ORIGIN $(MI_LDFLAGS)
-								
-cti_attach_SOURCES			=	gdb_MPIR.c gdb_MPIR.h gdb_MPIR_attach.c
-cti_attach_CFLAGS			=	$(AM_CFLAGS) -I$(USEFUL) $(MI_CFLAGS)
-cti_attach_LDADD			=	$(USEFUL)/libuseful.la $(MI_LIBS)
-cti_attach_LDFLAGS			=	-Wl,--no-undefined -Wl,-z,origin -Wl,-rpath,\$$ORIGIN/../lib \
-								-Wl,-rpath,\$$ORIGIN $(MI_LDFLAGS)
+libmpir_iface_la_SOURCES	=	mpir_iface.cpp mpir_iface.h MPIRInstance.cpp MPIRInstance.hpp Inferior.cpp Inferior.hpp
+libmpir_iface_la_CXXFLAGS		= $(AM_CXXFLAGS) -fPIC $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
+libmpir_iface_la_CPPFLAGS	=	$(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
+libmpir_iface_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed $(DYNINST_LDFLAGS) $(BOOST_LDFLAGS)
+libmpir_iface_la_LIBADD		=	$(DYNINST_LIBS) $(BOOST_LIBS)

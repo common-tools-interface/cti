@@ -68,7 +68,7 @@ _cti_consumeList(cti_list_t *l, void (*free_func)(void *))
 		// call caller provided free function
 		if (free_func != NULL)
 		{
-			free_func(ptr->this);
+			free_func(ptr->data);
 		}
 		
 		// free this entry
@@ -97,7 +97,7 @@ _cti_list_add(cti_list_t *l, void *elem)
 	}
 	
 	// set elem in entry
-	l->scan->this = elem;
+	l->scan->data = elem;
 	l->scan->next = NULL;
 	
 	if (l->tail == NULL)
@@ -127,13 +127,13 @@ _cti_list_remove(cti_list_t *l, void *elem)
 		return;
 
 	// iterate over list if scan isn't pointing at elem
-	if (l->scan == NULL || l->scan->this != elem)
+	if (l->scan == NULL || l->scan->data != elem)
 	{
 		// iterate over the list
 		l->scan = l->head;
 		while (l->scan != NULL)
 		{
-			if (l->scan->this == elem)
+			if (l->scan->data == elem)
 				break;
 			l->scan = l->scan->next;
 		}
@@ -203,7 +203,7 @@ _cti_list_next(cti_list_t *l)
 	if (l->scan == NULL)
 		return NULL;
 	
-	rtn = l->scan->this;
+	rtn = l->scan->data;
 	l->scan = l->scan->next;
 	
 	return rtn;
@@ -222,7 +222,7 @@ _cti_list_pop(cti_list_t *l)
 	l->scan = l->head;
 	
 	// point at the return obj
-	rtn = l->scan->this;
+	rtn = l->scan->data;
 	
 	// decrement the elements count
 	l->nelems--;

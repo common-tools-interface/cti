@@ -1,6 +1,0 @@
-Name: libssh_threads
-Description: The SSH Library Thread Extension
-Version: 0.7.5
-Libs: -L/cray/css/users/azahdeh/projects/cti_sles/external/install/lib -lssh_threads
-Cflags: -I/cray/css/users/azahdeh/projects/cti_sles/external/install/include
-

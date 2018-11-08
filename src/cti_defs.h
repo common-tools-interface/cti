@@ -20,9 +20,17 @@
  * $Author$
  *
  ******************************************************************************/
-#include <limits.h>
+
 #ifndef _CTI_DEFS_H
 #define _CTI_DEFS_H
+
+#include <limits.h>
+#include <stdint.h>
+#include <sys/types.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // WLM identifier. This is system specific. Right now only one WLM at a time
 // is supported.
@@ -59,13 +67,6 @@ typedef enum cti_be_wlm_type	cti_be_wlm_type;
 #define DEFAULT_SIG				9													// default signal value to use
 #define WLM_DETECT_LIB_NAME		"libwlm_detect.so.0"								// wlm_detect library
 #define LD_AUDIT_LIB_NAME		"libaudit.so"										// ld audit library
-
-/*******************************************************************************
-** MPIR_iface specific information
-*******************************************************************************/
-#define CTI_GDB_BINARY			"cti_approved_gdb"								// name of gdb binary
-#define GDB_MPIR_STARTER			"cti_starter"										// name of starter binary
-#define GDB_MPIR_ATTACH			"cti_attach"										// name of attach binary
 
 /*******************************************************************************
 ** Backend defines relating to the compute node
@@ -135,7 +136,7 @@ typedef slurmPidFile_t cti_pidFile_t;
 #define SATTACH					"sattach"										// name of slurm io redirect binary
 #define SCANCEL					"scancel"										// name of slurm job signal binary
 #define SBCAST						"sbcast"										// name of slurm transfer binary
-#define SLURM_STEP_UTIL			"cti_slurm_step_util.sh"								// name of cti slurm job step info utility
+#define SLURM_STEP_UTIL			"cti_slurm_util"								// name of cti slurm job step info utility
 #define CRAY_SLURM_APID(jobid, stepid)	((stepid * 10000000000) + jobid)	// formula for creating Cray apid from SLURM jobid.stepid
 #define CRAY_SLURM_TOOL_DIR		"/tmp"											// Cray SLURM staging path on compute node
 #define	CRAY_SLURM_CRAY_DIR		"/var/opt/cray/alps/spool/%llu"				// Location of cray specific directory on compute node - pmi_attribs is here
@@ -157,7 +158,6 @@ typedef slurmPidFile_t cti_pidFile_t;
 *******************************************************************************/
 #define BASE_DIR_ENV_VAR					"CRAY_CTI_DIR"						// Frontend: Used to define the base install location (read)
 #define USER_DEF_APRUN_LOC_ENV_VAR		"CRAY_APRUN_PATH"					// Frontend: Used to override the default location of the aprun binary (read)
-#define GDB_LOC_ENV_VAR					"CRAY_CTI_GDB_PATH"				// Frontend: Used to override the default location of gdb for the MPIR_iface (read)
 #define CFG_DIR_VAR						"CRAY_CTI_CFG_DIR"				// Frontend: Used to define a writable location to create the manifest tarball (read)
 #define DAEMON_STAGE_VAR    				"CRAY_CTI_STAGE_DIR"				// Frontend: Used to define a directory name for the fake root of the tool daemon (read)
 #define DBG_LOG_ENV_VAR 					"CRAY_DBG_LOG_DIR"				// Frontend: Used to define a directory to write debug logs to (read)
@@ -182,5 +182,9 @@ typedef slurmPidFile_t cti_pidFile_t;
 #define PMI_EXTRA_SLEEP_ENV_VAR			"CRAY_CTI_PMI_EXTRA_SLEEP"		// Backend: Used to sleep a fixed period of time after the pmi_attribs file has been opened (read)
 #define LIBALPS_ENABLE_DSL_ENV_VAR 			"LIBALPS_ENABLE_DSL" 			//Backend: Alps environment variable for controlling whether the DSL feature is enabled (set)
 #define CTI_LIBALPS_ENABLE_DSL_ENV_VAR		"CRAY_CTI_LIBALPS_ENABLE_DSL" 	//Backend: Used to explicitly disable the Alps DSL feature if set to 0. (read)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CTI_DEFS_H */

@@ -21,11 +21,19 @@
 #ifndef _LD_VAL_H
 #define _LD_VAL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // User should pass in a fullpath string of an executable and the path to the ld_audit
 // library, this returns a null terminated array of strings containing location of 
 // dso dependencies.
 // The caller is expected to free each of the returned strings as well as the
 // string buffer.
 char ** _cti_ld_val(const char *executable, const char *ld_audit_path);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _LD_VAL_H */

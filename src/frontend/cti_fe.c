@@ -32,13 +32,15 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "wlm_detect.h"
-
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
+
 #include "cti_transfer.h"
-#include "cti_useful.h"
+
+#include "useful/cti_useful.h"
+
+#include "wlm_detect.h"
 
 #include "alps_fe.h"
 #include "cray_slurm_fe.h"
@@ -67,9 +69,6 @@ static cti_wlm_detect_t	_cti_wlm_detect 	= {0};		// wlm_detect functions for dlo
 static char *			_cti_cfg_dir		= NULL;		// config dir that we can use as temporary storage
 static char *			_cti_ld_audit_lib	= NULL;		// ld audit library location
 static char *			_cti_overwatch_bin	= NULL;		// overwatch binary location
-static char *			_cti_gdb_bin		= NULL;		// GDB binary location
-static char *			_cti_starter_bin	= NULL;		// MPIR starter binary location
-static char *			_cti_attach_bin		= NULL;		// MPIR attach binary location
 static char *			_cti_dlaunch_bin	= NULL;		// dlaunch binary location
 static char *			_cti_slurm_util		= NULL;		// slurm utility binary location
 static char * _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
@@ -287,15 +286,6 @@ _cti_fini(void)
 	if (_cti_overwatch_bin != NULL)
 		free(_cti_overwatch_bin);
 	_cti_overwatch_bin = NULL;
-	if (_cti_gdb_bin != NULL)
-		free(_cti_gdb_bin);
-	_cti_gdb_bin = NULL;
-	if (_cti_starter_bin != NULL)
-		free(_cti_starter_bin);
-	_cti_starter_bin = NULL;
-	if (_cti_attach_bin != NULL)
-		free(_cti_attach_bin);
-	_cti_attach_bin = NULL;
 	if (_cti_dlaunch_bin != NULL)
 		free(_cti_dlaunch_bin);
 	_cti_dlaunch_bin = NULL;
@@ -380,42 +370,6 @@ _cti_setup_base_dir(void)
 		_cti_overwatch_bin = NULL;
 	}
 	
-	if (asprintf(&_cti_gdb_bin, "%s/libexec/%s", base_dir, CTI_GDB_BINARY) > 0)
-	{
-		if (access(_cti_gdb_bin, R_OK | X_OK))
-		{
-			free(_cti_gdb_bin);
-			_cti_gdb_bin = NULL;
-		}
-	} else
-	{
-		_cti_gdb_bin = NULL;
-	}
-	
-	if (asprintf(&_cti_starter_bin, "%s/libexec/%s", base_dir, GDB_MPIR_STARTER) > 0)
-	{
-		if (access(_cti_starter_bin, R_OK | X_OK))
-		{
-			free(_cti_starter_bin);
-			_cti_starter_bin = NULL;
-		}
-	} else
-	{
-		_cti_starter_bin = NULL;
-	}
-	
-	if (asprintf(&_cti_attach_bin, "%s/libexec/%s", base_dir, GDB_MPIR_ATTACH) > 0)
-	{
-		if (access(_cti_attach_bin, R_OK | X_OK))
-		{
-			free(_cti_attach_bin);
-			_cti_attach_bin = NULL;
-		}
-	} else
-	{
-		_cti_attach_bin = NULL;
-	}
-	
 	if (asprintf(&_cti_dlaunch_bin, "%s/libexec/%s", base_dir, CTI_LAUNCHER) > 0)
 	{
 		if (access(_cti_dlaunch_bin, R_OK | X_OK))
@@ -453,24 +407,6 @@ const char *
 _cti_getOverwatchPath(void)
 {
 	return (const char *)_cti_overwatch_bin;
-}
-
-const char *
-_cti_getGdbPath(void)
-{
-	return (const char *)_cti_gdb_bin;
-}
-
-const char *
-_cti_getStarterPath(void)
-{
-	return (const char *)_cti_starter_bin;
-}
-
-const char *
-_cti_getAttachPath(void)
-{
-	return (const char *)_cti_attach_bin;
 }
 
 const char *

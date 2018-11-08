@@ -35,36 +35,19 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+
 #include "cray_slurm_fe.h"
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
-#include "cti_useful.h"
 
-#include "gdb_MPIR_iface.h"
+#include "useful/cti_useful.h"
+
+#include "mpir_iface/mpir_iface.h"
+
+#include "slurm_util/slurm_util.h"
 
 /* Types used here */
-
-typedef struct
-{
-	cti_gdb_id_t	gdb_id;
-	pid_t			gdb_pid;			// pid of the gdb process for the mpir starter
-	pid_t			sattach_pid;		// Optional pid of the sattach process if we are redirecting io
-} srunInv_t;
-
-typedef struct
-{
-	char *			host;				// hostname of this node
-	int				PEsHere;			// Number of PEs running on this node
-	int				firstPE;			// First PE number on this node
-} slurmNodeLayout_t;
-
-typedef struct
-{
-	int					numPEs;			// Number of PEs associated with the job step
-	int					numNodes;		// Number of nodes associated with the job step
-	slurmNodeLayout_t *	hosts;			// Array of hosts of length numNodes
-} slurmStepLayout_t;
 
 typedef struct
 {
@@ -73,8 +56,8 @@ typedef struct
 	uint32_t			stepid;			// SLURM step id
 	uint64_t			apid;			// Cray variant of step+job id
 	slurmStepLayout_t *	layout;			// Layout of job step
-	srunInv_t *			inv;			// Optional object used for launched applications.
-	cti_mpir_pid_t *	app_pids;		// Optional object used to hold the rank->pid association
+	mpir_id_t			mpir_id;		// MPIR instance handle
+	cti_mpir_procTable_t *app_pids;		// Optional object used to hold the rank->pid association
 	char *				toolPath;		// Backend staging directory
 	char *				attribsPath;	// Backend Cray specific directory
 	int					dlaunch_sent;	// True if we have already transfered the dlaunch utility
@@ -87,11 +70,6 @@ static int					_cti_cray_slurm_init(void);
 static void					_cti_cray_slurm_fini(void);
 static craySlurmInfo_t *	_cti_cray_slurm_newSlurmInfo(void);
 static void 				_cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj);
-static srunInv_t *			_cti_cray_slurm_newSrunInv(void);
-static void					_cti_cray_slurm_consumeSrunInv(srunInv_t *);
-static slurmStepLayout_t *	_cti_cray_slurm_newSlurmLayout(int, int);
-static void					_cti_cray_slurm_consumeSlurmLayout(slurmStepLayout_t *);
-static slurmStepLayout_t *	_cti_cray_slurm_getLayout(uint32_t, uint32_t);
 static char *				_cti_cray_slurm_getJobId(cti_wlm_obj);
 static cti_app_id_t			_cti_cray_slurm_launch_common(const char * const [], int, int, const char *, const char *, const char * const [], int);
 static cti_app_id_t			_cti_cray_slurm_launch(const char * const [], int, int, const char *, const char *, const char * const []);
@@ -183,9 +161,8 @@ _cti_cray_slurm_init(void)
 static void
 _cti_cray_slurm_fini(void)
 {
-	// force cleanup to happen on any pending srun launches - we do this to ensure
-	// gdb instances don't get left hanging around.
-	_cti_gdb_cleanupAll();
+	// force cleanup to happen on any pending srun launches
+	_cti_mpir_releaseAllInstances();
 	
 	if (_cti_cray_slurm_info != NULL)
 		_cti_consumeList(_cti_cray_slurm_info, NULL);	// this should have already been cleared out.
@@ -213,7 +190,7 @@ _cti_cray_slurm_newSlurmInfo(void)
 	this->stepid		= 0;
 	this->apid			= 0;
 	this->layout		= NULL;
-	this->inv			= NULL;
+	this->mpir_id		= -1;
 	this->app_pids		= NULL;
 	this->toolPath		= NULL;
 	this->attribsPath	= NULL;
@@ -236,9 +213,11 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 	// remove this sinfo from the global list
 	_cti_list_remove(_cti_cray_slurm_info, sinfo);
 
-	_cti_cray_slurm_consumeSlurmLayout(sinfo->layout);
-	_cti_cray_slurm_consumeSrunInv(sinfo->inv);
-	_cti_gdb_freeMpirPid(sinfo->app_pids);
+	_cti_cray_slurm_freeLayout(sinfo->layout);
+	if (sinfo->mpir_id >= 0) {
+		_cti_mpir_releaseInstance(sinfo->mpir_id);
+	}
+	_cti_mpir_deleteProcTable(sinfo->app_pids);
 	
 	if (sinfo->toolPath != NULL)
 		free(sinfo->toolPath);
@@ -267,684 +246,6 @@ _cti_cray_slurm_consumeSlurmInfo(cti_wlm_obj this)
 	}
 	
 	free(sinfo);
-}
-
-static srunInv_t *
-_cti_cray_slurm_newSrunInv(void)
-{
-	srunInv_t *	this;
-
-	if ((this = malloc(sizeof(srunInv_t))) == NULL)
-	{
-		// Malloc failed
-		_cti_set_error("malloc failed.");
-		
-		return NULL;
-	}
-	
-	// init the members
-	this->gdb_id = -1;
-	this->gdb_pid = -1;
-	this->sattach_pid = -1;
-	
-	return this;
-}
-
-static void
-_cti_cray_slurm_consumeSrunInv(srunInv_t *this)
-{
-	// sanity
-	if (this == NULL)
-		return;
-	
-	if (this->gdb_id >= 0)
-	{
-		_cti_gdb_cleanup(this->gdb_id);
-	}
-	
-	if (this->gdb_pid >= 0)
-	{
-		// wait for the starter to exit
-		waitpid(this->gdb_pid, NULL, 0);
-	}
-	
-	if (this->sattach_pid >= 0)
-	{
-		// kill sattach
-		kill(this->sattach_pid, DEFAULT_SIG);
-		waitpid(this->sattach_pid, NULL, 0);
-	}
-	
-	// free the object from memory
-	free(this);
-}
-
-static slurmStepLayout_t *
-_cti_cray_slurm_newSlurmLayout(int numPEs, int numNodes)
-{
-	slurmStepLayout_t *	this;
-
-	if ((this = malloc(sizeof(slurmStepLayout_t))) == NULL)
-	{
-		// Malloc failed
-		_cti_set_error("malloc failed.");
-		
-		return NULL;
-	}
-	
-	// init the members
-	this->numPEs = numPEs;
-	this->numNodes = numNodes;
-	if ((this->hosts = malloc(sizeof(slurmNodeLayout_t) * numNodes)) == NULL)
-	{
-		// Malloc failed
-		_cti_set_error("malloc failed.");
-		
-		return NULL;
-	}
-	memset(this->hosts, 0, sizeof(slurmNodeLayout_t) * numNodes);
-	
-	return this;
-}
-
-static void
-_cti_cray_slurm_consumeSlurmLayout(slurmStepLayout_t *this)
-{
-	int i;
-
-	// sanity
-	if (this == NULL)
-		return;
-		
-	for (i=0; i < this->numNodes; ++i)
-	{
-		if (this->hosts[i].host != NULL)
-		{
-			free(this->hosts[i].host);
-		}
-	}
-	
-	free(this->hosts);
-	free(this);
-}
-
-static slurmStepLayout_t *
-_cti_cray_slurm_getLayout(uint32_t jobid, uint32_t stepid)
-{
-	cti_args_t *		my_args;
-	const char *		slurm_util_loc;
-	int					pipe_r[2];		// pipes to read result of command
-	int					pipe_e[2];		// error pipes if error occurs
-	int					mypid;
-	int					status;
-	int					r;
-	int					n = 0;
-	int					size = 0;
-	int					cont = 1;
-	char *				read_buf;
-	slurmStepLayout_t *	rtn = NULL;
-	
-	// create a new args obj
-	if ((my_args = _cti_newArgs()) == NULL)
-	{
-		_cti_set_error("_cti_newArgs failed.");
-		return NULL;
-	}
-	
-	// create the args for slurm util
-	
-	if ((slurm_util_loc = _cti_getSlurmUtilPath()) == NULL)
-	{
-		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-		return NULL;
-	}
-	if (_cti_addArg(my_args, "%s", slurm_util_loc))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		_cti_freeArgs(my_args);
-		return NULL;
-	}
-	
-	if (_cti_addArg(my_args, "-j"))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		_cti_freeArgs(my_args);
-		return NULL;
-	}
-	
-	if (_cti_addArg(my_args, "%d", jobid))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		_cti_freeArgs(my_args);
-		return NULL;
-	}
-	
-	if (_cti_addArg(my_args, "-s"))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		_cti_freeArgs(my_args);
-		return NULL;
-	}
-	
-	if (_cti_addArg(my_args, "%d", stepid))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		_cti_freeArgs(my_args);
-		return NULL;
-	}
-	
-	// make the pipes for the command
-	if (pipe(pipe_r) < 0)
-	{
-		_cti_set_error("Pipe creation failure.");
-		_cti_freeArgs(my_args);
-		
-		return NULL;
-	}
-	if (pipe(pipe_e) < 0)
-	{
-		_cti_set_error("Pipe creation failure.");
-		_cti_freeArgs(my_args);
-		
-		return NULL;
-	}
-	
-	// fork off a process for the slurm utility
-	mypid = fork();
-	
-	// error case
-	if (mypid < 0)
-	{
-		_cti_set_error("Fatal fork error.");
-		_cti_freeArgs(my_args);
-		
-		return NULL;
-	}
-	
-	// child case
-	if (mypid == 0)
-	{
-		int fd;
-	
-		// close unused ends of pipe
-		close(pipe_r[0]);
-		close(pipe_e[0]);
-		
-		// dup2 stdout
-		if (dup2(pipe_r[1], STDOUT_FILENO) < 0)
-		{
-			// XXX: How to properly print this error? The parent won't be
-			// expecting the error message on this stream since dup2 failed.
-			fprintf(stderr, "CTI error: Unable to redirect stdout.\n");
-			_exit(1);
-		}
-		
-		// dup2 stderr
-		if (dup2(pipe_e[1], STDERR_FILENO) < 0)
-		{
-			// XXX: How to properly print this error? The parent won't be
-			// expecting the error message on this stream since dup2 failed.
-			fprintf(stderr, "CTI error: Unable to redirect stderr.\n");
-			_exit(1);
-		}
-		
-		// we want to redirect stdin to /dev/null since it is not required
-		if ((fd = open("/dev/null", O_RDONLY)) < 0)
-		{
-			// XXX: How to properly print this error?
-			fprintf(stderr, "CTI error: Unable to open /dev/null for reading.\n");
-			_exit(1);
-		}
-		
-		// dup2 the fd onto STDIN_FILENO
-		if (dup2(fd, STDIN_FILENO) < 0)
-		{
-			// XXX: How to properly print this error?
-			fprintf(stderr, "CTI error: Unable to redirect stdin.\n");
-			_exit(1);
-		}
-		close(fd);
-		
-		// exec slurm utility
-		execv(my_args->argv[0], my_args->argv);
-		
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execv");
-		_exit(1);
-	}
-	
-	// parent case
-	
-	// close unused ends of pipe
-	close(pipe_r[1]);
-	close(pipe_e[1]);
-	
-	// cleanup
-	_cti_freeArgs(my_args);
-	
-	// allocate the read buffer
-	if ((read_buf = malloc(CTI_BUF_SIZE)) == NULL)
-	{
-		_cti_set_error("malloc failed.");
-		close(pipe_r[0]);
-		close(pipe_e[0]);
-		
-		return NULL;
-	}
-	
-	size = CTI_BUF_SIZE;
-	n = 0;
-	
-	// read from the stdout pipe until it is closed
-	while (cont)
-	{
-		errno = 0;
-		r = read(pipe_r[0], read_buf+n, size-n);
-		switch (r)
-		{
-			case -1:
-				// error occured
-				if (errno == EINTR)
-				{
-					// ignore the error and try again
-					break;
-				}
-				_cti_set_error("read failed.");
-				free(read_buf);
-				close(pipe_r[0]);
-				close(pipe_e[0]);
-				
-				return NULL;
-		
-			case 0:
-				// done
-				cont = 0;
-				
-				break;
-		
-			default:
-				// ensure we have room in the buffer for another read
-				n += r;
-				if (n == size)
-				{
-					char *	tmp_buf;
-					
-					// need to realloc the buffer
-					size += CTI_BUF_SIZE;
-					if ((tmp_buf = realloc(read_buf, size)) == NULL)
-					{
-						// failure
-						_cti_set_error("realloc failed.");
-						free(read_buf);
-						close(pipe_r[0]);
-						close(pipe_e[0]);
-				
-						return NULL;
-					}
-					read_buf = tmp_buf;
-				}
-				
-				break;
-		}
-	}
-	
-	// ensure that read_buf is null terminated
-	// First make sure there is room for the null terminator
-	if (n == size)
-	{
-		char *	tmp_buf;
-		
-		// need to add one more byte to the read buffer
-		size += 1;
-		if ((tmp_buf = realloc(read_buf, size)) == NULL)
-		{
-			// failure
-			_cti_set_error("realloc failed.");
-			free(read_buf);
-			close(pipe_r[0]);
-			close(pipe_e[0]);
-	
-			return NULL;
-		}
-		read_buf = tmp_buf;
-	}
-	
-	// set the null terminator
-	read_buf[n] = '\0';
-	
-	// wait until the command finishes
-	if (waitpid(mypid, &status, 0) != mypid)
-	{
-		// waitpid failed
-		_cti_set_error("waitpid failed.");
-		free(read_buf);
-		close(pipe_r[0]);
-		close(pipe_e[0]);
-		
-		return NULL;
-	}
-	
-	if (WIFEXITED(status))
-	{
-		switch(WEXITSTATUS(status))
-		{
-			case 0:
-			{
-				// exited normally, we should now parse the output from the read_buf
-				// format is num_PEs num_nodes host:num_here:PE0 ...
-				long int	numPEs_l, numNodes_l;	
-				int			numPEs, numNodes;	
-				char *		ptr;
-				char *		e_ptr = NULL;
-				int			i;
-				
-				ptr = read_buf;
-				errno = 0;
-				
-				// get the numPEs arg
-				numPEs_l = strtol(ptr, &e_ptr, 10);
-				
-				// check for error
-				if ((errno == ERANGE && (numPEs_l == LONG_MAX || numPEs_l == LONG_MIN))
-						|| (errno != 0 && numPEs_l == 0))
-				{
-					_cti_set_error("strtol failed.");
-					free(read_buf);
-					close(pipe_r[0]);
-					close(pipe_e[0]);
-					
-					return NULL;
-				}
-				
-				// check for invalid input
-				if ((e_ptr == ptr) || (numPEs_l > INT_MAX) || (numPEs_l < INT_MIN))
-				{
-					_cti_set_error("Bad slurm job step utility output.");
-					free(read_buf);
-					close(pipe_r[0]);
-					close(pipe_e[0]);
-					
-					return NULL;
-				}
-				
-				numPEs = (int)numPEs_l;
-				ptr = e_ptr;
-				e_ptr = NULL;
-				errno = 0;
-				
-				// get the numNodes arg
-				numNodes_l = strtol(ptr, &e_ptr, 10);
-				
-				// check for error
-				if ((errno == ERANGE && (numNodes_l == LONG_MAX || numNodes_l == LONG_MIN))
-						|| (errno != 0 && numNodes_l == 0))
-				{
-					_cti_set_error("strtol failed.");
-					free(read_buf);
-					close(pipe_r[0]);
-					close(pipe_e[0]);
-					
-					return NULL;
-				}
-				
-				// check for invalid input
-				if ((e_ptr == ptr) || (numNodes_l > INT_MAX) || (numNodes_l < INT_MIN))
-				{
-					_cti_set_error("Bad slurm job step utility output.");
-					free(read_buf);
-					close(pipe_r[0]);
-					close(pipe_e[0]);
-					
-					return NULL;
-				}
-				
-				numNodes = (int)numNodes_l;
-				ptr = e_ptr;
-				// advance past whitespace
-				while (*ptr == ' ')
-				{
-					++ptr;
-				}
-				
-				// create the return object
-				if ((rtn = _cti_cray_slurm_newSlurmLayout(numPEs, numNodes)) == NULL)
-				{
-					// error already set
-					free(read_buf);
-					close(pipe_r[0]);
-					close(pipe_e[0]);
-					
-					return NULL;
-				}
-				
-				// now read in each of the host layout strings
-				for (i=0; i < numNodes; ++i)
-				{
-					char *		tok;
-					char		del[2];
-					long int	val;
-					char *		e;
-					
-					// setup delimiter
-					del[0] = ':';
-					del[1] = '\0';
-					
-					// error check
-					if (*ptr == '\0')
-					{
-						_cti_set_error("Bad slurm job step utility output.");
-						_cti_cray_slurm_consumeSlurmLayout(rtn);
-						free(read_buf);
-						close(pipe_r[0]);
-						close(pipe_e[0]);
-					
-						return NULL;
-					}
-					
-					// walk to the end of this substring
-					e_ptr = ptr;
-					for ( ; *e_ptr != ' ' && *e_ptr != '\0'; ++e_ptr);
-					
-					// only set/advance e_ptr if we are not pointing at the end
-					// of the string
-					if (*e_ptr == ' ')
-					{
-						// set the null term
-						*e_ptr = '\0';
-						// advance past the null term
-						++e_ptr;
-					}
-					
-					// get the first token in the substring
-					// format is host:num_here:PE0 ...
-					tok = strtok(ptr, del);
-					if (tok == NULL)
-					{
-						// could not find token, error occurred
-						_cti_set_error("Bad slurm job step utility output.");
-						_cti_cray_slurm_consumeSlurmLayout(rtn);
-						free(read_buf);
-						close(pipe_r[0]);
-						close(pipe_e[0]);
-					
-						return NULL;
-					}
-					// set the hostname
-					rtn->hosts[i].host = strdup(tok);
-					
-					// get the second token in the substring
-					tok = strtok(NULL, del);
-					if (tok == NULL)
-					{
-						// could not find token, error occurred
-						_cti_set_error("Bad slurm job step utility output.");
-						_cti_cray_slurm_consumeSlurmLayout(rtn);
-						free(read_buf);
-						close(pipe_r[0]);
-						close(pipe_e[0]);
-					
-						return NULL;
-					}
-					
-					// process the num_here tok
-					errno = 0;
-					e = NULL;
-					val = strtol(tok, &e, 10);
-					
-					// check for error
-					if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN))
-							|| (errno != 0 && val == 0))
-					{
-						_cti_set_error("strtol failed.");
-						_cti_cray_slurm_consumeSlurmLayout(rtn);
-						free(read_buf);
-						close(pipe_r[0]);
-						close(pipe_e[0]);
-					
-						return NULL;
-					}
-				
-					// check for invalid input
-					if ((e == tok) || (val > INT_MAX) || (val < INT_MIN))
-					{
-						_cti_set_error("Bad slurm job step utility output.");
-						_cti_cray_slurm_consumeSlurmLayout(rtn);
-						free(read_buf);
-						close(pipe_r[0]);
-						close(pipe_e[0]);
-					
-						return NULL;
-					}
-					
-					// set the num_here val
-					rtn->hosts[i].PEsHere = (int)val;
-					
-					// get the third token in the substring
-					tok = strtok(NULL, del);
-					if (tok == NULL)
-					{
-						// could not find token, error occurred
-						_cti_set_error("Bad slurm job step utility output.");
-						_cti_cray_slurm_consumeSlurmLayout(rtn);
-						free(read_buf);
-						close(pipe_r[0]);
-						close(pipe_e[0]);
-					
-						return NULL;
-					}
-					
-					// process the firstPE tok
-					errno = 0;
-					e = NULL;
-					val = strtol(tok, &e, 10);
-					
-					// check for error
-					if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN))
-							|| (errno != 0 && val == 0))
-					{
-						_cti_set_error("strtol failed.");
-						_cti_cray_slurm_consumeSlurmLayout(rtn);
-						free(read_buf);
-						close(pipe_r[0]);
-						close(pipe_e[0]);
-					
-						return NULL;
-					}
-				
-					// check for invalid input
-					if ((e == tok) || (val > INT_MAX) || (val < INT_MIN))
-					{
-						_cti_set_error("Bad slurm job step utility output.");
-						_cti_cray_slurm_consumeSlurmLayout(rtn);
-						free(read_buf);
-						close(pipe_r[0]);
-						close(pipe_e[0]);
-					
-						return NULL;
-					}
-					
-					// set the firstPE val
-					rtn->hosts[i].firstPE = (int)val;
-					
-					// advance ptr
-					ptr = e_ptr;
-				}
-			}
-				// all done
-				free(read_buf);
-				close(pipe_r[0]);
-				close(pipe_e[0]);
-				
-				return rtn;
-				
-			default:
-				// error occured
-				goto handle_error;
-		}
-	} else
-	{
-handle_error:
-		// Check to see if we can read from the error fd
-		if (ioctl(pipe_e[0], FIONREAD, &n) != 0)
-		{
-			_cti_set_error("ioctl failed.");
-			close(pipe_r[0]);
-			close(pipe_e[0]);
-			
-			return NULL;
-		}
-		if (n < 1)
-		{
-			// nothing to read on the pipe
-			_cti_set_error("Undefined slurm job step utility failure.");
-			close(pipe_r[0]);
-			close(pipe_e[0]);
-			
-			return NULL;
-		}
-		// free existing read_buf
-		free(read_buf);
-		// allocate the read buffer
-		// XXX: Note that there should not be more data than the size of the
-		// pipe on stderr. These messages must not be large, otherwise we could
-		// encounter a deadlock.
-		if ((read_buf = malloc(n+1)) == NULL)
-		{
-			_cti_set_error("malloc failed.");
-			close(pipe_r[0]);
-			close(pipe_e[0]);
-			
-			return NULL;
-		}
-		memset(read_buf, '\0', n+1);
-		r = read(pipe_e[0], read_buf, n);
-		if (r > 0)
-		{
-			_cti_set_error("slurm job step utility: %s", read_buf);
-			free(read_buf);
-			close(pipe_r[0]);
-			close(pipe_e[0]);
-			
-			return NULL;
-		} else
-		{
-			// nothing was read - shouldn't happen
-			_cti_set_error("Undefined slurm job step utility failure.");
-			free(read_buf);
-			close(pipe_r[0]);
-			close(pipe_e[0]);
-			
-			return NULL;
-		}
-	}
-	
-	// Shouldn't get here...
-	free(read_buf);
-	close(pipe_r[0]);
-	close(pipe_e[0]);
-	
-	return rtn;
 }
 
 // Note that we should provide this as a jobid.stepid format. It will make turning
@@ -1060,7 +361,7 @@ cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid)
 		_cti_cray_slurm_consumeSlurmInfo(sinfo);
 		return 0;
 	}
-	
+
 	// create the toolPath
 	if (asprintf(&toolPath, CRAY_SLURM_TOOL_DIR) <= 0)
 	{
@@ -1156,11 +457,8 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId)
 cti_srunProc_t *
 cti_cray_slurm_getJobInfo(pid_t srunPid)
 {
-	cti_gdb_id_t		gdb_id;
-	pid_t				gdb_pid;
-	const char *		gdb_path;
-	char *				usr_gdb_path = NULL;
-	const char *		attach_path;
+	mpir_id_t			mpir_id;
+	const char *		launcher_path;
 	char *				sym_str;
 	char *				end_p;
 	uint32_t			jobid;
@@ -1174,89 +472,26 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 		return NULL;
 	}
 	
-	// get the gdb path
-	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
-	{
-		// use the gdb set in the environment
-		usr_gdb_path = strdup(gdb_path);
-		gdb_path = (const char *)usr_gdb_path;
-	} else
-	{
-		gdb_path = _cti_getGdbPath();
-		if (gdb_path == NULL)
-		{
-			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-			return NULL;
-		}
-	}
-	
-	// get the attach path
-	attach_path = _cti_getAttachPath();
-	if (attach_path == NULL)
+	// get the launcher path
+	launcher_path = _cti_pathFind(SRUN, NULL);
+	if (launcher_path == NULL)
 	{
 		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
 		return NULL;
 	}
 	
-	// Create a new gdb MPIR instance. We want to interact with it.
-	if ((gdb_id = _cti_gdb_newInstance()) < 0)
+	// Create a new MPIR instance. We want to interact with it.
+	if ((mpir_id = _cti_mpir_newAttachInstance(launcher_path, srunPid)) < 0)
 	{
 		// error already set
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
-		
 		return NULL;
 	}
-	
-	// fork off a process to start the mpir attach
-	gdb_pid = fork();
-	
-	// error case
-	if (gdb_pid < 0)
-	{
-		_cti_set_error("Fatal fork error.");
-		_cti_gdb_cleanup(gdb_id);
-		
-		return NULL;
-	}
-	
-	// child case
-	// Note that this should not use the _cti_set_error() interface since it is
-	// a child process.
-	if (gdb_pid == 0)
-	{
-		// call the exec function - this should not return
-		_cti_gdb_execAttach(gdb_id, attach_path, gdb_path, srunPid);
-		
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execv");
-		_exit(1);
-	}
-	
-	// parent case
-	
-	// cleanup
-	if (usr_gdb_path != NULL)	free(usr_gdb_path);
-	
-	// call the post fork setup - this will ensure gdb was started and this pid
-	// is valid
-	if (_cti_gdb_postFork(gdb_id))
-	{
-		// error message already set
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
-		
-		return NULL;
-	}
-	
+
 	// get the jobid string for slurm
-	if ((sym_str = _cti_gdb_getSymbolVal(gdb_id, "totalview_jobid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_jobid")) == NULL)
 	{
-		// error already set
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
-		
+		_cti_set_error("failed to get jobid string via MPIR.\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		return NULL;
 	}
 	
@@ -1268,8 +503,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0))
 	{
 		_cti_set_error("strtoul failed.\n");
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return NULL;
@@ -1277,8 +511,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	if (end_p == NULL || *end_p != '\0')
 	{
 		_cti_set_error("strtoul failed.\n");
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return NULL;
@@ -1287,11 +520,11 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	free(sym_str);
 	
 	// get the stepid string for slurm
-	if ((sym_str = _cti_gdb_getSymbolVal(gdb_id, "totalview_stepid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_stepid")) == NULL)
 	{
 		/*
 		// error already set
-		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 		*/
@@ -1308,8 +541,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
 	{
 		_cti_set_error("strtoul failed.\n");
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return NULL;
@@ -1317,18 +549,16 @@ cti_cray_slurm_getJobInfo(pid_t srunPid)
 	if (end_p == NULL || *end_p != '\0')
 	{
 		_cti_set_error("strtoul failed.\n");
-		_cti_gdb_cleanup(gdb_id);
-		waitpid(gdb_pid, NULL, 0);
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return NULL;
 	}
-	
+
 	free(sym_str);
 	
-	// Cleanup this gdb instance, we are done with it
-	_cti_gdb_cleanup(gdb_id);
-	waitpid(gdb_pid, NULL, 0);
+	// Cleanup this mpir instance, we are done with it
+	_cti_mpir_releaseInstance(mpir_id);
 	
 	// allocate space for the cti_srunProc_t struct
 	if ((srunInfo = malloc(sizeof(cti_srunProc_t))) == NULL)
@@ -1350,176 +580,55 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 								const char *inputFile, const char *chdirPath,
 								const char * const env_list[], int doBarrier	)
 {
-	srunInv_t *			myapp;
 	appEntry_t *		appEntry;
+	mpir_id_t			mpir_id;
 	craySlurmInfo_t	*	sinfo;
-	int					i;
-	sigset_t			mask, omask;	// used to ignore SIGINT
-	pid_t				mypid;
 	char *				sym_str;
 	char *				end_p;
 	uint32_t			jobid;
 	uint32_t			stepid;
-	cti_mpir_pid_t *	pids;
+	cti_mpir_procTable_t *	pids;
 	cti_app_id_t		rtn;			// return object
-	const char *		gdb_path;
-	char *				usr_gdb_path = NULL;
-	const char *		starter_path;
+	const char *		launcher_path;
 
 	if(!_cti_is_valid_environment()){
 		// error already set
 		return 0;
 	}
-	
-	// get the gdb path
-	if ((gdb_path = getenv(GDB_LOC_ENV_VAR)) != NULL)
-	{
-		// use the gdb set in the environment
-		usr_gdb_path = strdup(gdb_path);
-		gdb_path = (const char *)usr_gdb_path;
-	} else
-	{
-		gdb_path = _cti_getGdbPath();
-		if (gdb_path == NULL)
-		{
-			_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-			return 0;
-		}
-	}
-	
-	// get the starter path
-	starter_path = _cti_getStarterPath();
-	if (starter_path == NULL)
+
+	// get the launcher path
+	launcher_path = _cti_pathFind(SRUN, NULL);
+	if (launcher_path == NULL)
 	{
 		_cti_set_error("Required environment variable %s not set.", BASE_DIR_ENV_VAR);
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
 		return 0;
 	}
 
-	// create a new srunInv_t object
-	if ((myapp = _cti_cray_slurm_newSrunInv()) == NULL)
-	{
-		// error already set
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
+	// open input file (or /dev/null to avoid stdin contention)
+	int input_fd = -1;
+	if (inputFile == NULL) {
+		inputFile = "/dev/null";
+	}
+	errno = 0;
+	input_fd = open(inputFile, O_RDONLY);
+	if (input_fd < 0) {
+		_cti_set_error("Failed to open input file %s: ", inputFile, strerror(errno));
 		return 0;
 	}
 	
-	// Create a new gdb MPIR instance. We want to interact with it.
-	if ((myapp->gdb_id = _cti_gdb_newInstance()) < 0)
+	// Create a new MPIR instance. We want to interact with it.
+	if ((mpir_id = _cti_mpir_newLaunchInstance(launcher_path, launcher_argv, env_list, input_fd, stdout_fd, stderr_fd)) < 0)
 	{
-		// error already set
-		if (usr_gdb_path != NULL)	free(usr_gdb_path);
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		
-		return 0;
-	}
-	
-	// We don't want slurm to pass along signals the caller recieves to the
-	// application process. In order to stop this from happening we need to put
-	// the child into a different process group.
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGINT);
-	sigprocmask(SIG_BLOCK, &mask, &omask);
-	
-	// fork off a process to start the mpir starter
-	mypid = fork();
-	
-	// error case
-	if (mypid < 0)
-	{
-		_cti_set_error("Fatal fork error.");
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		
-		return 0;
-	}
-	
-	// child case
-	// Note that this should not use the _cti_set_error() interface since it is
-	// a child process.
-	if (mypid == 0)
-	{
-		const char *	i_file = NULL;
-		
-		// set input file if directed
-		if (inputFile != NULL)
-		{
-			i_file = inputFile;
-		} else
-		{
-			// want to make sure srun doesn't suck up any input from us
-			i_file = "/dev/null";
-		}
-		
-		// chdir if directed
-		if (chdirPath != NULL)
-		{
-			if (chdir(chdirPath))
-			{
-				fprintf(stderr, "CTI error: Unable to chdir to provided path.\n");
-				_exit(1);
-			}
-		}
-		
-		// if env_list is not null, call putenv for each entry in the list
-		if (env_list != NULL)
-		{
-			for (i=0; env_list[i] != NULL; ++i)
-			{
-				// putenv returns non-zero on error
-				if (putenv(strdup(env_list[i])))
-				{
-					fprintf(stderr, "CTI error: Unable to putenv provided env_list.\n");
-					_exit(1);
-				}
-			}
-		}
-		
-		// Place this process in its own group to prevent signals being passed
-		// to it. This is necessary in case the child code execs before the 
-		// parent can put us into our own group. This is so that we won't get
-		// the ctrl-c when aprun re-inits the signal handlers.
-		setpgid(0, 0);
-		
-		// call the exec function - this should not return
-		_cti_gdb_execStarter(myapp->gdb_id, starter_path, gdb_path, _cti_cray_slurm_getLauncherName(), launcher_argv, i_file);
-		
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execv");
-		_exit(1);
-	}
-	
-	// parent case
-	
-	// cleanup
-	if (usr_gdb_path != NULL)	free(usr_gdb_path);
-	
-	// Place the child in its own group. We still need to block SIGINT in case
-	// its delivered to us before we can do this. We need to do this again here
-	// in case this code runs before the child code while we are still blocking 
-	// ctrl-c
-	setpgid(mypid, mypid);
-	
-	// save the pid for later so that we can waitpid() on it when finished
-	myapp->gdb_pid = mypid;
-	
-	// unblock ctrl-c
-	sigprocmask(SIG_SETMASK, &omask, NULL);
-	
-	// call the post fork setup - this will get us to the startup barrier
-	if (_cti_gdb_postFork(myapp->gdb_id))
-	{
-		// error message already set
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		
+			_cti_set_error("Failed to launch %s", launcher_argv[0]);
+
 		return 0;
 	}
 	
 	// get the jobid string for slurm
-	if ((sym_str = _cti_gdb_getSymbolVal(myapp->gdb_id, "totalview_jobid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_jobid")) == NULL)
 	{
 		// error already set
-		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
@@ -1531,29 +640,28 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// check for errors
 	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0))
 	{
-		_cti_set_error("strtoul failed.\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_set_error("strtoul failed (parse).\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return 0;
 	}
 	if (end_p == NULL || *end_p != '\0')
 	{
-		_cti_set_error("strtoul failed.\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_set_error("strtoul failed (partial parse).\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return 0;
 	}
-	
 	free(sym_str);
 	
 	// get the stepid string for slurm
-	if ((sym_str = _cti_gdb_getSymbolVal(myapp->gdb_id, "totalview_stepid")) == NULL)
+	if ((sym_str = _cti_mpir_getStringAt(mpir_id, "totalview_stepid")) == NULL)
 	{
 		/*
 		// error already set
-		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 		*/
@@ -1569,21 +677,20 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// check for errors
 	if ((errno == ERANGE && stepid == ULONG_MAX) || (errno != 0 && stepid == 0))
 	{
-		_cti_set_error("strtoul failed.\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_set_error("strtoul failed (parse).\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return 0;
 	}
 	if (end_p == NULL || *end_p != '\0')
 	{
-		_cti_set_error("strtoul failed.\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_set_error("strtoul failed (partial parse).\n");
+		_cti_mpir_releaseInstance(mpir_id);
 		free(sym_str);
 		
 		return 0;
 	}
-	
 	free(sym_str);
 	
 	// get the pid information from slurm
@@ -1592,129 +699,19 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// ctor, which is called after the slurm startup barrier, meaning it will not
 	// yet be created when launching. So we need to send over a file containing
 	// the information to the compute nodes.
-	if ((pids = _cti_gdb_getAppPids(myapp->gdb_id)) == NULL)
+	if ((pids = _cti_mpir_newProcTable(mpir_id)) == NULL)
 	{
-		// error already set
-		_cti_cray_slurm_consumeSrunInv(myapp);
+		_cti_set_error("failed to get proctable.\n");
 		
-		return 0;
-	}
-	
-	// We now need to fork off an sattach process.
-	// For SLURM, sattach makes the iostreams of srun available. This process
-	// will exit when the srun process exits. 
-	
-	// fork off a process to start the sattach command
-	mypid = fork();
-	
-	// error case
-	if (mypid < 0)
-	{
-		_cti_set_error("Fatal fork error.");
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		_cti_gdb_freeMpirPid(pids);
-	
 		return 0;
 	}
 
-	// child case
-	// Note that this should not use the _cti_set_error() interface since it is
-	// a child process.
-	if (mypid == 0)
-	{
-		int 			fd;
-		cti_args_t *	my_args;
-		
-		if (stdout_fd != -1)
-		{
-			// dup2 stdout
-			if (dup2(stdout_fd, STDOUT_FILENO) < 0)
-			{
-				// XXX: How to properly print this error? The parent won't be
-				// expecting the error message on this stream since dup2 failed.
-				fprintf(stderr, "CTI error: Unable to redirect srun stdout.\n");
-				_exit(1);
-			}
-		}
-		
-		if (stderr_fd != -1)
-		{
-			// dup2 stderr
-			if (dup2(stderr_fd, STDERR_FILENO) < 0)
-			{
-				// XXX: How to properly print this error? The parent won't be
-				// expecting the error message on this stream since dup2 failed.
-				fprintf(stderr, "CTI error: Unable to redirect srun stderr.\n");
-				_exit(1);
-			}
-		}
-		
-		// we set the input redirection in the mpir interface call. So we just
-		// redirect stdin to /dev/null for sattach.
-		if ((fd = open("/dev/null", O_RDONLY)) < 0)
-		{
-			fprintf(stderr, "CTI error: Unable to open /dev/null for reading.\n");
-			_exit(1);
-		}
-		
-		// dup2 the fd onto STDIN_FILENO
-		if (dup2(fd, STDIN_FILENO) < 0)
-		{
-			fprintf(stderr, "CTI error: Unable to redirect aprun stdin.\n");
-			_exit(1);
-		}
-		close(fd);
-		
-		// create a new args obj
-		if ((my_args = _cti_newArgs()) == NULL)
-		{
-			fprintf(stderr, "CTI error: _cti_newArgs failed.");
-			_exit(1);
-		}
-		
-		// create the args for sattach
-		
-		if (_cti_addArg(my_args, "%s", SATTACH))
-		{
-			fprintf(stderr, "CTI error: _cti_addArg failed.");
-			_cti_freeArgs(my_args);
-			_exit(1);
-		}
-		
-		if (_cti_addArg(my_args, "-Q"))
-		{
-			fprintf(stderr, "CTI error: _cti_addArg failed.");
-			_cti_freeArgs(my_args);
-			_exit(1);
-		}
-		
-		if (_cti_addArg(my_args, "%u.%u", jobid, stepid))
-		{
-			fprintf(stderr, "CTI error: _cti_addArg failed.");
-			_cti_freeArgs(my_args);
-			_exit(1);
-		}
-		
-		// exec sattach
-		execvp(SATTACH, my_args->argv);
-	
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execvp");
-		_exit(1);
-	}
-	
-	// parent case
-	
-	// save the pid for later so that we can waitpid() on it when finished
-	myapp->sattach_pid = mypid;
-	
 	// register this app with the application interface
 	if ((rtn = cti_cray_slurm_registerJobStep(jobid, stepid)) == 0)
 	{
 		// failed to register the jobid/stepid, error is already set.
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		_cti_gdb_freeMpirPid(pids);
+		_cti_mpir_deleteProcTable(pids);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
@@ -1724,8 +721,8 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	{
 		// this should never happen
 		_cti_set_error("impossible null appEntry error!\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		_cti_gdb_freeMpirPid(pids);
+		_cti_mpir_deleteProcTable(pids);
+		_cti_mpir_releaseInstance(mpir_id);
 		
 		return 0;
 	}
@@ -1736,15 +733,15 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	{
 		// this should never happen
 		_cti_set_error("impossible null sinfo error!\n");
-		_cti_cray_slurm_consumeSrunInv(myapp);
-		_cti_gdb_freeMpirPid(pids);
+		_cti_mpir_deleteProcTable(pids);
+		_cti_mpir_releaseInstance(mpir_id);
 		cti_deregisterApp(appEntry->appId);
 		
 		return 0;
 	}
 	
 	// set the inv
-	sinfo->inv = myapp;
+	sinfo->mpir_id = mpir_id;
 	
 	// set the pids
 	sinfo->app_pids = pids;
@@ -1794,30 +791,14 @@ _cti_cray_slurm_release(cti_wlm_obj this)
 		return 1;
 	}
 	
-	// sanity check
-	if (my_app->inv == NULL)
-	{
-		_cti_set_error("srun barrier release operation failed.");
-		return 1;
-	}
-	
 	// call the release function
-	if (_cti_gdb_release(my_app->inv->gdb_id))
+	if (_cti_mpir_releaseInstance(my_app->mpir_id))
 	{
 		_cti_set_error("srun barrier release operation failed.");
 		return 1;
 	}
-	
-	// cleanup the gdb instance, we are done with it. This will release memory
-	// and free up the hash table for more possible gdb instances. It is
-	// important to do this step here and not later on.
-	_cti_gdb_cleanup(my_app->inv->gdb_id);
-	my_app->inv->gdb_id = -1;
-	
-	// wait for the starter to exit
-	waitpid(my_app->inv->gdb_pid, NULL, 0);
-	my_app->inv->gdb_pid = -1;
-	
+	my_app->mpir_id = -1;
+
 	// done
 	return 0;
 }
@@ -2106,7 +1087,7 @@ _cti_cray_slurm_extraFiles(cti_wlm_obj this)
 		for (i=0; i < my_app->app_pids->num_pids; ++i)
 		{
 			// set this entry
-			pid_entry.pid = my_app->app_pids->pid[i];
+			pid_entry.pid = my_app->app_pids->pids[i];
 			
 			// write this entry
 			if (fwrite(&pid_entry, sizeof(slurmPidFile_t), 1, myFile) != 1)
@@ -2832,7 +1813,7 @@ _cti_cray_slurm_getAppHostsPlacement(cti_wlm_obj this)
 	for (i=0; i < my_app->layout->numNodes; ++i)
 	{
 		placement_list->hosts[i].hostname = strdup(my_app->layout->hosts[i].host);
-		placement_list->hosts[i].numPes = my_app->layout->hosts[i].PEsHere;
+		placement_list->hosts[i].numPEs = my_app->layout->hosts[i].PEsHere;
 	}
 	
 	// done

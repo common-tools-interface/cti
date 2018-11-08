@@ -14,6 +14,8 @@
 ## $Rev$
 ## $Author$
 
+AM_CXXFLAGS				= -Wall -std=c++11
+
 SRC             = @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS = --quiet
 AM_CFLAGS		= -Wall -I$(SRC)
@@ -21,9 +23,12 @@ AM_CFLAGS		= -Wall -I$(SRC)
 noinst_LTLIBRARIES      = libuseful.la
 
 libuseful_la_SOURCES    = cti_args.c cti_list.c cti_log.c cti_overwatch.c \
-						  cti_path.c cti_signal.c cti_stack.c cti_stringList.c
+						  cti_path.c cti_signal.c cti_stack.c cti_stringList.c \
+						  ArgvDefs-c++11-workaround.cpp
 libuseful_la_CFLAGS     = $(AM_CFLAGS) -fPIC
+libuseful_la_CXXFLAGS   = $(AM_CXXFLAGS) $(libuseful_la_CFLAGS)
 libuseful_la_LDFLAGS    = -static -Wl,--no-undefined -Wl,--as-needed
+libuseful_la_LIBADD     = -lstdc++
 
 libexec_PROGRAMS		= cti_overwatch
 

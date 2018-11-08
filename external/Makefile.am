@@ -15,14 +15,8 @@
 ## $Author$
 
 install-data-local:
-if BUILT_MI
-	cp @LIBMI_LOC@ ${libdir}
-endif
 if BUILT_SSH
 	cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
-endif
-if BUILT_GDB
-	cp @GDB_LOC@ ${libexecdir}
 endif
 
 distclean-local:
@@ -32,12 +26,6 @@ distclean-local:
 	rm -rf @SLURM_BASE@
 if BUILT_ARC
 	cd @LIBARC_SRC@ && $(MAKE) distclean
-endif
-if BUILT_MI
-	cd @LIBMI_SRC@ && $(MAKE) distclean
-endif
-if BUILT_GDB
-	cd @GDB_SRC@ && $(MAKE) distclean
 endif
 if BUILT_SSH
 	cd @LIBSSH_SRC@ && rm -r build

@@ -39,45 +39,6 @@ cray_INIT
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-#############################
-### Check for --with tags ###
-#############################
-dnl Check for --with-libarchive
-AC_ARG_WITH(	[libarchive],
-				[AS_HELP_STRING([--with-libarchive],
-								[Specify path to libarchive install.])
-				],
-				[libarchive_path=$withval],
-				[libarchive_path=no]
-			)
-
-dnl Check for --with-libmi
-AC_ARG_WITH(	[libmi],
-				[AS_HELP_STRING([--with-libmi],
-								[Specify path to libmi install.])
-				],
-				[libmi_path=$withval],
-				[libmi_path=no]
-			)
-
-dnl Check for --with-libssh
-AC_ARG_WITH(	[libssh],
-				[AS_HELP_STRING([--with-libssh],
-								[Specify path to libssh install.])
-				],
-				[libssh_path=$withval],
-				[libssh_path=no]
-			)
-
-dnl Check for --with-gdb
-AC_ARG_WITH(	[gdb],
-				[AS_HELP_STRING([--with-gdb],
-								[Build internal gdb.])
-				],
-				[build_gdb=yes],
-				[build_gdb=no]
-			)
-
 ###########################
 ### Check for programs. ###
 ###########################
@@ -93,6 +54,38 @@ AC_LIBTOOL_DLOPEN
 AC_PROG_LIBTOOL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
+
+#############################
+### Check for --with tags ###
+#############################
+dnl Check for --with-libarchive
+AC_ARG_WITH(	[libarchive],
+				[AS_HELP_STRING([--with-libarchive],
+								[Specify path to libarchive install.])
+				],
+				[libarchive_path=$withval],
+				[libarchive_path=no]
+			)
+
+dnl This macro runs check for --with-boost
+AX_BOOST_BASE([1.57],, [AC_MSG_ERROR([valgrind4hpc needs libboost >=1.57, but it was not found in your system])])
+AX_BOOST_SYSTEM
+
+dnl This macro runs check for --with-dyninst
+AX_DYNINST
+dnl Check for dyninst
+if test -z "$DYNINST_VERS"; then
+	AC_MSG_ERROR([dyninst not found (try --with-dyninst or fix build.sh)])
+fi
+
+dnl Check for --with-libssh
+AC_ARG_WITH(	[libssh],
+				[AS_HELP_STRING([--with-libssh],
+								[Specify path to libssh install.])
+				],
+				[libssh_path=$withval],
+				[libssh_path=no]
+			)
 
 #########################
 ### Setup env options ###
@@ -127,22 +120,6 @@ else
 	AC_MSG_RESULT([provided])
 fi
 
-dnl build libmi if argument wasn't provided
-AC_MSG_CHECKING([for libmi argument])
-AM_CONDITIONAL([BUILT_MI], [test "x$libmi_path" = xno])
-if test "x$libmi_path" = "xno"; then
-	AC_MSG_RESULT([not found])
-	AC_CACHE_VAL([cray_cv_lib_mi_build], [cray_BUILD_LIBMI])
-	if test "x$cray_cv_lib_mi_build" = xno; then
-		AC_MSG_ERROR([libmi build failed.])
-	fi
-	AC_CACHE_SAVE
-	cray_ENV_LIBMI
-	libmi_path=$INTERNAL_LIBMI
-else
-	AC_MSG_RESULT([provided])
-fi
-
 dnl build libssh if argument wasn't provided
 AC_MSG_CHECKING([for libssh argument])
 AM_CONDITIONAL([BUILT_SSH], [test "x$libssh_path" = xno])
@@ -159,30 +136,15 @@ else
 	AC_MSG_RESULT([provided])
 fi
 
-dnl build gdb if user asked us to
-AC_MSG_CHECKING([build internal gdb])
-AM_CONDITIONAL([BUILT_GDB], [test "x$build_gdb" = xyes])
-if test "x$build_gdb" = "xyes"; then
-	AC_MSG_RESULT([yes])
-	AC_CACHE_VAL([cray_cv_prog_gdb_build], [cray_BUILD_GDB])
-	if test "x$cray_cv_prog_gdb_build" = xno; then
-		AC_MSG_ERROR([gdb build failed.])
-	fi
-	AC_CACHE_SAVE
-	cray_ENV_GDB
-else
-	AC_MSG_RESULT([no])
-fi
-
 ############################
 ### Check for libraries. ###
 ############################
 dnl Check for libc
 AC_CHECK_LIB(	[c],
-	     		[free],
-	     		[],
-	     		[AC_MSG_FAILURE([libc not found.])]
-	     		)
+				[free],
+				[],
+				[AC_MSG_FAILURE([libc not found.])]
+				)
 
 dnl check for librl
 AC_CHECK_LIB(	[rt],
@@ -211,25 +173,6 @@ AC_CHECK_LIB(	[archive],
 				[AC_MSG_ERROR([libarchive.a not found.])]
 				)
 AC_SUBST([ARCHIVE_LIBS], ["-larchive"])
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
-
-dnl Check for libmi
-save_LDFLAGS="$LDFLAGS"
-if test -f "$libmi_path/lib/libmi.so"; then
-	AC_SUBST([MI_LDFLAGS], ["-L$libmi_path/lib"])
-	LDFLAGS="$LDFLAGS $MI_LDFLAGS"
-fi
-AC_CHECK_LIB(	[mi],
-				[MICommandFree],
-				[AC_DEFINE(	[HAVE_MI],
-								[1],
-								[Define to 1 if you have the mi library (-lmi).]
-							)
-				],
-			 	[AC_MSG_ERROR([libmi.so not found.])]
-			 	)
-AC_SUBST([MI_LIBS], ["-lmi"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
@@ -307,20 +250,6 @@ AC_CHECK_HEADER([archive.h],
 dnl restore flags
 CFLAGS="$save_CFLAGS"
 
-dnl Check for libmi headers
-save_CFLAGS="$CFLAGS"
-if test -f "$libmi_path/include/MI.h"; then
-	AC_SUBST([MI_CFLAGS], ["-I$libmi_path/include"])
-	CFLAGS="$CFLAGS $MI_CFLAGS"
-fi
-AC_CHECK_HEADER([MI.h],
-				[],
-				[AC_MSG_FAILURE([MI.h not found.])],
-				[]
-				)
-dnl restore flags
-CFLAGS="$save_CFLAGS"
-
 dnl Check for libssh headers
 save_CFLAGS="$CFLAGS"
 if test -f "$libssh_path/include/libssh/libssh.h"; then
@@ -382,6 +311,7 @@ AC_CONFIG_FILES([	Makefile
 					src/frontend/Makefile
 					src/ld_val/Makefile
 					src/mpir_iface/Makefile
+					src/cti_transfer/Makefile
 					src/slurm_util/Makefile
 					src/useful/Makefile
 					tests/Makefile

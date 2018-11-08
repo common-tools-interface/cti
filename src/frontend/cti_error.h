@@ -22,7 +22,15 @@
 
 #include <stdarg.h>
 
-void	_cti_set_error(char *, ...);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void	_cti_set_error(const char *, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CTI_ERROR_H */
 
