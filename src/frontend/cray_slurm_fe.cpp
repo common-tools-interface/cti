@@ -54,7 +54,7 @@
 
 typedef struct
 {
-	cti_app_id_t		appId;			// CTI appid associated with this alpsInfo_t obj
+	cti_app_id_t		appId;			// CTI appid associated with this alpmy_app_t obj
 	uint32_t			jobid;			// SLURM job id
 	uint32_t			stepid;			// SLURM step id
 	uint64_t			apid;			// Cray variant of step+job id
@@ -98,9 +98,9 @@ static char* 		_cti_cray_slurm_launcher_name = NULL;
 static craySlurmInfo_t *
 _cti_cray_slurm_newSlurmInfo(void)
 {
-	craySlurmInfo_t *	my_app;
+	craySlurmInfo_t *	sinfo;
 
-	if ((my_app = (decltype(my_app))malloc(sizeof(craySlurmInfo_t))) == NULL)
+	if ((sinfo = (decltype(sinfo))malloc(sizeof(craySlurmInfo_t))) == NULL)
 	{
 		// Malloc failed
 		_cti_set_error("malloc failed.");
@@ -109,20 +109,20 @@ _cti_cray_slurm_newSlurmInfo(void)
 	}
 	
 	// init the members
-	my_app->appId			= 0;
-	my_app->jobid			= 0;
-	my_app->stepid		= 0;
-	my_app->apid			= 0;
-	my_app->layout		= NULL;
-	my_app->mpir_id		= -1;
-	my_app->app_pids		= NULL;
-	my_app->toolPath		= NULL;
-	my_app->attribsPath	= NULL;
-	my_app->dlaunch_sent	= 0;
-	my_app->stagePath		= NULL;
-	my_app->extraFiles	= NULL;
+	sinfo->appId			= 0;
+	sinfo->jobid			= 0;
+	sinfo->stepid		= 0;
+	sinfo->apid			= 0;
+	sinfo->layout		= NULL;
+	sinfo->mpir_id		= -1;
+	sinfo->app_pids		= NULL;
+	sinfo->toolPath		= NULL;
+	sinfo->attribsPath	= NULL;
+	sinfo->dlaunch_sent	= 0;
+	sinfo->stagePath		= NULL;
+	sinfo->extraFiles	= NULL;
 	
-	return my_app;
+	return sinfo;
 }
 
 static void 
@@ -172,18 +172,12 @@ _cti_cray_slurm_consumeSlurmInfo(craySlurmInfo_t *sinfo)
 // it into a Cray apid easier on the backend since we don't lose any information
 // with this format.
 static char *
-_cti_cray_slurm_getJobId(craySlurmInfo_t *my_app)
+_cti_cray_slurm_getJobId(craySlurmInfo_t& my_app)
 {
 	char *				rtn = NULL;
 	
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("Null wlm obj.");
-		return NULL;
-	}
 	
-	if (asprintf(&rtn, "%lu.%lu", (long unsigned int)my_app->jobid, (long unsigned int)my_app->stepid) <= 0)
+	if (asprintf(&rtn, "%lu.%lu", (long unsigned int)my_app.jobid, (long unsigned int)my_app.stepid) <= 0)
 	{
 		_cti_set_error("asprintf failed.");
 		return NULL;
@@ -281,18 +275,12 @@ _cti_cray_slurm_registerJobStep(uint32_t jobid, uint32_t stepid, cti_app_id_t ne
 	return sinfo;
 }
 
-static CraySLURMFrontend::SrunInfo *
-_cti_cray_slurm_getSrunInfo(craySlurmInfo_t* sinfo)
+static CraySLURMFrontend::SrunInfo*
+_cti_cray_slurm_getSrunInfo(craySlurmInfo_t& my_app)
 {
 	CraySLURMFrontend::SrunInfo *	srunInfo;
 
 	
-	// sanity check
-	if (sinfo == NULL)
-	{
-		_cti_set_error("cti_cray_slurm_getSrunInfo: _wlmObj is NULL!");
-		return NULL;
-	}
 	
 	// allocate space for the CraySLURMFrontend::SrunInfo struct
 	if ((srunInfo = (decltype(srunInfo))malloc(sizeof(CraySLURMFrontend::SrunInfo))) == NULL)
@@ -302,8 +290,8 @@ _cti_cray_slurm_getSrunInfo(craySlurmInfo_t* sinfo)
 		return NULL;
 	}
 	
-	srunInfo->jobid = sinfo->jobid;
-	srunInfo->stepid = sinfo->stepid;
+	srunInfo->jobid = my_app.jobid;
+	srunInfo->stepid = my_app.stepid;
 	
 	return srunInfo;
 }
@@ -429,7 +417,7 @@ _cti_cray_slurm_getJobInfo(pid_t srunPid)
 	return srunInfo;
 }
 
-static int _cti_cray_slurm_release(craySlurmInfo_t *sinfo);
+static int _cti_cray_slurm_release(craySlurmInfo_t& my_app);
 
 static craySlurmInfo_t*
 _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
@@ -579,7 +567,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 	// If we should not wait at the barrier, call the barrier release function.
 	if (!doBarrier)
 	{
-		if (_cti_cray_slurm_release(sinfo))
+		if (_cti_cray_slurm_release(*sinfo))
 		{
 			// error already set - appEntry already holds all info to be cleaned up
 			return nullptr;
@@ -608,40 +596,26 @@ _cti_cray_slurm_launchBarrier(	const char * const a1[], int a2, int a3,
 }
 
 static int
-_cti_cray_slurm_release(craySlurmInfo_t *my_app)
+_cti_cray_slurm_release(craySlurmInfo_t& my_app)
 {
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("srun barrier release operation failed.");
-		return 1;
-	}
-	
 	// call the release function
-	if (_cti_mpir_releaseInstance(my_app->mpir_id))
+	if (_cti_mpir_releaseInstance(my_app.mpir_id))
 	{
 		_cti_set_error("srun barrier release operation failed.");
 		return 1;
 	}
-	my_app->mpir_id = -1;
+	my_app.mpir_id = -1;
 
 	// done
 	return 0;
 }
 
 static int
-_cti_cray_slurm_killApp(craySlurmInfo_t *my_app, int signum)
+_cti_cray_slurm_killApp(craySlurmInfo_t& my_app, int signum)
 {
 	cti_args_t *		my_args;
 	int					mypid;
-	
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("srun kill operation failed.");
-		return 1;
-	}
-	
+
 	// create a new args obj
 	if ((my_args = _cti_newArgs()) == NULL)
 	{
@@ -682,7 +656,7 @@ _cti_cray_slurm_killApp(craySlurmInfo_t *my_app, int signum)
 	}
 	
 	// fourth argument is the jobid.stepid
-	if (_cti_addArg(my_args, "%u.%u", my_app->jobid, my_app->stepid))
+	if (_cti_addArg(my_args, "%u.%u", my_app.jobid, my_app.stepid))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_freeArgs(my_args);
@@ -725,7 +699,7 @@ _cti_cray_slurm_killApp(craySlurmInfo_t *my_app, int signum)
 }
 
 static const char * const *
-_cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
+_cti_cray_slurm_extraFiles(craySlurmInfo_t& my_app)
 {
 	const char *			cfg_dir;
 	FILE *					myFile;
@@ -736,19 +710,15 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 	slurmPidFileHeader_t	pid_hdr;
 	slurmPidFile_t			pid_entry;
 	int						i;
-	
+
 	// sanity check
-	if (my_app == NULL)
-		return NULL;
-		
-	// sanity check
-	if (my_app->layout == NULL)
+	if (my_app.layout == NULL)
 		return NULL;
 	
 	// If we already have created the extraFiles array, return that
-	if (my_app->extraFiles != NULL)
+	if (my_app.extraFiles != NULL)
 	{
-		return (const char * const *)my_app->extraFiles;
+		return (const char * const *)my_app.extraFiles;
 	}
 	
 	// init data structures
@@ -758,7 +728,7 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 	memset(&pid_entry, 0, sizeof(pid_entry));
 	
 	// Check to see if we should create the staging directory
-	if (my_app->stagePath == NULL)
+	if (my_app.stagePath == NULL)
 	{
 		// Get the configuration directory
 		if ((cfg_dir = _cti_getCfgDir().c_str()) == NULL)
@@ -769,27 +739,27 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 		}
 		
 		// create the directory to stage the needed files
-		if (asprintf(&my_app->stagePath, "%s/%s", cfg_dir, SLURM_STAGE_DIR) <= 0)
+		if (asprintf(&my_app.stagePath, "%s/%s", cfg_dir, SLURM_STAGE_DIR) <= 0)
 		{
 			// cannot continue, so return NULL. BE API might fail.
 			// TODO: How to handle this error?
-			my_app->stagePath = NULL;
+			my_app.stagePath = NULL;
 			return NULL;
 		}
 		
 		// create the temporary directory for the manifest package
-		if (mkdtemp(my_app->stagePath) == NULL)
+		if (mkdtemp(my_app.stagePath) == NULL)
 		{
 			// cannot continue, so return NULL. BE API might fail.
 			// TODO: How to handle this error?
-			free(my_app->stagePath);
-			my_app->stagePath = NULL;
+			free(my_app.stagePath);
+			my_app.stagePath = NULL;
 			return NULL;
 		}
 	}
 	
 	// create path string to layout file
-	if (asprintf(&layoutPath, "%s/%s", my_app->stagePath, SLURM_LAYOUT_FILE) <= 0)
+	if (asprintf(&layoutPath, "%s/%s", my_app.stagePath, SLURM_LAYOUT_FILE) <= 0)
 	{
 		// cannot continue, so return NULL. BE API might fail.
 		// TODO: How to handle this error?
@@ -806,7 +776,7 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 	}
 	
 	// init the layout header
-	layout_hdr.numNodes = my_app->layout->numNodes;
+	layout_hdr.numNodes = my_app.layout->numNodes;
 	
 	// write the header
 	if (fwrite(&layout_hdr, sizeof(slurmLayoutFileHeader_t), 1, myFile) != 1)
@@ -819,10 +789,10 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 	}
 	
 	// write each of the entries
-	for (i=0; i < my_app->layout->numNodes; ++i)
+	for (i=0; i < my_app.layout->numNodes; ++i)
 	{
 		// ensure we have good hostname information
-		if (strlen(my_app->layout->hosts[i].host) > (sizeof(layout_entry.host) - 1))
+		if (strlen(my_app.layout->hosts[i].host) > (sizeof(layout_entry.host) - 1))
 		{
 			// No way to continue, the hostname will not fit in our fixed size buffer
 			// TODO: How to handle this error?
@@ -832,9 +802,9 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 		}
 		
 		// set this entry
-		memcpy(&layout_entry.host[0], my_app->layout->hosts[i].host, sizeof(layout_entry.host));
-		layout_entry.PEsHere = my_app->layout->hosts[i].PEsHere;
-		layout_entry.firstPE = my_app->layout->hosts[i].firstPE;
+		memcpy(&layout_entry.host[0], my_app.layout->hosts[i].host, sizeof(layout_entry.host));
+		layout_entry.PEsHere = my_app.layout->hosts[i].PEsHere;
+		layout_entry.firstPE = my_app.layout->hosts[i].firstPE;
 		
 		if (fwrite(&layout_entry, sizeof(slurmLayoutFile_t), 1, myFile) != 1)
 		{
@@ -851,10 +821,10 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 	
 	// check to see if there is an app_pids member, if so we need to create the 
 	// pid file
-	if (my_app->app_pids != NULL)
+	if (my_app.app_pids != NULL)
 	{
 		// create path string to pid file
-		if (asprintf(&pidPath, "%s/%s", my_app->stagePath, SLURM_PID_FILE) <= 0)
+		if (asprintf(&pidPath, "%s/%s", my_app.stagePath, SLURM_PID_FILE) <= 0)
 		{
 			// cannot continue, so return NULL. BE API might fail.
 			// TODO: How to handle this error?
@@ -873,7 +843,7 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 		}
 	
 		// init the pid header
-		pid_hdr.numPids = my_app->app_pids->num_pids;
+		pid_hdr.numPids = my_app.app_pids->num_pids;
 		
 		// write the header
 		if (fwrite(&pid_hdr, sizeof(slurmPidFileHeader_t), 1, myFile) != 1)
@@ -887,10 +857,10 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 		}
 	
 		// write each of the entries
-		for (i=0; i < my_app->app_pids->num_pids; ++i)
+		for (i=0; i < my_app.app_pids->num_pids; ++i)
 		{
 			// set this entry
-			pid_entry.pid = my_app->app_pids->pids[i];
+			pid_entry.pid = my_app.app_pids->pids[i];
 			
 			// write this entry
 			if (fwrite(&pid_entry, sizeof(slurmPidFile_t), 1, myFile) != 1)
@@ -909,7 +879,7 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 	}
 	
 	// create the extraFiles array - This should be the length of the above files
-	if ((my_app->extraFiles = (decltype(my_app->extraFiles))calloc(3, sizeof(char *))) == NULL)
+	if ((my_app.extraFiles = (decltype(my_app.extraFiles))calloc(3, sizeof(char *))) == NULL)
 	{
 		// calloc failed
 		// cannot continue, so return NULL. BE API might fail.
@@ -919,37 +889,23 @@ _cti_cray_slurm_extraFiles(craySlurmInfo_t *my_app)
 	}
 	
 	// set the layout file
-	my_app->extraFiles[0] = layoutPath;
+	my_app.extraFiles[0] = layoutPath;
 	// TODO: set the pid file
-	my_app->extraFiles[1] = pidPath;
+	my_app.extraFiles[1] = pidPath;
 	// set the null terminator
-	my_app->extraFiles[2] = NULL;
+	my_app.extraFiles[2] = NULL;
 	
-	return (const char * const *)my_app->extraFiles;
+	return (const char * const *)my_app.extraFiles;
 }
 
 static int
-_cti_cray_slurm_ship_package(craySlurmInfo_t *my_app, const char *package)
+_cti_cray_slurm_ship_package(craySlurmInfo_t& my_app, const char *package)
 {
 	cti_args_t *		my_args;
 	char *				str1;
 	char *				str2;
 	int					mypid;
-	
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("WLM obj is null!");
-		return 1;
-	}
-	
-	// sanity check
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("craySlurmInfo_t layout is null!");
-		return 1;
-	}
-	
+
 	// sanity check
 	if (package == NULL)
 	{
@@ -958,9 +914,9 @@ _cti_cray_slurm_ship_package(craySlurmInfo_t *my_app, const char *package)
 	}
 	
 	// ensure numNodes is non-zero
-	if (my_app->layout->numNodes <= 0)
+	if (my_app.layout->numNodes <= 0)
 	{
-		_cti_set_error("Application %d.%d does not have any nodes.", my_app->jobid, my_app->stepid);
+		_cti_set_error("Application %d.%d does not have any nodes.", my_app.jobid, my_app.stepid);
 		// no nodes in the application
 		return 1;
 	}
@@ -995,7 +951,7 @@ _cti_cray_slurm_ship_package(craySlurmInfo_t *my_app, const char *package)
 		return 1;
 	}
 	
-	if (_cti_addArg(my_args, "%d", my_app->jobid))
+	if (_cti_addArg(my_args, "%d", my_app.jobid))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		_cti_freeArgs(my_args);
@@ -1095,7 +1051,7 @@ _cti_cray_slurm_ship_package(craySlurmInfo_t *my_app, const char *package)
 }
 
 static int
-_cti_cray_slurm_start_daemon(craySlurmInfo_t *my_app, cti_args_t * args)
+_cti_cray_slurm_start_daemon(craySlurmInfo_t& my_app, cti_args_t * args)
 {
 	char *				launcher;
 	cti_args_t *		my_args;
@@ -1103,21 +1059,7 @@ _cti_cray_slurm_start_daemon(craySlurmInfo_t *my_app, cti_args_t * args)
 	char *				tmp;
 	int					fd, i, mypid;
 	struct rlimit		rl;
-	
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("WLM obj is null!");
-		return 1;
-	}
-	
-	// sanity check
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("craySlurmInfo_t layout is null!");
-		return 1;
-	}
-	
+
 	// sanity check
 	if (args == NULL)
 	{
@@ -1126,9 +1068,9 @@ _cti_cray_slurm_start_daemon(craySlurmInfo_t *my_app, cti_args_t * args)
 	}
 	
 	// ensure numNodes is non-zero
-	if (my_app->layout->numNodes <= 0)
+	if (my_app.layout->numNodes <= 0)
 	{
-		_cti_set_error("Application %d.%d does not have any nodes.", my_app->jobid, my_app->stepid);
+		_cti_set_error("Application %d.%d does not have any nodes.", my_app.jobid, my_app.stepid);
 		// no nodes in the application
 		return 1;
 	}
@@ -1149,7 +1091,7 @@ _cti_cray_slurm_start_daemon(craySlurmInfo_t *my_app, cti_args_t * args)
 
 	// If we have not yet transfered the dlaunch binary, we need to do that in advance with
 	// native slurm
-	if (!my_app->dlaunch_sent)
+	if (!my_app.dlaunch_sent)
 	{
 		// Need to transfer launcher binary
 		const char *	launcher_path;
@@ -1170,11 +1112,11 @@ _cti_cray_slurm_start_daemon(craySlurmInfo_t *my_app, cti_args_t * args)
 		}
 		
 		// set transfer to true
-		my_app->dlaunch_sent = 1;
+		my_app.dlaunch_sent = 1;
 	}
 	
 	// use existing launcher binary on compute node
-	if (asprintf(&launcher, "%s/%s", my_app->toolPath, CTI_LAUNCHER) <= 0)
+	if (asprintf(&launcher, "%s/%s", my_app.toolPath, CTI_LAUNCHER) <= 0)
 	{
 		_cti_set_error("asprintf failed.");
 		close(fd);
@@ -1209,7 +1151,7 @@ _cti_cray_slurm_start_daemon(craySlurmInfo_t *my_app, cti_args_t * args)
 		return 1;
 	}
 	
-	if (_cti_addArg(my_args, "--jobid=%d", my_app->jobid))
+	if (_cti_addArg(my_args, "--jobid=%d", my_app.jobid))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		close(fd);
@@ -1272,7 +1214,7 @@ _cti_cray_slurm_start_daemon(craySlurmInfo_t *my_app, cti_args_t * args)
 		return 1;
 	}
 	
-	if (_cti_addArg(my_args, "--nodes=%d", my_app->layout->numNodes))
+	if (_cti_addArg(my_args, "--nodes=%d", my_app.layout->numNodes))
 	{
 		_cti_set_error("_cti_addArg failed.");
 		close(fd);
@@ -1283,16 +1225,16 @@ _cti_cray_slurm_start_daemon(craySlurmInfo_t *my_app, cti_args_t * args)
 	
 	// create the hostlist. If there is only one entry, then we don't need to
 	// iterate over the list.
-	if (my_app->layout->numNodes == 1)
+	if (my_app.layout->numNodes == 1)
 	{
-		hostlist = strdup(my_app->layout->hosts[0].host);
+		hostlist = strdup(my_app.layout->hosts[0].host);
 	} else
 	{
 		// get the first host entry
-		tmp = strdup(my_app->layout->hosts[0].host);
-		for (i=1; i < my_app->layout->numNodes; ++i)
+		tmp = strdup(my_app.layout->hosts[0].host);
+		for (i=1; i < my_app.layout->numNodes; ++i)
 		{
-			if (asprintf(&hostlist, "%s,%s", tmp, my_app->layout->hosts[i].host) <= 0)
+			if (asprintf(&hostlist, "%s,%s", tmp, my_app.layout->hosts[i].host) <= 0)
 			{
 				_cti_set_error("asprintf failed.");
 				close(fd);
@@ -1466,75 +1408,39 @@ _cti_cray_slurm_start_daemon(craySlurmInfo_t *my_app, cti_args_t * args)
 }
 
 static int
-_cti_cray_slurm_getNumAppPEs(craySlurmInfo_t *my_app)
+_cti_cray_slurm_getNumAppPEs(craySlurmInfo_t& my_app)
 {
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return 0;
-	}
 	
-	// sanity check
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return 0;
-	}
 	
-	return my_app->layout->numPEs;
+	return my_app.layout->numPEs;
 }
 
 static int
-_cti_cray_slurm_getNumAppNodes(craySlurmInfo_t *my_app)
+_cti_cray_slurm_getNumAppNodes(craySlurmInfo_t& my_app)
 {
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return 0;
-	}
 	
-	// sanity check
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return 0;
-	}
 	
-	return my_app->layout->numNodes;
+	return my_app.layout->numNodes;
 }
 
 static char **
-_cti_cray_slurm_getAppHostsList(craySlurmInfo_t *my_app)
+_cti_cray_slurm_getAppHostsList(craySlurmInfo_t& my_app)
 {
 	char **				hosts;
 	int					i;
 	
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return NULL;
-	}
 	
-	// sanity check
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return NULL;
-	}
 	
 	// ensure numNodes is non-zero
-	if (my_app->layout->numNodes <= 0)
+	if (my_app.layout->numNodes <= 0)
 	{
-		_cti_set_error("Application %d.%d does not have any nodes.", my_app->jobid, my_app->stepid);
+		_cti_set_error("Application %d.%d does not have any nodes.", my_app.jobid, my_app.stepid);
 		// no nodes in the application
 		return NULL;
 	}
 	
 	// allocate space for the hosts list, add an extra entry for the null terminator
-	if ((hosts = (decltype(hosts))calloc(my_app->layout->numNodes + 1, sizeof(char *))) == NULL)
+	if ((hosts = (decltype(hosts))calloc(my_app.layout->numNodes + 1, sizeof(char *))) == NULL)
 	{
 		// calloc failed
 		_cti_set_error("calloc failed.");
@@ -1542,9 +1448,9 @@ _cti_cray_slurm_getAppHostsList(craySlurmInfo_t *my_app)
 	}
 	
 	// iterate through the hosts list
-	for (i=0; i < my_app->layout->numNodes; ++i)
+	for (i=0; i < my_app.layout->numNodes; ++i)
 	{
-		hosts[i] = strdup(my_app->layout->hosts[i].host);
+		hosts[i] = strdup(my_app.layout->hosts[i].host);
 	}
 	
 	// set null term
@@ -1555,29 +1461,17 @@ _cti_cray_slurm_getAppHostsList(craySlurmInfo_t *my_app)
 }
 
 static cti_hostsList_t *
-_cti_cray_slurm_getAppHostsPlacement(craySlurmInfo_t *my_app)
+_cti_cray_slurm_getAppHostsPlacement(craySlurmInfo_t& my_app)
 {
 	cti_hostsList_t *	placement_list;
 	int					i;
 	
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return NULL;
-	}
 	
-	// sanity check
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return NULL;
-	}
 	
 	// ensure numNodes is non-zero
-	if (my_app->layout->numNodes <= 0)
+	if (my_app.layout->numNodes <= 0)
 	{
-		_cti_set_error("Application %d.%d does not have any nodes.", my_app->jobid, my_app->stepid);
+		_cti_set_error("Application %d.%d does not have any nodes.", my_app.jobid, my_app.stepid);
 		// no nodes in the application
 		return NULL;
 	}
@@ -1591,7 +1485,7 @@ _cti_cray_slurm_getAppHostsPlacement(craySlurmInfo_t *my_app)
 	}
 	
 	// set the number of hosts for the application
-	placement_list->numHosts = my_app->layout->numNodes;
+	placement_list->numHosts = my_app.layout->numNodes;
 	
 	// allocate space for the cti_host_t structs inside the placement_list
 	if ((placement_list->hosts = (decltype(placement_list->hosts))malloc(placement_list->numHosts * sizeof(cti_host_t))) == NULL)
@@ -1605,10 +1499,10 @@ _cti_cray_slurm_getAppHostsPlacement(craySlurmInfo_t *my_app)
 	memset(placement_list->hosts, 0, placement_list->numHosts * sizeof(cti_host_t));
 	
 	// iterate through the hosts list
-	for (i=0; i < my_app->layout->numNodes; ++i)
+	for (i=0; i < my_app.layout->numNodes; ++i)
 	{
-		placement_list->hosts[i].hostname = strdup(my_app->layout->hosts[i].host);
-		placement_list->hosts[i].numPEs = my_app->layout->hosts[i].PEsHere;
+		placement_list->hosts[i].hostname = strdup(my_app.layout->hosts[i].host);
+		placement_list->hosts[i].numPEs = my_app.layout->hosts[i].PEsHere;
 	}
 	
 	// done
@@ -1705,43 +1599,24 @@ _cti_cray_slurm_getHostName(void)
 }
 
 static const char *
-_cti_cray_slurm_getToolPath(craySlurmInfo_t *my_app)
+_cti_cray_slurm_getToolPath(craySlurmInfo_t& my_app)
 {
 	// sanity check
-	if (my_app == NULL)
+	if (my_app.toolPath == NULL)
 	{
-		_cti_set_error("getToolPath operation failed.");
-		return NULL;
-	}
-	
-	// sanity check
-	if (my_app->toolPath == NULL)
-	{
-		_cti_set_error("toolPath info missing from sinfo obj!");
+		_cti_set_error("toolPath info missing from my_app obj!");
 		return NULL;
 	}
 
-	return (const char *)my_app->toolPath;
+	return (const char *)my_app.toolPath;
 }
 
 static const char *
-_cti_cray_slurm_getAttribsPath(craySlurmInfo_t *my_app)
+_cti_cray_slurm_getAttribsPath(craySlurmInfo_t& my_app)
 {
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("getAttribsPath operation failed.");
-		return NULL;
-	}
 	
-	// sanity check
-	if (my_app->attribsPath == NULL)
-	{
-		_cti_set_error("attribsPath info missing from sinfo obj!");
-		return NULL;
-	}
 	
-	return (const char *)my_app->attribsPath;
+	return (const char *)my_app.attribsPath;
 }
 
 #include <vector>
@@ -1766,11 +1641,11 @@ static AppId newAppId() noexcept {
 	return nextId++;
 }
 
-static craySlurmInfo_t*
-getInfoPtr(AppId appId) {
+static craySlurmInfo_t&
+getAppInfo(AppId appId) {
 	auto infoPtr = appList.find(appId);
 	if (infoPtr != appList.end()) {
-		return infoPtr->second.get();
+		return *(infoPtr->second);
 	}
 
 	throw std::runtime_error("invalid appId: " + std::to_string(appId));
@@ -1793,7 +1668,7 @@ CraySLURMFrontend::getWLMType() const {
 
 std::string const
 CraySLURMFrontend::getJobId(AppId appId) const {
-	return _cti_cray_slurm_getJobId(getInfoPtr(appId));
+	return _cti_cray_slurm_getJobId(getAppInfo(appId));
 }
 
 AppId
@@ -1822,12 +1697,12 @@ CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int std
 
 void
 CraySLURMFrontend::releaseBarrier(AppId appId) {
-	_cti_mpir_releaseInstance(getInfoPtr(appId)->mpir_id);
+	_cti_mpir_releaseInstance(getAppInfo(appId).mpir_id);
 }
 
 void
 CraySLURMFrontend::killApp(AppId appId, int signal) {
-	if (_cti_cray_slurm_killApp(getInfoPtr(appId), signal)) {
+	if (_cti_cray_slurm_killApp(getAppInfo(appId), signal)) {
 		throw std::runtime_error(std::string("killApp: ") + cti_error_str());
 	}
 }
@@ -1835,7 +1710,7 @@ CraySLURMFrontend::killApp(AppId appId, int signal) {
 std::vector<std::string> const
 CraySLURMFrontend::getExtraFiles(AppId appId) const {
 	std::vector<std::string> result;
-	auto extraFileList = _cti_cray_slurm_extraFiles(getInfoPtr(appId));
+	auto extraFileList = _cti_cray_slurm_extraFiles(getAppInfo(appId));
 	for (const char* const* filePath = extraFileList; *filePath != nullptr; filePath++) {
 		result.emplace_back(*filePath);
 	}
@@ -1845,7 +1720,7 @@ CraySLURMFrontend::getExtraFiles(AppId appId) const {
 
 void
 CraySLURMFrontend::shipPackage(AppId appId, std::string const& tarPath) const {
-	if (_cti_cray_slurm_ship_package(getInfoPtr(appId), tarPath.c_str())) {
+	if (_cti_cray_slurm_ship_package(getAppInfo(appId), tarPath.c_str())) {
 		throw std::runtime_error(std::string("shipPackage: ") + cti_error_str());
 	}
 }
@@ -1856,7 +1731,7 @@ CraySLURMFrontend::startDaemon(AppId appId, CArgArray argv) const {
 	for (const char* const* arg = argv; *arg != nullptr; arg++) {
 		_cti_addArg(cti_argv, *arg);
 	}
-	if (_cti_cray_slurm_start_daemon(getInfoPtr(appId), cti_argv)) {
+	if (_cti_cray_slurm_start_daemon(getAppInfo(appId), cti_argv)) {
 		_cti_freeArgs(cti_argv);
 		throw std::runtime_error(std::string("startDaemon: ") + cti_error_str());
 	}
@@ -1866,7 +1741,7 @@ CraySLURMFrontend::startDaemon(AppId appId, CArgArray argv) const {
 
 size_t
 CraySLURMFrontend::getNumAppPEs(AppId appId) const {
-	if (auto numAppPEs = _cti_cray_slurm_getNumAppPEs(getInfoPtr(appId))) {
+	if (auto numAppPEs = _cti_cray_slurm_getNumAppPEs(getAppInfo(appId))) {
 		return numAppPEs;
 	} else {
 		throw std::runtime_error(std::string("getNumAppPEs: ") + cti_error_str());
@@ -1875,7 +1750,7 @@ CraySLURMFrontend::getNumAppPEs(AppId appId) const {
 
 size_t
 CraySLURMFrontend::getNumAppNodes(AppId appId) const {
-	if (auto numAppNodes = _cti_cray_slurm_getNumAppNodes(getInfoPtr(appId))) {
+	if (auto numAppNodes = _cti_cray_slurm_getNumAppNodes(getAppInfo(appId))) {
 		return numAppNodes;
 	} else {
 		throw std::runtime_error(std::string("getNumAppPEs: ") + cti_error_str());
@@ -1884,7 +1759,7 @@ CraySLURMFrontend::getNumAppNodes(AppId appId) const {
 
 std::vector<std::string> const
 CraySLURMFrontend::getAppHostsList(AppId appId) const {
-	if (char** appHostsList = _cti_cray_slurm_getAppHostsList(getInfoPtr(appId))) {
+	if (char** appHostsList = _cti_cray_slurm_getAppHostsList(getAppInfo(appId))) {
 		std::vector<std::string> result;
 		for (char** host = appHostsList; *host != nullptr; host++) {
 			result.emplace_back(*host);
@@ -1899,7 +1774,7 @@ CraySLURMFrontend::getAppHostsList(AppId appId) const {
 
 std::vector<CTIHost> const
 CraySLURMFrontend::getAppHostsPlacement(AppId appId) const {
-	if (auto appHostsPlacement = _cti_cray_slurm_getAppHostsPlacement(getInfoPtr(appId))) {
+	if (auto appHostsPlacement = _cti_cray_slurm_getAppHostsPlacement(getAppInfo(appId))) {
 		std::vector<CTIHost> result;
 		for (int i = 0; i < appHostsPlacement->numHosts; i++) {
 			result.emplace_back(appHostsPlacement->hosts[i].hostname, appHostsPlacement->hosts[i].numPEs);
@@ -1927,7 +1802,7 @@ CraySLURMFrontend::getLauncherHostName(AppId appId) const {
 
 std::string const
 CraySLURMFrontend::getToolPath(AppId appId) const {
-	if (auto toolPath = _cti_cray_slurm_getToolPath(getInfoPtr(appId))) {
+	if (auto toolPath = _cti_cray_slurm_getToolPath(getAppInfo(appId))) {
 		return toolPath;
 	} else {
 		throw std::runtime_error(std::string("getToolPath: ") + cti_error_str());
@@ -1936,7 +1811,7 @@ CraySLURMFrontend::getToolPath(AppId appId) const {
 
 std::string const
 CraySLURMFrontend::getAttribsPath(AppId appId) const {
-	if (auto attribsPath = _cti_cray_slurm_getAttribsPath(getInfoPtr(appId))) {
+	if (auto attribsPath = _cti_cray_slurm_getAttribsPath(getAppInfo(appId))) {
 		return attribsPath;
 	} else {
 		throw std::runtime_error(std::string("getAttribsPath: ") + cti_error_str());
@@ -1975,7 +1850,7 @@ CraySLURMFrontend::registerJobStep(uint32_t jobid, uint32_t stepid) {
 
 CraySLURMFrontend::SrunInfo*
 CraySLURMFrontend::getSrunInfo(AppId appId) {
-	if (auto srunInfo = _cti_cray_slurm_getSrunInfo(getInfoPtr(appId))) {
+	if (auto srunInfo = _cti_cray_slurm_getSrunInfo(getAppInfo(appId))) {
 		return srunInfo;
 	} else {
 		throw std::runtime_error(std::string("getSrunInfo: ") + cti_error_str());
