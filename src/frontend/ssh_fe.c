@@ -703,13 +703,14 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 
 	// optionally open input file
 	int input_fd = -1;
-	if (inputFile != NULL) {
-		errno = 0;
-		input_fd = open(inputFile, O_RDONLY);
-		if (input_fd < 0) {
-			_cti_set_error("Failed to open input file %s: ", inputFile, strerror(errno));
-			return 0;
-		}
+	if (inputFile == NULL) {
+		inputFile = "/dev/null";
+	}
+	errno = 0;
+	input_fd = open(inputFile, O_RDONLY);
+	if (input_fd < 0) {
+		_cti_set_error("Failed to open input file %s: %s", inputFile, strerror(errno));
+		return 0;
 	}
 	
 	// Create a new MPIR instance. We want to interact with it.

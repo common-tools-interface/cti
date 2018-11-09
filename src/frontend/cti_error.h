@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 void	_cti_set_error(const char *, ...);
+const char *cti_error_str(void);
 
 #ifdef __cplusplus
 }

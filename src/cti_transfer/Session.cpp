@@ -149,12 +149,21 @@ void Session::shipWLMBaseFiles() {
 	baseFileManifest->finalizeAndShip().extract();
 }
 
-int Session::startDaemon(char * const argv[]) {
+void Session::startDaemon(char * const argv[]) {
 	auto cti_argv = UniquePtrDestr<cti_args_t>(_cti_newArgs(), _cti_freeArgs);
 	forEachCStrArr([&](CStr arg) {
 		_cti_addArg(cti_argv.get(), arg);
 	}, argv);
-	return getWLM()->wlm_startDaemon(appPtr->_wlmObj, cti_argv.get());
+
+	if (getWLM()->wlm_startDaemon(appPtr->_wlmObj, cti_argv.get())) {
+		throw std::runtime_error("failed to start CTI daemon: " + getCTIErrorString());
+	}
+}
+
+void Session::shipPackage(const char *tar_name) {
+	if (getWLM()->wlm_shipPackage(appPtr->_wlmObj, tar_name)) {
+		throw std::runtime_error("failed to ship package to nodes: " + getCTIErrorString());
+	}
 }
 
 std::shared_ptr<Manifest> Session::createManifest() {

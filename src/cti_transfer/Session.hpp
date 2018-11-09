@@ -68,10 +68,8 @@ public: // interface
 	void shipWLMBaseFiles();
 
 	// wlm / daemon wrappers
-	int startDaemon(char * const argv[]);
-	inline int shipPackage(const char *tar_name) {
-		return getWLM()->wlm_shipPackage(appPtr->_wlmObj, tar_name);
-	}
+	void startDaemon(char * const argv[]);
+	void shipPackage(const char *tar_name);
 
 	// create new manifest and register ownership
 	std::shared_ptr<Manifest> createManifest();

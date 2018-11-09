@@ -28,13 +28,13 @@ static cti_manifest_id_t newManifestId() noexcept {
 }
 
 // run code that can throw and use it to set cti error instead
-static int runSafely(std::string const& caller, std::function<void()> f) noexcept {
+static int runSafely(std::function<void()> f) noexcept {
 	try { // try to run the function
 		f();
 		return 0;
 	} catch (const std::exception& ex) {
 		// if we get an exception, set cti error instead
-		_cti_set_error((caller + ": " + ex.what()).c_str());
+		_cti_set_error(ex.what());
 		return 1;
 	}
 }
@@ -61,7 +61,7 @@ cti_session_id_t cti_createSession(cti_app_id_t appId) {
 		}
 	};
 
-	return runSafely("cti_createSession", insertSession) ? SESSION_ERROR : sid;
+	return runSafely(insertSession) ? SESSION_ERROR : sid;
 }
 
 int cti_sessionIsValid(cti_session_id_t sid) {
@@ -78,7 +78,7 @@ getSessionHandle(cti_session_id_t sid) {
 }
 
 int cti_destroySession(cti_session_id_t sid) {
-	return runSafely("cti_destroySession", [&]() {
+	return runSafely([&]() {
 		getSessionHandle(sid)->launchCleanup();
 		sessions.erase(sid);
 	});
@@ -110,12 +110,11 @@ char** cti_getSessionLockFiles(cti_session_id_t sid) {
 		result[manifests.size()] = nullptr;
 	};
 
-	return runSafely("cti_getSessionLockFiles", getLockFiles) ? nullptr : result;
+	return runSafely(getLockFiles) ? nullptr : result;
 }
 
 // fill in a heap string pointer to session root path plus subdirectory
-static char* sessionPathAppend(const std::string& caller, 
-	cti_session_id_t sid, const std::string& str) {
+static char* sessionPathAppend(cti_session_id_t sid, const std::string& str) {
 	char *result;
 
 	auto constructPath = [&]() {
@@ -126,27 +125,27 @@ static char* sessionPathAppend(const std::string& caller,
 		result = strdup(ss.str().c_str());
 	};
 
-	return runSafely(caller, constructPath) ? nullptr : result;
+	return runSafely(constructPath) ? nullptr : result;
 }
 
 char* cti_getSessionRootDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionRootDir", sid, "");
+	return sessionPathAppend(sid, "");
 }
 
 char* cti_getSessionBinDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionBinDir", sid, "/bin");
+	return sessionPathAppend(sid, "/bin");
 }
 
 char* cti_getSessionLibDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionLibDir", sid, "/lib");
+	return sessionPathAppend(sid, "/lib");
 }
 
 char* cti_getSessionFileDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionFileDir", sid, "");
+	return sessionPathAppend(sid, "");
 }
 
 char* cti_getSessionTmpDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionTmpDir", sid, "/tmp");
+	return sessionPathAppend(sid, "/tmp");
 }
 
 /* manifest implementations */
@@ -159,7 +158,7 @@ cti_manifest_id_t cti_createManifest(cti_session_id_t sid) {
 		manifests.insert({mid, getSessionHandle(sid)->createManifest()});
 	};
 
-	return runSafely("cti_createManifest", insertManifest) ? MANIFEST_ERROR : mid;
+	return runSafely(insertManifest) ? MANIFEST_ERROR : mid;
 }
 
 int cti_manifestIsValid(cti_manifest_id_t mid) {
@@ -176,31 +175,31 @@ getManifestHandle(cti_manifest_id_t mid) {
 }
 
 int cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely("cti_addManifestBinary", [&](){
+	return runSafely([&](){
 		getManifestHandle(mid)->addBinary(rawName);
 	});
 }
 
 int cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely("cti_addManifestLibrary", [&](){
+	return runSafely([&](){
 		getManifestHandle(mid)->addLibrary(rawName);
 	});
 }
 
 int cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely("cti_addManifestLibDir", [&](){
+	return runSafely([&](){
 		getManifestHandle(mid)->addLibDir(rawName);
 	});
 }
 
 int cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely("cti_addManifestFile", [&](){
+	return runSafely([&](){
 		getManifestHandle(mid)->addFile(rawName);
 	});
 }
 
 int cti_sendManifest(cti_manifest_id_t mid) {
-	return runSafely("cti_sendManifest", [&](){
+	return runSafely([&](){
 		auto remotePackage = getManifestHandle(mid)->finalizeAndShip();
 		remotePackage.extract();
 		manifests.erase(mid);
@@ -210,7 +209,7 @@ int cti_sendManifest(cti_manifest_id_t mid) {
 /* tool daemon prototypes */
 int cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 	const char * const daemonArgs[], const char * const envVars[]) {
-	return runSafely("cti_execToolDaemon", [&](){
+	return runSafely([&](){
 		auto manifestPtr = getManifestHandle(mid);
 
 		manifestPtr->addBinary(daemonPath);
@@ -231,7 +230,7 @@ void _cti_consumeSession(void* rawSidPtr) {
 	}
 
 	auto sidPtr = static_cast<cti_session_id_t*>(rawSidPtr);
-	runSafely("_cti_consumeSession", [&]() {
+	runSafely([&]() {
 		auto const& sessionHandle = getSessionHandle(*sidPtr);
 		ctiListRemove(sessionHandle->appPtr->sessions, sidPtr);
 	});
