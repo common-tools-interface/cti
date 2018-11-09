@@ -49,23 +49,26 @@ def fetch_os():
   global prefix
   global os_sub
 
+    
   if os.path.isfile("/etc/SuSE-release"): 
-    if line.find("VERSION") != -1:
-      os_sub = line.replace("VERSION = ", "")
-
+    with open("/etc/SuSE-release", "r") as f:
+      for line in f:
+        if line.find("VERSION") != -1:
+          os_sub = line.replace("VERSION = ", "")
+          arch_name = "sles"
+          break
+  elif os.path.isfile("/etc/os-release"):
+    with open("/etc/os-release", "r") as f:
+      for line in f:
+        if line.find('VERSION="15"') != -1:
+          os_sub = '15'
+          break
   elif os.path.isfile("/etc/redhat-release"):
     with open("/etc/redhat-release", "r") as f:
       for line in f:
         if line.find("CentOS ") != -1:
           os_sub = 'el7'
           arch_name = "CS"
-          break
-
-  elif os.path.isfile("/etc/os-release"):
-    with open("/etc/os-release", "r") as f:
-      for line in f:
-        if line.find('VERSION="15"') != -1:
-          os_sub = '15'
           break
 
   os_sub = os_sub.strip()
