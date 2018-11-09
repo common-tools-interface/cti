@@ -50,11 +50,6 @@ function source_module_script() {
     source $modules_prefix/modules/default/init/bash
   fi
   
-  if [[ $SLES_VER -lt 12 ]]; then
-    modules_prefix=/opt
-  else
-    modules_prefix=/opt/cray/pe
-  fi  
 }
 
 function set_OS(){
@@ -63,6 +58,7 @@ function set_OS(){
   if [ -e "$redhat_release_file" ]; then
     OS="CentOS"
     SLES_VER="SLES12"
+    modules_prefix=/opt/cray/pe
   elif [ -e "$os_release_file" ]; then
     SLES_VER=$(cat /etc/os-release | grep VERSION | head -1 | cut -d'"' -f2)
     if [[ $SLES_VER = 12 ]]; then
@@ -70,12 +66,15 @@ function set_OS(){
     elif [[ $SLES_VER = 15 ]]; then
       OS="SLES$SLES_VER"
     fi
+    modules_prefix=/opt/cray/pe
   elif [ -e "$suse_release_file" ]; then
     SLES_VER=$(cat $suse_release_file | grep VERSION | cut -f3 -d" ")
     if [[ $SLES_VER = 11 ]]; then
       OS="SLES$SLES_VER"
+      modules_prefix=/opt
     elif [[ $SLES_VER = 12 ]]; then
       OS="SLES$SLES_VER"
+      modules_prefix=/opt/cray/pe
     fi
   fi
   export OS
@@ -103,6 +102,9 @@ function set_OS(){
       dwarfDir=$ulib/dwarf/$dwarfVer
     fi
   fi
+
+
+
 }
 
 #_______________________ Start of main code ______________________________
