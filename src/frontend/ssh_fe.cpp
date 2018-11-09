@@ -42,6 +42,8 @@
 #include "useful/cti_useful.h"
 #include "useful/cti_path.h"
 #include "useful/cti_stringList.h"
+#include "useful/make_unique.hpp"
+#include "useful/strong_argv.hpp"
 
 #include "mpir_iface/mpir_iface.h"
 
@@ -94,8 +96,8 @@ const char * _cti_ssh_forwarded_env_vars[] = {
 static void _cti_ssh_consumeSshLayout(sshLayout_t* layout);
 static ssh_session _cti_ssh_start_session(char* hostname);
 static void _cti_ssh_end_session(ssh_session session);
-static int _cti_ssh_release(sshInfo_t *my_app);
-static int _cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, const char* const environment[]);
+static int _cti_ssh_release(sshInfo_t& my_app);
+static int _cti_ssh_execute_remote_command(ssh_session session, const char* const args[], const char* const environment[]);
 
 typedef struct
 {
@@ -128,27 +130,7 @@ libssh_funcs_t _cti_ssh_libssh_funcs = {
 	.handle = NULL
 };
 
-static cti_list_t *	_cti_ssh_info	= NULL;	// list of sshInfo_t objects registered by this interface
-
 /* Constructor/Destructor functions */
-
-/*
- * cti_ssh_init - Initialize a ssh based cti session 
- *
- * Returns
- *      0 on success
- *
- */
-static int
-_cti_ssh_init(void)
-{
-	// create a new _cti_alps_info list
-	if (_cti_ssh_info == NULL)
-		_cti_ssh_info = _cti_newList();
-
-	// done
-	return 0;
-}
 
 /*
  * cti_ssh_fini - Deinitialize a ssh based cti session 
@@ -159,9 +141,6 @@ _cti_ssh_fini(void)
 {
 	// force cleanup to happen on any pending srun launches
 	_cti_mpir_releaseAllInstances();
-	
-	if (_cti_ssh_info != NULL)
-		_cti_consumeList(_cti_ssh_info, NULL);	// this should have already been cleared out.
 
 	// done
 	return;
@@ -180,9 +159,6 @@ _cti_ssh_destroy(sshInfo_t* sinfo)
 	// sanity
 	if (sinfo == NULL)
 		return;
-		
-	// remove this sinfo from the global list
-	_cti_list_remove(_cti_ssh_info, sinfo);
 
 	_cti_ssh_consumeSshLayout(sinfo->layout);
 	_cti_mpir_releaseInstance(sinfo->mpir_id);
@@ -424,17 +400,10 @@ _cti_ssh_getLayout(pid_t launcher_pid)
  * 
  */
 static char *
-_cti_ssh_getJobId(sshInfo_t *my_app) {
+_cti_ssh_getJobId(sshInfo_t& my_app) {
 	char *				rtn = NULL;
-	
-	// sanity check
-	if (my_app == NULL)
-	{
-		_cti_set_error("Null wlm obj.");
-		return NULL;
-	}
 
-	asprintf(&rtn, "%d", my_app->launcher_pid);
+	asprintf(&rtn, "%d", my_app.launcher_pid);
 
 	return rtn;
 }
@@ -460,7 +429,7 @@ _cti_ssh_getJobId(sshInfo_t *my_app) {
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-static sshInfo_t*
+static UniquePtrDestr<sshInfo_t>
 _cti_ssh_registerJob(pid_t launcher_pid, cti_app_id_t newAppId, sshLayout_t* layout = nullptr)
 {
 	sshInfo_t	*	sinfo;
@@ -513,7 +482,7 @@ _cti_ssh_registerJob(pid_t launcher_pid, cti_app_id_t newAppId, sshLayout_t* lay
 
 	sinfo->appId = newAppId;
 
-	return sinfo;
+	return UniquePtrDestr<sshInfo_t>(sinfo, _cti_ssh_consumeSshInfo);
 }
 
 /*
@@ -545,13 +514,12 @@ _cti_ssh_registerJob(pid_t launcher_pid, cti_app_id_t newAppId, sshLayout_t* lay
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-static sshInfo_t*
+static UniquePtrDestr<sshInfo_t>
 _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 								const char *inputFile, const char *chdirPath,
 								const char * const env_list[], int doBarrier, cti_app_id_t newAppId)
 {
-	mpir_id_t			mpir_id;	
-	sshInfo_t	*		sinfo;
+	mpir_id_t			mpir_id;
 	cti_mpir_procTable_t *	proctable;
 	const char*			launcher_path;
 	
@@ -570,13 +538,14 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 
 	// optionally open input file
 	int input_fd = -1;
-	if (inputFile != NULL) {
-		errno = 0;
-		input_fd = open(inputFile, O_RDONLY);
-		if (input_fd < 0) {
-			_cti_set_error("Failed to open input file %s: ", inputFile, strerror(errno));
-			return 0;
-		}
+	if (inputFile == NULL) {
+		inputFile = "/dev/null";
+	}
+	errno = 0;
+	input_fd = open(inputFile, O_RDONLY);
+	if (input_fd < 0) {
+		_cti_set_error("Failed to open input file %s: %s", inputFile, strerror(errno));
+		return 0;
 	}
 	
 	// Create a new MPIR instance. We want to interact with it.
@@ -601,6 +570,7 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 	pid_t launcher_pid = _cti_mpir_getLauncherPid(mpir_id);
 	
 	// Register this app with the application interface
+	UniquePtrDestr<sshInfo_t> sinfo;
 	if ((sinfo = _cti_ssh_registerJob(launcher_pid, newAppId, layout)) == nullptr)
 	{
 		// Failed to register the jobid/stepid, error is already set.
@@ -616,7 +586,7 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 	// Release the application from the startup barrier according to the doBarrier flag
 	if (!doBarrier)
 	{
-		if (_cti_ssh_release(sinfo))
+		if (_cti_ssh_release(*sinfo))
 		{
 			return 0;
 		}
@@ -652,7 +622,7 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-static sshInfo_t*
+static UniquePtrDestr<sshInfo_t>
 _cti_ssh_launch(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 					const char *inputFile, const char *chdirPath,
 					const char * const env_list[], cti_app_id_t newAppId)
@@ -688,7 +658,7 @@ _cti_ssh_launch(	const char * const launcher_argv[], int stdout_fd, int stderr_f
  *      app_id should be used in subsequent calls. 0 is returned on error.
  * 
  */
-static sshInfo_t*
+static UniquePtrDestr<sshInfo_t>
 _cti_ssh_launchBarrier(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 						const char *inputFile, const char *chdirPath,
 						const char * const env_list[], cti_app_id_t newAppId)
@@ -709,23 +679,15 @@ _cti_ssh_launchBarrier(	const char * const launcher_argv[], int stdout_fd, int s
  * 
  */
 static int
-_cti_ssh_release(sshInfo_t *my_app)
+_cti_ssh_release(sshInfo_t& my_app)
 {
-
-	// Sanity check the arguments
-	if (my_app == NULL)
-	{
-		_cti_set_error("barrier release operation failed.");
-		return 1;
-	}
-
 	// call the release function
-	if (_cti_mpir_releaseInstance(my_app->mpir_id))
+	if (_cti_mpir_releaseInstance(my_app.mpir_id))
 	{
 		_cti_set_error("srun barrier release operation failed.");
 		return 1;
 	}
-	my_app->mpir_id = -1;
+	my_app.mpir_id = -1;
 	
 	return 0;
 }
@@ -747,49 +709,26 @@ _cti_ssh_release(sshInfo_t *my_app)
  * 
  */
 static int
-_cti_ssh_killApp(sshInfo_t *my_app, int signum)
+_cti_ssh_killApp(sshInfo_t& my_app, int signum)
 {
-	cti_args_t* kill_args;
-
 	//Connect through ssh to each node and send a kill command to every pid on that node
 	int i;
-	for (i=0; i < my_app->layout->numNodes; ++i)
+	for (i=0; i < my_app.layout->numNodes; ++i)
 	{
-		ssh_session current_session = _cti_ssh_start_session(my_app->layout->hosts[i].host);
+		ssh_session current_session = _cti_ssh_start_session(my_app.layout->hosts[i].host);
 		if(current_session == NULL){
 			// Something went wrong with creating the ssh session (error message is already set)
 			return 1;
 		}
 
-		if ((kill_args = _cti_newArgs()) == NULL)
-		{
-			_cti_set_error("_cti_newArgs failed.");
-			return 1;
+		ManagedArgv killArgv;
+		killArgv.add("kill");
+		killArgv.add("-" + std::to_string(signum));
+		for(int j = 0; j < my_app.layout->hosts[i].PEsHere; j++) {
+			killArgv.add(std::to_string(my_app.layout->hosts[i].pids[j]));
 		}
 
-		if (_cti_addArg(kill_args, "%s", "kill"))
-		{
-			_cti_set_error("_cti_addArg failed.");
-			return 1;
-		}
-
-		if (_cti_addArg(kill_args, "-%d", signum))
-		{
-			_cti_set_error("_cti_addArg failed.");
-			return 1;
-		}
-
-		int j;
-		for(j=0; j<my_app->layout->hosts[i].PEsHere; j++){
-
-			if (_cti_addArg(kill_args, "%d", my_app->layout->hosts[i].pids[j]))
-			{
-				_cti_set_error("_cti_addArg failed.");
-				return 1;
-			}
-		}
-
-		if(_cti_ssh_execute_remote_command(current_session, kill_args, NULL)){
+		if(_cti_ssh_execute_remote_command(current_session, killArgv.get(), NULL)){
 			// Something went wrong with the ssh command (error message is already set)
 			return 1;
 		}
@@ -816,7 +755,7 @@ _cti_ssh_killApp(sshInfo_t *my_app, int signum)
  * 
  */
 static const char * const *
-_cti_ssh_extraBinaries(sshInfo_t *my_app)
+_cti_ssh_extraBinaries(sshInfo_t& my_app)
 {
 	return NULL;
 }
@@ -837,7 +776,7 @@ _cti_ssh_extraBinaries(sshInfo_t *my_app)
  * 
  */
 static const char * const *
-_cti_ssh_extraLibraries(sshInfo_t *my_app)
+_cti_ssh_extraLibraries(sshInfo_t& my_app)
 {
 	return NULL;
 }
@@ -858,7 +797,7 @@ _cti_ssh_extraLibraries(sshInfo_t *my_app)
  * 
  */
 static const char * const *
-_cti_ssh_extraLibDirs(sshInfo_t *my_app)
+_cti_ssh_extraLibDirs(sshInfo_t& my_app)
 {
 	return NULL;
 }
@@ -882,7 +821,7 @@ _cti_ssh_extraLibDirs(sshInfo_t *my_app)
  * 
  */
 static const char * const *
-_cti_ssh_extraFiles(sshInfo_t *my_app) {
+_cti_ssh_extraFiles(sshInfo_t& my_app) {
 	FILE *					myFile;
 	char *					layoutPath;
 	cti_layoutFileHeader_t	layout_hdr;
@@ -894,24 +833,19 @@ _cti_ssh_extraFiles(sshInfo_t *my_app) {
 	int 					NUM_EXTRA_FILES = 2;
 	
 	// Sanity check the arguments
-	if (my_app == NULL){
-		_cti_set_error("WLM obj is null.");
-		return NULL;
-	}
-		
-	if (my_app->layout == NULL){
+	if (my_app.layout == NULL){
 		_cti_set_error("sshInfo_t layout is null.");
 		return NULL;
 	}
 	
 	// Return the extraFiles array if it has already been created
-	if (my_app->extraFiles != NULL)
+	if (my_app.extraFiles != NULL)
 	{
-		return (const char * const *)my_app->extraFiles;
+		return (const char * const *)my_app.extraFiles;
 	}
 	
 	// Check to see if we should create the staging directory
-	if (my_app->stagePath == NULL)
+	if (my_app.stagePath == NULL)
 	{
 		if (!_cti_getCfgDir().empty())
 		{
@@ -920,25 +854,25 @@ _cti_ssh_extraFiles(sshInfo_t *my_app) {
 		}
 		
 		// Prepare the path to the stage directory
-		if (asprintf(&my_app->stagePath, "%s/%s", _cti_getCfgDir().c_str(), SSH_STAGE_DIR) <= 0)
+		if (asprintf(&my_app.stagePath, "%s/%s", _cti_getCfgDir().c_str(), SSH_STAGE_DIR) <= 0)
 		{
 			_cti_set_error("asprintf failed.");
-			my_app->stagePath = NULL;
+			my_app.stagePath = NULL;
 			return NULL;
 		}
 		
 		// Create the temporary directory for the manifest package
-		if (mkdtemp(my_app->stagePath) == NULL)
+		if (mkdtemp(my_app.stagePath) == NULL)
 		{
 			_cti_set_error("mkdtemp failed.");
-			free(my_app->stagePath);
-			my_app->stagePath = NULL;
+			free(my_app.stagePath);
+			my_app.stagePath = NULL;
 			return NULL;
 		}
 	}
 	
 	// Create layout file in staging directory for writing
-	if (asprintf(&layoutPath, "%s/%s", my_app->stagePath, SSH_LAYOUT_FILE) <= 0)
+	if (asprintf(&layoutPath, "%s/%s", my_app.stagePath, SSH_LAYOUT_FILE) <= 0)
 	{
 		_cti_set_error("asprintf failed.");
 		return NULL;
@@ -957,7 +891,7 @@ _cti_ssh_extraFiles(sshInfo_t *my_app) {
 	memset(&pid_entry, 0, sizeof(pid_entry));
 
 	//Construct layout file from internal sshLayout_t data structure
-	layout_hdr.numNodes = my_app->layout->numNodes;
+	layout_hdr.numNodes = my_app.layout->numNodes;
 	
 	if (fwrite(&layout_hdr, sizeof(cti_layoutFileHeader_t), 1, myFile) != 1)
 	{
@@ -967,11 +901,11 @@ _cti_ssh_extraFiles(sshInfo_t *my_app) {
 		return NULL;
 	}
 	
-	for (i=0; i < my_app->layout->numNodes; ++i)
+	for (i=0; i < my_app.layout->numNodes; ++i)
 	{
-		memcpy(&layout_entry.host[0], my_app->layout->hosts[i].host, sizeof(layout_entry.host));
-		layout_entry.PEsHere = my_app->layout->hosts[i].PEsHere;
-		layout_entry.firstPE = my_app->layout->hosts[i].firstPE;
+		memcpy(&layout_entry.host[0], my_app.layout->hosts[i].host, sizeof(layout_entry.host));
+		layout_entry.PEsHere = my_app.layout->hosts[i].PEsHere;
+		layout_entry.firstPE = my_app.layout->hosts[i].firstPE;
 		
 		if (fwrite(&layout_entry, sizeof(cti_layoutFile_t), 1, myFile) != 1)
 		{
@@ -985,7 +919,7 @@ _cti_ssh_extraFiles(sshInfo_t *my_app) {
 	fclose(myFile);
 	
 	// Create pid file in staging directory for writing
-	if (asprintf(&pidPath, "%s/%s", my_app->stagePath, SSH_PID_FILE) <= 0)
+	if (asprintf(&pidPath, "%s/%s", my_app.stagePath, SSH_PID_FILE) <= 0)
 	{
 		_cti_set_error("asprintf failed.");
 		free(layoutPath);
@@ -1003,7 +937,7 @@ _cti_ssh_extraFiles(sshInfo_t *my_app) {
 	}
 
 	//Construct pid file from internal sshLayout_t data structure
-	pid_hdr.numPids = my_app->layout->numPEs;
+	pid_hdr.numPids = my_app.layout->numPEs;
 	
 	if (fwrite(&pid_hdr, sizeof(cti_pidFileheader_t), 1, myFile) != 1)
 	{
@@ -1014,11 +948,11 @@ _cti_ssh_extraFiles(sshInfo_t *my_app) {
 		return NULL;
 	}
 
-	for (i=0; i < my_app->layout->numNodes; ++i)
+	for (i=0; i < my_app.layout->numNodes; ++i)
 	{
 		int j;
-		for(j=0; j<my_app->layout->hosts[i].PEsHere; j++){
-			pid_entry.pid = my_app->layout->hosts[i].pids[j];
+		for(j=0; j<my_app.layout->hosts[i].PEsHere; j++){
+			pid_entry.pid = my_app.layout->hosts[i].pids[j];
 			
 			if (fwrite(&pid_entry, sizeof(cti_pidFile_t), 1, myFile) != 1)
 			{
@@ -1035,18 +969,18 @@ _cti_ssh_extraFiles(sshInfo_t *my_app) {
 
 	// Create the null terminated extraFiles array to store the paths to the files
 	// that were just created
-	if ((my_app->extraFiles = (decltype(my_app->extraFiles))calloc(NUM_EXTRA_FILES+1, sizeof(char *))) == NULL)
+	if ((my_app.extraFiles = (decltype(my_app.extraFiles))calloc(NUM_EXTRA_FILES+1, sizeof(char *))) == NULL)
 	{
 		_cti_set_error("calloc failed.");
 		free(layoutPath);
 		return NULL;
 	}
 	
-	my_app->extraFiles[0] = layoutPath;
-	my_app->extraFiles[1] = pidPath;
-	my_app->extraFiles[2] = NULL;
+	my_app.extraFiles[0] = layoutPath;
+	my_app.extraFiles[1] = pidPath;
+	my_app.extraFiles[2] = NULL;
 	
-	return (const char * const *)my_app->extraFiles;
+	return (const char * const *)my_app.extraFiles;
 }
 
 /*
@@ -1203,7 +1137,7 @@ ssh_session _cti_ssh_start_session(char* hostname)
  *      1 on error, 0 on success
  * 
  */
-int _cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, const char* const environment[])
+int _cti_ssh_execute_remote_command(ssh_session session, const char* const args[], const char* const environment[])
 {
 	ssh_channel channel;
 	int rc;
@@ -1235,8 +1169,13 @@ int _cti_ssh_execute_remote_command(ssh_session session, cti_args_t *args, const
 		current++;
 	}
 
-	// Request execution of the command on the remote host	
-	rc = _cti_ssh_libssh_funcs.ssh_channel_request_exec(channel, _cti_flattenArgs(args));
+	// Request execution of the command on the remote host
+	std::string argvString;
+	for (const char* const* arg = args; *arg != nullptr; arg++) {
+		argvString.push_back(' ');
+		argvString += std::string(*arg);
+	}
+	rc = _cti_ssh_libssh_funcs.ssh_channel_request_exec(channel, argvString.c_str());
 	if (rc != SSH_OK)
 	{
 		_cti_set_error("Execution of ssh command failed: %s\n", _cti_ssh_libssh_funcs.ssh_get_error(session));
@@ -1379,16 +1318,10 @@ void _cti_ssh_end_session(ssh_session session)
  * 
  */
 static int
-_cti_ssh_ship_package(sshInfo_t *my_app, const char *package)
+_cti_ssh_ship_package(sshInfo_t& my_app, const char *package)
 {
 	// Sanity check the arguments
-	if (my_app == NULL)
-	{
-		_cti_set_error("WLM obj is null!");
-		return 1;
-	}
-	
-	if (my_app->layout == NULL)
+	if (my_app.layout == NULL)
 	{
 		_cti_set_error("sshInfo_t layout is null!");
 		return 1;
@@ -1400,7 +1333,7 @@ _cti_ssh_ship_package(sshInfo_t *my_app, const char *package)
 		return 1;
 	}
 	
-	if (my_app->layout->numNodes <= 0)
+	if (my_app.layout->numNodes <= 0)
 	{
 		_cti_set_error("No nodes in application");
 		return 1;
@@ -1412,9 +1345,9 @@ _cti_ssh_ship_package(sshInfo_t *my_app, const char *package)
 
 	// Send the package to each of the hosts using SCP
 	int i;
-	for (i=0; i < my_app->layout->numNodes; ++i)
+	for (i=0; i < my_app.layout->numNodes; ++i)
 	{
-		ssh_session current_session = _cti_ssh_start_session(my_app->layout->hosts[i].host);
+		ssh_session current_session = _cti_ssh_start_session(my_app.layout->hosts[i].host);
 		if(current_session == NULL){
 			// Something went wrong with creating the ssh session (error message is already set)
 			return 1;
@@ -1446,19 +1379,10 @@ _cti_ssh_ship_package(sshInfo_t *my_app, const char *package)
  * 
  */
 static int
-_cti_ssh_start_daemon(sshInfo_t *my_app, cti_args_t * args)
+_cti_ssh_start_daemon(sshInfo_t& my_app, const char* const args[])
 {
-	char *				launcher;
-	int					i;
-	
 	// Sanity check the arguments
-	if (my_app == NULL)
-	{
-		_cti_set_error("WLM obj is null!");
-		return 1;
-	}
-	
-	if (my_app->layout == NULL)
+	if (my_app.layout == NULL)
 	{
 		_cti_set_error("sshInfo_t layout is null!");
 		return 1;
@@ -1470,14 +1394,14 @@ _cti_ssh_start_daemon(sshInfo_t *my_app, cti_args_t * args)
 		return 1;
 	}
 	
-	if (my_app->layout->numNodes <= 0)
+	if (my_app.layout->numNodes <= 0)
 	{
 		_cti_set_error("Application does not have any nodes.");
 		return 1;
 	}
 
 	// Transfer the dlaunch binary to the backends if it has not yet been transferred
-	if (!my_app->dlaunch_sent)
+	if (!my_app.dlaunch_sent)
 	{
 		if (!_cti_getDlaunchPath().empty())
 		{
@@ -1490,62 +1414,36 @@ _cti_ssh_start_daemon(sshInfo_t *my_app, cti_args_t * args)
 			return 1;
 		}
 		
-		my_app->dlaunch_sent = 1;
+		my_app.dlaunch_sent = 1;
 	}
 	
 	// Use location of existing launcher binary on compute node
-	if (asprintf(&launcher, "%s/%s", my_app->toolPath, CTI_LAUNCHER) <= 0)
-	{
-		_cti_set_error("asprintf failed.");
-		return 1;
-	}
-	
+	std::string const launcherPath(std::string(my_app.toolPath) + "/" + CTI_LAUNCHER);
+
 	// Prepare the launcher arguments
-	cti_args_t * my_args;
-	if ((my_args = _cti_newArgs()) == NULL)
-	{
-		_cti_set_error("_cti_newArgs failed.");
-		free(launcher);
-		return 1;
-	}
-
-	if (_cti_addArg(my_args, "%s", launcher))
-	{
-		_cti_set_error("_cti_addArg failed.");
-		free(launcher);
-		_cti_freeArgs(my_args);
-		return 1;
-	}
-
-	if (args != NULL)
-	{
-		if (_cti_mergeArgs(my_args, args))
-		{
-			_cti_set_error("_cti_mergeArgs failed.");
-			_cti_freeArgs(my_args);
-			return 1;
+	ManagedArgv launcherArgv;
+	launcherArgv.add(launcherPath);
+	if (args != NULL) {
+		for (const char* const* arg = args; *arg != nullptr; arg++) {
+			launcherArgv.add(*arg);
 		}
 	}
 
-	free(launcher);
-
 	// Execute the launcher on each of the hosts using SSH
-	for (i=0; i < my_app->layout->numNodes; ++i)
+	for (int i=0; i < my_app.layout->numNodes; ++i)
 	{
-		ssh_session current_session = _cti_ssh_start_session(my_app->layout->hosts[i].host);
+		ssh_session current_session = _cti_ssh_start_session(my_app.layout->hosts[i].host);
 		if(current_session == NULL){
 			// Something went wrong with creating the ssh session (error message is already set)
 			return 1;
 		}
-		if(_cti_ssh_execute_remote_command(current_session, my_args, _cti_ssh_forwarded_env_vars)){
+		if(_cti_ssh_execute_remote_command(current_session, launcherArgv.get(), _cti_ssh_forwarded_env_vars)){
 			// Something went wrong with the ssh command (error message is already set)
 			return 1;
 		}
 		_cti_ssh_end_session(current_session);
-	}	
-	
-	_cti_freeArgs(my_args);
-	
+	}
+
 	return 0;
 }
 
@@ -1560,22 +1458,16 @@ _cti_ssh_start_daemon(sshInfo_t *my_app, cti_args_t * args)
  * 
  */
 static int
-_cti_ssh_getNumAppPEs(sshInfo_t *my_app) {
+_cti_ssh_getNumAppPEs(sshInfo_t& my_app) {
 	
 	// Sanity check the arguments
-	if (my_app == NULL)
+	if (my_app.layout == NULL)
 	{
 		_cti_set_error("getNumAppPEs operation failed.");
 		return 0;
 	}
 	
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return 0;
-	}
-	
-	return my_app->layout->numPEs;
+	return my_app.layout->numPEs;
 }
 
 /*
@@ -1589,22 +1481,16 @@ _cti_ssh_getNumAppPEs(sshInfo_t *my_app) {
  * 
  */
 static int
-_cti_ssh_getNumAppNodes(sshInfo_t *my_app) {
+_cti_ssh_getNumAppNodes(sshInfo_t& my_app) {
 	
 	// Sanity check the arguments
-	if (my_app == NULL)
+	if (my_app.layout == NULL)
 	{
 		_cti_set_error("getNumAppPEs operation failed.");
 		return 0;
 	}
 	
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return 0;
-	}
-	
-	return my_app->layout->numNodes;
+	return my_app.layout->numNodes;
 }
 
 /*
@@ -1618,39 +1504,33 @@ _cti_ssh_getNumAppNodes(sshInfo_t *my_app) {
  * 
  */
 static char **
-_cti_ssh_getAppHostsList(sshInfo_t *my_app) {
+_cti_ssh_getAppHostsList(sshInfo_t& my_app) {
 	char **				hosts;
 	int					i;
 	
 	// Sanity check the arguments
-	if (my_app == NULL)
+	if (my_app.layout == NULL)
 	{
 		_cti_set_error("getNumAppPEs operation failed.");
 		return NULL;
 	}
 	
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return NULL;
-	}
-	
-	if (my_app->layout->numNodes <= 0)
+	if (my_app.layout->numNodes <= 0)
 	{
 		_cti_set_error("Application does not have any nodes.");
 		return NULL;
 	}
 	
 	// Construct the null termintated hosts list from the internal sshLayout_t representation
-	if ((hosts = (decltype(hosts))calloc(my_app->layout->numNodes + 1, sizeof(char *))) == NULL)
+	if ((hosts = (decltype(hosts))calloc(my_app.layout->numNodes + 1, sizeof(char *))) == NULL)
 	{
 		_cti_set_error("calloc failed.");
 		return NULL;
 	}
 	
-	for (i=0; i < my_app->layout->numNodes; ++i)
+	for (i=0; i < my_app.layout->numNodes; ++i)
 	{
-		hosts[i] = strdup(my_app->layout->hosts[i].host);
+		hosts[i] = strdup(my_app.layout->hosts[i].host);
 	}
 	
 	hosts[i] = NULL;
@@ -1673,56 +1553,24 @@ _cti_ssh_getAppHostsList(sshInfo_t *my_app) {
  *      A pointer to a cti_hostsList_t containing the placement information
  * 
  */
-static cti_hostsList_t *
-_cti_ssh_getAppHostsPlacement(sshInfo_t *my_app) {
-	cti_hostsList_t *	placement_list;
-	int					i;
-	
-	// Sanity check the arguments
-	if (my_app == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return NULL;
-	}
-	
-	if (my_app->layout == NULL)
-	{
-		_cti_set_error("getNumAppPEs operation failed.");
-		return NULL;
-	}
-	
-	if (my_app->layout->numNodes <= 0)
-	{
-		_cti_set_error("Application does not have any nodes.");
-		return NULL;
-	}
-	
-	// Construct the cti_hostsList_t output from the internal sshLayout_t representation
+static std::vector<Frontend::CTIHost>
+_cti_ssh_getAppHostsPlacement(sshInfo_t& my_app) {
+	std::vector<Frontend::CTIHost> result;
 
-	if ((placement_list = (decltype(placement_list))malloc(sizeof(cti_hostsList_t))) == NULL)
-	{
-		_cti_set_error("malloc failed.");
-		return NULL;
-	}
-	
-	placement_list->numHosts = my_app->layout->numNodes;
-	
-	if ((placement_list->hosts = (decltype(placement_list->hosts))malloc(placement_list->numHosts * sizeof(cti_host_t))) == NULL)
-	{
-		_cti_set_error("malloc failed.");
-		free(placement_list);
-		return NULL;
+	// ensure numNodes is non-zero
+	if (my_app.layout->numNodes <= 0) {
+		throw std::runtime_error("Application does not have any nodes.");
 	}
 
-	memset(placement_list->hosts, 0, placement_list->numHosts * sizeof(cti_host_t));
-	
-	for (i=0; i < my_app->layout->numNodes; ++i)
-	{
-		placement_list->hosts[i].hostname = strdup(my_app->layout->hosts[i].host);
-		placement_list->hosts[i].numPEs = my_app->layout->hosts[i].PEsHere;
+	// allocate space for the cti_hostsList_t struct
+	result.reserve(my_app.layout->numNodes);
+
+	// iterate through the hosts list
+	for (int i = 0; i < my_app.layout->numNodes; ++i) {
+		result.emplace_back(my_app.layout->hosts[i].host, my_app.layout->hosts[i].PEsHere);
 	}
-	
-	return placement_list;
+
+	return result;
 }
 
 /*
@@ -1759,22 +1607,16 @@ _cti_ssh_getHostName(void)
  * 
  */
 static const char *
-_cti_ssh_getToolPath(sshInfo_t *my_app) {
+_cti_ssh_getToolPath(sshInfo_t& my_app) {
 	
 	// Sanity check the arguments
-	if (my_app == NULL)
-	{
-		_cti_set_error("getToolPath operation failed.");
-		return NULL;
-	}
-	
-	if (my_app->toolPath == NULL)
+	if (my_app.toolPath == NULL)
 	{
 		_cti_set_error("toolPath my_app missing from sinfo obj!");
 		return NULL;
 	}
 
-	return (const char *)my_app->toolPath;
+	return (const char *)my_app.toolPath;
 }
 
 /*
@@ -1794,8 +1636,161 @@ _cti_ssh_getToolPath(sshInfo_t *my_app) {
  * 
  */
 static const char *
-_cti_ssh_getAttribsPath(sshInfo_t *my_app)
+_cti_ssh_getAttribsPath(sshInfo_t& my_app)
 {
 	return NULL;
 }
 
+
+#include <vector>
+#include <string>
+#include <unordered_map>
+
+#include <memory>
+
+#include <stdexcept>
+
+/* wlm interface implementation */
+
+using AppId   = Frontend::AppId;
+using CTIHost = Frontend::CTIHost;
+
+/* active app management */
+
+static std::unordered_map<AppId, UniquePtrDestr<sshInfo_t>> appList;
+static const AppId APP_ERROR = 0;
+static AppId newAppId() noexcept {
+	static AppId nextId = 1;
+	return nextId++;
+}
+
+static sshInfo_t&
+getAppInfo(AppId appId) {
+	auto infoPtr = appList.find(appId);
+	if (infoPtr != appList.end()) {
+		return *(infoPtr->second);
+	}
+
+	throw std::runtime_error("invalid appId: " + std::to_string(appId));
+}
+
+bool
+SSHFrontend::appIsValid(AppId appId) const {
+	return appList.find(appId) != appList.end();
+}
+
+void
+SSHFrontend::deregisterApp(AppId appId) const {
+	appList.erase(appId);
+}
+
+cti_wlm_type
+SSHFrontend::getWLMType() const {
+	return CTI_WLM_CRAY_SLURM;
+}
+
+std::string const
+SSHFrontend::getJobId(AppId appId) const {
+	return _cti_ssh_getJobId(getAppInfo(appId));
+}
+
+AppId
+SSHFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr,
+					 CStr inputFile, CStr chdirPath, CArgArray env_list) {
+	auto const appId = newAppId();
+	appList[appId] = _cti_ssh_launch_common(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, 0, appId);
+	return appId;
+}
+
+AppId
+SSHFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
+							CStr inputFile, CStr chdirPath, CArgArray env_list) {
+	auto const appId = newAppId();
+	appList[appId] = _cti_ssh_launch_common(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, 1, appId);
+	return appId;
+}
+
+void
+SSHFrontend::releaseBarrier(AppId appId) {
+	_cti_mpir_releaseInstance(getAppInfo(appId).mpir_id);
+}
+
+void
+SSHFrontend::killApp(AppId appId, int signal) {
+	_cti_ssh_killApp(getAppInfo(appId), signal);
+}
+
+std::vector<std::string> const
+SSHFrontend::getExtraFiles(AppId appId) const {
+	std::vector<std::string> result;
+	auto const extraFiles = _cti_ssh_extraFiles(getAppInfo(appId));
+	for (const char* const* filePath = extraFiles; filePath != nullptr; filePath++) {
+		result.emplace_back(*filePath);
+	}
+	return result;
+}
+
+
+void
+SSHFrontend::shipPackage(AppId appId, std::string const& tarPath) const {
+	_cti_ssh_ship_package(getAppInfo(appId), tarPath.c_str());
+}
+
+void
+SSHFrontend::startDaemon(AppId appId, CArgArray argv) const {
+	_cti_ssh_start_daemon(getAppInfo(appId), argv);
+}
+
+size_t
+SSHFrontend::getNumAppPEs(AppId appId) const {
+	return _cti_ssh_getNumAppPEs(getAppInfo(appId));
+}
+
+size_t
+SSHFrontend::getNumAppNodes(AppId appId) const {
+	return _cti_ssh_getNumAppNodes(getAppInfo(appId));
+}
+
+std::vector<std::string> const
+SSHFrontend::getAppHostsList(AppId appId) const {
+	std::vector<std::string> result;
+	auto const hosts = _cti_ssh_getAppHostsList(getAppInfo(appId));
+	for (const char* const* host = hosts; host != nullptr; host++) {
+		result.emplace_back(*host);
+	}
+	return result;
+}
+
+std::vector<CTIHost> const
+SSHFrontend::getAppHostsPlacement(AppId appId) const {
+	return _cti_ssh_getAppHostsPlacement(getAppInfo(appId));
+}
+
+std::string const
+SSHFrontend::getHostName(void) const {
+	return _cti_ssh_getHostName();
+}
+
+std::string const
+SSHFrontend::getLauncherHostName(AppId appId) const {
+	throw std::runtime_error("getLauncherHostName not supported for SSH frontend (app ID " + std::to_string(appId));
+}
+
+std::string const
+SSHFrontend::getToolPath(AppId appId) const {
+	return getAppInfo(appId).toolPath;
+}
+
+std::string const
+SSHFrontend::getAttribsPath(AppId appId) const {
+	return getAppInfo(appId).attribsPath;
+}
+
+/* extended frontend implementation */
+
+AppId
+SSHFrontend::registerJob(pid_t launcher_pid) {
+	auto const appId = newAppId();
+	appList[appId] = _cti_ssh_registerJob(launcher_pid, appId);
+	return appId;
+}
