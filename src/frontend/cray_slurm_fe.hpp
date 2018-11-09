@@ -27,10 +27,7 @@
 class CraySLURMFrontend : public Frontend {
 
 public: // types
-	struct SrunInfo {
-		uint32_t jobid;
-		uint32_t stepid;
-	};
+	using SrunInfo = cti_srunProc_t;
 
 public: // wlm interface
 	bool appIsValid(AppId appId) const;
@@ -57,6 +54,7 @@ public: // wlm interface
 
 public: // interface
 	~CraySLURMFrontend();
+	SrunInfo getJobInfo(pid_t srunPid);
 	AppId registerJobStep(uint32_t jobid, uint32_t stepid);
-	SrunInfo* getSrunInfo(AppId appId);
+	SrunInfo getSrunInfo(cti_app_id_t appId);
 };

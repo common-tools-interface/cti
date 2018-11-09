@@ -188,23 +188,15 @@ _cti_cray_slurm_getLauncherName()
 	return _cti_cray_slurm_launcher_name;
 }
 
-static CraySLURMFrontend::SrunInfo*
-_cti_cray_slurm_getSrunInfo(CraySlurmInfo& my_app)
-{
-	CraySLURMFrontend::SrunInfo *	srunInfo;
-
-	// allocate space for the CraySLURMFrontend::SrunInfo struct
-	if ((srunInfo = (decltype(srunInfo))malloc(sizeof(CraySLURMFrontend::SrunInfo))) == NULL) {
-		throw std::runtime_error("malloc failed.");
-	}
-	
-	srunInfo->jobid = my_app.jobid;
-	srunInfo->stepid = my_app.stepid;
-	
+static CraySLURMFrontend::SrunInfo
+_cti_cray_slurm_getSrunInfo(CraySlurmInfo& my_app) {
+	CraySLURMFrontend::SrunInfo srunInfo;
+	srunInfo.jobid = my_app.jobid;
+	srunInfo.stepid = my_app.stepid;
 	return srunInfo;
 }
 
-static CraySLURMFrontend::SrunInfo*
+static CraySLURMFrontend::SrunInfo
 _cti_cray_slurm_getJobInfo(pid_t srunPid)
 {
 	mpir_id_t			mpir_id;
@@ -213,7 +205,6 @@ _cti_cray_slurm_getJobInfo(pid_t srunPid)
 	char *				end_p;
 	uint32_t			jobid;
 	uint32_t			stepid;
-	CraySLURMFrontend::SrunInfo *	srunInfo; // return object
 	
 	// sanity check
 	if (srunPid <= 0) {
@@ -289,16 +280,11 @@ _cti_cray_slurm_getJobInfo(pid_t srunPid)
 	
 	// Cleanup this mpir instance, we are done with it
 	_cti_mpir_releaseInstance(mpir_id);
-	
-	// allocate space for the CraySLURMFrontend::SrunInfo struct
-	if ((srunInfo = (decltype(srunInfo))malloc(sizeof(CraySLURMFrontend::SrunInfo))) == NULL) {
-		throw std::runtime_error("malloc failed.");
-	}
-	
-	// set the members
-	srunInfo->jobid = jobid;
-	srunInfo->stepid = stepid;
-	
+
+	// create the CraySLURMFrontend::SrunInfo struct
+	CraySLURMFrontend::SrunInfo srunInfo;
+	srunInfo.jobid = jobid;
+	srunInfo.stepid = stepid;
 	return srunInfo;
 }
 
@@ -1112,7 +1098,12 @@ CraySLURMFrontend::registerJobStep(uint32_t jobid, uint32_t stepid) {
 	return appId;
 }
 
-CraySLURMFrontend::SrunInfo*
+CraySLURMFrontend::SrunInfo
+CraySLURMFrontend::getJobInfo(pid_t srunPid) {
+	return _cti_cray_slurm_getJobInfo(srunPid);
+}
+
+CraySLURMFrontend::SrunInfo
 CraySLURMFrontend::getSrunInfo(AppId appId) {
 	return _cti_cray_slurm_getSrunInfo(getAppInfo(appId));
 }

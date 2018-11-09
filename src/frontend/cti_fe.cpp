@@ -482,64 +482,92 @@ cti_getLauncherHostName(cti_app_id_t appId) {
 
 /* WLM-specific function implementation */
 
-uint64_t cti_alps_getApid(pid_t aprunPid) {
-	if (auto alpsPtr = dynamic_cast<ALPSFrontend*>(currentFrontend.get())) {
-		return alpsPtr->getApid(aprunPid);
+template <typename WLMType>
+static WLMType* downcastCurrentFE() {
+	if (auto wlmPtr = dynamic_cast<WLMType*>(currentFrontend.get())) {
+		return wlmPtr;
 	} else {
-		_cti_set_error("Invalid call. ALPS WLM not in use.");
-		return 0;
+		std::string const wlmName(cti_wlm_type_toString(currentFrontend->getWLMType()));
+		throw std::runtime_error("Invalid call. " + wlmName + " not in use.");
 	}
+}
+
+uint64_t cti_alps_getApid(pid_t aprunPid) {
+	return runSafely("cti_alps_getApid", [&](){
+		return downcastCurrentFE<ALPSFrontend>()->getApid(aprunPid);
+	});
 }
 
 cti_app_id_t cti_alps_registerApid(uint64_t apid) {
-	if (auto alpsPtr = dynamic_cast<ALPSFrontend*>(currentFrontend.get())) {
-		return alpsPtr->registerApid(apid);
-	} else {
-		_cti_set_error("Invalid call. ALPS WLM not in use.");
-		return 0;
-	}
+	return runSafely("cti_alps_registerApid", [&](){
+		return downcastCurrentFE<ALPSFrontend>()->registerApid(apid);
+	});
 }
 
 cti_aprunProc_t * cti_alps_getAprunInfo(cti_app_id_t app_id) {
-	if (auto alpsPtr = dynamic_cast<ALPSFrontend*>(currentFrontend.get())) {
+	return runSafely("cti_alps_getApid", [&](){
+		auto alpsPtr = downcastCurrentFE<ALPSFrontend>();
 		if (auto result = (cti_aprunProc_t*)malloc(sizeof(cti_aprunProc_t))) {
 			*result = alpsPtr->getAprunInfo(app_id);
 			return result;
 		} else {
-			_cti_set_error("malloc failed.");
-			return nullptr;
+			throw std::runtime_error("malloc failed.");
 		}
-	} else {
-		_cti_set_error("Invalid call. ALPS WLM not in use.");
-		return nullptr;
-	}
+	});
 }
 
 int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_id) {
-	if (auto alpsPtr = dynamic_cast<ALPSFrontend*>(currentFrontend.get())) {
-		return alpsPtr->getAlpsOverlapOrdinal(app_id);
-	} else {
-		_cti_set_error("Invalid call. ALPS WLM not in use.");
-		return 0;
-	}
+	return runSafely("cti_alps_getAlpsOverlapOrdinal", [&](){
+		return downcastCurrentFE<ALPSFrontend>()->getAlpsOverlapOrdinal(app_id);
+	});
 }
 
 cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid) {
-	return nullptr;
+	return runSafely("cti_cray_slurm_getJobInfo", [&](){
+		auto craySlurmPtr = downcastCurrentFE<CraySLURMFrontend>();
+		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
+			*result = craySlurmPtr->getJobInfo(srunPid);
+			return result;
+		} else {
+			throw std::runtime_error("malloc failed.");
+		}
+	});
 }
 
-cti_app_id_t cti_cray_slurm_registerJobStep( uint32_t job_id, uint32_t step_id) {
-	return 0;
+cti_app_id_t cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
+	return runSafely("cti_cray_slurm_registerJobStep", [&](){
+		return downcastCurrentFE<CraySLURMFrontend>()->registerJobStep(job_id, step_id);
+	});
 }
 
 cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
-	return nullptr;
+	return runSafely("cti_cray_slurm_getSrunInfo", [&](){
+		auto craySlurmPtr = downcastCurrentFE<CraySLURMFrontend>();
+		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
+			*result = craySlurmPtr->getSrunInfo(appId);
+			return result;
+		} else {
+			throw std::runtime_error("malloc failed.");
+		}
+	});
 }
 
 cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid) {
+#ifdef SLURMFrontend
+	return runSafely("cti_slurm_registerJobStep", [&](){
+		throw std::runtime_error("Not implemented for SLURM WLM");
+	});
+#else
 	return 0;
+#endif
 }
 
 cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid) {
+#ifdef SSHFrontend
+	return runSafely("cti_ssh_registerJob", [&](){
+		throw std::runtime_error("Not implemented for SSH WLM");
+	});
+#else
 	return 0;
+#endif
 }
