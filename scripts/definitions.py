@@ -23,18 +23,19 @@ osver                 = ""
 revision_number       = ""
 prefix                = "/opt/cray"
 release_date          = ""
-
+os_sub                = ""
 
 for arg in sys.argv:
   if arg == '-f':
     final = True
 
 def fetch_release(base_name, rev_num,pkgs_dir):
+  global osver
   itt_list = range(20)
   itt_list.reverse()
   rval = 0
   for i in itt_list:
-    tmp_name = pkgs_dir + "/" + base_name + "-" + "*" + "." + rev_num + "-" + str(i) + osver + arch + ".rpm"
+    tmp_name = pkgs_dir + "/" + base_name + "-" + "*" + "." + rev_num + "-" + str(i) + osver + "." +  arch + ".rpm"
     if glob.glob(tmp_name):
       rval = i + 1
       break
@@ -46,46 +47,59 @@ def fetch_os():
   global arch
   global arch_name
   global prefix
-  if os.path.isfile("/etc/SuSE-release"):
+  global os_sub
+
+    
+  if os.path.isfile("/etc/SuSE-release"): 
     with open("/etc/SuSE-release", "r") as f:
       for line in f:
-        if line.find("aarch64") != -1:
-          arch = "aarch64"
-          arch_name = "ARM"
-        elif line.find("x86_64") != -1:
-          arch = "x86_64"
-    
         if line.find("VERSION") != -1:
           os_sub = line.replace("VERSION = ", "")
+          arch_name = "sles"
+          break
+  elif os.path.isfile("/etc/os-release"):
+    with open("/etc/os-release", "r") as f:
+      for line in f:
+        if line.find('VERSION="15"') != -1:
+          os_sub = '15'
           break
   elif os.path.isfile("/etc/redhat-release"):
     with open("/etc/redhat-release", "r") as f:
       for line in f:
         if line.find("CentOS ") != -1:
           os_sub = 'el7'
-	  arch_name = "CS"
-	  arch = "x86_64"
+          arch_name = "CS"
           break
- 
+
   os_sub = os_sub.strip()
   if os_sub == "el7":
     bld_dir = "/cray/css/ulib/cti/builds_cs/latest/install/"
     return ".el7"
   elif os_sub == "12":
-     prefix = "/opt/cray/pe"
+    prefix = "/opt/cray/pe"
      
-     if arch == "x86_64":
-       bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
-       arch_name = "sles12"
-     elif arch == "aarch64":
-       bld_dir = "/cray/css/ulib/cti/builds_arm/latest/install/"
+    if arch == "x86_64":
+      bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
+      arch_name = "sles12"
+    elif arch == "aarch64":
+      bld_dir = "/cray/css/ulib/cti/builds_arm/latest/install/"
 
-     return ".sles12"
+    return ".sles12"
   elif os_sub == "11":
     bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
     arch_name = "sles11"
     return ".sles11"
+  elif os_sub == "15":
+    bld_dir = "/cray/css/ulib/cti/builds_xc/latest/install/"
+    arch_name = "sles15"
+    return ".sles15"
 
+
+def getARCH():
+  cmd = 'uname -m'
+  str(os.system(cmd))
+  status, rd = commands.getstatusoutput(cmd)
+  return rd
 
 def release_date():
   cmd = 'source /cray/css/ulib/utilities/find_release_date.sh'
@@ -209,7 +223,7 @@ def fetch_newData():
   global osver
   global ver_two_dig_nodot
   global release_date
-
+  global arch
 
   release_date = release_date()
     
@@ -243,6 +257,7 @@ def fetch_newData():
   rev_number = rev_number[0:13]
   timestmp_revnbr = str(dt_time) + "." + str(rev_number)
   
+  arch = getARCH()
   osver = fetch_os()
   two_digit_version = fetch_packageDir()
   pkgs_dir = product_dir + "/" + two_digit_version
