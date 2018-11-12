@@ -49,5 +49,6 @@ public: // wlm interface
 	std::string const getAttribsPath(AppId appId) const;
 
 public: // interface
+	~SSHFrontend();
 	AppId registerJob(pid_t launcher_pid);
 };

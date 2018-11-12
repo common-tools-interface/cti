@@ -57,6 +57,6 @@ public: // wlm interface
 public: // interface
 	AppId registerApid(uint64_t apid);
 	uint64_t getApid(pid_t appPid);
-	AprunInfo* getAprunInfo(AppId appId);
+	AprunInfo getAprunInfo(AppId appId);
 	int getAlpsOverlapOrdinal(AppId appId);
 };
