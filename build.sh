@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 
 cmake_module="cmake/3.5.2"
 
@@ -157,6 +156,7 @@ then
   echo arch: "$arch"
   if [[ $arch == "x86_64" ]]
   then
+    set -x
     cmake $swSourceDir \
       $swDebugStr \
       -DCMAKE_C_COMPILER=/opt/gcc/$gccVer/bin/gcc \
@@ -170,11 +170,12 @@ then
       -DLIBELF_INCLUDE_DIR=$elfDir/include \
       -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
       $swSourceDir
-
+      set +x
       #-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 
   elif [[ $arch == "aarch64" ]]
   then
+    set -x
     cmake $swSourceDir \
       $swDebugStr \
       -DCMAKE_C_COMPILER=/opt/gcc/$gccVer/bin/gcc \
@@ -188,6 +189,7 @@ then
       -DLIBELF_INCLUDE_DIR=$elfDir/include/libelf \
       -DLIBELF_LIBRARIES=$elfDir/lib64/libelf.so \
       $swSourceDir
+      set +x
   fi
 
   cd $swSourceDir
@@ -197,8 +199,9 @@ fi
 
 cd $topLevel
 autoreconf -ifv
-
+set -x
 ./configure --prefix=$BUILD_DIR --with-boost=$boost_inst_base --with-dyninst=$swInstallDir --with-dyninst-libdir=$swInstallDir/lib
+set +x
 
 # Deliver DSOs and commnode on install
 if [[ $doingInstall == "1" ]]
