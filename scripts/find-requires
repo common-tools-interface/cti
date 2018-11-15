@@ -128,7 +128,9 @@ for f in "${liblist[@]}" "${exelist[@]}" ; do
 	    
 	    if ( $4 != "libcrypto.so.1" && \
             $4 != "OPENSSL_1.0.0" && \
-            $4 != "GLIBC_2.17" ) {
+            $4 != "GLIBC_2.17"  && \
+            $4 != "GLIBC_2.2.5" && \
+            $4 != "GLIBC_2.3.2" ) {
 	        print LIBNAME "(" $4 ")'$lib64'";
 	    }
 	}
