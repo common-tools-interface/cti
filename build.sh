@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -x
 
 cmake_module="cmake/3.5.2"
 
