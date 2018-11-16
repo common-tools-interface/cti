@@ -377,6 +377,12 @@ elif os_ver == ".sles12" and arch == "aarch64":
   system_type_hw=arSYSTEM_TYPE[2]
   system_type_wb=arSYSTEM_TYPE[2]
   system_type_remove=arSYSTEM_TYPE[2]
+elif os_ver == ".sles15" and arch == "x86_64":
+  os_list_hw=arSles15_HW
+  os_list_wb=arSles15_WB
+  system_type_hw=arSYSTEM_TYPE[0]
+  system_type_wb=arSYSTEM_TYPE[1]
+  system_type_remove=system_type_hw + "," + system_type_wb
 elif os_ver == ".sles15" and arch == "aarch64":
   os_list_hw=arSles15_HW
   os_list_wb=arSles15_WB

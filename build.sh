@@ -95,7 +95,7 @@ function set_OS(){
     elfDir=/cray/css/users/debugger/elf/elfutils-0.168/install/
     if [[ $OS == "SLES11" ]]; then
       dwarfDir=$ulib/sles11/dwarf/$dwarfVer
-    elif [[ $OS == "SLES12" ]]; then
+    elif [[ $OS == "SLES12" || $OS == "SLES15" ]]; then
       dwarfDir=$ulib/dwarf/$dwarfVer
     elif [[ $OS == "CentOS" ]]; then
       dwarfDir=$ulib/dwarf/$dwarfVer
