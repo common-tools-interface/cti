@@ -185,16 +185,21 @@ then
   exit 0
 fi
 
-if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{intranamespace_name}` ]]
+if [[ -d ${RPM_INSTALL_PREFIX}/%{intranamespace_name} ]] 
 then
-  rm -rf ${RPM_INSTALL_PREFIX}/%{intranamespace_name}
+  if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{intranamespace_name}` ]]
+  then
+    rm -rf ${RPM_INSTALL_PREFIX}/%{intranamespace_name}
+  fi
 fi
 
-if [[ -z `ls ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}`/ ]]
+if [[ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name} ]]
 then
-  rm -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}
+  if [[ -z `ls ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}`/ ]]
+  then
+    rm -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}
+  fi
 fi
-
 
 %changelog
 
