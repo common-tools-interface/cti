@@ -104,6 +104,12 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib/libparseAPI.so*
 %{_version_prefix}/lib/libinstructionAPI.so*
 %{_version_prefix}/lib/libpatchAPI.so*
+%{_version_prefix}/lib/libcommon.so*
+%{_version_prefix}/lib/libdynDwarf.so*
+%{_version_prefix}/lib/libdyninstAPI.so.*
+%{_version_prefix}/lib/libsymtabAPI.so.*
+%{_version_prefix}/lib/libdynElf.so.*
+%{_version_prefix}/lib/libpcontrol.so.*
 %{_version_prefix}/lib/libdwarf.so*
 
 

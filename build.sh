@@ -225,20 +225,19 @@ make tests;
 
 # install DSOs
 mkdir -p $BUILD_DIR/lib/
-cp $swPrefix/lib/libdyninstAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libsymtabAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libdynDwarf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libdynElf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libpcontrol.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libcommon.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libdyninstAPI.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libsymtabAPI.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libdynDwarf.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libdynElf.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libpcontrol.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libcommon.so* $BUILD_DIR/lib/
 
-cp $swPrefix/lib/libstackwalk.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libpatchAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libparseAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libinstructionAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libdynDwarf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libstackwalk.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libpatchAPI.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libparseAPI.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libinstructionAPI.so* $BUILD_DIR/lib/
 
-cp $dwarfDir/lib/libdwarf.so.$dwarfVer $BUILD_DIR/lib/
+cp -P $dwarfDir/lib/libdwarf.so.* $BUILD_DIR/lib/
 
 cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
