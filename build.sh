@@ -79,7 +79,7 @@ function set_OS(){
   export OS
   export arch
 
-  gccVer=6.1.0
+  gccVer=8.2.0
   module load gcc/$gccVer
   export gccVer
 
