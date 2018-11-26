@@ -18,7 +18,7 @@ URL: [url]
 Source: [tarball]
 BuildRoot: %{_tmppath}/%{name}-root
 Prefix: /opt/cray/pe
-
+Provides: %{namespace}-%{intranamespace_name} = %{build_version}
 
 %define _use_internal_dependency_generator 0
 %define __find_requires %{scripts_d}/find-requires
