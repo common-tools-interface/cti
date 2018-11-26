@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 cmake_module="cmake/3.5.2"
 
@@ -32,49 +31,49 @@ swDebugStr="-DCMAKE_BUILD_TYPE=RelWithDebInfo"
 boost_inst_base=""
 boost_inc=""
 boost_full_name=${boostSO_Major}_${boostSO_Minor}_${boostSO_Fix}
+arch=""
+SLES_VER=
+OS=""
+modules_prefix=""
 
 function source_module_script() {
-  if [ -e $redhat_release_file ]; then
+  
+  if [ -e $redhat_release_file ]
+  then
     # centos
     if [[ -e /usr/share/Modules/init/bash ]]; then
       source /usr/share/Modules/init/bash
     fi
-  else
-    # get sles version
-    SLES_VER=$(cat $suse_release_file 2>&1 /dev/null | grep VERSION | cut -f3 -d" ")
-    if [[ $SLES_VER -lt 12 ]]; then
-      modules_prefix=/opt
-    else
-      modules_prefix=/opt/cray/pe
-    fi
-
-    # load sles script
-    if [[ -e $modules_prefix/modules/default/init/bash ]]; then
-      source $modules_prefix/modules/default/init/bash
-    fi
+  # load sles script
+  elif [[ -e $modules_prefix/modules/default/init/bash ]]; then
+    source $modules_prefix/modules/default/init/bash
   fi
+  
 }
 
 function set_OS(){
   # set OS, arch
+  arch=`uname -m`
   if [ -e "$redhat_release_file" ]; then
     OS="CentOS"
-    arch=x86_64
+    SLES_VER="SLES12"
+    modules_prefix=/opt/cray/pe
   elif [ -e "$os_release_file" ]; then
-    arch=$(uname -m)
-    SLES_VER=$(cat /etc/os-release | grep VERSION= | cut -d \" -f2)
+    SLES_VER=$(cat /etc/os-release | grep VERSION | head -1 | cut -d'"' -f2)
     if [[ $SLES_VER = 12 ]]; then
-      OS="SLES12"
+      OS="SLES$SLES_VER"
     elif [[ $SLES_VER = 15 ]]; then
-      OS="SLES15"
+      OS="SLES$SLES_VER"
     fi
+    modules_prefix=/opt/cray/pe
   elif [ -e "$suse_release_file" ]; then
-    arch=$(cat $suse_release_file | head -1 | cut -d'(' -f2 | cut -d')' -f1)
     SLES_VER=$(cat $suse_release_file | grep VERSION | cut -f3 -d" ")
     if [[ $SLES_VER = 11 ]]; then
-      OS="SLES11"
+      OS="SLES$SLES_VER"
+      modules_prefix=/opt
     elif [[ $SLES_VER = 12 ]]; then
-      OS="SLES12"
+      OS="SLES$SLES_VER"
+      modules_prefix=/opt/cray/pe
     fi
   fi
   export OS
@@ -96,22 +95,25 @@ function set_OS(){
     elfDir=/cray/css/users/debugger/elf/elfutils-0.168/install/
     if [[ $OS == "SLES11" ]]; then
       dwarfDir=$ulib/sles11/dwarf/$dwarfVer
-    elif [[ $OS == "SLES12" ]]; then
+    elif [[ $OS == "SLES12" || $OS == "SLES15" ]]; then
       dwarfDir=$ulib/dwarf/$dwarfVer
     elif [[ $OS == "CentOS" ]]; then
       dwarfDir=$ulib/dwarf/$dwarfVer
     fi
   fi
+
+
+
 }
 
 #_______________________ Start of main code ______________________________
-source_module_script
 
 
 module purge 2>/dev/null
-module load $cmake_module
 
 set_OS
+source_module_script
+module load $cmake_module
 
 #
 # Build DyninstAPI
@@ -154,6 +156,7 @@ then
   echo arch: "$arch"
   if [[ $arch == "x86_64" ]]
   then
+    set -x
     cmake $swSourceDir \
       $swDebugStr \
       -DCMAKE_C_COMPILER=/opt/gcc/$gccVer/bin/gcc \
@@ -167,11 +170,12 @@ then
       -DLIBELF_INCLUDE_DIR=$elfDir/include \
       -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
       $swSourceDir
-
+      set +x
       #-DCMAKE_BUILD_TYPE=RelWithDebInfo \
 
   elif [[ $arch == "aarch64" ]]
   then
+    set -x
     cmake $swSourceDir \
       $swDebugStr \
       -DCMAKE_C_COMPILER=/opt/gcc/$gccVer/bin/gcc \
@@ -185,6 +189,7 @@ then
       -DLIBELF_INCLUDE_DIR=$elfDir/include/libelf \
       -DLIBELF_LIBRARIES=$elfDir/lib64/libelf.so \
       $swSourceDir
+      set +x
   fi
 
   cd $swSourceDir
@@ -194,8 +199,9 @@ fi
 
 cd $topLevel
 autoreconf -ifv
-
+set -x
 ./configure --prefix=$BUILD_DIR --with-boost=$boost_inst_base --with-dyninst=$swInstallDir --with-dyninst-libdir=$swInstallDir/lib
+set +x
 
 # Deliver DSOs and commnode on install
 if [[ $doingInstall == "1" ]]
@@ -219,12 +225,20 @@ make tests;
 
 # install DSOs
 mkdir -p $BUILD_DIR/lib/
-cp $swPrefix/lib/libdyninstAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libsymtabAPI.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libdynDwarf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libdynElf.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libpcontrol.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
-cp $swPrefix/lib/libcommon.so.$swSO_Major.$swSO_Minor $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libdyninstAPI.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libsymtabAPI.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libdynDwarf.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libdynElf.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libpcontrol.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libcommon.so* $BUILD_DIR/lib/
+
+cp -P $swPrefix/lib/libstackwalk.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libpatchAPI.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libparseAPI.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libinstructionAPI.so* $BUILD_DIR/lib/
+
+cp -P $dwarfDir/lib/libdwarf.so.* $BUILD_DIR/lib/
+
 cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_date_time.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/

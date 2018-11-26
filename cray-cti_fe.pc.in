@@ -16,5 +16,5 @@ URL: http://www.cray.com
 Description: The frontend component of the Cray tools interface (CTI). Exposes a useful API to tool programs.
 Version: @VERSION@
 Requires:
-Libs: -L${libdir} -lcraytools_fe
+Libs: -L${libdir} -lcraytools_fe -lcommon -lsymtabAPI -lpcontrol -ldynElf -ldynDwarf
 Cflags: -I${includedir}
