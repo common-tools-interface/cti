@@ -4,6 +4,7 @@
 #include <fcntl.h>
 
 #include <memory>
+#include <functional>
 
 // forward declare
 struct archive;
