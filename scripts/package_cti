@@ -69,7 +69,7 @@ else:
 if options.static_version != False:
   build_version = options.static_version
   release_number = str(0)
-  rpm_name = "cray-cti-" + build_version + "-" + revision_number + "-" + release_number + os_ver + arch + ".rpm"
+  rpm_name = "cray-cti-" + build_version + "-" + revision_number + "-" + release_number + os_ver + "." + arch + ".rpm"
   if is_final:
     if len(build_version) <= 4 or len(build_version) > 5:
       print "Ensure your release version has 3 digits. Exiting..."
