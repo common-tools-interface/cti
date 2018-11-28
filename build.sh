@@ -160,8 +160,8 @@ then
       -DCMAKE_INSTALL_EXEC_PREFIX=$swPrefix \
       -DPATH_BOOST=$boost_inst_base \
       -DBoost_INCLUDE_DIR=$boost_inc \
-      -DLIBDWARF_INCLUDE_DIR=$dwarfDir/include \
-      -DLIBDWARF_LIBRARIES=$dwarfDir/lib/libdwarf.so \
+      -DLIBDWARF_INCLUDE_DIR=$elfDir/include \
+      -DLIBDWARF_LIBRARIES=$elfDir/lib/libdw.so \
       -DLIBELF_INCLUDE_DIR=$elfDir/include \
       -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
       $swSourceDir
@@ -179,8 +179,8 @@ then
       -DCMAKE_INSTALL_EXEC_PREFIX=$swPrefix \
       -DPATH_BOOST=$boost_inst_base \
       -DBoost_INCLUDE_DIR=$boost_inc \
-      -DLIBDWARF_INCLUDE_DIR=$dwarfDir/include \
-      -DLIBDWARF_LIBRARIES=$dwarfDir/lib/libdwarf.so \
+      -DLIBDWARF_INCLUDE_DIR=$elfDir/include \
+      -DLIBDWARF_LIBRARIES=$elfDir/lib/libdw.so \
       -DLIBELF_INCLUDE_DIR=$elfDir/include/libelf \
       -DLIBELF_LIBRARIES=$elfDir/lib64/libelf.so \
       $swSourceDir
@@ -232,7 +232,7 @@ cp -P $swPrefix/lib/libpatchAPI.so* $BUILD_DIR/lib/
 cp -P $swPrefix/lib/libparseAPI.so* $BUILD_DIR/lib/
 cp -P $swPrefix/lib/libinstructionAPI.so* $BUILD_DIR/lib/
 
-cp -P $dwarfDir/lib/libdwarf.so.* $BUILD_DIR/lib/
+cp -P $elfDir/lib/libdw.so.* $BUILD_DIR/lib/
 
 cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
