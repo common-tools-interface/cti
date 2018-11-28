@@ -79,7 +79,7 @@ function set_OS(){
   export OS
   export arch
 
-  gccVer=8.2.0
+  gccVer=6.1.0
   # use OS and arch to set right gcc, boost, libelf, libdwarf
   if [[ $arch == "aarch64" ]]; then
     boost_inst_base=$ulib/boost/1_66_aarch64/boost_${boost_full_name}/install
@@ -96,7 +96,6 @@ function set_OS(){
       dwarfDir=$ulib/dwarf/$dwarfVer
     elif [[ $OS == "CentOS" ]]; then
       dwarfDir=$ulib/dwarf/$dwarfVer
-      gccVer=6.1.0
     fi
   fi
 
