@@ -106,8 +106,6 @@ function set_OS(){
 #_______________________ Start of main code ______________________________
 
 
-module purge 2>/dev/null
-
 set_OS
 source_module_script
 module load $cmake_module
@@ -124,8 +122,8 @@ elif [[ $arch == "aarch64" ]]; then
 fi
 echo "PLATFORM IS: $PLATFORM"
 
-swSO_Major=9
-swSO_Minor=3
+swSO_Major=10
+swSO_Minor=0
 
 #swPackageName=dyninst-11f20bf   # http://git.dyninst.org/?p=dyninst.git;a=summary 3/21/2014
 #swPackageName=dyninst_9.2       # http://github.com/dyninst/dyninst pull on 11/7/2016
