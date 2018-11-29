@@ -20,8 +20,6 @@ topLevel=$PWD
 boostSO_Major=1
 boostSO_Minor=66
 boostSO_Fix=0
-dwarfDir=""
-dwarfVer=18.1.0
 ulib=/cray/css/ulib
 redhat_release_file="/etc/redhat-release"
 suse_release_file="/etc/SuSE-release"
@@ -80,23 +78,13 @@ function set_OS(){
   export arch
 
   gccVer=6.1.0
-  # use OS and arch to set right gcc, boost, libelf, libdwarf
+  # use OS and arch to set right gcc, boost
   if [[ $arch == "aarch64" ]]; then
     boost_inst_base=$ulib/boost/1_66_aarch64/boost_${boost_full_name}/install
     boost_inc=$boost_inst_base/include
-    elfDir=/usr             # Fixme: this is too ephemeral ???
-    dwarfDir=$ulib/aarch64/dwarf/$dwarfVer
   elif [[ $arch == "x86_64" ]]; then
     boost_inst_base=$ulib/boost/1_66/boost_${boost_full_name}/install
     boost_inc=$boost_inst_base/include
-    elfDir=/cray/css/users/debugger/elf/elfutils-0.168/install/
-    if [[ $OS == "SLES11" ]]; then
-      dwarfDir=$ulib/sles11/dwarf/$dwarfVer
-    elif [[ $OS == "SLES12" || $OS == "SLES15" ]]; then
-      dwarfDir=$ulib/dwarf/$dwarfVer
-    elif [[ $OS == "CentOS" ]]; then
-      dwarfDir=$ulib/dwarf/$dwarfVer
-    fi
   fi
 
   module load gcc/$gccVer
@@ -109,6 +97,15 @@ function set_OS(){
 set_OS
 source_module_script
 module load $cmake_module
+
+# Build elfutils
+elfDir=$PWD/external/install
+cd external/elfutils/
+autoreconf -i -f
+./configure --prefix=$elfDir --enable-maintainer-mode
+make
+make install
+cd $topLevel
 
 #
 # Build DyninstAPI
@@ -125,15 +122,12 @@ echo "PLATFORM IS: $PLATFORM"
 swSO_Major=10
 swSO_Minor=0
 
-#swPackageName=dyninst-11f20bf   # http://git.dyninst.org/?p=dyninst.git;a=summary 3/21/2014
-#swPackageName=dyninst_9.2       # http://github.com/dyninst/dyninst pull on 11/7/2016
 swPackageName=dyninst           # Dyninst 9.3 as a submodule
 
 swSourceDir=$PWD/external/$swPackageName
 swBuildDir=$swSourceDir
 swInstallDir=$PWD/external/install
 swPrefix=$swInstallDir
-
 
 if [ -e "$swInstallDir/lib/libdyninstAPI.so" ]; then
   buildDyninstAPI=0

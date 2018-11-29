@@ -80,7 +80,9 @@ AC_DEFUN([AX_BOOST_SYSTEM],
 			AC_SUBST(BOOST_CPPFLAGS)
 
 			AC_DEFINE(HAVE_BOOST_SYSTEM,,[define if the Boost::System library is available])
-            BOOSTLIBDIR=`echo $BOOST_LDFLAGS | sed -e 's/@<:@^\/@:>@*//'`
+			BOOSTLIBDIR=`echo $BOOST_LDFLAGS | sed -e 's/@<:@^\/@:>@*//'`
+			BOOST_LDFLAGS="$BOOST_LDFLAGS -Wl,-rpath-link=$BOOSTLIBDIR"
+			AC_SUBST(BOOST_LDFLAGS)
 
 			LDFLAGS_SAVE=$LDFLAGS
             if test "x$ax_boost_user_system_lib" = "x"; then

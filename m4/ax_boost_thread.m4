@@ -59,7 +59,8 @@ AC_DEFUN([AX_BOOST_THREAD],
         export CPPFLAGS
 
         LDFLAGS_SAVED="$LDFLAGS"
-        LDFLAGS="$LDFLAGS $BOOST_LDFLAGS -rpath-link"
+#	LDFLAGS="$LDFLAGS -Wl,-rpath-link=$BOOSTLIBDIR"
+        LDFLAGS="$LDFLAGS $BOOST_LDFLAGS"
         export LDFLAGS
 
         AC_CACHE_CHECK(whether the Boost::Thread library is available,

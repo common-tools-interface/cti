@@ -68,8 +68,10 @@ AC_ARG_WITH(	[libarchive],
 			)
 
 dnl This macro runs check for --with-boost
-AX_BOOST_BASE([1.57],, [AC_MSG_ERROR([valgrind4hpc needs libboost >=1.57, but it was not found in your system])])
+AX_BOOST_BASE([1.57],, [AC_MSG_ERROR([CTI needs libboost >=1.57, but it was not found in your system])])
 AX_BOOST_SYSTEM
+AX_BOOST_CHRONO
+AX_BOOST_THREAD
 
 dnl This macro runs check for --with-dyninst
 AX_DYNINST
