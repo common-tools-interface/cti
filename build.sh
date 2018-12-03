@@ -176,7 +176,7 @@ then
       -DLIBDWARF_INCLUDE_DIR=$elfDir/include \
       -DLIBDWARF_LIBRARIES=$elfDir/lib/libdw.so \
       -DLIBELF_INCLUDE_DIR=$elfDir/include/libelf \
-      -DLIBELF_LIBRARIES=$elfDir/lib64/libelf.so \
+      -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
       $swSourceDir
       set +x
   fi
