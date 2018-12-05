@@ -9,4 +9,4 @@
 	url = https://github.com/dyninst/dyninst.git
 [submodule "external/elfutils"]
 	path = external/elfutils
-	url = https://chromium.googlesource.com/external/elfutils
+	url = ssh://git@stash.us.cray.com:7999/pe-cdst/elfutils.git
