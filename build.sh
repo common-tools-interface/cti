@@ -26,6 +26,7 @@ suse_release_file="/etc/SuSE-release"
 os_release_file="/etc/os-release"
 buildRelease=0           # default to not being a build release
 swDebugStr="-DCMAKE_BUILD_TYPE=RelWithDebInfo"
+swCXXFLAGS=""
 boost_inst_base=""
 boost_inc=""
 boost_full_name=${boostSO_Major}_${boostSO_Minor}_${boostSO_Fix}
@@ -59,18 +60,19 @@ function set_OS(){
   elif [ -e "$os_release_file" ]; then
     SLES_VER=$(cat /etc/os-release | grep VERSION | head -1 | cut -d'"' -f2)
     if [[ $SLES_VER = 12 ]]; then
-      OS="SLES$SLES_VER"
+      OS="SLES12"
     elif [[ $SLES_VER = 15 ]]; then
-      OS="SLES$SLES_VER"
+      OS="SLES15"
     fi
     modules_prefix=/opt/cray/pe
   elif [ -e "$suse_release_file" ]; then
     SLES_VER=$(cat $suse_release_file | grep VERSION | cut -f3 -d" ")
     if [[ $SLES_VER = 11 ]]; then
-      OS="SLES$SLES_VER"
+      OS="SLES11"
       modules_prefix=/opt
+      swCXXFLAGS="-fopenmp"
     elif [[ $SLES_VER = 12 ]]; then
-      OS="SLES$SLES_VER"
+      OS="SLES12"
       modules_prefix=/opt/cray/pe
     fi
   fi
@@ -158,6 +160,7 @@ then
       -DLIBDWARF_LIBRARIES=$elfDir/lib/libdw.so \
       -DLIBELF_INCLUDE_DIR=$elfDir/include \
       -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
+      -DCMAKE_CXX_FLAGS=$swCXXFLAGS \
       $swSourceDir
       set +x
       #-DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -177,6 +180,7 @@ then
       -DLIBDWARF_LIBRARIES=$elfDir/lib/libdw.so \
       -DLIBELF_INCLUDE_DIR=$elfDir/include/libelf \
       -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
+      -DCMAKE_CXX_FLAGS=$swCXXFLAGS \
       $swSourceDir
       set +x
   fi
