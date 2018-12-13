@@ -1,7 +1,7 @@
 #
 # Makefile.am for the MPIR interface components of the craytool interface.
 #
-# Copyright2014 Cray Inc.  All Rights Reserved.
+# Copyright 2018 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -9,11 +9,6 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-## $HeadURL$
-## $Date$
-## $Rev$
-## $Author$
-
 SRC             = @CRAYTOOL_DIR@/src
 AM_CXXFLAGS	=	-Wall -I$(SRC) -std=c++11
 AM_LIBTOOLFLAGS = --quiet
