@@ -186,6 +186,7 @@ then
   fi
 
   cd $swSourceDir
+  export tbb_os=linux
   make
   make install
 fi
