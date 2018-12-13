@@ -1,11 +1,24 @@
+/******************************************************************************\
+ * Inferior.hpp
+ *
+ * Copyright 2018 Cray Inc.  All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ ******************************************************************************/
 #pragma once
 
-// std library
 #include <vector>
 #include <string>
 #include <map>
 #include <memory>
 #include <type_traits>
+
+#include <signal.h>
 
 // dyninst symtab
 #include <Symtab.h>
@@ -17,7 +30,6 @@
 #define DEBUG(str, x)
 
 /* RAII for signal blocking */
-#include <signal.h>
 class SignalGuard {
 	const int IGNORED_SIGNALS[13] {
 		64, 63, 39, 33, 32, SIGUSR1, SIGUSR2, SIGCONT, SIGTSTP,
