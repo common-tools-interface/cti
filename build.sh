@@ -161,6 +161,7 @@ then
       -DLIBELF_INCLUDE_DIR=$elfDir/include \
       -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
       -DCMAKE_CXX_FLAGS=$swCXXFLAGS \
+      -DUSE_OpenMP=OFF \
       $swSourceDir
       set +x
       #-DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -181,13 +182,14 @@ then
       -DLIBELF_INCLUDE_DIR=$elfDir/include/libelf \
       -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
       -DCMAKE_CXX_FLAGS=$swCXXFLAGS \
+      -DUSE_OpenMP=OFF \
       $swSourceDir
       set +x
   fi
 
   cd $swSourceDir
   export tbb_os=linux
-  make
+  make -j32
   make install
 fi
 
