@@ -215,7 +215,6 @@ make DWARF_HOME=$dwarfDir \
     SW_HOME=$swPrefix \
     BOOST_HOME=$boost_inst_base
 make install
-make tests;
 
 # install DSOs
 mkdir -p $BUILD_DIR/lib/
@@ -231,6 +230,10 @@ cp -P $swPrefix/lib/libpatchAPI.so* $BUILD_DIR/lib/
 cp -P $swPrefix/lib/libparseAPI.so* $BUILD_DIR/lib/
 cp -P $swPrefix/lib/libinstructionAPI.so* $BUILD_DIR/lib/
 
+cp -P $swPrefix/lib/libtbb.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libtbbmalloc.so* $BUILD_DIR/lib/
+cp -P $swPrefix/lib/libtbbmalloc_proxy.so* $BUILD_DIR/lib/
+
 cp -P $elfDir/lib/libdw.so.* $BUILD_DIR/lib/
 
 cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
@@ -239,6 +242,8 @@ cp $boost_inst_base/lib/libboost_date_time.so.$boostSO_Major.$boostSO_Minor.$boo
 cp $boost_inst_base/lib/libboost_atomic.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_chrono.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 chmod -R 755 $BUILD_DIR/lib/
+
+LD_LIBRARY_PATH=$BUILD_DIR/lib/ make tests;
 
 cd $topLevel
 mkdir -p $BUILD_DIR/docs

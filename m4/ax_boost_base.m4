@@ -73,11 +73,13 @@ AC_ARG_WITH([boost-libdir],
   ],
   [_AX_BOOST_BASE_boost_lib_path=""])
 
+BOOST_LIBS=""
 BOOST_LDFLAGS=""
 BOOST_CPPFLAGS=""
 AS_IF([test "x$want_boost" = "xyes"],
       [_AX_BOOST_BASE_RUNDETECT([$1],[$2],[$3])])
 AC_SUBST(BOOST_CPPFLAGS)
+AC_SUBST(BOOST_LIBS)
 AC_SUBST(BOOST_LDFLAGS)
 ])
 

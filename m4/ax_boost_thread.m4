@@ -155,6 +155,8 @@ AC_DEFUN([AX_BOOST_THREAD],
                         ;;
                 esac
                 AC_SUBST(BOOST_THREAD_LIB)
+		BOOST_LIBS="$BOOST_LIBS $BOOST_THREAD_LIB"
+		AC_SUBST(BOOST_LIBS)
             fi
         fi
 
