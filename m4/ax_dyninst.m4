@@ -59,7 +59,7 @@ AC_DEFUN([AX_DYNINST], [
     DYNINST_VERS="$dyninst_vers"
 
     DYNINST_CPPFLAGS="$DYNINST_CPPFLAGS"
-    DYNINST_LIBS="-lcommon -lsymtabAPI -lpcontrol -ldynElf -ldynDwarf -lboost_system -lboost_thread -lboost_chrono"
+    DYNINST_LIBS="-lcommon -lsymtabAPI -lpcontrol -ldynElf -ldynDwarf -lboost_system -lboost_thread -lboost_chrono -ltbbmalloc"
 
 
     AC_LANG_PUSH(C++)
