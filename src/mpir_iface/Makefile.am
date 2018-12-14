@@ -23,5 +23,4 @@ noinst_LTLIBRARIES      	=	libmpir_iface.la
 libmpir_iface_la_SOURCES	=	mpir_iface.cpp mpir_iface.h MPIRInstance.cpp MPIRInstance.hpp Inferior.cpp Inferior.hpp
 libmpir_iface_la_CXXFLAGS		= $(AM_CXXFLAGS) -fPIC $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
 libmpir_iface_la_CPPFLAGS	=	$(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
-libmpir_iface_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed $(DYNINST_LDFLAGS) $(BOOST_LDFLAGS)
-libmpir_iface_la_LIBADD		=	$(DYNINST_LIBS)
+libmpir_iface_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed
