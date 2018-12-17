@@ -236,7 +236,7 @@ cp -P $swPrefix/lib/libtbb.so* $BUILD_DIR/lib/
 cp -P $swPrefix/lib/libtbbmalloc.so* $BUILD_DIR/lib/
 cp -P $swPrefix/lib/libtbbmalloc_proxy.so* $BUILD_DIR/lib/
 
-cp -P $elfDir/lib/libdw.so.* $BUILD_DIR/lib/
+cp -P $elfDir/lib/libdw*.so* $BUILD_DIR/lib/
 
 cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
