@@ -110,8 +110,7 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib/libsymtabAPI.so.*
 %{_version_prefix}/lib/libdynElf.so.*
 %{_version_prefix}/lib/libpcontrol.so.*
-%{_version_prefix}/lib/libdwarf.so*
-
+%{_version_prefix}/lib/libdw.so.*
 
 %{_version_prefix}/include
 %{_version_prefix}/include/cray_tools_be.h
