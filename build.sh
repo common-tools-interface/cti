@@ -89,7 +89,6 @@ function set_OS(){
     boost_inc=$boost_inst_base/include
   fi
 
-  module load gcc/$gccVer
   export gccVer
 }
 
@@ -98,6 +97,7 @@ function set_OS(){
 
 set_OS
 source_module_script
+module load gcc/$gccVer
 module load $cmake_module
 
 # Build elfutils
