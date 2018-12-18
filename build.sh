@@ -232,9 +232,12 @@ cp -P $swPrefix/lib/libpatchAPI.so* $BUILD_DIR/lib/
 cp -P $swPrefix/lib/libparseAPI.so* $BUILD_DIR/lib/
 cp -P $swPrefix/lib/libinstructionAPI.so* $BUILD_DIR/lib/
 
-cp -P $swPrefix/lib/libtbb.so* $BUILD_DIR/lib/
-cp -P $swPrefix/lib/libtbbmalloc.so* $BUILD_DIR/lib/
-cp -P $swPrefix/lib/libtbbmalloc_proxy.so* $BUILD_DIR/lib/
+# copy libtbb if dyninst built it
+if [ -e "$swPrefix/lib/libtbb.so" ]; then
+  cp -P $swPrefix/lib/libtbb.so* $BUILD_DIR/lib/
+  cp -P $swPrefix/lib/libtbbmalloc.so* $BUILD_DIR/lib/
+  cp -P $swPrefix/lib/libtbbmalloc_proxy.so* $BUILD_DIR/lib/
+fi
 
 cp -P $elfDir/lib/libdw*.so* $BUILD_DIR/lib/
 
