@@ -240,12 +240,14 @@ if [ -e "$swPrefix/lib/libtbb.so" ]; then
 fi
 
 cp -P $elfDir/lib/libdw*.so* $BUILD_DIR/lib/
+cp -P $elfDir/lib/libelf*.so* $BUILD_DIR/lib/
 
 cp $boost_inst_base/lib/libboost_thread.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_system.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_date_time.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_atomic.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 cp $boost_inst_base/lib/libboost_chrono.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
+cp $boost_inst_base/lib/libboost_timer.so.$boostSO_Major.$boostSO_Minor.$boostSO_Fix $BUILD_DIR/lib/
 chmod -R 755 $BUILD_DIR/lib/
 
 LD_LIBRARY_PATH=$BUILD_DIR/lib/ make tests;
