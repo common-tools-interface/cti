@@ -188,9 +188,9 @@ then
       $swSourceDir
       set +x
   fi
-
   cd $swSourceDir
   export tbb_os=linux
+  make TBB
   make -j32
   make install
 fi
