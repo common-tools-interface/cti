@@ -162,6 +162,7 @@ then
       -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
       -DCMAKE_CXX_FLAGS=$swCXXFLAGS \
       -DUSE_OpenMP=OFF \
+      -DBUILD_TBB=ON \
       $swSourceDir
       set +x
       #-DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -183,6 +184,7 @@ then
       -DLIBELF_LIBRARIES=$elfDir/lib/libelf.so \
       -DCMAKE_CXX_FLAGS=$swCXXFLAGS \
       -DUSE_OpenMP=OFF \
+      -DBUILD_TBB=ON \
       $swSourceDir
       set +x
   fi
