@@ -145,6 +145,59 @@ AC_DEFUN([cray_ENV_LIBSSH],
 ])
 
 dnl
+dnl stage boost automatically
+dnl
+AC_DEFUN([cray_BUILD_BOOST],
+[
+	cray_cv_boost_build=no
+
+	dnl External source directory
+	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/boost"
+
+	AC_MSG_CHECKING([for boost submodule])
+
+	dnl Ensure the libssh source was checked out
+	AS_IF(	[test ! -d "$_cray_external_srcdir/tools/build"],
+			[AC_MSG_ERROR([git submodule boost not found.])],
+			[AC_MSG_RESULT([yes])]
+			)
+
+	dnl cd to the checked out source directory
+	cd ${_cray_external_srcdir}
+
+	AC_MSG_NOTICE([Staging boost build...])
+
+	./bootstrap.sh --prefix=${prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[boost bootstrap failed.]]
+	 		)
+
+	dnl pre-build boost libraries
+	./b2 -j32 stage >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	dnl install to temporary staging location for internal use
+	./b2 -j32 --prefix=${CRAYTOOL_EXTERNAL_INSTALL} install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[boost b2 stage failed.]],
+	 		[cray_cv_boost_build=yes]
+	 		)
+
+	dnl go home
+	cd ${CRAYTOOL_DIR}
+])
+
+dnl
+dnl define post-cache boost env
+dnl
+AC_DEFUN([cray_ENV_BOOST],
+[
+	AC_SUBST([BOOST_SRC], [${CRAYTOOL_EXTERNAL}/boost])
+	AC_SUBST([BOOST_ROOT], [${CRAYTOOL_EXTERNAL_INSTALL}])
+])
+
+dnl
 dnl configure elfutils
 dnl
 AC_DEFUN([cray_CONF_ELFUTILS],

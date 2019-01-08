@@ -14,11 +14,14 @@ SUBDIRS = elfutils
 
 install-data-local:
 cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
+@BOOST_SRC@/b2 install
 
 distclean-local:
-	rm -rf @CRAYTOOL_EXTERNAL_INSTALL@
-	rm -rf @ALPS_BASE@
-	rm -rf @WLM_DETECT_BASE@
-	rm -rf @SLURM_BASE@
+	-rm -rf @CRAYTOOL_EXTERNAL_INSTALL@
+	-rm -rf @ALPS_BASE@
+	-rm -rf @WLM_DETECT_BASE@
+	-rm -rf @SLURM_BASE@
 	cd @LIBARC_SRC@ && $(MAKE) distclean
-	cd @LIBSSH_SRC@ && rm -r build
+	-rm -rf @LIBSSH_SRC@/build
+	-rm -rf @BOOST_SRC@/bin.v2
+	-rm -rf @BOOST_SRC@/stage

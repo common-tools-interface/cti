@@ -91,8 +91,15 @@ if test "x$cray_cv_elfutils_conf" = xno; then
 fi
 AC_CACHE_SAVE
 
+dnl build boost
+AC_CACHE_VAL([cray_cv_boost_build], [cray_BUILD_BOOST])
+if test "x$cray_cv_boost_build" = xno; then
+	AC_MSG_ERROR([boost build failed.])
+fi
+AC_CACHE_SAVE
+
 dnl This macro runs check for --with-boost
-AX_BOOST_BASE([1.57],, [AC_MSG_ERROR(["CTI needs libboost >=1.57, but it was not found in your system"])])
+AX_BOOST_BASE([1.69],, [AC_MSG_ERROR(["CTI failed to build boost."])])
 AX_BOOST_SYSTEM
 AX_BOOST_CHRONO
 AX_BOOST_THREAD
