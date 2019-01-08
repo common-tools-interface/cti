@@ -1,7 +1,7 @@
 #
 # configure.ac script for the craytool interface.
 #
-# Copyright 2010-2017 Cray Inc. All Rights Reserved
+# Copyright 2010-2019 Cray Inc. All Rights Reserved
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -9,17 +9,13 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-dnl $HeadURL$
-dnl $Date$
-dnl $Rev$
-dnl $Author$
 
 AC_PREREQ([2.63])
 
 dnl We need to use the m4_esyscmd here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT. This is not portable...
 AC_INIT([craytool_interface], m4_esyscmd([source $PWD/release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n']), [andrewg@cray.com])
-AC_COPYRIGHT([Copyright 2011-2015 Cray Inc. All Rights Reserved.])
+AC_COPYRIGHT([Copyright 2011-2019 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/cti_defs.h])
 AC_CONFIG_AUX_DIR([config])
@@ -32,7 +28,7 @@ AC_USE_SYSTEM_EXTENSIONS
 AM_INIT_AUTOMAKE([foreign -Wall])
 LT_INIT
 
-AC_SUBST([CRAYTOOL_DIR], ["`cd $srcdir && pwd`"])
+AC_SUBST([CRAYTOOL_DIR], ["$(cd $srcdir && pwd)"])
 
 dnl Pull in Cray specific m4 extensions
 cray_INIT
@@ -55,41 +51,6 @@ AC_PROG_LIBTOOL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
 
-#############################
-### Check for --with tags ###
-#############################
-dnl Check for --with-libarchive
-AC_ARG_WITH(	[libarchive],
-				[AS_HELP_STRING([--with-libarchive],
-								[Specify path to libarchive install.])
-				],
-				[libarchive_path=$withval],
-				[libarchive_path=no]
-			)
-
-dnl This macro runs check for --with-boost
-AX_BOOST_BASE([1.57],, [AC_MSG_ERROR([CTI needs libboost >=1.57, but it was not found in your system])])
-AX_BOOST_SYSTEM
-AX_BOOST_CHRONO
-AX_BOOST_THREAD
-AX_BOOST_TIMER
-
-dnl This macro runs check for --with-dyninst
-AX_DYNINST
-dnl Check for dyninst
-if test -z "$DYNINST_VERS"; then
-	AC_MSG_ERROR([dyninst not found (try --with-dyninst or fix build.sh)])
-fi
-
-dnl Check for --with-libssh
-AC_ARG_WITH(	[libssh],
-				[AS_HELP_STRING([--with-libssh],
-								[Specify path to libssh install.])
-				],
-				[libssh_path=$withval],
-				[libssh_path=no]
-			)
-
 #########################
 ### Setup env options ###
 #########################
@@ -107,36 +68,41 @@ cray_SETUP_WLM_DETECT_RPMS
 ### Optional build deps  ###
 ############################
 
-dnl build libarchive if argument wasn't provided
-AC_MSG_CHECKING([for libarchive argument])
-AM_CONDITIONAL([BUILT_ARC], [test "x$libarchive_path" = xno])
-if test "x$libarchive_path" = "xno"; then
-	AC_MSG_RESULT([not found])
-	AC_CACHE_VAL([cray_cv_lib_archive_build], [cray_BUILD_LIBARCHIVE])
-	if test "x$cray_cv_lib_archive_build" = xno; then
-		AC_MSG_ERROR([libarchive build failed.])
-	fi
-	AC_CACHE_SAVE
-	cray_ENV_LIBARCHIVE
-	libarchive_path=$INTERNAL_LIBARCHIVE
-else
-	AC_MSG_RESULT([provided])
+dnl build libarchive
+AC_CACHE_VAL([cray_cv_lib_archive_build], [cray_BUILD_LIBARCHIVE])
+if test "x$cray_cv_lib_archive_build" = xno; then
+	AC_MSG_ERROR([libarchive build failed.])
 fi
+AC_CACHE_SAVE
+cray_ENV_LIBARCHIVE
 
-dnl build libssh if argument wasn't provided
-AC_MSG_CHECKING([for libssh argument])
-AM_CONDITIONAL([BUILT_SSH], [test "x$libssh_path" = xno])
-if test "x$libssh_path" = "xno"; then
-	AC_MSG_RESULT([not found])
-	AC_CACHE_VAL([cray_cv_lib_ssh_build], [cray_BUILD_LIBSSH])
-	if test "x$cray_cv_lib_ssh_build" = xno; then
-		AC_MSG_ERROR([libssh build failed.])
-	fi
-	AC_CACHE_SAVE
-	cray_ENV_LIBSSH
-	libssh_path=$INTERNAL_LIBSSH
-else
-	AC_MSG_RESULT([provided])
+dnl build libssh
+AC_CACHE_VAL([cray_cv_lib_ssh_build], [cray_BUILD_LIBSSH])
+if test "x$cray_cv_lib_ssh_build" = xno; then
+	AC_MSG_ERROR([libssh build failed.])
+fi
+AC_CACHE_SAVE
+cray_ENV_LIBSSH
+
+dnl build elfutils
+AC_CACHE_VAL([cray_cv_elfutils_conf], [cray_CONF_ELFUTILS])
+if test "x$cray_cv_elfutils_conf" = xno; then
+	AC_MSG_ERROR([elfutils conf failed.])
+fi
+AC_CACHE_SAVE
+
+dnl This macro runs check for --with-boost
+AX_BOOST_BASE([1.57],, [AC_MSG_ERROR(["CTI needs libboost >=1.57, but it was not found in your system"])])
+AX_BOOST_SYSTEM
+AX_BOOST_CHRONO
+AX_BOOST_THREAD
+AX_BOOST_TIMER
+
+dnl This macro runs check for --with-dyninst
+AX_DYNINST
+dnl Check for dyninst
+if test -z "$DYNINST_VERS"; then
+	AC_MSG_ERROR([dyninst not found (try --with-dyninst or fix build.sh)])
 fi
 
 ############################
@@ -162,8 +128,8 @@ AC_CHECK_LIB(	[rt],
 
 dnl Check for libarchive
 save_LDFLAGS="$LDFLAGS"
-if test -f "$libarchive_path/lib/libarchive.a"; then
-	AC_SUBST([ARCHIVE_LDFLAGS], ["-L$libarchive_path/lib"])
+if test -d "$INTERNAL_LIBARCHIVE/lib"; then
+	AC_SUBST([ARCHIVE_LDFLAGS], ["-L$INTERNAL_LIBARCHIVE/lib"])
 	LDFLAGS="$LDFLAGS $ARCHIVE_LDFLAGS"
 fi
 AC_CHECK_LIB(	[archive],
@@ -176,6 +142,23 @@ AC_CHECK_LIB(	[archive],
 				[AC_MSG_ERROR([libarchive.a not found.])]
 				)
 AC_SUBST([ARCHIVE_LIBS], ["-larchive"])
+dnl restore flags
+LDFLAGS="$save_LDFLAGS"
+
+dnl Check for libssh - we dlopen this, just make sure the library exists.
+save_LDFLAGS="$LDFLAGS"
+if test -d "$INTERNAL_LIBSSH/lib"; then
+	LDFLAGS="$LDFLAGS -L$INTERNAL_LIBSSH/lib"
+fi
+AC_CHECK_LIB(	[ssh],
+				[ssh_init],
+				[AC_DEFINE(	[HAVE_SSH],
+								[1],
+								[Define to 1 if you have the ssh library (-lssh).]
+							)
+				],
+				[AC_MSG_ERROR([libssh not found.])]
+				)
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
@@ -241,8 +224,8 @@ CPPFLAGS="$save_CPPFLAGS"
 
 dnl Check for libarchive headers
 save_CFLAGS="$CFLAGS"
-if test -f "$libarchive_path/include/archive.h"; then
-	AC_SUBST([ARCHIVE_CFLAGS], ["-I$libarchive_path/include"])
+if test -f "$INTERNAL_LIBARCHIVE/include/archive.h"; then
+	AC_SUBST([ARCHIVE_CFLAGS], ["-I$INTERNAL_LIBARCHIVE/include"])
 	CFLAGS="$CFLAGS $ARCHIVE_CFLAGS"
 fi
 AC_CHECK_HEADER([archive.h],
@@ -255,8 +238,8 @@ CFLAGS="$save_CFLAGS"
 
 dnl Check for libssh headers
 save_CFLAGS="$CFLAGS"
-if test -f "$libssh_path/include/libssh/libssh.h"; then
-	AC_SUBST([SSH_CFLAGS], ["-I$libssh_path/include"])
+if test -f "$INTERNAL_LIBSSH/include/libssh/libssh.h"; then
+	AC_SUBST([SSH_CFLAGS], ["-I$INTERNAL_LIBSSH/include"])
 	CFLAGS="$CFLAGS $SSH_CFLAGS"
 fi
 AC_CHECK_HEADER([libssh/libssh.h],
