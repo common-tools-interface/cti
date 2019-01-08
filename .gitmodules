@@ -13,3 +13,7 @@
 	path = external/elfutils
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/elfutils.git
 	branch = cti-external
+[submodule "external/boost"]
+	path = external/boost
+	url = ssh://git@stash.us.cray.com:7999/pe-cdst/boost.git
+	branch = cti-external
