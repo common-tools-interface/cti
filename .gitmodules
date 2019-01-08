@@ -1,12 +1,15 @@
 [submodule "external/libarchive"]
 	path = external/libarchive
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libarchive.git
+	branch = cti-external
 [submodule "scripts/set_default"]
 	path = scripts/set_default
 	url = ssh://git@stash.us.cray.com:7999/pe-cenv/set_default.git
 [submodule "external/dyninst"]
 	path = external/dyninst
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/dyninst.git
+	branch = cti-external
 [submodule "external/elfutils"]
 	path = external/elfutils
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/elfutils.git
+	branch = cti-external
