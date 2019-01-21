@@ -76,32 +76,28 @@ static std::vector<std::string> const _cti_cray_slurm_extraFiles(slurmStepLayout
 	cti_mpir_procTable_t* app_pids, std::string const& stagePath);
 
 struct CraySlurmInfo {
-	cti_app_id_t		appId;			// CTI appid associated with this alpmy_app_t obj
 	uint32_t			jobid;			// SLURM job id
 	uint32_t			stepid;			// SLURM step id
 	uint64_t			apid;			// Cray variant of step+job id
 	slurmStepLayout_t *	layout;			// Layout of job step
-	mpir_id_t			mpir_id;		// MPIR instance handle
-	cti_mpir_procTable_t *app_pids;		// Optional object used to hold the rank->pid association
+	mpir_id_t			mpir_id;		// mpir id to release barrier
 	std::string			toolPath;		// Backend staging directory
 	std::string			attribsPath;	// Backend Cray specific directory
 	bool				dlaunch_sent;	// True if we have already transfered the dlaunch utility
 	std::string			stagePath;		// directory to stage this instance files in for transfer to BE
 	std::vector<std::string> extraFiles;	// extra files to transfer to BE associated with this app
 
-	CraySlurmInfo(uint32_t jobid_, uint32_t stepid_, cti_app_id_t appId_)
-		: appId(appId_)
-		, jobid(jobid_)
+	CraySlurmInfo(uint32_t jobid_, uint32_t stepid_)
+		: jobid(jobid_)
 		, stepid(stepid_)
 		, apid(CRAY_SLURM_APID(jobid, stepid))
 		, layout(_cti_cray_slurm_getLayout(jobid, stepid))
 		, mpir_id(-1)
-		, app_pids(nullptr)
 		, toolPath(CRAY_SLURM_TOOL_DIR)
 		, attribsPath(string_asprintf(CRAY_SLURM_CRAY_DIR, (long long unsigned int)apid))
 		, dlaunch_sent(false)
 		, stagePath(_cti_cray_slurm_genStagePath())
-		, extraFiles(_cti_cray_slurm_extraFiles(layout, app_pids, stagePath)) {
+		, extraFiles(_cti_cray_slurm_extraFiles(layout, nullptr, stagePath)) {
 
 		// sanity check - Note that 0 is a valid step id.
 		if (jobid == 0) {
@@ -111,10 +107,6 @@ struct CraySlurmInfo {
 
 	~CraySlurmInfo() {
 		_cti_cray_slurm_freeLayout(layout);
-		if (mpir_id >= 0) {
-			_cti_mpir_releaseInstance(mpir_id);
-		}
-		_cti_mpir_deleteProcTable(app_pids);
 
 		// cleanup staging directory if it exists
 		if (!stagePath.empty()) {
@@ -122,8 +114,7 @@ struct CraySlurmInfo {
 		}
 	}
 
-	void updateProcTable(cti_mpir_procTable_t *app_pids_) {
-		app_pids = app_pids_;
+	void updateExtraFiles(cti_mpir_procTable_t* app_pids) {
 		extraFiles = _cti_cray_slurm_extraFiles(layout, app_pids, stagePath);
 	}
 };
@@ -216,7 +207,7 @@ _cti_cray_slurm_getJobInfo(pid_t srunPid)
 	if (launcher_path == NULL) {
 		throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
 	}
-	
+
 	// Create a new MPIR instance. We want to interact with it.
 	if ((mpir_id = _cti_mpir_newAttachInstance(launcher_path, srunPid)) < 0) {
 		throw std::runtime_error("Failed to create MPIR attach instance.");
@@ -337,11 +328,11 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 		_cti_mpir_releaseInstance(mpir_id);
 		throw std::runtime_error("failed to read totalview_jobid");
 	}
-	
+
 	// convert the string into the actual jobid
 	errno = 0;
 	jobid = (uint32_t)strtoul(sym_str, &end_p, 10);
-	
+
 	// check for errors
 	if ((errno == ERANGE && jobid == ULONG_MAX) || (errno != 0 && jobid == 0)) {
 		_cti_mpir_releaseInstance(mpir_id);
@@ -398,7 +389,7 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 
 	// register this app with the application interface
 	try {
-		sinfo = shim::make_unique<CraySlurmInfo>(jobid, stepid, newAppId); // nonnull, throws
+		sinfo = shim::make_unique<CraySlurmInfo>(jobid, stepid); // nonnull, throws
 	} catch (std::exception const& ex) {
 		// failed to register the jobid/stepid
 		_cti_mpir_deleteProcTable(pids);
@@ -408,9 +399,9 @@ _cti_cray_slurm_launch_common(	const char * const launcher_argv[], int stdout_fd
 
 	// set the inv
 	sinfo->mpir_id = mpir_id;
-	
-	// set the pids
-	sinfo->updateProcTable(pids);
+
+	// set extra files based on mpir table
+	sinfo->updateExtraFiles(pids);
 	
 	// If we should not wait at the barrier, call the barrier release function.
 	if (!doBarrier) {
@@ -573,7 +564,7 @@ _cti_cray_slurm_extraFiles(slurmStepLayout_t* layout, cti_mpir_procTable_t* app_
 				// TODO: How to handle this error?
 				throw std::runtime_error("failed to write pidfile header");
 			}
-		
+
 			// write each of the entries
 			slurmPidFile_t pid_entry;
 			memset(&pid_entry, 0, sizeof(pid_entry));
@@ -665,8 +656,8 @@ _cti_cray_slurm_start_daemon(CraySlurmInfo& my_app, const char* const args[]) {
 	ManagedArgv launcherArgv;
 
 	// sanity check
-	if (args == NULL) {
-		throw std::runtime_error("args string is null!");
+	if (args == nullptr) {
+		throw std::runtime_error("args array is null!");
 	}
 	
 	// ensure numNodes is non-zero
@@ -700,7 +691,7 @@ _cti_cray_slurm_start_daemon(CraySlurmInfo& my_app, const char* const args[]) {
 		// set transfer to true
 		my_app.dlaunch_sent = 1;
 	}
-	
+
 	// use existing launcher binary on compute node
 	std::string const launcherPath(my_app.toolPath + "/" + CTI_LAUNCHER);
 
@@ -859,7 +850,11 @@ _cti_cray_slurm_getAppHostsPlacement(CraySlurmInfo& my_app) {
 
 	// iterate through the hosts list
 	for (int i = 0; i < my_app.layout->numNodes; ++i) {
-		result.emplace_back(my_app.layout->hosts[i].host, my_app.layout->hosts[i].PEsHere);
+		auto const newPlacement = Frontend::CTIHost{
+			my_app.layout->hosts[i].host,
+			(size_t)my_app.layout->hosts[i].PEsHere
+		};
+		result.emplace_back(newPlacement);
 	}
 
 	return result;
@@ -1094,7 +1089,7 @@ CraySLURMFrontend::registerJobStep(uint32_t jobid, uint32_t stepid) {
 	// aprun pid not found in the global _cti_alps_info list
 	// so lets create a new appEntry_t object for it
 	auto appId = newAppId();
-	appList[appId] = shim::make_unique<CraySlurmInfo>(jobid, stepid, appId);
+	appList[appId] = shim::make_unique<CraySlurmInfo>(jobid, stepid);
 	return appId;
 }
 

@@ -928,7 +928,7 @@ ALPSFrontend::getNumAppPEs(AppId appId) const {
 	AlpsInfo& my_app = getAppInfo(appId);
 
 	// loop through the placement list
-	int numPEs = 0;
+	size_t numPEs = 0;
 	for (int i = 0; i < my_app.alpsAppInfo.numPlaces; ++i) {
 		numPEs += my_app.places.get()[i].numPEs;
 	}
@@ -982,9 +982,11 @@ ALPSFrontend::getAppHostsPlacement(AppId appId) const {
 	// loop through the placement list
 	for (size_t i = 0; i < numHosts; i++) {
 		// create the hostname string and set the number of PEs
-		placement_list.emplace_back(
-			std::move(string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.places.get()[i].nid)),
-			my_app.places.get()[i].numPEs);
+		auto const newPlacement = CTIHost{
+			string_asprintf(ALPS_XT_HOSTNAME_FMT, my_app.places.get()[i].nid),
+			(size_t)my_app.places.get()[i].numPEs
+		};
+		placement_list.emplace_back(newPlacement);
 	}
 
 	return placement_list;
