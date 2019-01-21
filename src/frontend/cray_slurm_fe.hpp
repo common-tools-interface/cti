@@ -54,7 +54,7 @@ public: // wlm interface
 
 public: // interface
 	~CraySLURMFrontend();
-	SrunInfo getJobInfo(pid_t srunPid);
 	AppId registerJobStep(uint32_t jobid, uint32_t stepid);
-	SrunInfo getSrunInfo(cti_app_id_t appId);
+	SrunInfo getSrunInfo(pid_t srunPid);      // attach and read srun info
+	SrunInfo getSrunInfo(cti_app_id_t appId); // get srun info from existing CTI app
 };

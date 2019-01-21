@@ -526,7 +526,7 @@ cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid) {
 	return runSafely("cti_cray_slurm_getJobInfo", [&](){
 		auto craySlurmPtr = downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
-			*result = craySlurmPtr->getJobInfo(srunPid);
+			*result = craySlurmPtr->getSrunInfo(srunPid);
 			return result;
 		} else {
 			throw std::runtime_error("malloc failed.");
