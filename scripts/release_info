@@ -24,8 +24,7 @@ Purpose:
 ---------
   This is a bug fix release.
 
-  Fixes CAST-17926 ATP frontend issue
-
+  - Fixes PE-23199 and related tarball building and staging issues
 
 Product and OS Dependencies:
 -----------------------------
@@ -35,6 +34,7 @@ Product and OS Dependencies:
     - Cray CS systems
 
   Product Dependencies:
+    - GCC 6.1.0 and the associated runtime libraries are required on all systems.
     - craype 2.1.2 or later is required on Cray XE/XK systems 
       running CLE 5.2 and on all Cray XC systems.
     - craype 2.5.14 or later is required on Cray XC ARM

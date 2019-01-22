@@ -108,7 +108,9 @@ for f in "${liblist[@]}" "${exelist[@]}" ; do
 		     $2 != "libcrypto.so.1(libcrypto.so.10)(64bit)" && \
 		     $2 != "libpthread.so.(GLIBC_2.17)(64bit)" && \
 		     $2 != "libcrypto.so.1.0.(OPENSSL_1.0.0)(64bit)" && \
-		     $2 != "libcrypto.so.1(OPENSSL_1.0.1_EC)(64bit)") { 
+		     $2 != "libcrypto.so.1(OPENSSL_1.0.1_EC)(64bit)" && \
+             $2 != "libcrypto.so.1(libcrypto.so.10)(64bit)" && \
+             $2 != "libcrypto.so.1(OPENSSL_1.0.1_EC)(64bit)") {
                     sub(/$/, "()'$lib64'", $2) ;
 		    sub(/0:/, "()'$lib64'", $2);
 		    sub(/:/, "()'$lib64'", $2);
@@ -128,7 +130,9 @@ for f in "${liblist[@]}" "${exelist[@]}" ; do
 	    
 	    if ( $4 != "libcrypto.so.1" && \
             $4 != "OPENSSL_1.0.0" && \
-            $4 != "GLIBC_2.17" ) {
+            $4 != "GLIBC_2.17"  && \
+            $4 != "GLIBC_2.2.5" && \
+            $4 != "GLIBC_2.3.2" ) {
 	        print LIBNAME "(" $4 ")'$lib64'";
 	    }
 	}

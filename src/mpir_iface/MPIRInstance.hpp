@@ -1,3 +1,15 @@
+/******************************************************************************\
+ * MPIRInstance.hpp
+ *
+ * Copyright 2018 Cray Inc.  All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ ******************************************************************************/
 #pragma once
 
 #include <string>
@@ -19,6 +31,7 @@ public: // interface
 	MPIRInstance(std::string const& launcher, std::vector<std::string> const& launcherArgv,
 		std::vector<std::string> envVars = {}, std::map<int, int> remapFds = {});
 	MPIRInstance(std::string const& attacher, pid_t pid);
+    ~MPIRInstance() = default;
 
 	/* MPIR standard data structures (present in Inferior's memory) */
 	typedef struct {

@@ -19,7 +19,7 @@ revision_number       = ""
 version               = ""
 release_number        = ""
 rpm_name              = ""
-osver                 = ""
+os_ver                = ""
 revision_number       = ""
 prefix                = "/opt/cray"
 release_date          = ""
@@ -30,12 +30,11 @@ for arg in sys.argv:
     final = True
 
 def fetch_release(base_name, rev_num,pkgs_dir):
-  global osver
   itt_list = range(20)
   itt_list.reverse()
   rval = 0
   for i in itt_list:
-    tmp_name = pkgs_dir + "/" + base_name + "-" + "*" + "." + rev_num + "-" + str(i) + osver + "." +  arch + ".rpm"
+    tmp_name = pkgs_dir + "/" + base_name + "-" + "*" + "." + rev_num + "-" + str(i) + os_ver + "." +  arch + ".rpm"
     if glob.glob(tmp_name):
       rval = i + 1
       break
@@ -57,18 +56,18 @@ def fetch_os():
           os_sub = line.replace("VERSION = ", "")
           arch_name = "sles"
           break
-  elif os.path.isfile("/etc/os-release"):
-    with open("/etc/os-release", "r") as f:
-      for line in f:
-        if line.find('VERSION="15"') != -1:
-          os_sub = '15'
-          break
   elif os.path.isfile("/etc/redhat-release"):
     with open("/etc/redhat-release", "r") as f:
       for line in f:
         if line.find("CentOS ") != -1:
           os_sub = 'el7'
           arch_name = "CS"
+          break
+  elif os.path.isfile("/etc/os-release"):
+    with open("/etc/os-release", "r") as f:
+      for line in f:
+        if line.find('VERSION="15"') != -1:
+          os_sub = '15'
           break
 
   os_sub = os_sub.strip()
@@ -220,7 +219,7 @@ def fetch_newData():
   global version
   global release_number
   global rpm_name
-  global osver
+  global os_ver
   global ver_two_dig_nodot
   global release_date
   global arch
@@ -258,7 +257,7 @@ def fetch_newData():
   timestmp_revnbr = str(dt_time) + "." + str(rev_number)
   
   arch = getARCH()
-  osver = fetch_os()
+  os_ver = fetch_os()
   two_digit_version = fetch_packageDir()
   pkgs_dir = product_dir + "/" + two_digit_version
   version = fetch_latest_version(final,rev_number,pkgs_dir)
@@ -267,7 +266,7 @@ def fetch_newData():
 
   base_name = "cray-cti-" + version
   release_number = fetch_release(base_name, rev_number,pkgs_dir)
-  package_name = base_name + "-" + timestmp_revnbr + "-" + release_number + osver
+  package_name = base_name + "-" + timestmp_revnbr + "-" + release_number + os_ver
   rpm_name = package_name + "." + arch + ".rpm"
 
   return

@@ -1,3 +1,20 @@
+/******************************************************************************\
+ * MPIRInstance.cpp
+ *
+ * Copyright 2018 Cray Inc.  All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ ******************************************************************************/
+
+#include <sstream>
+// POSIX extensions enabled by autoconf
+#include <limits.h>
+
 #include "MPIRInstance.hpp"
 
 using Symbol  = Inferior::Symbol;
@@ -63,8 +80,6 @@ static T readArrayElem(Inferior& inf, std::string const& symName, size_t idx) {
 	return inf.readMemory<T>(elem_addr);
 }
 
-#include <sstream>
-static const size_t BUFSIZE = 64;
 std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
 	auto num_pids = inferior.readVariable<int>("MPIR_proctable_size");
 	DEBUG(std::cerr, "procTable has size " << std::to_string(num_pids) << std::endl);
@@ -76,8 +91,8 @@ std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
 		auto procDesc = readArrayElem<MPIR_ProcDescElem>(inferior, "MPIR_proctable", i);
 
 		/* read hostname */
-		auto buf = inferior.readMemory<std::array<char, BUFSIZE+1>>(procDesc.host_name);
-		buf[BUFSIZE] = '\0';
+		auto buf = inferior.readMemory<std::array<char, HOST_NAME_MAX+1>>(procDesc.host_name);
+		buf[HOST_NAME_MAX] = '\0';
 
 		/* copy hostname */
 		{ std::stringstream ss;

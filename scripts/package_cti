@@ -32,7 +32,7 @@ revision_number               = definitions.timestmp_revnbr
 build_version                 = definitions.version
 release_number                = definitions.release_number
 rpm_name                      = definitions.rpm_name
-os_ver                        = definitions.osver
+os_ver                        = definitions.os_ver
 package_dir                   = definitions.pkgs_dir
 cti_build_dir                 = definitions.bld_dir
 arch_name                     = definitions.arch_name
@@ -69,7 +69,7 @@ else:
 if options.static_version != False:
   build_version = options.static_version
   release_number = str(0)
-  rpm_name = "cray-cti-" + build_version + "-" + revision_number + "-" + release_number + os_ver + arch + ".rpm"
+  rpm_name = "cray-cti-" + build_version + "-" + revision_number + "-" + release_number + os_ver + "." + arch + ".rpm"
   if is_final:
     if len(build_version) <= 4 or len(build_version) > 5:
       print "Ensure your release version has 3 digits. Exiting..."
@@ -377,6 +377,12 @@ elif os_ver == ".sles12" and arch == "aarch64":
   system_type_hw=arSYSTEM_TYPE[2]
   system_type_wb=arSYSTEM_TYPE[2]
   system_type_remove=arSYSTEM_TYPE[2]
+elif os_ver == ".sles15" and arch == "x86_64":
+  os_list_hw=arSles15_HW
+  os_list_wb=arSles15_WB
+  system_type_hw=arSYSTEM_TYPE[0]
+  system_type_wb=arSYSTEM_TYPE[1]
+  system_type_remove=system_type_hw + "," + system_type_wb
 elif os_ver == ".sles15" and arch == "aarch64":
   os_list_hw=arSles15_HW
   os_list_wb=arSles15_WB

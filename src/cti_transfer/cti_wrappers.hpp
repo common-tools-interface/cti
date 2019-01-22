@@ -81,3 +81,9 @@ static inline StringArray getFileDependencies(const std::string& filePath) {
 		return nullptr;
 	}
 }
+
+#include "frontend/cti_error.h"
+
+static inline std::string const getCTIErrorString() {
+	return std::string(cti_error_str());
+}

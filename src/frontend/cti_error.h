@@ -27,7 +27,6 @@ extern "C" {
 #endif
 
 void	_cti_set_error(const char *, ...);
-bool	_cti_is_valid_environment();
 const char *cti_error_str(void); // expose for c++ wrappers during development
 
 #ifdef __cplusplus

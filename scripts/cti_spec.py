@@ -18,7 +18,7 @@ URL: [url]
 Source: [tarball]
 BuildRoot: %{_tmppath}/%{name}-root
 Prefix: /opt/cray/pe
-
+Provides: %{namespace}-%{intranamespace_name} = %{build_version}
 
 %define _use_internal_dependency_generator 0
 %define __find_requires %{scripts_d}/find-requires
@@ -104,8 +104,13 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/lib/libparseAPI.so*
 %{_version_prefix}/lib/libinstructionAPI.so*
 %{_version_prefix}/lib/libpatchAPI.so*
-%{_version_prefix}/lib/libdwarf.so*
-
+%{_version_prefix}/lib/libcommon.so*
+%{_version_prefix}/lib/libdynDwarf.so*
+%{_version_prefix}/lib/libdyninstAPI.so.*
+%{_version_prefix}/lib/libsymtabAPI.so.*
+%{_version_prefix}/lib/libdynElf.so.*
+%{_version_prefix}/lib/libpcontrol.so.*
+%{_version_prefix}/lib/libdw.so.*
 
 %{_version_prefix}/include
 %{_version_prefix}/include/cray_tools_be.h
@@ -185,16 +190,21 @@ then
   exit 0
 fi
 
-if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{intranamespace_name}` ]]
+if [[ -d ${RPM_INSTALL_PREFIX}/%{intranamespace_name} ]] 
 then
-  rm -rf ${RPM_INSTALL_PREFIX}/%{intranamespace_name}
+  if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{intranamespace_name}` ]]
+  then
+    rm -rf ${RPM_INSTALL_PREFIX}/%{intranamespace_name}
+  fi
 fi
 
-if [[ -z `ls ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}`/ ]]
+if [[ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name} ]]
 then
-  rm -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}
+  if [[ -z `ls ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}`/ ]]
+  then
+    rm -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}
+  fi
 fi
-
 
 %changelog
 

@@ -30,8 +30,8 @@ AC_DEFUN([AX_DYNINST], [
 
     AC_ARG_WITH(dyninst-version,
                 AC_HELP_STRING([--with-dyninst-version=VERS],
-                               [dyninst-version installation @<:@9.3@:>@]),
-                dyninst_vers=$withval, dyninst_vers="9.3")
+                               [dyninst-version installation @<:@10.0@:>@]),
+                dyninst_vers=$withval, dyninst_vers="10.0")
 
     AC_ARG_WITH([dyninst-libdir],
                 AS_HELP_STRING([--with-dyninst-libdir=LIB_DIR],
@@ -59,19 +59,21 @@ AC_DEFUN([AX_DYNINST], [
     DYNINST_VERS="$dyninst_vers"
 
     DYNINST_CPPFLAGS="$DYNINST_CPPFLAGS"
-    DYNINST_LIBS="-lcommon -lsymtabAPI -lpcontrol -ldynElf -ldynDwarf"
-
+    DYNINST_LIBS="-lsymtabAPI -lpcontrol"
+    BOOST_LIBS="$BOOST_SYSTEM_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB"
 
     AC_LANG_PUSH(C++)
     AC_REQUIRE_CPP
 
+    dyninst_saved_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
     dyninst_saved_CPPFLAGS=$CPPFLAGS
     dyninst_saved_LDFLAGS=$LDFLAGS
     dyninst_saved_LIBS=$LIBS
 
+    LD_LIBRARY_PATH="$DYNINST_LIBDIR"
     CPPFLAGS="$CPPFLAGS $DYNINST_CPPFLAGS $BOOST_CPPFLAGS"
     LDFLAGS="$LDFLAGS $DYNINST_LDFLAGS $BINUTILS_LDFLAGS $LIBDWARF_LDFLAGS $LIBELF_LDFLAGS $BOOST_LDFLAGS"
-    LIBS="$DYNINST_LIBS $BINUTILS_IBERTY_LIB $LIBDWARF_LIBS $LIBELF_LIBS $BOOST_SYSTEM_LIB $BOOST_THREAD_LIB"
+    LIBS="$DYNINST_LIBS $BINUTILS_IBERTY_LIB $LIBDWARF_LIBS $LIBELF_LIBS $BOOST_SYSTEM_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB"
 
     AC_MSG_CHECKING([for Dyninst API library and headers])
 
@@ -96,6 +98,7 @@ AC_DEFUN([AX_DYNINST], [
         ]
     )
 
+    LD_LIBRARY_PATH=$dyninst_saved_LD_LIBRARY_PATH
     CPPFLAGS=$dyninst_saved_CPPFLAGS
     LDFLAGS=$dyninst_saved_LDFLAGS
     LIBS=$dyninst_saved_LIBS

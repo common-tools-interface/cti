@@ -7,3 +7,6 @@
 [submodule "external/dyninst"]
 	path = external/dyninst
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/dyninst.git
+[submodule "external/elfutils"]
+	path = external/elfutils
+	url = ssh://git@stash.us.cray.com:7999/pe-cdst/elfutils.git
