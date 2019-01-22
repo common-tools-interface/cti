@@ -16,6 +16,14 @@ public:
 		argv.push_back(NULL);
 	}
 
+	ManagedArgv(std::initializer_list<std::string const> str_list) {
+		argv.reserve(str_list.size());
+		for (auto&& str : str_list) {
+			argv.push_back(strdup(str.c_str()));
+		}
+		argv.push_back(NULL);
+	}
+
 	/* destructor frees the strdup'ed memory */
 	~ManagedArgv() {
 		for (char* str : argv) {
