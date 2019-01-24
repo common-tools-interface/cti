@@ -22,12 +22,23 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <stdexcept>
+
 #include "frontend/Frontend.hpp"
 
 class CraySLURMFrontend : public Frontend {
 
 public: // types
-	using SrunInfo = cti_srunProc_t;
+	struct SrunInfo : public cti_srunProc_t {
+		SrunInfo(uint32_t jobid, uint32_t stepid)
+			: cti_srunProc_t{jobid, stepid}
+		{
+			// sanity check - Note that 0 is a valid step id.
+			if (jobid == 0) {
+				throw std::runtime_error("Invalid jobid " + std::to_string(jobid));
+			}
+		}
+	};
 
 public: // wlm interface
 	bool appIsValid(AppId appId) const;
