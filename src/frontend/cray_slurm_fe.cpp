@@ -72,14 +72,12 @@ namespace handle {
 	// managed MPIR session
 	struct MPIR {
 		mpir_id_t data;
-
 		operator bool() const { return (data >= 0); }
 		void reset() { if (*this) { _cti_mpir_releaseInstance(data); data = mpir_id_t{-1}; } }
 		mpir_id_t get() const { return data; }
-
 		MPIR() : data{-1} {}
 		MPIR(mpir_id_t data_) : data{data_} {}
-		MPIR(MPIR&& moved) : data{std::move(moved.data)} {}
+		MPIR(MPIR&& moved) : data{std::move(moved.data)} { moved.data = mpir_id_t{-1}; }
 		~MPIR() { reset(); }
 	};
 
@@ -252,7 +250,18 @@ struct CraySLURMApp {
 	handle::MPIR		barrier;		// mpir handle to release barrier
 	std::vector<std::string> extraFiles;	// extra files to transfer to BE associated with this app
 
-	CraySLURMApp(CraySLURMApp&&) = default;
+	CraySLURMApp(CraySLURMApp&& moved)
+		: srunInfo{moved.srunInfo}
+		, layout{moved.layout}
+		, toolPath{moved.toolPath}
+		, attribsPath{moved.attribsPath}
+		, dlaunch_sent{moved.dlaunch_sent}
+		, stagePath{moved.stagePath}
+		, barrier{std::move(moved.barrier)}
+		, extraFiles{moved.extraFiles} {
+
+		moved.stagePath.erase();
+	}
 
 	// registration constructor
 	CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id = -1)
@@ -278,7 +287,7 @@ struct CraySLURMApp {
 			// yet be created when launching. So we need to send over a file containing
 			// the information to the compute nodes.
 			auto const procTable = UniquePtrDestr<cti_mpir_procTable_t>{
-				_cti_mpir_newProcTable(barrier.get()),
+				_cti_mpir_newProcTable(mpir_id),
 				_cti_mpir_deleteProcTable
 			};
 			extraFiles = _cti_cray_slurm_extraFiles(layout, procTable.get(), stagePath);
@@ -309,6 +318,8 @@ struct CraySLURMApp {
 	void killApp(int signum);
 
 	void startDaemon(const char* const args[]);
+
+	void shipPackage(std::string const& package);
 
 	// Note that we should provide this as a jobid.stepid format. It will make turning
 	// it into a Cray apid easier on the backend since we don't lose any information
@@ -496,13 +507,12 @@ void CraySLURMApp::killApp(int signum)
 	waitpid(scancelPid, nullptr, 0);
 }
 
-static void
-_cti_cray_slurm_ship_package(uint32_t job_id, std::string const& package) {
+void CraySLURMApp::shipPackage(std::string const& package) {
 	// create the args for sbcast
 	auto launcherArgv = ManagedArgv
 		{ SBCAST
 		, "-C"
-		, "-j", std::to_string(job_id)
+		, "-j", std::to_string(srunInfo.jobid)
 		, package
 		, "--force"
 	};
@@ -574,7 +584,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 			throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
 		}
 
-		_cti_cray_slurm_ship_package(srunInfo.jobid, _cti_getDlaunchPath());
+		shipPackage(_cti_getDlaunchPath());
 
 		// set transfer to true
 		dlaunch_sent = true;
@@ -692,20 +702,6 @@ CraySLURMApp::getAppHostsPlacement() const {
 	return result;
 }
 
-/*
-   I return a pointer to the hostname of the node I am running
-   on. On Cray nodes this can be done with very little overhead
-   by reading the nid number out of /proc. If that is not
-   available I fall back to just doing a libc gethostname call
-   to get the name. If the fall back is used, the name will
-   not necessarily be in the form of "nidxxxxx".
-
-   The caller is responsible for freeing the returned
-   string.
-
-   As an opaque implementation detail, I cache the results
-   for successive calls.
- */
 static std::string
 _cti_cray_slurm_getHostName(void) {
 	static auto hostname = std::string{}; // Cache the result
@@ -827,7 +823,7 @@ CraySLURMFrontend::getExtraFiles(AppId appId) const {
 
 void
 CraySLURMFrontend::shipPackage(AppId appId, std::string const& tarPath) const {
-	_cti_cray_slurm_ship_package(getAppInfo(appId).srunInfo.jobid, tarPath);
+	getAppInfo(appId).shipPackage(tarPath);
 }
 
 void
