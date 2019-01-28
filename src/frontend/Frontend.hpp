@@ -23,88 +23,87 @@
 
 #include "cti_fe.h"
 
-// This is the wlm interface that all wlm implementations should implement.
-class Frontend {
-public:  // types
-	using CStr      = const char*;
-	using CArgArray = const char* const[];
+struct CTIHost {
+	std::string hostname;
+	size_t      numPEs;
+};
 
-	using AppId     = cti_app_id_t;
+using CStr      = const char*;
+using CArgArray = const char* const[];
 
-	struct CTIHost {
-		std::string hostname;
-		size_t      numPEs;
-	};
-
+// This is the app instance interface that all wlms should implement.
+class App {
 public: // interface
 
-	// is app valid
-	virtual bool appIsValid(AppId appId) const = 0;
+	// return the string version of the job identifer
+	virtual std::string const getJobId() const = 0;
 
-	// mark app as not valid
-	virtual void deregisterApp(AppId appId) const = 0;
+	// release app from barrier
+	virtual void releaseBarrier() = 0;
+
+	// kill application
+	virtual void kill(int signal) = 0;
+
+	// extra wlm specific binaries required by backend library
+	virtual std::vector<std::string> const getExtraBinaries() const { return {}; }
+
+	// extra wlm specific libraries required by backend library
+	virtual std::vector<std::string> const getExtraLibraries() const { return {}; }
+
+	// extra wlm specific library directories required by backend library
+	virtual std::vector<std::string> const getExtraLibDirs() const { return {}; }
+
+	// extra wlm specific files required by backend library
+	virtual std::vector<std::string> const getExtraFiles() const { return {}; }
+
+	// ship package to backends
+	virtual void shipPackage(std::string const& tarPath) const = 0;
+
+	// start backend tool daemon
+	virtual void startDaemon(CArgArray argv) const = 0;
+
+	// retrieve number of PEs in app
+	virtual size_t getNumPEs() const = 0;
+
+	// retrieve number of compute nodes in app
+	virtual size_t getNumHosts() const = 0;
+
+	// get hosts list for app
+	virtual std::vector<std::string> const getHostnameList() const = 0;
+
+	// get PE rank/host placement for app
+	virtual std::vector<CTIHost> const getHostPlacement() const = 0;
+
+	// get hostname where the job launcher was started
+	virtual std::string const getLauncherHostname() const = 0;
+
+	// get backend base directory used for staging
+	virtual std::string const getToolPath() const = 0;
+
+	// get backend directory where the pmi_attribs file can be found
+	virtual std::string const getAttribsPath() const = 0;
+};
+
+// This is the wlm interface that all wlm implementations should implement.
+class Frontend {
+public: // types
+	using AppUPtr = std::unique_ptr<App>;
+
+public: // interface
 
 	// wlm type
 	virtual cti_wlm_type getWLMType() const = 0;
 
-	// return the string version of the job identifer
-	virtual std::string const getJobId(AppId appId) const = 0;
-
 	// launch application without barrier
-	virtual AppId launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-	                     CStr inputFile, CStr chdirPath, CArgArray env_list) = 0;
+	virtual AppUPtr launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+	                       CStr inputFile, CStr chdirPath, CArgArray env_list) = 0;
 
 	// launch application with barrier
-	virtual AppId launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-	                            CStr inputFile, CStr chdirPath, CArgArray env_list) = 0;
-
-	// release app from barrier
-	virtual void releaseBarrier(AppId appId) = 0;
-
-	// kill application
-	virtual void killApp(AppId appId, int signal) = 0;
-
-	// extra wlm specific binaries required by backend library
-	virtual std::vector<std::string> const getExtraBinaries(AppId appId) const { return {}; }
-
-	// extra wlm specific libraries required by backend library
-	virtual std::vector<std::string> const getExtraLibraries(AppId appId) const { return {}; }
-
-	// extra wlm specific library directories required by backend library
-	virtual std::vector<std::string> const getExtraLibDirs(AppId appId) const { return {}; }
-
-	// extra wlm specific files required by backend library
-	virtual std::vector<std::string> const getExtraFiles(AppId appId) const { return {}; }
-
-	// ship package to backends
-	virtual void shipPackage(AppId appId, std::string const& tarPath) const = 0;
-
-	// start backend tool daemon
-	virtual void startDaemon(AppId appId, CArgArray argv) const = 0;
-
-	// retrieve number of PEs in app
-	virtual size_t getNumAppPEs(AppId appId) const = 0;
-
-	// retrieve number of compute nodes in app
-	virtual size_t getNumAppNodes(AppId appId) const = 0;
-
-	// get hosts list for app
-	virtual std::vector<std::string> const getAppHostsList(AppId appId) const = 0;
-
-	// get PE rank/host placement for app
-	virtual std::vector<CTIHost> const getAppHostsPlacement(AppId appId) const = 0;
+	virtual AppUPtr launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+	                              CStr inputFile, CStr chdirPath, CArgArray env_list) = 0;
 
 	// get hostname of current node
-	virtual std::string const getHostName(void) const = 0;
-
-	// get hostname where the job launcher was started
-	virtual std::string const getLauncherHostName(AppId appId) const = 0;
-
-	// get backend base directory used for staging
-	virtual std::string const getToolPath(AppId appId) const = 0;
-
-	// get backend directory where the pmi_attribs file can be found
-	virtual std::string const getAttribsPath(AppId appId) const = 0;
+	virtual std::string const getHostname(void) const = 0;
 };
 
 /* internal frontend management */

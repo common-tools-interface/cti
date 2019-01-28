@@ -32,6 +32,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <unordered_map>
 #include <memory>
 
 #include "cti_fe.h"
@@ -65,8 +66,9 @@ static std::string _cti_overwatch_bin;// overwatch binary location
 static std::string _cti_dlaunch_bin;  // dlaunch binary location
 static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
 
-/* global wlm frontend object */
-std::unique_ptr<Frontend> currentFrontend = nullptr;
+/* global wlm frontend / app objects */
+auto currentFrontend = std::unique_ptr<Frontend>{};
+auto appList = std::unordered_map<cti_app_id_t, std::unique_ptr<App>>{};
 
 /*
  * This routine initializes CTI so it is set up for usage by the executable with which it is linked.
@@ -125,21 +127,19 @@ _cti_init(void) {
 	}
 
 	// parse the returned result
+	currentFrontend = shim::make_unique<CraySLURMFrontend>();
+	#if 0
 	if (!wlmName.compare("ALPS") || !wlmName.compare("alps")) {
 		currentFrontend = shim::make_unique<ALPSFrontend>();
 	} else if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
 		// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
 		if (_cti_is_cluster_system()) {
-			#ifdef SLURMFrontend
 			currentFrontend = shim::make_unique<SLURMFrontend>();
-			#endif
 		} else {
 			currentFrontend = shim::make_unique<CraySLURMFrontend>();
 		}
 	} else if (!wlmName.compare("generic")) {
-		#ifdef SSHFrontend
 		currentFrontend = shim::make_unique<SSHFrontend>();
-		#endif
 	} else {
 		// fallback to use the default
 		fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
@@ -148,6 +148,7 @@ _cti_init(void) {
 	if (!currentFrontend) {
 		fprintf(stderr, "Workload manager argument '%s' produced null frontend!\n", wlmName.c_str());
 	}
+	#endif
 }
 
 // Destructor function
