@@ -24,6 +24,27 @@
 
 #include <stdexcept>
 
+#include "useful/handle.hpp"
+
+/* Types used here */
+
+#include "slurm_util/slurm_util.h"
+namespace slurm_util {
+	struct NodeLayout {
+		std::string hostname;
+		size_t numPEs; // number of PEs running on node
+		size_t firstPE; // first PE number on this node
+	};
+
+	struct StepLayout {
+		size_t numPEs; // number of PEs associated with job step
+		std::vector<NodeLayout> nodes; // array of hosts
+
+		// create a StepLayout from slurm_util layout object, free it
+		StepLayout(slurmStepLayout_t*&& raw_layout);
+	};
+}
+
 #include "frontend/Frontend.hpp"
 
 struct SrunInfo : public cti_srunProc_t {
@@ -37,40 +58,74 @@ struct SrunInfo : public cti_srunProc_t {
 	}
 };
 
-class CraySLURMApp : public App {
 
-public: // inherited interface
-	std::string const getJobId() const;
+struct CraySLURMApp : public App {
+private: // variables
+	SrunInfo srunInfo;
+	slurm_util::StepLayout	layout;			// Layout of job step
+	std::string			toolPath;		// Backend staging directory
+	std::string			attribsPath;	// Backend Cray specific directory
+	bool				dlaunch_sent;	// True if we have already transfered the dlaunch utility
+	std::string			stagePath;		// directory to stage this instance files in for transfer to BE
+
+	handle::MPIR		barrier;		// mpir handle to release barrier
+	std::vector<std::string> extraFiles;	// extra files to transfer to BE associated with this app
+
+protected: // delegated constructor
+	CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id);
+
+public: // constructor / destructor interface
+	// register case
+	CraySLURMApp(uint32_t jobid, uint32_t stepid);
+	// attach case
+	CraySLURMApp(mpir_id_t mpir_id);
+	// launchcase
+	CraySLURMApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+		const char *inputFile, const char *chdirPath, const char * const env_list[]);
+
+	CraySLURMApp(CraySLURMApp&& moved);
+	~CraySLURMApp();
+
+public: // app interaction interface
+	std::string getJobId()            const;
+	std::string getLauncherHostname() const;
+	std::string getToolPath()         const { return toolPath;    }
+	std::string getAttribsPath()      const { return attribsPath; }
+
+	std::vector<std::string> getExtraFiles() const { return extraFiles; }
+
+	size_t getNumPEs()       const { return layout.numPEs;       }
+	size_t getNumHosts()     const { return layout.nodes.size(); }
+	std::vector<std::string> getHostnameList() const;
+	std::vector<CTIHost>     getHostsPlacement() const;
+
 	void releaseBarrier();
 	void kill(int signal);
-	std::vector<std::string> const getExtraFiles() const;
 	void shipPackage(std::string const& tarPath) const;
-	void startDaemon(CArgArray argv) const;
-	size_t getNumPEs() const;
-	size_t getNumHosts() const;
-	std::vector<std::string> const getHostnameList() const;
-	std::vector<CTIHost> const getHostsPlacement() const;
-	std::string const getLauncherHostname() const;
-	std::string const getToolPath() const;
-	std::string const getAttribsPath() const;
+	void startDaemon(const char* const args[]);
 
-public: // slurm interface
-	~CraySLURMApp();
-	SrunInfo getSrunInfo() const; // get srun info from existing CTI app
+public: // slurm specific interface
+	uint64_t getApid() const { return CRAY_SLURM_APID(srunInfo.jobid, srunInfo.stepid); }
+	SrunInfo getSrunInfo() const { return srunInfo; }
 };
 
 
 class CraySLURMFrontend : public Frontend {
 
 public: // inherited interface
-	cti_wlm_type getWLMType() const;
-	AppUPtr launch(CArgArray launcher_argv, int stdout_fd, int stderr,
-	             CStr inputFile, CStr chdirPath, CArgArray env_list);
-	AppUPtr launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
-	                    CStr inputFile, CStr chdirPath, CArgArray env_list);
-	std::string const getHostname(void) const;
+	cti_wlm_type getWLMType() const { return CTI_WLM_CRAY_SLURM; }
 
-public: // slurm interface
-	AppUPtr registerJobStep(uint32_t jobid, uint32_t stepid);
+	AppId
+	launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+	       CStr inputFile, CStr chdirPath, CArgArray env_list);
+
+	AppId
+	launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
+	              CStr inputFile, CStr chdirPath, CArgArray env_list);
+
+	std::string getHostname() const;
+
+public: // slurm specific interface
+	AppId registerJobStep(uint32_t jobid, uint32_t stepid);
 	SrunInfo getSrunInfo(pid_t srunPid);      // attach and read srun info
 };

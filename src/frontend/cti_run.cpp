@@ -134,7 +134,7 @@ cti_launchAppBarrier(	const char * const launcher_argv[], int stdout_fd, int std
 int
 cti_releaseAppBarrier(cti_app_id_t appId) {
 	return !runSafely("cti_releaseAppBarrier", [&](){
-		_cti_getCurrentFrontend().releaseBarrier(appId);
+		_cti_getCurrentFrontend().getApp(appId).releaseBarrier();
 		return 1;
 	});
 }
@@ -142,7 +142,7 @@ cti_releaseAppBarrier(cti_app_id_t appId) {
 int
 cti_killApp(cti_app_id_t appId, int signum) {
 	return !runSafely("cti_killApp", [&](){
-		_cti_getCurrentFrontend().killApp(appId, signum);
+		_cti_getCurrentFrontend().getApp(appId).kill(signum);
 		return 1;
 	});
 }

@@ -88,9 +88,9 @@ Session::Session(Frontend const& frontend_, Frontend::AppId appId_) :
 	appId(appId_),
 	configPath(_cti_getCfgDir()),
 	stageName(generateStagePath()),
-	attribsPath(frontend.getAttribsPath(appId)),
-	toolPath(frontend.getToolPath(appId)),
-	jobId(frontend.getJobId(appId)), 
+	attribsPath(frontend.getApp(appId).getAttribsPath()),
+	toolPath(frontend.getApp(appId).getToolPath()),
+	jobId(frontend.getApp(appId).getJobId()), 
 	wlmEnum(std::to_string(frontend.getWLMType())) {}
 
 #include "ArgvDefs.hpp"
@@ -120,7 +120,7 @@ void Session::launchCleanup() {
 }
 
 void Session::startDaemon(char * const argv[]) {
-	frontend.startDaemon(appId, argv);
+	frontend.getApp(appId).startDaemon(argv);
 }
 
 std::shared_ptr<Manifest> Session::createManifest() {

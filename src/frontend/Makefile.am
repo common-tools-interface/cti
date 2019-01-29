@@ -29,9 +29,9 @@ libcraytools_fe_la_SOURCES	=	cti_fe.h cti_fe.cpp \
 								cti_error.c cti_error.h \
 								cti_appentry.cpp cti_appentry.h \
 								Frontend.hpp \
-								alps_fe.cpp alps_fe.hpp \
 								cray_slurm_fe.cpp cray_slurm_fe.hpp \
-								ssh_fe.cpp ssh_fe.hpp \
+								# alps_fe.cpp alps_fe.hpp \
+								# ssh_fe.cpp ssh_fe.hpp \
 								# slurm_fe.cpp slurm_fe.hpp
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
 								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
@@ -41,6 +41,6 @@ libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								$(SRC)/ld_val/libld_val.la \
 								$(SRC)/mpir_iface/libmpir_iface.la \
 								$(SRC)/slurm_util/libslurm_util.la \
-								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS) $(BOOST_LIBS)
+								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS) -lboost_system -lboost_chrono -lboost_thread -lssh
 libcraytools_fe_la_LDFLAGS	=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info $(CRAYTOOL_FE_VERSION) \
 								$(ARCHIVE_LDFLAGS) $($DYNINST_LDFLAGS) $(BOOST_LDFLAGS)

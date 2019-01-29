@@ -69,7 +69,7 @@ public: // interface
 	// wlm / daemon wrappers
 	void startDaemon(char * const argv[]);
 	inline void shipPackage(std::string const& tarPath) {
-		frontend.shipPackage(appId, tarPath);
+		frontend.getApp(appId).shipPackage(tarPath);
 	}
 
 	// create new manifest and register ownership

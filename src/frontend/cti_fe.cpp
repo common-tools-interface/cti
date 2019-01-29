@@ -47,10 +47,10 @@
 
 #include "wlm_detect.h"
 
-#include "alps_fe.hpp"
-
+#include "Frontend.hpp"
 #include "cray_slurm_fe.hpp"
 #if 0
+#include "alps_fe.hpp"
 #include "slurm_fe.hpp"
 #include "ssh_fe.hpp"
 #endif
@@ -79,7 +79,7 @@ auto appList = std::unordered_map<cti_app_id_t, std::unique_ptr<App>>{};
 */
 void __attribute__((constructor))
 _cti_init(void) {
-	using DefaultFrontend = ALPSFrontend;
+	using DefaultFrontend = CraySLURMFrontend;// ALPSFrontend;
 	
 	// only init once
 	if (currentFrontend) {
@@ -407,14 +407,14 @@ cti_deregisterApp(cti_app_id_t appId) {
 int
 cti_getNumAppPEs(cti_app_id_t appId) {
 	return runSafely("cti_getNumAppPEs", [&](){
-		return _cti_getCurrentFrontend().getNumAppPEs(appId);
+		return _cti_getCurrentFrontend().getApp(appId).getNumPEs();
 	});
 }
 
 int
 cti_getNumAppNodes(cti_app_id_t appId) {
 	return runSafely("cti_getNumAppNodes", [&](){
-		return _cti_getCurrentFrontend().getNumAppNodes(appId);
+		return _cti_getCurrentFrontend().getApp(appId).getNumHosts();
 	});
 }
 
@@ -422,7 +422,7 @@ cti_getNumAppNodes(cti_app_id_t appId) {
 char **
 cti_getAppHostsList(cti_app_id_t appId) {
 	return runSafely("cti_getAppHostsList", [&](){
-		auto const hostList = _cti_getCurrentFrontend().getAppHostsList(appId);
+		auto const hostList = _cti_getCurrentFrontend().getApp(appId).getHostnameList();
 
 		char **host_list = (char**)malloc(sizeof(char*) * (hostList.size() + 1));
 		for (size_t i = 0; i < hostList.size(); i++) {
@@ -437,7 +437,7 @@ cti_getAppHostsList(cti_app_id_t appId) {
 cti_hostsList_t *
 cti_getAppHostsPlacement(cti_app_id_t appId) {
 	return runSafely("cti_getAppHostsPlacement", [&](){
-		auto const hostPlacement = _cti_getCurrentFrontend().getAppHostsPlacement(appId);
+		auto const hostPlacement = _cti_getCurrentFrontend().getApp(appId).getHostsPlacement();
 
 		cti_hostsList_t *result = (cti_hostsList_t*)malloc(sizeof(cti_hostsList_t));
 		result->hosts = (cti_host_t*)malloc(sizeof(cti_host_t) * hostPlacement.size());
@@ -470,14 +470,14 @@ cti_destroyHostsList(cti_hostsList_t *placement_list) {
 char *
 cti_getHostname() {
 	return runSafely("cti_getHostname", [&](){
-		return strdup(_cti_getCurrentFrontend().getHostName().c_str());
+		return strdup(_cti_getCurrentFrontend().getHostname().c_str());
 	});
 }
 
 char *
 cti_getLauncherHostName(cti_app_id_t appId) {
 	return runSafely("cti_getLauncherHostName", [&](){
-		return strdup(_cti_getCurrentFrontend().getLauncherHostName(appId).c_str());
+		return strdup(_cti_getCurrentFrontend().getApp(appId).getLauncherHostname().c_str());
 	});
 }
 
@@ -493,6 +493,7 @@ static WLMType* downcastCurrentFE() {
 	}
 }
 
+#if 0
 uint64_t cti_alps_getApid(pid_t aprunPid) {
 	return runSafely("cti_alps_getApid", [&](){
 		return downcastCurrentFE<ALPSFrontend>()->getApid(aprunPid);
@@ -522,6 +523,7 @@ int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_id) {
 		return downcastCurrentFE<ALPSFrontend>()->getAlpsOverlapOrdinal(app_id);
 	});
 }
+#endif
 
 cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid) {
 	return runSafely("cti_cray_slurm_getJobInfo", [&](){
@@ -545,7 +547,7 @@ cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 	return runSafely("cti_cray_slurm_getSrunInfo", [&](){
 		auto craySlurmPtr = downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
-			*result = craySlurmPtr->getSrunInfo(appId);
+			*result = dynamic_cast<CraySLURMApp&>(craySlurmPtr->getApp(appId)).getSrunInfo();
 			return result;
 		} else {
 			throw std::runtime_error("malloc failed.");
