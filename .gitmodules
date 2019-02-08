@@ -17,3 +17,7 @@
 	path = external/boost
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/boost.git
 	branch = cti-external
+[submodule "external/tbb"]
+	path = external/tbb
+	url = ssh://git@stash.us.cray.com:7999/pe-cdst/tbb.git
+	branch = cti-external
