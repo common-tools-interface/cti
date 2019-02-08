@@ -121,7 +121,7 @@ AC_DEFUN([cray_BUILD_LIBSSH],
 	rm -rf build
 	mkdir -p build
 	cd build
-	LDFLAGS='-Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags' cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	LDFLAGS='-Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags' cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	dnl make
 	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD

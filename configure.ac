@@ -97,6 +97,7 @@ if test "x$cray_cv_boost_build" = xno; then
 	AC_MSG_ERROR([boost build failed.])
 fi
 AC_CACHE_SAVE
+cray_ENV_BOOST
 
 dnl This macro runs check for --with-boost
 AX_BOOST_BASE([1.69],, [AC_MSG_ERROR(["CTI failed to build boost."])])
