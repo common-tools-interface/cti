@@ -40,8 +40,8 @@ namespace slurm_util {
 		size_t numPEs; // number of PEs associated with job step
 		std::vector<NodeLayout> nodes; // array of hosts
 
-		// create a StepLayout from slurm_util layout object, free it
-		StepLayout(slurmStepLayout_t*&& raw_layout);
+		// fetch job step layout information from slurm_util helper
+		StepLayout(uint32_t jobid, uint32_t stepid);
 	};
 }
 
@@ -61,15 +61,15 @@ struct SrunInfo : public cti_srunProc_t {
 
 struct CraySLURMApp : public App {
 private: // variables
-	SrunInfo srunInfo;
-	slurm_util::StepLayout	layout;			// Layout of job step
-	std::string			toolPath;		// Backend staging directory
-	std::string			attribsPath;	// Backend Cray specific directory
-	bool				dlaunch_sent;	// True if we have already transfered the dlaunch utility
-	std::string			stagePath;		// directory to stage this instance files in for transfer to BE
+	SrunInfo               srunInfo;    // Job and Step IDs
+	slurm_util::StepLayout stepLayout;  // SLURM Layout of job step
+	handle::MPIR           barrier;     // MPIR handle to release startup barrier
+	bool                   dlaunchSent; // Have we already shipped over the dlaunch utility?
 
-	handle::MPIR		barrier;		// mpir handle to release barrier
-	std::vector<std::string> extraFiles;	// extra files to transfer to BE associated with this app
+	std::string toolPath;    // Backend path where files are unpacked
+	std::string attribsPath; // Backend Cray-specific directory
+	std::string stagePath;   // Local directory where files are staged before transfer to BE
+	std::vector<std::string> extraFiles; // List of extra support files to transfer to BE
 
 protected: // delegated constructor
 	CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id);
@@ -79,7 +79,7 @@ public: // constructor / destructor interface
 	CraySLURMApp(uint32_t jobid, uint32_t stepid);
 	// attach case
 	CraySLURMApp(mpir_id_t mpir_id);
-	// launchcase
+	// launch case
 	CraySLURMApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 		const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
@@ -94,8 +94,8 @@ public: // app interaction interface
 
 	std::vector<std::string> getExtraFiles() const { return extraFiles; }
 
-	size_t getNumPEs()       const { return layout.numPEs;       }
-	size_t getNumHosts()     const { return layout.nodes.size(); }
+	size_t getNumPEs()       const { return stepLayout.numPEs;       }
+	size_t getNumHosts()     const { return stepLayout.nodes.size(); }
 	std::vector<std::string> getHostnameList() const;
 	std::vector<CTIHost>     getHostsPlacement() const;
 
