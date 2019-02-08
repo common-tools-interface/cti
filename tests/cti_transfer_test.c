@@ -135,6 +135,7 @@ main(int argc, char **argv)
 	// Conduct WLM specific calls
 	switch (mywlm)
 	{
+#if 0
 		case CTI_WLM_ALPS:
 		{
 			cti_aprunProc_t *	myapruninfo;
@@ -157,7 +158,7 @@ main(int argc, char **argv)
 			free(myapruninfo);
 		}
 			break;
-			
+#endif			
 		case CTI_WLM_CRAY_SLURM:
 		{
 			cti_srunProc_t *	mysruninfo;
