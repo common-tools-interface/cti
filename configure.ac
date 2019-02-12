@@ -69,6 +69,7 @@ cray_SETUP_WLM_DETECT_RPMS
 ############################
 
 dnl build libarchive
+AC_MSG_CHECKING([for libarchive])
 AC_CACHE_VAL([cray_cv_lib_archive_build], [cray_BUILD_LIBARCHIVE])
 if test "x$cray_cv_lib_archive_build" = xno; then
 	AC_MSG_ERROR([libarchive build failed.])
@@ -77,6 +78,7 @@ AC_CACHE_SAVE
 cray_ENV_LIBARCHIVE
 
 dnl build libssh
+AC_MSG_CHECKING([for libssh])
 AC_CACHE_VAL([cray_cv_lib_ssh_build], [cray_BUILD_LIBSSH])
 if test "x$cray_cv_lib_ssh_build" = xno; then
 	AC_MSG_ERROR([libssh build failed.])
@@ -85,19 +87,40 @@ AC_CACHE_SAVE
 cray_ENV_LIBSSH
 
 dnl build elfutils
+AC_MSG_CHECKING([for elfutils])
 AC_CACHE_VAL([cray_cv_elfutils_conf], [cray_CONF_ELFUTILS])
 if test "x$cray_cv_elfutils_conf" = xno; then
 	AC_MSG_ERROR([elfutils conf failed.])
 fi
 AC_CACHE_SAVE
+cray_ENV_ELFUTILS
 
 dnl build boost
+AC_MSG_CHECKING([for boost])
 AC_CACHE_VAL([cray_cv_boost_build], [cray_BUILD_BOOST])
 if test "x$cray_cv_boost_build" = xno; then
 	AC_MSG_ERROR([boost build failed.])
 fi
 AC_CACHE_SAVE
 cray_ENV_BOOST
+
+dnl build tbb
+AC_MSG_CHECKING([for tbb])
+AC_CACHE_VAL([cray_cv_tbb_build], [cray_BUILD_TBB])
+if test "x$cray_cv_tbb_build" = xno; then
+	AC_MSG_ERROR([tbb build failed.])
+fi
+AC_CACHE_SAVE
+cray_ENV_TBB
+
+dnl build dyninst
+AC_MSG_CHECKING([for dyninst])
+AC_CACHE_VAL([cray_cv_dyninst_build], [cray_BUILD_DYNINST])
+if test "x$cray_cv_dyninst_build" = xno; then
+	AC_MSG_ERROR([dyninst build failed.])
+fi
+AC_CACHE_SAVE
+cray_ENV_DYNINST
 
 dnl This macro runs check for --with-boost
 AX_BOOST_BASE([1.69],, [AC_MSG_ERROR(["CTI failed to build boost."])])
@@ -108,10 +131,6 @@ AX_BOOST_TIMER
 
 dnl This macro runs check for --with-dyninst
 AX_DYNINST
-dnl Check for dyninst
-if test -z "$DYNINST_VERS"; then
-	AC_MSG_ERROR([dyninst not found (try --with-dyninst or fix build.sh)])
-fi
 
 ############################
 ### Check for libraries. ###

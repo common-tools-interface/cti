@@ -1,5 +1,6 @@
 ################################################################################
 # Copyright (c) 2010-2014 Krell Institute. All Rights Reserved.
+# Copyright 2019 Cray Inc. All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -23,40 +24,15 @@
 
 AC_DEFUN([AX_DYNINST], [
 
-    AC_ARG_WITH(dyninst,
-                AC_HELP_STRING([--with-dyninst=DIR],
-                               [Dyninst installation @<:@/usr@:>@]),
-                dyninst_dir=$withval, dyninst_dir="/usr")
-
-    AC_ARG_WITH(dyninst-version,
-                AC_HELP_STRING([--with-dyninst-version=VERS],
-                               [dyninst-version installation @<:@10.0@:>@]),
-                dyninst_vers=$withval, dyninst_vers="10.0")
-
-    AC_ARG_WITH([dyninst-libdir],
-                AS_HELP_STRING([--with-dyninst-libdir=LIB_DIR],
-                [Force given directory for dyninst libraries. Note that this will overwrite library path detection, so use this parameter only if default library detection fails and you know exactly where your dyninst libraries are located.]),
-                [
-                if test -d $withval 
-                then
-                        ac_dyninst_lib_path="$withval"
-                else
-                        AC_MSG_ERROR(--with-dyninst-libdir expected directory name)
-                fi ], 
-                [ac_dyninst_lib_path=""])
-
+    AS_IF(  [ test -n "$INTERNAL_DYNINST" ],
+            [ dyninst_dir="$INTERNAL_DYNINST" ],
+            [ dyninst_dir="/usr" ])
 
     DYNINST_CPPFLAGS="-I$dyninst_dir/include -I$dyninst_dir/include/dyninst"
-    if test "x$ac_dyninst_lib_path" == "x"; then
-       DYNINST_LDFLAGS="-L$dyninst_dir/$abi_libdir"
-       DYNINST_LIBDIR="$dyninst_dir/$abi_libdir"
-    else
-       DYNINST_LDFLAGS="-L$ac_dyninst_lib_path"
-       DYNINST_LIBDIR="$ac_dyninst_lib_path"
-    fi
+    DYNINST_LDFLAGS="-L$dyninst_dir/lib"
+    DYNINST_LIBDIR="$dyninst_dir/lib"
 
-    DYNINST_DIR="$dyninst_dir" 
-    DYNINST_VERS="$dyninst_vers"
+    DYNINST_DIR="$dyninst_dir"
 
     DYNINST_CPPFLAGS="$DYNINST_CPPFLAGS"
     DYNINST_LIBS="-lsymtabAPI -lpcontrol"
@@ -87,14 +63,7 @@ AC_DEFUN([AX_DYNINST], [
             AC_DEFINE(HAVE_DYNINST, 1, [Define to 1 if you have Dyninst.])
 
         ], [ AC_MSG_RESULT(no)
-
-            AM_CONDITIONAL(HAVE_DYNINST, false)
-            DYNINST_CPPFLAGS=""
-            DYNINST_LDFLAGS=""
-            DYNINST_LIBS=""
-            DYNINST_LIBDIR=""
-            DYNINST_DIR=""
-            DYNINST_VERS=""
+            AC_MSG_ERROR[Required dyninst libraries not found!.]
         ]
     )
 
@@ -110,7 +79,6 @@ AC_DEFUN([AX_DYNINST], [
     AC_SUBST(DYNINST_LIBS)
     AC_SUBST(DYNINST_LIBDIR)
     AC_SUBST(DYNINST_DIR)
-    AC_SUBST(DYNINST_VERS)
 
 ])
 

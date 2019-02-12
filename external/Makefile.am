@@ -15,6 +15,8 @@ SUBDIRS = elfutils
 install-data-local:
 cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
 @BOOST_SRC@/b2 install
+cp @TBB_LIBRARY@/*.so* ${libdir}
+cd @DYNINST_BUILD@ && $(MAKE) $(AM_MAKEFLAGS) install
 
 distclean-local:
 	-rm -rf @CRAYTOOL_EXTERNAL_INSTALL@
@@ -25,3 +27,4 @@ distclean-local:
 	-rm -rf @LIBSSH_SRC@/build
 	-rm -rf @BOOST_SRC@/bin.v2
 	-rm -rf @BOOST_SRC@/stage
+	-rm -rf @DYNINST_BUILD@
