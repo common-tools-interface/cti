@@ -384,7 +384,6 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 
 template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
 static ReturnType runSafely(std::string const& caller, FuncType func) {
-	std::cerr << caller << std::endl;
 	try {
 		return func();
 	} catch (std::exception const& ex) {
@@ -648,7 +647,9 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 {
 	return runSafely("cti_launchApp", [&](){
 		_cti_checkLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
-		return _cti_getCurrentFrontend().launch(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
+		auto const appId = _cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
+		_cti_getCurrentFrontend().getApp(appId).releaseBarrier();
+		return appId;
 	});
 }
 

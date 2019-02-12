@@ -116,10 +116,6 @@ public: // inherited interface
 	cti_wlm_type getWLMType() const { return CTI_WLM_CRAY_SLURM; }
 
 	AppId
-	launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-	       CStr inputFile, CStr chdirPath, CArgArray env_list);
-
-	AppId
 	launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
 	              CStr inputFile, CStr chdirPath, CArgArray env_list);
 

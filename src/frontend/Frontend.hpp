@@ -122,11 +122,6 @@ public: // impl.-specific interface
 	virtual cti_wlm_type
 	getWLMType() const = 0;
 
-	// launch application without barrier
-	virtual AppId
-	launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-	       CStr inputFile, CStr chdirPath, CArgArray env_list) = 0;
-
 	// launch application with barrier
 	virtual AppId
 	launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,

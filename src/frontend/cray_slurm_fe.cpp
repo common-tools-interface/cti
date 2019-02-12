@@ -330,7 +330,6 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
 	, stagePath   { cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SLURM_STAGE_DIR}) }
 	, extraFiles  { slurm_conventions::createNodeLayoutFile(stepLayout, stagePath) }
 {
-
 	// Ensure there are running nodes in the job.
 	if (stepLayout.nodes.empty()) {
 		throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
@@ -344,12 +343,12 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
 		// yet be created when launching. So we need to send over a file containing
 		// the information to the compute nodes.
 		if (auto const procTable = UniquePtrDestr<cti_mpir_procTable_t>
-			{ _cti_mpir_newProcTable(mpir_id)
+			{ _cti_mpir_newProcTable(barrier.get())
 			, _cti_mpir_deleteProcTable
 		}) {
 			extraFiles.push_back(slurm_conventions::createPIDListFile(*procTable, stagePath));
 		} else {
-			throw std::runtime_error("failed to get MPIR proctable from mpir id " + std::to_string(mpir_id));
+			throw std::runtime_error("failed to get MPIR proctable from mpir id " + std::to_string(barrier.get()));
 		}
 	}
 }
@@ -365,7 +364,6 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	, stagePath   { moved.stagePath }
 	, extraFiles  { moved.extraFiles }
 {
-
 	// We have taken ownership of the staging path, so don't let moved delete the directory.
 	moved.stagePath.erase();
 }
@@ -634,16 +632,6 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 }
 
 /* cray slurm frontend implementation */
-
-Frontend::AppId
-CraySLURMFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-                          CStr inputFile, CStr chdirPath, CArgArray env_list)
-{
-	auto appPtr = shim::make_unique<CraySLURMApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
-		chdirPath, env_list);
-	appPtr->releaseBarrier();
-	return registerAppPtr(std::move(appPtr));
-}
 
 Frontend::AppId
 CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
