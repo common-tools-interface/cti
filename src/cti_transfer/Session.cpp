@@ -91,7 +91,9 @@ Session::Session(Frontend const& frontend_, Frontend::AppId appId_) :
 	attribsPath(frontend.getApp(appId).getAttribsPath()),
 	toolPath(frontend.getApp(appId).getToolPath()),
 	jobId(frontend.getApp(appId).getJobId()), 
-	wlmEnum(std::to_string(frontend.getWLMType())) {}
+	wlmEnum(std::to_string(frontend.getWLMType())),
+	ldLibraryPath(toolPath + "/" + stageName + "/lib") // default libdir /tmp/cti_daemonXXXXXX/lib
+	{}
 
 #include "ArgvDefs.hpp"
 void Session::launchCleanup() {

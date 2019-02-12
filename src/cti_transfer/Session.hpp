@@ -42,7 +42,6 @@ private: // variables
 private: // helper functions
 	// generate a staging path according to CTI path rules
 	static std::string generateStagePath();
-	std::string ldLibraryPath;
 
 public: // variables
 	Frontend const& frontend;
@@ -54,6 +53,9 @@ public: // variables
 	const std::string toolPath;
 	const std::string jobId;
 	const std::string wlmEnum;
+
+private: // variables
+	std::string ldLibraryPath;
 
 public: // interface
 	explicit Session(Frontend const& frontend, Frontend::AppId appId);

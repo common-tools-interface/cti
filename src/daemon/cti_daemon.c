@@ -59,6 +59,7 @@ const struct option long_opts[] = {
 			{"manifest",	required_argument,	0, 'm'},
 			{"path",		required_argument,	0, 'p'},
 			{"apath",		required_argument,	0, 't'},
+			{"ldlibpath",	required_argument,	0, 't'},
 			{"wlm",			required_argument,	0, 'w'},
 			{"help",		no_argument,		0, 'h'},
 			{"debug",		no_argument,		&debug_flag, 1},
@@ -103,10 +104,11 @@ usage(void)
 	fprintf(stdout, "\t-e, --env       Specify an environment variable to set\n");
 	fprintf(stdout, "\t                The argument provided to this option must be issued\n");
 	fprintf(stdout, "\t                with var=val, for example: -e myVar=myVal\n");
-	fprintf(stdout, "\t-i, --instance  Instance of tool daemon. Used in conjunction with sessions\n");
+	fprintf(stdout, "\t-i, --inst      Instance of tool daemon. Used in conjunction with sessions\n");
 	fprintf(stdout, "\t-m, --manifest  Manifest tarball to extract/set as CWD if -d omitted\n");
 	fprintf(stdout, "\t-p, --path      PWD path where tool daemon should be started\n");
 	fprintf(stdout, "\t-t, --apath     Path where the pmi_attribs file can be found\n");
+	fprintf(stdout, "\t-l, --ldlibpath What to set as LD_LIB_PATH\n");
 	fprintf(stdout, "\t-w, --wlm       Workload Manager in use\n");
 	fprintf(stdout, "\t    --debug     Turn on debug logging to a file. (STDERR/STDOUT to file)\n");
 	fprintf(stdout, "\t-h, --help      Display this text and exit\n");
@@ -249,7 +251,7 @@ main(int argc, char **argv)
 	struct archive *		ext;
 	struct archive_entry *	entry;
 	char *					cwd;
-	
+
 	// we require at least 1 argument beyond argv[0]
 	if (argc < 2)
 	{
@@ -262,7 +264,7 @@ main(int argc, char **argv)
 	// We want to do as little as possible while parsing the opts. This is because
 	// we do not create a log file until after the opts are parsed, and there will
 	// be no valid output until after the log is created on most systems.
-	while ((c = getopt_long(argc, argv, "a:b:cd:e:i:m:p:t:w:h", long_opts, &opt_ind)) != -1)
+	while ((c = getopt_long(argc, argv, "a:b:cd:e:i:m:p:t:l:w:h", long_opts, &opt_ind)) != -1)
 	{
 		switch (c)
 		{
