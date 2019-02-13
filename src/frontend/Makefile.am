@@ -29,5 +29,5 @@ libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								$(SRC)/slurm_util/libslurm_util.la \
 								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS)
 libcraytools_fe_la_LDFLAGS	=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info \
-								$(CRAYTOOL_FE_VERSION) $(ARCHIVE_LDFLAGS) $($DYNINST_LDFLAGS)
+								$(CRAYTOOL_FE_VERSION) $(ARCHIVE_LDFLAGS) $(DYNINST_LDFLAGS)
 
