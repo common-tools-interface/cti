@@ -108,7 +108,7 @@ usage(void)
 	fprintf(stdout, "\t-m, --manifest  Manifest tarball to extract/set as CWD if -d omitted\n");
 	fprintf(stdout, "\t-p, --path      PWD path where tool daemon should be started\n");
 	fprintf(stdout, "\t-t, --apath     Path where the pmi_attribs file can be found\n");
-	fprintf(stdout, "\t-l, --ldlibpath What to set as LD_LIB_PATH\n");
+	fprintf(stdout, "\t-l, --ldlibpath What to set as LD_LIBRARY_PATH\n");
 	fprintf(stdout, "\t-w, --wlm       Workload Manager in use\n");
 	fprintf(stdout, "\t    --debug     Turn on debug logging to a file. (STDERR/STDOUT to file)\n");
 	fprintf(stdout, "\t-h, --help      Display this text and exit\n");

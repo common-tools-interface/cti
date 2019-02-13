@@ -51,7 +51,8 @@
 
 #include "Frontend.hpp"
 #include "cray_slurm_fe.hpp"
-#if 0
+#define USE_CRAY_SLURM_ONLY 1
+#if !USE_CRAY_SLURM_ONLY
 #include "alps_fe.hpp"
 #include "slurm_fe.hpp"
 #include "ssh_fe.hpp"
@@ -69,7 +70,7 @@ static std::string _cti_dlaunch_bin;  // dlaunch binary location
 static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
 
 /* global wlm frontend / app objects */
-auto currentFrontend = std::unique_ptr<Frontend>{};
+auto currentFrontendPtr = std::unique_ptr<Frontend>{};
 auto appList = std::unordered_map<cti_app_id_t, std::unique_ptr<App>>{};
 
 /*
@@ -84,7 +85,7 @@ _cti_init(void) {
 	using DefaultFrontend = CraySLURMFrontend;// ALPSFrontend;
 	
 	// only init once
-	if (currentFrontend) {
+	if (currentFrontendPtr != nullptr) {
 		return;
 	}
 
@@ -122,32 +123,32 @@ _cti_init(void) {
 			if (getDefault && (default_wlm = getDefault())) {
 				wlmName = std::string(default_wlm);
 			} else {
-				currentFrontend = shim::make_unique<DefaultFrontend>();
+				currentFrontendPtr = shim::make_unique<DefaultFrontend>();
 				return;
 			}
 		}
 	}
 
 	// parse the returned result
-	currentFrontend = shim::make_unique<CraySLURMFrontend>();
-	#if 0
+	currentFrontendPtr = shim::make_unique<CraySLURMFrontend>();
+	#if !USE_CRAY_SLURM_ONLY
 	if (!wlmName.compare("ALPS") || !wlmName.compare("alps")) {
-		currentFrontend = shim::make_unique<ALPSFrontend>();
+		currentFrontendPtr = shim::make_unique<ALPSFrontend>();
 	} else if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
 		// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
 		if (_cti_is_cluster_system()) {
-			currentFrontend = shim::make_unique<SLURMFrontend>();
+			currentFrontendPtr = shim::make_unique<SLURMFrontend>();
 		} else {
-			currentFrontend = shim::make_unique<CraySLURMFrontend>();
+			currentFrontendPtr = shim::make_unique<CraySLURMFrontend>();
 		}
 	} else if (!wlmName.compare("generic")) {
-		currentFrontend = shim::make_unique<SSHFrontend>();
+		currentFrontendPtr = shim::make_unique<SSHFrontend>();
 	} else {
 		// fallback to use the default
 		fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
-		currentFrontend = shim::make_unique<DefaultFrontend>();
+		currentFrontendPtr = shim::make_unique<DefaultFrontend>();
 	}
-	if (!currentFrontend) {
+	if (currentFrontendPtr == nullptr) {
 		fprintf(stderr, "Workload manager argument '%s' produced null frontend!\n", wlmName.c_str());
 	}
 	#endif
@@ -157,7 +158,7 @@ _cti_init(void) {
 void __attribute__ ((destructor))
 _cti_fini(void) {
 	// Ensure this is only called once
-	if (!currentFrontend) {
+	if (currentFrontendPtr == nullptr) {
 		return;
 	}
 
@@ -165,7 +166,7 @@ _cti_fini(void) {
 	_cti_transfer_fini();
 
 	// reset wlm frontend to nullptr
-	currentFrontend.reset();
+	currentFrontendPtr.reset();
 	
 	return;
 }
@@ -215,14 +216,14 @@ _cti_setup_base_dir(void) {
 // getter functions for paths
 
 Frontend& _cti_getCurrentFrontend() {
-	if (!currentFrontend) {
+	if (currentFrontendPtr == nullptr) {
 		_cti_init();
-		if (!currentFrontend) {
+		if (currentFrontendPtr == nullptr) {
 			throw std::runtime_error("frontend failed to initialize");
 		}
 	}
 
-	return *currentFrontend;
+	return *currentFrontendPtr;
 }
 
 std::string const& _cti_getLdAuditPath(void) {
@@ -352,8 +353,8 @@ cti_version(void) {
 
 cti_wlm_type
 cti_current_wlm(void) {
-	if (currentFrontend) {
-		return currentFrontend->getWLMType();
+	if (currentFrontendPtr != nullptr) {
+		return currentFrontendPtr->getWLMType();
 	} else {
 		return CTI_WLM_NONE;
 	}
@@ -383,12 +384,12 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 }
 
 template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
-static ReturnType runSafely(std::string const& caller, FuncType func) {
+static ReturnType runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
 	try {
-		return func();
+		return std::forward<FuncType>(func)();
 	} catch (std::exception const& ex) {
 		_cti_set_error((caller + ": " + ex.what()).c_str());
-		return ReturnType();
+		return onError;
 	}
 }
 
@@ -396,32 +397,32 @@ int
 cti_appIsValid(cti_app_id_t appId) {
 	return runSafely("cti_appIsValid", [&](){
 		return _cti_getCurrentFrontend().appIsValid(appId);
-	});
+	}, false);
 }
 
 void
 cti_deregisterApp(cti_app_id_t appId) {
-	return runSafely("cti_deregisterApp", [&](){
-		return _cti_getCurrentFrontend().deregisterApp(appId);
-	});
+	runSafely("cti_deregisterApp", [&](){
+		_cti_getCurrentFrontend().deregisterApp(appId);
+		return true;
+	}, false);
 }
 
 int
 cti_getNumAppPEs(cti_app_id_t appId) {
 	return runSafely("cti_getNumAppPEs", [&](){
 		return _cti_getCurrentFrontend().getApp(appId).getNumPEs();
-	});
+	}, -1);
 }
 
 int
 cti_getNumAppNodes(cti_app_id_t appId) {
 	return runSafely("cti_getNumAppNodes", [&](){
 		return _cti_getCurrentFrontend().getApp(appId).getNumHosts();
-	});
+	}, -1);
 }
 
-#include <iostream>
-char **
+char**
 cti_getAppHostsList(cti_app_id_t appId) {
 	return runSafely("cti_getAppHostsList", [&](){
 		auto const hostList = _cti_getCurrentFrontend().getApp(appId).getHostnameList();
@@ -433,10 +434,10 @@ cti_getAppHostsList(cti_app_id_t appId) {
 		host_list[hostList.size()] = nullptr;
 
 		return host_list;
-	});
+	}, (char**)nullptr);
 }
 
-cti_hostsList_t *
+cti_hostsList_t*
 cti_getAppHostsPlacement(cti_app_id_t appId) {
 	return runSafely("cti_getAppHostsPlacement", [&](){
 		auto const hostPlacement = _cti_getCurrentFrontend().getApp(appId).getHostsPlacement();
@@ -451,7 +452,7 @@ cti_getAppHostsPlacement(cti_app_id_t appId) {
 		}
 
 		return result;
-	});
+	}, (cti_hostsList_t*)nullptr);
 }
 
 void
@@ -469,33 +470,33 @@ cti_destroyHostsList(cti_hostsList_t *placement_list) {
 	free(placement_list);
 }
 
-char *
+char*
 cti_getHostname() {
 	return runSafely("cti_getHostname", [&](){
 		return strdup(_cti_getCurrentFrontend().getHostname().c_str());
-	});
+	}, (char*)nullptr);
 }
 
-char *
+char*
 cti_getLauncherHostName(cti_app_id_t appId) {
 	return runSafely("cti_getLauncherHostName", [&](){
 		return strdup(_cti_getCurrentFrontend().getApp(appId).getLauncherHostname().c_str());
-	});
+	}, (char*)nullptr);
 }
 
 /* WLM-specific function implementation */
 
 template <typename WLMType>
 static WLMType* downcastCurrentFE() {
-	if (auto wlmPtr = dynamic_cast<WLMType*>(currentFrontend.get())) {
+	if (auto wlmPtr = dynamic_cast<WLMType*>(currentFrontendPtr.get())) {
 		return wlmPtr;
 	} else {
-		std::string const wlmName(cti_wlm_type_toString(currentFrontend->getWLMType()));
+		std::string const wlmName(cti_wlm_type_toString(currentFrontendPtr->getWLMType()));
 		throw std::runtime_error("Invalid call. " + wlmName + " not in use.");
 	}
 }
 
-#if 0
+#if !USE_CRAY_SLURM_ONLY
 uint64_t cti_alps_getApid(pid_t aprunPid) {
 	return runSafely("cti_alps_getApid", [&](){
 		return downcastCurrentFE<ALPSFrontend>()->getApid(aprunPid);
@@ -527,7 +528,8 @@ int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_id) {
 }
 #endif
 
-cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid) {
+cti_srunProc_t*
+cti_cray_slurm_getJobInfo(pid_t srunPid) {
 	return runSafely("cti_cray_slurm_getJobInfo", [&](){
 		auto craySlurmPtr = downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
@@ -536,16 +538,18 @@ cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid) {
 		} else {
 			throw std::runtime_error("malloc failed.");
 		}
-	});
+	}, (cti_srunProc_t*)nullptr);
 }
 
-cti_app_id_t cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
+cti_app_id_t
+cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
 	return runSafely("cti_cray_slurm_registerJobStep", [&](){
 		return downcastCurrentFE<CraySLURMFrontend>()->registerJobStep(job_id, step_id);
-	});
+	}, cti_app_id_t{0});
 }
 
-cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
+cti_srunProc_t*
+cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 	return runSafely("cti_cray_slurm_getSrunInfo", [&](){
 		auto craySlurmPtr = downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
@@ -554,65 +558,59 @@ cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 		} else {
 			throw std::runtime_error("malloc failed.");
 		}
-	});
+	}, (cti_srunProc_t*)nullptr);
 }
 
-cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid) {
+cti_app_id_t
+cti_slurm_registerJobStep(pid_t launcher_pid) {
 #ifdef SLURMFrontend
 	return runSafely("cti_slurm_registerJobStep", [&](){
 		throw std::runtime_error("Not implemented for SLURM WLM");
 	});
 #else
-	return 0;
+	return cti_app_id_t{0};
 #endif
 }
 
-cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid) {
+cti_app_id_t
+cti_ssh_registerJob(pid_t launcher_pid) {
 #ifdef SSHFrontend
 	return runSafely("cti_ssh_registerJob", [&](){
 		throw std::runtime_error("Not implemented for SSH WLM");
 	});
 #else
-	return 0;
+	return cti_app_id_t{0};
 #endif
 }
 
 /* app launch / release functions */
 
-static int
-_cti_checkofd(int fd)
-{
-	int flags;
-
-	// if fd is -1, then the fd arg is meant to be ignored
-	if (fd == -1) {
-		return 0;
-	}
-	errno = 0;
-	flags = fcntl(fd, F_GETFL);
-	if (errno != 0) {
-		return 1;
-	}
-	flags &= O_ACCMODE;
-	if ((flags & O_WRONLY) || (flags & O_RDWR)) {
-		return 0;
-	}
-	return 1;
-}
-
 // This does sanity checking on args in common for both launchApp and launchAppBarrier
 static void
 _cti_checkLaunchArgs(int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath)
 {
-	// check stdout, stderr
-	if (_cti_checkofd(stdout_fd)) {
-		throw std::runtime_error("Invalid stdout_fd argument.");
+	auto canWriteFd = [](int const fd) {
+		// if fd is -1, then the fd arg is meant to be ignored
+		if (fd == -1) {
+			return true;
+		}
+		errno = 0;
+		int accessFlags = fcntl(fd, F_GETFL) & O_ACCMODE;
+		if (errno != 0) {
+			return false;
+		}
+		return (accessFlags & O_WRONLY) || (accessFlags & O_WRONLY);
+	};
+
+	// ensure stdout, stderr can be written to
+	if (!canWriteFd(stdout_fd)) {
+		throw std::runtime_error("Invalid stdout_fd argument. No write access.");
 	}
-	if (_cti_checkofd(stderr_fd)) {
-		throw std::runtime_error("Invalid stderr_fd argument.");
+	if (!canWriteFd(stderr_fd)) {
+		throw std::runtime_error("Invalid stderr_fd argument. No write access.");
 	}
 
-	// verify inputfile is good
+	// verify inputFile is a file that can be read
 	if (inputFile != nullptr) {
 		struct stat st;
 		if (stat(inputFile, &st)) { // make sure inputfile exists
@@ -626,7 +624,7 @@ _cti_checkLaunchArgs(int stdout_fd, int stderr_fd, const char *inputFile, const 
 		}
 	}
 
-	// verify chdirpath is good
+	// verify chdirPath is a directory that can be read, written, and executed
 	if (chdirPath != nullptr) {
 		struct stat st;
 		if (stat(chdirPath, &st)) { // make sure chdirpath exists
@@ -650,7 +648,7 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 		auto const appId = _cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 		_cti_getCurrentFrontend().getApp(appId).releaseBarrier();
 		return appId;
-	});
+	}, cti_app_id_t{0});
 }
 
 cti_app_id_t
@@ -660,22 +658,27 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stde
 	return runSafely("cti_launchAppBarrier", [&](){
 		_cti_checkLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
 		return _cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
-	});
+	}, cti_app_id_t{0});
+}
+
+namespace {
+	static constexpr auto SUCCESS = int{0};
+	static constexpr auto FAILURE = int{1};
 }
 
 int
 cti_releaseAppBarrier(cti_app_id_t appId) {
-	return !runSafely("cti_releaseAppBarrier", [&](){
+	return runSafely("cti_releaseAppBarrier", [&](){
 		_cti_getCurrentFrontend().getApp(appId).releaseBarrier();
-		return 1;
-	});
+		return SUCCESS;
+	}, FAILURE);
 }
 
 int
 cti_killApp(cti_app_id_t appId, int signum) {
-	return !runSafely("cti_killApp", [&](){
+	return runSafely("cti_killApp", [&](){
 		_cti_getCurrentFrontend().getApp(appId).kill(signum);
-		return 1;
-	});
+		return SUCCESS;
+	}, FAILURE);
 }
 
