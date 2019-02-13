@@ -38,6 +38,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 ###########################
 ### Check for programs. ###
 ###########################
+AM_PROG_AR
 AC_PROG_CXX
 AC_PROG_AWK
 AC_PROG_SED
