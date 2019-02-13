@@ -129,7 +129,7 @@ AC_DEFUN([cray_BUILD_LIBSSH],
 	rm -rf build
 	mkdir -p build
 	cd build
-	LDFLAGS='-Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags' cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[libssh cmake failed.]],
 	 		[]
@@ -246,6 +246,9 @@ AC_DEFUN([cray_BUILD_BOOST],
 
 	AC_MSG_NOTICE([Staging boost build...])
 
+	save_LDFLAGS="$LDFLAGS"
+	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
+
 	./bootstrap.sh --prefix=${prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test $? != 0],
@@ -262,6 +265,8 @@ AC_DEFUN([cray_BUILD_BOOST],
 	 		[AC_MSG_ERROR[boost b2 stage failed.]],
 	 		[cray_cv_boost_build=yes]
 	 		)
+
+	LDFLAGS="$save_LDFLAGS"
 
 	dnl go home
 	cd ${CRAYTOOL_DIR}
@@ -306,12 +311,16 @@ AC_DEFUN([cray_BUILD_TBB],
 
 	AC_MSG_NOTICE([Building TBB...])
 
-	make -j8 tbb tbbmalloc tbb_build_dir=$_cray_tmpdir tbb_build_prefix=tbb LDFLAGS="-Wl,-rpath,\\$$$$ORIGIN"  >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	save_LDFLAGS="$LDFLAGS"
+	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
+	make -j8 tbb tbbmalloc tbb_build_dir=$_cray_tmpdir tbb_build_prefix=tbb >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test ! -f "$_cray_tmpdir/tbb_release/libtbb.so"],
 			[AC_MSG_ERROR[tbb build failed.]],
 			[cray_cv_tbb_build=yes]
 			)
+
+	LDFLAGS="$save_LDFLAGS"
 
 	dnl go home
 	cd ${CRAYTOOL_DIR}
@@ -349,6 +358,9 @@ AC_DEFUN([cray_BUILD_DYNINST],
 
 	AC_MSG_NOTICE([Building dyninst...])
 
+	save_LDFLAGS="$LDFLAGS"
+	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
+
 	dnl configure using cmake
 	rm -rf build
 	mkdir -p build
@@ -380,6 +392,8 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	 		[AC_MSG_ERROR[dyninst cmake failed.]],
 	 		[cray_cv_dyninst_build=yes]
 	 		)
+
+	LDFLAGS="$save_LDFLAGS"
 
 	dnl go home
 	cd ${CRAYTOOL_DIR}
