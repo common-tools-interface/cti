@@ -26,7 +26,6 @@ dnl Turn on Posix extensions
 AC_USE_SYSTEM_EXTENSIONS
 
 AM_INIT_AUTOMAKE([foreign -Wall])
-LT_INIT
 
 AC_SUBST([CRAYTOOL_DIR], ["$(cd $srcdir && pwd)"])
 
@@ -53,6 +52,8 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 
 AX_CXX_COMPILE_STDCXX_11([noext])
+
+LT_INIT
 
 #########################
 ### Setup env options ###
