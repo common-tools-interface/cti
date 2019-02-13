@@ -14,7 +14,7 @@ SUBDIRS = elfutils
 
 install-data-local:
 	cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
-	@BOOST_SRC@/b2 install
+	cd @BOOST_SRC@ && @BOOST_SRC@/b2 install
 	cp @TBB_LIBRARY@/*.so* ${libdir}
 	cd @DYNINST_BUILD@ && $(MAKE) $(AM_MAKEFLAGS) install
 
