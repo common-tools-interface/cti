@@ -51,6 +51,8 @@ AC_PROG_LIBTOOL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
 
+AX_CXX_COMPILE_STDCXX_11([noext])
+
 #########################
 ### Setup env options ###
 #########################
@@ -115,13 +117,6 @@ if test "x$cray_cv_dyninst_build" = xno; then
 fi
 AC_CACHE_SAVE
 cray_ENV_DYNINST
-
-dnl This macro runs check for --with-boost
-AX_BOOST_BASE([1.69],, [AC_MSG_ERROR(["CTI failed to build boost."])])
-AX_BOOST_SYSTEM
-AX_BOOST_CHRONO
-AX_BOOST_THREAD
-AX_BOOST_TIMER
 
 dnl This macro runs check for --with-dyninst
 AX_DYNINST
