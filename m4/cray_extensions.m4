@@ -47,8 +47,6 @@ dnl build libarchive automatically
 dnl
 AC_DEFUN([cray_BUILD_LIBARCHIVE],
 [
-	AC_MSG_RESULT([need to build])
-
 	cray_cv_lib_archive_build=no
 
 	dnl External source directory
@@ -109,8 +107,6 @@ dnl build libssh automatically
 dnl
 AC_DEFUN([cray_BUILD_LIBSSH],
 [
-	AC_MSG_RESULT([need to build])
-
 	cray_cv_lib_ssh_build=no
 
 	dnl External source directory
@@ -172,8 +168,6 @@ dnl configure elfutils
 dnl
 AC_DEFUN([cray_CONF_ELFUTILS],
 [
-	AC_MSG_RESULT([need to build])
-
 	cray_cv_elfutils_conf=no
 
 	dnl External source directory
@@ -234,8 +228,6 @@ dnl stage boost automatically
 dnl
 AC_DEFUN([cray_BUILD_BOOST],
 [
-	AC_MSG_RESULT([need to build])
-
 	cray_cv_boost_build=no
 
 	dnl External source directory
@@ -289,8 +281,6 @@ dnl stage tbb automatically
 dnl
 AC_DEFUN([cray_BUILD_TBB],
 [
-	AC_MSG_RESULT([need to build])
-
 	cray_cv_tbb_build=no
 
 	dnl External source directory
