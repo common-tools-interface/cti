@@ -1,9 +1,25 @@
 #pragma once
 
-/* Session: state object representing a remote staging directory where packages of files
-	to support CTI programs are unpacked and stored. Manages conflicts between files
-	present on remote systems and in-progress, unshipped file lists (Manifests).
-*/
+/*********************************************************************************\
+ * Session: state object representing a remote staging directory where packages
+ *  of files to support CTI programs are unpacked and stored. Manages conflicts
+ *  between files present on remote systems and in-progress, unshipped file
+ *  lists( Manifests).
+ *
+ * Copyright 2019 Cray Inc.  All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ * $HeadURL$
+ * $Date$
+ * $Rev$
+ * $Author$
+ *
+ *********************************************************************************/
 
 #include <string>
 #include <vector>

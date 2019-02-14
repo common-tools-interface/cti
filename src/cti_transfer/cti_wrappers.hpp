@@ -18,6 +18,10 @@ auto stringArrayDeleter = [](char** arr){
 #include "frontend/cti_fe.h"
 #include "cti_transfer.h"
 
+#include "useful/cti_useful.h"
+#include "ld_val/ld_val.h"
+#include "frontend/cti_error.h"
+
 // debug declares
 #ifdef DEBUG
 	#include <iostream>
@@ -26,9 +30,7 @@ auto stringArrayDeleter = [](char** arr){
 	#define DEBUG_PRINT(x)
 #endif
 
-/* implementations */
-
-#include "useful/cti_useful.h"
+/* cti_useful wrappers */
 
 static inline CharPtr findPath(const std::string& fileName) {
 	if (auto fullPath = CharPtr(_cti_pathFind(fileName.c_str(), nullptr), free)) {
@@ -71,7 +73,7 @@ static inline void ctiListRemove(cti_list_t *list, void *elem) {
 	_cti_list_remove(list, elem);
 }
 
-#include "ld_val/ld_val.h"
+/* ld_val wrappers */
 
 static inline StringArray getFileDependencies(const std::string& filePath) {
 	if (_cti_stage_deps) {
@@ -82,7 +84,7 @@ static inline StringArray getFileDependencies(const std::string& filePath) {
 	}
 }
 
-#include "frontend/cti_error.h"
+/* cti_error wrappers */
 
 static inline std::string const getCTIErrorString() {
 	return std::string(cti_error_str());
