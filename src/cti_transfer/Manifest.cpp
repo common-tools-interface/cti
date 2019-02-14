@@ -4,7 +4,7 @@
 #include "Manifest.hpp"
 #include "Session.hpp"
 
-#include "cti_wrappers.hpp"
+#include "useful/cti_wrappers.hpp"
 
 // promote session pointer to a shared pointer (otherwise throw)
 static std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionPtr) {
@@ -15,7 +15,7 @@ static std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionP
 // add dynamic library dependencies to manifest
 void Manifest::addLibDeps(const std::string& filePath) {
 	// get array of library paths using ld_val libArray helper
-	if (auto libArray = getFileDependencies(filePath)) {
+	if (auto libArray = ld_val::getFileDependencies(filePath)) {
 		// add to manifest
 		for (char** elem = libArray.get(); *elem != nullptr; elem++) {
 			addLibrary(*elem, Manifest::DepsPolicy::Ignore);
@@ -46,8 +46,8 @@ void Manifest::checkAndAdd(const std::string& folder, const std::string& filePat
 
 void Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
 	// get path and real name of file
-	const std::string filePath(findPath(rawName).get());
-	const std::string realName(getNameFromPath(filePath).get());
+	const std::string filePath(cti::findPath(rawName));
+	const std::string realName(cti::getNameFromPath(filePath));
 
 	// check permissions
 	if (access(filePath.c_str(), R_OK | X_OK)) {
@@ -64,8 +64,8 @@ void Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
 
 void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 	// get path and real name of file
-	const std::string filePath(findLib(rawName).get());
-	const std::string realName(getNameFromPath(filePath).get());
+	const std::string filePath(cti::findLib(rawName));
+	const std::string realName(cti::getNameFromPath(filePath));
 
 	auto liveSession = getSessionHandle(sessionPtr);
 
@@ -96,16 +96,16 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 
 void Manifest::addLibDir(const std::string& rawPath) {
 	// get real path and real name of directory
-	const std::string realPath(getRealPath(rawPath).get());
-	const std::string realName(getNameFromPath(realPath).get());
+	const std::string realPath(cti::getRealPath(rawPath));
+	const std::string realName(cti::getNameFromPath(realPath));
 
 	checkAndAdd("lib", realPath, realName);
 }
 
 void Manifest::addFile(const std::string& rawName) {
 	// get path and real name of file
-	const std::string filePath(findPath(rawName).get());
-	const std::string realName(getNameFromPath(filePath).get());
+	const std::string filePath(cti::findPath(rawName));
+	const std::string realName(cti::getNameFromPath(filePath));
 
 	checkAndAdd("", filePath, realName);
 }

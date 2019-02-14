@@ -1,6 +1,6 @@
 #include "RemotePackage.hpp"
 
-#include "cti_wrappers.hpp"
+#include "useful/cti_wrappers.hpp"
 #include "ArgvDefs.hpp"
 
 // helper: promote session pointer to a shared pointer (otherwise throw)
@@ -49,7 +49,7 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 	auto liveSession = getSessionHandle(sessionPtr);
 
 	// get real name of daemon binary
-	const std::string binaryName(getNameFromPath(findPath(daemonBinary).get()).get());
+	const std::string binaryName(cti::getNameFromPath(cti::findPath(daemonBinary)));
 
 	// create DaemonArgv
 	DEBUG_PRINT("extractAndRun: creating daemonArgv for " << daemonBinary << std::endl);

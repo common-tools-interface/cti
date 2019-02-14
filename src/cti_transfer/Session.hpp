@@ -36,7 +36,6 @@ using PathMap = std::unordered_map<std::string, std::string>;
 using FolderFilePair = std::pair<std::string, std::string>;
 
 #include "frontend/Frontend.hpp"
-#include "cti_wrappers.hpp"
 
 class Manifest; // forward declare Manifest
 

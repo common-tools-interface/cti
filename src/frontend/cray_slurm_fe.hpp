@@ -24,7 +24,19 @@
 
 #include <stdexcept>
 
-#include "useful/handle.hpp"
+#include "mpir_iface/mpir_iface.h"
+
+// managed MPIR session
+struct MPIRHandle {
+	mpir_id_t data;
+	operator bool() const { return (data >= 0); }
+	void reset() { if (*this) { _cti_mpir_releaseInstance(data); data = mpir_id_t{-1}; } }
+	mpir_id_t get() const { return data; }
+	MPIRHandle() : data{-1} {}
+	MPIRHandle(mpir_id_t data_) : data{data_} {}
+	MPIRHandle(MPIRHandle&& moved) : data{std::move(moved.data)} { moved.data = mpir_id_t{-1}; }
+	~MPIRHandle() { reset(); }
+};
 
 /* Types used here */
 
@@ -63,7 +75,7 @@ struct CraySLURMApp : public App {
 private: // variables
 	SrunInfo               srunInfo;    // Job and Step IDs
 	slurm_util::StepLayout stepLayout;  // SLURM Layout of job step
-	handle::MPIR           barrier;     // MPIR handle to release startup barrier
+	MPIRHandle             barrier;     // MPIR handle to release startup barrier
 	bool                   dlaunchSent; // Have we already shipped over the dlaunch utility?
 
 	std::string toolPath;    // Backend path where files are unpacked

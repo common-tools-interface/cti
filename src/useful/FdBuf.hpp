@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
+
 class FdBuf : public std::streambuf {
 public:
 	FdBuf(int fd_) : fd(fd_) {

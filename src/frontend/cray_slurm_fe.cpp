@@ -42,11 +42,10 @@
 #include "frontend/Frontend.hpp"
 #include "cray_slurm_fe.hpp"
 
-#include "useful/cti_useful.h"
 #include "useful/make_unique.hpp"
 #include "useful/strong_argv.hpp"
 #include "useful/Dlopen.hpp"
-#include "useful/cstr.hpp"
+#include "useful/cti_wrappers.hpp"
 
 #include "mpir_iface/mpir_iface.h"
 
@@ -195,7 +194,7 @@ namespace slurm_conventions
 	static uint32_t
 	fetchJobId(mpir_id_t mpir_id)
 	{
-		if (auto const jobid_str = handle::cstr{_cti_mpir_getStringAt(mpir_id, "totalview_jobid")}) {
+		if (auto const jobid_str = cstr::handle{_cti_mpir_getStringAt(mpir_id, "totalview_jobid")}) {
 			return std::stoul(jobid_str.get());
 		} else {
 			throw std::runtime_error("failed to get jobid string via MPIR.");
@@ -206,7 +205,7 @@ namespace slurm_conventions
 	static uint32_t
 	fetchStepId(mpir_id_t mpir_id)
 	{
-		if (auto const stepid_str = handle::cstr{_cti_mpir_getStringAt(mpir_id, "totalview_stepid")}) {
+		if (auto const stepid_str = cstr::handle{_cti_mpir_getStringAt(mpir_id, "totalview_stepid")}) {
 			return std::stoul(stepid_str.get());
 		} else {
 			fprintf(stderr, "cti_fe: Warning: stepid not found! Defaulting to 0.\n");
@@ -224,7 +223,7 @@ namespace slurm_conventions
 		}
 
 		// Find the launcher path from the launcher name using helper _cti_pathFind.
-		if (auto const launcherPath = handle::cstr{_cti_pathFind(slurm_conventions::getLauncherName().c_str(), nullptr)}) {
+		if (auto const launcherPath = cstr::handle{_cti_pathFind(slurm_conventions::getLauncherName().c_str(), nullptr)}) {
 
 			// Start a new MPIR attach session on the provided PID using symbols from the launcher.
 			auto const mpir_id = _cti_mpir_newAttachInstance(launcherPath.get(), srunPid);
@@ -293,7 +292,7 @@ namespace slurm_conventions
 		};
 
 		// Get the launcher path from CTI environment variable / default.
-		if (auto const launcher_path = handle::cstr{_cti_pathFind(getLauncherName().c_str(), nullptr)}) {
+		if (auto const launcher_path = cstr::handle{_cti_pathFind(getLauncherName().c_str(), nullptr)}) {
 
 			// Launch program under MPIR control.
 			auto const mpir_id = _cti_mpir_newLaunchInstance(launcher_path.get(),
@@ -482,7 +481,7 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 		, "--force"
 	};
 
-	if (auto packageName = handle::cstr{_cti_pathToName(tarPath.c_str())}) {
+	if (auto packageName = cstr::handle{_cti_pathToName(tarPath.c_str())}) {
 		launcherArgv.add(std::string(CRAY_SLURM_TOOL_DIR) + "/" + packageName.get());
 	} else {
 		throw std::runtime_error("_cti_pathToName failed");
