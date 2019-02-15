@@ -4,14 +4,24 @@ install
 Makefile
 Makefile.in
 
+aclocal.m4
 autom4te.cache
 
+config
 configure
 config.cache
 config.h
 config.h.in
 config.log
 config.status
+
+libtool
+
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltsugar.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
 
 cray-cti_be.pc
 cray-cti_fe.pc

@@ -17,7 +17,7 @@
 SRC                 = @CRAYTOOL_DIR@/src
 USEFUL              = $(SRC)/useful
 
-AM_CFLAGS       	= -Wall -I$(SRC)
+AM_CFLAGS       	= -I$(SRC)
 AM_LIBTOOLFLAGS 	= --quiet
 
 libexec_PROGRAMS	= cti_dlaunch@CRAYTOOL_RELEASE_VERSION@
