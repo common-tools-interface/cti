@@ -20,7 +20,7 @@ libcraytools_fe_la_SOURCES	=	cti_fe.c cti_fe.h cti_run.c cti_run.h cti_transfer.
 								alps_fe.c alps_fe.h cray_slurm_fe.c \
 								cray_slurm_fe.h slurm_fe.c slurm_fe.h ssh_fe.c ssh_fe.h
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
-								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
+								$(ARCHIVE_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
 libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) $(libcraytools_fe_la_CFLAGS)
 libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								$(SRC)/cti_transfer/libcti_transfer.la \
