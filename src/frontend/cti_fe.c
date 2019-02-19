@@ -1,18 +1,13 @@
 /******************************************************************************\
  * cti_fe.c - cti frontend library functions.
  *
- * Copyright 2014-2016 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  ******************************************************************************/
 
@@ -42,7 +37,6 @@
 
 #include "wlm_detect.h"
 
-#include "alps_fe.h"
 #include "cray_slurm_fe.h"
 #include "slurm_fe.h"
 #include "ssh_fe.h"
@@ -144,11 +138,7 @@ _cti_init(void)
 	char* wlm_name_env;
 	if ((wlm_name_env = getenv(CTI_WLM)) != NULL)
 	{
-		if(strcasecmp(wlm_name_env, "alps") == 0)
-		{
-			_cti_wlmProto = &_cti_alps_wlmProto;
-		}
-		else if(strcasecmp(wlm_name_env, "slurm") == 0)
+		if(strcasecmp(wlm_name_env, "slurm") == 0)
 		{
 			// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
 			struct stat sb;
@@ -218,10 +208,7 @@ _cti_init(void)
 	}
 	
 	// parse the returned result
-	if (strncmp("ALPS", active_wlm, strlen("ALPS")) == 0)
-	{
-		_cti_wlmProto = &_cti_alps_wlmProto;
-	} else if (strncmp("SLURM", active_wlm, strlen("SLURM")) == 0)
+	if (strncmp("SLURM", active_wlm, strlen("SLURM")) == 0)
 	{
 		_cti_wlmProto = &_cti_cray_slurm_wlmProto;
 	} else
@@ -244,7 +231,7 @@ init_wlm:
 	// check if wlm_detect failed, in which case we should use the default
 	if (use_default)
 	{
-		_cti_wlmProto = &_cti_alps_wlmProto;
+		_cti_wlmProto = &_cti_cray_slurm_wlmProto;
 	}
 	
 	if (_cti_wlmProto->wlm_init())

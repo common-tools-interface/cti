@@ -5,18 +5,13 @@
  *		     and allows users to specify environment variable settings
  *		     that a tool daemon should inherit.
  *
- * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  *********************************************************************************/
 
@@ -73,7 +68,6 @@ struct cti_pids
 };
 			
 /* wlm specific proto objects defined elsewhere */
-extern cti_wlm_proto_t	_cti_alps_wlmProto;
 extern cti_wlm_proto_t	_cti_cray_slurm_wlmProto;
 extern cti_wlm_proto_t	_cti_slurm_wlmProto;
 
@@ -515,10 +509,6 @@ main(int argc, char **argv)
 	// log if asked to. We will error check below.
 	switch (wlm_arg)
 	{
-		case CTI_WLM_ALPS:
-			_cti_wlmProto = &_cti_alps_wlmProto;
-			break;
-		
 		case CTI_WLM_CRAY_SLURM:
 			_cti_wlmProto = &_cti_cray_slurm_wlmProto;
 			break;
@@ -572,7 +562,6 @@ main(int argc, char **argv)
 	// Now ensure the user provided a valid wlm argument. 
 	switch (wlm_arg)
 	{
-		case CTI_WLM_ALPS:
 		case CTI_WLM_CRAY_SLURM:
 		case CTI_WLM_SLURM:
 		case CTI_WLM_SSH:
