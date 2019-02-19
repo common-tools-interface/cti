@@ -313,7 +313,7 @@ AC_DEFUN([cray_BUILD_TBB],
 
 	save_LDFLAGS="$LDFLAGS"
 	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
-	make -j8 tbb tbbmalloc tbb_build_dir=$_cray_tmpdir tbb_build_prefix=tbb >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	tbb_os=linux make -j8 tbb tbbmalloc tbb_build_dir=$_cray_tmpdir tbb_build_prefix=tbb >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test ! -f "$_cray_tmpdir/tbb_release/libtbb.so"],
 			[AC_MSG_ERROR[tbb build failed.]],
