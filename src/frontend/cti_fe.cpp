@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_fe.cpp - C implementation for the cti frontend.
  *
- * Copyright 2014-2016 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -37,7 +37,6 @@
 #include <memory>
 
 #include "cti_fe.h"
-#include "cti_run.h"
 #include "cti_defs.h"
 #include "cti_error.h"
 

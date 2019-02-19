@@ -24,6 +24,8 @@
 
 #include <stdexcept>
 
+#include "frontend/Frontend.hpp"
+#include "slurm_util/slurm_util.h"
 #include "mpir_iface/mpir_iface.h"
 
 // managed MPIR session
@@ -40,7 +42,6 @@ struct MPIRHandle {
 
 /* Types used here */
 
-#include "slurm_util/slurm_util.h"
 namespace slurm_util {
 	struct NodeLayout {
 		std::string hostname;
@@ -56,8 +57,6 @@ namespace slurm_util {
 		StepLayout(uint32_t jobid, uint32_t stepid);
 	};
 }
-
-#include "frontend/Frontend.hpp"
 
 struct SrunInfo : public cti_srunProc_t {
 	SrunInfo(uint32_t jobid, uint32_t stepid)

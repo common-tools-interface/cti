@@ -73,7 +73,7 @@ private: // variables
 	std::string ldLibraryPath;
 
 public: // interface
-	explicit Session(Frontend const& frontend, Frontend::AppId appId);
+	Session(Frontend const& frontend, Frontend::AppId appId);
 
 	// accessors
 	inline auto getManifests() const -> const decltype(manifests)& { return manifests; }

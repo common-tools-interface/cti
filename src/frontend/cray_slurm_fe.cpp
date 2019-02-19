@@ -51,7 +51,7 @@
 
 /* Types used here */
 
-static auto throwingFork() -> pid_t
+static pid_t throwingFork()
 {
 	pid_t forkedPid = fork();
 	if (forkedPid < 0) {
@@ -109,8 +109,8 @@ namespace slurm_conventions
 	};
 
 	// Use a slurm_util Step Layout to create the SLURM Node Layout file inside the staging directory, return the new path.
-	static auto
-	createNodeLayoutFile(slurm_util::StepLayout const& stepLayout, std::string const& stagePath) -> std::string
+	static std::string
+	createNodeLayoutFile(slurm_util::StepLayout const& stepLayout, std::string const& stagePath)
 	{
 		// How a SLURM Node Layout File entry is created from a slurm_util Node Layout entry:
 		auto make_layoutFileEntry = [](slurm_util::NodeLayout const& node) {
@@ -150,8 +150,8 @@ namespace slurm_conventions
 	}
 
 	// Use an MPIR ProcTable to create the SLURM PID List file inside the staging directory, return the new path.
-	static auto
-	createPIDListFile(cti_mpir_procTable_t const& procTable, std::string const& stagePath) -> std::string
+	static std::string
+	createPIDListFile(cti_mpir_procTable_t const& procTable, std::string const& stagePath)
 	{
 		auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
 		if (auto const pidFile = file::open(pidPath, "wb")) {
