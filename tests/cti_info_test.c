@@ -206,6 +206,7 @@ main(int argc, char **argv)
 	// Check the args to make sure they are valid given the wlm in use
 	switch (mywlm)
 	{
+#if 0
 		case CTI_WLM_ALPS:
 			if (a_arg == 0)
 			{
@@ -220,7 +221,7 @@ main(int argc, char **argv)
 			}
 			assert(myapp != 0);
 			break;
-			
+#endif			
 		case CTI_WLM_CRAY_SLURM:
 		case CTI_WLM_SLURM:
 			if (j_arg == 0 || s_arg == 0)

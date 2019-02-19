@@ -1,7 +1,7 @@
 /******************************************************************************\
- * ssh_fe.h - A header file for the fallback (SSH based) workload manager
+ * make_unique.hpp - shim for GCC 4.8
  *
- * Copyright 2017 Cray Inc.	All Rights Reserved.
+ * Copyright 2018 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -9,25 +9,23 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  ******************************************************************************/
 
-#ifndef _SSH_FE_H
-#define _SSH_FE_H
+#pragma once
 
-#include <stdint.h>
-#include <sys/types.h>
+#include <memory>
 
-#include "cti_fe.h"
+template <typename T>
+using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
 
-/* wlm proto object */
-extern const cti_wlm_proto_t	_cti_ssh_wlmProto;
+namespace shim {
 
-/* function prototypes */
-cti_app_id_t		cti_ssh_registerJob(pid_t launcher_pid);
-
-#endif /* _SSH_FE_H */
+#ifdef __cpp_lib_make_unique
+	using std::make_unique;
+#else
+	template<typename T, typename... Args>
+	std::unique_ptr<T> make_unique(Args&&... args) {
+		return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+	}
+#endif
+}

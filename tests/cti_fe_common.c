@@ -82,6 +82,7 @@ cti_test_fe(cti_app_id_t appId)
 	// Conduct WLM specific calls
 	switch (mywlm)
 	{
+#if 0
 		case CTI_WLM_ALPS:
 		{
 			cti_aprunProc_t *	myapruninfo;
@@ -117,7 +118,7 @@ cti_test_fe(cti_app_id_t appId)
 			printf("alps overlap ordinal: %d\n", ordinal);
 		}
 			break;
-
+#endif
 		case CTI_WLM_CRAY_SLURM:
 		{
 			cti_srunProc_t *	mysruninfo;

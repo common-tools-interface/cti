@@ -1,7 +1,7 @@
 #include "Session.hpp"
 #include "Manifest.hpp"
 
-#include "cti_wrappers.hpp"
+#include "useful/cti_wrappers.hpp"
 
 // getpid
 #include <sys/types.h>
@@ -83,17 +83,17 @@ std::string Session::generateStagePath() {
 	return stageName;
 }
 
-static std::string emptyFromNullPtr(const char* cstr) {
-	return cstr ? std::string(cstr) : "";
-}
-Session::Session(appEntry_t *appPtr_) :
-	appPtr(appPtr_),
-	configPath(emptyFromNullPtr(_cti_getCfgDir())),
+Session::Session(Frontend const& frontend_, Frontend::AppId appId_) :
+	frontend(frontend_),
+	appId(appId_),
+	configPath(_cti_getCfgDir()),
 	stageName(generateStagePath()),
-	attribsPath(emptyFromNullPtr(appPtr->wlmProto->wlm_getAttribsPath(appPtr->_wlmObj))),
-	toolPath(appPtr->wlmProto->wlm_getToolPath(appPtr->_wlmObj)),
-	jobId(CharPtr(appPtr->wlmProto->wlm_getJobId(appPtr->_wlmObj), free).get()), 
-	wlmEnum(std::to_string(appPtr->wlmProto->wlm_type)) {}
+	attribsPath(frontend.getApp(appId).getAttribsPath()),
+	toolPath(frontend.getApp(appId).getToolPath()),
+	jobId(frontend.getApp(appId).getJobId()), 
+	wlmEnum(std::to_string(frontend.getWLMType())),
+	ldLibraryPath(toolPath + "/" + stageName + "/lib") // default libdir /tmp/cti_daemonXXXXXX/lib
+	{}
 
 #include "ArgvDefs.hpp"
 void Session::launchCleanup() {
@@ -121,49 +121,8 @@ void Session::launchCleanup() {
 	invalidate();
 }
 
-using CStr = const char * const;
-static void forEachCStrArr(std::function<void(CStr)> func, CStr* arr) {
-	if (arr != nullptr) {
-		for (CStr* elemPtr = arr; *elemPtr != nullptr; elemPtr++) {
-			func(*elemPtr);
-		}
-	}
-}
-
-void Session::shipWLMBaseFiles() {
-	auto baseFileManifest = createManifest();
-
-	auto wlmProto = appPtr->wlmProto;
-	auto wlmObj = appPtr->_wlmObj;
-
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addBinary(cstr);  },
-		wlmProto->wlm_extraBinaries(wlmObj));
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addLibrary(cstr); },
-		wlmProto->wlm_extraLibraries(wlmObj));
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addLibDir(cstr);  },
-		wlmProto->wlm_extraLibDirs(wlmObj));
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addFile(cstr);    },
-		wlmProto->wlm_extraFiles(wlmObj));
-
-	// ship basefile manifest and run remote extraction
-	baseFileManifest->finalizeAndShip().extract();
-}
-
 void Session::startDaemon(char * const argv[]) {
-	auto cti_argv = UniquePtrDestr<cti_args_t>(_cti_newArgs(), _cti_freeArgs);
-	forEachCStrArr([&](CStr arg) {
-		_cti_addArg(cti_argv.get(), arg);
-	}, argv);
-
-	if (getWLM()->wlm_startDaemon(appPtr->_wlmObj, cti_argv.get())) {
-		throw std::runtime_error("failed to start CTI daemon: " + getCTIErrorString());
-	}
-}
-
-void Session::shipPackage(const char *tar_name) {
-	if (getWLM()->wlm_shipPackage(appPtr->_wlmObj, tar_name)) {
-		throw std::runtime_error("failed to ship package to nodes: " + getCTIErrorString());
-	}
+	frontend.getApp(appId).startDaemon(argv);
 }
 
 std::shared_ptr<Manifest> Session::createManifest() {

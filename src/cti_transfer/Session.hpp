@@ -1,9 +1,25 @@
 #pragma once
 
-/* Session: state object representing a remote staging directory where packages of files
-	to support CTI programs are unpacked and stored. Manages conflicts between files
-	present on remote systems and in-progress, unshipped file lists (Manifests).
-*/
+/*********************************************************************************\
+ * Session: state object representing a remote staging directory where packages
+ *  of files to support CTI programs are unpacked and stored. Manages conflicts
+ *  between files present on remote systems and in-progress, unshipped file
+ *  lists( Manifests).
+ *
+ * Copyright 2019 Cray Inc.  All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ * $HeadURL$
+ * $Date$
+ * $Rev$
+ * $Author$
+ *
+ *********************************************************************************/
 
 #include <string>
 #include <vector>
@@ -19,7 +35,7 @@ using FoldersMap = std::map<std::string, std::set<std::string>>;
 using PathMap = std::unordered_map<std::string, std::string>;
 using FolderFilePair = std::pair<std::string, std::string>;
 
-#include "cti_wrappers.hpp"
+#include "frontend/Frontend.hpp"
 
 class Manifest; // forward declare Manifest
 
@@ -41,10 +57,11 @@ private: // variables
 private: // helper functions
 	// generate a staging path according to CTI path rules
 	static std::string generateStagePath();
-	std::string ldLibraryPath;
 
 public: // variables
-	appEntry_t  *appPtr;
+	Frontend const& frontend;
+	Frontend::AppId const appId;
+
 	const std::string configPath;
 	const std::string stageName;
 	const std::string attribsPath;
@@ -52,24 +69,25 @@ public: // variables
 	const std::string jobId;
 	const std::string wlmEnum;
 
+private: // variables
+	std::string ldLibraryPath;
+
 public: // interface
-	explicit Session(appEntry_t *appPtr_);
+	Session(Frontend const& frontend, Frontend::AppId appId);
 
 	// accessors
 	inline auto getManifests() const -> const decltype(manifests)& { return manifests; }
-	inline const cti_wlm_proto_t* getWLM() const { return appPtr->wlmProto; }
 	inline const std::string& getLdLibraryPath() const { return ldLibraryPath; }
-	inline void invalidate() { appPtr = nullptr; manifests.clear(); }
+	inline void invalidate() { manifests.clear(); }
 
 	// launch cti_daemon to clean up the session stage directory. invalidates the session
 	void launchCleanup();
 
-	// create and add wlm basefiles to manifest
-	void shipWLMBaseFiles();
-
 	// wlm / daemon wrappers
 	void startDaemon(char * const argv[]);
-	void shipPackage(const char *tar_name);
+	inline void shipPackage(std::string const& tarPath) {
+		frontend.getApp(appId).shipPackage(tarPath);
+	}
 
 	// create new manifest and register ownership
 	std::shared_ptr<Manifest> createManifest();
