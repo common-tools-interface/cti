@@ -51,16 +51,6 @@
 
 /* Types used here */
 
-static pid_t throwingFork()
-{
-	pid_t forkedPid = fork();
-	if (forkedPid < 0) {
-		throw std::runtime_error("fork failed");
-	}
-	return forkedPid;
-}
-
-
 slurm_util::StepLayout::StepLayout(uint32_t jobid, uint32_t stepid)
 {
 	auto raw_layout = UniquePtrDestr<slurmStepLayout_t>
@@ -456,7 +446,11 @@ void CraySLURMApp::kill(int signum)
 	};
 
 	// fork off a process to launch scancel
-	if (auto const scancelPid = throwingFork()) {
+	if (auto const scancelPid = fork()) {
+		if (scancelPid < 0) {
+			throw std::runtime_error("fork failed");
+		}
+
 		// parent case: wait until the scancel finishes
 		waitpid(scancelPid, nullptr, 0);
 
@@ -488,7 +482,11 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 	}
 
 	// now ship the tarball to the compute nodes. fork off a process to launch sbcast
-	if (auto const forkedPid = throwingFork()) {
+	if (auto const forkedPid = fork()) {
+		if (forkedPid < 0) {
+			throw std::runtime_error("fork failed");
+		}
+
 		// parent case: wait until the sbcast finishes
 
 		// FIXME: There is no way to error check right now because the sbcast command
@@ -594,7 +592,11 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	}
 
 	// fork off a process to launch srun
-	if (auto const forkedPid = throwingFork()) {
+	if (auto const forkedPid = fork()) {
+		if (forkedPid < 0) {
+			throw std::runtime_error("fork failed");
+		}
+
 		// parent case: place the child in its own group.
 		setpgid(forkedPid, forkedPid);
 
