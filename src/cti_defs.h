@@ -6,18 +6,13 @@
  *       easier. The environment variables here should match those found in the
  *       public cray_tools_be.h and cray_tools_fe.h headers.
  *
- * Copyright 2013-2017 Cray Inc.	All Rights Reserved.
+ * Copyright 2013-2019 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  ******************************************************************************/
 
