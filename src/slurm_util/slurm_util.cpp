@@ -2,18 +2,13 @@
  * slurm_util.cpp - Helper functions that call slurm sattach to get
  *                  information about a job step.
  *
- * Copyright 2014 Cray Inc.	All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc.	All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  *********************************************************************************/
 
@@ -61,7 +56,7 @@ slurmStepLayout_t *_cti_cray_slurm_getLayout(uint32_t job_id, uint32_t step_id) 
 	/* sattach layout format:
 	Job step layout:
 	  {numPEs} tasks, {numNodes} nodes ({hostname}...)
-	
+
 	  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }...
 	*/
 

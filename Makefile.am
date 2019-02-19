@@ -1,7 +1,7 @@
 #
 # Top level Makefile.am for the craytool interface.
 #
-# Copyright 2011-2015 Cray Inc.  All Rights Reserved.
+# Copyright 2011-2019 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -9,15 +9,11 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-## $HeadURL$
-## $Date$
-## $Rev$
-## $Author$
 
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src tests external
+SUBDIRS = external src tests
 
 EXTRA_DIST = cray-cti_be.pc.in cray-cti_fe.pc.in release_versioning
 

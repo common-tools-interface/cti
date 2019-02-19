@@ -1,7 +1,7 @@
 #
 # cray_extensions.m4 Cray configure extensions.
 #
-# Copyright 2012-2017 Cray Inc.  All Rights Reserved.
+# Copyright 2012-2019 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -9,10 +9,6 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-dnl $HeadURL$
-dnl $Date$
-dnl $Rev$
-dnl $Author$
 
 dnl
 dnl read release and library version information from disk
@@ -53,38 +49,48 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 [
 	cray_cv_lib_archive_build=no
 
-	dnl Temporary directory to stage files to
-	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libarchive"
+	dnl External source directory
+	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/libarchive"
 
-	AC_MSG_CHECKING([for libarchive stage directory])
+	AC_MSG_CHECKING([for libarchive submodule])
 
 	dnl Ensure the libarchive source was checked out
-	AS_IF(	[test ! -d "$_cray_tmpdir"],
+	AS_IF(	[test ! -f "$_cray_external_srcdir/README.md"],
 			[AC_MSG_ERROR([git submodule libarchive not found.])],
 			[AC_MSG_RESULT([yes])]
 			)
 
 	dnl cd to the checked out source directory
-	cd ${_cray_tmpdir}
+	cd ${_cray_external_srcdir}
 
 	AC_MSG_NOTICE([Building libarchive...])
+
+	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl run configure with options that work on build systems
 	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} --disable-shared --with-pic --without-expat --without-xml2 \
 	--without-openssl --without-nettle --without-lzo2 --without-lzma --without-libiconv-prefix --without-iconv \
 	--without-lzmadec --without-bz2lib --without-zlib --disable-bsdtar --disable-bsdcpio \
 	--disable-rpath >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[libarchive configure failed.]],
+	 		[]
+	 		)
 
 	dnl make
-	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[libarchive make failed.]],
+	 		[]
+	 		)
 	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[libarchive make install failed.]],
+	 		[cray_cv_lib_archive_build=yes]
+	 		)
 
 	dnl go home
 	cd ${CRAYTOOL_DIR}
-
-	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libarchive.a"; then
-		cray_cv_lib_archive_build=yes
-	fi
 ])
 
 dnl
@@ -97,75 +103,25 @@ AC_DEFUN([cray_ENV_LIBARCHIVE],
 ])
 
 dnl
-dnl build libmi automatically
-dnl
-AC_DEFUN([cray_BUILD_LIBMI],
-[
-	cray_cv_lib_mi_build=no
-
-	dnl Temporary directory to stage files to
-	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libmi"
-
-	AC_MSG_CHECKING([for libmi stage directory])
-
-	dnl Ensure the libmi source was checked out
-	AS_IF(	[test ! -d "$_cray_tmpdir"],
-			[AC_MSG_ERROR([git submodule libmi not found.])],
-			[AC_MSG_RESULT([yes])]
-			)
-
-	dnl cd to the checked out source directory
-	cd ${_cray_tmpdir}
-
-	AC_MSG_NOTICE([Building libmi...])
-
-	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-
-	dnl run configure with options that work on build systems
-	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-
-	dnl make
-	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-
-	dnl go home
-	cd ${CRAYTOOL_DIR}
-
-	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libmi.so"; then
-		cray_cv_lib_mi_build=yes
-	fi
-])
-
-dnl
-dnl define post-cache libmi env
-dnl
-AC_DEFUN([cray_ENV_LIBMI],
-[
-	AC_SUBST([LIBMI_SRC], [${CRAYTOOL_EXTERNAL}/libmi])
-	AC_SUBST([INTERNAL_LIBMI], [${CRAYTOOL_EXTERNAL_INSTALL}])
-	AC_SUBST([LIBMI_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libmi.so])
-])
-
-dnl
 dnl build libssh automatically
 dnl
 AC_DEFUN([cray_BUILD_LIBSSH],
 [
 	cray_cv_lib_ssh_build=no
 
-	dnl Temporary directory to stage files to
-	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/libssh"
+	dnl External source directory
+	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/libssh"
 
-	AC_MSG_CHECKING([for libssh stage directory])
+	AC_MSG_CHECKING([for libssh submodule])
 
 	dnl Ensure the libssh source was checked out
-	AS_IF(	[test ! -d "$_cray_tmpdir"],
+	AS_IF(	[test ! -f "$_cray_external_srcdir/README"],
 			[AC_MSG_ERROR([git submodule libssh not found.])],
 			[AC_MSG_RESULT([yes])]
 			)
 
 	dnl cd to the checked out source directory
-	cd ${_cray_tmpdir}
+	cd ${_cray_external_srcdir}
 
 	AC_MSG_NOTICE([Building libssh...])
 
@@ -173,17 +129,28 @@ AC_DEFUN([cray_BUILD_LIBSSH],
 	rm -rf build
 	mkdir -p build
 	cd build
-	LDFLAGS='-Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags' cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[libssh cmake failed.]],
+	 		[]
+	 		)
+
 	dnl make
-	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[libssh make failed.]],
+	 		[]
+	 		)
+
+	dnl install to stage
 	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[libssh make install failed.]],
+	 		[cray_cv_lib_ssh_build=yes]
+	 		)
 
 	dnl go home
 	cd ${CRAYTOOL_DIR}
-
-	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssh.so"; then
-		cray_cv_lib_ssh_build=yes
-	fi
 ])
 
 dnl
@@ -197,51 +164,248 @@ AC_DEFUN([cray_ENV_LIBSSH],
 ])
 
 dnl
-dnl build gdb automatically
+dnl configure elfutils
 dnl
-AC_DEFUN([cray_BUILD_GDB],
+AC_DEFUN([cray_CONF_ELFUTILS],
 [
-	cray_cv_prog_gdb_build=no
+	cray_cv_elfutils_conf=no
 
-	dnl Temporary directory to stage files to
-	_cray_tmpdir="${CRAYTOOL_EXTERNAL}/gdb"
+	dnl External source directory
+	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/elfutils"
 
-	AC_MSG_CHECKING([for libmi stage directory])
+	AC_MSG_CHECKING([for elfutils submodule])
 
-	dnl Ensure the gdb source was checked out
-	AS_IF(	[test ! -d "$_cray_tmpdir"],
-			[AC_MSG_ERROR([git submodule gdb not found.])],
+	dnl Ensure the libssh source was checked out
+	AS_IF(	[test ! -f "$_cray_external_srcdir/README"],
+			[AC_MSG_ERROR([git submodule elfutils not found.])],
 			[AC_MSG_RESULT([yes])]
 			)
 
 	dnl cd to the checked out source directory
-	cd ${_cray_tmpdir}
+	cd ${_cray_external_srcdir}
 
-	AC_MSG_NOTICE([Building gdb...])
+	AC_MSG_NOTICE([Configuring elfutils...])
 
-	dnl run configure with options that work on build systems
-	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} --program-prefix="cti_approved_" --disable-rpath --without-separate-debug-dir --without-gdb-datadir --with-mmalloc --without-python >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	dnl configure
+	./configure --prefix=${prefix} --enable-maintainer-mode
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[elfutils configure failed.]],
+	 		[]
+	 		)
+
+	AC_MSG_NOTICE([Staging elfutils...])
 
 	dnl make
-	make >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[elfutils make failed.]],
+	 		[]
+	 		)
+
+	dnl install to stage - this also gets included in final package
+	make -j8 install prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[elfutils make install failed.]],
+	 		[cray_cv_elfutils_conf=yes]
+	 		)
 
 	dnl go home
 	cd ${CRAYTOOL_DIR}
-
-	if test -f "${CRAYTOOL_EXTERNAL_INSTALL}/bin/cti_approved_gdb"; then
-		cray_cv_prog_gdb_build=yes
-	fi
 ])
 
 dnl
-dnl define post-cache gdb env
+dnl define post-cache libssh env
 dnl
-AC_DEFUN([cray_ENV_GDB],
+AC_DEFUN([cray_ENV_ELFUTILS],
 [
-	AC_SUBST([GDB_SRC], [${CRAYTOOL_EXTERNAL}/gdb])
-	AC_SUBST([INTERNAL_GDB], [${CRAYTOOL_EXTERNAL_INSTALL}])
-	AC_SUBST([GDB_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/bin/cti_approved_gdb])
+	AC_SUBST([INTERNAL_ELFUTILS], [${CRAYTOOL_EXTERNAL_INSTALL}])
+])
+
+dnl
+dnl stage boost automatically
+dnl
+AC_DEFUN([cray_BUILD_BOOST],
+[
+	cray_cv_boost_build=no
+
+	dnl External source directory
+	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/boost"
+
+	AC_MSG_CHECKING([for boost submodule])
+
+	dnl Ensure the boost source was checked out
+	AS_IF(	[test ! -d "$_cray_external_srcdir/tools/build"],
+			[AC_MSG_ERROR([git submodule boost not found.])],
+			[AC_MSG_RESULT([yes])]
+			)
+
+	dnl cd to the checked out source directory
+	cd ${_cray_external_srcdir}
+
+	AC_MSG_NOTICE([Staging boost build...])
+
+	save_LDFLAGS="$LDFLAGS"
+	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
+
+	./bootstrap.sh --prefix=${prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[boost bootstrap failed.]]
+	 		)
+
+	dnl pre-build boost libraries
+	./b2 -j32 stage >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	dnl install to temporary staging location for internal use
+	./b2 -j32 --prefix=${CRAYTOOL_EXTERNAL_INSTALL} install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[boost b2 stage failed.]],
+	 		[cray_cv_boost_build=yes]
+	 		)
+
+	LDFLAGS="$save_LDFLAGS"
+
+	dnl go home
+	cd ${CRAYTOOL_DIR}
+])
+
+dnl
+dnl define post-cache boost env
+dnl
+AC_DEFUN([cray_ENV_BOOST],
+[
+	AC_SUBST([BOOST_SRC], [${CRAYTOOL_EXTERNAL}/boost])
+	AC_SUBST([BOOST_ROOT], [${CRAYTOOL_EXTERNAL_INSTALL}])
+])
+
+dnl
+dnl stage tbb automatically
+dnl
+AC_DEFUN([cray_BUILD_TBB],
+[
+	cray_cv_tbb_build=no
+
+	dnl External source directory
+	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/tbb"
+
+	dnl Temporary build directory
+	_cray_tmpdir="${CRAYTOOL_EXTERNAL_INSTALL}/TBB-build"
+
+	if test ! -d "$_cray_tmpdir"; then
+		AS_MKDIR_P([$_cray_tmpdir])
+	fi
+
+	AC_MSG_CHECKING([for tbb submodule])
+
+	dnl Ensure the tbb source was checked out
+	AS_IF(	[test ! -d "$_cray_external_srcdir/build"],
+			[AC_MSG_ERROR([git submodule tbb not found.])],
+			[AC_MSG_RESULT([yes])]
+			)
+
+	dnl cd to the checked out source directory
+	cd ${_cray_external_srcdir}
+
+	AC_MSG_NOTICE([Building TBB...])
+
+	save_LDFLAGS="$LDFLAGS"
+	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
+	make -j8 tbb tbbmalloc tbb_build_dir=$_cray_tmpdir tbb_build_prefix=tbb >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	AS_IF(	[test ! -f "$_cray_tmpdir/tbb_release/libtbb.so"],
+			[AC_MSG_ERROR[tbb build failed.]],
+			[cray_cv_tbb_build=yes]
+			)
+
+	LDFLAGS="$save_LDFLAGS"
+
+	dnl go home
+	cd ${CRAYTOOL_DIR}
+])
+
+dnl
+dnl define post-cache tbb env
+dnl
+AC_DEFUN([cray_ENV_TBB],
+[
+	AC_SUBST([TBB_LIBRARY], [${CRAYTOOL_EXTERNAL_INSTALL}/TBB-build/tbb_release])
+	AC_SUBST([TBB_INCLUDE_DIR], [${CRAYTOOL_EXTERNAL}/tbb/include])
+])
+
+dnl
+dnl build dyninst automatically
+dnl
+AC_DEFUN([cray_BUILD_DYNINST],
+[
+	cray_cv_dyninst_build=no
+
+	dnl External source directory
+	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/dyninst"
+
+	AC_MSG_CHECKING([for dyninst submodule])
+
+	dnl Ensure the dyninst source was checked out
+	AS_IF(	[test ! -f "$_cray_external_srcdir/README.md"],
+			[AC_MSG_ERROR([git submodule dyninst not found.])],
+			[AC_MSG_RESULT([yes])]
+			)
+
+	dnl cd to the checked out source directory
+	cd ${_cray_external_srcdir}
+
+	AC_MSG_NOTICE([Building dyninst...])
+
+	save_LDFLAGS="$LDFLAGS"
+	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
+
+	dnl configure using cmake
+	rm -rf build
+	mkdir -p build
+	cd build
+	_cray_dyninst_cmake_opts="-DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPATH_BOOST=${BOOST_ROOT} -DBoost_INCLUDE_DIR=${BOOST_ROOT}/include -DLIBELF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBELF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libelf.so -DLIBDWARF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBDWARF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libdw.so -DTBB_INCLUDE_DIRS=${TBB_INCLUDE_DIR} -DTBB_tbb_LIBRARY_RELEASE=${TBB_LIBRARY}/libtbb.so -DUSE_OpenMP=OFF"
+	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[dyninst cmake failed.]],
+	 		[]
+	 		)
+
+	dnl make
+	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[dyninst make failed.]],
+	 		[]
+	 		)
+
+	dnl install to staging location for internal use
+	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[dyninst make install failed.]],
+	 		[]
+	 		)
+
+	dnl cmake to prefix for final build
+	cmake -DCMAKE_INSTALL_PREFIX=${prefix} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	AS_IF(	[test $? != 0],
+	 		[AC_MSG_ERROR[dyninst cmake failed.]],
+	 		[cray_cv_dyninst_build=yes]
+	 		)
+
+	LDFLAGS="$save_LDFLAGS"
+
+	dnl go home
+	cd ${CRAYTOOL_DIR}
+])
+
+dnl
+dnl define post-cache dyninst env
+dnl
+AC_DEFUN([cray_ENV_DYNINST],
+[
+	AC_SUBST([DYNINST_BUILD], [${CRAYTOOL_EXTERNAL}/dyninst/build])
+	AC_SUBST([INTERNAL_DYNINST], [${CRAYTOOL_EXTERNAL_INSTALL}])
 ])
 
 dnl

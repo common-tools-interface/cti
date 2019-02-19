@@ -9,16 +9,8 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-## $HeadURL$
-## $Date$
-## $Rev$
-## $Author$
-
-
-AM_CXXFLAGS				= -Wall -std=c++11
 
 SRC             = @CRAYTOOL_DIR@/src
-AM_CFLAGS		= -Wall
 AM_LIBTOOLFLAGS = --quiet
 
 lib_LTLIBRARIES = libcraytools_fe.la
@@ -40,6 +32,6 @@ libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								$(SRC)/ld_val/libld_val.la \
 								$(SRC)/mpir_iface/libmpir_iface.la \
 								$(SRC)/slurm_util/libslurm_util.la \
-								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS) -lssh
-libcraytools_fe_la_LDFLAGS	=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info $(CRAYTOOL_FE_VERSION) \
-								$(ARCHIVE_LDFLAGS) $($DYNINST_LDFLAGS) $(BOOST_LDFLAGS)
+								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS)
+libcraytools_fe_la_LDFLAGS	=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info \
+								$(CRAYTOOL_FE_VERSION) $(ARCHIVE_LDFLAGS) $(DYNINST_LDFLAGS)
