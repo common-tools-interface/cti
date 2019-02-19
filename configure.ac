@@ -59,13 +59,9 @@ LT_INIT
 ### Setup env options ###
 #########################
 
-dnl This m4 macro will grab the required ALPS RPM from CSS and extract it with
-dnl cpio. It will create varibales $ALPS_LIB_PATH and $ALPS_INC_PATH which point
-dnl to the alps libraries and headers respectively. It will also modify LDFLAGS,
-dnl CFLAGS, and CPPFLAGS.
-cray_SETUP_ALPS_RPMS
-
-dnl Ditto for the wlm_detect libraries
+dnl This m4 macro will grab the required wlm_detect RPM from CSS and extract it with
+dnl cpio.
+dnl TODO: Add depenency to build vm/container instead...
 cray_SETUP_WLM_DETECT_RPMS
 
 ############################
@@ -186,46 +182,6 @@ LDFLAGS="$save_LDFLAGS"
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h string.h strings.h sys/ioctl.h sys/param.h sys/socket.h sys/time.h unistd.h])
 
 AC_HEADER_STDBOOL
-
-dnl Check for alps.h
-save_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS $ALPS_CFLAGS"
-AC_CHECK_HEADER([alps/alps.h],
-		[],
-		[AC_MSG_FAILURE([alps/alps.h not found.])]
-		)
-dnl Check for alps_toolAssist.h
-AC_CHECK_HEADER([alps/alps_toolAssist.h],
-		[],
-		[AC_MSG_FAILURE([alps/alps_toolAssist.h not found.])]
-		)
-dnl Check for apInfo.h
-AC_CHECK_HEADER([alps/apInfo.h],
-		[],
-		[AC_MSG_FAILURE([alps/apInfo.h not found.])]
-		)
-dnl Check for libalps.h
-AC_CHECK_HEADER([alps/libalps.h],
-		[],
-		[AC_MSG_FAILURE([alps/libalps.h not found.])],
-		[#include <alps/alps_toolAssist.h>
-		 #include <netinet/in.h>
-		 ]
-		)
-dnl Check for libalpsutil.h
-AC_CHECK_HEADER([alps/libalpsutil.h],
-		[],
-		[AC_MSG_FAILURE([alps/libalpsutil.h not found.])],
-		[#include <alps/alps_toolAssist.h>
-		 #include <netinet/in.h>
-		 ]
-		)
-dnl restore flags
-CFLAGS="$save_CFLAGS"
-
-dnl restore flags
-CFLAGS="$save_CFLAGS"
-CPPFLAGS="$save_CPPFLAGS"
 
 dnl Check for libwlm_detect headers
 save_CFLAGS="$CFLAGS"
