@@ -758,9 +758,6 @@ cti_wlm_type_toString(cti_wlm_type wlm_type)
 {
 	switch (wlm_type)
 	{
-		case CTI_WLM_ALPS:
-			return "Cray ALPS";
-			
 		case CTI_WLM_CRAY_SLURM:
 			return "Cray based SLURM";
 	
