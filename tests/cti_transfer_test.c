@@ -123,6 +123,8 @@ main(int argc, char **argv)
 	// Conduct WLM specific calls
 	switch (mywlm) {
 		case CTI_WLM_CRAY_SLURM:
+        case CTI_WLM_SLURM:
+        case CTI_WLM_SSH:
 		{
 			cti_srunProc_t *	mysruninfo;
 
