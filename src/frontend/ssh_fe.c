@@ -157,8 +157,6 @@ const cti_wlm_proto_t		_cti_ssh_wlmProto =
 const char * _cti_ssh_forwarded_env_vars[] = {
 	DBG_LOG_ENV_VAR,
 	DBG_ENV_VAR,
-	LIBALPS_ENABLE_DSL_ENV_VAR,
-	CTI_LIBALPS_ENABLE_DSL_ENV_VAR,
 	NULL
 };
 
