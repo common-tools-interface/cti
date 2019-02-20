@@ -1,7 +1,7 @@
 #
 # Makefile.am for the frontend components of the craytool interface.
 #
-# Copyright 2014-2017 Cray Inc.  All Rights Reserved.
+# Copyright 2014-2019 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -17,10 +17,10 @@ lib_LTLIBRARIES = libcraytools_fe.la
 
 libcraytools_fe_la_SOURCES	=	cti_fe.c cti_fe.h cti_run.c cti_run.h cti_transfer.cpp \
 								cti_transfer.h cti_error.c cti_error.h \
-								alps_fe.c alps_fe.h cray_slurm_fe.c \
-								cray_slurm_fe.h slurm_fe.c slurm_fe.h ssh_fe.c ssh_fe.h
+								cray_slurm_fe.c cray_slurm_fe.h slurm_fe.c slurm_fe.h \
+								sh_fe.c ssh_fe.h
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
-								$(ARCHIVE_CFLAGS) $(ALPS_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
+								$(ARCHIVE_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
 libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) $(libcraytools_fe_la_CFLAGS)
 libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								$(SRC)/cti_transfer/libcti_transfer.la \

@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * cti_callback_test.h - Header file for the cti_callback_test.
  *
- * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -9,19 +9,13 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  *********************************************************************************/
 
 #ifndef _CTI_CALLBACK_TEST_H
 #define _CTI_CALLBACK_TEST_H
 
 /* internal defines */
-// Port declarations are arbitrary for now. This might cause problems
-// in the future.
+// Port declarations are arbitrary for now. This might cause problems in the future.
 #define CALLBACK_PORT "13337"
 #define BACKLOG 8192
 #define BUFSIZE 32768
@@ -31,36 +25,34 @@
 /* struct typedefs */
 typedef struct
 {
-        char *  cname;          // service node hostname
-        
-        pthread_t               listener;       // listener thread
-        pthread_attr_t          attr;           // thread attributes
-        pthread_mutexattr_t     lock_attr;      // mutex lock attr
-        pthread_mutex_t         lock;           // mutex lock for threads
-        pthread_condattr_t      cond_attr;      // condition variable attr
-        pthread_cond_t          cond;           // condition variable
+    char *              cname;          // service node hostname
+    pthread_t           listener;       // listener thread
+    pthread_attr_t      attr;           // thread attributes
+    pthread_mutexattr_t lock_attr;      // mutex lock attr
+    pthread_mutex_t     lock;           // mutex lock for threads
+    pthread_condattr_t  cond_attr;      // condition variable attr
+    pthread_cond_t      cond;           // condition variable
 } FrontEndNode_t;
 
 typedef struct
 {
-        char *  node_cname;          // compute node hostname
+    char *              node_cname;     // compute node hostname
 } BackEndNode_t;
 
 typedef struct
 {
-        int     listenfd;       // fd for listener socket
-        
-        struct addrinfo        hints;           // hints object for call to getaddrinfo
-        struct addrinfo        *listener;       // listener addrinfo object
-        pthread_attr_t          attr;            // handler thread attributes
+    int                 listenfd;       // fd for listener socket
+    struct addrinfo     hints;          // hints object for call to getaddrinfo
+    struct addrinfo     *listener;      // listener addrinfo object
+    pthread_attr_t      attr;           // handler thread attributes
 } listenThreadArgs_t;
 
 typedef struct
 {
-        pthread_t               handlerTid;     // tid for the thread
-        int                     cnodefd;        // fd for connected compute node
-        struct sockaddr_in     cnode;          // sockaddr_in for the cnode socket
-        socklen_t               len;            // length of the sockaddr_in object
+    pthread_t           handlerTid;     // tid for the thread
+    int                 cnodefd;        // fd for connected compute node
+    struct sockaddr_in  cnode;          // sockaddr_in for the cnode socket
+    socklen_t           len;            // length of the sockaddr_in object
 } handlerThreadArgs_t;
 
 /* function prototypes */

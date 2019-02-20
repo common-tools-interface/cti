@@ -5,18 +5,13 @@
  *                   or compute nodes. Frontend refers to the location where
  *                   applications are launched.
  *
- * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  ******************************************************************************/
 
@@ -37,11 +32,6 @@
  *         Used to define the absolute path to the CTI install directory. This
  *         is required to be defined.
  *
- * CTI_USER_DEF_APRUN_EXE_ENV_VAR (optional)
- *
- *         Used to define the absolute path to the aprun binary. This is used 
- *         when a site has renamed the real aprun binary to something else.
- *
  * CTI_DBG_LOG_DIR_ENV_VAR (optional)
  *
  *         Used to define a path to write log files to. This location must be 
@@ -54,14 +44,6 @@
  *
  *         Used to turn on redirection of tool daemon stdout/stderr to a log
  *         file. This should be used in conjuntion with CTI_DBG_LOG_DIR_ENV_VAR.
- *
- * CTI_GDB_LOC_ENV_VAR (optional)
- *
- *         Used to define the absolute path to the gdb binary for use with WLMs
- *         utilizing the MPIR iface. This is used to override the default gdb
- *         named cti_approved_gdb that is expected to be found in PATH. The gdb
- *         binary is only used when launching applications through this 
- *         interface that require the use of the MPIR proctable (e.g. SLURM).
  *
  * CTI_ATTRIBS_TIMEOUT_ENV_VAR (optional)
  *
@@ -81,7 +63,7 @@
  * CTI_CFG_DIR_ENV_VAR (optional)
  *
  *         Used to define a location to write internal temporary files and 
- *         directories to. This directory must have permissions 0700!
+ *         directories to. This directory must have permissions set to 0700.
  *
  * CTI_DAEMON_STAGE_DIR_ENV_VAR (optional - CAUTION!)
  *
@@ -93,10 +75,8 @@
  * 
  */
 #define CTI_BASE_DIR_ENV_VAR            "CRAY_CTI_DIR"
-#define CTI_USER_DEF_APRUN_EXE_ENV_VAR  "CRAY_APRUN_PATH"
 #define CTI_DBG_LOG_DIR_ENV_VAR         "CRAY_CTI_LOG_DIR"
 #define CTI_DBG_ENV_VAR                 "CRAY_CTI_DBG"
-#define CTI_GDB_LOC_ENV_VAR             "CRAY_CTI_GDB_PATH"
 #define CTI_ATTRIBS_TIMEOUT_ENV_VAR     "CRAY_CTI_PMI_FOPEN_TIMEOUT"
 #define CTI_EXTRA_SLEEP_ENV_VAR         "CRAY_CTI_PMI_EXTRA_SLEEP"
 #define CTI_CFG_DIR_ENV_VAR             "CRAY_CTI_CFG_DIR"
@@ -138,7 +118,6 @@ typedef struct
 enum cti_wlm_type
 {
     CTI_WLM_NONE,    // error/unitialized state
-    CTI_WLM_ALPS,
     CTI_WLM_CRAY_SLURM,
     CTI_WLM_SLURM,
     CTI_WLM_SSH
@@ -589,106 +568,6 @@ extern int cti_releaseAppBarrier(cti_app_id_t app_id);
  * 
  */
 extern int cti_killApp(cti_app_id_t app_id, int signum);
-
-
-/*******************************************************************************
- * ALPS WLM functions - Functions valid with the ALPS WLM only.
- ******************************************************************************/
-
-// alps specific type information
-typedef struct
-{
-    uint64_t  apid;
-    pid_t     aprunPid;
-} cti_aprunProc_t;
-
-/*
- * cti_alps_getApid - Get the apid associated with the pid of an existing aprun
- *                    process.
- *
- * Detail
- *      This function is used to obtain the alps apid associated with the pid
- *      of the aprun process. It is useful in order to call the 
- *      cti_alps_registerApid function when only the pid of the aprun process is
- *      known.
- *
- * Arguments
- *      aprunPid - The pid_t of the aprun process
- *
- * Returns
- *      A uint64_t that represents the alps apid of the aprun process. 0 is 
- *      returned on error.
- *
- */
-extern uint64_t cti_alps_getApid(pid_t aprunPid);
-
-/*
- * cti_alps_registerApid -  Assists in registering the apid of an already
- *                          running aprun application for use with the Cray tool 
- *                          interface.
- * 
- * Detail
- *      This function is used for registering a valid aprun application that was 
- *      previously launched through external means for use with the tool 
- *      interface. It is recommended to use the built-in functions to launch 
- *      applications, however sometimes this is impossible (such is the case for
- *      a debug attach scenario). In order to use any of the functions defined
- *      in this interface, the apid of the aprun application must be registered.
- *      This is done automatically when using the built-in functions to launch
- *      applications. The apid can be obtained from apstat.
- *
- * Arguments
- *      apid - The apid of the aprun application to register.
- *
- * Returns
- *      A cti_app_id_t that contains the id registered in this interface. This
- *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
- */
-extern cti_app_id_t cti_alps_registerApid(uint64_t apid);
-
-/*
- * cti_alps_getAprunInfo - Obtain information about the aprun process
- *
- * Detail
- *      This function is used to obtain the apid of an aprun application and the
- *      pid_t of the aprun process based on the passed in app_id. It is the 
- *      callers responsibility to free the allocated storage with free() when it
- *      is no longer needed.
- *
- * Arguments
- *      app_id -  The cti_app_id_t of the registered application.
- *
- * Returns
- *      A cti_aprunProc_t pointer that contains the apid and pid_t of aprun.
- *      NULL is returned on error. The caller should free() the returned pointer
- *      when finished using it.
- *
- */
-extern cti_aprunProc_t * cti_alps_getAprunInfo(cti_app_id_t app_id);
-
-/*
- * cti_alps_getAlpsOverlapOrdinal - Return the applications "overlap ordinal"
- *
- * Detail
- *      This function is used to obtain the "overlap ordinal" for the 
- *      application. The overlap ordinal is a small integer unique to this app
- *      among the group of applications that partially or fully overlap the set 
- *      of nodes occupied by the specified application. This is only useful for
- *      checkpoint restart on Cray ALPS systems when trying to figure out the
- *      number of applications currently running beside the given application.
- *      Note that this function can only be called with a cti_app_id_t from a
- *      valid ALPS WLM application.
- *
- * Arguments
- *      app_id -  The cti_app_id_t of the registered application.
- *
- * Returns
- *      A non-negative integer representing the overlap ordinal. On error a
- *      negative value will be returned.
- */
-extern int  cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_Id);
-
 
 /*******************************************************************************
  * Cray SLURM WLM functions - Functions valid with the Cray native SLURM WLM
