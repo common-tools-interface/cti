@@ -83,17 +83,17 @@ std::string Session::generateStagePath() {
 	return stageName;
 }
 
-Session::Session(Frontend const& frontend_, Frontend::AppId appId_) :
-	frontend(frontend_),
-	appId(appId_),
-	configPath(_cti_getCfgDir()),
-	stageName(generateStagePath()),
-	attribsPath(frontend.getApp(appId).getAttribsPath()),
-	toolPath(frontend.getApp(appId).getToolPath()),
-	jobId(frontend.getApp(appId).getJobId()), 
-	wlmEnum(std::to_string(frontend.getWLMType())),
-	ldLibraryPath(toolPath + "/" + stageName + "/lib") // default libdir /tmp/cti_daemonXXXXXX/lib
-	{}
+Session::Session(Frontend const& frontend, Frontend::AppId appId) :
+	m_frontend(frontend),
+	m_appId(appId),
+	m_configPath(_cti_getCfgDir()),
+	m_stageName(generateStagePath()),
+	m_attribsPath(m_frontend.getApp(m_appId).getAttribsPath()),
+	m_toolPath(m_frontend.getApp(m_appId).getToolPath()),
+	m_jobId(m_frontend.getApp(m_appId).getJobId()), 
+	m_wlmEnum(std::to_string(m_frontend.getWLMType())),
+	m_ldLibraryPath(m_toolPath + "/" + m_stageName + "/lib") // default libdir /tmp/cti_daemonXXXXXX/lib
+{}
 
 #include "ArgvDefs.hpp"
 void Session::launchCleanup() {
@@ -102,12 +102,12 @@ void Session::launchCleanup() {
 	// create DaemonArgv
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
-		daemonArgv.add(DA::ApID,         jobId);
-		daemonArgv.add(DA::ToolPath,     toolPath);
-		if (!attribsPath.empty()) { daemonArgv.add(DA::PMIAttribsPath, attribsPath); }
-		daemonArgv.add(DA::WLMEnum,      wlmEnum);
-		daemonArgv.add(DA::Directory,    stageName);
-		daemonArgv.add(DA::InstSeqNum,   std::to_string(shippedManifests + 1));
+		daemonArgv.add(DA::ApID,         m_jobId);
+		daemonArgv.add(DA::ToolPath,     m_toolPath);
+		if (!m_attribsPath.empty()) { daemonArgv.add(DA::PMIAttribsPath, m_attribsPath); }
+		daemonArgv.add(DA::WLMEnum,      m_wlmEnum);
+		daemonArgv.add(DA::Directory,    m_stageName);
+		daemonArgv.add(DA::InstSeqNum,   std::to_string(m_shippedManifests + 1));
 		daemonArgv.add(DA::Clean);
 		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
 	}
@@ -122,12 +122,12 @@ void Session::launchCleanup() {
 }
 
 void Session::startDaemon(char * const argv[]) {
-	frontend.getApp(appId).startDaemon(argv);
+	m_frontend.getApp(m_appId).startDaemon(argv);
 }
 
 std::shared_ptr<Manifest> Session::createManifest() {
-	manifests.push_back(std::make_shared<Manifest>(manifests.size(), *this));
-	return manifests.back();
+	m_manifests.push_back(std::make_shared<Manifest>(m_manifests.size(), *this));
+	return m_manifests.back();
 }
 
 static bool isSameFile(const std::string& filePath, const std::string& candidatePath) {
@@ -140,8 +140,8 @@ Session::Conflict Session::hasFileConflict(const std::string& folderName,
 
 	// has /folderName/realName been shipped to the backend?
 	const std::string fileArchivePath(folderName + "/" + realName);
-	auto namePathPair = sourcePaths.find(fileArchivePath);
-	if (namePathPair != sourcePaths.end()) {
+	auto namePathPair = m_sourcePaths.find(fileArchivePath);
+	if (namePathPair != m_sourcePaths.end()) {
 		if (isSameFile(namePathPair->first, candidatePath)) {
 			return Conflict::AlreadyAdded;
 		} else {
@@ -162,26 +162,26 @@ Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) 
 
 		for (auto fileName : folderContents) {
 			// mark fileName to be located at /folderName/fileName
-			folders[folderName].insert(fileName);
+			m_folders[folderName].insert(fileName);
 
 			// map /folderName/fileName to source file path newPaths[fileName]
 			const std::string fileArchivePath(folderName + "/" + fileName);
-			if (sourcePaths.find(fileArchivePath) != sourcePaths.end()) {
+			if (m_sourcePaths.find(fileArchivePath) != m_sourcePaths.end()) {
 				throw std::runtime_error(
 					std::string("tried to merge transfered file ") + fileArchivePath +
 					" but it was already in the session!");
 			} else {
-				if (isSameFile(sourcePaths[fileArchivePath], newPaths.at(fileName))) {
+				if (isSameFile(m_sourcePaths[fileArchivePath], newPaths.at(fileName))) {
 					// duplicate, tell manifest to not bother shipping
 					toRemove.push_back(std::make_pair(folderName, fileName));
 				} else {
 					// register new file as coming from Manifest's source
-					sourcePaths[fileArchivePath] = newPaths.at(fileName);
+					m_sourcePaths[fileArchivePath] = newPaths.at(fileName);
 				}
 			}
 		}
 	}
-	shippedManifests++;
+	m_shippedManifests++;
 
 	return toRemove;
 }

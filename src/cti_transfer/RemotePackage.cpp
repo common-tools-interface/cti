@@ -26,11 +26,11 @@ void RemotePackage::extract() {
 	// create DaemonArgv
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
-		daemonArgv.add(DA::ApID,         liveSession->jobId);
-		daemonArgv.add(DA::ToolPath,     liveSession->toolPath);
-		daemonArgv.add(DA::WLMEnum,      liveSession->wlmEnum);
+		daemonArgv.add(DA::ApID,         liveSession->m_jobId);
+		daemonArgv.add(DA::ToolPath,     liveSession->m_toolPath);
+		daemonArgv.add(DA::WLMEnum,      liveSession->m_wlmEnum);
 		daemonArgv.add(DA::ManifestName, m_archiveName);
-		daemonArgv.add(DA::Directory,    liveSession->stageName);
+		daemonArgv.add(DA::Directory,    liveSession->m_stageName);
 		daemonArgv.add(DA::InstSeqNum,   std::to_string(m_instanceCount));
 		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
 	}
@@ -55,20 +55,20 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 	DEBUG_PRINT("extractAndRun: creating daemonArgv for " << daemonBinary << std::endl);
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
-		daemonArgv.add(DA::ApID,         liveSession->jobId);
-		daemonArgv.add(DA::ToolPath,     liveSession->toolPath);
-		if (!liveSession->attribsPath.empty()) {
-			daemonArgv.add(DA::PMIAttribsPath, liveSession->attribsPath);
+		daemonArgv.add(DA::ApID,         liveSession->m_jobId);
+		daemonArgv.add(DA::ToolPath,     liveSession->m_toolPath);
+		if (!liveSession->m_attribsPath.empty()) {
+			daemonArgv.add(DA::PMIAttribsPath, liveSession->m_attribsPath);
 		}
 		if (!liveSession->getLdLibraryPath().empty()) {
 			daemonArgv.add(DA::LdLibraryPath, liveSession->getLdLibraryPath());
 		}
-		daemonArgv.add(DA::WLMEnum,      liveSession->wlmEnum);
+		daemonArgv.add(DA::WLMEnum,      liveSession->m_wlmEnum);
 		if (!m_archiveName.empty()) { daemonArgv.add(DA::ManifestName, m_archiveName); }
 		daemonArgv.add(DA::Binary,       binaryName);
-		daemonArgv.add(DA::Directory,    liveSession->stageName);
+		daemonArgv.add(DA::Directory,    liveSession->m_stageName);
 		daemonArgv.add(DA::InstSeqNum,   std::to_string(m_instanceCount));
-		daemonArgv.add(DA::Directory,    liveSession->stageName);
+		daemonArgv.add(DA::Directory,    liveSession->m_stageName);
 		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
 	}
 

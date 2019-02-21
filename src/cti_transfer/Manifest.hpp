@@ -50,7 +50,7 @@ public: // interface
 	Manifest(size_t instanceCount, Session& owningSession) :
 		m_sessionPtr(owningSession.shared_from_this()),
 		m_instanceCount(instanceCount),
-		m_lockFilePath(owningSession.toolPath + "/.lock_" + owningSession.stageName +
+		m_lockFilePath(owningSession.m_toolPath + "/.lock_" + owningSession.m_stageName +
 			"_" + std::to_string(m_instanceCount)) {}
 
 	// add files and optionally their dependencies to manifest

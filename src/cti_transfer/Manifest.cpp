@@ -120,18 +120,18 @@ RemotePackage Manifest::createAndShipArchive(const std::string& archiveName,
 	// todo: block signals handle race with file creation
 
 	// create and fill archive
-	Archive archive(liveSession->configPath + "/" + archiveName);
+	Archive archive(liveSession->m_configPath + "/" + archiveName);
 
 	// setup basic archive entries
-	archive.addDirEntry(liveSession->stageName);
-	archive.addDirEntry(liveSession->stageName + "/bin");
-	archive.addDirEntry(liveSession->stageName + "/lib");
-	archive.addDirEntry(liveSession->stageName + "/tmp");
+	archive.addDirEntry(liveSession->m_stageName);
+	archive.addDirEntry(liveSession->m_stageName + "/bin");
+	archive.addDirEntry(liveSession->m_stageName + "/lib");
+	archive.addDirEntry(liveSession->m_stageName + "/tmp");
 
 	// add files to archive
 	for (auto folderIt : m_folders) {
 		for (auto fileIt : folderIt.second) {
-			const std::string destPath(liveSession->stageName + "/" + folderIt.first +
+			const std::string destPath(liveSession->m_stageName + "/" + folderIt.first +
 				"/" + fileIt);
 			DEBUG_PRINT("ship " << m_instanceCount << ": addPath(" << destPath << ", " << m_sourcePaths.at(fileIt) << ")" << std::endl);
 			archive.addPath(destPath, m_sourcePaths.at(fileIt));
@@ -149,7 +149,7 @@ RemotePackage Manifest::createAndShipArchive(const std::string& archiveName,
 RemotePackage Manifest::finalizeAndShip() {
 	auto liveSession = getSessionHandle(m_sessionPtr);
 
-	const std::string archiveName(liveSession->stageName + std::to_string(m_instanceCount) +
+	const std::string archiveName(liveSession->m_stageName + std::to_string(m_instanceCount) +
 		".tar");
 
 	// create the hidden name for the cleanup file. This will be checked by future
@@ -157,7 +157,7 @@ RemotePackage Manifest::finalizeAndShip() {
 	// in an attempt to cleanup. The ideal situation is to be able to tell the kernel
 	// to remove the tarball if the process exits, but no mechanism exists today that
 	// I know about.
-	{ const std::string cleanupFilePath(liveSession->configPath + "/." + archiveName);
+	{ const std::string cleanupFilePath(liveSession->m_configPath + "/." + archiveName);
 		auto cleanupFileHandle = UniquePtrDestr<FILE>(
 			fopen(cleanupFilePath.c_str(), "w"), fclose);
 		pid_t pid = getpid();

@@ -46,16 +46,16 @@ static void shipWLMBaseFiles(Session& liveSession) {
 	auto& frontend = _cti_getCurrentFrontend();
 
 	auto baseFileManifest = liveSession.createManifest();
-	for (auto const& path : frontend.getApp(liveSession.appId).getExtraBinaries()) {
+	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraBinaries()) {
 		baseFileManifest->addBinary(path);
 	}
-	for (auto const& path : frontend.getApp(liveSession.appId).getExtraLibraries()) {
+	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraLibraries()) {
 		baseFileManifest->addLibrary(path);
 	}
-	for (auto const& path : frontend.getApp(liveSession.appId).getExtraLibDirs()) {
+	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraLibDirs()) {
 		baseFileManifest->addLibDir(path);
 	}
-	for (auto const& path : frontend.getApp(liveSession.appId).getExtraFiles()) {
+	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraFiles()) {
 		baseFileManifest->addFile(path);
 	}
 
@@ -121,7 +121,7 @@ static char* sessionPathAppend(std::string const& caller, cti_session_id_t sid, 
 		// get session and construct string
 		auto const& session = getSession(sid);
 		std::stringstream ss;
-		ss << session.toolPath << "/" << session.stageName << str;
+		ss << session.m_toolPath << "/" << session.m_stageName << str;
 		return strdup(ss.str().c_str());
 	}, (char*)nullptr);
 }
