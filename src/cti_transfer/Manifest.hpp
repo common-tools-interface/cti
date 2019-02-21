@@ -20,20 +20,20 @@ public: // types
 	};
 
 private: // variables
-	std::weak_ptr<Session> sessionPtr;
-	const size_t instanceCount;
+	std::weak_ptr<Session> m_sessionPtr;
+	size_t const m_instanceCount;
 
-	FoldersMap folders;
-	PathMap sourcePaths;
+	FoldersMap m_folders;
+	PathMap    m_sourcePaths;
 
-	std::string ldLibraryOverrideFolder;
+	std::string m_ldLibraryOverrideFolder;
 
 public: // variables
-	const std::string lockFilePath;
+	std::string const m_lockFilePath;
 
 private: // helper functions
-	inline bool empty() { return sourcePaths.empty(); }
-	inline void invalidate() { sessionPtr.reset(); }
+	inline bool empty() { return m_sourcePaths.empty(); }
+	inline void invalidate() { m_sessionPtr.reset(); }
 
 	// add dynamic library dependencies to manifest
 	void addLibDeps(const std::string& filePath);
@@ -47,11 +47,11 @@ private: // helper functions
 		std::shared_ptr<Session>& liveSession);
 
 public: // interface
-	Manifest(size_t instanceCount_, Session& owningSession) :
-		sessionPtr(owningSession.shared_from_this()),
-		instanceCount(instanceCount_),
-		lockFilePath(owningSession.toolPath + "/.lock_" + owningSession.stageName +
-			"_" + std::to_string(instanceCount)) {}
+	Manifest(size_t instanceCount, Session& owningSession) :
+		m_sessionPtr(owningSession.shared_from_this()),
+		m_instanceCount(instanceCount),
+		m_lockFilePath(owningSession.toolPath + "/.lock_" + owningSession.stageName +
+			"_" + std::to_string(m_instanceCount)) {}
 
 	// add files and optionally their dependencies to manifest
 	void addBinary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);

@@ -108,7 +108,7 @@ cti_getSessionLockFiles(cti_session_id_t sid) {
 
 		// create the strings
 		for (size_t i = 0; i < manifests.size(); i++) {
-			result[i] = strdup(manifests[i]->lockFilePath.c_str());
+			result[i] = strdup(manifests[i]->m_lockFilePath.c_str());
 		}
 		result[manifests.size()] = nullptr;
 		return result;
