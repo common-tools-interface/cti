@@ -30,13 +30,13 @@
 
 // managed MPIR session
 struct MPIRHandle {
-	mpir_id_t data;
-	operator bool() const { return (data >= 0); }
-	void reset() { if (*this) { _cti_mpir_releaseInstance(data); data = mpir_id_t{-1}; } }
-	mpir_id_t get() const { return data; }
-	MPIRHandle() : data{-1} {}
-	MPIRHandle(mpir_id_t data_) : data{data_} {}
-	MPIRHandle(MPIRHandle&& moved) : data{std::move(moved.data)} { moved.data = mpir_id_t{-1}; }
+	mpir_id_t m_data;
+	operator bool() const { return (m_data >= 0); }
+	void reset() { if (*this) { _cti_mpir_releaseInstance(m_data); m_data = mpir_id_t{-1}; } }
+	mpir_id_t get() const { return m_data; }
+	MPIRHandle() : m_data{-1} {}
+	MPIRHandle(mpir_id_t m_data_) : m_data{m_data_} {}
+	MPIRHandle(MPIRHandle&& moved) : m_data{std::move(moved.m_data)} { moved.m_data = mpir_id_t{-1}; }
 	~MPIRHandle() { reset(); }
 };
 
@@ -72,15 +72,15 @@ struct SrunInfo : public cti_srunProc_t {
 
 struct CraySLURMApp : public App {
 private: // variables
-	SrunInfo               srunInfo;    // Job and Step IDs
-	slurm_util::StepLayout stepLayout;  // SLURM Layout of job step
-	MPIRHandle             barrier;     // MPIR handle to release startup barrier
-	bool                   dlaunchSent; // Have we already shipped over the dlaunch utility?
+	SrunInfo               m_srunInfo;    // Job and Step IDs
+	slurm_util::StepLayout m_stepLayout;  // SLURM Layout of job step
+	MPIRHandle             m_barrier;     // MPIR handle to release startup barrier
+	bool                   m_dlaunchSent; // Have we already shipped over the dlaunch utility?
 
-	std::string toolPath;    // Backend path where files are unpacked
-	std::string attribsPath; // Backend Cray-specific directory
-	std::string stagePath;   // Local directory where files are staged before transfer to BE
-	std::vector<std::string> extraFiles; // List of extra support files to transfer to BE
+	std::string m_toolPath;    // Backend path where files are unpacked
+	std::string m_attribsPath; // Backend Cray-specific directory
+	std::string m_stagePath;   // Local directory where files are staged before transfer to BE
+	std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
 
 protected: // delegated constructor
 	CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id);
@@ -100,13 +100,13 @@ public: // constructor / destructor interface
 public: // app interaction interface
 	std::string getJobId()            const;
 	std::string getLauncherHostname() const;
-	std::string getToolPath()         const { return toolPath;    }
-	std::string getAttribsPath()      const { return attribsPath; }
+	std::string getToolPath()         const { return m_toolPath;    }
+	std::string getAttribsPath()      const { return m_attribsPath; }
 
-	std::vector<std::string> getExtraFiles() const { return extraFiles; }
+	std::vector<std::string> getExtraFiles() const { return m_extraFiles; }
 
-	size_t getNumPEs()       const { return stepLayout.numPEs;       }
-	size_t getNumHosts()     const { return stepLayout.nodes.size(); }
+	size_t getNumPEs()       const { return m_stepLayout.numPEs;       }
+	size_t getNumHosts()     const { return m_stepLayout.nodes.size(); }
 	std::vector<std::string> getHostnameList() const;
 	std::vector<CTIHost>     getHostsPlacement() const;
 
@@ -116,8 +116,8 @@ public: // app interaction interface
 	void startDaemon(const char* const args[]);
 
 public: // slurm specific interface
-	uint64_t getApid() const { return CRAY_SLURM_APID(srunInfo.jobid, srunInfo.stepid); }
-	SrunInfo getSrunInfo() const { return srunInfo; }
+	uint64_t getApid() const { return CRAY_SLURM_APID(m_srunInfo.jobid, m_srunInfo.stepid); }
+	SrunInfo getSrunInfo() const { return m_srunInfo; }
 };
 
 

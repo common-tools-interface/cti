@@ -309,59 +309,59 @@ namespace slurm_conventions
 /* constructors / destructors */
 
 CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
-	: srunInfo    { jobid, stepid }
-	, stepLayout  { jobid, stepid }
-	, barrier     { mpir_id }
-	, dlaunchSent { false }
+	: m_srunInfo    { jobid, stepid }
+	, m_stepLayout  { jobid, stepid }
+	, m_barrier     { mpir_id }
+	, m_dlaunchSent { false }
 
-	, toolPath    { CRAY_SLURM_TOOL_DIR }
-	, attribsPath { cstr::asprintf(CRAY_SLURM_CRAY_DIR, CRAY_SLURM_APID(jobid, stepid)) }
-	, stagePath   { cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SLURM_STAGE_DIR}) }
-	, extraFiles  { slurm_conventions::createNodeLayoutFile(stepLayout, stagePath) }
+	, m_toolPath    { CRAY_SLURM_TOOL_DIR }
+	, m_attribsPath { cstr::asprintf(CRAY_SLURM_CRAY_DIR, CRAY_SLURM_APID(jobid, stepid)) }
+	, m_stagePath   { cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SLURM_STAGE_DIR}) }
+	, m_extraFiles  { slurm_conventions::createNodeLayoutFile(m_stepLayout, m_stagePath) }
 {
 	// Ensure there are running nodes in the job.
-	if (stepLayout.nodes.empty()) {
+	if (m_stepLayout.nodes.empty()) {
 		throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
 	}
 
 	// If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
-	if (barrier) {
+	if (m_barrier) {
 		// FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
 		// call can be removed. Right now the pmi_attribs file is created in the pmi
 		// ctor, which is called after the slurm startup barrier, meaning it will not
 		// yet be created when launching. So we need to send over a file containing
 		// the information to the compute nodes.
 		if (auto const procTable = UniquePtrDestr<cti_mpir_procTable_t>
-			{ _cti_mpir_newProcTable(barrier.get())
+			{ _cti_mpir_newProcTable(m_barrier.get())
 			, _cti_mpir_deleteProcTable
 		}) {
-			extraFiles.push_back(slurm_conventions::createPIDListFile(*procTable, stagePath));
+			m_extraFiles.push_back(slurm_conventions::createPIDListFile(*procTable, m_stagePath));
 		} else {
-			throw std::runtime_error("failed to get MPIR proctable from mpir id " + std::to_string(barrier.get()));
+			throw std::runtime_error("failed to get MPIR proctable from mpir id " + std::to_string(m_barrier.get()));
 		}
 	}
 }
 
 CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
-	: srunInfo    { moved.srunInfo }
-	, stepLayout  { moved.stepLayout }
-	, barrier     { std::move(moved.barrier) }
-	, dlaunchSent { moved.dlaunchSent }
+	: m_srunInfo    { moved.m_srunInfo }
+	, m_stepLayout  { moved.m_stepLayout }
+	, m_barrier     { std::move(moved.m_barrier) }
+	, m_dlaunchSent { moved.m_dlaunchSent }
 
-	, toolPath    { moved.toolPath }
-	, attribsPath { moved.attribsPath }
-	, stagePath   { moved.stagePath }
-	, extraFiles  { moved.extraFiles }
+	, m_toolPath    { moved.m_toolPath }
+	, m_attribsPath { moved.m_attribsPath }
+	, m_stagePath   { moved.m_stagePath }
+	, m_extraFiles  { moved.m_extraFiles }
 {
 	// We have taken ownership of the staging path, so don't let moved delete the directory.
-	moved.stagePath.erase();
+	moved.m_stagePath.erase();
 }
 
 CraySLURMApp::~CraySLURMApp()
 {
 	// Delete the staging directory if it exists.
-	if (!stagePath.empty()) {
-		_cti_removeDirectory(stagePath.c_str());
+	if (!m_stagePath.empty()) {
+		_cti_removeDirectory(m_stagePath.c_str());
 	}
 }
 
@@ -393,7 +393,7 @@ CraySLURMApp::CraySLURMApp(const char * const launcher_argv[], int stdout_fd, in
 std::string
 CraySLURMApp::getJobId() const
 {
-	return std::string{std::to_string(srunInfo.jobid) + "." + std::to_string(srunInfo.stepid)};
+	return std::string{std::to_string(m_srunInfo.jobid) + "." + std::to_string(m_srunInfo.stepid)};
 }
 
 std::string
@@ -409,7 +409,7 @@ CraySLURMApp::getHostnameList() const
 {
 	std::vector<std::string> result;
 	// extract hostnames from each NodeLayout
-	std::transform(stepLayout.nodes.begin(), stepLayout.nodes.end(), std::back_inserter(result),
+	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
 		[](slurm_util::NodeLayout const& node) { return node.hostname; });
 	return result;
 }
@@ -419,7 +419,7 @@ CraySLURMApp::getHostsPlacement() const
 {
 	std::vector<CTIHost> result;
 	// construct a CTIHost from each NodeLayout
-	std::transform(stepLayout.nodes.begin(), stepLayout.nodes.end(), std::back_inserter(result),
+	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
 		[](slurm_util::NodeLayout const& node) {
 			return CTIHost{node.hostname, node.numPEs};
 		});
@@ -429,10 +429,10 @@ CraySLURMApp::getHostsPlacement() const
 /* running app interaction interface */
 
 void CraySLURMApp::releaseBarrier() {
-	if (!barrier) {
+	if (!m_barrier) {
 		throw std::runtime_error("app not under MPIR control");
 	}
-	barrier.reset();
+	m_barrier.reset();
 }
 
 void CraySLURMApp::kill(int signum)
@@ -470,7 +470,7 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 	auto launcherArgv = ManagedArgv
 		{ SBCAST
 		, "-C"
-		, "-j", std::to_string(srunInfo.jobid)
+		, "-j", std::to_string(m_srunInfo.jobid)
 		, tarPath
 		, "--force"
 	};
@@ -531,7 +531,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 
 	// If we have not yet transfered the dlaunch binary, we need to do that in advance with
 	// native slurm
-	if (!dlaunchSent) {
+	if (!m_dlaunchSent) {
 		// Get the location of the daemon launcher
 		if (_cti_getDlaunchPath().empty()) {
 			throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
@@ -540,11 +540,11 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 		shipPackage(_cti_getDlaunchPath());
 
 		// set transfer to true
-		dlaunchSent = true;
+		m_dlaunchSent = true;
 	}
 
 	// use existing launcher binary on compute node
-	std::string const launcherPath(toolPath + "/" + CTI_LAUNCHER);
+	std::string const launcherPath(m_toolPath + "/" + CTI_LAUNCHER);
 
 	// Start adding the args to the launcher argv array
 	//
@@ -557,14 +557,14 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	//
 	auto launcherArgv = ManagedArgv
 		{ slurm_conventions::getLauncherName()
-		, "--jobid=" + std::to_string(srunInfo.jobid)
+		, "--jobid=" + std::to_string(m_srunInfo.jobid)
 		, "--gres=none"
 		, "--mem-per-cpu=0"
 		, "--mem_bind=no"
 		, "--cpu_bind=no"
 		, "--share"
 		, "--ntasks-per-node=1"
-		, "--nodes=" + std::to_string(stepLayout.nodes.size())
+		, "--nodes=" + std::to_string(m_stepLayout.nodes.size())
 		, "--disable-status"
 		, "--quiet"
 		, "--mpi=none"
@@ -575,7 +575,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	// create the hostlist by contencating all hostnames
 	{ auto hostlist = std::string{};
 		bool firstHost = true;
-		for (auto const& node : stepLayout.nodes) {
+		for (auto const& node : m_stepLayout.nodes) {
 			hostlist += (firstHost ? "" : ",") + node.hostname;
 			firstHost = false;
 		}
