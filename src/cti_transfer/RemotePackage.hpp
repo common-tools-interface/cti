@@ -13,18 +13,18 @@
 
 class RemotePackage final {
 private: // variables
-	const std::string archiveName;
-	std::weak_ptr<Session> sessionPtr;
-	const size_t instanceCount;
+	std::string const m_archiveName;
+	std::weak_ptr<Session> m_sessionPtr;
+	size_t const m_instanceCount;
 
 private: // functions
-	inline void invalidate() { sessionPtr.reset(); }
+	inline void invalidate() { m_sessionPtr.reset(); }
 
 public: // interface
 
 	// run WLM shipping routine to stage archivePath
-	RemotePackage(const std::string& archivePath, const std::string& archiveName_,
-		std::shared_ptr<Session>& liveSession, size_t instanceCount_);
+	RemotePackage(std::string const& archivePath, std::string const& archiveName,
+		std::shared_ptr<Session>& liveSession, size_t instanceCount);
 
 	// object finalized after running extraction routines
 	void extract();
