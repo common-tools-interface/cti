@@ -102,7 +102,7 @@ public: // types
 	using AppId   = cti_app_id_t;
 
 private: // variables
-	std::unordered_map<AppId, std::unique_ptr<App>> appList;
+	std::unordered_map<AppId, std::unique_ptr<App>> m_appList;
 	static const AppId APP_ERROR = 0;
 
 private: // helpers
@@ -113,7 +113,7 @@ private: // helpers
 protected: // derivable helpers
 	AppId registerAppPtr(std::unique_ptr<App>&& created) {
 		auto const appId = newAppId();
-		appList.emplace(appId, std::move(created));
+		m_appList.emplace(appId, std::move(created));
 		return appId;
 	}
 
@@ -135,8 +135,8 @@ public: // impl.-specific interface
 public: // app management
 	App&
 	getApp(AppId appId) const {
-		auto app = appList.find(appId);
-		if (app != appList.end()) {
+		auto app = m_appList.find(appId);
+		if (app != m_appList.end()) {
 			return *(app->second);
 		}
 
@@ -145,12 +145,12 @@ public: // app management
 
 	bool
 	appIsValid(AppId appId) const {
-		return appList.find(appId) != appList.end();
+		return m_appList.find(appId) != m_appList.end();
 	}
 
 	void
 	deregisterApp(AppId appId) {
-		appList.erase(appId);
+		m_appList.erase(appId);
 	}
 };
 
