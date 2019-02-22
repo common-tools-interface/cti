@@ -126,22 +126,22 @@ public: // constructor / destructor interface
 	~CraySLURMApp();
 
 public: // app interaction interface
-	std::string getJobId()            const;
-	std::string getLauncherHostname() const;
-	std::string getToolPath()         const { return m_toolPath;    }
-	std::string getAttribsPath()      const { return m_attribsPath; }
+	std::string getJobId()            const override;
+	std::string getLauncherHostname() const override;
+	std::string getToolPath()         const override { return m_toolPath;    }
+	std::string getAttribsPath()      const override { return m_attribsPath; }
 
-	std::vector<std::string> getExtraFiles() const { return m_extraFiles; }
+	std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 
-	size_t getNumPEs()       const { return m_stepLayout.numPEs;       }
-	size_t getNumHosts()     const { return m_stepLayout.nodes.size(); }
-	std::vector<std::string> getHostnameList() const;
-	std::vector<CTIHost>     getHostsPlacement() const;
+	size_t getNumPEs()       const override { return m_stepLayout.numPEs;       }
+	size_t getNumHosts()     const override { return m_stepLayout.nodes.size(); }
+	std::vector<std::string> getHostnameList()   const override;
+	std::vector<CTIHost>     getHostsPlacement() const override;
 
-	void releaseBarrier();
-	void kill(int signal);
-	void shipPackage(std::string const& tarPath) const;
-	void startDaemon(const char* const args[]);
+	void releaseBarrier() override;
+	void kill(int signal) override;
+	void shipPackage(std::string const& tarPath) const override;
+	void startDaemon(const char* const args[]) override;
 
 public: // slurm specific interface
 	uint64_t getApid() const { return CRAY_SLURM_APID(m_srunInfo.jobid, m_srunInfo.stepid); }
@@ -152,13 +152,13 @@ public: // slurm specific interface
 class CraySLURMFrontend : public Frontend {
 
 public: // inherited interface
-	cti_wlm_type getWLMType() const { return CTI_WLM_CRAY_SLURM; }
+	cti_wlm_type getWLMType() const override { return CTI_WLM_CRAY_SLURM; }
 
 	AppId
 	launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
-	              CStr inputFile, CStr chdirPath, CArgArray env_list);
+	              CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
-	std::string getHostname() const;
+	std::string getHostname() const override;
 
 public: // slurm specific interface
 	AppId registerJobStep(uint32_t jobid, uint32_t stepid);
