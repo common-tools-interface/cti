@@ -154,13 +154,13 @@ class CraySLURMFrontend : public Frontend {
 public: // inherited interface
 	cti_wlm_type getWLMType() const override { return CTI_WLM_CRAY_SLURM; }
 
-	AppId
-	launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
-	              CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+	std::unique_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
+		CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
 	std::string getHostname() const override;
 
 public: // slurm specific interface
-	AppId registerJobStep(uint32_t jobid, uint32_t stepid);
-	SrunInfo getSrunInfo(pid_t srunPid);      // attach and read srun info
+	std::unique_ptr<App> registerJobStep(uint32_t jobid, uint32_t stepid);
+
+	SrunInfo getSrunInfo(pid_t srunPid); // attach and read srun info
 };

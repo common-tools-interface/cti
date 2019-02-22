@@ -636,12 +636,12 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 
 /* cray slurm frontend implementation */
 
-Frontend::AppId
+std::unique_ptr<App>
 CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 	                             CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-	return registerAppPtr(std::make_unique<CraySLURMApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
-		chdirPath, env_list));
+	return std::make_unique<CraySLURMApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
+		chdirPath, env_list);
 }
 
 std::string
@@ -650,9 +650,9 @@ CraySLURMFrontend::getHostname() const
 	return slurm_conventions::getHostname();
 }
 
-Frontend::AppId
+std::unique_ptr<App>
 CraySLURMFrontend::registerJobStep(uint32_t jobid, uint32_t stepid) {
-	return registerAppPtr(std::make_unique<CraySLURMApp>(jobid, stepid));
+	return std::make_unique<CraySLURMApp>(jobid, stepid);
 }
 
 SrunInfo

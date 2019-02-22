@@ -59,21 +59,20 @@ private: // helper functions
 	static std::string generateStagePath();
 
 public: // variables
-	Frontend const& m_frontend;
-	Frontend::AppId const m_appId;
+	App& m_activeApp;
 
 	std::string const m_configPath;
 	std::string const m_stageName;
 	std::string const m_attribsPath;
 	std::string const m_toolPath;
 	std::string const m_jobId;
-	std::string const m_wlmEnum;
+	std::string const m_wlmType;
 
 private: // variables
 	std::string m_ldLibraryPath;
 
 public: // interface
-	Session(Frontend const& frontend, Frontend::AppId appId);
+	Session(cti_wlm_type const wlmType, App& activeApp);
 
 	// accessors
 	inline auto getManifests() const -> const decltype(m_manifests)& { return m_manifests; }
@@ -86,7 +85,7 @@ public: // interface
 	// wlm / daemon wrappers
 	void startDaemon(char * const argv[]);
 	inline void shipPackage(std::string const& tarPath) {
-		m_frontend.getApp(m_appId).shipPackage(tarPath);
+		m_activeApp.shipPackage(tarPath);
 	}
 
 	// create new manifest and register ownership

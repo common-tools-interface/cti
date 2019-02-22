@@ -68,8 +68,6 @@ const char *	cti_version(void);
 cti_wlm_type	cti_current_wlm(void);
 const char *	cti_wlm_type_toString(cti_wlm_type);
 char *      	cti_getHostname(void);
-int         	cti_appIsValid(cti_app_id_t);
-void        	cti_deregisterApp(cti_app_id_t);
 
 // running app information query
 char *           	cti_getLauncherHostName(cti_app_id_t);
@@ -80,6 +78,8 @@ cti_hostsList_t *	cti_getAppHostsPlacement(cti_app_id_t);
 void             	cti_destroyHostsList(cti_hostsList_t *);
 
 // app lifecycle management
+int         	cti_appIsValid(cti_app_id_t);
+void        	cti_deregisterApp(cti_app_id_t);
 cti_app_id_t	cti_launchApp(const char * const [], int, int, const char *, const char *, const char * const []);
 cti_app_id_t	cti_launchAppBarrier(const char * const [], int, int, const char *, const char *, const char * const []);
 int         	cti_releaseAppBarrier(cti_app_id_t);

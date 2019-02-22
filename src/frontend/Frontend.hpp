@@ -98,24 +98,6 @@ public: // interface
 
 // This is the wlm interface that all wlm implementations should implement.
 class Frontend {
-public: // types
-	using AppId   = cti_app_id_t;
-
-private: // variables
-	std::unordered_map<AppId, std::unique_ptr<App>> m_appList;
-	static const AppId APP_ERROR = 0;
-
-private: // helpers
-	static AppId newAppId() noexcept {
-		static AppId nextId = 1;
-		return nextId++;
-	}
-protected: // derivable helpers
-	AppId registerAppPtr(std::unique_ptr<App>&& created) {
-		auto const appId = newAppId();
-		m_appList.emplace(appId, std::move(created));
-		return appId;
-	}
 
 public: // impl.-specific interface
 	// wlm type
@@ -123,35 +105,13 @@ public: // impl.-specific interface
 	getWLMType() const = 0;
 
 	// launch application with barrier
-	virtual AppId
+	virtual std::unique_ptr<App>
 	launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 	              CStr inputFile, CStr chdirPath, CArgArray env_list) = 0;
 
 	// get hostname of current node
 	virtual std::string
 	getHostname(void) const = 0;
-
-
-public: // app management
-	App&
-	getApp(AppId appId) const {
-		auto app = m_appList.find(appId);
-		if (app != m_appList.end()) {
-			return *(app->second);
-		}
-
-		throw std::runtime_error("invalid appId: " + std::to_string(appId));
-	}
-
-	bool
-	appIsValid(AppId appId) const {
-		return m_appList.find(appId) != m_appList.end();
-	}
-
-	void
-	deregisterApp(AppId appId) {
-		m_appList.erase(appId);
-	}
 };
 
 /* internal frontend management */

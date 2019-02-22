@@ -71,16 +71,23 @@ static std::string _cti_overwatch_bin;// overwatch binary location
 static std::string _cti_dlaunch_bin;  // dlaunch binary location
 static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
 
-namespace {
-	static constexpr auto SUCCESS = int{0};
-	static constexpr auto FAILURE = int{1};
-}
-
 /* global wlm frontend / app objects */
 
-// app management
 static auto currentFrontendPtr = std::unique_ptr<Frontend>{};
+
+// app management
 static auto appList = std::unordered_map<cti_app_id_t, std::unique_ptr<App>>{};
+static const cti_app_id_t APP_ERROR = 0;
+static cti_app_id_t newAppId() noexcept {
+	static cti_app_id_t nextId = 1;
+	return nextId++;
+}
+static App& getApp(cti_app_id_t appId) {
+	if (!cti_appIsValid(appId)) {
+		throw std::runtime_error("invalid app id " + std::to_string(appId));
+	}
+	return *(appList.at(appId));
+}
 
 // transfer session management
 static auto sessionList = std::unordered_map<cti_session_id_t, std::shared_ptr<Session>>{};
@@ -204,6 +211,11 @@ namespace cti_conventions {
 			}
 		}
 	}
+}
+
+namespace {
+	static constexpr auto SUCCESS = int{0};
+	static constexpr auto FAILURE = int{1};
 }
 
 // run code that can throw and use it to set cti error instead
@@ -500,38 +512,23 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 }
 
 int
-cti_appIsValid(cti_app_id_t appId) {
-	return runSafely("cti_appIsValid", [&](){
-		return _cti_getCurrentFrontend().appIsValid(appId);
-	}, false);
-}
-
-void
-cti_deregisterApp(cti_app_id_t appId) {
-	runSafely("cti_deregisterApp", [&](){
-		_cti_getCurrentFrontend().deregisterApp(appId);
-		return true;
-	}, false);
-}
-
-int
 cti_getNumAppPEs(cti_app_id_t appId) {
 	return runSafely("cti_getNumAppPEs", [&](){
-		return _cti_getCurrentFrontend().getApp(appId).getNumPEs();
+		return getApp(appId).getNumPEs();
 	}, -1);
 }
 
 int
 cti_getNumAppNodes(cti_app_id_t appId) {
 	return runSafely("cti_getNumAppNodes", [&](){
-		return _cti_getCurrentFrontend().getApp(appId).getNumHosts();
+		return getApp(appId).getNumHosts();
 	}, -1);
 }
 
 char**
 cti_getAppHostsList(cti_app_id_t appId) {
 	return runSafely("cti_getAppHostsList", [&](){
-		auto const hostList = _cti_getCurrentFrontend().getApp(appId).getHostnameList();
+		auto const hostList = getApp(appId).getHostnameList();
 
 		char **host_list = (char**)malloc(sizeof(char*) * (hostList.size() + 1));
 		for (size_t i = 0; i < hostList.size(); i++) {
@@ -546,7 +543,7 @@ cti_getAppHostsList(cti_app_id_t appId) {
 cti_hostsList_t*
 cti_getAppHostsPlacement(cti_app_id_t appId) {
 	return runSafely("cti_getAppHostsPlacement", [&](){
-		auto const hostPlacement = _cti_getCurrentFrontend().getApp(appId).getHostsPlacement();
+		auto const hostPlacement = getApp(appId).getHostsPlacement();
 
 		cti_hostsList_t *result = (cti_hostsList_t*)malloc(sizeof(cti_hostsList_t));
 		result->hosts = (cti_host_t*)malloc(sizeof(cti_host_t) * hostPlacement.size());
@@ -586,7 +583,7 @@ cti_getHostname() {
 char*
 cti_getLauncherHostName(cti_app_id_t appId) {
 	return runSafely("cti_getLauncherHostName", [&](){
-		return strdup(_cti_getCurrentFrontend().getApp(appId).getLauncherHostname().c_str());
+		return strdup(getApp(appId).getLauncherHostname().c_str());
 	}, (char*)nullptr);
 }
 
@@ -646,7 +643,10 @@ cti_cray_slurm_getJobInfo(pid_t srunPid) {
 cti_app_id_t
 cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
 	return runSafely("cti_cray_slurm_registerJobStep", [&](){
-		return downcastCurrentFE<CraySLURMFrontend>()->registerJobStep(job_id, step_id);
+		auto const appId = newAppId();
+		appList.insert(std::make_pair(appId,
+			downcastCurrentFE<CraySLURMFrontend>()->registerJobStep(job_id, step_id)));
+		return appId;
 	}, cti_app_id_t{0});
 }
 
@@ -655,7 +655,7 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 	return runSafely("cti_cray_slurm_getSrunInfo", [&](){
 		auto craySlurmPtr = downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
-			*result = dynamic_cast<CraySLURMApp&>(craySlurmPtr->getApp(appId)).getSrunInfo();
+			*result = dynamic_cast<CraySLURMApp&>(getApp(appId)).getSrunInfo();
 			return result;
 		} else {
 			throw std::runtime_error("malloc failed.");
@@ -693,14 +693,35 @@ cti_ssh_registerJob(pid_t launcher_pid) {
 
 /* app launch / release implementations */
 
+int
+cti_appIsValid(cti_app_id_t appId) {
+	return runSafely("cti_appIsValid", [&](){
+		return appList.find(appId) != appList.end();
+	}, false);
+}
+
+void
+cti_deregisterApp(cti_app_id_t appId) {
+	runSafely("cti_deregisterApp", [&](){
+		appList.erase(appId);
+		return true;
+	}, false);
+}
+
 cti_app_id_t
 cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
 	return runSafely("cti_launchApp", [&](){
+		// sanity check the app launch arguments
 		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
-		auto const appId = _cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
-		_cti_getCurrentFrontend().getApp(appId).releaseBarrier();
+
+		// delegate app launch and registration to launchAppBarrier
+		auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
+
+		// release barrier
+		getApp(appId).releaseBarrier();
+
 		return appId;
 	}, cti_app_id_t{0});
 }
@@ -710,15 +731,25 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stde
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
 	return runSafely("cti_launchAppBarrier", [&](){
+		// sanity check the app launch arguments
 		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
-		return _cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
+
+		// create app instance held at barrier
+		auto const appId = newAppId();
+		auto newApp = _cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd,
+			inputFile, chdirPath, env_list);
+
+		// register in the app list
+		appList.insert(std::make_pair(appId, std::move(newApp)));
+
+		return appId;
 	}, cti_app_id_t{0});
 }
 
 int
 cti_releaseAppBarrier(cti_app_id_t appId) {
 	return runSafely("cti_releaseAppBarrier", [&](){
-		_cti_getCurrentFrontend().getApp(appId).releaseBarrier();
+		getApp(appId).releaseBarrier();
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -726,7 +757,7 @@ cti_releaseAppBarrier(cti_app_id_t appId) {
 int
 cti_killApp(cti_app_id_t appId, int signum) {
 	return runSafely("cti_killApp", [&](){
-		_cti_getCurrentFrontend().getApp(appId).kill(signum);
+		getApp(appId).kill(signum);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -737,19 +768,17 @@ cti_killApp(cti_app_id_t appId, int signum) {
 
 // create and add wlm basefiles to manifest. run this after creating a Session
 static void shipWLMBaseFiles(Session& liveSession) {
-	auto& frontend = _cti_getCurrentFrontend();
-
 	auto baseFileManifest = liveSession.createManifest();
-	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraBinaries()) {
+	for (auto const& path : liveSession.m_activeApp.getExtraBinaries()) {
 		baseFileManifest->addBinary(path);
 	}
-	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraLibraries()) {
+	for (auto const& path : liveSession.m_activeApp.getExtraLibraries()) {
 		baseFileManifest->addLibrary(path);
 	}
-	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraLibDirs()) {
+	for (auto const& path : liveSession.m_activeApp.getExtraLibDirs()) {
 		baseFileManifest->addLibDir(path);
 	}
-	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraFiles()) {
+	for (auto const& path : liveSession.m_activeApp.getExtraFiles()) {
 		baseFileManifest->addFile(path);
 	}
 
@@ -763,7 +792,7 @@ cti_createSession(cti_app_id_t appId) {
 		auto const sid = newSessionId();
 
 		// create session instance
-		auto newSession = std::make_shared<Session>(_cti_getCurrentFrontend(), appId);
+		auto newSession = std::make_shared<Session>(_cti_getCurrentFrontend().getWLMType(), getApp(appId));
 		shipWLMBaseFiles(*newSession);
 		sessionList.insert(std::make_pair(sid, newSession));
 		return sid;
