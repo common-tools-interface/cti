@@ -43,7 +43,6 @@
 #include "cti_transfer.h"
 
 #include "useful/cti_useful.h"
-#include "useful/make_unique.hpp"
 #include "useful/Dlopen.hpp"
 
 #include "wlm_detect.h"
@@ -122,30 +121,30 @@ _cti_init(void) {
 			if (getDefault && (default_wlm = getDefault())) {
 				wlmName = std::string(default_wlm);
 			} else {
-				currentFrontendPtr = shim::make_unique<DefaultFrontend>();
+				currentFrontendPtr = std::make_unique<DefaultFrontend>();
 				return;
 			}
 		}
 	}
 
 	// parse the returned result
-	currentFrontendPtr = shim::make_unique<CraySLURMFrontend>();
+	currentFrontendPtr = std::make_unique<CraySLURMFrontend>();
 	#if !USE_CRAY_SLURM_ONLY
 	if (!wlmName.compare("ALPS") || !wlmName.compare("alps")) {
-		currentFrontendPtr = shim::make_unique<ALPSFrontend>();
+		currentFrontendPtr = std::make_unique<ALPSFrontend>();
 	} else if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
 		// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
 		if (_cti_is_cluster_system()) {
-			currentFrontendPtr = shim::make_unique<SLURMFrontend>();
+			currentFrontendPtr = std::make_unique<SLURMFrontend>();
 		} else {
-			currentFrontendPtr = shim::make_unique<CraySLURMFrontend>();
+			currentFrontendPtr = std::make_unique<CraySLURMFrontend>();
 		}
 	} else if (!wlmName.compare("generic")) {
-		currentFrontendPtr = shim::make_unique<SSHFrontend>();
+		currentFrontendPtr = std::make_unique<SSHFrontend>();
 	} else {
 		// fallback to use the default
 		fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
-		currentFrontendPtr = shim::make_unique<DefaultFrontend>();
+		currentFrontendPtr = std::make_unique<DefaultFrontend>();
 	}
 	if (currentFrontendPtr == nullptr) {
 		fprintf(stderr, "Workload manager argument '%s' produced null frontend!\n", wlmName.c_str());

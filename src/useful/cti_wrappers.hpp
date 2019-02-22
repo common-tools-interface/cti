@@ -35,7 +35,8 @@ namespace cstr {
 	namespace {
 		using cstr_type = std::unique_ptr<char, decltype(::free)*>;
 	}
-	class handle : cstr_type {
+	class handle : public cstr_type {
+	public: // interface
 		handle(char* str) : cstr_type{str, ::free} {}
 	};
 

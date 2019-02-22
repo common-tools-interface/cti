@@ -42,7 +42,6 @@
 #include "frontend/Frontend.hpp"
 #include "cray_slurm_fe.hpp"
 
-#include "useful/make_unique.hpp"
 #include "useful/strong_argv.hpp"
 #include "useful/Dlopen.hpp"
 #include "useful/cti_wrappers.hpp"
@@ -641,7 +640,7 @@ Frontend::AppId
 CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 	                             CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-	return registerAppPtr(shim::make_unique<CraySLURMApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
+	return registerAppPtr(std::make_unique<CraySLURMApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
 		chdirPath, env_list));
 }
 
@@ -653,7 +652,7 @@ CraySLURMFrontend::getHostname() const
 
 Frontend::AppId
 CraySLURMFrontend::registerJobStep(uint32_t jobid, uint32_t stepid) {
-	return registerAppPtr(shim::make_unique<CraySLURMApp>(jobid, stepid));
+	return registerAppPtr(std::make_unique<CraySLURMApp>(jobid, stepid));
 }
 
 SrunInfo
