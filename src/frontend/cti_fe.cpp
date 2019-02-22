@@ -36,17 +36,17 @@
 #include <unordered_map>
 #include <memory>
 
+// CTI definition includes
 #include "cti_fe.h"
 #include "cti_defs.h"
 #include "cti_error.h"
 
-#include "cti_transfer.h"
+// CTI Transfer includes
+#include "frontend/Frontend.hpp"
+#include "cti_transfer/Manifest.hpp"
+#include "cti_transfer/Session.hpp"
 
-#include "useful/cti_useful.h"
-#include "useful/Dlopen.hpp"
-
-#include "wlm_detect.h"
-
+// CTI Frontend / App implementations
 #include "Frontend.hpp"
 #include "cray_slurm_fe.hpp"
 #define USE_CRAY_SLURM_ONLY 1
@@ -55,6 +55,14 @@
 #include "slurm_fe.hpp"
 #include "ssh_fe.hpp"
 #endif
+
+// WLM detection library interface
+#include "wlm_detect.h"
+
+// utility includes
+#include "useful/cti_useful.h"
+#include "useful/Dlopen.hpp"
+
 
 /* Static prototypes */
 static void			_cti_setup_base_dir(void);

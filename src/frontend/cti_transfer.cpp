@@ -11,8 +11,6 @@
 #include "cti_transfer/Manifest.hpp"
 #include "cti_transfer/Session.hpp"
 
-#include "cti_transfer.h"
-
 static std::unordered_map<cti_session_id_t, std::shared_ptr<Session>> sessions;
 static const cti_session_id_t SESSION_ERROR = 0;
 static cti_session_id_t newSessionId() noexcept {
