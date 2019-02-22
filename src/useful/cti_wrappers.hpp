@@ -35,7 +35,7 @@ namespace cstr {
 	namespace {
 		using cstr_type = std::unique_ptr<char, decltype(::free)*>;
 	}
-	struct handle : cstr_type {
+	class handle : cstr_type {
 		handle(char* str) : cstr_type{str, ::free} {}
 	};
 
