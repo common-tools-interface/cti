@@ -10,41 +10,41 @@ using ArchPtr = Archive::ArchPtr;
 using EntryPtr = Archive::EntryPtr;
 
 EntryPtr& Archive::freshEntry() {
-	if (entryScratchpad) {
-		archive_entry_clear(entryScratchpad.get());
-		return entryScratchpad;
+	if (m_entryScratchpad) {
+		archive_entry_clear(m_entryScratchpad.get());
+		return m_entryScratchpad;
 	} else {
-		throw std::runtime_error(archivePath + " tried to add a path after finalizing");
+		throw std::runtime_error(m_archivePath + " tried to add a path after finalizing");
 	}
 }
 
-Archive::Archive(const std::string& archivePath_) :
-	archPtr(archive_write_new(), archive_write_free),
-	entryScratchpad(archive_entry_new(), archive_entry_free),
-	archivePath(archivePath_) {
+Archive::Archive(const std::string& archivePath) :
+	m_archPtr{archive_write_new(), archive_write_free},
+	m_entryScratchpad{archive_entry_new(), archive_entry_free},
+	m_archivePath{archivePath} {
 
-	if (archPtr == nullptr) {
+	if (m_archPtr == nullptr) {
 		throw std::runtime_error("archive_write_new_failed");
 	}
 
-	if (archive_write_set_format_gnutar(archPtr.get()) != ARCHIVE_OK) {
-		throw std::runtime_error(archive_error_string(archPtr.get()));
+	if (archive_write_set_format_gnutar(m_archPtr.get()) != ARCHIVE_OK) {
+		throw std::runtime_error(archive_error_string(m_archPtr.get()));
 	}
 
 	// todo: block signals
-	if (archive_write_open_filename(archPtr.get(), archivePath.c_str()) != ARCHIVE_OK) {
-		throw std::runtime_error(archive_error_string(archPtr.get()));
+	if (archive_write_open_filename(m_archPtr.get(), m_archivePath.c_str()) != ARCHIVE_OK) {
+		throw std::runtime_error(archive_error_string(m_archPtr.get()));
 	}
 	// todo: unblock signals
 }
 
-static void archiveWriteRetry(ArchPtr& archPtr, EntryPtr& entryPtr) {
+static void archiveWriteRetry(struct archive* arch, struct archive_entry* entry) {
 	while (true) {
-		switch (archive_write_header(archPtr.get(), entryPtr.get())) {
+		switch (archive_write_header(arch, entry)) {
 			case ARCHIVE_RETRY:
 				continue;
 			case ARCHIVE_FATAL:
-				throw std::runtime_error(archive_error_string(archPtr.get()));
+				throw std::runtime_error(archive_error_string(arch));
 			default: return;
 		}
 	}
@@ -67,7 +67,7 @@ void Archive::addDirEntry(const std::string& entryPath) {
 	archive_entry_set_ctime    (entryPtr.get(), tv.tv_sec, tv.tv_nsec);
 	archive_entry_set_mtime    (entryPtr.get(), tv.tv_sec, tv.tv_nsec);
 
-	archiveWriteRetry(archPtr, entryPtr);
+	archiveWriteRetry(m_archPtr.get(), entryPtr.get());
 }
 
 void Archive::addDir(const std::string& entryPath, const std::string& dirPath) {
@@ -117,10 +117,10 @@ void Archive::addFile(const std::string& entryPath, const std::string& filePath)
 				break;
 			}
 
-			size_t writeLen = archive_write_data(archPtr.get(), readBuf, readLen);
+			size_t writeLen = archive_write_data(m_archPtr.get(), readBuf, readLen);
 			if (writeLen < 0) {
 				throw std::runtime_error(filePath + " failed archive_write_data: " +
-					archive_error_string(archPtr.get()));
+					archive_error_string(m_archPtr.get()));
 			} else if (writeLen != readLen) {
 				throw std::runtime_error(filePath +
 					" had archive_write_data length mismatch.");
@@ -139,7 +139,7 @@ void Archive::addPath(const std::string& entryPath, const std::string& path) {
 	{ auto& entryPtr = freshEntry();
 		archive_entry_copy_stat(entryPtr.get(), &st);
 		archive_entry_set_pathname(entryPtr.get(), entryPath.c_str());
-		archiveWriteRetry(archPtr, entryPtr);
+		archiveWriteRetry(m_archPtr.get(), entryPtr.get());
 	}
 
 	// call proper file/diradd functions

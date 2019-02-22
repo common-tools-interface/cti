@@ -48,37 +48,37 @@ public: // types
 	};
 
 private: // variables
-	std::vector<std::shared_ptr<Manifest>> manifests;
-	size_t shippedManifests = 0;
+	std::vector<std::shared_ptr<Manifest>> m_manifests;
+	size_t m_shippedManifests = 0;
 
-	FoldersMap folders;
-	PathMap sourcePaths;
+	FoldersMap m_folders;
+	PathMap m_sourcePaths;
 
 private: // helper functions
 	// generate a staging path according to CTI path rules
 	static std::string generateStagePath();
 
 public: // variables
-	Frontend const& frontend;
-	Frontend::AppId const appId;
+	Frontend const& m_frontend;
+	Frontend::AppId const m_appId;
 
-	const std::string configPath;
-	const std::string stageName;
-	const std::string attribsPath;
-	const std::string toolPath;
-	const std::string jobId;
-	const std::string wlmEnum;
+	std::string const m_configPath;
+	std::string const m_stageName;
+	std::string const m_attribsPath;
+	std::string const m_toolPath;
+	std::string const m_jobId;
+	std::string const m_wlmEnum;
 
 private: // variables
-	std::string ldLibraryPath;
+	std::string m_ldLibraryPath;
 
 public: // interface
 	Session(Frontend const& frontend, Frontend::AppId appId);
 
 	// accessors
-	inline auto getManifests() const -> const decltype(manifests)& { return manifests; }
-	inline const std::string& getLdLibraryPath() const { return ldLibraryPath; }
-	inline void invalidate() { manifests.clear(); }
+	inline auto getManifests() const -> const decltype(m_manifests)& { return m_manifests; }
+	inline const std::string& getLdLibraryPath() const { return m_ldLibraryPath; }
+	inline void invalidate() { m_manifests.clear(); }
 
 	// launch cti_daemon to clean up the session stage directory. invalidates the session
 	void launchCleanup();
@@ -86,7 +86,7 @@ public: // interface
 	// wlm / daemon wrappers
 	void startDaemon(char * const argv[]);
 	inline void shipPackage(std::string const& tarPath) {
-		frontend.getApp(appId).shipPackage(tarPath);
+		m_frontend.getApp(m_appId).shipPackage(tarPath);
 	}
 
 	// create new manifest and register ownership
@@ -111,8 +111,8 @@ public: // interface
 	/* prepend a manifest's alternate lib directory path to daemon LD_LIBRARY_PATH
 		override argument
 		*/
-	inline void pushLdLibraryPath(std::string folderName) {
-		const std::string remoteLibDirPath(toolPath + "/" + stageName + "/" + folderName);
-		ldLibraryPath = remoteLibDirPath + ":" + ldLibraryPath;
+	inline void pushLdLibraryPath(std::string const& folderName) {
+		std::string const remoteLibDirPath{m_toolPath + "/" + m_stageName + "/" + folderName};
+		m_ldLibraryPath = remoteLibDirPath + ":" + m_ldLibraryPath;
 	}
 };

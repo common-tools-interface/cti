@@ -20,9 +20,9 @@ public: // types
 	using EntryPtr = UniquePtrDestr<struct archive_entry>;
 
 private: // variables
-	ArchPtr archPtr;
-	EntryPtr entryScratchpad;
-	const std::string archivePath;
+	ArchPtr  m_archPtr;
+	EntryPtr m_entryScratchpad;
+	std::string const m_archivePath;
 
 private: // functions
 	// refresh the entry scratchpad without reallocating
@@ -37,22 +37,22 @@ public: // interface
 	Archive(const std::string& archivePath);
 
 	Archive(Archive&& moved) :
-		archPtr(std::move(moved.archPtr)),
-		entryScratchpad(std::move(moved.entryScratchpad)),
-		archivePath(std::move(moved.archivePath)) {}
+		m_archPtr(std::move(moved.m_archPtr)),
+		m_entryScratchpad(std::move(moved.m_entryScratchpad)),
+		m_archivePath(std::move(moved.m_archivePath)) {}
 
 	// remove archive from disk
 	~Archive() {
-		if (archPtr != nullptr) {
-			unlink(archivePath.c_str());
+		if (m_archPtr != nullptr) {
+			unlink(m_archivePath.c_str());
 		}
 	}
 
 	// finalize and return path to tarball; after, only valid operations are to destruct
 	const std::string& finalize() {
-		archPtr.reset();
-		entryScratchpad.reset();
-		return archivePath;
+		m_archPtr.reset();
+		m_entryScratchpad.reset();
+		return m_archivePath;
 	}
 	// create archive directory entry
 	void addDirEntry(const std::string& dirPath);

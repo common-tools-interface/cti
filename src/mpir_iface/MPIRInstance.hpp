@@ -23,7 +23,7 @@ private: // types
 	using Address = Inferior::Address;
 
 private: // variables
-	Inferior inferior;
+	Inferior m_inferior;
 
 public: // interface
 
@@ -34,11 +34,11 @@ public: // interface
     ~MPIRInstance() = default;
 
 	/* MPIR standard data structures (present in Inferior's memory) */
-	typedef struct {
+	struct MPIR_ProcDescElem {
 		Address host_name;
 		Address executable_name;
 		pid_t pid;
-	} MPIR_ProcDescElem;
+	};
 
 	enum MPIRDebugState : int {
 		Unknown = -1,
@@ -53,12 +53,12 @@ public: // interface
 
 	/* inferior access functions */
 
-	pid_t getLauncherPid() { return inferior.getPid(); }
+	pid_t getLauncherPid() { return m_inferior.getPid(); }
 
-	typedef struct {
+	struct MPIR_ProcTableElem {
 		pid_t pid;
 		std::string hostname;
-	} MPIR_ProcTableElem;
+	} ;
 	std::vector<MPIR_ProcTableElem> getProcTable();
 
 	/* memory access */

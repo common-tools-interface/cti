@@ -23,7 +23,7 @@ using Symbol  = Inferior::Symbol;
 MPIRInstance::MPIRInstance(std::string const& launcher,
 	std::vector<std::string> const& launcherArgv,
 	std::vector<std::string> envVars, std::map<int, int> remapFds) :
-	inferior(launcher, launcherArgv, envVars, remapFds) {
+	m_inferior{launcher, launcherArgv, envVars, remapFds} {
 
 	/* read symbols, set breakpoints, etc. */
 	setupMPIRStandard();
@@ -33,26 +33,26 @@ MPIRInstance::MPIRInstance(std::string const& launcher,
 
 /* attach to process given pid */
 MPIRInstance::MPIRInstance(std::string const& launcher, pid_t pid) :
-	inferior(launcher, pid) {
+	m_inferior{launcher, pid} {
 
 	setupMPIRStandard();
 }
 
 void MPIRInstance::setupMPIRStandard() {
 	/* read in required MPIR symbols */
-	inferior.addSymbol("MPIR_being_debugged");
-	inferior.addSymbol("MPIR_Breakpoint");
-	inferior.addSymbol("MPIR_debug_state");
-	inferior.addSymbol("MPIR_i_am_starter");
-	inferior.addSymbol("MPIR_partial_attach_ok");
-	inferior.addSymbol("MPIR_proctable");
-	inferior.addSymbol("MPIR_proctable_size");
+	m_inferior.addSymbol("MPIR_being_debugged");
+	m_inferior.addSymbol("MPIR_Breakpoint");
+	m_inferior.addSymbol("MPIR_debug_state");
+	m_inferior.addSymbol("MPIR_i_am_starter");
+	m_inferior.addSymbol("MPIR_partial_attach_ok");
+	m_inferior.addSymbol("MPIR_proctable");
+	m_inferior.addSymbol("MPIR_proctable_size");
 
 	/* set up breakpoints */
-	inferior.setBreakpoint("MPIR_Breakpoint");
+	m_inferior.setBreakpoint("MPIR_Breakpoint");
 
 	/* set MPIR_being_debugged = 1 */
-	inferior.writeVariable("MPIR_being_debugged", 1);
+	m_inferior.writeVariable("MPIR_being_debugged", 1);
 }
 
 
@@ -64,10 +64,10 @@ void MPIRInstance::runToMPIRBreakpoint() {
 
 	do {
 		DEBUG(std::cerr, "MPIR_debug_state: " << debugState << std::endl);
-		DEBUG(std::cerr, "MPIR_being_debugged: " << inferior.readVariable<int>("MPIR_being_debugged") << std::endl);
-		inferior.continueRun();
+		DEBUG(std::cerr, "MPIR_being_debugged: " << m_inferior.readVariable<int>("MPIR_being_debugged") << std::endl);
+		m_inferior.continueRun();
 		/* inferior now in stopped state. read MPIR_debug_state */
-		debugState = inferior.readVariable<MPIRDebugState>("MPIR_debug_state");
+		debugState = m_inferior.readVariable<MPIRDebugState>("MPIR_debug_state");
 	} while (debugState != MPIRDebugState::DebugSpawned);
 }
 
@@ -81,17 +81,17 @@ static T readArrayElem(Inferior& inf, std::string const& symName, size_t idx) {
 }
 
 std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
-	auto num_pids = inferior.readVariable<int>("MPIR_proctable_size");
+	auto num_pids = m_inferior.readVariable<int>("MPIR_proctable_size");
 	DEBUG(std::cerr, "procTable has size " << std::to_string(num_pids) << std::endl);
 
 	std::vector<MPIR_ProcTableElem> procTable;
 
 	/* copy elements */
 	for (int i = 0; i < num_pids; i++) {
-		auto procDesc = readArrayElem<MPIR_ProcDescElem>(inferior, "MPIR_proctable", i);
+		auto procDesc = readArrayElem<MPIR_ProcDescElem>(m_inferior, "MPIR_proctable", i);
 
 		/* read hostname */
-		auto buf = inferior.readMemory<std::array<char, HOST_NAME_MAX+1>>(procDesc.host_name);
+		auto buf = m_inferior.readMemory<std::array<char, HOST_NAME_MAX+1>>(procDesc.host_name);
 		buf[HOST_NAME_MAX] = '\0';
 
 		/* copy hostname */
@@ -107,11 +107,11 @@ std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
 
 std::string MPIRInstance::readStringAt(std::string const& symName) {
 	/* get address */
-	auto strAddress = inferior.readVariable<Address>(symName);
+	auto strAddress = m_inferior.readVariable<Address>(symName);
 
 	/* read string */
 	std::string result;
-	while (char c = inferior.readMemory<char>(strAddress++)) {
+	while (char c = m_inferior.readMemory<char>(strAddress++)) {
 		result.push_back(c);
 	}
 
