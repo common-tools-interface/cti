@@ -606,7 +606,7 @@ _cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int s
 	// Register this app with the application interface
 	auto const launcher_pid = _cti_mpir_getLauncherPid(mpir_id);
 	try {
-		sinfo = shim::make_unique<sshInfo_t>(launcher_pid, mpir_id, newAppId);
+		sinfo = std::make_unique<sshInfo_t>(launcher_pid, mpir_id, newAppId);
 	} catch (std::exception const& ex) {
 		_cti_mpir_releaseInstance(mpir_id);
 		throw ex;
@@ -1275,7 +1275,7 @@ SSHFrontend::registerJob(pid_t launcher_pid) {
 	auto const appId = newAppId();
 	if (auto const launcher_path = _cti_pathFind(SRUN, nullptr)) {
 		if (auto const mpir_id = _cti_mpir_newAttachInstance(launcher_path, launcher_pid)) {
-			appList[appId] = shim::make_unique<sshInfo_t>(launcher_pid, mpir_id, appId);
+			appList[appId] = std::make_unique<sshInfo_t>(launcher_pid, mpir_id, appId);
 		} else {
 			throw std::runtime_error("failed to attach to launcher pid " + std::to_string(launcher_pid)); 
 		}
