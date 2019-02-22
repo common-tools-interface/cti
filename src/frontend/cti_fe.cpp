@@ -64,11 +64,6 @@
 #include "useful/cti_useful.h"
 #include "useful/Dlopen.hpp"
 
-
-/* Static prototypes */
-static void			_cti_setup_base_dir(void);
-bool				_cti_is_cluster_system();
-
 /* static global vars */
 static std::string _cti_cfg_dir;      // config dir that we can use as temporary storage
 static std::string _cti_ld_audit_lib; // ld audit library location
@@ -79,19 +74,6 @@ static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
 namespace {
 	static constexpr auto SUCCESS = int{0};
 	static constexpr auto FAILURE = int{1};
-}
-
-/* helper functions */
-
-// run code that can throw and use it to set cti error instead
-template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
-static ReturnType runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
-	try {
-		return std::forward<FuncType>(func)();
-	} catch (std::exception const& ex) {
-		_cti_set_error((caller + ": " + ex.what()).c_str());
-		return onError;
-	}
 }
 
 /* global wlm frontend / app objects */
@@ -107,6 +89,12 @@ static cti_session_id_t newSessionId() noexcept {
 	static cti_session_id_t nextId = 1;
 	return nextId++;
 }
+static Session& getSession(cti_session_id_t sid) {
+	if (!cti_sessionIsValid(sid)) {
+		throw std::runtime_error("invalid session id " + std::to_string(sid));
+	}
+	return *(sessionList.at(sid));
+}
 
 // transfer manifest management
 static auto manifestList = std::unordered_map<cti_manifest_id_t, std::shared_ptr<Manifest>>{};
@@ -114,6 +102,129 @@ static const cti_manifest_id_t MANIFEST_ERROR = 0;
 static cti_manifest_id_t newManifestId() noexcept {
 	static cti_manifest_id_t nextId = 1;
 	return nextId++;
+}
+static Manifest& getManifest(cti_manifest_id_t mid) {
+	if (!cti_manifestIsValid(mid)) {
+		throw std::runtime_error("invalid manifest id " + std::to_string(mid));
+	}
+	return *(manifestList.at(mid));
+}
+
+/* helper functions */
+
+namespace cti_conventions {
+	static bool isClusterSystem(){
+		struct stat sb;
+		return (stat(CLUSTER_FILE_TEST, &sb) == 0);
+	}
+
+	static bool
+	hasDirPerms(std::string const& dirPath, decltype(R_OK) perms) {
+		struct stat st;
+		return !stat(dirPath.c_str(), &st) // make sure this directory exists
+		    && S_ISDIR(st.st_mode) // make sure it is a directory
+		    && !access(dirPath.c_str(), perms); // check if we can access the directory
+	}
+
+	static void
+	setupBaseDir(void) {
+		std::string baseDir;
+
+		const char * base_dir_env = getenv(BASE_DIR_ENV_VAR);
+		if ((base_dir_env == nullptr) || !cti_conventions::hasDirPerms(base_dir_env, R_OK | X_OK)) {
+			for (const char* const* pathPtr = _cti_default_dir_locs; *pathPtr != nullptr; pathPtr++) {
+				if (cti_conventions::hasDirPerms(*pathPtr, R_OK | X_OK)) {
+					baseDir = std::string(*pathPtr);
+					break;
+				}
+			}
+		} else {
+			baseDir = std::string(base_dir_env);
+		}
+
+		// setup location paths
+		auto verifyPath = [&](std::string const& path) {
+			return !access(path.c_str(), R_OK | X_OK) ? path : "";
+		};
+		_cti_ld_audit_lib  = verifyPath(baseDir + "/lib/"     + LD_AUDIT_LIB_NAME);
+		_cti_overwatch_bin = verifyPath(baseDir + "/libexec/" + CTI_OVERWATCH_BINARY);
+		_cti_dlaunch_bin   = verifyPath(baseDir + "/libexec/" + CTI_LAUNCHER);
+	}
+
+	// This does sanity checking on args in common for both launchApp and launchAppBarrier
+	static void
+	verifyLaunchArgs(int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath)
+	{
+		auto canWriteFd = [](int const fd) {
+			// if fd is -1, then the fd arg is meant to be ignored
+			if (fd == -1) {
+				return true;
+			}
+			errno = 0;
+			int accessFlags = fcntl(fd, F_GETFL) & O_ACCMODE;
+			if (errno != 0) {
+				return false;
+			}
+			return (accessFlags & O_WRONLY) || (accessFlags & O_WRONLY);
+		};
+
+		// ensure stdout, stderr can be written to
+		if (!canWriteFd(stdout_fd)) {
+			throw std::runtime_error("Invalid stdout_fd argument. No write access.");
+		}
+		if (!canWriteFd(stderr_fd)) {
+			throw std::runtime_error("Invalid stderr_fd argument. No write access.");
+		}
+
+		// verify inputFile is a file that can be read
+		if (inputFile != nullptr) {
+			struct stat st;
+			if (stat(inputFile, &st)) { // make sure inputfile exists
+				throw std::runtime_error("Invalid inputFile argument. File does not exist.");
+			}
+			if (!S_ISREG(st.st_mode)) { // make sure it is a regular file
+				throw std::runtime_error("Invalid inputFile argument. The file is not a regular file.");
+			}
+			if (access(inputFile, R_OK)) { // make sure we can access it
+				throw std::runtime_error("Invalid inputFile argument. Bad permissions.");
+			}
+		}
+
+		// verify chdirPath is a directory that can be read, written, and executed
+		if (chdirPath != nullptr) {
+			struct stat st;
+			if (stat(chdirPath, &st)) { // make sure chdirpath exists
+				throw std::runtime_error("Invalid chdirPath argument. Directory does not exist.");
+			}
+			if (!S_ISDIR(st.st_mode)) { // make sure it is a directory
+				throw std::runtime_error("Invalid chdirPath argument. The file is not a directory.");
+			}
+			if (access(chdirPath, R_OK | W_OK | X_OK)) { // make sure we can access it
+				throw std::runtime_error("Invalid chdirPath argument. Bad permissions.");
+			}
+		}
+	}
+}
+
+// run code that can throw and use it to set cti error instead
+template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
+static ReturnType runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
+	try {
+		return std::forward<FuncType>(func)();
+	} catch (std::exception const& ex) {
+		_cti_set_error((caller + ": " + ex.what()).c_str());
+		return onError;
+	}
+}
+
+template <typename WLMType>
+static WLMType* downcastCurrentFE() {
+	if (auto wlmPtr = dynamic_cast<WLMType*>(currentFrontendPtr.get())) {
+		return wlmPtr;
+	} else {
+		std::string const wlmName(cti_wlm_type_toString(currentFrontendPtr->getWLMType()));
+		throw std::runtime_error("Invalid call. " + wlmName + " not in use.");
+	}
 }
 
 /* API function prototypes */
@@ -143,7 +254,7 @@ _cti_init(void) {
 	}
 
 	// setup base directory info
-	_cti_setup_base_dir();
+	cti_conventions::setupBaseDir();
 
 	std::string wlmName;
 
@@ -181,7 +292,7 @@ _cti_init(void) {
 		currentFrontendPtr = std::make_unique<ALPSFrontend>();
 	} else if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
 		// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
-		if (_cti_is_cluster_system()) {
+		if (cti_conventions::isClusterSystem()) {
 			currentFrontendPtr = std::make_unique<SLURMFrontend>();
 		} else {
 			currentFrontendPtr = std::make_unique<CraySLURMFrontend>();
@@ -219,46 +330,6 @@ _cti_fini(void) {
 /*********************
 ** internal functions 
 *********************/
-
-bool _cti_is_cluster_system(){
-	struct stat sb;
-	return (stat(CLUSTER_FILE_TEST, &sb) == 0);
-}
-
-static bool
-_cti_hasDirPerms(std::string const& dirPath, decltype(R_OK) perms) {
-	struct stat st;
-	return !stat(dirPath.c_str(), &st) // make sure this directory exists
-	    && S_ISDIR(st.st_mode) // make sure it is a directory
-	    && !access(dirPath.c_str(), perms); // check if we can access the directory
-}
-
-static void
-_cti_setup_base_dir(void) {
-	std::string baseDir;
-
-	const char * base_dir_env = getenv(BASE_DIR_ENV_VAR);
-	if ((base_dir_env == nullptr) || !_cti_hasDirPerms(base_dir_env, R_OK | X_OK)) {
-		for (const char* const* pathPtr = _cti_default_dir_locs; *pathPtr != nullptr; pathPtr++) {
-			if (_cti_hasDirPerms(*pathPtr, R_OK | X_OK)) {
-				baseDir = std::string(*pathPtr);
-				break;
-			}
-		}
-	} else {
-		baseDir = std::string(base_dir_env);
-	}
-
-	// setup location paths
-	auto verifyPath = [&](std::string const& path) {
-		return !access(path.c_str(), R_OK | X_OK) ? path : "";
-	};
-	_cti_ld_audit_lib  = verifyPath(baseDir + "/lib/"     + LD_AUDIT_LIB_NAME);
-	_cti_overwatch_bin = verifyPath(baseDir + "/libexec/" + CTI_OVERWATCH_BINARY);
-	_cti_dlaunch_bin   = verifyPath(baseDir + "/libexec/" + CTI_LAUNCHER);
-}
-
-// getter functions for paths
 
 Frontend& _cti_getCurrentFrontend() {
 	if (currentFrontendPtr == nullptr) {
@@ -307,7 +378,7 @@ std::string const& _cti_getCfgDir(void) {
 		// look in this order: $TMPDIR, /tmp, $HOME
 		std::vector<const char*> defaultDirs {getenv("TMPDIR"), "/tmp", getenv("HOME")};
 		for (const char* dir_var : defaultDirs) {
-			if ((dir_var != nullptr) && _cti_hasDirPerms(dir_var, R_OK | W_OK | X_OK)) {
+			if ((dir_var != nullptr) && cti_conventions::hasDirPerms(dir_var, R_OK | W_OK | X_OK)) {
 				cfgDir = std::string(dir_var);
 				break;
 			}
@@ -349,7 +420,7 @@ std::string const& _cti_getCfgDir(void) {
 		// custom cfgdir behavior: error if not exist or bad perms
 
 		// Check to see if we can write to this directory
-		if (!_cti_hasDirPerms(cfgPath.c_str(), R_OK | W_OK | X_OK)) {
+		if (!cti_conventions::hasDirPerms(cfgPath.c_str(), R_OK | W_OK | X_OK)) {
 			throw std::runtime_error(std::string("Bad directory specified by environment variable ") + CFG_DIR_VAR);
 		}
 
@@ -519,17 +590,9 @@ cti_getLauncherHostName(cti_app_id_t appId) {
 	}, (char*)nullptr);
 }
 
-/* WLM-specific function implementation */
 
-template <typename WLMType>
-static WLMType* downcastCurrentFE() {
-	if (auto wlmPtr = dynamic_cast<WLMType*>(currentFrontendPtr.get())) {
-		return wlmPtr;
-	} else {
-		std::string const wlmName(cti_wlm_type_toString(currentFrontendPtr->getWLMType()));
-		throw std::runtime_error("Invalid call. " + wlmName + " not in use.");
-	}
-}
+
+/* WLM-specific function implementation */
 
 // ALPS
 
@@ -626,68 +689,16 @@ cti_ssh_registerJob(pid_t launcher_pid) {
 #endif
 }
 
+
+
 /* app launch / release implementations */
-
-// This does sanity checking on args in common for both launchApp and launchAppBarrier
-static void
-_cti_checkLaunchArgs(int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath)
-{
-	auto canWriteFd = [](int const fd) {
-		// if fd is -1, then the fd arg is meant to be ignored
-		if (fd == -1) {
-			return true;
-		}
-		errno = 0;
-		int accessFlags = fcntl(fd, F_GETFL) & O_ACCMODE;
-		if (errno != 0) {
-			return false;
-		}
-		return (accessFlags & O_WRONLY) || (accessFlags & O_WRONLY);
-	};
-
-	// ensure stdout, stderr can be written to
-	if (!canWriteFd(stdout_fd)) {
-		throw std::runtime_error("Invalid stdout_fd argument. No write access.");
-	}
-	if (!canWriteFd(stderr_fd)) {
-		throw std::runtime_error("Invalid stderr_fd argument. No write access.");
-	}
-
-	// verify inputFile is a file that can be read
-	if (inputFile != nullptr) {
-		struct stat st;
-		if (stat(inputFile, &st)) { // make sure inputfile exists
-			throw std::runtime_error("Invalid inputFile argument. File does not exist.");
-		}
-		if (!S_ISREG(st.st_mode)) { // make sure it is a regular file
-			throw std::runtime_error("Invalid inputFile argument. The file is not a regular file.");
-		}
-		if (access(inputFile, R_OK)) { // make sure we can access it
-			throw std::runtime_error("Invalid inputFile argument. Bad permissions.");
-		}
-	}
-
-	// verify chdirPath is a directory that can be read, written, and executed
-	if (chdirPath != nullptr) {
-		struct stat st;
-		if (stat(chdirPath, &st)) { // make sure chdirpath exists
-			throw std::runtime_error("Invalid chdirPath argument. Directory does not exist.");
-		}
-		if (!S_ISDIR(st.st_mode)) { // make sure it is a directory
-			throw std::runtime_error("Invalid chdirPath argument. The file is not a directory.");
-		}
-		if (access(chdirPath, R_OK | W_OK | X_OK)) { // make sure we can access it
-			throw std::runtime_error("Invalid chdirPath argument. Bad permissions.");
-		}
-	}
-}
 
 cti_app_id_t
 cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
 	return runSafely("cti_launchApp", [&](){
-		_cti_checkLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
+		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
 		auto const appId = _cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 		_cti_getCurrentFrontend().getApp(appId).releaseBarrier();
 		return appId;
@@ -699,7 +710,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stde
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
 	return runSafely("cti_launchAppBarrier", [&](){
-		_cti_checkLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
+		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
 		return _cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 	}, cti_app_id_t{0});
 }
@@ -764,13 +775,6 @@ cti_sessionIsValid(cti_session_id_t sid) {
 	return runSafely("cti_sessionIsValid", [&](){
 		return sessionList.find(sid) != sessionList.end();
 	}, false);
-}
-
-static Session& getSession(cti_session_id_t sid) {
-	if (!cti_sessionIsValid(sid)) {
-		throw std::runtime_error("invalid session id " + std::to_string(sid));
-	}
-	return *(sessionList.at(sid));
 }
 
 char**
@@ -861,13 +865,6 @@ cti_destroySession(cti_session_id_t sid) {
 		sessionList.erase(sid);
 		return SUCCESS;
 	}, FAILURE);
-}
-
-static Manifest& getManifest(cti_manifest_id_t mid) {
-	if (!cti_manifestIsValid(mid)) {
-		throw std::runtime_error("invalid manifest id " + std::to_string(mid));
-	}
-	return *(manifestList.at(mid));
 }
 
 int
