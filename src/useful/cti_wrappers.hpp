@@ -14,7 +14,6 @@ using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
 // cti frontend definitions
 #include "cti_defs.h"
 #include "frontend/cti_fe.h"
-#include "cti_transfer.h"
 
 #include "useful/cti_useful.h"
 #include "ld_val/ld_val.h"
