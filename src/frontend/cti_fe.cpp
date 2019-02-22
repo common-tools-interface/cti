@@ -35,6 +35,7 @@
 
 #include <unordered_map>
 #include <memory>
+#include <sstream>
 
 // CTI definition includes
 #include "cti_fe.h"
@@ -75,9 +76,47 @@ static std::string _cti_overwatch_bin;// overwatch binary location
 static std::string _cti_dlaunch_bin;  // dlaunch binary location
 static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
 
+namespace {
+	static constexpr auto SUCCESS = int{0};
+	static constexpr auto FAILURE = int{1};
+}
+
+/* helper functions */
+
+// run code that can throw and use it to set cti error instead
+template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
+static ReturnType runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
+	try {
+		return std::forward<FuncType>(func)();
+	} catch (std::exception const& ex) {
+		_cti_set_error((caller + ": " + ex.what()).c_str());
+		return onError;
+	}
+}
+
 /* global wlm frontend / app objects */
-auto currentFrontendPtr = std::unique_ptr<Frontend>{};
-auto appList = std::unordered_map<cti_app_id_t, std::unique_ptr<App>>{};
+
+// app management
+static auto currentFrontendPtr = std::unique_ptr<Frontend>{};
+static auto appList = std::unordered_map<cti_app_id_t, std::unique_ptr<App>>{};
+
+// transfer session management
+static auto sessionList = std::unordered_map<cti_session_id_t, std::shared_ptr<Session>>{};
+static const cti_session_id_t SESSION_ERROR = 0;
+static cti_session_id_t newSessionId() noexcept {
+	static cti_session_id_t nextId = 1;
+	return nextId++;
+}
+
+// transfer manifest management
+static auto manifestList = std::unordered_map<cti_manifest_id_t, std::shared_ptr<Manifest>>{};
+static const cti_manifest_id_t MANIFEST_ERROR = 0;
+static cti_manifest_id_t newManifestId() noexcept {
+	static cti_manifest_id_t nextId = 1;
+	return nextId++;
+}
+
+/* API function prototypes */
 
 /*
  * This routine initializes CTI so it is set up for usage by the executable with which it is linked.
@@ -389,16 +428,6 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 	return "Invalid WLM.";
 }
 
-template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
-static ReturnType runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
-	try {
-		return std::forward<FuncType>(func)();
-	} catch (std::exception const& ex) {
-		_cti_set_error((caller + ": " + ex.what()).c_str());
-		return onError;
-	}
-}
-
 int
 cti_appIsValid(cti_app_id_t appId) {
 	return runSafely("cti_appIsValid", [&](){
@@ -502,6 +531,8 @@ static WLMType* downcastCurrentFE() {
 	}
 }
 
+// ALPS
+
 #if !USE_CRAY_SLURM_ONLY
 uint64_t cti_alps_getApid(pid_t aprunPid) {
 	return runSafely("cti_alps_getApid", [&](){
@@ -533,6 +564,8 @@ int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_id) {
 	});
 }
 #endif
+
+// Cray-SLURM
 
 cti_srunProc_t*
 cti_cray_slurm_getJobInfo(pid_t srunPid) {
@@ -567,6 +600,8 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 	}, (cti_srunProc_t*)nullptr);
 }
 
+// SLURM
+
 cti_app_id_t
 cti_slurm_registerJobStep(pid_t launcher_pid) {
 #ifdef SLURMFrontend
@@ -577,6 +612,8 @@ cti_slurm_registerJobStep(pid_t launcher_pid) {
 	return cti_app_id_t{0};
 #endif
 }
+
+// SSH
 
 cti_app_id_t
 cti_ssh_registerJob(pid_t launcher_pid) {
@@ -589,7 +626,7 @@ cti_ssh_registerJob(pid_t launcher_pid) {
 #endif
 }
 
-/* app launch / release functions */
+/* app launch / release implementations */
 
 // This does sanity checking on args in common for both launchApp and launchAppBarrier
 static void
@@ -667,11 +704,6 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stde
 	}, cti_app_id_t{0});
 }
 
-namespace {
-	static constexpr auto SUCCESS = int{0};
-	static constexpr auto FAILURE = int{1};
-}
-
 int
 cti_releaseAppBarrier(cti_app_id_t appId) {
 	return runSafely("cti_releaseAppBarrier", [&](){
@@ -688,3 +720,234 @@ cti_killApp(cti_app_id_t appId, int signum) {
 	}, FAILURE);
 }
 
+
+
+/* session implementations */
+
+// create and add wlm basefiles to manifest. run this after creating a Session
+static void shipWLMBaseFiles(Session& liveSession) {
+	auto& frontend = _cti_getCurrentFrontend();
+
+	auto baseFileManifest = liveSession.createManifest();
+	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraBinaries()) {
+		baseFileManifest->addBinary(path);
+	}
+	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraLibraries()) {
+		baseFileManifest->addLibrary(path);
+	}
+	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraLibDirs()) {
+		baseFileManifest->addLibDir(path);
+	}
+	for (auto const& path : frontend.getApp(liveSession.m_appId).getExtraFiles()) {
+		baseFileManifest->addFile(path);
+	}
+
+	// ship basefile manifest and run remote extraction
+	baseFileManifest->finalizeAndShip().extract();
+}
+
+cti_session_id_t
+cti_createSession(cti_app_id_t appId) {
+	return runSafely("cti_createSession", [&](){
+		auto const sid = newSessionId();
+
+		// create session instance
+		auto newSession = std::make_shared<Session>(_cti_getCurrentFrontend(), appId);
+		shipWLMBaseFiles(*newSession);
+		sessionList.insert(std::make_pair(sid, newSession));
+		return sid;
+	}, SESSION_ERROR);
+}
+
+int
+cti_sessionIsValid(cti_session_id_t sid) {
+	return runSafely("cti_sessionIsValid", [&](){
+		return sessionList.find(sid) != sessionList.end();
+	}, false);
+}
+
+static Session& getSession(cti_session_id_t sid) {
+	if (!cti_sessionIsValid(sid)) {
+		throw std::runtime_error("invalid session id " + std::to_string(sid));
+	}
+	return *(sessionList.at(sid));
+}
+
+char**
+cti_getSessionLockFiles(cti_session_id_t sid) {
+	return runSafely("cti_getSessionLockFiles", [&](){
+		auto const& activeManifests = getSession(sid).getManifests();
+
+		// ensure there's at least one manifest instance
+		if (activeManifests.size() == 0) {
+			throw std::runtime_error("backend not initialized for session id " + std::to_string(sid));
+		}
+
+		// create return array
+		auto result = (char**)malloc(sizeof(char*) * (activeManifests.size() + 1));
+		if (result == nullptr) {
+			throw std::runtime_error("malloc failed for session id " + std::to_string(sid));
+		}
+
+		// create the strings
+		for (size_t i = 0; i < activeManifests.size(); i++) {
+			result[i] = strdup(activeManifests[i]->m_lockFilePath.c_str());
+		}
+		result[activeManifests.size()] = nullptr;
+		return result;
+	}, (char**)nullptr);
+}
+
+// fill in a heap string pointer to session root path plus subdirectory
+static char* sessionPathAppend(std::string const& caller, cti_session_id_t sid, const std::string& str) {
+	return runSafely(caller, [&](){
+		// get session and construct string
+		auto const& session = getSession(sid);
+		std::stringstream ss;
+		ss << session.m_toolPath << "/" << session.m_stageName << str;
+		return strdup(ss.str().c_str());
+	}, (char*)nullptr);
+}
+
+char*
+cti_getSessionRootDir(cti_session_id_t sid) {
+	return sessionPathAppend("cti_getSessionRootDir", sid, "");
+}
+
+char*
+cti_getSessionBinDir(cti_session_id_t sid) {
+	return sessionPathAppend("cti_getSessionBinDir", sid, "/bin");
+}
+
+char*
+cti_getSessionLibDir(cti_session_id_t sid) {
+	return sessionPathAppend("cti_getSessionLibDir", sid, "/lib");
+}
+
+char*
+cti_getSessionFileDir(cti_session_id_t sid) {
+	return sessionPathAppend("cti_getSessionFileDir", sid, "");
+}
+
+char*
+cti_getSessionTmpDir(cti_session_id_t sid) {
+	return sessionPathAppend("cti_getSessionTmpDir", sid, "/tmp");
+}
+
+
+
+/* manifest implementations */
+
+cti_manifest_id_t
+cti_createManifest(cti_session_id_t sid) {
+	return runSafely("cti_createManifest", [&](){
+		auto const mid = newManifestId();
+		manifestList.insert({mid, getSession(sid).createManifest()});
+		return mid;
+	}, MANIFEST_ERROR);
+}
+
+int
+cti_manifestIsValid(cti_manifest_id_t mid) {
+	return runSafely("cti_manifestIsValid", [&](){
+		return manifestList.find(mid) != manifestList.end();
+	}, false);
+}
+
+int
+cti_destroySession(cti_session_id_t sid) {
+	return runSafely("cti_destroySession", [&](){
+		getSession(sid).launchCleanup();
+		sessionList.erase(sid);
+		return SUCCESS;
+	}, FAILURE);
+}
+
+static Manifest& getManifest(cti_manifest_id_t mid) {
+	if (!cti_manifestIsValid(mid)) {
+		throw std::runtime_error("invalid manifest id " + std::to_string(mid));
+	}
+	return *(manifestList.at(mid));
+}
+
+int
+cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
+	return runSafely("cti_addManifestBinary", [&](){
+		getManifest(mid).addBinary(rawName);
+		return SUCCESS;
+	}, FAILURE);
+}
+
+int
+cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
+	return runSafely("cti_addManifestLibrary", [&](){
+		getManifest(mid).addLibrary(rawName);
+		return SUCCESS;
+	}, FAILURE);
+}
+
+int
+cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
+	return runSafely("cti_addManifestLibDir", [&](){
+		getManifest(mid).addLibDir(rawName);
+		return SUCCESS;
+	}, FAILURE);
+}
+
+int
+cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
+	return runSafely("cti_addManifestFile", [&](){
+		getManifest(mid).addFile(rawName);
+		return SUCCESS;
+	}, FAILURE);
+}
+
+int
+cti_sendManifest(cti_manifest_id_t mid) {
+	return runSafely("cti_sendManifest", [&](){
+		auto remotePackage = getManifest(mid).finalizeAndShip();
+		remotePackage.extract();
+		manifestList.erase(mid);
+		return SUCCESS;
+	}, FAILURE);
+}
+
+/* tool daemon prototypes */
+int
+cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
+	const char * const daemonArgs[], const char * const envVars[])
+{
+	return runSafely("cti_execToolDaemon", [&](){
+		{ auto& manifest = getManifest(mid);
+			manifest.addBinary(daemonPath);
+			auto remotePackage = manifest.finalizeAndShip();
+			remotePackage.extractAndRun(daemonPath, daemonArgs, envVars);
+		}
+		manifestList.erase(mid);
+		return SUCCESS;
+	}, FAILURE);
+}
+
+bool _cti_stage_deps = true; // extern defined in cti_transfer.h
+void
+_cti_setStageDeps(bool stageDeps) {
+	_cti_stage_deps = stageDeps;
+}
+
+void
+_cti_consumeSession(void* rawSidPtr) {
+	if (rawSidPtr == nullptr) {
+		return;
+	}
+
+	auto sidPtr = static_cast<cti_session_id_t*>(rawSidPtr);
+	cti_destroySession(*sidPtr);
+	delete sidPtr;
+}
+
+void _cti_transfer_init(void) { /* no-op */ }
+
+void
+_cti_transfer_fini(void) {
+	sessionList.clear();
+}

@@ -16,7 +16,6 @@ AM_LIBTOOLFLAGS = --quiet
 lib_LTLIBRARIES = libcraytools_fe.la
 
 libcraytools_fe_la_SOURCES	=	cti_fe.h cti_run.h cti_fe.cpp \
-								cti_transfer.cpp cti_transfer.h \
 								cti_error.c cti_error.h \
 								cti_appentry.cpp cti_appentry.h \
 								Frontend.hpp \
