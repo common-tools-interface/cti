@@ -78,12 +78,12 @@ private: // types
 
 private: // variables
 	/* block signals during MPIR control of process */
-	SignalGuard signalGuard;
+	SignalGuard m_signalGuard;
 
 	/* dyninst symbol / proc members */
-	UniquePtrDestr<Symtab> symtab;
-	SymbolMap symbols;
-	Process::ptr proc;
+	UniquePtrDestr<Symtab> m_symtab;
+	SymbolMap m_symbols;
+	Process::ptr m_proc;
 
 	void writeFromBuf(std::string const& destName, const char* buf, size_t len);
 	void writeFromBuf(Address destAddr,            const char* buf, size_t len);
