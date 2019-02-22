@@ -29,15 +29,45 @@
 #include "mpir_iface/mpir_iface.h"
 
 // managed MPIR session
-struct MPIRHandle {
+class MPIRHandle {
+private: // variables
 	mpir_id_t m_data;
-	operator bool() const { return (m_data >= 0); }
-	void reset() { if (*this) { _cti_mpir_releaseInstance(m_data); m_data = mpir_id_t{-1}; } }
-	mpir_id_t get() const { return m_data; }
-	MPIRHandle() : m_data{-1} {}
-	MPIRHandle(mpir_id_t m_data_) : m_data{m_data_} {}
-	MPIRHandle(MPIRHandle&& moved) : m_data{std::move(moved.m_data)} { moved.m_data = mpir_id_t{-1}; }
-	~MPIRHandle() { reset(); }
+
+public: // interface
+	operator bool() const {
+		return (m_data >= 0);
+	}
+
+	void reset()
+	{
+		if (*this) {
+			_cti_mpir_releaseInstance(m_data);
+			m_data = mpir_id_t{-1};
+		}
+	}
+
+	mpir_id_t get() const {
+		return m_data;
+	}
+
+	MPIRHandle()
+		: m_data{-1}
+	{}
+
+	MPIRHandle(mpir_id_t m_data_)
+		: m_data{m_data_}
+	{}
+
+	MPIRHandle(MPIRHandle&& moved)
+		: m_data{std::move(moved.m_data)}
+	{
+		moved.m_data = mpir_id_t{-1};
+	}
+
+	~MPIRHandle()
+	{
+		reset();
+	}
 };
 
 /* Types used here */
@@ -52,12 +82,10 @@ namespace slurm_util {
 	struct StepLayout {
 		size_t numPEs; // number of PEs associated with job step
 		std::vector<NodeLayout> nodes; // array of hosts
-
-		// fetch job step layout information from slurm_util helper
-		StepLayout(uint32_t jobid, uint32_t stepid);
 	};
 }
 
+// cti_srunProc_t extended to performs sanity checking upon construction
 struct SrunInfo : public cti_srunProc_t {
 	SrunInfo(uint32_t jobid, uint32_t stepid)
 		: cti_srunProc_t{jobid, stepid}
@@ -70,7 +98,7 @@ struct SrunInfo : public cti_srunProc_t {
 };
 
 
-struct CraySLURMApp : public App {
+class CraySLURMApp : public App {
 private: // variables
 	SrunInfo               m_srunInfo;    // Job and Step IDs
 	slurm_util::StepLayout m_stepLayout;  // SLURM Layout of job step

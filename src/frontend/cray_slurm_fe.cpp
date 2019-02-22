@@ -51,7 +51,7 @@
 
 /* Types used here */
 
-slurm_util::StepLayout::StepLayout(uint32_t jobid, uint32_t stepid)
+static slurm_util::StepLayout fetchStepLayout(uint32_t jobid, uint32_t stepid)
 {
 	auto raw_layout = UniquePtrDestr<slurmStepLayout_t>
 		{ _cti_cray_slurm_getLayout(jobid, stepid) // fetch from slurm_util helper
@@ -59,14 +59,17 @@ slurm_util::StepLayout::StepLayout(uint32_t jobid, uint32_t stepid)
 	};
 
 	// extract PE and node information from raw layout
-	numPEs = (size_t)raw_layout->numPEs;
+	auto const numPEs = (size_t)raw_layout->numPEs;
+	auto nodes = std::vector<slurm_util::NodeLayout>{};
 	for (int i = 0; i < raw_layout->numNodes; ++i) {
-		nodes.push_back(NodeLayout
+		nodes.push_back(slurm_util::NodeLayout
 			{ .hostname = std::string{raw_layout->hosts[i].host}
 			, .numPEs   = (size_t)raw_layout->hosts[i].PEsHere
 			, .firstPE  = (size_t)raw_layout->hosts[i].firstPE
 		});
 	}
+
+	return slurm_util::StepLayout{ .numPEs = numPEs, .nodes = nodes };
 }
 
 /* functions and data that are present / expected in a slurm environment */
@@ -310,7 +313,7 @@ namespace slurm_conventions
 
 CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
 	: m_srunInfo    { jobid, stepid }
-	, m_stepLayout  { jobid, stepid }
+	, m_stepLayout  { fetchStepLayout(jobid, stepid) }
 	, m_barrier     { mpir_id }
 	, m_dlaunchSent { false }
 
