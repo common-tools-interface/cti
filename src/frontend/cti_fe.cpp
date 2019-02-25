@@ -36,6 +36,7 @@
 #include <unordered_map>
 #include <memory>
 #include <sstream>
+#include <typeinfo>
 
 // CTI definition includes
 #include "cti_fe.h"
@@ -64,65 +65,53 @@
 #include "useful/cti_useful.h"
 #include "useful/Dlopen.hpp"
 
-/* static global vars */
-static std::string _cti_cfg_dir;      // config dir that we can use as temporary storage
-static std::string _cti_ld_audit_lib; // ld audit library location
-static std::string _cti_overwatch_bin;// overwatch binary location
-static std::string _cti_dlaunch_bin;  // dlaunch binary location
-static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
-
-/* global wlm frontend / app objects */
-
-static auto currentFrontendPtr = std::unique_ptr<Frontend>{};
-
-// app management
-static auto appList = std::unordered_map<cti_app_id_t, std::unique_ptr<App>>{};
-static const cti_app_id_t APP_ERROR = 0;
-static cti_app_id_t newAppId() noexcept {
-	static cti_app_id_t nextId = 1;
-	return nextId++;
-}
-static App& getApp(cti_app_id_t appId) {
-	if (!cti_appIsValid(appId)) {
-		throw std::runtime_error("invalid app id " + std::to_string(appId));
-	}
-	return *(appList.at(appId));
-}
-
-// transfer session management
-static auto sessionList = std::unordered_map<cti_session_id_t, std::shared_ptr<Session>>{};
-static const cti_session_id_t SESSION_ERROR = 0;
-static cti_session_id_t newSessionId() noexcept {
-	static cti_session_id_t nextId = 1;
-	return nextId++;
-}
-static Session& getSession(cti_session_id_t sid) {
-	if (!cti_sessionIsValid(sid)) {
-		throw std::runtime_error("invalid session id " + std::to_string(sid));
-	}
-	return *(sessionList.at(sid));
-}
-
-// transfer manifest management
-static auto manifestList = std::unordered_map<cti_manifest_id_t, std::shared_ptr<Manifest>>{};
-static const cti_manifest_id_t MANIFEST_ERROR = 0;
-static cti_manifest_id_t newManifestId() noexcept {
-	static cti_manifest_id_t nextId = 1;
-	return nextId++;
-}
-static Manifest& getManifest(cti_manifest_id_t mid) {
-	if (!cti_manifestIsValid(mid)) {
-		throw std::runtime_error("invalid manifest id " + std::to_string(mid));
-	}
-	return *(manifestList.at(mid));
-}
-
 /* helper functions */
 
+namespace util {
+	// run code that can throw and use it to set cti error instead
+	template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
+	static ReturnType runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
+		try {
+			return std::forward<FuncType>(func)();
+		} catch (std::exception const& ex) {
+			_cti_set_error((caller + ": " + ex.what()).c_str());
+			return onError;
+		}
+	}
+
+	template <typename WLMType>
+	static WLMType& downcastCurrentFE() {
+		try {
+			return dynamic_cast<WLMType&>(_cti_getCurrentFrontend());
+		} catch (std::bad_cast& bc) {
+			std::string const wlmName(cti_wlm_type_toString(_cti_getCurrentFrontend().getWLMType()));
+			throw std::runtime_error("Invalid call. " + wlmName + " not in use.");
+		}
+	}
+}
+
 namespace cti_conventions {
-	static bool isClusterSystem(){
+	constexpr static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
+
+	namespace return_code {
+		static constexpr auto SUCCESS = int{0};
+		static constexpr auto FAILURE = int{1};
+		constexpr static cti_app_id_t APP_ERROR = 0;
+		constexpr static cti_session_id_t SESSION_ERROR = 0;
+		constexpr static cti_manifest_id_t MANIFEST_ERROR = 0;
+	}
+
+	static bool
+	isClusterSystem()
+	{
 		struct stat sb;
 		return (stat(CLUSTER_FILE_TEST, &sb) == 0);
+	}
+
+	static bool
+	isRunningOnBackend()
+	{
+		return (getenv(BE_GUARD_ENV_VAR) != nullptr);
 	}
 
 	static bool
@@ -131,31 +120,6 @@ namespace cti_conventions {
 		return !stat(dirPath.c_str(), &st) // make sure this directory exists
 		    && S_ISDIR(st.st_mode) // make sure it is a directory
 		    && !access(dirPath.c_str(), perms); // check if we can access the directory
-	}
-
-	static void
-	setupBaseDir(void) {
-		std::string baseDir;
-
-		const char * base_dir_env = getenv(BASE_DIR_ENV_VAR);
-		if ((base_dir_env == nullptr) || !cti_conventions::hasDirPerms(base_dir_env, R_OK | X_OK)) {
-			for (const char* const* pathPtr = _cti_default_dir_locs; *pathPtr != nullptr; pathPtr++) {
-				if (cti_conventions::hasDirPerms(*pathPtr, R_OK | X_OK)) {
-					baseDir = std::string(*pathPtr);
-					break;
-				}
-			}
-		} else {
-			baseDir = std::string(base_dir_env);
-		}
-
-		// setup location paths
-		auto verifyPath = [&](std::string const& path) {
-			return !access(path.c_str(), R_OK | X_OK) ? path : "";
-		};
-		_cti_ld_audit_lib  = verifyPath(baseDir + "/lib/"     + LD_AUDIT_LIB_NAME);
-		_cti_overwatch_bin = verifyPath(baseDir + "/libexec/" + CTI_OVERWATCH_BINARY);
-		_cti_dlaunch_bin   = verifyPath(baseDir + "/libexec/" + CTI_LAUNCHER);
 	}
 
 	// This does sanity checking on args in common for both launchApp and launchAppBarrier
@@ -211,263 +175,274 @@ namespace cti_conventions {
 			}
 		}
 	}
-}
 
-namespace {
-	static constexpr auto SUCCESS = int{0};
-	static constexpr auto FAILURE = int{1};
-}
-
-// run code that can throw and use it to set cti error instead
-template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
-static ReturnType runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
-	try {
-		return std::forward<FuncType>(func)();
-	} catch (std::exception const& ex) {
-		_cti_set_error((caller + ": " + ex.what()).c_str());
-		return onError;
-	}
-}
-
-template <typename WLMType>
-static WLMType* downcastCurrentFE() {
-	if (auto wlmPtr = dynamic_cast<WLMType*>(currentFrontendPtr.get())) {
-		return wlmPtr;
-	} else {
-		std::string const wlmName(cti_wlm_type_toString(currentFrontendPtr->getWLMType()));
-		throw std::runtime_error("Invalid call. " + wlmName + " not in use.");
-	}
-}
-
-/* API function prototypes */
-
-/*
- * This routine initializes CTI so it is set up for usage by the executable with which it is linked.
- * Part of this includes automatically determining the active Workload Manager. The
- * user can force SSH as the "WLM" by setting the environment variable CTI_LAUNCHER_NAME.
- * In the case of complete failure to determine the WLM, the default value of _cti_nonenessProto
- * is used.
-*/
-void __attribute__((constructor))
-_cti_init(void) {
-	using DefaultFrontend = CraySLURMFrontend;// ALPSFrontend;
-	
-	// only init once
-	if (currentFrontendPtr != nullptr) {
-		return;
-	}
-
-	// We do not want to call init if we are running on the backend inside of
-	// a tool daemon! It is possible for BE libraries to link against both the
-	// CTI fe and be libs (e.g. MRNet) and we do not want to call the FE init
-	// in that case.
-	if (getenv(BE_GUARD_ENV_VAR) != NULL) {
-		return;
-	}
-
-	// setup base directory info
-	cti_conventions::setupBaseDir();
-
-	std::string wlmName;
-
-	// Use the workload manager in the environment variable if it is set
-	if (const char* wlm_name_env = getenv(CTI_WLM)) {
-		wlmName = std::string(wlm_name_env);
-	} else {
-		// use wlm_detect to load wlm name
-		Dlopen::Handle wlmDetect(WLM_DETECT_LIB_NAME);
-
-		using GetActiveFnType = char*(void);
-		using GetDefaultFnType = const char*(void);
-		auto getActive = wlmDetect.loadFailable<GetActiveFnType>("wlm_detect_get_active");
-		auto getDefault = wlmDetect.loadFailable<GetDefaultFnType>("wlm_detect_get_default");
-
-		char *active_wlm;
-		const char *default_wlm;
-		if (getActive && (active_wlm = getActive())) {
-			wlmName = std::string(active_wlm);
-			free(active_wlm);
+	// use user info to build unique staging path; optionally create the staging direcotry
+	static std::string
+	setupCfgDir()
+	{
+		// Get the pw info, this is used in the unique name part of cfg directories
+		// and when doing the final ownership check
+		std::string username;
+		decltype(passwd::pw_uid) uid;
+		if (struct passwd *pw = getpwuid(getuid())) {
+			username = std::string(pw->pw_name);
+			uid = pw->pw_uid;
 		} else {
-			if (getDefault && (default_wlm = getDefault())) {
-				wlmName = std::string(default_wlm);
-			} else {
-				currentFrontendPtr = std::make_unique<DefaultFrontend>();
-				return;
+			throw std::runtime_error(std::string("_cti_getCfgDir: getpwuid() ") + strerror(errno));
+		}
+
+		// get the cfg dir settings
+		std::string customCfgDir, cfgDir;
+		if (const char* cfg_dir_env = getenv(CFG_DIR_VAR)) {
+			customCfgDir = std::string(cfg_dir_env);
+		} else {
+			// look in this order: $TMPDIR, /tmp, $HOME
+			std::vector<const char*> defaultDirs {getenv("TMPDIR"), "/tmp", getenv("HOME")};
+			for (const char* dir_var : defaultDirs) {
+				if ((dir_var != nullptr) && cti_conventions::hasDirPerms(dir_var, R_OK | W_OK | X_OK)) {
+					cfgDir = std::string(dir_var);
+					break;
+				}
 			}
 		}
-	}
 
-	// parse the returned result
-	currentFrontendPtr = std::make_unique<CraySLURMFrontend>();
-	#if !USE_CRAY_SLURM_ONLY
-	if (!wlmName.compare("ALPS") || !wlmName.compare("alps")) {
-		currentFrontendPtr = std::make_unique<ALPSFrontend>();
-	} else if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
-		// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
-		if (cti_conventions::isClusterSystem()) {
-			currentFrontendPtr = std::make_unique<SLURMFrontend>();
+		// Create the directory name string - we default this to have the name cray_cti-<username>
+		std::string cfgPath;
+		if (!customCfgDir.empty()) {
+			cfgPath = customCfgDir + "/cray_cti-" + username;
+		} else if (!cfgDir.empty()) {
+			cfgPath = cfgDir + "/cray_cti-" + username;
 		} else {
-			currentFrontendPtr = std::make_unique<CraySLURMFrontend>();
+			// We have no where to create a temporary directory...
+			throw std::runtime_error(std::string("Cannot find suitable config directory. Try setting the env variable ") + CFG_DIR_VAR);
 		}
-	} else if (!wlmName.compare("generic")) {
-		currentFrontendPtr = std::make_unique<SSHFrontend>();
-	} else {
-		// fallback to use the default
-		fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
-		currentFrontendPtr = std::make_unique<DefaultFrontend>();
+
+		if (customCfgDir.empty()) {
+			// default cfgdir behavior: create if not exist, chmod if bad perms
+
+			// try to stat the directory
+			struct stat st;
+			if (stat(cfgPath.c_str(), &st)) {
+				// the directory doesn't exist so we need to create it using perms 700
+				if (mkdir(cfgPath.c_str(), S_IRWXU)) {
+					throw std::runtime_error(std::string("_cti_getCfgDir: mkdir() ") + strerror(errno));
+				}
+			} else {
+				// directory already exists, so chmod it if has bad permissions.
+				// We created this directory previously.
+				if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU) {
+					if (chmod(cfgPath.c_str(), S_IRWXU)) {
+						throw std::runtime_error(std::string("_cti_getCfgDir: chmod() ") + strerror(errno));
+					}
+				}
+			}
+		} else {
+			// The user set CFG_DIR_VAR, we *ALWAYS* want to use that
+			// custom cfgdir behavior: error if not exist or bad perms
+
+			// Check to see if we can write to this directory
+			if (!cti_conventions::hasDirPerms(cfgPath.c_str(), R_OK | W_OK | X_OK)) {
+				throw std::runtime_error(std::string("Bad directory specified by environment variable ") + CFG_DIR_VAR);
+			}
+
+			// verify that it has the permissions we expect
+			struct stat st;
+			if (stat(cfgPath.c_str(), &st)) {
+				// could not stat the directory
+				throw std::runtime_error(std::string("_cti_getCfgDir: stat() ") + strerror(errno));
+			}
+			if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU) {
+				// bits other than S_IRWXU are set
+				throw std::runtime_error(std::string("Bad permissions (Only 0700 allowed) for directory specified by environment variable ") + CFG_DIR_VAR);
+			}
+		}
+
+		// make sure we have a good path string
+		if (char *realCfgPath = realpath(cfgPath.c_str(), nullptr)) {
+			cfgPath = std::string(realCfgPath);
+			free(realCfgPath);
+		} else {
+			throw std::runtime_error(std::string("_cti_getCfgDir: realpath() ") + strerror(errno));
+		}
+
+		// Ensure we have ownership of this directory, otherwise it is untrusted
+		struct stat st;
+		memset(&st, 0, sizeof(st));
+		if (stat(cfgPath.c_str(), &st)) {
+			throw std::runtime_error(std::string("_cti_getCfgDir: stat() ") + strerror(errno));
+		}
+		if (st.st_uid != uid) {
+			throw std::runtime_error(std::string("_cti_getCfgDir: Directory already exists: ") + cfgPath);
+		}
+
+		return cfgPath;
 	}
-	if (currentFrontendPtr == nullptr) {
-		fprintf(stderr, "Workload manager argument '%s' produced null frontend!\n", wlmName.c_str());
+
+	static std::string accessiblePath(std::string const& path) {
+		return !access(path.c_str(), R_OK | X_OK) ? path : "";
+	};
+
+	static std::string
+	setupBaseDir(void) {
+		const char * base_dir_env = getenv(BASE_DIR_ENV_VAR);
+		if ((base_dir_env == nullptr) || !cti_conventions::hasDirPerms(base_dir_env, R_OK | X_OK)) {
+			for (const char* const* pathPtr = cti_conventions::_cti_default_dir_locs; *pathPtr != nullptr; pathPtr++) {
+				if (cti_conventions::hasDirPerms(*pathPtr, R_OK | X_OK)) {
+					return std::string{*pathPtr};
+				}
+			}
+		} else {
+			return std::string{base_dir_env};
+		}
 	}
-	#endif
+
+	/*
+	 * This routine automatically determines the active Workload Manager. The
+	 * user can force SSH as the "WLM" by setting the environment variable CTI_LAUNCHER_NAME.
+	 * In the case of complete failure to determine the WLM, the default value of _cti_nonenessProto
+	 * is used.
+	*/
+	static std::unique_ptr<Frontend>
+	make_Frontend()
+	{
+		using DefaultFrontend = CraySLURMFrontend;// ALPSFrontend;
+
+		// We do not want to call init if we are running on the backend inside of
+		// a tool daemon! It is possible for BE libraries to link against both the
+		// CTI fe and be libs (e.g. MRNet) and we do not want to call the FE init
+		// in that case.
+		if (cti_conventions::isRunningOnBackend()) {
+			throw std::runtime_error("tried to create a Frontend implementation on the backend!");
+		}
+
+		std::string wlmName;
+
+		// Use the workload manager in the environment variable if it is set
+		if (const char* wlm_name_env = getenv(CTI_WLM)) {
+			wlmName = std::string(wlm_name_env);
+		} else {
+			// use wlm_detect to load wlm name
+			Dlopen::Handle wlmDetect(WLM_DETECT_LIB_NAME);
+
+			using GetActiveFnType = char*(void);
+			using GetDefaultFnType = const char*(void);
+			auto getActive = wlmDetect.loadFailable<GetActiveFnType>("wlm_detect_get_active");
+			auto getDefault = wlmDetect.loadFailable<GetDefaultFnType>("wlm_detect_get_default");
+
+			char *active_wlm;
+			const char *default_wlm;
+			if (getActive && (active_wlm = getActive())) {
+				wlmName = std::string(active_wlm);
+				free(active_wlm);
+			} else {
+				if (getDefault && (default_wlm = getDefault())) {
+					wlmName = std::string(default_wlm);
+				} else {
+					return std::make_unique<DefaultFrontend>();
+				}
+			}
+		}
+
+		// parse the returned result
+		return std::make_unique<CraySLURMFrontend>();
+		#if !USE_CRAY_SLURM_ONLY
+		if (!wlmName.compare("ALPS") || !wlmName.compare("alps")) {
+			return  std::make_unique<ALPSFrontend>();
+		} else if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
+			// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
+			if (cti_conventions::isClusterSystem()) {
+				return std::make_unique<SLURMFrontend>();
+			} else {
+				return std::make_unique<CraySLURMFrontend>();
+			}
+		} else if (!wlmName.compare("generic")) {
+			return  std::make_unique<SSHFrontend>();
+		} else {
+			// fallback to use the default
+			fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
+			return std::make_unique<DefaultFrontend>();
+		}
+		if (currentFrontendPtr == nullptr) {
+			fprintf(stderr, "Workload manager argument '%s' produced null frontend!\n", wlmName.c_str());
+		}
+		#endif
+	}
 }
+constexpr auto SUCCESS = cti_conventions::return_code::SUCCESS;
+constexpr auto FAILURE = cti_conventions::return_code::FAILURE;
 
-// Destructor function
-void __attribute__ ((destructor))
-_cti_fini(void) {
-	// Ensure this is only called once
-	if (currentFrontendPtr == nullptr) {
-		return;
-	}
-
-	// call the transfer fini function
-	_cti_transfer_fini();
-
-	// reset wlm frontend to nullptr
-	currentFrontendPtr.reset();
-	
-	return;
-}
+constexpr auto APP_ERROR      = cti_conventions::return_code::APP_ERROR;
+constexpr auto SESSION_ERROR  = cti_conventions::return_code::SESSION_ERROR;
+constexpr auto MANIFEST_ERROR = cti_conventions::return_code::MANIFEST_ERROR;
 
 /*********************
 ** internal functions 
 *********************/
 
-Frontend& _cti_getCurrentFrontend() {
-	if (currentFrontendPtr == nullptr) {
-		_cti_init();
-		if (currentFrontendPtr == nullptr) {
-			throw std::runtime_error("frontend failed to initialize");
-		}
-	}
+// store and associate an arbitrary C++ object with an id (to make it accessible to C clients)
+template <typename IdType, typename T>
+class Registry {
 
-	return *currentFrontendPtr;
+private: // variables
+	std::unordered_map<IdType, T> m_list;
+	IdType m_id = IdType{};
+
+public: // interface
+
+	bool isValid(IdType const id) const { return m_list.find(id) != m_list.end(); }
+	void erase(IdType const id)         { m_list.erase(id); }
+	T&   get(IdType const id)           { return m_list.at(id); }
+
+	// take ownership of an object and assign it an id
+	IdType own(T&& expiring) {
+		// preincrement as cti_app/session/manifest_id_t represent error as 0
+		auto const newId = ++m_id;
+
+		m_list.insert(std::make_pair(newId, std::move(expiring)));
+		return newId;
+	}
+};
+
+/* global interface state objects */
+
+static auto appRegistry      = Registry<cti_app_id_t,      std::unique_ptr<App>>{};
+static auto sessionRegistry  = Registry<cti_session_id_t,  std::shared_ptr<Session>>{};
+static auto manifestRegistry = Registry<cti_manifest_id_t, std::shared_ptr<Manifest>>{};
+
+std::string const&
+_cti_getCfgDir() {
+	static std::string _cti_cfg_dir = cti_conventions::setupCfgDir();
+	return _cti_cfg_dir;
 }
 
-std::string const& _cti_getLdAuditPath(void) {
+std::string const&
+_cti_getBaseDir() {
+	static std::string _cti_base_dir = cti_conventions::setupBaseDir();
+	return _cti_base_dir;
+}
+
+std::string const&
+_cti_getLdAuditPath() {
+	static std::string _cti_ld_audit_lib = cti_conventions::accessiblePath(_cti_getBaseDir() + "/lib/" + LD_AUDIT_LIB_NAME);
 	return _cti_ld_audit_lib;
 }
 
-std::string const& _cti_getOverwatchPath(void) {
+std::string const&
+_cti_getOverwatchPath() {
+	static std::string _cti_overwatch_bin = cti_conventions::accessiblePath(_cti_getBaseDir() + "/libexec/" + CTI_OVERWATCH_BINARY);
 	return _cti_overwatch_bin;
 }
 
-std::string const& _cti_getDlaunchPath(void) {
+std::string const&
+_cti_getDlaunchPath() {
+	static std::string _cti_dlaunch_bin = cti_conventions::accessiblePath(_cti_getBaseDir() + "/libexec/" + CTI_LAUNCHER);
 	return _cti_dlaunch_bin;
 }
 
-std::string const& _cti_getCfgDir(void) {
-	if (!_cti_cfg_dir.empty()) {
-		return _cti_cfg_dir;
-	}
-
-	// Get the pw info, this is used in the unique name part of cfg directories
-	// and when doing the final ownership check
-	std::string username;
-	decltype(passwd::pw_uid) uid;
-	if (struct passwd *pw = getpwuid(getuid())) {
-		username = std::string(pw->pw_name);
-		uid = pw->pw_uid;
-	} else {
-		throw std::runtime_error(std::string("_cti_getCfgDir: getpwuid() ") + strerror(errno));
-	}
-
-	// get the cfg dir settings
-	std::string customCfgDir, cfgDir;
-	if (const char* cfg_dir_env = getenv(CFG_DIR_VAR)) {
-		customCfgDir = std::string(cfg_dir_env);
-	} else {
-		// look in this order: $TMPDIR, /tmp, $HOME
-		std::vector<const char*> defaultDirs {getenv("TMPDIR"), "/tmp", getenv("HOME")};
-		for (const char* dir_var : defaultDirs) {
-			if ((dir_var != nullptr) && cti_conventions::hasDirPerms(dir_var, R_OK | W_OK | X_OK)) {
-				cfgDir = std::string(dir_var);
-				break;
-			}
-		}
-	}
-
-	// Create the directory name string - we default this to have the name cray_cti-<username>
-	std::string cfgPath;
-	if (!customCfgDir.empty()) {
-		cfgPath = customCfgDir + "/cray_cti-" + username;
-	} else if (!cfgDir.empty()) {
-		cfgPath = cfgDir + "/cray_cti-" + username;
-	} else {
-		// We have no where to create a temporary directory...
-		throw std::runtime_error(std::string("Cannot find suitable config directory. Try setting the env variable ") + CFG_DIR_VAR);
-	}
-
-	if (customCfgDir.empty()) {
-		// default cfgdir behavior: create if not exist, chmod if bad perms
-
-		// try to stat the directory
-		struct stat st;
-		if (stat(cfgPath.c_str(), &st)) {
-			// the directory doesn't exist so we need to create it using perms 700
-			if (mkdir(cfgPath.c_str(), S_IRWXU)) {
-				throw std::runtime_error(std::string("_cti_getCfgDir: mkdir() ") + strerror(errno));
-			}
-		} else {
-			// directory already exists, so chmod it if has bad permissions.
-			// We created this directory previously.
-			if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU) {
-				if (chmod(cfgPath.c_str(), S_IRWXU)) {
-					throw std::runtime_error(std::string("_cti_getCfgDir: chmod() ") + strerror(errno));
-				}
-			}
-		}
-	} else {
-		// The user set CFG_DIR_VAR, we *ALWAYS* want to use that
-		// custom cfgdir behavior: error if not exist or bad perms
-
-		// Check to see if we can write to this directory
-		if (!cti_conventions::hasDirPerms(cfgPath.c_str(), R_OK | W_OK | X_OK)) {
-			throw std::runtime_error(std::string("Bad directory specified by environment variable ") + CFG_DIR_VAR);
-		}
-
-		// verify that it has the permissions we expect
-		struct stat st;
-		if (stat(cfgPath.c_str(), &st)) {
-			// could not stat the directory
-			throw std::runtime_error(std::string("_cti_getCfgDir: stat() ") + strerror(errno));
-		}
-		if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU) {
-			// bits other than S_IRWXU are set
-			throw std::runtime_error(std::string("Bad permissions (Only 0700 allowed) for directory specified by environment variable ") + CFG_DIR_VAR);
-		}
-	}
-
-	// make sure we have a good path string
-	if (char *realCfgPath = realpath(cfgPath.c_str(), nullptr)) {
-		cfgPath = std::string(realCfgPath);
-		free(realCfgPath);
-	} else {
-		throw std::runtime_error(std::string("_cti_getCfgDir: realpath() ") + strerror(errno));
-	}
-
-	// Ensure we have ownership of this directory, otherwise it is untrusted
-	struct stat st;
-	memset(&st, 0, sizeof(st));
-	if (stat(cfgPath.c_str(), &st)) {
-		throw std::runtime_error(std::string("_cti_getCfgDir: stat() ") + strerror(errno));
-	}
-	if (st.st_uid != uid) {
-		throw std::runtime_error(std::string("_cti_getCfgDir: Directory already exists: ") + cfgPath);
-	}
-
-	_cti_cfg_dir = cfgPath;
-	return _cti_cfg_dir;
+Frontend&
+_cti_getCurrentFrontend() {
+	static auto _cti_currentFrontendPtr = cti_conventions::make_Frontend();
+	return *_cti_currentFrontendPtr;
 }
 
 /************************
@@ -481,9 +456,9 @@ cti_version(void) {
 
 cti_wlm_type
 cti_current_wlm(void) {
-	if (currentFrontendPtr != nullptr) {
-		return currentFrontendPtr->getWLMType();
-	} else {
+	try {
+		return _cti_getCurrentFrontend().getWLMType();
+	} catch (std::exception& ex) {
 		return CTI_WLM_NONE;
 	}
 }
@@ -513,22 +488,22 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 
 int
 cti_getNumAppPEs(cti_app_id_t appId) {
-	return runSafely("cti_getNumAppPEs", [&](){
-		return getApp(appId).getNumPEs();
+	return util::runSafely("cti_getNumAppPEs", [&](){
+		return appRegistry.get(appId)->getNumPEs();
 	}, -1);
 }
 
 int
 cti_getNumAppNodes(cti_app_id_t appId) {
-	return runSafely("cti_getNumAppNodes", [&](){
-		return getApp(appId).getNumHosts();
+	return util::runSafely("cti_getNumAppNodes", [&](){
+		return appRegistry.get(appId)->getNumHosts();
 	}, -1);
 }
 
 char**
 cti_getAppHostsList(cti_app_id_t appId) {
-	return runSafely("cti_getAppHostsList", [&](){
-		auto const hostList = getApp(appId).getHostnameList();
+	return util::runSafely("cti_appRegistry.getHostsList", [&](){
+		auto const hostList = appRegistry.get(appId)->getHostnameList();
 
 		char **host_list = (char**)malloc(sizeof(char*) * (hostList.size() + 1));
 		for (size_t i = 0; i < hostList.size(); i++) {
@@ -542,8 +517,8 @@ cti_getAppHostsList(cti_app_id_t appId) {
 
 cti_hostsList_t*
 cti_getAppHostsPlacement(cti_app_id_t appId) {
-	return runSafely("cti_getAppHostsPlacement", [&](){
-		auto const hostPlacement = getApp(appId).getHostsPlacement();
+	return util::runSafely("cti_appRegistry.getHostsPlacement", [&](){
+		auto const hostPlacement = appRegistry.get(appId)->getHostsPlacement();
 
 		cti_hostsList_t *result = (cti_hostsList_t*)malloc(sizeof(cti_hostsList_t));
 		result->hosts = (cti_host_t*)malloc(sizeof(cti_host_t) * hostPlacement.size());
@@ -575,15 +550,15 @@ cti_destroyHostsList(cti_hostsList_t *placement_list) {
 
 char*
 cti_getHostname() {
-	return runSafely("cti_getHostname", [&](){
+	return util::runSafely("cti_getHostname", [&](){
 		return strdup(_cti_getCurrentFrontend().getHostname().c_str());
 	}, (char*)nullptr);
 }
 
 char*
 cti_getLauncherHostName(cti_app_id_t appId) {
-	return runSafely("cti_getLauncherHostName", [&](){
-		return strdup(getApp(appId).getLauncherHostname().c_str());
+	return util::runSafely("cti_getLauncherHostName", [&](){
+		return strdup(appRegistry.get(appId)->getLauncherHostname().c_str());
 	}, (char*)nullptr);
 }
 
@@ -595,22 +570,22 @@ cti_getLauncherHostName(cti_app_id_t appId) {
 
 #if !USE_CRAY_SLURM_ONLY
 uint64_t cti_alps_getApid(pid_t aprunPid) {
-	return runSafely("cti_alps_getApid", [&](){
-		return downcastCurrentFE<ALPSFrontend>()->getApid(aprunPid);
+	return util::runSafely("cti_alps_getApid", [&](){
+		return util::downcastCurrentFE<ALPSFrontend>().getApid(aprunPid);
 	});
 }
 
 cti_app_id_t cti_alps_registerApid(uint64_t apid) {
-	return runSafely("cti_alps_registerApid", [&](){
-		return downcastCurrentFE<ALPSFrontend>()->registerApid(apid);
+	return util::runSafely("cti_alps_registerApid", [&](){
+		return util::downcastCurrentFE<ALPSFrontend>().registerApid(apid);
 	});
 }
 
 cti_aprunProc_t * cti_alps_getAprunInfo(cti_app_id_t app_id) {
-	return runSafely("cti_alps_getApid", [&](){
-		auto alpsPtr = downcastCurrentFE<ALPSFrontend>();
+	return util::runSafely("cti_alps_getApid", [&](){
+		auto& alps = util::downcastCurrentFE<ALPSFrontend>();
 		if (auto result = (cti_aprunProc_t*)malloc(sizeof(cti_aprunProc_t))) {
-			*result = alpsPtr->getAprunInfo(app_id);
+			*result = alps.getAprunInfo(app_id);
 			return result;
 		} else {
 			throw std::runtime_error("malloc failed.");
@@ -619,8 +594,8 @@ cti_aprunProc_t * cti_alps_getAprunInfo(cti_app_id_t app_id) {
 }
 
 int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_id) {
-	return runSafely("cti_alps_getAlpsOverlapOrdinal", [&](){
-		return downcastCurrentFE<ALPSFrontend>()->getAlpsOverlapOrdinal(app_id);
+	return util::runSafely("cti_alps_getAlpsOverlapOrdinal", [&](){
+		return util::downcastCurrentFE<ALPSFrontend>().getAlpsOverlapOrdinal(app_id);
 	});
 }
 #endif
@@ -629,10 +604,10 @@ int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_id) {
 
 cti_srunProc_t*
 cti_cray_slurm_getJobInfo(pid_t srunPid) {
-	return runSafely("cti_cray_slurm_getJobInfo", [&](){
-		auto craySlurmPtr = downcastCurrentFE<CraySLURMFrontend>();
+	return util::runSafely("cti_cray_slurm_getJobInfo", [&](){
+		auto& craySlurm = util::downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
-			*result = craySlurmPtr->getSrunInfo(srunPid);
+			*result = craySlurm.getSrunInfo(srunPid);
 			return result;
 		} else {
 			throw std::runtime_error("malloc failed.");
@@ -642,20 +617,17 @@ cti_cray_slurm_getJobInfo(pid_t srunPid) {
 
 cti_app_id_t
 cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
-	return runSafely("cti_cray_slurm_registerJobStep", [&](){
-		auto const appId = newAppId();
-		appList.insert(std::make_pair(appId,
-			downcastCurrentFE<CraySLURMFrontend>()->registerJobStep(job_id, step_id)));
-		return appId;
+	return util::runSafely("cti_cray_slurm_registerJobStep", [&](){
+		return appRegistry.own(util::downcastCurrentFE<CraySLURMFrontend>().registerJobStep(job_id, step_id));
 	}, cti_app_id_t{0});
 }
 
 cti_srunProc_t*
 cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
-	return runSafely("cti_cray_slurm_getSrunInfo", [&](){
-		auto craySlurmPtr = downcastCurrentFE<CraySLURMFrontend>();
+	return util::runSafely("cti_cray_slurm_getSrunInfo", [&](){
+		auto& craySlurm = util::downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
-			*result = dynamic_cast<CraySLURMApp&>(getApp(appId)).getSrunInfo();
+			*result = dynamic_cast<CraySLURMApp&>(*appRegistry.get(appId)).getSrunInfo();
 			return result;
 		} else {
 			throw std::runtime_error("malloc failed.");
@@ -668,7 +640,7 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 cti_app_id_t
 cti_slurm_registerJobStep(pid_t launcher_pid) {
 #ifdef SLURMFrontend
-	return runSafely("cti_slurm_registerJobStep", [&](){
+	return util::runSafely("cti_slurm_registerJobStep", [&](){
 		throw std::runtime_error("Not implemented for SLURM WLM");
 	});
 #else
@@ -681,7 +653,7 @@ cti_slurm_registerJobStep(pid_t launcher_pid) {
 cti_app_id_t
 cti_ssh_registerJob(pid_t launcher_pid) {
 #ifdef SSHFrontend
-	return runSafely("cti_ssh_registerJob", [&](){
+	return util::runSafely("cti_ssh_registerJob", [&](){
 		throw std::runtime_error("Not implemented for SSH WLM");
 	});
 #else
@@ -695,15 +667,15 @@ cti_ssh_registerJob(pid_t launcher_pid) {
 
 int
 cti_appIsValid(cti_app_id_t appId) {
-	return runSafely("cti_appIsValid", [&](){
-		return appList.find(appId) != appList.end();
+	return util::runSafely("cti_appIsValid", [&](){
+		return appRegistry.isValid(appId);
 	}, false);
 }
 
 void
 cti_deregisterApp(cti_app_id_t appId) {
-	runSafely("cti_deregisterApp", [&](){
-		appList.erase(appId);
+	util::runSafely("cti_deregisterApp", [&](){
+		appRegistry.erase(appId);
 		return true;
 	}, false);
 }
@@ -712,7 +684,7 @@ cti_app_id_t
 cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
-	return runSafely("cti_launchApp", [&](){
+	return util::runSafely("cti_launchApp", [&](){
 		// sanity check the app launch arguments
 		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
 
@@ -720,7 +692,7 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 		auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 
 		// release barrier
-		getApp(appId).releaseBarrier();
+		appRegistry.get(appId)->releaseBarrier();
 
 		return appId;
 	}, cti_app_id_t{0});
@@ -730,34 +702,28 @@ cti_app_id_t
 cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
-	return runSafely("cti_launchAppBarrier", [&](){
+	return util::runSafely("cti_launchAppBarrier", [&](){
 		// sanity check the app launch arguments
 		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
 
-		// create app instance held at barrier
-		auto const appId = newAppId();
-		auto newApp = _cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd,
-			inputFile, chdirPath, env_list);
-
-		// register in the app list
-		appList.insert(std::make_pair(appId, std::move(newApp)));
-
-		return appId;
+		// register new app instance held at barrier
+		return appRegistry.own(_cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd,
+			inputFile, chdirPath, env_list));
 	}, cti_app_id_t{0});
 }
 
 int
 cti_releaseAppBarrier(cti_app_id_t appId) {
-	return runSafely("cti_releaseAppBarrier", [&](){
-		getApp(appId).releaseBarrier();
+	return util::runSafely("cti_releaseAppBarrier", [&](){
+		appRegistry.get(appId)->releaseBarrier();
 		return SUCCESS;
 	}, FAILURE);
 }
 
 int
 cti_killApp(cti_app_id_t appId, int signum) {
-	return runSafely("cti_killApp", [&](){
-		getApp(appId).kill(signum);
+	return util::runSafely("cti_killApp", [&](){
+		appRegistry.get(appId)->kill(signum);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -788,28 +754,26 @@ static void shipWLMBaseFiles(Session& liveSession) {
 
 cti_session_id_t
 cti_createSession(cti_app_id_t appId) {
-	return runSafely("cti_createSession", [&](){
-		auto const sid = newSessionId();
-
-		// create session instance
-		auto newSession = std::make_shared<Session>(_cti_getCurrentFrontend().getWLMType(), getApp(appId));
-		shipWLMBaseFiles(*newSession);
-		sessionList.insert(std::make_pair(sid, newSession));
+	return util::runSafely("cti_createSession", [&](){
+		// register new session instance and ship the WLM-specific base files
+		auto const sid = sessionRegistry.own(
+			std::make_shared<Session>(_cti_getCurrentFrontend().getWLMType(), *appRegistry.get(appId)));
+		shipWLMBaseFiles(*sessionRegistry.get(sid));
 		return sid;
 	}, SESSION_ERROR);
 }
 
 int
 cti_sessionIsValid(cti_session_id_t sid) {
-	return runSafely("cti_sessionIsValid", [&](){
-		return sessionList.find(sid) != sessionList.end();
+	return util::runSafely("cti_sessionIsValid", [&](){
+		return sessionRegistry.isValid(sid);
 	}, false);
 }
 
 char**
 cti_getSessionLockFiles(cti_session_id_t sid) {
-	return runSafely("cti_getSessionLockFiles", [&](){
-		auto const& activeManifests = getSession(sid).getManifests();
+	return util::runSafely("cti_sessionRegistry.getLockFiles", [&](){
+		auto const& activeManifests = sessionRegistry.get(sid)->getManifests();
 
 		// ensure there's at least one manifest instance
 		if (activeManifests.size() == 0) {
@@ -833,9 +797,9 @@ cti_getSessionLockFiles(cti_session_id_t sid) {
 
 // fill in a heap string pointer to session root path plus subdirectory
 static char* sessionPathAppend(std::string const& caller, cti_session_id_t sid, const std::string& str) {
-	return runSafely(caller, [&](){
+	return util::runSafely(caller, [&](){
 		// get session and construct string
-		auto const& session = getSession(sid);
+		auto const& session = *sessionRegistry.get(sid);
 		std::stringstream ss;
 		ss << session.m_toolPath << "/" << session.m_stageName << str;
 		return strdup(ss.str().c_str());
@@ -873,67 +837,65 @@ cti_getSessionTmpDir(cti_session_id_t sid) {
 
 cti_manifest_id_t
 cti_createManifest(cti_session_id_t sid) {
-	return runSafely("cti_createManifest", [&](){
-		auto const mid = newManifestId();
-		manifestList.insert({mid, getSession(sid).createManifest()});
-		return mid;
+	return util::runSafely("cti_createManifest", [&](){
+		return manifestRegistry.own(sessionRegistry.get(sid)->createManifest());
 	}, MANIFEST_ERROR);
 }
 
 int
 cti_manifestIsValid(cti_manifest_id_t mid) {
-	return runSafely("cti_manifestIsValid", [&](){
-		return manifestList.find(mid) != manifestList.end();
+	return util::runSafely("cti_manifestIsValid", [&](){
+		return manifestRegistry.isValid(mid);
 	}, false);
 }
 
 int
 cti_destroySession(cti_session_id_t sid) {
-	return runSafely("cti_destroySession", [&](){
-		getSession(sid).launchCleanup();
-		sessionList.erase(sid);
+	return util::runSafely("cti_destroySession", [&](){
+		sessionRegistry.get(sid)->launchCleanup();
+		sessionRegistry.erase(sid);
 		return SUCCESS;
 	}, FAILURE);
 }
 
 int
 cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely("cti_addManifestBinary", [&](){
-		getManifest(mid).addBinary(rawName);
+	return util::runSafely("cti_addManifestBinary", [&](){
+		manifestRegistry.get(mid)->addBinary(rawName);
 		return SUCCESS;
 	}, FAILURE);
 }
 
 int
 cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely("cti_addManifestLibrary", [&](){
-		getManifest(mid).addLibrary(rawName);
+	return util::runSafely("cti_addManifestLibrary", [&](){
+		manifestRegistry.get(mid)->addLibrary(rawName);
 		return SUCCESS;
 	}, FAILURE);
 }
 
 int
 cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely("cti_addManifestLibDir", [&](){
-		getManifest(mid).addLibDir(rawName);
+	return util::runSafely("cti_addManifestLibDir", [&](){
+		manifestRegistry.get(mid)->addLibDir(rawName);
 		return SUCCESS;
 	}, FAILURE);
 }
 
 int
 cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
-	return runSafely("cti_addManifestFile", [&](){
-		getManifest(mid).addFile(rawName);
+	return util::runSafely("cti_addManifestFile", [&](){
+		manifestRegistry.get(mid)->addFile(rawName);
 		return SUCCESS;
 	}, FAILURE);
 }
 
 int
 cti_sendManifest(cti_manifest_id_t mid) {
-	return runSafely("cti_sendManifest", [&](){
-		auto remotePackage = getManifest(mid).finalizeAndShip();
+	return util::runSafely("cti_sendManifest", [&](){
+		auto remotePackage = manifestRegistry.get(mid)->finalizeAndShip();
 		remotePackage.extract();
-		manifestList.erase(mid);
+		manifestRegistry.erase(mid);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -943,13 +905,13 @@ int
 cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 	const char * const daemonArgs[], const char * const envVars[])
 {
-	return runSafely("cti_execToolDaemon", [&](){
-		{ auto& manifest = getManifest(mid);
+	return util::runSafely("cti_execToolDaemon", [&](){
+		{ auto& manifest = *manifestRegistry.get(mid);
 			manifest.addBinary(daemonPath);
 			auto remotePackage = manifest.finalizeAndShip();
 			remotePackage.extractAndRun(daemonPath, daemonArgs, envVars);
 		}
-		manifestList.erase(mid);
+		manifestRegistry.erase(mid);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -972,8 +934,4 @@ _cti_consumeSession(void* rawSidPtr) {
 }
 
 void _cti_transfer_init(void) { /* no-op */ }
-
-void
-_cti_transfer_fini(void) {
-	sessionList.clear();
-}
+void _cti_transfer_fini(void) { /* no-op */ }

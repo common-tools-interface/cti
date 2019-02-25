@@ -114,10 +114,10 @@ public: // impl.-specific interface
 	getHostname(void) const = 0;
 };
 
-/* internal frontend management */
-Frontend& _cti_getCurrentFrontend();
 
-std::string const& _cti_getLdAuditPath(void);
-std::string const& _cti_getOverwatchPath(void);
-std::string const& _cti_getDlaunchPath(void);
-std::string const& _cti_getCfgDir(void);
+std::string const& _cti_getCfgDir();
+std::string const& _cti_getBaseDir();
+std::string const& _cti_getLdAuditPath();
+std::string const& _cti_getOverwatchPath();
+std::string const& _cti_getDlaunchPath();
+Frontend& _cti_getCurrentFrontend();
