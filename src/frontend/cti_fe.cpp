@@ -90,16 +90,49 @@ namespace util {
 	}
 }
 
-namespace cti_conventions {
+namespace cti_conventions
+{
 	constexpr static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
 
-	namespace return_code {
+	namespace return_code
+	{
 		static constexpr auto SUCCESS = int{0};
 		static constexpr auto FAILURE = int{1};
-		constexpr static cti_app_id_t APP_ERROR = 0;
-		constexpr static cti_session_id_t SESSION_ERROR = 0;
-		constexpr static cti_manifest_id_t MANIFEST_ERROR = 0;
+
+		static constexpr auto APP_ERROR      = cti_app_id_t{0};
+		static constexpr auto SESSION_ERROR  = cti_session_id_t{0};
+		static constexpr auto MANIFEST_ERROR = cti_manifest_id_t{0};
 	}
+
+	/* function definitions */
+
+	// return true if running on cluster system
+	static bool isClusterSystem();
+
+	// return true if running on backend
+	static bool isRunningOnBackend();
+
+	// return true if path exists, is a directory, and has the given permissions
+	static bool dirHasPerms(char const* dirPath, int const perms);
+
+	// verify that FDs are writable, input file path is readable, and chdir path is
+	// read/write/executable. if not, throw an exception with the corresponding error message
+	static void verifyLaunchArgs(int const stdoutFd, int const stderrFd, const char *inputFilePath,
+		const char *chdirPath);
+
+	// use user info to build unique staging path; optionally create the staging direcotry
+	static std::string setupCfgDir();
+
+	// verify read/execute permissions of the given path, throw if inaccessible
+	static std::string accessiblePath(std::string const& path);
+
+	// get the base CTI directory from the environment and verify its permissions
+	static std::string setupBaseDir();
+
+	// use environment info to determine and instantiate the correct WLM Frontend implementation
+	static std::unique_ptr<Frontend> make_Frontend();
+
+	/* function implementations */
 
 	static bool
 	isClusterSystem()
@@ -115,16 +148,16 @@ namespace cti_conventions {
 	}
 
 	static bool
-	hasDirPerms(std::string const& dirPath, decltype(R_OK) perms) {
+	dirHasPerms(char const* dirPath, int const perms)
+	{
 		struct stat st;
-		return !stat(dirPath.c_str(), &st) // make sure this directory exists
+		return !stat(dirPath, &st) // make sure this directory exists
 		    && S_ISDIR(st.st_mode) // make sure it is a directory
-		    && !access(dirPath.c_str(), perms); // check if we can access the directory
+		    && !access(dirPath, perms); // check if we can access the directory
 	}
 
-	// This does sanity checking on args in common for both launchApp and launchAppBarrier
 	static void
-	verifyLaunchArgs(int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath)
+	verifyLaunchArgs(int const stdoutFd, int const stderrFd, char const *inputFilePath, const char *chdirPath)
 	{
 		auto canWriteFd = [](int const fd) {
 			// if fd is -1, then the fd arg is meant to be ignored
@@ -140,23 +173,23 @@ namespace cti_conventions {
 		};
 
 		// ensure stdout, stderr can be written to
-		if (!canWriteFd(stdout_fd)) {
+		if (!canWriteFd(stdoutFd)) {
 			throw std::runtime_error("Invalid stdout_fd argument. No write access.");
 		}
-		if (!canWriteFd(stderr_fd)) {
+		if (!canWriteFd(stderrFd)) {
 			throw std::runtime_error("Invalid stderr_fd argument. No write access.");
 		}
 
 		// verify inputFile is a file that can be read
-		if (inputFile != nullptr) {
+		if (inputFilePath != nullptr) {
 			struct stat st;
-			if (stat(inputFile, &st)) { // make sure inputfile exists
+			if (stat(inputFilePath, &st)) { // make sure inputfile exists
 				throw std::runtime_error("Invalid inputFile argument. File does not exist.");
 			}
 			if (!S_ISREG(st.st_mode)) { // make sure it is a regular file
 				throw std::runtime_error("Invalid inputFile argument. The file is not a regular file.");
 			}
-			if (access(inputFile, R_OK)) { // make sure we can access it
+			if (access(inputFilePath, R_OK)) { // make sure we can access it
 				throw std::runtime_error("Invalid inputFile argument. Bad permissions.");
 			}
 		}
@@ -176,7 +209,6 @@ namespace cti_conventions {
 		}
 	}
 
-	// use user info to build unique staging path; optionally create the staging direcotry
 	static std::string
 	setupCfgDir()
 	{
@@ -199,7 +231,7 @@ namespace cti_conventions {
 			// look in this order: $TMPDIR, /tmp, $HOME
 			std::vector<const char*> defaultDirs {getenv("TMPDIR"), "/tmp", getenv("HOME")};
 			for (const char* dir_var : defaultDirs) {
-				if ((dir_var != nullptr) && cti_conventions::hasDirPerms(dir_var, R_OK | W_OK | X_OK)) {
+				if ((dir_var != nullptr) && cti_conventions::dirHasPerms(dir_var, R_OK | W_OK | X_OK)) {
 					cfgDir = std::string(dir_var);
 					break;
 				}
@@ -241,7 +273,7 @@ namespace cti_conventions {
 			// custom cfgdir behavior: error if not exist or bad perms
 
 			// Check to see if we can write to this directory
-			if (!cti_conventions::hasDirPerms(cfgPath.c_str(), R_OK | W_OK | X_OK)) {
+			if (!cti_conventions::dirHasPerms(cfgPath.c_str(), R_OK | W_OK | X_OK)) {
 				throw std::runtime_error(std::string("Bad directory specified by environment variable ") + CFG_DIR_VAR);
 			}
 
@@ -279,15 +311,19 @@ namespace cti_conventions {
 	}
 
 	static std::string accessiblePath(std::string const& path) {
-		return !access(path.c_str(), R_OK | X_OK) ? path : "";
+		if (!access(path.c_str(), R_OK | X_OK)) {
+			return path;
+		}
+		throw std::runtime_error("path inacessible: " + path);
 	};
 
 	static std::string
-	setupBaseDir(void) {
+	setupBaseDir(void)
+	{
 		const char * base_dir_env = getenv(BASE_DIR_ENV_VAR);
-		if ((base_dir_env == nullptr) || !cti_conventions::hasDirPerms(base_dir_env, R_OK | X_OK)) {
+		if ((base_dir_env == nullptr) || !cti_conventions::dirHasPerms(base_dir_env, R_OK | X_OK)) {
 			for (const char* const* pathPtr = cti_conventions::_cti_default_dir_locs; *pathPtr != nullptr; pathPtr++) {
-				if (cti_conventions::hasDirPerms(*pathPtr, R_OK | X_OK)) {
+				if (cti_conventions::dirHasPerms(*pathPtr, R_OK | X_OK)) {
 					return std::string{*pathPtr};
 				}
 			}
