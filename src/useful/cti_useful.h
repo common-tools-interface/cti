@@ -23,14 +23,10 @@
 extern "C" {
 #endif
 
-#include "cti_args.h"
-#include "cti_list.h"
 #include "cti_log.h"
 #include "cti_overwatch.h"
 #include "cti_path.h"
-#include "cti_signal.h"
 #include "cti_stack.h"
-#include "cti_stringList.h"
 
 #ifdef __cplusplus
 }

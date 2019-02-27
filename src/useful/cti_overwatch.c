@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdarg.h>
 
 #include <sys/prctl.h>
 #include <sys/time.h>
@@ -34,8 +35,142 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 
-#include "cti_args.h"
 #include "cti_overwatch.h"
+
+/* cti_args implementation */
+
+/* struct typedefs */
+typedef struct
+{
+	unsigned int	argc;
+	char **     	argv;
+	unsigned int	_len;
+} cti_args_t;
+
+// Number of elements we should increment by for argv
+#define ARGV_BLOCK_SIZE	16
+
+// static prototypes
+static int	_cti_resizeArgs(cti_args_t *);
+
+static cti_args_t *
+_cti_newArgs(void)
+{
+	cti_args_t *	this;
+	
+	// allocate the args datatype
+	if ((this = malloc(sizeof(cti_args_t))) == NULL)
+	{
+		// malloc failed
+		return NULL;
+	}
+	
+	// init the members
+	this->argc = 0;
+	if ((this->argv = malloc(ARGV_BLOCK_SIZE * sizeof(char *))) == NULL)
+	{
+		// malloc failed
+		free(this);
+		return NULL;
+	}
+	memset(this->argv, 0, ARGV_BLOCK_SIZE * sizeof(char *));
+	this->_len = ARGV_BLOCK_SIZE;
+	
+	return this;
+}
+
+static void
+_cti_freeArgs(cti_args_t * this)
+{
+	unsigned int i;
+	
+	// sanity
+	if (this == NULL)
+		return;
+		
+	// free argv elems
+	for (i=0; i < this->argc; ++i)
+	{
+		free(this->argv[i]);
+	}
+	
+	// free argv
+	free(this->argv);
+	
+	// free obj
+	free(this);
+}
+
+static int
+_cti_resizeArgs(cti_args_t *this)
+{
+	void *	new;
+
+	// sanity
+	if (this == NULL)
+		return 1;
+	
+	if ((new = realloc(this->argv, (this->_len + ARGV_BLOCK_SIZE) * sizeof(char *))) == NULL)
+	{
+		// realloc failed
+		return 1;
+	}
+	// update members
+	this->argv = (char **)new;
+	this->_len += ARGV_BLOCK_SIZE;
+	// initialize new memory
+	memset(&(this->argv[this->argc]), 0, (this->_len - this->argc) * sizeof(char *));
+	
+	return 0;
+}
+
+static int
+_cti_addArg(cti_args_t *this, const char *fmt, ...)
+{
+	va_list ap;
+	char *	new_arg;
+	
+	// sanity
+	if (this == NULL || fmt == NULL)
+	{
+		// failed to add arg
+		return 1;
+	}
+	
+	// setup the va_args
+	va_start(ap, fmt);
+	
+	// create the argument string
+	if (vasprintf(&new_arg, fmt, ap) <= 0)
+	{
+		// vasprintf failed
+		return 1;
+	}
+	
+	// finish the va_args
+	va_end(ap);
+	
+	// Ensure that there is room for this argument - note that we always
+	// want the argv to be null terminated, so we need to resize once argc+1 is
+	// equal to _len.
+	if (this->argc + 1 >= this->_len)
+	{
+		// need to resize
+		if (_cti_resizeArgs(this))
+		{
+			// failed to resize
+			return 1;
+		}
+	}
+	
+	// set the argument string
+	this->argv[this->argc] = new_arg;
+	this->argc += 1;
+	
+	return 0;
+}
+
+/* cti overwatch implementation */
 
 static void
 _cti_free_overwatch(cti_overwatch_t *this)

@@ -155,16 +155,6 @@ namespace cti {
 		}
 	}
 
-	static inline void myListAdd(cti_list_t *list, void *elem) {
-		if (_cti_list_add(list, elem)) {
-			throw std::runtime_error("_cti_list_add failed.");
-		}
-	}
-
-	static inline void myListRemove(cti_list_t *list, void *elem) {
-		_cti_list_remove(list, elem);
-	}
-
 	/* cti_error wrappers */
 
 	static inline std::string getErrorString() {
