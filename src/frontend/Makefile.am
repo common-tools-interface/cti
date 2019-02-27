@@ -17,7 +17,6 @@ lib_LTLIBRARIES = libcraytools_fe.la
 
 libcraytools_fe_la_SOURCES	=	cti_fe.h cti_run.h cti_fe.cpp \
 								cti_error.c cti_error.h \
-								cti_appentry.cpp cti_appentry.h \
 								Frontend.hpp \
 								cray_slurm_fe.cpp cray_slurm_fe.hpp \
 								# ssh_fe.cpp ssh_fe.hpp
