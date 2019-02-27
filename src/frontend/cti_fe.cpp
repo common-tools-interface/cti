@@ -502,18 +502,16 @@ cti_current_wlm(void) {
 const char *
 cti_wlm_type_toString(cti_wlm_type wlm_type) {
 	switch (wlm_type) {
-		case CTI_WLM_ALPS:
-			return "Cray ALPS";
-			
+
 		case CTI_WLM_CRAY_SLURM:
 			return "Cray based SLURM";
-	
+
 		case CTI_WLM_SLURM:
 			return "SLURM";
 
 		case CTI_WLM_SSH:
 			return "Fallback (SSH based) workload manager";
-			
+
 		case CTI_WLM_NONE:
 			return "No WLM detected";
 	}

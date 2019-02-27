@@ -565,7 +565,7 @@ _cti_be_cray_slurm_getNodeHostname()
 
 	// Try the Cray /proc extension short cut
     FILE *nid_fp;             // NID file stream
-	if ((nid_fp = fopen(ALPS_XT_NID, "r")) != NULL)
+	if ((nid_fp = fopen(CRAY_NID_FILE, "r")) != NULL)
 	{
 	    // we expect this file to have a numeric value giving our current nid
         char file_buf[BUFSIZ];   // file read buffer
@@ -595,12 +595,12 @@ _cti_be_cray_slurm_getNodeHostname()
         // check for invalid input
         if (eptr == file_buf)
         {
-            fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname: Bad data in %s\n", ALPS_XT_NID);
+            fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname: Bad data in %s\n", CRAY_NID_FILE);
             return NULL;
         }
 
 	    // create the nid hostname string
-	    if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, nid) <= 0)
+	    if (asprintf(&hostname, CRAY_HOSTNAME_FMT, nid) <= 0)
 	    {
 		    fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname asprintf failed.\n");
             free(hostname);
