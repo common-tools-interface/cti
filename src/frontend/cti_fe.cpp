@@ -53,8 +53,6 @@
 #include "cray_slurm_fe.hpp"
 #define USE_CRAY_SLURM_ONLY 1
 #if !USE_CRAY_SLURM_ONLY
-#include "alps_fe.hpp"
-#include "slurm_fe.hpp"
 #include "ssh_fe.hpp"
 #endif
 
@@ -341,7 +339,7 @@ namespace cti_conventions
 	static std::unique_ptr<Frontend>
 	make_Frontend()
 	{
-		using DefaultFrontend = CraySLURMFrontend;// ALPSFrontend;
+		using DefaultFrontend = CraySLURMFrontend;
 
 		// We do not want to call init if we are running on the backend inside of
 		// a tool daemon! It is possible for BE libraries to link against both the
@@ -382,15 +380,8 @@ namespace cti_conventions
 		// parse the returned result
 		return std::make_unique<CraySLURMFrontend>();
 		#if !USE_CRAY_SLURM_ONLY
-		if (!wlmName.compare("ALPS") || !wlmName.compare("alps")) {
-			return  std::make_unique<ALPSFrontend>();
-		} else if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
-			// Check to see if we are on a cluster. If so, use the cluster slurm prototype.
-			if (cti_conventions::isClusterSystem()) {
-				return std::make_unique<SLURMFrontend>();
-			} else {
-				return std::make_unique<CraySLURMFrontend>();
-			}
+		if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
+			return std::make_unique<CraySLURMFrontend>();
 		} else if (!wlmName.compare("generic")) {
 			return  std::make_unique<SSHFrontend>();
 		} else {
@@ -506,9 +497,6 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 		case CTI_WLM_CRAY_SLURM:
 			return "Cray based SLURM";
 
-		case CTI_WLM_SLURM:
-			return "SLURM";
-
 		case CTI_WLM_SSH:
 			return "Fallback (SSH based) workload manager";
 
@@ -600,40 +588,6 @@ cti_getLauncherHostName(cti_app_id_t appId) {
 
 /* WLM-specific function implementation */
 
-// ALPS
-
-#if !USE_CRAY_SLURM_ONLY
-uint64_t cti_alps_getApid(pid_t aprunPid) {
-	return util::runSafely("cti_alps_getApid", [&](){
-		return util::downcastCurrentFE<ALPSFrontend>().getApid(aprunPid);
-	});
-}
-
-cti_app_id_t cti_alps_registerApid(uint64_t apid) {
-	return util::runSafely("cti_alps_registerApid", [&](){
-		return util::downcastCurrentFE<ALPSFrontend>().registerApid(apid);
-	});
-}
-
-cti_aprunProc_t * cti_alps_getAprunInfo(cti_app_id_t app_id) {
-	return util::runSafely("cti_alps_getApid", [&](){
-		auto& alps = util::downcastCurrentFE<ALPSFrontend>();
-		if (auto result = (cti_aprunProc_t*)malloc(sizeof(cti_aprunProc_t))) {
-			*result = alps.getAprunInfo(app_id);
-			return result;
-		} else {
-			throw std::runtime_error("malloc failed.");
-		}
-	});
-}
-
-int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_id) {
-	return util::runSafely("cti_alps_getAlpsOverlapOrdinal", [&](){
-		return util::downcastCurrentFE<ALPSFrontend>().getAlpsOverlapOrdinal(app_id);
-	});
-}
-#endif
-
 // Cray-SLURM
 
 cti_srunProc_t*
@@ -667,19 +621,6 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 			throw std::runtime_error("malloc failed.");
 		}
 	}, (cti_srunProc_t*)nullptr);
-}
-
-// SLURM
-
-cti_app_id_t
-cti_slurm_registerJobStep(pid_t launcher_pid) {
-#ifdef SLURMFrontend
-	return util::runSafely("cti_slurm_registerJobStep", [&](){
-		throw std::runtime_error("Not implemented for SLURM WLM");
-	});
-#else
-	return cti_app_id_t{0};
-#endif
 }
 
 // SSH

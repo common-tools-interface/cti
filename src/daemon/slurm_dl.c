@@ -35,7 +35,7 @@ static int	_cti_slurm_getNodeID(void);
 /* cray slurm wlm proto object */
 cti_wlm_proto_t		_cti_slurm_wlmProto =
 {
-	CTI_WLM_SLURM,			// wlm_type
+	CTI_WLM_SSH,			// wlm_type
 	_cti_slurm_init,		// wlm_init
 	_cti_slurm_getNodeID	// wlm_getNodeID
 };

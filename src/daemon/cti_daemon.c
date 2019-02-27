@@ -516,7 +516,6 @@ main(int argc, char **argv)
 			break;
 		
 		case CTI_WLM_SSH:
-		case CTI_WLM_SLURM:	
 			_cti_wlmProto = &_cti_slurm_wlmProto;
 			break;
 
@@ -565,7 +564,6 @@ main(int argc, char **argv)
 	switch (wlm_arg)
 	{
 		case CTI_WLM_CRAY_SLURM:
-		case CTI_WLM_SLURM:
 		case CTI_WLM_SSH:
 			// These wlm are valid
 			break;

@@ -77,7 +77,6 @@ _cti_be_init(void)
 			break;
 		
 		case CTI_BE_WLM_SSH:
-		case CTI_BE_WLM_SLURM:
 			_cti_be_wlmProto = &_cti_be_slurm_wlmProto;
 			break;
 			
@@ -140,9 +139,6 @@ cti_be_wlm_type_toString(cti_be_wlm_type wlm_type)
 		case CTI_BE_WLM_CRAY_SLURM:
 			return "Cray based SLURM";
 	
-		case CTI_BE_WLM_SLURM:
-			return "SLURM";
-		
 		case CTI_BE_WLM_SSH:
 			return "Fallback (SSH based) workload manager";
 			

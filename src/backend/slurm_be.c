@@ -56,7 +56,7 @@ static int					_cti_be_slurm_getNodePEs(void);
 /* cray slurm wlm proto object */
 cti_be_wlm_proto_t			_cti_be_slurm_wlmProto =
 {
-	CTI_BE_WLM_SLURM,				// wlm_type
+	CTI_BE_WLM_SSH,				// wlm_type
 	_cti_be_slurm_init,			// wlm_init
 	_cti_be_slurm_fini,			// wlm_fini
 	_cti_be_slurm_findAppPids,		// wlm_findAppPids
