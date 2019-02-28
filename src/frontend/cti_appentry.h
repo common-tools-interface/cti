@@ -25,7 +25,7 @@
 extern "C" {
 #endif
 
-#include "cti_fe.h"
+#include "cti_fe_iface.h"
 
 #include "useful/cti_args.h"
 #include "useful/cti_list.h"

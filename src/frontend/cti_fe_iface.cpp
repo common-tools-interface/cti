@@ -39,7 +39,7 @@
 #include <typeinfo>
 
 // CTI definition includes
-#include "cti_fe.h"
+#include "cti_fe_iface.h"
 #include "cti_defs.h"
 #include "cti_error.h"
 

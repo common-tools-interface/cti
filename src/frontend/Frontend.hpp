@@ -26,7 +26,7 @@
 #include <unordered_map>
 #include <memory>
 
-#include "cti_fe.h"
+#include "cti_fe_iface.h"
 
 struct CTIHost {
 	std::string hostname;

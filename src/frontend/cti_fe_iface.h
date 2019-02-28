@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * cti_fe.h - External C interface for the cti frontend.
+ * cti_fe_iface.h - External C interface for the cti frontend.
  *
  * Copyright 2014-2015 Cray Inc.	All Rights Reserved.
  *
@@ -16,8 +16,8 @@
  *
  *********************************************************************************/
 
-#ifndef _CTI_FE_H
-#define _CTI_FE_H
+#ifndef _CTI_FE_IFACE_H
+#define _CTI_FE_IFACE_H
 
 #include "cti_defs.h"
 
@@ -143,4 +143,4 @@ cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid);
 }
 #endif
 
-#endif /* _CTI_FE_H */
+#endif /* _CTI_FE_IFACE_H */

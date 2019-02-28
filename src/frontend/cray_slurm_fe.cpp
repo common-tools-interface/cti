@@ -37,7 +37,7 @@
 
 
 #include "cti_defs.h"
-#include "cti_fe.h"
+#include "cti_fe_iface.h"
 
 #include "frontend/Frontend.hpp"
 #include "cray_slurm_fe.hpp"
