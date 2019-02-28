@@ -157,10 +157,11 @@ public: // inherited interface
 	std::unique_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
 		CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
+	std::unique_ptr<App> registerJob(size_t numIds, ...) override;
+
 	std::string getHostname() const override;
 
 public: // slurm specific interface
-	std::unique_ptr<App> registerJobStep(uint32_t jobid, uint32_t stepid);
 
 	SrunInfo getSrunInfo(pid_t srunPid); // attach and read srun info
 };

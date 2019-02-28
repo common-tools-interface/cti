@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <cstdarg>
+
 #include <vector>
 #include <string>
 
@@ -108,6 +110,11 @@ public: // impl.-specific interface
 	virtual std::unique_ptr<App>
 	launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 	              CStr inputFile, CStr chdirPath, CArgArray env_list) = 0;
+
+	// create an application instance from an already-running job (the number of IDs used to
+	// represent a job is implementation-defined)
+	virtual std::unique_ptr<App>
+	registerJob(size_t numIds, ...) = 0;
 
 	// get hostname of current node
 	virtual std::string

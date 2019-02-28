@@ -651,8 +651,20 @@ CraySLURMFrontend::getHostname() const
 }
 
 std::unique_ptr<App>
-CraySLURMFrontend::registerJobStep(uint32_t jobid, uint32_t stepid) {
-	return std::make_unique<CraySLURMApp>(jobid, stepid);
+CraySLURMFrontend::registerJob(size_t numIds, ...) {
+	if (numIds != 2) {
+		throw std::logic_error("expecting job and step ID pair to register app");
+	}
+
+	va_list idArgs;
+	va_start(idArgs, numIds);
+
+	uint32_t jobId  = va_arg(idArgs, uint32_t);
+	uint32_t stepId = va_arg(idArgs, uint32_t);
+
+	va_end(idArgs);
+
+	return std::make_unique<CraySLURMApp>(jobId, stepId);
 }
 
 SrunInfo

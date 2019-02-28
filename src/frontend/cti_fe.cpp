@@ -654,8 +654,9 @@ cti_cray_slurm_getJobInfo(pid_t srunPid) {
 cti_app_id_t
 cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
 	return util::runSafely("cti_cray_slurm_registerJobStep", [&](){
-		return appRegistry.own(util::downcastCurrentFE<CraySLURMFrontend>().registerJobStep(job_id, step_id));
-	}, cti_app_id_t{0});
+		auto& craySlurm = util::downcastCurrentFE<CraySLURMFrontend>();
+		return appRegistry.own(craySlurm.registerJob(2, job_id, step_id));
+	}, APP_ERROR);
 }
 
 cti_srunProc_t*
@@ -680,7 +681,7 @@ cti_slurm_registerJobStep(pid_t launcher_pid) {
 		throw std::runtime_error("Not implemented for SLURM WLM");
 	});
 #else
-	return cti_app_id_t{0};
+	return APP_ERROR;
 #endif
 }
 
@@ -731,7 +732,7 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 		appRegistry.get(appId)->releaseBarrier();
 
 		return appId;
-	}, cti_app_id_t{0});
+	}, APP_ERROR);
 }
 
 cti_app_id_t
@@ -745,7 +746,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stde
 		// register new app instance held at barrier
 		return appRegistry.own(_cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd,
 			inputFile, chdirPath, env_list));
-	}, cti_app_id_t{0});
+	}, APP_ERROR);
 }
 
 int
