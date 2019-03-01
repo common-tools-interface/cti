@@ -35,8 +35,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-
 #include "cti_defs.h"
+#include "ArgvDefs.hpp"
 #include "cti_fe_iface.h"
 
 #include "frontend/Frontend.hpp"
@@ -44,32 +44,13 @@
 
 #include "useful/strong_argv.hpp"
 #include "useful/Dlopen.hpp"
+#include "useful/ExecvpOutput.hpp"
+#include "useful/string_split.hpp"
 #include "useful/cti_wrappers.hpp"
 
 #include "mpir_iface/mpir_iface.h"
 
 /* Types used here */
-
-static slurm_util::StepLayout fetchStepLayout(uint32_t jobid, uint32_t stepid)
-{
-	auto raw_layout = UniquePtrDestr<slurmStepLayout_t>
-		{ _cti_cray_slurm_getLayout(jobid, stepid) // fetch from slurm_util helper
-		, _cti_cray_slurm_freeLayout               // raw layout destructor
-	};
-
-	// extract PE and node information from raw layout
-	auto const numPEs = (size_t)raw_layout->numPEs;
-	auto nodes = std::vector<slurm_util::NodeLayout>{};
-	for (int i = 0; i < raw_layout->numNodes; ++i) {
-		nodes.push_back(slurm_util::NodeLayout
-			{ .hostname = std::string{raw_layout->hosts[i].host}
-			, .numPEs   = (size_t)raw_layout->hosts[i].PEsHere
-			, .firstPE  = (size_t)raw_layout->hosts[i].firstPE
-		});
-	}
-
-	return slurm_util::StepLayout{ .numPEs = numPEs, .nodes = nodes };
-}
 
 /* functions and data that are present / expected in a slurm environment */
 namespace slurm_conventions
@@ -100,12 +81,86 @@ namespace slurm_conventions
 		"SLURM_WORKING_DIR"
 	};
 
-	// Use a slurm_util Step Layout to create the SLURM Node Layout file inside the staging directory, return the new path.
-	static std::string
-	createNodeLayoutFile(slurm_util::StepLayout const& stepLayout, std::string const& stagePath)
+	// use sattach to retrieve node / host information about a SLURM job
+	/* sattach layout format:
+	Job step layout:
+	  {numPEs} tasks, {numNodes} nodes ({hostname}...)
+	  <newline>
+	  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }...
+	*/
+	static StepLayout
+	fetchStepLayout(uint32_t job_id, uint32_t step_id)
 	{
-		// How a SLURM Node Layout File entry is created from a slurm_util Node Layout entry:
-		auto make_layoutFileEntry = [](slurm_util::NodeLayout const& node) {
+		// create sattach instance
+		OutgoingArgv<SattachArgv> sattachArgv("sattach");
+		{ using SA = SattachArgv;
+			sattachArgv.add(SA::DisplayLayout);
+			sattachArgv.add(SA::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
+		}
+
+		// create sattach output capture object
+		ExecvpOutput sattachOutput("sattach", sattachArgv.get());
+		auto& sattachStream = sattachOutput.stream();
+		std::string sattachLine;
+
+		// "Job step layout:"
+		if (std::getline(sattachStream, sattachLine)) {
+			if (sattachLine.compare("Job step layout:")) {
+				throw std::runtime_error(std::string("sattach layout: wrong format: ") + sattachLine);
+			}
+		} else {
+			throw std::runtime_error("sattach layout: wrong format: expected header");
+		}
+
+		StepLayout layout;
+		size_t numNodes;
+
+		// "  {numPEs} tasks, {numNodes} nodes ({hostname}...)"
+		if (std::getline(sattachStream, sattachLine)) {
+			// split the summary line
+			std::string rawNumPEs, rawNumNodes;
+			std::tie(rawNumPEs, std::ignore, rawNumNodes) =
+				split::string<3>(split::removeLeadingWhitespace(sattachLine));
+
+			// fill out sattach layout
+			layout.numPEs = std::stoul(rawNumPEs);
+			numNodes = std::stoul(rawNumNodes);
+			layout.nodes.reserve(numNodes);
+		} else {
+			throw std::runtime_error("sattach layout: wrong format: expected summary");
+		}
+
+		// seperator line
+		std::getline(sattachStream, sattachLine);
+
+		// "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
+		for (int i = 0; std::getline(sattachStream, sattachLine); i++) {
+			if (i >= numNodes) {
+				throw std::runtime_error("malformed sattach output: too many nodes!");
+			}
+
+			// split the summary line
+			std::string nodeNum, hostname, numPEs, pe_0;
+			std::tie(std::ignore, nodeNum, hostname, numPEs, std::ignore, pe_0) =
+				split::string<6>(split::removeLeadingWhitespace(sattachLine));
+
+			// fill out node layout
+			layout.nodes.push_back(NodeLayout
+				{ hostname.substr(1, hostname.length() - 3) // remove parens and comma from hostname
+				, std::stoul(numPEs)
+				, std::stoul(pe_0)
+			});
+		}
+
+		return layout;
+	}
+
+	// Use a Slurm Step Layout to create the SLURM Node Layout file inside the staging directory, return the new path.
+	static std::string
+	createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath)
+	{
+		// How a SLURM Node Layout File entry is created from a Slurm Node Layout entry:
+		auto make_layoutFileEntry = [](NodeLayout const& node) {
 			// Ensure we have good hostname information.
 			auto const hostname_len = node.hostname.size() + 1;
 			if (hostname_len > sizeof(slurmLayoutFile_t::host)) {
@@ -130,7 +185,7 @@ namespace slurm_conventions
 				{ .numNodes = (int)stepLayout.nodes.size()
 			});
 
-			// Write a Layout entry using node information from each slurm_util Node Layout entry.
+			// Write a Layout entry using node information from each Slurm Node Layout entry.
 			for (auto const& node : stepLayout.nodes) {
 				file::writeT(layoutFile.get(), make_layoutFileEntry(node));
 			}
@@ -315,7 +370,7 @@ namespace slurm_conventions
 
 CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
 	: m_srunInfo    { jobid, stepid }
-	, m_stepLayout  { fetchStepLayout(jobid, stepid) }
+	, m_stepLayout  { slurm_conventions::fetchStepLayout(jobid, stepid) }
 	, m_barrier     { mpir_id }
 	, m_queuedOutFd { -1 }
 	, m_queuedErrFd { -1 }
@@ -434,7 +489,7 @@ CraySLURMApp::getHostnameList() const
 	std::vector<std::string> result;
 	// extract hostnames from each NodeLayout
 	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-		[](slurm_util::NodeLayout const& node) { return node.hostname; });
+		[](NodeLayout const& node) { return node.hostname; });
 	return result;
 }
 
@@ -444,7 +499,7 @@ CraySLURMApp::getHostsPlacement() const
 	std::vector<CTIHost> result;
 	// construct a CTIHost from each NodeLayout
 	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-		[](slurm_util::NodeLayout const& node) {
+		[](NodeLayout const& node) {
 			return CTIHost{node.hostname, node.numPEs};
 		});
 	return result;

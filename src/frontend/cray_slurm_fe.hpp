@@ -25,7 +25,6 @@
 #include <stdexcept>
 
 #include "frontend/Frontend.hpp"
-#include "slurm_util/slurm_util.h"
 #include "mpir_iface/mpir_iface.h"
 
 // managed MPIR session
@@ -72,18 +71,16 @@ public: // interface
 
 /* Types used here */
 
-namespace slurm_util {
-	struct NodeLayout {
-		std::string hostname;
-		size_t numPEs; // number of PEs running on node
-		size_t firstPE; // first PE number on this node
-	};
+struct NodeLayout {
+	std::string hostname;
+	size_t numPEs; // number of PEs running on node
+	size_t firstPE; // first PE number on this node
+};
 
-	struct StepLayout {
-		size_t numPEs; // number of PEs associated with job step
-		std::vector<NodeLayout> nodes; // array of hosts
-	};
-}
+struct StepLayout {
+	size_t numPEs; // number of PEs associated with job step
+	std::vector<NodeLayout> nodes; // array of hosts
+};
 
 // cti_srunProc_t extended to performs sanity checking upon construction
 struct SrunInfo : public cti_srunProc_t {
@@ -101,7 +98,7 @@ struct SrunInfo : public cti_srunProc_t {
 class CraySLURMApp : public App {
 private: // variables
 	SrunInfo               m_srunInfo;    // Job and Step IDs
-	slurm_util::StepLayout m_stepLayout;  // SLURM Layout of job step
+	StepLayout             m_stepLayout;  // SLURM Layout of job step
 	MPIRHandle             m_barrier;     // MPIR handle to release startup barrier
 	int                    m_queuedOutFd; // Where to redirect stdout after barrier release
 	int                    m_queuedErrFd; // Where to redirect stderr after barrier release
