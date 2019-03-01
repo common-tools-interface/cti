@@ -103,12 +103,18 @@ private: // variables
 	SrunInfo               m_srunInfo;    // Job and Step IDs
 	slurm_util::StepLayout m_stepLayout;  // SLURM Layout of job step
 	MPIRHandle             m_barrier;     // MPIR handle to release startup barrier
+	int                    m_queuedOutFd; // Where to redirect stdout after barrier release
+	int                    m_queuedErrFd; // Where to redirect stderr after barrier release
 	bool                   m_dlaunchSent; // Have we already shipped over the dlaunch utility?
+	std::vector<pid_t>     m_sattachPids; // active sattaches for stdout/err redirection
 
 	std::string m_toolPath;    // Backend path where files are unpacked
 	std::string m_attribsPath; // Backend Cray-specific directory
 	std::string m_stagePath;   // Local directory where files are staged before transfer to BE
 	std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
+
+private: // helpers
+	void redirectOutput(int stdoutFd, int stderrFd);
 
 protected: // delegated constructor
 	CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id);
@@ -154,13 +160,14 @@ class CraySLURMFrontend : public Frontend {
 public: // inherited interface
 	cti_wlm_type getWLMType() const override { return CTI_WLM_CRAY_SLURM; }
 
-	AppId
-	launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
-	              CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+	std::unique_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+		CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
+	std::unique_ptr<App> registerJob(size_t numIds, ...) override;
 
 	std::string getHostname() const override;
 
 public: // slurm specific interface
-	AppId registerJobStep(uint32_t jobid, uint32_t stepid);
-	SrunInfo getSrunInfo(pid_t srunPid);      // attach and read srun info
+
+	SrunInfo getSrunInfo(pid_t srunPid); // attach and read srun info
 };

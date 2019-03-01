@@ -83,16 +83,15 @@ std::string Session::generateStagePath() {
 	return stageName;
 }
 
-Session::Session(Frontend const& frontend, Frontend::AppId appId) :
-	m_frontend(frontend),
-	m_appId(appId),
-	m_configPath(_cti_getCfgDir()),
-	m_stageName(generateStagePath()),
-	m_attribsPath(m_frontend.getApp(m_appId).getAttribsPath()),
-	m_toolPath(m_frontend.getApp(m_appId).getToolPath()),
-	m_jobId(m_frontend.getApp(m_appId).getJobId()), 
-	m_wlmEnum(std::to_string(m_frontend.getWLMType())),
-	m_ldLibraryPath(m_toolPath + "/" + m_stageName + "/lib") // default libdir /tmp/cti_daemonXXXXXX/lib
+Session::Session(cti_wlm_type const wlmType, App& activeApp)
+	: m_activeApp{activeApp}
+	, m_configPath{_cti_getCfgDir()}
+	, m_stageName{generateStagePath()}
+	, m_attribsPath{m_activeApp.getAttribsPath()}
+	, m_toolPath{m_activeApp.getToolPath()}
+	, m_jobId{m_activeApp.getJobId()}
+	, m_wlmType{std::to_string(wlmType)}
+	, m_ldLibraryPath{m_toolPath + "/" + m_stageName + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
 {}
 
 #include "ArgvDefs.hpp"
@@ -105,7 +104,7 @@ void Session::launchCleanup() {
 		daemonArgv.add(DA::ApID,         m_jobId);
 		daemonArgv.add(DA::ToolPath,     m_toolPath);
 		if (!m_attribsPath.empty()) { daemonArgv.add(DA::PMIAttribsPath, m_attribsPath); }
-		daemonArgv.add(DA::WLMEnum,      m_wlmEnum);
+		daemonArgv.add(DA::WLMEnum,      m_wlmType);
 		daemonArgv.add(DA::Directory,    m_stageName);
 		daemonArgv.add(DA::InstSeqNum,   std::to_string(m_shippedManifests + 1));
 		daemonArgv.add(DA::Clean);
@@ -122,7 +121,7 @@ void Session::launchCleanup() {
 }
 
 void Session::startDaemon(char * const argv[]) {
-	m_frontend.getApp(m_appId).startDaemon(argv);
+	m_activeApp.startDaemon(argv);
 }
 
 std::shared_ptr<Manifest> Session::createManifest() {

@@ -37,7 +37,7 @@
 
 
 #include "cti_defs.h"
-#include "cti_fe.h"
+#include "cti_fe_iface.h"
 
 #include "frontend/Frontend.hpp"
 #include "cray_slurm_fe.hpp"
@@ -265,8 +265,8 @@ namespace slurm_conventions
 
 	// Launch a SLURM app under MPIR control and hold at barrier.
 	static mpir_id_t
-	launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-		const char *inputFile, const char *chdirPath, const char * const env_list[])
+	launchApp(const char * const launcher_argv[], const char *inputFile, const char *chdirPath,
+		const char * const env_list[])
 	{
 		// Open input file (or /dev/null to avoid stdin contention).
 		auto openFileOrDevNull = [&](char const* inputFile) {
@@ -286,10 +286,13 @@ namespace slurm_conventions
 		// Get the launcher path from CTI environment variable / default.
 		if (auto const launcher_path = cstr::handle{_cti_pathFind(getLauncherName().c_str(), nullptr)}) {
 
+			// redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
+			int stdoutFd = open("/dev/null", O_RDWR);
+			int stderrFd = open("/dev/null", O_RDWR);
+
 			// Launch program under MPIR control.
 			auto const mpir_id = _cti_mpir_newLaunchInstance(launcher_path.get(),
-				launcher_argv, env_list, openFileOrDevNull(inputFile), stdout_fd, stderr_fd);
-
+				launcher_argv, env_list, openFileOrDevNull(inputFile), stdoutFd, stderrFd);
 			if (mpir_id >= 0) {
 				return mpir_id;
 
@@ -314,12 +317,16 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
 	: m_srunInfo    { jobid, stepid }
 	, m_stepLayout  { fetchStepLayout(jobid, stepid) }
 	, m_barrier     { mpir_id }
+	, m_queuedOutFd { -1 }
+	, m_queuedErrFd { -1 }
 	, m_dlaunchSent { false }
+	, m_sattachPids { }
 
 	, m_toolPath    { CRAY_SLURM_TOOL_DIR }
 	, m_attribsPath { cstr::asprintf(CRAY_SLURM_CRAY_DIR, CRAY_SLURM_APID(jobid, stepid)) }
 	, m_stagePath   { cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SLURM_STAGE_DIR}) }
 	, m_extraFiles  { slurm_conventions::createNodeLayoutFile(m_stepLayout, m_stagePath) }
+
 {
 	// Ensure there are running nodes in the job.
 	if (m_stepLayout.nodes.empty()) {
@@ -348,6 +355,9 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	: m_srunInfo    { moved.m_srunInfo }
 	, m_stepLayout  { moved.m_stepLayout }
 	, m_barrier     { std::move(moved.m_barrier) }
+	, m_queuedOutFd { moved.m_queuedOutFd }
+	, m_queuedErrFd { moved.m_queuedErrFd }
+	, m_sattachPids { moved.m_sattachPids }
 	, m_dlaunchSent { moved.m_dlaunchSent }
 
 	, m_toolPath    { moved.m_toolPath }
@@ -355,12 +365,21 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	, m_stagePath   { moved.m_stagePath }
 	, m_extraFiles  { moved.m_extraFiles }
 {
+	// we taken ownership of the running sattach redirections, if any
+	moved.m_sattachPids.clear();
+
 	// We have taken ownership of the staging path, so don't let moved delete the directory.
 	moved.m_stagePath.erase();
 }
 
 CraySLURMApp::~CraySLURMApp()
 {
+	// kill and wait for sattach to exit
+	for (auto&& sattachPid : m_sattachPids) {
+		::kill(sattachPid, DEFAULT_SIG);
+		waitpid(sattachPid, nullptr, 0);
+	}
+
 	// Delete the staging directory if it exists.
 	if (!m_stagePath.empty()) {
 		_cti_removeDirectory(m_stagePath.c_str());
@@ -383,9 +402,12 @@ CraySLURMApp::CraySLURMApp(mpir_id_t mpir_id)
 
 CraySLURMApp::CraySLURMApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
-	: CraySLURMApp{slurm_conventions::launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile,
-		chdirPath, env_list)}
-{}
+	: CraySLURMApp{ slurm_conventions::launchApp(launcher_argv, inputFile, chdirPath, env_list) }
+{
+	// these FDs need to be remapped using sattach after barrier release
+	m_queuedOutFd = stdout_fd;
+	m_queuedErrFd = stderr_fd;
+}
 
 /* running app info accessors */
 
@@ -431,10 +453,53 @@ CraySLURMApp::getHostsPlacement() const
 /* running app interaction interface */
 
 void CraySLURMApp::releaseBarrier() {
+	// release MPIR barrier if applicable
 	if (!m_barrier) {
 		throw std::runtime_error("app not under MPIR control");
 	}
 	m_barrier.reset();
+
+	// redirect output to proper FDs now that app is fully launched
+	if ((m_queuedOutFd >= 0) && (m_queuedErrFd >= 0)) {
+		redirectOutput(m_queuedOutFd, m_queuedErrFd);
+		m_queuedOutFd = -1;
+		m_queuedErrFd = -1;
+	}
+}
+
+void
+CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
+{
+	// create the sattach process to redirect output
+	if (auto const sattachPid = fork()) {
+		if (sattachPid < 0) {
+			throw std::runtime_error("fork failed");
+		}
+
+		// add to app list of active sattach
+		m_sattachPids.push_back(sattachPid);
+	} else {
+		// create sattach argv
+		ManagedArgv sattachArgv
+			{ SATTACH // first argument should be "sattach"
+			// , "-Q"    // second argument is quiet
+			, getJobId() // third argument is the jobid.stepid
+		};
+
+		// redirect stdin / stderr / stdout
+		int devNullFd = open("/dev/null", O_RDONLY);
+		dup2(devNullFd, STDIN_FILENO);
+		dup2(stdoutFd, STDOUT_FILENO);
+		dup2(stderrFd, STDERR_FILENO);
+
+		// child case: exec sattach
+		execvp(SATTACH, sattachArgv.get());
+
+		// exec shouldn't return
+		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execvp");
+		_exit(1);
+	}
 }
 
 void CraySLURMApp::kill(int signum)
@@ -636,12 +701,12 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 
 /* cray slurm frontend implementation */
 
-Frontend::AppId
+std::unique_ptr<App>
 CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-	                             CStr inputFile, CStr chdirPath, CArgArray env_list)
+	CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-	return registerAppPtr(std::make_unique<CraySLURMApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
-		chdirPath, env_list));
+	return std::make_unique<CraySLURMApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
+		chdirPath, env_list);
 }
 
 std::string
@@ -650,9 +715,21 @@ CraySLURMFrontend::getHostname() const
 	return slurm_conventions::getHostname();
 }
 
-Frontend::AppId
-CraySLURMFrontend::registerJobStep(uint32_t jobid, uint32_t stepid) {
-	return registerAppPtr(std::make_unique<CraySLURMApp>(jobid, stepid));
+std::unique_ptr<App>
+CraySLURMFrontend::registerJob(size_t numIds, ...) {
+	if (numIds != 2) {
+		throw std::logic_error("expecting job and step ID pair to register app");
+	}
+
+	va_list idArgs;
+	va_start(idArgs, numIds);
+
+	uint32_t jobId  = va_arg(idArgs, uint32_t);
+	uint32_t stepId = va_arg(idArgs, uint32_t);
+
+	va_end(idArgs);
+
+	return std::make_unique<CraySLURMApp>(jobId, stepId);
 }
 
 SrunInfo

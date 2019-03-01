@@ -28,7 +28,7 @@ void RemotePackage::extract() {
 	{ using DA = DaemonArgv;
 		daemonArgv.add(DA::ApID,         liveSession->m_jobId);
 		daemonArgv.add(DA::ToolPath,     liveSession->m_toolPath);
-		daemonArgv.add(DA::WLMEnum,      liveSession->m_wlmEnum);
+		daemonArgv.add(DA::WLMEnum,      liveSession->m_wlmType);
 		daemonArgv.add(DA::ManifestName, m_archiveName);
 		daemonArgv.add(DA::Directory,    liveSession->m_stageName);
 		daemonArgv.add(DA::InstSeqNum,   std::to_string(m_instanceCount));
@@ -63,7 +63,7 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 		if (!liveSession->getLdLibraryPath().empty()) {
 			daemonArgv.add(DA::LdLibraryPath, liveSession->getLdLibraryPath());
 		}
-		daemonArgv.add(DA::WLMEnum,      liveSession->m_wlmEnum);
+		daemonArgv.add(DA::WLMEnum,      liveSession->m_wlmType);
 		if (!m_archiveName.empty()) { daemonArgv.add(DA::ManifestName, m_archiveName); }
 		daemonArgv.add(DA::Binary,       binaryName);
 		daemonArgv.add(DA::Directory,    liveSession->m_stageName);
