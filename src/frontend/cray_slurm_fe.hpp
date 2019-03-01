@@ -25,49 +25,7 @@
 #include <stdexcept>
 
 #include "frontend/Frontend.hpp"
-#include "mpir_iface/mpir_iface.h"
-
-// managed MPIR session
-class MPIRHandle {
-private: // variables
-	mpir_id_t m_data;
-
-public: // interface
-	operator bool() const {
-		return (m_data >= 0);
-	}
-
-	void reset()
-	{
-		if (*this) {
-			_cti_mpir_releaseInstance(m_data);
-			m_data = mpir_id_t{-1};
-		}
-	}
-
-	mpir_id_t get() const {
-		return m_data;
-	}
-
-	MPIRHandle()
-		: m_data{-1}
-	{}
-
-	MPIRHandle(mpir_id_t m_data_)
-		: m_data{m_data_}
-	{}
-
-	MPIRHandle(MPIRHandle&& moved)
-		: m_data{std::move(moved.m_data)}
-	{
-		moved.m_data = mpir_id_t{-1};
-	}
-
-	~MPIRHandle()
-	{
-		reset();
-	}
-};
+#include "mpir_iface/MPIRInstance.hpp"
 
 /* Types used here */
 
@@ -99,11 +57,12 @@ class CraySLURMApp : public App {
 private: // variables
 	SrunInfo               m_srunInfo;    // Job and Step IDs
 	StepLayout             m_stepLayout;  // SLURM Layout of job step
-	MPIRHandle             m_barrier;     // MPIR handle to release startup barrier
 	int                    m_queuedOutFd; // Where to redirect stdout after barrier release
 	int                    m_queuedErrFd; // Where to redirect stderr after barrier release
 	bool                   m_dlaunchSent; // Have we already shipped over the dlaunch utility?
 	std::vector<pid_t>     m_sattachPids; // active sattaches for stdout/err redirection
+
+	std::unique_ptr<MPIRInstance> m_barrier; // MPIR instance handle to release startup barrier
 
 	std::string m_toolPath;    // Backend path where files are unpacked
 	std::string m_attribsPath; // Backend Cray-specific directory
@@ -114,13 +73,13 @@ private: // helpers
 	void redirectOutput(int stdoutFd, int stderrFd);
 
 protected: // delegated constructor
-	CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id);
+	CraySLURMApp(uint32_t jobid, uint32_t stepid, std::unique_ptr<MPIRInstance>&& barrier);
 
 public: // constructor / destructor interface
 	// register case
 	CraySLURMApp(uint32_t jobid, uint32_t stepid);
 	// attach case
-	CraySLURMApp(mpir_id_t mpir_id);
+	CraySLURMApp(std::unique_ptr<MPIRInstance>&& barrier);
 	// launch case
 	CraySLURMApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 		const char *inputFile, const char *chdirPath, const char * const env_list[]);

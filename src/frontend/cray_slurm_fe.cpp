@@ -48,7 +48,7 @@
 #include "useful/string_split.hpp"
 #include "useful/cti_wrappers.hpp"
 
-#include "mpir_iface/mpir_iface.h"
+#include "mpir_iface/MPIRInstance.hpp"
 
 /* Types used here */
 
@@ -198,20 +198,20 @@ namespace slurm_conventions
 
 	// Use an MPIR ProcTable to create the SLURM PID List file inside the staging directory, return the new path.
 	static std::string
-	createPIDListFile(cti_mpir_procTable_t const& procTable, std::string const& stagePath)
+	createPIDListFile(std::vector<MPIRInstance::MPIR_ProcTableElem> const& procTable, std::string const& stagePath)
 	{
 		auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
 		if (auto const pidFile = file::open(pidPath, "wb")) {
 
 			// Write the PID List header.
 			file::writeT(pidFile.get(), slurmPidFileHeader_t
-				{ .numPids = (int)procTable.num_pids
+				{ .numPids = (int)procTable.size()
 			});
 
 			// Write a PID entry using information from each MPIR ProcTable entry.
-			for (size_t i = 0; i < procTable.num_pids; ++i) {
+			for (auto&& elem : procTable) {
 				file::writeT(pidFile.get(), slurmPidFile_t
-					{ .pid = procTable.pids[i]
+					{ .pid = elem.pid
 				});
 			}
 
@@ -239,21 +239,18 @@ namespace slurm_conventions
 
 	// Extract the SLURM Job ID from launcher memory using an existing MPIR control session. Required to exist.
 	static uint32_t
-	fetchJobId(mpir_id_t mpir_id)
+	fetchJobId(MPIRInstance& barrier)
 	{
-		if (auto const jobid_str = cstr::handle{_cti_mpir_getStringAt(mpir_id, "totalview_jobid")}) {
-			return std::stoul(jobid_str.get());
-		} else {
-			throw std::runtime_error("failed to get jobid string via MPIR.");
-		}
+		return std::stoul(barrier.readStringAt("totalview_jobid"));
 	}
 
 	// Extract the SLURM Step ID from launcher memory using an existing MPIR control session. Optional, returns 0 on failure.
 	static uint32_t
-	fetchStepId(mpir_id_t mpir_id)
+	fetchStepId(MPIRInstance& barrier)
 	{
-		if (auto const stepid_str = cstr::handle{_cti_mpir_getStringAt(mpir_id, "totalview_stepid")}) {
-			return std::stoul(stepid_str.get());
+		auto const stepid_str = barrier.readStringAt("totalview_stepid");
+		if (!stepid_str.empty()) {
+			return std::stoul(stepid_str);
 		} else {
 			fprintf(stderr, "cti_fe: Warning: stepid not found! Defaulting to 0.\n");
 			return 0;
@@ -273,18 +270,13 @@ namespace slurm_conventions
 		if (auto const launcherPath = cstr::handle{_cti_pathFind(slurm_conventions::getLauncherName().c_str(), nullptr)}) {
 
 			// Start a new MPIR attach session on the provided PID using symbols from the launcher.
-			auto const mpir_id = _cti_mpir_newAttachInstance(launcherPath.get(), srunPid);
+			auto const barrier = std::make_unique<MPIRInstance>(launcherPath.get(), srunPid);
 
-			// Validate MPIR session, extract Job and Step IDs.
-			if (mpir_id >= 0) {
-				return SrunInfo
-					{ .jobid  = fetchJobId(mpir_id)
-					, .stepid = fetchStepId(mpir_id)
-				};
-			} else {
-				throw std::runtime_error("Failed to create MPIR attach instance.");
-			}
-
+			// extract Job and Step IDs.
+			return SrunInfo
+				{ .jobid  = fetchJobId(*barrier)
+				, .stepid = fetchStepId(*barrier)
+			};
 		} else {
 			throw std::runtime_error("Failed to find launcher in path: " + slurm_conventions::getLauncherName());
 		}
@@ -319,7 +311,7 @@ namespace slurm_conventions
 	}
 
 	// Launch a SLURM app under MPIR control and hold at barrier.
-	static mpir_id_t
+	static std::unique_ptr<MPIRInstance>
 	launchApp(const char * const launcher_argv[], const char *inputFile, const char *chdirPath,
 		const char * const env_list[])
 	{
@@ -341,25 +333,29 @@ namespace slurm_conventions
 		// Get the launcher path from CTI environment variable / default.
 		if (auto const launcher_path = cstr::handle{_cti_pathFind(getLauncherName().c_str(), nullptr)}) {
 
-			// redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
-			int stdoutFd = open("/dev/null", O_RDWR);
-			int stderrFd = open("/dev/null", O_RDWR);
-
-			// Launch program under MPIR control.
-			auto const mpir_id = _cti_mpir_newLaunchInstance(launcher_path.get(),
-				launcher_argv, env_list, openFileOrDevNull(inputFile), stdoutFd, stderrFd);
-			if (mpir_id >= 0) {
-				return mpir_id;
-
-			} else { // failed to launch program under mpir control
-				std::string argvString;
-				for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-					argvString.push_back(' ');
-					argvString += *arg;
-				}
-				throw std::runtime_error("Failed to launch: " + argvString);
+			/* construct argv array & instance*/
+			std::vector<std::string> launcherArgv{launcher_path.get()};
+			for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+				launcherArgv.emplace_back(*arg);
 			}
 
+			/* env_list null-terminated strings in format <var>=<val>*/
+			std::vector<std::string> envVars;
+			if (env_list != nullptr) {
+				for (const char* const* arg = env_list; *arg != nullptr; arg++) {
+					envVars.emplace_back(*arg);
+				}
+			}
+
+			// redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
+			std::map<int, int> remapFds {
+				{ openFileOrDevNull(inputFile), STDIN_FILENO  },
+				{ open("/dev/null", O_RDWR),    STDOUT_FILENO },
+				{ open("/dev/null", O_RDWR),    STDERR_FILENO }
+			};
+
+			// Launch program under MPIR control.
+			return std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
 		} else {
 			throw std::runtime_error("Failed to find launcher in path: " + slurm_conventions::getLauncherName());
 		}
@@ -368,14 +364,15 @@ namespace slurm_conventions
 
 /* constructors / destructors */
 
-CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
+CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, std::unique_ptr<MPIRInstance>&& barrier)
 	: m_srunInfo    { jobid, stepid }
 	, m_stepLayout  { slurm_conventions::fetchStepLayout(jobid, stepid) }
-	, m_barrier     { mpir_id }
 	, m_queuedOutFd { -1 }
 	, m_queuedErrFd { -1 }
 	, m_dlaunchSent { false }
 	, m_sattachPids { }
+
+	, m_barrier     { std::move(barrier) }
 
 	, m_toolPath    { CRAY_SLURM_TOOL_DIR }
 	, m_attribsPath { cstr::asprintf(CRAY_SLURM_CRAY_DIR, CRAY_SLURM_APID(jobid, stepid)) }
@@ -395,25 +392,19 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
 		// ctor, which is called after the slurm startup barrier, meaning it will not
 		// yet be created when launching. So we need to send over a file containing
 		// the information to the compute nodes.
-		if (auto const procTable = UniquePtrDestr<cti_mpir_procTable_t>
-			{ _cti_mpir_newProcTable(m_barrier.get())
-			, _cti_mpir_deleteProcTable
-		}) {
-			m_extraFiles.push_back(slurm_conventions::createPIDListFile(*procTable, m_stagePath));
-		} else {
-			throw std::runtime_error("failed to get MPIR proctable from mpir id " + std::to_string(m_barrier.get()));
-		}
+		m_extraFiles.push_back(slurm_conventions::createPIDListFile(m_barrier->getProcTable(), m_stagePath));
 	}
 }
 
 CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	: m_srunInfo    { moved.m_srunInfo }
 	, m_stepLayout  { moved.m_stepLayout }
-	, m_barrier     { std::move(moved.m_barrier) }
 	, m_queuedOutFd { moved.m_queuedOutFd }
 	, m_queuedErrFd { moved.m_queuedErrFd }
 	, m_sattachPids { moved.m_sattachPids }
 	, m_dlaunchSent { moved.m_dlaunchSent }
+
+	, m_barrier     { std::move(moved.m_barrier) }
 
 	, m_toolPath    { moved.m_toolPath }
 	, m_attribsPath { moved.m_attribsPath }
@@ -444,14 +435,14 @@ CraySLURMApp::~CraySLURMApp()
 /* app instance creation */
 
 CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid)
-	: CraySLURMApp{jobid, stepid, mpir_id_t{-1}}
+	: CraySLURMApp{jobid, stepid, nullptr}
 {}
 
-CraySLURMApp::CraySLURMApp(mpir_id_t mpir_id)
+CraySLURMApp::CraySLURMApp(std::unique_ptr<MPIRInstance>&& barrier)
 	: CraySLURMApp
-		{ slurm_conventions::fetchJobId(mpir_id)
-		, slurm_conventions::fetchStepId(mpir_id)
-		, mpir_id
+		{ slurm_conventions::fetchJobId(*barrier)
+		, slurm_conventions::fetchStepId(*barrier)
+		, std::move(barrier)
 	}
 {}
 
