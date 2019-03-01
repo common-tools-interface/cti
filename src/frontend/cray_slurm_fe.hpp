@@ -103,7 +103,8 @@ private: // variables
 	SrunInfo               m_srunInfo;    // Job and Step IDs
 	slurm_util::StepLayout m_stepLayout;  // SLURM Layout of job step
 	MPIRHandle             m_barrier;     // MPIR handle to release startup barrier
-	int m_queuedOutFd, m_queuedErrFd;     // Where to redirect stdout/stderr after barrier release
+	int                    m_queuedOutFd; // Where to redirect stdout after barrier release
+	int                    m_queuedErrFd; // Where to redirect stderr after barrier release
 	bool                   m_dlaunchSent; // Have we already shipped over the dlaunch utility?
 	std::vector<pid_t>     m_sattachPids; // active sattaches for stdout/err redirection
 
