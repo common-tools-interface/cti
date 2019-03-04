@@ -22,33 +22,84 @@
 #include <sys/types.h>
 
 #include "frontend/Frontend.hpp"
+#include "mpir_iface/MPIRInstance.hpp"
 
-class SSHFrontend : public Frontend {
+class GenericSSHFrontend : public Frontend
+{
+public: // inherited interface
+	cti_wlm_type getWLMType() const override { return CTI_WLM_SSH; }
 
-public: // wlm interface
-	bool appIsValid(AppId appId) const;
-	void deregisterApp(AppId appId) const;
-	cti_wlm_type getWLMType() const;
-	std::string const getJobId(AppId appId) const;
-	AppId launch(CArgArray launcher_argv, int stdout_fd, int stderr,
-	             CStr inputFile, CStr chdirPath, CArgArray env_list);
-	AppId launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
-	                    CStr inputFile, CStr chdirPath, CArgArray env_list);
-	void releaseBarrier(AppId appId);
-	void killApp(AppId appId, int signal);
-	std::vector<std::string> const getExtraFiles(AppId appId) const;
-	void shipPackage(AppId appId, std::string const& tarPath) const;
-	void startDaemon(AppId appId, CArgArray argv) const;
-	size_t getNumAppPEs(AppId appId) const;
-	size_t getNumAppNodes(AppId appId) const;
-	std::vector<std::string> const getAppHostsList(AppId appId) const;
-	std::vector<CTIHost> const getAppHostsPlacement(AppId appId) const;
-	std::string const getHostName(void) const;
-	std::string const getLauncherHostName(AppId appId) const;
-	std::string const getToolPath(AppId appId) const;
-	std::string const getAttribsPath(AppId appId) const;
+	std::unique_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+		CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
-public: // interface
-	~SSHFrontend();
-	AppId registerJob(pid_t launcher_pid);
+	std::unique_ptr<App> registerJob(size_t numIds, ...) override;
+
+	std::string getHostname() const override;
+
+public: // ssh specific types
+	struct NodeLayout {
+		std::string	host;    // hostname of this node
+		size_t     	firstPE; // First PE number on this node
+		std::vector<pid_t> pids; // Pids of the PEs running on this node 
+	};
+
+	struct StepLayout {
+		int numPEs;
+		std::vector<NodeLayout> nodes; // Array of hosts
+	};
+
+public: // ssh specific interface
+	/* none */
+};
+
+
+/* Types used here */
+
+class GenericSSHApp : public App
+{
+private: // variables
+	pid_t      m_launcherPid; // job launcher PID
+	StepLayout m_stepLayout;  // SLURM Layout of job step
+	bool       m_dlaunchSent; // Have we already shipped over the dlaunch utility?
+
+	std::unique_ptr<MPIRInstance> m_launcherInstance; // MPIR instance handle to release startup barrier
+
+	std::string m_toolPath;    // Backend path where files are unpacked
+	std::string m_attribsPath; // Backend Cray-specific directory
+	std::string m_stagePath;   // Local directory where files are staged before transfer to BE
+	std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
+
+private: // member helpers
+	GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance);
+
+public: // constructor / destructor interface
+	// register case
+	GenericSSHApp(pid_t launcherPid);
+	// launch case
+	GenericSSHApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+		const char *inputFile, const char *chdirPath, const char * const env_list[]);
+
+	GenericSSHApp(GenericSSHApp&& moved);
+	~GenericSSHApp();
+
+public: // app interaction interface
+	std::string getJobId()            const override;
+	std::string getLauncherHostname() const override;
+	std::string getToolPath()         const override { return m_toolPath;    }
+	std::string getAttribsPath()      const override { return m_attribsPath; }
+
+	std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
+
+	size_t getNumPEs()       const override { return m_stepLayout.numPEs;       }
+	size_t getNumHosts()     const override { return m_stepLayout.nodes.size(); }
+	std::vector<std::string> getHostnameList()   const override;
+	std::vector<CTIHost>     getHostsPlacement() const override;
+
+	void releaseBarrier() override;
+	void kill(int signal) override;
+	void shipPackage(std::string const& tarPath) const override;
+	void startDaemon(const char* const args[]) override;
+
+public: // ssh specific interface
+	/* none */
 };
