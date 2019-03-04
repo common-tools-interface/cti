@@ -56,7 +56,7 @@ static int					_cti_be_slurm_getNodePEs(void);
 /* cray slurm wlm proto object */
 cti_be_wlm_proto_t			_cti_be_slurm_wlmProto =
 {
-	CTI_BE_WLM_SLURM,				// wlm_type
+	CTI_BE_WLM_SSH,				// wlm_type
 	_cti_be_slurm_init,			// wlm_init
 	_cti_be_slurm_fini,			// wlm_fini
 	_cti_be_slurm_findAppPids,		// wlm_findAppPids
@@ -459,7 +459,7 @@ _cti_be_slurm_getNodeHostname()
 
 	// Try the Cray /proc extension short cut
     FILE *nid_fp;             // NID file stream
-	if ((nid_fp = fopen(ALPS_XT_NID, "r")) != NULL)
+	if ((nid_fp = fopen(CRAY_NID_FILE, "r")) != NULL)
 	{
 	    // we expect this file to have a numeric value giving our current nid
         char file_buf[BUFSIZ];   // file read buffer
@@ -489,12 +489,12 @@ _cti_be_slurm_getNodeHostname()
         // check for invalid input
         if (eptr == file_buf)
         {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname: Bad data in %s\n", ALPS_XT_NID);
+            fprintf(stderr, "_cti_be_slurm_getNodeHostname: Bad data in %s\n", CRAY_NID_FILE);
             return NULL;
         }
 
 	    // create the nid hostname string
-	    if (asprintf(&hostname, ALPS_XT_HOSTNAME_FMT, nid) <= 0)
+	    if (asprintf(&hostname, CRAY_HOSTNAME_FMT, nid) <= 0)
 	    {
 		    fprintf(stderr, "_cti_be_slurm_getNodeHostname asprintf failed.\n");
             free(hostname);
