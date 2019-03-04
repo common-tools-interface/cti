@@ -235,7 +235,7 @@ namespace slurm_conventions
 		}
 	}
 
-	// Look in ALPS_XT_NID for the current node's hostname, otherwise fall back to gethostname().
+	// Look in CRAY_NID_FILE for the current node's hostname, otherwise fall back to gethostname().
 	static std::string
 	getHostname(void)
 	{
@@ -251,7 +251,7 @@ namespace slurm_conventions
 				}
 
 				// Use the NID to create the standard hostname format.
-				return cstr::asprintf(ALPS_XT_HOSTNAME_FMT, nid);
+				return cstr::asprintf(CRAY_HOSTNAME_FMT, nid);
 
 			} else {
 				return cstr::gethostname();
@@ -259,7 +259,7 @@ namespace slurm_conventions
 		};
 
 		// Cache the hostname result.
-		static auto hostname = tryParseHostnameFile(ALPS_XT_NID);
+		static auto hostname = tryParseHostnameFile(CRAY_NID_FILE);
 		return hostname;
 	}
 

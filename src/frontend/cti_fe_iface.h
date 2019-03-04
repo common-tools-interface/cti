@@ -33,14 +33,12 @@ typedef uint64_t cti_app_id_t;
 /* struct typedefs */
 
 // app launch / lifecycle
-typedef struct
-{
+typedef struct {
 	char *	hostname;
 	int   	numPEs;
 } cti_host_t;
 
-typedef struct
-{
+typedef struct {
 	int         	numHosts;
 	cti_host_t *	hosts;
 } cti_hostsList_t;
@@ -48,12 +46,6 @@ typedef struct
 // file transfers
 typedef int cti_manifest_id_t;
 typedef int cti_session_id_t;
-
-// ALPS-specific
-typedef struct {
-	uint64_t	apid;
-	pid_t		aprunPid;
-} cti_aprunProc_t;
 
 // SLURM-specific
 typedef struct {
@@ -122,19 +114,10 @@ const char * const daemonArgs[], const char * const envVars[]);
 
 /* WLM-specific functions */
 
-// ALPS
-uint64_t cti_alps_getApid(pid_t aprunPid);
-cti_app_id_t cti_alps_registerApid(uint64_t apid);
-cti_aprunProc_t * cti_alps_getAprunInfo(cti_app_id_t app_id);
-int cti_alps_getAlpsOverlapOrdinal(cti_app_id_t app_Id);
-
 // Cray-SLURM
 cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid);
 cti_app_id_t cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id);
 cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
-
-// SLURM
-cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid);
 
 // SSH
 cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid);
