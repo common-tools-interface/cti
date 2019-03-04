@@ -41,7 +41,6 @@
 // CTI definition includes
 #include "cti_fe_iface.h"
 #include "cti_defs.h"
-#include "cti_error.h"
 
 // CTI Transfer includes
 #include "frontend/Frontend.hpp"
@@ -50,10 +49,10 @@
 
 // CTI Frontend / App implementations
 #include "Frontend.hpp"
-#include "cray_slurm_fe.hpp"
+#include "CraySLURM/Frontend.hpp"
 #define USE_CRAY_SLURM_ONLY 1
 #if !USE_CRAY_SLURM_ONLY
-#include "ssh_fe.hpp"
+#include "SSHSLURM/Frontend.hpp"
 #endif
 
 // WLM detection library interface
