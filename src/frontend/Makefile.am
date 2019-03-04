@@ -19,7 +19,7 @@ lib_LTLIBRARIES = libcraytools_fe.la
 libcraytools_fe_la_SOURCES	=	cti_fe_iface.h cti_fe_iface.cpp \
 								Frontend.hpp \
 								CraySLURM/Frontend.cpp CraySLURM/Frontend.hpp \
-								# GenericSSH/Frontend.cpp GenericSSH/Frontend.hpp
+								GenericSSH/Frontend.cpp GenericSSH/Frontend.hpp
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
 								$(ARCHIVE_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
 libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) $(libcraytools_fe_la_CFLAGS)
