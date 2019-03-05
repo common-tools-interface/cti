@@ -42,6 +42,8 @@ public: // types
 		std::string hostname;
 	};
 
+	using ProcTable = std::vector<MPIRInstance::MPIR_ProcTableElem>;
+
 private: // variables
 	Inferior m_inferior;
 
@@ -58,7 +60,7 @@ public: // interface
 
 	/* MPIR standard functions */
 	void runToMPIRBreakpoint();
-	std::vector<MPIR_ProcTableElem> getProcTable();
+	ProcTable getProcTable();
 
 	/* inferior access functions */
 	pid_t getLauncherPid() { return m_inferior.getPid(); }

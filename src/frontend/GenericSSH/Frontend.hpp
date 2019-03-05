@@ -38,18 +38,32 @@ public: // inherited interface
 
 public: // ssh specific types
 	struct NodeLayout {
-		std::string	host;    // hostname of this node
-		size_t     	firstPE; // First PE number on this node
-		std::vector<pid_t> pids; // Pids of the PEs running on this node 
+		std::string	hostname;
+		std::vector<pid_t> pids; // Pids of the PEs running on this node
+		size_t firstPE; // first PE number on this node
 	};
 
 	struct StepLayout {
-		int numPEs;
-		std::vector<NodeLayout> nodes; // Array of hosts
+		size_t numPEs; // number of PEs associated with job step
+		std::vector<NodeLayout> nodes; // array of hosts
 	};
 
 public: // ssh specific interface
-	/* none */
+	// Get the default launcher binary name, or, if provided, from the environment.
+	static std::string getLauncherName();
+
+	// use MPIR proctable to retrieve node / host information about a job
+	static StepLayout fetchStepLayout(MPIRInstance::ProcTable const& procTable);
+
+	// Use a SSH Step Layout to create the SSH Node Layout file inside the staging directory, return the new path.
+	static std::string createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath);
+
+	// Use an MPIR ProcTable to create the SSH PID List file inside the staging directory, return the new path.
+	static std::string createPIDListFile(MPIRInstance::ProcTable const& procTable, std::string const& stagePath);
+
+	// Launch an app under MPIR control and hold at barrier.
+	static std::unique_ptr<MPIRInstance> launchApp(const char * const launcher_argv[],
+		int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 };
 
 
@@ -59,7 +73,7 @@ class GenericSSHApp : public App
 {
 private: // variables
 	pid_t      m_launcherPid; // job launcher PID
-	StepLayout m_stepLayout;  // SLURM Layout of job step
+	GenericSSHFrontend::StepLayout m_stepLayout; // SSH Layout of job step
 	bool       m_dlaunchSent; // Have we already shipped over the dlaunch utility?
 
 	std::unique_ptr<MPIRInstance> m_launcherInstance; // MPIR instance handle to release startup barrier
@@ -75,6 +89,8 @@ private: // member helpers
 public: // constructor / destructor interface
 	// register case
 	GenericSSHApp(pid_t launcherPid);
+	// attach case
+	GenericSSHApp(std::unique_ptr<MPIRInstance>&& launcherInstance);
 	// launch case
 	GenericSSHApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 		const char *inputFile, const char *chdirPath, const char * const env_list[]);

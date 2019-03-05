@@ -44,953 +44,14 @@
 #include "GenericSSH/Frontend.hpp"
 
 #include "useful/cti_useful.h"
-#include "useful/cti_argv.hpp"
 #include "useful/Dlopen.hpp"
+#include "useful/cti_argv.hpp"
+#include "useful/cti_wrappers.hpp"
 
 #include <stdbool.h>
 #include <stdlib.h>
 #include <libssh/libssh.h>
 #include <dlfcn.h>
-
-/* Types used here */
-
-template <typename... Args>
-static std::string
-string_asprintf(const char* const formatCStr, Args... args) {
-	char *rawResult = nullptr;
-	if (asprintf(&rawResult, formatCStr, args...) < 0) {
-		throw std::runtime_error("asprintf failed.");
-	}
-	UniquePtrDestr<char> result(rawResult, ::free);
-	return std::string(result.get());
-}
-
-struct sshHostEntry_t {
-	std::string		host;				// hostname of this node
-	size_t			firstPE;			// First PE number on this node
-	std::vector<pid_t>	pids; // Pids of the PEs running on this node 
-};
-
-struct sshLayout_t {
-	int						numPEs;
-	std::vector<sshHostEntry_t>	hosts;			// Array of hosts
-
-	/*
-	 * _cti_ssh_createLayout - Transforms the cti_mpir_procTable_t harvested from the launcher
-	 *						   into the internal sshLayout_t data structure
-	 *
-	 * Arguments
-	 *      proctable - The cti_mpir_procTable_t to transform
-	 *
-	 * Returns
-	 *      A sshLayout_t* that contains the layout of the application
-	 * 
-	 */
-	sshLayout_t(cti_mpir_procTable_t* proctable) {
-		numPEs = proctable->num_pids;
-
-		size_t nodeCount = 0;
-		size_t peCount   = 0;
-
-		std::unordered_map<std::string, pid_t> hostNidMap;
-
-		// For each new host we see, add a host entry to the end of the layout's host list
-		// and hash each hostname to its index into the host list 
-		for(size_t i = 0; i < proctable->num_pids; i++){
-			std::string const procHost(proctable->hostnames[i]);
-			pid_t procPid = proctable->pids[i];
-
-			auto hostNidPair = hostNidMap.find(procHost);
-			if (hostNidPair == hostNidMap.end()) {
-				// New host, extend hosts array, and fill in host entry information
-				hostNidPair->second = nodeCount++;
-
-				auto const newHost = sshHostEntry_t{procHost, peCount, {}};
-				hosts.emplace_back(newHost);
-			}
-
-			// add new pe to end of host's list
-			hosts[hostNidPair->second].pids.emplace_back(procPid);
-
-			peCount++;
-		}
-	}
-};
-
-static std::vector<std::string> const _cti_ssh_extraFiles(sshLayout_t const& layout, std::string const& stagePath);
-
-struct sshInfo_t {
-	cti_app_id_t		appId;			// CTI appid associated with this alpsInfo_t obj
-	pid_t 				launcher_pid;	// PID of the launcher
-	mpir_id_t			mpir_id;			// MPIR instance handle
-	sshLayout_t			layout;			// Layout of job step
-	std::string			toolPath;		// Backend staging directory
-	std::string			attribsPath;    // PMI_ATTRIBS location on the backend
-	bool				dlaunch_sent;	// True if we have already transfered the dlaunch utility
-	std::string			stagePath;		// directory to stage this instance files in for transfer to BE
-	std::vector<std::string> extraFiles;		// extra files to transfer to BE associated with this app
-
-	/*
-	 * _cti_ssh_registerJob - Registers an already running application for
-	 *                                  use with the Cray tool interface.
-	 * 
-	 * Detail
-	 *      This function is used for registering a valid application that was
-	 *      previously launched through external means for use with the tool
-	 *      interface. It is recommended to use the built-in functions to launch
-	 *      applications, however sometimes this is impossible (such is the case for
-	 *      a debug attach scenario). In order to use any of the functions defined
-	 *      in this interface, the pid of the launcher must be supplied.
-	 *
-	 * Arguments
-	 *      launcher_pid - The pid of the running launcher to which to attach if the layout is needed.
-	 *      layout - pointer to existing layout information (or fetch if NULL)
-	 *
-	 * Returns
-	 *      A cti_app_id_t that contains the id registered in this interface. This
-	 *      app_id should be used in subsequent calls. 0 is returned on error.
-	 * 
-	 */
-	sshInfo_t(pid_t launcher_pid_, mpir_id_t mpir_id_, cti_app_id_t newAppId)
-		: appId{newAppId}
-		, launcher_pid{launcher_pid_}
-		, mpir_id{mpir_id_}
-		, layout{sshLayout_t{_cti_mpir_newProcTable(launcher_pid)}}
-		, toolPath{string_asprintf(SSH_TOOL_DIR)}
-		, attribsPath{string_asprintf(SSH_TOOL_DIR)}
-		, dlaunch_sent{false}
-		, stagePath{_cti_getCfgDir() + "/" + SSH_STAGE_DIR}
-		, extraFiles{_cti_ssh_extraFiles(layout, stagePath)} {}
-
-	/*
-	 * _cti_ssh_consumeSshInfo - Destroy an sshInfo_t object
-	 *
-	 * Arguments
-	 *      this - A pointer to the sshInv_t to destroy
-	 *
-	 */
-	~sshInfo_t() {
-		// release mpir instance
-		if (mpir_id > 0) {
-			_cti_mpir_releaseInstance(mpir_id);
-		}
-	}
-};
-
-const char * _cti_ssh_forwarded_env_vars[] = {
-	DBG_LOG_ENV_VAR,
-	DBG_ENV_VAR,
-	LIBALPS_ENABLE_DSL_ENV_VAR,
-	CTI_LIBALPS_ENABLE_DSL_ENV_VAR,
-	NULL
-};
-
-static void _cti_ssh_release(sshInfo_t& my_app);
-
-/* Constructor/Destructor functions */
-
-/*
- * cti_ssh_fini - Deinitialize a ssh based cti session 
- *
- */
-static void
-_cti_ssh_fini(void)
-{
-	// force cleanup to happen on any pending srun launches
-	_cti_mpir_releaseAllInstances();
-
-	// done
-	return;
-}
-
-/*
- * _cti_ssh_getJobId - Get the string of the job identifier
- * 
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      A C-string representing the job identifier
- * 
- */
-static char *
-_cti_ssh_getJobId(sshInfo_t& my_app) {
-	char *				rtn = NULL;
-
-	asprintf(&rtn, "%d", my_app.launcher_pid);
-
-	return rtn;
-}
-
-/*
- * _cti_ssh_launch_common - Launch an application and optionally hold it in a startup barrier
- * 
- * Arguments
- *      launcher_argv -  A null terminated list of arguments to pass directly to
- *                       the launcher. This differs from a traditional argv in
- *                       the sense that launcher_argv[0] is the start of the
- *                       actual arguments passed to the launcher and not the
- *                       name of launcher itself.
- *      stdout_fd -      The file descriptor opened for writing to redirect
- *                       stdout to or -1 if no redirection should take place.
- *      stderr_fd -      The file descriptor opened for writing to redirect
- *                       stderr to or -1 if no redirection should take place.
- *      inputFile -      The pathname of a file to open and redirect stdin or
- *                       NULL if no redirection should take place. If NULL,
- *                       /dev/null will be used for stdin.
- *      chdirPath -      The path to change the current working directory to or 
- *                       NULL if no cd should take place.
- *      env_list -       A null terminated list of strings of the form 
- *                       "name=value". The name in the environment will be set
- *                       to value.
- *		doBarrier - 	 If set to 1, the application will be held in a startup barrier.
- *						 Otherwise, it will not.
- *
- * Returns
- *      A cti_app_id_t that contains the id registered in this interface. This
- *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
- */
-static UniquePtrDestr<sshInfo_t>
-_cti_ssh_launch_common(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-								const char *inputFile, const char *chdirPath,
-								const char * const env_list[], int doBarrier, cti_app_id_t newAppId)
-{
-	UniquePtrDestr<sshInfo_t> sinfo;
-	mpir_id_t			mpir_id;
-	const char*			launcher_path;
-
-	// get the launcher path
-	launcher_path = _cti_pathFind(SRUN, nullptr);
-	if (launcher_path == nullptr)
-	{
-		throw std::runtime_error("Required environment variable not set: " + std::string(BASE_DIR_ENV_VAR));
-	}
-
-	// optionally open input file
-	int input_fd = -1;
-	if (inputFile == nullptr) {
-		inputFile = "/dev/null";
-	}
-	errno = 0;
-	input_fd = open(inputFile, O_RDONLY);
-	if (input_fd < 0) {
-		throw std::runtime_error("Failed to open input file " + std::string(inputFile) +": " + std::string(strerror(errno)));
-	}
-	
-	// Create a new MPIR instance. We want to interact with it.
-	if ((mpir_id = _cti_mpir_newLaunchInstance(launcher_path, launcher_argv, env_list, input_fd, stdout_fd, stderr_fd)) < 0)
-	{
-		std::string argvString;
-		for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-			argvString.push_back(' ');
-			argvString += *arg;
-		}
-		throw std::runtime_error("Failed to launch: " + argvString);
-	}
-
-	// Register this app with the application interface
-	auto const launcher_pid = _cti_mpir_getLauncherPid(mpir_id);
-	try {
-		sinfo = std::make_unique<sshInfo_t>(launcher_pid, mpir_id, newAppId);
-	} catch (std::exception const& ex) {
-		_cti_mpir_releaseInstance(mpir_id);
-		throw ex;
-	}
-
-	// Release the application from the startup barrier according to the doBarrier flag
-	if (!doBarrier) {
-		_cti_ssh_release(*sinfo);
-	}
-
-	return sinfo;
-	
-}
-
-/*
- * _cti_ssh_launch - Launch an application
- * 
- * Arguments
- *      launcher_argv -  A null terminated list of arguments to pass directly to
- *                       the launcher. This differs from a traditional argv in
- *                       the sense that launcher_argv[0] is the start of the
- *                       actual arguments passed to the launcher and not the
- *                       name of launcher itself.
- *      stdout_fd -      The file descriptor opened for writing to redirect
- *                       stdout to or -1 if no redirection should take place.
- *      stderr_fd -      The file descriptor opened for writing to redirect
- *                       stderr to or -1 if no redirection should take place.
- *      inputFile -      The pathname of a file to open and redirect stdin or
- *                       NULL if no redirection should take place. If NULL,
- *                       /dev/null will be used for stdin.
- *      chdirPath -      The path to change the current working directory to or 
- *                       NULL if no cd should take place.
- *      env_list -       A null terminated list of strings of the form 
- *                       "name=value". The name in the environment will be set
- *                       to value.
- *
- * Returns
- *      A cti_app_id_t that contains the id registered in this interface. This
- *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
- */
-static UniquePtrDestr<sshInfo_t>
-_cti_ssh_launch(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-					const char *inputFile, const char *chdirPath,
-					const char * const env_list[], cti_app_id_t newAppId)
-{
-	return _cti_ssh_launch_common(launcher_argv, stdout_fd, stderr_fd, inputFile, 
-								  chdirPath, env_list, 0, newAppId);
-}
-
-/*
- * _cti_ssh_launchBarrier - Launch an application and hold it in a startup barrier
- * 
- * Arguments
- *      launcher_argv -  A null terminated list of arguments to pass directly to
- *                       the launcher. This differs from a traditional argv in
- *                       the sense that launcher_argv[0] is the start of the
- *                       actual arguments passed to the launcher and not the
- *                       name of launcher itself.
- *      stdout_fd -      The file descriptor opened for writing to redirect
- *                       stdout to or -1 if no redirection should take place.
- *      stderr_fd -      The file descriptor opened for writing to redirect
- *                       stderr to or -1 if no redirection should take place.
- *      inputFile -      The pathname of a file to open and redirect stdin or
- *                       NULL if no redirection should take place. If NULL,
- *                       /dev/null will be used for stdin.
- *      chdirPath -      The path to change the current working directory to or 
- *                       NULL if no cd should take place.
- *      env_list -       A null terminated list of strings of the form 
- *                       "name=value". The name in the environment will be set
- *                       to value.
- *
- * Returns
- *      A cti_app_id_t that contains the id registered in this interface. This
- *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
- */
-static UniquePtrDestr<sshInfo_t>
-_cti_ssh_launchBarrier(	const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-						const char *inputFile, const char *chdirPath,
-						const char * const env_list[], cti_app_id_t newAppId)
-{
-	return _cti_ssh_launch_common(launcher_argv, stdout_fd, stderr_fd, inputFile, 
-								  chdirPath, env_list, 1, newAppId);
-}
-
-/*
- * _cti_ssh_release - Release an application from its startup barrier
- * 
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      1 on error, 0 on success
- * 
- */
-static void
-_cti_ssh_release(sshInfo_t& my_app)
-{
-	// call the release function
-	if (_cti_mpir_releaseInstance(my_app.mpir_id))
-	{
-		throw std::runtime_error("srun barrier release operation failed.");
-	}
-	my_app.mpir_id = -1;
-}
-
-/*
- * _cti_ssh_killApp - Send a signal to each application process
- * 
- * Detail
- *		Delivers a signal to each process of the application by delivering
- *		the kill command through SSH to each running application process
- *		whose pids are provided by the MPIR_PROCTABLE
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *		signum - An int representing the type of signal to send to the application
- *
- * Returns
- *      1 on error, 0 on success
- * 
- */
-static void
-_cti_ssh_killApp(sshInfo_t& my_app, int signum) {
-	//Connect through ssh to each node and send a kill command to every pid on that node
-	for (size_t i = 0; i < my_app.layout.hosts.size(); ++i) {
-		ManagedArgv killArgv;
-		killArgv.add("kill");
-		killArgv.add("-" + std::to_string(signum));
-		for(size_t j = 0; j < my_app.layout.hosts[i].pids.size(); j++) {
-			killArgv.add(std::to_string(my_app.layout.hosts[i].pids[j]));
-		}
-
-		SSHSession(my_app.layout.hosts[i].host).executeRemoteCommand(killArgv.get(), nullptr);
-	}
-}
-
-/*
- * _cti_ssh_extraBinaries - Specifies locations of extra workload manager specific binaries
- *						   to be shipped to the backend nodes
- * 
- * Detail
- *		This ssh based fallback implementation does not require extra binaries, 
- *		so this function always returns NULL.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      NULL to signify no extra binaries are needed
- * 
- */
-static const char * const *
-_cti_ssh_extraBinaries(sshInfo_t& my_app)
-{
-	return NULL;
-}
-
-/*
- * _cti_ssh_extraLibraries - Specifies locations of extra workload manager specific libraries
- *						   to be shipped to the backend nodes
- * 
- * Detail
- *		This ssh based fallback implementation does not require extra libraries, 
- *		so this function always returns NULL.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      NULL to signify no extra libraries are needed
- * 
- */
-static const char * const *
-_cti_ssh_extraLibraries(sshInfo_t& my_app)
-{
-	return NULL;
-}
-
-/*
- * _cti_ssh_extraLibDirs - Specifies locations of extra workload manager specific library 
- *						   directories to be shipped to the backend nodes
- * 
- * Detail
- *		This ssh based fallback implementation does not require extra library
- *		directories, so this function always returns NULL.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      NULL to signify no extra library directories are needed
- * 
- */
-static const char * const *
-_cti_ssh_extraLibDirs(sshInfo_t& my_app)
-{
-	return NULL;
-}
-
-/*
- * _cti_ssh_extraFiles - Specifies locations of extra workload manager specific 
- *						 files to be shipped to the backend nodes
- * 
- * Detail
- *		Creates two files: the layout file and the pid file for shipping to the backends.
- *		The layout file specifies each host along with the number of PEs and first PE
- *		at each host. The pid file specifies the pids of each of the running PEs.
- *		Returns an array of paths to the two files created.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      An array of paths to the two files created containing the path to the layout file
- *		and the path to the pid file
- * 
- */
-static std::vector<std::string> const
-_cti_ssh_extraFiles(sshLayout_t const& layout, std::string const& stagePath) {
-	std::vector<std::string> result;
-
-	// Create the temporary directory for the manifest package
-	auto rawStagePath = UniquePtrDestr<char>(strdup(stagePath.c_str()), ::free);
-	if (mkdtemp(rawStagePath.get()) == nullptr) {
-		throw std::runtime_error("mkdtemp failed.");
-	}
-
-	// Create layout file path in staging directory for writing
-	std::string const layoutPath(std::string{rawStagePath.get()} + "/" + SSH_LAYOUT_FILE);
-
-	// open the layout file in staging directory
-	if (auto layoutFile = UniquePtrDestr<FILE>(fopen(layoutPath.c_str(), "wb"), ::fclose)) {
-
-		// init the layout header
-		cti_layoutFileHeader_t	layout_hdr;
-		memset(&layout_hdr, 0, sizeof(layout_hdr));
-		layout_hdr.numNodes = layout.hosts.size();
-
-		// write the header
-		if (fwrite(&layout_hdr, sizeof(cti_layoutFileHeader_t), 1, layoutFile.get()) != 1) {
-			// cannot continue, so return NULL. BE API might fail.
-			// TODO: How to handle this error?
-			throw std::runtime_error("failed to write the layout header");
-		}
-
-		// write each of the entries
-		for (size_t i = 0; i < layout.hosts.size(); ++i) {
-			// set this entry
-			cti_layoutFile_t		layout_entry;
-			memcpy(&layout_entry.host[0], layout.hosts[i].host.c_str(), layout.hosts[i].host.length() + 1);
-			layout_entry.PEsHere = layout.hosts[i].pids.size();
-			layout_entry.firstPE = layout.hosts[i].firstPE;
-
-			// write to file
-			if (fwrite(&layout_entry, sizeof(cti_layoutFile_t), 1, layoutFile.get()) != 1) {
-				throw std::runtime_error("failed to write a host entry to layout file");
-			}
-		}
-	} else {
-		throw std::runtime_error("Failed to open layout file " + layoutPath);
-	}
-
-	// add layout file as extra file to ship
-	result.push_back(layoutPath);
-
-	// Create pid file in staging directory for writing
-	std::string const pidPath(std::string{rawStagePath.get()} + "/" + SSH_PID_FILE);
-
-	fprintf(stderr, "PID FILE: %s\n", pidPath.c_str());
-
-	// Open the pid file
-	if (auto pidFile = UniquePtrDestr<FILE>(fopen(pidPath.c_str(), "wb"), ::fclose)) {
-
-		// init the pid header
-		cti_pidFileheader_t pid_hdr;
-		memset(&pid_hdr, 0, sizeof(pid_hdr));
-		pid_hdr.numPids = layout.hosts.size();
-
-		// write the header
-		if (fwrite(&pid_hdr, sizeof(cti_pidFileheader_t), 1, pidFile.get()) != 1) {
-			throw std::runtime_error("failed to write pidfile header");
-		}
-
-		// write each of the entries
-		slurmPidFile_t pid_entry;
-		memset(&pid_entry, 0, sizeof(pid_entry));
-		for (size_t i = 0; i < layout.hosts.size(); ++i) {
-			for(size_t j = 0; j < layout.hosts[i].pids.size(); j++) {
-				// set this entry
-				pid_entry.pid = layout.hosts[i].pids[j];
-
-				// write this entry
-				if (fwrite(&pid_entry, sizeof(cti_pidFile_t), 1, pidFile.get()) != 1) {
-					throw std::runtime_error("failed to write pidfile entry");
-				}
-			}
-		}
-	} else {
-		throw std::runtime_error("failed to open pidfile path " + pidPath);
-	}
-
-	// add pid file as extra file to ship
-	result.push_back(pidPath);
-
-	return result;
-}
-
-/*
- * _cti_ssh_ship_package - Ship the cti manifest package tarball to the backends.
- *
- * Detail
- *		Ships the cti manifest package specified by package to each backend node 
- *		in the application using SSH.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *		package - A C-string specifying the path to the package to ship
- *
- * Returns
- *      1 on error, 0 on success
- * 
- */
-static void
-_cti_ssh_ship_package(sshInfo_t& my_app, std::string const& package)
-{
-	// Sanity check the arguments
-	if (my_app.layout.hosts.empty()) {
-		throw std::runtime_error("No nodes in application");
-	}
-
-	// Prepare the destination path for the package on the remote host
-	if (auto packageName = UniquePtrDestr<char>(_cti_pathToName(package.c_str()), ::free)) {
-		auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
-
-		// Send the package to each of the hosts using SCP
-		for (size_t i = 0; i < my_app.layout.hosts.size(); ++i) {
-			SSHSession(my_app.layout.hosts[i].host).sendRemoteFile(package.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-		}
-	} else {
-		throw std::runtime_error("_cti_pathToName failed");
-	}
-}
-
-/*
- * _cti_ssh_start_daemon - Launch and execute the cti daemon on each of the 
- * 						   backend nodes of the application.
- * 
- * Detail
- *		Launches the daemon using the arguments specified in args
- *		to each node in the application using SSH.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *		args - A cti_args_t object holding the arguments to pass to the daemon
- *
- * Returns
- *      1 on error, 0 on success
- * 
- */
-static void
-_cti_ssh_start_daemon(sshInfo_t& my_app, const char* const args[]) {
-	// sanity check
-	if (args == nullptr) {
-		throw std::runtime_error("args array is empty!");
-	}
-	if (my_app.layout.hosts.empty()) {
-		throw std::runtime_error("No nodes in application");
-	}
-
-	// Transfer the dlaunch binary to the backends if it has not yet been transferred
-	if (!my_app.dlaunch_sent) {
-		
-		// Get the location of the daemon launcher
-		if (_cti_getDlaunchPath().empty()) {
-			throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
-		}
-
-		_cti_ssh_ship_package(my_app, _cti_getDlaunchPath().c_str());
-
-		// set transfer to true
-		my_app.dlaunch_sent = 1;
-	}
-
-	// Use location of existing launcher binary on compute node
-	std::string const launcherPath(my_app.toolPath + "/" + CTI_LAUNCHER);
-
-	// Prepare the launcher arguments
-	ManagedArgv launcherArgv;
-	launcherArgv.add(launcherPath);
-	for (const char* const* arg = args; *arg != nullptr; arg++) {
-		launcherArgv.add(*arg);
-	}
-
-	// Execute the launcher on each of the hosts using SSH
-	for (size_t i = 0; i < my_app.layout.hosts.size(); ++i) {
-		SSHSession(my_app.layout.hosts[i].host).executeRemoteCommand(launcherArgv.get(), _cti_ssh_forwarded_env_vars);
-	}
-}
-
-/*
- * _cti_ssh_getNumAppPEs - Gets the number of PEs on which the application is running.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      An int representing the number of PEs on which the application is running
- * 
- */
-static size_t
-_cti_ssh_getNumAppPEs(sshInfo_t& my_app) {
-	return my_app.layout.numPEs;
-}
-
-/*
- * _cti_ssh_getNumAppNodes - Gets the number of nodes on which the application is running.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      An int representing the number of nodes on which the application is running
- * 
- */
-static size_t
-_cti_ssh_getNumAppNodes(sshInfo_t& my_app) {
-	return my_app.layout.hosts.size();
-}
-
-/*
- * _cti_ssh_getAppHostsList - Gets a list of hostnames on which the application is running.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      A NULL terminated array of C-strings representing the list of hostnames
- * 
- */
-static std::vector<std::string>
-_cti_ssh_getAppHostsList(sshInfo_t& my_app) {
-	std::vector<std::string> result;
-
-	// ensure numNodes is non-zero
-	if (my_app.layout.hosts.empty()) {
-		throw std::runtime_error("Application does not have any nodes.");
-	}
-
-	// allocate space for the hosts list, add an extra entry for the null terminator
-	result.reserve(my_app.layout.hosts.size());
-
-	// iterate through the hosts list
-	for (size_t i = 0; i < my_app.layout.hosts.size(); ++i) {
-		result.emplace_back(my_app.layout.hosts[i].host);
-	}
-
-	return result;
-}
-
-/*
- * _cti_ssh_getAppHostsPlacement - Gets the hostname to PE placement information 
- *								   for the application.
- * 
- * Detail
- *		Gets a list which contains all of the hostnames of the application and 
-		the number of PEs at each host.
- *
- * Arguments
- *      my_app - A cti_wlm_obj that represents the info struct for the application
- *
- * Returns
- *      A pointer to a cti_hostsList_t containing the placement information
- * 
- */
-static std::vector<Frontend::CTIHost>
-_cti_ssh_getAppHostsPlacement(sshInfo_t& my_app) {
-	std::vector<Frontend::CTIHost> result;
-
-	// ensure hosts.size() is non-zero
-	if (my_app.layout.hosts.size() <= 0) {
-		throw std::runtime_error("Application does not have any nodes.");
-	}
-
-	// allocate space for the cti_hostsList_t struct
-	result.reserve(my_app.layout.hosts.size());
-
-	// iterate through the hosts list
-	for (size_t i = 0; i < my_app.layout.hosts.size(); ++i) {
-		auto const newPlacement = Frontend::CTIHost{
-			my_app.layout.hosts[i].host,
-			(size_t)my_app.layout.hosts[i].pids.size()
-		};
-		result.emplace_back(newPlacement);
-	}
-
-	return result;
-}
-
-/*
- * _cti_ssh_getHostName - Gets the hostname of the current node.
- *
- * Returns
- *      A C-string representing the hostname of the current node.
- * 
- */
-static char *
-_cti_ssh_getHostName(void)
-{
-
-	char host[HOST_NAME_MAX+1];
-
-	if (gethostname(host, HOST_NAME_MAX+1))
-	{
-		_cti_set_error("gethostname failed.");
-		return NULL;
-	}
-
-	return strdup(host);
-}
-
-#include <vector>
-#include <string>
-#include <unordered_map>
-
-#include <memory>
-
-#include <stdexcept>
-
-/* wlm interface implementation */
-
-using AppId   = Frontend::AppId;
-using CTIHost = Frontend::CTIHost;
-
-/* active app management */
-
-static std::unordered_map<AppId, UniquePtrDestr<sshInfo_t>> appList;
-static const AppId APP_ERROR = 0;
-static AppId newAppId() noexcept {
-	static AppId nextId = 1;
-	return nextId++;
-}
-
-static sshInfo_t&
-getAppInfo(AppId appId) {
-	auto infoPtr = appList.find(appId);
-	if (infoPtr != appList.end()) {
-		return *(infoPtr->second);
-	}
-
-	throw std::runtime_error("invalid appId: " + std::to_string(appId));
-}
-
-bool
-SSHFrontend::appIsValid(AppId appId) const {
-	return appList.find(appId) != appList.end();
-}
-
-void
-SSHFrontend::deregisterApp(AppId appId) const {
-	appList.erase(appId);
-}
-
-cti_wlm_type
-SSHFrontend::getWLMType() const {
-	return CTI_WLM_CRAY_SLURM;
-}
-
-std::string const
-SSHFrontend::getJobId(AppId appId) const {
-	return _cti_ssh_getJobId(getAppInfo(appId));
-}
-
-AppId
-SSHFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr,
-					 CStr inputFile, CStr chdirPath, CArgArray env_list) {
-	auto const appId = newAppId();
-	appList[appId] = _cti_ssh_launch_common(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, 0, appId);
-	return appId;
-}
-
-AppId
-SSHFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr,
-							CStr inputFile, CStr chdirPath, CArgArray env_list) {
-	auto const appId = newAppId();
-	appList[appId] = _cti_ssh_launch_common(launcher_argv, stdout_fd, stderr, inputFile, chdirPath, env_list, 1, appId);
-	return appId;
-}
-
-void
-SSHFrontend::releaseBarrier(AppId appId) {
-	_cti_mpir_releaseInstance(getAppInfo(appId).mpir_id);
-}
-
-void
-SSHFrontend::killApp(AppId appId, int signal) {
-	_cti_ssh_killApp(getAppInfo(appId), signal);
-}
-
-std::vector<std::string> const
-SSHFrontend::getExtraFiles(AppId appId) const {
-	return getAppInfo(appId).extraFiles;
-}
-
-
-void
-SSHFrontend::shipPackage(AppId appId, std::string const& tarPath) const {
-	_cti_ssh_ship_package(getAppInfo(appId), tarPath.c_str());
-}
-
-void
-SSHFrontend::startDaemon(AppId appId, CArgArray argv) const {
-	_cti_ssh_start_daemon(getAppInfo(appId), argv);
-}
-
-size_t
-SSHFrontend::getNumAppPEs(AppId appId) const {
-	return _cti_ssh_getNumAppPEs(getAppInfo(appId));
-}
-
-size_t
-SSHFrontend::getNumAppNodes(AppId appId) const {
-	return _cti_ssh_getNumAppNodes(getAppInfo(appId));
-}
-
-std::vector<std::string> const
-SSHFrontend::getAppHostsList(AppId appId) const {
-	return _cti_ssh_getAppHostsList(getAppInfo(appId));
-}
-
-std::vector<CTIHost> const
-SSHFrontend::getAppHostsPlacement(AppId appId) const {
-	return _cti_ssh_getAppHostsPlacement(getAppInfo(appId));
-}
-
-std::string const
-SSHFrontend::getHostName(void) const {
-	return _cti_ssh_getHostName();
-}
-
-std::string const
-SSHFrontend::getLauncherHostName(AppId appId) const {
-	throw std::runtime_error("getLauncherHostName not supported for SSH frontend (app ID " + std::to_string(appId));
-}
-
-std::string const
-SSHFrontend::getToolPath(AppId appId) const {
-	return getAppInfo(appId).toolPath;
-}
-
-std::string const
-SSHFrontend::getAttribsPath(AppId appId) const {
-	return getAppInfo(appId).attribsPath;
-}
-
-/* extended frontend implementation */
-
-SSHFrontend::~SSHFrontend() {
-	_cti_ssh_fini();
-}
-
-AppId
-SSHFrontend::registerJob(pid_t launcher_pid) {
-	auto const appId = newAppId();
-	if (auto const launcher_path = _cti_pathFind(SRUN, nullptr)) {
-		if (auto const mpir_id = _cti_mpir_newAttachInstance(launcher_path, launcher_pid)) {
-			appList[appId] = std::make_unique<sshInfo_t>(launcher_pid, mpir_id, appId);
-		} else {
-			throw std::runtime_error("failed to attach to launcher pid " + std::to_string(launcher_pid)); 
-		}
-	} else {
-		throw std::runtime_error("failed to get launcher path from CTI");
-	}
-	return appId;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 class LibSSH {
 private: // types
@@ -1071,7 +132,7 @@ public: // interface
 		, ssh_userauth_publickey_auto(libSSHHandle.load<FnTypes::ssh_userauth_publickey_auto>("ssh_userauth_publickey_auto"))
 		, ssh_write_knownhost(libSSHHandle.load<FnTypes::ssh_write_knownhost>("ssh_write_knownhost")) {}
 };
-static LibSSH& _cti_getLibSSH() {
+static LibSSH const& _cti_getLibSSH() {
 	static const LibSSH libSSH;
 	return libSSH;
 }
@@ -1305,100 +366,390 @@ struct SSHSession {
 	}
 };
 
-namespace ssh_conventions
+GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
+	: m_launcherPid { launcherPid }
+	, m_stepLayout  { GenericSSHFrontend::fetchStepLayout(launcherInstance->getProcTable()) }
+	, m_dlaunchSent { false }
+
+	, m_launcherInstance { std::move(launcherInstance) }
+
+	, m_toolPath    { SSH_TOOL_DIR }
+	, m_attribsPath { SSH_TOOL_DIR }
+	, m_stagePath   { cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SSH_STAGE_DIR}) }
+	, m_extraFiles  { GenericSSHFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
+
 {
-	
-}
+	// Ensure there are running nodes in the job.
+	if (m_stepLayout.nodes.empty()) {
+		throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
+	}
 
-GenericSSHApp::GenericSSHApp(pid_t launcherPid, mpir_id_t mpir_id)
-{
-
-}
-
-GenericSSHApp::GenericSSHApp(pid_t launcherPid)
-{
-
-}
-
-GenericSSHApp::GenericSSHApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-		const char *inputFile, const char *chdirPath, const char * const env_list[])
-{
-
+	// If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
+	if (m_launcherInstance) {
+		m_extraFiles.push_back(GenericSSHFrontend::createPIDListFile(m_launcherInstance->getProcTable(), m_stagePath));
+	}
 }
 
 GenericSSHApp::GenericSSHApp(GenericSSHApp&& moved)
-{
+	: m_launcherPid { moved.m_launcherPid }
+	, m_stepLayout  { moved.m_stepLayout }
+	, m_dlaunchSent { moved.m_dlaunchSent }
 
+	, m_launcherInstance { std::move(moved.m_launcherInstance) }
+
+	, m_toolPath    { moved.m_toolPath }
+	, m_attribsPath { moved.m_attribsPath }
+	, m_stagePath   { moved.m_stagePath }
+	, m_extraFiles  { moved.m_extraFiles }
+{
+	// We have taken ownership of the staging path, so don't let moved delete the directory.
+	moved.m_stagePath.erase();
 }
 
 GenericSSHApp::~GenericSSHApp()
 {
-
+	// Delete the staging directory if it exists.
+	if (!m_stagePath.empty()) {
+		_cti_removeDirectory(m_stagePath.c_str());
+	}
 }
+
+/* app instance creation */
+
+GenericSSHApp::GenericSSHApp(pid_t launcherPid)
+	: GenericSSHApp{launcherPid, nullptr}
+{}
+
+GenericSSHApp::GenericSSHApp(std::unique_ptr<MPIRInstance>&& launcherInstance)
+	: GenericSSHApp
+		{ launcherInstance->getLauncherPid()
+		, std::move(launcherInstance)
+	}
+{}
+
+GenericSSHApp::GenericSSHApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+	const char *inputFile, const char *chdirPath, const char * const env_list[])
+	: GenericSSHApp{ GenericSSHFrontend::launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list) }
+{}
+
+/* running app info accessors */
 
 std::string
 GenericSSHApp::getJobId() const
 {
-
+	return std::to_string(m_launcherPid);
 }
 
 std::string
 GenericSSHApp::getLauncherHostname() const
 {
-
+	throw std::runtime_error("not supported for WLM: getLauncherHostname");
 }
 
 std::vector<std::string>
 GenericSSHApp::getHostnameList() const
 {
-
+	std::vector<std::string> result;
+	// extract hostnames from each NodeLayout
+	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
+		[](GenericSSHFrontend::NodeLayout const& node) { return node.hostname; });
+	return result;
 }
 
 std::vector<CTIHost>
 GenericSSHApp::getHostsPlacement() const
 {
-
+	std::vector<CTIHost> result;
+	// construct a CTIHost from each NodeLayout
+	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
+		[](GenericSSHFrontend::NodeLayout const& node) {
+			return CTIHost{node.hostname, node.pids.size()};
+		});
+	return result;
 }
 
 void
 GenericSSHApp::releaseBarrier()
 {
-
+	// release MPIR barrier if applicable
+	if (!m_launcherInstance) {
+		throw std::runtime_error("app not under MPIR control");
+	}
+	m_launcherInstance.reset();
 }
 
 void
 GenericSSHApp::kill(int signal)
 {
+	// Connect through ssh to each node and send a kill command to every pid on that node
+	for (auto&& node : m_stepLayout.nodes) {
+		// kill -<sig> <pid> ... <pid>
+		cti_argv::ManagedArgv killArgv
+			{ "kill"
+			, "-" + std::to_string(signal)
+		};
+		for (auto&& pid : node.pids) {
+			killArgv.add(std::to_string(pid));
+		}
 
+		// run remote kill command
+		SSHSession(node.hostname).executeRemoteCommand(killArgv.get(), nullptr);
+	}
 }
 
 void
 GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
+	if (auto packageName = cstr::handle{_cti_pathToName(tarPath.c_str())}) {
+		auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
 
+		// Send the package to each of the hosts using SCP
+		for (auto&& node : m_stepLayout.nodes) {
+			SSHSession(node.hostname).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+		}
+	} else {
+		throw std::runtime_error("_cti_pathToName failed");
+	}
 }
 
 void
 GenericSSHApp::startDaemon(const char* const args[])
 {
+	// sanity check
+	if (args == nullptr) {
+		throw std::runtime_error("args array is empty!");
+	}
 
+	// Transfer the dlaunch binary to the backends if it has not yet been transferred
+	if (!m_dlaunchSent) {
+		// Get the location of the daemon launcher
+		if (_cti_getDlaunchPath().empty()) {
+			throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
+		}
+
+		shipPackage(_cti_getDlaunchPath());
+
+		// set transfer to true
+		m_dlaunchSent = true;
+	}
+
+	// Use location of existing launcher binary on compute node
+	std::string const launcherPath{m_toolPath + "/" + CTI_LAUNCHER};
+
+	// Prepare the launcher arguments
+	cti_argv::ManagedArgv launcherArgv { launcherPath };
+	for (const char* const* arg = args; *arg != nullptr; arg++) {
+		launcherArgv.add(*arg);
+	}
+
+	// Execute the launcher on each of the hosts using SSH
+	auto const forwardedEnvVars = std::vector<char const*>{
+		DBG_LOG_ENV_VAR,
+		DBG_ENV_VAR,
+		nullptr
+	};
+	for (auto&& node : m_stepLayout.nodes) {
+		SSHSession(node.hostname).executeRemoteCommand(launcherArgv.get(), forwardedEnvVars.data());
+	}
 }
+
+/* SSH frontend implementation */
 
 std::unique_ptr<App>
 GenericSSHFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 		CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-
+	return std::make_unique<GenericSSHApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
+		chdirPath, env_list);
 }
 
 std::unique_ptr<App>
 GenericSSHFrontend::registerJob(size_t numIds, ...)
 {
+	if (numIds != 1) {
+		throw std::logic_error("expecting single pid argument to register app");
+	}
 
+	va_list idArgs;
+	va_start(idArgs, numIds);
+
+	pid_t launcherPid = va_arg(idArgs, pid_t);
+
+	va_end(idArgs);
+
+	return std::make_unique<GenericSSHApp>(launcherPid);
 }
 
 std::string
 GenericSSHFrontend::getHostname() const
 {
+	return cstr::gethostname();
+}
 
+/* SSH frontend static implementations */
+
+std::string
+GenericSSHFrontend::getLauncherName()
+{
+	auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
+		if (char const* envValue = getenv(envVar)) {
+			return envValue;
+		}
+		return defaultValue;
+	};
+
+	// Cache the launcher name result.
+	auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME, SRUN)};
+	return launcherName;
+}
+
+GenericSSHFrontend::StepLayout
+GenericSSHFrontend::fetchStepLayout(MPIRInstance::ProcTable const& procTable)
+{
+	StepLayout layout;
+	layout.numPEs = procTable.size();
+
+	size_t nodeCount = 0;
+	size_t peCount   = 0;
+
+	std::unordered_map<std::string, pid_t> hostNidMap;
+
+	// For each new host we see, add a host entry to the end of the layout's host list
+	// and hash each hostname to its index into the host list 
+	for (auto&& proc : procTable) {
+		auto const hostNidPair = hostNidMap.find(proc.hostname);
+		if (hostNidPair == hostNidMap.end()) {
+			// New host, extend nodes array, and fill in host entry information
+			hostNidPair->second = nodeCount++;
+
+			layout.nodes.push_back(NodeLayout
+				{ .hostname = proc.hostname
+				, .pids = {}
+				, .firstPE = peCount
+			});
+		}
+
+		// add new pe to end of host's list
+		layout.nodes[hostNidPair->second].pids.push_back(proc.pid);
+
+		peCount++;
+	}
+
+	return layout;
+}
+
+std::string
+GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& stepLayout, std::string const& stagePath)
+{
+	// How a SSH Node Layout File entry is created from a SSH Node Layout entry:
+	auto make_layoutFileEntry = [](NodeLayout const& node) {
+		// Ensure we have good hostname information.
+		auto const hostname_len = node.hostname.size() + 1;
+		if (hostname_len > sizeof(cti_layoutFile_t::host)) {
+			throw std::runtime_error("hostname too large for layout buffer");
+		}
+
+		// Extract PE and node information from Node Layout.
+		auto layout_entry    = cti_layoutFile_t{};
+		layout_entry.PEsHere = node.pids.size();
+		layout_entry.firstPE = node.firstPE;
+		memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
+
+		return layout_entry;
+	};
+
+	// Create the file path, write the file using the Step Layout
+	auto const layoutPath = std::string{stagePath + "/" + SSH_LAYOUT_FILE};
+	if (auto const layoutFile = file::open(layoutPath, "wb")) {
+
+		// Write the Layout header.
+		file::writeT(layoutFile.get(), cti_layoutFileHeader_t
+			{ .numNodes = (int)stepLayout.nodes.size()
+		});
+
+		// Write a Layout entry using node information from each SSH Node Layout entry.
+		for (auto const& node : stepLayout.nodes) {
+			file::writeT(layoutFile.get(), make_layoutFileEntry(node));
+		}
+
+		return layoutPath;
+	} else {
+		throw std::runtime_error("failed to open layout file path " + layoutPath);
+	}
+}
+
+std::string
+GenericSSHFrontend::createPIDListFile(MPIRInstance::ProcTable const& procTable, std::string const& stagePath)
+{
+	auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
+	if (auto const pidFile = file::open(pidPath, "wb")) {
+
+		// Write the PID List header.
+		file::writeT(pidFile.get(), slurmPidFileHeader_t
+			{ .numPids = (int)procTable.size()
+		});
+
+		// Write a PID entry using information from each MPIR ProcTable entry.
+		for (auto&& elem : procTable) {
+			file::writeT(pidFile.get(), slurmPidFile_t
+				{ .pid = elem.pid
+			});
+		}
+
+		return pidPath;
+	} else {
+		throw std::runtime_error("failed to open PID file path " + pidPath);
+	}
+}
+
+std::unique_ptr<MPIRInstance>
+GenericSSHFrontend::launchApp(const char * const launcher_argv[],
+		int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[])
+{
+	// Open input file (or /dev/null to avoid stdin contention).
+	auto openFileOrDevNull = [&](char const* inputFile) {
+		int input_fd = -1;
+		if (inputFile == nullptr) {
+			inputFile = "/dev/null";
+		}
+		errno = 0;
+		input_fd = open(inputFile, O_RDONLY);
+		if (input_fd < 0) {
+			throw std::runtime_error("Failed to open input file " + std::string(inputFile) +": " + std::string(strerror(errno)));
+		}
+
+		return input_fd;
+	};
+
+	// Get the launcher path from CTI environment variable / default.
+	if (auto const launcher_path = cstr::handle{_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr)}) {
+
+		/* construct argv array & instance*/
+		std::vector<std::string> launcherArgv{launcher_path.get()};
+		for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+			launcherArgv.emplace_back(*arg);
+		}
+
+		/* env_list null-terminated strings in format <var>=<val>*/
+		std::vector<std::string> envVars;
+		if (env_list != nullptr) {
+			for (const char* const* arg = env_list; *arg != nullptr; arg++) {
+				envVars.emplace_back(*arg);
+			}
+		}
+
+		// redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
+		// note: when using SRUN as launcher, this output redirection doesn't work.
+		// see CraySLURM's implementation (need to use SATTACH after launch)
+		std::map<int, int> remapFds {
+			{ openFileOrDevNull(inputFile), STDIN_FILENO  },
+			{ stdout_fd, STDOUT_FILENO },
+			{ stderr_fd, STDERR_FILENO }
+		};
+
+		// Launch program under MPIR control.
+		return std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
+	} else {
+		throw std::runtime_error("Failed to find launcher in path: " + GenericSSHFrontend::getLauncherName());
+	}
 }
