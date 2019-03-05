@@ -35,297 +35,37 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-
 #include "cti_defs.h"
+#include "ArgvDefs.hpp"
 #include "cti_fe_iface.h"
 
 #include "frontend/Frontend.hpp"
 #include "cray_slurm_fe.hpp"
 
-#include "useful/strong_argv.hpp"
 #include "useful/Dlopen.hpp"
+#include "useful/ExecvpOutput.hpp"
+#include "useful/cti_argv.hpp"
+#include "useful/cti_split.hpp"
 #include "useful/cti_wrappers.hpp"
 
-#include "mpir_iface/mpir_iface.h"
-
-/* Types used here */
-
-static slurm_util::StepLayout fetchStepLayout(uint32_t jobid, uint32_t stepid)
-{
-	auto raw_layout = UniquePtrDestr<slurmStepLayout_t>
-		{ _cti_cray_slurm_getLayout(jobid, stepid) // fetch from slurm_util helper
-		, _cti_cray_slurm_freeLayout               // raw layout destructor
-	};
-
-	// extract PE and node information from raw layout
-	auto const numPEs = (size_t)raw_layout->numPEs;
-	auto nodes = std::vector<slurm_util::NodeLayout>{};
-	for (int i = 0; i < raw_layout->numNodes; ++i) {
-		nodes.push_back(slurm_util::NodeLayout
-			{ .hostname = std::string{raw_layout->hosts[i].host}
-			, .numPEs   = (size_t)raw_layout->hosts[i].PEsHere
-			, .firstPE  = (size_t)raw_layout->hosts[i].firstPE
-		});
-	}
-
-	return slurm_util::StepLayout{ .numPEs = numPEs, .nodes = nodes };
-}
-
-/* functions and data that are present / expected in a slurm environment */
-namespace slurm_conventions
-{
-	// Environment variables that are unset before exec'ing SLURM launcher
-	auto const static blacklist_env_vars = std::vector<char const*>{
-		"SLURM_CHECKPOINT",
-		"SLURM_CONN_TYPE",
-		"SLURM_CPUS_PER_TASK",
-		"SLURM_DEPENDENCY",
-		"SLURM_DIST_PLANESIZE",
-		"SLURM_DISTRIBUTION",
-		"SLURM_EPILOG",
-		"SLURM_GEOMETRY",
-		"SLURM_NETWORK",
-		"SLURM_NPROCS",
-		"SLURM_NTASKS",
-		"SLURM_NTASKS_PER_CORE",
-		"SLURM_NTASKS_PER_NODE",
-		"SLURM_NTASKS_PER_SOCKET",
-		"SLURM_PARTITION",
-		"SLURM_PROLOG",
-		"SLURM_REMOTE_CWD",
-		"SLURM_REQ_SWITCH",
-		"SLURM_RESV_PORTS",
-		"SLURM_TASK_EPILOG",
-		"SLURM_TASK_PROLOG",
-		"SLURM_WORKING_DIR"
-	};
-
-	// Use a slurm_util Step Layout to create the SLURM Node Layout file inside the staging directory, return the new path.
-	static std::string
-	createNodeLayoutFile(slurm_util::StepLayout const& stepLayout, std::string const& stagePath)
-	{
-		// How a SLURM Node Layout File entry is created from a slurm_util Node Layout entry:
-		auto make_layoutFileEntry = [](slurm_util::NodeLayout const& node) {
-			// Ensure we have good hostname information.
-			auto const hostname_len = node.hostname.size() + 1;
-			if (hostname_len > sizeof(slurmLayoutFile_t::host)) {
-				throw std::runtime_error("hostname too large for layout buffer");
-			}
-
-			// Extract PE and node information from Node Layout.
-			auto layout_entry    = slurmLayoutFile_t{};
-			layout_entry.PEsHere = node.numPEs;
-			layout_entry.firstPE = node.firstPE;
-			memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
-
-			return layout_entry;
-		};
-
-		// Create the file path, write the file using the Step Layout
-		auto const layoutPath = std::string{stagePath + "/" + SLURM_LAYOUT_FILE};
-		if (auto const layoutFile = file::open(layoutPath, "wb")) {
-
-			// Write the Layout header.
-			file::writeT(layoutFile.get(), slurmLayoutFileHeader_t
-				{ .numNodes = (int)stepLayout.nodes.size()
-			});
-
-			// Write a Layout entry using node information from each slurm_util Node Layout entry.
-			for (auto const& node : stepLayout.nodes) {
-				file::writeT(layoutFile.get(), make_layoutFileEntry(node));
-			}
-
-			return layoutPath;
-		} else {
-			throw std::runtime_error("failed to open layout file path " + layoutPath);
-		}
-	}
-
-	// Use an MPIR ProcTable to create the SLURM PID List file inside the staging directory, return the new path.
-	static std::string
-	createPIDListFile(cti_mpir_procTable_t const& procTable, std::string const& stagePath)
-	{
-		auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
-		if (auto const pidFile = file::open(pidPath, "wb")) {
-
-			// Write the PID List header.
-			file::writeT(pidFile.get(), slurmPidFileHeader_t
-				{ .numPids = (int)procTable.num_pids
-			});
-
-			// Write a PID entry using information from each MPIR ProcTable entry.
-			for (size_t i = 0; i < procTable.num_pids; ++i) {
-				file::writeT(pidFile.get(), slurmPidFile_t
-					{ .pid = procTable.pids[i]
-				});
-			}
-
-			return pidPath;
-		} else {
-			throw std::runtime_error("failed to open PID file path " + pidPath);
-		}
-	}
-
-	// Get the default launcher binary name, or, if provided, from the environment.
-	static std::string
-	getLauncherName()
-	{
-		auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
-			if (char const* envValue = getenv(envVar)) {
-				return envValue;
-			}
-			return defaultValue;
-		};
-
-		// Cache the launcher name result.
-		auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME, SRUN)};
-		return launcherName;
-	}
-
-	// Extract the SLURM Job ID from launcher memory using an existing MPIR control session. Required to exist.
-	static uint32_t
-	fetchJobId(mpir_id_t mpir_id)
-	{
-		if (auto const jobid_str = cstr::handle{_cti_mpir_getStringAt(mpir_id, "totalview_jobid")}) {
-			return std::stoul(jobid_str.get());
-		} else {
-			throw std::runtime_error("failed to get jobid string via MPIR.");
-		}
-	}
-
-	// Extract the SLURM Step ID from launcher memory using an existing MPIR control session. Optional, returns 0 on failure.
-	static uint32_t
-	fetchStepId(mpir_id_t mpir_id)
-	{
-		if (auto const stepid_str = cstr::handle{_cti_mpir_getStringAt(mpir_id, "totalview_stepid")}) {
-			return std::stoul(stepid_str.get());
-		} else {
-			fprintf(stderr, "cti_fe: Warning: stepid not found! Defaulting to 0.\n");
-			return 0;
-		}
-	}
-
-	// Start a new MPIR attach session on a launcher PID; extract and return an SrunInfo containing Job and Step IDs.
-	static SrunInfo
-	attachAndFetchJobInfo(pid_t srunPid)
-	{
-		// sanity check
-		if (srunPid <= 0) {
-			throw std::runtime_error("Invalid srunPid " + std::to_string(srunPid));
-		}
-
-		// Find the launcher path from the launcher name using helper _cti_pathFind.
-		if (auto const launcherPath = cstr::handle{_cti_pathFind(slurm_conventions::getLauncherName().c_str(), nullptr)}) {
-
-			// Start a new MPIR attach session on the provided PID using symbols from the launcher.
-			auto const mpir_id = _cti_mpir_newAttachInstance(launcherPath.get(), srunPid);
-
-			// Validate MPIR session, extract Job and Step IDs.
-			if (mpir_id >= 0) {
-				return SrunInfo
-					{ .jobid  = fetchJobId(mpir_id)
-					, .stepid = fetchStepId(mpir_id)
-				};
-			} else {
-				throw std::runtime_error("Failed to create MPIR attach instance.");
-			}
-
-		} else {
-			throw std::runtime_error("Failed to find launcher in path: " + slurm_conventions::getLauncherName());
-		}
-	}
-
-	// Look in CRAY_NID_FILE for the current node's hostname, otherwise fall back to gethostname().
-	static std::string
-	getHostname(void)
-	{
-		auto tryParseHostnameFile = [](char const* filePath) {
-			if (auto nidFile = file::try_open(filePath, "r")) {
-				int nid;
-				{ // We expect this file to have a numeric value giving our current Node ID.
-					char buf[BUFSIZ];
-					if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
-						throw std::runtime_error("_cti_cray_slurm_getHostname fgets failed.");
-					}
-					nid = std::stoi(std::string{buf});
-				}
-
-				// Use the NID to create the standard hostname format.
-				return cstr::asprintf(CRAY_HOSTNAME_FMT, nid);
-
-			} else {
-				return cstr::gethostname();
-			}
-		};
-
-		// Cache the hostname result.
-		static auto hostname = tryParseHostnameFile(CRAY_NID_FILE);
-		return hostname;
-	}
-
-	// Launch a SLURM app under MPIR control and hold at barrier.
-	static mpir_id_t
-	launchApp(const char * const launcher_argv[], const char *inputFile, const char *chdirPath,
-		const char * const env_list[])
-	{
-		// Open input file (or /dev/null to avoid stdin contention).
-		auto openFileOrDevNull = [&](char const* inputFile) {
-			int input_fd = -1;
-			if (inputFile == nullptr) {
-				inputFile = "/dev/null";
-			}
-			errno = 0;
-			input_fd = open(inputFile, O_RDONLY);
-			if (input_fd < 0) {
-				throw std::runtime_error("Failed to open input file " + std::string(inputFile) +": " + std::string(strerror(errno)));
-			}
-
-			return input_fd;
-		};
-
-		// Get the launcher path from CTI environment variable / default.
-		if (auto const launcher_path = cstr::handle{_cti_pathFind(getLauncherName().c_str(), nullptr)}) {
-
-			// redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
-			int stdoutFd = open("/dev/null", O_RDWR);
-			int stderrFd = open("/dev/null", O_RDWR);
-
-			// Launch program under MPIR control.
-			auto const mpir_id = _cti_mpir_newLaunchInstance(launcher_path.get(),
-				launcher_argv, env_list, openFileOrDevNull(inputFile), stdoutFd, stderrFd);
-			if (mpir_id >= 0) {
-				return mpir_id;
-
-			} else { // failed to launch program under mpir control
-				std::string argvString;
-				for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-					argvString.push_back(' ');
-					argvString += *arg;
-				}
-				throw std::runtime_error("Failed to launch: " + argvString);
-			}
-
-		} else {
-			throw std::runtime_error("Failed to find launcher in path: " + slurm_conventions::getLauncherName());
-		}
-	}
-}
+#include "mpir_iface/MPIRInstance.hpp"
 
 /* constructors / destructors */
 
-CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
+CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, std::unique_ptr<MPIRInstance>&& srunInstance)
 	: m_srunInfo    { jobid, stepid }
-	, m_stepLayout  { fetchStepLayout(jobid, stepid) }
-	, m_barrier     { mpir_id }
+	, m_stepLayout  { CraySLURMFrontend::fetchStepLayout(jobid, stepid) }
 	, m_queuedOutFd { -1 }
 	, m_queuedErrFd { -1 }
 	, m_dlaunchSent { false }
 	, m_sattachPids { }
 
+	, m_srunInstance{ std::move(srunInstance) }
+
 	, m_toolPath    { CRAY_SLURM_TOOL_DIR }
 	, m_attribsPath { cstr::asprintf(CRAY_SLURM_CRAY_DIR, CRAY_SLURM_APID(jobid, stepid)) }
 	, m_stagePath   { cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SLURM_STAGE_DIR}) }
-	, m_extraFiles  { slurm_conventions::createNodeLayoutFile(m_stepLayout, m_stagePath) }
+	, m_extraFiles  { CraySLURMFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
 
 {
 	// Ensure there are running nodes in the job.
@@ -334,31 +74,25 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, mpir_id_t mpir_id)
 	}
 
 	// If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
-	if (m_barrier) {
+	if (m_srunInstance) {
 		// FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
 		// call can be removed. Right now the pmi_attribs file is created in the pmi
 		// ctor, which is called after the slurm startup barrier, meaning it will not
 		// yet be created when launching. So we need to send over a file containing
 		// the information to the compute nodes.
-		if (auto const procTable = UniquePtrDestr<cti_mpir_procTable_t>
-			{ _cti_mpir_newProcTable(m_barrier.get())
-			, _cti_mpir_deleteProcTable
-		}) {
-			m_extraFiles.push_back(slurm_conventions::createPIDListFile(*procTable, m_stagePath));
-		} else {
-			throw std::runtime_error("failed to get MPIR proctable from mpir id " + std::to_string(m_barrier.get()));
-		}
+		m_extraFiles.push_back(CraySLURMFrontend::createPIDListFile(m_srunInstance->getProcTable(), m_stagePath));
 	}
 }
 
 CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	: m_srunInfo    { moved.m_srunInfo }
 	, m_stepLayout  { moved.m_stepLayout }
-	, m_barrier     { std::move(moved.m_barrier) }
 	, m_queuedOutFd { moved.m_queuedOutFd }
 	, m_queuedErrFd { moved.m_queuedErrFd }
 	, m_sattachPids { moved.m_sattachPids }
 	, m_dlaunchSent { moved.m_dlaunchSent }
+
+	, m_srunInstance{ std::move(moved.m_srunInstance) }
 
 	, m_toolPath    { moved.m_toolPath }
 	, m_attribsPath { moved.m_attribsPath }
@@ -389,20 +123,20 @@ CraySLURMApp::~CraySLURMApp()
 /* app instance creation */
 
 CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid)
-	: CraySLURMApp{jobid, stepid, mpir_id_t{-1}}
+	: CraySLURMApp{jobid, stepid, nullptr}
 {}
 
-CraySLURMApp::CraySLURMApp(mpir_id_t mpir_id)
+CraySLURMApp::CraySLURMApp(std::unique_ptr<MPIRInstance>&& srunInstance)
 	: CraySLURMApp
-		{ slurm_conventions::fetchJobId(mpir_id)
-		, slurm_conventions::fetchStepId(mpir_id)
-		, mpir_id
+		{ CraySLURMFrontend::fetchJobId(*srunInstance)
+		, CraySLURMFrontend::fetchStepId(*srunInstance)
+		, std::move(srunInstance)
 	}
 {}
 
 CraySLURMApp::CraySLURMApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
-	: CraySLURMApp{ slurm_conventions::launchApp(launcher_argv, inputFile, chdirPath, env_list) }
+	: CraySLURMApp{ CraySLURMFrontend::launchApp(launcher_argv, inputFile, chdirPath, env_list) }
 {
 	// these FDs need to be remapped using sattach after barrier release
 	m_queuedOutFd = stdout_fd;
@@ -434,7 +168,7 @@ CraySLURMApp::getHostnameList() const
 	std::vector<std::string> result;
 	// extract hostnames from each NodeLayout
 	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-		[](slurm_util::NodeLayout const& node) { return node.hostname; });
+		[](CraySLURMFrontend::NodeLayout const& node) { return node.hostname; });
 	return result;
 }
 
@@ -444,7 +178,7 @@ CraySLURMApp::getHostsPlacement() const
 	std::vector<CTIHost> result;
 	// construct a CTIHost from each NodeLayout
 	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-		[](slurm_util::NodeLayout const& node) {
+		[](CraySLURMFrontend::NodeLayout const& node) {
 			return CTIHost{node.hostname, node.numPEs};
 		});
 	return result;
@@ -454,10 +188,10 @@ CraySLURMApp::getHostsPlacement() const
 
 void CraySLURMApp::releaseBarrier() {
 	// release MPIR barrier if applicable
-	if (!m_barrier) {
+	if (!m_srunInstance) {
 		throw std::runtime_error("app not under MPIR control");
 	}
-	m_barrier.reset();
+	m_srunInstance.reset();
 
 	// redirect output to proper FDs now that app is fully launched
 	if ((m_queuedOutFd >= 0) && (m_queuedErrFd >= 0)) {
@@ -623,7 +357,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	// --input=none --output=none --error=none <tool daemon> <args>
 	//
 	auto launcherArgv = ManagedArgv
-		{ slurm_conventions::getLauncherName()
+		{ CraySLURMFrontend::getLauncherName()
 		, "--jobid=" + std::to_string(m_srunInfo.jobid)
 		, "--gres=none"
 		, "--mem-per-cpu=0"
@@ -685,12 +419,22 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 		}
 
 		// clear out the blacklisted slurm env vars to ensure we don't get weird behavior
-		for (auto const& envVar : slurm_conventions::blacklist_env_vars) {
+		auto const envVarBlacklist = std::vector<char const*>{
+			"SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
+			"SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
+			"SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
+			"SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
+			"SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
+			"SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
+			"SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
+			"SLURM_WORKING_DIR"
+		};
+		for (auto const& envVar : envVarBlacklist) {
 			unsetenv(envVar);
 		}
 
 		// exec srun
-		execvp(slurm_conventions::getLauncherName().c_str(), launcherArgv.get());
+		execvp(CraySLURMFrontend::getLauncherName().c_str(), launcherArgv.get());
 
 		// exec shouldn't return
 		fprintf(stderr, "CTI error: Return from exec.\n");
@@ -712,8 +456,31 @@ CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int std
 std::string
 CraySLURMFrontend::getHostname() const
 {
-	return slurm_conventions::getHostname();
+	auto tryParseHostnameFile = [](char const* filePath) {
+		if (auto nidFile = file::try_open(filePath, "r")) {
+			int nid;
+			{ // We expect this file to have a numeric value giving our current Node ID.
+				char buf[BUFSIZ];
+				if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
+					throw std::runtime_error("_cti_cray_slurm_getHostname fgets failed.");
+				}
+				nid = std::stoi(std::string{buf});
+			}
+
+			// Use the NID to create the standard hostname format.
+			return cstr::asprintf(CRAY_HOSTNAME_FMT, nid);
+
+		} else {
+			return cstr::gethostname();
+		}
+	};
+
+	// Cache the hostname result.
+	static auto hostname = tryParseHostnameFile(CRAY_NID_FILE);
+	return hostname;
 }
+
+/* Cray-SLURM static implementations */
 
 std::unique_ptr<App>
 CraySLURMFrontend::registerJob(size_t numIds, ...) {
@@ -732,7 +499,237 @@ CraySLURMFrontend::registerJob(size_t numIds, ...) {
 	return std::make_unique<CraySLURMApp>(jobId, stepId);
 }
 
+std::string
+CraySLURMFrontend::getLauncherName()
+{
+	auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
+		if (char const* envValue = getenv(envVar)) {
+			return envValue;
+		}
+		return defaultValue;
+	};
+
+	// Cache the launcher name result.
+	auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME, SRUN)};
+	return launcherName;
+}
+
+CraySLURMFrontend::StepLayout
+CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
+{
+	// create sattach instance
+	OutgoingArgv<SattachArgv> sattachArgv("sattach");
+	sattachArgv.add(SattachArgv::DisplayLayout);
+	sattachArgv.add(SattachArgv::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
+
+	// create sattach output capture object
+	ExecvpOutput sattachOutput("sattach", sattachArgv.get());
+	auto& sattachStream = sattachOutput.stream();
+	std::string sattachLine;
+
+	// "Job step layout:"
+	if (std::getline(sattachStream, sattachLine)) {
+		if (sattachLine.compare("Job step layout:")) {
+			throw std::runtime_error(std::string("sattach layout: wrong format: ") + sattachLine);
+		}
+	} else {
+		throw std::runtime_error("sattach layout: wrong format: expected header");
+	}
+
+	StepLayout layout;
+	size_t numNodes;
+
+	// "  {numPEs} tasks, {numNodes} nodes ({hostname}...)"
+	if (std::getline(sattachStream, sattachLine)) {
+		// split the summary line
+		std::string rawNumPEs, rawNumNodes;
+		std::tie(rawNumPEs, std::ignore, rawNumNodes) =
+			cti_split::string<3>(cti_split::removeLeadingWhitespace(sattachLine));
+
+		// fill out sattach layout
+		layout.numPEs = std::stoul(rawNumPEs);
+		numNodes = std::stoul(rawNumNodes);
+		layout.nodes.reserve(numNodes);
+	} else {
+		throw std::runtime_error("sattach layout: wrong format: expected summary");
+	}
+
+	// seperator line
+	std::getline(sattachStream, sattachLine);
+
+	// "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
+	for (int i = 0; std::getline(sattachStream, sattachLine); i++) {
+		if (i >= numNodes) {
+			throw std::runtime_error("malformed sattach output: too many nodes!");
+		}
+
+		// split the summary line
+		std::string nodeNum, hostname, numPEs, pe_0;
+		std::tie(std::ignore, nodeNum, hostname, numPEs, std::ignore, pe_0) =
+			cti_split::string<6>(cti_split::removeLeadingWhitespace(sattachLine));
+
+		// fill out node layout
+		layout.nodes.push_back(NodeLayout
+			{ hostname.substr(1, hostname.length() - 3) // remove parens and comma from hostname
+			, std::stoul(numPEs)
+			, std::stoul(pe_0)
+		});
+	}
+
+	return layout;
+}
+
+std::string
+CraySLURMFrontend::createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath)
+{
+	// How a SLURM Node Layout File entry is created from a Slurm Node Layout entry:
+	auto make_layoutFileEntry = [](NodeLayout const& node) {
+		// Ensure we have good hostname information.
+		auto const hostname_len = node.hostname.size() + 1;
+		if (hostname_len > sizeof(slurmLayoutFile_t::host)) {
+			throw std::runtime_error("hostname too large for layout buffer");
+		}
+
+		// Extract PE and node information from Node Layout.
+		auto layout_entry    = slurmLayoutFile_t{};
+		layout_entry.PEsHere = node.numPEs;
+		layout_entry.firstPE = node.firstPE;
+		memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
+
+		return layout_entry;
+	};
+
+	// Create the file path, write the file using the Step Layout
+	auto const layoutPath = std::string{stagePath + "/" + SLURM_LAYOUT_FILE};
+	if (auto const layoutFile = file::open(layoutPath, "wb")) {
+
+		// Write the Layout header.
+		file::writeT(layoutFile.get(), slurmLayoutFileHeader_t
+			{ .numNodes = (int)stepLayout.nodes.size()
+		});
+
+		// Write a Layout entry using node information from each Slurm Node Layout entry.
+		for (auto const& node : stepLayout.nodes) {
+			file::writeT(layoutFile.get(), make_layoutFileEntry(node));
+		}
+
+		return layoutPath;
+	} else {
+		throw std::runtime_error("failed to open layout file path " + layoutPath);
+	}
+}
+
+std::string
+CraySLURMFrontend::createPIDListFile(std::vector<MPIRInstance::MPIR_ProcTableElem> const& procTable, std::string const& stagePath)
+{
+	auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
+	if (auto const pidFile = file::open(pidPath, "wb")) {
+
+		// Write the PID List header.
+		file::writeT(pidFile.get(), slurmPidFileHeader_t
+			{ .numPids = (int)procTable.size()
+		});
+
+		// Write a PID entry using information from each MPIR ProcTable entry.
+		for (auto&& elem : procTable) {
+			file::writeT(pidFile.get(), slurmPidFile_t
+				{ .pid = elem.pid
+			});
+		}
+
+		return pidPath;
+	} else {
+		throw std::runtime_error("failed to open PID file path " + pidPath);
+	}
+}
+
+std::unique_ptr<MPIRInstance>
+CraySLURMFrontend::launchApp(const char * const launcher_argv[], const char *inputFile, const char *chdirPath,
+	const char * const env_list[])
+{
+	// Open input file (or /dev/null to avoid stdin contention).
+	auto openFileOrDevNull = [&](char const* inputFile) {
+		int input_fd = -1;
+		if (inputFile == nullptr) {
+			inputFile = "/dev/null";
+		}
+		errno = 0;
+		input_fd = open(inputFile, O_RDONLY);
+		if (input_fd < 0) {
+			throw std::runtime_error("Failed to open input file " + std::string(inputFile) +": " + std::string(strerror(errno)));
+		}
+
+		return input_fd;
+	};
+
+	// Get the launcher path from CTI environment variable / default.
+	if (auto const launcher_path = cstr::handle{_cti_pathFind(CraySLURMFrontend::getLauncherName().c_str(), nullptr)}) {
+
+		/* construct argv array & instance*/
+		std::vector<std::string> launcherArgv{launcher_path.get()};
+		for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+			launcherArgv.emplace_back(*arg);
+		}
+
+		/* env_list null-terminated strings in format <var>=<val>*/
+		std::vector<std::string> envVars;
+		if (env_list != nullptr) {
+			for (const char* const* arg = env_list; *arg != nullptr; arg++) {
+				envVars.emplace_back(*arg);
+			}
+		}
+
+		// redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
+		std::map<int, int> remapFds {
+			{ openFileOrDevNull(inputFile), STDIN_FILENO  },
+			{ open("/dev/null", O_RDWR),    STDOUT_FILENO },
+			{ open("/dev/null", O_RDWR),    STDERR_FILENO }
+		};
+
+		// Launch program under MPIR control.
+		return std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
+	} else {
+		throw std::runtime_error("Failed to find launcher in path: " + CraySLURMFrontend::getLauncherName());
+	}
+}
+
+uint32_t
+CraySLURMFrontend::fetchJobId(MPIRInstance& srunInstance)
+{
+	return std::stoul(srunInstance.readStringAt("totalview_jobid"));
+}
+
+uint32_t
+CraySLURMFrontend::fetchStepId(MPIRInstance& srunInstance)
+{
+	auto const stepid_str = srunInstance.readStringAt("totalview_stepid");
+	if (!stepid_str.empty()) {
+		return std::stoul(stepid_str);
+	} else {
+		fprintf(stderr, "cti_fe: Warning: stepid not found! Defaulting to 0.\n");
+		return 0;
+	}
+}
+
 SrunInfo
 CraySLURMFrontend::getSrunInfo(pid_t srunPid) {
-	return slurm_conventions::attachAndFetchJobInfo(srunPid);
+	// sanity check
+	if (srunPid <= 0) {
+		throw std::runtime_error("Invalid srunPid " + std::to_string(srunPid));
+	}
+
+	// Find the launcher path from the launcher name using helper _cti_pathFind.
+	if (auto const launcherPath = cstr::handle{_cti_pathFind(getLauncherName().c_str(), nullptr)}) {
+
+		// Start a new MPIR attach session on the provided PID using symbols from the launcher.
+		auto const srunInstance = std::make_unique<MPIRInstance>(launcherPath.get(), srunPid);
+
+		// extract Job and Step IDs.
+		return SrunInfo
+			{ .jobid  = fetchJobId(*srunInstance)
+			, .stepid = fetchStepId(*srunInstance)
+		};
+	} else {
+		throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
+	}
 }
