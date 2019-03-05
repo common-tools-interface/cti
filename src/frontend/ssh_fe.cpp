@@ -45,7 +45,7 @@
 #include "useful/cti_path.h"
 #include "useful/cti_stringList.h"
 #include "useful/make_unique.hpp"
-#include "useful/strong_argv.hpp"
+#include "useful/cti_argv.hpp"
 #include "useful/Dlopen.hpp"
 
 #include "mpir_iface/mpir_iface.h"

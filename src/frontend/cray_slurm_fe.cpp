@@ -42,10 +42,10 @@
 #include "frontend/Frontend.hpp"
 #include "cray_slurm_fe.hpp"
 
-#include "useful/strong_argv.hpp"
 #include "useful/Dlopen.hpp"
 #include "useful/ExecvpOutput.hpp"
-#include "useful/string_split.hpp"
+#include "useful/cti_argv.hpp"
+#include "useful/cti_split.hpp"
 #include "useful/cti_wrappers.hpp"
 
 #include "mpir_iface/MPIRInstance.hpp"
@@ -93,10 +93,8 @@ namespace slurm_conventions
 	{
 		// create sattach instance
 		OutgoingArgv<SattachArgv> sattachArgv("sattach");
-		{ using SA = SattachArgv;
-			sattachArgv.add(SA::DisplayLayout);
-			sattachArgv.add(SA::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
-		}
+		sattachArgv.add(SattachArgv::DisplayLayout);
+		sattachArgv.add(SattachArgv::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
 
 		// create sattach output capture object
 		ExecvpOutput sattachOutput("sattach", sattachArgv.get());
@@ -120,7 +118,7 @@ namespace slurm_conventions
 			// split the summary line
 			std::string rawNumPEs, rawNumNodes;
 			std::tie(rawNumPEs, std::ignore, rawNumNodes) =
-				split::string<3>(split::removeLeadingWhitespace(sattachLine));
+				cti_split::string<3>(cti_split::removeLeadingWhitespace(sattachLine));
 
 			// fill out sattach layout
 			layout.numPEs = std::stoul(rawNumPEs);
@@ -142,7 +140,7 @@ namespace slurm_conventions
 			// split the summary line
 			std::string nodeNum, hostname, numPEs, pe_0;
 			std::tie(std::ignore, nodeNum, hostname, numPEs, std::ignore, pe_0) =
-				split::string<6>(split::removeLeadingWhitespace(sattachLine));
+				cti_split::string<6>(cti_split::removeLeadingWhitespace(sattachLine));
 
 			// fill out node layout
 			layout.nodes.push_back(NodeLayout

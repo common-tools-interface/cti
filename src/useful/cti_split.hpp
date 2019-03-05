@@ -9,7 +9,7 @@
 	std::string s_1, ..., s_N;
 	std::tie(s_1, ..., s_N) = split::string<N>(line_to_split, delim = ' ');
 */
-	namespace split {
+namespace cti_split {
 
 	std::string removeLeadingWhitespace(const std::string& str, const std::string& whitespace = " \t") {
 		const auto startPos = str.find_first_not_of(whitespace);
