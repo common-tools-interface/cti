@@ -50,10 +50,7 @@
 // CTI Frontend / App implementations
 #include "Frontend.hpp"
 #include "CraySLURM/Frontend.hpp"
-#define USE_CRAY_SLURM_ONLY 1
-#if !USE_CRAY_SLURM_ONLY
-#include "SSHSLURM/Frontend.hpp"
-#endif
+#include "GenericSSH/Frontend.hpp"
 
 // WLM detection library interface
 #include "wlm_detect.h"
@@ -354,21 +351,15 @@ namespace cti_conventions
 		}
 
 		// parse the returned result
-		return std::make_unique<CraySLURMFrontend>();
-		#if !USE_CRAY_SLURM_ONLY
 		if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
 			return std::make_unique<CraySLURMFrontend>();
 		} else if (!wlmName.compare("generic")) {
-			return  std::make_unique<SSHFrontend>();
+			return  std::make_unique<GenericSSHFrontend>();
 		} else {
 			// fallback to use the default
 			fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
 			return std::make_unique<DefaultFrontend>();
 		}
-		if (currentFrontendPtr == nullptr) {
-			fprintf(stderr, "Workload manager argument '%s' produced null frontend!\n", wlmName.c_str());
-		}
-		#endif
 	}
 
 	// run code that can throw and use it to set cti error instead
