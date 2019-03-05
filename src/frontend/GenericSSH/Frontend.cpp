@@ -612,25 +612,28 @@ GenericSSHFrontend::fetchStepLayout(MPIRInstance::ProcTable const& procTable)
 	size_t nodeCount = 0;
 	size_t peCount   = 0;
 
-	std::unordered_map<std::string, pid_t> hostNidMap;
+	std::unordered_map<std::string, size_t> hostNidMap;
 
 	// For each new host we see, add a host entry to the end of the layout's host list
 	// and hash each hostname to its index into the host list 
 	for (auto&& proc : procTable) {
+		size_t nid;
 		auto const hostNidPair = hostNidMap.find(proc.hostname);
 		if (hostNidPair == hostNidMap.end()) {
 			// New host, extend nodes array, and fill in host entry information
-			hostNidPair->second = nodeCount++;
-
+			nid = nodeCount++;
 			layout.nodes.push_back(NodeLayout
 				{ .hostname = proc.hostname
 				, .pids = {}
 				, .firstPE = peCount
 			});
+			hostNidMap[proc.hostname] = nid;
+		} else {
+			nid = hostNidPair->second;
 		}
 
 		// add new pe to end of host's list
-		layout.nodes[hostNidPair->second].pids.push_back(proc.pid);
+		layout.nodes[nid].pids.push_back(proc.pid);
 
 		peCount++;
 	}
@@ -742,10 +745,10 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
 		// note: when using SRUN as launcher, this output redirection doesn't work.
 		// see CraySLURM's implementation (need to use SATTACH after launch)
 		std::map<int, int> remapFds {
-			{ openFileOrDevNull(inputFile), STDIN_FILENO  },
-			{ stdout_fd, STDOUT_FILENO },
-			{ stderr_fd, STDERR_FILENO }
+			{ openFileOrDevNull(inputFile), STDIN_FILENO }
 		};
+		if (stdout_fd >= 0) { remapFds[stdout_fd] = STDOUT_FILENO; }
+		if (stderr_fd >= 0) { remapFds[stderr_fd] = STDERR_FILENO; }
 
 		// Launch program under MPIR control.
 		return std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
