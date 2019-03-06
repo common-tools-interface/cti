@@ -12,14 +12,14 @@
 
 SRC             = @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS = --quiet
+AUTOMAKE_OPTIONS = subdir-objects
 
 lib_LTLIBRARIES = libcraytools_fe.la
 
 libcraytools_fe_la_SOURCES	=	cti_fe_iface.h cti_fe_iface.cpp \
-								cti_error.c cti_error.h \
 								Frontend.hpp \
-								cray_slurm_fe.cpp cray_slurm_fe.hpp \
-								# ssh_fe.cpp ssh_fe.hpp
+								CraySLURM/Frontend.cpp CraySLURM/Frontend.hpp \
+								# GenericSSH/Frontend.cpp GenericSSH/Frontend.hpp
 libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
 								$(ARCHIVE_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
 libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) $(libcraytools_fe_la_CFLAGS)

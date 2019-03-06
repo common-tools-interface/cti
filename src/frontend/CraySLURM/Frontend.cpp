@@ -40,7 +40,7 @@
 #include "cti_fe_iface.h"
 
 #include "frontend/Frontend.hpp"
-#include "cray_slurm_fe.hpp"
+#include "CraySLURM/Frontend.hpp"
 
 #include "useful/Dlopen.hpp"
 #include "useful/ExecvpOutput.hpp"
@@ -157,7 +157,7 @@ CraySLURMApp::getJobId() const
 std::string
 CraySLURMApp::getLauncherHostname() const
 {
-	throw std::runtime_error("not supported for Cray-SLURM: getLauncherHostname");
+	throw std::runtime_error("not supported for WLM: getLauncherHostname");
 }
 
 #include <algorithm>

@@ -17,7 +17,6 @@ using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
 
 #include "useful/cti_useful.h"
 #include "ld_val/ld_val.h"
-#include "frontend/cti_error.h"
 
 // debug declares
 #ifdef DEBUG
