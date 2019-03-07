@@ -253,9 +253,9 @@ AC_CHECK_FUNCS([clock_gettime dup2 getcwd inet_ntoa memchr memmove memset mkdir 
 ### Define constants ###
 ########################
 
-dnl Define the dynamic name of the cti_dlaunch utility that is version specific
-AC_SUBST([CRAYTOOL_LAUNCHER], ["cti_dlaunch$CRAYTOOL_RELEASE_VERSION"])
-AC_DEFINE_UNQUOTED([CTI_LAUNCHER], ["$CRAYTOOL_LAUNCHER"], [Name of CTI daemon launcher binary.])
+dnl Define the system path where this version of CTI is expected to be found
+AC_SUBST([DEFAULT_CRAYTOOL_LOC], ["/opt/cray/pe/cti/$CRAYTOOL_RELEASE_VERSION"])
+AC_DEFINE_UNQUOTED([DEFAULT_CTI_LOC], ["$DEFAULT_CRAYTOOL_LOC"], [System path where this version of CTI is expected to be found.])
 
 ################
 ### Finalize ###

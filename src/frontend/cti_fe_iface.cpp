@@ -63,7 +63,7 @@
 
 namespace cti_conventions
 {
-	constexpr static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
+	constexpr static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOC};
 
 	namespace return_code
 	{
@@ -441,7 +441,7 @@ _cti_getOverwatchPath() {
 
 std::string const&
 _cti_getDlaunchPath() {
-	static std::string _cti_dlaunch_bin = cti_conventions::accessiblePath(_cti_getBaseDir() + "/libexec/" + CTI_LAUNCHER);
+	static std::string _cti_dlaunch_bin = cti_conventions::accessiblePath(_cti_getBaseDir() + "/libexec/" + CTI_DLAUNCH_BINARY);
 	return _cti_dlaunch_bin;
 }
 

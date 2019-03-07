@@ -17,7 +17,7 @@ dnl
 AC_DEFUN([cray_INIT],
 [
 	dnl Pull in the revision information from the $PWD/release_versioning file
-	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([source $PWD/release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n'])])
+	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([source $PWD/release_versioning; echo $craytool_release_version | tr -d '\n'])])
 
 	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd([source $PWD/release_versioning; echo $be_current | tr -d '\n'])])
 	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd([source $PWD/release_versioning; echo $be_revision | tr -d '\n'])])
@@ -362,15 +362,15 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
 
 	dnl configure using cmake
-	rm -rf build
-	mkdir -p build
+	#rm -rf build
+	#mkdir -p build
 	cd build
-	_cray_dyninst_cmake_opts="-DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPATH_BOOST=${BOOST_ROOT} -DBoost_INCLUDE_DIR=${BOOST_ROOT}/include -DLIBELF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBELF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libelf.so -DLIBDWARF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBDWARF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libdw.so -DTBB_INCLUDE_DIRS=${TBB_INCLUDE_DIR} -DTBB_tbb_LIBRARY_RELEASE=${TBB_LIBRARY}/libtbb.so -DUSE_OpenMP=OFF"
-	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
-	AS_IF(	[test $? != 0],
-	 		[AC_MSG_ERROR[dyninst cmake failed.]],
-	 		[]
-	 		)
+	#_cray_dyninst_cmake_opts="-DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPATH_BOOST=${BOOST_ROOT} -DBoost_INCLUDE_DIR=${BOOST_ROOT}/include -DLIBELF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBELF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libelf.so -DLIBDWARF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBDWARF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libdw.so -DTBB_INCLUDE_DIRS=${TBB_INCLUDE_DIR} -DTBB_tbb_LIBRARY_RELEASE=${TBB_LIBRARY}/libtbb.so -DUSE_OpenMP=OFF"
+	#cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	#AS_IF(	[test $? != 0],
+	# 		[AC_MSG_ERROR[dyninst cmake failed.]],
+	# 		[]
+	# 		)
 
 	dnl make
 	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD

@@ -54,6 +54,7 @@
 # I think that 'major' and 'minor' are also used to create CRAYTOOL_RELEASE
 # 'minor' should probably be set to match fe_revision.
 #
+craytool_release_version=1.0.7
 craytool_major=1
 craytool_minor=0
 
