@@ -133,7 +133,7 @@ RemotePackage Manifest::createAndShipArchive(const std::string& archiveName,
 		for (auto fileIt : folderIt.second) {
 			const std::string destPath(liveSession->m_stageName + "/" + folderIt.first +
 				"/" + fileIt);
-			DEBUG_PRINT("ship " << m_instanceCount << ": addPath(" << destPath << ", " << m_sourcePaths.at(fileIt) << ")" << std::endl);
+			liveSession->getLogger().write("ship %d: addPath(%s, %s)\n", m_instanceCount, destPath.c_str(), m_sourcePaths.at(fileIt).c_str());
 			archive.addPath(destPath, m_sourcePaths.at(fileIt));
 		}
 	}
@@ -167,7 +167,7 @@ RemotePackage Manifest::finalizeAndShip() {
 	}
 	
 	// merge manifest into session and get back list of files to remove
-	DEBUG_PRINT("finalizeAndShip " << m_instanceCount << ": merge into session" << std::endl);
+	liveSession->getLogger().write("finalizeAndShip %d: merge into session\n", m_instanceCount);
 	{ auto toRemove = liveSession->mergeTransfered(m_folders, m_sourcePaths);
 		for (auto folderFilePair : toRemove) {
 			m_folders[folderFilePair.first].erase(folderFilePair.second);

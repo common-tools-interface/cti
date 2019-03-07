@@ -36,7 +36,7 @@ void RemotePackage::extract() {
 	}
 
 	// call transfer function with DaemonArgv
-	DEBUG_PRINT("finalizeAndExtract " << m_instanceCount << ": starting daemon" << std::endl);
+	liveSession->getLogger().write("finalizeAndExtract %d: starting daemon\n", m_instanceCount);
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
 	liveSession->startDaemon(daemonArgv.get() + 1);
 
@@ -52,7 +52,7 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 	const std::string binaryName(cti::getNameFromPath(cti::findPath(daemonBinary)));
 
 	// create DaemonArgv
-	DEBUG_PRINT("extractAndRun: creating daemonArgv for " << daemonBinary << std::endl);
+	liveSession->getLogger().write("extractAndRun: creating daemonArgv for %s\n", daemonBinary);
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
 		daemonArgv.add(DA::ApID,         liveSession->m_jobId);
@@ -89,10 +89,10 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 	}
 
 	// call launch function with DaemonArgv
-	DEBUG_PRINT("extractAndRun: starting daemon" << std::endl);
+	liveSession->getLogger().write("extractAndRun: starting daemon\n");
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
 	liveSession->startDaemon(rawArgVec.get() + 1);
-	DEBUG_PRINT("daemon started" << std::endl);
+	liveSession->getLogger().write("daemon started\n");
 
 	invalidate();
 }
