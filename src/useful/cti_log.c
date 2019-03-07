@@ -30,7 +30,7 @@
 #include "cti_defs.h"
 
 FILE *
-_cti_create_log(int suffix, char *nodeName)
+_cti_create_log(char const* nodeName, int suffix)
 {
 	char logfile[PATH_MAX];
 	char *envDir;
@@ -61,23 +61,6 @@ _cti_create_log(int suffix, char *nodeName)
 	setvbuf(logfd, NULL, _IONBF, 0);
 	
 	return logfd;
-}
-
-int
-_cti_write_log(FILE *log, char *buf)
-{
-	if (log == (FILE *)NULL || buf == (char *)NULL)
-		return 1;
-		
-	fprintf(log, "%s", buf);
-	
-	return 0;
-}
-
-int
-_cti_close_log(FILE *log)
-{
-	return fclose(log);
 }
 
 int

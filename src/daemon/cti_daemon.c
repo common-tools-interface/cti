@@ -538,7 +538,7 @@ main(int argc, char **argv)
 		}
 		
 		// setup the log
-		log = _cti_create_log(_cti_wlmProto->wlm_getNodeID(), apid_str);
+		log = _cti_create_log(apid_str, _cti_wlmProto->wlm_getNodeID());
 		_cti_hook_stdoe(log);
 		
 		// cleanup the apid string if it was missing

@@ -19,9 +19,7 @@
 #ifndef _CTI_LOG_H
 #define _CTI_LOG_H
 
-FILE *	_cti_create_log(int, char *);
-int 	_cti_write_log(FILE *, char *);
-int 	_cti_close_log(FILE *);
+FILE *	_cti_create_log(char const* nodeName, int suffix);
 int 	_cti_hook_stdoe(FILE *);
 
 #endif /* _CTI_LOG_H */
