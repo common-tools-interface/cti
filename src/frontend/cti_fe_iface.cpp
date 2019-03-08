@@ -63,7 +63,11 @@
 
 namespace cti_conventions
 {
-	constexpr static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOC};
+	constexpr static const char* const _cti_default_dir_locs[] = {
+		"/opt/cray/cti/"    CTI_RELEASE_VERSION,
+		"/opt/cray/pe/cti/" CTI_RELEASE_VERSION,
+		nullptr
+	};
 
 	namespace return_code
 	{

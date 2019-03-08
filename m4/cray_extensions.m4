@@ -17,7 +17,7 @@ dnl
 AC_DEFUN([cray_INIT],
 [
 	dnl Pull in the revision information from the $PWD/release_versioning file
-	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([source $PWD/release_versioning; echo $craytool_release_version | tr -d '\n'])])
+	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([source $PWD/release_versioning; echo $craytool_major.$craytool_minor.$craytool_revision | tr -d '\n'])])
 
 	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd([source $PWD/release_versioning; echo $be_current | tr -d '\n'])])
 	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd([source $PWD/release_versioning; echo $be_revision | tr -d '\n'])])

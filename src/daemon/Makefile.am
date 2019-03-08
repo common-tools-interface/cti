@@ -16,10 +16,10 @@ USEFUL              = $(SRC)/useful
 AM_CFLAGS       	= -I$(SRC)
 AM_LIBTOOLFLAGS 	= --quiet
 
-libexec_PROGRAMS	= cti_dlaunch
+libexec_PROGRAMS	= cti_dlaunch@CRAYTOOL_RELEASE_VERSION@
 
-cti_dlaunch_SOURCES	= cti_daemon.c cray_slurm_dl.c slurm_dl.c
-cti_dlaunch_CFLAGS	= $(AM_CFLAGS) -I$(USEFUL) $(ARCHIVE_CFLAGS)
-cti_dlaunch_LDADD	= $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
-cti_dlaunch_LDFLAGS	= -all-static -Wl,--no-undefined -Wl,--as-needed $(ARCHIVE_LDFLAGS)
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_SOURCES	= cti_daemon.c cray_slurm_dl.c slurm_dl.c
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_CFLAGS	= $(AM_CFLAGS) -I$(USEFUL) $(ARCHIVE_CFLAGS)
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_LDADD	= $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
+cti_dlaunch@CRAYTOOL_RELEASE_VERSION@_LDFLAGS	= -all-static -Wl,--no-undefined -Wl,--as-needed $(ARCHIVE_LDFLAGS)
 
