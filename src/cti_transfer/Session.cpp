@@ -96,7 +96,7 @@ Session::Session(cti_wlm_type const wlmType, App& activeApp)
 
 #include "ArgvDefs.hpp"
 void Session::launchCleanup() {
-	DEBUG_PRINT("launchCleanup: creating daemonArgv for cleanup" << std::endl);
+	writeLog("launchCleanup: creating daemonArgv for cleanup\n");
 
 	// create DaemonArgv
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
@@ -113,7 +113,7 @@ void Session::launchCleanup() {
 
 	// call cleanup function with DaemonArgv
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-	DEBUG_PRINT("launchCleanup: launching daemon for cleanup" << std::endl);
+	writeLog("launchCleanup: launching daemon for cleanup\n");
 	startDaemon(daemonArgv.get() + 1);
 
 	// session is finalized, no changes can be made

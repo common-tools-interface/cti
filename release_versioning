@@ -56,6 +56,7 @@
 #
 craytool_major=1
 craytool_minor=0
+craytool_revision=7
 
 be_current=2
 be_revision=1

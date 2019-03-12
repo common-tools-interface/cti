@@ -345,7 +345,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	}
 
 	// use existing launcher binary on compute node
-	std::string const launcherPath(m_toolPath + "/" + CTI_LAUNCHER);
+	std::string const launcherPath(m_toolPath + "/" + CTI_DLAUNCH_BINARY);
 
 	// Start adding the args to the launcher argv array
 	//

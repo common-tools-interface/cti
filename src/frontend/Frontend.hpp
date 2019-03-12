@@ -28,6 +28,8 @@
 
 #include "cti_fe_iface.h"
 
+#include "useful/cti_useful.h"
+
 struct CTIHost {
 	std::string hostname;
 	size_t      numPEs;
@@ -36,9 +38,26 @@ struct CTIHost {
 using CStr      = const char*;
 using CArgArray = const char* const[];
 
+/* CTI Frontend state accessors */
+
+std::string const& _cti_getCfgDir();
+std::string const& _cti_getBaseDir();
+std::string const& _cti_getLdAuditPath();
+std::string const& _cti_getOverwatchPath();
+std::string const& _cti_getDlaunchPath();
+Logger&   _cti_getLogger();
+
+/* CTI Frontend object interfaces */
+
 // This is the app instance interface that all wlms should implement.
 class App {
-public: // interface
+public: // inherited interface
+	template <typename... Args>
+	inline void writeLog(char const* fmt, Args&&... args) const {
+		_cti_getLogger().write((getJobId() + ":" + fmt).c_str(), std::forward<Args>(args)...);
+	}
+
+public: // pure virtual interface
 
 	/* app host setup accessors */
 
@@ -100,7 +119,6 @@ public: // interface
 
 // This is the wlm interface that all wlm implementations should implement.
 class Frontend {
-
 public: // impl.-specific interface
 	// wlm type
 	virtual cti_wlm_type
@@ -121,10 +139,4 @@ public: // impl.-specific interface
 	getHostname(void) const = 0;
 };
 
-
-std::string const& _cti_getCfgDir();
-std::string const& _cti_getBaseDir();
-std::string const& _cti_getLdAuditPath();
-std::string const& _cti_getOverwatchPath();
-std::string const& _cti_getDlaunchPath();
 Frontend& _cti_getCurrentFrontend();

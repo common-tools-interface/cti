@@ -79,6 +79,12 @@ public: // interface
 	inline const std::string& getLdLibraryPath() const { return m_ldLibraryPath; }
 	inline void invalidate() { m_manifests.clear(); }
 
+	// log function for Manifest / RemoteSession
+	template <typename... Args>
+	inline void writeLog(char const* fmt, Args&&... args) const {
+		m_activeApp.writeLog(fmt, std::forward<Args>(args)...);
+	}
+
 	// launch cti_daemon to clean up the session stage directory. invalidates the session
 	void launchCleanup();
 

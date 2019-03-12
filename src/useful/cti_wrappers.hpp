@@ -18,14 +18,6 @@ using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
 #include "useful/cti_useful.h"
 #include "ld_val/ld_val.h"
 
-// debug declares
-#ifdef DEBUG
-	#include <iostream>
-	#define DEBUG_PRINT(x) do { std::cerr << x; } while (0)
-#else
-	#define DEBUG_PRINT(x)
-#endif
-
 /* cstring wrappers */
 
 namespace cstr {

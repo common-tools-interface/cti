@@ -23,6 +23,6 @@ libcti_transfer_la_SOURCES	=	cti_wrappers.hpp \
 								Manifest.cpp Manifest.hpp \
 								Session.cpp Session.hpp
 libcti_transfer_la_CXXFLAGS	= 	$(AM_CXXFLAGS) -fPIC $(ARCHIVE_CFLAGS)
-libcti_transfer_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed \
+libcti_transfer_la_LDFLAGS	=	-static -Wl,--as-needed \
 								$(ARCHIVE_LDFLAGS)
 libcti_transfer_la_LIBADD	=	$(ARCHIVE_LIBS)
