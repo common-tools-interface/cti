@@ -63,7 +63,11 @@
 
 namespace cti_conventions
 {
-	constexpr static const char* const _cti_default_dir_locs[] = {DEFAULT_CTI_LOCS};
+	constexpr static const char* const _cti_default_dir_locs[] = {
+		"/opt/cray/cti/"    CTI_RELEASE_VERSION,
+		"/opt/cray/pe/cti/" CTI_RELEASE_VERSION,
+		nullptr
+	};
 
 	namespace return_code
 	{
@@ -301,6 +305,8 @@ namespace cti_conventions
 		} else {
 			return std::string{base_dir_env};
 		}
+
+		throw std::runtime_error(std::string{"failed to find a CTI installation. Ensure "} + BASE_DIR_ENV_VAR + " is set properly.");
 	}
 
 	/*
@@ -441,7 +447,7 @@ _cti_getOverwatchPath() {
 
 std::string const&
 _cti_getDlaunchPath() {
-	static std::string _cti_dlaunch_bin = cti_conventions::accessiblePath(_cti_getBaseDir() + "/libexec/" + CTI_LAUNCHER);
+	static std::string _cti_dlaunch_bin = cti_conventions::accessiblePath(_cti_getBaseDir() + "/libexec/" + CTI_DLAUNCH_BINARY);
 	return _cti_dlaunch_bin;
 }
 
@@ -495,21 +501,21 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 
 int
 cti_getNumAppPEs(cti_app_id_t appId) {
-	return cti_conventions::runSafely("cti_getNumAppPEs", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		return appRegistry.get(appId)->getNumPEs();
 	}, -1);
 }
 
 int
 cti_getNumAppNodes(cti_app_id_t appId) {
-	return cti_conventions::runSafely("cti_getNumAppNodes", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		return appRegistry.get(appId)->getNumHosts();
 	}, -1);
 }
 
 char**
 cti_getAppHostsList(cti_app_id_t appId) {
-	return cti_conventions::runSafely("cti_appRegistry.getHostsList", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		auto const hostList = appRegistry.get(appId)->getHostnameList();
 
 		char **host_list = (char**)malloc(sizeof(char*) * (hostList.size() + 1));
@@ -524,7 +530,7 @@ cti_getAppHostsList(cti_app_id_t appId) {
 
 cti_hostsList_t*
 cti_getAppHostsPlacement(cti_app_id_t appId) {
-	return cti_conventions::runSafely("cti_appRegistry.getHostsPlacement", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		auto const hostPlacement = appRegistry.get(appId)->getHostsPlacement();
 
 		cti_hostsList_t *result = (cti_hostsList_t*)malloc(sizeof(cti_hostsList_t));
@@ -557,14 +563,14 @@ cti_destroyHostsList(cti_hostsList_t *placement_list) {
 
 char*
 cti_getHostname() {
-	return cti_conventions::runSafely("cti_getHostname", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		return strdup(_cti_getCurrentFrontend().getHostname().c_str());
 	}, (char*)nullptr);
 }
 
 char*
 cti_getLauncherHostName(cti_app_id_t appId) {
-	return cti_conventions::runSafely("cti_getLauncherHostName", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		return strdup(appRegistry.get(appId)->getLauncherHostname().c_str());
 	}, (char*)nullptr);
 }
@@ -587,7 +593,7 @@ static WLMType& downcastCurrentFE() {
 
 cti_srunProc_t*
 cti_cray_slurm_getJobInfo(pid_t srunPid) {
-	return cti_conventions::runSafely("cti_cray_slurm_getJobInfo", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		auto& craySlurm = downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
 			*result = craySlurm.getSrunInfo(srunPid);
@@ -600,7 +606,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid) {
 
 cti_app_id_t
 cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
-	return cti_conventions::runSafely("cti_cray_slurm_registerJobStep", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		auto& craySlurm = downcastCurrentFE<CraySLURMFrontend>();
 		return appRegistry.own(craySlurm.registerJob(2, job_id, step_id));
 	}, APP_ERROR);
@@ -608,7 +614,7 @@ cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
 
 cti_srunProc_t*
 cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
-	return cti_conventions::runSafely("cti_cray_slurm_getSrunInfo", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		auto& craySlurm = downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
 			*result = dynamic_cast<CraySLURMApp&>(*appRegistry.get(appId)).getSrunInfo();
@@ -625,14 +631,14 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 
 int
 cti_appIsValid(cti_app_id_t appId) {
-	return cti_conventions::runSafely("cti_appIsValid", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		return appRegistry.isValid(appId);
 	}, false);
 }
 
 void
 cti_deregisterApp(cti_app_id_t appId) {
-	cti_conventions::runSafely("cti_deregisterApp", [&](){
+	cti_conventions::runSafely(__func__, [&](){
 		appRegistry.erase(appId);
 		return true;
 	}, false);
@@ -642,7 +648,7 @@ cti_app_id_t
 cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
-	return cti_conventions::runSafely("cti_launchApp", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		// sanity check the app launch arguments
 		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
 
@@ -660,7 +666,7 @@ cti_app_id_t
 cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
-	return cti_conventions::runSafely("cti_launchAppBarrier", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		// sanity check the app launch arguments
 		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
 
@@ -672,7 +678,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stde
 
 int
 cti_releaseAppBarrier(cti_app_id_t appId) {
-	return cti_conventions::runSafely("cti_releaseAppBarrier", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		appRegistry.get(appId)->releaseBarrier();
 		return SUCCESS;
 	}, FAILURE);
@@ -680,7 +686,7 @@ cti_releaseAppBarrier(cti_app_id_t appId) {
 
 int
 cti_killApp(cti_app_id_t appId, int signum) {
-	return cti_conventions::runSafely("cti_killApp", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		appRegistry.get(appId)->kill(signum);
 		return SUCCESS;
 	}, FAILURE);
@@ -712,7 +718,7 @@ static void shipWLMBaseFiles(Session& liveSession) {
 
 cti_session_id_t
 cti_createSession(cti_app_id_t appId) {
-	return cti_conventions::runSafely("cti_createSession", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		// register new session instance and ship the WLM-specific base files
 		auto const sid = sessionRegistry.own(
 			std::make_shared<Session>(_cti_getCurrentFrontend().getWLMType(), *appRegistry.get(appId)));
@@ -723,14 +729,14 @@ cti_createSession(cti_app_id_t appId) {
 
 int
 cti_sessionIsValid(cti_session_id_t sid) {
-	return cti_conventions::runSafely("cti_sessionIsValid", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		return sessionRegistry.isValid(sid);
 	}, false);
 }
 
 char**
 cti_getSessionLockFiles(cti_session_id_t sid) {
-	return cti_conventions::runSafely("cti_sessionRegistry.getLockFiles", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		auto const& activeManifests = sessionRegistry.get(sid)->getManifests();
 
 		// ensure there's at least one manifest instance
@@ -766,27 +772,27 @@ static char* sessionPathAppend(std::string const& caller, cti_session_id_t sid, 
 
 char*
 cti_getSessionRootDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionRootDir", sid, "");
+	return sessionPathAppend(__func__, sid, "");
 }
 
 char*
 cti_getSessionBinDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionBinDir", sid, "/bin");
+	return sessionPathAppend(__func__, sid, "/bin");
 }
 
 char*
 cti_getSessionLibDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionLibDir", sid, "/lib");
+	return sessionPathAppend(__func__, sid, "/lib");
 }
 
 char*
 cti_getSessionFileDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionFileDir", sid, "");
+	return sessionPathAppend(__func__, sid, "");
 }
 
 char*
 cti_getSessionTmpDir(cti_session_id_t sid) {
-	return sessionPathAppend("cti_getSessionTmpDir", sid, "/tmp");
+	return sessionPathAppend(__func__, sid, "/tmp");
 }
 
 
@@ -795,21 +801,21 @@ cti_getSessionTmpDir(cti_session_id_t sid) {
 
 cti_manifest_id_t
 cti_createManifest(cti_session_id_t sid) {
-	return cti_conventions::runSafely("cti_createManifest", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		return manifestRegistry.own(sessionRegistry.get(sid)->createManifest());
 	}, MANIFEST_ERROR);
 }
 
 int
 cti_manifestIsValid(cti_manifest_id_t mid) {
-	return cti_conventions::runSafely("cti_manifestIsValid", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		return manifestRegistry.isValid(mid);
 	}, false);
 }
 
 int
 cti_destroySession(cti_session_id_t sid) {
-	return cti_conventions::runSafely("cti_destroySession", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		sessionRegistry.get(sid)->launchCleanup();
 		sessionRegistry.erase(sid);
 		return SUCCESS;
@@ -818,7 +824,7 @@ cti_destroySession(cti_session_id_t sid) {
 
 int
 cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
-	return cti_conventions::runSafely("cti_addManifestBinary", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		manifestRegistry.get(mid)->addBinary(rawName);
 		return SUCCESS;
 	}, FAILURE);
@@ -826,7 +832,7 @@ cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
 
 int
 cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
-	return cti_conventions::runSafely("cti_addManifestLibrary", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		manifestRegistry.get(mid)->addLibrary(rawName);
 		return SUCCESS;
 	}, FAILURE);
@@ -834,7 +840,7 @@ cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
 
 int
 cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
-	return cti_conventions::runSafely("cti_addManifestLibDir", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		manifestRegistry.get(mid)->addLibDir(rawName);
 		return SUCCESS;
 	}, FAILURE);
@@ -842,7 +848,7 @@ cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
 
 int
 cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
-	return cti_conventions::runSafely("cti_addManifestFile", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		manifestRegistry.get(mid)->addFile(rawName);
 		return SUCCESS;
 	}, FAILURE);
@@ -850,7 +856,7 @@ cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
 
 int
 cti_sendManifest(cti_manifest_id_t mid) {
-	return cti_conventions::runSafely("cti_sendManifest", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		auto remotePackage = manifestRegistry.get(mid)->finalizeAndShip();
 		remotePackage.extract();
 		manifestRegistry.erase(mid);
@@ -863,7 +869,7 @@ int
 cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 	const char * const daemonArgs[], const char * const envVars[])
 {
-	return cti_conventions::runSafely("cti_execToolDaemon", [&](){
+	return cti_conventions::runSafely(__func__, [&](){
 		{ auto& manifest = *manifestRegistry.get(mid);
 			manifest.addBinary(daemonPath);
 			auto remotePackage = manifest.finalizeAndShip();
