@@ -534,7 +534,7 @@ GenericSSHApp::startDaemon(const char* const args[])
 	}
 
 	// Use location of existing launcher binary on compute node
-	std::string const launcherPath{m_toolPath + "/" + CTI_LAUNCHER};
+	std::string const launcherPath{m_toolPath + "/" + CTI_DLAUNCH_BINARY};
 
 	// Prepare the launcher arguments
 	cti_argv::ManagedArgv launcherArgv { launcherPath };

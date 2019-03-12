@@ -86,7 +86,7 @@ _cti_slurm_getNodeID(void)
 	    // we expect this file to have a numeric value giving our current nid
 	    if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
 	    {
-		    fprintf(stderr, "%s: _cti_slurm_getNodeID:fgets failed.\n", CTI_LAUNCHER);
+		    fprintf(stderr, "%s: _cti_slurm_getNodeID:fgets failed.\n", CTI_DLAUNCH_BINARY);
 		    return -1;
 	    }
 		

@@ -19,11 +19,19 @@
 #ifndef _CTI_PATH_H
 #define _CTI_PATH_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 char *	_cti_pathFind(const char *, const char *);
 char *	_cti_libFind(const char *);
 int		_cti_adjustPaths(const char *, const char*);
 char *	_cti_pathToName(const char *);
 char *	_cti_pathToDir(const char *);
 int		_cti_removeDirectory(const char *);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CTI_PATH_H */

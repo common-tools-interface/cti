@@ -19,18 +19,10 @@
 #ifndef _CTI_USEFUL_H
 #define _CTI_USEFUL_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "cti_log.h"
 #include "cti_overwatch.h"
 #include "cti_error.h"
 #include "cti_path.h"
 #include "cti_stack.h"
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* _CTI_USEFUL_H */

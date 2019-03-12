@@ -253,9 +253,12 @@ AC_CHECK_FUNCS([clock_gettime dup2 getcwd inet_ntoa memchr memmove memset mkdir 
 ### Define constants ###
 ########################
 
+dnl Define the release version so that the frontend can look in the right directory
+AC_DEFINE_UNQUOTED([CTI_RELEASE_VERSION], ["$CRAYTOOL_RELEASE_VERSION"], [CTI release version string.])
+
 dnl Define the dynamic name of the cti_dlaunch utility that is version specific
-AC_SUBST([CRAYTOOL_LAUNCHER], ["cti_dlaunch$CRAYTOOL_RELEASE_VERSION"])
-AC_DEFINE_UNQUOTED([CTI_LAUNCHER], ["$CRAYTOOL_LAUNCHER"], [Name of CTI daemon launcher binary.])
+AC_SUBST([CRAYTOOL_DLAUNCH_BINARY], ["cti_dlaunch$CRAYTOOL_RELEASE_VERSION"])
+AC_DEFINE_UNQUOTED([CTI_DLAUNCH_BINARY], ["$CRAYTOOL_DLAUNCH_BINARY"], [Name of CTI daemon launcher binary.])
 
 ################
 ### Finalize ###
