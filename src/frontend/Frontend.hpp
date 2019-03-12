@@ -28,7 +28,7 @@
 
 #include "cti_fe_iface.h"
 
-#include "useful/Logger.hpp"
+#include "useful/cti_useful.h"
 
 struct CTIHost {
 	std::string hostname;

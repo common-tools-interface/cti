@@ -21,6 +21,10 @@
 
 #include <stdarg.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef FILE cti_log_t;
 
 // if logging is enabled,
@@ -37,4 +41,46 @@ int _cti_write_log(cti_log_t* log_file, const char *fmt, ...);
 // redirect standard out / err to the specified logfile (if nonnull)
 int _cti_hook_stdoe(cti_log_t* log_file);
 
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* _CTI_LOG_H */
+
+#ifdef __cplusplus
+
+#ifndef _LOGGER_HPP
+#define _LOGGER_HPP
+
+#include <string>
+#include <memory>
+
+class Logger
+{
+private: // types
+	using LogPtr = std::unique_ptr<cti_log_t, int(*)(cti_log_t*)>;
+
+private: // variables
+	LogPtr logFile;
+
+public: // interface
+	Logger(std::string const& filename, int suffix) : logFile{nullptr, _cti_close_log}
+	{
+		// determine if logging mode is enabled
+		if (getenv(DBG_ENV_VAR)) {
+			logFile = LogPtr{_cti_create_log(filename.c_str(), suffix), _cti_close_log};
+		}
+	}
+
+	template <typename... Args>
+	void write(char const* fmt, Args&&... args)
+	{
+		if (logFile) {
+			_cti_write_log(logFile.get(), fmt, std::forward<Args>(args)...);
+		}
+	}
+};
+
+#endif /* _LOGGER_HPP */
+
+#endif /* __cplusplus */
