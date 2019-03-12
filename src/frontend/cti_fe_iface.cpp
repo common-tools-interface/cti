@@ -451,6 +451,12 @@ _cti_getCurrentFrontend() {
 	return *_cti_currentFrontendPtr;
 }
 
+Logger&
+_cti_getLogger() {
+	static auto _cti_logger = Logger{_cti_getCurrentFrontend().getHostname().c_str(), getpid()};
+	return _cti_logger;
+}
+
 /************************
 * API defined functions
 ************************/

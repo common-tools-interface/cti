@@ -37,8 +37,6 @@ using FolderFilePair = std::pair<std::string, std::string>;
 
 #include "frontend/Frontend.hpp"
 
-#include "useful/Logger.hpp"
-
 class Manifest; // forward declare Manifest
 
 class Session final : public std::enable_shared_from_this<Session> {
@@ -72,7 +70,6 @@ public: // variables
 
 private: // variables
 	std::string m_ldLibraryPath;
-	Logger      m_logger;
 
 public: // interface
 	Session(cti_wlm_type const wlmType, App& activeApp);
@@ -80,8 +77,13 @@ public: // interface
 	// accessors
 	inline auto getManifests() const -> const decltype(m_manifests)& { return m_manifests; }
 	inline const std::string& getLdLibraryPath() const { return m_ldLibraryPath; }
-	inline Logger& getLogger() { return m_logger; }
 	inline void invalidate() { m_manifests.clear(); }
+
+	// log function for Manifest / RemoteSession
+	template <typename... Args>
+	inline void writeLog(char const* fmt, Args&&... args) const {
+		m_activeApp.writeLog(fmt, std::forward<Args>(args)...);
+	}
 
 	// launch cti_daemon to clean up the session stage directory. invalidates the session
 	void launchCleanup();

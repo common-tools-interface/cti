@@ -8,17 +8,17 @@
 class Logger
 {
 private: // types
-	using LogPtr = std::unique_ptr<FILE, int(*)(FILE*)>;
+	using LogPtr = std::unique_ptr<cti_log_t, int(*)(cti_log_t*)>;
 
 private: // variables
 	LogPtr logFile;
 
 public: // interface
-	Logger(std::string const& filename, int suffix) : logFile{nullptr, ::fclose}
+	Logger(std::string const& filename, int suffix) : logFile{nullptr, _cti_close_log}
 	{
 		// determine if logging mode is enabled
 		if (getenv(DBG_ENV_VAR)) {
-			logFile = LogPtr{_cti_create_log(filename.c_str(), suffix), ::fclose};
+			logFile = LogPtr{_cti_create_log(filename.c_str(), suffix), _cti_close_log};
 		}
 	}
 
@@ -26,7 +26,7 @@ public: // interface
 	void write(char const* fmt, Args&&... args)
 	{
 		if (logFile) {
-			fprintf(logFile.get(), fmt, std::forward<Args>(args)...);
+			_cti_write_log(logFile.get(), fmt, std::forward<Args>(args)...);
 		}
 	}
 };

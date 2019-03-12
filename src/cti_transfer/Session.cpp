@@ -92,12 +92,11 @@ Session::Session(cti_wlm_type const wlmType, App& activeApp)
 	, m_jobId{m_activeApp.getJobId()}
 	, m_wlmType{std::to_string(wlmType)}
 	, m_ldLibraryPath{m_toolPath + "/" + m_stageName + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
-	, m_logger{"transfer_" + m_jobId, 0}
 {}
 
 #include "ArgvDefs.hpp"
 void Session::launchCleanup() {
-	getLogger().write("launchCleanup: creating daemonArgv for cleanup\n");
+	writeLog("launchCleanup: creating daemonArgv for cleanup\n");
 
 	// create DaemonArgv
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
@@ -114,7 +113,7 @@ void Session::launchCleanup() {
 
 	// call cleanup function with DaemonArgv
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-	getLogger().write("launchCleanup: launching daemon for cleanup\n");
+	writeLog("launchCleanup: launching daemon for cleanup\n");
 	startDaemon(daemonArgv.get() + 1);
 
 	// session is finalized, no changes can be made
