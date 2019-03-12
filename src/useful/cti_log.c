@@ -29,7 +29,8 @@
 #include "cti_defs.h"
 #include "cti_log.h"
 
-cti_log_t* _cti_create_log(char const* filename, int suffix)
+cti_log_t*
+_cti_create_log(char const* filename, int suffix)
 {
 	char logfile[PATH_MAX];
 	char *envDir;
@@ -62,7 +63,8 @@ cti_log_t* _cti_create_log(char const* filename, int suffix)
 	return fp;
 }
 
-int _cti_close_log(cti_log_t* log_file)
+int
+_cti_close_log(cti_log_t* log_file)
 {
 	FILE* fp = (FILE*)log_file;
 	if (fp != NULL) {
@@ -72,7 +74,8 @@ int _cti_close_log(cti_log_t* log_file)
 	return 0;
 }
 
-int _cti_write_log(cti_log_t* log_file, const char *fmt, ...)
+int
+_cti_write_log(cti_log_t* log_file, const char *fmt, ...)
 {
 	FILE* fp = (FILE*)log_file;
 	if (fp != NULL) {
