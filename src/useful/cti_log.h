@@ -43,14 +43,6 @@ int _cti_hook_stdoe(cti_log_t* log_file);
 
 #ifdef __cplusplus
 }
-#endif
-
-#endif /* _CTI_LOG_H */
-
-#ifdef __cplusplus
-
-#ifndef _LOGGER_HPP
-#define _LOGGER_HPP
 
 #include <string>
 #include <memory>
@@ -81,6 +73,6 @@ public: // interface
 	}
 };
 
-#endif /* _LOGGER_HPP */
-
 #endif /* __cplusplus */
+
+#endif /* _CTI_LOG_H */
