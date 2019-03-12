@@ -19,6 +19,10 @@
 #ifndef _CTI_OVERWATCH_H
 #define _CTI_OVERWATCH_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* struct typedefs */
 typedef struct
 {
@@ -30,6 +34,10 @@ typedef struct
 cti_overwatch_t *	_cti_create_overwatch(const char *);
 int					_cti_assign_overwatch(cti_overwatch_t *, pid_t);
 void				_cti_exit_overwatch(cti_overwatch_t *);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CTI_OVERWATCH_H */
 
