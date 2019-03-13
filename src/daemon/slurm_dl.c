@@ -35,7 +35,7 @@ static int	_cti_slurm_getNodeID(void);
 /* cray slurm wlm proto object */
 cti_wlm_proto_t		_cti_slurm_wlmProto =
 {
-	CTI_WLM_SLURM,			// wlm_type
+	CTI_WLM_SSH,			// wlm_type
 	_cti_slurm_init,		// wlm_init
 	_cti_slurm_getNodeID	// wlm_getNodeID
 };
@@ -86,7 +86,7 @@ _cti_slurm_getNodeID(void)
 	    // we expect this file to have a numeric value giving our current nid
 	    if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
 	    {
-		    fprintf(stderr, "%s: _cti_slurm_getNodeID:fgets failed.\n", CTI_LAUNCHER);
+		    fprintf(stderr, "%s: _cti_slurm_getNodeID:fgets failed.\n", CTI_DLAUNCH_BINARY);
 		    return -1;
 	    }
 		

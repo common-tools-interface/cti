@@ -1,7 +1,8 @@
 /******************************************************************************\
- * cti_args.h - Header file for the arg interface.
+ * cti_error.h - Global error handling interface. This should be used on the
+ *               frontend only.
  *
- * Copyright 2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2013 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -16,23 +17,21 @@
  *
  ******************************************************************************/
 
-#ifndef _CTI_ARGS_H
-#define _CTI_ARGS_H
+#ifndef _CTI_ERROR_H
+#define _CTI_ERROR_H
 
-#include	<stdarg.h>
+#include <stdarg.h>
 
-/* struct typedefs */
-typedef struct
-{
-	unsigned int	argc;
-	char **			argv;
-	unsigned int	_len;
-} cti_args_t;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-cti_args_t *	_cti_newArgs(void);
-void			_cti_freeArgs(cti_args_t *);
-int				_cti_addArg(cti_args_t *, const char *, ...);
-int				_cti_mergeArgs(cti_args_t *, cti_args_t *);
-char *			_cti_flattenArgs(cti_args_t *);
+void	_cti_set_error(const char *, ...);
+const char *cti_error_str(void); // expose for c++ wrappers during development
 
-#endif /* _CTI_ARGS_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* _CTI_ERROR_H */
+

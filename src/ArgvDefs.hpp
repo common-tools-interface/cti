@@ -14,7 +14,8 @@
 #ifndef ARGV_DEFS_H_
 #define ARGV_DEFS_H_
 
-#include "useful/strong_argv.hpp"
+#include "useful/cti_argv.hpp"
+using namespace cti_argv;
 
 using Option    = Argv::Option;
 using Parameter = Argv::Parameter;

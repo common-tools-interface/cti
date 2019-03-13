@@ -1,7 +1,7 @@
 #include "Session.hpp"
 #include "Manifest.hpp"
 
-#include "cti_wrappers.hpp"
+#include "useful/cti_wrappers.hpp"
 
 // getpid
 #include <sys/types.h>
@@ -83,92 +83,50 @@ std::string Session::generateStagePath() {
 	return stageName;
 }
 
-static std::string emptyFromNullPtr(const char* cstr) {
-	return cstr ? std::string(cstr) : "";
-}
-Session::Session(appEntry_t *appPtr_) :
-	appPtr(appPtr_),
-	configPath(emptyFromNullPtr(_cti_getCfgDir())),
-	stageName(generateStagePath()),
-	attribsPath(emptyFromNullPtr(appPtr->wlmProto->wlm_getAttribsPath(appPtr->_wlmObj))),
-	toolPath(appPtr->wlmProto->wlm_getToolPath(appPtr->_wlmObj)),
-	jobId(CharPtr(appPtr->wlmProto->wlm_getJobId(appPtr->_wlmObj), free).get()), 
-	wlmEnum(std::to_string(appPtr->wlmProto->wlm_type)) {}
+Session::Session(cti_wlm_type const wlmType, App& activeApp)
+	: m_activeApp{activeApp}
+	, m_configPath{_cti_getCfgDir()}
+	, m_stageName{generateStagePath()}
+	, m_attribsPath{m_activeApp.getAttribsPath()}
+	, m_toolPath{m_activeApp.getToolPath()}
+	, m_jobId{m_activeApp.getJobId()}
+	, m_wlmType{std::to_string(wlmType)}
+	, m_ldLibraryPath{m_toolPath + "/" + m_stageName + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
+{}
 
 #include "ArgvDefs.hpp"
 void Session::launchCleanup() {
-	DEBUG_PRINT("launchCleanup: creating daemonArgv for cleanup" << std::endl);
+	writeLog("launchCleanup: creating daemonArgv for cleanup\n");
 
 	// create DaemonArgv
 	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
-		daemonArgv.add(DA::ApID,         jobId);
-		daemonArgv.add(DA::ToolPath,     toolPath);
-		if (!attribsPath.empty()) { daemonArgv.add(DA::PMIAttribsPath, attribsPath); }
-		daemonArgv.add(DA::WLMEnum,      wlmEnum);
-		daemonArgv.add(DA::Directory,    stageName);
-		daemonArgv.add(DA::InstSeqNum,   std::to_string(shippedManifests + 1));
+		daemonArgv.add(DA::ApID,         m_jobId);
+		daemonArgv.add(DA::ToolPath,     m_toolPath);
+		if (!m_attribsPath.empty()) { daemonArgv.add(DA::PMIAttribsPath, m_attribsPath); }
+		daemonArgv.add(DA::WLMEnum,      m_wlmType);
+		daemonArgv.add(DA::Directory,    m_stageName);
+		daemonArgv.add(DA::InstSeqNum,   std::to_string(m_shippedManifests + 1));
 		daemonArgv.add(DA::Clean);
 		if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DA::Debug); };
 	}
 
 	// call cleanup function with DaemonArgv
 	// wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-	DEBUG_PRINT("launchCleanup: launching daemon for cleanup" << std::endl);
+	writeLog("launchCleanup: launching daemon for cleanup\n");
 	startDaemon(daemonArgv.get() + 1);
 
 	// session is finalized, no changes can be made
 	invalidate();
 }
 
-using CStr = const char * const;
-static void forEachCStrArr(std::function<void(CStr)> func, CStr* arr) {
-	if (arr != nullptr) {
-		for (CStr* elemPtr = arr; *elemPtr != nullptr; elemPtr++) {
-			func(*elemPtr);
-		}
-	}
-}
-
-void Session::shipWLMBaseFiles() {
-	auto baseFileManifest = createManifest();
-
-	auto wlmProto = appPtr->wlmProto;
-	auto wlmObj = appPtr->_wlmObj;
-
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addBinary(cstr);  },
-		wlmProto->wlm_extraBinaries(wlmObj));
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addLibrary(cstr); },
-		wlmProto->wlm_extraLibraries(wlmObj));
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addLibDir(cstr);  },
-		wlmProto->wlm_extraLibDirs(wlmObj));
-	forEachCStrArr([&](CStr cstr) { baseFileManifest->addFile(cstr);    },
-		wlmProto->wlm_extraFiles(wlmObj));
-
-	// ship basefile manifest and run remote extraction
-	baseFileManifest->finalizeAndShip().extract();
-}
-
 void Session::startDaemon(char * const argv[]) {
-	auto cti_argv = UniquePtrDestr<cti_args_t>(_cti_newArgs(), _cti_freeArgs);
-	forEachCStrArr([&](CStr arg) {
-		_cti_addArg(cti_argv.get(), arg);
-	}, argv);
-
-	if (getWLM()->wlm_startDaemon(appPtr->_wlmObj, cti_argv.get())) {
-		throw std::runtime_error("failed to start CTI daemon: " + getCTIErrorString());
-	}
-}
-
-void Session::shipPackage(const char *tar_name) {
-	if (getWLM()->wlm_shipPackage(appPtr->_wlmObj, tar_name)) {
-		throw std::runtime_error("failed to ship package to nodes: " + getCTIErrorString());
-	}
+	m_activeApp.startDaemon(argv);
 }
 
 std::shared_ptr<Manifest> Session::createManifest() {
-	manifests.push_back(std::make_shared<Manifest>(manifests.size(), *this));
-	return manifests.back();
+	m_manifests.push_back(std::make_shared<Manifest>(m_manifests.size(), *this));
+	return m_manifests.back();
 }
 
 static bool isSameFile(const std::string& filePath, const std::string& candidatePath) {
@@ -181,8 +139,8 @@ Session::Conflict Session::hasFileConflict(const std::string& folderName,
 
 	// has /folderName/realName been shipped to the backend?
 	const std::string fileArchivePath(folderName + "/" + realName);
-	auto namePathPair = sourcePaths.find(fileArchivePath);
-	if (namePathPair != sourcePaths.end()) {
+	auto namePathPair = m_sourcePaths.find(fileArchivePath);
+	if (namePathPair != m_sourcePaths.end()) {
 		if (isSameFile(namePathPair->first, candidatePath)) {
 			return Conflict::AlreadyAdded;
 		} else {
@@ -203,26 +161,26 @@ Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) 
 
 		for (auto fileName : folderContents) {
 			// mark fileName to be located at /folderName/fileName
-			folders[folderName].insert(fileName);
+			m_folders[folderName].insert(fileName);
 
 			// map /folderName/fileName to source file path newPaths[fileName]
 			const std::string fileArchivePath(folderName + "/" + fileName);
-			if (sourcePaths.find(fileArchivePath) != sourcePaths.end()) {
+			if (m_sourcePaths.find(fileArchivePath) != m_sourcePaths.end()) {
 				throw std::runtime_error(
 					std::string("tried to merge transfered file ") + fileArchivePath +
 					" but it was already in the session!");
 			} else {
-				if (isSameFile(sourcePaths[fileArchivePath], newPaths.at(fileName))) {
+				if (isSameFile(m_sourcePaths[fileArchivePath], newPaths.at(fileName))) {
 					// duplicate, tell manifest to not bother shipping
 					toRemove.push_back(std::make_pair(folderName, fileName));
 				} else {
 					// register new file as coming from Manifest's source
-					sourcePaths[fileArchivePath] = newPaths.at(fileName);
+					m_sourcePaths[fileArchivePath] = newPaths.at(fileName);
 				}
 			}
 		}
 	}
-	shippedManifests++;
+	m_shippedManifests++;
 
 	return toRemove;
 }

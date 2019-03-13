@@ -37,11 +37,12 @@ stop_on_breakpoint(Dyninst::ProcControlAPI::Event::const_ptr genericEv) {
 Inferior::Inferior(std::string const& launcher,
 	std::vector<std::string> const& launcherArgv, 
 	std::vector<std::string> const& envVars,
-	std::map<int, int> const& remapFds) :
-	symtab(make_Symtab(launcher), Symtab::closeSymtab),
-	proc(Process::createProcess(launcher, launcherArgv, envVars, remapFds)) {
-
-	if (!proc) {
+	std::map<int, int> const& remapFds)
+	: m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
+	, m_symbols{}
+	, m_proc{Process::createProcess(launcher, launcherArgv, envVars, remapFds)}
+{
+	if (!m_proc) {
 		throw std::runtime_error("failed to launch " + launcher);
 	}
 
@@ -49,10 +50,11 @@ Inferior::Inferior(std::string const& launcher,
 	Process::registerEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 }
 
-Inferior::Inferior(std::string const& launcher, pid_t pid) :
-	symtab(make_Symtab(launcher), Symtab::closeSymtab),
-	proc(Process::attachProcess(pid, {})) {
-
+Inferior::Inferior(std::string const& launcher, pid_t pid)
+	: m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
+	, m_symbols{}
+	, m_proc(Process::attachProcess(pid, {}))
+{
 	/* prepare breakpoint callback */
 	Process::registerEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 }
@@ -60,23 +62,23 @@ Inferior::Inferior(std::string const& launcher, pid_t pid) :
 Inferior::~Inferior() {
 	Process::removeEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 
-	proc->detach();
-	DEBUG(std::cerr, "~Inferior: detached from " << std::to_string(proc->getPid()) << std::endl);
+	m_proc->detach();
+	DEBUG(std::cerr, "~Inferior: detached from " << std::to_string(m_proc->getPid()) << std::endl);
 }
 
 pid_t Inferior::getPid() {
-	return proc->getPid();
+	return m_proc->getPid();
 }
 
 /* memory read / write base implementations */
 void Inferior::writeFromBuf(Address destAddr, const char* buf, size_t len) {
-	proc->writeMemory(destAddr, buf, len);
+	m_proc->writeMemory(destAddr, buf, len);
 }
 void Inferior::writeFromBuf(std::string const& destName, const char* buf, size_t len) {
 	writeFromBuf(getAddress(destName), buf, len);
 }
 void Inferior::readToBuf(char* buf, Address sourceAddr, size_t len) {
-	proc->readMemory(buf, sourceAddr, len);
+	m_proc->readMemory(buf, sourceAddr, len);
 }
 void Inferior::readToBuf(char* buf, std::string const& sourceName, size_t len) {
 	readToBuf(buf, getAddress(sourceName), len);
@@ -86,16 +88,16 @@ void Inferior::readToBuf(char* buf, std::string const& sourceName, size_t len) {
 void Inferior::continueRun() {
 	/* note that can only read on stopped thread */
 	do {
-		proc->continueProc();
+		m_proc->continueProc();
 		Process::handleEvents(true); // blocks til event received
-	} while (!proc->hasStoppedThread());
+	} while (!m_proc->hasStoppedThread());
 }
 
 void Inferior::addSymbol(std::string const& symName) {
 	std::vector<Symbol*> foundSyms;
-	symtab->findSymbol(foundSyms, symName);
+	m_symtab->findSymbol(foundSyms, symName);
 	if (!foundSyms.empty()) {
-		symbols[symName] = foundSyms[0];
+		m_symbols[symName] = foundSyms[0];
 	} else {
 		throw std::runtime_error(std::string("error: ") + symName + " not found");
 	}
@@ -103,16 +105,16 @@ void Inferior::addSymbol(std::string const& symName) {
 
 Inferior::Address Inferior::getAddress(std::string const& symName) {
 	// if symbol address not found yet, find it
-	if (symbols.find(symName) == symbols.end()) {
+	if (m_symbols.find(symName) == m_symbols.end()) {
 		addSymbol(symName);
 	}
 
-	return symbols.at(symName)->getOffset();
+	return m_symbols.at(symName)->getOffset();
 }
 
 /* default handler: stop on breakpoint */
 
 void Inferior::setBreakpoint(std::string const& fnName) {
 	Breakpoint::ptr breakpoint = Breakpoint::newBreakpoint();
-	proc->addBreakpoint(getAddress(fnName), breakpoint);
+	m_proc->addBreakpoint(getAddress(fnName), breakpoint);
 }

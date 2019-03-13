@@ -4,7 +4,7 @@
 #include "Manifest.hpp"
 #include "Session.hpp"
 
-#include "cti_wrappers.hpp"
+#include "useful/cti_wrappers.hpp"
 
 // promote session pointer to a shared pointer (otherwise throw)
 static std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionPtr) {
@@ -15,7 +15,7 @@ static std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionP
 // add dynamic library dependencies to manifest
 void Manifest::addLibDeps(const std::string& filePath) {
 	// get array of library paths using ld_val libArray helper
-	if (auto libArray = getFileDependencies(filePath)) {
+	if (auto libArray = ld_val::getFileDependencies(filePath)) {
 		// add to manifest
 		for (char** elem = libArray.get(); *elem != nullptr; elem++) {
 			addLibrary(*elem, Manifest::DepsPolicy::Ignore);
@@ -29,7 +29,7 @@ void Manifest::addLibDeps(const std::string& filePath) {
 void Manifest::checkAndAdd(const std::string& folder, const std::string& filePath,
 	const std::string& realName) {
 
-	auto liveSession = getSessionHandle(sessionPtr);
+	auto liveSession = getSessionHandle(m_sessionPtr);
 
 	// check for conflicts in session
 	switch (liveSession->hasFileConflict(folder, realName, filePath)) {
@@ -40,14 +40,14 @@ void Manifest::checkAndAdd(const std::string& folder, const std::string& filePat
 	}
 
 	// add to manifest registry
-	folders[folder].emplace(realName);
-	sourcePaths[realName] = filePath;
+	m_folders[folder].emplace(realName);
+	m_sourcePaths[realName] = filePath;
 }
 
 void Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
 	// get path and real name of file
-	const std::string filePath(findPath(rawName).get());
-	const std::string realName(getNameFromPath(filePath).get());
+	const std::string filePath(cti::findPath(rawName));
+	const std::string realName(cti::getNameFromPath(filePath));
 
 	// check permissions
 	if (access(filePath.c_str(), R_OK | X_OK)) {
@@ -64,28 +64,28 @@ void Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
 
 void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 	// get path and real name of file
-	const std::string filePath(findLib(rawName).get());
-	const std::string realName(getNameFromPath(filePath).get());
+	const std::string filePath(cti::findLib(rawName));
+	const std::string realName(cti::getNameFromPath(filePath));
 
-	auto liveSession = getSessionHandle(sessionPtr);
+	auto liveSession = getSessionHandle(m_sessionPtr);
 
 	// check for conflicts in session
 	switch (liveSession->hasFileConflict("lib", realName, filePath)) {
 		case Session::Conflict::None:
 			// add to manifest registry
-			folders["lib"].emplace(realName);
-			sourcePaths[realName] = filePath;
+			m_folders["lib"].emplace(realName);
+			m_sourcePaths[realName] = filePath;
 		case Session::Conflict::AlreadyAdded: return;
 		case Session::Conflict::NameOverwrite:
 			/* the launcher handles by pointing its LD_LIBRARY_PATH to the 
 				override directory containing the conflicting lib.
 			*/
-			if (ldLibraryOverrideFolder.empty()) {
-				ldLibraryOverrideFolder = "lib." + std::to_string(instanceCount);
+			if (m_ldLibraryOverrideFolder.empty()) {
+				m_ldLibraryOverrideFolder = "lib." + std::to_string(m_instanceCount);
 			}
 
-			folders[ldLibraryOverrideFolder].emplace(realName);
-			sourcePaths[realName] = filePath;
+			m_folders[m_ldLibraryOverrideFolder].emplace(realName);
+			m_sourcePaths[realName] = filePath;
 	}
 
 	// add libraries if needed
@@ -96,16 +96,16 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 
 void Manifest::addLibDir(const std::string& rawPath) {
 	// get real path and real name of directory
-	const std::string realPath(getRealPath(rawPath).get());
-	const std::string realName(getNameFromPath(realPath).get());
+	const std::string realPath(cti::getRealPath(rawPath));
+	const std::string realName(cti::getNameFromPath(realPath));
 
 	checkAndAdd("lib", realPath, realName);
 }
 
 void Manifest::addFile(const std::string& rawName) {
 	// get path and real name of file
-	const std::string filePath(findPath(rawName).get());
-	const std::string realName(getNameFromPath(filePath).get());
+	const std::string filePath(cti::findPath(rawName));
+	const std::string realName(cti::getNameFromPath(filePath));
 
 	checkAndAdd("", filePath, realName);
 }
@@ -120,26 +120,26 @@ RemotePackage Manifest::createAndShipArchive(const std::string& archiveName,
 	// todo: block signals handle race with file creation
 
 	// create and fill archive
-	Archive archive(liveSession->configPath + "/" + archiveName);
+	Archive archive(liveSession->m_configPath + "/" + archiveName);
 
 	// setup basic archive entries
-	archive.addDirEntry(liveSession->stageName);
-	archive.addDirEntry(liveSession->stageName + "/bin");
-	archive.addDirEntry(liveSession->stageName + "/lib");
-	archive.addDirEntry(liveSession->stageName + "/tmp");
+	archive.addDirEntry(liveSession->m_stageName);
+	archive.addDirEntry(liveSession->m_stageName + "/bin");
+	archive.addDirEntry(liveSession->m_stageName + "/lib");
+	archive.addDirEntry(liveSession->m_stageName + "/tmp");
 
 	// add files to archive
-	for (auto folderIt : folders) {
+	for (auto folderIt : m_folders) {
 		for (auto fileIt : folderIt.second) {
-			const std::string destPath(liveSession->stageName + "/" + folderIt.first +
+			const std::string destPath(liveSession->m_stageName + "/" + folderIt.first +
 				"/" + fileIt);
-			DEBUG_PRINT("ship " << instanceCount << ": addPath(" << destPath << ", " << sourcePaths.at(fileIt) << ")" << std::endl);
-			archive.addPath(destPath, sourcePaths.at(fileIt));
+			liveSession->writeLog("ship %d: addPath(%s, %s)\n", m_instanceCount, destPath.c_str(), m_sourcePaths.at(fileIt).c_str());
+			archive.addPath(destPath, m_sourcePaths.at(fileIt));
 		}
 	}
 
 	// ship package and finalize manifest with session
-	RemotePackage remotePackage(archive.finalize(), archiveName, liveSession, instanceCount);
+	RemotePackage remotePackage(archive.finalize(), archiveName, liveSession, m_instanceCount);
 
 	// todo: end block signals
 
@@ -147,9 +147,9 @@ RemotePackage Manifest::createAndShipArchive(const std::string& archiveName,
 } // archive destructor: remove archive from local disk
 
 RemotePackage Manifest::finalizeAndShip() {
-	auto liveSession = getSessionHandle(sessionPtr);
+	auto liveSession = getSessionHandle(m_sessionPtr);
 
-	const std::string archiveName(liveSession->stageName + std::to_string(instanceCount) +
+	const std::string archiveName(liveSession->m_stageName + std::to_string(m_instanceCount) +
 		".tar");
 
 	// create the hidden name for the cleanup file. This will be checked by future
@@ -157,7 +157,7 @@ RemotePackage Manifest::finalizeAndShip() {
 	// in an attempt to cleanup. The ideal situation is to be able to tell the kernel
 	// to remove the tarball if the process exits, but no mechanism exists today that
 	// I know about.
-	{ const std::string cleanupFilePath(liveSession->configPath + "/." + archiveName);
+	{ const std::string cleanupFilePath(liveSession->m_configPath + "/." + archiveName);
 		auto cleanupFileHandle = UniquePtrDestr<FILE>(
 			fopen(cleanupFilePath.c_str(), "w"), fclose);
 		pid_t pid = getpid();
@@ -167,15 +167,15 @@ RemotePackage Manifest::finalizeAndShip() {
 	}
 	
 	// merge manifest into session and get back list of files to remove
-	DEBUG_PRINT("finalizeAndShip " << instanceCount << ": merge into session" << std::endl);
-	{ auto toRemove = liveSession->mergeTransfered(folders, sourcePaths);
+	liveSession->writeLog("finalizeAndShip %d: merge into session\n", m_instanceCount);
+	{ auto toRemove = liveSession->mergeTransfered(m_folders, m_sourcePaths);
 		for (auto folderFilePair : toRemove) {
-			folders[folderFilePair.first].erase(folderFilePair.second);
-			sourcePaths.erase(folderFilePair.second);
+			m_folders[folderFilePair.first].erase(folderFilePair.second);
+			m_sourcePaths.erase(folderFilePair.second);
 		}
 	}
-	if (!ldLibraryOverrideFolder.empty()) {
-		liveSession->pushLdLibraryPath(ldLibraryOverrideFolder);
+	if (!m_ldLibraryOverrideFolder.empty()) {
+		liveSession->pushLdLibraryPath(m_ldLibraryOverrideFolder);
 	}
 
 	// create manifest archive with libarchive and ship package with WLM transfer function

@@ -33,7 +33,6 @@ enum cti_wlm_type
 {
     CTI_WLM_NONE,   // error/unitialized state
     CTI_WLM_CRAY_SLURM,
-    CTI_WLM_SLURM,
     CTI_WLM_SSH
 };
 typedef enum cti_wlm_type   cti_wlm_type;
@@ -42,7 +41,6 @@ enum cti_be_wlm_type
 {
     CTI_BE_WLM_NONE,    // error/unitialized state
     CTI_BE_WLM_CRAY_SLURM,
-    CTI_BE_WLM_SLURM,
     CTI_BE_WLM_SSH
 };
 typedef enum cti_be_wlm_type    cti_be_wlm_type;
@@ -51,7 +49,6 @@ typedef enum cti_be_wlm_type    cti_be_wlm_type;
 ** Generic defines
 *******************************************************************************/
 #define CTI_BUF_SIZE                4096
-#define DEFAULT_CTI_LOCS "/opt/cray/cti/default", "/opt/cray/pe/cti/default", NULL
 
 /*******************************************************************************
 ** Frontend defines relating to the login node
@@ -64,7 +61,6 @@ typedef enum cti_be_wlm_type    cti_be_wlm_type;
 /*******************************************************************************
 ** Backend defines relating to the compute node
 *******************************************************************************/
-// CTI_LAUNCHER is now defined by autoconf in config.h
 // The following needs the 'X' for random char replacement.
 #define DEFAULT_STAGE_DIR                   "cti_daemonXXXXXX"      // default directory name for the fake root of the tool daemon
 #define SHELL_ENV_VAR                       "SHELL"                 // The environment variable to set shell info

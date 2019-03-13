@@ -16,8 +16,9 @@ AM_CFLAGS		= -I$(SRC)
 
 noinst_LTLIBRARIES      = libuseful.la
 
-libuseful_la_SOURCES    = cti_args.c cti_list.c cti_log.c cti_overwatch.c \
-						  cti_path.c cti_signal.c cti_stack.c cti_stringList.c \
+libuseful_la_SOURCES    = cti_log.c cti_overwatch.c \
+						  cti_error.c cti_stack.c \
+						  cti_path.c \
 						  ArgvDefs-c++11-workaround.cpp
 libuseful_la_CFLAGS     = $(AM_CFLAGS) -fPIC
 libuseful_la_CXXFLAGS   = $(AM_CXXFLAGS) $(libuseful_la_CFLAGS)
