@@ -207,7 +207,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 		m_sattachPids.push_back(sattachPid);
 	} else {
 		// create sattach argv
-		ManagedArgv sattachArgv
+		cti_argv::ManagedArgv sattachArgv
 			{ SATTACH // first argument should be "sattach"
 			// , "-Q"    // second argument is quiet
 			, getJobId() // third argument is the jobid.stepid
@@ -232,7 +232,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 void CraySLURMApp::kill(int signum)
 {
 	// create the args for scancel
-	auto scancelArgv = ManagedArgv
+	auto scancelArgv = cti_argv::ManagedArgv
 		{ SCANCEL // first argument should be "scancel"
 		, "-Q"    // second argument is quiet
 		, "-s", std::to_string(signum)    // third argument is signal number
@@ -261,7 +261,7 @@ void CraySLURMApp::kill(int signum)
 
 void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 	// create the args for sbcast
-	auto launcherArgv = ManagedArgv
+	auto launcherArgv = cti_argv::ManagedArgv
 		{ SBCAST
 		, "-C"
 		, "-j", std::to_string(m_srunInfo.jobid)
@@ -349,7 +349,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	// --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
 	// --input=none --output=none --error=none <tool daemon> <args>
 	//
-	auto launcherArgv = ManagedArgv
+	auto launcherArgv = cti_argv::ManagedArgv
 		{ CraySLURMFrontend::getLauncherName()
 		, "--jobid=" + std::to_string(m_srunInfo.jobid)
 		, "--gres=none"
@@ -511,7 +511,7 @@ CraySLURMFrontend::StepLayout
 CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 {
 	// create sattach instance
-	OutgoingArgv<SattachArgv> sattachArgv("sattach");
+	cti_argv::OutgoingArgv<SattachArgv> sattachArgv("sattach");
 	sattachArgv.add(SattachArgv::DisplayLayout);
 	sattachArgv.add(SattachArgv::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
 
