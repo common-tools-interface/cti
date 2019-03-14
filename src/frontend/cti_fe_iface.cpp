@@ -354,6 +354,8 @@ namespace cti_conventions
 			return std::make_unique<CraySLURMFrontend>();
 		} else if (!wlmName.compare("generic")) {
 			return  std::make_unique<GenericSSHFrontend>();
+		} else if (!wlmName.compare("mock")) {
+			return  std::make_unique<MockFrontend>();
 		} else {
 			// fallback to use the default
 			fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);

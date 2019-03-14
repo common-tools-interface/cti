@@ -276,10 +276,12 @@ AC_CONFIG_FILES([	Makefile
 					src/frontend/frontend_impl/Makefile
 					src/frontend/frontend_impl/CraySLURM/Makefile
 					src/frontend/frontend_impl/GenericSSH/Makefile
+					src/frontend/frontend_impl/Mock/Makefile
 					src/frontend/mpir_iface/Makefile
 					src/useful/Makefile
 					src/useful/ld_val/Makefile
 					tests/Makefile
+					tests/unit/Makefile
 ])
 
 AC_OUTPUT

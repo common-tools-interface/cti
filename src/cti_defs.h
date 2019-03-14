@@ -33,7 +33,8 @@ enum cti_wlm_type
 {
     CTI_WLM_NONE,   // error/unitialized state
     CTI_WLM_CRAY_SLURM,
-    CTI_WLM_SSH
+    CTI_WLM_SSH,
+    CTI_WLM_MOCK // for unit testing only
 };
 typedef enum cti_wlm_type   cti_wlm_type;
 

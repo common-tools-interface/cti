@@ -1,5 +1,5 @@
 /******************************************************************************\
- * TestFrontend.hpp - A mock frontend implementation
+ * MockFrontend.hpp - A mock frontend implementation
  *
  * Copyright 2017 Cray Inc.	All Rights Reserved.
  *
@@ -21,7 +21,7 @@
 
 #include "frontend/Frontend.hpp"
 
-class TestFrontend : public Frontend
+class MockFrontend : public Frontend
 {
 public: // inherited interface
 	cti_wlm_type getWLMType() const override;

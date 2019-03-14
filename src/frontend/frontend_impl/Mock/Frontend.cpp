@@ -1,5 +1,5 @@
 /******************************************************************************\
- * TestFrontend.cpp - A mock frontend implementation
+ * MockFrontend.cpp - A mock frontend implementation
  *
  * Copyright 2017 Cray Inc.	All Rights Reserved.
  *
@@ -20,23 +20,23 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "TestFrontend.hpp"
+#include "Frontend.hpp"
 
 cti_wlm_type
-TestFrontend::getWLMType() const
+MockFrontend::getWLMType() const
 {
-	return CTI_WLM_NONE;
+	return CTI_WLM_MOCK;
 }
 
 std::unique_ptr<App>
-TestFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+MockFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 	CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
 	return std::make_unique<TestApp>(getpid());
 }
 
 std::unique_ptr<App>
-TestFrontend::registerJob(size_t numIds, ...)
+MockFrontend::registerJob(size_t numIds, ...)
 {
 	if (numIds != 1) {
 		throw std::logic_error("expecting single pid argument to register app");
@@ -53,7 +53,7 @@ TestFrontend::registerJob(size_t numIds, ...)
 }
 
 std::string
-TestFrontend::getHostname() const
+MockFrontend::getHostname() const
 {
 	return "hostname";
 }
@@ -122,6 +122,9 @@ TestApp::getHostsPlacement() const
 void
 TestApp::releaseBarrier()
 {
+	if (!m_atBarrier) {
+		throw std::runtime_error("app not at startup barrier");
+	}
 	m_atBarrier = false;
 }
 

@@ -22,7 +22,7 @@ libgtest_la_LDFLAGS  = -pthread
 
 noinst_PROGRAMS = test
 
-test_SOURCES  = test.cpp TestFrontend.cpp TestFrontend.hpp
+test_SOURCES  = test.cpp
 test_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(GTEST)/include -I$(GTEST) \
 	$(ARCHIVE_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
 test_CXXFLAGS = $(AM_CXXFLAGS) $(test_CFLAGS)
