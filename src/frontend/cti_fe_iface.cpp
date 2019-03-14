@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cti_fe.cpp - C implementation for the cti frontend.
+ * cti_fe_iface.cpp - C interface layer for the cti frontend.
  *
  * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
  *
@@ -608,7 +608,6 @@ cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
 cti_srunProc_t*
 cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
-		auto& craySlurm = downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
 			*result = dynamic_cast<CraySLURMApp&>(*appRegistry.get(appId)).getSrunInfo();
 			return result;
