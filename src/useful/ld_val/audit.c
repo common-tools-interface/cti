@@ -2,18 +2,13 @@
  * audit.c - A custom rtld audit interface to deliver locations of loaded dso's
  *	         over stdout.
  *
- * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  *********************************************************************************/
 
@@ -38,7 +33,7 @@ la_version(unsigned int version)
 	// XXX: How to handle failure? I don't think this will matter too much if
 	// things fail.
 	setvbuf(stderr, NULL, _IOFBF, READ_BUF_LEN);
-	
+
 	return version;
 }
 
@@ -46,8 +41,6 @@ la_version(unsigned int version)
 unsigned int
 la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 {
-	char *s, *c;
-
 	// Ensure the library name has a length, otherwise return
 	if (strlen(map->l_name) != 0)
 	{
@@ -60,4 +53,3 @@ la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 	// return normally
 	return LA_FLG_BINDTO | LA_FLG_BINDFROM;
 }
-
