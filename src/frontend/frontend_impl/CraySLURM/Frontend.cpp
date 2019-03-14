@@ -530,7 +530,7 @@ CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 	}
 
 	StepLayout layout;
-	size_t numNodes;
+	auto numNodes = 0;
 
 	// "  {numPEs} tasks, {numNodes} nodes ({hostname}...)"
 	if (std::getline(sattachStream, sattachLine)) {
@@ -541,7 +541,7 @@ CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 
 		// fill out sattach layout
 		layout.numPEs = std::stoul(rawNumPEs);
-		numNodes = std::stoul(rawNumNodes);
+		numNodes = std::stol(rawNumNodes);
 		layout.nodes.reserve(numNodes);
 	} else {
 		throw std::runtime_error("sattach layout: wrong format: expected summary");
