@@ -1,3 +1,3 @@
 #define INSIDE_WORKAROUND_OBJ
-#include "ArgvDefs.hpp"
+#include "cti_defs.h"
 #undef INSIDE_WORKAROUND_OBJ

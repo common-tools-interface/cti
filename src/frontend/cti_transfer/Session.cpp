@@ -1,5 +1,20 @@
+/******************************************************************************\
+ * Session.cpp - Session object impl
+ *
+ * Copyright 2013-2019 Cray Inc.    All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ ******************************************************************************/
+
 #include "Session.hpp"
 #include "Manifest.hpp"
+
+#include "cti_defs.h"
 
 #include "useful/cti_wrappers.hpp"
 
@@ -23,23 +38,23 @@ public:
 		struct timespec		tv;
 		unsigned int		pval;
 		unsigned int		seed;
-		
+
 		// get the current time from epoch with nanoseconds
 		if (clock_gettime(CLOCK_REALTIME, &tv)) {
 			throw std::runtime_error("clock_gettime failed.");
 		}
-		
+
 		// generate an appropriate value from the pid, we shift this to
 		// the upper 16 bits of the int. This should avoid problems with
 		// collisions due to slight variations in nano time and adding in
 		// pid offsets.
 		pval = (unsigned int)getpid() << ((sizeof(unsigned int) * CHAR_BIT) - 16);
-		
+
 		// Generate the seed. This is not crypto safe, but should have enough
 		// entropy to avoid the case where two procs are started at the same
 		// time that use this interface.
 		seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
-		
+
 		// init the state
 		initstate(seed, (char *)_cti_r_state, sizeof(_cti_r_state));
 
@@ -52,7 +67,7 @@ public:
 	char genChar() {
 		unsigned int oset;
 
-		// Generate a random offset into the array. This is random() modded 
+		// Generate a random offset into the array. This is random() modded
 		// with the number of elements in the array.
 		oset = random() % (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
 		// assing this char
@@ -94,7 +109,6 @@ Session::Session(cti_wlm_type const wlmType, App& activeApp)
 	, m_ldLibraryPath{m_toolPath + "/" + m_stageName + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
 {}
 
-#include "ArgvDefs.hpp"
 void Session::launchCleanup() {
 	writeLog("launchCleanup: creating daemonArgv for cleanup\n");
 

@@ -1,3 +1,18 @@
+/******************************************************************************\
+ * Manifest.cpp - In-progress file list that is owned by a session. Call
+ * finalizeAndShip() to produce a RemotePackage representing a tarball that
+ * is present on compute nodes.
+ *
+ * Copyright 2013-2019 Cray Inc.    All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ ******************************************************************************/
+
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -77,7 +92,7 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 			m_sourcePaths[realName] = filePath;
 		case Session::Conflict::AlreadyAdded: return;
 		case Session::Conflict::NameOverwrite:
-			/* the launcher handles by pointing its LD_LIBRARY_PATH to the 
+			/* the launcher handles by pointing its LD_LIBRARY_PATH to the
 				override directory containing the conflicting lib.
 			*/
 			if (m_ldLibraryOverrideFolder.empty()) {
@@ -165,7 +180,7 @@ RemotePackage Manifest::finalizeAndShip() {
 			throw std::runtime_error("fwrite to cleanup file failed.");
 		}
 	}
-	
+
 	// merge manifest into session and get back list of files to remove
 	liveSession->writeLog("finalizeAndShip %d: merge into session\n", m_instanceCount);
 	{ auto toRemove = liveSession->mergeTransfered(m_folders, m_sourcePaths);

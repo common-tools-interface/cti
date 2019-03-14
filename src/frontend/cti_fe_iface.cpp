@@ -9,11 +9,6 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  ******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -43,14 +38,12 @@
 #include "cti_defs.h"
 
 // CTI Transfer includes
-#include "frontend/Frontend.hpp"
 #include "cti_transfer/Manifest.hpp"
 #include "cti_transfer/Session.hpp"
 
 // CTI Frontend / App implementations
 #include "Frontend.hpp"
-#include "CraySLURM/Frontend.hpp"
-#include "GenericSSH/Frontend.hpp"
+#include "frontend_impl.hpp"
 
 // WLM detection library interface
 #include "wlm_detect.h"
@@ -388,7 +381,7 @@ constexpr auto SESSION_ERROR  = cti_conventions::return_code::SESSION_ERROR;
 constexpr auto MANIFEST_ERROR = cti_conventions::return_code::MANIFEST_ERROR;
 
 /*********************
-** internal functions 
+** internal functions
 *********************/
 
 // store and associate an arbitrary C++ object with an id (to make it accessible to C clients)
@@ -494,7 +487,7 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 		case CTI_WLM_NONE:
 			return "No WLM detected";
 	}
-	
+
 	// Shouldn't get here
 	return "Invalid WLM.";
 }

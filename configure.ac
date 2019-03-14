@@ -272,10 +272,12 @@ AC_CONFIG_FILES([	Makefile
 					src/backend/Makefile
 					src/daemon/Makefile
 					src/frontend/Makefile
-					src/ld_val/Makefile
-					src/mpir_iface/Makefile
-					src/cti_transfer/Makefile
-					src/slurm_util/Makefile
+					src/frontend/cti_transfer/Makefile
+					src/frontend/frontend_impl/Makefile
+					src/frontend/frontend_impl/CraySLURM/Makefile
+					src/frontend/frontend_impl/GenericSSH/Makefile
+					src/frontend/ld_val/Makefile
+					src/frontend/mpir_iface/Makefile
 					src/useful/Makefile
 					tests/Makefile
 ])

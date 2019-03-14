@@ -36,7 +36,6 @@
 #include <sys/wait.h>
 
 #include "cti_defs.h"
-#include "ArgvDefs.hpp"
 #include "cti_fe_iface.h"
 
 #include "frontend/Frontend.hpp"

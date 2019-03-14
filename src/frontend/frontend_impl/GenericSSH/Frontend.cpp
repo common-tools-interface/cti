@@ -1,18 +1,13 @@
 /******************************************************************************\
  * ssh_fe.c -  Frontend library functions for fallback (SSH based) workload manager.
  *
- * Copyright 2017 Cray Inc.  All Rights Reserved.
+ * Copyright 2017-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  ******************************************************************************/
 
@@ -146,13 +141,13 @@ struct SSHSession {
 
 	/*
 	 * _cti_ssh_verify_server - Verify server's identity on an ssh session
-	 * 
+	 *
 	 * Arguments
 	 *      ssh_session - The session to be validated
 	 *
 	 * Returns
 	 *      1 on error, 0 on success
-	 * 
+	 *
 	 */
 	static bool _cti_ssh_server_valid(ssh_session session) {
 		switch (_cti_getLibSSH().ssh_is_server_known(session)) {
@@ -196,7 +191,7 @@ struct SSHSession {
 	 *
 	 * returns
 	 *      an ssh_session which is connected to the remote host and authenticated, or null on error
-	 * 
+	 *
 	 */
 	SSHSession(std::string const& hostname) : session(_cti_getLibSSH().ssh_new(), _cti_getLibSSH().ssh_free) {
 		// open session and set hostname to which to connect
@@ -210,7 +205,7 @@ struct SSHSession {
 		if (rc != SSH_OK) {
 			throw std::runtime_error("ssh connection error: " + getError());
 		}
-		
+
 		// verify the identity of the remote host
 		if (!_cti_ssh_server_valid(session.get())) {
 			_cti_getLibSSH().ssh_disconnect(session.get());
@@ -241,7 +236,7 @@ struct SSHSession {
 	 *
 	 * Arguments
 	 *		args - 			null-terminated cstring array which holds the arguments array for the command to be executed
-	 *		environment - 	A list of environment variables to forward to the backend while executing 
+	 *		environment - 	A list of environment variables to forward to the backend while executing
 	 *						the command or NULL to forward no environment variables
 	 */
 	void executeRemoteCommand(const char* const args[], const char* const environment[]) {
@@ -256,7 +251,7 @@ struct SSHSession {
 			throw std::runtime_error("Error opening session on ssh channel: " + getError());
 		}
 
-		// Forward environment variables before execution. May not be supported on 
+		// Forward environment variables before execution. May not be supported on
 		// all systems if user environments are disabled by the ssh server
 		if (environment != nullptr) {
 			for (const char* const* var = environment; *var != nullptr; var++) {
@@ -615,7 +610,7 @@ GenericSSHFrontend::fetchStepLayout(MPIRInstance::ProcTable const& procTable)
 	std::unordered_map<std::string, size_t> hostNidMap;
 
 	// For each new host we see, add a host entry to the end of the layout's host list
-	// and hash each hostname to its index into the host list 
+	// and hash each hostname to its index into the host list
 	for (auto&& proc : procTable) {
 		size_t nid;
 		auto const hostNidPair = hostNidMap.find(proc.hostname);

@@ -1,3 +1,16 @@
+/******************************************************************************\
+ * Archive.cpp
+ *
+ * Copyright 2013-2019 Cray Inc.    All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ ******************************************************************************/
+
 #include <dirent.h>
 #include <string.h>
 
@@ -78,7 +91,7 @@ void Archive::addDir(const std::string& entryPath, const std::string& dirPath) {
 
 			// check for failure on readdir
 			if (errno != 0) {
-				throw std::runtime_error(dirPath + " had readdir failure: " + 
+				throw std::runtime_error(dirPath + " had readdir failure: " +
 					strerror(errno));
 			}
 
