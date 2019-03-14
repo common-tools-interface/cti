@@ -113,7 +113,7 @@ void Session::launchCleanup() {
 	writeLog("launchCleanup: creating daemonArgv for cleanup\n");
 
 	// create DaemonArgv
-	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+	cti_argv::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
 		daemonArgv.add(DA::ApID,         m_jobId);
 		daemonArgv.add(DA::ToolPath,     m_toolPath);
