@@ -82,8 +82,8 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	, m_stepLayout  { moved.m_stepLayout }
 	, m_queuedOutFd { moved.m_queuedOutFd }
 	, m_queuedErrFd { moved.m_queuedErrFd }
-	, m_sattachPids { moved.m_sattachPids }
 	, m_dlaunchSent { moved.m_dlaunchSent }
+	, m_sattachPids { moved.m_sattachPids }
 
 	, m_srunInstance{ std::move(moved.m_srunInstance) }
 
