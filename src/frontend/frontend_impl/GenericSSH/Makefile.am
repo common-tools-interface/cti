@@ -12,11 +12,12 @@
 
 SRC                 = @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS     = --quiet
-AM_CXXFLAGS         = -Wall -I$(SRC)
+AM_CXXFLAGS         = -Wall -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl
 
 noinst_LTLIBRARIES = libgenericssh.la
 
 libgenericssh_la_SOURCES    =   Frontend.cpp
-libgenericssh_la_CXXFLAGS   =   $(AM_CXXFLAGS) -fPIC
+libgenericssh_la_CXXFLAGS   =   $(AM_CXXFLAGS) -fPIC $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
+libgenericssh_la_CPPFLAGS	=	$(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
 libgenericssh_la_LDFLAGS	=   -static -Wl,--no-undefined
 noinst_HEADERS				=   Frontend.hpp

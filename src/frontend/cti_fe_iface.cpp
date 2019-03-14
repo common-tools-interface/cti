@@ -43,7 +43,7 @@
 
 // CTI Frontend / App implementations
 #include "Frontend.hpp"
-#include "frontend_impl.hpp"
+#include "Frontend_impl.hpp"
 
 // WLM detection library interface
 #include "wlm_detect.h"

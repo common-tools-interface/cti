@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * frontend_impl.h - Common includes for derived frontend implementations.
+ * Frontend_impl.h - Common includes for derived frontend implementations.
  *
  * Copyright 2019 Cray Inc.    All Rights Reserved.
  *

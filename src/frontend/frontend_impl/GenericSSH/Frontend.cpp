@@ -35,7 +35,6 @@
 #include "cti_defs.h"
 #include "cti_fe_iface.h"
 
-#include "frontend/Frontend.hpp"
 #include "GenericSSH/Frontend.hpp"
 
 #include "useful/cti_useful.h"

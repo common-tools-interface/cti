@@ -9,11 +9,6 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  ******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -38,7 +33,6 @@
 #include "cti_defs.h"
 #include "cti_fe_iface.h"
 
-#include "frontend/Frontend.hpp"
 #include "CraySLURM/Frontend.hpp"
 
 #include "useful/Dlopen.hpp"
@@ -352,7 +346,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	//
 	// srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
 	// --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
-	// --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none 
+	// --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
 	// --input=none --output=none --error=none <tool daemon> <args>
 	//
 	auto launcherArgv = ManagedArgv
@@ -402,7 +396,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 
 	} else {
 		// child case: Place this process in its own group to prevent signals being passed
-		// to it. This is necessary in case the child code execs before the 
+		// to it. This is necessary in case the child code execs before the
 		// parent can put us into our own group.
 		setpgid(0, 0);
 

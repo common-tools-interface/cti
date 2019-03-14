@@ -14,7 +14,7 @@ SUBDIRS				= cti_transfer frontend_impl mpir_iface
 
 SRC             	= @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS 	= --quiet
-AM_CXXFLAGS			= -Wall -I$(SRC) -I.
+AM_CXXFLAGS			= -Wall -I$(SRC) -I. -I$(SRC)/frontend/frontend_impl
 
 lib_LTLIBRARIES = libcraytools_fe.la
 
