@@ -10,7 +10,7 @@
 # in any form.
 #
 
-SUBDIRS				= cti_transfer frontend_impl ld_val mpir_iface
+SUBDIRS				= cti_transfer frontend_impl mpir_iface
 
 SRC             	= @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS 	= --quiet
@@ -23,7 +23,6 @@ libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) -fPIC $(WLM_DETECT_CFLAGS)
 libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								cti_transfer/libcti_transfer.la \
 								frontend_impl/libfrontend_impl.la \
-								ld_val/libld_val.la \
 								mpir_iface/libmpir_iface.la \
 								-ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS)
 libcraytools_fe_la_LDFLAGS	=	-shared -Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined \

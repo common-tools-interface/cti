@@ -9,10 +9,11 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
+SUBDIRS				= ld_val
 
 SRC             = @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS = --quiet
-AM_CFLAGS		= -Wall -I$(SRC)
+AM_CFLAGS		= -Wall -I$(SRC) -I.
 
 noinst_LTLIBRARIES      = libuseful.la
 
@@ -20,6 +21,7 @@ libuseful_la_SOURCES    = 	cti_error.c cti_log.c cti_overwatch.c \
 							cti_path.c cti_stack.c ArgvDefs-c++11-workaround.cpp
 libuseful_la_CFLAGS     = 	$(AM_CFLAGS) -fPIC
 libuseful_la_CXXFLAGS   = 	$(AM_CXXFLAGS) $(libuseful_la_CFLAGS)
+libuseful_la_LIBADD		=	ld_val/libld_val.la
 libuseful_la_LDFLAGS    = 	-static -Wl,--no-undefined
 
 libexec_PROGRAMS		= 	cti_overwatch
