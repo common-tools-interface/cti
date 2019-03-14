@@ -551,7 +551,7 @@ CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 	std::getline(sattachStream, sattachLine);
 
 	// "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
-	for (int i = 0; std::getline(sattachStream, sattachLine); i++) {
+	for (auto i = 0; std::getline(sattachStream, sattachLine); i++) {
 		if (i >= numNodes) {
 			throw std::runtime_error("malformed sattach output: too many nodes!");
 		}
