@@ -1,19 +1,14 @@
 /******************************************************************************\
- * cray_slurm_dl.c - Cray native slurm specific functions for the daemon 
+ * cray_slurm_dl.c - Cray native slurm specific functions for the daemon
  *                   launcher.
  *
- * Copyright 2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  ******************************************************************************/
 
@@ -23,6 +18,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "cti_daemon.h"
 
@@ -51,13 +47,13 @@ _cti_cray_slurm_init(void)
 		fprintf(stderr, "setenv failed\n");
 		return 1;
 	}
-	
+
 	return 0;
 }
 
 /******************************************************************************
    _cti_cray_slurm_getNodeID - Gets the id for the current node
-   
+
    Detail
         I return a unique id for the current node.
 
@@ -71,7 +67,7 @@ _cti_cray_slurm_init(void)
 
    Returns
         An int representing an unique id for the current node
-   
+
 */
 static int
 _cti_cray_slurm_getNodeID(void)
@@ -94,13 +90,13 @@ _cti_cray_slurm_getNodeID(void)
 		    fprintf(stderr, "%s: _cti_cray_slurm_getNodeID:fgets failed.\n", CTI_DLAUNCH_BINARY);
 		    return -1;
 	    }
-		
+
 	    // convert this to an integer value
 	    cachedNid = atoi(file_buf);
-	
+
 	    // close the file stream
 	    fclose(nid_fd);
-	
+
     }
 
     else // Fallback to hash of standard hostname
