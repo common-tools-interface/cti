@@ -32,7 +32,7 @@ std::unique_ptr<App>
 MockFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 	CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-	return std::make_unique<TestApp>(getpid());
+	return std::make_unique<MockApp>(getpid());
 }
 
 std::unique_ptr<App>
@@ -49,7 +49,7 @@ MockFrontend::registerJob(size_t numIds, ...)
 
 	va_end(idArgs);
 
-	return std::make_unique<TestApp>(launcherPid);
+	return std::make_unique<MockApp>(launcherPid);
 }
 
 std::string
@@ -58,69 +58,69 @@ MockFrontend::getHostname() const
 	return "hostname";
 }
 
-/* TestApp implementation */
+/* MockApp implementation */
 
-TestApp::TestApp(pid_t launcherPid)
+MockApp::MockApp(pid_t launcherPid)
 	: m_launcherPid{launcherPid}
 	, m_atBarrier{true}
 {}
 
 std::string
-TestApp::getJobId() const
+MockApp::getJobId() const
 {
 	return std::to_string(m_launcherPid);
 }
 
 std::string
-TestApp::getLauncherHostname() const
+MockApp::getLauncherHostname() const
 {
 	return "hostname";
 }
 
 std::string
-TestApp::getToolPath() const
+MockApp::getToolPath() const
 {
 	return "toolpath";
 }
 
 std::string
-TestApp::getAttribsPath() const
+MockApp::getAttribsPath() const
 {
 	return "attrpath";
 }
 
 std::vector<std::string>
-TestApp::getExtraFiles() const
+MockApp::getExtraFiles() const
 {
 	return {};
 }
 
 size_t
-TestApp::getNumPEs() const
+MockApp::getNumPEs() const
 {
 	return 1;
 }
 
 size_t
-TestApp::getNumHosts() const
+MockApp::getNumHosts() const
 {
 	return 1;
 }
 
 std::vector<std::string>
-TestApp::getHostnameList() const
+MockApp::getHostnameList() const
 {
 	return {};
 }
 
 std::vector<CTIHost>
-TestApp::getHostsPlacement() const
+MockApp::getHostsPlacement() const
 {
 	return {};
 }
 
 void
-TestApp::releaseBarrier()
+MockApp::releaseBarrier()
 {
 	if (!m_atBarrier) {
 		throw std::runtime_error("app not at startup barrier");
@@ -129,17 +129,17 @@ TestApp::releaseBarrier()
 }
 
 void
-TestApp::kill(int signal)
+MockApp::kill(int signal)
 {
 	return;
 }
 
-void TestApp::shipPackage(std::string const& tarPath) const
+void MockApp::shipPackage(std::string const& tarPath) const
 {
 	return;
 }
 
-void TestApp::startDaemon(const char* const args[])
+void MockApp::startDaemon(const char* const args[])
 {
 	return;
 }

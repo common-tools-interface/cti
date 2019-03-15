@@ -36,7 +36,7 @@ public: // inherited interface
 
 /* Types used here */
 
-class TestApp : public App
+class MockApp : public App
 {
 private: // variables
 	pid_t      m_launcherPid; // job launcher PID
@@ -44,7 +44,8 @@ private: // variables
 
 public: // constructor / destructor interface
 	// register case
-	TestApp(pid_t launcherPid);
+	MockApp(pid_t launcherPid);
+	~MockApp() = default;
 
 public: // app interaction interface
 	std::string getJobId()            const override;
