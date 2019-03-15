@@ -10,12 +10,13 @@
 # in any form.
 #
 SRC             = @CRAYTOOL_DIR@/src
-AM_CXXFLAGS		= -I$(SRC) -std=c++11
+AM_CXXFLAGS		= -Wall -I$(SRC)
 AM_LIBTOOLFLAGS = --quiet
 
 noinst_LTLIBRARIES      	=	libmpir_iface.la
 
-libmpir_iface_la_SOURCES	=	MPIRInstance.cpp MPIRInstance.hpp Inferior.cpp Inferior.hpp
+libmpir_iface_la_SOURCES	=	MPIRInstance.cpp Inferior.cpp
 libmpir_iface_la_CXXFLAGS	= 	$(AM_CXXFLAGS) -fPIC $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
 libmpir_iface_la_CPPFLAGS	=	$(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
-libmpir_iface_la_LDFLAGS	=	-static -Wl,--no-undefined -Wl,--as-needed
+libmpir_iface_la_LDFLAGS	=	-static -Wl,--no-undefined
+noinst_HEADERS				=	Inferior.hpp MPIRInstance.hpp

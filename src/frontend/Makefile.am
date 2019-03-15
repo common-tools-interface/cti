@@ -10,23 +10,23 @@
 # in any form.
 #
 
-SRC             = @CRAYTOOL_DIR@/src
-AM_LIBTOOLFLAGS = --quiet
-AUTOMAKE_OPTIONS = subdir-objects
+SUBDIRS				= cti_transfer frontend_impl mpir_iface
+
+SRC             	= @CRAYTOOL_DIR@/src
+AM_LIBTOOLFLAGS 	= --quiet
+AM_CXXFLAGS			= -Wall -I$(SRC) -I. -I$(SRC)/frontend/frontend_impl
 
 lib_LTLIBRARIES = libcraytools_fe.la
 
-libcraytools_fe_la_SOURCES	=	cti_fe_iface.h cti_fe_iface.cpp \
-								Frontend.hpp \
-								CraySLURM/Frontend.cpp CraySLURM/Frontend.hpp \
-								GenericSSH/Frontend.cpp GenericSSH/Frontend.hpp
-libcraytools_fe_la_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
-								$(ARCHIVE_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
-libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) $(libcraytools_fe_la_CFLAGS)
+libcraytools_fe_la_SOURCES	=	cti_fe_iface.cpp
+libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) -fPIC $(WLM_DETECT_CFLAGS) $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
+libcraytools_fe_la_CPPFLAGS	=	$(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
 libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
-								$(SRC)/cti_transfer/libcti_transfer.la \
-								$(SRC)/ld_val/libld_val.la \
-								$(SRC)/mpir_iface/libmpir_iface.la \
-								 -ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS)
-libcraytools_fe_la_LDFLAGS	=	-Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed -version-info \
-								$(CRAYTOOL_FE_VERSION) $(ARCHIVE_LDFLAGS) $(DYNINST_LDFLAGS)
+								cti_transfer/libcti_transfer.la \
+								frontend_impl/libfrontend_impl.la \
+								mpir_iface/libmpir_iface.la \
+								-ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS)
+libcraytools_fe_la_LDFLAGS	=	-shared -Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined \
+								-Wl,--as-needed -version-info $(CRAYTOOL_FE_VERSION) \
+								$(ARCHIVE_LDFLAGS) $(DYNINST_LDFLAGS)
+noinst_HEADERS				=	cti_fe_iface.h Frontend.hpp

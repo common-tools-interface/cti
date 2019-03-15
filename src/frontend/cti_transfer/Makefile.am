@@ -11,18 +11,14 @@
 #
 
 SRC             = @CRAYTOOL_DIR@/src
-FRONTEND        = $(SRC)/frontend
-AM_CXXFLAGS		= -I$(SRC) -I$(FRONTEND)
+AM_CXXFLAGS		= -Wall -I$(SRC) -I$(src)/frontend
 AM_LIBTOOLFLAGS = --quiet
 
 noinst_LTLIBRARIES			=	libcti_transfer.la
 
-libcti_transfer_la_SOURCES	=	cti_wrappers.hpp \
-								Archive.cpp Archive.hpp \
-								RemotePackage.cpp RemotePackage.hpp \
-								Manifest.cpp Manifest.hpp \
-								Session.cpp Session.hpp
+libcti_transfer_la_SOURCES	=	Archive.cpp RemotePackage.cpp Manifest.cpp \
+								Session.cpp
 libcti_transfer_la_CXXFLAGS	= 	$(AM_CXXFLAGS) -fPIC $(ARCHIVE_CFLAGS)
-libcti_transfer_la_LDFLAGS	=	-static -Wl,--as-needed \
-								$(ARCHIVE_LDFLAGS)
-libcti_transfer_la_LIBADD	=	$(ARCHIVE_LIBS)
+libcti_transfer_la_LDFLAGS	=	-static -Wl,--no-undefined
+noinst_HEADERS				=	Archive.hpp Manifest.hpp RemotePackage.hpp \
+								Session.hpp

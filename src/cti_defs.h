@@ -164,4 +164,83 @@ typedef slurmPidFile_t          cti_pidFile_t;
 }
 #endif
 
+/*
+** C++ only definitions below.
+*/
+#ifdef __cplusplus
+
+#include "useful/cti_argv.hpp"
+
+struct DaemonArgv : public cti_argv::Argv {
+    using Option    = cti_argv::Argv::Option;
+    using Parameter = cti_argv::Argv::Parameter;
+
+    static constexpr Option Clean { "clean", 'c' };
+    static constexpr Option Help  { "help",  'h' };
+    static constexpr Option Debug { "debug",  1 };
+
+    static constexpr Parameter ApID           { "apid",      'a' };
+    static constexpr Parameter Binary         { "binary",    'b' };
+    static constexpr Parameter Directory      { "directory", 'd' };
+    static constexpr Parameter EnvVariable    { "env",       'e' };
+    static constexpr Parameter InstSeqNum     { "inst",      'i' };
+    static constexpr Parameter ManifestName   { "manifest",  'm' };
+    static constexpr Parameter ToolPath       { "path",      'p' };
+    static constexpr Parameter PMIAttribsPath { "apath",     't' };
+    static constexpr Parameter LdLibraryPath  { "ldlibpath", 'l' };
+    static constexpr Parameter WLMEnum        { "wlm",       'w' };
+
+    static constexpr GNUOption long_options[] = {
+        Clean, Help, Debug,
+        ApID, Binary, Directory, EnvVariable, InstSeqNum, ManifestName, ToolPath,
+            PMIAttribsPath, LdLibraryPath, WLMEnum,
+    long_options_done };
+};
+
+struct SattachArgv : public cti_argv::Argv {
+    using Option    = cti_argv::Argv::Option;
+    using Parameter = cti_argv::Argv::Parameter;
+
+    static constexpr Option PrependWithTaskLabel { "label",    1 };
+    static constexpr Option DisplayLayout        { "layout",   2 };
+    static constexpr Option RunInPty             { "pty",      3 };
+    static constexpr Option QuietOutput          { "quiet",    4 };
+    static constexpr Option VerboseOutput        { "verbose",  5 };
+
+    static constexpr Parameter InputFilter  { "input-filter",  6 };
+    static constexpr Parameter OutputFilter { "output-filter", 7 };
+    static constexpr Parameter ErrorFilter  { "error-filter",  8 };
+
+
+    static constexpr GNUOption long_options[] = {
+        InputFilter, OutputFilter, ErrorFilter,
+        PrependWithTaskLabel, DisplayLayout, RunInPty, QuietOutput, VerboseOutput,
+    long_options_done };
+};
+
+// XXX: flaw in C++11 relating to static constexpr. can be removed in C++17
+#ifdef INSIDE_WORKAROUND_OBJ
+
+constexpr cti_argv::Argv::GNUOption cti_argv::Argv::long_options_done;
+
+using Option    = cti_argv::Argv::Option;
+using Parameter = cti_argv::Argv::Parameter;
+using SA        = SattachArgv;
+using DA        = DaemonArgv;
+
+constexpr Option            SA::PrependWithTaskLabel, SA::DisplayLayout, SA::RunInPty,
+                            SA::QuietOutput, SA::VerboseOutput;
+constexpr Parameter         SA::InputFilter, SA::OutputFilter, SA::ErrorFilter;
+constexpr cti_argv::Argv::GNUOption SA::long_options[];
+
+constexpr Option            DA::Clean, DA::Help, DA::Debug;
+constexpr Parameter         DA::ApID, DA::Binary, DA::Directory, DA::EnvVariable,
+                            DA::InstSeqNum, DA::ManifestName, DA::ToolPath,
+                            DA::PMIAttribsPath, DA::LdLibraryPath, DA::WLMEnum;
+constexpr cti_argv::Argv::GNUOption DA::long_options[];
+
+#endif /* INSIDE_WORKAROUND_OBJ */
+
+#endif /* __cpluplus */
+
 #endif /* _CTI_DEFS_H */

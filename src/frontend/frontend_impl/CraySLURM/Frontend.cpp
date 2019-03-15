@@ -9,11 +9,6 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  ******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -36,10 +31,8 @@
 #include <sys/wait.h>
 
 #include "cti_defs.h"
-#include "ArgvDefs.hpp"
 #include "cti_fe_iface.h"
 
-#include "frontend/Frontend.hpp"
 #include "CraySLURM/Frontend.hpp"
 
 #include "useful/Dlopen.hpp"
@@ -89,8 +82,8 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	, m_stepLayout  { moved.m_stepLayout }
 	, m_queuedOutFd { moved.m_queuedOutFd }
 	, m_queuedErrFd { moved.m_queuedErrFd }
-	, m_sattachPids { moved.m_sattachPids }
 	, m_dlaunchSent { moved.m_dlaunchSent }
+	, m_sattachPids { moved.m_sattachPids }
 
 	, m_srunInstance{ std::move(moved.m_srunInstance) }
 
@@ -214,7 +207,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 		m_sattachPids.push_back(sattachPid);
 	} else {
 		// create sattach argv
-		ManagedArgv sattachArgv
+		cti_argv::ManagedArgv sattachArgv
 			{ SATTACH // first argument should be "sattach"
 			// , "-Q"    // second argument is quiet
 			, getJobId() // third argument is the jobid.stepid
@@ -239,7 +232,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 void CraySLURMApp::kill(int signum)
 {
 	// create the args for scancel
-	auto scancelArgv = ManagedArgv
+	auto scancelArgv = cti_argv::ManagedArgv
 		{ SCANCEL // first argument should be "scancel"
 		, "-Q"    // second argument is quiet
 		, "-s", std::to_string(signum)    // third argument is signal number
@@ -268,7 +261,7 @@ void CraySLURMApp::kill(int signum)
 
 void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 	// create the args for sbcast
-	auto launcherArgv = ManagedArgv
+	auto launcherArgv = cti_argv::ManagedArgv
 		{ SBCAST
 		, "-C"
 		, "-j", std::to_string(m_srunInfo.jobid)
@@ -353,10 +346,10 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	//
 	// srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
 	// --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
-	// --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none 
+	// --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
 	// --input=none --output=none --error=none <tool daemon> <args>
 	//
-	auto launcherArgv = ManagedArgv
+	auto launcherArgv = cti_argv::ManagedArgv
 		{ CraySLURMFrontend::getLauncherName()
 		, "--jobid=" + std::to_string(m_srunInfo.jobid)
 		, "--gres=none"
@@ -403,7 +396,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 
 	} else {
 		// child case: Place this process in its own group to prevent signals being passed
-		// to it. This is necessary in case the child code execs before the 
+		// to it. This is necessary in case the child code execs before the
 		// parent can put us into our own group.
 		setpgid(0, 0);
 
@@ -518,7 +511,7 @@ CraySLURMFrontend::StepLayout
 CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 {
 	// create sattach instance
-	OutgoingArgv<SattachArgv> sattachArgv("sattach");
+	cti_argv::OutgoingArgv<SattachArgv> sattachArgv("sattach");
 	sattachArgv.add(SattachArgv::DisplayLayout);
 	sattachArgv.add(SattachArgv::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
 
@@ -537,7 +530,7 @@ CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 	}
 
 	StepLayout layout;
-	size_t numNodes;
+	auto numNodes = int{0};
 
 	// "  {numPEs} tasks, {numNodes} nodes ({hostname}...)"
 	if (std::getline(sattachStream, sattachLine)) {
@@ -548,7 +541,7 @@ CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 
 		// fill out sattach layout
 		layout.numPEs = std::stoul(rawNumPEs);
-		numNodes = std::stoul(rawNumNodes);
+		numNodes = std::stoi(rawNumNodes);
 		layout.nodes.reserve(numNodes);
 	} else {
 		throw std::runtime_error("sattach layout: wrong format: expected summary");
@@ -558,7 +551,7 @@ CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 	std::getline(sattachStream, sattachLine);
 
 	// "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
-	for (int i = 0; std::getline(sattachStream, sattachLine); i++) {
+	for (auto i = int{0}; std::getline(sattachStream, sattachLine); i++) {
 		if (i >= numNodes) {
 			throw std::runtime_error("malformed sattach output: too many nodes!");
 		}

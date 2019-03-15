@@ -9,11 +9,6 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  ******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -46,13 +41,13 @@ static int
 _cti_slurm_init(void)
 {
 	// NO-OP
-	
+
 	return 0;
 }
 
 /******************************************************************************
    _cti_slurm_getNodeID - Gets the id for the current node
-   
+
    Detail
         I return a unique id for the current node.
 
@@ -66,7 +61,7 @@ _cti_slurm_init(void)
 
    Returns
         An int representing an unique id for the current node
-   
+
 */
 static int
 _cti_slurm_getNodeID(void)
@@ -89,13 +84,13 @@ _cti_slurm_getNodeID(void)
 		    fprintf(stderr, "%s: _cti_slurm_getNodeID:fgets failed.\n", CTI_DLAUNCH_BINARY);
 		    return -1;
 	    }
-		
+
 	    // convert this to an integer value
 	    cachedNid = atoi(file_buf);
-	
+
 	    // close the file stream
 	    fclose(nid_fd);
-	
+
     }
 
     else // Fallback to hash of standard hostname

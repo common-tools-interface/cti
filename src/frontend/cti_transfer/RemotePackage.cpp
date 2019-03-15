@@ -1,7 +1,22 @@
+/******************************************************************************\
+ * RemotePackage.cpp - Represents a remote tarball ready for the cti_daemon to
+ * extract and / or run a tooldaemon with. Created as a result of finalizing
+ * and shipping a Manifest.
+ *
+ * Copyright 2013-2019 Cray Inc.    All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ ******************************************************************************/
+
 #include "RemotePackage.hpp"
 
 #include "useful/cti_wrappers.hpp"
-#include "ArgvDefs.hpp"
+#include "cti_defs.h"
 
 // helper: promote session pointer to a shared pointer (otherwise throw)
 static std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionPtr) {
@@ -24,7 +39,7 @@ void RemotePackage::extract() {
 	auto liveSession = getSessionHandle(m_sessionPtr);
 
 	// create DaemonArgv
-	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+	cti_argv::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
 		daemonArgv.add(DA::ApID,         liveSession->m_jobId);
 		daemonArgv.add(DA::ToolPath,     liveSession->m_toolPath);
@@ -53,7 +68,7 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 
 	// create DaemonArgv
 	liveSession->writeLog("extractAndRun: creating daemonArgv for %s\n", daemonBinary);
-	OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+	cti_argv::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
 		daemonArgv.add(DA::ApID,         liveSession->m_jobId);
 		daemonArgv.add(DA::ToolPath,     liveSession->m_toolPath);
@@ -80,7 +95,7 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 	}
 
 	// add daemon arguments
-	ManagedArgv rawArgVec(daemonArgv.eject());
+	cti_argv::ManagedArgv rawArgVec(daemonArgv.eject());
 	if (daemonArgs != nullptr) {
 		rawArgVec.add("--");
 		for (const char* const* var = daemonArgs; *var != nullptr; var++) {

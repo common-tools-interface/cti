@@ -1,5 +1,3 @@
-#pragma once
-
 /*********************************************************************************\
  * Session: state object representing a remote staging directory where packages
  *  of files to support CTI programs are unpacked and stored. Manages conflicts
@@ -14,12 +12,9 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  *********************************************************************************/
+
+#pragma once
 
 #include <string>
 #include <vector>

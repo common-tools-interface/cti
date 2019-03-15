@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cti_fe.cpp - C implementation for the cti frontend.
+ * cti_fe_iface.cpp - C interface layer for the cti frontend.
  *
  * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
  *
@@ -8,11 +8,6 @@
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  ******************************************************************************/
 
@@ -43,14 +38,12 @@
 #include "cti_defs.h"
 
 // CTI Transfer includes
-#include "frontend/Frontend.hpp"
 #include "cti_transfer/Manifest.hpp"
 #include "cti_transfer/Session.hpp"
 
 // CTI Frontend / App implementations
 #include "Frontend.hpp"
-#include "CraySLURM/Frontend.hpp"
-#include "GenericSSH/Frontend.hpp"
+#include "Frontend_impl.hpp"
 
 // WLM detection library interface
 #include "wlm_detect.h"
@@ -388,7 +381,7 @@ constexpr auto SESSION_ERROR  = cti_conventions::return_code::SESSION_ERROR;
 constexpr auto MANIFEST_ERROR = cti_conventions::return_code::MANIFEST_ERROR;
 
 /*********************
-** internal functions 
+** internal functions
 *********************/
 
 // store and associate an arbitrary C++ object with an id (to make it accessible to C clients)
@@ -494,7 +487,7 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 		case CTI_WLM_NONE:
 			return "No WLM detected";
 	}
-	
+
 	// Shouldn't get here
 	return "Invalid WLM.";
 }
@@ -615,7 +608,6 @@ cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
 cti_srunProc_t*
 cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
-		auto& craySlurm = downcastCurrentFE<CraySLURMFrontend>();
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
 			*result = dynamic_cast<CraySLURMApp&>(*appRegistry.get(appId)).getSrunInfo();
 			return result;
