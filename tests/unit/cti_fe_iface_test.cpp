@@ -1,36 +1,16 @@
 #include <unistd.h>
 
-#include "gtest/gtest.h"
+#include "cti_fe_iface_test.hpp"
 
-#include "frontend/cti_fe_iface.h"
-
-namespace {
-
-// The fixture for testing C interface results
-class CInterfaceTest : public ::testing::Test
-{
-	protected:
-		CInterfaceTest()
-		{
-			// You can do set-up work for each test here.
-		}
-
-		~CInterfaceTest() override
-		{
-			// You can do clean-up work that doesn't throw exceptions here.
-		}
-};
-
-static const auto SUCCESS = int{0};
-static const auto FAILURE = int{1};
+/* cti frontend C interface tests */
 
 // Tests that the frontend type was correctly detected.
-TEST_F(CInterfaceTest, HaveValidFrontend) {
+TEST_F(cti_fe_ifaceTest, HaveValidFrontend) {
 	EXPECT_NE(cti_current_wlm(), CTI_WLM_NONE);
 }
 
 // Test that an app can launch successfully
-TEST_F(CInterfaceTest, Launch) {
+TEST_F(cti_fe_ifaceTest, Launch) {
 	char const* argv[] = {"/bin/sh", nullptr};
 	auto const  stdoutFd = -1;
 	auto const  stderrFd = -1;
@@ -46,7 +26,7 @@ TEST_F(CInterfaceTest, Launch) {
 }
 
 // Test that an app can't be released twice
-TEST_F(CInterfaceTest, DoubleRelease) {
+TEST_F(cti_fe_ifaceTest, DoubleRelease) {
 	char const* argv[] = {"/bin/sh", nullptr};
 	auto const  stdoutFd = -1;
 	auto const  stderrFd = -1;
@@ -59,11 +39,4 @@ TEST_F(CInterfaceTest, DoubleRelease) {
 	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
 	EXPECT_EQ(cti_releaseAppBarrier(appId), FAILURE);
 	cti_deregisterApp(appId);
-}
-
-} // namespace
-
-int main(int argc, char **argv) {
-	::testing::InitGoogleTest(&argc, argv);
-	return RUN_ALL_TESTS();
 }
