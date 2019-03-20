@@ -120,8 +120,8 @@ namespace cti_conventions
 	{
 		struct stat st;
 		return !stat(dirPath, &st) // make sure this directory exists
-		    && S_ISDIR(st.st_mode) // make sure it is a directory
-		    && !access(dirPath, perms); // check if we can access the directory
+			&& S_ISDIR(st.st_mode) // make sure it is a directory
+			&& !access(dirPath, perms); // check if we can access the directory
 	}
 
 	static void
@@ -619,7 +619,16 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 	}, (cti_srunProc_t*)nullptr);
 }
 
+// SSH
 
+cti_app_id_t
+cti_ssh_registerJob(pid_t launcher_pid)
+{
+	return cti_conventions::runSafely(__func__, [&](){
+		auto& genericSSH = downcastCurrentFE<GenericSSHFrontend>();
+		return appRegistry.own(genericSSH.registerJob(1, launcher_pid));
+	}, APP_ERROR);
+}
 
 /* app launch / release implementations */
 
@@ -893,3 +902,26 @@ _cti_consumeSession(void* rawSidPtr) {
 
 void _cti_transfer_init(void) { /* no-op */ }
 void _cti_transfer_fini(void) { /* no-op */ }
+
+int
+cti_setAttribute(cti_attr_type attrib, const char *value)
+{
+	return cti_conventions::runSafely(__func__, [&](){
+		switch (attrib) {
+			case CTI_ATTR_STAGE_DEPENDENCIES:
+				if (value == nullptr) {
+					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for 'value'."); 
+				} else if (value[0] == '0') {
+					_cti_setStageDeps(false);
+					return SUCCESS;
+				} else if (value[0] == '1') {
+					_cti_setStageDeps(true);
+					return SUCCESS;
+				} else {
+					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '" + std::to_string(value[0]) + "'"); 
+				}
+			default:
+				throw std::runtime_error("Invalid cti_attr_type " + std::to_string((int)attrib)); 
+		}
+	}, FAILURE);
+}

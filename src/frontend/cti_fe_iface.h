@@ -55,6 +55,7 @@ const char *	cti_version(void);
 cti_wlm_type	cti_current_wlm(void);
 const char *	cti_wlm_type_toString(cti_wlm_type);
 char *      	cti_getHostname(void);
+int         	cti_setAttribute(cti_attr_type attrib, const char *value);
 
 // running app information query
 char *           	cti_getLauncherHostName(cti_app_id_t);

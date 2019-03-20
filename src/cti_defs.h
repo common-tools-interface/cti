@@ -27,6 +27,20 @@
 extern "C" {
 #endif
 
+/* 
+ *  This enum enumerates the various attributes that 
+ *  can be set by cti_setAttribute.
+ */
+enum cti_attr_type
+{
+    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library 
+                                    // dependencies should be automatically 
+                                    // staged by cti_addManifestBinary and 
+                                    // cti_addManifestLIbrary: 0 or 1
+                                    // Defaults to 1.
+};
+typedef enum cti_attr_type  cti_attr_type;
+
 // WLM identifier. This is system specific. Right now only one WLM at a time
 // is supported.
 enum cti_wlm_type
