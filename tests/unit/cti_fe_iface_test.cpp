@@ -69,7 +69,7 @@ TEST_F(CTIFEIfaceTest, DoubleRelease) {
 	auto const  stderrFd = -1;
 	char const* inputFile = nullptr;
 	char const* chdirPath = nullptr;
-	char const* envList[] = {"VAR=val", nullptr};
+	char const* const* envList = nullptr;
 
 	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
 	ASSERT_GT(appId, 0);
@@ -149,6 +149,53 @@ TEST_F(CTIFEIfaceTest, InputFile) {
 	{ std::string line;
 		ASSERT_TRUE(std::getline(pipein, line));
 		EXPECT_EQ(line, echoString);
+	}
+
+	// cleanup
+	p.closeRead();
+}
+
+// Test that an app can forward environment variables
+TEST_F(CTIFEIfaceTest, EnvVars) {
+	// set up string contents
+	auto const envVar = std::string{"CTI_TEST_VAR"};
+	auto const envVal = std::to_string(getpid());
+	auto const envString = envVar + "=" + envVal;
+
+	// set up stdout fd
+	Pipe p;
+	ASSERT_GE(p.getReadFd(), 0);
+	ASSERT_GE(p.getWriteFd(), 0);
+	FdBuf pipeInBuf{p.getReadFd()};
+	std::istream pipein{&pipeInBuf};
+
+	// set up launch arguments
+	char const* argv[] = {"/usr/bin/env", nullptr};
+	auto const  stdoutFd = p.getWriteFd();
+	auto const  stderrFd = -1;
+	char const* inputFile = nullptr;
+	char const* chdirPath = nullptr;
+	char const* const envList[] = {envString.c_str(), nullptr};
+
+	// launch app
+	auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+	ASSERT_GT(appId, 0);
+	EXPECT_EQ(cti_appIsValid(appId), true);
+
+	// get app output
+	p.closeWrite();
+	{ std::string line;
+		bool found = false;
+		while (std::getline(pipein, line)) {
+			auto const var = line.substr(0, line.find('='));
+			auto const val = line.substr(line.find('=') + 1);
+
+			if (!var.compare(envVar) && !val.compare(envVal)) {
+				found = true;
+				break;
+			}
+		}
+		EXPECT_TRUE(found);
 	}
 
 	// cleanup
