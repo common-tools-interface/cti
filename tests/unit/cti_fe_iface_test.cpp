@@ -24,12 +24,9 @@ TEST_F(CTIFEIfaceTest, Launch) {
 	char const* chdirPath = nullptr;
 	char const* const* envList  = nullptr;
 
-	auto const appId = cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList);
+	auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
 	ASSERT_GT(appId, 0);
 	EXPECT_EQ(cti_appIsValid(appId), true);
-	EXPECT_EQ(cti_killApp(appId, SIGKILL), SUCCESS);
-	cti_deregisterApp(appId);
-	EXPECT_EQ(cti_appIsValid(appId), false);
 }
 
 // Test that an app can't be released twice
@@ -41,12 +38,10 @@ TEST_F(CTIFEIfaceTest, DoubleRelease) {
 	char const* chdirPath = nullptr;
 	char const* envList[] = {"VAR=val", nullptr};
 
-	auto const appId = cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList);
+	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
 	ASSERT_GT(appId, 0);
 	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
 	EXPECT_EQ(cti_releaseAppBarrier(appId), FAILURE);
-	EXPECT_EQ(cti_killApp(appId, SIGKILL), SUCCESS);
-	cti_deregisterApp(appId);
 }
 
 // Test that an app can redirect stdout
@@ -62,7 +57,7 @@ TEST_F(CTIFEIfaceTest, StdoutPipe) {
 	std::istream pipein{&pipeInBuf};
 
 	// set up launch arguments
-	char const* argv[] = {"/usr/bin/echo", echoString.c_str(), nullptr}; // race condition?
+	char const* argv[] = {"/usr/bin/echo", echoString.c_str(), nullptr};
 	auto const  stdoutFd = p.getWriteFd();
 	auto const  stderrFd = -1;
 	char const* inputFile = nullptr;
@@ -70,7 +65,7 @@ TEST_F(CTIFEIfaceTest, StdoutPipe) {
 	char const* const* envList  = nullptr;
 
 	// launch app
-	auto const appId = cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList);
+	auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
 	ASSERT_GT(appId, 0);
 	EXPECT_EQ(cti_appIsValid(appId), true);
 
@@ -81,9 +76,6 @@ TEST_F(CTIFEIfaceTest, StdoutPipe) {
 		EXPECT_EQ(line, echoString);
 	}
 
-	// kill app
+	// cleanup
 	p.closeRead();
-	EXPECT_EQ(cti_killApp(appId, SIGKILL), SUCCESS);
-	cti_deregisterApp(appId);
-	EXPECT_EQ(cti_appIsValid(appId), false);
 }
