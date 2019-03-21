@@ -5,14 +5,14 @@
 #include "include/cray_tools_fe.h"
 
 // The fixture for testing C interface results
-class cti_fe_ifaceTest : public ::testing::Test
+class CTIFEIfaceTest : public ::testing::Test
 {
-	protected:
-		cti_fe_ifaceTest()
-		{}
+protected:
+	CTIFEIfaceTest()
+	{}
 
-		~cti_fe_ifaceTest() override
-		{}
+	~CTIFEIfaceTest() override
+	{}
 };
 
 static const auto SUCCESS = int{0};
