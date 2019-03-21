@@ -116,64 +116,54 @@ namespace cti_conventions
 	}
 
 	static bool
+	fileHasPerms(char const* filePath, int const perms)
+	{
+		struct stat st;
+		return !stat(filePath, &st) // make sure this directory exists
+			&& S_ISREG(st.st_mode)  // make sure it is a regular file
+			&& !access(filePath, perms); // check that the file has the desired permissions
+	}
+
+	static bool
 	dirHasPerms(char const* dirPath, int const perms)
 	{
 		struct stat st;
 		return !stat(dirPath, &st) // make sure this directory exists
 			&& S_ISDIR(st.st_mode) // make sure it is a directory
-			&& !access(dirPath, perms); // check if we can access the directory
+			&& !access(dirPath, perms); // check that the directory has the desired permissions
+	}
+
+	static bool
+	canWriteFd(int const fd)
+	{
+		errno = 0;
+		int accessFlags = fcntl(fd, F_GETFL) & O_ACCMODE;
+		if (errno != 0) {
+			return false;
+		}
+		return (accessFlags & O_RDWR) || (accessFlags & O_WRONLY);
 	}
 
 	static void
 	verifyLaunchArgs(int const stdoutFd, int const stderrFd, char const *inputFilePath, const char *chdirPath)
 	{
-		auto canWriteFd = [](int const fd) {
-			// if fd is -1, then the fd arg is meant to be ignored
-			if (fd == -1) {
-				return true;
-			}
-			errno = 0;
-			int accessFlags = fcntl(fd, F_GETFL) & O_ACCMODE;
-			if (errno != 0) {
-				return false;
-			}
-			return (accessFlags & O_WRONLY) || (accessFlags & O_WRONLY);
-		};
-
 		// ensure stdout, stderr can be written to
-		if (!canWriteFd(stdoutFd)) {
+		// if fd is -1, then the fd arg is meant to be ignored
+		if ((stdoutFd > 0) && !canWriteFd(stdoutFd)) {
 			throw std::runtime_error("Invalid stdout_fd argument. No write access.");
 		}
-		if (!canWriteFd(stderrFd)) {
+		if ((stderrFd > 0) && !canWriteFd(stderrFd)) {
 			throw std::runtime_error("Invalid stderr_fd argument. No write access.");
 		}
 
 		// verify inputFile is a file that can be read
-		if (inputFilePath != nullptr) {
-			struct stat st;
-			if (stat(inputFilePath, &st)) { // make sure inputfile exists
-				throw std::runtime_error("Invalid inputFile argument. File does not exist.");
-			}
-			if (!S_ISREG(st.st_mode)) { // make sure it is a regular file
-				throw std::runtime_error("Invalid inputFile argument. The file is not a regular file.");
-			}
-			if (access(inputFilePath, R_OK)) { // make sure we can access it
-				throw std::runtime_error("Invalid inputFile argument. Bad permissions.");
-			}
+		if ((inputFilePath != nullptr) && !fileHasPerms(inputFilePath, R_OK)) {
+			throw std::runtime_error("Invalid inputFile argument. No read access.");
 		}
 
 		// verify chdirPath is a directory that can be read, written, and executed
-		if (chdirPath != nullptr) {
-			struct stat st;
-			if (stat(chdirPath, &st)) { // make sure chdirpath exists
-				throw std::runtime_error("Invalid chdirPath argument. Directory does not exist.");
-			}
-			if (!S_ISDIR(st.st_mode)) { // make sure it is a directory
-				throw std::runtime_error("Invalid chdirPath argument. The file is not a directory.");
-			}
-			if (access(chdirPath, R_OK | W_OK | X_OK)) { // make sure we can access it
-				throw std::runtime_error("Invalid chdirPath argument. Bad permissions.");
-			}
+		if ((chdirPath != nullptr) && !dirHasPerms(chdirPath, R_OK | W_OK | X_OK)) {
+			throw std::runtime_error("Invalid chdirPath argument. No RWX access.");
 		}
 	}
 
@@ -485,6 +475,9 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 
 		case CTI_WLM_SSH:
 			return "Fallback (SSH based) workload manager";
+
+		case CTI_WLM_MOCK:
+			return "Test WLM frontend";
 
 		case CTI_WLM_NONE:
 			return "No WLM detected";
