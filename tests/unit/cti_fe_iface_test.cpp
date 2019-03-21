@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <unistd.h>
 
 #include <sys/mman.h>
@@ -7,6 +8,38 @@
 #include "cti_fe_iface_test.hpp"
 
 #include "useful/ExecvpOutput.hpp"
+
+// generate temporary filename and delete it when finished
+class temp_file_handle
+{
+private:
+	char const* path;
+
+public:
+	temp_file_handle()
+		: path{tmpnam(nullptr)}
+	{
+		if (path == nullptr) {
+			throw std::runtime_error("tmpnam failed");
+		}
+	}
+
+	temp_file_handle(temp_file_handle&& moved)
+		: path{moved.path}
+	{
+		moved.path = nullptr;
+	}
+
+	~temp_file_handle()
+	{
+		if ((path != nullptr) && (remove(path) < 0)) {
+			// path could have been generated but not opened as a file
+			std::cerr << "warning: remove " << std::string{path} << " failed" << std::endl;
+		}
+	}
+
+	char const* get() const { return path; }
+};
 
 /* cti frontend C interface tests */
 
@@ -51,8 +84,8 @@ TEST_F(CTIFEIfaceTest, StdoutPipe) {
 
 	// set up stdout fd
 	Pipe p;
-	ASSERT_GT(p.getReadFd(), 0);
-	ASSERT_GT(p.getWriteFd(), 0);
+	ASSERT_GE(p.getReadFd(), 0);
+	ASSERT_GE(p.getWriteFd(), 0);
 	FdBuf pipeInBuf{p.getReadFd()};
 	std::istream pipein{&pipeInBuf};
 
@@ -61,6 +94,48 @@ TEST_F(CTIFEIfaceTest, StdoutPipe) {
 	auto const  stdoutFd = p.getWriteFd();
 	auto const  stderrFd = -1;
 	char const* inputFile = nullptr;
+	char const* chdirPath = nullptr;
+	char const* const* envList  = nullptr;
+
+	// launch app
+	auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+	ASSERT_GT(appId, 0);
+	EXPECT_EQ(cti_appIsValid(appId), true);
+
+	// get app output
+	p.closeWrite();
+	{ std::string line;
+		ASSERT_TRUE(std::getline(pipein, line));
+		EXPECT_EQ(line, echoString);
+	}
+
+	// cleanup
+	p.closeRead();
+}
+
+// Test that an app can read input from a file
+TEST_F(CTIFEIfaceTest, InputFile) {
+	// set up string contents
+	auto const echoString = std::to_string(getpid());
+
+	// set up input file
+	auto const inputPath = temp_file_handle{};
+	{ auto inputFile = std::unique_ptr<FILE, decltype(&::fclose)>(fopen(inputPath.get(), "w"), ::fclose);
+		fprintf(inputFile.get(), "%s\n", echoString.c_str());
+	}
+
+	// set up stdout fd
+	Pipe p;
+	ASSERT_GE(p.getReadFd(), 0);
+	ASSERT_GE(p.getWriteFd(), 0);
+	FdBuf pipeInBuf{p.getReadFd()};
+	std::istream pipein{&pipeInBuf};
+
+	// set up launch arguments
+	char const* argv[] = {"/usr/bin/cat", nullptr};
+	auto const  stdoutFd = p.getWriteFd();
+	auto const  stderrFd = -1;
+	char const* inputFile = inputPath.get();
 	char const* chdirPath = nullptr;
 	char const* const* envList  = nullptr;
 
