@@ -180,52 +180,54 @@ CraySLURMApp::getHostsPlacement() const
 /* running app interaction interface */
 
 void CraySLURMApp::releaseBarrier() {
-	// release MPIR barrier if applicable
+	// check MPIR barrier
 	if (!m_srunInstance) {
 		throw std::runtime_error("app not under MPIR control");
 	}
-	m_srunInstance.reset();
 
-	// redirect output to proper FDs now that app is fully launched
-	if ((m_queuedOutFd >= 0) && (m_queuedErrFd >= 0)) {
+	// redirect output to proper FDs before app is continued
+	if ((m_queuedOutFd >= 0) || (m_queuedErrFd >= 0)) {
 		redirectOutput(m_queuedOutFd, m_queuedErrFd);
 		m_queuedOutFd = -1;
 		m_queuedErrFd = -1;
 	}
+
+	// release MPIR barrier
+	m_srunInstance.reset();
 }
 
 void
 CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 {
-	// create the sattach process to redirect output
-	if (auto const sattachPid = fork()) {
-		if (sattachPid < 0) {
-			throw std::runtime_error("fork failed");
-		}
+	// create sattach argv
+	cti_argv::ManagedArgv sattachArgv
+		{ SATTACH // first argument should be "sattach"
+		, "-Q"    // second argument is quiet
+		, getJobId() // third argument is the jobid.stepid
+	};
+
+	// redirect stdin / stderr / stdout
+	std::map<int, int> remapFds {
+		{ open("/dev/null", O_RDONLY), STDIN_FILENO }
+	};
+	if (stdoutFd >= 0) {
+		remapFds[stdoutFd] = STDOUT_FILENO;
+	}
+	if (stderrFd >= 0) {
+		remapFds[stderrFd] = STDERR_FILENO;
+	}
+
+	if (auto const sattachPath = cstr::handle{_cti_pathFind(SATTACH, nullptr)}) {
+		// wait until sattach is set up (hits MPIR_Breakpoint)
+		Inferior sattachInferior{sattachPath.get(), sattachArgv.get(), {}, remapFds};
+		sattachInferior.addSymbol("MPIR_Breakpoint");
+		sattachInferior.setBreakpoint("MPIR_Breakpoint");
+		sattachInferior.continueRun();
 
 		// add to app list of active sattach
-		m_sattachPids.push_back(sattachPid);
+		m_sattachPids.push_back(sattachInferior.getPid());
 	} else {
-		// create sattach argv
-		cti_argv::ManagedArgv sattachArgv
-			{ SATTACH // first argument should be "sattach"
-			// , "-Q"    // second argument is quiet
-			, getJobId() // third argument is the jobid.stepid
-		};
-
-		// redirect stdin / stderr / stdout
-		int devNullFd = open("/dev/null", O_RDONLY);
-		dup2(devNullFd, STDIN_FILENO);
-		dup2(stdoutFd, STDOUT_FILENO);
-		dup2(stderrFd, STDERR_FILENO);
-
-		// child case: exec sattach
-		execvp(SATTACH, sattachArgv.get());
-
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execvp");
-		_exit(1);
+		throw std::runtime_error(std::string{"failed to find in path: "} + SATTACH);
 	}
 }
 
