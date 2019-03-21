@@ -83,11 +83,6 @@ namespace cti_conventions
 	// return true if path exists, is a directory, and has the given permissions
 	static bool dirHasPerms(char const* dirPath, int const perms);
 
-	// verify that FDs are writable, input file path is readable, and chdir path is
-	// read/write/executable. if not, throw an exception with the corresponding error message
-	static void verifyLaunchArgs(int const stdoutFd, int const stderrFd, const char *inputFilePath,
-		const char *chdirPath);
-
 	// use user info to build unique staging path; optionally create the staging direcotry
 	static std::string setupCfgDir();
 
@@ -142,29 +137,6 @@ namespace cti_conventions
 			return false;
 		}
 		return (accessFlags & O_RDWR) || (accessFlags & O_WRONLY);
-	}
-
-	static void
-	verifyLaunchArgs(int const stdoutFd, int const stderrFd, char const *inputFilePath, const char *chdirPath)
-	{
-		// ensure stdout, stderr can be written to
-		// if fd is -1, then the fd arg is meant to be ignored
-		if ((stdoutFd > 0) && !canWriteFd(stdoutFd)) {
-			throw std::runtime_error("Invalid stdout_fd argument. No write access.");
-		}
-		if ((stderrFd > 0) && !canWriteFd(stderrFd)) {
-			throw std::runtime_error("Invalid stderr_fd argument. No write access.");
-		}
-
-		// verify inputFile is a file that can be read
-		if ((inputFilePath != nullptr) && !fileHasPerms(inputFilePath, R_OK)) {
-			throw std::runtime_error("Invalid inputFile argument. No read access.");
-		}
-
-		// verify chdirPath is a directory that can be read, written, and executed
-		if ((chdirPath != nullptr) && !dirHasPerms(chdirPath, R_OK | W_OK | X_OK)) {
-			throw std::runtime_error("Invalid chdirPath argument. No RWX access.");
-		}
 	}
 
 	static std::string
@@ -645,9 +617,6 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
 	return cti_conventions::runSafely(__func__, [&](){
-		// sanity check the app launch arguments
-		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
-
 		// delegate app launch and registration to launchAppBarrier
 		auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 
@@ -659,15 +628,32 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 }
 
 cti_app_id_t
-cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stderrFd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
 	return cti_conventions::runSafely(__func__, [&](){
-		// sanity check the app launch arguments
-		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
+		// verify that FDs are writable, input file path is readable, and chdir path is
+		// read/write/executable. if not, throw an exception with the corresponding error message
+
+		// ensure stdout, stderr can be written to (fd is -1, then ignore)
+		if ((stdoutFd > 0) && !cti_conventions::canWriteFd(stdoutFd)) {
+			throw std::runtime_error("Invalid stdoutFd argument. No write access.");
+		}
+		if ((stderrFd > 0) && !cti_conventions::canWriteFd(stderrFd)) {
+			throw std::runtime_error("Invalid stderr_fd argument. No write access.");
+		}
+
+		// verify inputFile is a file that can be read
+		if ((inputFile != nullptr) && !cti_conventions::fileHasPerms(inputFile, R_OK)) {
+			throw std::runtime_error("Invalid inputFile argument. No read access.");
+		}
+		// verify chdirPath is a directory that can be read, written, and executed
+		if ((chdirPath != nullptr) && !cti_conventions::dirHasPerms(chdirPath, R_OK | W_OK | X_OK)) {
+			throw std::runtime_error("Invalid chdirPath argument. No RWX access.");
+		}
 
 		// register new app instance held at barrier
-		return appRegistry.own(_cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd,
+		return appRegistry.own(_cti_getCurrentFrontend().launchBarrier(launcher_argv, stdoutFd, stderrFd,
 			inputFile, chdirPath, env_list));
 	}, APP_ERROR);
 }
