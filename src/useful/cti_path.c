@@ -297,11 +297,10 @@ _cti_libFind(const char *file)
  * can not be guaranteed to be writable.
  */
 int
-_cti_adjustPaths(const char *path, const char* libPath)
+_cti_adjustPaths(const char *path, const char* libpath)
 {
 	struct stat statbuf;
 	char *binpath = NULL;
-	char *libpath = NULL;
 	
 	// sanity check
 	if (path == NULL)
@@ -332,7 +331,7 @@ _cti_adjustPaths(const char *path, const char* libPath)
 	
 	free(binpath);
 	
-	if (libPath == NULL) {
+	if (libpath == NULL) {
 		if (asprintf(&libpath, "%s/lib", path) <= 0)
 			return 1;
 	}
