@@ -5,6 +5,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <fstream>
+#include <memory>
+
 #include "cti_fe_iface_test.hpp"
 
 #include "useful/ExecvpOutput.hpp"
@@ -13,32 +16,31 @@
 class temp_file_handle
 {
 private:
-	char const* path;
+	std::unique_ptr<char, decltype(&::free)> path;
 
 public:
 	temp_file_handle()
-		: path{tmpnam(nullptr)}
+		: path{strdup("/lus/scratch/tmp/cti-test-XXXXXX"), ::free}
 	{
-		if (path == nullptr) {
-			throw std::runtime_error("tmpnam failed");
+		mktemp(path.get());
+		if (path.get()[0] == '\0') {
+			throw std::runtime_error("mktemp failed");
 		}
 	}
 
 	temp_file_handle(temp_file_handle&& moved)
-		: path{moved.path}
-	{
-		moved.path = nullptr;
-	}
+		: path{std::move(moved.path)}
+	{}
 
 	~temp_file_handle()
 	{
-		if ((path != nullptr) && (remove(path) < 0)) {
+		if (path && (remove(path.get()) < 0)) {
 			// path could have been generated but not opened as a file
-			std::cerr << "warning: remove " << std::string{path} << " failed" << std::endl;
+			std::cerr << "warning: remove " << std::string{path.get()} << " failed" << std::endl;
 		}
 	}
 
-	char const* get() const { return path; }
+	char const* get() const { return path.get(); }
 };
 
 /* cti frontend C interface tests */
@@ -103,14 +105,10 @@ TEST_F(CTIFEIfaceTest, StdoutPipe) {
 	EXPECT_EQ(cti_appIsValid(appId), true);
 
 	// get app output
-	p.closeWrite();
 	{ std::string line;
 		ASSERT_TRUE(std::getline(pipein, line));
 		EXPECT_EQ(line, echoString);
 	}
-
-	// cleanup
-	p.closeRead();
 }
 
 // Test that an app can read input from a file
@@ -145,14 +143,10 @@ TEST_F(CTIFEIfaceTest, InputFile) {
 	EXPECT_EQ(cti_appIsValid(appId), true);
 
 	// get app output
-	p.closeWrite();
 	{ std::string line;
 		ASSERT_TRUE(std::getline(pipein, line));
 		EXPECT_EQ(line, echoString);
 	}
-
-	// cleanup
-	p.closeRead();
 }
 
 // Test that an app can forward environment variables
@@ -183,9 +177,8 @@ TEST_F(CTIFEIfaceTest, EnvVars) {
 	EXPECT_EQ(cti_appIsValid(appId), true);
 
 	// get app output
-	p.closeWrite();
+	bool found = false;
 	{ std::string line;
-		bool found = false;
 		while (std::getline(pipein, line)) {
 			auto const var = line.substr(0, line.find('='));
 			auto const val = line.substr(line.find('=') + 1);
@@ -195,9 +188,100 @@ TEST_F(CTIFEIfaceTest, EnvVars) {
 				break;
 			}
 		}
-		EXPECT_TRUE(found);
+	}
+	EXPECT_TRUE(found);
+}
+
+// Test that an app can create a transfer session
+TEST_F(CTIFEIfaceTest, CreateSession) {
+	// set up app
+	char const* argv[] = {"/bin/sh", nullptr};
+	auto const  stdoutFd = -1;
+	auto const  stderrFd = -1;
+	char const* inputFile = nullptr;
+	char const* chdirPath = nullptr;
+	char const* const* envList  = nullptr;
+
+	// create app
+	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+	ASSERT_GT(appId, 0);
+	EXPECT_EQ(cti_appIsValid(appId), true);
+
+	// create app's session
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_EQ(cti_sessionIsValid(sessionId), true);
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
+}
+
+// Test that an app can create a transfer manifest
+TEST_F(CTIFEIfaceTest, CreateManifest) {
+	// set up app
+	char const* argv[] = {"/bin/sh", nullptr};
+	auto const  stdoutFd = -1;
+	auto const  stderrFd = -1;
+	char const* inputFile = nullptr;
+	char const* chdirPath = nullptr;
+	char const* const* envList  = nullptr;
+
+	// create app
+	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+	ASSERT_GT(appId, 0);
+	EXPECT_EQ(cti_appIsValid(appId), true);
+
+	// create app's session
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_EQ(cti_sessionIsValid(sessionId), true);
+
+	// create manifest
+	auto const manifestId = cti_createManifest(sessionId);
+	ASSERT_EQ(cti_manifestIsValid(manifestId), true);
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
+}
+
+// Test that an app can run a tool daemon
+TEST_F(CTIFEIfaceTest, ExecToolDaemon) {
+	// set up app
+	char const* argv[] = {"/bin/sh", nullptr};
+	auto const  stdoutFd = -1;
+	auto const  stderrFd = -1;
+	char const* inputFile = nullptr;
+	char const* chdirPath = nullptr;
+	char const* const* envList  = nullptr;
+
+	// create app
+	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+	ASSERT_GT(appId, 0);
+	EXPECT_EQ(cti_appIsValid(appId), true);
+
+	// create app's session
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_EQ(cti_sessionIsValid(sessionId), true);
+
+	// create manifest
+	auto const manifestId = cti_createManifest(sessionId);
+	ASSERT_EQ(cti_manifestIsValid(manifestId), true);
+
+	// set up output file
+	auto const outputPath = temp_file_handle{};
+	char const* toolDaemonArgs[] = {outputPath.get(), nullptr};
+	ASSERT_EQ(cti_execToolDaemon(manifestId, "./stage_test/one_printer", toolDaemonArgs, nullptr), SUCCESS);
+	sleep(1); // let tool daemon run
+
+	// read output file
+	{ std::ifstream outputFile(outputPath.get());
+		ASSERT_TRUE(outputFile.is_open());
+		std::string line;
+		ASSERT_TRUE(std::getline(outputFile, line));
+		EXPECT_EQ(line, "1");
 	}
 
 	// cleanup
-	p.closeRead();
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
 }
