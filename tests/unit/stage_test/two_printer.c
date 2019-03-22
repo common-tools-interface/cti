@@ -3,7 +3,8 @@
 int main(int argc, char const* const argv[])
 {
 	if (argc != 2) {
-		fprintf(stderr, "must provide output file path");
+		fprintf(stderr, "must provide output file path\n");
+		return 1;
 	}
 
 	FILE *fp = fopen(argv[1], "w");
