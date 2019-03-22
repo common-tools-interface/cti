@@ -133,6 +133,9 @@ public: // interface
 	/* create a new process with arguments */
 	Inferior(std::string const& launcher, std::vector<std::string> const& launcherArgv,
 		std::vector<std::string> const& envVars = {}, std::map<int, int> const& remapFds = {});
+	Inferior(char const* launcher, char const* const launcherArgv[],
+		std::vector<std::string> const& envVars = {}, std::map<int, int> const& remapFds = {});
+
 	/* attach to existing process */
 	Inferior(std::string const& launcher, pid_t pid);
 	~Inferior();

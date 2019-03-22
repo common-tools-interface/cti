@@ -54,7 +54,7 @@ const struct option long_opts[] = {
 			{"manifest",	required_argument,	0, 'm'},
 			{"path",		required_argument,	0, 'p'},
 			{"apath",		required_argument,	0, 't'},
-			{"ldlibpath",	required_argument,	0, 't'},
+			{"ldlibpath",	required_argument,	0, 'l'},
 			{"wlm",			required_argument,	0, 'w'},
 			{"help",		no_argument,		0, 'h'},
 			{"debug",		no_argument,		&debug_flag, 1},

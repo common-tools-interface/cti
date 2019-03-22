@@ -83,11 +83,6 @@ namespace cti_conventions
 	// return true if path exists, is a directory, and has the given permissions
 	static bool dirHasPerms(char const* dirPath, int const perms);
 
-	// verify that FDs are writable, input file path is readable, and chdir path is
-	// read/write/executable. if not, throw an exception with the corresponding error message
-	static void verifyLaunchArgs(int const stdoutFd, int const stderrFd, const char *inputFilePath,
-		const char *chdirPath);
-
 	// use user info to build unique staging path; optionally create the staging direcotry
 	static std::string setupCfgDir();
 
@@ -116,65 +111,32 @@ namespace cti_conventions
 	}
 
 	static bool
+	fileHasPerms(char const* filePath, int const perms)
+	{
+		struct stat st;
+		return !stat(filePath, &st) // make sure this directory exists
+			&& S_ISREG(st.st_mode)  // make sure it is a regular file
+			&& !access(filePath, perms); // check that the file has the desired permissions
+	}
+
+	static bool
 	dirHasPerms(char const* dirPath, int const perms)
 	{
 		struct stat st;
 		return !stat(dirPath, &st) // make sure this directory exists
-		    && S_ISDIR(st.st_mode) // make sure it is a directory
-		    && !access(dirPath, perms); // check if we can access the directory
+			&& S_ISDIR(st.st_mode) // make sure it is a directory
+			&& !access(dirPath, perms); // check that the directory has the desired permissions
 	}
 
-	static void
-	verifyLaunchArgs(int const stdoutFd, int const stderrFd, char const *inputFilePath, const char *chdirPath)
+	static bool
+	canWriteFd(int const fd)
 	{
-		auto canWriteFd = [](int const fd) {
-			// if fd is -1, then the fd arg is meant to be ignored
-			if (fd == -1) {
-				return true;
-			}
-			errno = 0;
-			int accessFlags = fcntl(fd, F_GETFL) & O_ACCMODE;
-			if (errno != 0) {
-				return false;
-			}
-			return (accessFlags & O_WRONLY) || (accessFlags & O_WRONLY);
-		};
-
-		// ensure stdout, stderr can be written to
-		if (!canWriteFd(stdoutFd)) {
-			throw std::runtime_error("Invalid stdout_fd argument. No write access.");
+		errno = 0;
+		int accessFlags = fcntl(fd, F_GETFL) & O_ACCMODE;
+		if (errno != 0) {
+			return false;
 		}
-		if (!canWriteFd(stderrFd)) {
-			throw std::runtime_error("Invalid stderr_fd argument. No write access.");
-		}
-
-		// verify inputFile is a file that can be read
-		if (inputFilePath != nullptr) {
-			struct stat st;
-			if (stat(inputFilePath, &st)) { // make sure inputfile exists
-				throw std::runtime_error("Invalid inputFile argument. File does not exist.");
-			}
-			if (!S_ISREG(st.st_mode)) { // make sure it is a regular file
-				throw std::runtime_error("Invalid inputFile argument. The file is not a regular file.");
-			}
-			if (access(inputFilePath, R_OK)) { // make sure we can access it
-				throw std::runtime_error("Invalid inputFile argument. Bad permissions.");
-			}
-		}
-
-		// verify chdirPath is a directory that can be read, written, and executed
-		if (chdirPath != nullptr) {
-			struct stat st;
-			if (stat(chdirPath, &st)) { // make sure chdirpath exists
-				throw std::runtime_error("Invalid chdirPath argument. Directory does not exist.");
-			}
-			if (!S_ISDIR(st.st_mode)) { // make sure it is a directory
-				throw std::runtime_error("Invalid chdirPath argument. The file is not a directory.");
-			}
-			if (access(chdirPath, R_OK | W_OK | X_OK)) { // make sure we can access it
-				throw std::runtime_error("Invalid chdirPath argument. Bad permissions.");
-			}
-		}
+		return (accessFlags & O_RDWR) || (accessFlags & O_WRONLY);
 	}
 
 	static std::string
@@ -354,6 +316,8 @@ namespace cti_conventions
 			return std::make_unique<CraySLURMFrontend>();
 		} else if (!wlmName.compare("generic")) {
 			return  std::make_unique<GenericSSHFrontend>();
+		} else if (!wlmName.compare("mock")) {
+			return  std::make_unique<MockFrontend>();
 		} else {
 			// fallback to use the default
 			fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
@@ -483,6 +447,9 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 
 		case CTI_WLM_SSH:
 			return "Fallback (SSH based) workload manager";
+
+		case CTI_WLM_MOCK:
+			return "Test WLM frontend";
 
 		case CTI_WLM_NONE:
 			return "No WLM detected";
@@ -617,7 +584,16 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 	}, (cti_srunProc_t*)nullptr);
 }
 
+// SSH
 
+cti_app_id_t
+cti_ssh_registerJob(pid_t launcher_pid)
+{
+	return cti_conventions::runSafely(__func__, [&](){
+		auto& genericSSH = downcastCurrentFE<GenericSSHFrontend>();
+		return appRegistry.own(genericSSH.registerJob(1, launcher_pid));
+	}, APP_ERROR);
+}
 
 /* app launch / release implementations */
 
@@ -641,9 +617,6 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
 	return cti_conventions::runSafely(__func__, [&](){
-		// sanity check the app launch arguments
-		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
-
 		// delegate app launch and registration to launchAppBarrier
 		auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 
@@ -655,15 +628,32 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 }
 
 cti_app_id_t
-cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stderrFd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
 	return cti_conventions::runSafely(__func__, [&](){
-		// sanity check the app launch arguments
-		cti_conventions::verifyLaunchArgs(stdout_fd, stderr_fd, inputFile, chdirPath);
+		// verify that FDs are writable, input file path is readable, and chdir path is
+		// read/write/executable. if not, throw an exception with the corresponding error message
+
+		// ensure stdout, stderr can be written to (fd is -1, then ignore)
+		if ((stdoutFd > 0) && !cti_conventions::canWriteFd(stdoutFd)) {
+			throw std::runtime_error("Invalid stdoutFd argument. No write access.");
+		}
+		if ((stderrFd > 0) && !cti_conventions::canWriteFd(stderrFd)) {
+			throw std::runtime_error("Invalid stderr_fd argument. No write access.");
+		}
+
+		// verify inputFile is a file that can be read
+		if ((inputFile != nullptr) && !cti_conventions::fileHasPerms(inputFile, R_OK)) {
+			throw std::runtime_error("Invalid inputFile argument. No read access.");
+		}
+		// verify chdirPath is a directory that can be read, written, and executed
+		if ((chdirPath != nullptr) && !cti_conventions::dirHasPerms(chdirPath, R_OK | W_OK | X_OK)) {
+			throw std::runtime_error("Invalid chdirPath argument. No RWX access.");
+		}
 
 		// register new app instance held at barrier
-		return appRegistry.own(_cti_getCurrentFrontend().launchBarrier(launcher_argv, stdout_fd, stderr_fd,
+		return appRegistry.own(_cti_getCurrentFrontend().launchBarrier(launcher_argv, stdoutFd, stderrFd,
 			inputFile, chdirPath, env_list));
 	}, APP_ERROR);
 }
@@ -891,3 +881,26 @@ _cti_consumeSession(void* rawSidPtr) {
 
 void _cti_transfer_init(void) { /* no-op */ }
 void _cti_transfer_fini(void) { /* no-op */ }
+
+int
+cti_setAttribute(cti_attr_type attrib, const char *value)
+{
+	return cti_conventions::runSafely(__func__, [&](){
+		switch (attrib) {
+			case CTI_ATTR_STAGE_DEPENDENCIES:
+				if (value == nullptr) {
+					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for 'value'."); 
+				} else if (value[0] == '0') {
+					_cti_setStageDeps(false);
+					return SUCCESS;
+				} else if (value[0] == '1') {
+					_cti_setStageDeps(true);
+					return SUCCESS;
+				} else {
+					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '" + std::to_string(value[0]) + "'"); 
+				}
+			default:
+				throw std::runtime_error("Invalid cti_attr_type " + std::to_string((int)attrib)); 
+		}
+	}, FAILURE);
+}

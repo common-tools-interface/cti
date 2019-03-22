@@ -1,0 +1,6 @@
+print_one/print.o
+print_one/libprint.so
+print_two/print.o
+print_two/libprint.so
+one_printer
+two_printer

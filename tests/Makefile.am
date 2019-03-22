@@ -10,6 +10,8 @@
 # in any form.
 #
 
+SUBDIRS = unit
+
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
 AM_LIBTOOLFLAGS = --quiet
 

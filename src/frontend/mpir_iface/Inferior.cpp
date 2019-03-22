@@ -20,7 +20,7 @@ static Dyninst::SymtabAPI::Symtab* make_Symtab(std::string const& binary) {
 
 	Symtab *symtab_ptr;
 	if (!Symtab::openFile(symtab_ptr, binary)) {
-		throw std::runtime_error("Symtab failed to open file");
+		throw std::runtime_error("Symtab failed to open file: '" + binary + "'");
 	}
 	return symtab_ptr;
 }
@@ -49,6 +49,23 @@ Inferior::Inferior(std::string const& launcher,
 	/* prepare breakpoint callback */
 	Process::registerEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 }
+
+static size_t numArgv(char const* const argv[])
+{
+	size_t count = 0;
+	for (char const* const* arg = argv; *arg != nullptr; arg++) { count++; }
+	return count;
+}
+
+Inferior::Inferior(char const* launcher, char const* const launcherArgv[],
+	std::vector<std::string> const& envVars, std::map<int, int> const& remapFds)
+	: Inferior
+		{ launcher
+		, std::vector<std::string>{ launcherArgv, launcherArgv + numArgv(launcherArgv) }
+		, envVars
+		, remapFds
+	}
+{}
 
 Inferior::Inferior(std::string const& launcher, pid_t pid)
 	: m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
