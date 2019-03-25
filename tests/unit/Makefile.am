@@ -23,11 +23,11 @@ libgtest_la_LDFLAGS  = -pthread
 
 # specify test binaries
 TESTS = unit_tests
-noinst_PROGRAMS = unit_tests
+noinst_PROGRAMS = unit_tests function_tests
 check_PROGRAMS = unit_tests
 
 # unit test binary
-unit_tests_SOURCES  = unit_tests.cpp cti_fe_iface_test.cpp
+unit_tests_SOURCES  = unit_tests.cpp cti_fe_unit_test.cpp
 unit_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(GTEST)/include -I$(GTEST) \
 	$(ARCHIVE_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
 unit_tests_CXXFLAGS = $(AM_CXXFLAGS) $(unit_tests_CFLAGS)
@@ -36,7 +36,17 @@ unit_tests_LDFLAGS  =	-pthread -Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-n
 	-Wl,--no-undefined -Wl,--as-needed -version-info \
 	$(CRAYTOOL_FE_VERSION) $(ARCHIVE_LDFLAGS) $(DYNINST_LDFLAGS)
 
-# support binaries for unit tests
+# function test binary
+function_tests_SOURCES  = function_tests.cpp cti_fe_function_test.cpp
+function_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(GTEST)/include -I$(GTEST) \
+	$(ARCHIVE_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
+function_tests_CXXFLAGS = $(AM_CXXFLAGS) $(unit_tests_CFLAGS)
+function_tests_LDADD    = $(SRC)/frontend/libcraytools_fe.la libgtest.la -ldl -lrt -lstdc++
+function_tests_LDFLAGS  =	-pthread -Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags \
+	-Wl,--no-undefined -Wl,--as-needed -version-info \
+	$(CRAYTOOL_FE_VERSION) $(ARCHIVE_LDFLAGS) $(DYNINST_LDFLAGS)
+
+# support binaries for function tests
 
 # stage test helpers (one_printer, two_printer, libprint.so)
 noinst_PROGRAMS += stage_test/one_printer stage_test/two_printer
