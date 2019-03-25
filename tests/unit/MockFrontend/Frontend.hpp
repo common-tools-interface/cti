@@ -18,20 +18,21 @@
 
 #pragma once
 
+#include "gmock/gmock.h"
 
 #include "frontend/Frontend.hpp"
 
 class MockFrontend : public Frontend
 {
 public: // inherited interface
-	cti_wlm_type getWLMType() const override;
+	MOCK_CONST_METHOD0(getWLMType, cti_wlm_type(void));
 
-	std::unique_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-		CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+	MOCK_METHOD6(launchBarrier, std::unique_ptr<App>(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+		CStr inputFile, CStr chdirPath, CArgArray env_list));
 
-	std::unique_ptr<App> registerJob(size_t numIds, ...) override;
+	std::unique_ptr<App> registerJob(size_t numIds, ...) override { return nullptr; }
 
-	std::string getHostname() const override;
+	MOCK_CONST_METHOD0(getHostname, std::string(void));
 };
 
 /* Types used here */
@@ -40,6 +41,7 @@ class MockApp : public App
 {
 private: // variables
 	pid_t      m_launcherPid; // job launcher PID
+	std::string const m_jobId; // unique job identifier
 	bool       m_atBarrier; // Are we at MPIR barrier?
 
 public: // constructor / destructor interface

@@ -22,53 +22,20 @@
 
 #include "Frontend.hpp"
 
-cti_wlm_type
-MockFrontend::getWLMType() const
-{
-	return CTI_WLM_MOCK;
-}
-
-std::unique_ptr<App>
-MockFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-	CStr inputFile, CStr chdirPath, CArgArray env_list)
-{
-	return std::make_unique<MockApp>(getpid());
-}
-
-std::unique_ptr<App>
-MockFrontend::registerJob(size_t numIds, ...)
-{
-	if (numIds != 1) {
-		throw std::logic_error("expecting single pid argument to register app");
-	}
-
-	va_list idArgs;
-	va_start(idArgs, numIds);
-
-	pid_t launcherPid = va_arg(idArgs, pid_t);
-
-	va_end(idArgs);
-
-	return std::make_unique<MockApp>(launcherPid);
-}
-
-std::string
-MockFrontend::getHostname() const
-{
-	return "hostname";
-}
-
 /* MockApp implementation */
+
+static size_t appCount = 0;
 
 MockApp::MockApp(pid_t launcherPid)
 	: m_launcherPid{launcherPid}
+	, m_jobId{std::to_string(m_launcherPid) + std::to_string(appCount++)}
 	, m_atBarrier{true}
 {}
 
 std::string
 MockApp::getJobId() const
 {
-	return std::to_string(m_launcherPid);
+	return m_jobId;
 }
 
 std::string

@@ -93,7 +93,7 @@ namespace cti_conventions
 	static std::string setupBaseDir();
 
 	// use environment info to determine and instantiate the correct WLM Frontend implementation
-	static std::unique_ptr<Frontend> make_Frontend();
+	static std::unique_ptr<Frontend> detect_Frontend();
 
 	/* function implementations */
 
@@ -271,7 +271,7 @@ namespace cti_conventions
 	 * is used.
 	*/
 	static std::unique_ptr<Frontend>
-	make_Frontend()
+	detect_Frontend()
 	{
 		using DefaultFrontend = CraySLURMFrontend;
 
@@ -316,8 +316,6 @@ namespace cti_conventions
 			return std::make_unique<CraySLURMFrontend>();
 		} else if (!wlmName.compare("generic")) {
 			return  std::make_unique<GenericSSHFrontend>();
-		} else if (!wlmName.compare("mock")) {
-			return  std::make_unique<MockFrontend>();
 		} else {
 			// fallback to use the default
 			fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
@@ -408,9 +406,16 @@ _cti_getDlaunchPath() {
 	return _cti_dlaunch_bin;
 }
 
+static auto _cti_currentFrontendPtr = cti_conventions::detect_Frontend();
+
+void
+_cti_setFrontend(std::unique_ptr<Frontend>&& expiring)
+{
+	_cti_currentFrontendPtr = std::move(expiring);
+}
+
 Frontend&
 _cti_getCurrentFrontend() {
-	static auto _cti_currentFrontendPtr = cti_conventions::make_Frontend();
 	return *_cti_currentFrontendPtr;
 }
 
