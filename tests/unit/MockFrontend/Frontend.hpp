@@ -44,26 +44,30 @@ private: // variables
 	std::string const m_jobId; // unique job identifier
 	bool       m_atBarrier; // Are we at MPIR barrier?
 
+private: // delegated constructors
+	MockApp();
+
 public: // constructor / destructor interface
 	// register case
 	MockApp(pid_t launcherPid);
-	~MockApp() = default;
+
+	virtual ~MockApp();
 
 public: // app interaction interface
-	std::string getJobId()            const override;
-	std::string getLauncherHostname() const override;
-	std::string getToolPath()         const override;
-	std::string getAttribsPath()      const override;
+	std::string getJobId() const { return m_jobId; }
+	MOCK_CONST_METHOD0(getLauncherHostname, std::string(void));
+	MOCK_CONST_METHOD0(getToolPath,         std::string(void));
+	MOCK_CONST_METHOD0(getAttribsPath,      std::string(void));
 
-	std::vector<std::string> getExtraFiles() const override;
+	MOCK_CONST_METHOD0(getExtraFiles, std::vector<std::string>(void));
 
-	size_t getNumPEs()       const override;
-	size_t getNumHosts()     const override;
-	std::vector<std::string> getHostnameList()   const override;
-	std::vector<CTIHost>     getHostsPlacement() const override;
+	MOCK_CONST_METHOD0(getNumPEs,   size_t(void));
+	MOCK_CONST_METHOD0(getNumHosts, size_t(void));
+	MOCK_CONST_METHOD0(getHostnameList,   std::vector<std::string>(void));
+	MOCK_CONST_METHOD0(getHostsPlacement, std::vector<CTIHost>(void));
 
 	void releaseBarrier() override;
-	void kill(int signal) override;
-	void shipPackage(std::string const& tarPath) const override;
-	void startDaemon(const char* const args[]) override;
+	MOCK_METHOD1(kill, void(int));
+	MOCK_CONST_METHOD1(shipPackage, void(std::string const&));
+	MOCK_METHOD1(startDaemon, void(const char* const []));
 };

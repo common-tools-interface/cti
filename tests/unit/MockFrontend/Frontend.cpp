@@ -27,7 +27,8 @@
 static size_t appCount = 0;
 
 MockApp::MockApp(pid_t launcherPid)
-	: m_launcherPid{launcherPid}
+	: MockApp{}
+	, m_launcherPid{launcherPid}
 	, m_jobId{std::to_string(m_launcherPid) + std::to_string(appCount++)}
 	, m_atBarrier{true}
 {}
@@ -38,54 +39,6 @@ MockApp::getJobId() const
 	return m_jobId;
 }
 
-std::string
-MockApp::getLauncherHostname() const
-{
-	return "hostname";
-}
-
-std::string
-MockApp::getToolPath() const
-{
-	return "toolpath";
-}
-
-std::string
-MockApp::getAttribsPath() const
-{
-	return "attrpath";
-}
-
-std::vector<std::string>
-MockApp::getExtraFiles() const
-{
-	return {};
-}
-
-size_t
-MockApp::getNumPEs() const
-{
-	return 1;
-}
-
-size_t
-MockApp::getNumHosts() const
-{
-	return 1;
-}
-
-std::vector<std::string>
-MockApp::getHostnameList() const
-{
-	return {};
-}
-
-std::vector<CTIHost>
-MockApp::getHostsPlacement() const
-{
-	return {};
-}
-
 void
 MockApp::releaseBarrier()
 {
@@ -93,20 +46,4 @@ MockApp::releaseBarrier()
 		throw std::runtime_error("app not at startup barrier");
 	}
 	m_atBarrier = false;
-}
-
-void
-MockApp::kill(int signal)
-{
-	return;
-}
-
-void MockApp::shipPackage(std::string const& tarPath) const
-{
-	return;
-}
-
-void MockApp::startDaemon(const char* const args[])
-{
-	return;
 }
