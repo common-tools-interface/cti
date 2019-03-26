@@ -52,6 +52,8 @@ public: // inherited interface
 		_cti_getLogger().write((getJobId() + ":" + fmt).c_str(), std::forward<Args>(args)...);
 	}
 
+	virtual ~App() {}
+
 public: // pure virtual interface
 
 	/* app host setup accessors */
@@ -115,6 +117,9 @@ public: // pure virtual interface
 // This is the wlm interface that all wlm implementations should implement.
 class Frontend {
 public: // impl.-specific interface
+	virtual
+	~Frontend() {}
+
 	// wlm type
 	virtual cti_wlm_type
 	getWLMType() const = 0;

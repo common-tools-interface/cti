@@ -376,6 +376,18 @@ static auto appRegistry      = Registry<cti_app_id_t,      std::unique_ptr<App>>
 static auto sessionRegistry  = Registry<cti_session_id_t,  std::shared_ptr<Session>>{};
 static auto manifestRegistry = Registry<cti_manifest_id_t, std::shared_ptr<Manifest>>{};
 
+cti_app_id_t
+_cti_registerApp(std::unique_ptr<App>&& expiring)
+{
+	return appRegistry.own(std::move(expiring));
+}
+
+App&
+_cti_getApp(cti_app_id_t const appId)
+{
+	return *appRegistry.get(appId);
+}
+
 std::string const&
 _cti_getCfgDir() {
 	static std::string _cti_cfg_dir = cti_conventions::setupCfgDir();
