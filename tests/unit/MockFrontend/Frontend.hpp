@@ -24,6 +24,13 @@
 
 class MockFrontend : public Frontend
 {
+public: // types
+	using Nice = ::testing::NiceMock<MockFrontend>;
+
+public: // mock constructor
+	MockFrontend();
+	virtual ~MockFrontend() = default;
+
 public: // inherited interface
 	MOCK_CONST_METHOD0(getWLMType, cti_wlm_type(void));
 
@@ -39,21 +46,20 @@ public: // inherited interface
 
 class MockApp : public App
 {
+public: // types
+	using Nice = ::testing::NiceMock<MockApp>;
+
 private: // variables
 	pid_t      m_launcherPid; // job launcher PID
 	std::string const m_jobId; // unique job identifier
 	bool       m_atBarrier; // Are we at MPIR barrier?
 
-private: // delegated constructors
-	MockApp();
-
 public: // constructor / destructor interface
 	// register case
 	MockApp(pid_t launcherPid);
+	virtual ~MockApp() = default;
 
-	virtual ~MockApp();
-
-public: // app interaction interface
+public: // inherited interface
 	std::string getJobId() const { return m_jobId; }
 	MOCK_CONST_METHOD0(getLauncherHostname, std::string(void));
 	MOCK_CONST_METHOD0(getToolPath,         std::string(void));

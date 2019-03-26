@@ -22,22 +22,30 @@
 
 #include "Frontend.hpp"
 
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::WithoutArgs;
+
+/* MockFrontend implementation */
+
+MockFrontend::MockFrontend()
+{
+	// describe behavior of mock launchBarrier
+	ON_CALL(*this, launchBarrier(_, _, _, _, _, _))
+		.WillByDefault(WithoutArgs(Invoke([]() {
+			return std::make_unique<MockApp::Nice>(getpid());
+		})));
+}
+
 /* MockApp implementation */
 
 static size_t appCount = 0;
 
 MockApp::MockApp(pid_t launcherPid)
-	: MockApp{}
-	, m_launcherPid{launcherPid}
+	: m_launcherPid{launcherPid}
 	, m_jobId{std::to_string(m_launcherPid) + std::to_string(appCount++)}
 	, m_atBarrier{true}
 {}
-
-std::string
-MockApp::getJobId() const
-{
-	return m_jobId;
-}
 
 void
 MockApp::releaseBarrier()

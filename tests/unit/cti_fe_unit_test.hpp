@@ -1,34 +1,35 @@
 #pragma once
 
-#include "gtest/gtest.h"
-
 #include "frontend/cti_fe_iface.h"
 
 #include "MockFrontend/Frontend.hpp"
 
-// internal cti function to set the current frontend
+// internal cti functions to facilitate testing
 void _cti_setFrontend(std::unique_ptr<Frontend>&& expiring);
+cti_app_id_t _cti_registerApp(std::unique_ptr<App>&& expiring);
+App& _cti_getApp(cti_app_id_t const appId);
 
 static constexpr auto SUCCESS = int{0};
 static constexpr auto FAILURE = int{1};
 
 static constexpr auto APP_ERROR = cti_app_id_t{0};
 
-// The fixture for unit testing C interface
+// The fixture for unit testing the C frontend interface
 class CTIFEUnitTest : public ::testing::Test
 {
-private:
-
 protected:
-	CTIFEUnitTest()
-	{
-		// manually set the frontend to the custom mock frontend
-		_cti_setFrontend(std::make_unique<MockFrontend>());
-	}
+	CTIFEUnitTest();
+	virtual ~CTIFEUnitTest();
+};
 
-	~CTIFEUnitTest() override
-	{
-		// destruct the mock frontend so that final checks can be performed
-		_cti_setFrontend(nullptr);
-	}
+// The fixture for unit testing the C app interface
+class CTIAppUnitTest : public CTIFEUnitTest
+{
+protected: // variables
+	cti_app_id_t const appId;
+	MockApp::Nice& mockApp;
+
+protected: // interface
+	CTIAppUnitTest();
+	~CTIAppUnitTest();
 };
