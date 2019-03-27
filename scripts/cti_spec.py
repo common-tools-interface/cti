@@ -6,8 +6,6 @@ content='''%define namespace [namespace]
 %define scripts_d [script_dir]
 %define build_version [version]
 
-#%define man_source /cray/css/compiler/comp_rel/pubs/manpages/lgdb/%{two_dig_version}/xt_lgdb_%{two_dig_nodot_version}.cpio
-
 Summary: Performance Application Programming Interface
 Name: %{namespace}-%{intranamespace_name}-%{build_version}
 Version: [package_revision]
@@ -85,17 +83,15 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 
 %{_version_prefix}/libexec/
 %{_version_prefix}/libexec/cti_overwatch
-%{_version_prefix}/libexec/cti_dlaunch1.0
+%{_version_prefix}/libexec/cti_dlaunch*
 
 %{_version_prefix}/lib
 %{_version_prefix}/lib/libaudit.so
 %{_version_prefix}/lib/libaudit.la
 %{_version_prefix}/lib/libcraytools_fe.so*
 %{_version_prefix}/lib/libcraytools_fe.la
-%{_version_prefix}/lib/libcraytools_fe.a
 %{_version_prefix}/lib/libcraytools_be.so*
 %{_version_prefix}/lib/libcraytools_be.la
-%{_version_prefix}/lib/libcraytools_be.a
 %{_version_prefix}/lib/pkgconfig/
 %{_version_prefix}/lib/pkgconfig/craytools_be.pc
 %{_version_prefix}/lib/pkgconfig/craytools_fe.pc
