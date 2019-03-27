@@ -72,7 +72,7 @@ public: // inherited interface
 	MOCK_CONST_METHOD0(getHostnameList,   std::vector<std::string>(void));
 	MOCK_CONST_METHOD0(getHostsPlacement, std::vector<CTIHost>(void));
 
-	void releaseBarrier() override;
+	MOCK_METHOD0(releaseBarrier, void(void));
 	MOCK_METHOD1(kill, void(int));
 	MOCK_CONST_METHOD1(shipPackage, void(std::string const&));
 	MOCK_METHOD1(startDaemon, void(const char* const []));

@@ -45,13 +45,13 @@ MockApp::MockApp(pid_t launcherPid)
 	: m_launcherPid{launcherPid}
 	, m_jobId{std::to_string(m_launcherPid) + std::to_string(appCount++)}
 	, m_atBarrier{true}
-{}
-
-void
-MockApp::releaseBarrier()
 {
-	if (!m_atBarrier) {
-		throw std::runtime_error("app not at startup barrier");
-	}
-	m_atBarrier = false;
+	// describe behavior of mock releaseBarrier
+	ON_CALL(*this, releaseBarrier())
+		.WillByDefault(WithoutArgs(Invoke([&]() {
+			if (!m_atBarrier) {
+				throw std::runtime_error("app not at startup barrier");
+			}
+			m_atBarrier = false;
+		})));
 }
