@@ -245,25 +245,198 @@ TEST_F(CTIAppUnitTest, KillApp)
 /* transfer session management tests */
 
 // cti_session_id_t	cti_createSession(cti_app_id_t appId);
+// Tests that the interface can create a session using an app
+TEST_F(CTIAppUnitTest, CreateSession)
+{
+	// run the test
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	// cleanup session
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
 // int             	cti_sessionIsValid(cti_session_id_t sid);
+// Tests that the interface can create a valid session
+TEST_F(CTIAppUnitTest, SessionIsValid)
+{
+	// run the test
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+	EXPECT_EQ(cti_sessionIsValid(sessionId), true);
+
+	// cleanup session
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
 // int             	cti_destroySession(cti_session_id_t sid);
-// void _cti_consumeSession(void* sidPtr); // destroy session via appentry's session list
+// Tests that the interface can destroy a session
+TEST_F(CTIAppUnitTest, DestroySession)
+{
+	// run the test
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
 
 /* transfer session directory listings tests */
 
 // char **	cti_getSessionLockFiles(cti_session_id_t sid);
-// char * 	cti_getSessionRootDir(cti_session_id_t sid);
-// char * 	cti_getSessionBinDir(cti_session_id_t sid);
-// char * 	cti_getSessionLibDir(cti_session_id_t sid);
-// char * 	cti_getSessionFileDir(cti_session_id_t sid);
-// char * 	cti_getSessionTmpDir(cti_session_id_t sid);
+// Tests that the interface can get a session's lock files
+TEST_F(CTIAppUnitTest, GetSessionLockFiles)
+{
+	// run the test
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
 
+	auto const lockFilesList = make_unique_destr(cti_getSessionLockFiles(sessionId), free_ptr_list<char*>);
+	ASSERT_TRUE(lockFilesList != nullptr);
+
+	// there should have been one manifest for the dlaunch binary
+	EXPECT_TRUE(lockFilesList.get()[0] != nullptr);
+	EXPECT_TRUE(lockFilesList.get()[1] == nullptr);
+
+	// cleanup session
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
+// char * 	cti_getSessionRootDir(cti_session_id_t sid);
+// Tests that the interface can get a session's root directory
+TEST_F(CTIAppUnitTest, GetSessionRootDir)
+{
+	// run the test
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	ASSERT_TRUE(rawRootDir != nullptr);
+
+	// cleanup session
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
+// char * 	cti_getSessionBinDir(cti_session_id_t sid);
+// Tests that the interface can get a session's bin directory
+TEST_F(CTIAppUnitTest, GetSessionBinDir)
+{
+	// run the test
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	ASSERT_TRUE(rawRootDir != nullptr);
+	auto const rawBinDir = make_unique_destr(cti_getSessionBinDir(sessionId), ::free);
+	ASSERT_TRUE(rawBinDir != nullptr);
+	ASSERT_EQ(std::string{rawBinDir.get()}, std::string{rawRootDir.get()} + "/bin");
+
+	// cleanup session
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
+// char * 	cti_getSessionLibDir(cti_session_id_t sid);
+// Tests that the interface can get a session's lib directory
+TEST_F(CTIAppUnitTest, GetSessionLibDir)
+{
+	// run the test
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	ASSERT_TRUE(rawRootDir != nullptr);
+	auto const rawLibDir = make_unique_destr(cti_getSessionLibDir(sessionId), ::free);
+	ASSERT_TRUE(rawLibDir != nullptr);
+	ASSERT_EQ(std::string{rawLibDir.get()}, std::string{rawRootDir.get()} + "/lib");
+
+	// cleanup session
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
+// char * 	cti_getSessionFileDir(cti_session_id_t sid);
+// Tests that the interface can get a session's file directory
+TEST_F(CTIAppUnitTest, GetSessionFileDir)
+{
+	// run the test
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	ASSERT_TRUE(rawRootDir != nullptr);
+	auto const rawFileDir = make_unique_destr(cti_getSessionFileDir(sessionId), ::free);
+	ASSERT_TRUE(rawFileDir != nullptr);
+	ASSERT_EQ(std::string{rawFileDir.get()}, std::string{rawRootDir.get()});
+
+	// cleanup session
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
+// char * 	cti_getSessionTmpDir(cti_session_id_t sid);
+// Tests that the interface can get a session's temp directory
+TEST_F(CTIAppUnitTest, GetSessionTmpDir)
+{
+	// run the test
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	ASSERT_TRUE(rawRootDir != nullptr);
+	auto const rawTmpDir = make_unique_destr(cti_getSessionTmpDir(sessionId), ::free);
+	ASSERT_TRUE(rawTmpDir != nullptr);
+	ASSERT_EQ(std::string{rawTmpDir.get()}, std::string{rawRootDir.get()} + "/tmp");
+
+	// cleanup session
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
 
 /* transfer manifest management tests */
 
 // cti_manifest_id_t	cti_createManifest(cti_session_id_t sid);
+// Tests that the interface can create a manifest
+TEST_F(CTIAppUnitTest, CreateManifest)
+{
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	// run the test
+	auto const manifestId = cti_createManifest(sessionId);
+	ASSERT_NE(manifestId, MANIFEST_ERROR);
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
 // int              	cti_manifestIsValid(cti_manifest_id_t mid);
+// Tests that the interface can create a valid manifest
+TEST_F(CTIAppUnitTest, ManifestIsValid)
+{
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	// run the test
+	auto const manifestId = cti_createManifest(sessionId);
+	ASSERT_NE(manifestId, MANIFEST_ERROR);
+	ASSERT_EQ(cti_manifestIsValid(manifestId), true);
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
 // int              	cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName);
+// Tests that the interface can add a binary to a manifest
+TEST_F(CTIAppUnitTest, AddManifestBinary)
+{
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	// run the test
+	auto const manifestId = cti_createManifest(sessionId);
+	ASSERT_NE(manifestId, MANIFEST_ERROR);
+
+	ASSERT_EQ(cti_addManifestBinary(manifestId, "./stage_test/one_printer"), SUCCESS);
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
 // int              	cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName);
 // int              	cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName);
 // int              	cti_addManifestFile(cti_manifest_id_t mid, const char * rawName);

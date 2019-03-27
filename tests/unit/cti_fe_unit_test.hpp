@@ -13,6 +13,8 @@ static constexpr auto SUCCESS = int{0};
 static constexpr auto FAILURE = int{1};
 
 static constexpr auto APP_ERROR = cti_app_id_t{0};
+static constexpr auto SESSION_ERROR  = cti_session_id_t{0};
+static constexpr auto MANIFEST_ERROR  = cti_manifest_id_t{0};
 
 // The fixture for unit testing the C frontend interface
 class CTIFEUnitTest : public ::testing::Test
