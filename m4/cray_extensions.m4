@@ -70,7 +70,7 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 	dnl run configure with options that work on build systems
 	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} --disable-shared --with-pic --without-expat --without-xml2 \
 	--without-openssl --without-nettle --without-lzo2 --without-lzma --without-libiconv-prefix --without-iconv \
-	--without-lzmadec --without-bz2lib --without-zlib --disable-bsdtar --disable-bsdcpio \
+	--without-lzmadec --without-bz2lib --without-zlib --disable-bsdtar --disable-bsdcpio --disable-acl \
 	--disable-rpath >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[libarchive configure failed.]],
