@@ -53,7 +53,7 @@ private: // variables
 	pid_t      m_launcherPid; // job launcher PID
 	std::string const m_jobId; // unique job identifier
 	bool       m_atBarrier; // Are we at MPIR barrier?
-	std::vector<std::string> shippedFilePaths;
+	std::vector<std::string> m_shippedFilePaths;
 
 public: // constructor / destructor interface
 	// register case
@@ -79,6 +79,6 @@ public: // inherited interface
 	MOCK_METHOD1(startDaemon, void(const char* const []));
 
 public: // interface
-	std::vector<std::string> const& getShippedFilePaths() const { return shippedFilePaths; }
+	std::vector<std::string> getShippedFilePaths() const { return m_shippedFilePaths; }
 
 };

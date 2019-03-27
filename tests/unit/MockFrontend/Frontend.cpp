@@ -86,7 +86,7 @@ MockApp::MockApp(pid_t launcherPid)
 				auto const path = std::string{archive_entry_pathname(entry)};
 				// only add it to the list if it's a file
 				if (!path.empty() && (path.back() != '/')) {
-					shippedFilePaths.push_back(path);
+					m_shippedFilePaths.push_back(path);
 				}
 				archive_read_data_skip(archPtr.get());
 			}

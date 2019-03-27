@@ -1,3 +1,5 @@
+#include <unordered_set>
+
 #include "cti_fe_unit_test.hpp"
 
 #include "useful/make_unique_destr.hpp"
@@ -431,7 +433,23 @@ TEST_F(CTIAppUnitTest, AddManifestBinary)
 	auto const manifestId = cti_createManifest(sessionId);
 	ASSERT_NE(manifestId, MANIFEST_ERROR);
 
+	// add and finalize binaries
 	ASSERT_EQ(cti_addManifestBinary(manifestId, "./stage_test/one_printer"), SUCCESS);
+	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
+
+	// check for expected contents
+	auto const shippedFilePaths = mockApp.getShippedFilePaths();
+	ASSERT_TRUE(!shippedFilePaths.empty());
+
+	auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
+	auto const expectedPaths = std::unordered_set<std::string>
+		{ tarRoot + "bin/one_printer"
+		, tarRoot + "lib/libprint.so"
+	};
+
+	for (auto&& path : mockApp.getShippedFilePaths()) {
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+	}
 
 	// cleanup
 	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
