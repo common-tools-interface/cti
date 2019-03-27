@@ -70,6 +70,7 @@ noinst_LTLIBRARIES += stage_test/print_one/libprint.la stage_test/print_two/libp
 stage_test_print_one_libprint_la_SOURCES = stage_test/print_one/print.c
 stage_test_print_one_libprint_la_LDFLAGS = -version-info 0:0:0
 
+stage_test_one_printer_DEPENDENCIES = stage_test/print_one/libprint.la
 stage_test_one_printer_SOURCES = stage_test/one_printer.c
 stage_test_one_printer_LDADD   = -L./stage_test/print_one -lprint
 stage_test_one_printer_LDFLAGS = -Wl,-rpath,\$$ORIGIN/print_one
@@ -77,6 +78,7 @@ stage_test_one_printer_LDFLAGS = -Wl,-rpath,\$$ORIGIN/print_one
 stage_test_print_two_libprint_la_SOURCES = stage_test/print_two/print.c
 stage_test_print_two_libprint_la_LDFLAGS = -version-info 0:0:0
 
+stage_test_two_printer_DEPENDENCIES = stage_test/print_two/libprint.la
 stage_test_two_printer_SOURCES = stage_test/two_printer.c
 stage_test_two_printer_LDADD   = -L./stage_test/print_two -lprint
 stage_test_two_printer_LDFLAGS = -Wl,-rpath,\$$ORIGIN/print_two
