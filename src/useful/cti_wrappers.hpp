@@ -7,9 +7,6 @@
 
 // automatic c-style string management
 #include <functional>
-#include <memory>
-template <typename T>
-using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
 
 // cti frontend definitions
 #include "cti_defs.h"
@@ -17,19 +14,11 @@ using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
 
 #include "useful/cti_useful.h"
 #include "ld_val/ld_val.h"
+#include "useful/make_unique_destr.hpp"
 
 /* cstring wrappers */
 
 namespace cstr {
-	// managed c-style string
-	namespace {
-		using cstr_type = std::unique_ptr<char, decltype(::free)*>;
-	}
-	class handle : public cstr_type {
-	public: // interface
-		handle(char* str) : cstr_type{str, ::free} {}
-	};
-
 	// lifted asprintf
 	template <typename... Args>
 	static inline std::string asprintf(char const* const formatCStr, Args&&... args) {
@@ -37,13 +26,13 @@ namespace cstr {
 		if (::asprintf(&rawResult, formatCStr, std::forward<Args>(args)...) < 0) {
 			throw std::runtime_error("asprintf failed.");
 		}
-		auto const result = handle{rawResult};
+		auto const result = make_unique_destr(std::move(rawResult), std::free);
 		return std::string(result.get());
 	}
 
 	// lifted mkdtemp
 	static inline std::string mkdtemp(std::string const& pathTemplate) {
-		auto rawPathTemplate = handle{strdup(pathTemplate.c_str())};
+		auto rawPathTemplate = make_unique_destr(strdup(pathTemplate.c_str()), std::free);
 
 		if (::mkdtemp(rawPathTemplate.get())) {
 			return std::string(rawPathTemplate.get());
@@ -64,16 +53,16 @@ namespace cstr {
 
 namespace file {
 	// open a file path and return a unique FILE* or nullptr
-	static inline auto try_open(std::string const& path, char const* mode) -> UniquePtrDestr<FILE> {
-		if (auto ufp = UniquePtrDestr<FILE>(fopen(path.c_str(), mode), ::fclose)) {
-			return ufp;
-		} else {
-			return nullptr;
-		}
+	static inline auto try_open(std::string const& path, char const* mode) ->
+		std::unique_ptr<FILE, decltype(&std::fclose)>
+	{
+		return make_unique_destr(fopen(path.c_str(), mode), std::fclose);
 	};
 
 	// open a file path and return a unique FILE* or throw
-	static inline auto open(std::string const& path, char const* mode) -> UniquePtrDestr<FILE> {
+	static inline auto open(std::string const& path, char const* mode) ->
+		std::unique_ptr<FILE, decltype(&std::fclose)>
+	{
 		if (auto ufp = try_open(path, mode)) {
 			return ufp;
 		} else {
@@ -94,20 +83,13 @@ namespace file {
 /* ld_val wrappers */
 
 namespace ld_val {
-	namespace {
-		using StringArray = UniquePtrDestr<char*>;
-		auto stringArrayDeleter = [](char** arr){
-			for (char** elem = arr; *elem != nullptr; elem++) { free(*elem); }
-		};
-	}
-
-	static inline StringArray getFileDependencies(const std::string& filePath) {
-		if (_cti_stage_deps) {
-			return StringArray(_cti_ld_val(filePath.c_str(), _cti_getLdAuditPath().c_str()),
-				stringArrayDeleter);
-		} else {
-			return nullptr;
-		}
+	static inline auto getFileDependencies(const std::string& filePath) ->
+		std::unique_ptr<char*, decltype(&free_ptr_list<char*>)>
+	{
+		auto dependencyArray = _cti_stage_deps
+			? _cti_ld_val(filePath.c_str(), _cti_getLdAuditPath().c_str())
+			: nullptr;
+		return make_unique_destr(std::move(dependencyArray), free_ptr_list<char*>);
 	}
 }
 
@@ -116,7 +98,7 @@ namespace cti {
 	/* cti_useful wrappers */
 
 	static inline std::string findPath(std::string const& fileName) {
-		if (auto fullPath = cstr::handle{_cti_pathFind(fileName.c_str(), nullptr)}) {
+		if (auto fullPath = make_unique_destr(_cti_pathFind(fileName.c_str(), nullptr), std::free)) {
 			return std::string{fullPath.get()};
 		} else { // _cti_pathFind failed with nullptr result
 			throw std::runtime_error(fileName + ": Could not locate in PATH.");
@@ -124,14 +106,14 @@ namespace cti {
 	}
 
 	static inline std::string findLib(std::string const& fileName) {
-		if (auto fullPath = cstr::handle{_cti_libFind(fileName.c_str())}) {
+		if (auto fullPath = make_unique_destr(_cti_libFind(fileName.c_str()), std::free)) {
 			return std::string{fullPath.get()};
 		} else { // _cti_libFind failed with nullptr result
 			throw std::runtime_error(fileName + ": Could not locate in LD_LIBRARY_PATH or system location.");
 		}
 	}
 	static inline std::string getNameFromPath(std::string const& filePath) {
-		if (auto realName = cstr::handle{_cti_pathToName(filePath.c_str())}) {
+		if (auto realName = make_unique_destr(_cti_pathToName(filePath.c_str()), std::free)) {
 			return std::string{realName.get()};
 		} else { // _cti_pathToName failed with nullptr result
 			throw std::runtime_error("Could not convert the fullname to realname.");
@@ -139,7 +121,7 @@ namespace cti {
 	}
 
 	static inline std::string getRealPath(std::string const& filePath) {
-		if (auto realPath = cstr::handle{realpath(filePath.c_str(), nullptr)}) {
+		if (auto realPath = make_unique_destr(realpath(filePath.c_str(), nullptr), std::free)) {
 			return std::string{realPath.get()};
 		} else { // realpath failed with nullptr result
 			throw std::runtime_error("realpath failed.");
