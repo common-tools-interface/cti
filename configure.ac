@@ -280,7 +280,10 @@ AC_CONFIG_FILES([	Makefile
 					src/useful/Makefile
 					src/useful/ld_val/Makefile
 					tests/Makefile
+					tests/test_support/Makefile
+					tests/mock/Makefile
 					tests/unit/Makefile
+					tests/function/Makefile
 ])
 
 AC_OUTPUT

@@ -22,7 +22,7 @@
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/tbb.git
 	branch = cti-external
 [submodule "tests/googletest"]
-	path = tests/googletest
+	path = tests/test_support/googletest
 	url = ssh://git@stash.us.cray.com:7999/cnos-3rd/googletest.git
 [submodule "external/libssh"]
 	path = external/libssh

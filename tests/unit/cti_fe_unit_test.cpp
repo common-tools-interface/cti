@@ -434,7 +434,7 @@ TEST_F(CTIAppUnitTest, AddManifestBinary)
 	ASSERT_NE(manifestId, MANIFEST_ERROR);
 
 	// add and finalize binaries
-	ASSERT_EQ(cti_addManifestBinary(manifestId, "./stage_test/one_printer"), SUCCESS);
+	ASSERT_EQ(cti_addManifestBinary(manifestId, "../test_support/one_printer"), SUCCESS);
 	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
 
 	// check for expected contents
@@ -467,7 +467,7 @@ TEST_F(CTIAppUnitTest, AddManifestLibrary)
 	ASSERT_NE(manifestId, MANIFEST_ERROR);
 
 	// add and finalize libraries
-	ASSERT_EQ(cti_addManifestLibrary(manifestId, "./stage_test/print_one/libprint.so"), SUCCESS);
+	ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/print_one/libprint.so"), SUCCESS);
 	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
 
 	// check for expected contents
@@ -499,7 +499,7 @@ TEST_F(CTIAppUnitTest, AddManifestLibDir)
 	ASSERT_NE(manifestId, MANIFEST_ERROR);
 
 	// add and finalize libraries
-	ASSERT_EQ(cti_addManifestLibDir(manifestId, "./stage_test/print_one/"), SUCCESS);
+	ASSERT_EQ(cti_addManifestLibDir(manifestId, "../test_support/print_one/"), SUCCESS);
 	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
 
 	// check for expected contents
@@ -534,7 +534,7 @@ TEST_F(CTIAppUnitTest, AddManifestFile)
 	ASSERT_NE(manifestId, MANIFEST_ERROR);
 
 	// add and finalize file
-	ASSERT_EQ(cti_addManifestFile(manifestId, "./stage_test/print_one/print.c"), SUCCESS);
+	ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/print_one/print.c"), SUCCESS);
 	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
 
 	// check for expected contents
@@ -569,7 +569,7 @@ TEST_F(CTIAppUnitTest, ExecToolDaemon)
 	ASSERT_NE(manifestId, MANIFEST_ERROR);
 
 	// finalize manifest and run tooldaemon
-	ASSERT_EQ(cti_execToolDaemon(manifestId, "./stage_test/one_printer", mockArgv, nullptr), SUCCESS);
+	ASSERT_EQ(cti_execToolDaemon(manifestId, "../test_support/one_printer", mockArgv, nullptr), SUCCESS);
 
 	// check for expected contents
 	auto const shippedFilePaths = mockApp.getShippedFilePaths();

@@ -10,7 +10,7 @@
 # in any form.
 #
 
-SUBDIRS = unit
+SUBDIRS = test_support mock unit function
 
 AM_CFLAGS 	= -I$(includedir) -L$(libdir)
 AM_LIBTOOLFLAGS = --quiet

@@ -286,7 +286,7 @@ TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
 	ASSERT_EQ(cti_sessionIsValid(sessionId), true);
 
 	// run printing daemons
-	testPrintingDaemon(sessionId, "./stage_test/one_printer", "1");
+	testPrintingDaemon(sessionId, "../test_support/one_printer", "1");
 
 	// cleanup
 	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
@@ -313,8 +313,8 @@ TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 	ASSERT_EQ(cti_sessionIsValid(sessionId), true);
 
 	// run printing daemons
-	testPrintingDaemon(sessionId, "./stage_test/one_printer", "1");
-	testPrintingDaemon(sessionId, "./stage_test/two_printer", "2");
+	testPrintingDaemon(sessionId, "../test_support/one_printer", "1");
+	testPrintingDaemon(sessionId, "../test_support/two_printer", "2");
 
 	// cleanup
 	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
