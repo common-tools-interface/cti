@@ -18,24 +18,23 @@ AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
 # google test framework library
-noinst_LTLIBRARIES   = libgtest.la
+check_LTLIBRARIES   = libgtest.la
 libgtest_la_SOURCES  = ../googletest/googletest/src/gtest-all.cc
 libgtest_la_CPPFLAGS = -I$(GTEST)/include -I$(GTEST)
 libgtest_la_LDFLAGS  = -pthread
 
 # google mock framework library
-noinst_LTLIBRARIES  += libgmock.la
+check_LTLIBRARIES  += libgmock.la
 libgmock_la_SOURCES  = ../googletest/googlemock/src/gmock-all.cc
 libgmock_la_CPPFLAGS = -I$(GMOCK)/include -I$(GMOCK) -I$(GTEST)/include -I$(GTEST)
 libgmock_la_LDFLAGS  = -pthread
 
 # specify test binaries
 TESTS = unit_tests
-noinst_PROGRAMS = unit_tests function_tests
-check_PROGRAMS = unit_tests
+check_PROGRAMS = unit_tests function_tests
 
 # mock frontend library
-noinst_LTLIBRARIES += MockFrontend/libmock.la
+check_LTLIBRARIES += MockFrontend/libmock.la
 MockFrontend_libmock_la_SOURCES  =  MockFrontend/Frontend.cpp
 MockFrontend_libmock_la_CXXFLAGS =  $(AM_CXXFLAGS) -fPIC $(ARCHIVE_CFLAGS)
 MockFrontend_libmock_la_CPPFLAGS = -I$(SRC) -I$(GMOCK)/include -I$(GMOCK) -I$(GTEST)/include -I$(GTEST) $(ARCHIVE_CPPFLAGS)
@@ -64,7 +63,7 @@ function_tests_LDFLAGS  = -pthread -Wl,-z,origin -Wl,-rpath,\$$ORIGIN \
 # support binaries for function tests
 
 # stage test helpers (one_printer, two_printer, libprint.so)
-noinst_PROGRAMS += stage_test/one_printer stage_test/two_printer
+check_PROGRAMS += stage_test/one_printer stage_test/two_printer
 
 stage_test/print_one/libprint.so: stage_test/print_one/print.c
 	cc -fPIC -shared stage_test/print_one/print.c -o stage_test/print_one/libprint.so
