@@ -75,6 +75,13 @@ public:
 	}
 };
 
+static CTIPRNG& _cti_getPRNG()
+{
+	static CTIPRNG prng;
+	return prng;
+}
+
+
 std::string Session::generateStagePath() {
 	std::string stageName;
 
@@ -88,10 +95,9 @@ std::string Session::generateStagePath() {
 
 		// now start replacing the 'X' characters in the stage_name string with
 		// randomness
-		CTIPRNG prng;
 		size_t numChars = stageFormat.length() - stageName.length();
 		for (size_t i = 0; i < numChars; i++) {
-			stageName.push_back(prng.genChar());
+			stageName.push_back(_cti_getPRNG().genChar());
 		}
 	}
 
