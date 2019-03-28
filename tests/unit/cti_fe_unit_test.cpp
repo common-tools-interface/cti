@@ -533,7 +533,7 @@ TEST_F(CTIAppUnitTest, AddManifestFile)
 	auto const manifestId = cti_createManifest(sessionId);
 	ASSERT_NE(manifestId, MANIFEST_ERROR);
 
-	// add and finalize libraries
+	// add and finalize file
 	ASSERT_EQ(cti_addManifestFile(manifestId, "./stage_test/print_one/print.c"), SUCCESS);
 	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
 
@@ -557,4 +557,34 @@ TEST_F(CTIAppUnitTest, AddManifestFile)
 /* tool daemon management tests */
 
 // int cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
-// const char * const daemonArgs[], const char * const envVars[]);
+// 	const char * const daemonArgs[], const char * const envVars[]);
+// Tests that the interface can exec a tool daemon
+TEST_F(CTIAppUnitTest, ExecToolDaemon)
+{
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	// run the test
+	auto const manifestId = cti_createManifest(sessionId);
+	ASSERT_NE(manifestId, MANIFEST_ERROR);
+
+	// finalize manifest and run tooldaemon
+	ASSERT_EQ(cti_execToolDaemon(manifestId, "./stage_test/one_printer", mockArgv, nullptr), SUCCESS);
+
+	// check for expected contents
+	auto const shippedFilePaths = mockApp.getShippedFilePaths();
+	ASSERT_TRUE(!shippedFilePaths.empty());
+
+	auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
+	auto const expectedPaths = std::unordered_set<std::string>
+		{ tarRoot + "bin/one_printer"
+		, tarRoot + "lib/libprint.so"
+	};
+
+	for (auto&& path : mockApp.getShippedFilePaths()) {
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+	}
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
