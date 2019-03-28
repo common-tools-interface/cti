@@ -199,6 +199,7 @@ void CraySLURMApp::releaseBarrier() {
 void
 CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 {
+	#if 0
 	// create sattach argv
 	cti_argv::ManagedArgv sattachArgv
 		{ SATTACH // first argument should be "sattach"
@@ -217,7 +218,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 		remapFds[stderrFd] = STDERR_FILENO;
 	}
 
-	if (auto const sattachPath = cstr::handle{_cti_pathFind(SATTACH, nullptr)}) {
+	if (auto const sattachPath = make_unique_destr(_cti_pathFind(SATTACH, nullptr), std::free)) {
 		// wait until sattach is set up (hits MPIR_Breakpoint)
 		Inferior sattachInferior{sattachPath.get(), sattachArgv.get(), {}, remapFds};
 		sattachInferior.addSymbol("MPIR_Breakpoint");
@@ -229,6 +230,44 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 	} else {
 		throw std::runtime_error(std::string{"failed to find in path: "} + SATTACH);
 	}
+	#else
+	// create the sattach process to redirect output
+	if (auto const sattachPid = fork()) {
+		if (sattachPid < 0) {
+			throw std::runtime_error("fork failed");
+		}
+
+		// add to app list of active sattach
+		m_sattachPids.push_back(sattachPid);
+	} else {
+		// create sattach argv
+		cti_argv::ManagedArgv sattachArgv
+			{ SATTACH // first argument should be "sattach"
+			// , "-Q"    // second argument is quiet
+			, getJobId() // third argument is the jobid.stepid
+		};
+
+		// redirect stdin / stderr / stdout
+		int devNullFd = open("/dev/null", O_RDONLY);
+		dup2(devNullFd, STDIN_FILENO);
+		if (stdoutFd >= 0) {
+			dup2(stdoutFd, STDOUT_FILENO);
+			close(stdoutFd);
+		}
+		if (stderrFd >= 0) {
+			dup2(stderrFd, STDERR_FILENO);
+			close(stderrFd);
+		}
+
+		// child case: exec sattach
+		execvp(SATTACH, sattachArgv.get());
+
+		// exec shouldn't return
+		fprintf(stderr, "CTI error: Return from exec.\n");
+		perror("execvp");
+		_exit(1);
+	}
+	#endif
 }
 
 void CraySLURMApp::kill(int signum)
@@ -271,7 +310,7 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 		, "--force"
 	};
 
-	if (auto packageName = cstr::handle{_cti_pathToName(tarPath.c_str())}) {
+	if (auto packageName = make_unique_destr(_cti_pathToName(tarPath.c_str()), std::free)) {
 		launcherArgv.add(std::string(CRAY_SLURM_TOOL_DIR) + "/" + packageName.get());
 	} else {
 		throw std::runtime_error("_cti_pathToName failed");
@@ -340,7 +379,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	}
 
 	// use existing launcher binary on compute node
-	std::string const launcherPath(m_toolPath + "/" + CTI_DLAUNCH_BINARY);
+	std::string const remoteDlaunchPath(m_toolPath + "/" + CTI_DLAUNCH_BINARY);
 
 	// Start adding the args to the launcher argv array
 	//
@@ -378,7 +417,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 		launcherArgv.add("--nodelist=" + hostlist);
 	}
 
-	launcherArgv.add(launcherPath);
+	launcherArgv.add(remoteDlaunchPath);
 
 	// merge in the args array if there is one
 	if (args != nullptr) {
@@ -658,7 +697,7 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[], const char *inp
 	};
 
 	// Get the launcher path from CTI environment variable / default.
-	if (auto const launcher_path = cstr::handle{_cti_pathFind(CraySLURMFrontend::getLauncherName().c_str(), nullptr)}) {
+	if (auto const launcher_path = make_unique_destr(_cti_pathFind(CraySLURMFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
 		/* construct argv array & instance*/
 		std::vector<std::string> launcherArgv{launcher_path.get()};
@@ -714,7 +753,7 @@ CraySLURMFrontend::getSrunInfo(pid_t srunPid) {
 	}
 
 	// Find the launcher path from the launcher name using helper _cti_pathFind.
-	if (auto const launcherPath = cstr::handle{_cti_pathFind(getLauncherName().c_str(), nullptr)}) {
+	if (auto const launcherPath = make_unique_destr(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
 
 		// Start a new MPIR attach session on the provided PID using symbols from the launcher.
 		auto const srunInstance = std::make_unique<MPIRInstance>(launcherPath.get(), srunPid);

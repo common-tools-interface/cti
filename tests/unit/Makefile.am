@@ -12,46 +12,71 @@
 
 SRC             = @CRAYTOOL_DIR@/src
 GTEST           = @CRAYTOOL_DIR@/tests/googletest/googletest
+GMOCK           = @CRAYTOOL_DIR@/tests/googletest/googlemock
+
 AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
 # google test framework library
-noinst_LTLIBRARIES   = libgtest.la
+check_LTLIBRARIES   = libgtest.la
 libgtest_la_SOURCES  = ../googletest/googletest/src/gtest-all.cc
 libgtest_la_CPPFLAGS = -I$(GTEST)/include -I$(GTEST)
 libgtest_la_LDFLAGS  = -pthread
 
+# google mock framework library
+check_LTLIBRARIES  += libgmock.la
+libgmock_la_SOURCES  = ../googletest/googlemock/src/gmock-all.cc
+libgmock_la_CPPFLAGS = -I$(GMOCK)/include -I$(GMOCK) -I$(GTEST)/include -I$(GTEST)
+libgmock_la_LDFLAGS  = -pthread
+
 # specify test binaries
 TESTS = unit_tests
-noinst_PROGRAMS = unit_tests
-check_PROGRAMS = unit_tests
+check_PROGRAMS = unit_tests function_tests
+
+# mock frontend library
+check_LTLIBRARIES += MockFrontend/libmock.la
+MockFrontend_libmock_la_SOURCES  =  MockFrontend/Frontend.cpp
+MockFrontend_libmock_la_CXXFLAGS =  $(AM_CXXFLAGS) -fPIC $(ARCHIVE_CFLAGS)
+MockFrontend_libmock_la_CPPFLAGS = -I$(SRC) -I$(GMOCK)/include -I$(GMOCK) -I$(GTEST)/include -I$(GTEST) $(ARCHIVE_CPPFLAGS)
+MockFrontend_libmock_la_LDFLAGS  =  -static -Wl,--no-undefined -larchive
 
 # unit test binary
-unit_tests_SOURCES  = unit_tests.cpp cti_fe_iface_test.cpp
+unit_tests_SOURCES  = unit_tests.cpp cti_fe_unit_test.cpp
 unit_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(GTEST)/include -I$(GTEST) \
-	$(ARCHIVE_CFLAGS) $(WLM_DETECT_CFLAGS) $(DYNINST_CFLAGS)
+	-I$(GMOCK)/include
 unit_tests_CXXFLAGS = $(AM_CXXFLAGS) $(unit_tests_CFLAGS)
-unit_tests_LDADD    = $(SRC)/frontend/libcraytools_fe.la libgtest.la -ldl -lrt -lstdc++
-unit_tests_LDFLAGS  =	-pthread -Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags \
-	-Wl,--no-undefined -Wl,--as-needed -version-info \
-	$(CRAYTOOL_FE_VERSION) $(ARCHIVE_LDFLAGS) $(DYNINST_LDFLAGS)
+unit_tests_LDADD    = -L$(prefix)/lib -lcraytools_fe \
+	libgtest.la libgmock.la MockFrontend/libmock.la \
+	-ldl -lrt -lstdc++
+unit_tests_LDFLAGS  =	-pthread -Wl,-z,origin -Wl,-rpath,\$$ORIGIN \
+	-Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed
 
-# support binaries for unit tests
+# function test binary
+function_tests_SOURCES  = function_tests.cpp cti_fe_function_test.cpp
+function_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(GTEST)/include -I$(GTEST)
+function_tests_CXXFLAGS = $(AM_CXXFLAGS) $(unit_tests_CFLAGS)
+function_tests_LDADD    = -L$(prefix)/lib -lcraytools_fe \
+	 libgtest.la -ldl -lrt -lstdc++
+function_tests_LDFLAGS  = -pthread -Wl,-z,origin -Wl,-rpath,\$$ORIGIN \
+	-Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed
+
+# support binaries for function tests
 
 # stage test helpers (one_printer, two_printer, libprint.so)
-noinst_PROGRAMS += stage_test/one_printer stage_test/two_printer
-noinst_LTLIBRARIES += stage_test/print_one/libprint.la stage_test/print_two/libprint.la
+check_PROGRAMS += stage_test/one_printer stage_test/two_printer
 
-stage_test_print_one_libprint_la_SOURCES = stage_test/print_one/print.c
-stage_test_print_one_libprint_la_LDFLAGS = -version-info 0:0:0
+stage_test/print_one/libprint.so: stage_test/print_one/print.c
+	cc -fPIC -shared stage_test/print_one/print.c -o stage_test/print_one/libprint.so
 
+stage_test_one_printer_DEPENDENCIES = stage_test/print_one/libprint.so
 stage_test_one_printer_SOURCES = stage_test/one_printer.c
 stage_test_one_printer_LDADD   = -L./stage_test/print_one -lprint
 stage_test_one_printer_LDFLAGS = -Wl,-rpath,\$$ORIGIN/print_one
 
-stage_test_print_two_libprint_la_SOURCES = stage_test/print_two/print.c
-stage_test_print_two_libprint_la_LDFLAGS = -version-info 0:0:0
+stage_test/print_two/libprint.so: stage_test/print_two/print.c
+	cc -fPIC -shared stage_test/print_two/print.c -o stage_test/print_two/libprint.so
 
+stage_test_two_printer_DEPENDENCIES = stage_test/print_two/libprint.so
 stage_test_two_printer_SOURCES = stage_test/two_printer.c
 stage_test_two_printer_LDADD   = -L./stage_test/print_two -lprint
 stage_test_two_printer_LDFLAGS = -Wl,-rpath,\$$ORIGIN/print_two

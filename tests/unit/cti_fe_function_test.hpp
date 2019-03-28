@@ -9,18 +9,18 @@ static constexpr auto FAILURE = int{1};
 
 static constexpr auto APP_ERROR = cti_app_id_t{0};
 
-// The fixture for testing C interface results
-class CTIFEIfaceTest : public ::testing::Test
+// The fixture for testing C interface function
+class CTIFEFunctionTest : public ::testing::Test
 {
 private:
 	cti_app_id_t runningApp;
 
 protected:
-	CTIFEIfaceTest()
+	CTIFEFunctionTest()
 		: runningApp{APP_ERROR}
 	{}
 
-	~CTIFEIfaceTest() override
+	~CTIFEFunctionTest() override
 	{
 		if (runningApp != APP_ERROR) {
 			// send sigkill to app

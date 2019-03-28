@@ -8,7 +8,7 @@
 #include <fstream>
 #include <memory>
 
-#include "cti_fe_iface_test.hpp"
+#include "cti_fe_function_test.hpp"
 
 #include "useful/ExecvpOutput.hpp"
 
@@ -46,13 +46,13 @@ public:
 /* cti frontend C interface tests */
 
 // Tests that the frontend type was correctly detected.
-TEST_F(CTIFEIfaceTest, HaveValidFrontend) {
+TEST_F(CTIFEFunctionTest, HaveValidFrontend) {
 	ASSERT_NE(cti_current_wlm(), CTI_WLM_NONE);
 }
 
 // Test that an app can launch successfully
-TEST_F(CTIFEIfaceTest, Launch) {
-	char const* argv[] = {"/bin/sh", nullptr};
+TEST_F(CTIFEFunctionTest, Launch) {
+	char const* argv[] = {"/usr/bin/true", nullptr};
 	auto const  stdoutFd = -1;
 	auto const  stderrFd = -1;
 	char const* inputFile = nullptr;
@@ -65,8 +65,8 @@ TEST_F(CTIFEIfaceTest, Launch) {
 }
 
 // Test that an app can't be released twice
-TEST_F(CTIFEIfaceTest, DoubleRelease) {
-	char const* argv[] = {"/bin/sh", nullptr};
+TEST_F(CTIFEFunctionTest, DoubleRelease) {
+	char const* argv[] = {"/usr/bin/true", nullptr};
 	auto const  stdoutFd = -1;
 	auto const  stderrFd = -1;
 	char const* inputFile = nullptr;
@@ -80,7 +80,7 @@ TEST_F(CTIFEIfaceTest, DoubleRelease) {
 }
 
 // Test that an app can redirect stdout
-TEST_F(CTIFEIfaceTest, StdoutPipe) {
+TEST_F(CTIFEFunctionTest, StdoutPipe) {
 	// set up string contents
 	auto const echoString = std::to_string(getpid());
 
@@ -112,7 +112,7 @@ TEST_F(CTIFEIfaceTest, StdoutPipe) {
 }
 
 // Test that an app can read input from a file
-TEST_F(CTIFEIfaceTest, InputFile) {
+TEST_F(CTIFEFunctionTest, InputFile) {
 	// set up string contents
 	auto const echoString = std::to_string(getpid());
 
@@ -150,7 +150,7 @@ TEST_F(CTIFEIfaceTest, InputFile) {
 }
 
 // Test that an app can forward environment variables
-TEST_F(CTIFEIfaceTest, EnvVars) {
+TEST_F(CTIFEFunctionTest, EnvVars) {
 	// set up string contents
 	auto const envVar = std::string{"CTI_TEST_VAR"};
 	auto const envVal = std::to_string(getpid());
@@ -193,9 +193,9 @@ TEST_F(CTIFEIfaceTest, EnvVars) {
 }
 
 // Test that an app can create a transfer session
-TEST_F(CTIFEIfaceTest, CreateSession) {
+TEST_F(CTIFEFunctionTest, CreateSession) {
 	// set up app
-	char const* argv[] = {"/bin/sh", nullptr};
+	char const* argv[] = {"/usr/bin/true", nullptr};
 	auto const  stdoutFd = -1;
 	auto const  stderrFd = -1;
 	char const* inputFile = nullptr;
@@ -217,9 +217,9 @@ TEST_F(CTIFEIfaceTest, CreateSession) {
 }
 
 // Test that an app can create a transfer manifest
-TEST_F(CTIFEIfaceTest, CreateManifest) {
+TEST_F(CTIFEFunctionTest, CreateManifest) {
 	// set up app
-	char const* argv[] = {"/bin/sh", nullptr};
+	char const* argv[] = {"/usr/bin/true", nullptr};
 	auto const  stdoutFd = -1;
 	auto const  stderrFd = -1;
 	char const* inputFile = nullptr;
@@ -267,9 +267,9 @@ testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::stri
 }
 
 // Test that an app can run a tool daemon
-TEST_F(CTIFEIfaceTest, ExecToolDaemon) {
+TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
 	// set up app
-	char const* argv[] = {"/bin/sh", nullptr};
+	char const* argv[] = {"/usr/bin/true", nullptr};
 	auto const  stdoutFd = -1;
 	auto const  stderrFd = -1;
 	char const* inputFile = nullptr;
@@ -294,9 +294,9 @@ TEST_F(CTIFEIfaceTest, ExecToolDaemon) {
 }
 
 // Test that an app can launch two tool daemons using different libraries with the same name
-TEST_F(CTIFEIfaceTest, DaemonLibDir) {
+TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 	// set up app
-	char const* argv[] = {"/bin/sh", nullptr};
+	char const* argv[] = {"/usr/bin/true", nullptr};
 	auto const  stdoutFd = -1;
 	auto const  stderrFd = -1;
 	char const* inputFile = nullptr;

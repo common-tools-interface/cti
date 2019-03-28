@@ -494,7 +494,7 @@ GenericSSHApp::kill(int signal)
 void
 GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
-	if (auto packageName = cstr::handle{_cti_pathToName(tarPath.c_str())}) {
+	if (auto packageName = make_unique_destr(_cti_pathToName(tarPath.c_str()), std::free)) {
 		auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
 
 		// Send the package to each of the hosts using SCP
@@ -719,7 +719,7 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
 	};
 
 	// Get the launcher path from CTI environment variable / default.
-	if (auto const launcher_path = cstr::handle{_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr)}) {
+	if (auto const launcher_path = make_unique_destr(_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
 		/* construct argv array & instance*/
 		std::vector<std::string> launcherArgv{launcher_path.get()};

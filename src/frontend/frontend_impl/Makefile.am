@@ -10,7 +10,7 @@
 # in any form.
 #
 
-SUBDIRS				= CraySLURM GenericSSH Mock
+SUBDIRS				= CraySLURM GenericSSH
 
 SRC             	= @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS 	= --quiet
@@ -19,7 +19,6 @@ noinst_LTLIBRARIES	= libfrontend_impl.la
 
 libfrontend_impl_la_SOURCES	=
 libfrontend_impl_la_LIBADD	= 	CraySLURM/libcrayslurm.la \
-								GenericSSH/libgenericssh.la \
-								Mock/libmock.la
+								GenericSSH/libgenericssh.la
 libfrontend_impl_la_LDFLAGS	=	-static -Wl,--no-undefined
 noinst_HEADERS				=	Frontend_impl.hpp

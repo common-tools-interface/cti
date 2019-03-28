@@ -15,4 +15,3 @@
 
 #include "CraySLURM/Frontend.hpp"
 #include "GenericSSH/Frontend.hpp"
-#include "Mock/Frontend.hpp"

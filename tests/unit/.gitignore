@@ -1,5 +1,6 @@
 .dirstamp
 Makefile.in
 unit_tests
+function_tests
 *.log
 *.trs
