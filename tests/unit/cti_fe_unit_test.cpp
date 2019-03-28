@@ -456,9 +456,103 @@ TEST_F(CTIAppUnitTest, AddManifestBinary)
 }
 
 // int              	cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName);
+// Tests that the interface can add a library to a manifest
+TEST_F(CTIAppUnitTest, AddManifestLibrary)
+{
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	// run the test
+	auto const manifestId = cti_createManifest(sessionId);
+	ASSERT_NE(manifestId, MANIFEST_ERROR);
+
+	// add and finalize libraries
+	ASSERT_EQ(cti_addManifestLibrary(manifestId, "./stage_test/print_one/libprint.so"), SUCCESS);
+	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
+
+	// check for expected contents
+	auto const shippedFilePaths = mockApp.getShippedFilePaths();
+	ASSERT_TRUE(!shippedFilePaths.empty());
+
+	auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
+	auto const expectedPaths = std::unordered_set<std::string>
+		{ tarRoot + "lib/libprint.so"
+	};
+
+	for (auto&& path : mockApp.getShippedFilePaths()) {
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+	}
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
 // int              	cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName);
+// Tests that the interface can add a library directory to a manifest
+TEST_F(CTIAppUnitTest, AddManifestLibDir)
+{
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	// run the test
+	auto const manifestId = cti_createManifest(sessionId);
+	ASSERT_NE(manifestId, MANIFEST_ERROR);
+
+	// add and finalize libraries
+	ASSERT_EQ(cti_addManifestLibDir(manifestId, "./stage_test/print_one/"), SUCCESS);
+	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
+
+	// check for expected contents
+	auto const shippedFilePaths = mockApp.getShippedFilePaths();
+	ASSERT_TRUE(!shippedFilePaths.empty());
+
+	auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
+	auto const expectedPaths = std::unordered_set<std::string>
+		{ tarRoot + "lib/print_one/libprint.so"
+		, tarRoot + "lib/print_one/print.c"
+		, tarRoot + "lib/print_one/print.h"
+	};
+
+	for (auto&& path : mockApp.getShippedFilePaths()) {
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+	}
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
+
 // int              	cti_addManifestFile(cti_manifest_id_t mid, const char * rawName);
 // int              	cti_sendManifest(cti_manifest_id_t mid);
+// Tests that the interface can add a file to a manifest
+TEST_F(CTIAppUnitTest, AddManifestFile)
+{
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_NE(sessionId, SESSION_ERROR);
+
+	// run the test
+	auto const manifestId = cti_createManifest(sessionId);
+	ASSERT_NE(manifestId, MANIFEST_ERROR);
+
+	// add and finalize libraries
+	ASSERT_EQ(cti_addManifestFile(manifestId, "./stage_test/print_one/print.c"), SUCCESS);
+	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
+
+	// check for expected contents
+	auto const shippedFilePaths = mockApp.getShippedFilePaths();
+	ASSERT_TRUE(!shippedFilePaths.empty());
+
+	auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
+	auto const expectedPaths = std::unordered_set<std::string>
+		{ tarRoot + "/print.c"
+	};
+
+	for (auto&& path : mockApp.getShippedFilePaths()) {
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+	}
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+}
 
 /* tool daemon management tests */
 
