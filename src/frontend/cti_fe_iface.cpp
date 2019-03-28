@@ -376,12 +376,14 @@ static auto appRegistry      = Registry<cti_app_id_t,      std::unique_ptr<App>>
 static auto sessionRegistry  = Registry<cti_session_id_t,  std::shared_ptr<Session>>{};
 static auto manifestRegistry = Registry<cti_manifest_id_t, std::shared_ptr<Manifest>>{};
 
+// this function is used only during testing to manually add Mock App instances
 cti_app_id_t
 _cti_registerApp(std::unique_ptr<App>&& expiring)
 {
 	return appRegistry.own(std::move(expiring));
 }
 
+// this function is used only during testing to manually get a Mock App reference
 App&
 _cti_getApp(cti_app_id_t const appId)
 {
@@ -420,6 +422,7 @@ _cti_getDlaunchPath() {
 
 static auto _cti_currentFrontendPtr = cti_conventions::detect_Frontend();
 
+// this function is used only during testing to manually set a custom CTI Frontend
 void
 _cti_setFrontend(std::unique_ptr<Frontend>&& expiring)
 {

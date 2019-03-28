@@ -12,6 +12,15 @@ free_ptr_list(T* head) {
 	free(head);
 }
 
+// there is an std::make_unique<T> which constructs a unique_ptr of type T from its arguments.
+// however, there is no equivalent that accepts a custom destructor function. normally, one would
+// have to explicitly provide the types of T and its destructor function:
+//     std::unique_ptr<T, decltype(&destructor)>{new T{}, destructor}
+// this is a helper function to perform this deduction:
+//     make_unique_destr(new T{}, destructor)
+// for example:
+//     auto const cstr = make_unique_destr(strdup(...), std::free);
+
 template <typename T, typename Destr>
 inline static auto
 make_unique_destr(T*&& expiring, Destr&& destructor) -> std::unique_ptr<T, decltype(&destructor)>
