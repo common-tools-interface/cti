@@ -73,13 +73,12 @@ function set_OS(){
 
 set_OS
 source_module_script
-module purge
 module load $gcc_module
 module load $cmake_module
 
 autoreconf -ifv
 set -x
-./configure --prefix=$BUILD_DIR
+./configure --enable-static=no --prefix=$BUILD_DIR
 set +x
 
 make -j32
