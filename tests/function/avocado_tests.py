@@ -1,6 +1,9 @@
 from avocado import Test
 from avocado.utils import process
 
+import subprocess
+from os import environ
+
 EXAMPLES_PATH = "../examples"
 SUPPORT_PATH  = "../support"
 
@@ -48,3 +51,28 @@ class CtiLinkTest(Test):
 		process.run("%s/cti_link"
 			% (EXAMPLES_PATH), shell = True)
 
+'''
+cti_transfer launches a binary and holds it at startup. meanwhile, it transfers
+over `testing.info` from PATH and prints a command to verify its existence on-node.
+to automate: launch with custom PATH, extract and run the verification command
+'''
+class CtiTransferTest(Test):
+	def test(self):
+		proc = subprocess.Popen(
+			["%s/cti_transfer" % EXAMPLES_PATH, "%s/one_printer" % SUPPORT_PATH],
+			env = dict(environ, PATH="%s:%s" % (EXAMPLES_PATH, environ['PATH'])),
+			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+
+		# TODO: figure out why readline is blocking
+		for line in iter(proc.stdout.readline, ''):
+			if line[:4] == 'srun':
+				# run remote ls and verify testing.info is present
+				process.run("%s	| grep -q testing.info" % line, shell = True)
+		
+		# continue the process
+		proc.stdin.write(b'\n')
+		proc.stdin.flush()
+		proc.stdin.close()
+
+		# wait until completion
+		proc.wait()
