@@ -58,21 +58,19 @@ to automate: launch with custom PATH, extract and run the verification command
 '''
 class CtiTransferTest(Test):
 	def test(self):
-		proc = subprocess.Popen(
-			["%s/cti_transfer" % EXAMPLES_PATH, "%s/one_printer" % SUPPORT_PATH],
-			env = dict(environ, PATH="%s:%s" % (EXAMPLES_PATH, environ['PATH'])),
+		proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_transfer" % EXAMPLES_PATH,
+			"%s/one_printer" % SUPPORT_PATH],
+			env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
 			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
 
-		# TODO: figure out why readline is blocking
 		for line in iter(proc.stdout.readline, ''):
 			if line[:4] == 'srun':
 				# run remote ls and verify testing.info is present
-				process.run("%s	| grep -q testing.info" % line, shell = True)
-		
-		# continue the process
-		proc.stdin.write(b'\n')
-		proc.stdin.flush()
-		proc.stdin.close()
+				process.run("%s | grep -q testing.info" % line.rstrip(), shell = True)
 
-		# wait until completion
-		proc.wait()
+				# end proc
+				proc.stdin.write(b'\n')
+				proc.stdin.flush()
+				proc.stdin.close()
+				proc.wait()
+				break
