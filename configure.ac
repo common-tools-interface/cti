@@ -283,6 +283,7 @@ AC_CONFIG_FILES([	Makefile
 					tests/test_support/Makefile
 					tests/mock/Makefile
 					tests/unit/Makefile
+					tests/examples/Makefile
 					tests/function/Makefile
 ])
 
