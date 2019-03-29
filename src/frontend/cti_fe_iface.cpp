@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <set>
 #include <unordered_map>
 #include <memory>
 #include <sstream>
@@ -376,6 +377,9 @@ static auto appRegistry      = Registry<cti_app_id_t,      std::unique_ptr<App>>
 static auto sessionRegistry  = Registry<cti_session_id_t,  std::shared_ptr<Session>>{};
 static auto manifestRegistry = Registry<cti_manifest_id_t, std::shared_ptr<Manifest>>{};
 
+// associate app with session IDs so that when an app is deregistered its sessions are invalidated
+static auto appSessions = std::unordered_map<cti_app_id_t, std::set<cti_session_id_t>>{};
+
 // this function is used only during testing to manually add Mock App instances
 cti_app_id_t
 _cti_registerApp(std::unique_ptr<App>&& expiring)
@@ -627,7 +631,15 @@ cti_appIsValid(cti_app_id_t appId) {
 void
 cti_deregisterApp(cti_app_id_t appId) {
 	cti_conventions::runSafely(__func__, [&](){
+		// invalidate the app's transfer sessions
+		for (auto&& sessionId : appSessions.at(appId)) {
+			sessionRegistry.erase(sessionId);
+		}
+		appSessions.erase(appId);
+
+		// invalidate the app ID
 		appRegistry.erase(appId);
+
 		return true;
 	}, false);
 }
@@ -725,6 +737,10 @@ cti_createSession(cti_app_id_t appId) {
 		auto const sid = sessionRegistry.own(
 			std::make_shared<Session>(_cti_getCurrentFrontend().getWLMType(), *appRegistry.get(appId)));
 		shipWLMBaseFiles(*sessionRegistry.get(sid));
+
+		// associate owning app ID with the new session ID
+		appSessions[appId].insert(sid);
+
 		return sid;
 	}, SESSION_ERROR);
 }
