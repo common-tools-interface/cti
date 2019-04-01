@@ -66,16 +66,16 @@
 # JENKINS INTEGRATION
 # -------------------
 # We now key off the BUILD_NUMBER environment variable from jenkins
-# to get the revision number.
+# to get the revision number. We hardcode the revision to "999" if the
+# environment variable is not set.
 #
-craytool_major=2
-craytool_minor=0
-craytool_revision=0
+revision="999"
 
-be_current=2
-be_revision=0
-be_age=0
+craytool_major="2"
+craytool_minor="0"
 
-fe_current=2
-fe_revision=0
-fe_age=0
+be_current="2"
+be_age="0"
+
+fe_current="2"
+fe_age="0"
