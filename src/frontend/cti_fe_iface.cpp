@@ -631,11 +631,14 @@ cti_appIsValid(cti_app_id_t appId) {
 void
 cti_deregisterApp(cti_app_id_t appId) {
 	cti_conventions::runSafely(__func__, [&](){
-		// invalidate the app's transfer sessions
-		for (auto&& sessionId : appSessions.at(appId)) {
-			sessionRegistry.erase(sessionId);
+		auto const& idSessionsPair = appSessions.find(appId);
+		if (idSessionsPair != appSessions.end()) {
+			// invalidate the app's transfer sessions
+			for (auto&& sessionId : idSessionsPair->second) {
+				sessionRegistry.erase(sessionId);
+			}
+			appSessions.erase(idSessionsPair);
 		}
-		appSessions.erase(appId);
 
 		// invalidate the app ID
 		appRegistry.erase(appId);
