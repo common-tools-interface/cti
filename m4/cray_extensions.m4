@@ -32,14 +32,14 @@ AC_DEFUN([cray_INIT],
 	dnl Allow jenkins to override our internal revision logic.
 	AS_IF( 	[ test "x$BUILD_NUMBER" = "x" ],
 			[
-				_craytool_revision = CRAYTOOL_FILE_REVISION
-				_craytool_be_revision = CRAYTOOL_BE_FILE_REVISION
-				_craytool_fe_revision = CRAYTOOL_FE_FILE_REVISION
+				_craytool_revision=CRAYTOOL_FILE_REVISION
+				_craytool_be_revision=CRAYTOOL_BE_FILE_REVISION
+				_craytool_fe_revision=CRAYTOOL_FE_FILE_REVISION
 			],
 			[
-				_craytool_revision = ${BUILD_NUMBER}
-				_craytool_be_revision = ${BUILD_NUMBER}
-				_craytool_fe_revision = ${BUILD_NUMBER}
+				_craytool_revision=${BUILD_NUMBER}
+				_craytool_be_revision=${BUILD_NUMBER}
+				_craytool_fe_revision=${BUILD_NUMBER}
 			])
 
 	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_MAJOR.CRAYTOOL_MINOR.${_craytool_revision}])
