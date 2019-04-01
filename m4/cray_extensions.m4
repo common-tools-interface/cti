@@ -19,35 +19,30 @@ AC_DEFUN([cray_INIT],
 	dnl Pull in the revision information from the $PWD/release_versioning file
 	m4_define([CRAYTOOL_MAJOR], [ m4_esyscmd_s([source $PWD/release_versioning; echo $craytool_major])])
 	m4_define([CRAYTOOL_MINOR], [ m4_esyscmd_s([source $PWD/release_versioning; echo $craytool_minor])])
-	m4_define([CRAYTOOL_FILE_REVISION], [ m4_esyscmd_s([source $PWD/release_versioning; echo $craytool_revision])])
+	m4_define([CRAYTOOL_REVISION], [ m4_esyscmd_s([source $PWD/release_versioning; echo $craytool_revision])])
 
 	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
-	m4_define([CRAYTOOL_BE_FILE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_revision])])
+	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_revision])])
 	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
 
 	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
-	m4_define([CRAYTOOL_FE_FILE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_revision])])
+	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_revision])])
 	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
 
 	dnl Allow jenkins to override our internal revision logic.
-	AS_IF( 	[ test "x$BUILD_NUMBER" = "x" ],
+	AS_IF( 	[ test "x$BUILD_NUMBER" != "x" ],
 			[
-				_craytool_revision=CRAYTOOL_FILE_REVISION
-				_craytool_be_revision=CRAYTOOL_BE_FILE_REVISION
-				_craytool_fe_revision=CRAYTOOL_FE_FILE_REVISION
-			],
-			[
-				_craytool_revision=${BUILD_NUMBER}
-				_craytool_be_revision=${BUILD_NUMBER}
-				_craytool_fe_revision=${BUILD_NUMBER}
+				m4_define([CRAYTOOL_REVISION], [${BUILD_NUMBER}])
+				m4_define([CRAYTOOL_BE_REVISION], [${BUILD_NUMBER}])
+				m4_define([CRAYTOOL_FE_REVISION], [${BUILD_NUMBER}])
 			])
 
-	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_MAJOR.CRAYTOOL_MINOR.${_craytool_revision}])
-	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:${_craytool_be_revision}:CRAYTOOL_BE_AGE])
-	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:${_craytool_fe_revision}:CRAYTOOL_FE_AGE])
+	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_MAJOR.CRAYTOOL_MINOR.CRAYTOOL_REVISION])
+	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
+	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
 
-	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.${_craytool_be_revision}.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
-	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.${_craytool_fe_revision}.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
+	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_BE_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
+	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_FE_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
 
 	AC_SUBST([CRAYTOOL_EXTERNAL], [${CRAYTOOL_DIR}/external])
 	AC_SUBST([CRAYTOOL_EXTERNAL_INSTALL], [${CRAYTOOL_DIR}/external/install])
