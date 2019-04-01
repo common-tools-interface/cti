@@ -2,10 +2,11 @@ from avocado import Test
 from avocado.utils import process
 
 import subprocess
-from os import environ
+from os import path, environ
 
-EXAMPLES_PATH = "../examples"
-SUPPORT_PATH  = "../support"
+SCRIPT_PATH = path.dirname(path.realpath(__file__))
+EXAMPLES_PATH = "%s/../examples" % SCRIPT_PATH
+SUPPORT_PATH  = "%s/../support"  % SCRIPT_PATH
 
 '''
 function_tests runs all of the Googletest-instrumented functional tests
@@ -74,3 +75,37 @@ class CtiTransferTest(Test):
 				proc.stdin.close()
 				proc.wait()
 				break
+
+'''
+cti_info fetches information about a running job.
+to automate: hold a program at startup with cti_barrier, parse the job/stepid
+'''
+class CtiInfoTest(Test):
+	def test(self):
+		proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % EXAMPLES_PATH,
+			"%s/one_printer" % SUPPORT_PATH],
+			# env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
+			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+
+		jobid = None
+		stepid = None
+		for line in iter(proc.stdout.readline, ''):
+			line = line.rstrip()
+			if line[:5] == 'jobid':
+				jobid = line.split()[-1]
+			elif line[:6] == 'stepid':
+				stepid = line.split()[-1]
+
+			if jobid is not None and stepid is not None:
+				# run cti_info
+				process.run("%s/cti_info --jobid %s --stepid %s" %
+				(EXAMPLES_PATH, jobid, stepid), shell = True)
+
+				# release barrier
+				proc.stdin.write(b'\n')
+				proc.stdin.flush()
+				proc.stdin.close()
+				proc.wait()
+				break
+
+		self.assertTrue(jobid is not None and stepid is not None)
