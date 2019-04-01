@@ -4,16 +4,16 @@ from avocado.utils import process
 import subprocess
 from os import path, environ
 
-SCRIPT_PATH = path.dirname(path.realpath(__file__))
-EXAMPLES_PATH = "%s/../examples" % SCRIPT_PATH
-SUPPORT_PATH  = "%s/../support"  % SCRIPT_PATH
+FUNCTIONAL_TESTS_PATH = path.dirname(path.realpath(__file__))
+EXAMPLES_PATH = "%s/../examples" % FUNCTIONAL_TESTS_PATH
+SUPPORT_PATH  = "%s/../support"  % FUNCTIONAL_TESTS_PATH
 
 '''
 function_tests runs all of the Googletest-instrumented functional tests
 '''
 class FunctionTest(Test):
 	def test(self):
-		process.run("./function_tests")
+		process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
 
 '''
 cti_barrier launches a binary, holds it at the startup barrier until
