@@ -1,7 +1,7 @@
 #
 # Makefile.am for the CTI unit tests
 #
-# Copyright 2014-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2019 Cray Inc.  All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -29,7 +29,8 @@ unit_tests_SOURCES  = unit_tests.cpp cti_fe_unit_test.cpp
 unit_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) \
 	-I$(GTEST)/include -I$(GTEST) \
 	-I$(GMOCK)/include -I$(GMOCK) \
-	-I$(MOCK)
+	-I$(MOCK) \
+	-DINSTALL_PATH=\"$(prefix)\"
 unit_tests_CXXFLAGS = $(AM_CXXFLAGS) $(unit_tests_CFLAGS)
 unit_tests_LDADD    = -L$(prefix)/lib -lcraytools_fe \
 	$(SUPPORT)/libgtest.la $(SUPPORT)/libgmock.la $(MOCK)/libmock.la \
