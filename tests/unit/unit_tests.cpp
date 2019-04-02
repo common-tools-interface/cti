@@ -17,7 +17,7 @@
 
 #include <stdlib.h>
 
-class CTI_Environment : public Environment
+class CTI_Environment : public ::testing::Environment
 {
 public:
     // Ensure we override the install env var to our prefix
