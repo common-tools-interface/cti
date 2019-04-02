@@ -27,15 +27,15 @@
 extern "C" {
 #endif
 
-/* 
- *  This enum enumerates the various attributes that 
+/*
+ *  This enum enumerates the various attributes that
  *  can be set by cti_setAttribute.
  */
 enum cti_attr_type
 {
-    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library 
-                                    // dependencies should be automatically 
-                                    // staged by cti_addManifestBinary and 
+    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library
+                                    // dependencies should be automatically
+                                    // staged by cti_addManifestBinary and
                                     // cti_addManifestLIbrary: 0 or 1
                                     // Defaults to 1.
 };
@@ -70,7 +70,6 @@ typedef enum cti_be_wlm_type    cti_be_wlm_type;
 *******************************************************************************/
 #define CTI_OVERWATCH_BINARY    "cti_overwatch"                     // name of the overwatch binary
 #define DEFAULT_SIG             9                                   // default signal value to use
-#define WLM_DETECT_LIB_NAME     "libwlm_detect.so.0"                // wlm_detect library
 #define LD_AUDIT_LIB_NAME       "libaudit.so"                       // ld audit library
 
 /*******************************************************************************

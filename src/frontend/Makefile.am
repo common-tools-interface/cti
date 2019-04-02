@@ -19,7 +19,7 @@ AM_CXXFLAGS			= -Wall -I$(SRC) -I. -I$(SRC)/frontend/frontend_impl
 lib_LTLIBRARIES = libcraytools_fe.la
 
 libcraytools_fe_la_SOURCES	=	cti_fe_iface.cpp
-libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) -fPIC $(WLM_DETECT_CFLAGS) $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
+libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) -fPIC $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
 libcraytools_fe_la_CPPFLAGS	=	$(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
 libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								cti_transfer/libcti_transfer.la \
