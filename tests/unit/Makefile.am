@@ -35,5 +35,5 @@ unit_tests_CXXFLAGS = $(AM_CXXFLAGS) $(unit_tests_CFLAGS)
 unit_tests_LDADD    = -L$(prefix)/lib -lcraytools_fe \
 	$(SUPPORT)/libgtest.la $(SUPPORT)/libgmock.la $(MOCK)/libmock.la \
 	-ldl -lrt -lstdc++
-unit_tests_LDFLAGS  =	-pthread -Wl,-z,origin -Wl,-rpath,\$$ORIGIN \
+unit_tests_LDFLAGS  = -pthread -Wl,-rpath,$(prefix)/lib \
 	-Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed
