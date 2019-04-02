@@ -281,7 +281,7 @@ namespace cti_conventions
 		// CTI fe and be libs (e.g. MRNet) and we do not want to call the FE init
 		// in that case.
 		if (cti_conventions::isRunningOnBackend()) {
-			throw std::runtime_error("tried to create a Frontend implementation on the backend!");
+			return nullptr;
 		}
 
 		std::string wlmName;
@@ -451,8 +451,13 @@ _cti_setFrontend(std::unique_ptr<Frontend>&& expiring)
 }
 
 Frontend&
-_cti_getCurrentFrontend() {
-	return *_cti_currentFrontendPtr;
+_cti_getCurrentFrontend()
+{
+	if (_cti_currentFrontendPtr) {
+		return *_cti_currentFrontendPtr;
+	} else {
+		throw std::runtime_error("tried to use an uninitialized frontend");
+	}
 }
 
 Logger&
