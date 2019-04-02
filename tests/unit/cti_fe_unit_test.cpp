@@ -60,7 +60,7 @@ CTIAppUnitTest::~CTIAppUnitTest()
 TEST_F(CTIFEUnitTest, error_str)
 {
 	// run the test
-	ASSERT_EQ(cti_error_str(), DEFAULT_ERR_STR);
+	ASSERT_EQ(std::string{cti_error_str()}, DEFAULT_ERR_STR);
 }
 
 // const char *	cti_version(void);
