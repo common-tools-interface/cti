@@ -57,15 +57,6 @@ AX_CXX_COMPILE_STDCXX_11([noext])
 
 LT_INIT
 
-#########################
-### Setup env options ###
-#########################
-
-dnl This m4 macro will grab the required wlm_detect RPM from CSS and extract it with
-dnl cpio.
-dnl TODO: Add depenency to build vm/container instead...
-cray_SETUP_WLM_DETECT_RPMS
-
 ############################
 ### Optional build deps  ###
 ############################
@@ -184,19 +175,6 @@ LDFLAGS="$save_LDFLAGS"
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h limits.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h string.h strings.h sys/ioctl.h sys/param.h sys/socket.h sys/time.h unistd.h])
 
 AC_HEADER_STDBOOL
-
-dnl Check for libwlm_detect headers
-save_CFLAGS="$CFLAGS"
-save_CPPFLAGS="$CPPFLAGS"
-CFLAGS="$CFLAGS $WLM_DETECT_CFLAGS"
-CPPFLAGS="$CPPFLAGS $WLM_DETECT_CFLAGS"
-AC_CHECK_HEADER(	[wlm_detect.h],
-					[],
-					[AC_MSG_FAILURE([wlm_detect.h not found.])]
-					)
-dnl restore flags
-CFLAGS="$save_CFLAGS"
-CPPFLAGS="$save_CPPFLAGS"
 
 dnl Check for libarchive headers
 save_CFLAGS="$CFLAGS"

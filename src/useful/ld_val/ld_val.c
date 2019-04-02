@@ -132,7 +132,9 @@ static const char *
 _cti_ld_verify(const char *executable)
 {
 	const char *linker = NULL;
-	int pid, status, fc, i=1;
+	int pid, fc, i=1;
+	// status must be zeroed out before waitpid call, or WIFEXITED could falsely report abnormal exit
+	int status = 0;
 	
 	if (executable == NULL)
 		return NULL;

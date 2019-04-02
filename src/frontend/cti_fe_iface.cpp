@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <set>
 #include <unordered_map>
 #include <memory>
 #include <sstream>
@@ -45,12 +46,11 @@
 #include "Frontend.hpp"
 #include "Frontend_impl.hpp"
 
-// WLM detection library interface
-#include "wlm_detect.h"
-
 // utility includes
 #include "useful/cti_useful.h"
 #include "useful/Dlopen.hpp"
+#include "useful/ExecvpOutput.hpp"
+#include "useful/cti_argv.hpp"
 
 /* helper functions */
 
@@ -288,39 +288,35 @@ namespace cti_conventions
 		// Use the workload manager in the environment variable if it is set
 		if (const char* wlm_name_env = getenv(CTI_WLM)) {
 			wlmName = std::string(wlm_name_env);
-		} else {
-			// use wlm_detect to load wlm name
-			Dlopen::Handle wlmDetect(WLM_DETECT_LIB_NAME);
 
-			using GetActiveFnType = char*(void);
-			using GetDefaultFnType = const char*(void);
-			auto getActive = wlmDetect.loadFailable<GetActiveFnType>("wlm_detect_get_active");
-			auto getDefault = wlmDetect.loadFailable<GetDefaultFnType>("wlm_detect_get_default");
-
-			char *active_wlm;
-			const char *default_wlm;
-			if (getActive && (active_wlm = getActive())) {
-				wlmName = std::string(active_wlm);
-				free(active_wlm);
-			} else {
-				if (getDefault && (default_wlm = getDefault())) {
-					wlmName = std::string(default_wlm);
-				} else {
-					return std::make_unique<DefaultFrontend>();
-				}
+			// parse the env string
+			if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
+				return std::make_unique<CraySLURMFrontend>();
+			}
+			else if (!wlmName.compare("generic")) {
+				return std::make_unique<GenericSSHFrontend>();
+			}
+			else {
+				// fallback to use the default
+				fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
+				return std::make_unique<DefaultFrontend>();
+			}
+		}
+		else {
+			// Query for the slurm package using rpm
+			// FIXME: This is a hack. This should be addressed by PE-25088
+			auto rpmArgv = cti_argv::ManagedArgv { "rpm", "-q", "slurm" };
+			ExecvpOutput rpmOutput("rpm", rpmArgv.get());
+			auto res = rpmOutput.getExitStatus();
+			if (res == 0) {
+				// The slurm package is installed. This is a naive check.
+				return std::make_unique<CraySLURMFrontend>();
 			}
 		}
 
-		// parse the returned result
-		if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
-			return std::make_unique<CraySLURMFrontend>();
-		} else if (!wlmName.compare("generic")) {
-			return  std::make_unique<GenericSSHFrontend>();
-		} else {
-			// fallback to use the default
-			fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
-			return std::make_unique<DefaultFrontend>();
-		}
+		// Unknown WLM
+		fprintf(stderr, "Unable to determine wlm in use. Falling back to default.");
+		return std::make_unique<DefaultFrontend>();
 	}
 
 	// run code that can throw and use it to set cti error instead
@@ -372,22 +368,42 @@ public: // interface
 
 /* global interface state objects */
 
-static auto appRegistry      = Registry<cti_app_id_t,      std::unique_ptr<App>>{};
-static auto sessionRegistry  = Registry<cti_session_id_t,  std::shared_ptr<Session>>{};
-static auto manifestRegistry = Registry<cti_manifest_id_t, std::shared_ptr<Manifest>>{};
+using AppRegistry = Registry<cti_app_id_t, std::unique_ptr<App>>;
+static AppRegistry& _cti_getAppRegistry()
+{
+	static auto appRegistry = AppRegistry{};
+	return appRegistry;
+}
+
+using SessionRegistry = Registry<cti_session_id_t, std::shared_ptr<Session>>;
+static SessionRegistry& _cti_getSessionRegistry()
+{
+	static auto sessionRegistry = SessionRegistry{};
+	return sessionRegistry;
+}
+
+using ManifestRegistry = Registry<cti_manifest_id_t, std::shared_ptr<Manifest>>;
+static ManifestRegistry& _cti_getManifestRegistry()
+{
+	static auto manifestRegistry = ManifestRegistry{};
+	return manifestRegistry;
+}
+
+// associate app with session IDs so that when an app is deregistered its sessions are invalidated
+static auto appSessions = std::unordered_map<cti_app_id_t, std::set<cti_session_id_t>>{};
 
 // this function is used only during testing to manually add Mock App instances
 cti_app_id_t
 _cti_registerApp(std::unique_ptr<App>&& expiring)
 {
-	return appRegistry.own(std::move(expiring));
+	return _cti_getAppRegistry().own(std::move(expiring));
 }
 
 // this function is used only during testing to manually get a Mock App reference
 App&
 _cti_getApp(cti_app_id_t const appId)
 {
-	return *appRegistry.get(appId);
+	return *_cti_getAppRegistry().get(appId);
 }
 
 std::string const&
@@ -482,21 +498,21 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 int
 cti_getNumAppPEs(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
-		return appRegistry.get(appId)->getNumPEs();
+		return _cti_getAppRegistry().get(appId)->getNumPEs();
 	}, -1);
 }
 
 int
 cti_getNumAppNodes(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
-		return appRegistry.get(appId)->getNumHosts();
+		return _cti_getAppRegistry().get(appId)->getNumHosts();
 	}, -1);
 }
 
 char**
 cti_getAppHostsList(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
-		auto const hostList = appRegistry.get(appId)->getHostnameList();
+		auto const hostList = _cti_getAppRegistry().get(appId)->getHostnameList();
 
 		char **host_list = (char**)malloc(sizeof(char*) * (hostList.size() + 1));
 		for (size_t i = 0; i < hostList.size(); i++) {
@@ -511,7 +527,7 @@ cti_getAppHostsList(cti_app_id_t appId) {
 cti_hostsList_t*
 cti_getAppHostsPlacement(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
-		auto const hostPlacement = appRegistry.get(appId)->getHostsPlacement();
+		auto const hostPlacement = _cti_getAppRegistry().get(appId)->getHostsPlacement();
 
 		cti_hostsList_t *result = (cti_hostsList_t*)malloc(sizeof(cti_hostsList_t));
 		result->hosts = (cti_host_t*)malloc(sizeof(cti_host_t) * hostPlacement.size());
@@ -551,7 +567,7 @@ cti_getHostname() {
 char*
 cti_getLauncherHostName(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
-		return strdup(appRegistry.get(appId)->getLauncherHostname().c_str());
+		return strdup(_cti_getAppRegistry().get(appId)->getLauncherHostname().c_str());
 	}, (char*)nullptr);
 }
 
@@ -588,7 +604,7 @@ cti_app_id_t
 cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
 	return cti_conventions::runSafely(__func__, [&](){
 		auto& craySlurm = downcastCurrentFE<CraySLURMFrontend>();
-		return appRegistry.own(craySlurm.registerJob(2, job_id, step_id));
+		return _cti_getAppRegistry().own(craySlurm.registerJob(2, job_id, step_id));
 	}, APP_ERROR);
 }
 
@@ -596,7 +612,7 @@ cti_srunProc_t*
 cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
 		if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
-			*result = dynamic_cast<CraySLURMApp&>(*appRegistry.get(appId)).getSrunInfo();
+			*result = dynamic_cast<CraySLURMApp&>(*_cti_getAppRegistry().get(appId)).getSrunInfo();
 			return result;
 		} else {
 			throw std::runtime_error("malloc failed.");
@@ -611,7 +627,7 @@ cti_ssh_registerJob(pid_t launcher_pid)
 {
 	return cti_conventions::runSafely(__func__, [&](){
 		auto& genericSSH = downcastCurrentFE<GenericSSHFrontend>();
-		return appRegistry.own(genericSSH.registerJob(1, launcher_pid));
+		return _cti_getAppRegistry().own(genericSSH.registerJob(1, launcher_pid));
 	}, APP_ERROR);
 }
 
@@ -620,14 +636,25 @@ cti_ssh_registerJob(pid_t launcher_pid)
 int
 cti_appIsValid(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
-		return appRegistry.isValid(appId);
+		return _cti_getAppRegistry().isValid(appId);
 	}, false);
 }
 
 void
 cti_deregisterApp(cti_app_id_t appId) {
 	cti_conventions::runSafely(__func__, [&](){
-		appRegistry.erase(appId);
+		auto const& idSessionsPair = appSessions.find(appId);
+		if (idSessionsPair != appSessions.end()) {
+			// invalidate the app's transfer sessions
+			for (auto&& sessionId : idSessionsPair->second) {
+				_cti_getSessionRegistry().erase(sessionId);
+			}
+			appSessions.erase(idSessionsPair);
+		}
+
+		// invalidate the app ID
+		_cti_getAppRegistry().erase(appId);
+
 		return true;
 	}, false);
 }
@@ -641,7 +668,7 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 		auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 
 		// release barrier
-		appRegistry.get(appId)->releaseBarrier();
+		_cti_getAppRegistry().get(appId)->releaseBarrier();
 
 		return appId;
 	}, APP_ERROR);
@@ -673,7 +700,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stder
 		}
 
 		// register new app instance held at barrier
-		return appRegistry.own(_cti_getCurrentFrontend().launchBarrier(launcher_argv, stdoutFd, stderrFd,
+		return _cti_getAppRegistry().own(_cti_getCurrentFrontend().launchBarrier(launcher_argv, stdoutFd, stderrFd,
 			inputFile, chdirPath, env_list));
 	}, APP_ERROR);
 }
@@ -681,7 +708,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stder
 int
 cti_releaseAppBarrier(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
-		appRegistry.get(appId)->releaseBarrier();
+		_cti_getAppRegistry().get(appId)->releaseBarrier();
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -689,7 +716,7 @@ cti_releaseAppBarrier(cti_app_id_t appId) {
 int
 cti_killApp(cti_app_id_t appId, int signum) {
 	return cti_conventions::runSafely(__func__, [&](){
-		appRegistry.get(appId)->kill(signum);
+		_cti_getAppRegistry().get(appId)->kill(signum);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -722,9 +749,13 @@ cti_session_id_t
 cti_createSession(cti_app_id_t appId) {
 	return cti_conventions::runSafely(__func__, [&](){
 		// register new session instance and ship the WLM-specific base files
-		auto const sid = sessionRegistry.own(
-			std::make_shared<Session>(_cti_getCurrentFrontend().getWLMType(), *appRegistry.get(appId)));
-		shipWLMBaseFiles(*sessionRegistry.get(sid));
+		auto const sid = _cti_getSessionRegistry().own(
+			std::make_shared<Session>(_cti_getCurrentFrontend().getWLMType(), *_cti_getAppRegistry().get(appId)));
+		shipWLMBaseFiles(*_cti_getSessionRegistry().get(sid));
+
+		// associate owning app ID with the new session ID
+		appSessions[appId].insert(sid);
+
 		return sid;
 	}, SESSION_ERROR);
 }
@@ -732,14 +763,14 @@ cti_createSession(cti_app_id_t appId) {
 int
 cti_sessionIsValid(cti_session_id_t sid) {
 	return cti_conventions::runSafely(__func__, [&](){
-		return sessionRegistry.isValid(sid);
+		return _cti_getSessionRegistry().isValid(sid);
 	}, false);
 }
 
 char**
 cti_getSessionLockFiles(cti_session_id_t sid) {
 	return cti_conventions::runSafely(__func__, [&](){
-		auto const& activeManifests = sessionRegistry.get(sid)->getManifests();
+		auto const& activeManifests = _cti_getSessionRegistry().get(sid)->getManifests();
 
 		// ensure there's at least one manifest instance
 		if (activeManifests.size() == 0) {
@@ -765,7 +796,7 @@ cti_getSessionLockFiles(cti_session_id_t sid) {
 static char* sessionPathAppend(std::string const& caller, cti_session_id_t sid, const std::string& str) {
 	return cti_conventions::runSafely(caller, [&](){
 		// get session and construct string
-		auto const& session = *sessionRegistry.get(sid);
+		auto const& session = *_cti_getSessionRegistry().get(sid);
 		std::stringstream ss;
 		ss << session.m_toolPath << "/" << session.m_stageName << str;
 		return strdup(ss.str().c_str());
@@ -804,22 +835,22 @@ cti_getSessionTmpDir(cti_session_id_t sid) {
 cti_manifest_id_t
 cti_createManifest(cti_session_id_t sid) {
 	return cti_conventions::runSafely(__func__, [&](){
-		return manifestRegistry.own(sessionRegistry.get(sid)->createManifest());
+		return _cti_getManifestRegistry().own(_cti_getSessionRegistry().get(sid)->createManifest());
 	}, MANIFEST_ERROR);
 }
 
 int
 cti_manifestIsValid(cti_manifest_id_t mid) {
 	return cti_conventions::runSafely(__func__, [&](){
-		return manifestRegistry.isValid(mid);
+		return _cti_getManifestRegistry().isValid(mid);
 	}, false);
 }
 
 int
 cti_destroySession(cti_session_id_t sid) {
 	return cti_conventions::runSafely(__func__, [&](){
-		sessionRegistry.get(sid)->launchCleanup();
-		sessionRegistry.erase(sid);
+		_cti_getSessionRegistry().get(sid)->launchCleanup();
+		_cti_getSessionRegistry().erase(sid);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -827,7 +858,7 @@ cti_destroySession(cti_session_id_t sid) {
 int
 cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
 	return cti_conventions::runSafely(__func__, [&](){
-		manifestRegistry.get(mid)->addBinary(rawName);
+		_cti_getManifestRegistry().get(mid)->addBinary(rawName);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -835,7 +866,7 @@ cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
 int
 cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
 	return cti_conventions::runSafely(__func__, [&](){
-		manifestRegistry.get(mid)->addLibrary(rawName);
+		_cti_getManifestRegistry().get(mid)->addLibrary(rawName);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -843,7 +874,7 @@ cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
 int
 cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
 	return cti_conventions::runSafely(__func__, [&](){
-		manifestRegistry.get(mid)->addLibDir(rawName);
+		_cti_getManifestRegistry().get(mid)->addLibDir(rawName);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -851,7 +882,7 @@ cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
 int
 cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
 	return cti_conventions::runSafely(__func__, [&](){
-		manifestRegistry.get(mid)->addFile(rawName);
+		_cti_getManifestRegistry().get(mid)->addFile(rawName);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -859,9 +890,9 @@ cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
 int
 cti_sendManifest(cti_manifest_id_t mid) {
 	return cti_conventions::runSafely(__func__, [&](){
-		auto remotePackage = manifestRegistry.get(mid)->finalizeAndShip();
+		auto remotePackage = _cti_getManifestRegistry().get(mid)->finalizeAndShip();
 		remotePackage.extract();
-		manifestRegistry.erase(mid);
+		_cti_getManifestRegistry().erase(mid);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -872,12 +903,12 @@ cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 	const char * const daemonArgs[], const char * const envVars[])
 {
 	return cti_conventions::runSafely(__func__, [&](){
-		{ auto& manifest = *manifestRegistry.get(mid);
+		{ auto& manifest = *_cti_getManifestRegistry().get(mid);
 			manifest.addBinary(daemonPath);
 			auto remotePackage = manifest.finalizeAndShip();
 			remotePackage.extractAndRun(daemonPath, daemonArgs, envVars);
 		}
-		manifestRegistry.erase(mid);
+		_cti_getManifestRegistry().erase(mid);
 		return SUCCESS;
 	}, FAILURE);
 }
@@ -909,7 +940,7 @@ cti_setAttribute(cti_attr_type attrib, const char *value)
 		switch (attrib) {
 			case CTI_ATTR_STAGE_DEPENDENCIES:
 				if (value == nullptr) {
-					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for 'value'."); 
+					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for 'value'.");
 				} else if (value[0] == '0') {
 					_cti_setStageDeps(false);
 					return SUCCESS;
@@ -917,10 +948,10 @@ cti_setAttribute(cti_attr_type attrib, const char *value)
 					_cti_setStageDeps(true);
 					return SUCCESS;
 				} else {
-					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '" + std::to_string(value[0]) + "'"); 
+					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '" + std::to_string(value[0]) + "'");
 				}
 			default:
-				throw std::runtime_error("Invalid cti_attr_type " + std::to_string((int)attrib)); 
+				throw std::runtime_error("Invalid cti_attr_type " + std::to_string((int)attrib));
 		}
 	}, FAILURE);
 }
