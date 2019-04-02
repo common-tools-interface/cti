@@ -27,15 +27,15 @@
 extern "C" {
 #endif
 
-/* 
- *  This enum enumerates the various attributes that 
+/*
+ *  This enum enumerates the various attributes that
  *  can be set by cti_setAttribute.
  */
 enum cti_attr_type
 {
-    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library 
-                                    // dependencies should be automatically 
-                                    // staged by cti_addManifestBinary and 
+    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library
+                                    // dependencies should be automatically
+                                    // staged by cti_addManifestBinary and
                                     // cti_addManifestLIbrary: 0 or 1
                                     // Defaults to 1.
 };
@@ -63,7 +63,8 @@ typedef enum cti_be_wlm_type    cti_be_wlm_type;
 /*******************************************************************************
 ** Generic defines
 *******************************************************************************/
-#define CTI_BUF_SIZE                4096
+#define CTI_BUF_SIZE            4096
+#define DEFAULT_ERR_STR         "Unknown CTI error"
 
 /*******************************************************************************
 ** Frontend defines relating to the login node

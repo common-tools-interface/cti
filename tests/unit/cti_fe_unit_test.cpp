@@ -1,7 +1,21 @@
+/******************************************************************************\
+ * cti_fe_unit_test.cpp - Frontend unit tests for CTI
+ *
+ * Copyright 2019 Cray Inc.  All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ ******************************************************************************/
+
 #include <unordered_set>
 
 #include "cti_fe_unit_test.hpp"
 
+#include "cti_defs.h"
 #include "useful/make_unique_destr.hpp"
 
 using ::testing::Return;
@@ -40,6 +54,14 @@ CTIAppUnitTest::~CTIAppUnitTest()
 }
 
 /* current frontend information query tests */
+
+// const char * cti_error_str(void)
+// Test the the current error string is not set
+TEST_F(CTIFEUnitTest, error_str)
+{
+	// run the test
+	ASSERT_EQ(std::string{cti_error_str()}, DEFAULT_ERR_STR);
+}
 
 // const char *	cti_version(void);
 // Tests that the frontend will return a version string
@@ -264,11 +286,11 @@ TEST_F(CTIAppUnitTest, SessionIsValid)
 {
 	// run the test
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_NE(sessionId, SESSION_ERROR);
-	EXPECT_EQ(cti_sessionIsValid(sessionId), true);
+	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
+	EXPECT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
 	// cleanup session
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // int             	cti_destroySession(cti_session_id_t sid);
@@ -277,8 +299,8 @@ TEST_F(CTIAppUnitTest, DestroySession)
 {
 	// run the test
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_NE(sessionId, SESSION_ERROR);
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 /* transfer session directory listings tests */
@@ -289,17 +311,17 @@ TEST_F(CTIAppUnitTest, GetSessionLockFiles)
 {
 	// run the test
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_NE(sessionId, SESSION_ERROR);
+	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
 	auto const lockFilesList = make_unique_destr(cti_getSessionLockFiles(sessionId), free_ptr_list<char*>);
-	ASSERT_TRUE(lockFilesList != nullptr);
+	ASSERT_TRUE(lockFilesList != nullptr) << cti_error_str();
 
 	// there should have been one manifest for the dlaunch binary
 	EXPECT_TRUE(lockFilesList.get()[0] != nullptr);
 	EXPECT_TRUE(lockFilesList.get()[1] == nullptr);
 
 	// cleanup session
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // char * 	cti_getSessionRootDir(cti_session_id_t sid);
@@ -323,7 +345,7 @@ TEST_F(CTIAppUnitTest, GetSessionBinDir)
 {
 	// run the test
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_NE(sessionId, SESSION_ERROR);
+	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
 	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
 	ASSERT_TRUE(rawRootDir != nullptr);
@@ -411,15 +433,15 @@ TEST_F(CTIAppUnitTest, CreateManifest)
 TEST_F(CTIAppUnitTest, ManifestIsValid)
 {
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_NE(sessionId, SESSION_ERROR);
+	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
 	// run the test
 	auto const manifestId = cti_createManifest(sessionId);
-	ASSERT_NE(manifestId, MANIFEST_ERROR);
-	ASSERT_EQ(cti_manifestIsValid(manifestId), true);
+	ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
+	ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // int              	cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName);
@@ -434,8 +456,8 @@ TEST_F(CTIAppUnitTest, AddManifestBinary)
 	ASSERT_NE(manifestId, MANIFEST_ERROR);
 
 	// add and finalize binaries
-	ASSERT_EQ(cti_addManifestBinary(manifestId, "../test_support/one_printer"), SUCCESS);
-	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
+	ASSERT_EQ(cti_addManifestBinary(manifestId, "../test_support/one_printer"), SUCCESS) << cti_error_str();
+	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
 	// check for expected contents
 	auto const shippedFilePaths = mockApp.getShippedFilePaths();
@@ -448,11 +470,11 @@ TEST_F(CTIAppUnitTest, AddManifestBinary)
 	};
 
 	for (auto&& path : mockApp.getShippedFilePaths()) {
-		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end()) << "Could not find " << path;
 	}
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // int              	cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName);
@@ -460,15 +482,15 @@ TEST_F(CTIAppUnitTest, AddManifestBinary)
 TEST_F(CTIAppUnitTest, AddManifestLibrary)
 {
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_NE(sessionId, SESSION_ERROR);
+	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
 	// run the test
 	auto const manifestId = cti_createManifest(sessionId);
-	ASSERT_NE(manifestId, MANIFEST_ERROR);
+	ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
 	// add and finalize libraries
-	ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/print_one/libprint.so"), SUCCESS);
-	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
+	ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/print_one/libprint.so"), SUCCESS) << cti_error_str();
+	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
 	// check for expected contents
 	auto const shippedFilePaths = mockApp.getShippedFilePaths();
@@ -480,11 +502,11 @@ TEST_F(CTIAppUnitTest, AddManifestLibrary)
 	};
 
 	for (auto&& path : mockApp.getShippedFilePaths()) {
-		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end()) << "Could not find " << path;
 	}
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // int              	cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName);
@@ -492,15 +514,15 @@ TEST_F(CTIAppUnitTest, AddManifestLibrary)
 TEST_F(CTIAppUnitTest, AddManifestLibDir)
 {
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_NE(sessionId, SESSION_ERROR);
+	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
 	// run the test
 	auto const manifestId = cti_createManifest(sessionId);
-	ASSERT_NE(manifestId, MANIFEST_ERROR);
+	ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
 	// add and finalize libraries
-	ASSERT_EQ(cti_addManifestLibDir(manifestId, "../test_support/print_one/"), SUCCESS);
-	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
+	ASSERT_EQ(cti_addManifestLibDir(manifestId, "../test_support/print_one/"), SUCCESS) << cti_error_str();
+	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
 	// check for expected contents
 	auto const shippedFilePaths = mockApp.getShippedFilePaths();
@@ -514,11 +536,11 @@ TEST_F(CTIAppUnitTest, AddManifestLibDir)
 	};
 
 	for (auto&& path : mockApp.getShippedFilePaths()) {
-		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end()) << "Could not find " << path;
 	}
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // int              	cti_addManifestFile(cti_manifest_id_t mid, const char * rawName);
@@ -527,15 +549,15 @@ TEST_F(CTIAppUnitTest, AddManifestLibDir)
 TEST_F(CTIAppUnitTest, AddManifestFile)
 {
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_NE(sessionId, SESSION_ERROR);
+	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
 	// run the test
 	auto const manifestId = cti_createManifest(sessionId);
-	ASSERT_NE(manifestId, MANIFEST_ERROR);
+	ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
 	// add and finalize file
-	ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/print_one/print.c"), SUCCESS);
-	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS);
+	ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/print_one/print.c"), SUCCESS) << cti_error_str();
+	ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
 	// check for expected contents
 	auto const shippedFilePaths = mockApp.getShippedFilePaths();
@@ -547,11 +569,11 @@ TEST_F(CTIAppUnitTest, AddManifestFile)
 	};
 
 	for (auto&& path : mockApp.getShippedFilePaths()) {
-		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end()) << "Could not find " << path;
 	}
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 /* tool daemon management tests */
@@ -562,14 +584,14 @@ TEST_F(CTIAppUnitTest, AddManifestFile)
 TEST_F(CTIAppUnitTest, ExecToolDaemon)
 {
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_NE(sessionId, SESSION_ERROR);
+	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
 	// run the test
 	auto const manifestId = cti_createManifest(sessionId);
-	ASSERT_NE(manifestId, MANIFEST_ERROR);
+	ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
 	// finalize manifest and run tooldaemon
-	ASSERT_EQ(cti_execToolDaemon(manifestId, "../test_support/one_printer", mockArgv, nullptr), SUCCESS);
+	ASSERT_EQ(cti_execToolDaemon(manifestId, "../test_support/one_printer", mockArgv, nullptr), SUCCESS) << cti_error_str();
 
 	// check for expected contents
 	auto const shippedFilePaths = mockApp.getShippedFilePaths();
@@ -582,9 +604,9 @@ TEST_F(CTIAppUnitTest, ExecToolDaemon)
 	};
 
 	for (auto&& path : mockApp.getShippedFilePaths()) {
-		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end());
+		EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end()) << "Could not find " << path;
 	}
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }

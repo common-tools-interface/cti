@@ -29,8 +29,6 @@
 #include "cti_error.h"
 #include "cti_defs.h"
 
-#define DEFAULT_ERR_STR	"Unknown CTI error"
-
 static char *	_cti_err_string = NULL;
 
 void
@@ -40,7 +38,7 @@ _cti_set_error(const char *fmt, ...)
 
 	if (fmt == NULL)
 		return;
-		
+
 	if (_cti_err_string != NULL)
 	{
 		free(_cti_err_string);
@@ -48,7 +46,7 @@ _cti_set_error(const char *fmt, ...)
 	}
 
 	va_start(ap, fmt);
-	
+
 	vasprintf(&_cti_err_string, fmt, ap);
 
 	va_end(ap);
@@ -56,7 +54,7 @@ _cti_set_error(const char *fmt, ...)
 
 /*
  * _cti_is_valid_environment - Validate values of CTI environment variables
- * 
+ *
  * Detail
  *      This function validates the values of set CTI environment variables.
  *		Currently this is set up to validate that CRAY_CTI_LAUNCHER_NAME
@@ -65,7 +63,7 @@ _cti_set_error(const char *fmt, ...)
  *
  * Returns
  *      true if the set CTI environment variables contain valid values, false otherwise
- * 
+ *
  */
 bool _cti_is_valid_environment(){
 	// Check that the specified launcher exists
@@ -96,8 +94,8 @@ const char *
 cti_error_str(void)
 {
 	if (_cti_err_string == NULL)
-		return DEFAULT_ERR_STR;
-		
+		_cti_set_error("%s", DEFAULT_ERR_STR);
+
 	return (const char *)_cti_err_string;
 }
 
