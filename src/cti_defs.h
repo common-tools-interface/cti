@@ -71,7 +71,6 @@ typedef enum cti_be_wlm_type    cti_be_wlm_type;
 *******************************************************************************/
 #define CTI_OVERWATCH_BINARY    "cti_overwatch"                     // name of the overwatch binary
 #define DEFAULT_SIG             9                                   // default signal value to use
-#define WLM_DETECT_LIB_NAME     "libwlm_detect.so.0"                // wlm_detect library
 #define LD_AUDIT_LIB_NAME       "libaudit.so"                       // ld audit library
 
 /*******************************************************************************

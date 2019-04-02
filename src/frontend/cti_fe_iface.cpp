@@ -46,12 +46,11 @@
 #include "Frontend.hpp"
 #include "Frontend_impl.hpp"
 
-// WLM detection library interface
-#include "wlm_detect.h"
-
 // utility includes
 #include "useful/cti_useful.h"
 #include "useful/Dlopen.hpp"
+#include "useful/ExecvpOutput.hpp"
+#include "useful/cti_argv.hpp"
 
 /* helper functions */
 
@@ -289,39 +288,35 @@ namespace cti_conventions
 		// Use the workload manager in the environment variable if it is set
 		if (const char* wlm_name_env = getenv(CTI_WLM)) {
 			wlmName = std::string(wlm_name_env);
-		} else {
-			// use wlm_detect to load wlm name
-			Dlopen::Handle wlmDetect(WLM_DETECT_LIB_NAME);
 
-			using GetActiveFnType = char*(void);
-			using GetDefaultFnType = const char*(void);
-			auto getActive = wlmDetect.loadFailable<GetActiveFnType>("wlm_detect_get_active");
-			auto getDefault = wlmDetect.loadFailable<GetDefaultFnType>("wlm_detect_get_default");
-
-			char *active_wlm;
-			const char *default_wlm;
-			if (getActive && (active_wlm = getActive())) {
-				wlmName = std::string(active_wlm);
-				free(active_wlm);
-			} else {
-				if (getDefault && (default_wlm = getDefault())) {
-					wlmName = std::string(default_wlm);
-				} else {
-					return std::make_unique<DefaultFrontend>();
-				}
+			// parse the env string
+			if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
+				return std::make_unique<CraySLURMFrontend>();
+			}
+			else if (!wlmName.compare("generic")) {
+				return std::make_unique<GenericSSHFrontend>();
+			}
+			else {
+				// fallback to use the default
+				fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
+				return std::make_unique<DefaultFrontend>();
+			}
+		}
+		else {
+			// Query for the slurm package using rpm
+			// FIXME: This is a hack. This should be addressed by PE-25088
+			auto rpmArgv = cti_argv::ManagedArgv { "rpm", "-q", "slurm" };
+			ExecvpOutput rpmOutput("rpm", rpmArgv.get());
+			auto res = rpmOutput.getExitStatus();
+			if (res == 0) {
+				// The slurm package is installed. This is a naive check.
+				return std::make_unique<CraySLURMFrontend>();
 			}
 		}
 
-		// parse the returned result
-		if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
-			return std::make_unique<CraySLURMFrontend>();
-		} else if (!wlmName.compare("generic")) {
-			return  std::make_unique<GenericSSHFrontend>();
-		} else {
-			// fallback to use the default
-			fprintf(stderr, "Invalid workload manager argument %s provided in %s\n", wlmName.c_str(), CTI_WLM);
-			return std::make_unique<DefaultFrontend>();
-		}
+		// Unknown WLM
+		fprintf(stderr, "Unable to determine wlm in use. Falling back to default.");
+		return std::make_unique<DefaultFrontend>();
 	}
 
 	// run code that can throw and use it to set cti error instead
@@ -945,7 +940,7 @@ cti_setAttribute(cti_attr_type attrib, const char *value)
 		switch (attrib) {
 			case CTI_ATTR_STAGE_DEPENDENCIES:
 				if (value == nullptr) {
-					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for 'value'."); 
+					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for 'value'.");
 				} else if (value[0] == '0') {
 					_cti_setStageDeps(false);
 					return SUCCESS;
@@ -953,10 +948,10 @@ cti_setAttribute(cti_attr_type attrib, const char *value)
 					_cti_setStageDeps(true);
 					return SUCCESS;
 				} else {
-					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '" + std::to_string(value[0]) + "'"); 
+					throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '" + std::to_string(value[0]) + "'");
 				}
 			default:
-				throw std::runtime_error("Invalid cti_attr_type " + std::to_string((int)attrib)); 
+				throw std::runtime_error("Invalid cti_attr_type " + std::to_string((int)attrib));
 		}
 	}, FAILURE);
 }
