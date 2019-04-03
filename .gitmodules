@@ -25,3 +25,7 @@
 	path = external/libssh
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libssh.git
 	branch = cti-external
+[submodule "tests/test_support/googletest"]
+	path = tests/test_support/googletest
+	url = ssh://git@stash.us.cray.com:7999/pe-cdst/googletest.git
+	branch = cdst_external
