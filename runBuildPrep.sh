@@ -18,6 +18,7 @@
 #./install_rpm.sh cmake
 # FIXME: install_rpm.sh not supported in pe pipeline
 zypper --non-interactive --no-gpg-check install cmake
+zypper --non-interactive --no-gpg-check install flex
 
 # Create autotools generated files for this build environment
 autoreconf -ifv
