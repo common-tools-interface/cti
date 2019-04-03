@@ -72,6 +72,7 @@ typedef enum cti_be_wlm_type    cti_be_wlm_type;
 #define DEFAULT_SIG             9                                   // default signal value to use
 #define WLM_DETECT_LIB_NAME     "libwlm_detect.so.0"                // wlm_detect library
 #define LD_AUDIT_LIB_NAME       "libaudit.so"                       // ld audit library
+#define OUTPUT_REDIRECT_BINARY  "splice_out_err"                    // name of the output redirection binary
 
 /*******************************************************************************
 ** Backend defines relating to the compute node

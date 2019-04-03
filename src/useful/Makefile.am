@@ -24,11 +24,15 @@ libuseful_la_CXXFLAGS   = 	$(AM_CXXFLAGS) $(libuseful_la_CFLAGS)
 libuseful_la_LIBADD		=	ld_val/libld_val.la
 libuseful_la_LDFLAGS    = 	-static -Wl,--no-undefined
 
-libexec_PROGRAMS		= 	cti_overwatch
+libexec_PROGRAMS		= 	cti_overwatch splice_out_err
 
 cti_overwatch_SOURCES	= 	cti_overwatch_process.c
 cti_overwatch_CFLAGS	= 	$(AM_CFLAGS)
 cti_overwatch_LDFLAGS	= 	-Wl,--no-undefined -Wl,--as-needed
+
+splice_out_err_SOURCES = splice_out_err.c
+splice_out_err_CFLAGS  = $(AM_CFLAGS)
+splice_out_err_LDFLAGS = -Wl,--no-undefined -Wl,--as-needed -pthread
 
 noinst_HEADERS			= 	cti_argv.hpp cti_error.h cti_log.h cti_overwatch.h \
 							cti_path.h cti_split.hpp cti_stack.h cti_wrappers.hpp \

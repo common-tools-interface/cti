@@ -60,10 +60,12 @@ public: // slurm specific types
 		std::vector<NodeLayout> nodes; // array of hosts
 	};
 
+	// objects that are created during an App creation. ownership will pass to the App
 	struct SrunInstance {
-		std::unique_ptr<MPIRInstance> stoppedSrun;
-		temp_file_handle outputPath;
-		temp_file_handle errorPath;
+		std::unique_ptr<MPIRInstance> stoppedSrun; // SRUN inferior for barrier release
+		temp_file_handle outputPath; // handle to output fifo file
+		temp_file_handle errorPath;  // handle to error fifo file
+		pid_t redirectPid; // running output redirection pid
 	};
 
 public: // slurm specific interface
@@ -111,7 +113,7 @@ private: // variables
 	int                    m_queuedOutFd; // Where to redirect stdout after barrier release
 	int                    m_queuedErrFd; // Where to redirect stderr after barrier release
 	bool                   m_dlaunchSent; // Have we already shipped over the dlaunch utility?
-	std::vector<pid_t>     m_sattachPids; // active sattaches for stdout/err redirection
+	std::vector<pid_t>     m_redirectPids; // active redirect / sattaches for stdout/err redirection
 
 	std::unique_ptr<MPIRInstance> m_stoppedSrun; // MPIR instance handle to release startup barrier
 	temp_file_handle m_outputPath;

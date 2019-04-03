@@ -46,10 +46,10 @@
 /* constructors / destructors */
 
 CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunInstance)
-	: m_srunInfo    { jobid, stepid }
-	, m_stepLayout  { CraySLURMFrontend::fetchStepLayout(jobid, stepid) }
-	, m_dlaunchSent { false }
-	, m_sattachPids { }
+	: m_srunInfo     { jobid, stepid }
+	, m_stepLayout   { CraySLURMFrontend::fetchStepLayout(jobid, stepid) }
+	, m_dlaunchSent  { false }
+	, m_redirectPids { }
 
 	, m_stoppedSrun { std::move(srunInstance.stoppedSrun) }
 	, m_outputPath  { std::move(srunInstance.outputPath) }
@@ -75,13 +75,18 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunI
 		// the information to the compute nodes.
 		m_extraFiles.push_back(CraySLURMFrontend::createPIDListFile(m_stoppedSrun->getProcTable(), m_stagePath));
 	}
+
+	// if there's an active redirection process, add it to pid list to clean up on destruction
+	if (srunInstance.redirectPid > 0) {
+		m_redirectPids.push_back(srunInstance.redirectPid);
+	}
 }
 
 CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	: m_srunInfo    { moved.m_srunInfo }
 	, m_stepLayout  { moved.m_stepLayout }
 	, m_dlaunchSent { moved.m_dlaunchSent }
-	, m_sattachPids { moved.m_sattachPids }
+	, m_redirectPids { moved.m_redirectPids }
 
 	, m_stoppedSrun { std::move(moved.m_stoppedSrun) }
 	, m_outputPath  { std::move(moved.m_outputPath) }
@@ -92,8 +97,8 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	, m_stagePath   { moved.m_stagePath }
 	, m_extraFiles  { moved.m_extraFiles }
 {
-	// we taken ownership of the running sattach redirections, if any
-	moved.m_sattachPids.clear();
+	// we taken ownership of the running redirections, if any
+	moved.m_redirectPids.clear();
 
 	// We have taken ownership of the staging path, so don't let moved delete the directory.
 	moved.m_stagePath.erase();
@@ -102,9 +107,9 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 CraySLURMApp::~CraySLURMApp()
 {
 	// kill and wait for sattach to exit
-	for (auto&& sattachPid : m_sattachPids) {
-		::kill(sattachPid, DEFAULT_SIG);
-		waitpid(sattachPid, nullptr, 0);
+	for (auto&& redirectPid : m_redirectPids) {
+		::kill(redirectPid, DEFAULT_SIG);
+		waitpid(redirectPid, nullptr, 0);
 	}
 
 	// Delete the staging directory if it exists.
@@ -123,6 +128,7 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid)
 			{ .stoppedSrun = nullptr
 			, .outputPath  = temp_file_handle{"/tmp/cti-output-fifo-XXXXXX"}
 			, .errorPath   = temp_file_handle{"/tmp/cti-error-fifo-XXXXXX"}
+			, .redirectPid = pid_t{-1}
 		}
 	}
 {}
@@ -225,7 +231,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 		sattachInferior.continueRun();
 
 		// add to app list of active sattach
-		m_sattachPids.push_back(sattachInferior.getPid());
+		m_redirectPids.push_back(sattachInferior.getPid());
 	} else {
 		throw std::runtime_error(std::string{"failed to find in path: "} + SATTACH);
 	}
@@ -675,17 +681,28 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 	};
 
 	// attach output / error fifo to user-provided FDs if applicable
-	mkfifo(srunInstance.outputPath.get(), 0600);
-	mkfifo(srunInstance.errorPath.get(),  0600);
-	if (!fork()) {
-		const char* const catArgv[] = { "cat", srunInstance.outputPath.get(), nullptr };
-		dup2((stdoutFd < 0) ? STDOUT_FILENO : stdoutFd, STDOUT_FILENO);
-		execvp("cat", (char* const*)catArgv);
+	if (mkfifo(srunInstance.outputPath.get(), 0600) < 0) {
+		throw std::runtime_error("mkfifo failed on " + std::string{srunInstance.outputPath.get()} +": " + std::string{strerror(errno)});
 	}
-	if (!fork()) {
-		const char* const catArgv[] = { "cat", srunInstance.errorPath.get(), nullptr };
-		dup2((stderrFd < 0) ? STDERR_FILENO : stderrFd, STDOUT_FILENO);
-		execvp("cat", (char* const*)catArgv);
+	if (mkfifo(srunInstance.errorPath.get(), 0600) < 0) {
+		throw std::runtime_error("mkfifo failed on " + std::string{srunInstance.errorPath.get()} +": " + std::string{strerror(errno)});
+	}
+	// run output redirection binary
+	if (auto const redirectPid = fork()) {
+		if (redirectPid < 0) {
+			throw std::runtime_error("fork failed");
+		}
+
+		// will pass pid to app object to clean up later
+		srunInstance.redirectPid = redirectPid;
+	} else {
+		std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
+		const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };
+		dup2((stdoutFd < 0) ? STDOUT_FILENO : stdoutFd, STDOUT_FILENO);
+		dup2((stderrFd < 0) ? STDERR_FILENO : stderrFd, STDERR_FILENO);
+		execv(redirectPath.c_str(), (char* const*)redirectArgv);
+		perror("execv");
+		exit(1);
 	}
 
 	// Get the launcher path from CTI environment variable / default.
