@@ -23,7 +23,11 @@ echo "############################################"
 zypper --non-interactive --no-gpg-check install cmake
 zypper --non-interactive --no-gpg-check install flex
 zypper --non-interactive --no-gpg-check install bison
+zypper --non-interactive --no-gpg-check install binutils-devel
 
+echo "############################################"
+echo "#      Generating configure files          #"
+echo "############################################"
 # Create autotools generated files for this build environment
 autoreconf -ifv
 
@@ -32,8 +36,14 @@ echo "#            Calling Configure             #"
 echo "############################################"
 # Create the make files
 ./configure --enable-static=no
+return_code=$?
 
 echo "############################################"
-echo "#        config.log output follows...      #"
+echo "#          Dumping config.log              #"
 echo "############################################"
 cat config.log
+
+# We want to capture the config.log in the jenkins output on error.
+# But we also want to return with the return code from the configure
+# call. So do that below.
+exit $return_code
