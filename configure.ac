@@ -32,7 +32,7 @@ AC_SUBST([CRAYTOOL_DIR], ["$(cd $srcdir && pwd)"])
 dnl Pull in Cray specific m4 extensions
 cray_INIT
 
-AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/${CRAYTOOL_RELEASE_VERSION}"])
+AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/$CRAYTOOL_RELEASE_VERSION"])
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 

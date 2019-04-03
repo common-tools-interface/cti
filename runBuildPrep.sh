@@ -38,10 +38,13 @@ echo "############################################"
 ./configure --enable-static=no
 return_code=$?
 
-echo "############################################"
-echo "#          Dumping config.log              #"
-echo "############################################"
-cat config.log
+# Dump config.log if configure fails
+if [ $return_code -ne 0 ]; then
+    echo "############################################"
+    echo "#          Dumping config.log              #"
+    echo "############################################"
+    cat config.log
+fi
 
 # We want to capture the config.log in the jenkins output on error.
 # But we also want to return with the return code from the configure
