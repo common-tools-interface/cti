@@ -15,7 +15,9 @@
 # ./add_rpm_repo.sh http://car.dev.cray.com/artifactory/internal/PE-CDST/ /x86_64/dev/master/
 
 # Install the rpms in an OS agnostic fashion using DST scripts
-./install_rpm.sh cmake
+#./install_rpm.sh cmake
+# FIXME: install_rpm.sh not supported in pe pipeline
+zypper install cmake
 
 # Create autotools generated files for this build environment
 autoreconf -ifv
