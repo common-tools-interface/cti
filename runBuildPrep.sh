@@ -17,7 +17,7 @@
 # Install the rpms in an OS agnostic fashion using DST scripts
 #./install_rpm.sh cmake
 # FIXME: install_rpm.sh not supported in pe pipeline
-zypper install cmake
+zypper --non-interactive --no-gpg-check install cmake
 
 # Create autotools generated files for this build environment
 autoreconf -ifv
