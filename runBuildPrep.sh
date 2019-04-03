@@ -17,6 +17,10 @@
 # Install the rpms in an OS agnostic fashion using DST scripts
 ./install_rpm.sh cmake
 
+# Ensure git submodules are checked out
+# TODO: DST claims that they can automatically do this for us...
+git submodule udpate --init --recursive --remote
+
 # Create autotools generated files for this build environment
 autoreconf -ifv
 
