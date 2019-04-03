@@ -22,3 +22,5 @@ autoreconf -ifv
 
 # Create the make files
 ./configure --enable-static=no
+
+cat config.log
