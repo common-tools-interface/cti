@@ -22,6 +22,7 @@ echo "#             Installing deps              #"
 echo "############################################"
 zypper --non-interactive --no-gpg-check install cmake
 zypper --non-interactive --no-gpg-check install flex
+zypper --non-interactive --no-gpg-check install bison
 
 # Create autotools generated files for this build environment
 autoreconf -ifv
