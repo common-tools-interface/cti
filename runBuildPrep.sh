@@ -17,13 +17,22 @@
 # Install the rpms in an OS agnostic fashion using DST scripts
 #./install_rpm.sh cmake
 # FIXME: install_rpm.sh not supported in pe pipeline
+echo "############################################"
+echo "#             Installing deps              #"
+echo "############################################"
 zypper --non-interactive --no-gpg-check install cmake
 zypper --non-interactive --no-gpg-check install flex
 
 # Create autotools generated files for this build environment
 autoreconf -ifv
 
+echo "############################################"
+echo "#            Calling Configure             #"
+echo "############################################"
 # Create the make files
 ./configure --enable-static=no
 
+echo "############################################"
+echo "#        config.log output follows...      #"
+echo "############################################"
 cat config.log
