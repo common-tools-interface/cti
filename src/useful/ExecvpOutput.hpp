@@ -142,8 +142,11 @@ class ExecvpOutput {
 	std::istream pipein;
 	pid_t child;
 public:
-	ExecvpOutput(const char *binaryName, char* const* argv) :
-		pipeInBuf(p.getReadFd()), pipein(&pipeInBuf), child(fork()) {
+	ExecvpOutput(const char *binaryName, char* const* argv)
+		: pipeInBuf(p.getReadFd())
+		, pipein(&pipeInBuf)
+		, child(fork())
+	{
 
 		if (child < 0) {
 			throw std::runtime_error(std::string("fork() for ") + binaryName + " failed!");
@@ -151,6 +154,8 @@ public:
 			/* prepare the output pipe */
 			p.closeRead();
 			dup2(p.getWriteFd(), Pipe::stdout);
+			dup2(p.getWriteFd(), Pipe::stderr);
+			p.closeWrite();
 
 			execvp(binaryName, argv);
 			throw std::runtime_error(std::string("execvp() on ") + binaryName + " failed!");
@@ -161,8 +166,8 @@ public:
 	}
 
 	int getExitStatus() {
-		int status;
-		if (waitpid(child, &status, 0) < 0) {
+		int status = 0;
+		if ((waitpid(child, &status, 0) < 0) && (errno != ECHILD)) {
 			throw std::runtime_error(
 				std::string("waitpid() on ") + std::to_string(child) + " failed!");
 		}

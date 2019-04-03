@@ -22,6 +22,8 @@
 #include "frontend/Frontend.hpp"
 #include "mpir_iface/MPIRInstance.hpp"
 
+#include "useful/temp_file_handle.hpp"
+
 // cti_srunProc_t extended to performs sanity checking upon construction
 struct SrunInfo : public cti_srunProc_t {
 	SrunInfo(uint32_t jobid, uint32_t stepid)
@@ -58,6 +60,12 @@ public: // slurm specific types
 		std::vector<NodeLayout> nodes; // array of hosts
 	};
 
+	struct SrunInstance {
+		std::unique_ptr<MPIRInstance> stoppedSrun;
+		temp_file_handle outputPath;
+		temp_file_handle errorPath;
+	};
+
 public: // slurm specific interface
 	// Get the default launcher binary name, or, if provided, from the environment.
 	static std::string getLauncherName();
@@ -77,9 +85,10 @@ public: // slurm specific interface
 	// Use an MPIR ProcTable to create the SLURM PID List file inside the staging directory, return the new path.
 	static std::string createPIDListFile(std::vector<MPIRInstance::MPIR_ProcTableElem> const& procTable, std::string const& stagePath);
 
-	// Launch a SLURM app under MPIR control and hold at barrier.
-	static std::unique_ptr<MPIRInstance> launchApp(const char * const launcher_argv[],
-		const char *inputFile, const char *chdirPath, const char * const env_list[]);
+	// Launch a SLURM app under MPIR control and hold at SRUN barrier.
+	static SrunInstance launchApp(const char * const launcher_argv[],
+		const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
+		const char * const env_list[]);
 
 	// Extract the SLURM Job ID from launcher memory using an existing MPIR control session.
 	static uint32_t fetchJobId(MPIRInstance& srunInstance);
@@ -93,6 +102,9 @@ public: // slurm specific interface
 
 class CraySLURMApp final : public App
 {
+private: // type aliases
+	using SrunInstance = CraySLURMFrontend::SrunInstance;
+
 private: // variables
 	SrunInfo               m_srunInfo;    // Job and Step IDs
 	CraySLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
@@ -101,7 +113,9 @@ private: // variables
 	bool                   m_dlaunchSent; // Have we already shipped over the dlaunch utility?
 	std::vector<pid_t>     m_sattachPids; // active sattaches for stdout/err redirection
 
-	std::unique_ptr<MPIRInstance> m_srunInstance; // MPIR instance handle to release startup barrier
+	std::unique_ptr<MPIRInstance> m_stoppedSrun; // MPIR instance handle to release startup barrier
+	temp_file_handle m_outputPath;
+	temp_file_handle m_errorPath;
 
 	std::string m_toolPath;    // Backend path where files are unpacked
 	std::string m_attribsPath; // Backend Cray-specific directory
@@ -111,13 +125,13 @@ private: // variables
 private: // member helpers
 	void redirectOutput(int stdoutFd, int stderrFd);
 	// delegated constructor
-	CraySLURMApp(uint32_t jobid, uint32_t stepid, std::unique_ptr<MPIRInstance>&& srunInstance);
+	CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunInstance);
 
 public: // constructor / destructor interface
 	// register case
 	CraySLURMApp(uint32_t jobid, uint32_t stepid);
 	// attach case
-	CraySLURMApp(std::unique_ptr<MPIRInstance>&& srunInstance);
+	CraySLURMApp(SrunInstance&& srunInstance);
 	// launch case
 	CraySLURMApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 		const char *inputFile, const char *chdirPath, const char * const env_list[]);

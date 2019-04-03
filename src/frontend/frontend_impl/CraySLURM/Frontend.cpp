@@ -45,15 +45,15 @@
 
 /* constructors / destructors */
 
-CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, std::unique_ptr<MPIRInstance>&& srunInstance)
+CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunInstance)
 	: m_srunInfo    { jobid, stepid }
 	, m_stepLayout  { CraySLURMFrontend::fetchStepLayout(jobid, stepid) }
-	, m_queuedOutFd { -1 }
-	, m_queuedErrFd { -1 }
 	, m_dlaunchSent { false }
 	, m_sattachPids { }
 
-	, m_srunInstance{ std::move(srunInstance) }
+	, m_stoppedSrun { std::move(srunInstance.stoppedSrun) }
+	, m_outputPath  { std::move(srunInstance.outputPath) }
+	, m_errorPath   { std::move(srunInstance.errorPath) }
 
 	, m_toolPath    { CRAY_SLURM_TOOL_DIR }
 	, m_attribsPath { cstr::asprintf(CRAY_SLURM_CRAY_DIR, CRAY_SLURM_APID(jobid, stepid)) }
@@ -67,25 +67,25 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, std::unique_ptr<MPIR
 	}
 
 	// If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
-	if (m_srunInstance) {
+	if (m_stoppedSrun) {
 		// FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
 		// call can be removed. Right now the pmi_attribs file is created in the pmi
 		// ctor, which is called after the slurm startup barrier, meaning it will not
 		// yet be created when launching. So we need to send over a file containing
 		// the information to the compute nodes.
-		m_extraFiles.push_back(CraySLURMFrontend::createPIDListFile(m_srunInstance->getProcTable(), m_stagePath));
+		m_extraFiles.push_back(CraySLURMFrontend::createPIDListFile(m_stoppedSrun->getProcTable(), m_stagePath));
 	}
 }
 
 CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	: m_srunInfo    { moved.m_srunInfo }
 	, m_stepLayout  { moved.m_stepLayout }
-	, m_queuedOutFd { moved.m_queuedOutFd }
-	, m_queuedErrFd { moved.m_queuedErrFd }
 	, m_dlaunchSent { moved.m_dlaunchSent }
 	, m_sattachPids { moved.m_sattachPids }
 
-	, m_srunInstance{ std::move(moved.m_srunInstance) }
+	, m_stoppedSrun { std::move(moved.m_stoppedSrun) }
+	, m_outputPath  { std::move(moved.m_outputPath) }
+	, m_errorPath   { std::move(moved.m_errorPath) }
 
 	, m_toolPath    { moved.m_toolPath }
 	, m_attribsPath { moved.m_attribsPath }
@@ -116,25 +116,29 @@ CraySLURMApp::~CraySLURMApp()
 /* app instance creation */
 
 CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid)
-	: CraySLURMApp{jobid, stepid, nullptr}
+	: CraySLURMApp
+		{ jobid
+		, stepid
+		, SrunInstance
+			{ .stoppedSrun = nullptr
+			, .outputPath  = temp_file_handle{"/tmp/cti-output-fifo-XXXXXX"}
+			, .errorPath   = temp_file_handle{"/tmp/cti-error-fifo-XXXXXX"}
+		}
+	}
 {}
 
-CraySLURMApp::CraySLURMApp(std::unique_ptr<MPIRInstance>&& srunInstance)
+CraySLURMApp::CraySLURMApp(SrunInstance&& srunInstance)
 	: CraySLURMApp
-		{ CraySLURMFrontend::fetchJobId(*srunInstance)
-		, CraySLURMFrontend::fetchStepId(*srunInstance)
+		{ CraySLURMFrontend::fetchJobId(*srunInstance.stoppedSrun)
+		, CraySLURMFrontend::fetchStepId(*srunInstance.stoppedSrun)
 		, std::move(srunInstance)
 	}
 {}
 
 CraySLURMApp::CraySLURMApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
-	: CraySLURMApp{ CraySLURMFrontend::launchApp(launcher_argv, inputFile, chdirPath, env_list) }
-{
-	// these FDs need to be remapped using sattach after barrier release
-	m_queuedOutFd = stdout_fd;
-	m_queuedErrFd = stderr_fd;
-}
+	: CraySLURMApp{ CraySLURMFrontend::launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list) }
+{}
 
 /* running app info accessors */
 
@@ -181,25 +185,17 @@ CraySLURMApp::getHostsPlacement() const
 
 void CraySLURMApp::releaseBarrier() {
 	// check MPIR barrier
-	if (!m_srunInstance) {
+	if (!m_stoppedSrun) {
 		throw std::runtime_error("app not under MPIR control");
 	}
 
-	// redirect output to proper FDs before app is continued
-	if ((m_queuedOutFd >= 0) || (m_queuedErrFd >= 0)) {
-		redirectOutput(m_queuedOutFd, m_queuedErrFd);
-		m_queuedOutFd = -1;
-		m_queuedErrFd = -1;
-	}
-
 	// release MPIR barrier
-	m_srunInstance.reset();
+	m_stoppedSrun.reset();
 }
 
 void
 CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 {
-	#if 0
 	// create sattach argv
 	cti_argv::ManagedArgv sattachArgv
 		{ SATTACH // first argument should be "sattach"
@@ -219,10 +215,13 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 	}
 
 	if (auto const sattachPath = make_unique_destr(_cti_pathFind(SATTACH, nullptr), std::free)) {
-		// wait until sattach is set up (hits MPIR_Breakpoint)
+		// make sure sattach is set up by running to MPIR_Breakpoint
 		Inferior sattachInferior{sattachPath.get(), sattachArgv.get(), {}, remapFds};
 		sattachInferior.addSymbol("MPIR_Breakpoint");
+		sattachInferior.addSymbol("MPIR_being_debugged");
 		sattachInferior.setBreakpoint("MPIR_Breakpoint");
+		sattachInferior.writeVariable("MPIR_being_debugged", 1);
+
 		sattachInferior.continueRun();
 
 		// add to app list of active sattach
@@ -230,44 +229,6 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 	} else {
 		throw std::runtime_error(std::string{"failed to find in path: "} + SATTACH);
 	}
-	#else
-	// create the sattach process to redirect output
-	if (auto const sattachPid = fork()) {
-		if (sattachPid < 0) {
-			throw std::runtime_error("fork failed");
-		}
-
-		// add to app list of active sattach
-		m_sattachPids.push_back(sattachPid);
-	} else {
-		// create sattach argv
-		cti_argv::ManagedArgv sattachArgv
-			{ SATTACH // first argument should be "sattach"
-			// , "-Q"    // second argument is quiet
-			, getJobId() // third argument is the jobid.stepid
-		};
-
-		// redirect stdin / stderr / stdout
-		int devNullFd = open("/dev/null", O_RDONLY);
-		dup2(devNullFd, STDIN_FILENO);
-		if (stdoutFd >= 0) {
-			dup2(stdoutFd, STDOUT_FILENO);
-			close(stdoutFd);
-		}
-		if (stderrFd >= 0) {
-			dup2(stderrFd, STDERR_FILENO);
-			close(stderrFd);
-		}
-
-		// child case: exec sattach
-		execvp(SATTACH, sattachArgv.get());
-
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execvp");
-		_exit(1);
-	}
-	#endif
 }
 
 void CraySLURMApp::kill(int signum)
@@ -552,14 +513,24 @@ CraySLURMFrontend::StepLayout
 CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 {
 	// create sattach instance
-	cti_argv::OutgoingArgv<SattachArgv> sattachArgv("sattach");
+	cti_argv::OutgoingArgv<SattachArgv> sattachArgv(SATTACH);
 	sattachArgv.add(SattachArgv::DisplayLayout);
+	sattachArgv.add(SattachArgv::Argument("-Q"));
 	sattachArgv.add(SattachArgv::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
 
 	// create sattach output capture object
-	ExecvpOutput sattachOutput("sattach", sattachArgv.get());
+	ExecvpOutput sattachOutput(SATTACH, sattachArgv.get());
 	auto& sattachStream = sattachOutput.stream();
 	std::string sattachLine;
+
+	// wait for sattach to complete
+	auto const sattachCode = sattachOutput.getExitStatus();
+	if (sattachCode > 0) {
+		// sattach failed, restart it
+		return fetchStepLayout(job_id, step_id);
+	}
+
+	// start parsing sattach output
 
 	// "Job step layout:"
 	if (std::getline(sattachStream, sattachLine)) {
@@ -677,10 +648,17 @@ CraySLURMFrontend::createPIDListFile(std::vector<MPIRInstance::MPIR_ProcTableEle
 	}
 }
 
-std::unique_ptr<MPIRInstance>
-CraySLURMFrontend::launchApp(const char * const launcher_argv[], const char *inputFile, const char *chdirPath,
-	const char * const env_list[])
+CraySLURMFrontend::SrunInstance
+CraySLURMFrontend::launchApp(const char * const launcher_argv[],
+		const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
+		const char * const env_list[])
 {
+	SrunInstance srunInstance
+		{ .stoppedSrun = nullptr
+		, .outputPath  = temp_file_handle{"/tmp/cti-output-fifo-XXXXXX"}
+		, .errorPath   = temp_file_handle{"/tmp/cti-error-fifo-XXXXXX"}
+	};
+
 	// Open input file (or /dev/null to avoid stdin contention).
 	auto openFileOrDevNull = [&](char const* inputFile) {
 		int input_fd = -1;
@@ -696,11 +674,29 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[], const char *inp
 		return input_fd;
 	};
 
+	// attach output / error fifo to user-provided FDs if applicable
+	mkfifo(srunInstance.outputPath.get(), 0600);
+	mkfifo(srunInstance.errorPath.get(),  0600);
+	if (!fork()) {
+		const char* const catArgv[] = { "cat", srunInstance.outputPath.get(), nullptr };
+		dup2((stdoutFd < 0) ? STDOUT_FILENO : stdoutFd, STDOUT_FILENO);
+		execvp("cat", (char* const*)catArgv);
+	}
+	if (!fork()) {
+		const char* const catArgv[] = { "cat", srunInstance.errorPath.get(), nullptr };
+		dup2((stderrFd < 0) ? STDERR_FILENO : stderrFd, STDOUT_FILENO);
+		execvp("cat", (char* const*)catArgv);
+	}
+
 	// Get the launcher path from CTI environment variable / default.
 	if (auto const launcher_path = make_unique_destr(_cti_pathFind(CraySLURMFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
 		/* construct argv array & instance*/
-		std::vector<std::string> launcherArgv{launcher_path.get()};
+		std::vector<std::string> launcherArgv
+			{ launcher_path.get()
+			, "--output=" + std::string{srunInstance.outputPath.get()}
+			, "--error="  + std::string{srunInstance.errorPath.get()}
+		};
 		for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
 			launcherArgv.emplace_back(*arg);
 		}
@@ -721,7 +717,8 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[], const char *inp
 		};
 
 		// Launch program under MPIR control.
-		return std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
+		srunInstance.stoppedSrun = std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
+		return srunInstance;
 	} else {
 		throw std::runtime_error("Failed to find launcher in path: " + CraySLURMFrontend::getLauncherName());
 	}
