@@ -23,27 +23,19 @@ AC_DEFUN([cray_INIT],
 	m4_define([CRAYTOOL_MINOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$craytool_minor"])])
 
 	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
-	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_revision])])
 	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
 
 	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
-	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_revision])])
 	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
 
-	dnl Allow jenkins to override our internal revision logic.
-	AS_IF( 	[ test "x${BUILD_NUMBER}" = "x" ],
-			[ BUILD_NUMBER=CRAYTOOL_REVISION ],
-			[])
+	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_MAJOR.CRAYTOOL_MINOR.CRAYTOOL_REVISION])
+	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_REVISION:CRAYTOOL_BE_AGE])
+	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_REVISION:CRAYTOOL_FE_AGE])
 
-	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_MAJOR.CRAYTOOL_MINOR.${BUILD_NUMBER}])
-	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:${BUILD_NUMBER}:CRAYTOOL_BE_AGE])
-	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:${BUILD_NUMBER}:CRAYTOOL_FE_AGE])
+    AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/CRAYTOOL_MAJOR.CRAYTOOL_MINOR.CRAYTOOL_REVISION"])
 
-    dnl Assume that the default prefix is only specified for jenkins builds
-    AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/CRAYTOOL_MAJOR.CRAYTOOL_MINOR.${BUILD_NUMBER}"])
-
-	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.${BUILD_NUMBER}.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
-	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.${BUILD_NUMBER}.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
+	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
+	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
 
 	AC_SUBST([CRAYTOOL_EXTERNAL], [${CRAYTOOL_DIR}/external])
 	AC_SUBST([CRAYTOOL_EXTERNAL_INSTALL], [${CRAYTOOL_DIR}/external/install])

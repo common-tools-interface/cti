@@ -69,6 +69,8 @@
 # to get the revision number. We hardcode the revision to "999" if the
 # environment variable is not set.
 #
+
+# Jenkins will override this 
 revision="999"
 
 craytool_major="2"
