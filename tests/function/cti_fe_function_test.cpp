@@ -11,39 +11,11 @@
 #include "cti_fe_function_test.hpp"
 
 #include "useful/ExecvpOutput.hpp"
-
-// generate temporary filename and delete it when finished
-class temp_file_handle
-{
-private:
-	std::unique_ptr<char, decltype(&::free)> path;
-
-public:
-	temp_file_handle()
-		: path{strdup("/lus/scratch/tmp/cti-test-XXXXXX"), ::free}
-	{
-		mktemp(path.get());
-		if (path.get()[0] == '\0') {
-			throw std::runtime_error("mktemp failed");
-		}
-	}
-
-	temp_file_handle(temp_file_handle&& moved)
-		: path{std::move(moved.path)}
-	{}
-
-	~temp_file_handle()
-	{
-		if (path && (remove(path.get()) < 0)) {
-			// path could have been generated but not opened as a file
-			std::cerr << "warning: remove " << std::string{path.get()} << " failed" << std::endl;
-		}
-	}
-
-	char const* get() const { return path.get(); }
-};
+#include "useful/temp_file_handle.hpp"
 
 /* cti frontend C interface tests */
+
+static constexpr auto OUTPUT_FILE_TEMPLATE = "/lus/scratch/tmp/cti-test-XXXXXX";
 
 // Tests that the frontend type was correctly detected.
 TEST_F(CTIFEFunctionTest, HaveValidFrontend) {
@@ -117,7 +89,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 	auto const echoString = std::to_string(getpid());
 
 	// set up input file
-	auto const inputPath = temp_file_handle{};
+	auto const inputPath = temp_file_handle{OUTPUT_FILE_TEMPLATE};
 	{ auto inputFile = std::unique_ptr<FILE, decltype(&::fclose)>(fopen(inputPath.get(), "w"), ::fclose);
 		fprintf(inputFile.get(), "%s\n", echoString.c_str());
 	}
@@ -252,7 +224,7 @@ testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::stri
 	ASSERT_EQ(cti_manifestIsValid(manifestId), true);
 
 	// set up output file
-	auto const outputPath = temp_file_handle{};
+	auto const outputPath = temp_file_handle{OUTPUT_FILE_TEMPLATE};
 	char const* toolDaemonArgs[] = {outputPath.get(), nullptr};
 	ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, toolDaemonArgs, nullptr), SUCCESS);
 	sleep(1); // let tool daemon run

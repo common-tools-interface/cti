@@ -36,6 +36,7 @@ external/wlm_detect_base
 src/cscope.out
 src/daemon/cti_dlaunch*
 src/useful/cti_overwatch
+src/useful/cti_splice_out_err
 /stamp-h1
 tests/test_binaries
 cscope.out
