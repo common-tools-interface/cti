@@ -46,6 +46,8 @@ if [ $return_code -ne 0 ]; then
     cat config.log
 fi
 
+echo "xx$BUILD_NUMBER"
+
 # We want to capture the config.log in the jenkins output on error.
 # But we also want to return with the return code from the configure
 # call. So do that below.
