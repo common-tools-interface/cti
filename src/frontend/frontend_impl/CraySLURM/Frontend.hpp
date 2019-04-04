@@ -65,7 +65,7 @@ public: // slurm specific types
 		std::unique_ptr<MPIRInstance> stoppedSrun; // SRUN inferior for barrier release
 		temp_file_handle outputPath; // handle to output fifo file
 		temp_file_handle errorPath;  // handle to error fifo file
-		pid_t redirectPid; // running output redirection pid
+		overwatch_handle redirectUtility; // running output redirection utility
 	};
 
 public: // slurm specific interface

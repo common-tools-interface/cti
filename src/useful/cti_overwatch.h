@@ -76,6 +76,22 @@ public: // interface
 		: m_targetPid{moved.m_targetPid}
 		, m_overwatchPtr{std::move(moved.m_overwatchPtr)}
 	{}
+
+	overwatch_handle& operator= (overwatch_handle&& moved)
+	{
+		m_targetPid    = moved.m_targetPid;
+		m_overwatchPtr = std::move(moved.m_overwatchPtr);
+		return *this;
+	}
+
+	overwatch_handle()
+		: m_targetPid{0}
+		, m_overwatchPtr{nullptr, _cti_exit_overwatch}
+	{}
+
+	operator bool() const { return (m_targetPid != 0); }
+
+	pid_t getPid() const { return m_targetPid; }
 };
 
 #endif

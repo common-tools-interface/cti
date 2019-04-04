@@ -62,8 +62,8 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunI
 
 {
 	// if there's an active redirection process, add it to the overwatch list to clean up on destruction
-	if (srunInstance.redirectPid > 0) {
-		m_watchedUtilities.push_back(make_overwatch_handle(srunInstance.redirectPid));
+	if (srunInstance.redirectUtility) {
+		m_watchedUtilities.emplace_back(std::move(srunInstance.redirectUtility));
 	}
 
 	// Ensure there are running nodes in the job.
@@ -117,9 +117,9 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid)
 		, stepid
 		, SrunInstance
 			{ .stoppedSrun = nullptr
-			, .outputPath  = temp_file_handle{"/tmp/cti-output-fifo-XXXXXX"}
-			, .errorPath   = temp_file_handle{"/tmp/cti-error-fifo-XXXXXX"}
-			, .redirectPid = pid_t{-1}
+			, .outputPath  = temp_file_handle{_cti_getCfgDir() + "/cti-output-fifo-XXXXXX"}
+			, .errorPath   = temp_file_handle{_cti_getCfgDir() + "/cti-error-fifo-XXXXXX"}
+			, .redirectUtility = overwatch_handle{}
 		}
 	}
 {}
@@ -386,16 +386,12 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	}
 
 	// fork off a process to launch srun
-	if (auto const forkedPid = fork()) {
-		if (forkedPid < 0) {
-			throw std::runtime_error("fork failed");
-		}
-
-		// overwatch child
-		m_watchedUtilities.emplace_back(make_overwatch_handle(forkedPid));
-
+	if (auto overwatched = make_overwatch_handle(fork())) {
 		// parent case: place the child in its own group.
-		setpgid(forkedPid, forkedPid);
+		setpgid(overwatched.getPid(), overwatched.getPid());
+
+		// register overwatch handle
+		m_watchedUtilities.emplace_back(std::move(overwatched));
 	} else {
 		// child case: Place this process in its own group to prevent signals being passed
 		// to it. This is necessary in case the child code execs before the
@@ -655,8 +651,8 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 {
 	SrunInstance srunInstance
 		{ .stoppedSrun = nullptr
-		, .outputPath  = temp_file_handle{"/tmp/cti-output-fifo-XXXXXX"}
-		, .errorPath   = temp_file_handle{"/tmp/cti-error-fifo-XXXXXX"}
+		, .outputPath  = temp_file_handle{_cti_getCfgDir() + "/cti-output-fifo-XXXXXX"}
+		, .errorPath   = temp_file_handle{_cti_getCfgDir() + "/cti-error-fifo-XXXXXX"}
 	};
 
 	// Open input file (or /dev/null to avoid stdin contention).
@@ -682,13 +678,9 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 		throw std::runtime_error("mkfifo failed on " + std::string{srunInstance.errorPath.get()} +": " + std::string{strerror(errno)});
 	}
 	// run output redirection binary
-	if (auto const redirectPid = fork()) {
-		if (redirectPid < 0) {
-			throw std::runtime_error("fork failed");
-		}
-
-		// will pass pid to app object to clean up later
-		srunInstance.redirectPid = redirectPid;
+	if (auto overwatched = make_overwatch_handle(fork())) {
+		// will pass overwatch handle to app object to clean up later
+		srunInstance.redirectUtility = std::move(overwatched);
 	} else {
 		std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
 		const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };
