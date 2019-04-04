@@ -49,7 +49,7 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunI
 	: m_srunInfo     { jobid, stepid }
 	, m_stepLayout   { CraySLURMFrontend::fetchStepLayout(jobid, stepid) }
 	, m_dlaunchSent  { false }
-	, m_redirectPids { }
+	, m_watchedUtilities { }
 
 	, m_stoppedSrun { std::move(srunInstance.stoppedSrun) }
 	, m_outputPath  { std::move(srunInstance.outputPath) }
@@ -61,6 +61,11 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunI
 	, m_extraFiles  { CraySLURMFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
 
 {
+	// if there's an active redirection process, add it to the overwatch list to clean up on destruction
+	if (srunInstance.redirectPid > 0) {
+		m_watchedUtilities.push_back(make_overwatch_handle(srunInstance.redirectPid));
+	}
+
 	// Ensure there are running nodes in the job.
 	if (m_stepLayout.nodes.empty()) {
 		throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
@@ -75,18 +80,13 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunI
 		// the information to the compute nodes.
 		m_extraFiles.push_back(CraySLURMFrontend::createPIDListFile(m_stoppedSrun->getProcTable(), m_stagePath));
 	}
-
-	// if there's an active redirection process, add it to pid list to clean up on destruction
-	if (srunInstance.redirectPid > 0) {
-		m_redirectPids.push_back(srunInstance.redirectPid);
-	}
 }
 
 CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	: m_srunInfo    { moved.m_srunInfo }
 	, m_stepLayout  { moved.m_stepLayout }
 	, m_dlaunchSent { moved.m_dlaunchSent }
-	, m_redirectPids { moved.m_redirectPids }
+	, m_watchedUtilities { std::move(moved.m_watchedUtilities) }
 
 	, m_stoppedSrun { std::move(moved.m_stoppedSrun) }
 	, m_outputPath  { std::move(moved.m_outputPath) }
@@ -97,21 +97,12 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	, m_stagePath   { moved.m_stagePath }
 	, m_extraFiles  { moved.m_extraFiles }
 {
-	// we taken ownership of the running redirections, if any
-	moved.m_redirectPids.clear();
-
 	// We have taken ownership of the staging path, so don't let moved delete the directory.
 	moved.m_stagePath.erase();
 }
 
 CraySLURMApp::~CraySLURMApp()
 {
-	// kill and wait for sattach to exit
-	for (auto&& redirectPid : m_redirectPids) {
-		::kill(redirectPid, DEFAULT_SIG);
-		waitpid(redirectPid, nullptr, 0);
-	}
-
 	// Delete the staging directory if it exists.
 	if (!m_stagePath.empty()) {
 		_cti_removeDirectory(m_stagePath.c_str());
@@ -223,15 +214,16 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 	if (auto const sattachPath = make_unique_destr(_cti_pathFind(SATTACH, nullptr), std::free)) {
 		// make sure sattach is set up by running to MPIR_Breakpoint
 		Inferior sattachInferior{sattachPath.get(), sattachArgv.get(), {}, remapFds};
+
+		// add to app list of active sattach
+		m_watchedUtilities.emplace_back(make_overwatch_handle(sattachInferior.getPid()));
+
+		// run to MPIR_Breakpoint
 		sattachInferior.addSymbol("MPIR_Breakpoint");
 		sattachInferior.addSymbol("MPIR_being_debugged");
 		sattachInferior.setBreakpoint("MPIR_Breakpoint");
 		sattachInferior.writeVariable("MPIR_being_debugged", 1);
-
 		sattachInferior.continueRun();
-
-		// add to app list of active sattach
-		m_redirectPids.push_back(sattachInferior.getPid());
 	} else {
 		throw std::runtime_error(std::string{"failed to find in path: "} + SATTACH);
 	}
@@ -399,9 +391,11 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 			throw std::runtime_error("fork failed");
 		}
 
+		// overwatch child
+		m_watchedUtilities.emplace_back(make_overwatch_handle(forkedPid));
+
 		// parent case: place the child in its own group.
 		setpgid(forkedPid, forkedPid);
-
 	} else {
 		// child case: Place this process in its own group to prevent signals being passed
 		// to it. This is necessary in case the child code execs before the

@@ -113,7 +113,7 @@ private: // variables
 	int                    m_queuedOutFd; // Where to redirect stdout after barrier release
 	int                    m_queuedErrFd; // Where to redirect stderr after barrier release
 	bool                   m_dlaunchSent; // Have we already shipped over the dlaunch utility?
-	std::vector<pid_t>     m_redirectPids; // active redirect / sattaches for stdout/err redirection
+	std::vector<overwatch_handle> m_watchedUtilities; // active utility redirect / sattach / srun instances
 
 	std::unique_ptr<MPIRInstance> m_stoppedSrun; // MPIR instance handle to release startup barrier
 	temp_file_handle m_outputPath;

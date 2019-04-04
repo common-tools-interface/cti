@@ -37,6 +37,47 @@ void				_cti_exit_overwatch(cti_overwatch_t *);
 
 #ifdef __cplusplus
 }
+
+#include <signal.h>
+
+#include <memory>
+
+// assign a cti_overwatch handle on construction, tell overwatch to kill pid on destruction
+class overwatch_handle
+{
+public: // types
+	using ptr_type = std::unique_ptr<cti_overwatch_t, decltype(&_cti_exit_overwatch)>;
+
+private: // variables
+	pid_t m_targetPid;
+	ptr_type m_overwatchPtr;
+
+public: // interface
+	overwatch_handle(std::string const& overwatchPath, pid_t targetPid)
+		: m_targetPid{targetPid}
+		, m_overwatchPtr
+			{ _cti_create_overwatch(overwatchPath.c_str())
+			, _cti_exit_overwatch
+		}
+	{
+		if (_cti_assign_overwatch(m_overwatchPtr.get(), m_targetPid)) {
+			throw std::runtime_error("cti_overwatch assignment failed on pid " + std::to_string(targetPid));
+		}
+	}
+
+	~overwatch_handle()
+	{
+		if (m_overwatchPtr) {
+			::kill(m_targetPid, SIGTERM);
+		}
+	}
+
+	overwatch_handle(overwatch_handle&& moved)
+		: m_targetPid{moved.m_targetPid}
+		, m_overwatchPtr{std::move(moved.m_overwatchPtr)}
+	{}
+};
+
 #endif
 
 #endif /* _CTI_OVERWATCH_H */
