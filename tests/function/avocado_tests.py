@@ -13,10 +13,11 @@ from avocado.utils import process
 
 import subprocess
 from os import path, environ
+import time
 
 FUNCTIONAL_TESTS_PATH = path.dirname(path.realpath(__file__))
 EXAMPLES_PATH = "%s/../examples" % FUNCTIONAL_TESTS_PATH
-SUPPORT_PATH  = "%s/../support"  % FUNCTIONAL_TESTS_PATH
+SUPPORT_PATH  = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
 
 '''
 function_tests runs all of the Googletest-instrumented functional tests
@@ -51,7 +52,7 @@ to automate: pipe from `yes` and launch with custom PATH
 '''
 class CtiCallbackTest(Test):
 	def test(self):
-		process.run("yes | PATH=$PWD/%s:$PATH %s/cti_callback %s/one_printer"
+		process.run("yes | PATH=%s:$PATH %s/cti_callback %s/one_printer"
 			% (EXAMPLES_PATH, EXAMPLES_PATH, SUPPORT_PATH), shell = True)
 
 '''
@@ -76,6 +77,9 @@ class CtiTransferTest(Test):
 
 		for line in iter(proc.stdout.readline, ''):
 			if line[:4] == 'srun':
+				# give tool daemon time to execute
+				time.sleep(5)
+
 				# run remote ls and verify testing.info is present
 				process.run("%s | grep -q testing.info" % line.rstrip(), shell = True)
 
