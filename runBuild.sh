@@ -10,5 +10,15 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
+echo "############################################"
+echo "#               Running make               #"
+echo "############################################"
 
 make -j32
+return_code=$?
+
+echo "############################################"
+echo "#              Done with build             #"
+echo "############################################"
+
+exit $return_code

@@ -11,7 +11,25 @@
 # in any form.
 #
 
+echo "############################################"
+echo "#          Running make install            #"
+echo "############################################"
 make install -j32
+return_code=$?
+# Short circuit if make install failed
+if [ $return_code -ne 0 ]; then
+    exit $return_code
+fi
 
+echo "############################################"
+echo "#             Creating rpm                 #"
+echo "############################################"
 # FIXME: Get rid of the packaging script. We should be creating an rpm inside the CTI build system.
 ./scripts/package_cti -b /opt/cray/pe/cti/2.0.0
+return_code=$?
+
+echo "############################################"
+echo "#          Done with packaging             #"
+echo "############################################"
+
+exit $return_code
