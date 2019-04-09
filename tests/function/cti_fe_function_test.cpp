@@ -15,11 +15,17 @@
 
 /* cti frontend C interface tests */
 
-static constexpr auto OUTPUT_FILE_TEMPLATE = "/lus/scratch/tmp/cti-test-XXXXXX";
+// TODO: transition test output to sockets so we don't have to deal with crossmounted directories
+#define ON_WHITEBOX
+#ifdef ON_WHITEBOX
+static constexpr auto CROSSMOUNT_FILE_TEMPLATE = "/tmp/cti-test-XXXXXX";
+#else
+static constexpr auto CROSSMOUNT_FILE_TEMPLATE = "/lus/scratch/tmp/cti-test-XXXXXX";
+#endif
 
 // Tests that the frontend type was correctly detected.
 TEST_F(CTIFEFunctionTest, HaveValidFrontend) {
-	ASSERT_NE(cti_current_wlm(), CTI_WLM_NONE);
+	ASSERT_NE(cti_current_wlm(), CTI_WLM_NONE) << cti_error_str();
 }
 
 // Test that an app can launch successfully
@@ -32,8 +38,8 @@ TEST_F(CTIFEFunctionTest, Launch) {
 	char const* const* envList  = nullptr;
 
 	auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0);
-	EXPECT_EQ(cti_appIsValid(appId), true);
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 }
 
 // Test that an app can't be released twice
@@ -46,9 +52,9 @@ TEST_F(CTIFEFunctionTest, DoubleRelease) {
 	char const* const* envList = nullptr;
 
 	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0);
-	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
-	EXPECT_EQ(cti_releaseAppBarrier(appId), FAILURE);
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
+	EXPECT_EQ(cti_releaseAppBarrier(appId), FAILURE) << cti_error_str();
 }
 
 // Test that an app can redirect stdout
@@ -73,8 +79,8 @@ TEST_F(CTIFEFunctionTest, StdoutPipe) {
 
 	// launch app
 	auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0);
-	EXPECT_EQ(cti_appIsValid(appId), true);
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
 	// get app output
 	{ std::string line;
@@ -89,8 +95,9 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 	auto const echoString = std::to_string(getpid());
 
 	// set up input file
-	auto const inputPath = temp_file_handle{OUTPUT_FILE_TEMPLATE};
+	auto const inputPath = temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
 	{ auto inputFile = std::unique_ptr<FILE, decltype(&::fclose)>(fopen(inputPath.get(), "w"), ::fclose);
+		ASSERT_TRUE(inputFile != nullptr);
 		fprintf(inputFile.get(), "%s\n", echoString.c_str());
 	}
 
@@ -111,8 +118,8 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 
 	// launch app
 	auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0);
-	EXPECT_EQ(cti_appIsValid(appId), true);
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
 	// get app output
 	{ std::string line;
@@ -145,8 +152,8 @@ TEST_F(CTIFEFunctionTest, EnvVars) {
 
 	// launch app
 	auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0);
-	EXPECT_EQ(cti_appIsValid(appId), true);
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
 	// get app output
 	bool found = false;
@@ -176,16 +183,16 @@ TEST_F(CTIFEFunctionTest, CreateSession) {
 
 	// create app
 	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0);
-	EXPECT_EQ(cti_appIsValid(appId), true);
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
 	// create app's session
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_EQ(cti_sessionIsValid(sessionId), true);
+	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
-	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
+	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 }
 
 // Test that an app can create a transfer manifest
@@ -200,20 +207,20 @@ TEST_F(CTIFEFunctionTest, CreateManifest) {
 
 	// create app
 	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0);
-	EXPECT_EQ(cti_appIsValid(appId), true);
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
 	// create app's session
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_EQ(cti_sessionIsValid(sessionId), true);
+	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
 	// create manifest
 	auto const manifestId = cti_createManifest(sessionId);
-	ASSERT_EQ(cti_manifestIsValid(manifestId), true);
+	ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
-	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
+	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 }
 
 static void
@@ -221,13 +228,15 @@ testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::stri
 {
 	// create manifest
 	auto const manifestId = cti_createManifest(sessionId);
-	ASSERT_EQ(cti_manifestIsValid(manifestId), true);
+	ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
 
 	// set up output file
-	auto const outputPath = temp_file_handle{OUTPUT_FILE_TEMPLATE};
+	auto const outputPath = temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
 	char const* toolDaemonArgs[] = {outputPath.get(), nullptr};
-	ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, toolDaemonArgs, nullptr), SUCCESS);
-	sleep(1); // let tool daemon run
+	ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, toolDaemonArgs, nullptr), SUCCESS) << cti_error_str();
+
+	// let daemon run
+	sleep(1);
 
 	// read output file
 	{ std::ifstream outputFile(outputPath.get());
@@ -250,19 +259,19 @@ TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
 
 	// create app
 	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0);
-	EXPECT_EQ(cti_appIsValid(appId), true);
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
 	// create app's session
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_EQ(cti_sessionIsValid(sessionId), true);
+	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
 	// run printing daemons
 	testPrintingDaemon(sessionId, "../test_support/one_printer", "1");
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
-	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
+	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 }
 
 // Test that an app can launch two tool daemons using different libraries with the same name
@@ -277,18 +286,18 @@ TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 
 	// create app
 	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0);
-	EXPECT_EQ(cti_appIsValid(appId), true);
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
 	// create app's session
 	auto const sessionId = cti_createSession(appId);
-	ASSERT_EQ(cti_sessionIsValid(sessionId), true);
+	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
 	// run printing daemons
 	testPrintingDaemon(sessionId, "../test_support/one_printer", "1");
 	testPrintingDaemon(sessionId, "../test_support/two_printer", "2");
 
 	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
-	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
+	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 }
