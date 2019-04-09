@@ -65,17 +65,12 @@ public: // interface
 		}
 	}
 
-	~overwatch_handle()
-	{
-		if (m_overwatchPtr) {
-			::kill(m_targetPid, SIGTERM);
-		}
-	}
-
 	overwatch_handle(overwatch_handle&& moved)
 		: m_targetPid{moved.m_targetPid}
 		, m_overwatchPtr{std::move(moved.m_overwatchPtr)}
-	{}
+	{
+		moved.m_targetPid = pid_t{-1};
+	}
 
 	overwatch_handle& operator= (overwatch_handle&& moved)
 	{
@@ -85,11 +80,11 @@ public: // interface
 	}
 
 	overwatch_handle()
-		: m_targetPid{0}
+		: m_targetPid{-1}
 		, m_overwatchPtr{nullptr, _cti_exit_overwatch}
 	{}
 
-	operator bool() const { return (m_targetPid != 0); }
+	operator bool() const { return (m_targetPid > 0); }
 
 	pid_t getPid() const { return m_targetPid; }
 };

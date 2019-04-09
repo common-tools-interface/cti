@@ -179,8 +179,8 @@ _cti_free_overwatch(cti_overwatch_t *this)
 	if (this == NULL)
 		return;
 		
-	// tell the overwatch to exit gracefully
-	kill(this->o_pid, SIGUSR2);
+	// tell the overwatch to clean up watched process
+	kill(this->o_pid, SIGUSR1);
 	
 	if (this->pipe_r != NULL)
 		fclose(this->pipe_r);
