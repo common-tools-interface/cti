@@ -19,6 +19,8 @@
 #include "frontend/Frontend.hpp"
 #include "mpir_iface/MPIRInstance.hpp"
 
+#include "useful/cti_overwatch.h"
+
 class GenericSSHFrontend : public Frontend
 {
 public: // inherited interface
@@ -70,6 +72,7 @@ private: // variables
 	pid_t      m_launcherPid; // job launcher PID
 	GenericSSHFrontend::StepLayout m_stepLayout; // SSH Layout of job step
 	bool       m_dlaunchSent; // Have we already shipped over the dlaunch utility?
+	std::vector<overwatch_handle> m_watchedUtilities;
 
 	std::unique_ptr<MPIRInstance> m_launcherInstance; // MPIR instance handle to release startup barrier
 

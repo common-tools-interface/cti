@@ -373,6 +373,10 @@ GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& 
 	, m_extraFiles  { GenericSSHFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
 
 {
+	if (m_launcherPid > 0) {
+		m_watchedUtilities.emplace_back(make_overwatch_handle(m_launcherPid));
+	}
+
 	// Ensure there are running nodes in the job.
 	if (m_stepLayout.nodes.empty()) {
 		throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
@@ -496,6 +500,7 @@ GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
 	if (auto packageName = make_unique_destr(_cti_pathToName(tarPath.c_str()), std::free)) {
 		auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
+		_cti_getLogger().write("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
 		// Send the package to each of the hosts using SCP
 		for (auto&& node : m_stepLayout.nodes) {
