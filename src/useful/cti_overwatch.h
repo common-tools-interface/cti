@@ -9,11 +9,6 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  ******************************************************************************/
 
 #ifndef _CTI_OVERWATCH_H
@@ -26,7 +21,7 @@ extern "C" {
 /* struct typedefs */
 typedef struct
 {
-	pid_t	o_pid;		// overwatch process pid	
+	pid_t	o_pid;		// overwatch process pid
 	FILE *	pipe_r;		// my read stream
 	FILE *	pipe_w;		// my write stream
 } cti_overwatch_t;

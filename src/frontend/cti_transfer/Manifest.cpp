@@ -30,7 +30,7 @@ static std::shared_ptr<Session> getSessionHandle(std::weak_ptr<Session> sessionP
 // add dynamic library dependencies to manifest
 void Manifest::addLibDeps(const std::string& filePath) {
 	// get array of library paths using ld_val libArray helper
-	if (auto libArray = ld_val::getFileDependencies(filePath)) {
+	if (auto libArray = cti::ld_val::getFileDependencies(filePath)) {
 		// add to manifest
 		for (char** elem = libArray.get(); *elem != nullptr; elem++) {
 			addLibrary(*elem, Manifest::DepsPolicy::Ignore);
@@ -173,7 +173,7 @@ RemotePackage Manifest::finalizeAndShip() {
 	// to remove the tarball if the process exits, but no mechanism exists today that
 	// I know about.
 	{ const std::string cleanupFilePath(liveSession->m_configPath + "/." + archiveName);
-		auto cleanupFileHandle = make_unique_destr(fopen(cleanupFilePath.c_str(), "w"), std::fclose);
+		auto cleanupFileHandle = cti::make_unique_destr(fopen(cleanupFilePath.c_str(), "w"), std::fclose);
 		pid_t pid = getpid();
 		if (fwrite(&pid, sizeof(pid), 1, cleanupFileHandle.get()) != 1) {
 			throw std::runtime_error("fwrite to cleanup file failed.");
