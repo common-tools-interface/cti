@@ -35,7 +35,7 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 
-#include "cti_overwatch.h"
+#include "cti_overwatch_iface.hpp"
 
 /* cti_args implementation */
 
@@ -56,82 +56,82 @@ static int	_cti_resizeArgs(cti_args_t *);
 static cti_args_t *
 _cti_newArgs(void)
 {
-	cti_args_t *	this;
+	cti_args_t *	cti_args;
 	
 	// allocate the args datatype
-	if ((this = malloc(sizeof(cti_args_t))) == NULL)
+	if ((cti_args = (cti_args_t*)malloc(sizeof(cti_args_t))) == NULL)
 	{
 		// malloc failed
 		return NULL;
 	}
 	
 	// init the members
-	this->argc = 0;
-	if ((this->argv = malloc(ARGV_BLOCK_SIZE * sizeof(char *))) == NULL)
+	cti_args->argc = 0;
+	if ((cti_args->argv = (char**)malloc(ARGV_BLOCK_SIZE * sizeof(char *))) == NULL)
 	{
 		// malloc failed
-		free(this);
+		free(cti_args);
 		return NULL;
 	}
-	memset(this->argv, 0, ARGV_BLOCK_SIZE * sizeof(char *));
-	this->_len = ARGV_BLOCK_SIZE;
+	memset(cti_args->argv, 0, ARGV_BLOCK_SIZE * sizeof(char *));
+	cti_args->_len = ARGV_BLOCK_SIZE;
 	
-	return this;
+	return cti_args;
 }
 
 static void
-_cti_freeArgs(cti_args_t * this)
+_cti_freeArgs(cti_args_t * cti_args)
 {
 	unsigned int i;
 	
 	// sanity
-	if (this == NULL)
+	if (cti_args == NULL)
 		return;
 		
 	// free argv elems
-	for (i=0; i < this->argc; ++i)
+	for (i=0; i < cti_args->argc; ++i)
 	{
-		free(this->argv[i]);
+		free(cti_args->argv[i]);
 	}
 	
 	// free argv
-	free(this->argv);
+	free(cti_args->argv);
 	
 	// free obj
-	free(this);
+	free(cti_args);
 }
 
 static int
-_cti_resizeArgs(cti_args_t *this)
+_cti_resizeArgs(cti_args_t *cti_args)
 {
-	void *	new;
+	void *	new_args;
 
 	// sanity
-	if (this == NULL)
+	if (cti_args == NULL)
 		return 1;
 	
-	if ((new = realloc(this->argv, (this->_len + ARGV_BLOCK_SIZE) * sizeof(char *))) == NULL)
+	if ((new_args = realloc(cti_args->argv, (cti_args->_len + ARGV_BLOCK_SIZE) * sizeof(char *))) == NULL)
 	{
 		// realloc failed
 		return 1;
 	}
 	// update members
-	this->argv = (char **)new;
-	this->_len += ARGV_BLOCK_SIZE;
+	cti_args->argv = (char **)new_args;
+	cti_args->_len += ARGV_BLOCK_SIZE;
 	// initialize new memory
-	memset(&(this->argv[this->argc]), 0, (this->_len - this->argc) * sizeof(char *));
+	memset(&(cti_args->argv[cti_args->argc]), 0, (cti_args->_len - cti_args->argc) * sizeof(char *));
 	
 	return 0;
 }
 
 static int
-_cti_addArg(cti_args_t *this, const char *fmt, ...)
+_cti_addArg(cti_args_t *cti_args, const char *fmt, ...)
 {
 	va_list ap;
 	char *	new_arg;
 	
 	// sanity
-	if (this == NULL || fmt == NULL)
+	if (cti_args == NULL || fmt == NULL)
 	{
 		// failed to add arg
 		return 1;
@@ -150,13 +150,13 @@ _cti_addArg(cti_args_t *this, const char *fmt, ...)
 	// finish the va_args
 	va_end(ap);
 	
-	// Ensure that there is room for this argument - note that we always
+	// Ensure that there is room for cti_args argument - note that we always
 	// want the argv to be null terminated, so we need to resize once argc+1 is
 	// equal to _len.
-	if (this->argc + 1 >= this->_len)
+	if (cti_args->argc + 1 >= cti_args->_len)
 	{
 		// need to resize
-		if (_cti_resizeArgs(this))
+		if (_cti_resizeArgs(cti_args))
 		{
 			// failed to resize
 			return 1;
@@ -164,8 +164,8 @@ _cti_addArg(cti_args_t *this, const char *fmt, ...)
 	}
 	
 	// set the argument string
-	this->argv[this->argc] = new_arg;
-	this->argc += 1;
+	cti_args->argv[cti_args->argc] = new_arg;
+	cti_args->argc += 1;
 	
 	return 0;
 }
@@ -173,22 +173,22 @@ _cti_addArg(cti_args_t *this, const char *fmt, ...)
 /* cti overwatch implementation */
 
 static void
-_cti_free_overwatch(cti_overwatch_t *this)
+_cti_free_overwatch(cti_overwatch_t *cti_args)
 {
 	// sanity
-	if (this == NULL)
+	if (cti_args == NULL)
 		return;
 		
 	// tell the overwatch to clean up watched process
-	kill(this->o_pid, SIGUSR1);
+	kill(cti_args->o_pid, SIGUSR1);
 	
-	if (this->pipe_r != NULL)
-		fclose(this->pipe_r);
+	if (cti_args->pipe_r != NULL)
+		fclose(cti_args->pipe_r);
 
-	if (this->pipe_w != NULL)
-		fclose(this->pipe_w);
+	if (cti_args->pipe_w != NULL)
+		fclose(cti_args->pipe_w);
 		
-	free(this);
+	free(cti_args);
 }
 
 // Signals should be blocked before calling this function.
@@ -209,7 +209,7 @@ _cti_create_overwatch(const char *path)
 	}
 	
 	// allocate return object
-	if ((rtn = malloc(sizeof(cti_overwatch_t))) == NULL)
+	if ((rtn = (cti_overwatch_t*)malloc(sizeof(cti_overwatch_t))) == NULL)
 	{
 		// malloc failed
 		return NULL;
@@ -460,52 +460,52 @@ _cti_create_overwatch(const char *path)
 }
 
 int
-_cti_assign_overwatch(cti_overwatch_t *this, pid_t chld_pid)
+_cti_assign_overwatch(cti_overwatch_t *owatch, pid_t chld_pid)
 {
 	char	sync;
 
 	// sanity
-	if (this == NULL)
+	if (owatch == NULL)
 		return 1;
 		
 	// sanity
 	if (kill(chld_pid, 0))
 	{
 		// chld_pid doesn't exist
-		_cti_free_overwatch(this);
+		_cti_free_overwatch(owatch);
 		return 1;
 	}
 	
 	// write the pid
-	if (fwrite(&chld_pid, sizeof(pid_t), 1, this->pipe_w) != 1)
+	if (fwrite(&chld_pid, sizeof(pid_t), 1, owatch->pipe_w) != 1)
 	{
 		// fwrite failed
-		_cti_free_overwatch(this);
+		_cti_free_overwatch(owatch);
 		return 1;
 	}
 	
-	fflush(this->pipe_w);
+	fflush(owatch->pipe_w);
 	
-	// read a byte of data, this is the overwatch acknowledge of our pid
-	if (fread(&sync, sizeof(char), 1, this->pipe_r) != 1)
+	// read a byte of data, owatch is the overwatch acknowledge of our pid
+	if (fread(&sync, sizeof(char), 1, owatch->pipe_r) != 1)
 	{
 		// read failed
-		_cti_free_overwatch(this);
+		_cti_free_overwatch(owatch);
 		return 1;
 	}
 	
 	// cleanup the pipes in the overwatch obj - we are done with them
-	fclose(this->pipe_w);
-	this->pipe_w = NULL;
-	fclose(this->pipe_r);
-	this->pipe_r = NULL;
+	fclose(owatch->pipe_w);
+	owatch->pipe_w = NULL;
+	fclose(owatch->pipe_r);
+	owatch->pipe_r = NULL;
 	
 	return 0;
 }
 
 void
-_cti_exit_overwatch(cti_overwatch_t *this)
+_cti_exit_overwatch(cti_overwatch_t *owatch)
 {
-	return _cti_free_overwatch(this);
+	return _cti_free_overwatch(owatch);
 }
 

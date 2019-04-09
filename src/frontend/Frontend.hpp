@@ -25,7 +25,7 @@
 #include "cti_fe_iface.h"
 
 #include "useful/cti_useful.h"
-#include "useful/cti_overwatch.h"
+#include "useful/cti_overwatch_iface.hpp"
 
 struct CTIHost {
 	std::string hostname;

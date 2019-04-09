@@ -19,7 +19,7 @@
 #include "frontend/Frontend.hpp"
 #include "mpir_iface/MPIRInstance.hpp"
 
-#include "useful/cti_overwatch.h"
+#include "useful/cti_overwatch_iface.hpp"
 
 class GenericSSHFrontend : public Frontend
 {
