@@ -371,11 +371,9 @@ GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& 
 	, m_attribsPath { SSH_TOOL_DIR }
 	, m_stagePath   { cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SSH_STAGE_DIR}) }
 	, m_extraFiles  { GenericSSHFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
-
 {
-	if (m_launcherPid > 0) {
-		m_watchedUtilities.emplace_back(make_overwatch_handle(m_launcherPid));
-	}
+	// register launcher app on overwatch
+	_cti_overwatchApp(m_launcherPid);
 
 	// Ensure there are running nodes in the job.
 	if (m_stepLayout.nodes.empty()) {
@@ -410,6 +408,9 @@ GenericSSHApp::~GenericSSHApp()
 	if (!m_stagePath.empty()) {
 		_cti_removeDirectory(m_stagePath.c_str());
 	}
+
+	// clean up overwatch
+	_cti_endOverwatchApp(m_launcherPid);
 }
 
 /* app instance creation */
