@@ -13,8 +13,6 @@
 
 #pragma once
 
-#define MSG_QUEUE_SIZE			256
-
 #include <sys/types.h>
 #include <sys/msg.h>
 #include <sys/ipc.h>
@@ -22,18 +20,23 @@
 #include <string>
 #include <type_traits>
 #include <stdexcept>
+#include <tuple>
 
-template <typename TagType,
-	typename = typename std::enable_if<std::is_convertible<TagType, long>::value>::type>
+#ifndef MSGMAX
+#define MSGMAX 2048
+#endif
+
+template <typename TagType, typename DataType,
+	// ensure tag type can be represented as long
+	typename = typename std::enable_if<std::is_convertible<TagType, long>::value>::type,
+	// ensure data type struct can be copied as raw chars
+	typename = typename std::enable_if<std::is_trivially_copyable<DataType>::value>::type>
 class MsgQueue {
 public:
 	struct msg_buffer {
-		long mtype;
-		char mtext[MSG_QUEUE_SIZE + 1];
+		TagType  m_type;
+		DataType m_data;
 	};
-
-	static constexpr const char* DestroyOnShutdown = "destroy";
-	static constexpr const char* KeepOnShutdown = "keep";
 private:
 	key_t m_qkey;
 	int   m_qid;
@@ -41,6 +44,7 @@ private:
 	// make MsgQueue moveable but not copyable
 	MsgQueue(const MsgQueue&) = delete;
 	MsgQueue& operator=(const MsgQueue&) = delete;
+
 public:
 	MsgQueue(MsgQueue&& other) noexcept
 		: m_qkey{other.m_qkey}
@@ -49,14 +53,34 @@ public:
 		other.m_qid = -1;
 	}
 
+	MsgQueue& operator= (MsgQueue&& other) noexcept
+	{
+		m_qkey = other.m_qkey;
+		m_qid  = other.m_qid;
+
+		other.m_qid = -1;
+
+		return *this;
+	}
+
 	MsgQueue(key_t k)
 		: m_qkey{k}
 		, m_qid{msgget(m_qkey, IPC_CREAT | 0600)}
 	{
+		// ensure messages fit inside the kernel queue size limit
+		static_assert(sizeof(long) + sizeof(DataType) <= MSGMAX);
+
 		if (m_qid < 0) {
 			throw std::runtime_error("failed to get message queue");
 		}
 	}
+
+	MsgQueue()
+		: m_qkey{}
+		, m_qid{-1}
+	{}
+
+	operator bool() const { return !(m_qid < 0); }
 
 	void deregister()
 	{
@@ -71,36 +95,39 @@ public:
 		m_qid = -1;
 	}
 
-	void send(TagType const type, std::string const& msg)
+	void send(TagType const type, DataType const& data)
 	{
-		if (msg.length() > MSG_QUEUE_SIZE) {
-			throw std::runtime_error(
-				std::string("string too long for message queue (len ") +
-				std::to_string(msg.length()) + ")");
-		}
+		msg_buffer msg_buf
+			{ .m_type = type
+			, .m_data = data
+		};
 
-		struct msg_buffer msg_buf;
-
-		msg_buf.mtype = long{type};
-
-		strncpy(msg_buf.mtext, msg.c_str(), MSG_QUEUE_SIZE);
-		msg_buf.mtext[MSG_QUEUE_SIZE] = '\0';
-
-		if (msgsnd(m_qid, &msg_buf, strlen(msg_buf.mtext) + 1, 0) < 0) {
+		if (msgsnd(m_qid, &msg_buf, sizeof(msg_buf.m_data), 0) < 0) {
 			throw std::runtime_error("msgsnd failed: " + std::string{strerror(errno)});
 		}
 	}
 
-	std::string recv(TagType const type)
+	std::pair<TagType, DataType> recv()
 	{
 		struct msg_buffer msg_buf;
 
-		if (msgrcv(m_qid, &msg_buf, MSG_QUEUE_SIZE, long{type}, MSG_NOERROR) < 0) {
+		int recv = msgrcv(m_qid, &msg_buf, sizeof(DataType), 0, MSG_NOERROR);
+		if ((errno != EIDRM) && (recv < 0)) {
 			throw std::runtime_error("msgrcv failed: " + std::string{strerror(errno)});
 		}
 
-		msg_buf.mtext[MSG_QUEUE_SIZE] = '\0';
+		return std::make_pair(msg_buf.m_type, msg_buf.m_data);
+	}
 
-		return std::string{msg_buf.mtext};
+	DataType recv(TagType const type)
+	{
+		struct msg_buffer msg_buf;
+
+		int recv = msgrcv(m_qid, &msg_buf, sizeof(DataType), long{type}, MSG_NOERROR);
+		if ((errno != EIDRM) && (recv < 0)) {
+			throw std::runtime_error("msgrcv failed: " + std::string{strerror(errno)});
+		}
+
+		return msg_buf.m_data;
 	}
 };
