@@ -201,9 +201,9 @@ public:
 
 	~temp_file_handle()
 	{
-		if (m_path && remove(m_path.get()) < 0) {
-			// could have been destroyed without file being opened
-			std::cerr << "warning: remove " << std::string{m_path.get()} << " failed" << std::endl;
+		// TODO: Log the warning if this fails.
+		if( m_path ) {
+			remove(m_path.get());
 		}
 	}
 
