@@ -36,7 +36,6 @@
 
 // CTI definition includes
 #include "cti_fe_iface.h"
-#include "cti_defs.h"
 
 // CTI Transfer includes
 #include "cti_transfer/Manifest.hpp"
@@ -51,6 +50,8 @@
 #include "useful/Dlopen.hpp"
 #include "useful/ExecvpOutput.hpp"
 #include "useful/cti_argv.hpp"
+#include "useful/cti_overwatch.hpp"
+#include "useful/MsgQueue.hpp"
 
 /* helper functions */
 
@@ -390,6 +391,7 @@ public: // variables
 	std::unique_ptr<Frontend> currentFrontendPtr;
 
 	Logger logger;
+	OverwatchQueue overwatchQueue;
 
 public: // interface
 	CTIFEIface()
@@ -407,14 +409,40 @@ public: // interface
 		, currentFrontendPtr{cti_conventions::detect_Frontend()}
 
 		, logger{currentFrontendPtr ? currentFrontendPtr->getHostname().c_str() : "(NULL frontend)", getpid()}
-	{}
+	{
+		key_t overwatchQueueKey = rand();
+		if (auto const forkedPid = fork()) {
+			// parent case
 
+			// close fds
+			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
+			dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
+			// dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
 
+			// setup args
+			using OWA = CTIOverwatchArgv;
+			cti_argv::OutgoingArgv<OWA> overwatchArgv{overwatch_bin};
+			overwatchArgv.add(OWA::ClientPID, std::to_string(forkedPid));
+			overwatchArgv.add(OWA::QueueKey,  std::to_string(overwatchQueueKey));
+
+			// exec
+			execvp(overwatch_bin.c_str(), overwatchArgv.get());
+			throw std::runtime_error("returned from execvp: " + std::string{strerror(errno)});
+		} else {
+			// child case
+			overwatchQueue = OverwatchQueue{overwatchQueueKey};
+		}
+	}
+
+	~CTIFEIface()
+	{
+		overwatchQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
+	}
 };
 
 static CTIFEIface& _cti_getState()
 {
-	static auto feIfaceState = CTIFEIface{};
+	static CTIFEIface feIfaceState{};
 	return feIfaceState;
 }
 
@@ -477,6 +505,38 @@ _cti_getCurrentFrontend()
 Logger&
 _cti_getLogger() {
 	return _cti_getState().logger;
+}
+
+/* overwatch interface */
+
+pid_t
+_cti_overwatchApp(pid_t const appPid)
+{
+	if (appPid) {
+		_cti_getState().overwatchQueue.send(OverwatchMsgType::AppRegister,
+			OverwatchData { .appPid = appPid }
+		);
+	}
+	return appPid;
+}
+
+pid_t
+_cti_overwatchUtil(pid_t const appPid, pid_t const utilPid)
+{
+	if (utilPid) {
+		_cti_getState().overwatchQueue.send(OverwatchMsgType::UtilityRegister,
+			OverwatchData { .appPid = appPid, .utilPid = utilPid }
+		);
+	}
+	return utilPid;
+}
+
+void
+_cti_endOverwatchApp(pid_t const appPid)
+{
+	_cti_getState().overwatchQueue.send(OverwatchMsgType::AppDeregister,
+		OverwatchData { .appPid = appPid }
+	);
 }
 
 /************************
