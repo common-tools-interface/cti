@@ -46,10 +46,10 @@
 /* constructors / destructors */
 
 CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunInstance)
-	: m_srunInfo     { jobid, stepid }
+	: m_launcherPid  { m_stoppedSrun ? m_stoppedSrun->getLauncherPid() : pid_t{0} }
+	, m_srunInfo     { jobid, stepid }
 	, m_stepLayout   { CraySLURMFrontend::fetchStepLayout(jobid, stepid) }
 	, m_dlaunchSent  { false }
-	, m_watchedUtilities { }
 
 	, m_stoppedSrun { std::move(srunInstance.stoppedSrun) }
 	, m_outputPath  { std::move(srunInstance.outputPath) }
@@ -61,11 +61,6 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunI
 	, m_extraFiles  { CraySLURMFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
 
 {
-	// if there's an active redirection process, add it to the overwatch list to clean up on destruction
-	if (srunInstance.redirectUtility) {
-		m_watchedUtilities.emplace_back(std::move(srunInstance.redirectUtility));
-	}
-
 	// Ensure there are running nodes in the job.
 	if (m_stepLayout.nodes.empty()) {
 		throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
@@ -86,7 +81,6 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	: m_srunInfo    { moved.m_srunInfo }
 	, m_stepLayout  { moved.m_stepLayout }
 	, m_dlaunchSent { moved.m_dlaunchSent }
-	, m_watchedUtilities { std::move(moved.m_watchedUtilities) }
 
 	, m_stoppedSrun { std::move(moved.m_stoppedSrun) }
 	, m_outputPath  { std::move(moved.m_outputPath) }
@@ -119,7 +113,7 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid)
 			{ .stoppedSrun = nullptr
 			, .outputPath  = temp_file_handle{_cti_getCfgDir() + "/cti-output-fifo-XXXXXX"}
 			, .errorPath   = temp_file_handle{_cti_getCfgDir() + "/cti-error-fifo-XXXXXX"}
-			, .redirectUtility = overwatch_handle{}
+			// , .redirectUtility = overwatch_handle{}
 		}
 	}
 {}
@@ -216,7 +210,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 		Inferior sattachInferior{sattachPath.get(), sattachArgv.get(), {}, remapFds};
 
 		// add to app list of active sattach
-		m_watchedUtilities.emplace_back(make_overwatch_handle(sattachInferior.getPid()));
+		_cti_overwatchUtil(m_launcherPid, sattachInferior.getPid());
 
 		// run to MPIR_Breakpoint
 		sattachInferior.addSymbol("MPIR_Breakpoint");
@@ -292,10 +286,9 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 
 	} else {
 		// child case: redirect stdin, stdout, stderr to /dev/null
-		int devNullFd = open("/dev/null", O_RDONLY);
-		dup2(devNullFd, STDIN_FILENO);
-		dup2(devNullFd, STDOUT_FILENO);
-		dup2(devNullFd, STDERR_FILENO);
+		dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
+		dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
+		dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
 
 		// exec sbcast
 		execvp(SBCAST, launcherArgv.get());
@@ -386,12 +379,12 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	}
 
 	// fork off a process to launch srun
-	if (auto overwatched = make_overwatch_handle(fork())) {
+	if (auto forkedPid = fork()) {
 		// parent case: place the child in its own group.
-		setpgid(overwatched.getPid(), overwatched.getPid());
+		setpgid(forkedPid, forkedPid);
 
-		// register overwatch handle
-		m_watchedUtilities.emplace_back(std::move(overwatched));
+		// overwatch srun utility
+		_cti_overwatchUtil(m_launcherPid, forkedPid);
 	} else {
 		// child case: Place this process in its own group to prevent signals being passed
 		// to it. This is necessary in case the child code execs before the
@@ -677,22 +670,22 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 	if (mkfifo(srunInstance.errorPath.get(), 0600) < 0) {
 		throw std::runtime_error("mkfifo failed on " + std::string{srunInstance.errorPath.get()} +": " + std::string{strerror(errno)});
 	}
-	// run output redirection binary
-	if (auto overwatched = make_overwatch_handle(fork())) {
-		// will pass overwatch handle to app object to clean up later
-		srunInstance.redirectUtility = std::move(overwatched);
-	} else {
-		std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
-		const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };
-		dup2((stdoutFd < 0) ? STDOUT_FILENO : stdoutFd, STDOUT_FILENO);
-		dup2((stderrFd < 0) ? STDERR_FILENO : stderrFd, STDERR_FILENO);
-		execv(redirectPath.c_str(), (char* const*)redirectArgv);
-		perror("execv");
-		exit(1);
-	}
+
 
 	// Get the launcher path from CTI environment variable / default.
 	if (auto const launcher_path = make_unique_destr(_cti_pathFind(CraySLURMFrontend::getLauncherName().c_str(), nullptr), std::free)) {
+
+		// run output redirection binary
+		auto const redirectPid = fork();
+		if (!redirectPid) {
+			std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
+			const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };
+			dup2((stdoutFd < 0) ? STDOUT_FILENO : stdoutFd, STDOUT_FILENO);
+			dup2((stderrFd < 0) ? STDERR_FILENO : stderrFd, STDERR_FILENO);
+			execv(redirectPath.c_str(), (char* const*)redirectArgv);
+			perror("execv");
+			exit(1);
+		}
 
 		/* construct argv array & instance*/
 		std::vector<std::string> launcherArgv
@@ -721,6 +714,11 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 
 		// Launch program under MPIR control.
 		srunInstance.stoppedSrun = std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
+
+		// overwatch app and redirect utility
+		_cti_overwatchApp(srunInstance.stoppedSrun->getLauncherPid());
+		_cti_overwatchUtil(srunInstance.stoppedSrun->getLauncherPid(), redirectPid);
+
 		return srunInstance;
 	} else {
 		throw std::runtime_error("Failed to find launcher in path: " + CraySLURMFrontend::getLauncherName());

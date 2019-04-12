@@ -65,7 +65,6 @@ public: // slurm specific types
 		std::unique_ptr<MPIRInstance> stoppedSrun; // SRUN inferior for barrier release
 		temp_file_handle outputPath; // handle to output fifo file
 		temp_file_handle errorPath;  // handle to error fifo file
-		overwatch_handle redirectUtility; // running output redirection utility
 	};
 
 public: // slurm specific interface
@@ -108,12 +107,12 @@ private: // type aliases
 	using SrunInstance = CraySLURMFrontend::SrunInstance;
 
 private: // variables
-	SrunInfo               m_srunInfo;    // Job and Step IDs
+	pid_t    m_launcherPid; // launcher PID
+	SrunInfo m_srunInfo;    // Job and Step IDs
 	CraySLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
-	int                    m_queuedOutFd; // Where to redirect stdout after barrier release
-	int                    m_queuedErrFd; // Where to redirect stderr after barrier release
-	bool                   m_dlaunchSent; // Have we already shipped over the dlaunch utility?
-	std::vector<overwatch_handle> m_watchedUtilities; // active utility redirect / sattach / srun instances
+	int      m_queuedOutFd; // Where to redirect stdout after barrier release
+	int      m_queuedErrFd; // Where to redirect stderr after barrier release
+	bool     m_dlaunchSent; // Have we already shipped over the dlaunch utility?
 
 	std::unique_ptr<MPIRInstance> m_stoppedSrun; // MPIR instance handle to release startup barrier
 	temp_file_handle m_outputPath;

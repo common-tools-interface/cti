@@ -440,24 +440,12 @@ public: // interface
 	}
 };
 
+/* global state accessors */
+
 static CTIFEIface& _cti_getState()
 {
 	static CTIFEIface feIfaceState{};
 	return feIfaceState;
-}
-
-// this function is used only during testing to manually add Mock App instances
-cti_app_id_t
-_cti_registerApp(std::unique_ptr<App>&& expiring)
-{
-	return _cti_getState().appRegistry.own(std::move(expiring));
-}
-
-// this function is used only during testing to manually get a Mock App reference
-App&
-_cti_getApp(cti_app_id_t const appId)
-{
-	return *_cti_getState().appRegistry.get(appId);
 }
 
 std::string const&
@@ -483,13 +471,6 @@ _cti_getOverwatchPath() {
 std::string const&
 _cti_getDlaunchPath() {
 	return _cti_getState().dlaunch_bin;
-}
-
-// this function is used only during testing to manually set a custom CTI Frontend
-void
-_cti_setFrontend(std::unique_ptr<Frontend>&& expiring)
-{
-	_cti_getState().currentFrontendPtr = std::move(expiring);
 }
 
 Frontend&
@@ -537,6 +518,29 @@ _cti_endOverwatchApp(pid_t const appPid)
 	_cti_getState().overwatchQueue.send(OverwatchMsgType::AppDeregister,
 		OverwatchData { .appPid = appPid }
 	);
+}
+
+/* internal testing functions */
+
+// this function is used only during testing to manually add Mock App instances
+cti_app_id_t
+_cti_registerApp(std::unique_ptr<App>&& expiring)
+{
+	return _cti_getState().appRegistry.own(std::move(expiring));
+}
+
+// this function is used only during testing to manually get a Mock App reference
+App&
+_cti_getApp(cti_app_id_t const appId)
+{
+	return *_cti_getState().appRegistry.get(appId);
+}
+
+// this function is used only during testing to manually set a custom CTI Frontend
+void
+_cti_setFrontend(std::unique_ptr<Frontend>&& expiring)
+{
+	_cti_getState().currentFrontendPtr = std::move(expiring);
 }
 
 /************************
