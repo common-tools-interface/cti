@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
+#include <signal.h>
 
 #define BUF_SIZE 4096
 
@@ -66,7 +67,12 @@ read_write_fd(path_fd_pair_t const* in_path_out_fd)
 		FD_SET(in_fd, &err_fds);
 
 		// wait in select
+		errno = 0;
 		if (select(in_fd + 1, &read_fds, NULL, &err_fds, NULL) < 0) {
+			if (errno == EINTR) {
+				continue;
+			}
+
 			perror("select");
 			retval = 1;
 			goto cleanup;
@@ -84,38 +90,23 @@ read_write_fd(path_fd_pair_t const* in_path_out_fd)
 
 			// splice all available bytes from input to output
 			for (ssize_t bytes_read = -1; bytes_read != 0;) {
-
-				// get number of bytes available
-				int read_size = 0;
-				if (ioctl(in_fd, FIONREAD, &read_size) < 0) {
-					perror ("ioctl");
-					retval = 1;
-					goto cleanup;
-				}
-
-				// if zero, exit splice loop and wait for more data
-				if (read_size == 0) {
-					break;
-				}
-
-				// resize if larger than desired buffer size
-				if (read_size > BUF_SIZE) {
-					read_size = BUF_SIZE;
-				}
-
 				// read from input fd
-				bytes_read = splice(in_fd, NULL, splice_pipe[1], NULL, read_size, SPLICE_F_MORE | SPLICE_F_MOVE);
+				bytes_read = splice(in_fd, NULL, splice_pipe[1], NULL, BUF_SIZE, SPLICE_F_MORE | SPLICE_F_MOVE);
 				if (bytes_read < 0) {
-					perror("splice");
-					retval = 1;
-					goto cleanup;
-				}
+					if (errno == EINTR) {
+						continue;
+					}
 
-				// write to output fd
-				if (splice(splice_pipe[0], NULL, out_fd, NULL, read_size, SPLICE_F_MORE | SPLICE_F_MOVE) < 0) {
 					perror("splice");
 					retval = 1;
 					goto cleanup;
+				} else if (bytes_read > 0) {
+					// write to output fd
+					if (splice(splice_pipe[0], NULL, out_fd, NULL, bytes_read, SPLICE_F_MORE | SPLICE_F_MOVE) < 0) {
+						perror("splice");
+						retval = 1;
+						goto cleanup;
+					}
 				}
 			}
 		}
@@ -132,6 +123,16 @@ cleanup:
 int
 main(int const argc, char const* const argv[])
 {
+	// ensure all signals except SIGTERM, SIGPIPE are blocked
+	sigset_t mask;
+	if (sigfillset(&mask) ||
+	    sigdelset(&mask, SIGTERM) ||
+	    sigdelset(&mask, SIGPIPE) ||
+	    sigprocmask(SIG_SETMASK, &mask, NULL)) {
+		fprintf(stderr, "failed to block signals\n");
+		exit(1);
+	}
+
 	// parse arguments
 	if (argc != 3) {
 		fprintf(stderr, "usage: %s <stdout file> <stderr file>\n", argv[0]);

@@ -85,7 +85,7 @@ public:
 	void deregister()
 	{
 		if (m_qid < 0) {
-			throw std::runtime_error("message queue has already been deregistered");
+			return;
 		}
 
 		if (msgctl(m_qid, IPC_RMID, NULL) < 0) {
@@ -111,23 +111,33 @@ public:
 	{
 		struct msg_buffer msg_buf;
 
-		int recv = msgrcv(m_qid, &msg_buf, sizeof(DataType), 0, MSG_NOERROR);
-		if ((errno != EIDRM) && (recv < 0)) {
-			throw std::runtime_error("msgrcv failed: " + std::string{strerror(errno)});
-		}
+		while (true) {
+			errno = 0;
+			int recv = msgrcv(m_qid, &msg_buf, sizeof(DataType), 0, MSG_NOERROR);
+			if ((errno == EINTR) && (recv < 0)) {
+				continue;
+			} else if ((errno != EIDRM) && (recv < 0)) {
+				throw std::runtime_error("msgrcv failed: " + std::string{strerror(errno)});
+			}
 
-		return std::make_pair(msg_buf.m_type, msg_buf.m_data);
+			return std::make_pair(msg_buf.m_type, msg_buf.m_data);
+		}
 	}
 
 	DataType recv(TagType const type)
 	{
 		struct msg_buffer msg_buf;
 
-		int recv = msgrcv(m_qid, &msg_buf, sizeof(DataType), long{type}, MSG_NOERROR);
-		if ((errno != EIDRM) && (recv < 0)) {
-			throw std::runtime_error("msgrcv failed: " + std::string{strerror(errno)});
-		}
+		while (true) {
+			errno = 0;
+			int recv = msgrcv(m_qid, &msg_buf, sizeof(DataType), long{type}, MSG_NOERROR);
+			if ((errno == EINTR) && (recv < 0)) {
+				continue;
+			} else if ((errno != EIDRM) && (recv < 0)) {
+				throw std::runtime_error("msgrcv failed: " + std::string{strerror(errno)});
+			}
 
-		return msg_buf.m_data;
+			return msg_buf.m_data;
+		}
 	}
 };

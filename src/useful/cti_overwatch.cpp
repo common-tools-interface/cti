@@ -133,8 +133,11 @@ void finish_threads() {
 	}
 }
 
-void shutdown()
+void shutdown_and_exit(int const rc)
 {
+	// unset SIGCHLD handler
+	signal(SIGCHLD, SIG_DFL);
+
 	// terminate all running utilities
 	start_thread([&](){ utilMap.clear(); });
 
@@ -146,6 +149,8 @@ void shutdown()
 
 	// wait for all threads
 	finish_threads();
+
+	exit(rc);
 }
 
 // sigchld handler
@@ -157,23 +162,26 @@ sigchld_handler(int sig)
 	}
 
 	pid_t exitedPid;
-	while ((exitedPid = waitpid(-1, nullptr, WNOHANG)) != -1) {
+	int status;
+	while ((exitedPid = waitpid(-1, &status, WNOHANG)) != -1) {
+		if (WIFEXITED(status)) {
+			fprintf(stderr, "sigchld pid %d\n", exitedPid);
 
-		// abnormal cti termination
-		if (exitedPid == clientPid) {
+			// abnormal cti termination
+			if (exitedPid == clientPid) {
+				shutdown_and_exit(1);
 
-			// run final cleanup
-			shutdown();
-
-			exit(1);
-
-		// regular app termination
-		} else if (appList.contains(exitedPid)) {
-			// app already terminated
-			appList.erase(exitedPid);
-
-			// terminate all of app's utilities
-			start_thread([&](){ utilMap.erase(exitedPid); });
+			} else {
+				// regular app termination
+				if (appList.contains(exitedPid)) {
+					// app already terminated
+					appList.erase(exitedPid);
+				}
+				if (utilMap.find(exitedPid) != utilMap.end()) {
+					// terminate all of app's utilities
+					start_thread([&](){ utilMap.erase(exitedPid); });
+				}
+			}
 		}
 	}
 }
@@ -181,6 +189,7 @@ sigchld_handler(int sig)
 int 
 main(int argc, char *argv[])
 {
+	// parse incoming argv for main client PID and message queue key
 	{ auto incomingArgv = cti_argv::IncomingArgv<CTIOverwatchArgv>{argc, argv};
 		int c; std::string optarg;
 		while (true) {
@@ -214,6 +223,7 @@ main(int argc, char *argv[])
 		}
 	}
 
+	// verify client pid and existence of message queue
 	if ((clientPid < 0) || !msgQueue) {
 		usage(argv[0]);
 		exit(1);
@@ -234,12 +244,15 @@ main(int argc, char *argv[])
 	memset(&sigchld_action, 0, sizeof(sigchld_action));
 	throw_if(sigfillset(&sigchld_action.sa_mask));
 	sigchld_action.sa_handler = sigchld_handler;
+	sigchld_action.sa_flags   = SA_RESTART | SA_NOCLDSTOP;
 	throw_if(sigaction(SIGCHLD, &sigchld_action, nullptr));
 
 	// wait for msgQueue command
 	while (true) {
 		OverwatchMsgType msgType; OverwatchData msgData;
 		std::tie(msgType, msgData) = msgQueue.recv();
+
+		fprintf(stderr, "msg type %ld data %d %d\n", msgType, msgData.appPid, msgData.utilPid);
 
 		switch (msgType) {
 
@@ -255,11 +268,11 @@ main(int argc, char *argv[])
 			break;
 
 		case OverwatchMsgType::UtilityRegister:
-			if (msgData.appPid > 0) {
+			if (msgData.appPid >= 0) {
 				if (msgData.utilPid > 0) {
 
-					// register app pid if not tracked
-					if (!appList.contains(msgData.appPid)) {
+					// register app pid if valid and not tracked
+					if ((msgData.appPid > 0) && !appList.contains(msgData.appPid)) {
 						appList.insert(msgData.appPid);
 					}
 
@@ -292,9 +305,7 @@ main(int argc, char *argv[])
 			break;
 
 		case OverwatchMsgType::Shutdown:
-			shutdown();
-
-			return 0;
+			shutdown_and_exit(0);
 
 		default:
 			fprintf(stderr, "unknown msg type %ld data %d %d\n", msgType, msgData.appPid, msgData.utilPid);
