@@ -55,6 +55,7 @@ usage(char const *argv0)
 
 static void tryTerm(pid_t const pid)
 {
+	fprintf(stderr, "sigterm %d\n", pid);
 	if (::kill(pid, SIGTERM)) {
 		return;
 	}
@@ -120,6 +121,7 @@ auto msgQueue = MsgQueue<OverwatchMsgType, OverwatchData>{};
 // running apps / utils
 auto appList = ProcSet{};
 auto utilMap = std::unordered_map<pid_t, ProcSet>{};
+bool exiting = false;
 
 // threading helpers
 std::vector<std::future<void>> runningThreads;
@@ -135,8 +137,8 @@ void finish_threads() {
 
 void shutdown_and_exit(int const rc)
 {
-	// unset SIGCHLD handler
-	signal(SIGCHLD, SIG_DFL);
+	// tell signal handling loop to terminate
+	exiting = true;
 
 	// terminate all running utilities
 	start_thread([&](){ utilMap.clear(); });
@@ -153,25 +155,42 @@ void shutdown_and_exit(int const rc)
 	exit(rc);
 }
 
+// normal signal handler
+void
+sig_relay_handler(int sig)
+{
+	// if client alive
+	int status;
+	if (waitpid(clientPid, &status, WNOHANG) && !WIFEXITED(status)) {
+		// relay signal
+		::kill(clientPid, sig);
+	} else {
+		// send shutdown message to main thread
+		msgQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
+		return;
+	}
+}
+
 // sigchld handler
 void
 sigchld_handler(int sig)
 {
-	if (sig != SIGCHLD) {
-		return;
-	}
-
 	pid_t exitedPid;
 	int status;
 	while ((exitedPid = waitpid(-1, &status, WNOHANG)) != -1) {
 		if (WIFEXITED(status)) {
-			fprintf(stderr, "sigchld pid %d\n", exitedPid);
+			fprintf(stderr, "exitedpid %d\n", exitedPid);
 
 			// abnormal cti termination
 			if (exitedPid == clientPid) {
-				shutdown_and_exit(1);
+				// send shutdown message to main thread
+				msgQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
+				return;
 
 			} else {
+				// send sigchld to client
+				sig_relay_handler(SIGCHLD);
+
 				// regular app termination
 				if (appList.contains(exitedPid)) {
 					// app already terminated
@@ -182,6 +201,46 @@ sigchld_handler(int sig)
 					start_thread([&](){ utilMap.erase(exitedPid); });
 				}
 			}
+		}
+	}
+}
+
+void
+sig_wait_loop()
+{
+	// read all signals
+	sigset_t  all_sigs;
+	sigfillset(&all_sigs);
+	if (sigprocmask(SIG_SETMASK, &all_sigs, nullptr) < 0) {
+		// send shutdown message to main thread
+		msgQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
+		return;
+	}
+
+	while (!exiting) {
+		// get active signal
+		errno = 0;
+		int sig = sigwaitinfo(&all_sigs, nullptr);
+		if ((errno == EINTR) && (sig < 0)) {
+			continue;
+		} else if (sig < 0) {
+			perror("sigwaitinfo");
+			// send shutdown message to main thread
+			msgQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
+			return;
+		}
+
+		fprintf(stderr, "got signal: %d\n", sig);
+
+		if (exiting) {
+			return;
+		}
+
+		// dispatch to handler
+		if (sig == SIGCHLD) {
+			sigchld_handler(sig);
+		} else {
+			sig_relay_handler(sig);
 		}
 	}
 }
@@ -229,23 +288,16 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	auto throw_if = [](int const result) {
-		if (result) { throw std::runtime_error(strerror(errno)); }
-	};
+	// block all signals
+	sigset_t  all_sigs;
+	sigfillset(&all_sigs);
+	if (sigprocmask(SIG_SETMASK, &all_sigs, nullptr) < 0) {
+		perror("sigprocmask");
+		exit(1);
+	}
 
-	// ensure all signals except SIGCHLD are blocked
-	sigset_t mask;
-	throw_if(sigfillset(&mask));
-	throw_if(sigdelset(&mask, SIGCHLD));
-	throw_if(sigprocmask(SIG_SETMASK, &mask, nullptr));
-
-	// setup the SIGCHLD handler
-	struct sigaction sigchld_action;
-	memset(&sigchld_action, 0, sizeof(sigchld_action));
-	throw_if(sigfillset(&sigchld_action.sa_mask));
-	sigchld_action.sa_handler = sigchld_handler;
-	sigchld_action.sa_flags   = SA_RESTART | SA_NOCLDSTOP;
-	throw_if(sigaction(SIGCHLD, &sigchld_action, nullptr));
+	// start signal handling thread
+	std::thread{sig_wait_loop}.detach();
 
 	// wait for msgQueue command
 	while (true) {

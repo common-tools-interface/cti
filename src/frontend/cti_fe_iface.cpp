@@ -411,6 +411,7 @@ public: // interface
 		, logger{currentFrontendPtr ? currentFrontendPtr->getHostname().c_str() : "(NULL frontend)", getpid()}
 	{
 		key_t overwatchQueueKey = rand();
+
 		if (auto const forkedPid = fork()) {
 			// parent case
 
@@ -430,6 +431,8 @@ public: // interface
 			throw std::runtime_error("returned from execvp: " + std::string{strerror(errno)});
 		} else {
 			// child case
+
+			// set up overwatch registration queue
 			overwatchQueue = OverwatchQueue{overwatchQueueKey};
 		}
 	}
