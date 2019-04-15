@@ -418,7 +418,7 @@ public: // interface
 			// close fds
 			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
 			dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
-			// dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+			dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
 
 			// setup args
 			using OWA = CTIOverwatchArgv;
@@ -518,9 +518,11 @@ _cti_overwatchUtil(pid_t const appPid, pid_t const utilPid)
 void
 _cti_endOverwatchApp(pid_t const appPid)
 {
-	_cti_getState().overwatchQueue.send(OverwatchMsgType::AppDeregister,
-		OverwatchData { .appPid = appPid }
-	);
+	if (appPid) {
+		_cti_getState().overwatchQueue.send(OverwatchMsgType::AppDeregister,
+			OverwatchData { .appPid = appPid }
+		);
+	}
 }
 
 /* internal testing functions */

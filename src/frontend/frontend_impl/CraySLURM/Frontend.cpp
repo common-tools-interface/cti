@@ -46,7 +46,7 @@
 /* constructors / destructors */
 
 CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunInstance)
-	: m_launcherPid  { m_stoppedSrun ? m_stoppedSrun->getLauncherPid() : pid_t{0} }
+	: m_launcherPid  { srunInstance.stoppedSrun ? srunInstance.stoppedSrun->getLauncherPid() : pid_t{0} }
 	, m_srunInfo     { jobid, stepid }
 	, m_stepLayout   { CraySLURMFrontend::fetchStepLayout(jobid, stepid) }
 	, m_dlaunchSent  { false }
@@ -78,7 +78,8 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunI
 }
 
 CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
-	: m_srunInfo    { moved.m_srunInfo }
+	: m_launcherPid { moved.m_launcherPid }
+	, m_srunInfo    { moved.m_srunInfo }
 	, m_stepLayout  { moved.m_stepLayout }
 	, m_dlaunchSent { moved.m_dlaunchSent }
 
@@ -93,6 +94,9 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 {
 	// We have taken ownership of the staging path, so don't let moved delete the directory.
 	moved.m_stagePath.erase();
+
+	// we will deregister the overwatch app instance
+	moved.m_launcherPid = pid_t{0};
 }
 
 CraySLURMApp::~CraySLURMApp()
@@ -101,6 +105,9 @@ CraySLURMApp::~CraySLURMApp()
 	if (!m_stagePath.empty()) {
 		_cti_removeDirectory(m_stagePath.c_str());
 	}
+
+	// clean up overwatch
+	_cti_endOverwatchApp(m_launcherPid);
 }
 
 /* app instance creation */

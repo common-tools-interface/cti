@@ -55,7 +55,7 @@ usage(char const *argv0)
 
 static void tryTerm(pid_t const pid)
 {
-	fprintf(stderr, "sigterm %d\n", pid);
+	fprintf(stderr, "tryterm %d\n", pid);
 	if (::kill(pid, SIGTERM)) {
 		return;
 	}
@@ -121,7 +121,7 @@ auto msgQueue = MsgQueue<OverwatchMsgType, OverwatchData>{};
 // running apps / utils
 auto appList = ProcSet{};
 auto utilMap = std::unordered_map<pid_t, ProcSet>{};
-bool exiting = false;
+volatile bool exiting = false;
 
 // threading helpers
 std::vector<std::future<void>> runningThreads;
@@ -163,9 +163,11 @@ sig_relay_handler(int sig)
 	int status;
 	if (waitpid(clientPid, &status, WNOHANG) && !WIFEXITED(status)) {
 		// relay signal
+		fprintf(stderr, "relay signal: %d\n", sig);
 		::kill(clientPid, sig);
 	} else {
 		// send shutdown message to main thread
+		fprintf(stderr, "client died, exiting\n");
 		msgQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
 		return;
 	}
@@ -173,34 +175,25 @@ sig_relay_handler(int sig)
 
 // sigchld handler
 void
-sigchld_handler(int sig)
+sigchld_handler(pid_t const exitedPid)
 {
-	pid_t exitedPid;
-	int status;
-	while ((exitedPid = waitpid(-1, &status, WNOHANG)) != -1) {
-		if (WIFEXITED(status)) {
-			fprintf(stderr, "exitedpid %d\n", exitedPid);
+	fprintf(stderr, "exitedpid %d\n", exitedPid);
 
-			// abnormal cti termination
-			if (exitedPid == clientPid) {
-				// send shutdown message to main thread
-				msgQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
-				return;
+	// abnormal cti termination
+	if (exitedPid == clientPid) {
+		// send shutdown message to main thread
+		msgQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
+		return;
 
-			} else {
-				// send sigchld to client
-				sig_relay_handler(SIGCHLD);
-
-				// regular app termination
-				if (appList.contains(exitedPid)) {
-					// app already terminated
-					appList.erase(exitedPid);
-				}
-				if (utilMap.find(exitedPid) != utilMap.end()) {
-					// terminate all of app's utilities
-					start_thread([&](){ utilMap.erase(exitedPid); });
-				}
-			}
+	} else {
+		// regular app termination
+		if (appList.contains(exitedPid)) {
+			// app already terminated
+			appList.erase(exitedPid);
+		}
+		if (utilMap.find(exitedPid) != utilMap.end()) {
+			// terminate all of app's utilities
+			start_thread([&](){ utilMap.erase(exitedPid); });
 		}
 	}
 }
@@ -219,9 +212,11 @@ sig_wait_loop()
 
 	while (!exiting) {
 		// get active signal
+		siginfo_t sig_info;
 		errno = 0;
-		int sig = sigwaitinfo(&all_sigs, nullptr);
+		int sig = sigwaitinfo(&all_sigs, &sig_info);
 		if ((errno == EINTR) && (sig < 0)) {
+			fprintf(stderr, "interrupted\n");
 			continue;
 		} else if (sig < 0) {
 			perror("sigwaitinfo");
@@ -237,8 +232,12 @@ sig_wait_loop()
 		}
 
 		// dispatch to handler
-		if (sig == SIGCHLD) {
-			sigchld_handler(sig);
+		if ((sig == SIGCHLD) && (sig_info.si_code == CLD_EXITED)) {
+			if (sig_info.si_pid > 1) {
+				sigchld_handler(sig_info.si_pid);
+			} else {
+				sigchld_handler(clientPid);
+			}
 		} else {
 			sig_relay_handler(sig);
 		}

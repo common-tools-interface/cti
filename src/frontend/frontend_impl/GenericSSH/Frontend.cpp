@@ -361,7 +361,7 @@ struct SSHSession {
 };
 
 GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
-	: m_launcherPid { launcherPid }
+	: m_launcherPid { _cti_overwatchApp(launcherPid) } // register launcher app on overwatch
 	, m_stepLayout  { GenericSSHFrontend::fetchStepLayout(launcherInstance->getProcTable()) }
 	, m_dlaunchSent { false }
 
@@ -372,9 +372,6 @@ GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& 
 	, m_stagePath   { cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SSH_STAGE_DIR}) }
 	, m_extraFiles  { GenericSSHFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
 {
-	// register launcher app on overwatch
-	_cti_overwatchApp(m_launcherPid);
-
 	// Ensure there are running nodes in the job.
 	if (m_stepLayout.nodes.empty()) {
 		throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
@@ -400,6 +397,9 @@ GenericSSHApp::GenericSSHApp(GenericSSHApp&& moved)
 {
 	// We have taken ownership of the staging path, so don't let moved delete the directory.
 	moved.m_stagePath.erase();
+
+	// we will deregister the overwatch app instance
+	moved.m_launcherPid = pid_t{0};
 }
 
 GenericSSHApp::~GenericSSHApp()
