@@ -48,8 +48,7 @@
 
 // utility includes
 #include "useful/cti_useful.h"
-#include "useful/Dlopen.hpp"
-#include "useful/ExecvpOutput.hpp"
+#include "useful/cti_execvp.hpp"
 #include "useful/cti_argv.hpp"
 
 /* helper functions */
@@ -305,8 +304,8 @@ namespace cti_conventions
 		else {
 			// Query for the slurm package using rpm
 			// FIXME: This is a hack. This should be addressed by PE-25088
-			auto rpmArgv = cti_argv::ManagedArgv { "rpm", "-q", "slurm" };
-			ExecvpOutput rpmOutput("rpm", rpmArgv.get());
+			auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "slurm" };
+			cti::Execvp rpmOutput("rpm", rpmArgv.get());
 			auto res = rpmOutput.getExitStatus();
 			if (res == 0) {
 				// The slurm package is installed. This is a naive check.

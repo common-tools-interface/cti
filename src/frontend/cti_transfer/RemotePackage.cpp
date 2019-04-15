@@ -39,7 +39,7 @@ void RemotePackage::extract() {
 	auto liveSession = getSessionHandle(m_sessionPtr);
 
 	// create DaemonArgv
-	cti_argv::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+	cti::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
 		daemonArgv.add(DA::ApID,         liveSession->m_jobId);
 		daemonArgv.add(DA::ToolPath,     liveSession->m_toolPath);
@@ -68,7 +68,7 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 
 	// create DaemonArgv
 	liveSession->writeLog("extractAndRun: creating daemonArgv for %s\n", daemonBinary);
-	cti_argv::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+	cti::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
 	{ using DA = DaemonArgv;
 		daemonArgv.add(DA::ApID,         liveSession->m_jobId);
 		daemonArgv.add(DA::ToolPath,     liveSession->m_toolPath);
@@ -95,7 +95,7 @@ void RemotePackage::extractAndRun(const char * const daemonBinary,
 	}
 
 	// add daemon arguments
-	cti_argv::ManagedArgv rawArgVec(daemonArgv.eject());
+	cti::ManagedArgv rawArgVec(daemonArgv.eject());
 	if (daemonArgs != nullptr) {
 		rawArgVec.add("--");
 		for (const char* const* var = daemonArgs; *var != nullptr; var++) {

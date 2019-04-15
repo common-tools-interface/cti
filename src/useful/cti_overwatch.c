@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cti_overwatch.c - library routines to interface with the cti overwatch 
+ * cti_overwatch.c - library routines to interface with the cti overwatch
  *                   process.
  *
  * Copyright 2014 Cray Inc.  All Rights Reserved.
@@ -9,11 +9,6 @@
  * Except as permitted by contract or express written permission of Cray Inc.,
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
- *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
  *
  ******************************************************************************/
 
@@ -57,14 +52,14 @@ static cti_args_t *
 _cti_newArgs(void)
 {
 	cti_args_t *	this;
-	
+
 	// allocate the args datatype
 	if ((this = malloc(sizeof(cti_args_t))) == NULL)
 	{
 		// malloc failed
 		return NULL;
 	}
-	
+
 	// init the members
 	this->argc = 0;
 	if ((this->argv = malloc(ARGV_BLOCK_SIZE * sizeof(char *))) == NULL)
@@ -75,7 +70,7 @@ _cti_newArgs(void)
 	}
 	memset(this->argv, 0, ARGV_BLOCK_SIZE * sizeof(char *));
 	this->_len = ARGV_BLOCK_SIZE;
-	
+
 	return this;
 }
 
@@ -83,20 +78,20 @@ static void
 _cti_freeArgs(cti_args_t * this)
 {
 	unsigned int i;
-	
+
 	// sanity
 	if (this == NULL)
 		return;
-		
+
 	// free argv elems
 	for (i=0; i < this->argc; ++i)
 	{
 		free(this->argv[i]);
 	}
-	
+
 	// free argv
 	free(this->argv);
-	
+
 	// free obj
 	free(this);
 }
@@ -109,7 +104,7 @@ _cti_resizeArgs(cti_args_t *this)
 	// sanity
 	if (this == NULL)
 		return 1;
-	
+
 	if ((new = realloc(this->argv, (this->_len + ARGV_BLOCK_SIZE) * sizeof(char *))) == NULL)
 	{
 		// realloc failed
@@ -120,7 +115,7 @@ _cti_resizeArgs(cti_args_t *this)
 	this->_len += ARGV_BLOCK_SIZE;
 	// initialize new memory
 	memset(&(this->argv[this->argc]), 0, (this->_len - this->argc) * sizeof(char *));
-	
+
 	return 0;
 }
 
@@ -129,27 +124,27 @@ _cti_addArg(cti_args_t *this, const char *fmt, ...)
 {
 	va_list ap;
 	char *	new_arg;
-	
+
 	// sanity
 	if (this == NULL || fmt == NULL)
 	{
 		// failed to add arg
 		return 1;
 	}
-	
+
 	// setup the va_args
 	va_start(ap, fmt);
-	
+
 	// create the argument string
 	if (vasprintf(&new_arg, fmt, ap) <= 0)
 	{
 		// vasprintf failed
 		return 1;
 	}
-	
+
 	// finish the va_args
 	va_end(ap);
-	
+
 	// Ensure that there is room for this argument - note that we always
 	// want the argv to be null terminated, so we need to resize once argc+1 is
 	// equal to _len.
@@ -162,11 +157,11 @@ _cti_addArg(cti_args_t *this, const char *fmt, ...)
 			return 1;
 		}
 	}
-	
+
 	// set the argument string
 	this->argv[this->argc] = new_arg;
 	this->argc += 1;
-	
+
 	return 0;
 }
 
@@ -178,16 +173,16 @@ _cti_free_overwatch(cti_overwatch_t *this)
 	// sanity
 	if (this == NULL)
 		return;
-		
+
 	// tell the overwatch to exit gracefully
 	kill(this->o_pid, SIGUSR2);
-	
+
 	if (this->pipe_r != NULL)
 		fclose(this->pipe_r);
 
 	if (this->pipe_w != NULL)
 		fclose(this->pipe_w);
-		
+
 	free(this);
 }
 
@@ -200,14 +195,14 @@ _cti_create_overwatch(const char *path)
 	int 				pipeR[2];	// parent read pipe
 	int 				pipeW[2];	// parent write pipe
 	cti_args_t *		my_args;	// args for overwatch process
-	
+
 	// sanity check - ensure we can access the binary
 	if (path == NULL || access(path, R_OK | X_OK))
 	{
 		// invalid path
 		return NULL;
 	}
-	
+
 	// allocate return object
 	if ((rtn = malloc(sizeof(cti_overwatch_t))) == NULL)
 	{
@@ -215,7 +210,7 @@ _cti_create_overwatch(const char *path)
 		return NULL;
 	}
 	memset(rtn, 0, sizeof(cti_overwatch_t));
-	
+
 	// create the pipes
 	if (pipe(pipeR) < 0)
 	{
@@ -231,7 +226,7 @@ _cti_create_overwatch(const char *path)
 		close(pipeR[1]);
 		return NULL;
 	}
-	
+
 	// create a new args obj
 	if ((my_args = _cti_newArgs()) == NULL)
 	{
@@ -243,7 +238,7 @@ _cti_create_overwatch(const char *path)
 		close(pipeW[1]);
 		return NULL;
 	}
-	
+
 	// add name of the overwatch binary
 	if (_cti_addArg(my_args, "%s", path))
 	{
@@ -255,7 +250,7 @@ _cti_create_overwatch(const char *path)
 		_cti_freeArgs(my_args);
 		return NULL;
 	}
-	
+
 	// add the -r and -w args
 	if (_cti_addArg(my_args, "-r"))
 	{
@@ -297,7 +292,7 @@ _cti_create_overwatch(const char *path)
 		_cti_freeArgs(my_args);
 		return NULL;
 	}
-	
+
 	// setup rtn
 	rtn->pipe_r = fdopen(pipeR[0], "r");
 	if (rtn->pipe_r == NULL)
@@ -321,10 +316,10 @@ _cti_create_overwatch(const char *path)
 		_cti_freeArgs(my_args);
 		return NULL;
 	}
-	
+
 	// fork off a process
 	rtn->o_pid = fork();
-	
+
 	// error case
 	if (rtn->o_pid < 0)
 	{
@@ -337,7 +332,7 @@ _cti_create_overwatch(const char *path)
 		_cti_freeArgs(my_args);
 		return NULL;
 	}
-	
+
 	// child case
 	if (rtn->o_pid == 0)
 	{
@@ -347,7 +342,7 @@ _cti_create_overwatch(const char *path)
 		int					fd1;
 		struct sigaction 	sig_action;
 		sigset_t			mask;
-		
+
 		// get max number of file descriptors
 		if (getrlimit(RLIMIT_NOFILE, &rl) < 0)
 		{
@@ -359,7 +354,7 @@ _cti_create_overwatch(const char *path)
 			// guess the value
 			rl.rlim_max = 1024;
 		}
-		
+
 		// Ensure every file descriptor is closed besides our read/write pipes
 		for (i=3; i < rl.rlim_max; ++i)
 		{
@@ -368,17 +363,17 @@ _cti_create_overwatch(const char *path)
 				close(i);
 			}
 		}
-		
+
 		// setup stdin/stdout/stderr
 		fd0 = open("/dev/null", O_RDONLY);
 		fd1 = open("/dev/null", O_WRONLY);
 		dup2(fd0, STDIN_FILENO);
 		dup2(fd1, STDOUT_FILENO);
 		dup2(fd1, STDERR_FILENO);
-		
+
 		// put this overwatch in its own process group
 		setpgid(rtn->o_pid, rtn->o_pid);
-		
+
 		// reset SIGUSR1 and SIGUSR2 signal handlers
 		memset(&sig_action, 0, sizeof(sig_action));
 		sig_action.sa_handler = SIG_DFL;
@@ -398,7 +393,7 @@ _cti_create_overwatch(const char *path)
 			perror("sigaction");
 			_exit(1);
 		}
-		
+
 		// ensure SIGUSR1 and SIGUSR2 are unblocked
 		if (sigemptyset(&mask))
 		{
@@ -420,41 +415,41 @@ _cti_create_overwatch(const char *path)
 			perror("sigprocmask");
 			_exit(1);
 		}
-		
+
 		// set parent death signal to send SIGUSR1
 		if (prctl(PR_SET_PDEATHSIG, SIGUSR1))
 		{
 			perror("prctl");
 			_exit(1);
 		}
-		
+
 		// ensure parent isn't already dead
 		if (getppid() == 1)
 		{
 			// exit since parent is already dead
 			_exit(0);
 		}
-		
+
 		// exec the overwatch process
 		execv(path, my_args->argv);
-		
+
 		// exec shouldn't return
 		perror("execv");
 		_exit(1);
 	}
-	
+
 	// parent case
-	
+
 	// ensure the overwatch is placed in its own process group
 	setpgid(rtn->o_pid, rtn->o_pid);
-	
+
 	// close unused ends of pipe
 	close(pipeR[1]);
 	close(pipeW[0]);
-	
+
 	// cleanup args
 	_cti_freeArgs(my_args);
-	
+
 	// done
 	return rtn;
 }
@@ -467,7 +462,7 @@ _cti_assign_overwatch(cti_overwatch_t *this, pid_t chld_pid)
 	// sanity
 	if (this == NULL)
 		return 1;
-		
+
 	// sanity
 	if (kill(chld_pid, 0))
 	{
@@ -475,7 +470,7 @@ _cti_assign_overwatch(cti_overwatch_t *this, pid_t chld_pid)
 		_cti_free_overwatch(this);
 		return 1;
 	}
-	
+
 	// write the pid
 	if (fwrite(&chld_pid, sizeof(pid_t), 1, this->pipe_w) != 1)
 	{
@@ -483,9 +478,9 @@ _cti_assign_overwatch(cti_overwatch_t *this, pid_t chld_pid)
 		_cti_free_overwatch(this);
 		return 1;
 	}
-	
+
 	fflush(this->pipe_w);
-	
+
 	// read a byte of data, this is the overwatch acknowledge of our pid
 	if (fread(&sync, sizeof(char), 1, this->pipe_r) != 1)
 	{
@@ -493,13 +488,13 @@ _cti_assign_overwatch(cti_overwatch_t *this, pid_t chld_pid)
 		_cti_free_overwatch(this);
 		return 1;
 	}
-	
+
 	// cleanup the pipes in the overwatch obj - we are done with them
 	fclose(this->pipe_w);
 	this->pipe_w = NULL;
 	fclose(this->pipe_r);
 	this->pipe_r = NULL;
-	
+
 	return 0;
 }
 

@@ -10,11 +10,6 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  ******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -48,7 +43,7 @@ usage(char *name)
 	fprintf(stdout, "Usage: %s [OPTIONS]...\n", name);
 	fprintf(stdout, "Create an overwatch process to ensure children are cleaned up on parent exit\n");
 	fprintf(stdout, "This should not be called directly.\n\n");
-	
+
 	fprintf(stdout, "\t-r, --read      fd of read control pipe         (required)\n");
 	fprintf(stdout, "\t-w, --write     fd of write control pipe        (required)\n");
 	fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
@@ -73,7 +68,7 @@ cti_overwatch_handler(int sig)
 		// exit
 		exit(0);
 	}
-	
+
 	// no pid, so exit
 	exit(1);
 }
@@ -86,7 +81,7 @@ cti_exit_handler(int sig)
 	exit(0);
 }
 
-int 
+int
 main(int argc, char *argv[])
 {
 	int					opt_ind = 0;
@@ -99,14 +94,14 @@ main(int argc, char *argv[])
 	sigset_t			mask;
 	struct sigaction	sig_action;
 	char				done = 1;
-	
+
 	// we require at least 3 args
 	if (argc < 3)
 	{
 		usage(argv[0]);
 		return 1;
 	}
-	
+
 	// parse the provide args
 	while ((c = getopt_long(argc, argv, "r:w:h", long_opts, &opt_ind)) != -1)
 	{
@@ -115,19 +110,19 @@ main(int argc, char *argv[])
 			case 0:
 				// if this is a flag, do nothing
 				break;
-				
+
 			case 'r':
 				if (optarg == NULL)
 				{
 					usage(argv[0]);
 					return 1;
 				}
-				
+
 				// convert the string into the actual fd
 				errno = 0;
 				end_p = NULL;
 				val = strtol(optarg, &end_p, 10);
-				
+
 				// check for errors
 				if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN)) || (errno != 0 && val == 0))
 				{
@@ -144,28 +139,28 @@ main(int argc, char *argv[])
 					fprintf(stderr, "Invalid read fd argument.\n");
 					return 1;
 				}
-				
+
 				rfp = fdopen((int)val, "r");
 				if (rfp == NULL)
 				{
 					fprintf(stderr, "Invalid read fd argument.\n");
 					return 1;
 				}
-				
+
 				break;
-				
+
 			case 'w':
 				if (optarg == NULL)
 				{
 					usage(argv[0]);
 					return 1;
 				}
-				
+
 				// convert the string into the actual fd
 				errno = 0;
 				end_p = NULL;
 				val = strtol(optarg, &end_p, 10);
-				
+
 				// check for errors
 				if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN)) || (errno != 0 && val == 0))
 				{
@@ -182,34 +177,34 @@ main(int argc, char *argv[])
 					fprintf(stderr, "Invalid write fd argument.\n");
 					return 1;
 				}
-				
+
 				wfp = fdopen((int)val, "w");
-				
+
 				if (wfp == NULL)
 				{
 					fprintf(stderr, "Invalid write fd argument.\n");
 					return 1;
 				}
-				
+
 				break;
-				
+
 			case 'h':
 				usage(argv[0]);
 				return 0;
-				
+
 			default:
 				usage(argv[0]);
 				return 1;
 		}
 	}
-	
+
 	// post-process required args to make sure we have everything we need
 	if (rfp == NULL || wfp == NULL)
 	{
 		usage(argv[0]);
 		return 1;
 	}
-	
+
 	// read the pid from the pipe
 	if (fread(&my_pid, sizeof(pid_t), 1, rfp) != 1)
 	{
@@ -218,7 +213,7 @@ main(int argc, char *argv[])
 		return 1;
 	}
 	pid = my_pid;
-	
+
 	// ensure all signals except SIGUSR1 and SIGUSR2 are blocked
 	if (sigfillset(&mask))
 	{
@@ -240,7 +235,7 @@ main(int argc, char *argv[])
 		perror("sigprocmask");
 		return 1;
 	}
-	
+
 	// setup the signal handler
 	memset(&sig_action, 0, sizeof(sig_action));
 	if (sigfillset(&sig_action.sa_mask))
@@ -248,7 +243,7 @@ main(int argc, char *argv[])
 		perror("sigfillset");
 		return 1;
 	}
-	
+
 	// set handler for SIGUSR1
 	sig_action.sa_handler = cti_overwatch_handler;
 	if (sigaction(SIGUSR1, &sig_action, NULL))
@@ -256,7 +251,7 @@ main(int argc, char *argv[])
 		perror("sigaction");
 		return 1;
 	}
-	
+
 	// set handler for SIGUSR2
 	sig_action.sa_handler = cti_exit_handler;
 	if (sigaction(SIGUSR2, &sig_action, NULL))
@@ -264,7 +259,7 @@ main(int argc, char *argv[])
 		perror("sigaction");
 		return 1;
 	}
-	
+
 	// write the done byte to signal to the parent we are all set up
 	if (fwrite(&done, sizeof(char), 1, wfp) != 1)
 	{
@@ -272,14 +267,14 @@ main(int argc, char *argv[])
 		perror("fwrite");
 		return 1;
 	}
-	
+
 	// close our pipes
 	fclose(rfp);
 	fclose(wfp);
-	
+
 	// sleep until we get a signal
 	pause();
-	
+
 	// we should not get here
 	fprintf(stderr, "Exec past pause!\n");
 	return 1;

@@ -22,7 +22,7 @@
 #include "frontend/Frontend.hpp"
 #include "mpir_iface/MPIRInstance.hpp"
 
-#include "useful/temp_file_handle.hpp"
+#include "useful/cti_wrappers.hpp"
 
 // cti_srunProc_t extended to performs sanity checking upon construction
 struct SrunInfo : public cti_srunProc_t {
@@ -63,8 +63,8 @@ public: // slurm specific types
 	// objects that are created during an App creation. ownership will pass to the App
 	struct SrunInstance {
 		std::unique_ptr<MPIRInstance> stoppedSrun; // SRUN inferior for barrier release
-		temp_file_handle outputPath; // handle to output fifo file
-		temp_file_handle errorPath;  // handle to error fifo file
+		cti::temp_file_handle outputPath; // handle to output fifo file
+		cti::temp_file_handle errorPath;  // handle to error fifo file
 		overwatch_handle redirectUtility; // running output redirection utility
 	};
 
@@ -116,8 +116,8 @@ private: // variables
 	std::vector<overwatch_handle> m_watchedUtilities; // active utility redirect / sattach / srun instances
 
 	std::unique_ptr<MPIRInstance> m_stoppedSrun; // MPIR instance handle to release startup barrier
-	temp_file_handle m_outputPath;
-	temp_file_handle m_errorPath;
+	cti::temp_file_handle m_outputPath;
+	cti::temp_file_handle m_errorPath;
 
 	std::string m_toolPath;    // Backend path where files are unpacked
 	std::string m_attribsPath; // Backend Cray-specific directory
