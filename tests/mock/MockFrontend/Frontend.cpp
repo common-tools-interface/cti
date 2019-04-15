@@ -19,7 +19,7 @@
 
 #include "Frontend.hpp"
 
-#include "useful/make_unique_destr.hpp"
+#include "useful/cti_wrappers.hpp"
 
 using ::testing::Return;
 using ::testing::_;
@@ -65,7 +65,7 @@ MockApp::MockApp(pid_t launcherPid)
 	ON_CALL(*this, shipPackage(_))
 		.WillByDefault(WithArgs<0>(Invoke([&](std::string const& tarPath) {
 			// initialize archive struct
-			auto archPtr = make_unique_destr(archive_read_new(), archive_read_free);
+			auto archPtr = cti::make_unique_destr(archive_read_new(), archive_read_free);
 			archive_read_support_filter_all(archPtr.get());
 			archive_read_support_format_all(archPtr.get());
 

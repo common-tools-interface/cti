@@ -16,7 +16,7 @@
 #include "cti_fe_unit_test.hpp"
 
 #include "cti_defs.h"
-#include "useful/make_unique_destr.hpp"
+#include "useful/cti_wrappers.hpp"
 
 using ::testing::Return;
 using ::testing::_;
@@ -104,7 +104,7 @@ TEST_F(CTIFEUnitTest, GetHostname)
 		.WillOnce(Return(std::string{"local-hostname"}));
 
 	// run the test
-	auto const rawHostname = make_unique_destr(cti_getHostname(), std::free);
+	auto const rawHostname = cti::make_unique_destr(cti_getHostname(), std::free);
 	ASSERT_TRUE(rawHostname != nullptr);
 }
 
@@ -127,7 +127,7 @@ TEST_F(CTIAppUnitTest, GetLauncherHostname)
 		.WillOnce(Return(std::string{"remote-hostname"}));
 
 	// run the test
-	auto const rawHostname = make_unique_destr(cti_getLauncherHostName(appId), std::free);
+	auto const rawHostname = cti::make_unique_destr(cti_getLauncherHostName(appId), std::free);
 	ASSERT_TRUE(rawHostname != nullptr);
 	EXPECT_EQ(std::string{rawHostname.get()}, "remote-hostname");
 }
@@ -165,7 +165,7 @@ TEST_F(CTIAppUnitTest, GetAppHostsList)
 		.WillOnce(Return(std::vector<std::string>{"remote-hostname"}));
 
 	// run the test
-	auto const rawHostsList = make_unique_destr(cti_getAppHostsList(appId), free_ptr_list<char*>);
+	auto const rawHostsList = cti::make_unique_destr(cti_getAppHostsList(appId), cti::free_ptr_list<char*>);
 	ASSERT_TRUE(rawHostsList != nullptr);
 	EXPECT_EQ(std::string{rawHostsList.get()[0]}, "remote-hostname");
 	EXPECT_EQ(rawHostsList.get()[1], nullptr);
@@ -184,7 +184,7 @@ TEST_F(CTIAppUnitTest, GetAppHostsPlacement)
 		}}));
 
 	// run the test
-	auto const rawHostsList = make_unique_destr(cti_getAppHostsPlacement(appId), cti_destroyHostsList);
+	auto const rawHostsList = cti::make_unique_destr(cti_getAppHostsPlacement(appId), cti_destroyHostsList);
 	ASSERT_TRUE(rawHostsList != nullptr);
 	EXPECT_EQ(rawHostsList->numHosts, 1);
 	ASSERT_TRUE(rawHostsList->hosts != nullptr);
@@ -313,7 +313,7 @@ TEST_F(CTIAppUnitTest, GetSessionLockFiles)
 	auto const sessionId = cti_createSession(appId);
 	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
-	auto const lockFilesList = make_unique_destr(cti_getSessionLockFiles(sessionId), free_ptr_list<char*>);
+	auto const lockFilesList = cti::make_unique_destr(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
 	ASSERT_TRUE(lockFilesList != nullptr) << cti_error_str();
 
 	// there should have been one manifest for the dlaunch binary
@@ -332,7 +332,7 @@ TEST_F(CTIAppUnitTest, GetSessionRootDir)
 	auto const sessionId = cti_createSession(appId);
 	ASSERT_NE(sessionId, SESSION_ERROR);
 
-	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
 	ASSERT_TRUE(rawRootDir != nullptr);
 
 	// cleanup session
@@ -347,9 +347,9 @@ TEST_F(CTIAppUnitTest, GetSessionBinDir)
 	auto const sessionId = cti_createSession(appId);
 	ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
-	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
 	ASSERT_TRUE(rawRootDir != nullptr);
-	auto const rawBinDir = make_unique_destr(cti_getSessionBinDir(sessionId), ::free);
+	auto const rawBinDir = cti::make_unique_destr(cti_getSessionBinDir(sessionId), ::free);
 	ASSERT_TRUE(rawBinDir != nullptr);
 	ASSERT_EQ(std::string{rawBinDir.get()}, std::string{rawRootDir.get()} + "/bin");
 
@@ -365,9 +365,9 @@ TEST_F(CTIAppUnitTest, GetSessionLibDir)
 	auto const sessionId = cti_createSession(appId);
 	ASSERT_NE(sessionId, SESSION_ERROR);
 
-	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
 	ASSERT_TRUE(rawRootDir != nullptr);
-	auto const rawLibDir = make_unique_destr(cti_getSessionLibDir(sessionId), ::free);
+	auto const rawLibDir = cti::make_unique_destr(cti_getSessionLibDir(sessionId), ::free);
 	ASSERT_TRUE(rawLibDir != nullptr);
 	ASSERT_EQ(std::string{rawLibDir.get()}, std::string{rawRootDir.get()} + "/lib");
 
@@ -383,9 +383,9 @@ TEST_F(CTIAppUnitTest, GetSessionFileDir)
 	auto const sessionId = cti_createSession(appId);
 	ASSERT_NE(sessionId, SESSION_ERROR);
 
-	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
 	ASSERT_TRUE(rawRootDir != nullptr);
-	auto const rawFileDir = make_unique_destr(cti_getSessionFileDir(sessionId), ::free);
+	auto const rawFileDir = cti::make_unique_destr(cti_getSessionFileDir(sessionId), ::free);
 	ASSERT_TRUE(rawFileDir != nullptr);
 	ASSERT_EQ(std::string{rawFileDir.get()}, std::string{rawRootDir.get()});
 
@@ -401,9 +401,9 @@ TEST_F(CTIAppUnitTest, GetSessionTmpDir)
 	auto const sessionId = cti_createSession(appId);
 	ASSERT_NE(sessionId, SESSION_ERROR);
 
-	auto const rawRootDir = make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
+	auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
 	ASSERT_TRUE(rawRootDir != nullptr);
-	auto const rawTmpDir = make_unique_destr(cti_getSessionTmpDir(sessionId), ::free);
+	auto const rawTmpDir = cti::make_unique_destr(cti_getSessionTmpDir(sessionId), ::free);
 	ASSERT_TRUE(rawTmpDir != nullptr);
 	ASSERT_EQ(std::string{rawTmpDir.get()}, std::string{rawRootDir.get()} + "/tmp");
 
