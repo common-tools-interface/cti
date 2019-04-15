@@ -84,7 +84,7 @@ set +x
 make -j32
 make -j32 install
 
-LD_LIBRARY_PATH=$BUILD_DIR/lib/ make tests
+LD_LIBRARY_PATH=$BUILD_DIR/lib/ make check
 
 mkdir -p $BUILD_DIR/docs
 cp $PWD/extras/docs/ATTRIBUTIONS_cti.txt $BUILD_DIR/docs
