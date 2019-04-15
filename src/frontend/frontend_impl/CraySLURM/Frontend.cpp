@@ -120,7 +120,6 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid)
 			{ .stoppedSrun = nullptr
 			, .outputPath  = temp_file_handle{_cti_getCfgDir() + "/cti-output-fifo-XXXXXX"}
 			, .errorPath   = temp_file_handle{_cti_getCfgDir() + "/cti-error-fifo-XXXXXX"}
-			// , .redirectUtility = overwatch_handle{}
 		}
 	}
 {}
@@ -683,7 +682,7 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 	if (auto const launcher_path = make_unique_destr(_cti_pathFind(CraySLURMFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
 		// run output redirection binary
-		auto const redirectPid = fork();
+		auto const redirectPid = _cti_overwatchApp(fork());
 		if (!redirectPid) {
 			std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
 			const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };

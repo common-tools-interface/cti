@@ -412,13 +412,26 @@ public: // interface
 	{
 		key_t overwatchQueueKey = rand();
 
+
+		signal(SIGQUIT, SIG_IGN);
+		signal(SIGTSTP, SIG_IGN);
+		signal(SIGTTIN, SIG_IGN);
+		signal(SIGTTOU, SIG_IGN);
+		signal(SIGCHLD, SIG_IGN);
+		signal(SIGINT,  SIG_IGN);
+		tcsetpgrp(STDIN_FILENO, getpgrp());
+
 		if (auto const forkedPid = fork()) {
 			// parent case
+
+			// give child foreground
+			tcsetpgrp(STDIN_FILENO, getpgid(forkedPid));
+			::kill(forkedPid, SIGCONT);
 
 			// close fds
 			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
 			dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
-			dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+			// dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
 
 			// setup args
 			using OWA = CTIOverwatchArgv;
@@ -431,6 +444,15 @@ public: // interface
 			throw std::runtime_error("returned from execvp: " + std::string{strerror(errno)});
 		} else {
 			// child case
+
+			// set this as foreground process
+			signal(SIGQUIT, SIG_DFL);
+			signal(SIGTSTP, SIG_DFL);
+			signal(SIGTTIN, SIG_DFL);
+			signal(SIGTTOU, SIG_DFL);
+			signal(SIGCHLD, SIG_DFL);
+			signal(SIGINT,  SIG_DFL);
+			tcsetpgrp(STDIN_FILENO, getpgrp());
 
 			// set up overwatch registration queue
 			overwatchQueue = OverwatchQueue{overwatchQueueKey};

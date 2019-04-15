@@ -118,10 +118,13 @@ struct ProcSet
 pid_t clientPid = pid_t{-1};
 auto msgQueue = MsgQueue<OverwatchMsgType, OverwatchData>{};
 
+// signal handling
+volatile bool exiting = false;
+sigset_t accept_sig_mask;
+
 // running apps / utils
 auto appList = ProcSet{};
 auto utilMap = std::unordered_map<pid_t, ProcSet>{};
-volatile bool exiting = false;
 
 // threading helpers
 std::vector<std::future<void>> runningThreads;
@@ -159,9 +162,15 @@ void shutdown_and_exit(int const rc)
 void
 sig_relay_handler(int sig)
 {
-	// if client alive
+	// get client status
 	int status;
-	if (waitpid(clientPid, &status, WNOHANG) && !WIFEXITED(status)) {
+	if (waitpid(clientPid, &status, WNOHANG) < 0) {
+		perror("waitpid");
+		msgQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
+	}
+
+	// if client alive
+	if (!WIFEXITED(status) && !WIFSIGNALED(status)) {
 		// relay signal
 		fprintf(stderr, "relay signal: %d\n", sig);
 		::kill(clientPid, sig);
@@ -198,13 +207,25 @@ sigchld_handler(pid_t const exitedPid)
 	}
 }
 
+// sigtstp suspend handler
+void
+sigtstp_handler()
+{
+	sigset_t mask;
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGTSTP);
+	sigprocmask(SIG_UNBLOCK, &mask, nullptr);
+
+	::kill(getpid(), SIGTSTP);
+
+	sigprocmask(SIG_BLOCK, &mask, nullptr);
+}
+
 void
 sig_wait_loop()
 {
 	// read all signals
-	sigset_t  all_sigs;
-	sigfillset(&all_sigs);
-	if (sigprocmask(SIG_SETMASK, &all_sigs, nullptr) < 0) {
+	if (sigprocmask(SIG_SETMASK, &accept_sig_mask, nullptr) < 0) {
 		// send shutdown message to main thread
 		msgQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
 		return;
@@ -214,7 +235,7 @@ sig_wait_loop()
 		// get active signal
 		siginfo_t sig_info;
 		errno = 0;
-		int sig = sigwaitinfo(&all_sigs, &sig_info);
+		int sig = sigwaitinfo(&accept_sig_mask, &sig_info);
 		if ((errno == EINTR) && (sig < 0)) {
 			fprintf(stderr, "interrupted\n");
 			continue;
@@ -232,7 +253,10 @@ sig_wait_loop()
 		}
 
 		// dispatch to handler
-		if ((sig == SIGCHLD) && (sig_info.si_code == CLD_EXITED)) {
+		if (sig == SIGTSTP) {
+			continue;
+			// sigtstp_handler();
+		} else if ((sig == SIGCHLD) && (sig_info.si_code == CLD_EXITED)) {
 			if (sig_info.si_pid > 1) {
 				sigchld_handler(sig_info.si_pid);
 			} else {
@@ -288,9 +312,9 @@ main(int argc, char *argv[])
 	}
 
 	// block all signals
-	sigset_t  all_sigs;
-	sigfillset(&all_sigs);
-	if (sigprocmask(SIG_SETMASK, &all_sigs, nullptr) < 0) {
+	sigfillset(&accept_sig_mask);
+	sigdelset(&accept_sig_mask, SIGTSTP);
+	if (sigprocmask(SIG_SETMASK, &accept_sig_mask, nullptr) < 0) {
 		perror("sigprocmask");
 		exit(1);
 	}
