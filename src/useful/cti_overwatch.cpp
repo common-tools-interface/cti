@@ -201,7 +201,6 @@ main(int argc, char *argv[])
 	FILE *				wfp = NULL;
 	pid_t				my_pid;
 	sigset_t			mask;
-	struct sigaction	sig_action;
 	char				done = 1;
 
 	// parse incoming argv for request and response FDs
@@ -242,77 +241,30 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// read the pid from the pipe
-	if (fread(&my_pid, sizeof(pid_t), 1, rfp) != 1)
-	{
-		// read failed
-		perror("fread");
-		return 1;
-	}
-	pid = my_pid;
-	
-	// ensure all signals except SIGUSR1 and SIGUSR2 are blocked
-	if (sigfillset(&mask))
-	{
-		perror("sigfillset");
-		return 1;
-	}
-	if (sigdelset(&mask, SIGUSR1))
-	{
-		perror("sigdelset");
-		return 1;
-	}
-	if (sigdelset(&mask, SIGUSR2))
-	{
-		perror("sigdelset");
-		return 1;
-	}
-	if (sigprocmask(SIG_SETMASK, &mask, NULL))
-	{
-		perror("sigprocmask");
-		return 1;
-	}
-	
-	// setup the signal handler
+	// setup the signal mask
+	struct sigaction sig_action;
 	memset(&sig_action, 0, sizeof(sig_action));
-	if (sigfillset(&sig_action.sa_mask))
-	{
+	if (sigfillset(&sig_action.sa_mask)) {
 		perror("sigfillset");
 		return 1;
 	}
-	
-	// set handler for SIGUSR1
+
+	// set handler for all signals
 	sig_action.sa_handler = cti_overwatch_handler;
-	if (sigaction(SIGUSR1, &sig_action, NULL))
-	{
+	if (sigaction(SIGUSR1, &sig_action, nullptr)) {
 		perror("sigaction");
 		return 1;
 	}
-	
-	// set handler for SIGUSR2
-	sig_action.sa_handler = cti_exit_handler;
-	if (sigaction(SIGUSR2, &sig_action, NULL))
-	{
-		perror("sigaction");
-		return 1;
-	}
-	
-	// write the done byte to signal to the parent we are all set up
-	if (fwrite(&done, sizeof(char), 1, wfp) != 1)
-	{
-		// fwrite failed
-		perror("fwrite");
-		return 1;
-	}
-	
-	// close our pipes
-	fclose(rfp);
-	fclose(wfp);
-	
+
+	// write our PID to signal to the parent we are all set up
+	rawWriteLoop(respFd, PIDResp 
+		{ .type = OverwatchRespType::PID
+		, .pid  = getpid()
+	});
+
 	// sleep until we get a signal
 	pause();
-	
+
 	// we should not get here
-	fprintf(stderr, "Exec past pause!\n");
-	return 1;
+	shutdown_and_exit(1);
 }

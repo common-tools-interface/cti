@@ -4,6 +4,7 @@
 #include "frontend/mpir_iface/MPIRInstance.hpp"
 #endif
 
+// implemented in cti_fe_iface
 pid_t _cti_forkExecvpApp(char const* file, char* const argv[], int stdout_fd, int stderr_fd);
 pid_t _cti_forkExecvpUtil(pid_t app_pid, char const* file, char* const argv[], int stdout_fd, int stderr_fd);
 #ifdef MPIR
@@ -14,6 +15,57 @@ pid_t _cti_registerApp(pid_t app_pid);
 pid_t _cti_registerUtil(pid_t app_pid, pid_t util_pid);
 #endif
 void _cti_shutdownOverwatch();
+
+// fd read / write helpers
+inline static void readLoop(char* buf, int const fd, size_t num_bytes)
+{
+	while (true) {
+		errno = 0;
+		int ret = read(fd, buf, num_bytes);
+		if (ret < 0) {
+			if (errno == EINTR) {
+				continue;
+			} else {
+				throw std::runtime_error("read failed: " + std::string{strerror(errno)});
+			}
+		} else {
+			return;
+		}
+	}
+}
+
+template <typename T>
+inline static T rawReadLoop(int const fd)
+{
+	static_assert(std::is_trivially_copyable<T>::value);
+	T result;
+	readLoop(reinterpret_cast<char*>(&result), fd, sizeof(T));
+	return result;
+}
+
+inline static void writeLoop(int const fd, char const* buf, int num_bytes)
+{
+	while (num_bytes > 0) {
+		errno = 0;
+		int written = write(fd, buf, num_bytes);
+		if (written < 0) {
+			if (errno == EINTR) {
+				continue;
+			} else {
+				throw std::runtime_error("write failed: " + std::string{strerror(errno)});
+			}
+		} else {
+			num_bytes -= written;
+		}
+	}
+}
+
+template <typename T>
+inline static void rawWriteLoop(int const fd, T const& obj)
+{
+	static_assert(std::is_trivially_copyable<T>::value);
+	writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
+}
 
 // request types
 
