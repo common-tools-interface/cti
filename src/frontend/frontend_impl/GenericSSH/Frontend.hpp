@@ -1,5 +1,5 @@
 /******************************************************************************\
- * ssh_fe.h - A header file for the fallback (SSH based) workload manager
+ * Frontend.hpp - A header file for the SSH based workload manager
  *
  * Copyright 2017-2019 Cray Inc.	All Rights Reserved.
  *
@@ -13,14 +13,25 @@
 
 #pragma once
 
+#include <vector>
+
 #include <stdint.h>
+#include <unistd.h>
 #include <sys/types.h>
 
 #include "frontend/Frontend.hpp"
 #include "mpir_iface/MPIRInstance.hpp"
 
-class GenericSSHFrontend : public Frontend
+class GenericSSHFrontend final : public Frontend
 {
+private: // Global state
+	struct passwd		m_pwd;
+	std::vector<char> 	m_pwd_buf;
+
+public: // Constructor/destructor
+	GenericSSHFrontend();
+	~GenericSSHFrontend();
+
 public: // inherited interface
 	cti_wlm_type getWLMType() const override { return CTI_WLM_SSH; }
 
@@ -45,19 +56,19 @@ public: // ssh specific types
 
 public: // ssh specific interface
 	// Get the default launcher binary name, or, if provided, from the environment.
-	static std::string getLauncherName();
+	std::string getLauncherName();
 
 	// use MPIR proctable to retrieve node / host information about a job
-	static StepLayout fetchStepLayout(MPIRInstance::ProcTable const& procTable);
+	StepLayout fetchStepLayout(MPIRInstance::ProcTable const& procTable);
 
 	// Use a SSH Step Layout to create the SSH Node Layout file inside the staging directory, return the new path.
-	static std::string createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath);
+	std::string createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath);
 
 	// Use an MPIR ProcTable to create the SSH PID List file inside the staging directory, return the new path.
-	static std::string createPIDListFile(MPIRInstance::ProcTable const& procTable, std::string const& stagePath);
+	std::string createPIDListFile(MPIRInstance::ProcTable const& procTable, std::string const& stagePath);
 
 	// Launch an app under MPIR control and hold at barrier.
-	static std::unique_ptr<MPIRInstance> launchApp(const char * const launcher_argv[],
+	std::unique_ptr<MPIRInstance> launchApp(const char * const launcher_argv[],
 		int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 };
 

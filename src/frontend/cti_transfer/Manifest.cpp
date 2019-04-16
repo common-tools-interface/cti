@@ -173,7 +173,7 @@ RemotePackage Manifest::finalizeAndShip() {
 	// to remove the tarball if the process exits, but no mechanism exists today that
 	// I know about.
 	{ const std::string cleanupFilePath(liveSession->m_configPath + "/." + archiveName);
-		auto cleanupFileHandle = cti::make_unique_destr(fopen(cleanupFilePath.c_str(), "w"), std::fclose);
+		auto cleanupFileHandle = cti::move_pointer_ownership(fopen(cleanupFilePath.c_str(), "w"), std::fclose);
 		pid_t pid = getpid();
 		if (fwrite(&pid, sizeof(pid), 1, cleanupFileHandle.get()) != 1) {
 			throw std::runtime_error("fwrite to cleanup file failed.");
