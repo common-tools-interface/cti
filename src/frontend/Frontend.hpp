@@ -26,7 +26,6 @@
 
 #include "useful/cti_useful.h"
 #include "useful/cti_overwatch.hpp"
-#include "useful/MsgQueue.hpp"
 
 struct CTIHost {
 	std::string hostname;
@@ -44,10 +43,6 @@ std::string const& _cti_getLdAuditPath();
 std::string const& _cti_getOverwatchPath();
 std::string const& _cti_getDlaunchPath();
 Logger&   _cti_getLogger();
-
-pid_t _cti_overwatchApp(pid_t const appPid);
-pid_t _cti_overwatchUtil(pid_t const appPid, pid_t const utilPid);
-void  _cti_endOverwatchApp(pid_t const appPid);
 
 /* CTI Frontend object interfaces */
 

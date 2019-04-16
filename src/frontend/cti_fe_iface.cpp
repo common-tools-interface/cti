@@ -27,6 +27,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/prctl.h>
 
 #include <set>
 #include <unordered_map>
@@ -51,7 +52,6 @@
 #include "useful/ExecvpOutput.hpp"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_overwatch.hpp"
-#include "useful/MsgQueue.hpp"
 
 /* helper functions */
 
@@ -391,7 +391,8 @@ public: // variables
 	std::unique_ptr<Frontend> currentFrontendPtr;
 
 	Logger logger;
-	OverwatchQueue overwatchQueue;
+	Pipe overwatchReqPipe;
+	Pipe overwatchRespPipe;
 
 public: // interface
 	CTIFEIface()
@@ -410,58 +411,54 @@ public: // interface
 
 		, logger{currentFrontendPtr ? currentFrontendPtr->getHostname().c_str() : "(NULL frontend)", getpid()}
 	{
-		key_t overwatchQueueKey = rand();
-
-
-		signal(SIGQUIT, SIG_IGN);
-		signal(SIGTSTP, SIG_IGN);
-		signal(SIGTTIN, SIG_IGN);
-		signal(SIGTTOU, SIG_IGN);
-		signal(SIGCHLD, SIG_IGN);
-		signal(SIGINT,  SIG_IGN);
-		tcsetpgrp(STDIN_FILENO, getpgrp());
 
 		if (auto const forkedPid = fork()) {
 			// parent case
 
-			// give child foreground
-			tcsetpgrp(STDIN_FILENO, getpgid(forkedPid));
-			::kill(forkedPid, SIGCONT);
+			// set child in own process gorup
+			if (setpgid(forkedPid, forkedPid) < 0) {
+				perror("setpgid");
+				exit(1);
+			}
+
+			// set up overwatch req / resp pipe
+			overwatchReqPipe.closeRead();
+			overwatchRespPipe.closeWrite();
+		} else {
+			// child case
+
+			// set in own process gorup
+			if (setpgid(0, 0) < 0) {
+				perror("setpgid");
+				exit(1);
+			}
+
+			// set up death signal
+			prctl(PR_SET_PDEATHSIG, SIGHUP);
+
+			// set up overwatch req /resp pipe
+			overwatchReqPipe.closeWrite();
+			overwatchRespPipe.closeRead();
 
 			// close fds
-			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
-			dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
+			dup2(overwatchReqPipe.getReadFd(), STDIN_FILENO);
+			dup2(overwatchRespPipe.getWriteFd(), STDOUT_FILENO);
 			// dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
 
 			// setup args
 			using OWA = CTIOverwatchArgv;
 			cti_argv::OutgoingArgv<OWA> overwatchArgv{overwatch_bin};
-			overwatchArgv.add(OWA::ClientPID, std::to_string(forkedPid));
-			overwatchArgv.add(OWA::QueueKey,  std::to_string(overwatchQueueKey));
 
 			// exec
 			execvp(overwatch_bin.c_str(), overwatchArgv.get());
 			throw std::runtime_error("returned from execvp: " + std::string{strerror(errno)});
-		} else {
-			// child case
-
-			// set this as foreground process
-			signal(SIGQUIT, SIG_DFL);
-			signal(SIGTSTP, SIG_DFL);
-			signal(SIGTTIN, SIG_DFL);
-			signal(SIGTTOU, SIG_DFL);
-			signal(SIGCHLD, SIG_DFL);
-			signal(SIGINT,  SIG_DFL);
-			tcsetpgrp(STDIN_FILENO, getpgrp());
-
-			// set up overwatch registration queue
-			overwatchQueue = OverwatchQueue{overwatchQueueKey};
 		}
 	}
 
 	~CTIFEIface()
 	{
-		overwatchQueue.send(OverwatchMsgType::Shutdown, OverwatchData{});
+		// send shutdown message to overwatch
+		_cti_shutdownOverwatch();
 	}
 };
 
@@ -513,37 +510,194 @@ _cti_getLogger() {
 	return _cti_getState().logger;
 }
 
-/* overwatch interface */
+/* overwatch interface - defined in useful/cti_overwatch.hpp */
 
-pid_t
-_cti_overwatchApp(pid_t const appPid)
+static void readLoop(char* buf, int const fd, size_t num_bytes)
 {
-	if (appPid) {
-		_cti_getState().overwatchQueue.send(OverwatchMsgType::AppRegister,
-			OverwatchData { .appPid = appPid }
-		);
+	while (true) {
+		errno = 0;
+		int ret = read(fd, buf, num_bytes);
+		if (ret < 0) {
+			if (errno == EINTR) {
+				continue;
+			} else {
+				throw std::runtime_error("read failed: " + std::string{strerror(errno)});
+			}
+		} else {
+			return;
+		}
 	}
-	return appPid;
+}
+
+template <typename T>
+static T rawReadLoop(int const fd)
+{
+	static_assert(std::is_trivially_copyable<T>::value);
+	T result;
+	readLoop(reinterpret_cast<char*>(&result), fd, sizeof(T));
+	return result;
+}
+
+static void writeLoop(int const fd, char const* buf, int num_bytes)
+{
+	while (num_bytes > 0) {
+		errno = 0;
+		int written = write(fd, buf, num_bytes);
+		if (written < 0) {
+			if (errno == EINTR) {
+				continue;
+			} else {
+				throw std::runtime_error("write failed: " + std::string{strerror(errno)});
+			}
+		} else {
+			num_bytes -= written;
+		}
+	}
+}
+
+template <typename T>
+static void rawWriteLoop(int const fd, T const& obj)
+{
+	static_assert(std::is_trivially_copyable<T>::value);
+	writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
+}
+
+static pid_t
+writeForkExecReq(OverwatchReqType type, pid_t app_pid, char const* file, char* const argv[],
+	int stdout_fd, int stderr_fd)
+{
+	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
+	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
+
+	// get total len of file, argv strings
+	auto fileArgvLen = size_t{strlen(file) + 1};
+	for (auto arg = argv; *arg != nullptr; arg++) {
+		fileArgvLen += strlen(*arg) + 1;
+	}
+
+	// construct and write fork/exec message
+	auto const forkExecReq = LaunchReq
+		{ .type = type
+		, .app_pid = app_pid
+		, .stdout_fd = stdout_fd
+		, .stderr_fd = stderr_fd
+		, .file_and_argv_len = fileArgvLen
+	};
+	rawWriteLoop(reqFd, forkExecReq);
+
+	// write flat file/argv strings
+	writeLoop(reqFd, file, strlen(file) + 1);
+	for (auto arg = argv; *arg != nullptr; arg++) {
+		writeLoop(reqFd, *arg, strlen(*arg) + 1);
+	}
+	writeLoop(reqFd, '\0', 1);
+
+	// read response
+	auto const forkExecResp = rawReadLoop<PIDResp>(respFd);
+
+	// verify response
+	if (forkExecResp.type != OverwatchRespType::PID) {
+		throw std::runtime_error("overwatch fork exec failed");
+	}
+
+	return forkExecResp.pid;
 }
 
 pid_t
-_cti_overwatchUtil(pid_t const appPid, pid_t const utilPid)
+_cti_forkExecvpApp(char const* file, char* const argv[], int stdout_fd, int stderr_fd)
 {
-	if (utilPid) {
-		_cti_getState().overwatchQueue.send(OverwatchMsgType::UtilityRegister,
-			OverwatchData { .appPid = appPid, .utilPid = utilPid }
-		);
-	}
-	return utilPid;
+	return writeForkExecReq(OverwatchReqType::ForkExecvpApp, pid_t{0}, file, argv, stdout_fd, stderr_fd);
+}
+
+pid_t
+_cti_forkExecvpUtil(pid_t app_pid, char const* file, char* const argv[], int stdout_fd, int stderr_fd)
+{
+	return writeForkExecReq(OverwatchReqType::ForkExecvpUtil, app_pid, file, argv, stdout_fd, stderr_fd);
+}
+
+
+#ifdef MPIR
+MPIR::ProcTable
+_cti_launchMPIR(char const* file, char const* argv[], int stdout_fd, int stderr_fd)
+{
+	throw std::runtime_error("not implemented");
 }
 
 void
-_cti_endOverwatchApp(pid_t const appPid)
+_cti_releaseMPIRBreakpoint(int mpir_id)
 {
-	if (appPid) {
-		_cti_getState().overwatchQueue.send(OverwatchMsgType::AppDeregister,
-			OverwatchData { .appPid = appPid }
-		);
+	throw std::runtime_error("not implemented");
+}
+#else
+
+pid_t
+_cti_registerApp(pid_t app_pid)
+{
+	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
+	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
+
+	// construct and write register message
+	auto const registerAppReq = RegisterReq
+		{ .type = OverwatchReqType::RegisterApp
+		, .app_pid = app_pid
+	};
+	rawWriteLoop(reqFd, registerAppReq);
+
+	// read response
+	auto const registerResp = rawReadLoop<OKResp>(respFd);
+
+	// verify response
+	if (registerResp.type != OverwatchRespType::OK) {
+		throw std::runtime_error("overwatch register mpir failed");
+	}
+
+	return app_pid;
+}
+
+pid_t
+_cti_registerUtil(pid_t app_pid, pid_t util_pid)
+{
+	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
+	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
+
+	// construct and write register message
+	auto const registerUtilReq = RegisterReq
+		{ .type = OverwatchReqType::RegisterUtil
+		, .app_pid = app_pid
+		, .util_pid = util_pid
+	};
+	rawWriteLoop(reqFd, registerUtilReq);
+
+	// read response
+	auto const registerResp = rawReadLoop<OKResp>(respFd);
+
+	// verify response
+	if (registerResp.type != OverwatchRespType::OK) {
+		throw std::runtime_error("overwatch register mpir failed");
+	}
+
+	return util_pid;
+}
+
+#endif
+
+void _cti_shutdownOverwatch()
+{
+	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
+	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
+
+	// construct and write shutdown message
+	auto const shutdownReq = ShutdownReq
+		{ .type = OverwatchReqType::Shutdown
+	};
+	rawWriteLoop(reqFd, shutdownReq);
+
+	// read response
+	auto const shutdownResp = rawReadLoop<OKResp>(respFd);
+
+	// verify response
+	if (shutdownResp.type != OverwatchRespType::OK) {
+		throw std::runtime_error("overwatch shutdown failed");
 	}
 }
 

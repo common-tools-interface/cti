@@ -361,7 +361,7 @@ struct SSHSession {
 };
 
 GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
-	: m_launcherPid { _cti_overwatchApp(launcherPid) } // register launcher app on overwatch
+	: m_launcherPid { _cti_registerApp(launcherPid) } // register launcher app on overwatch
 	, m_stepLayout  { GenericSSHFrontend::fetchStepLayout(launcherInstance->getProcTable()) }
 	, m_dlaunchSent { false }
 
@@ -410,7 +410,7 @@ GenericSSHApp::~GenericSSHApp()
 	}
 
 	// clean up overwatch
-	_cti_endOverwatchApp(m_launcherPid);
+	::kill(SIGTERM, m_launcherPid);
 }
 
 /* app instance creation */

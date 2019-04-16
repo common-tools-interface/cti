@@ -105,9 +105,6 @@ CraySLURMApp::~CraySLURMApp()
 	if (!m_stagePath.empty()) {
 		_cti_removeDirectory(m_stagePath.c_str());
 	}
-
-	// clean up overwatch
-	_cti_endOverwatchApp(m_launcherPid);
 }
 
 /* app instance creation */
@@ -216,7 +213,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 		Inferior sattachInferior{sattachPath.get(), sattachArgv.get(), {}, remapFds};
 
 		// add to app list of active sattach
-		_cti_overwatchUtil(m_launcherPid, sattachInferior.getPid());
+		_cti_registerUtil(m_launcherPid, sattachInferior.getPid());
 
 		// run to MPIR_Breakpoint
 		sattachInferior.addSymbol("MPIR_Breakpoint");
@@ -390,7 +387,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 		setpgid(forkedPid, forkedPid);
 
 		// overwatch srun utility
-		_cti_overwatchUtil(m_launcherPid, forkedPid);
+		_cti_registerUtil(m_launcherPid, forkedPid);
 	} else {
 		// child case: Place this process in its own group to prevent signals being passed
 		// to it. This is necessary in case the child code execs before the
@@ -681,17 +678,14 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 	// Get the launcher path from CTI environment variable / default.
 	if (auto const launcher_path = make_unique_destr(_cti_pathFind(CraySLURMFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
+		// set up redirection arguments
+		std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
+		const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };
+
 		// run output redirection binary
-		auto const redirectPid = _cti_overwatchApp(fork());
-		if (!redirectPid) {
-			std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
-			const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };
-			dup2((stdoutFd < 0) ? STDOUT_FILENO : stdoutFd, STDOUT_FILENO);
-			dup2((stderrFd < 0) ? STDERR_FILENO : stderrFd, STDERR_FILENO);
-			execv(redirectPath.c_str(), (char* const*)redirectArgv);
-			perror("execv");
-			exit(1);
-		}
+		auto const redirectPid = _cti_forkExecvpApp(redirectPath.c_str(), (char* const*)redirectArgv,
+			(stdoutFd < 0) ? STDOUT_FILENO : stdoutFd,
+			(stderrFd < 0) ? STDERR_FILENO : stderrFd);
 
 		/* construct argv array & instance*/
 		std::vector<std::string> launcherArgv
@@ -722,8 +716,8 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 		srunInstance.stoppedSrun = std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
 
 		// overwatch app and redirect utility
-		_cti_overwatchApp(srunInstance.stoppedSrun->getLauncherPid());
-		_cti_overwatchUtil(srunInstance.stoppedSrun->getLauncherPid(), redirectPid);
+		_cti_registerApp(srunInstance.stoppedSrun->getLauncherPid());
+		_cti_registerUtil(srunInstance.stoppedSrun->getLauncherPid(), redirectPid);
 
 		return srunInstance;
 	} else {
