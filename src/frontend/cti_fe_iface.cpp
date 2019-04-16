@@ -441,13 +441,15 @@ public: // interface
 			overwatchRespPipe.closeRead();
 
 			// close fds
-			dup2(overwatchReqPipe.getReadFd(), STDIN_FILENO);
-			dup2(overwatchRespPipe.getWriteFd(), STDOUT_FILENO);
+			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
+			dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
 			// dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
 
 			// setup args
 			using OWA = CTIOverwatchArgv;
 			cti_argv::OutgoingArgv<OWA> overwatchArgv{overwatch_bin};
+			overwatchArgv.add(OWA::ReadFD,  std::to_string(overwatchReqPipe.getReadFd()));
+			overwatchArgv.add(OWA::WriteFD, std::to_string(overwatchRespPipe.getWriteFd()));
 
 			// exec
 			execvp(overwatch_bin.c_str(), overwatchArgv.get());

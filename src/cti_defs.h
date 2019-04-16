@@ -240,12 +240,12 @@ struct CTIOverwatchArgv : public cti_argv::Argv {
 
     static constexpr Option Help  { "help",  'h' };
 
-    static constexpr Parameter ClientPID { "client-pid", 'p' };
-    static constexpr Parameter QueueKey  { "queue-key",  'k' };
+    static constexpr Parameter ReadFD  { "read",  'r' };
+    static constexpr Parameter WriteFD { "write", 'w' };
 
     static constexpr GNUOption long_options[] = {
         Help,
-        ClientPID, QueueKey,
+        ReadFD, WriteFD,
     long_options_done };
 };
 
@@ -271,7 +271,7 @@ constexpr Parameter         DA::ApID, DA::Binary, DA::Directory, DA::EnvVariable
 constexpr cti_argv::Argv::GNUOption DA::long_options[];
 
 constexpr Option            CTIOverwatchArgv::Help;
-constexpr Parameter         CTIOverwatchArgv::ClientPID, CTIOverwatchArgv::QueueKey;
+constexpr Parameter         CTIOverwatchArgv::ReadFD, CTIOverwatchArgv::WriteFD;
 constexpr cti_argv::Argv::GNUOption CTIOverwatchArgv::long_options[];
 
 #endif /* INSIDE_WORKAROUND_OBJ */

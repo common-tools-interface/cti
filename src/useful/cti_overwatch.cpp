@@ -27,15 +27,15 @@
 
 #include <sys/types.h>
 
-// global vars
-volatile pid_t	pid = 0;
+#include <tuple>
 
-const struct option long_opts[] = {
-			{"read",		required_argument,	0, 'r'},
-			{"write",		required_argument,	0, 'w'},
-			{"help",		no_argument,		0, 'h'},
-			{0, 0, 0, 0}
-			};
+#include "cti_defs.h"
+#include "useful/cti_argv.hpp"
+
+#include "cti_overwatch.hpp"
+
+/* global vars */
+volatile pid_t	pid = 0;
 
 void
 usage(char *name)
@@ -43,10 +43,13 @@ usage(char *name)
 	fprintf(stdout, "Usage: %s [OPTIONS]...\n", name);
 	fprintf(stdout, "Create an overwatch process to ensure children are cleaned up on parent exit\n");
 	fprintf(stdout, "This should not be called directly.\n\n");
-	
-	fprintf(stdout, "\t-r, --read      fd of read control pipe         (required)\n");
-	fprintf(stdout, "\t-w, --write     fd of write control pipe        (required)\n");
-	fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
+
+	fprintf(stdout, "\t-%c, --%s  fd of read control pipe         (required)\n",
+		CTIOverwatchArgv::ReadFD.val, CTIOverwatchArgv::ReadFD.name);
+	fprintf(stdout, "\t-%c, --%s  fd of write control pipe        (required)\n",
+		CTIOverwatchArgv::WriteFD.val, CTIOverwatchArgv::WriteFD.name);
+	fprintf(stdout, "\t-%c, --%s  Display this text and exit\n\n",
+		CTIOverwatchArgv::Help.val, CTIOverwatchArgv::Help.name);
 }
 
 // signal handler to kill the child
@@ -94,117 +97,48 @@ main(int argc, char *argv[])
 	sigset_t			mask;
 	struct sigaction	sig_action;
 	char				done = 1;
-	
-	// we require at least 3 args
-	if (argc < 3)
-	{
-		usage(argv[0]);
-		return 1;
-	}
-	
-	// parse the provide args
-	while ((c = getopt_long(argc, argv, "r:w:h", long_opts, &opt_ind)) != -1)
-	{
-		switch (c)
-		{
-			case 0:
-				// if this is a flag, do nothing
+
+	int reqFd  = -1;
+	int respFd = -1;
+
+	// parse incoming argv for request and response FDs
+	{ auto incomingArgv = cti_argv::IncomingArgv<CTIOverwatchArgv>{argc, argv};
+		int c; std::string optarg;
+		while (true) {
+			std::tie(c, optarg) = incomingArgv.get_next();
+			if (c < 0) {
 				break;
-				
-			case 'r':
-				if (optarg == NULL)
-				{
-					usage(argv[0]);
-					return 1;
-				}
-				
-				// convert the string into the actual fd
-				errno = 0;
-				end_p = NULL;
-				val = strtol(optarg, &end_p, 10);
-				
-				// check for errors
-				if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN)) || (errno != 0 && val == 0))
-				{
-					perror("strtol");
-					return 1;
-				}
-				if (end_p == NULL || *end_p != '\0')
-				{
-					perror("strtol");
-					return 1;
-				}
-				if (val > INT_MAX || val < INT_MIN)
-				{
-					fprintf(stderr, "Invalid read fd argument.\n");
-					return 1;
-				}
-				
-				rfp = fdopen((int)val, "r");
-				if (rfp == NULL)
-				{
-					fprintf(stderr, "Invalid read fd argument.\n");
-					return 1;
-				}
-				
+			}
+
+			switch (c) {
+
+			case CTIOverwatchArgv::ReadFD.val:
+				reqFd = std::stoi(optarg);
 				break;
-				
-			case 'w':
-				if (optarg == NULL)
-				{
-					usage(argv[0]);
-					return 1;
-				}
-				
-				// convert the string into the actual fd
-				errno = 0;
-				end_p = NULL;
-				val = strtol(optarg, &end_p, 10);
-				
-				// check for errors
-				if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN)) || (errno != 0 && val == 0))
-				{
-					perror("strtol");
-					return 1;
-				}
-				if (end_p == NULL || *end_p != '\0')
-				{
-					perror("strtol");
-					return 1;
-				}
-				if (val > INT_MAX || val < INT_MIN)
-				{
-					fprintf(stderr, "Invalid write fd argument.\n");
-					return 1;
-				}
-				
-				wfp = fdopen((int)val, "w");
-				
-				if (wfp == NULL)
-				{
-					fprintf(stderr, "Invalid write fd argument.\n");
-					return 1;
-				}
-				
+
+			case CTIOverwatchArgv::WriteFD.val:
+				respFd = std::stoi(optarg);
 				break;
-				
-			case 'h':
+
+			case CTIOverwatchArgv::Help.val:
 				usage(argv[0]);
-				return 0;
-				
+				exit(0);
+
+			case '?':
 			default:
 				usage(argv[0]);
-				return 1;
+				exit(1);
+
+			}
 		}
 	}
-	
+
 	// post-process required args to make sure we have everything we need
-	if (rfp == NULL || wfp == NULL)
-	{
+	if ((reqFd < 0) || (respFd < 0)) {
 		usage(argv[0]);
-		return 1;
+		exit(1);
 	}
-	
+
 	// read the pid from the pipe
 	if (fread(&my_pid, sizeof(pid_t), 1, rfp) != 1)
 	{
