@@ -35,7 +35,6 @@ enum OverwatchReqType : long {
 // ForkExecvpApp, ForkExecvpUtil, LaunchMPIR
 struct LaunchReq
 {
-	OverwatchReqType type;
 	pid_t app_pid; // unused for ForkExecvpApp, LaunchMPIR
 	int stdout_fd;
 	int stderr_fd;
@@ -47,7 +46,6 @@ struct LaunchReq
 
 struct ReleaseMPIRReq
 {
-	OverwatchReqType type;
 	int mpir_id;
 };
 
@@ -56,16 +54,11 @@ struct ReleaseMPIRReq
 // RegisterApp, RegisterUtil,
 struct RegisterReq
 {
-	OverwatchReqType type;
 	pid_t app_pid;
 	pid_t util_pid; // unused for RegisterApp
 };
 
 #endif
-
-struct ShutdownReq {
-	OverwatchReqType type;
-};
 
 // Response types
 

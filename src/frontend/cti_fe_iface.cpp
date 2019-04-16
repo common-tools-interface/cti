@@ -578,9 +578,9 @@ writeForkExecReq(OverwatchReqType type, pid_t app_pid, char const* file, char* c
 	}
 
 	// construct and write fork/exec message
+	rawWriteLoop(reqFd, type);
 	auto const forkExecReq = LaunchReq
-		{ .type = type
-		, .app_pid = app_pid
+		{ .app_pid = app_pid
 		, .stdout_fd = stdout_fd
 		, .stderr_fd = stderr_fd
 		, .file_and_argv_len = fileArgvLen
@@ -639,9 +639,9 @@ _cti_registerApp(pid_t app_pid)
 	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
 
 	// construct and write register message
+	rawWriteLoop(reqFd, OverwatchReqType::RegisterApp);
 	auto const registerAppReq = RegisterReq
-		{ .type = OverwatchReqType::RegisterApp
-		, .app_pid = app_pid
+		{ .app_pid = app_pid
 	};
 	rawWriteLoop(reqFd, registerAppReq);
 
@@ -663,9 +663,9 @@ _cti_registerUtil(pid_t app_pid, pid_t util_pid)
 	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
 
 	// construct and write register message
+	rawWriteLoop(reqFd, OverwatchReqType::RegisterUtil);
 	auto const registerUtilReq = RegisterReq
-		{ .type = OverwatchReqType::RegisterUtil
-		, .app_pid = app_pid
+		{ .app_pid = app_pid
 		, .util_pid = util_pid
 	};
 	rawWriteLoop(reqFd, registerUtilReq);
@@ -689,10 +689,7 @@ void _cti_shutdownOverwatch()
 	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
 
 	// construct and write shutdown message
-	auto const shutdownReq = ShutdownReq
-		{ .type = OverwatchReqType::Shutdown
-	};
-	rawWriteLoop(reqFd, shutdownReq);
+	rawWriteLoop(reqFd, OverwatchReqType::Shutdown);
 
 	// read response
 	auto const shutdownResp = rawReadLoop<OKResp>(respFd);
