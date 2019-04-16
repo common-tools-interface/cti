@@ -22,17 +22,123 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
+#include <algorithm>
+#include <tuple>
+#include <set>
+#include <unordered_map>
+#include <future>
+#include <vector>
 #include <tuple>
 
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
 
 #include "cti_overwatch.hpp"
+
+
+static void tryTerm(pid_t const pid)
+{
+	fprintf(stderr, "tryterm %d\n", pid);
+	if (::kill(pid, SIGTERM)) {
+		return;
+	}
+	::sleep(3);
+	::kill(pid, SIGKILL);
+	::waitpid(pid, nullptr, 0);
+}
+
+/* types */
+
+struct ProcSet
+{
+	std::set<pid_t> m_pids;
+
+	ProcSet() {}
+
+	ProcSet(ProcSet&& moved)
+		: m_pids{std::move(moved.m_pids)}
+	{
+		moved.m_pids.clear();
+	}
+
+	void clear()
+	{
+		// copy and clear member
+		auto const pids = m_pids;
+		m_pids.clear();
+
+		// create futures
+		std::vector<std::future<void>> termFutures;
+		termFutures.reserve(m_pids.size());
+
+		// terminate in parallel
+		for (auto&& pid : pids) {
+			fprintf(stderr, "terminating pid %d\n", pid);
+			termFutures.emplace_back(std::async(std::launch::async, tryTerm, pid));
+		}
+
+		// collect
+		for (auto&& future : termFutures) {
+			future.wait();
+		}
+	}
+
+	~ProcSet()
+	{
+		if (!m_pids.empty()) {
+			clear();
+		}
+	}
+
+	void insert(pid_t const pid)   { m_pids.insert(pid); }
+	void erase(pid_t const pid)    { m_pids.erase(pid);  }
+	bool contains(pid_t const pid) { return (m_pids.find(pid) != m_pids.end()); }
+};
+
+/* global variables */
+
+// running apps / utils
+auto appList = ProcSet{};
+auto utilMap = std::unordered_map<pid_t, ProcSet>{};
+
+// communication
+int reqFd  = -1; // incoming request pipe
+int respFd = -1; // outgoing response pipe
+
+// threading helpers
+std::vector<std::future<void>> runningThreads;
+template <typename Func>
+void start_thread(Func&& func) {
+	runningThreads.emplace_back(std::async(std::launch::async, func));
+}
+void finish_threads() {
+	for (auto&& future : runningThreads) {
+		future.wait();
+	}
+}
+
+void shutdown_and_exit(int const rc)
+{
+	// terminate all running utilities
+	start_thread([&](){ utilMap.clear(); });
+
+	// terminate all running apps
+	start_thread([&](){ appList.clear(); });
+
+	// wait for all threads
+	finish_threads();
+
+	// close pipes
+	close(reqFd);
+	close(respFd);
+
+	exit(rc);
+}
 
 /* global vars */
 volatile pid_t	pid = 0;
@@ -59,15 +165,15 @@ cti_overwatch_handler(int sig)
 	if (pid != 0)
 	{
 		// send sigterm
-		if (kill(pid, SIGTERM))
+		if (::kill(pid, SIGTERM))
 		{
 			// process doesn't exist, so simply exit
 			exit(0);
 		}
 		// sleep five seconds
-		sleep(5);
+		::sleep(5);
 		// send sigkill
-		kill(pid, SIGKILL);
+		::kill(pid, SIGKILL);
 		// exit
 		exit(0);
 	}
@@ -97,9 +203,6 @@ main(int argc, char *argv[])
 	sigset_t			mask;
 	struct sigaction	sig_action;
 	char				done = 1;
-
-	int reqFd  = -1;
-	int respFd = -1;
 
 	// parse incoming argv for request and response FDs
 	{ auto incomingArgv = cti_argv::IncomingArgv<CTIOverwatchArgv>{argc, argv};
