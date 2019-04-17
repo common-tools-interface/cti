@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/prctl.h>
+#include <sys/resource.h>
 
 #include <set>
 #include <unordered_map>
@@ -446,10 +447,24 @@ public: // interface
 			overwatchReqPipe.closeWrite();
 			overwatchRespPipe.closeRead();
 
-			// close fds
+			// remap standard FDs
 			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
 			dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
 			dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+
+			// close FDs above pipe FDs
+			auto max_fd = size_t{};
+			{ struct rlimit rl;
+				if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
+					throw std::runtime_error("getrlimit failed.");
+				} else {
+					max_fd = (rl.rlim_max == RLIM_INFINITY) ? 1024 : rl.rlim_max;
+				}
+			}
+			int const min_fd = std::max(overwatchReqPipe.getReadFd(), overwatchRespPipe.getWriteFd()) + 1;
+			for (size_t i = min_fd; i < max_fd; ++i) {
+				close(i);
+			}
 
 			// setup args
 			using OWA = CTIOverwatchArgv;
@@ -521,17 +536,11 @@ _cti_getLogger() {
 /* overwatch interface - defined in useful/cti_overwatch.hpp */
 
 static pid_t
-writeForkExecReq(OverwatchReqType type, pid_t app_pid, char const* file, char* const argv[],
-	int stdout_fd, int stderr_fd)
+writeForkExecReq(OverwatchReqType type, pid_t app_pid, char const* file, char const* const argv[],
+	int stdout_fd, int stderr_fd, char const* const env[])
 {
 	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
 	auto respFd = _cti_getState().overwatchRespPipe.getReadFd();
-
-	// get total len of file, argv strings
-	auto fileArgvLen = size_t{strlen(file) + 1};
-	for (auto arg = argv; *arg != nullptr; arg++) {
-		fileArgvLen += strlen(*arg) + 1;
-	}
 
 	// construct and write fork/exec message
 	rawWriteLoop(reqFd, type);
@@ -539,16 +548,21 @@ writeForkExecReq(OverwatchReqType type, pid_t app_pid, char const* file, char* c
 		{ .app_pid = app_pid
 		, .stdout_fd = stdout_fd
 		, .stderr_fd = stderr_fd
-		, .file_and_argv_len = fileArgvLen
 	};
 	rawWriteLoop(reqFd, forkExecReq);
 
-	// write flat file/argv strings
+	// write flat file/argv/env strings
 	writeLoop(reqFd, file, strlen(file) + 1);
 	for (auto arg = argv; *arg != nullptr; arg++) {
 		writeLoop(reqFd, *arg, strlen(*arg) + 1);
 	}
-	writeLoop(reqFd, '\0', 1);
+	rawWriteLoop(reqFd, '\0');
+	if (env) {
+		for (auto var = env; *var != nullptr; var++) {
+			writeLoop(reqFd, *var, strlen(*var) + 1);
+		}
+	}
+	rawWriteLoop(reqFd, '\0');
 
 	// read response
 	auto const forkExecResp = rawReadLoop<PIDResp>(respFd);
@@ -562,15 +576,17 @@ writeForkExecReq(OverwatchReqType type, pid_t app_pid, char const* file, char* c
 }
 
 pid_t
-_cti_forkExecvpApp(char const* file, char* const argv[], int stdout_fd, int stderr_fd)
+_cti_forkExecvpApp(char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
 {
-	return writeForkExecReq(OverwatchReqType::ForkExecvpApp, pid_t{0}, file, argv, stdout_fd, stderr_fd);
+	return writeForkExecReq(OverwatchReqType::ForkExecvpApp,
+		pid_t{0}, file, argv, stdout_fd, stderr_fd, env);
 }
 
 pid_t
-_cti_forkExecvpUtil(pid_t app_pid, char const* file, char* const argv[], int stdout_fd, int stderr_fd)
+_cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
 {
-	return writeForkExecReq(OverwatchReqType::ForkExecvpUtil, app_pid, file, argv, stdout_fd, stderr_fd);
+	return writeForkExecReq(OverwatchReqType::ForkExecvpUtil,
+		app_pid, file, argv, stdout_fd, stderr_fd, env);
 }
 
 

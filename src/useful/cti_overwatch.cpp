@@ -37,6 +37,7 @@
 
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
+#include "useful/ExecvpOutput.hpp"
 
 #include "cti_overwatch.hpp"
 
@@ -136,13 +137,14 @@ void shutdown_and_exit(int const rc)
 	}
 
 	// terminate all running utilities
-	start_thread([&](){ utilMap.clear(); });
+	auto utilTermFuture = std::async(std::launch::async, [&](){ utilMap.clear(); });
 
 	// terminate all running apps
-	start_thread([&](){ appList.clear(); });
+	auto appTermFuture = std::async(std::launch::async, [&](){ appList.clear(); });
 
 	// wait for all threads
-	finish_threads();
+	utilTermFuture.wait();
+	appTermFuture.wait();
 
 	// close pipes
 	close(reqFd);
@@ -182,18 +184,179 @@ cti_overwatch_handler(int sig, siginfo_t *sig_info, void *secret)
 	}
 }
 
+/* register helpers */
+
+static int registerAppPID(pid_t const app_pid)
+{
+	if ((app_pid > 0) && !appList.contains(app_pid)) {
+		// register app pid
+		appList.insert(app_pid);
+	} else {
+		fprintf(stderr, "invalid app pid: %d\n", app_pid);
+		return 1;
+	}
+
+	return 0;
+}
+
+static int registerUtilPID(pid_t const app_pid, pid_t const util_pid)
+{
+	// verify app pid
+	if (app_pid <= 0) {
+		fprintf(stderr, "invalid app_pid: %d\n", app_pid);
+		return 1;
+	}
+
+	// register app pid if valid and not tracked
+	if ((app_pid > 0) && !appList.contains(app_pid)) {
+		registerAppPID(app_pid);
+	}
+
+	// register utility pid to app
+	if ((app_pid > 0) && (util_pid > 0)) {
+		utilMap[app_pid].insert(util_pid);
+	} else {
+		fprintf(stderr, "invalid util pid: %d\n", util_pid);
+		return 1;
+	}
+
+	return 0;
+}
+
 // pipe command handlers
+
+static pid_t forkExecvpReq(LaunchReq const& launchReq)
+{
+	// set up pipe stream
+	FdBuf reqBuf{dup(reqFd)};
+	std::istream reqStream{&reqBuf};
+
+	// read filename
+	std::string filename;
+	if (!std::getline(reqStream, filename, '\0')) {
+		fprintf(stderr, "failed to read filename\n");
+		return pid_t{-1};
+	}
+	fprintf(stderr, "got file: %s\n", filename.c_str());
+
+	// read arguments
+	cti_argv::ManagedArgv argv;
+	std::string arg;
+	while (true) {
+		if (!std::getline(reqStream, arg, '\0')) {
+			fprintf(stderr, "failed to read arg\n");
+			return pid_t{-1};
+		}
+		if (arg.empty()) {
+			break;
+		} else {
+			argv.add(arg);
+			fprintf(stderr, "got arg: %s\n", arg.c_str());
+		}
+	}
+
+	// read env
+	std::unordered_map<std::string, std::string> envMap;
+	std::string envVarVal;
+	while (true) {
+		if (!std::getline(reqStream, envVarVal, '\0')) {
+			fprintf(stderr, "failed to read env var\n");
+			return pid_t{-1};
+		}
+		if (envVarVal.empty()) {
+			break;
+		} else {
+			auto const equalsAt = envVarVal.find("=");
+			if (equalsAt == std::string::npos) {
+				fprintf(stderr, "failed to parse env var: '%s'\n", envVarVal.c_str());
+				return pid_t{-1};
+			} else {
+				fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
+				envMap.emplace(envVarVal.substr(0, equalsAt), envVarVal.substr(equalsAt + 1));
+			}
+		}
+	}
+
+	// fork exec
+	if (auto const forkedPid = fork()) {
+		if (forkedPid < 0) {
+			fprintf(stderr, "fork error\n");
+			return pid_t{-1};
+		}
+
+		// parent case
+
+		return forkedPid;
+	} else {
+		// child case
+
+		// close communication pipes
+		close(reqFd);
+		close(respFd);
+
+		// dup2 all stdin/out/err to provided FDs
+		dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
+		dup2((launchReq.stdout_fd < 0) ? open("/dev/null", O_WRONLY) : launchReq.stdout_fd, STDOUT_FILENO);
+		dup2((launchReq.stderr_fd < 0) ? open("/dev/null", O_WRONLY) : launchReq.stderr_fd, STDERR_FILENO);
+
+		// set environment variables with overwrite
+		for (auto const& envVarVal : envMap) {
+			if (!envVarVal.second.empty()) {
+				setenv(envVarVal.first.c_str(), envVarVal.second.c_str(), true);
+			} else {
+				unsetenv(envVarVal.first.c_str());
+			}
+		}
+
+		// exec srun
+		execvp(filename.c_str(), argv.get());
+
+		// exec shouldn't return
+		fprintf(stderr, "return from exec\n");
+		return pid_t{-1};
+	}
+}
 
 static void handle_forkExecvpAppReq(LaunchReq const& launchReq)
 {
-	fprintf(stderr, "not implemented: ForkExecvpApp\n");
-	shutdown_and_exit(1);
+	auto const forkedPid = forkExecvpReq(launchReq);
+
+	if ((forkedPid > 0) && !registerAppPID(forkedPid)) {
+		// send PID response
+		PIDResp const pidResp =
+			{ .type = OverwatchRespType::PID
+			, .pid  = forkedPid
+		};
+		rawWriteLoop(respFd, pidResp);
+	} else {
+		// send failure response
+		PIDResp const pidResp =
+			{ .type = OverwatchRespType::PID
+			, .pid  = pid_t{-1}
+		};
+		rawWriteLoop(respFd, pidResp);
+	}
 }
 
 static void handle_forkExecvpUtilReq(LaunchReq const& launchReq)
 {
-	fprintf(stderr, "not implemented: ForkExecvpUtil\n");
-	shutdown_and_exit(1);
+	auto const forkedPid = forkExecvpReq(launchReq);
+
+	if ((forkedPid > 0) && !registerUtilPID(launchReq.app_pid, forkedPid)) {
+		// send PID response
+		PIDResp const pidResp =
+			{ .type = OverwatchRespType::PID
+			, .pid  = forkedPid
+		};
+		rawWriteLoop(respFd, pidResp);
+	} else {
+		// send failure response
+		PIDResp const pidResp =
+			{ .type = OverwatchRespType::PID
+			, .pid  = pid_t{-1}
+		};
+		rawWriteLoop(respFd, pidResp);
+	}
 }
 
 #ifdef MPIR
@@ -214,39 +377,36 @@ static void handle_releaseMPIRReq(ReleaseMPIRReq const& releaseMPIRReq)
 
 static void handle_registerAppReq(AppReq const& registerReq)
 {
-	if (registerReq.app_pid > 0) {
-		// register app pid
-		appList.insert(registerReq.app_pid);
-
+	if ((registerReq.app_pid > 0) && !registerAppPID(registerReq.app_pid)) {
 		// send OK response
 		rawWriteLoop(respFd, OKResp
 			{ .type = OverwatchRespType::OK
 			, .success = true
 		});
 	} else {
-		throw std::runtime_error("invalid app pid: " + std::to_string(registerReq.app_pid));
+		// send failure response
+		rawWriteLoop(respFd, OKResp
+			{ .type = OverwatchRespType::OK
+			, .success = false
+		});
 	}
 }
 
 static void handle_registerUtilReq(UtilReq const& registerReq)
 {
-	// register app pid if valid and not tracked
-	if ((registerReq.app_pid > 0) && !appList.contains(registerReq.app_pid)) {
-		appList.insert(registerReq.app_pid);
-	}
-
-	// register utility pid to app
-	if ((registerReq.app_pid > 0) && (registerReq.util_pid > 0)) {
-		utilMap[registerReq.app_pid].insert(registerReq.util_pid);
+	if ((registerReq.util_pid > 0) && !registerUtilPID(registerReq.app_pid, registerReq.util_pid)) {
+		// send OK response
+		rawWriteLoop(respFd, OKResp
+			{ .type = OverwatchRespType::OK
+			, .success = true
+		});
 	} else {
-		throw std::runtime_error("invalid util pid: " + std::to_string(registerReq.util_pid));
+		// send failure response
+		rawWriteLoop(respFd, OKResp
+			{ .type = OverwatchRespType::OK
+			, .success = false
+		});
 	}
-
-	// send OK response
-	rawWriteLoop(respFd, OKResp
-		{ .type = OverwatchRespType::OK
-		, .success = true
-	});
 }
 
 #endif
@@ -255,13 +415,18 @@ static void handle_deregisterAppReq(AppReq const& deregisterReq)
 {
 	if (deregisterReq.app_pid > 0) {
 		// terminate all of app's utilities
-		start_thread([&](){ utilMap.erase(deregisterReq.app_pid); });
+		auto utilTermFuture = std::async(std::launch::async,
+			[&](){ utilMap.erase(deregisterReq.app_pid); });
 
 		// ensure app is terminated
 		if (appList.contains(deregisterReq.app_pid)) {
-			start_thread([&](){ tryTerm(deregisterReq.app_pid); });
-			start_thread([&](){ appList.erase(deregisterReq.app_pid); });
+			auto appTermFuture = std::async(std::launch::async, [&](){ tryTerm(deregisterReq.app_pid); });
+			appList.erase(deregisterReq.app_pid);
+			appTermFuture.wait();
 		}
+
+		// finish util termination
+		utilTermFuture.wait();
 
 		// send OK response
 		rawWriteLoop(respFd, OKResp

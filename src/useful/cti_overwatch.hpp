@@ -7,15 +7,18 @@
 /* internal overwatch interface implemented in cti_fe_iface */
 
 // overwatch will fork and execvp a binary and register it as an app
-pid_t _cti_forkExecvpApp(char const* file, char* const argv[], int stdout_fd, int stderr_fd);
+pid_t _cti_forkExecvpApp(char const* file, char const* const argv[], int stdout_fd, int stderr_fd,
+	char const* const env[]);
 
 // overwatch will fork and execvp a binary and register it as a utility belonging to app_pid
-pid_t _cti_forkExecvpUtil(pid_t app_pid, char const* file, char* const argv[], int stdout_fd, int stderr_fd);
+pid_t _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdout_fd,
+	int stderr_fd, char const* const env[]);
 
 #ifdef MPIR
 
 // overwatch will launch a binary under MPIR control and extract its proctable
-MPIR::ProcTable _cti_launchMPIR(char const* file, char const* argv[], int stdout_fd, int stderr_fd);
+MPIR::ProcTable _cti_launchMPIR(char const* file, char const* const argv[], int stdout_fd, int stderr_fd,
+	char const* const env[]);
 
 // overwatch will release a binary under mpir control from its breakpoint
 void _cti_releaseMPIRBreakpoint(int mpir_id);
@@ -120,11 +123,13 @@ struct LaunchReq
 	pid_t app_pid; // unused for ForkExecvpApp, LaunchMPIR
 	int stdout_fd;
 	int stderr_fd;
-	size_t file_and_argv_len;
 	// after sending this struct, send a list of null-terminated strings:
 	// - file path string
 	// - each argument string
-	// - empty string to end the list
+	// - EMPTY STRING
+	// - each environment variable string (format VAR=VAL)
+	// - EMPTY STRING
+	// sum of lengths of these strings including null-terminators should equal `file_and_argv_len`
 };
 
 #ifdef MPIR
@@ -183,9 +188,10 @@ struct MPIRProcTableResp
 {
 	OverwatchRespType type;
 	int mpir_id;
-	size_t num_hosts;
+	size_t num_pids;
 	// after sending this struct, send:
-	// - list of `num_hosts` pids
-	// - list of `num_hosts` null-terminated hostnames
+	// - list of `num_pids` pids
+	// - list of null-terminated hostnames
+	// - EMPTY STRING
 };
 #endif
