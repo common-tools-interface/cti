@@ -105,6 +105,9 @@ CraySLURMApp::~CraySLURMApp()
 	if (!m_stagePath.empty()) {
 		_cti_removeDirectory(m_stagePath.c_str());
 	}
+
+	// clean up overwatch
+	_cti_deregisterApp(m_launcherPid);
 }
 
 /* app instance creation */
@@ -678,14 +681,17 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 	// Get the launcher path from CTI environment variable / default.
 	if (auto const launcher_path = make_unique_destr(_cti_pathFind(CraySLURMFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
-		// set up redirection arguments
-		std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
-		const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };
-
 		// run output redirection binary
-		auto const redirectPid = _cti_forkExecvpApp(redirectPath.c_str(), (char* const*)redirectArgv,
-			(stdoutFd < 0) ? STDOUT_FILENO : stdoutFd,
-			(stderrFd < 0) ? STDERR_FILENO : stderrFd);
+		auto const redirectPid = _cti_registerApp(fork());
+		if (!redirectPid) {
+			std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
+			const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };
+			dup2((stdoutFd < 0) ? STDOUT_FILENO : stdoutFd, STDOUT_FILENO);
+			dup2((stderrFd < 0) ? STDERR_FILENO : stderrFd, STDERR_FILENO);
+			execv(redirectPath.c_str(), (char* const*)redirectArgv);
+			perror("execv");
+			exit(1);
+		}
 
 		/* construct argv array & instance*/
 		std::vector<std::string> launcherArgv

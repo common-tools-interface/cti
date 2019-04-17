@@ -78,7 +78,6 @@ struct ProcSet
 
 		// terminate in parallel
 		for (auto&& pid : pids) {
-			fprintf(stderr, "terminating pid %d\n", pid);
 			termFutures.emplace_back(std::async(std::launch::async, tryTerm, pid));
 		}
 
@@ -124,6 +123,18 @@ void finish_threads() {
 
 void shutdown_and_exit(int const rc)
 {
+	// block all signals
+	sigset_t block_set;
+	memset(&block_set, 0, sizeof(block_set));
+	if (sigfillset(&block_set)) {
+		perror("sigfillset");
+		exit(1);
+	}
+	if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
+		perror("sigprocmask");
+		exit(1);
+	}
+
 	// terminate all running utilities
 	start_thread([&](){ utilMap.clear(); });
 
@@ -140,8 +151,139 @@ void shutdown_and_exit(int const rc)
 	exit(rc);
 }
 
-/* global vars */
-volatile pid_t	pid = 0;
+/* signal handlers */
+
+void
+sigchld_handler(pid_t const exitedPid)
+{
+	// regular app termination
+	if (appList.contains(exitedPid)) {
+		// app already terminated
+		appList.erase(exitedPid);
+	}
+	if (utilMap.find(exitedPid) != utilMap.end()) {
+		// terminate all of app's utilities
+		start_thread([&](){ utilMap.erase(exitedPid); });
+	}
+}
+
+// dispatch to sigchld / term handler
+void
+cti_overwatch_handler(int sig, siginfo_t *sig_info, void *secret)
+{
+	if (sig == SIGCHLD) {
+		if ((sig_info->si_code == CLD_EXITED) && (sig_info->si_pid > 1)) {
+			sigchld_handler(sig_info->si_pid);
+		}
+	} else if ((sig == SIGTERM) || (sig == SIGHUP)) {
+		shutdown_and_exit(0);
+	} else {
+		// TODO: determine which signals should be relayed to child
+	}
+}
+
+// pipe command handlers
+
+static void handle_forkExecvpAppReq(LaunchReq const& launchReq)
+{
+	fprintf(stderr, "not implemented: ForkExecvpApp\n");
+	shutdown_and_exit(1);
+}
+
+static void handle_forkExecvpUtilReq(LaunchReq const& launchReq)
+{
+	fprintf(stderr, "not implemented: ForkExecvpUtil\n");
+	shutdown_and_exit(1);
+}
+
+#ifdef MPIR
+
+static void handle_launchMPIRReq(LaunchReq const& launchReq)
+{
+	fprintf(stderr, "not implemented: LaunchMPIR\n");
+	shutdown_and_exit(1);
+}
+
+static void handle_releaseMPIRReq(ReleaseMPIRReq const& releaseMPIRReq)
+{
+	fprintf(stderr, "not implemented: ReleaseMPIR\n");
+	shutdown_and_exit(1);
+}
+
+#else
+
+static void handle_registerAppReq(AppReq const& registerReq)
+{
+	if (registerReq.app_pid > 0) {
+		// register app pid
+		appList.insert(registerReq.app_pid);
+
+		// send OK response
+		rawWriteLoop(respFd, OKResp
+			{ .type = OverwatchRespType::OK
+			, .success = true
+		});
+	} else {
+		throw std::runtime_error("invalid app pid: " + std::to_string(registerReq.app_pid));
+	}
+}
+
+static void handle_registerUtilReq(UtilReq const& registerReq)
+{
+	// register app pid if valid and not tracked
+	if ((registerReq.app_pid > 0) && !appList.contains(registerReq.app_pid)) {
+		appList.insert(registerReq.app_pid);
+	}
+
+	// register utility pid to app
+	if ((registerReq.app_pid > 0) && (registerReq.util_pid > 0)) {
+		utilMap[registerReq.app_pid].insert(registerReq.util_pid);
+	} else {
+		throw std::runtime_error("invalid util pid: " + std::to_string(registerReq.util_pid));
+	}
+
+	// send OK response
+	rawWriteLoop(respFd, OKResp
+		{ .type = OverwatchRespType::OK
+		, .success = true
+	});
+}
+
+#endif
+
+static void handle_deregisterAppReq(AppReq const& deregisterReq)
+{
+	if (deregisterReq.app_pid > 0) {
+		// terminate all of app's utilities
+		start_thread([&](){ utilMap.erase(deregisterReq.app_pid); });
+
+		// ensure app is terminated
+		if (appList.contains(deregisterReq.app_pid)) {
+			start_thread([&](){ tryTerm(deregisterReq.app_pid); });
+			start_thread([&](){ appList.erase(deregisterReq.app_pid); });
+		}
+
+		// send OK response
+		rawWriteLoop(respFd, OKResp
+			{ .type = OverwatchRespType::OK
+			, .success = true
+		});
+	} else {
+		throw std::runtime_error("invalid app pid: " + std::to_string(deregisterReq.app_pid));
+	}
+}
+
+static void handle_shutdownReq()
+{
+	// send OK response
+	rawWriteLoop(respFd, OKResp
+		{ .type = OverwatchRespType::OK
+		, .success = true
+	});
+
+	// run shutdown
+	shutdown_and_exit(0);
+}
 
 void
 usage(char *name)
@@ -158,51 +300,9 @@ usage(char *name)
 		CTIOverwatchArgv::Help.val, CTIOverwatchArgv::Help.name);
 }
 
-// signal handler to kill the child
-void
-cti_overwatch_handler(int sig)
-{
-	if (pid != 0)
-	{
-		// send sigterm
-		if (::kill(pid, SIGTERM))
-		{
-			// process doesn't exist, so simply exit
-			exit(0);
-		}
-		// sleep five seconds
-		::sleep(5);
-		// send sigkill
-		::kill(pid, SIGKILL);
-		// exit
-		exit(0);
-	}
-	
-	// no pid, so exit
-	exit(1);
-}
-
-// signal handler that causes us to exit
-void
-cti_exit_handler(int sig)
-{
-	// simply exit
-	exit(0);
-}
-
-int 
+int
 main(int argc, char *argv[])
 {
-	int					opt_ind = 0;
-	int					c;
-	long int			val;
-	char *				end_p;
-	FILE *				rfp = NULL;
-	FILE *				wfp = NULL;
-	pid_t				my_pid;
-	sigset_t			mask;
-	char				done = 1;
-
 	// parse incoming argv for request and response FDs
 	{ auto incomingArgv = cti_argv::IncomingArgv<CTIOverwatchArgv>{argc, argv};
 		int c; std::string optarg;
@@ -241,29 +341,93 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// setup the signal mask
-	struct sigaction sig_action;
-	memset(&sig_action, 0, sizeof(sig_action));
-	if (sigfillset(&sig_action.sa_mask)) {
+	// block all signals except SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+	sigset_t block_set;
+	memset(&block_set, 0, sizeof(block_set));
+	if (sigfillset(&block_set)) {
 		perror("sigfillset");
 		return 1;
 	}
+	if (sigdelset(&block_set, SIGTERM) ||
+	    sigdelset(&block_set, SIGCHLD) ||
+	    sigdelset(&block_set, SIGPIPE) ||
+	    sigdelset(&block_set, SIGHUP)) {
+		perror("sigdelset");
+		return 1;
+	}
+	if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
+		perror("sigprocmask");
+		return 1;
+	}
 
-	// set handler for all signals
-	sig_action.sa_handler = cti_overwatch_handler;
-	if (sigaction(SIGUSR1, &sig_action, nullptr)) {
+
+	// set handler for SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+	struct sigaction sig_action;
+	sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
+	sig_action.sa_sigaction = cti_overwatch_handler;
+	if (sigaction(SIGTERM, &sig_action, nullptr) ||
+	    sigaction(SIGCHLD, &sig_action, nullptr) ||
+	    sigaction(SIGPIPE, &sig_action, nullptr) ||
+	    sigaction(SIGHUP,  &sig_action, nullptr)) {
 		perror("sigaction");
 		return 1;
 	}
 
 	// write our PID to signal to the parent we are all set up
+	fprintf(stderr, "%d sending initial ok\n", getpid());
 	rawWriteLoop(respFd, PIDResp 
 		{ .type = OverwatchRespType::PID
 		, .pid  = getpid()
 	});
 
-	// sleep until we get a signal
-	pause();
+	// wait for pipe commands
+	while (true) {
+		auto const reqType = rawReadLoop<OverwatchReqType>(reqFd);
+		fprintf(stderr, "req type %ld\n", reqType);
+
+		switch (reqType) {
+
+			case OverwatchReqType::ForkExecvpApp:
+				handle_forkExecvpAppReq(rawReadLoop<LaunchReq>(reqFd));
+				break;
+
+			case OverwatchReqType::ForkExecvpUtil:
+				handle_forkExecvpUtilReq(rawReadLoop<LaunchReq>(reqFd));
+				break;
+
+#ifdef MPIR
+			case OverwatchReqType::LaunchMPIR:
+				handle_launchMPIRReq(rawReadLoop<LaunchReq>(reqFd));
+				break;
+
+			case OverwatchReqType::ReleaseMPIR:
+				handle_releaseMPIRReq(rawReadLoop<ReleaseMPIRReq>(reqFd));
+				break;
+#else
+
+			case OverwatchReqType::RegisterApp:
+				handle_registerAppReq(rawReadLoop<AppReq>(reqFd));
+				break;
+
+			case OverwatchReqType::RegisterUtil:
+				handle_registerUtilReq(rawReadLoop<UtilReq>(reqFd));
+				break;
+#endif
+
+			case OverwatchReqType::DeregisterApp:
+				handle_deregisterAppReq(rawReadLoop<AppReq>(reqFd));
+				break;
+
+			case OverwatchReqType::Shutdown:
+				handle_shutdownReq();
+				break;
+
+			default:
+				fprintf(stderr, "unknown req type %ld\n", reqType);
+				break;
+
+		}
+	}
 
 	// we should not get here
 	shutdown_and_exit(1);

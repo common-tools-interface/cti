@@ -449,7 +449,7 @@ public: // interface
 			// close fds
 			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
 			dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
-			// dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+			dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
 
 			// setup args
 			using OWA = CTIOverwatchArgv;
@@ -525,7 +525,7 @@ writeForkExecReq(OverwatchReqType type, pid_t app_pid, char const* file, char* c
 	int stdout_fd, int stderr_fd)
 {
 	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
-	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
+	auto respFd = _cti_getState().overwatchRespPipe.getReadFd();
 
 	// get total len of file, argv strings
 	auto fileArgvLen = size_t{strlen(file) + 1};
@@ -591,12 +591,19 @@ _cti_releaseMPIRBreakpoint(int mpir_id)
 pid_t
 _cti_registerApp(pid_t app_pid)
 {
+	// check for fork error / child case
+	if (app_pid < 0) {
+		throw std::runtime_error(std::string("fork: ") + strerror(errno));
+	} else if (app_pid == 0) {
+		return 0;
+	}
+
 	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
-	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
+	auto respFd = _cti_getState().overwatchRespPipe.getReadFd();
 
 	// construct and write register message
 	rawWriteLoop(reqFd, OverwatchReqType::RegisterApp);
-	auto const registerAppReq = RegisterReq
+	auto const registerAppReq = AppReq
 		{ .app_pid = app_pid
 	};
 	rawWriteLoop(reqFd, registerAppReq);
@@ -606,7 +613,7 @@ _cti_registerApp(pid_t app_pid)
 
 	// verify response
 	if (registerResp.type != OverwatchRespType::OK) {
-		throw std::runtime_error("overwatch register mpir failed");
+		throw std::runtime_error("overwatch register app failed");
 	}
 
 	return app_pid;
@@ -615,12 +622,19 @@ _cti_registerApp(pid_t app_pid)
 pid_t
 _cti_registerUtil(pid_t app_pid, pid_t util_pid)
 {
+	// check for fork error / child case
+	if (util_pid < 0) {
+		throw std::runtime_error(std::string("fork: ") + strerror(errno));
+	} else if (util_pid == 0) {
+		return 0;
+	}
+
 	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
-	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
+	auto respFd = _cti_getState().overwatchRespPipe.getReadFd();
 
 	// construct and write register message
 	rawWriteLoop(reqFd, OverwatchReqType::RegisterUtil);
-	auto const registerUtilReq = RegisterReq
+	auto const registerUtilReq = UtilReq
 		{ .app_pid = app_pid
 		, .util_pid = util_pid
 	};
@@ -631,7 +645,7 @@ _cti_registerUtil(pid_t app_pid, pid_t util_pid)
 
 	// verify response
 	if (registerResp.type != OverwatchRespType::OK) {
-		throw std::runtime_error("overwatch register mpir failed");
+		throw std::runtime_error("overwatch register util failed");
 	}
 
 	return util_pid;
@@ -639,10 +653,36 @@ _cti_registerUtil(pid_t app_pid, pid_t util_pid)
 
 #endif
 
+void
+_cti_deregisterApp(pid_t app_pid)
+{
+	if (app_pid == 0) {
+		return;
+	}
+
+	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
+	auto respFd = _cti_getState().overwatchRespPipe.getReadFd();
+
+	// construct and write deregister message
+	rawWriteLoop(reqFd, OverwatchReqType::DeregisterApp);
+	auto const deregisterAppReq = AppReq
+		{ .app_pid = app_pid
+	};
+	rawWriteLoop(reqFd, deregisterAppReq);
+
+	// read response
+	auto const registerResp = rawReadLoop<OKResp>(respFd);
+
+	// verify response
+	if (registerResp.type != OverwatchRespType::OK) {
+		throw std::runtime_error("overwatch deregister app failed");
+	}
+}
+
 void _cti_shutdownOverwatch()
 {
 	auto reqFd  = _cti_getState().overwatchReqPipe.getWriteFd();
-	auto respFd = _cti_getState().overwatchReqPipe.getReadFd();
+	auto respFd = _cti_getState().overwatchRespPipe.getReadFd();
 
 	// construct and write shutdown message
 	rawWriteLoop(reqFd, OverwatchReqType::Shutdown);

@@ -410,7 +410,7 @@ GenericSSHApp::~GenericSSHApp()
 	}
 
 	// clean up overwatch
-	::kill(SIGTERM, m_launcherPid);
+	_cti_deregisterApp(m_launcherPid);
 }
 
 /* app instance creation */
