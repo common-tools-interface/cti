@@ -145,6 +145,7 @@ void shutdown_and_exit(int const rc)
 	// wait for all threads
 	utilTermFuture.wait();
 	appTermFuture.wait();
+	finish_threads();
 
 	// close pipes
 	close(reqFd);
