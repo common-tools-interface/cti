@@ -1,15 +1,29 @@
-#ifndef _STRING_SPLIT_HPP
-#define _STRING_SPLIT_HPP
+/******************************************************************************\
+ * cti_split.hpp - Header file for splitting strings.
+ *
+ * Copyright 2019 Cray Inc.  All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ *
+ ******************************************************************************/
+
+#pragma once
 
 #include <sstream>
 #include <tuple>
 #include <utility>
 
+namespace cti {
+
 /* split string into tuple of size determined at complie time. usage:
 	std::string s_1, ..., s_N;
 	std::tie(s_1, ..., s_N) = split::string<N>(line_to_split, delim = ' ');
 */
-namespace cti_split {
+namespace split {
 
 	std::string removeLeadingWhitespace(const std::string& str, const std::string& whitespace = " \t") {
 		const auto startPos = str.find_first_not_of(whitespace);
@@ -56,7 +70,7 @@ namespace cti_split {
 		};
 	};
 
-	template <std::size_t N> 
+	template <std::size_t N>
 	using NStringTuple = typename repeat<std::string, N, std::tuple>::type;
 
 	template <std::size_t N>
@@ -77,6 +91,7 @@ namespace cti_split {
 
 		return tup;
 	}
-};
 
-#endif
+} /* namespace cti::split */
+
+} /* namespace cti */

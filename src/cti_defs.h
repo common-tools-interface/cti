@@ -187,9 +187,9 @@ typedef slurmPidFile_t          cti_pidFile_t;
 
 #include "useful/cti_argv.hpp"
 
-struct DaemonArgv : public cti_argv::Argv {
-    using Option    = cti_argv::Argv::Option;
-    using Parameter = cti_argv::Argv::Parameter;
+struct DaemonArgv : public cti::Argv {
+    using Option    = cti::Argv::Option;
+    using Parameter = cti::Argv::Parameter;
 
     static constexpr Option Clean { "clean", 'c' };
     static constexpr Option Help  { "help",  'h' };
@@ -213,9 +213,9 @@ struct DaemonArgv : public cti_argv::Argv {
     long_options_done };
 };
 
-struct SattachArgv : public cti_argv::Argv {
-    using Option    = cti_argv::Argv::Option;
-    using Parameter = cti_argv::Argv::Parameter;
+struct SattachArgv : public cti::Argv {
+    using Option    = cti::Argv::Option;
+    using Parameter = cti::Argv::Parameter;
 
     static constexpr Option PrependWithTaskLabel { "label",    1 };
     static constexpr Option DisplayLayout        { "layout",   2 };
@@ -234,9 +234,9 @@ struct SattachArgv : public cti_argv::Argv {
     long_options_done };
 };
 
-struct CTIOverwatchArgv : public cti_argv::Argv {
-    using Option    = cti_argv::Argv::Option;
-    using Parameter = cti_argv::Argv::Parameter;
+struct CTIOverwatchArgv : public cti::Argv {
+    using Option    = cti::Argv::Option;
+    using Parameter = cti::Argv::Parameter;
 
     static constexpr Option Help  { "help",  'h' };
 
@@ -252,27 +252,27 @@ struct CTIOverwatchArgv : public cti_argv::Argv {
 // XXX: flaw in C++11 relating to static constexpr. can be removed in C++17
 #ifdef INSIDE_WORKAROUND_OBJ
 
-constexpr cti_argv::Argv::GNUOption cti_argv::Argv::long_options_done;
+constexpr cti::Argv::GNUOption cti::Argv::long_options_done;
 
-using Option    = cti_argv::Argv::Option;
-using Parameter = cti_argv::Argv::Parameter;
+using Option    = cti::Argv::Option;
+using Parameter = cti::Argv::Parameter;
 using SA        = SattachArgv;
 using DA        = DaemonArgv;
 
 constexpr Option            SA::PrependWithTaskLabel, SA::DisplayLayout, SA::RunInPty,
                             SA::QuietOutput, SA::VerboseOutput;
 constexpr Parameter         SA::InputFilter, SA::OutputFilter, SA::ErrorFilter;
-constexpr cti_argv::Argv::GNUOption SA::long_options[];
+constexpr cti::Argv::GNUOption SA::long_options[];
 
 constexpr Option            DA::Clean, DA::Help, DA::Debug;
 constexpr Parameter         DA::ApID, DA::Binary, DA::Directory, DA::EnvVariable,
                             DA::InstSeqNum, DA::ManifestName, DA::ToolPath,
                             DA::PMIAttribsPath, DA::LdLibraryPath, DA::WLMEnum;
-constexpr cti_argv::Argv::GNUOption DA::long_options[];
+constexpr cti::Argv::GNUOption DA::long_options[];
 
 constexpr Option            CTIOverwatchArgv::Help;
 constexpr Parameter         CTIOverwatchArgv::ReadFD, CTIOverwatchArgv::WriteFD;
-constexpr cti_argv::Argv::GNUOption CTIOverwatchArgv::long_options[];
+constexpr cti::Argv::GNUOption CTIOverwatchArgv::long_options[];
 
 #endif /* INSIDE_WORKAROUND_OBJ */
 

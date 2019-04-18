@@ -37,7 +37,7 @@
 
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
-#include "useful/ExecvpOutput.hpp"
+#include "useful/cti_execvp.hpp"
 
 #include "cti_overwatch.hpp"
 
@@ -228,7 +228,7 @@ static int registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 static pid_t forkExecvpReq(LaunchReq const& launchReq)
 {
 	// set up pipe stream
-	FdBuf reqBuf{dup(reqFd)};
+	cti::FdBuf reqBuf{dup(reqFd)};
 	std::istream reqStream{&reqBuf};
 
 	// read filename
@@ -240,7 +240,7 @@ static pid_t forkExecvpReq(LaunchReq const& launchReq)
 	fprintf(stderr, "got file: %s\n", filename.c_str());
 
 	// read arguments
-	cti_argv::ManagedArgv argv;
+	cti::ManagedArgv argv;
 	std::string arg;
 	while (true) {
 		if (!std::getline(reqStream, arg, '\0')) {
@@ -469,7 +469,7 @@ int
 main(int argc, char *argv[])
 {
 	// parse incoming argv for request and response FDs
-	{ auto incomingArgv = cti_argv::IncomingArgv<CTIOverwatchArgv>{argc, argv};
+	{ auto incomingArgv = cti::IncomingArgv<CTIOverwatchArgv>{argc, argv};
 		int c; std::string optarg;
 		while (true) {
 			std::tie(c, optarg) = incomingArgv.get_next();

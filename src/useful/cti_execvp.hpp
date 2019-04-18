@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * ExecvpOutput.hpp - fork / execvp a program and read its output as an istream
+ * cti_execvp.hpp - fork / execvp a program and read its output as an istream
  *
  * Copyright 2014-2019 Cray Inc.	All Rights Reserved.
  *
@@ -10,9 +10,7 @@
  * in any form.
  *
  *********************************************************************************/
-
-#ifndef _EXECVPOUTPUT_HPP
-#define _EXECVPOUTPUT_HPP
+#pragma once
 
 #include <unistd.h>
 #include <sys/wait.h>
@@ -22,6 +20,8 @@
 
 #include <sstream>
 #include <streambuf>
+
+namespace cti {
 
 /* FdBuf - create a streambuf from a file descriptor */
 class FdBuf : public std::streambuf {
@@ -123,9 +123,11 @@ public:
 	const int getWriteFd() { return fds[WriteEnd]; }
 };
 
-/* ExecvpOutput - fork / execvp a program and read its output as an istream */
-class ExecvpOutput {
-
+/* Execvp - fork / execvp a program and read its output as an istream */
+// Right now the only constructor is to read output as an istream, but this could
+// be extended in the future to accept different types of constructors.
+class Execvp {
+private:
 	class Line : std::string {
 		friend std::istream& operator>>(std::istream& is, Line& line) {
 			return std::getline(is, line);
@@ -137,7 +139,7 @@ class ExecvpOutput {
 	std::istream pipein;
 	pid_t child;
 public:
-	ExecvpOutput(const char *binaryName, char* const* argv)
+	Execvp(const char *binaryName, char* const* argv)
 		: pipeInBuf(p.getReadFd())
 		, pipein(&pipeInBuf)
 		, child(fork())
@@ -172,5 +174,4 @@ public:
 	std::istream& stream() { return pipein; }
 };
 
-
-#endif
+} /* namespace cti */

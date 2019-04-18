@@ -38,7 +38,7 @@
 #include "GenericSSH/Frontend.hpp"
 
 #include "useful/cti_useful.h"
-#include "useful/Dlopen.hpp"
+#include "useful/cti_dlopen.hpp"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_wrappers.hpp"
 
@@ -75,7 +75,7 @@ private: // types
 	};
 
 public: // variables
-	Dlopen::Handle libSSHHandle;
+	cti::Dlopen::Handle libSSHHandle;
 
 	std::function<FnTypes::ssh_channel_close> ssh_channel_close;
 	std::function<FnTypes::ssh_channel_free> ssh_channel_free;
@@ -369,7 +369,7 @@ GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& 
 
 	, m_toolPath    { SSH_TOOL_DIR }
 	, m_attribsPath { SSH_TOOL_DIR }
-	, m_stagePath   { cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SSH_STAGE_DIR}) }
+	, m_stagePath   { cti::cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SSH_STAGE_DIR}) }
 	, m_extraFiles  { GenericSSHFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
 {
 	// Ensure there are running nodes in the job.
@@ -483,7 +483,7 @@ GenericSSHApp::kill(int signal)
 	// Connect through ssh to each node and send a kill command to every pid on that node
 	for (auto&& node : m_stepLayout.nodes) {
 		// kill -<sig> <pid> ... <pid>
-		cti_argv::ManagedArgv killArgv
+		cti::ManagedArgv killArgv
 			{ "kill"
 			, "-" + std::to_string(signal)
 		};
@@ -499,7 +499,7 @@ GenericSSHApp::kill(int signal)
 void
 GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
-	if (auto packageName = make_unique_destr(_cti_pathToName(tarPath.c_str()), std::free)) {
+	if (auto packageName = cti::make_unique_destr(_cti_pathToName(tarPath.c_str()), std::free)) {
 		auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
 		_cti_getLogger().write("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
@@ -537,7 +537,7 @@ GenericSSHApp::startDaemon(const char* const args[])
 	std::string const launcherPath{m_toolPath + "/" + CTI_DLAUNCH_BINARY};
 
 	// Prepare the launcher arguments
-	cti_argv::ManagedArgv launcherArgv { launcherPath };
+	cti::ManagedArgv launcherArgv { launcherPath };
 	for (const char* const* arg = args; *arg != nullptr; arg++) {
 		launcherArgv.add(*arg);
 	}
@@ -583,7 +583,7 @@ GenericSSHFrontend::registerJob(size_t numIds, ...)
 std::string
 GenericSSHFrontend::getHostname() const
 {
-	return cstr::gethostname();
+	return cti::cstr::gethostname();
 }
 
 /* SSH frontend static implementations */
@@ -663,16 +663,16 @@ GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& s
 
 	// Create the file path, write the file using the Step Layout
 	auto const layoutPath = std::string{stagePath + "/" + SSH_LAYOUT_FILE};
-	if (auto const layoutFile = file::open(layoutPath, "wb")) {
+	if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
 
 		// Write the Layout header.
-		file::writeT(layoutFile.get(), cti_layoutFileHeader_t
+		cti::file::writeT(layoutFile.get(), cti_layoutFileHeader_t
 			{ .numNodes = (int)stepLayout.nodes.size()
 		});
 
 		// Write a Layout entry using node information from each SSH Node Layout entry.
 		for (auto const& node : stepLayout.nodes) {
-			file::writeT(layoutFile.get(), make_layoutFileEntry(node));
+			cti::file::writeT(layoutFile.get(), make_layoutFileEntry(node));
 		}
 
 		return layoutPath;
@@ -685,16 +685,16 @@ std::string
 GenericSSHFrontend::createPIDListFile(MPIRInstance::ProcTable const& procTable, std::string const& stagePath)
 {
 	auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
-	if (auto const pidFile = file::open(pidPath, "wb")) {
+	if (auto const pidFile = cti::file::open(pidPath, "wb")) {
 
 		// Write the PID List header.
-		file::writeT(pidFile.get(), slurmPidFileHeader_t
+		cti::file::writeT(pidFile.get(), slurmPidFileHeader_t
 			{ .numPids = (int)procTable.size()
 		});
 
 		// Write a PID entry using information from each MPIR ProcTable entry.
 		for (auto&& elem : procTable) {
-			file::writeT(pidFile.get(), slurmPidFile_t
+			cti::file::writeT(pidFile.get(), slurmPidFile_t
 				{ .pid = elem.pid
 			});
 		}
@@ -725,7 +725,7 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
 	};
 
 	// Get the launcher path from CTI environment variable / default.
-	if (auto const launcher_path = make_unique_destr(_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr), std::free)) {
+	if (auto const launcher_path = cti::make_unique_destr(_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
 		/* construct argv array & instance*/
 		std::vector<std::string> launcherArgv{launcher_path.get()};

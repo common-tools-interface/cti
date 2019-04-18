@@ -36,4 +36,4 @@ cti_splice_out_err_LDFLAGS = -Wl,--no-undefined -Wl,--as-needed -pthread
 
 noinst_HEADERS			= 	cti_argv.hpp cti_error.h cti_log.h \
 							cti_path.h cti_split.hpp cti_stack.h cti_wrappers.hpp \
-							Dlopen.hpp ExecvpOutput.hpp cti_useful.h
+							cti_dlopen.hpp cti_execvp.hpp cti_useful.h

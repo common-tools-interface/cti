@@ -10,8 +10,11 @@
 
 #include "cti_fe_function_test.hpp"
 
-#include "useful/ExecvpOutput.hpp"
-#include "useful/temp_file_handle.hpp"
+#ifdef OUTPUT_TESTS
+#include "useful/cti_wrappers.hpp"
+#endif
+
+#include "useful/cti_execvp.hpp"
 
 /* cti frontend C interface tests */
 
@@ -63,10 +66,10 @@ TEST_F(CTIFEFunctionTest, StdoutPipe) {
 	auto const echoString = std::to_string(getpid());
 
 	// set up stdout fd
-	Pipe p;
+	cti::Pipe p;
 	ASSERT_GE(p.getReadFd(), 0);
 	ASSERT_GE(p.getWriteFd(), 0);
-	FdBuf pipeInBuf{p.getReadFd()};
+	cti::FdBuf pipeInBuf{p.getReadFd()};
 	std::istream pipein{&pipeInBuf};
 
 	// set up launch arguments
@@ -89,23 +92,24 @@ TEST_F(CTIFEFunctionTest, StdoutPipe) {
 	}
 }
 
+#ifdef OUTPUT_TESTS
 // Test that an app can read input from a file
 TEST_F(CTIFEFunctionTest, InputFile) {
 	// set up string contents
 	auto const echoString = std::to_string(getpid());
 
 	// set up input file
-	auto const inputPath = temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
+	auto const inputPath = cti::temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
 	{ auto inputFile = std::unique_ptr<FILE, decltype(&::fclose)>(fopen(inputPath.get(), "w"), ::fclose);
 		ASSERT_TRUE(inputFile != nullptr);
 		fprintf(inputFile.get(), "%s\n", echoString.c_str());
 	}
 
 	// set up stdout fd
-	Pipe p;
+	cti::Pipe p;
 	ASSERT_GE(p.getReadFd(), 0);
 	ASSERT_GE(p.getWriteFd(), 0);
-	FdBuf pipeInBuf{p.getReadFd()};
+	cti::FdBuf pipeInBuf{p.getReadFd()};
 	std::istream pipein{&pipeInBuf};
 
 	// set up launch arguments
@@ -127,6 +131,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 		EXPECT_EQ(line, echoString);
 	}
 }
+#endif
 
 // Test that an app can forward environment variables
 TEST_F(CTIFEFunctionTest, EnvVars) {
@@ -136,10 +141,10 @@ TEST_F(CTIFEFunctionTest, EnvVars) {
 	auto const envString = envVar + "=" + envVal;
 
 	// set up stdout fd
-	Pipe p;
+	cti::Pipe p;
 	ASSERT_GE(p.getReadFd(), 0);
 	ASSERT_GE(p.getWriteFd(), 0);
-	FdBuf pipeInBuf{p.getReadFd()};
+	cti::FdBuf pipeInBuf{p.getReadFd()};
 	std::istream pipein{&pipeInBuf};
 
 	// set up launch arguments
@@ -223,6 +228,7 @@ TEST_F(CTIFEFunctionTest, CreateManifest) {
 	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 }
 
+#ifdef OUTPUT_TESTS
 static void
 testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting)
 {
@@ -231,7 +237,7 @@ testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::stri
 	ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
 
 	// set up output file
-	auto const outputPath = temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
+	auto const outputPath = cti::temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
 	char const* toolDaemonArgs[] = {outputPath.get(), nullptr};
 	ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, toolDaemonArgs, nullptr), SUCCESS) << cti_error_str();
 
@@ -301,3 +307,4 @@ TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 }
+#endif

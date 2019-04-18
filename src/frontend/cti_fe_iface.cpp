@@ -49,8 +49,8 @@
 
 // utility includes
 #include "useful/cti_useful.h"
-#include "useful/Dlopen.hpp"
-#include "useful/ExecvpOutput.hpp"
+#include "useful/cti_wrappers.hpp"
+#include "useful/cti_execvp.hpp"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_overwatch.hpp"
 
@@ -307,8 +307,8 @@ namespace cti_conventions
 		else {
 			// Query for the slurm package using rpm
 			// FIXME: This is a hack. This should be addressed by PE-25088
-			auto rpmArgv = cti_argv::ManagedArgv { "rpm", "-q", "slurm" };
-			ExecvpOutput rpmOutput("rpm", rpmArgv.get());
+			auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "slurm" };
+			cti::Execvp rpmOutput("rpm", rpmArgv.get());
 			auto res = rpmOutput.getExitStatus();
 			if (res == 0) {
 				// The slurm package is installed. This is a naive check.
@@ -392,8 +392,8 @@ public: // variables
 	std::unique_ptr<Frontend> currentFrontendPtr;
 
 	Logger logger;
-	Pipe overwatchReqPipe;
-	Pipe overwatchRespPipe;
+	cti::Pipe overwatchReqPipe;
+	cti::Pipe overwatchRespPipe;
 
 public: // interface
 	CTIFEIface()
@@ -468,7 +468,7 @@ public: // interface
 
 			// setup args
 			using OWA = CTIOverwatchArgv;
-			cti_argv::OutgoingArgv<OWA> overwatchArgv{overwatch_bin};
+			cti::OutgoingArgv<OWA> overwatchArgv{overwatch_bin};
 			overwatchArgv.add(OWA::ReadFD,  std::to_string(overwatchReqPipe.getReadFd()));
 			overwatchArgv.add(OWA::WriteFD, std::to_string(overwatchRespPipe.getWriteFd()));
 
