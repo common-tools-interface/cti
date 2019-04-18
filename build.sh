@@ -78,7 +78,7 @@ module load $cmake_module
 
 autoreconf -ifv
 set -x
-./configure --enable-static=no --prefix=$BUILD_DIR -C
+./configure --enable-static=no --prefix=$BUILD_DIR
 set +x
 
 make -j32
