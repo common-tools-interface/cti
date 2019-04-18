@@ -33,7 +33,6 @@
 #include <unordered_map>
 #include <future>
 #include <vector>
-#include <tuple>
 
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
@@ -187,25 +186,21 @@ cti_overwatch_handler(int sig, siginfo_t *sig_info, void *secret)
 
 /* register helpers */
 
-static int registerAppPID(pid_t const app_pid)
+static void registerAppPID(pid_t const app_pid)
 {
 	if ((app_pid > 0) && !appList.contains(app_pid)) {
 		// register app pid
 		appList.insert(app_pid);
 	} else {
-		fprintf(stderr, "invalid app pid: %d\n", app_pid);
-		return 1;
+		throw std::runtime_error("invalid app pid: " + std::to_string(app_pid));
 	}
-
-	return 0;
 }
 
-static int registerUtilPID(pid_t const app_pid, pid_t const util_pid)
+static void registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 {
 	// verify app pid
 	if (app_pid <= 0) {
-		fprintf(stderr, "invalid app_pid: %d\n", app_pid);
-		return 1;
+		throw std::runtime_error("invalid app pid: " + std::to_string(app_pid));
 	}
 
 	// register app pid if valid and not tracked
@@ -217,11 +212,18 @@ static int registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 	if ((app_pid > 0) && (util_pid > 0)) {
 		utilMap[app_pid].insert(util_pid);
 	} else {
-		fprintf(stderr, "invalid util pid: %d\n", util_pid);
-		return 1;
+		throw std::runtime_error("invalid util pid: " + std::to_string(util_pid));
 	}
+}
 
-	return 0;
+// receive a single null-terminated string from stream
+static std::string receiveString(std::istream& reqStream)
+{
+	std::string result;
+	if (!std::getline(reqStream, result, '\0')) {
+		throw std::runtime_error("failed to read string");
+	}
+	return result;
 }
 
 // pipe command handlers
@@ -233,21 +235,13 @@ static pid_t forkExecvpReq(LaunchReq const& launchReq)
 	std::istream reqStream{&reqBuf};
 
 	// read filename
-	std::string filename;
-	if (!std::getline(reqStream, filename, '\0')) {
-		fprintf(stderr, "failed to read filename\n");
-		return pid_t{-1};
-	}
+	auto const filename = receiveString(reqStream);
 	fprintf(stderr, "got file: %s\n", filename.c_str());
 
 	// read arguments
 	cti::ManagedArgv argv;
-	std::string arg;
 	while (true) {
-		if (!std::getline(reqStream, arg, '\0')) {
-			fprintf(stderr, "failed to read arg\n");
-			return pid_t{-1};
-		}
+		auto const arg = receiveString(reqStream);
 		if (arg.empty()) {
 			break;
 		} else {
@@ -260,17 +254,13 @@ static pid_t forkExecvpReq(LaunchReq const& launchReq)
 	std::unordered_map<std::string, std::string> envMap;
 	std::string envVarVal;
 	while (true) {
-		if (!std::getline(reqStream, envVarVal, '\0')) {
-			fprintf(stderr, "failed to read env var\n");
-			return pid_t{-1};
-		}
+		auto const envVarVal = receiveString(reqStream);
 		if (envVarVal.empty()) {
 			break;
 		} else {
 			auto const equalsAt = envVarVal.find("=");
 			if (equalsAt == std::string::npos) {
-				fprintf(stderr, "failed to parse env var: '%s'\n", envVarVal.c_str());
-				return pid_t{-1};
+				throw std::runtime_error("failed to parse env var: " + envVarVal);
 			} else {
 				fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
 				envMap.emplace(envVarVal.substr(0, equalsAt), envVarVal.substr(equalsAt + 1));
@@ -281,8 +271,7 @@ static pid_t forkExecvpReq(LaunchReq const& launchReq)
 	// fork exec
 	if (auto const forkedPid = fork()) {
 		if (forkedPid < 0) {
-			fprintf(stderr, "fork error\n");
-			return pid_t{-1};
+			throw std::runtime_error("fork error: " + std::string{strerror(errno)});
 		}
 
 		// parent case
@@ -311,25 +300,30 @@ static pid_t forkExecvpReq(LaunchReq const& launchReq)
 
 		// exec srun
 		execvp(filename.c_str(), argv.get());
-
-		// exec shouldn't return
-		fprintf(stderr, "return from exec\n");
-		return pid_t{-1};
+		perror("execvp");
+		exit(1);
 	}
 }
 
 static void handle_forkExecvpAppReq(LaunchReq const& launchReq)
 {
-	auto const forkedPid = forkExecvpReq(launchReq);
+	try {
+		// fork exec the app based on launch request
+		auto const forkedPid = forkExecvpReq(launchReq);
 
-	if ((forkedPid > 0) && !registerAppPID(forkedPid)) {
+		// register the new app
+		registerAppPID(forkedPid);
+
 		// send PID response
 		PIDResp const pidResp =
 			{ .type = OverwatchRespType::PID
 			, .pid  = forkedPid
 		};
 		rawWriteLoop(respFd, pidResp);
-	} else {
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
 		// send failure response
 		PIDResp const pidResp =
 			{ .type = OverwatchRespType::PID
@@ -341,16 +335,23 @@ static void handle_forkExecvpAppReq(LaunchReq const& launchReq)
 
 static void handle_forkExecvpUtilReq(LaunchReq const& launchReq)
 {
-	auto const forkedPid = forkExecvpReq(launchReq);
+	try {
+		// fork exec the app based on launch request
+		auto const forkedPid = forkExecvpReq(launchReq);
 
-	if ((forkedPid > 0) && !registerUtilPID(launchReq.app_pid, forkedPid)) {
+		// register the new utility
+		registerUtilPID(launchReq.app_pid, forkedPid);
+
 		// send PID response
 		PIDResp const pidResp =
 			{ .type = OverwatchRespType::PID
 			, .pid  = forkedPid
 		};
 		rawWriteLoop(respFd, pidResp);
-	} else {
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
 		// send failure response
 		PIDResp const pidResp =
 			{ .type = OverwatchRespType::PID
@@ -378,13 +379,19 @@ static void handle_releaseMPIRReq(ReleaseMPIRReq const& releaseMPIRReq)
 
 static void handle_registerAppReq(AppReq const& registerReq)
 {
-	if ((registerReq.app_pid > 0) && !registerAppPID(registerReq.app_pid)) {
+	try {
+		// register the new app
+		registerAppPID(registerReq.app_pid);
+
 		// send OK response
 		rawWriteLoop(respFd, OKResp
 			{ .type = OverwatchRespType::OK
 			, .success = true
 		});
-	} else {
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
 		// send failure response
 		rawWriteLoop(respFd, OKResp
 			{ .type = OverwatchRespType::OK
@@ -395,13 +402,19 @@ static void handle_registerAppReq(AppReq const& registerReq)
 
 static void handle_registerUtilReq(UtilReq const& registerReq)
 {
-	if ((registerReq.util_pid > 0) && !registerUtilPID(registerReq.app_pid, registerReq.util_pid)) {
+	try {
+		// register the new utility
+		registerUtilPID(registerReq.app_pid, registerReq.util_pid);
+
 		// send OK response
 		rawWriteLoop(respFd, OKResp
 			{ .type = OverwatchRespType::OK
 			, .success = true
 		});
-	} else {
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
 		// send failure response
 		rawWriteLoop(respFd, OKResp
 			{ .type = OverwatchRespType::OK
@@ -435,7 +448,13 @@ static void handle_deregisterAppReq(AppReq const& deregisterReq)
 			, .success = true
 		});
 	} else {
-		throw std::runtime_error("invalid app pid: " + std::to_string(deregisterReq.app_pid));
+		fprintf(stderr, "invalid app pid: %d\n", deregisterReq.app_pid);
+
+		// send failure response
+		rawWriteLoop(respFd, OKResp
+			{ .type = OverwatchRespType::OK
+			, .success = false
+		});
 	}
 }
 
