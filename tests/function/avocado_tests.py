@@ -21,11 +21,11 @@ SUPPORT_PATH  = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
 
 '''
 function_tests runs all of the Googletest-instrumented functional tests
-'''
+
 class FunctionTest(Test):
 	def test(self):
 		process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
-
+'''
 '''
 cti_barrier launches a binary, holds it at the startup barrier until
 the user presses enter.

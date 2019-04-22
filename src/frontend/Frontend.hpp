@@ -25,7 +25,7 @@
 #include "cti_fe_iface.h"
 
 #include "useful/cti_useful.h"
-#include "useful/cti_overwatch.h"
+#include "useful/cti_overwatch.hpp"
 
 struct CTIHost {
 	std::string hostname;
@@ -43,22 +43,6 @@ std::string const& _cti_getLdAuditPath();
 std::string const& _cti_getOverwatchPath();
 std::string const& _cti_getDlaunchPath();
 Logger&   _cti_getLogger();
-
-inline static overwatch_handle
-make_overwatch_handle(pid_t targetPid)
-{
-	if (targetPid) {
-		// parent case
-		if (targetPid < 0) {
-			throw std::runtime_error("fork failed");
-		}
-
-		return overwatch_handle{_cti_getBaseDir() + "/libexec/" + CTI_OVERWATCH_BINARY, targetPid};
-	} else {
-		// child case
-		return overwatch_handle{};
-	}
-}
 
 /* CTI Frontend object interfaces */
 

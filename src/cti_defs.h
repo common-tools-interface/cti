@@ -234,6 +234,21 @@ struct SattachArgv : public cti::Argv {
     long_options_done };
 };
 
+struct CTIOverwatchArgv : public cti::Argv {
+    using Option    = cti::Argv::Option;
+    using Parameter = cti::Argv::Parameter;
+
+    static constexpr Option Help  { "help",  'h' };
+
+    static constexpr Parameter ReadFD  { "read",  'r' };
+    static constexpr Parameter WriteFD { "write", 'w' };
+
+    static constexpr GNUOption long_options[] = {
+        Help,
+        ReadFD, WriteFD,
+    long_options_done };
+};
+
 // XXX: flaw in C++11 relating to static constexpr. can be removed in C++17
 #ifdef INSIDE_WORKAROUND_OBJ
 
@@ -254,6 +269,10 @@ constexpr Parameter         DA::ApID, DA::Binary, DA::Directory, DA::EnvVariable
                             DA::InstSeqNum, DA::ManifestName, DA::ToolPath,
                             DA::PMIAttribsPath, DA::LdLibraryPath, DA::WLMEnum;
 constexpr cti::Argv::GNUOption DA::long_options[];
+
+constexpr Option            CTIOverwatchArgv::Help;
+constexpr Parameter         CTIOverwatchArgv::ReadFD, CTIOverwatchArgv::WriteFD;
+constexpr cti::Argv::GNUOption CTIOverwatchArgv::long_options[];
 
 #endif /* INSIDE_WORKAROUND_OBJ */
 
