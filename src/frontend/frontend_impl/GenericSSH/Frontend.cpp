@@ -363,7 +363,7 @@ struct SSHSession {
 GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
 	: m_launcherPid { _cti_registerApp(launcherPid) } // register launcher app on overwatch
 	, m_stepLayout  { GenericSSHFrontend::fetchStepLayout(launcherInstance->getProcTable()) }
-	, m_dlaunchSent { false }
+	, m_beDaemonSent { false }
 
 	, m_launcherInstance { std::move(launcherInstance) }
 
@@ -386,7 +386,7 @@ GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& 
 GenericSSHApp::GenericSSHApp(GenericSSHApp&& moved)
 	: m_launcherPid { moved.m_launcherPid }
 	, m_stepLayout  { moved.m_stepLayout }
-	, m_dlaunchSent { moved.m_dlaunchSent }
+	, m_beDaemonSent { moved.m_beDaemonSent }
 
 	, m_launcherInstance { std::move(moved.m_launcherInstance) }
 
@@ -520,21 +520,21 @@ GenericSSHApp::startDaemon(const char* const args[])
 		throw std::runtime_error("args array is empty!");
 	}
 
-	// Transfer the dlaunch binary to the backends if it has not yet been transferred
-	if (!m_dlaunchSent) {
-		// Get the location of the daemon launcher
-		if (_cti_getDlaunchPath().empty()) {
+	// Transfer the backend daemon to the backends if it has not yet been transferred
+	if (!m_beDaemonSent) {
+		// Get the location of the backend daemon
+		if (_cti_getBEDaemonPath().empty()) {
 			throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
 		}
 
-		shipPackage(_cti_getDlaunchPath());
+		shipPackage(_cti_getBEDaemonPath());
 
 		// set transfer to true
-		m_dlaunchSent = true;
+		m_beDaemonSent = true;
 	}
 
 	// Use location of existing launcher binary on compute node
-	std::string const launcherPath{m_toolPath + "/" + CTI_DLAUNCH_BINARY};
+	std::string const launcherPath{m_toolPath + "/" + CTI_BE_DAEMON_BINARY};
 
 	// Prepare the launcher arguments
 	cti::ManagedArgv launcherArgv { launcherPath };

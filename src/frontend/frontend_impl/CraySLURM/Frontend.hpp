@@ -112,7 +112,7 @@ private: // variables
 	CraySLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
 	int      m_queuedOutFd; // Where to redirect stdout after barrier release
 	int      m_queuedErrFd; // Where to redirect stderr after barrier release
-	bool     m_dlaunchSent; // Have we already shipped over the dlaunch utility?
+	bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
 
 	std::unique_ptr<MPIRInstance> m_stoppedSrun; // MPIR instance handle to release startup barrier
 	cti::temp_file_handle m_outputPath;

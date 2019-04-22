@@ -69,7 +69,7 @@ class GenericSSHApp : public App
 private: // variables
 	pid_t      m_launcherPid; // job launcher PID
 	GenericSSHFrontend::StepLayout m_stepLayout; // SSH Layout of job step
-	bool       m_dlaunchSent; // Have we already shipped over the dlaunch utility?
+	bool       m_beDaemonSent; // Have we already shipped over the backend daemon?
 
 	std::unique_ptr<MPIRInstance> m_launcherInstance; // MPIR instance handle to release startup barrier
 

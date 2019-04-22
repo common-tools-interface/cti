@@ -41,7 +41,7 @@ std::string const& _cti_getCfgDir();
 std::string const& _cti_getBaseDir();
 std::string const& _cti_getLdAuditPath();
 std::string const& _cti_getOverwatchPath();
-std::string const& _cti_getDlaunchPath();
+std::string const& _cti_getBEDaemonPath();
 Logger&   _cti_getLogger();
 
 /* CTI Frontend object interfaces */

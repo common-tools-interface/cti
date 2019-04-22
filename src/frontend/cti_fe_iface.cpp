@@ -387,7 +387,7 @@ public: // variables
 	std::string const base_dir;
 	std::string const ld_audit_lib;
 	std::string const overwatch_bin;
-	std::string const dlaunch_bin;
+	std::string const be_daemon_bin;
 
 	std::unique_ptr<Frontend> currentFrontendPtr;
 
@@ -406,7 +406,7 @@ public: // interface
 		, base_dir{cti_conventions::setupBaseDir()}
 		, ld_audit_lib{cti_conventions::accessiblePath(base_dir + "/lib/" + LD_AUDIT_LIB_NAME)}
 		, overwatch_bin{cti_conventions::accessiblePath(base_dir + "/libexec/" + CTI_OVERWATCH_BINARY)}
-		, dlaunch_bin{cti_conventions::accessiblePath(base_dir + "/libexec/" + CTI_DLAUNCH_BINARY)}
+		, be_daemon_bin{cti_conventions::accessiblePath(base_dir + "/libexec/" + CTI_BE_DAEMON_BINARY)}
 
 		, currentFrontendPtr{cti_conventions::detect_Frontend()}
 
@@ -514,8 +514,8 @@ _cti_getOverwatchPath() {
 }
 
 std::string const&
-_cti_getDlaunchPath() {
-	return _cti_getState().dlaunch_bin;
+_cti_getBEDaemonPath() {
+	return _cti_getState().be_daemon_bin;
 }
 
 Frontend&

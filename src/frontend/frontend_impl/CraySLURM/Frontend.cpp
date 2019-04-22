@@ -47,7 +47,7 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunI
 	: m_launcherPid  { srunInstance.stoppedSrun ? srunInstance.stoppedSrun->getLauncherPid() : pid_t{0} }
 	, m_srunInfo     { jobid, stepid }
 	, m_stepLayout   { CraySLURMFrontend::fetchStepLayout(jobid, stepid) }
-	, m_dlaunchSent  { false }
+	, m_beDaemonSent  { false }
 
 	, m_stoppedSrun { std::move(srunInstance.stoppedSrun) }
 	, m_outputPath  { std::move(srunInstance.outputPath) }
@@ -79,7 +79,7 @@ CraySLURMApp::CraySLURMApp(CraySLURMApp&& moved)
 	: m_launcherPid { moved.m_launcherPid }
 	, m_srunInfo    { moved.m_srunInfo }
 	, m_stepLayout  { moved.m_stepLayout }
-	, m_dlaunchSent { moved.m_dlaunchSent }
+	, m_beDaemonSent { moved.m_beDaemonSent }
 
 	, m_stoppedSrun { std::move(moved.m_stoppedSrun) }
 	, m_outputPath  { std::move(moved.m_outputPath) }
@@ -278,24 +278,24 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 		throw std::runtime_error("args array is null!");
 	}
 
-	// If we have not yet transfered the dlaunch binary, we need to do that in advance with
+	// If we have not yet transfered the backend daemon, need to do that in advance with
 	// native slurm
-	if (!m_dlaunchSent) {
-		// Get the location of the daemon launcher
-		if (_cti_getDlaunchPath().empty()) {
+	if (!m_beDaemonSent) {
+		// Get the location of the daemon
+		if (_cti_getBEDaemonPath().empty()) {
 			throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
 		}
 
-		shipPackage(_cti_getDlaunchPath());
+		shipPackage(_cti_getBEDaemonPath());
 
 		// set transfer to true
-		m_dlaunchSent = true;
+		m_beDaemonSent = true;
 	}
 
-	// use existing launcher binary on compute node
-	std::string const remoteDlaunchPath(m_toolPath + "/" + CTI_DLAUNCH_BINARY);
+	// use existing daemon binary on compute node
+	std::string const remoteBEDaemonPath(m_toolPath + "/" + CTI_BE_DAEMON_BINARY);
 
-	// Start adding the args to the launcher argv array
+	// Start adding the args to the launchder argv array
 	//
 	// This corresponds to:
 	//
@@ -331,7 +331,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 		launcherArgv.add("--nodelist=" + hostlist);
 	}
 
-	launcherArgv.add(remoteDlaunchPath);
+	launcherArgv.add(remoteBEDaemonPath);
 
 	// merge in the args array if there is one
 	if (args != nullptr) {
