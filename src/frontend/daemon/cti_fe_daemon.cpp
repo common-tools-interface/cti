@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cti_overwatch.cpp - cti overwatch process used to ensure child
+ * cti_fe_daemon.cpp - cti fe_daemon process used to ensure child
  *                     processes will be cleaned up on unexpected exit.
  *
  * Copyright 2019 Cray Inc.  All Rights Reserved.
@@ -38,7 +38,7 @@
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
 
-#include "cti_overwatch.hpp"
+#include "cti_fe_daemon.hpp"
 
 
 static void tryTerm(pid_t const pid)
@@ -171,7 +171,7 @@ sigchld_handler(pid_t const exitedPid)
 
 // dispatch to sigchld / term handler
 void
-cti_overwatch_handler(int sig, siginfo_t *sig_info, void *secret)
+cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 {
 	if (sig == SIGCHLD) {
 		if ((sig_info->si_code == CLD_EXITED) && (sig_info->si_pid > 1)) {
@@ -474,7 +474,7 @@ void
 usage(char *name)
 {
 	fprintf(stdout, "Usage: %s [OPTIONS]...\n", name);
-	fprintf(stdout, "Create an overwatch process to ensure children are cleaned up on parent exit\n");
+	fprintf(stdout, "Create fe_daemon process to ensure children are cleaned up on parent exit\n");
 	fprintf(stdout, "This should not be called directly.\n\n");
 
 	fprintf(stdout, "\t-%c, --%s  fd of read control pipe         (required)\n",
@@ -549,7 +549,7 @@ main(int argc, char *argv[])
 	// set handler for SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
 	struct sigaction sig_action;
 	sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
-	sig_action.sa_sigaction = cti_overwatch_handler;
+	sig_action.sa_sigaction = cti_fe_daemon_handler;
 	if (sigaction(SIGTERM, &sig_action, nullptr) ||
 	    sigaction(SIGCHLD, &sig_action, nullptr) ||
 	    sigaction(SIGPIPE, &sig_action, nullptr) ||

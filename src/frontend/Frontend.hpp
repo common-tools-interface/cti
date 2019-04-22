@@ -25,7 +25,7 @@
 #include "cti_fe_iface.h"
 
 #include "useful/cti_useful.h"
-#include "useful/cti_overwatch.hpp"
+#include "frontend/daemon/cti_fe_daemon.hpp"
 
 struct CTIHost {
 	std::string hostname;
@@ -40,7 +40,7 @@ using CArgArray = const char* const[];
 std::string const& _cti_getCfgDir();
 std::string const& _cti_getBaseDir();
 std::string const& _cti_getLdAuditPath();
-std::string const& _cti_getOverwatchPath();
+std::string const& _cti_getFEDaemonPath();
 std::string const& _cti_getBEDaemonPath();
 Logger&   _cti_getLogger();
 

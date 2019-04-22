@@ -10,7 +10,7 @@
 # in any form.
 #
 
-SUBDIRS				= cti_transfer frontend_impl mpir_iface
+SUBDIRS				= daemon cti_transfer frontend_impl mpir_iface
 
 SRC             	= @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS 	= --quiet
