@@ -25,7 +25,6 @@
 #include <unistd.h>
 
 #include <sys/ioctl.h>
-#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -238,29 +237,16 @@ void CraySLURMApp::kill(int signum)
 		, getJobId() // fourth argument is the jobid.stepid
 	};
 
-	// fork off a process to launch scancel
-	if (auto const scancelPid = fork()) {
-		if (scancelPid < 0) {
-			throw std::runtime_error("fork failed");
-		}
+	// tell overwatch to launch scancel
+	auto const scancelPid = _cti_forkExecvpUtil(m_launcherPid, SCANCEL, scancelArgv.get(), -1, -1, nullptr);
 
-		// parent case: wait until the scancel finishes
-		waitpid(scancelPid, nullptr, 0);
-
-	} else {
-		// child case: exec scancel
-		execvp(SCANCEL, scancelArgv.get());
-
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execvp");
-		_exit(1);
-	}
+	// wait until the scancel finishes
+	waitpid(scancelPid, nullptr, 0);
 }
 
 void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 	// create the args for sbcast
-	auto launcherArgv = cti::ManagedArgv
+	auto sbcastArgv = cti::ManagedArgv
 		{ SBCAST
 		, "-C"
 		, "-j", std::to_string(m_srunInfo.jobid)
@@ -269,56 +255,27 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 	};
 
 	if (auto packageName = cti::make_unique_destr(_cti_pathToName(tarPath.c_str()), std::free)) {
-		launcherArgv.add(std::string(CRAY_SLURM_TOOL_DIR) + "/" + packageName.get());
+		sbcastArgv.add(std::string(CRAY_SLURM_TOOL_DIR) + "/" + packageName.get());
 	} else {
 		throw std::runtime_error("_cti_pathToName failed");
 	}
 
-	// now ship the tarball to the compute nodes. fork off a process to launch sbcast
-	if (auto const forkedPid = fork()) {
-		if (forkedPid < 0) {
-			throw std::runtime_error("fork failed");
-		}
+	// now ship the tarball to the compute nodes. tell overwatch to launch sbcast
+	auto const forkedPid = _cti_forkExecvpUtil(m_launcherPid, SBCAST, sbcastArgv.get(), -1, -1, nullptr);
 
-		// parent case: wait until the sbcast finishes
-
-		// FIXME: There is no way to error check right now because the sbcast command
-		// can only send to an entire job, not individual job steps. The /var/spool/alps/<apid>
-		// directory will only exist on nodes associated with this particular job step, and the
-		// sbcast command will exit with error if the directory doesn't exist even if the transfer
-		// worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
-		waitpid(forkedPid, nullptr, 0);
-
-	} else {
-		// child case: redirect stdin, stdout, stderr to /dev/null
-		dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
-		dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
-		dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
-
-		// exec sbcast
-		execvp(SBCAST, launcherArgv.get());
-
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execvp");
-		_exit(1);
-	}
+	// wait until the sbcast finishes
+	// FIXME: There is no way to error check right now because the sbcast command
+	// can only send to an entire job, not individual job steps. The /var/spool/alps/<apid>
+	// directory will only exist on nodes associated with this particular job step, and the
+	// sbcast command will exit with error if the directory doesn't exist even if the transfer
+	// worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
+	waitpid(forkedPid, nullptr, 0);
 }
 
 void CraySLURMApp::startDaemon(const char* const args[]) {
 	// sanity check
 	if (args == nullptr) {
 		throw std::runtime_error("args array is null!");
-	}
-
-	// get max number of file descriptors - used later
-	auto max_fd = size_t{};
-	{ struct rlimit rl;
-		if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
-			throw std::runtime_error("getrlimit failed.");
-		} else {
-			max_fd = (rl.rlim_max == RLIM_INFINITY) ? 1024 : rl.rlim_max;
-		}
 	}
 
 	// If we have not yet transfered the dlaunch binary, we need to do that in advance with
@@ -383,53 +340,25 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 		}
 	}
 
-	// fork off a process to launch srun
-	if (auto forkedPid = fork()) {
-		// parent case: place the child in its own group.
-		setpgid(forkedPid, forkedPid);
-
-		// overwatch srun utility
-		_cti_registerUtil(m_launcherPid, forkedPid);
-	} else {
-		// child case: Place this process in its own group to prevent signals being passed
-		// to it. This is necessary in case the child code execs before the
-		// parent can put us into our own group.
-		setpgid(0, 0);
-
-		// dup2 all stdin/out/err to /dev/null
-		auto const devNullFd = open("/dev/null", O_RDONLY);
-		dup2(devNullFd, STDIN_FILENO);
-		dup2(devNullFd, STDOUT_FILENO);
-		dup2(devNullFd, STDERR_FILENO);
-
-		// close all open file descriptors above STDERR
-		for (size_t i = 3; i < max_fd; ++i) {
-			close(i);
-		}
-
-		// clear out the blacklisted slurm env vars to ensure we don't get weird behavior
-		auto const envVarBlacklist = std::vector<char const*>{
-			"SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
-			"SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
-			"SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
-			"SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
-			"SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
-			"SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
-			"SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
-			"SLURM_WORKING_DIR"
-		};
-		for (auto const& envVar : envVarBlacklist) {
-			unsetenv(envVar);
-		}
-
-		// exec srun
-		execvp(CraySLURMFrontend::getLauncherName().c_str(), launcherArgv.get());
-
-		// exec shouldn't return
-		fprintf(stderr, "CTI error: Return from exec.\n");
-		perror("execvp");
-		_exit(1);
+	// build environment from blacklist
+	auto const envVarBlacklist = std::vector<std::string>{
+		"SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
+		"SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
+		"SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
+		"SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
+		"SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
+		"SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
+		"SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
+		"SLURM_WORKING_DIR"
+	};
+	cti::ManagedArgv launcherEnv;
+	for (auto&& envVar : envVarBlacklist) {
+		launcherEnv.add(envVar + "=");
 	}
+
+	// tell overwatch to launch srun
+	auto const forkedPid = _cti_forkExecvpUtil(m_launcherPid,
+		CraySLURMFrontend::getLauncherName().c_str(), launcherArgv.get(), -1, -1, launcherEnv.get());
 }
 
 /* cray slurm frontend implementation */
@@ -680,19 +609,19 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 	// Get the launcher path from CTI environment variable / default.
 	if (auto const launcher_path = cti::make_unique_destr(_cti_pathFind(CraySLURMFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
-		// run output redirection binary
-		auto const redirectPid = _cti_registerApp(fork());
-		if (!redirectPid) {
-			std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
-			const char* const redirectArgv[] = { OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr };
-			dup2((stdoutFd < 0) ? STDOUT_FILENO : stdoutFd, STDOUT_FILENO);
-			dup2((stderrFd < 0) ? STDERR_FILENO : stderrFd, STDERR_FILENO);
-			execv(redirectPath.c_str(), (char* const*)redirectArgv);
-			perror("execv");
-			exit(1);
-		}
+		// set up arguments and FDs
+		std::string const redirectPath = _cti_getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
+		char const* redirectArgv[] = {
+			OUTPUT_REDIRECT_BINARY, srunInstance.outputPath.get(), srunInstance.errorPath.get(), nullptr
+		};
+		if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
+		if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
 
-		/* construct argv array & instance*/
+		// run output redirection binary as app (register as util later)
+		auto const redirectPid = _cti_forkExecvpApp(redirectPath.c_str(), redirectArgv,
+			stdoutFd, stderrFd, nullptr);
+
+		// construct argv array & instance
 		std::vector<std::string> launcherArgv
 			{ launcher_path.get()
 			, "--output=" + std::string{srunInstance.outputPath.get()}
@@ -702,7 +631,7 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 			launcherArgv.emplace_back(*arg);
 		}
 
-		/* env_list null-terminated strings in format <var>=<val>*/
+		// env_list null-terminated strings in format <var>=<val>
 		std::vector<std::string> envVars;
 		if (env_list != nullptr) {
 			for (const char* const* arg = env_list; *arg != nullptr; arg++) {
