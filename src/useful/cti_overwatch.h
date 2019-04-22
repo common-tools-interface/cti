@@ -36,6 +36,7 @@ void				_cti_exit_overwatch(cti_overwatch_t *);
 #include <signal.h>
 
 #include <memory>
+namespace cti {
 
 // assign a cti_overwatch handle on construction, tell overwatch to kill pid on destruction
 class overwatch_handle
@@ -88,6 +89,8 @@ public: // interface
 
 	pid_t getPid() const { return m_targetPid; }
 };
+
+} /* namespace cti */
 
 #endif
 

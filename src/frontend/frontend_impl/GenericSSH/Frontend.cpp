@@ -11,9 +11,8 @@
  *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -32,8 +31,8 @@
 
 #include <unordered_map>
 
-#include "cti_defs.h"
-#include "cti_fe_iface.h"
+// Pull in manifest to properly define all the forward declarations
+#include "cti_transfer/Manifest.hpp"
 
 #include "GenericSSH/Frontend.hpp"
 
@@ -360,17 +359,18 @@ struct SSHSession {
 	}
 };
 
-GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
-	: m_launcherPid { launcherPid }
-	, m_stepLayout  { GenericSSHFrontend::fetchStepLayout(launcherInstance->getProcTable()) }
+GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
+	: App(fe)
+	, m_launcherPid { launcherPid }
+	, m_stepLayout  { fe.fetchStepLayout(launcherInstance->getProcTable()) }
 	, m_dlaunchSent { false }
 
 	, m_launcherInstance { std::move(launcherInstance) }
 
 	, m_toolPath    { SSH_TOOL_DIR }
 	, m_attribsPath { SSH_TOOL_DIR }
-	, m_stagePath   { cti::cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SSH_STAGE_DIR}) }
-	, m_extraFiles  { GenericSSHFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
+	, m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR}) }
+	, m_extraFiles  { fe.createNodeLayoutFile(m_stepLayout, m_stagePath) }
 
 {
 	// Ensure there are running nodes in the job.
@@ -380,24 +380,8 @@ GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& 
 
 	// If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
 	if (m_launcherInstance) {
-		m_extraFiles.push_back(GenericSSHFrontend::createPIDListFile(m_launcherInstance->getProcTable(), m_stagePath));
+		m_extraFiles.push_back(fe.createPIDListFile(m_launcherInstance->getProcTable(), m_stagePath));
 	}
-}
-
-GenericSSHApp::GenericSSHApp(GenericSSHApp&& moved)
-	: m_launcherPid { moved.m_launcherPid }
-	, m_stepLayout  { moved.m_stepLayout }
-	, m_dlaunchSent { moved.m_dlaunchSent }
-
-	, m_launcherInstance { std::move(moved.m_launcherInstance) }
-
-	, m_toolPath    { moved.m_toolPath }
-	, m_attribsPath { moved.m_attribsPath }
-	, m_stagePath   { moved.m_stagePath }
-	, m_extraFiles  { moved.m_extraFiles }
-{
-	// We have taken ownership of the staging path, so don't let moved delete the directory.
-	moved.m_stagePath.erase();
 }
 
 GenericSSHApp::~GenericSSHApp()
@@ -410,20 +394,24 @@ GenericSSHApp::~GenericSSHApp()
 
 /* app instance creation */
 
-GenericSSHApp::GenericSSHApp(pid_t launcherPid)
-	: GenericSSHApp{launcherPid, nullptr}
+GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid)
+	: GenericSSHApp{fe, launcherPid, nullptr}
 {}
 
-GenericSSHApp::GenericSSHApp(std::unique_ptr<MPIRInstance>&& launcherInstance)
+GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, std::unique_ptr<MPIRInstance>&& launcherInstance)
 	: GenericSSHApp
-		{ launcherInstance->getLauncherPid()
+		{ fe
+		, launcherInstance->getLauncherPid()
 		, std::move(launcherInstance)
-	}
+		}
 {}
 
-GenericSSHApp::GenericSSHApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
-	: GenericSSHApp{ GenericSSHFrontend::launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list) }
+	: GenericSSHApp
+		{ fe
+		, fe.launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list)
+		}
 {}
 
 /* running app info accessors */
@@ -517,11 +505,12 @@ GenericSSHApp::startDaemon(const char* const args[])
 	// Transfer the dlaunch binary to the backends if it has not yet been transferred
 	if (!m_dlaunchSent) {
 		// Get the location of the daemon launcher
-		if (_cti_getDlaunchPath().empty()) {
+		auto& fe = getFrontend();
+		if (fe.getDlaunchPath().empty()) {
 			throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
 		}
 
-		shipPackage(_cti_getDlaunchPath());
+		shipPackage(fe.getDlaunchPath());
 
 		// set transfer to true
 		m_dlaunchSent = true;
@@ -549,15 +538,24 @@ GenericSSHApp::startDaemon(const char* const args[])
 
 /* SSH frontend implementation */
 
-std::unique_ptr<App>
+std::weak_ptr<App>
 GenericSSHFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 		CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-	return std::make_unique<GenericSSHApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
-		chdirPath, env_list);
+	auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(	*this,
+																launcher_argv,
+																stdout_fd,
+																stderr_fd,
+																inputFile,
+																chdirPath,
+																env_list));
+	if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
 }
 
-std::unique_ptr<App>
+std::weak_ptr<App>
 GenericSSHFrontend::registerJob(size_t numIds, ...)
 {
 	if (numIds != 1) {
@@ -571,7 +569,11 @@ GenericSSHFrontend::registerJob(size_t numIds, ...)
 
 	va_end(idArgs);
 
-	return std::make_unique<GenericSSHApp>(launcherPid);
+	auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(*this, launcherPid));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
 }
 
 std::string
@@ -580,7 +582,7 @@ GenericSSHFrontend::getHostname() const
 	return cti::cstr::gethostname();
 }
 
-/* SSH frontend static implementations */
+/* SSH frontend implementations */
 
 std::string
 GenericSSHFrontend::getLauncherName()

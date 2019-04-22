@@ -2,7 +2,7 @@
  * cti_overwatch.c - library routines to interface with the cti overwatch
  *                   process.
  *
- * Copyright 2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -12,9 +12,8 @@
  *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <fcntl.h>
 #include <signal.h>

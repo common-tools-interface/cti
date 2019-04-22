@@ -16,7 +16,6 @@
 
 #include "cti_log.h"
 #include "cti_overwatch.h"
-#include "cti_error.h"
 #include "cti_path.h"
 #include "cti_stack.h"
 

@@ -1,7 +1,7 @@
 /******************************************************************************\
  * MPIRInstance.cpp
  *
- * Copyright 2018 Cray Inc.  All Rights Reserved.
+ * Copyright 2018-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -10,6 +10,9 @@
  * in any form.
  *
  ******************************************************************************/
+
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <sstream>
 // POSIX extensions enabled by autoconf

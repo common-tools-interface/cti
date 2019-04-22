@@ -41,10 +41,10 @@ class CraySLURMFrontend final : public Frontend
 public: // inherited interface
 	cti_wlm_type getWLMType() const override { return CTI_WLM_CRAY_SLURM; }
 
-	std::unique_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+	std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 		CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
-	std::unique_ptr<App> registerJob(size_t numIds, ...) override;
+	std::weak_ptr<App> registerJob(size_t numIds, ...) override;
 
 	std::string getHostname() const override;
 
@@ -65,12 +65,12 @@ public: // slurm specific types
 		std::unique_ptr<MPIRInstance> stoppedSrun; // SRUN inferior for barrier release
 		cti::temp_file_handle outputPath; // handle to output fifo file
 		cti::temp_file_handle errorPath;  // handle to error fifo file
-		overwatch_handle redirectUtility; // running output redirection utility
+		cti::overwatch_handle redirectUtility; // running output redirection utility
 	};
 
 public: // slurm specific interface
 	// Get the default launcher binary name, or, if provided, from the environment.
-	static std::string getLauncherName();
+	std::string getLauncherName();
 
 	// use sattach to retrieve node / host information about a SLURM job
 	/* sattach layout format:
@@ -79,27 +79,27 @@ public: // slurm specific interface
 	  <newline>
 	  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }...
 	*/
-	static StepLayout fetchStepLayout(uint32_t job_id, uint32_t step_id);
+	StepLayout fetchStepLayout(uint32_t job_id, uint32_t step_id);
 
 	// Use a Slurm Step Layout to create the SLURM Node Layout file inside the staging directory, return the new path.
-	static std::string createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath);
+	std::string createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath);
 
 	// Use an MPIR ProcTable to create the SLURM PID List file inside the staging directory, return the new path.
-	static std::string createPIDListFile(std::vector<MPIRInstance::MPIR_ProcTableElem> const& procTable, std::string const& stagePath);
+	std::string createPIDListFile(std::vector<MPIRInstance::MPIR_ProcTableElem> const& procTable, std::string const& stagePath);
 
 	// Launch a SLURM app under MPIR control and hold at SRUN barrier.
-	static SrunInstance launchApp(const char * const launcher_argv[],
+	SrunInstance launchApp(const char * const launcher_argv[],
 		const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
 		const char * const env_list[]);
 
 	// Extract the SLURM Job ID from launcher memory using an existing MPIR control session.
-	static uint32_t fetchJobId(MPIRInstance& srunInstance);
+	uint32_t fetchJobId(MPIRInstance& srunInstance);
 
 	// Extract the SLURM Step ID from launcher memory using an existing MPIR control session. Optional, returns 0 on failure.
-	static uint32_t fetchStepId(MPIRInstance& srunInstance);
+	uint32_t fetchStepId(MPIRInstance& srunInstance);
 
 	// attach and read srun info
-	static SrunInfo getSrunInfo(pid_t srunPid);
+	SrunInfo getSrunInfo(pid_t srunPid);
 };
 
 class CraySLURMApp final : public App
@@ -113,7 +113,7 @@ private: // variables
 	int                    m_queuedOutFd; // Where to redirect stdout after barrier release
 	int                    m_queuedErrFd; // Where to redirect stderr after barrier release
 	bool                   m_dlaunchSent; // Have we already shipped over the dlaunch utility?
-	std::vector<overwatch_handle> m_watchedUtilities; // active utility redirect / sattach / srun instances
+	std::vector<cti::overwatch_handle> m_watchedUtilities; // active utility redirect / sattach / srun instances
 
 	std::unique_ptr<MPIRInstance> m_stoppedSrun; // MPIR instance handle to release startup barrier
 	cti::temp_file_handle m_outputPath;
@@ -127,18 +127,17 @@ private: // variables
 private: // member helpers
 	void redirectOutput(int stdoutFd, int stderrFd);
 	// delegated constructor
-	CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunInstance);
+	CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobid, uint32_t stepid, SrunInstance&& srunInstance);
 
 public: // constructor / destructor interface
 	// register case
-	CraySLURMApp(uint32_t jobid, uint32_t stepid);
+	CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobid, uint32_t stepid);
 	// attach case
-	CraySLURMApp(SrunInstance&& srunInstance);
+	CraySLURMApp(CraySLURMFrontend& fe, SrunInstance&& srunInstance);
 	// launch case
-	CraySLURMApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-		const char *inputFile, const char *chdirPath, const char * const env_list[]);
+	CraySLURMApp(CraySLURMFrontend& fe, const char * const launcher_argv[], int stdout_fd,
+		int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
-	CraySLURMApp(CraySLURMApp&& moved);
 	~CraySLURMApp();
 
 public: // app interaction interface

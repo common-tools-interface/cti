@@ -1,6 +1,6 @@
 /*********************************************************************************\
  * cti_be.c - A interface to interact with placement information on compute
- *		  nodes. This provides the tool developer with an easy to use interface 
+ *		  nodes. This provides the tool developer with an easy to use interface
  *        to obtain application information for backend tool daemons running on
  *        the compute nodes.
  *
@@ -14,9 +14,8 @@
  *
  *********************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -53,11 +52,11 @@ void __attribute__((constructor))
 _cti_be_init(void)
 {
 	char *	wlm_str;
-	
+
 	// Ensure we have not already called init
 	if (_cti_be_isInit)
 		return;
-	
+
 	// We do not want to call init if we are running on the frontend
 	if (getenv(BE_GUARD_ENV_VAR) == NULL)
 		return;
@@ -68,35 +67,35 @@ _cti_be_init(void)
 		fprintf(stderr, "Env var %s not set!\n", WLM_ENV_VAR);
 		return;
 	}
-	
+
 	// verify that the wlm string is valid
 	switch (atoi(wlm_str))
 	{
 		case CTI_BE_WLM_CRAY_SLURM:
 			_cti_be_wlmProto = &_cti_be_cray_slurm_wlmProto;
 			break;
-		
+
 		case CTI_BE_WLM_SSH:
 			_cti_be_wlmProto = &_cti_be_slurm_wlmProto;
 			break;
-			
+
 		case CTI_BE_WLM_NONE:
 			// These wlm are not supported
 			fprintf(stderr, "wlm %s is not yet supported!\n", cti_be_wlm_type_toString(atoi(wlm_str)));
 			return;
-		
+
 		default:
 			fprintf(stderr, "Env var %s is invalid.\n", WLM_ENV_VAR);
 			return;
 	}
-	
+
 	if (_cti_be_wlmProto->wlm_init())
 	{
 		// We failed to init, so ensure we set the WLM proto to noneness
 		_cti_be_wlmProto = &_cti_be_nonenessProto;
 		return;
 	}
-	
+
 	_cti_be_isInit = true;
 }
 
@@ -110,12 +109,12 @@ _cti_be_fini(void)
 
 	// call the wlm finish function
 	_cti_be_wlmProto->wlm_fini();
-	
+
 	// reset the wlm proto to noneness
 	_cti_be_wlmProto = &_cti_be_nonenessProto;
-	
+
 	_cti_be_isFini = true;
-	
+
 	return;
 }
 
@@ -138,14 +137,14 @@ cti_be_wlm_type_toString(cti_be_wlm_type wlm_type)
 	{
 		case CTI_BE_WLM_CRAY_SLURM:
 			return "Cray based SLURM";
-	
+
 		case CTI_BE_WLM_SSH:
 			return "Fallback (SSH based) workload manager";
-			
+
 		case CTI_BE_WLM_NONE:
 			return "No WLM detected";
 	}
-	
+
 	// Shouldn't get here
 	return "Invalid WLM.";
 }
@@ -154,13 +153,13 @@ char *
 cti_be_getAppId(void)
 {
 	char *	apid_str;
-	
+
 	// get the apid string from the environment
 	if ((apid_str = getenv(APID_ENV_VAR)) == NULL)
 	{
 		return NULL;
 	}
-	
+
 	return strdup(apid_str);
 }
 
@@ -177,10 +176,10 @@ cti_be_destroyPidList(cti_pidList_t *lst)
 	// sanity check
 	if (lst == NULL)
 		return;
-		
+
 	if (lst->pids != NULL)
 		free(lst->pids);
-		
+
 	free(lst);
 }
 
@@ -210,13 +209,13 @@ char *
 _cti_be_getToolDir()
 {
 	char *	tool_str;
-	
+
 	// get the string from the environment
 	if ((tool_str = getenv(TOOL_DIR_VAR)) == NULL)
 	{
 		return NULL;
 	}
-	
+
 	return strdup(tool_str);
 }
 
@@ -225,13 +224,13 @@ char *
 _cti_be_getAttribsDir()
 {
 	char *	attribs_str;
-	
+
 	// get the string from the environment
 	if ((attribs_str = getenv(PMI_ATTRIBS_DIR_VAR)) == NULL)
 	{
 		return NULL;
 	}
-	
+
 	return strdup(attribs_str);
 }
 
@@ -239,13 +238,13 @@ char *
 cti_be_getRootDir()
 {
 	char *	root_str;
-	
+
 	// get the string from the environment
 	if ((root_str = getenv(ROOT_DIR_VAR)) == NULL)
 	{
 		return NULL;
 	}
-	
+
 	return strdup(root_str);
 }
 
@@ -253,13 +252,13 @@ char *
 cti_be_getBinDir()
 {
 	char *	bin_str;
-	
+
 	// get the string from the environment
 	if ((bin_str = getenv(BIN_DIR_VAR)) == NULL)
 	{
 		return NULL;
 	}
-	
+
 	return strdup(bin_str);
 }
 
@@ -267,13 +266,13 @@ char *
 cti_be_getLibDir()
 {
 	char *	lib_str;
-	
+
 	// get the string from the environment
 	if ((lib_str = getenv(LIB_DIR_VAR)) == NULL)
 	{
 		return NULL;
 	}
-	
+
 	return strdup(lib_str);
 }
 
@@ -281,13 +280,13 @@ char *
 cti_be_getFileDir()
 {
 	char *	file_str;
-	
+
 	// get the string from the environment
 	if ((file_str = getenv(FILE_DIR_VAR)) == NULL)
 	{
 		return NULL;
 	}
-	
+
 	return strdup(file_str);
 }
 
@@ -295,13 +294,13 @@ char *
 cti_be_getTmpDir()
 {
 	char *	tmp_str;
-	
+
 	// get the string from the environment
 	if ((tmp_str = getenv(SCRATCH_ENV_VAR)) == NULL)
 	{
 		return NULL;
 	}
-	
+
 	return strdup(tmp_str);
 }
 
