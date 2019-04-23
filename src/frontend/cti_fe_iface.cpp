@@ -551,14 +551,14 @@ _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], i
 	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, app_pid, file, argv, stdout_fd, stderr_fd, env);
 }
 
-std::pair<cti::fe_daemon::MPIRId, MPIRInstance::ProcTable>
+std::pair<cti::fe_daemon::MPIRId, MPIRProctable>
 _cti_launchMPIR(char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
 {
 	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::LaunchMPIR);
 	cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdout_fd, stderr_fd, env);
-	return cti::fe_daemon::readMPIRProcTableResp(respFd);
+	return cti::fe_daemon::readMPIRProctableResp(respFd);
 }
 
 void

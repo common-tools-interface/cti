@@ -84,7 +84,7 @@ public: // slurm specific interface
 	static std::string createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath);
 
 	// Use an MPIR ProcTable to create the SLURM PID List file inside the staging directory, return the new path.
-	static std::string createPIDListFile(std::vector<MPIRInstance::MPIR_ProcTableElem> const& procTable, std::string const& stagePath);
+	static std::string createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath);
 
 	// Launch a SLURM app under MPIR control and hold at SRUN barrier.
 	static SrunInstance launchApp(const char * const launcher_argv[],

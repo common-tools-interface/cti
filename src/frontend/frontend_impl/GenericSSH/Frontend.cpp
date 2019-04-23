@@ -362,7 +362,7 @@ struct SSHSession {
 
 GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
 	: m_launcherPid { _cti_registerApp(launcherPid) } // register launcher app on overwatch
-	, m_stepLayout  { GenericSSHFrontend::fetchStepLayout(launcherInstance->getProcTable()) }
+	, m_stepLayout  { GenericSSHFrontend::fetchStepLayout(launcherInstance->getProctable()) }
 	, m_beDaemonSent { false }
 
 	, m_launcherInstance { std::move(launcherInstance) }
@@ -379,7 +379,7 @@ GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& 
 
 	// If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
 	if (m_launcherInstance) {
-		m_extraFiles.push_back(GenericSSHFrontend::createPIDListFile(m_launcherInstance->getProcTable(), m_stagePath));
+		m_extraFiles.push_back(GenericSSHFrontend::createPIDListFile(m_launcherInstance->getProctable(), m_stagePath));
 	}
 }
 
@@ -604,7 +604,7 @@ GenericSSHFrontend::getLauncherName()
 }
 
 GenericSSHFrontend::StepLayout
-GenericSSHFrontend::fetchStepLayout(MPIRInstance::ProcTable const& procTable)
+GenericSSHFrontend::fetchStepLayout(MPIRProctable const& procTable)
 {
 	StepLayout layout;
 	layout.numPEs = procTable.size();
@@ -682,7 +682,7 @@ GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& s
 }
 
 std::string
-GenericSSHFrontend::createPIDListFile(MPIRInstance::ProcTable const& procTable, std::string const& stagePath)
+GenericSSHFrontend::createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath)
 {
 	auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
 	if (auto const pidFile = cti::file::open(pidPath, "wb")) {

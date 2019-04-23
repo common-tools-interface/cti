@@ -13,6 +13,7 @@
 #pragma once
 
 #include "frontend/Frontend.hpp"
+#include "frontend/mpir_iface/MPIRProctable.hpp"
 #include "cti_fe_daemon.hpp"
 
 /* fd read / write helpers */
@@ -82,7 +83,7 @@ pid_t _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const arg
 	int stderr_fd, char const* const env[]);
 
 // overwatch will launch a binary under MPIR control and extract its proctable
-std::pair<cti::fe_daemon::MPIRId, MPIRInstance::ProcTable> _cti_launchMPIR(char const* file,
+std::pair<cti::fe_daemon::MPIRId, MPIRProctable> _cti_launchMPIR(char const* file,
 	char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[]);
 
 // overwatch will release a binary under mpir control from its breakpoint
@@ -132,7 +133,7 @@ bool readOKResp(int const respFd);
 pid_t readPIDResp(int const respFd);
 
 // read an MPIR proctable response from pipe
-std::pair<MPIRId, MPIRInstance::ProcTable> readMPIRProcTableResp(int const respFd);
+std::pair<MPIRId, MPIRProctable> readMPIRProctableResp(int const respFd);
 
 }; // fe_daemon
 }; // cti

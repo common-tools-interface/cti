@@ -158,16 +158,16 @@ cti::fe_daemon::readPIDResp(int const respFd)
 	return pidResp.pid;
 }
 
-std::pair<cti::fe_daemon::MPIRId, MPIRInstance::ProcTable>
-cti::fe_daemon::readMPIRProcTableResp(int const respFd)
+std::pair<cti::fe_daemon::MPIRId, MPIRProctable>
+cti::fe_daemon::readMPIRProctableResp(int const respFd)
 {
 	// read basic table information
-	auto const proctableResp = rawReadLoop<MPIRProcTableResp>(respFd);
-	if (proctableResp.type != RespType::MPIRProcTable) {
+	auto const proctableResp = rawReadLoop<MPIRProctableResp>(respFd);
+	if (proctableResp.type != RespType::Proctable) {
 		throw std::runtime_error("failed to read proctable response");
 	}
 
-	MPIRInstance::ProcTable result;
+	MPIRProctable result;
 	result.reserve(proctableResp.num_pids);
 
 	// fill in pids

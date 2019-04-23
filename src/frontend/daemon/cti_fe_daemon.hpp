@@ -12,8 +12,6 @@
  ******************************************************************************/
 #pragma once
 
-#include "frontend/mpir_iface/MPIRInstance.hpp"
-
 namespace cti {
 namespace fe_daemon {
 
@@ -78,7 +76,7 @@ enum RespType : long {
 	PID,
 
 	// LaunchMPIR
-	MPIRProcTable,
+	Proctable,
 };
 
 struct OKResp
@@ -93,7 +91,7 @@ struct PIDResp
 	pid_t pid;
 };
 
-struct MPIRProcTableResp
+struct MPIRProctableResp
 {
 	RespType type;
 	MPIRId mpir_id;

@@ -71,7 +71,7 @@ CraySLURMApp::CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunI
 		// ctor, which is called after the slurm startup barrier, meaning it will not
 		// yet be created when launching. So we need to send over a file containing
 		// the information to the compute nodes.
-		m_extraFiles.push_back(CraySLURMFrontend::createPIDListFile(m_stoppedSrun->getProcTable(), m_stagePath));
+		m_extraFiles.push_back(CraySLURMFrontend::createPIDListFile(m_stoppedSrun->getProctable(), m_stagePath));
 	}
 }
 
@@ -548,7 +548,7 @@ CraySLURMFrontend::createNodeLayoutFile(StepLayout const& stepLayout, std::strin
 }
 
 std::string
-CraySLURMFrontend::createPIDListFile(std::vector<MPIRInstance::MPIR_ProcTableElem> const& procTable, std::string const& stagePath)
+CraySLURMFrontend::createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath)
 {
 	auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
 	if (auto const pidFile = cti::file::open(pidPath, "wb")) {
