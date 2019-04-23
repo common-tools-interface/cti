@@ -551,10 +551,8 @@ _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], i
 	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, app_pid, file, argv, stdout_fd, stderr_fd, env);
 }
 
-
-#ifdef MPIR
-MPIR::ProcTable
-_cti_launchMPIR(char const* file, char const* argv[], int stdout_fd, int stderr_fd)
+MPIRInstance::ProcTable
+_cti_launchMPIR(char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
 {
 	throw std::runtime_error("not implemented");
 }
@@ -564,7 +562,6 @@ _cti_releaseMPIRBreakpoint(int mpir_id)
 {
 	throw std::runtime_error("not implemented");
 }
-#else
 
 pid_t
 _cti_registerApp(pid_t app_pid)

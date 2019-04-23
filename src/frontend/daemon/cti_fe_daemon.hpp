@@ -12,9 +12,7 @@
  ******************************************************************************/
 #pragma once
 
-#ifdef MPIR
 #include "frontend/mpir_iface/MPIRInstance.hpp"
-#endif
 
 namespace cti {
 namespace fe_daemon {
@@ -25,18 +23,11 @@ enum ReqType : long {
 	ForkExecvpApp,
 	ForkExecvpUtil,
 
-	#ifdef MPIR
-
 	LaunchMPIR,
-	ReleaseMPIR
-
-	#else
+	ReleaseMPIR,
 
 	RegisterApp,
 	RegisterUtil,
-
-	#endif
-
 	DeregisterApp,
 
 	Shutdown
@@ -57,14 +48,10 @@ struct LaunchReq
 	// sum of lengths of these strings including null-terminators should equal `file_and_argv_len`
 };
 
-#ifdef MPIR
-
 struct ReleaseMPIRReq
 {
 	int mpir_id;
 };
-
-#else
 
 // RegisterApp, DeregisterApp
 struct AppReq
@@ -79,8 +66,6 @@ struct UtilReq
 	pid_t util_pid;
 };
 
-#endif
-
 // Response types
 
 enum RespType : long {
@@ -90,10 +75,8 @@ enum RespType : long {
 	// ForkExecvpApp, ForkExecvpUtil
 	PID,
 
-	#ifdef MPIR
 	// LaunchMPIR
 	MPIRProcTable,
-	#endif
 };
 
 struct OKResp
@@ -108,7 +91,6 @@ struct PIDResp
 	pid_t pid;
 };
 
-#ifdef MPIR
 struct MPIRProcTableResp
 {
 	RespType type;
@@ -119,7 +101,6 @@ struct MPIRProcTableResp
 	// - list of null-terminated hostnames
 	// - EMPTY STRING
 };
-#endif
 
 }; // fe_daemon
 }; // cti

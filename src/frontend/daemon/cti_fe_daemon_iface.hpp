@@ -12,10 +12,6 @@
  ******************************************************************************/
 #pragma once
 
-#ifdef MPIR
-#include "frontend/mpir_iface/MPIRInstance.hpp"
-#endif
-
 #include "frontend/Frontend.hpp"
 #include "cti_fe_daemon.hpp"
 
@@ -85,15 +81,12 @@ pid_t _cti_forkExecvpApp(char const* file, char const* const argv[], int stdout_
 pid_t _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdout_fd,
 	int stderr_fd, char const* const env[]);
 
-#ifdef MPIR
-
 // overwatch will launch a binary under MPIR control and extract its proctable
-MPIR::ProcTable _cti_launchMPIR(char const* file, char const* const argv[], int stdout_fd, int stderr_fd,
-	char const* const env[]);
+MPIRInstance::ProcTable _cti_launchMPIR(char const* file, char const* const argv[], int stdout_fd,
+	int stderr_fd, char const* const env[]);
 
 // overwatch will release a binary under mpir control from its breakpoint
 void _cti_releaseMPIRBreakpoint(int mpir_id);
-#else
 
 // overwatch will register an already-forked process as an app. make sure this is paired with a
 // _cti_deregisterApp for timely cleanup
@@ -101,7 +94,6 @@ pid_t _cti_registerApp(pid_t app_pid);
 
 // overwatch will register an already-forked process as a utility belonging to app_pid
 pid_t _cti_registerUtil(pid_t app_pid, pid_t util_pid);
-#endif
 
 // overwatch will terminate all utilities belonging to app_pid and deregister app_pid
 void _cti_deregisterApp(pid_t app_pid);
