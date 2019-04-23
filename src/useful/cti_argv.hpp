@@ -50,6 +50,11 @@ public:
 		std::copy(moved.argv.begin(), moved.argv.end(), std::back_inserter(argv));
 		moved.argv.clear();
 	}
+	ManagedArgv& operator= (ManagedArgv&& moved) {
+		std::copy(moved.argv.begin(), moved.argv.end(), std::back_inserter(argv));
+		moved.argv.clear();
+		return *this;
+	}
 
 	/* member methods */
 	size_t size() const { return argv.size(); }

@@ -28,20 +28,27 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <tuple>
-#include <set>
-#include <unordered_map>
 #include <future>
 #include <vector>
+#include <unordered_set>
 
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
 
-#include "cti_fe_daemon.hpp"
+#include "cti_fe_daemon_iface.hpp"
 
+using ReqType   = cti::fe_daemon::ReqType;
+using LaunchReq = cti::fe_daemon::LaunchReq;
+using AppReq    = cti::fe_daemon::AppReq;
+using UtilReq   = cti::fe_daemon::UtilReq;
 
-static void tryTerm(pid_t const pid)
+using RespType  = cti::fe_daemon::RespType;
+using OKResp    = cti::fe_daemon::OKResp;
+using PIDResp   = cti::fe_daemon::PIDResp;
+
+static void
+tryTerm(pid_t const pid)
 {
 	fprintf(stderr, "tryterm %d\n", pid);
 	if (::kill(pid, SIGTERM)) {
@@ -56,7 +63,7 @@ static void tryTerm(pid_t const pid)
 
 struct ProcSet
 {
-	std::set<pid_t> m_pids;
+	std::unordered_set<pid_t> m_pids;
 
 	ProcSet() {}
 
@@ -112,16 +119,34 @@ int respFd = -1; // outgoing response pipe
 // threading helpers
 std::vector<std::future<void>> runningThreads;
 template <typename Func>
-void start_thread(Func&& func) {
+static void start_thread(Func&& func) {
 	runningThreads.emplace_back(std::async(std::launch::async, func));
 }
-void finish_threads() {
+static void finish_threads() {
 	for (auto&& future : runningThreads) {
 		future.wait();
 	}
 }
 
-void shutdown_and_exit(int const rc)
+/* runtime helpers */
+
+static void
+usage(char *name)
+{
+	fprintf(stdout, "Usage: %s [OPTIONS]...\n", name);
+	fprintf(stdout, "Create fe_daemon process to ensure children are cleaned up on parent exit\n");
+	fprintf(stdout, "This should not be called directly.\n\n");
+
+	fprintf(stdout, "\t-%c, --%s  fd of read control pipe         (required)\n",
+		CTIOverwatchArgv::ReadFD.val, CTIOverwatchArgv::ReadFD.name);
+	fprintf(stdout, "\t-%c, --%s  fd of write control pipe        (required)\n",
+		CTIOverwatchArgv::WriteFD.val, CTIOverwatchArgv::WriteFD.name);
+	fprintf(stdout, "\t-%c, --%s  Display this text and exit\n\n",
+		CTIOverwatchArgv::Help.val, CTIOverwatchArgv::Help.name);
+}
+
+static void
+shutdown_and_exit(int const rc)
 {
 	// block all signals
 	sigset_t block_set;
@@ -155,7 +180,7 @@ void shutdown_and_exit(int const rc)
 
 /* signal handlers */
 
-void
+static void
 sigchld_handler(pid_t const exitedPid)
 {
 	// regular app termination
@@ -170,7 +195,7 @@ sigchld_handler(pid_t const exitedPid)
 }
 
 // dispatch to sigchld / term handler
-void
+static void
 cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 {
 	if (sig == SIGCHLD) {
@@ -184,9 +209,10 @@ cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 	}
 }
 
-/* register helpers */
+/* registration helpers */
 
-static void registerAppPID(pid_t const app_pid)
+static void
+registerAppPID(pid_t const app_pid)
 {
 	if ((app_pid > 0) && !appList.contains(app_pid)) {
 		// register app pid
@@ -196,7 +222,8 @@ static void registerAppPID(pid_t const app_pid)
 	}
 }
 
-static void registerUtilPID(pid_t const app_pid, pid_t const util_pid)
+static void
+registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 {
 	// verify app pid
 	if (app_pid <= 0) {
@@ -216,8 +243,32 @@ static void registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 	}
 }
 
+/* pipe command helpers */
+
+// write a boolean response to pipe
+static void
+writeOKResp(int const respFd, bool  const success)
+{
+	rawWriteLoop(respFd, OKResp
+		{ .type = RespType::OK
+		, .success = success
+	});
+}
+
+// write a pid response to pipe
+static void
+writePIDResp(int const respFd, pid_t const pid)
+{
+	rawWriteLoop(respFd, PIDResp
+		{ .type = RespType::PID
+		, .pid  = pid
+	});
+}
+
+
 // receive a single null-terminated string from stream
-static std::string receiveString(std::istream& reqStream)
+static std::string
+receiveString(std::istream& reqStream)
 {
 	std::string result;
 	if (!std::getline(reqStream, result, '\0')) {
@@ -226,11 +277,11 @@ static std::string receiveString(std::istream& reqStream)
 	return result;
 }
 
-// pipe command handlers
-
-static pid_t forkExecvpReq(LaunchReq const& launchReq)
+// read filename, argv, environment map appended to an app / util / mpir launch request
+static std::tuple<std::string, cti::ManagedArgv, std::unordered_map<std::string, std::string>>
+readLaunchReq(int const reqFd)
 {
-	// set up pipe stream
+		// set up pipe stream
 	cti::FdBuf reqBuf{dup(reqFd)};
 	std::istream reqStream{&reqBuf};
 
@@ -267,6 +318,60 @@ static pid_t forkExecvpReq(LaunchReq const& launchReq)
 			}
 		}
 	}
+
+	return std::make_tuple(filename, std::move(argv), envMap);
+}
+
+// if running the pid-producing function succeeds, write a PID response to pipe
+template <typename Func>
+static void
+tryWritePIDResp(int const respFd, Func&& func)
+{
+	try {
+		// run the pid-producing function
+		auto const pid = func();
+
+		// send PID response
+		writePIDResp(respFd, pid);
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
+		// send failure response
+		writePIDResp(respFd, pid_t{-1});
+	}
+}
+
+// if running the function succeeds, write an OK response to pipe
+template <typename Func>
+static void
+tryWriteOKResp(int const respFd, Func&& func)
+{
+	try {
+		// run the function
+		func();
+
+		// send OK response
+		writeOKResp(respFd, true);
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
+		// send failure response
+		writeOKResp(respFd, false);
+	}
+}
+
+/* request handlers */
+
+static pid_t
+handle_launchReq(LaunchReq const& launchReq)
+{
+	// read filename, argv, env array from pipe
+	std::string filename;
+	cti::ManagedArgv argv;
+	std::unordered_map<std::string, std::string> envMap;
+	std::tie(filename, argv, envMap) = readLaunchReq(reqFd);
 
 	// fork exec
 	if (auto const forkedPid = fork()) {
@@ -305,127 +410,8 @@ static pid_t forkExecvpReq(LaunchReq const& launchReq)
 	}
 }
 
-static void handle_forkExecvpAppReq(LaunchReq const& launchReq)
-{
-	try {
-		// fork exec the app based on launch request
-		auto const forkedPid = forkExecvpReq(launchReq);
-
-		// register the new app
-		registerAppPID(forkedPid);
-
-		// send PID response
-		PIDResp const pidResp =
-			{ .type = OverwatchRespType::PID
-			, .pid  = forkedPid
-		};
-		rawWriteLoop(respFd, pidResp);
-
-	} catch (std::exception const& ex) {
-		fprintf(stderr, "%s\n", ex.what());
-
-		// send failure response
-		PIDResp const pidResp =
-			{ .type = OverwatchRespType::PID
-			, .pid  = pid_t{-1}
-		};
-		rawWriteLoop(respFd, pidResp);
-	}
-}
-
-static void handle_forkExecvpUtilReq(LaunchReq const& launchReq)
-{
-	try {
-		// fork exec the app based on launch request
-		auto const forkedPid = forkExecvpReq(launchReq);
-
-		// register the new utility
-		registerUtilPID(launchReq.app_pid, forkedPid);
-
-		// send PID response
-		PIDResp const pidResp =
-			{ .type = OverwatchRespType::PID
-			, .pid  = forkedPid
-		};
-		rawWriteLoop(respFd, pidResp);
-
-	} catch (std::exception const& ex) {
-		fprintf(stderr, "%s\n", ex.what());
-
-		// send failure response
-		PIDResp const pidResp =
-			{ .type = OverwatchRespType::PID
-			, .pid  = pid_t{-1}
-		};
-		rawWriteLoop(respFd, pidResp);
-	}
-}
-
-#ifdef MPIR
-
-static void handle_launchMPIRReq(LaunchReq const& launchReq)
-{
-	fprintf(stderr, "not implemented: LaunchMPIR\n");
-	shutdown_and_exit(1);
-}
-
-static void handle_releaseMPIRReq(ReleaseMPIRReq const& releaseMPIRReq)
-{
-	fprintf(stderr, "not implemented: ReleaseMPIR\n");
-	shutdown_and_exit(1);
-}
-
-#else
-
-static void handle_registerAppReq(AppReq const& registerReq)
-{
-	try {
-		// register the new app
-		registerAppPID(registerReq.app_pid);
-
-		// send OK response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = true
-		});
-
-	} catch (std::exception const& ex) {
-		fprintf(stderr, "%s\n", ex.what());
-
-		// send failure response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = false
-		});
-	}
-}
-
-static void handle_registerUtilReq(UtilReq const& registerReq)
-{
-	try {
-		// register the new utility
-		registerUtilPID(registerReq.app_pid, registerReq.util_pid);
-
-		// send OK response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = true
-		});
-
-	} catch (std::exception const& ex) {
-		fprintf(stderr, "%s\n", ex.what());
-
-		// send failure response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = false
-		});
-	}
-}
-
-#endif
-
-static void handle_deregisterAppReq(AppReq const& deregisterReq)
+static void
+handle_deregisterAppReq(AppReq const& deregisterReq)
 {
 	if (deregisterReq.app_pid > 0) {
 		// terminate all of app's utilities
@@ -441,48 +427,9 @@ static void handle_deregisterAppReq(AppReq const& deregisterReq)
 
 		// finish util termination
 		utilTermFuture.wait();
-
-		// send OK response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = true
-		});
 	} else {
-		fprintf(stderr, "invalid app pid: %d\n", deregisterReq.app_pid);
-
-		// send failure response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = false
-		});
+		throw std::runtime_error("invalid app pid: " + std::to_string(deregisterReq.app_pid));
 	}
-}
-
-static void handle_shutdownReq()
-{
-	// send OK response
-	rawWriteLoop(respFd, OKResp
-		{ .type = OverwatchRespType::OK
-		, .success = true
-	});
-
-	// run shutdown
-	shutdown_and_exit(0);
-}
-
-void
-usage(char *name)
-{
-	fprintf(stdout, "Usage: %s [OPTIONS]...\n", name);
-	fprintf(stdout, "Create fe_daemon process to ensure children are cleaned up on parent exit\n");
-	fprintf(stdout, "This should not be called directly.\n\n");
-
-	fprintf(stdout, "\t-%c, --%s  fd of read control pipe         (required)\n",
-		CTIOverwatchArgv::ReadFD.val, CTIOverwatchArgv::ReadFD.name);
-	fprintf(stdout, "\t-%c, --%s  fd of write control pipe        (required)\n",
-		CTIOverwatchArgv::WriteFD.val, CTIOverwatchArgv::WriteFD.name);
-	fprintf(stdout, "\t-%c, --%s  Display this text and exit\n\n",
-		CTIOverwatchArgv::Help.val, CTIOverwatchArgv::Help.name);
 }
 
 int
@@ -560,51 +507,95 @@ main(int argc, char *argv[])
 
 	// write our PID to signal to the parent we are all set up
 	fprintf(stderr, "%d sending initial ok\n", getpid());
-	rawWriteLoop(respFd, PIDResp 
-		{ .type = OverwatchRespType::PID
-		, .pid  = getpid()
-	});
+	writePIDResp(respFd, getpid());
 
 	// wait for pipe commands
 	while (true) {
-		auto const reqType = rawReadLoop<OverwatchReqType>(reqFd);
+		auto const reqType = rawReadLoop<ReqType>(reqFd);
 		fprintf(stderr, "req type %ld\n", reqType);
 
 		switch (reqType) {
 
-			case OverwatchReqType::ForkExecvpApp:
-				handle_forkExecvpAppReq(rawReadLoop<LaunchReq>(reqFd));
+			case ReqType::ForkExecvpApp:
+				tryWritePIDResp(respFd, [&]() {
+					auto const launchReq = rawReadLoop<LaunchReq>(reqFd);
+
+					// fork exec the app based on launch request
+					auto const forkedPid = handle_launchReq(launchReq);
+					// register the new app
+					registerAppPID(forkedPid);
+
+					return forkedPid;
+				});
 				break;
 
-			case OverwatchReqType::ForkExecvpUtil:
-				handle_forkExecvpUtilReq(rawReadLoop<LaunchReq>(reqFd));
+			case ReqType::ForkExecvpUtil:
+				tryWritePIDResp(respFd, [&]() {
+					auto const launchReq = rawReadLoop<LaunchReq>(reqFd);
+
+					// fork exec the util based on launch request
+					auto const forkedPid = handle_launchReq(launchReq);
+					// register the new utility
+					registerUtilPID(launchReq.app_pid, forkedPid);
+
+					return forkedPid;
+				});
 				break;
 
 #ifdef MPIR
-			case OverwatchReqType::LaunchMPIR:
-				handle_launchMPIRReq(rawReadLoop<LaunchReq>(reqFd));
+			case ReqType::LaunchMPIR:
+				tryWritePIDResp(respFd, [&]() {
+					auto const launchReq = rawReadLoop<LaunchReq>(reqFd);
+
+					fprintf(stderr, "not implemented: LaunchMPIR\n");
+					shutdown_and_exit(1);
+					return 0;
+				});
 				break;
 
-			case OverwatchReqType::ReleaseMPIR:
-				handle_releaseMPIRReq(rawReadLoop<ReleaseMPIRReq>(reqFd));
+			case ReqType::ReleaseMPIR:
+				tryWriteOKResp(respFd, [&]() {
+					auto const releaseMPIRReq = rawReadLoop<ReleaseMPIRReq>(reqFd);
+
+					fprintf(stderr, "not implemented: ReleaseMPIR\n");
+					shutdown_and_exit(1);
+				});
 				break;
 #else
 
-			case OverwatchReqType::RegisterApp:
-				handle_registerAppReq(rawReadLoop<AppReq>(reqFd));
+			case ReqType::RegisterApp:
+				tryWriteOKResp(respFd, [&]() {
+					auto const registerReq = rawReadLoop<AppReq>(reqFd);
+
+					// register the new app
+					registerAppPID(registerReq.app_pid);
+				});
 				break;
 
-			case OverwatchReqType::RegisterUtil:
-				handle_registerUtilReq(rawReadLoop<UtilReq>(reqFd));
+			case ReqType::RegisterUtil:
+				fprintf(stderr, "start register\n");
+				tryWriteOKResp(respFd, [&]() {
+					fprintf(stderr, "read register\n");
+					auto const registerReq = rawReadLoop<UtilReq>(reqFd);
+
+					// register the new utility
+					fprintf(stderr, "run register\n");
+					registerUtilPID(registerReq.app_pid, registerReq.util_pid);
+				});
+				fprintf(stderr, "ok sent\n");
 				break;
 #endif
 
-			case OverwatchReqType::DeregisterApp:
-				handle_deregisterAppReq(rawReadLoop<AppReq>(reqFd));
+			case ReqType::DeregisterApp:
+				tryWriteOKResp(respFd, [&]() {
+					handle_deregisterAppReq(rawReadLoop<AppReq>(reqFd));
+				});
 				break;
 
-			case OverwatchReqType::Shutdown:
-				handle_shutdownReq();
+			case ReqType::Shutdown:
+				// send OK response and run shutdown
+				writeOKResp(respFd, true);
+				shutdown_and_exit(0);
 				break;
 
 			default:

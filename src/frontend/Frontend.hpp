@@ -25,7 +25,7 @@
 #include "cti_fe_iface.h"
 
 #include "useful/cti_useful.h"
-#include "frontend/daemon/cti_fe_daemon.hpp"
+#include "daemon/cti_fe_daemon_iface.hpp"
 
 struct CTIHost {
 	std::string hostname;
