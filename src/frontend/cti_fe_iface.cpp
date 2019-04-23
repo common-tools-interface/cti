@@ -551,16 +551,23 @@ _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], i
 	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, app_pid, file, argv, stdout_fd, stderr_fd, env);
 }
 
-MPIRInstance::ProcTable
+std::pair<cti::fe_daemon::MPIRId, MPIRInstance::ProcTable>
 _cti_launchMPIR(char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
 {
-	throw std::runtime_error("not implemented");
+	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::LaunchMPIR);
+	cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdout_fd, stderr_fd, env);
+	return cti::fe_daemon::readMPIRProcTableResp(respFd);
 }
 
 void
-_cti_releaseMPIRBreakpoint(int mpir_id)
+_cti_releaseMPIRBreakpoint(cti::fe_daemon::MPIRId mpir_id)
 {
-	throw std::runtime_error("not implemented");
+	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::ReleaseMPIR);
+	return cti::fe_daemon::writeReleaseMPIRReq(reqFd, respFd, mpir_id);
 }
 
 pid_t
@@ -580,8 +587,6 @@ _cti_registerUtil(pid_t app_pid, pid_t util_pid)
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::RegisterUtil);
 	return cti::fe_daemon::writeUtilReq(reqFd, respFd, app_pid, util_pid);
 }
-
-#endif
 
 void
 _cti_deregisterApp(pid_t app_pid)

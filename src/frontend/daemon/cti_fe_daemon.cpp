@@ -265,23 +265,20 @@ writePIDResp(int const respFd, pid_t const pid)
 	});
 }
 
-
-// receive a single null-terminated string from stream
-static std::string
-receiveString(std::istream& reqStream)
-{
-	std::string result;
-	if (!std::getline(reqStream, result, '\0')) {
-		throw std::runtime_error("failed to read string");
-	}
-	return result;
-}
-
 // read filename, argv, environment map appended to an app / util / mpir launch request
 static std::tuple<std::string, cti::ManagedArgv, std::unordered_map<std::string, std::string>>
 readLaunchReq(int const reqFd)
 {
-		// set up pipe stream
+	// receive a single null-terminated string from stream
+	auto receiveString = [](std::istream& reqStream) {
+		std::string result;
+		if (!std::getline(reqStream, result, '\0')) {
+			throw std::runtime_error("failed to read string");
+		}
+		return result;
+	};
+
+	// set up pipe stream
 	cti::FdBuf reqBuf{dup(reqFd)};
 	std::istream reqStream{&reqBuf};
 

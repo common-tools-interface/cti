@@ -17,6 +17,8 @@
 namespace cti {
 namespace fe_daemon {
 
+using MPIRId = int;
+
 // request types
 
 enum ReqType : long {
@@ -50,7 +52,7 @@ struct LaunchReq
 
 struct ReleaseMPIRReq
 {
-	int mpir_id;
+	MPIRId mpir_id;
 };
 
 // RegisterApp, DeregisterApp
@@ -94,12 +96,11 @@ struct PIDResp
 struct MPIRProcTableResp
 {
 	RespType type;
-	int mpir_id;
-	size_t num_pids;
+	MPIRId mpir_id;
+	int num_pids;
 	// after sending this struct, send:
 	// - list of `num_pids` pids
-	// - list of null-terminated hostnames
-	// - EMPTY STRING
+	// - list of `num_pids` null-terminated hostnames
 };
 
 }; // fe_daemon

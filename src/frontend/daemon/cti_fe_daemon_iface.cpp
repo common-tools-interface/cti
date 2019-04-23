@@ -67,9 +67,21 @@ cti::fe_daemon::writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid,
 }
 
 void
-cti::fe_daemon::writeReleaseMPIRReq(int const reqFd, int const respFd, int mpir_id)
+cti::fe_daemon::writeReleaseMPIRReq(int const reqFd, int const respFd, cti::fe_daemon::MPIRId mpir_id)
 {
-	throw std::runtime_error("not implemented");
+	// construct and write release
+	auto const releaseMPIRReq = ReleaseMPIRReq
+		{ .mpir_id = mpir_id
+	};
+	rawWriteLoop(reqFd, releaseMPIRReq);
+
+	// read response
+	auto const releaseResp = rawReadLoop<OKResp>(respFd);
+
+	// verify response
+	if (releaseResp.type != RespType::OK) {
+		throw std::runtime_error("overwatch release mpir barrier failed");
+	}
 }
 
 pid_t
@@ -144,4 +156,35 @@ cti::fe_daemon::readPIDResp(int const respFd)
 		throw std::runtime_error("failed to read PID response");
 	}
 	return pidResp.pid;
+}
+
+std::pair<cti::fe_daemon::MPIRId, MPIRInstance::ProcTable>
+cti::fe_daemon::readMPIRProcTableResp(int const respFd)
+{
+	// read basic table information
+	auto const proctableResp = rawReadLoop<MPIRProcTableResp>(respFd);
+	if (proctableResp.type != RespType::MPIRProcTable) {
+		throw std::runtime_error("failed to read proctable response");
+	}
+
+	MPIRInstance::ProcTable result;
+	result.reserve(proctableResp.num_pids);
+
+	// fill in pids
+	for (int i = 0; i < proctableResp.num_pids; i++) {
+		result[i].pid = rawReadLoop<pid_t>(respFd);
+	}
+
+	// set up pipe stream
+	cti::FdBuf respBuf{dup(respFd)};
+	std::istream respStream{&respBuf};
+
+	// fill in hostnames
+	for (int i = 0; i < proctableResp.num_pids; i++) {
+		if (!std::getline(respStream, result[i].hostname, '\0')) {
+			throw std::runtime_error("failed to read string");
+		}
+	}
+
+	return std::make_pair(proctableResp.mpir_id, result);
 }
