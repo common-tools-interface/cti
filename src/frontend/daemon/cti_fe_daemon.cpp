@@ -249,7 +249,7 @@ registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 
 // write a boolean response to pipe
 static void
-writeOKResp(int const respFd, bool  const success)
+writeOKResp(int const respFd, bool const success)
 {
 	rawWriteLoop(respFd, OKResp
 		{ .type = RespType::OK
@@ -265,6 +265,25 @@ writePIDResp(int const respFd, pid_t const pid)
 		{ .type = RespType::PID
 		, .pid  = pid
 	});
+}
+
+// write an MPIR response to pipe
+static void
+writeMPIRResp(int const respFd, cti::fe_daemon::MPIRResult const& mpirData)
+{
+	rawWriteLoop(respFd, MPIRResp
+		{ .type     = RespType::MPIR
+		, .mpir_id  = mpirData.mpir_id
+		, .job_id   = mpirData.job_id
+		, .step_id  = mpirData.step_id
+		, .num_pids = static_cast<int>(mpirData.proctable.size())
+	});
+	for (auto&& elem : mpirData.proctable) {
+		rawWriteLoop(respFd, elem.pid);
+	}
+	for (auto&& elem : mpirData.proctable) {
+		writeLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
+	}
 }
 
 // read filename, argv, environment map appended to an app / util / mpir launch request
@@ -361,6 +380,26 @@ tryWriteOKResp(int const respFd, Func&& func)
 	}
 }
 
+// if running the function succeeds, write an MPIR response to pipe
+template <typename Func>
+static void
+tryWriteMPIRResp(int const respFd, Func&& func)
+{
+	try {
+		// run the mpir-producing function
+		auto const mpirData = func();
+
+		// send OK response
+		writeMPIRResp(respFd, mpirData);
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
+		// send failure response
+		writeMPIRResp(respFd, cti::fe_daemon::MPIRResult { cti::fe_daemon::MPIRId{0} });
+	}
+}
+
 /* request handlers */
 
 static pid_t
@@ -429,6 +468,24 @@ handle_deregisterAppReq(AppReq const& deregisterReq)
 	} else {
 		throw std::runtime_error("invalid app pid: " + std::to_string(deregisterReq.app_pid));
 	}
+}
+
+static cti::fe_daemon::MPIRResult
+handle_mpirLaunch(LaunchReq const& launchReq)
+{
+	throw std::runtime_error("not implemented: handle_mpirLaunch");
+}
+
+static cti::fe_daemon::MPIRResult
+handle_mpirAttach(AppReq const& appReq)
+{
+	throw std::runtime_error("not implemented: handle_mpirAttach");
+}
+
+static void
+handle_mpirRelease(ReleaseMPIRReq const& releaseMPIRReq)
+{
+	throw std::runtime_error("not implemented: handle_mpirRelease");
 }
 
 int
@@ -542,31 +599,20 @@ main(int argc, char *argv[])
 				break;
 
 			case ReqType::LaunchMPIR:
-				tryWritePIDResp(respFd, [&]() {
-					auto const launchReq = rawReadLoop<LaunchReq>(reqFd);
-
-					fprintf(stderr, "not implemented: LaunchMPIR\n");
-					shutdown_and_exit(1);
-					return 0;
+				tryWriteMPIRResp(respFd, [&]() {
+					return handle_mpirLaunch(rawReadLoop<LaunchReq>(reqFd));
 				});
 				break;
 
 			case ReqType::AttachMPIR:
-				tryWritePIDResp(respFd, [&]() {
-					auto const attachReq = rawReadLoop<AppReq>(reqFd);
-
-					fprintf(stderr, "not implemented: AttachMPIR\n");
-					shutdown_and_exit(1);
-					return 0;
+				tryWriteMPIRResp(respFd, [&]() {
+					return handle_mpirAttach(rawReadLoop<AppReq>(reqFd));
 				});
 				break;
 
 			case ReqType::ReleaseMPIR:
 				tryWriteOKResp(respFd, [&]() {
-					auto const releaseMPIRReq = rawReadLoop<ReleaseMPIRReq>(reqFd);
-
-					fprintf(stderr, "not implemented: ReleaseMPIR\n");
-					shutdown_and_exit(1);
+					handle_mpirRelease(rawReadLoop<ReleaseMPIRReq>(reqFd));
 				});
 				break;
 

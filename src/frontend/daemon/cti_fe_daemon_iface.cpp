@@ -60,7 +60,7 @@ cti::fe_daemon::writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid,
 	auto const forkExecResp = rawReadLoop<PIDResp>(respFd);
 
 	// verify response
-	if (forkExecResp.type != RespType::PID) {
+	if ((forkExecResp.type != RespType::PID) || (forkExecResp.pid < 0)) {
 		throw std::runtime_error("overwatch fork exec failed");
 	}
 
@@ -80,7 +80,7 @@ cti::fe_daemon::writeReleaseMPIRReq(int const reqFd, int const respFd, cti::fe_d
 	auto const releaseResp = rawReadLoop<OKResp>(respFd);
 
 	// verify response
-	if (releaseResp.type != RespType::OK) {
+	if ((releaseResp.type != RespType::OK) || !releaseResp.success) {
 		throw std::runtime_error("overwatch release mpir barrier failed");
 	}
 }
@@ -98,7 +98,7 @@ cti::fe_daemon::writeAppReq(int const reqFd, int const respFd, pid_t app_pid)
 	auto const registerResp = rawReadLoop<OKResp>(respFd);
 
 	// verify response
-	if (registerResp.type != RespType::OK) {
+	if ((registerResp.type != RespType::OK) || !registerResp.success) {
 		throw std::runtime_error("overwatch register app failed");
 	}
 
@@ -119,7 +119,7 @@ cti::fe_daemon::writeUtilReq(int const reqFd, int const respFd, pid_t app_pid, p
 	auto const registerResp = rawReadLoop<OKResp>(respFd);
 
 	// verify response
-	if (registerResp.type != RespType::OK) {
+	if ((registerResp.type != RespType::OK) || !registerResp.success) {
 		throw std::runtime_error("overwatch register util failed");
 	}
 
@@ -133,19 +133,9 @@ cti::fe_daemon::writeShutdownReq(int const reqFd, int const respFd)
 	auto const shutdownResp = rawReadLoop<OKResp>(respFd);
 
 	// verify response
-	if (shutdownResp.type != RespType::OK) {
+	if ((shutdownResp.type != RespType::OK) || !shutdownResp.success) {
 		throw std::runtime_error("overwatch shutdown failed");
 	}
-}
-
-bool
-cti::fe_daemon::readOKResp(int const respFd)
-{
-	auto const okResp = rawReadLoop<OKResp>(respFd);
-	if (okResp.type != RespType::OK) {
-		throw std::runtime_error("failed to read OK response");
-	}
-	return okResp.success;
 }
 
 // read a pid response from pipe
@@ -153,7 +143,7 @@ pid_t
 cti::fe_daemon::readPIDResp(int const respFd)
 {
 	auto const pidResp = rawReadLoop<PIDResp>(respFd);
-	if (pidResp.type != RespType::PID) {
+	if ((pidResp.type != RespType::PID) || (pidResp.pid < 0)) {
 		throw std::runtime_error("failed to read PID response");
 	}
 	return pidResp.pid;
@@ -164,15 +154,16 @@ cti::fe_daemon::readMPIRResp(int const respFd, pid_t const launcherPid)
 {
 	// read basic table information
 	auto const mpirResp = rawReadLoop<MPIRResp>(respFd);
-	if (mpirResp.type != RespType::MPIR) {
+	if ((mpirResp.type != RespType::MPIR) || !mpirResp.mpir_id) {
 		throw std::runtime_error("failed to read proctable response");
 	}
 
 	MPIRResult result
-		{ .launcher_pid = launcherPid
-		, .mpir_id = mpirResp.mpir_id
-		, .job_id  = mpirResp.job_id
-		, .step_id = mpirResp.step_id
+		{ launcherPid
+		, mpirResp.mpir_id
+		, mpirResp.job_id
+		, mpirResp.step_id
+		, {} // proctable
 	};
 	result.proctable.reserve(mpirResp.num_pids);
 

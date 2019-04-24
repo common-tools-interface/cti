@@ -79,8 +79,8 @@ namespace fe_daemon {
 
 struct MPIRResult
 {
-	pid_t launcher_pid;
 	MPIRId mpir_id;
+	pid_t launcher_pid;
 	uint32_t job_id;
 	uint32_t step_id;
 	MPIRProctable proctable;
