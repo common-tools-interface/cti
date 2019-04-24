@@ -534,31 +534,40 @@ _cti_getLogger() {
 /* fe_daemon interface - defined in daemon/cti_fe_daemon_iface.hpp */
 
 pid_t
-_cti_forkExecvpApp(char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
+_cti_forkExecvpApp(char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
 	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::ForkExecvpApp);
-	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdout_fd, stderr_fd, env);
+	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
 
 pid_t
-_cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
+_cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
 	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::ForkExecvpUtil);
-	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, app_pid, file, argv, stdout_fd, stderr_fd, env);
+	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, app_pid, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
-
-std::pair<cti::fe_daemon::MPIRId, MPIRProctable>
-_cti_launchMPIR(char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
+cti::fe_daemon::MPIRResult
+_cti_launchMPIR(char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
 	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::LaunchMPIR);
-	cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdout_fd, stderr_fd, env);
-	return cti::fe_daemon::readMPIRProctableResp(respFd);
+	auto const launcherPid = cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+	return cti::fe_daemon::readMPIRResp(respFd, launcherPid);
+}
+
+cti::fe_daemon::MPIRResult
+_cti_attachMPIR(pid_t app_pid)
+{
+	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::AttachMPIR);
+	auto const launcherPid = cti::fe_daemon::writeAppReq(reqFd, respFd, app_pid);
+	return cti::fe_daemon::readMPIRResp(respFd, launcherPid);
 }
 
 void

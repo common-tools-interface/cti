@@ -72,47 +72,26 @@ static void rawWriteLoop(int const fd, T const& obj)
 	writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
 }
 
-/* internal overwatch interface implemented in cti_fe_iface */
-
-// overwatch will fork and execvp a binary and register it as an app
-pid_t _cti_forkExecvpApp(char const* file, char const* const argv[], int stdout_fd, int stderr_fd,
-	char const* const env[]);
-
-// overwatch will fork and execvp a binary and register it as a utility belonging to app_pid
-pid_t _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdout_fd,
-	int stderr_fd, char const* const env[]);
-
-// overwatch will launch a binary under MPIR control and extract its proctable
-std::pair<cti::fe_daemon::MPIRId, MPIRProctable> _cti_launchMPIR(char const* file,
-	char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[]);
-
-// overwatch will release a binary under mpir control from its breakpoint
-void _cti_releaseMPIRBreakpoint(cti::fe_daemon::MPIRId mpir_id);
-
-// overwatch will register an already-forked process as an app. make sure this is paired with a
-// _cti_deregisterApp for timely cleanup
-pid_t _cti_registerApp(pid_t app_pid);
-
-// overwatch will register an already-forked process as a utility belonging to app_pid
-pid_t _cti_registerUtil(pid_t app_pid, pid_t util_pid);
-
-// overwatch will terminate all utilities belonging to app_pid and deregister app_pid
-void _cti_deregisterApp(pid_t app_pid);
-
-// overwatch will terminate all registered apps and utilities
-void _cti_shutdownOverwatch();
-
 /* protocol helpers for cti_fe_iface */
 
 namespace cti {
 namespace fe_daemon {
+
+struct MPIRResult
+{
+	pid_t launcher_pid;
+	MPIRId mpir_id;
+	uint32_t job_id;
+	uint32_t step_id;
+	MPIRProctable proctable;
+};
 
 // write the given request type to pipe
 void writeReqType(int const reqFd, ReqType const type);
 
 // write an app / util / mpir launch request to pipe, verify response, return launched pid
 pid_t writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid, char const* file,
-	char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[]);
+	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
 // write an mpir release request to pipe, verify response
 void writeReleaseMPIRReq(int const reqFd, int const respFd, MPIRId mpir_id);
@@ -133,7 +112,41 @@ bool readOKResp(int const respFd);
 pid_t readPIDResp(int const respFd);
 
 // read an MPIR proctable response from pipe
-std::pair<MPIRId, MPIRProctable> readMPIRProctableResp(int const respFd);
+MPIRResult readMPIRResp(int const respFd, pid_t const launcherPid);
 
 }; // fe_daemon
 }; // cti
+
+/* internal overwatch interface implemented in cti_fe_iface */
+
+// overwatch will fork and execvp a binary and register it as an app
+pid_t _cti_forkExecvpApp(char const* file, char const* const argv[], int stdin_fd,
+	int stdout_fd, int stderr_fd, char const* const env[]);
+
+// overwatch will fork and execvp a binary and register it as a utility belonging to app_pid
+pid_t _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdin_fd, 
+	int stdout_fd, int stderr_fd, char const* const env[]);
+
+// overwatch will launch a binary under MPIR control and extract its proctable
+cti::fe_daemon::MPIRResult _cti_launchMPIR(char const* file, char const* const argv[],
+	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
+
+// overwatch will attach to a binary and extract its proctable
+cti::fe_daemon::MPIRResult _cti_attachMPIR(pid_t app_pid);
+
+// overwatch will release a binary under mpir control from its breakpoint
+void _cti_releaseMPIRBreakpoint(cti::fe_daemon::MPIRId mpir_id);
+
+// overwatch will register an already-forked process as an app. make sure this is paired with a
+// _cti_deregisterApp for timely cleanup
+pid_t _cti_registerApp(pid_t app_pid);
+
+// overwatch will register an already-forked process as a utility belonging to app_pid
+pid_t _cti_registerUtil(pid_t app_pid, pid_t util_pid);
+
+// overwatch will terminate all utilities belonging to app_pid and deregister app_pid
+void _cti_deregisterApp(pid_t app_pid);
+
+// overwatch will terminate all registered apps and utilities
+void _cti_shutdownOverwatch();
+

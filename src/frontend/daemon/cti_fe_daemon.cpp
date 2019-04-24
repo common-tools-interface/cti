@@ -42,10 +42,12 @@ using ReqType   = cti::fe_daemon::ReqType;
 using LaunchReq = cti::fe_daemon::LaunchReq;
 using AppReq    = cti::fe_daemon::AppReq;
 using UtilReq   = cti::fe_daemon::UtilReq;
+using ReleaseMPIRReq = cti::fe_daemon::ReleaseMPIRReq;
 
 using RespType  = cti::fe_daemon::RespType;
 using OKResp    = cti::fe_daemon::OKResp;
 using PIDResp   = cti::fe_daemon::PIDResp;
+using MPIRResp  = cti::fe_daemon::MPIRResp;
 
 static void
 tryTerm(pid_t const pid)
@@ -387,9 +389,9 @@ handle_launchReq(LaunchReq const& launchReq)
 		close(respFd);
 
 		// dup2 all stdin/out/err to provided FDs
-		dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
+		dup2((launchReq.stdin_fd < 0)  ? open("/dev/null", O_WRONLY) : launchReq.stdin_fd,  STDIN_FILENO);
 		dup2((launchReq.stdout_fd < 0) ? open("/dev/null", O_WRONLY) : launchReq.stdout_fd, STDOUT_FILENO);
-		dup2((launchReq.stderr_fd < 0) ? open("/dev/null", O_WRONLY) : launchReq.stderr_fd, STDERR_FILENO);
+		// dup2((launchReq.stderr_fd < 0) ? open("/dev/null", O_WRONLY) : launchReq.stderr_fd, STDERR_FILENO);
 
 		// set environment variables with overwrite
 		for (auto const& envVarVal : envMap) {
@@ -539,12 +541,21 @@ main(int argc, char *argv[])
 				});
 				break;
 
-#ifdef MPIR
 			case ReqType::LaunchMPIR:
 				tryWritePIDResp(respFd, [&]() {
 					auto const launchReq = rawReadLoop<LaunchReq>(reqFd);
 
 					fprintf(stderr, "not implemented: LaunchMPIR\n");
+					shutdown_and_exit(1);
+					return 0;
+				});
+				break;
+
+			case ReqType::AttachMPIR:
+				tryWritePIDResp(respFd, [&]() {
+					auto const attachReq = rawReadLoop<AppReq>(reqFd);
+
+					fprintf(stderr, "not implemented: AttachMPIR\n");
 					shutdown_and_exit(1);
 					return 0;
 				});
@@ -558,7 +569,6 @@ main(int argc, char *argv[])
 					shutdown_and_exit(1);
 				});
 				break;
-#else
 
 			case ReqType::RegisterApp:
 				tryWriteOKResp(respFd, [&]() {
@@ -581,7 +591,6 @@ main(int argc, char *argv[])
 				});
 				fprintf(stderr, "ok sent\n");
 				break;
-#endif
 
 			case ReqType::DeregisterApp:
 				tryWriteOKResp(respFd, [&]() {

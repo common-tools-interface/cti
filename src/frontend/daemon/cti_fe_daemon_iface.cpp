@@ -32,11 +32,12 @@ cti::fe_daemon::writeReqType(int const reqFd, cti::fe_daemon::ReqType const type
 
 pid_t
 cti::fe_daemon::writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid, char const* file,
-	char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
+	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
 	// construct and write fork/exec message
 	auto const forkExecReq = LaunchReq
 		{ .app_pid = app_pid
+		, .stdin_fd  = stdin_fd
 		, .stdout_fd = stdout_fd
 		, .stderr_fd = stderr_fd
 	};
@@ -158,21 +159,26 @@ cti::fe_daemon::readPIDResp(int const respFd)
 	return pidResp.pid;
 }
 
-std::pair<cti::fe_daemon::MPIRId, MPIRProctable>
-cti::fe_daemon::readMPIRProctableResp(int const respFd)
+cti::fe_daemon::MPIRResult
+cti::fe_daemon::readMPIRResp(int const respFd, pid_t const launcherPid)
 {
 	// read basic table information
-	auto const proctableResp = rawReadLoop<MPIRProctableResp>(respFd);
-	if (proctableResp.type != RespType::Proctable) {
+	auto const mpirResp = rawReadLoop<MPIRResp>(respFd);
+	if (mpirResp.type != RespType::MPIR) {
 		throw std::runtime_error("failed to read proctable response");
 	}
 
-	MPIRProctable result;
-	result.reserve(proctableResp.num_pids);
+	MPIRResult result
+		{ .launcher_pid = launcherPid
+		, .mpir_id = mpirResp.mpir_id
+		, .job_id  = mpirResp.job_id
+		, .step_id = mpirResp.step_id
+	};
+	result.proctable.reserve(mpirResp.num_pids);
 
 	// fill in pids
-	for (int i = 0; i < proctableResp.num_pids; i++) {
-		result[i].pid = rawReadLoop<pid_t>(respFd);
+	for (int i = 0; i < mpirResp.num_pids; i++) {
+		result.proctable[i].pid = rawReadLoop<pid_t>(respFd);
 	}
 
 	// set up pipe stream
@@ -180,11 +186,11 @@ cti::fe_daemon::readMPIRProctableResp(int const respFd)
 	std::istream respStream{&respBuf};
 
 	// fill in hostnames
-	for (int i = 0; i < proctableResp.num_pids; i++) {
-		if (!std::getline(respStream, result[i].hostname, '\0')) {
+	for (int i = 0; i < mpirResp.num_pids; i++) {
+		if (!std::getline(respStream, result.proctable[i].hostname, '\0')) {
 			throw std::runtime_error("failed to read string");
 		}
 	}
 
-	return std::make_pair(proctableResp.mpir_id, result);
+	return result;
 }

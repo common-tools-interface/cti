@@ -24,6 +24,7 @@ enum ReqType : long {
 	ForkExecvpUtil,
 
 	LaunchMPIR,
+	AttachMPIR,
 	ReleaseMPIR,
 
 	RegisterApp,
@@ -37,6 +38,7 @@ enum ReqType : long {
 struct LaunchReq
 {
 	pid_t app_pid; // unused for ForkExecvpApp, LaunchMPIR
+	int stdin_fd;
 	int stdout_fd;
 	int stderr_fd;
 	// after sending this struct, send a list of null-terminated strings:
@@ -76,7 +78,7 @@ enum RespType : long {
 	PID,
 
 	// LaunchMPIR
-	Proctable,
+	MPIR,
 };
 
 struct OKResp
@@ -91,10 +93,12 @@ struct PIDResp
 	pid_t pid;
 };
 
-struct MPIRProctableResp
+struct MPIRResp
 {
 	RespType type;
 	MPIRId mpir_id;
+	uint32_t job_id;
+	uint32_t step_id;
 	int num_pids;
 	// after sending this struct, send:
 	// - list of `num_pids` pids

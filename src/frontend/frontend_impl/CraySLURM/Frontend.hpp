@@ -20,7 +20,6 @@
 #include <stdexcept>
 
 #include "frontend/Frontend.hpp"
-#include "mpir_iface/MPIRInstance.hpp"
 
 #include "useful/cti_wrappers.hpp"
 
@@ -62,7 +61,7 @@ public: // slurm specific types
 
 	// objects that are created during an App creation. ownership will pass to the App
 	struct SrunInstance {
-		std::unique_ptr<MPIRInstance> stoppedSrun; // SRUN inferior for barrier release
+		cti::fe_daemon::MPIRResult mpirData;
 		cti::temp_file_handle outputPath; // handle to output fifo file
 		cti::temp_file_handle errorPath;  // handle to error fifo file
 	};
@@ -91,12 +90,6 @@ public: // slurm specific interface
 		const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
 		const char * const env_list[]);
 
-	// Extract the SLURM Job ID from launcher memory using an existing MPIR control session.
-	static uint32_t fetchJobId(MPIRInstance& srunInstance);
-
-	// Extract the SLURM Step ID from launcher memory using an existing MPIR control session. Optional, returns 0 on failure.
-	static uint32_t fetchStepId(MPIRInstance& srunInstance);
-
 	// attach and read srun info
 	static SrunInfo getSrunInfo(pid_t srunPid);
 };
@@ -108,13 +101,14 @@ private: // type aliases
 
 private: // variables
 	pid_t    m_launcherPid; // launcher PID
-	SrunInfo m_srunInfo;    // Job and Step IDs
+	uint32_t m_jobId;
+	uint32_t m_stepId;
 	CraySLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
 	int      m_queuedOutFd; // Where to redirect stdout after barrier release
 	int      m_queuedErrFd; // Where to redirect stderr after barrier release
 	bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
 
-	std::unique_ptr<MPIRInstance> m_stoppedSrun; // MPIR instance handle to release startup barrier
+	cti::fe_daemon::MPIRId m_stoppedSrunId; // MPIR instance id to release startup barrier
 	cti::temp_file_handle m_outputPath;
 	cti::temp_file_handle m_errorPath;
 
@@ -126,13 +120,11 @@ private: // variables
 private: // member helpers
 	void redirectOutput(int stdoutFd, int stderrFd);
 	// delegated constructor
-	CraySLURMApp(uint32_t jobid, uint32_t stepid, SrunInstance&& srunInstance);
+	CraySLURMApp(SrunInstance&& srunInstance);
 
 public: // constructor / destructor interface
-	// register case
-	CraySLURMApp(uint32_t jobid, uint32_t stepid);
 	// attach case
-	CraySLURMApp(SrunInstance&& srunInstance);
+	CraySLURMApp(uint32_t jobid, uint32_t stepid);
 	// launch case
 	CraySLURMApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 		const char *inputFile, const char *chdirPath, const char * const env_list[]);
@@ -159,6 +151,6 @@ public: // app interaction interface
 	void startDaemon(const char* const args[]) override;
 
 public: // slurm specific interface
-	uint64_t getApid() const { return CRAY_SLURM_APID(m_srunInfo.jobid, m_srunInfo.stepid); }
-	SrunInfo getSrunInfo() const { return m_srunInfo; }
+	uint64_t getApid() const { return CRAY_SLURM_APID(m_jobId, m_stepId); }
+	SrunInfo getSrunInfo() const { return SrunInfo { m_jobId, m_stepId }; }
 };
