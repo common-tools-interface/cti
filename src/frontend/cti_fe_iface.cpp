@@ -391,8 +391,8 @@ public: // variables
 	std::unique_ptr<Frontend> currentFrontendPtr;
 
 	Logger logger;
-	cti::Pipe feDaemonReqPipe;
-	cti::Pipe feDaemonRespPipe;
+	cti::SocketPair feDaemonReqSock {AF_UNIX, SOCK_STREAM, 0};
+	cti::SocketPair feDaemonRespSock{AF_UNIX, SOCK_STREAM, 0};
 
 public: // interface
 	CTIFEIface()
@@ -422,11 +422,11 @@ public: // interface
 			}
 
 			// set up fe_daemon req / resp pipe
-			feDaemonReqPipe.closeRead();
-			feDaemonRespPipe.closeWrite();
+			feDaemonReqSock.closeRead();
+			feDaemonRespSock.closeWrite();
 
 			// wait until fe_daemon set up
-			if (cti::fe_daemon::readPIDResp(feDaemonRespPipe.getReadFd()) != forkedPid) {
+			if (cti::fe_daemon::readPIDResp(feDaemonRespSock.getReadFd()) != forkedPid) {
 				throw std::runtime_error("fe_daemon launch failed");
 			}
 		} else {
@@ -442,13 +442,13 @@ public: // interface
 			prctl(PR_SET_PDEATHSIG, SIGHUP);
 
 			// set up fe_daemon req /resp pipe
-			feDaemonReqPipe.closeWrite();
-			feDaemonRespPipe.closeRead();
+			feDaemonReqSock.closeWrite();
+			feDaemonRespSock.closeRead();
 
 			// remap standard FDs
 			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
 			dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
-			// dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+			dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
 
 			// close FDs above pipe FDs
 			auto max_fd = size_t{};
@@ -459,7 +459,7 @@ public: // interface
 					max_fd = (rl.rlim_max == RLIM_INFINITY) ? 1024 : rl.rlim_max;
 				}
 			}
-			int const min_fd = std::max(feDaemonReqPipe.getReadFd(), feDaemonRespPipe.getWriteFd()) + 1;
+			int const min_fd = std::max(feDaemonReqSock.getReadFd(), feDaemonRespSock.getWriteFd()) + 1;
 			for (size_t i = min_fd; i < max_fd; ++i) {
 				close(i);
 			}
@@ -467,8 +467,8 @@ public: // interface
 			// setup args
 			using OWA = CTIOverwatchArgv;
 			cti::OutgoingArgv<OWA> fe_daemonArgv{fe_daemon_bin};
-			fe_daemonArgv.add(OWA::ReadFD,  std::to_string(feDaemonReqPipe.getReadFd()));
-			fe_daemonArgv.add(OWA::WriteFD, std::to_string(feDaemonRespPipe.getWriteFd()));
+			fe_daemonArgv.add(OWA::ReadFD,  std::to_string(feDaemonReqSock.getReadFd()));
+			fe_daemonArgv.add(OWA::WriteFD, std::to_string(feDaemonRespSock.getWriteFd()));
 
 			// exec
 			execvp(fe_daemon_bin.c_str(), fe_daemonArgv.get());
@@ -536,8 +536,8 @@ _cti_getLogger() {
 pid_t
 _cti_forkExecvpApp(char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::ForkExecvpApp);
 	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
@@ -545,16 +545,16 @@ _cti_forkExecvpApp(char const* file, char const* const argv[], int stdin_fd, int
 pid_t
 _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::ForkExecvpUtil);
 	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, app_pid, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
 cti::fe_daemon::MPIRResult
 _cti_launchMPIR(char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::LaunchMPIR);
 	auto const launcherPid = cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 	return cti::fe_daemon::readMPIRResp(respFd, launcherPid);
@@ -563,8 +563,8 @@ _cti_launchMPIR(char const* file, char const* const argv[], int stdin_fd, int st
 cti::fe_daemon::MPIRResult
 _cti_attachMPIR(pid_t app_pid)
 {
-	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::AttachMPIR);
 	auto const launcherPid = cti::fe_daemon::writeAppReq(reqFd, respFd, app_pid);
 	return cti::fe_daemon::readMPIRResp(respFd, launcherPid);
@@ -573,8 +573,8 @@ _cti_attachMPIR(pid_t app_pid)
 void
 _cti_releaseMPIRBreakpoint(cti::fe_daemon::MPIRId mpir_id)
 {
-	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::ReleaseMPIR);
 	return cti::fe_daemon::writeReleaseMPIRReq(reqFd, respFd, mpir_id);
 }
@@ -582,8 +582,8 @@ _cti_releaseMPIRBreakpoint(cti::fe_daemon::MPIRId mpir_id)
 pid_t
 _cti_registerApp(pid_t app_pid)
 {
-	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::RegisterApp);
 	return cti::fe_daemon::writeAppReq(reqFd, respFd, app_pid);
 }
@@ -591,8 +591,8 @@ _cti_registerApp(pid_t app_pid)
 pid_t
 _cti_registerUtil(pid_t app_pid, pid_t util_pid)
 {
-	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::RegisterUtil);
 	return cti::fe_daemon::writeUtilReq(reqFd, respFd, app_pid, util_pid);
 }
@@ -600,16 +600,16 @@ _cti_registerUtil(pid_t app_pid, pid_t util_pid)
 void
 _cti_deregisterApp(pid_t app_pid)
 {
-	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::DeregisterApp);
 	cti::fe_daemon::writeAppReq(reqFd, respFd, app_pid);
 }
 
 void _cti_shutdownOverwatch()
 {
-	auto const reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto const respFd = _cti_getState().feDaemonRespPipe.getReadFd();
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
 	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::Shutdown);
 	cti::fe_daemon::writeShutdownReq(reqFd, respFd);
 }
