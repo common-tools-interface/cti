@@ -12,6 +12,8 @@
  ******************************************************************************/
 #pragma once
 
+#include <sys/socket.h>
+
 #include "frontend/Frontend.hpp"
 #include "frontend/mpir_iface/MPIRProctable.hpp"
 #include "cti_fe_daemon.hpp"

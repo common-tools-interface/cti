@@ -38,8 +38,9 @@ enum ReqType : long {
 struct LaunchReq
 {
 	pid_t app_pid; // unused for ForkExecvpApp, LaunchMPIR
-	// after sending this struct, send a list of null-terminated strings:
-	// - path to stdin, stdout, stderr files
+	// after sending this struct, send socket control message to share FDs:
+	// - array of stdin, stdout, stderr FDs
+	// then send list of null-terminated strings:
 	// - file path string
 	// - each argument string
 	// - EMPTY STRING

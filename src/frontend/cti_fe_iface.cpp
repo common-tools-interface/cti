@@ -844,10 +844,14 @@ cti_app_id_t
 cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
-	return cti_conventions::runSafely(__func__, [&](){
-		// delegate app launch and registration to launchAppBarrier
-		auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
+	// delegate app launch and registration to launchAppBarrier
+	auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 
+	if (appId == APP_ERROR) {
+		return appId;
+	}
+
+	return cti_conventions::runSafely(__func__, [&](){
 		// release barrier
 		_cti_getState().appRegistry.get(appId)->releaseBarrier();
 

@@ -296,8 +296,8 @@ writeMPIRResp(int const respFd, cti::fe_daemon::MPIRResult const& mpirData)
 	}
 }
 
-// read stdin/out/err ptahs, filepath, argv, environment map appended to an app / util / mpir launch request
-static std::tuple<std::string, std::string, std::string, std::string, std::vector<std::string>, std::vector<std::string>>
+// read stdin/out/err fds, filepath, argv, environment map appended to an app / util / mpir launch request
+static std::tuple<int, int, int, std::string, std::vector<std::string>, std::vector<std::string>>
 readLaunchReq(int const reqFd)
 {
 	// receive a single null-terminated string from stream
@@ -309,15 +309,48 @@ readLaunchReq(int const reqFd)
 		return result;
 	};
 
+	// read and remap stdin/out/err
+	auto const N_FDS = 3;
+	int stdfds[N_FDS];
+	struct {
+		int fd_data[N_FDS];
+		struct cmsghdr cmd_hdr;
+	} buffer;
+
+	// create message buffer for one character
+	struct iovec empty_iovec;
+	char c;
+	empty_iovec.iov_base = &c;
+	empty_iovec.iov_len  = 1;
+
+	// create empty message header with enough space for fds
+	struct msghdr msg_hdr = {};
+	msg_hdr.msg_iov     = &empty_iovec;
+	msg_hdr.msg_iovlen  = 1;
+	msg_hdr.msg_control = &buffer;
+	msg_hdr.msg_controllen = CMSG_SPACE(sizeof(int) * N_FDS);
+
+	// fill in the message header type
+	struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg_hdr);
+	cmsg->cmsg_len   = CMSG_LEN(sizeof(int) * N_FDS);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type  = SCM_RIGHTS;
+
+	// receive remap FD message
+	if (::recvmsg(reqFd, &msg_hdr, 0) < 0) {
+		throw std::runtime_error("failed to receive fds: " + std::string{strerror(errno)});
+	}
+	for (int i = 0; i < N_FDS; i++) {
+		stdfds[i] = ((int *)CMSG_DATA(cmsg))[i];
+	}
+	fprintf(stderr, "fd list: %d %d %d\n", stdfds[0], stdfds[1], stdfds[2]);
+
 	// set up pipe stream
 	cti::FdBuf reqBuf{dup(reqFd)};
 	std::istream reqStream{&reqBuf};
 
-	auto const stdin_path  = receiveString(reqStream);
-	auto const stdout_path = receiveString(reqStream);
-	auto const stderr_path = receiveString(reqStream);
-
 	// read filepath
+	fprintf(stderr, "recv filename\n");
 	auto const filepath = receiveString(reqStream);
 	fprintf(stderr, "got file: %s\n", filepath.c_str());
 
@@ -345,7 +378,7 @@ readLaunchReq(int const reqFd)
 		}
 	}
 
-	return std::make_tuple(std::move(stdin_path), std::move(stdout_path), std::move(stderr_path),
+	return std::make_tuple(stdfds[0], stdfds[1], stdfds[2],
 		std::move(filepath), std::move(argv), std::move(envMap));
 }
 
@@ -415,11 +448,11 @@ static pid_t
 handle_launchReq(LaunchReq const& launchReq)
 {
 	// read filepath, argv, env array from pipe
-	std::string stdin_path, stdout_path, stderr_path;
+	int stdin_fd, stdout_fd, stderr_fd;
 	std::string filepath;
 	std::vector<std::string> argvList;
 	std::vector<std::string> envList;
-	std::tie(stdin_path, stdout_path, stderr_path, filepath, argvList, envList) = readLaunchReq(reqFd);
+	std::tie(stdin_fd, stdout_fd, stderr_fd, filepath, argvList, envList) = readLaunchReq(reqFd);
 
 	// construct argv
 	cti::ManagedArgv argv;
@@ -454,9 +487,9 @@ handle_launchReq(LaunchReq const& launchReq)
 		close(respFd);
 
 		// dup2 all stdin/out/err to provided FDs
-		dup2(open(stdin_path.c_str(),  O_RDONLY), STDIN_FILENO);
-		dup2(open(stdout_path.c_str(), O_WRONLY), STDOUT_FILENO);
-		dup2(open(stderr_path.c_str(), O_WRONLY), STDERR_FILENO);
+		dup2(stdin_fd,  STDIN_FILENO);
+		dup2(stdout_fd, STDOUT_FILENO);
+		dup2(stderr_fd, STDERR_FILENO);
 
 		// set environment variables with overwrite
 		for (auto const& envVarVal : envMap) {
@@ -500,21 +533,17 @@ static cti::fe_daemon::MPIRResult
 handle_mpirLaunch(LaunchReq const& launchReq)
 {
 	// read filepath, argv, env array from pipe
-	std::string stdin_path, stdout_path, stderr_path;
+	int stdin_fd, stdout_fd, stderr_fd;
 	std::string filepath;
 	std::vector<std::string> argvList;
 	std::vector<std::string> envList;
-	std::tie(stdin_path, stdout_path, stderr_path, filepath, argvList, envList) = readLaunchReq(reqFd);
+	std::tie(stdin_fd, stdout_fd, stderr_fd, filepath, argvList, envList) = readLaunchReq(reqFd);
 
 	std::map<int, int> const remapFds
-		{ { open(stdin_path.c_str(),  O_RDONLY), STDIN_FILENO  }
-		, { open(stdout_path.c_str(), O_WRONLY), STDOUT_FILENO }
-		, { open(stderr_path.c_str(), O_WRONLY), STDERR_FILENO }
+		{ { stdin_fd,  STDIN_FILENO  }
+		, { stdout_fd, STDOUT_FILENO }
+		, { stderr_fd, STDERR_FILENO }
 	};
-	auto fdi = remapFds.begin();
-	fprintf(stderr, "open %s: %d\n", stdin_path.c_str(),  (fdi++)->first);
-	fprintf(stderr, "open %s: %d\n", stdout_path.c_str(), (fdi++)->first);
-	fprintf(stderr, "open %s: %d\n", stderr_path.c_str(), (fdi++)->first);
 
 	auto const idInstPair = mpirMap.emplace(std::make_pair(newMPIRId(),
 		std::make_unique<MPIRInstance>(filepath, argvList, envList, std::map<int, int>{})

@@ -40,19 +40,44 @@ cti::fe_daemon::writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid,
 	};
 	rawWriteLoop(reqFd, forkExecReq);
 
-	// write stdin/out/err fds
-	auto const stdin_path = (stdin_fd >= 0)
-		? std::string{"/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stdin_fd)}
-		: std::string{"/dev/stdin"};
-	writeLoop(reqFd, stdin_path.c_str(), stdin_path.length() + 1);
-	auto const stdout_path = (stdout_fd >= 0)
-		? std::string{"/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stdout_fd)}
-		: std::string{"/dev/stdout"};
-	writeLoop(reqFd, stdout_path.c_str(), stdout_path.length() + 1);
-	auto const stderr_path = (stderr_fd >= 0)
-		? std::string{"/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stderr_fd)}
-		: std::string{"/dev/stderr"};
-	writeLoop(reqFd, stderr_path.c_str(), stderr_path.length() + 1);
+	// share stdin/out/err fds
+	auto const N_FDS = 3;
+	int const stdfds[] =
+		{ (stdin_fd  >= 0) ? stdin_fd  : STDIN_FILENO
+		, (stdout_fd >= 0) ? stdout_fd : STDOUT_FILENO
+		, (stderr_fd >= 0) ? stderr_fd : STDERR_FILENO
+	};
+	struct {
+		int fd_data[N_FDS];
+		struct cmsghdr cmd_hdr;
+	} buffer;
+
+	// create message buffer for one character
+	struct iovec empty_iovec;
+	char c = ' ';
+	empty_iovec.iov_base = &c;
+	empty_iovec.iov_len  = 1;
+
+	// create empty message header with enough space for fds
+	struct msghdr msg_hdr = {};
+	msg_hdr.msg_iov     = &empty_iovec;
+	msg_hdr.msg_iovlen  = 1;
+	msg_hdr.msg_control = &buffer;
+	msg_hdr.msg_controllen = CMSG_SPACE(sizeof(int) * N_FDS);
+
+	// fill in the message header type
+	struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg_hdr);
+	cmsg->cmsg_len   = CMSG_LEN(sizeof(int) * N_FDS);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type  = SCM_RIGHTS;
+	for(int i = 0; i < N_FDS; i++) {
+		((int *)CMSG_DATA(cmsg))[i] = stdfds[i];
+	}
+
+	// send remap FD message
+	if (::sendmsg(reqFd, &msg_hdr, 0) < 0) {
+		throw std::runtime_error("failed to receive fds: " + std::string{strerror(errno)});
+	}
 
 	// write flat file/argv/env strings
 	writeLoop(reqFd, file, strlen(file) + 1);
