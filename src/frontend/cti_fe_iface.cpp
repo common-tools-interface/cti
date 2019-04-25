@@ -448,7 +448,7 @@ public: // interface
 			// remap standard FDs
 			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
 			dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
-			dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+			// dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
 
 			// close FDs above pipe FDs
 			auto max_fd = size_t{};

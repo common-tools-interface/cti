@@ -31,11 +31,13 @@
 #include <future>
 #include <vector>
 #include <unordered_set>
+#include <memory>
 
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
 
+#include "frontend/mpir_iface/MPIRInstance.hpp"
 #include "cti_fe_daemon_iface.hpp"
 
 using ReqType   = cti::fe_daemon::ReqType;
@@ -113,6 +115,12 @@ struct ProcSet
 // running apps / utils
 auto appList = ProcSet{};
 auto utilMap = std::unordered_map<pid_t, ProcSet>{};
+
+auto mpirMap = std::unordered_map<cti::fe_daemon::MPIRId, std::unique_ptr<MPIRInstance>>{};
+static cti::fe_daemon::MPIRId newMPIRId() {
+	static auto id = cti::fe_daemon::MPIRId{0};
+	return ++id;
+}
 
 // communication
 int reqFd  = -1; // incoming request pipe
@@ -271,6 +279,10 @@ writePIDResp(int const respFd, pid_t const pid)
 static void
 writeMPIRResp(int const respFd, cti::fe_daemon::MPIRResult const& mpirData)
 {
+	// first, send the launcher pid
+	writePIDResp(respFd, mpirData.launcher_pid);
+
+	// then send the MPIR data
 	rawWriteLoop(respFd, MPIRResp
 		{ .type     = RespType::MPIR
 		, .mpir_id  = mpirData.mpir_id
@@ -280,14 +292,12 @@ writeMPIRResp(int const respFd, cti::fe_daemon::MPIRResult const& mpirData)
 	});
 	for (auto&& elem : mpirData.proctable) {
 		rawWriteLoop(respFd, elem.pid);
-	}
-	for (auto&& elem : mpirData.proctable) {
 		writeLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
 	}
 }
 
-// read filename, argv, environment map appended to an app / util / mpir launch request
-static std::tuple<std::string, cti::ManagedArgv, std::unordered_map<std::string, std::string>>
+// read stdin/out/err ptahs, filepath, argv, environment map appended to an app / util / mpir launch request
+static std::tuple<std::string, std::string, std::string, std::string, std::vector<std::string>, std::vector<std::string>>
 readLaunchReq(int const reqFd)
 {
 	// receive a single null-terminated string from stream
@@ -303,41 +313,40 @@ readLaunchReq(int const reqFd)
 	cti::FdBuf reqBuf{dup(reqFd)};
 	std::istream reqStream{&reqBuf};
 
-	// read filename
-	auto const filename = receiveString(reqStream);
-	fprintf(stderr, "got file: %s\n", filename.c_str());
+	auto const stdin_path  = receiveString(reqStream);
+	auto const stdout_path = receiveString(reqStream);
+	auto const stderr_path = receiveString(reqStream);
+
+	// read filepath
+	auto const filepath = receiveString(reqStream);
+	fprintf(stderr, "got file: %s\n", filepath.c_str());
 
 	// read arguments
-	cti::ManagedArgv argv;
+	std::vector<std::string> argv;
 	while (true) {
 		auto const arg = receiveString(reqStream);
 		if (arg.empty()) {
 			break;
 		} else {
-			argv.add(arg);
 			fprintf(stderr, "got arg: %s\n", arg.c_str());
+			argv.emplace_back(std::move(arg));
 		}
 	}
 
 	// read env
-	std::unordered_map<std::string, std::string> envMap;
-	std::string envVarVal;
+	std::vector<std::string> envMap;
 	while (true) {
 		auto const envVarVal = receiveString(reqStream);
 		if (envVarVal.empty()) {
 			break;
 		} else {
-			auto const equalsAt = envVarVal.find("=");
-			if (equalsAt == std::string::npos) {
-				throw std::runtime_error("failed to parse env var: " + envVarVal);
-			} else {
-				fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
-				envMap.emplace(envVarVal.substr(0, equalsAt), envVarVal.substr(equalsAt + 1));
-			}
+			fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
+			envMap.emplace_back(std::move(envVarVal));
 		}
 	}
 
-	return std::make_tuple(filename, std::move(argv), envMap);
+	return std::make_tuple(std::move(stdin_path), std::move(stdout_path), std::move(stderr_path),
+		std::move(filepath), std::move(argv), std::move(envMap));
 }
 
 // if running the pid-producing function succeeds, write a PID response to pipe
@@ -405,11 +414,28 @@ tryWriteMPIRResp(int const respFd, Func&& func)
 static pid_t
 handle_launchReq(LaunchReq const& launchReq)
 {
-	// read filename, argv, env array from pipe
-	std::string filename;
+	// read filepath, argv, env array from pipe
+	std::string stdin_path, stdout_path, stderr_path;
+	std::string filepath;
+	std::vector<std::string> argvList;
+	std::vector<std::string> envList;
+	std::tie(stdin_path, stdout_path, stderr_path, filepath, argvList, envList) = readLaunchReq(reqFd);
+
+	// construct argv
 	cti::ManagedArgv argv;
+	for (auto&& arg : argvList) { argv.add(arg); }
+
+	// parse env
 	std::unordered_map<std::string, std::string> envMap;
-	std::tie(filename, argv, envMap) = readLaunchReq(reqFd);
+	for (auto&& envVarVal : envList) {
+		auto const equalsAt = envVarVal.find("=");
+		if (equalsAt == std::string::npos) {
+			throw std::runtime_error("failed to parse env var: " + envVarVal);
+		} else {
+			fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
+			envMap.emplace(envVarVal.substr(0, equalsAt), envVarVal.substr(equalsAt + 1));
+		}
+	}
 
 	// fork exec
 	if (auto const forkedPid = fork()) {
@@ -428,9 +454,9 @@ handle_launchReq(LaunchReq const& launchReq)
 		close(respFd);
 
 		// dup2 all stdin/out/err to provided FDs
-		dup2((launchReq.stdin_fd < 0)  ? open("/dev/null", O_WRONLY) : launchReq.stdin_fd,  STDIN_FILENO);
-		dup2((launchReq.stdout_fd < 0) ? open("/dev/null", O_WRONLY) : launchReq.stdout_fd, STDOUT_FILENO);
-		// dup2((launchReq.stderr_fd < 0) ? open("/dev/null", O_WRONLY) : launchReq.stderr_fd, STDERR_FILENO);
+		dup2(open(stdin_path.c_str(),  O_RDONLY), STDIN_FILENO);
+		dup2(open(stdout_path.c_str(), O_WRONLY), STDOUT_FILENO);
+		dup2(open(stderr_path.c_str(), O_WRONLY), STDERR_FILENO);
 
 		// set environment variables with overwrite
 		for (auto const& envVarVal : envMap) {
@@ -442,7 +468,7 @@ handle_launchReq(LaunchReq const& launchReq)
 		}
 
 		// exec srun
-		execvp(filename.c_str(), argv.get());
+		execvp(filepath.c_str(), argv.get());
 		perror("execvp");
 		exit(1);
 	}
@@ -473,7 +499,37 @@ handle_deregisterAppReq(AppReq const& deregisterReq)
 static cti::fe_daemon::MPIRResult
 handle_mpirLaunch(LaunchReq const& launchReq)
 {
-	throw std::runtime_error("not implemented: handle_mpirLaunch");
+	// read filepath, argv, env array from pipe
+	std::string stdin_path, stdout_path, stderr_path;
+	std::string filepath;
+	std::vector<std::string> argvList;
+	std::vector<std::string> envList;
+	std::tie(stdin_path, stdout_path, stderr_path, filepath, argvList, envList) = readLaunchReq(reqFd);
+
+	std::map<int, int> const remapFds
+		{ { open(stdin_path.c_str(),  O_RDONLY), STDIN_FILENO  }
+		, { open(stdout_path.c_str(), O_WRONLY), STDOUT_FILENO }
+		, { open(stderr_path.c_str(), O_WRONLY), STDERR_FILENO }
+	};
+	auto fdi = remapFds.begin();
+	fprintf(stderr, "open %s: %d\n", stdin_path.c_str(),  (fdi++)->first);
+	fprintf(stderr, "open %s: %d\n", stdout_path.c_str(), (fdi++)->first);
+	fprintf(stderr, "open %s: %d\n", stderr_path.c_str(), (fdi++)->first);
+
+	auto const idInstPair = mpirMap.emplace(std::make_pair(newMPIRId(),
+		std::make_unique<MPIRInstance>(filepath, argvList, envList, std::map<int, int>{})
+	)).first;
+
+	auto const rawJobId  = idInstPair->second->readStringAt("totalview_jobid");
+	auto const rawStepId = idInstPair->second->readStringAt("totalview_stepid");
+	fprintf(stderr, "launched new mpir id %d\n", idInstPair->first);
+	return cti::fe_daemon::MPIRResult
+		{ idInstPair->first // mpir_id
+		, idInstPair->second->getLauncherPid() // launcher_pid
+		, static_cast<uint32_t>(std::stoul(rawJobId)) // job_id
+		, rawStepId.empty() ? 0 : static_cast<uint32_t>(std::stoul(rawStepId)) // step_id
+		, idInstPair->second->getProctable() // proctable
+	};
 }
 
 static cti::fe_daemon::MPIRResult
@@ -485,7 +541,12 @@ handle_mpirAttach(AppReq const& appReq)
 static void
 handle_mpirRelease(ReleaseMPIRReq const& releaseMPIRReq)
 {
-	throw std::runtime_error("not implemented: handle_mpirRelease");
+	auto const idInstPair = mpirMap.find(releaseMPIRReq.mpir_id);
+	if (idInstPair != mpirMap.end()) {
+		mpirMap.erase(idInstPair);
+	} else {
+		throw std::runtime_error("mpir id not found: " + std::to_string(releaseMPIRReq.mpir_id));
+	}
 }
 
 int
@@ -529,7 +590,7 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// block all signals except SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+	// block all signals except SIGTERM, SIGCHLD, SIGPIPE, SIGTRAP, SIGHUP
 	sigset_t block_set;
 	memset(&block_set, 0, sizeof(block_set));
 	if (sigfillset(&block_set)) {
@@ -539,6 +600,7 @@ main(int argc, char *argv[])
 	if (sigdelset(&block_set, SIGTERM) ||
 	    sigdelset(&block_set, SIGCHLD) ||
 	    sigdelset(&block_set, SIGPIPE) ||
+	    sigdelset(&block_set, SIGTRAP) ||
 	    sigdelset(&block_set, SIGHUP)) {
 		perror("sigdelset");
 		return 1;
@@ -550,6 +612,7 @@ main(int argc, char *argv[])
 
 
 	// set handler for SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+	// SIGTRAP is used by Dyninst for breakpoint events
 	struct sigaction sig_action;
 	sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
 	sig_action.sa_sigaction = cti_fe_daemon_handler;
@@ -626,16 +689,12 @@ main(int argc, char *argv[])
 				break;
 
 			case ReqType::RegisterUtil:
-				fprintf(stderr, "start register\n");
 				tryWriteOKResp(respFd, [&]() {
-					fprintf(stderr, "read register\n");
 					auto const registerReq = rawReadLoop<UtilReq>(reqFd);
 
 					// register the new utility
-					fprintf(stderr, "run register\n");
 					registerUtilPID(registerReq.app_pid, registerReq.util_pid);
 				});
-				fprintf(stderr, "ok sent\n");
 				break;
 
 			case ReqType::DeregisterApp:

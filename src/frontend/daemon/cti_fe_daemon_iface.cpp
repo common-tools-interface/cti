@@ -37,11 +37,22 @@ cti::fe_daemon::writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid,
 	// construct and write fork/exec message
 	auto const forkExecReq = LaunchReq
 		{ .app_pid = app_pid
-		, .stdin_fd  = stdin_fd
-		, .stdout_fd = stdout_fd
-		, .stderr_fd = stderr_fd
 	};
 	rawWriteLoop(reqFd, forkExecReq);
+
+	// write stdin/out/err fds
+	auto const stdin_path = (stdin_fd >= 0)
+		? std::string{"/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stdin_fd)}
+		: std::string{"/dev/stdin"};
+	writeLoop(reqFd, stdin_path.c_str(), stdin_path.length() + 1);
+	auto const stdout_path = (stdout_fd >= 0)
+		? std::string{"/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stdout_fd)}
+		: std::string{"/dev/stdout"};
+	writeLoop(reqFd, stdout_path.c_str(), stdout_path.length() + 1);
+	auto const stderr_path = (stderr_fd >= 0)
+		? std::string{"/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stderr_fd)}
+		: std::string{"/dev/stderr"};
+	writeLoop(reqFd, stderr_path.c_str(), stderr_path.length() + 1);
 
 	// write flat file/argv/env strings
 	writeLoop(reqFd, file, strlen(file) + 1);
@@ -61,6 +72,7 @@ cti::fe_daemon::writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid,
 
 	// verify response
 	if ((forkExecResp.type != RespType::PID) || (forkExecResp.pid < 0)) {
+		fprintf(stderr, "forkExecResp type %ld pid %d\n", forkExecResp.type, forkExecResp.pid);
 		throw std::runtime_error("overwatch fork exec failed");
 	}
 
@@ -159,28 +171,28 @@ cti::fe_daemon::readMPIRResp(int const respFd, pid_t const launcherPid)
 	}
 
 	MPIRResult result
-		{ launcherPid
-		, mpirResp.mpir_id
+		{ mpirResp.mpir_id
+		, launcherPid
 		, mpirResp.job_id
 		, mpirResp.step_id
 		, {} // proctable
 	};
 	result.proctable.reserve(mpirResp.num_pids);
 
-	// fill in pids
-	for (int i = 0; i < mpirResp.num_pids; i++) {
-		result.proctable[i].pid = rawReadLoop<pid_t>(respFd);
-	}
-
 	// set up pipe stream
 	cti::FdBuf respBuf{dup(respFd)};
 	std::istream respStream{&respBuf};
 
-	// fill in hostnames
+	// fill in pid and hostname of next element
 	for (int i = 0; i < mpirResp.num_pids; i++) {
-		if (!std::getline(respStream, result.proctable[i].hostname, '\0')) {
+		MPIRProctableElem elem;
+		// read pid
+		elem.pid = rawReadLoop<pid_t>(respFd);
+		// read hostname
+		if (!std::getline(respStream, elem.hostname, '\0')) {
 			throw std::runtime_error("failed to read string");
 		}
+		result.proctable.emplace_back(std::move(elem));
 	}
 
 	return result;

@@ -38,10 +38,8 @@ enum ReqType : long {
 struct LaunchReq
 {
 	pid_t app_pid; // unused for ForkExecvpApp, LaunchMPIR
-	int stdin_fd;
-	int stdout_fd;
-	int stderr_fd;
 	// after sending this struct, send a list of null-terminated strings:
+	// - path to stdin, stdout, stderr files
 	// - file path string
 	// - each argument string
 	// - EMPTY STRING
@@ -100,9 +98,8 @@ struct MPIRResp
 	uint32_t job_id;
 	uint32_t step_id;
 	int num_pids;
-	// after sending this struct, send:
-	// - list of `num_pids` pids
-	// - list of `num_pids` null-terminated hostnames
+	// after sending this struct, send `num_pids` elements of:
+	// - pid followed by null-terminated hostname
 };
 
 }; // fe_daemon
