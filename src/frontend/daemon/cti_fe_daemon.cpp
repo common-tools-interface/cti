@@ -41,11 +41,6 @@
 #include "cti_fe_daemon_iface.hpp"
 
 using ReqType   = cti::fe_daemon::ReqType;
-using LaunchReq = cti::fe_daemon::LaunchReq;
-using AppReq    = cti::fe_daemon::AppReq;
-using UtilReq   = cti::fe_daemon::UtilReq;
-using ReleaseMPIRReq = cti::fe_daemon::ReleaseMPIRReq;
-
 using RespType  = cti::fe_daemon::RespType;
 using OKResp    = cti::fe_daemon::OKResp;
 using PIDResp   = cti::fe_daemon::PIDResp;
@@ -221,8 +216,7 @@ cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 
 /* registration helpers */
 
-static void
-registerAppPID(pid_t const app_pid)
+static void registerAppPID(pid_t const app_pid)
 {
 	if ((app_pid > 0) && !appList.contains(app_pid)) {
 		// register app pid
@@ -232,8 +226,7 @@ registerAppPID(pid_t const app_pid)
 	}
 }
 
-static void
-registerUtilPID(pid_t const app_pid, pid_t const util_pid)
+static void registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 {
 	// verify app pid
 	if (app_pid <= 0) {
@@ -253,53 +246,42 @@ registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 	}
 }
 
-/* pipe command helpers */
 
-// write a boolean response to pipe
-static void
-writeOKResp(int const respFd, bool const success)
+static void deregisterAppPID(pid_t const app_pid)
 {
-	rawWriteLoop(respFd, OKResp
-		{ .type = RespType::OK
-		, .success = success
-	});
-}
+	if (app_pid > 0) {
+		// terminate all of app's utilities
+		auto utilTermFuture = std::async(std::launch::async,
+			[&](){ utilMap.erase(app_pid); });
 
-// write a pid response to pipe
-static void
-writePIDResp(int const respFd, pid_t const pid)
-{
-	rawWriteLoop(respFd, PIDResp
-		{ .type = RespType::PID
-		, .pid  = pid
-	});
-}
+		// ensure app is terminated
+		if (appList.contains(app_pid)) {
+			auto appTermFuture = std::async(std::launch::async, [&](){ tryTerm(app_pid); });
+			appList.erase(app_pid);
+			appTermFuture.wait();
+		}
 
-// write an MPIR response to pipe
-static void
-writeMPIRResp(int const respFd, cti::fe_daemon::MPIRResult const& mpirData)
-{
-	// first, send the launcher pid
-	writePIDResp(respFd, mpirData.launcher_pid);
-
-	// then send the MPIR data
-	rawWriteLoop(respFd, MPIRResp
-		{ .type     = RespType::MPIR
-		, .mpir_id  = mpirData.mpir_id
-		, .job_id   = mpirData.job_id
-		, .step_id  = mpirData.step_id
-		, .num_pids = static_cast<int>(mpirData.proctable.size())
-	});
-	for (auto&& elem : mpirData.proctable) {
-		rawWriteLoop(respFd, elem.pid);
-		writeLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
+		// finish util termination
+		utilTermFuture.wait();
+	} else {
+		throw std::runtime_error("invalid app pid: " + std::to_string(app_pid));
 	}
 }
 
+/* protocol helpers */
+
+struct LaunchData {
+	int stdin_fd, stdout_fd, stderr_fd;
+	std::string filepath;
+	std::vector<std::string> argvList;
+	std::vector<std::string> envList;
+};
+
 // read stdin/out/err fds, filepath, argv, environment map appended to an app / util / mpir launch request
-static std::tuple<int, int, int, std::string, std::vector<std::string>, std::vector<std::string>>
-readLaunchReq(int const reqFd)
+static LaunchData readLaunchData(int const reqFd)
 {
+	LaunchData result;
+
 	// receive a single null-terminated string from stream
 	auto receiveString = [](std::istream& reqStream) {
 		std::string result;
@@ -311,7 +293,6 @@ readLaunchReq(int const reqFd)
 
 	// read and remap stdin/out/err
 	auto const N_FDS = 3;
-	int stdfds[N_FDS];
 	struct {
 		int fd_data[N_FDS];
 		struct cmsghdr cmd_hdr;
@@ -340,10 +321,10 @@ readLaunchReq(int const reqFd)
 	if (::recvmsg(reqFd, &msg_hdr, 0) < 0) {
 		throw std::runtime_error("failed to receive fds: " + std::string{strerror(errno)});
 	}
-	for (int i = 0; i < N_FDS; i++) {
-		stdfds[i] = ((int *)CMSG_DATA(cmsg))[i];
-	}
-	fprintf(stderr, "fd list: %d %d %d\n", stdfds[0], stdfds[1], stdfds[2]);
+	auto const fds = (int *)CMSG_DATA(cmsg);
+	result.stdin_fd  = fds[0];
+	result.stdout_fd = fds[1];
+	result.stderr_fd = fds[2];
 
 	// set up pipe stream
 	cti::FdBuf reqBuf{dup(reqFd)};
@@ -351,116 +332,130 @@ readLaunchReq(int const reqFd)
 
 	// read filepath
 	fprintf(stderr, "recv filename\n");
-	auto const filepath = receiveString(reqStream);
-	fprintf(stderr, "got file: %s\n", filepath.c_str());
+	result.filepath = receiveString(reqStream);
+	fprintf(stderr, "got file: %s\n", result.filepath.c_str());
 
 	// read arguments
-	std::vector<std::string> argv;
 	while (true) {
 		auto const arg = receiveString(reqStream);
 		if (arg.empty()) {
 			break;
 		} else {
 			fprintf(stderr, "got arg: %s\n", arg.c_str());
-			argv.emplace_back(std::move(arg));
+			result.argvList.emplace_back(std::move(arg));
 		}
 	}
 
 	// read env
-	std::vector<std::string> envMap;
 	while (true) {
 		auto const envVarVal = receiveString(reqStream);
 		if (envVarVal.empty()) {
 			break;
 		} else {
 			fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
-			envMap.emplace_back(std::move(envVarVal));
+			result.envList.emplace_back(std::move(envVarVal));
 		}
 	}
 
-	return std::make_tuple(stdfds[0], stdfds[1], stdfds[2],
-		std::move(filepath), std::move(argv), std::move(envMap));
-}
-
-// if running the pid-producing function succeeds, write a PID response to pipe
-template <typename Func>
-static void
-tryWritePIDResp(int const respFd, Func&& func)
-{
-	try {
-		// run the pid-producing function
-		auto const pid = func();
-
-		// send PID response
-		writePIDResp(respFd, pid);
-
-	} catch (std::exception const& ex) {
-		fprintf(stderr, "%s\n", ex.what());
-
-		// send failure response
-		writePIDResp(respFd, pid_t{-1});
-	}
+	return result;
 }
 
 // if running the function succeeds, write an OK response to pipe
 template <typename Func>
-static void
-tryWriteOKResp(int const respFd, Func&& func)
+static void tryWriteOKResp(int const respFd, Func&& func)
 {
 	try {
 		// run the function
 		func();
 
 		// send OK response
-		writeOKResp(respFd, true);
+		rawWriteLoop(respFd, OKResp
+			{ .type = RespType::OK
+			, .success = true
+		});
 
 	} catch (std::exception const& ex) {
 		fprintf(stderr, "%s\n", ex.what());
 
 		// send failure response
-		writeOKResp(respFd, false);
+		rawWriteLoop(respFd, OKResp
+			{ .type = RespType::OK
+			, .success = false
+		});
+	}
+}
+
+// if running the pid-producing function succeeds, write a PID response to pipe
+template <typename Func>
+static void tryWritePIDResp(int const respFd, Func&& func)
+{
+	try {
+		// run the pid-producing function
+		auto const pid = func();
+
+		// send PID response
+		rawWriteLoop(respFd, PIDResp
+			{ .type = RespType::PID
+			, .pid  = pid
+		});
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
+		// send failure response
+		rawWriteLoop(respFd, PIDResp
+			{ .type = RespType::PID
+			, .pid  = pid_t{-1}
+		});
 	}
 }
 
 // if running the function succeeds, write an MPIR response to pipe
 template <typename Func>
-static void
-tryWriteMPIRResp(int const respFd, Func&& func)
+static void tryWriteMPIRResp(int const respFd, Func&& func)
 {
 	try {
 		// run the mpir-producing function
 		auto const mpirData = func();
 
-		// send OK response
-		writeMPIRResp(respFd, mpirData);
+		// send the MPIR data
+		rawWriteLoop(respFd, MPIRResp
+			{ .type     = RespType::MPIR
+			, .mpir_id  = mpirData.mpir_id
+			, .launcher_pid = mpirData.launcher_pid
+			, .job_id   = mpirData.job_id
+			, .step_id  = mpirData.step_id
+			, .num_pids = static_cast<int>(mpirData.proctable.size())
+		});
+		for (auto&& elem : mpirData.proctable) {
+			rawWriteLoop(respFd, elem.pid);
+			writeLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
+		}
 
 	} catch (std::exception const& ex) {
 		fprintf(stderr, "%s\n", ex.what());
 
 		// send failure response
-		writeMPIRResp(respFd, cti::fe_daemon::MPIRResult { cti::fe_daemon::MPIRId{0} });
+		rawWriteLoop(respFd, MPIRResp
+			{ .type     = RespType::MPIR
+			, .mpir_id  = cti::fe_daemon::MPIRId{0}
+		});
 	}
 }
 
-/* request handlers */
+/* process helpers */
 
-static pid_t
-handle_launchReq(LaunchReq const& launchReq)
+static pid_t forkExec(LaunchData const& launchData)
 {
-	// read filepath, argv, env array from pipe
-	int stdin_fd, stdout_fd, stderr_fd;
-	std::string filepath;
-	std::vector<std::string> argvList;
-	std::vector<std::string> envList;
-	std::tie(stdin_fd, stdout_fd, stderr_fd, filepath, argvList, envList) = readLaunchReq(reqFd);
-
 	// construct argv
 	cti::ManagedArgv argv;
-	for (auto&& arg : argvList) { argv.add(arg); }
+	for (auto&& arg : launchData.argvList) {
+		argv.add(arg);
+	}
 
 	// parse env
 	std::unordered_map<std::string, std::string> envMap;
-	for (auto&& envVarVal : envList) {
+	for (auto&& envVarVal : launchData.envList) {
 		auto const equalsAt = envVarVal.find("=");
 		if (equalsAt == std::string::npos) {
 			throw std::runtime_error("failed to parse env var: " + envVarVal);
@@ -487,9 +482,9 @@ handle_launchReq(LaunchReq const& launchReq)
 		close(respFd);
 
 		// dup2 all stdin/out/err to provided FDs
-		dup2(stdin_fd,  STDIN_FILENO);
-		dup2(stdout_fd, STDOUT_FILENO);
-		dup2(stderr_fd, STDERR_FILENO);
+		dup2(launchData.stdin_fd,  STDIN_FILENO);
+		dup2(launchData.stdout_fd, STDOUT_FILENO);
+		dup2(launchData.stderr_fd, STDERR_FILENO);
 
 		// set environment variables with overwrite
 		for (auto const& envVarVal : envMap) {
@@ -501,52 +496,24 @@ handle_launchReq(LaunchReq const& launchReq)
 		}
 
 		// exec srun
-		execvp(filepath.c_str(), argv.get());
+		execvp(launchData.filepath.c_str(), argv.get());
 		perror("execvp");
 		exit(1);
 	}
 }
 
-static void
-handle_deregisterAppReq(AppReq const& deregisterReq)
+static cti::fe_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 {
-	if (deregisterReq.app_pid > 0) {
-		// terminate all of app's utilities
-		auto utilTermFuture = std::async(std::launch::async,
-			[&](){ utilMap.erase(deregisterReq.app_pid); });
-
-		// ensure app is terminated
-		if (appList.contains(deregisterReq.app_pid)) {
-			auto appTermFuture = std::async(std::launch::async, [&](){ tryTerm(deregisterReq.app_pid); });
-			appList.erase(deregisterReq.app_pid);
-			appTermFuture.wait();
-		}
-
-		// finish util termination
-		utilTermFuture.wait();
-	} else {
-		throw std::runtime_error("invalid app pid: " + std::to_string(deregisterReq.app_pid));
-	}
-}
-
-static cti::fe_daemon::MPIRResult
-handle_mpirLaunch(LaunchReq const& launchReq)
-{
-	// read filepath, argv, env array from pipe
-	int stdin_fd, stdout_fd, stderr_fd;
-	std::string filepath;
-	std::vector<std::string> argvList;
-	std::vector<std::string> envList;
-	std::tie(stdin_fd, stdout_fd, stderr_fd, filepath, argvList, envList) = readLaunchReq(reqFd);
-
 	std::map<int, int> const remapFds
-		{ { stdin_fd,  STDIN_FILENO  }
-		, { stdout_fd, STDOUT_FILENO }
-		, { stderr_fd, STDERR_FILENO }
+		{ { launchData.stdin_fd,  STDIN_FILENO  }
+		, { launchData.stdout_fd, STDOUT_FILENO }
+		, { launchData.stderr_fd, STDERR_FILENO }
 	};
 
 	auto const idInstPair = mpirMap.emplace(std::make_pair(newMPIRId(),
-		std::make_unique<MPIRInstance>(filepath, argvList, envList, std::map<int, int>{})
+		std::make_unique<MPIRInstance>(
+			launchData.filepath, launchData.argvList, launchData.envList, std::map<int, int>{}
+		)
 	)).first;
 
 	auto const rawJobId  = idInstPair->second->readStringAt("totalview_jobid");
@@ -561,22 +528,131 @@ handle_mpirLaunch(LaunchReq const& launchReq)
 	};
 }
 
-static cti::fe_daemon::MPIRResult
-handle_mpirAttach(AppReq const& appReq)
+static cti::fe_daemon::MPIRResult attachMPIR(pid_t const app_pid)
 {
 	throw std::runtime_error("not implemented: handle_mpirAttach");
 }
 
-static void
-handle_mpirRelease(ReleaseMPIRReq const& releaseMPIRReq)
+static void releaseMPIR(cti::fe_daemon::MPIRId const mpir_id)
 {
-	auto const idInstPair = mpirMap.find(releaseMPIRReq.mpir_id);
+	auto const idInstPair = mpirMap.find(mpir_id);
 	if (idInstPair != mpirMap.end()) {
 		mpirMap.erase(idInstPair);
 	} else {
-		throw std::runtime_error("mpir id not found: " + std::to_string(releaseMPIRReq.mpir_id));
+		throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
 	}
 }
+
+/* handler implementations */
+
+static void handle_ForkExecvpApp(int const reqFd, int const respFd)
+{
+	tryWritePIDResp(respFd, [&]() {
+		auto const launchData = readLaunchData(reqFd);
+
+		auto const appPid = forkExec(launchData);
+
+		registerAppPID(appPid);
+
+		return appPid;
+	});
+}
+
+static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
+{
+	tryWritePIDResp(respFd, [&]() {
+		auto const appPid  = rawReadLoop<pid_t>(reqFd);
+		auto const runMode = rawReadLoop<cti::fe_daemon::RunMode>(reqFd);
+		auto const launchData = readLaunchData(reqFd);
+
+		auto const utilPid = forkExec(launchData);
+
+		registerUtilPID(appPid, utilPid);
+		if (runMode == cti::fe_daemon::Synchronous) {
+			::waitpid(utilPid, nullptr, 0);
+		}
+
+		return utilPid;
+	});
+}
+
+static void handle_LaunchMPIR(int const reqFd, int const respFd)
+{
+	tryWriteMPIRResp(respFd, [&]() {
+		auto const launchData = readLaunchData(reqFd);
+
+		auto const mpirData = launchMPIR(launchData);
+
+		registerAppPID(mpirData.launcher_pid);
+
+		return mpirData;
+	});
+}
+
+static void handle_AttachMPIR(int const reqFd, int const respFd)
+{
+	tryWriteMPIRResp(respFd, [&]() {
+		auto const launcherPid = rawReadLoop<pid_t>(reqFd);
+
+		auto const mpirData = attachMPIR(launcherPid);
+
+		registerAppPID(mpirData.launcher_pid);
+
+		return mpirData;
+	});
+}
+
+static void handle_ReleaseMPIR(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		auto const mpirId = rawReadLoop<cti::fe_daemon::MPIRId>(reqFd);
+
+		releaseMPIR(mpirId);
+	});
+}
+
+static void handle_RegisterApp(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		auto const appPid = rawReadLoop<pid_t>(reqFd);
+
+		registerAppPID(appPid);
+	});
+}
+
+static void handle_RegisterUtil(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		auto const appPid  = rawReadLoop<pid_t>(reqFd);
+		auto const utilPid = rawReadLoop<pid_t>(reqFd);
+
+		registerUtilPID(appPid, utilPid);
+	});
+}
+
+static void handle_DeregisterApp(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		auto const appPid = rawReadLoop<pid_t>(reqFd);
+
+		deregisterAppPID(appPid);
+	});
+}
+
+static void handle_Shutdown(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		// send OK response
+		rawWriteLoop(respFd, OKResp
+			{ .type = RespType::OK
+			, .success = true
+		});
+
+		shutdown_and_exit(0);
+	});
+}
+
+
 
 int
 main(int argc, char *argv[])
@@ -655,7 +731,7 @@ main(int argc, char *argv[])
 
 	// write our PID to signal to the parent we are all set up
 	fprintf(stderr, "%d sending initial ok\n", getpid());
-	writePIDResp(respFd, getpid());
+	rawWriteLoop(respFd, getpid());
 
 	// wait for pipe commands
 	while (true) {
@@ -665,77 +741,39 @@ main(int argc, char *argv[])
 		switch (reqType) {
 
 			case ReqType::ForkExecvpApp:
-				tryWritePIDResp(respFd, [&]() {
-					auto const launchReq = rawReadLoop<LaunchReq>(reqFd);
-
-					// fork exec the app based on launch request
-					auto const forkedPid = handle_launchReq(launchReq);
-					// register the new app
-					registerAppPID(forkedPid);
-
-					return forkedPid;
-				});
+				handle_ForkExecvpApp(reqFd, respFd);
 				break;
 
 			case ReqType::ForkExecvpUtil:
-				tryWritePIDResp(respFd, [&]() {
-					auto const launchReq = rawReadLoop<LaunchReq>(reqFd);
-
-					// fork exec the util based on launch request
-					auto const forkedPid = handle_launchReq(launchReq);
-					// register the new utility
-					registerUtilPID(launchReq.app_pid, forkedPid);
-
-					return forkedPid;
-				});
+				handle_ForkExecvpUtil(reqFd, respFd);
 				break;
 
 			case ReqType::LaunchMPIR:
-				tryWriteMPIRResp(respFd, [&]() {
-					return handle_mpirLaunch(rawReadLoop<LaunchReq>(reqFd));
-				});
+				handle_LaunchMPIR(reqFd, respFd);
 				break;
 
 			case ReqType::AttachMPIR:
-				tryWriteMPIRResp(respFd, [&]() {
-					return handle_mpirAttach(rawReadLoop<AppReq>(reqFd));
-				});
+				handle_AttachMPIR(reqFd, respFd);
 				break;
 
 			case ReqType::ReleaseMPIR:
-				tryWriteOKResp(respFd, [&]() {
-					handle_mpirRelease(rawReadLoop<ReleaseMPIRReq>(reqFd));
-				});
+				handle_ReleaseMPIR(reqFd, respFd);
 				break;
 
 			case ReqType::RegisterApp:
-				tryWriteOKResp(respFd, [&]() {
-					auto const registerReq = rawReadLoop<AppReq>(reqFd);
-
-					// register the new app
-					registerAppPID(registerReq.app_pid);
-				});
+				handle_RegisterApp(reqFd, respFd);
 				break;
 
 			case ReqType::RegisterUtil:
-				tryWriteOKResp(respFd, [&]() {
-					auto const registerReq = rawReadLoop<UtilReq>(reqFd);
-
-					// register the new utility
-					registerUtilPID(registerReq.app_pid, registerReq.util_pid);
-				});
+				handle_RegisterUtil(reqFd, respFd);
 				break;
 
 			case ReqType::DeregisterApp:
-				tryWriteOKResp(respFd, [&]() {
-					handle_deregisterAppReq(rawReadLoop<AppReq>(reqFd));
-				});
+				handle_DeregisterApp(reqFd, respFd);
 				break;
 
 			case ReqType::Shutdown:
-				// send OK response and run shutdown
-				writeOKResp(respFd, true);
-				shutdown_and_exit(0);
+				handle_Shutdown(reqFd, respFd);
 				break;
 
 			default:

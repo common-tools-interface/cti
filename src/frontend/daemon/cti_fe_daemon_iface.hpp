@@ -88,33 +88,36 @@ struct MPIRResult
 	MPIRProctable proctable;
 };
 
-// write the given request type to pipe
-void writeReqType(int const reqFd, ReqType const type);
-
-// write an app / util / mpir launch request to pipe, verify response, return launched pid
-pid_t writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid, char const* file,
+// write an app launch request and parameters to pipe, return launched PID
+pid_t request_ForkExecvpApp(int const reqFd, int const respFd, char const* file,
 	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
+// write a utility launch request and parameters to pipe, return launched PID
+pid_t request_ForkExecvpUtil(int const reqFd, int const respFd, pid_t app_pid, RunMode runMode,
+	char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd,
+	char const* const env[]);
+
+// write an mpir launch request and parameters to pipe, return MPIR data including proctable
+MPIRResult request_LaunchMPIR(int const reqFd, int const respFd, char const* file,
+	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
+
+// write an MPIR attach request to pipe, return MPIR data
+MPIRResult request_AttachMPIR(int const reqFd, int const respFd, pid_t app_pid);
+
 // write an mpir release request to pipe, verify response
-void writeReleaseMPIRReq(int const reqFd, int const respFd, MPIRId mpir_id);
+void request_ReleaseMPIR(int const reqFd, int const respFd, MPIRId mpir_id);
 
-// write an app register / deregister request to pipe, verify response, return pid
-pid_t writeAppReq(int const reqFd, int const respFd, pid_t app_pid);
+// write an app register request to pipe, verify response, return pid
+pid_t request_RegisterApp(int const reqFd, int const respFd, pid_t app_pid);
 
-// write util register request to pipe, verify response, return pid
-pid_t writeUtilReq(int const reqFd, int const respFd, pid_t app_pid, pid_t util_pid);
+// write utility register request to pipe, verify response, return pid
+pid_t request_RegisterUtil(int const reqFd, int const respFd, pid_t app_pid, pid_t util_pid);
+
+// write an app deregister request to pipe, verify response
+void request_DeregisterApp(int const reqFd, int const respFd, pid_t app_pid);
 
 // write daemon shutdown request to pipe, verify response
-void writeShutdownReq(int const reqFd, int const respFd);
-
-// read a boolean response from pipe
-bool readOKResp(int const respFd);
-
-// read a pid response from pipe
-pid_t readPIDResp(int const respFd);
-
-// read an MPIR proctable response from pipe
-MPIRResult readMPIRResp(int const respFd, pid_t const launcherPid);
+void request_Shutdown(int const reqFd, int const respFd);
 
 }; // fe_daemon
 }; // cti
@@ -126,8 +129,12 @@ pid_t _cti_forkExecvpApp(char const* file, char const* const argv[], int stdin_f
 	int stdout_fd, int stderr_fd, char const* const env[]);
 
 // overwatch will fork and execvp a binary and register it as a utility belonging to app_pid
-pid_t _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdin_fd, 
-	int stdout_fd, int stderr_fd, char const* const env[]);
+pid_t _cti_forkExecvpAsyncUtil(pid_t app_pid, char const* file, char const* const argv[],
+	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
+
+// overwatch will fork and execvp a binary, register it, and wait for its completion
+pid_t _cti_forkExecvpSyncUtil(pid_t app_pid, char const* file, char const* const argv[],
+	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
 // overwatch will launch a binary under MPIR control and extract its proctable
 cti::fe_daemon::MPIRResult _cti_launchMPIR(char const* file, char const* const argv[],
@@ -137,7 +144,7 @@ cti::fe_daemon::MPIRResult _cti_launchMPIR(char const* file, char const* const a
 cti::fe_daemon::MPIRResult _cti_attachMPIR(pid_t app_pid);
 
 // overwatch will release a binary under mpir control from its breakpoint
-void _cti_releaseMPIRBreakpoint(cti::fe_daemon::MPIRId mpir_id);
+void _cti_releaseMPIR(cti::fe_daemon::MPIRId mpir_id);
 
 // overwatch will register an already-forked process as an app. make sure this is paired with a
 // _cti_deregisterApp for timely cleanup

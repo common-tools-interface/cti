@@ -34,38 +34,56 @@ enum ReqType : long {
 	Shutdown
 };
 
-// ForkExecvpApp, ForkExecvpUtil, LaunchMPIR
-struct LaunchReq
-{
-	pid_t app_pid; // unused for ForkExecvpApp, LaunchMPIR
-	// after sending this struct, send socket control message to share FDs:
-	// - array of stdin, stdout, stderr FDs
-	// then send list of null-terminated strings:
-	// - file path string
-	// - each argument string
-	// - EMPTY STRING
-	// - each environment variable string (format VAR=VAL)
-	// - EMPTY STRING
-	// sum of lengths of these strings including null-terminators should equal `file_and_argv_len`
+enum RunMode : int {
+	Asynchronous,
+	Synchronous
 };
 
-struct ReleaseMPIRReq
-{
-	MPIRId mpir_id;
-};
+/* communication protocol
+	before sending any data, send the request type
+*/
 
-// RegisterApp, DeregisterApp
-struct AppReq
-{
-	pid_t app_pid;
-};
+// ForkExecvpApp
+// LaunchMPIR
+/*
+	Application launch parameters:
+	send socket control message to share FD access rights
+	- array of stdin, stdout, stderr FDs
+	then send list of null-terminated strings:
+	- file path string
+	- each argument string
+	- EMPTY STRING
+	- each environment variable string (format VAR=VAL)
+	- EMPTY STRING
+*/
+
+// ForkExecvpUtil
+/*
+	send PID of owning application
+	send RunMode indicating synchronous or asynchronous run
+	send "Application launch parameters" as for ForkExecvpApp
+*/
+
+// AttachMPIR
+// RegisterApp
+// DeregisterApp
+/*
+	send PID of target application
+*/
 
 // RegisterUtil
-struct UtilReq
-{
-	pid_t app_pid;
-	pid_t util_pid;
-};
+/*
+	send PID of owning application
+	send PID of target utility
+*/
+
+// ReleaseMPIR
+/*
+	send MPIR ID provided by LaunchMPIR request
+*/
+
+// Shutdown
+/* No data */
 
 // Response types
 
@@ -96,6 +114,7 @@ struct MPIRResp
 {
 	RespType type;
 	MPIRId mpir_id;
+	pid_t launcher_pid;
 	uint32_t job_id;
 	uint32_t step_id;
 	int num_pids;

@@ -182,7 +182,7 @@ void CraySLURMApp::releaseBarrier() {
 	}
 
 	// release MPIR barrier
-	_cti_releaseMPIRBreakpoint(m_stoppedSrunId);
+	_cti_releaseMPIR(m_stoppedSrunId);
 }
 
 void
@@ -203,7 +203,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 		stderrFd = STDERR_FILENO;
 	}
 
-	_cti_forkExecvpUtil(m_launcherPid, SATTACH, sattachArgv.get(),
+	_cti_forkExecvpAsyncUtil(m_launcherPid, SATTACH, sattachArgv.get(),
 		// redirect stdin / stderr / stdout
 		open("/dev/null", O_RDONLY), stdoutFd, stderrFd,
 		nullptr);
@@ -219,11 +219,8 @@ void CraySLURMApp::kill(int signum)
 		, getJobId() // fourth argument is the jobid.stepid
 	};
 
-	// tell overwatch to launch scancel
-	auto const scancelPid = _cti_forkExecvpUtil(m_launcherPid, SCANCEL, scancelArgv.get(), -1, -1, -1, nullptr);
-
-	// wait until the scancel finishes
-	waitpid(scancelPid, nullptr, 0);
+	// tell overwatch to launch scancel, wait for it to finish
+	_cti_forkExecvpSyncUtil(m_launcherPid, SCANCEL, scancelArgv.get(), -1, -1, -1, nullptr);
 }
 
 void CraySLURMApp::shipPackage(std::string const& tarPath) const {
@@ -242,8 +239,8 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
 		throw std::runtime_error("_cti_pathToName failed");
 	}
 
-	// now ship the tarball to the compute nodes. tell overwatch to launch sbcast
-	auto const forkedPid = _cti_forkExecvpUtil(m_launcherPid, SBCAST, sbcastArgv.get(), -1, -1, -1, nullptr);
+	// now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
+	auto const forkedPid = _cti_forkExecvpSyncUtil(m_launcherPid, SBCAST, sbcastArgv.get(), -1, -1, -1, nullptr);
 
 	// wait until the sbcast finishes
 	// FIXME: There is no way to error check right now because the sbcast command
@@ -339,8 +336,10 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 	}
 
 	// tell overwatch to launch srun
-	auto const forkedPid = _cti_forkExecvpUtil(m_launcherPid,
-		CraySLURMFrontend::getLauncherName().c_str(), launcherArgv.get(), -1, -1, -1, launcherEnv.get());
+	_cti_forkExecvpAsyncUtil(m_launcherPid,
+		CraySLURMFrontend::getLauncherName().c_str(), launcherArgv.get(),
+		::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
+		launcherEnv.get());
 }
 
 /* cray slurm frontend implementation */
@@ -643,6 +642,6 @@ CraySLURMFrontend::getSrunInfo(pid_t srunPid) {
 
 	// tell overwatch to extract information using MPIR attach
 	auto const mpirData = _cti_attachMPIR(srunPid);
-	_cti_releaseMPIRBreakpoint(mpirData.mpir_id);
+	_cti_releaseMPIR(mpirData.mpir_id);
 	return SrunInfo { mpirData.job_id, mpirData.step_id };
 }

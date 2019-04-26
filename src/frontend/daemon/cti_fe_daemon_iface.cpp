@@ -22,24 +22,11 @@
 
 #include "cti_fe_daemon_iface.hpp"
 
-/* fe_iface helpers */
+/* protocol helpers */
 
-void
-cti::fe_daemon::writeReqType(int const reqFd, cti::fe_daemon::ReqType const type)
+static void writeLaunchData(int const reqFd, char const* file, char const* const argv[],
+	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	rawWriteLoop(reqFd, type);
-}
-
-pid_t
-cti::fe_daemon::writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid, char const* file,
-	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
-{
-	// construct and write fork/exec message
-	auto const forkExecReq = LaunchReq
-		{ .app_pid = app_pid
-	};
-	rawWriteLoop(reqFd, forkExecReq);
-
 	// share stdin/out/err fds
 	auto const N_FDS = 3;
 	int const stdfds[] =
@@ -91,113 +78,36 @@ cti::fe_daemon::writeLaunchReq(int const reqFd, int const respFd, pid_t app_pid,
 		}
 	}
 	rawWriteLoop(reqFd, '\0');
-
-	// read response
-	auto const forkExecResp = rawReadLoop<PIDResp>(respFd);
-
-	// verify response
-	if ((forkExecResp.type != RespType::PID) || (forkExecResp.pid < 0)) {
-		fprintf(stderr, "forkExecResp type %ld pid %d\n", forkExecResp.type, forkExecResp.pid);
-		throw std::runtime_error("overwatch fork exec failed");
-	}
-
-	return forkExecResp.pid;
 }
 
-void
-cti::fe_daemon::writeReleaseMPIRReq(int const reqFd, int const respFd, cti::fe_daemon::MPIRId mpir_id)
+static void verifyOKResp(int const respFd)
 {
-	// construct and write release
-	auto const releaseMPIRReq = ReleaseMPIRReq
-		{ .mpir_id = mpir_id
-	};
-	rawWriteLoop(reqFd, releaseMPIRReq);
-
-	// read response
-	auto const releaseResp = rawReadLoop<OKResp>(respFd);
-
-	// verify response
-	if ((releaseResp.type != RespType::OK) || !releaseResp.success) {
-		throw std::runtime_error("overwatch release mpir barrier failed");
+	auto const okResp = rawReadLoop<cti::fe_daemon::OKResp>(respFd);
+	if ((okResp.type != cti::fe_daemon::RespType::OK) || !okResp.success) {
+		throw std::runtime_error("failed to verify OK response");
 	}
 }
 
-pid_t
-cti::fe_daemon::writeAppReq(int const reqFd, int const respFd, pid_t app_pid)
+static pid_t readPIDResp(int const respFd)
 {
-	// construct and write register message
-	auto const registerAppReq = AppReq
-		{ .app_pid = app_pid
-	};
-	rawWriteLoop(reqFd, registerAppReq);
-
-	// read response
-	auto const registerResp = rawReadLoop<OKResp>(respFd);
-
-	// verify response
-	if ((registerResp.type != RespType::OK) || !registerResp.success) {
-		throw std::runtime_error("overwatch register app failed");
-	}
-
-	return app_pid;
-}
-
-pid_t
-cti::fe_daemon::writeUtilReq(int const reqFd, int const respFd, pid_t app_pid, pid_t util_pid)
-{
-	// construct and write register message
-	auto const registerUtilReq = UtilReq
-		{ .app_pid = app_pid
-		, .util_pid = util_pid
-	};
-	rawWriteLoop(reqFd, registerUtilReq);
-
-	// read response
-	auto const registerResp = rawReadLoop<OKResp>(respFd);
-
-	// verify response
-	if ((registerResp.type != RespType::OK) || !registerResp.success) {
-		throw std::runtime_error("overwatch register util failed");
-	}
-
-	return util_pid;
-}
-
-void
-cti::fe_daemon::writeShutdownReq(int const reqFd, int const respFd)
-{
-	// read response
-	auto const shutdownResp = rawReadLoop<OKResp>(respFd);
-
-	// verify response
-	if ((shutdownResp.type != RespType::OK) || !shutdownResp.success) {
-		throw std::runtime_error("overwatch shutdown failed");
-	}
-}
-
-// read a pid response from pipe
-pid_t
-cti::fe_daemon::readPIDResp(int const respFd)
-{
-	auto const pidResp = rawReadLoop<PIDResp>(respFd);
-	if ((pidResp.type != RespType::PID) || (pidResp.pid < 0)) {
+	auto const pidResp = rawReadLoop<cti::fe_daemon::PIDResp>(respFd);
+	if ((pidResp.type != cti::fe_daemon::RespType::PID) || (pidResp.pid < 0)) {
 		throw std::runtime_error("failed to read PID response");
 	}
 	return pidResp.pid;
 }
 
-cti::fe_daemon::MPIRResult
-cti::fe_daemon::readMPIRResp(int const respFd, pid_t const launcherPid)
+static cti::fe_daemon::MPIRResult readMPIRResp(int const respFd)
 {
 	// read basic table information
-	auto const mpirResp = rawReadLoop<MPIRResp>(respFd);
-	if ((mpirResp.type != RespType::MPIR) || !mpirResp.mpir_id) {
+	auto const mpirResp = rawReadLoop<cti::fe_daemon::MPIRResp>(respFd);
+	if ((mpirResp.type != cti::fe_daemon::RespType::MPIR) || !mpirResp.mpir_id) {
 		throw std::runtime_error("failed to read proctable response");
 	}
 
-	MPIRResult result
+	cti::fe_daemon::MPIRResult result
 		{ mpirResp.mpir_id
-		, launcherPid
+		, mpirResp.launcher_pid
 		, mpirResp.job_id
 		, mpirResp.step_id
 		, {} // proctable
@@ -221,4 +131,86 @@ cti::fe_daemon::readMPIRResp(int const respFd, pid_t const launcherPid)
 	}
 
 	return result;
+}
+
+/* interface implementation */
+
+pid_t
+cti::fe_daemon::request_ForkExecvpApp(int const reqFd, int const respFd, char const* file,
+	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+{
+	rawWriteLoop(reqFd, ReqType::ForkExecvpApp);
+	writeLaunchData(reqFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+	return readPIDResp(respFd);
+}
+
+pid_t
+cti::fe_daemon::request_ForkExecvpUtil(int const reqFd, int const respFd, pid_t app_pid, RunMode runMode,
+	char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd,
+	char const* const env[])
+{
+	rawWriteLoop(reqFd, ReqType::ForkExecvpUtil);
+	rawWriteLoop(reqFd, app_pid);
+	rawWriteLoop(reqFd, runMode);
+	writeLaunchData(reqFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+	return readPIDResp(respFd);
+}
+
+cti::fe_daemon::MPIRResult
+cti::fe_daemon::request_LaunchMPIR(int const reqFd, int const respFd, char const* file,
+	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+{
+	rawWriteLoop(reqFd, ReqType::LaunchMPIR);
+	writeLaunchData(reqFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+	return readMPIRResp(respFd);
+}
+
+cti::fe_daemon::MPIRResult
+cti::fe_daemon::request_AttachMPIR(int const reqFd, int const respFd, pid_t app_pid)
+{
+	rawWriteLoop(reqFd, ReqType::AttachMPIR);
+	rawWriteLoop(reqFd, app_pid);
+	return readMPIRResp(respFd);
+}
+
+void
+cti::fe_daemon::request_ReleaseMPIR(int const reqFd, int const respFd, MPIRId mpir_id)
+{
+	rawWriteLoop(reqFd, ReqType::ReleaseMPIR);
+	rawWriteLoop(reqFd, mpir_id);
+	verifyOKResp(respFd);
+}
+
+pid_t
+cti::fe_daemon::request_RegisterApp(int const reqFd, int const respFd, pid_t app_pid)
+{
+	rawWriteLoop(reqFd, ReqType::RegisterApp);
+	rawWriteLoop(reqFd, app_pid);
+	verifyOKResp(respFd);
+	return app_pid;
+}
+
+pid_t
+cti::fe_daemon::request_RegisterUtil(int const reqFd, int const respFd, pid_t app_pid, pid_t util_pid)
+{
+	rawWriteLoop(reqFd, ReqType::RegisterUtil);
+	rawWriteLoop(reqFd, app_pid);
+	rawWriteLoop(reqFd, util_pid);
+	verifyOKResp(respFd);
+	return util_pid;
+}
+
+void
+cti::fe_daemon::request_DeregisterApp(int const reqFd, int const respFd, pid_t app_pid)
+{
+	rawWriteLoop(reqFd, ReqType::DeregisterApp);
+	rawWriteLoop(reqFd, app_pid);
+	verifyOKResp(respFd);
+}
+
+void
+cti::fe_daemon::request_Shutdown(int const reqFd, int const respFd)
+{
+	rawWriteLoop(reqFd, ReqType::Shutdown);
+	verifyOKResp(respFd);
 }

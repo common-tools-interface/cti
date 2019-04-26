@@ -426,7 +426,7 @@ public: // interface
 			feDaemonRespSock.closeWrite();
 
 			// wait until fe_daemon set up
-			if (cti::fe_daemon::readPIDResp(feDaemonRespSock.getReadFd()) != forkedPid) {
+			if (rawReadLoop<pid_t>(feDaemonRespSock.getReadFd()) != forkedPid) {
 				throw std::runtime_error("fe_daemon launch failed");
 			}
 		} else {
@@ -538,26 +538,37 @@ _cti_forkExecvpApp(char const* file, char const* const argv[], int stdin_fd, int
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
-	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::ForkExecvpApp);
-	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+	return cti::fe_daemon::request_ForkExecvpApp(reqFd, respFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
 
 pid_t
-_cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+_cti_forkExecvpAsyncUtil(pid_t app_pid, char const* file, char const* const argv[],
+	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
-	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::ForkExecvpUtil);
-	return cti::fe_daemon::writeLaunchReq(reqFd, respFd, app_pid, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+	return cti::fe_daemon::request_ForkExecvpUtil(reqFd, respFd, app_pid,
+		cti::fe_daemon::RunMode::Asynchronous,
+		file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
+
+pid_t
+_cti_forkExecvpSyncUtil(pid_t app_pid, char const* file, char const* const argv[],
+	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+{
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_ForkExecvpUtil(reqFd, respFd, app_pid,
+		cti::fe_daemon::RunMode::Synchronous,
+		file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+}
+
 cti::fe_daemon::MPIRResult
 _cti_launchMPIR(char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
-	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::LaunchMPIR);
-	auto const launcherPid = cti::fe_daemon::writeLaunchReq(reqFd, respFd, pid_t{0}, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
-	return cti::fe_daemon::readMPIRResp(respFd, launcherPid);
+	return cti::fe_daemon::request_LaunchMPIR(reqFd, respFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
 
 cti::fe_daemon::MPIRResult
@@ -565,18 +576,15 @@ _cti_attachMPIR(pid_t app_pid)
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
-	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::AttachMPIR);
-	auto const launcherPid = cti::fe_daemon::writeAppReq(reqFd, respFd, app_pid);
-	return cti::fe_daemon::readMPIRResp(respFd, launcherPid);
+	return cti::fe_daemon::request_AttachMPIR(reqFd, respFd, app_pid);
 }
 
 void
-_cti_releaseMPIRBreakpoint(cti::fe_daemon::MPIRId mpir_id)
+_cti_releaseMPIR(cti::fe_daemon::MPIRId mpir_id)
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
-	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::ReleaseMPIR);
-	return cti::fe_daemon::writeReleaseMPIRReq(reqFd, respFd, mpir_id);
+	return cti::fe_daemon::request_ReleaseMPIR(reqFd, respFd, mpir_id);
 }
 
 pid_t
@@ -584,8 +592,7 @@ _cti_registerApp(pid_t app_pid)
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
-	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::RegisterApp);
-	return cti::fe_daemon::writeAppReq(reqFd, respFd, app_pid);
+	return cti::fe_daemon::request_RegisterApp(reqFd, respFd, app_pid);
 }
 
 pid_t
@@ -593,8 +600,7 @@ _cti_registerUtil(pid_t app_pid, pid_t util_pid)
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
-	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::RegisterUtil);
-	return cti::fe_daemon::writeUtilReq(reqFd, respFd, app_pid, util_pid);
+	return cti::fe_daemon::request_RegisterUtil(reqFd, respFd, app_pid, util_pid);
 }
 
 void
@@ -602,16 +608,14 @@ _cti_deregisterApp(pid_t app_pid)
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
-	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::DeregisterApp);
-	cti::fe_daemon::writeAppReq(reqFd, respFd, app_pid);
+	return cti::fe_daemon::request_DeregisterApp(reqFd, respFd, app_pid);
 }
 
 void _cti_shutdownOverwatch()
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
-	cti::fe_daemon::writeReqType(reqFd, cti::fe_daemon::ReqType::Shutdown);
-	cti::fe_daemon::writeShutdownReq(reqFd, respFd);
+	return cti::fe_daemon::request_Shutdown(reqFd, respFd);
 }
 
 /* internal testing functions */
