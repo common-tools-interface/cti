@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cti_overwatch_iface.hpp - command interface for frontend daemon
+ * cti_fe_daemon_iface.hpp - command interface for frontend daemon
  *
  * Copyright 2019 Cray Inc.  All Rights Reserved.
  *
@@ -74,11 +74,15 @@ static void rawWriteLoop(int const fd, T const& obj)
 	writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
 }
 
-/* protocol helpers for cti_fe_iface */
+/* protocol helpers for cti_fe_iface
+	the frontend implementation in cti_fe_iface.cpp will call these functions, using its internal
+	state to provide the file descriptors for the request and response domain sockets
+*/
 
 namespace cti {
 namespace fe_daemon {
 
+// bundle all MPIR data produced by an MPIR launch / attach
 struct MPIRResult
 {
 	MPIRId mpir_id;
@@ -122,40 +126,48 @@ void request_Shutdown(int const reqFd, int const respFd);
 }; // fe_daemon
 }; // cti
 
-/* internal overwatch interface implemented in cti_fe_iface */
+/* internal frontend daemon interface implemented in cti_fe_iface.cpp
+	* WLM frontend implementations will call these functions to perform app / utility launch and
+	  management operations
+	* usage of forkExecvpApp/AsyncUtil/SyncUtil or launchMPIR is preferred to registerApp/Util,
+	  as it prevents a race condition when CTI is killed before registration can occur. In this
+	  situation, the app or utility that was to be registered can continue running indefinitely
+	* see protocol notes in cti_fe_daemon.hpp for information on indeterminate-length requests
+	  such as the null-terminated argument / environment arrays
+*/
 
-// overwatch will fork and execvp a binary and register it as an app
+// fe_daemon will fork and execvp a binary and register it as an app
 pid_t _cti_forkExecvpApp(char const* file, char const* const argv[], int stdin_fd,
 	int stdout_fd, int stderr_fd, char const* const env[]);
 
-// overwatch will fork and execvp a binary and register it as a utility belonging to app_pid
+// fe_daemon will fork and execvp a binary and register it as a utility belonging to app_pid
 pid_t _cti_forkExecvpAsyncUtil(pid_t app_pid, char const* file, char const* const argv[],
 	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
-// overwatch will fork and execvp a binary, register it, and wait for its completion
+// fe_daemon will fork and execvp a binary, register it, and wait for its completion
 pid_t _cti_forkExecvpSyncUtil(pid_t app_pid, char const* file, char const* const argv[],
 	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
-// overwatch will launch a binary under MPIR control and extract its proctable
+// fe_daemon will launch a binary under MPIR control and extract its proctable
 cti::fe_daemon::MPIRResult _cti_launchMPIR(char const* file, char const* const argv[],
 	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
-// overwatch will attach to a binary and extract its proctable
+// fe_daemon will attach to a binary and extract its proctable
 cti::fe_daemon::MPIRResult _cti_attachMPIR(pid_t app_pid);
 
-// overwatch will release a binary under mpir control from its breakpoint
+// fe_daemon will release a binary under mpir control from its breakpoint
 void _cti_releaseMPIR(cti::fe_daemon::MPIRId mpir_id);
 
-// overwatch will register an already-forked process as an app. make sure this is paired with a
+// fe_daemon will register an already-forked process as an app. make sure this is paired with a
 // _cti_deregisterApp for timely cleanup
 pid_t _cti_registerApp(pid_t app_pid);
 
-// overwatch will register an already-forked process as a utility belonging to app_pid
+// fe_daemon will register an already-forked process as a utility belonging to app_pid
 pid_t _cti_registerUtil(pid_t app_pid, pid_t util_pid);
 
-// overwatch will terminate all utilities belonging to app_pid and deregister app_pid
+// fe_daemon will terminate all utilities belonging to app_pid and deregister app_pid
 void _cti_deregisterApp(pid_t app_pid);
 
-// overwatch will terminate all registered apps and utilities
-void _cti_shutdownOverwatch();
+// fe_daemon will terminate all registered apps and utilities
+void _cti_shutdownFEDaemon();
 

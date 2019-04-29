@@ -465,10 +465,10 @@ public: // interface
 			}
 
 			// setup args
-			using OWA = CTIOverwatchArgv;
-			cti::OutgoingArgv<OWA> fe_daemonArgv{fe_daemon_bin};
-			fe_daemonArgv.add(OWA::ReadFD,  std::to_string(feDaemonReqSock.getReadFd()));
-			fe_daemonArgv.add(OWA::WriteFD, std::to_string(feDaemonRespSock.getWriteFd()));
+			using FEDA = CTIFEDaemonArgv;
+			cti::OutgoingArgv<FEDA> fe_daemonArgv{fe_daemon_bin};
+			fe_daemonArgv.add(FEDA::ReadFD,  std::to_string(feDaemonReqSock.getReadFd()));
+			fe_daemonArgv.add(FEDA::WriteFD, std::to_string(feDaemonRespSock.getWriteFd()));
 
 			// exec
 			execvp(fe_daemon_bin.c_str(), fe_daemonArgv.get());
@@ -479,7 +479,7 @@ public: // interface
 	~CTIFEIface()
 	{
 		// send shutdown message to fe_daemon
-		_cti_shutdownOverwatch();
+		_cti_shutdownFEDaemon();
 	}
 };
 
@@ -611,7 +611,7 @@ _cti_deregisterApp(pid_t app_pid)
 	return cti::fe_daemon::request_DeregisterApp(reqFd, respFd, app_pid);
 }
 
-void _cti_shutdownOverwatch()
+void _cti_shutdownFEDaemon()
 {
 	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
 	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();

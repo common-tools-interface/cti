@@ -143,11 +143,11 @@ usage(char *name)
 	fprintf(stdout, "This should not be called directly.\n\n");
 
 	fprintf(stdout, "\t-%c, --%s  fd of read control pipe         (required)\n",
-		CTIOverwatchArgv::ReadFD.val, CTIOverwatchArgv::ReadFD.name);
+		CTIFEDaemonArgv::ReadFD.val, CTIFEDaemonArgv::ReadFD.name);
 	fprintf(stdout, "\t-%c, --%s  fd of write control pipe        (required)\n",
-		CTIOverwatchArgv::WriteFD.val, CTIOverwatchArgv::WriteFD.name);
+		CTIFEDaemonArgv::WriteFD.val, CTIFEDaemonArgv::WriteFD.name);
 	fprintf(stdout, "\t-%c, --%s  Display this text and exit\n\n",
-		CTIOverwatchArgv::Help.val, CTIOverwatchArgv::Help.name);
+		CTIFEDaemonArgv::Help.val, CTIFEDaemonArgv::Help.name);
 }
 
 static void
@@ -658,7 +658,7 @@ int
 main(int argc, char *argv[])
 {
 	// parse incoming argv for request and response FDs
-	{ auto incomingArgv = cti::IncomingArgv<CTIOverwatchArgv>{argc, argv};
+	{ auto incomingArgv = cti::IncomingArgv<CTIFEDaemonArgv>{argc, argv};
 		int c; std::string optarg;
 		while (true) {
 			std::tie(c, optarg) = incomingArgv.get_next();
@@ -668,15 +668,15 @@ main(int argc, char *argv[])
 
 			switch (c) {
 
-			case CTIOverwatchArgv::ReadFD.val:
+			case CTIFEDaemonArgv::ReadFD.val:
 				reqFd = std::stoi(optarg);
 				break;
 
-			case CTIOverwatchArgv::WriteFD.val:
+			case CTIFEDaemonArgv::WriteFD.val:
 				respFd = std::stoi(optarg);
 				break;
 
-			case CTIOverwatchArgv::Help.val:
+			case CTIFEDaemonArgv::Help.val:
 				usage(argv[0]);
 				exit(0);
 

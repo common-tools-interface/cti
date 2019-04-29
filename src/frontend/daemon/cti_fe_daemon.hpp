@@ -17,8 +17,9 @@ namespace fe_daemon {
 
 using MPIRId = int;
 
-// request types
+/* request types */
 
+// sent before a request to indicate the type of request data that will follow
 enum ReqType : long {
 	ForkExecvpApp,
 	ForkExecvpUtil,
@@ -34,9 +35,10 @@ enum ReqType : long {
 	Shutdown
 };
 
+// sent as part of a utility launch request to indicate whether to wait for utility to exit
 enum RunMode : int {
-	Asynchronous,
-	Synchronous
+	Asynchronous, // launch request returns immediately
+	Synchronous   // launch request will block until utility exits
 };
 
 /* communication protocol

@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cti_overwatch_iface.cpp - command interface for overwatch daemon
+ * cti_fe_daemon_iface.cpp - command interface for frontend daemon
  *
  * Copyright 2019 Cray Inc.  All Rights Reserved.
  *
@@ -24,9 +24,21 @@
 
 /* protocol helpers */
 
+// write FD remap control message, binary path, arguments, environment to domain socket
 static void writeLaunchData(int const reqFd, char const* file, char const* const argv[],
 	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
+	// verify that reqFd is a domain socket
+	{ struct sockaddr sa;
+		auto len = socklen_t{sizeof(sa)};
+		if (::getsockname(reqFd, &sa, &len) < 0) {
+			throw std::runtime_error("getsockname failed: " + std::string{strerror(errno)});
+		}
+		if (sa.sa_family != AF_UNIX) {
+			throw std::runtime_error("daemon request file descriptor must be a domain socket");
+		}
+	}
+
 	// share stdin/out/err fds
 	auto const N_FDS = 3;
 	int const stdfds[] =
@@ -66,12 +78,14 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
 		throw std::runtime_error("failed to receive fds: " + std::string{strerror(errno)});
 	}
 
-	// write flat file/argv/env strings
+	// write filepath string
 	writeLoop(reqFd, file, strlen(file) + 1);
+	// write null-terminated argument array
 	for (auto arg = argv; *arg != nullptr; arg++) {
 		writeLoop(reqFd, *arg, strlen(*arg) + 1);
 	}
 	rawWriteLoop(reqFd, '\0');
+	// write null-terminated environment array
 	if (env) {
 		for (auto var = env; *var != nullptr; var++) {
 			writeLoop(reqFd, *var, strlen(*var) + 1);
@@ -80,6 +94,7 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
 	rawWriteLoop(reqFd, '\0');
 }
 
+// throw if boolean response is not true, indicating failure
 static void verifyOKResp(int const respFd)
 {
 	auto const okResp = rawReadLoop<cti::fe_daemon::OKResp>(respFd);
@@ -88,6 +103,7 @@ static void verifyOKResp(int const respFd)
 	}
 }
 
+// return PID response content, throw if pid < 0, indicating failure
 static pid_t readPIDResp(int const respFd)
 {
 	auto const pidResp = rawReadLoop<cti::fe_daemon::PIDResp>(respFd);
@@ -97,6 +113,7 @@ static pid_t readPIDResp(int const respFd)
 	return pidResp.pid;
 }
 
+// return MPIR launch / attach data, throw if MPIR ID < 0, indicating failure
 static cti::fe_daemon::MPIRResult readMPIRResp(int const respFd)
 {
 	// read basic table information
@@ -105,6 +122,7 @@ static cti::fe_daemon::MPIRResult readMPIRResp(int const respFd)
 		throw std::runtime_error("failed to read proctable response");
 	}
 
+	// fill in MPIR data excluding proctable
 	cti::fe_daemon::MPIRResult result
 		{ mpirResp.mpir_id
 		, mpirResp.launcher_pid
@@ -118,7 +136,7 @@ static cti::fe_daemon::MPIRResult readMPIRResp(int const respFd)
 	cti::FdBuf respBuf{dup(respFd)};
 	std::istream respStream{&respBuf};
 
-	// fill in pid and hostname of next element
+	// fill in pid and hostname of proctable elements
 	for (int i = 0; i < mpirResp.num_pids; i++) {
 		MPIRProctableElem elem;
 		// read pid
