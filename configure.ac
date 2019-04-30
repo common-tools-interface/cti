@@ -234,9 +234,11 @@ AC_CHECK_FUNCS([clock_gettime dup2 getcwd inet_ntoa memchr memmove memset mkdir 
 dnl Define the release version so that the frontend can look in the right directory
 AC_DEFINE_UNQUOTED([CTI_RELEASE_VERSION], ["$CRAYTOOL_RELEASE_VERSION"], [CTI release version string.])
 
-dnl Define the dynamic name of the cti_dlaunch utility that is version specific
-AC_SUBST([CRAYTOOL_DLAUNCH_BINARY], ["cti_dlaunch$CRAYTOOL_RELEASE_VERSION"])
-AC_DEFINE_UNQUOTED([CTI_DLAUNCH_BINARY], ["$CRAYTOOL_DLAUNCH_BINARY"], [Name of CTI daemon launcher binary.])
+dnl Define the dynamic name of the frontend and backend daemon that is version specific
+AC_SUBST([CRAYTOOL_BE_DAEMON_BINARY], ["cti_be_daemon$CRAYTOOL_RELEASE_VERSION"])
+AC_DEFINE_UNQUOTED([CTI_BE_DAEMON_BINARY], ["$CRAYTOOL_BE_DAEMON_BINARY"], [Name of CTI backend daemon binary.])
+AC_SUBST([CRAYTOOL_FE_DAEMON_BINARY], ["cti_fe_daemon$CRAYTOOL_RELEASE_VERSION"])
+AC_DEFINE_UNQUOTED([CTI_FE_DAEMON_BINARY], ["$CRAYTOOL_FE_DAEMON_BINARY"], [Name of CTI frontend daemon binary.])
 
 ################
 ### Finalize ###
@@ -248,8 +250,9 @@ AC_CONFIG_FILES([	Makefile
 					external/Makefile
 					src/Makefile
 					src/backend/Makefile
-					src/daemon/Makefile
+					src/backend/daemon/Makefile
 					src/frontend/Makefile
+					src/frontend/daemon/Makefile
 					src/frontend/cti_transfer/Makefile
 					src/frontend/frontend_impl/Makefile
 					src/frontend/frontend_impl/CraySLURM/Makefile
