@@ -46,9 +46,12 @@ public:
 	}
 
 	/* move constructor: destructive move the array */
-	ManagedArgv(ManagedArgv&& moved) {
-		std::copy(moved.argv.begin(), moved.argv.end(), std::back_inserter(argv));
-		moved.argv.clear();
+	ManagedArgv(ManagedArgv&& moved)
+		: argv{std::move(moved.argv)}
+	{}
+	ManagedArgv& operator= (ManagedArgv&& moved) {
+		argv = std::move(moved.argv);
+		return *this;
 	}
 
 	/* member methods */

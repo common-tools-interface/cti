@@ -90,6 +90,7 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 			// add to manifest registry
 			m_folders["lib"].emplace(realName);
 			m_sourcePaths[realName] = filePath;
+			break;
 		case Session::Conflict::AlreadyAdded: return;
 		case Session::Conflict::NameOverwrite:
 			/* the launcher handles by pointing its LD_LIBRARY_PATH to the
@@ -101,6 +102,7 @@ void Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 
 			m_folders[m_ldLibraryOverrideFolder].emplace(realName);
 			m_sourcePaths[realName] = filePath;
+			break;
 	}
 
 	// add libraries if needed

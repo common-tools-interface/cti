@@ -80,11 +80,11 @@ static T readArrayElem(Inferior& inf, std::string const& symName, size_t idx) {
 	return inf.readMemory<T>(elem_addr);
 }
 
-std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
+MPIRProctable MPIRInstance::getProctable() {
 	auto num_pids = m_inferior.readVariable<int>("MPIR_proctable_size");
 	DEBUG(std::cerr, "procTable has size " << std::to_string(num_pids) << std::endl);
 
-	std::vector<MPIR_ProcTableElem> procTable;
+	MPIRProctable proctable;
 
 	/* copy elements */
 	for (int i = 0; i < num_pids; i++) {
@@ -98,11 +98,11 @@ std::vector<MPIRInstance::MPIR_ProcTableElem> MPIRInstance::getProcTable() {
 		{ std::stringstream ss;
 			ss << buf.data();
 			DEBUG(std::cerr, "procTable[" << i << "]: " << procDesc.pid << ", " << ss.str() << std::endl);
-			procTable.emplace_back(MPIR_ProcTableElem{procDesc.pid, ss.str()});
+			proctable.emplace_back(MPIRProctableElem{procDesc.pid, ss.str()});
 		}
 	}
 
-	return procTable;
+	return proctable;
 }
 
 std::string MPIRInstance::readStringAt(std::string const& symName) {
