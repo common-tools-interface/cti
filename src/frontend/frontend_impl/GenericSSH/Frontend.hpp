@@ -48,13 +48,13 @@ public: // ssh specific interface
 	static std::string getLauncherName();
 
 	// use MPIR proctable to retrieve node / host information about a job
-	static StepLayout fetchStepLayout(MPIRInstance::ProcTable const& procTable);
+	static StepLayout fetchStepLayout(MPIRProctable const& procTable);
 
 	// Use a SSH Step Layout to create the SSH Node Layout file inside the staging directory, return the new path.
 	static std::string createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath);
 
 	// Use an MPIR ProcTable to create the SSH PID List file inside the staging directory, return the new path.
-	static std::string createPIDListFile(MPIRInstance::ProcTable const& procTable, std::string const& stagePath);
+	static std::string createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath);
 
 	// Launch an app under MPIR control and hold at barrier.
 	static std::unique_ptr<MPIRInstance> launchApp(const char * const launcher_argv[],
@@ -69,7 +69,7 @@ class GenericSSHApp : public App
 private: // variables
 	pid_t      m_launcherPid; // job launcher PID
 	GenericSSHFrontend::StepLayout m_stepLayout; // SSH Layout of job step
-	bool       m_dlaunchSent; // Have we already shipped over the dlaunch utility?
+	bool       m_beDaemonSent; // Have we already shipped over the backend daemon?
 
 	std::unique_ptr<MPIRInstance> m_launcherInstance; // MPIR instance handle to release startup barrier
 

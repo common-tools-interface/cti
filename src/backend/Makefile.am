@@ -10,6 +10,8 @@
 # in any form.
 #
 
+SUBDIRS = daemon
+
 SRC				= @CRAYTOOL_DIR@/src
 
 AM_CFLAGS		= -Wall -I$(SRC)

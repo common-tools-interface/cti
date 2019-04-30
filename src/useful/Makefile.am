@@ -24,11 +24,7 @@ libuseful_la_CXXFLAGS   = 	$(AM_CXXFLAGS) $(libuseful_la_CFLAGS)
 libuseful_la_LIBADD		=	ld_val/libld_val.la
 libuseful_la_LDFLAGS    = 	-static -Wl,--no-undefined
 
-libexec_PROGRAMS		= 	cti_overwatch cti_splice_out_err
-
-cti_overwatch_SOURCES	= 	cti_overwatch.cpp ArgvDefs-c++11-workaround.cpp
-cti_overwatch_CXXFLAGS	= 	$(AM_CFLAGS) $(AM_CXXFLAGS)
-cti_overwatch_LDFLAGS	= 	-Wl,--no-undefined -Wl,--as-needed -pthread
+libexec_PROGRAMS		= 	cti_splice_out_err
 
 cti_splice_out_err_SOURCES = cti_splice_out_err.c
 cti_splice_out_err_CFLAGS  = $(AM_CFLAGS)
