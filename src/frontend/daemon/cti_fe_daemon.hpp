@@ -12,198 +12,117 @@
  ******************************************************************************/
 #pragma once
 
-#ifdef MPIR
-#include "frontend/mpir_iface/MPIRInstance.hpp"
-#endif
+namespace cti {
+namespace fe_daemon {
 
-/* internal overwatch interface implemented in cti_fe_iface */
+using MPIRId = int;
 
-// overwatch will fork and execvp a binary and register it as an app
-pid_t _cti_forkExecvpApp(char const* file, char const* const argv[], int stdout_fd, int stderr_fd,
-	char const* const env[]);
+/* request types */
 
-// overwatch will fork and execvp a binary and register it as a utility belonging to app_pid
-pid_t _cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdout_fd,
-	int stderr_fd, char const* const env[]);
-
-#ifdef MPIR
-
-// overwatch will launch a binary under MPIR control and extract its proctable
-MPIR::ProcTable _cti_launchMPIR(char const* file, char const* const argv[], int stdout_fd, int stderr_fd,
-	char const* const env[]);
-
-// overwatch will release a binary under mpir control from its breakpoint
-void _cti_releaseMPIRBreakpoint(int mpir_id);
-#else
-
-// overwatch will register an already-forked process as an app. make sure this is paired with a
-// _cti_deregisterApp for timely cleanup
-pid_t _cti_registerApp(pid_t app_pid);
-
-// overwatch will register an already-forked process as a utility belonging to app_pid
-pid_t _cti_registerUtil(pid_t app_pid, pid_t util_pid);
-#endif
-
-// overwatch will terminate all utilities belonging to app_pid and deregister app_pid
-void _cti_deregisterApp(pid_t app_pid);
-
-// overwatch will terminate all registered apps and utilities
-void _cti_shutdownOverwatch();
-
-/* fd read / write helpers */
-
-// read num_bytes from fd into buf
-inline static void readLoop(char* buf, int const fd, int num_bytes)
-{
-	while (num_bytes > 0) {
-		errno = 0;
-		int bytes_read = read(fd, buf, num_bytes);
-		if (bytes_read < 0) {
-			if (errno == EINTR) {
-				continue;
-			} else {
-				throw std::runtime_error("read failed: " + std::string{strerror(errno)});
-			}
-		} else {
-			num_bytes -= bytes_read;
-		}
-	}
-}
-
-// read and return an object T from fd (useful for reading message structs from pipes)
-template <typename T>
-inline static T rawReadLoop(int const fd)
-{
-	static_assert(std::is_trivially_copyable<T>::value);
-	T result;
-	readLoop(reinterpret_cast<char*>(&result), fd, sizeof(T));
-	return result;
-}
-
-// write num_bytes from buf to fd
-inline static void writeLoop(int const fd, char const* buf, int num_bytes)
-{
-	while (num_bytes > 0) {
-		errno = 0;
-		int written = write(fd, buf, num_bytes);
-		if (written < 0) {
-			if (errno == EINTR) {
-				continue;
-			} else {
-				throw std::runtime_error("write failed: " + std::string{strerror(errno)});
-			}
-		} else {
-			num_bytes -= written;
-		}
-	}
-}
-
-// write an object T to fd (useful for writing message structs to pipes)
-template <typename T>
-inline static void rawWriteLoop(int const fd, T const& obj)
-{
-	static_assert(std::is_trivially_copyable<T>::value);
-	writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
-}
-
-// request types
-
-enum OverwatchReqType : long {
+// sent before a request to indicate the type of request data that will follow
+enum ReqType : long {
 	ForkExecvpApp,
 	ForkExecvpUtil,
 
-	#ifdef MPIR
-
 	LaunchMPIR,
-	ReleaseMPIR
-
-	#else
+	AttachMPIR,
+	ReleaseMPIR,
 
 	RegisterApp,
 	RegisterUtil,
-
-	#endif
-
 	DeregisterApp,
 
 	Shutdown
 };
 
-// ForkExecvpApp, ForkExecvpUtil, LaunchMPIR
-struct LaunchReq
-{
-	pid_t app_pid; // unused for ForkExecvpApp, LaunchMPIR
-	int stdout_fd;
-	int stderr_fd;
-	// after sending this struct, send a list of null-terminated strings:
-	// - file path string
-	// - each argument string
-	// - EMPTY STRING
-	// - each environment variable string (format VAR=VAL)
-	// - EMPTY STRING
-	// sum of lengths of these strings including null-terminators should equal `file_and_argv_len`
+// sent as part of a utility launch request to indicate whether to wait for utility to exit
+enum RunMode : int {
+	Asynchronous, // launch request returns immediately
+	Synchronous   // launch request will block until utility exits
 };
 
-#ifdef MPIR
+/* communication protocol
+	before sending any data, send the request type
+*/
 
-struct ReleaseMPIRReq
-{
-	int mpir_id;
-};
+// ForkExecvpApp
+// LaunchMPIR
+/*
+	Application launch parameters:
+	send socket control message to share FD access rights
+	- array of stdin, stdout, stderr FDs
+	then send list of null-terminated strings:
+	- file path string
+	- each argument string
+	- EMPTY STRING
+	- each environment variable string (format VAR=VAL)
+	- EMPTY STRING
+*/
 
-#else
+// ForkExecvpUtil
+/*
+	send PID of owning application
+	send RunMode indicating synchronous or asynchronous run
+	send "Application launch parameters" as for ForkExecvpApp
+*/
 
-// RegisterApp, DeregisterApp
-struct AppReq
-{
-	pid_t app_pid;
-};
+// AttachMPIR
+// RegisterApp
+// DeregisterApp
+/*
+	send PID of target application
+*/
 
 // RegisterUtil
-struct UtilReq
-{
-	pid_t app_pid;
-	pid_t util_pid;
-};
+/*
+	send PID of owning application
+	send PID of target utility
+*/
 
-#endif
+// ReleaseMPIR
+/*
+	send MPIR ID provided by LaunchMPIR request
+*/
+
+// Shutdown
+/* No data */
 
 // Response types
 
-enum OverwatchRespType : long {
+enum RespType : long {
 	// Shutdown, RegisterApp, RegisterUtil, ReleaseMPIR
 	OK,
 
 	// ForkExecvpApp, ForkExecvpUtil
 	PID,
 
-	#ifdef MPIR
 	// LaunchMPIR
-	MPIRProcTable,
-	#endif
+	MPIR,
 };
 
 struct OKResp
 {
-	OverwatchRespType type;
+	RespType type;
 	bool success;
 };
 
 struct PIDResp
 {
-	OverwatchRespType type;
+	RespType type;
 	pid_t pid;
 };
 
-#ifdef MPIR
-struct MPIRProcTableResp
+struct MPIRResp
 {
-	OverwatchRespType type;
-	int mpir_id;
-	size_t num_pids;
-	// after sending this struct, send:
-	// - list of `num_pids` pids
-	// - list of null-terminated hostnames
-	// - EMPTY STRING
+	RespType type;
+	MPIRId mpir_id;
+	pid_t launcher_pid;
+	uint32_t job_id;
+	uint32_t step_id;
+	int num_pids;
+	// after sending this struct, send `num_pids` elements of:
+	// - pid followed by null-terminated hostname
 };
-#endif
+
+}; // fe_daemon
+}; // cti

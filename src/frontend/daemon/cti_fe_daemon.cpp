@@ -28,20 +28,26 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <tuple>
-#include <set>
-#include <unordered_map>
 #include <future>
 #include <vector>
+#include <unordered_set>
+#include <memory>
 
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
 
-#include "cti_fe_daemon.hpp"
+#include "frontend/mpir_iface/MPIRInstance.hpp"
+#include "cti_fe_daemon_iface.hpp"
 
+using ReqType   = cti::fe_daemon::ReqType;
+using RespType  = cti::fe_daemon::RespType;
+using OKResp    = cti::fe_daemon::OKResp;
+using PIDResp   = cti::fe_daemon::PIDResp;
+using MPIRResp  = cti::fe_daemon::MPIRResp;
 
-static void tryTerm(pid_t const pid)
+static void
+tryTerm(pid_t const pid)
 {
 	fprintf(stderr, "tryterm %d\n", pid);
 	if (::kill(pid, SIGTERM)) {
@@ -56,7 +62,7 @@ static void tryTerm(pid_t const pid)
 
 struct ProcSet
 {
-	std::set<pid_t> m_pids;
+	std::unordered_set<pid_t> m_pids;
 
 	ProcSet() {}
 
@@ -105,6 +111,12 @@ struct ProcSet
 auto appList = ProcSet{};
 auto utilMap = std::unordered_map<pid_t, ProcSet>{};
 
+auto mpirMap = std::unordered_map<cti::fe_daemon::MPIRId, std::unique_ptr<MPIRInstance>>{};
+static cti::fe_daemon::MPIRId newMPIRId() {
+	static auto id = cti::fe_daemon::MPIRId{0};
+	return ++id;
+}
+
 // communication
 int reqFd  = -1; // incoming request pipe
 int respFd = -1; // outgoing response pipe
@@ -112,16 +124,34 @@ int respFd = -1; // outgoing response pipe
 // threading helpers
 std::vector<std::future<void>> runningThreads;
 template <typename Func>
-void start_thread(Func&& func) {
+static void start_thread(Func&& func) {
 	runningThreads.emplace_back(std::async(std::launch::async, func));
 }
-void finish_threads() {
+static void finish_threads() {
 	for (auto&& future : runningThreads) {
 		future.wait();
 	}
 }
 
-void shutdown_and_exit(int const rc)
+/* runtime helpers */
+
+static void
+usage(char *name)
+{
+	fprintf(stdout, "Usage: %s [OPTIONS]...\n", name);
+	fprintf(stdout, "Create fe_daemon process to ensure children are cleaned up on parent exit\n");
+	fprintf(stdout, "This should not be called directly.\n\n");
+
+	fprintf(stdout, "\t-%c, --%s  fd of read control pipe         (required)\n",
+		CTIFEDaemonArgv::ReadFD.val, CTIFEDaemonArgv::ReadFD.name);
+	fprintf(stdout, "\t-%c, --%s  fd of write control pipe        (required)\n",
+		CTIFEDaemonArgv::WriteFD.val, CTIFEDaemonArgv::WriteFD.name);
+	fprintf(stdout, "\t-%c, --%s  Display this text and exit\n\n",
+		CTIFEDaemonArgv::Help.val, CTIFEDaemonArgv::Help.name);
+}
+
+static void
+shutdown_and_exit(int const rc)
 {
 	// block all signals
 	sigset_t block_set;
@@ -155,7 +185,7 @@ void shutdown_and_exit(int const rc)
 
 /* signal handlers */
 
-void
+static void
 sigchld_handler(pid_t const exitedPid)
 {
 	// regular app termination
@@ -170,7 +200,7 @@ sigchld_handler(pid_t const exitedPid)
 }
 
 // dispatch to sigchld / term handler
-void
+static void
 cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 {
 	if (sig == SIGCHLD) {
@@ -184,7 +214,7 @@ cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 	}
 }
 
-/* register helpers */
+/* registration helpers */
 
 static void registerAppPID(pid_t const app_pid)
 {
@@ -216,55 +246,222 @@ static void registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 	}
 }
 
-// receive a single null-terminated string from stream
-static std::string receiveString(std::istream& reqStream)
+
+static void deregisterAppPID(pid_t const app_pid)
 {
-	std::string result;
-	if (!std::getline(reqStream, result, '\0')) {
-		throw std::runtime_error("failed to read string");
+	if (app_pid > 0) {
+		// terminate all of app's utilities
+		auto utilTermFuture = std::async(std::launch::async,
+			[&](){ utilMap.erase(app_pid); });
+
+		// ensure app is terminated
+		if (appList.contains(app_pid)) {
+			auto appTermFuture = std::async(std::launch::async, [&](){ tryTerm(app_pid); });
+			appList.erase(app_pid);
+			appTermFuture.wait();
+		}
+
+		// finish util termination
+		utilTermFuture.wait();
+	} else {
+		throw std::runtime_error("invalid app pid: " + std::to_string(app_pid));
 	}
-	return result;
 }
 
-// pipe command handlers
+/* protocol helpers */
 
-static pid_t forkExecvpReq(LaunchReq const& launchReq)
+struct LaunchData {
+	int stdin_fd, stdout_fd, stderr_fd;
+	std::string filepath;
+	std::vector<std::string> argvList;
+	std::vector<std::string> envList;
+};
+
+// read stdin/out/err fds, filepath, argv, environment map appended to an app / util / mpir launch request
+static LaunchData readLaunchData(int const reqFd)
 {
+	LaunchData result;
+
+	// receive a single null-terminated string from stream
+	auto receiveString = [](std::istream& reqStream) {
+		std::string result;
+		if (!std::getline(reqStream, result, '\0')) {
+			throw std::runtime_error("failed to read string");
+		}
+		return result;
+	};
+
+	// read and remap stdin/out/err
+	auto const N_FDS = 3;
+	struct {
+		int fd_data[N_FDS];
+		struct cmsghdr cmd_hdr;
+	} buffer;
+
+	// create message buffer for one character
+	struct iovec empty_iovec;
+	char c;
+	empty_iovec.iov_base = &c;
+	empty_iovec.iov_len  = 1;
+
+	// create empty message header with enough space for fds
+	struct msghdr msg_hdr = {};
+	msg_hdr.msg_iov     = &empty_iovec;
+	msg_hdr.msg_iovlen  = 1;
+	msg_hdr.msg_control = &buffer;
+	msg_hdr.msg_controllen = CMSG_SPACE(sizeof(int) * N_FDS);
+
+	// fill in the message header type
+	struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg_hdr);
+	cmsg->cmsg_len   = CMSG_LEN(sizeof(int) * N_FDS);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type  = SCM_RIGHTS;
+
+	// receive remap FD message
+	if (::recvmsg(reqFd, &msg_hdr, 0) < 0) {
+		throw std::runtime_error("failed to receive fds: " + std::string{strerror(errno)});
+	}
+	auto const fds = (int *)CMSG_DATA(cmsg);
+	result.stdin_fd  = fds[0];
+	result.stdout_fd = fds[1];
+	result.stderr_fd = fds[2];
+
 	// set up pipe stream
 	cti::FdBuf reqBuf{dup(reqFd)};
 	std::istream reqStream{&reqBuf};
 
-	// read filename
-	auto const filename = receiveString(reqStream);
-	fprintf(stderr, "got file: %s\n", filename.c_str());
+	// read filepath
+	fprintf(stderr, "recv filename\n");
+	result.filepath = receiveString(reqStream);
+	fprintf(stderr, "got file: %s\n", result.filepath.c_str());
 
 	// read arguments
-	cti::ManagedArgv argv;
 	while (true) {
 		auto const arg = receiveString(reqStream);
 		if (arg.empty()) {
 			break;
 		} else {
-			argv.add(arg);
 			fprintf(stderr, "got arg: %s\n", arg.c_str());
+			result.argvList.emplace_back(std::move(arg));
 		}
 	}
 
 	// read env
-	std::unordered_map<std::string, std::string> envMap;
-	std::string envVarVal;
 	while (true) {
 		auto const envVarVal = receiveString(reqStream);
 		if (envVarVal.empty()) {
 			break;
 		} else {
-			auto const equalsAt = envVarVal.find("=");
-			if (equalsAt == std::string::npos) {
-				throw std::runtime_error("failed to parse env var: " + envVarVal);
-			} else {
-				fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
-				envMap.emplace(envVarVal.substr(0, equalsAt), envVarVal.substr(equalsAt + 1));
-			}
+			fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
+			result.envList.emplace_back(std::move(envVarVal));
+		}
+	}
+
+	return result;
+}
+
+// if running the function succeeds, write an OK response to pipe
+template <typename Func>
+static void tryWriteOKResp(int const respFd, Func&& func)
+{
+	try {
+		// run the function
+		func();
+
+		// send OK response
+		rawWriteLoop(respFd, OKResp
+			{ .type = RespType::OK
+			, .success = true
+		});
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
+		// send failure response
+		rawWriteLoop(respFd, OKResp
+			{ .type = RespType::OK
+			, .success = false
+		});
+	}
+}
+
+// if running the pid-producing function succeeds, write a PID response to pipe
+template <typename Func>
+static void tryWritePIDResp(int const respFd, Func&& func)
+{
+	try {
+		// run the pid-producing function
+		auto const pid = func();
+
+		// send PID response
+		rawWriteLoop(respFd, PIDResp
+			{ .type = RespType::PID
+			, .pid  = pid
+		});
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
+		// send failure response
+		rawWriteLoop(respFd, PIDResp
+			{ .type = RespType::PID
+			, .pid  = pid_t{-1}
+		});
+	}
+}
+
+// if running the function succeeds, write an MPIR response to pipe
+template <typename Func>
+static void tryWriteMPIRResp(int const respFd, Func&& func)
+{
+	try {
+		// run the mpir-producing function
+		auto const mpirData = func();
+
+		// send the MPIR data
+		rawWriteLoop(respFd, MPIRResp
+			{ .type     = RespType::MPIR
+			, .mpir_id  = mpirData.mpir_id
+			, .launcher_pid = mpirData.launcher_pid
+			, .job_id   = mpirData.job_id
+			, .step_id  = mpirData.step_id
+			, .num_pids = static_cast<int>(mpirData.proctable.size())
+		});
+		for (auto&& elem : mpirData.proctable) {
+			rawWriteLoop(respFd, elem.pid);
+			writeLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
+		}
+
+	} catch (std::exception const& ex) {
+		fprintf(stderr, "%s\n", ex.what());
+
+		// send failure response
+		rawWriteLoop(respFd, MPIRResp
+			{ .type     = RespType::MPIR
+			, .mpir_id  = cti::fe_daemon::MPIRId{0}
+		});
+	}
+}
+
+/* process helpers */
+
+static pid_t forkExec(LaunchData const& launchData)
+{
+	// construct argv
+	cti::ManagedArgv argv;
+	for (auto&& arg : launchData.argvList) {
+		argv.add(arg);
+	}
+
+	// parse env
+	std::unordered_map<std::string, std::string> envMap;
+	for (auto&& envVarVal : launchData.envList) {
+		auto const equalsAt = envVarVal.find("=");
+		if (equalsAt == std::string::npos) {
+			throw std::runtime_error("failed to parse env var: " + envVarVal);
+		} else {
+			fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
+			envMap.emplace(envVarVal.substr(0, equalsAt), envVarVal.substr(equalsAt + 1));
 		}
 	}
 
@@ -285,9 +482,9 @@ static pid_t forkExecvpReq(LaunchReq const& launchReq)
 		close(respFd);
 
 		// dup2 all stdin/out/err to provided FDs
-		dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
-		dup2((launchReq.stdout_fd < 0) ? open("/dev/null", O_WRONLY) : launchReq.stdout_fd, STDOUT_FILENO);
-		dup2((launchReq.stderr_fd < 0) ? open("/dev/null", O_WRONLY) : launchReq.stderr_fd, STDERR_FILENO);
+		dup2(launchData.stdin_fd,  STDIN_FILENO);
+		dup2(launchData.stdout_fd, STDOUT_FILENO);
+		dup2(launchData.stderr_fd, STDERR_FILENO);
 
 		// set environment variables with overwrite
 		for (auto const& envVarVal : envMap) {
@@ -299,197 +496,169 @@ static pid_t forkExecvpReq(LaunchReq const& launchReq)
 		}
 
 		// exec srun
-		execvp(filename.c_str(), argv.get());
+		execvp(launchData.filepath.c_str(), argv.get());
 		perror("execvp");
 		exit(1);
 	}
 }
 
-static void handle_forkExecvpAppReq(LaunchReq const& launchReq)
+static cti::fe_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 {
-	try {
-		// fork exec the app based on launch request
-		auto const forkedPid = forkExecvpReq(launchReq);
+	std::map<int, int> const remapFds
+		{ { launchData.stdin_fd,  STDIN_FILENO  }
+		, { launchData.stdout_fd, STDOUT_FILENO }
+		, { launchData.stderr_fd, STDERR_FILENO }
+	};
 
-		// register the new app
-		registerAppPID(forkedPid);
+	auto const idInstPair = mpirMap.emplace(std::make_pair(newMPIRId(),
+		std::make_unique<MPIRInstance>(
+			launchData.filepath, launchData.argvList, launchData.envList, std::map<int, int>{}
+		)
+	)).first;
 
-		// send PID response
-		PIDResp const pidResp =
-			{ .type = OverwatchRespType::PID
-			, .pid  = forkedPid
-		};
-		rawWriteLoop(respFd, pidResp);
+	auto const rawJobId  = idInstPair->second->readStringAt("totalview_jobid");
+	auto const rawStepId = idInstPair->second->readStringAt("totalview_stepid");
+	fprintf(stderr, "launched new mpir id %d\n", idInstPair->first);
+	return cti::fe_daemon::MPIRResult
+		{ idInstPair->first // mpir_id
+		, idInstPair->second->getLauncherPid() // launcher_pid
+		, static_cast<uint32_t>(std::stoul(rawJobId)) // job_id
+		, rawStepId.empty() ? 0 : static_cast<uint32_t>(std::stoul(rawStepId)) // step_id
+		, idInstPair->second->getProctable() // proctable
+	};
+}
 
-	} catch (std::exception const& ex) {
-		fprintf(stderr, "%s\n", ex.what());
+static cti::fe_daemon::MPIRResult attachMPIR(pid_t const app_pid)
+{
+	throw std::runtime_error("not implemented: handle_mpirAttach");
+}
 
-		// send failure response
-		PIDResp const pidResp =
-			{ .type = OverwatchRespType::PID
-			, .pid  = pid_t{-1}
-		};
-		rawWriteLoop(respFd, pidResp);
+static void releaseMPIR(cti::fe_daemon::MPIRId const mpir_id)
+{
+	auto const idInstPair = mpirMap.find(mpir_id);
+	if (idInstPair != mpirMap.end()) {
+		mpirMap.erase(idInstPair);
+	} else {
+		throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
 	}
 }
 
-static void handle_forkExecvpUtilReq(LaunchReq const& launchReq)
+/* handler implementations */
+
+static void handle_ForkExecvpApp(int const reqFd, int const respFd)
 {
-	try {
-		// fork exec the app based on launch request
-		auto const forkedPid = forkExecvpReq(launchReq);
+	tryWritePIDResp(respFd, [&]() {
+		auto const launchData = readLaunchData(reqFd);
 
-		// register the new utility
-		registerUtilPID(launchReq.app_pid, forkedPid);
+		auto const appPid = forkExec(launchData);
 
-		// send PID response
-		PIDResp const pidResp =
-			{ .type = OverwatchRespType::PID
-			, .pid  = forkedPid
-		};
-		rawWriteLoop(respFd, pidResp);
+		registerAppPID(appPid);
 
-	} catch (std::exception const& ex) {
-		fprintf(stderr, "%s\n", ex.what());
-
-		// send failure response
-		PIDResp const pidResp =
-			{ .type = OverwatchRespType::PID
-			, .pid  = pid_t{-1}
-		};
-		rawWriteLoop(respFd, pidResp);
-	}
+		return appPid;
+	});
 }
 
-#ifdef MPIR
-
-static void handle_launchMPIRReq(LaunchReq const& launchReq)
+static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
 {
-	fprintf(stderr, "not implemented: LaunchMPIR\n");
-	shutdown_and_exit(1);
-}
+	tryWritePIDResp(respFd, [&]() {
+		auto const appPid  = rawReadLoop<pid_t>(reqFd);
+		auto const runMode = rawReadLoop<cti::fe_daemon::RunMode>(reqFd);
+		auto const launchData = readLaunchData(reqFd);
 
-static void handle_releaseMPIRReq(ReleaseMPIRReq const& releaseMPIRReq)
-{
-	fprintf(stderr, "not implemented: ReleaseMPIR\n");
-	shutdown_and_exit(1);
-}
+		auto const utilPid = forkExec(launchData);
 
-#else
-
-static void handle_registerAppReq(AppReq const& registerReq)
-{
-	try {
-		// register the new app
-		registerAppPID(registerReq.app_pid);
-
-		// send OK response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = true
-		});
-
-	} catch (std::exception const& ex) {
-		fprintf(stderr, "%s\n", ex.what());
-
-		// send failure response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = false
-		});
-	}
-}
-
-static void handle_registerUtilReq(UtilReq const& registerReq)
-{
-	try {
-		// register the new utility
-		registerUtilPID(registerReq.app_pid, registerReq.util_pid);
-
-		// send OK response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = true
-		});
-
-	} catch (std::exception const& ex) {
-		fprintf(stderr, "%s\n", ex.what());
-
-		// send failure response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = false
-		});
-	}
-}
-
-#endif
-
-static void handle_deregisterAppReq(AppReq const& deregisterReq)
-{
-	if (deregisterReq.app_pid > 0) {
-		// terminate all of app's utilities
-		auto utilTermFuture = std::async(std::launch::async,
-			[&](){ utilMap.erase(deregisterReq.app_pid); });
-
-		// ensure app is terminated
-		if (appList.contains(deregisterReq.app_pid)) {
-			auto appTermFuture = std::async(std::launch::async, [&](){ tryTerm(deregisterReq.app_pid); });
-			appList.erase(deregisterReq.app_pid);
-			appTermFuture.wait();
+		registerUtilPID(appPid, utilPid);
+		if (runMode == cti::fe_daemon::Synchronous) {
+			::waitpid(utilPid, nullptr, 0);
 		}
 
-		// finish util termination
-		utilTermFuture.wait();
+		return utilPid;
+	});
+}
 
+static void handle_LaunchMPIR(int const reqFd, int const respFd)
+{
+	tryWriteMPIRResp(respFd, [&]() {
+		auto const launchData = readLaunchData(reqFd);
+
+		auto const mpirData = launchMPIR(launchData);
+
+		registerAppPID(mpirData.launcher_pid);
+
+		return mpirData;
+	});
+}
+
+static void handle_AttachMPIR(int const reqFd, int const respFd)
+{
+	tryWriteMPIRResp(respFd, [&]() {
+		auto const launcherPid = rawReadLoop<pid_t>(reqFd);
+
+		auto const mpirData = attachMPIR(launcherPid);
+
+		registerAppPID(mpirData.launcher_pid);
+
+		return mpirData;
+	});
+}
+
+static void handle_ReleaseMPIR(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		auto const mpirId = rawReadLoop<cti::fe_daemon::MPIRId>(reqFd);
+
+		releaseMPIR(mpirId);
+	});
+}
+
+static void handle_RegisterApp(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		auto const appPid = rawReadLoop<pid_t>(reqFd);
+
+		registerAppPID(appPid);
+	});
+}
+
+static void handle_RegisterUtil(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		auto const appPid  = rawReadLoop<pid_t>(reqFd);
+		auto const utilPid = rawReadLoop<pid_t>(reqFd);
+
+		registerUtilPID(appPid, utilPid);
+	});
+}
+
+static void handle_DeregisterApp(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		auto const appPid = rawReadLoop<pid_t>(reqFd);
+
+		deregisterAppPID(appPid);
+	});
+}
+
+static void handle_Shutdown(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
 		// send OK response
 		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
+			{ .type = RespType::OK
 			, .success = true
 		});
-	} else {
-		fprintf(stderr, "invalid app pid: %d\n", deregisterReq.app_pid);
 
-		// send failure response
-		rawWriteLoop(respFd, OKResp
-			{ .type = OverwatchRespType::OK
-			, .success = false
-		});
-	}
-}
-
-static void handle_shutdownReq()
-{
-	// send OK response
-	rawWriteLoop(respFd, OKResp
-		{ .type = OverwatchRespType::OK
-		, .success = true
+		shutdown_and_exit(0);
 	});
-
-	// run shutdown
-	shutdown_and_exit(0);
 }
 
-void
-usage(char *name)
-{
-	fprintf(stdout, "Usage: %s [OPTIONS]...\n", name);
-	fprintf(stdout, "Create fe_daemon process to ensure children are cleaned up on parent exit\n");
-	fprintf(stdout, "This should not be called directly.\n\n");
 
-	fprintf(stdout, "\t-%c, --%s  fd of read control pipe         (required)\n",
-		CTIOverwatchArgv::ReadFD.val, CTIOverwatchArgv::ReadFD.name);
-	fprintf(stdout, "\t-%c, --%s  fd of write control pipe        (required)\n",
-		CTIOverwatchArgv::WriteFD.val, CTIOverwatchArgv::WriteFD.name);
-	fprintf(stdout, "\t-%c, --%s  Display this text and exit\n\n",
-		CTIOverwatchArgv::Help.val, CTIOverwatchArgv::Help.name);
-}
 
 int
 main(int argc, char *argv[])
 {
 	// parse incoming argv for request and response FDs
-	{ auto incomingArgv = cti::IncomingArgv<CTIOverwatchArgv>{argc, argv};
+	{ auto incomingArgv = cti::IncomingArgv<CTIFEDaemonArgv>{argc, argv};
 		int c; std::string optarg;
 		while (true) {
 			std::tie(c, optarg) = incomingArgv.get_next();
@@ -499,15 +668,15 @@ main(int argc, char *argv[])
 
 			switch (c) {
 
-			case CTIOverwatchArgv::ReadFD.val:
+			case CTIFEDaemonArgv::ReadFD.val:
 				reqFd = std::stoi(optarg);
 				break;
 
-			case CTIOverwatchArgv::WriteFD.val:
+			case CTIFEDaemonArgv::WriteFD.val:
 				respFd = std::stoi(optarg);
 				break;
 
-			case CTIOverwatchArgv::Help.val:
+			case CTIFEDaemonArgv::Help.val:
 				usage(argv[0]);
 				exit(0);
 
@@ -526,7 +695,7 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// block all signals except SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+	// block all signals except SIGTERM, SIGCHLD, SIGPIPE, SIGTRAP, SIGHUP
 	sigset_t block_set;
 	memset(&block_set, 0, sizeof(block_set));
 	if (sigfillset(&block_set)) {
@@ -536,6 +705,7 @@ main(int argc, char *argv[])
 	if (sigdelset(&block_set, SIGTERM) ||
 	    sigdelset(&block_set, SIGCHLD) ||
 	    sigdelset(&block_set, SIGPIPE) ||
+	    sigdelset(&block_set, SIGTRAP) ||
 	    sigdelset(&block_set, SIGHUP)) {
 		perror("sigdelset");
 		return 1;
@@ -547,6 +717,7 @@ main(int argc, char *argv[])
 
 
 	// set handler for SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+	// SIGTRAP is used by Dyninst for breakpoint events
 	struct sigaction sig_action;
 	sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
 	sig_action.sa_sigaction = cti_fe_daemon_handler;
@@ -560,51 +731,49 @@ main(int argc, char *argv[])
 
 	// write our PID to signal to the parent we are all set up
 	fprintf(stderr, "%d sending initial ok\n", getpid());
-	rawWriteLoop(respFd, PIDResp 
-		{ .type = OverwatchRespType::PID
-		, .pid  = getpid()
-	});
+	rawWriteLoop(respFd, getpid());
 
 	// wait for pipe commands
 	while (true) {
-		auto const reqType = rawReadLoop<OverwatchReqType>(reqFd);
+		auto const reqType = rawReadLoop<ReqType>(reqFd);
 		fprintf(stderr, "req type %ld\n", reqType);
 
 		switch (reqType) {
 
-			case OverwatchReqType::ForkExecvpApp:
-				handle_forkExecvpAppReq(rawReadLoop<LaunchReq>(reqFd));
+			case ReqType::ForkExecvpApp:
+				handle_ForkExecvpApp(reqFd, respFd);
 				break;
 
-			case OverwatchReqType::ForkExecvpUtil:
-				handle_forkExecvpUtilReq(rawReadLoop<LaunchReq>(reqFd));
+			case ReqType::ForkExecvpUtil:
+				handle_ForkExecvpUtil(reqFd, respFd);
 				break;
 
-#ifdef MPIR
-			case OverwatchReqType::LaunchMPIR:
-				handle_launchMPIRReq(rawReadLoop<LaunchReq>(reqFd));
+			case ReqType::LaunchMPIR:
+				handle_LaunchMPIR(reqFd, respFd);
 				break;
 
-			case OverwatchReqType::ReleaseMPIR:
-				handle_releaseMPIRReq(rawReadLoop<ReleaseMPIRReq>(reqFd));
-				break;
-#else
-
-			case OverwatchReqType::RegisterApp:
-				handle_registerAppReq(rawReadLoop<AppReq>(reqFd));
+			case ReqType::AttachMPIR:
+				handle_AttachMPIR(reqFd, respFd);
 				break;
 
-			case OverwatchReqType::RegisterUtil:
-				handle_registerUtilReq(rawReadLoop<UtilReq>(reqFd));
-				break;
-#endif
-
-			case OverwatchReqType::DeregisterApp:
-				handle_deregisterAppReq(rawReadLoop<AppReq>(reqFd));
+			case ReqType::ReleaseMPIR:
+				handle_ReleaseMPIR(reqFd, respFd);
 				break;
 
-			case OverwatchReqType::Shutdown:
-				handle_shutdownReq();
+			case ReqType::RegisterApp:
+				handle_RegisterApp(reqFd, respFd);
+				break;
+
+			case ReqType::RegisterUtil:
+				handle_RegisterUtil(reqFd, respFd);
+				break;
+
+			case ReqType::DeregisterApp:
+				handle_DeregisterApp(reqFd, respFd);
+				break;
+
+			case ReqType::Shutdown:
+				handle_Shutdown(reqFd, respFd);
 				break;
 
 			default:

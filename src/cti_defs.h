@@ -233,7 +233,7 @@ struct SattachArgv : public cti::Argv {
     long_options_done };
 };
 
-struct CTIOverwatchArgv : public cti::Argv {
+struct CTIFEDaemonArgv : public cti::Argv {
     using Option    = cti::Argv::Option;
     using Parameter = cti::Argv::Parameter;
 
@@ -269,9 +269,9 @@ constexpr Parameter         DA::ApID, DA::Binary, DA::Directory, DA::EnvVariable
                             DA::PMIAttribsPath, DA::LdLibraryPath, DA::WLMEnum;
 constexpr cti::Argv::GNUOption DA::long_options[];
 
-constexpr Option            CTIOverwatchArgv::Help;
-constexpr Parameter         CTIOverwatchArgv::ReadFD, CTIOverwatchArgv::WriteFD;
-constexpr cti::Argv::GNUOption CTIOverwatchArgv::long_options[];
+constexpr Option            CTIFEDaemonArgv::Help;
+constexpr Parameter         CTIFEDaemonArgv::ReadFD, CTIFEDaemonArgv::WriteFD;
+constexpr cti::Argv::GNUOption CTIFEDaemonArgv::long_options[];
 
 #endif /* INSIDE_WORKAROUND_OBJ */
 

@@ -52,7 +52,6 @@
 #include "useful/cti_wrappers.hpp"
 #include "useful/cti_execvp.hpp"
 #include "useful/cti_argv.hpp"
-#include "frontend/daemon/cti_fe_daemon.hpp"
 
 /* helper functions */
 
@@ -392,8 +391,8 @@ public: // variables
 	std::unique_ptr<Frontend> currentFrontendPtr;
 
 	Logger logger;
-	cti::Pipe feDaemonReqPipe;
-	cti::Pipe feDaemonRespPipe;
+	cti::SocketPair feDaemonReqSock {AF_UNIX, SOCK_STREAM, 0};
+	cti::SocketPair feDaemonRespSock{AF_UNIX, SOCK_STREAM, 0};
 
 public: // interface
 	CTIFEIface()
@@ -423,12 +422,11 @@ public: // interface
 			}
 
 			// set up fe_daemon req / resp pipe
-			feDaemonReqPipe.closeRead();
-			feDaemonRespPipe.closeWrite();
+			feDaemonReqSock.closeRead();
+			feDaemonRespSock.closeWrite();
 
 			// wait until fe_daemon set up
-			auto const launchResp = rawReadLoop<PIDResp>(feDaemonRespPipe.getReadFd());
-			if ((launchResp.type != OverwatchRespType::PID) || (launchResp.pid != forkedPid)) {
+			if (rawReadLoop<pid_t>(feDaemonRespSock.getReadFd()) != forkedPid) {
 				throw std::runtime_error("fe_daemon launch failed");
 			}
 		} else {
@@ -444,8 +442,8 @@ public: // interface
 			prctl(PR_SET_PDEATHSIG, SIGHUP);
 
 			// set up fe_daemon req /resp pipe
-			feDaemonReqPipe.closeWrite();
-			feDaemonRespPipe.closeRead();
+			feDaemonReqSock.closeWrite();
+			feDaemonRespSock.closeRead();
 
 			// remap standard FDs
 			dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
@@ -461,16 +459,16 @@ public: // interface
 					max_fd = (rl.rlim_max == RLIM_INFINITY) ? 1024 : rl.rlim_max;
 				}
 			}
-			int const min_fd = std::max(feDaemonReqPipe.getReadFd(), feDaemonRespPipe.getWriteFd()) + 1;
+			int const min_fd = std::max(feDaemonReqSock.getReadFd(), feDaemonRespSock.getWriteFd()) + 1;
 			for (size_t i = min_fd; i < max_fd; ++i) {
 				close(i);
 			}
 
 			// setup args
-			using OWA = CTIOverwatchArgv;
-			cti::OutgoingArgv<OWA> fe_daemonArgv{fe_daemon_bin};
-			fe_daemonArgv.add(OWA::ReadFD,  std::to_string(feDaemonReqPipe.getReadFd()));
-			fe_daemonArgv.add(OWA::WriteFD, std::to_string(feDaemonRespPipe.getWriteFd()));
+			using FEDA = CTIFEDaemonArgv;
+			cti::OutgoingArgv<FEDA> fe_daemonArgv{fe_daemon_bin};
+			fe_daemonArgv.add(FEDA::ReadFD,  std::to_string(feDaemonReqSock.getReadFd()));
+			fe_daemonArgv.add(FEDA::WriteFD, std::to_string(feDaemonRespSock.getWriteFd()));
 
 			// exec
 			execvp(fe_daemon_bin.c_str(), fe_daemonArgv.get());
@@ -481,7 +479,7 @@ public: // interface
 	~CTIFEIface()
 	{
 		// send shutdown message to fe_daemon
-		_cti_shutdownOverwatch();
+		_cti_shutdownFEDaemon();
 	}
 };
 
@@ -533,183 +531,91 @@ _cti_getLogger() {
 	return _cti_getState().logger;
 }
 
-/* fe_daemon interface - defined in useful/cti_fe_daemon.hpp */
+/* fe_daemon interface - defined in daemon/cti_fe_daemon_iface.hpp */
 
-static pid_t
-writeForkExecReq(OverwatchReqType type, pid_t app_pid, char const* file, char const* const argv[],
-	int stdout_fd, int stderr_fd, char const* const env[])
+pid_t
+_cti_forkExecvpApp(char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	auto reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto respFd = _cti_getState().feDaemonRespPipe.getReadFd();
-
-	// construct and write fork/exec message
-	rawWriteLoop(reqFd, type);
-	auto const forkExecReq = LaunchReq
-		{ .app_pid = app_pid
-		, .stdout_fd = stdout_fd
-		, .stderr_fd = stderr_fd
-	};
-	rawWriteLoop(reqFd, forkExecReq);
-
-	// write flat file/argv/env strings
-	writeLoop(reqFd, file, strlen(file) + 1);
-	for (auto arg = argv; *arg != nullptr; arg++) {
-		writeLoop(reqFd, *arg, strlen(*arg) + 1);
-	}
-	rawWriteLoop(reqFd, '\0');
-	if (env) {
-		for (auto var = env; *var != nullptr; var++) {
-			writeLoop(reqFd, *var, strlen(*var) + 1);
-		}
-	}
-	rawWriteLoop(reqFd, '\0');
-
-	// read response
-	auto const forkExecResp = rawReadLoop<PIDResp>(respFd);
-
-	// verify response
-	if (forkExecResp.type != OverwatchRespType::PID) {
-		throw std::runtime_error("fe_daemon fork exec failed");
-	}
-
-	return forkExecResp.pid;
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_ForkExecvpApp(reqFd, respFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
 
 pid_t
-_cti_forkExecvpApp(char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
+_cti_forkExecvpAsyncUtil(pid_t app_pid, char const* file, char const* const argv[],
+	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	return writeForkExecReq(OverwatchReqType::ForkExecvpApp,
-		pid_t{0}, file, argv, stdout_fd, stderr_fd, env);
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_ForkExecvpUtil(reqFd, respFd, app_pid,
+		cti::fe_daemon::RunMode::Asynchronous,
+		file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
 
 pid_t
-_cti_forkExecvpUtil(pid_t app_pid, char const* file, char const* const argv[], int stdout_fd, int stderr_fd, char const* const env[])
+_cti_forkExecvpSyncUtil(pid_t app_pid, char const* file, char const* const argv[],
+	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	return writeForkExecReq(OverwatchReqType::ForkExecvpUtil,
-		app_pid, file, argv, stdout_fd, stderr_fd, env);
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_ForkExecvpUtil(reqFd, respFd, app_pid,
+		cti::fe_daemon::RunMode::Synchronous,
+		file, argv, stdin_fd, stdout_fd, stderr_fd, env);
 }
 
-
-#ifdef MPIR
-MPIR::ProcTable
-_cti_launchMPIR(char const* file, char const* argv[], int stdout_fd, int stderr_fd)
+cti::fe_daemon::MPIRResult
+_cti_launchMPIR(char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	throw std::runtime_error("not implemented");
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_LaunchMPIR(reqFd, respFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+}
+
+cti::fe_daemon::MPIRResult
+_cti_attachMPIR(pid_t app_pid)
+{
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_AttachMPIR(reqFd, respFd, app_pid);
 }
 
 void
-_cti_releaseMPIRBreakpoint(int mpir_id)
+_cti_releaseMPIR(cti::fe_daemon::MPIRId mpir_id)
 {
-	throw std::runtime_error("not implemented");
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_ReleaseMPIR(reqFd, respFd, mpir_id);
 }
-#else
 
 pid_t
 _cti_registerApp(pid_t app_pid)
 {
-	// check for fork error / child case
-	if (app_pid < 0) {
-		throw std::runtime_error(std::string("fork: ") + strerror(errno));
-	} else if (app_pid == 0) {
-		return 0;
-	}
-
-	auto reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto respFd = _cti_getState().feDaemonRespPipe.getReadFd();
-
-	// construct and write register message
-	rawWriteLoop(reqFd, OverwatchReqType::RegisterApp);
-	auto const registerAppReq = AppReq
-		{ .app_pid = app_pid
-	};
-	rawWriteLoop(reqFd, registerAppReq);
-
-	// read response
-	auto const registerResp = rawReadLoop<OKResp>(respFd);
-
-	// verify response
-	if (registerResp.type != OverwatchRespType::OK) {
-		throw std::runtime_error("fe_daemon register app failed");
-	}
-
-	return app_pid;
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_RegisterApp(reqFd, respFd, app_pid);
 }
 
 pid_t
 _cti_registerUtil(pid_t app_pid, pid_t util_pid)
 {
-	// check for fork error / child case
-	if (util_pid < 0) {
-		throw std::runtime_error(std::string("fork: ") + strerror(errno));
-	} else if (util_pid == 0) {
-		return 0;
-	}
-
-	auto reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto respFd = _cti_getState().feDaemonRespPipe.getReadFd();
-
-	// construct and write register message
-	rawWriteLoop(reqFd, OverwatchReqType::RegisterUtil);
-	auto const registerUtilReq = UtilReq
-		{ .app_pid = app_pid
-		, .util_pid = util_pid
-	};
-	rawWriteLoop(reqFd, registerUtilReq);
-
-	// read response
-	auto const registerResp = rawReadLoop<OKResp>(respFd);
-
-	// verify response
-	if (registerResp.type != OverwatchRespType::OK) {
-		throw std::runtime_error("fe_daemon register util failed");
-	}
-
-	return util_pid;
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_RegisterUtil(reqFd, respFd, app_pid, util_pid);
 }
-
-#endif
 
 void
 _cti_deregisterApp(pid_t app_pid)
 {
-	if (app_pid == 0) {
-		return;
-	}
-
-	auto reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto respFd = _cti_getState().feDaemonRespPipe.getReadFd();
-
-	// construct and write deregister message
-	rawWriteLoop(reqFd, OverwatchReqType::DeregisterApp);
-	auto const deregisterAppReq = AppReq
-		{ .app_pid = app_pid
-	};
-	rawWriteLoop(reqFd, deregisterAppReq);
-
-	// read response
-	auto const registerResp = rawReadLoop<OKResp>(respFd);
-
-	// verify response
-	if (registerResp.type != OverwatchRespType::OK) {
-		throw std::runtime_error("fe_daemon deregister app failed");
-	}
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_DeregisterApp(reqFd, respFd, app_pid);
 }
 
-void _cti_shutdownOverwatch()
+void _cti_shutdownFEDaemon()
 {
-	auto reqFd  = _cti_getState().feDaemonReqPipe.getWriteFd();
-	auto respFd = _cti_getState().feDaemonRespPipe.getReadFd();
-
-	// construct and write shutdown message
-	rawWriteLoop(reqFd, OverwatchReqType::Shutdown);
-
-	// read response
-	auto const shutdownResp = rawReadLoop<OKResp>(respFd);
-
-	// verify response
-	if (shutdownResp.type != OverwatchRespType::OK) {
-		throw std::runtime_error("fe_daemon shutdown failed");
-	}
+	auto const reqFd  = _cti_getState().feDaemonReqSock.getWriteFd();
+	auto const respFd = _cti_getState().feDaemonRespSock.getReadFd();
+	return cti::fe_daemon::request_Shutdown(reqFd, respFd);
 }
 
 /* internal testing functions */
@@ -942,10 +848,14 @@ cti_app_id_t
 cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 	const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
-	return cti_conventions::runSafely(__func__, [&](){
-		// delegate app launch and registration to launchAppBarrier
-		auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
+	// delegate app launch and registration to launchAppBarrier
+	auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 
+	if (appId == APP_ERROR) {
+		return appId;
+	}
+
+	return cti_conventions::runSafely(__func__, [&](){
 		// release barrier
 		_cti_getState().appRegistry.get(appId)->releaseBarrier();
 
