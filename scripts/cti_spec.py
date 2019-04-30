@@ -82,8 +82,9 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %{_version_prefix}/examples/testing.info
 
 %{_version_prefix}/libexec/
-%{_version_prefix}/libexec/cti_overwatch
-%{_version_prefix}/libexec/cti_dlaunch*
+%{_version_prefix}/libexec/cti_fe_daemon*
+%{_version_prefix}/libexec/cti_be_daemon*
+%{_version_prefix}/libexec/cti_splice_out_err
 
 %{_version_prefix}/lib
 %{_version_prefix}/lib/libaudit.so
