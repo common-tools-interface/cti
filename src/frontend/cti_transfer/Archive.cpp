@@ -11,6 +11,9 @@
  *
  ******************************************************************************/
 
+// This pulls in config.h
+#include "cti_defs.h"
+
 #include <dirent.h>
 #include <string.h>
 

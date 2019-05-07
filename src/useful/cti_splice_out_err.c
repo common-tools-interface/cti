@@ -11,9 +11,8 @@
  *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <stdio.h>
 #include <stdlib.h>

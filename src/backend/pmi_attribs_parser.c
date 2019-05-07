@@ -2,7 +2,7 @@
  * pmi_attribs_parser.c - A interface to parse the pmi_attribs file that exists
 			  on the compute node.
  *
- * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -10,16 +10,10 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -45,18 +39,18 @@ _cti_be_getPmiAttribsInfo(void)
 	unsigned long int	timeout = 0;
 	unsigned long int	extra_timeout = 0;
 	char *				env_var_str;
-	
+
 	// init the timer to .25 seconds
 	timer.tv_sec	= 0;
 	timer.tv_nsec	= 250000000;
-		
+
 	// TODO: There is a potential race condition here. For an attach scenario,
 	// its possible to attach to the application before its at the startup
 	// barrier. That means we could potentially read the pmi_attribs file before
 	// its finished being written. This is only possible when there is no
 	// startup barrier and an application is linked dynamically meaning it can
 	// take a long time to startup at scale due to DVS issues.
-	
+
 	// get attribs path
 	if ((attribs_path = _cti_be_getAttribsDir()) == NULL)
 	{
@@ -72,14 +66,14 @@ _cti_be_getPmiAttribsInfo(void)
 		return NULL;
 	}
 	free(attribs_path);
-	
+
 	// try to open the pmi_attribs file
 	while ((fp = fopen(fileName, "r")) == 0)
 	{
 		// If we failed to open the file, sleep for timer nsecs. Keep track of
 		// the count and make sure that this does not equal the timeout value
 		// in seconds.
-		
+
 		// Try to read the timeout value if this is the first time through
 		if (timeout == 0)
 		{
@@ -99,7 +93,7 @@ _cti_be_getPmiAttribsInfo(void)
 				timeout = PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT;
 			}
 		}
-		
+
 		// If you modify the timer, make sure you modify the multiple of the
 		// timeout value. The timeout value is in seconds, we are sleeping in
 		// fractions of seconds.
@@ -119,7 +113,7 @@ _cti_be_getPmiAttribsInfo(void)
 			return NULL;
 		}
 	}
-	
+
 	// if tcount is not zero, that means we failed to open the pmi_attribs file
 	// lets sleep for a fraction of tcount to try and avoid a race condition here.
 	// This can be user defined.
@@ -145,7 +139,7 @@ _cti_be_getPmiAttribsInfo(void)
 		// sleep for the extra amount of time
 		sleep(extra_timeout);
 	}
-	
+
 	// we opened the file, so lets allocate the return object
 	if ((rtn = malloc(sizeof(pmi_attribs_t))) == (void *)0)
 	{
@@ -153,7 +147,7 @@ _cti_be_getPmiAttribsInfo(void)
 		fclose(fp);
 		return NULL;
 	}
-	
+
 	// read in the pmi file version
 	if (fscanf(fp, "%d\n", &rtn->pmi_file_ver) != 1)
 	{
@@ -162,7 +156,7 @@ _cti_be_getPmiAttribsInfo(void)
 		fclose(fp);
 		return NULL;
 	}
-	
+
 	// read in the compute nodes nid number
 	if (fscanf(fp, "%d\n", &rtn->cnode_nidNum) != 1)
 	{
@@ -171,7 +165,7 @@ _cti_be_getPmiAttribsInfo(void)
 		fclose(fp);
 		return NULL;
 	}
-	
+
 	// read in the MPMD command number this compute node cooresponds to in
 	// the MPMD set
 	if (fscanf(fp, "%d\n", &rtn->mpmd_cmdNum) != 1)
@@ -181,7 +175,7 @@ _cti_be_getPmiAttribsInfo(void)
 		fclose(fp);
 		return NULL;
 	}
-	
+
 	// read in the number of application ranks that exist on this node
 	if (fscanf(fp, "%d\n", &rtn->app_nodeNumRanks) != 1)
 	{
@@ -190,7 +184,7 @@ _cti_be_getPmiAttribsInfo(void)
 		fclose(fp);
 		return NULL;
 	}
-	
+
 	// lets allocate the object to hold the rank/pid pairs we are about to
 	// start reading in.
 	if ((rtn->app_rankPidPairs = malloc(rtn->app_nodeNumRanks * sizeof(nodeRankPidPair_t))) == (void *)0)
@@ -200,7 +194,7 @@ _cti_be_getPmiAttribsInfo(void)
 		fclose(fp);
 		return NULL;
 	}
-	
+
 	for (i=0; i < rtn->app_nodeNumRanks; ++i)
 	{
 		// read in the rank and pid from the current line
@@ -220,10 +214,10 @@ _cti_be_getPmiAttribsInfo(void)
 		rtn->app_rankPidPairs[i].rank = int1;
 		rtn->app_rankPidPairs[i].pid  = (pid_t)longint1;
 	}
-	
+
 	// close the fp
 	fclose(fp);
-	
+
 	return rtn;
 }
 
@@ -233,10 +227,10 @@ _cti_be_freePmiAttribs(pmi_attribs_t *attr)
 	// sanity check
 	if (attr == NULL)
 		return;
-	
+
 	if (attr->app_rankPidPairs != NULL)
 		free(attr->app_rankPidPairs);
-		
+
 	free(attr);
 }
 

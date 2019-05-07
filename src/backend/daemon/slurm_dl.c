@@ -1,7 +1,7 @@
 /******************************************************************************\
  * slurm_dl.c - Cluster slurm specific functions for the daemon launcher.
  *
- * Copyright 2016-2017 Cray Inc.  All Rights Reserved.
+ * Copyright 2016-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -11,9 +11,8 @@
  *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <limits.h>
 #include <stdio.h>

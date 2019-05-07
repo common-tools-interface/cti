@@ -15,9 +15,8 @@
  *
  *********************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -38,7 +37,6 @@
 #include <archive.h>
 #include <archive_entry.h>
 
-#include "cti_defs.h"
 #include "cti_daemon.h"
 #include "cti_useful.h"
 
@@ -60,14 +58,14 @@ const struct option long_opts[] = {
 			{"debug",		no_argument,		&debug_flag, 1},
 			{0, 0, 0, 0}
 			};
-			
+
 struct cti_pids
 {
 	pid_t				pids[32];
 	unsigned int		idx;
 	struct cti_pids *	next;
 };
-			
+
 /* wlm specific proto objects defined elsewhere */
 extern cti_wlm_proto_t	_cti_cray_slurm_wlmProto;
 extern cti_wlm_proto_t	_cti_slurm_wlmProto;
@@ -90,7 +88,7 @@ usage(void)
 	fprintf(stdout, "Launch a program on a compute node. Chdir's to the toolhelper\n");
 	fprintf(stdout, "directory and add it to PATH and LD_LIBRARY_PATH. Sets optional\n");
 	fprintf(stdout, "specified variables in the environment of the process.\n\n");
-	
+
 	fprintf(stdout, "\t-a, --apid      Application id\n");
 	fprintf(stdout, "\t-b, --binary	   Binary file to execute\n");
 	fprintf(stdout, "\t-c, --clean     Terminate existing tool daemons and cleanup session\n");
@@ -119,14 +117,14 @@ copy_data(struct archive *ar, struct archive *aw)
 	for (;;)
 	{
 		r = archive_read_data_block(ar, &buff, &size, &offset);
-		if (r == ARCHIVE_EOF) 
+		if (r == ARCHIVE_EOF)
 		{
 			return (ARCHIVE_OK);
 		}
 		if (r != ARCHIVE_OK)
 			return (r);
 		r = archive_write_data_block(aw, buff, size, offset);
-		if (r != ARCHIVE_OK) 
+		if (r != ARCHIVE_OK)
 		{
 			fprintf(stderr, "%s: archive_write_data_block(): %s\n", CTI_BE_DAEMON_BINARY, archive_error_string(ar));
 			return (r);
@@ -138,7 +136,7 @@ int
 do_lock(int fd, int cmd, int type, off_t offset, int whence, off_t len)
 {
 	struct flock	lock;
-	
+
 	lock.l_type = type;			// F_RDLCK, F_WRLCK, F_UNLCK
 	lock.l_start = offset;		// byte offset relative to l_whence
 	lock.l_whence = whence;		// SEEK_SET, SEEK_CUR, SEEK_END
@@ -156,12 +154,12 @@ remove_dir(char *path)
 	DIR *				dir;
 	struct dirent *		d;
 	char *				file = NULL;
-	
+
 	if ((dir = opendir(path)) == NULL)
 	{
 		return;
 	}
-	
+
 	while ((d = readdir(dir)) != NULL)
 	{
 		// ensure this isn't the . or .. file
@@ -174,7 +172,7 @@ remove_dir(char *path)
 					continue;
 				}
 				break;
-				
+
 			case 2:
 				if (strcmp(d->d_name, "..") == 0)
 				{
@@ -182,27 +180,27 @@ remove_dir(char *path)
 					continue;
 				}
 				break;
-			
+
 			default:
 				break;
 		}
-		
+
 		if (asprintf(&file, "%s/%s", path, d->d_name) <= 0)
 		{
 			fprintf(stderr, "%s: asprintf failed\n", CTI_BE_DAEMON_BINARY);
 			continue;
 		}
-		
+
 		if (d->d_type == DT_DIR)
 		{
 			remove_dir(file);
 		}
-		
+
 		remove(file);
 		free(file);
 		file = NULL;
 	}
-	
+
 	closedir(dir);
 	remove(path);
 }
@@ -222,7 +220,7 @@ main(int argc, char **argv)
 	char *			ld_lib_path = NULL;
 	FILE *			log;
 	struct stat 	statbuf;
-	char *			binary = NULL; 
+	char *			binary = NULL;
 	char *			binary_path;
 	char *			directory = NULL;
 	char *			manifest = NULL;
@@ -254,7 +252,7 @@ main(int argc, char **argv)
 	}
 
 	chmod(argv[0], S_IRUSR|S_IWUSR|S_IXUSR|S_IRGRP|S_IWGRP|S_IXGRP|S_IROTH|S_IWOTH|S_IXOTH);
-	
+
 	// We want to do as little as possible while parsing the opts. This is because
 	// we do not create a log file until after the opts are parsed, and there will
 	// be no valid output until after the log is created on most systems.
@@ -265,80 +263,80 @@ main(int argc, char **argv)
 			case 0:
 				// if this is a flag, do nothing
 				break;
-			
-			case 'a': 
+
+			case 'a':
 				if (optarg == NULL)
 				{
 					usage();
 					return 1;
 				}
-				
+
 				// strip leading whitespace
 				while (*optarg == ' ')
 				{
 					++optarg;
 				}
-				
+
 				// this is the application id that is WLM specific
 				apid_str = strdup(optarg);
-				
+
 				break;
-			
+
 			case 'b':
 				if (optarg == NULL)
 				{
 					usage();
 					return 1;
 				}
-				
+
 				// strip leading whitespace
 				while (*optarg == ' ')
 				{
 					++optarg;
 				}
-				
+
 				// this is the name of the binary we will exec
 				binary = strdup(optarg);
-				
+
 				break;
-				
+
 			case 'c':
 				// set cleanup to true
 				cleanup = true;
-				
+
 				break;
-				
+
 			case 'd':
 				if (optarg == NULL)
 				{
 					usage();
 					return 1;
 				}
-				
+
 				// strip leading whitespace
 				while (*optarg == ' ')
 				{
 					++optarg;
 				}
-				
+
 				// this is the name of the existing directory we should cd to
 				directory = strdup(optarg);
-				
+
 				break;
-				
+
 			case 'e':
 				if (optarg == NULL)
 				{
 					usage();
 					return 1;
 				}
-				
+
 				// strip leading whitespace
 				while (*optarg == ' ')
 				{
 					++optarg;
 				}
-				
+
 				// this is an optional option to set user defined environment variables
 				if (env_args == NULL)
 				{
@@ -350,82 +348,82 @@ main(int argc, char **argv)
 						return 1;
 					}
 				}
-				
+
 				if (_cti_push(env_args, strdup(optarg)))
 				{
 					// failed to push the string - shouldn't happen
 					fprintf(stderr, "%s: _cti_push() failed.\n", CTI_BE_DAEMON_BINARY);
 					return 1;
 				}
-				
+
 				break;
-				
+
 			case 'i':
 				if (optarg == NULL)
 				{
 					usage();
 					return 1;
 				}
-				
+
 				// This is our instance number. We need to wait for all those
 				// before us to finish their work before proceeding.
 				inst = atoi(optarg);
-				
+
 				break;
-				
+
 			case 'm':
 				if (optarg == NULL)
 				{
 					usage();
 					return 1;
 				}
-				
+
 				// strip leading whitespace
 				while (*optarg == ' ')
 				{
 					++optarg;
 				}
-				
+
 				// this is the name of the manifest tarball we will extract
 				manifest = strdup(optarg);
-				
+
 				break;
-				
+
 			case 'p':
 				if (optarg == NULL)
 				{
 					usage();
 					return 1;
 				}
-				
+
 				// strip leading whitespace
 				while (*optarg == ' ')
 				{
 					++optarg;
 				}
-				
+
 				// this is the tool path argument where we should cd to
 				tool_path = strdup(optarg);
-				
+
 				break;
-				
+
 			case 't':
 				if (optarg == NULL)
 				{
 					usage();
 					return 1;
 				}
-				
+
 				// strip leading whitespace
 				while (*optarg == ' ')
 				{
 					++optarg;
 				}
-				
+
 				// this is the pmi_attribs path argument to find the attribs file
 				// This is optional, some implementations might not use it.
 				attribs_path = strdup(optarg);
-				
+
 				break;
 
 			case 'l':
@@ -434,31 +432,31 @@ main(int argc, char **argv)
 					usage();
 					return 1;
 				}
-				
+
 				// strip leading whitespace
 				while (*optarg == ' ')
 				{
 					++optarg;
 				}
-				
+
 				// this is the argument to set LD_LIBRARY_PATH envvar
 				// This is optional, some implementations might not use it.
 				ld_lib_path = strdup(optarg);
-				
+
 				break;
-				
+
 			case 'w':
 				if (optarg == NULL)
 				{
 					usage();
 					return 1;
 				}
-				
+
 				// this is the wlm value that we should use
 				wlm_arg = atoi(optarg);
-				
+
 				break;
-				
+
 			case 'h':
 				usage();
 				return 1;
@@ -467,12 +465,12 @@ main(int argc, char **argv)
 				return 1;
 		}
 	}
-	
+
 	// Start becoming a daemon
-	
+
 	// clear file creation mask
 	umask(0);
-	
+
 	// get max number of file descriptors
 	if (getrlimit(RLIMIT_NOFILE, &rl) < 0)
 	{
@@ -484,13 +482,13 @@ main(int argc, char **argv)
 		// guess the value
 		rl.rlim_max = 1024;
 	}
-	
+
 	// Ensure every file descriptor is closed
 	for (i=0; i < rl.rlim_max; ++i)
 	{
 		close(i);
 	}
-	
+
 	/*
 	* We close channels 0-2 to keep things "clean".
 	* Unfortuantely, that means that any file opens that I do will
@@ -506,7 +504,7 @@ main(int argc, char **argv)
 	open("/dev/null", O_RDONLY);
 	open("/dev/null", O_WRONLY);
 	open("/dev/null", O_WRONLY);
-	
+
 	// Setup the wlm arg without error checking so that we can create a debug
 	// log if asked to. We will error check below.
 	switch (wlm_arg)
@@ -514,7 +512,7 @@ main(int argc, char **argv)
 		case CTI_WLM_CRAY_SLURM:
 			_cti_wlmProto = &_cti_cray_slurm_wlmProto;
 			break;
-		
+
 		case CTI_WLM_SSH:
 			_cti_wlmProto = &_cti_slurm_wlmProto;
 			break;
@@ -524,23 +522,23 @@ main(int argc, char **argv)
 			// the wlmProto defaults to noneness, so break
 			break;
 	}
-	
+
 	// if debug mode is turned on, redirect stdout/stderr to a log file
 	if (debug_flag)
 	{
 		int null_apid = 0;
-		
+
 		// sanity so that we can write something if we are missing the apid string
 		if (apid_str == NULL)
 		{
 			++null_apid;
 			apid_str = strdup("NOAPID");
 		}
-		
+
 		// setup the log
 		log = _cti_create_log(apid_str, _cti_wlmProto->wlm_getNodeID());
 		_cti_hook_stdoe(log);
-		
+
 		// cleanup the apid string if it was missing
 		if (null_apid)
 		{
@@ -550,7 +548,7 @@ main(int argc, char **argv)
 	}
 
 	/* It is NOW safe to write to stdout/stderr, the log file has been setup */
-	
+
 	// print out argv array if debug is turned on
 	if (debug_flag)
 	{
@@ -559,25 +557,25 @@ main(int argc, char **argv)
 			fprintf(stderr, "%s: argv[%d] = \"%s\"\n", CTI_BE_DAEMON_BINARY, i, argv[i]);
 		}
 	}
-	
-	// Now ensure the user provided a valid wlm argument. 
+
+	// Now ensure the user provided a valid wlm argument.
 	switch (wlm_arg)
 	{
 		case CTI_WLM_CRAY_SLURM:
 		case CTI_WLM_SSH:
 			// These wlm are valid
 			break;
-		
+
 		case CTI_WLM_NONE:
 			// These wlm are not supported
 			fprintf(stderr, "%s: WLM provided by wlm argument is not yet supported!\n", CTI_BE_DAEMON_BINARY);
 			return 1;
-		
+
 		default:
 			fprintf(stderr, "%s: Invalid wlm argument.\n", CTI_BE_DAEMON_BINARY);
 			return 1;
 	}
-	
+
 	// Ensure the user provided an apid argument
 	if (apid_str == NULL)
 	{
@@ -585,7 +583,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: Missing apid argument!\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// Ensure the user provided a directory or manifest option
 	if (directory == NULL && manifest == NULL)
 	{
@@ -593,7 +591,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: Missing either directory or manifest argument!\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// Ensure the user provided a toolpath option
 	if (tool_path == NULL)
 	{
@@ -601,7 +599,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: Missing path argument!\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// call the wlm specific init function
 	if (_cti_wlmProto->wlm_init())
 	{
@@ -609,7 +607,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: wlm_init() failed.\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// save the old cwd value into the environment
 	if ((cwd = getcwd(NULL, 0)) != NULL)
 	{
@@ -621,13 +619,13 @@ main(int argc, char **argv)
 		}
 		free(cwd);
 	}
-	
+
 	// process the env args
 	if (env_args != NULL)
 	{
 		// pop the top element
 		val = (char *)_cti_pop(env_args);
-	
+
 		while (val != NULL)
 		{
 			// we need to strsep the string at the "=" character
@@ -640,7 +638,7 @@ main(int argc, char **argv)
 				fprintf(stderr, "%s: strsep failed\n", CTI_BE_DAEMON_BINARY);
 				return 1;
 			}
-			
+
 			// ensure the user didn't pass us something stupid i.e. non-conforming
 			if ((*env == '\0') || (*val == '\0'))
 			{
@@ -648,7 +646,7 @@ main(int argc, char **argv)
 				fprintf(stderr, "%s: Unrecognized env argument.\n", CTI_BE_DAEMON_BINARY);
 				return 1;
 			}
-			
+
 			// set the actual environment variable
 			if (setenv(env, val, 1) < 0)
 			{
@@ -656,18 +654,18 @@ main(int argc, char **argv)
 				fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 				return 1;
 			}
-			
+
 			// free this element
 			free(env);
-			
+
 			// pop the next element
 			val = (char *)_cti_pop(env_args);
 		}
-		
+
 		// Done with the env_args
 		_cti_consumeStack(env_args);
 	}
-	
+
 	// set the APID_ENV_VAR environment variable to the apid
 	if (setenv(APID_ENV_VAR, apid_str, 1) < 0)
 	{
@@ -675,7 +673,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// set the WLM_ENV_VAR environment variable to the wlm
 	if (asprintf(&wlm_str, "%d", _cti_wlmProto->wlm_type) <= 0)
 	{
@@ -689,19 +687,19 @@ main(int argc, char **argv)
 		return 1;
 	}
 	free(wlm_str);
-	
+
 	// cd to the tool_path and relax the permissions
 	if (debug_flag)
 	{
 		fprintf(stderr, "%s: inst %d: Toolhelper path: %s\n", CTI_BE_DAEMON_BINARY, inst, tool_path);
 	}
-	
+
 	if (stat(tool_path, &statbuf) == -1)
 	{
 		fprintf(stderr, "%s: Could not stat %s\n", CTI_BE_DAEMON_BINARY, tool_path);
 		return 1;
 	}
-	
+
 	// Ensure we can write into this directory, otherwise try to relax the permissions
 	if (getuid() == statbuf.st_uid)
 	{
@@ -723,7 +721,7 @@ main(int argc, char **argv)
 		int 	ngrps;
 		gid_t *	grps;
 		int		i,chk=0;
-		
+
 		if ((ngrps = getgroups(0, NULL)) < 0)
 		{
 			fprintf(stderr, "%s: ", CTI_BE_DAEMON_BINARY);
@@ -741,7 +739,7 @@ main(int argc, char **argv)
 			perror("getgroups");
 			return 1;
 		}
-		
+
 		// check to see if we are in the group
 		for (i=0; i < ngrps; ++i)
 		{
@@ -759,7 +757,7 @@ main(int argc, char **argv)
 				break;
 			}
 		}
-		
+
 		// if chk is true, we are in the group and have proper perms, otherwise check other
 		if (!chk)
 		{
@@ -771,14 +769,14 @@ main(int argc, char **argv)
 			}
 		}
 	}
-	
+
 	// change the working directory to path
 	if (chdir(tool_path) != 0)
 	{
 		fprintf(stderr, "%s: Could not chdir to %s\n", CTI_BE_DAEMON_BINARY, tool_path);
 		return 1;
 	}
-	
+
 	// Now unpack the manifest
 	if (manifest != NULL)
 	{
@@ -786,45 +784,45 @@ main(int argc, char **argv)
 		{
 			fprintf(stderr, "%s: inst %d: Manifest provided: %s\n", CTI_BE_DAEMON_BINARY, inst, manifest);
 		}
-	
+
 		// create the manifest path string
 		if (asprintf(&manifest_path, "%s/%s", tool_path, manifest) <= 0)
 		{
 			fprintf(stderr, "%s: asprintf failed\n", CTI_BE_DAEMON_BINARY);
 			return 1;
 		}
-		
+
 		// ensure the manifest tarball exists
 		if (stat(manifest_path, &statbuf) == -1)
 		{
 			fprintf(stderr, "%s: Could not stat manifest tarball %s\n", CTI_BE_DAEMON_BINARY, manifest_path);
 			return 1;
 		}
-		
+
 		// ensure it is a regular file
 		if (!S_ISREG(statbuf.st_mode))
 		{
 			fprintf(stderr, "%s: %s is not a regular file!\n", CTI_BE_DAEMON_BINARY, manifest_path);
 			return 1;
 		}
-	
+
 		// set the flags
 		flags |= ARCHIVE_EXTRACT_PERM;
 		flags |= ARCHIVE_EXTRACT_ACL;
 		flags |= ARCHIVE_EXTRACT_FFLAGS;
-	
+
 		a = archive_read_new();
 		ext = archive_write_disk_new();
 		archive_write_disk_set_options(ext, flags);
 		archive_read_support_format_tar(a);
-	
+
 		if ((r = archive_read_open_filename(a, manifest_path, 10240)))
 		{
 			fprintf(stderr, "%s: archive_read_open_filename(): %s\n", CTI_BE_DAEMON_BINARY, archive_error_string(a));
 			return r;
 		}
-	
-		for (;;) 
+
+		for (;;)
 		{
 			r = archive_read_next_header(a, &entry);
 			if (r == ARCHIVE_EOF)
@@ -834,16 +832,16 @@ main(int argc, char **argv)
 				fprintf(stderr, "%s: archive_read_next_header(): %s\n", CTI_BE_DAEMON_BINARY, archive_error_string(a));
 				return 1;
 			}
-		
+
 			r = archive_write_header(ext, entry);
 			if (r != ARCHIVE_OK)
 			{
 				fprintf(stderr, "%s: archive_write_header(): %s\n", CTI_BE_DAEMON_BINARY, archive_error_string(ext));
 				return 1;
 			}
-		
+
 			copy_data(a, ext);
-		
+
 			r = archive_write_finish_entry(ext);
 			if (r != ARCHIVE_OK)
 			{
@@ -851,16 +849,16 @@ main(int argc, char **argv)
 				return 1;
 			}
 		}
-	
+
 		archive_read_close(a);
 		archive_read_free(a);
-	
+
 		// The manifest should be extracted at this point.
-	
+
 		// We are done with the tarball, so remove it - if this fails just ignore it since it won't
 		// break things
 		remove(manifest_path);
-	
+
 		// Modify manifest_path to point at the directory, not the ".tar" bits
 		if ((t = strstr(manifest_path, ".tar")) != NULL)
 		{
@@ -868,7 +866,7 @@ main(int argc, char **argv)
 			*t = '\0';
 		}
 	}
-	
+
 	// handle the directory option
 	if (directory != NULL)
 	{
@@ -876,7 +874,7 @@ main(int argc, char **argv)
 		{
 			fprintf(stderr, "%s: inst %d: Directory provided: %s\n", CTI_BE_DAEMON_BINARY, inst, directory);
 		}
-		
+
 		// create the manifest path string
 		if (manifest_path != NULL)
 		{
@@ -889,34 +887,34 @@ main(int argc, char **argv)
 			return 1;
 		}
 	}
-	
+
 	// ensure the manifest directory exists
 	if (stat(manifest_path, &statbuf) == -1)
 	{
 		fprintf(stderr, "%s: Could not stat root directory %s\n", CTI_BE_DAEMON_BINARY, manifest_path);
 		return 1;
 	}
-	
+
 	// ensure it is a directory
 	if (!S_ISDIR(statbuf.st_mode))
 	{
 		fprintf(stderr, "%s: %s is not a directory!\n", CTI_BE_DAEMON_BINARY, manifest_path);
 		return 1;
 	}
-	
+
 	// At this point we are done untar'ing stuff into the directory. We need
 	// to create our hidden file corresponding to our instance so that other
 	// tool daemons will know that their dependencies included with our manifest
 	// are ready for them to use. This prevents race conditions where a later
 	// tool daemon depends on files included in an earlier tool daemons manifest
 	// but the later tool daemon executes first.
-	
+
 	// first ensure the directory string exists, otherwise create it
 	if (directory == NULL)
 	{
 		// grab the directory part based on the manifest string
 		directory = strdup(manifest);
-		
+
 		// Modify t1 to point at the directory, not the ".tar" bits
 		if ((t = strstr(directory, ".tar")) != NULL)
 		{
@@ -924,31 +922,31 @@ main(int argc, char **argv)
 			*t = '\0';
 		}
 	}
-	
+
 	// create the path to the pid file
 	if (asprintf(&pid_path, "%s/%s", manifest_path, PID_FILE) <= 0)
 	{
 		fprintf(stderr, "%s: asprintf failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// TODO: Terminate here
 	if (cleanup)
 	{
 		struct cti_pids tool_pid = {{0}};
 		struct cti_pids * pid_ptr = &tool_pid;
 		ssize_t nr;
-		
+
 		if ((o_fd = open(pid_path, O_RDONLY)) < 0)
 		{
 			fprintf(stderr, "%s: open failed\n", CTI_BE_DAEMON_BINARY);
 			perror("open");
 			return 1;
 		}
-		
+
 		// lock the file
 		FLOCK(o_fd);
-		
+
 		do {
 			nr = read(o_fd, &pid_ptr->pids[pid_ptr->idx], sizeof(pid_ptr->pids) - ((sizeof(pid_ptr->pids)/sizeof(pid_ptr->pids[0])) * pid_ptr->idx));
 			if (nr < 0)
@@ -973,7 +971,7 @@ main(int argc, char **argv)
 				}
 			}
 		} while (nr != 0);
-		
+
 		// send a SIGTERM to each pid
 		pid_ptr = &tool_pid;
 		while (pid_ptr != NULL)
@@ -987,11 +985,11 @@ main(int argc, char **argv)
 			}
 			pid_ptr = pid_ptr->next;
 		}
-		
+
 		// sleep for 10 seconds
 		fprintf(stderr, "%s: inst %d: Sleeping for 10 seconds...\n", CTI_BE_DAEMON_BINARY, inst);
 		sleep(10);
-		
+
 		// send a SIGKILL to each pid
 		pid_ptr = &tool_pid;
 		while (pid_ptr != NULL)
@@ -1005,38 +1003,38 @@ main(int argc, char **argv)
 			}
 			pid_ptr = pid_ptr->next;
 		}
-		
+
 		// remove the manifest directory
 		fprintf(stderr, "%s: inst %d: Removing directory %s.\n", CTI_BE_DAEMON_BINARY, inst, manifest_path);
 		remove_dir(manifest_path);
-		
+
 		// remove the lock files
 		for (i = inst-1; i > 0; --i)
 		{
 			// reset sCnt
 			sCnt = 0;
-		
+
 			// create the path to this instances lock file
 			if (asprintf(&lock_path, "%s/.lock_%s_%d", tool_path, directory, i) <= 0)
 			{
 				fprintf(stderr, "%s: asprintf failed\n", CTI_BE_DAEMON_BINARY);
 				return 1;
 			}
-			
+
 			unlink(lock_path);
 			free(lock_path);
 		}
 		
 		fprintf(stderr, "%s: inst %d: Cleanup complete.\n", CTI_BE_DAEMON_BINARY, inst);
-		
+
 		return 0;
 	}
-	
+
 	// We want to write the pid of this process into the pid file for cleanup
 	// later. Note that if the destroy session function is called, it will need
 	// to wait for this instances lock file to get created, which happens below.
 	// That way we are guaranteed to not miss any tool daemons that were started.
-	
+
 	// Write this pid into the pid file for cleanup
 	if ((o_fd = open(pid_path, O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR)) < 0)
 	{
@@ -1044,10 +1042,10 @@ main(int argc, char **argv)
 		perror("open");
 		return 1;
 	}
-	
+
 	// lock the file
 	FLOCK(o_fd);
-	
+
 	// get our pid and write it
 	mypid = getpid();
 	if (write(o_fd, &mypid, sizeof(mypid)) < sizeof(mypid))
@@ -1056,18 +1054,18 @@ main(int argc, char **argv)
 		perror("write");
 		return 1;
 	}
-	
+
 	// done
 	UNFLOCK(o_fd);
 	close(o_fd);
-	
+
 	// create the path to the lock file
 	if (asprintf(&lock_path, "%s/.lock_%s_%d", tool_path, directory, inst) <= 0)
 	{
 		fprintf(stderr, "%s: asprintf failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// try to fopen the lock file
 	if ((lock_file = fopen(lock_path, "w")) == NULL)
 	{
@@ -1080,7 +1078,7 @@ main(int argc, char **argv)
 		// close the file, it has been created
 		fclose(lock_file);
 	}
-	
+
 	// Set the BE_GUARD_ENV_VAR environment variable to signal that we are running
 	// on the backend
 	if (setenv(BE_GUARD_ENV_VAR, "1", 1) < 0)
@@ -1089,7 +1087,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// Set the ROOT_DIR_VAR environment variable to the manifest directory.
 	if (setenv(ROOT_DIR_VAR, manifest_path, 1) < 0)
 	{
@@ -1097,7 +1095,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// Get the current value of the SCRATCH_ENV_VAR environment variable and set
 	// it to OLD_SCRATCH_ENV_VAR in case the tool daemon needs access to it.
 	if ((old_env_path = getenv(SCRATCH_ENV_VAR)) != NULL)
@@ -1124,7 +1122,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// set the BIN_DIR_VAR environment variable to the toolhelper directory.
 	if (asprintf(&bin_path, "%s/bin", manifest_path) <= 0)
 	{
@@ -1137,7 +1135,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// set the LIB_DIR_VAR environment variable to the toolhelper directory.
 	if (asprintf(&lib_path, "%s/lib", manifest_path) <= 0)
 	{
@@ -1150,7 +1148,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// set FILE_DIR_VAR environment variable to the toolhelper directory
 	if (asprintf(&file_path, "%s", manifest_path) <= 0)
 	{
@@ -1163,7 +1161,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// set TOOL_DIR_VAR to tool_path - This should remain hidden from the user and only used by internal library calls
 	if (setenv(TOOL_DIR_VAR, tool_path, 1) < 0)
 	{
@@ -1171,7 +1169,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// set PMI_ATTRIBS_DIR_VAR to attribs_path if there is one. This is optional.
 	if (attribs_path != NULL)
 	{
@@ -1182,7 +1180,7 @@ main(int argc, char **argv)
 			return 1;
 		}
 	}
-	
+
 	// call _cti_adjustPaths so that we chdir to where we shipped stuff over to and setup PATH/LD_LIBRARY_PATH
 	if (_cti_adjustPaths(manifest_path, ld_lib_path))
 	{
@@ -1190,28 +1188,28 @@ main(int argc, char **argv)
 		free(tool_path);
 		return 1;
 	}
-	
+
 	// ensure that binary was provided, otherwise just exit - the caller wanted to stage stuff.
 	if (binary == NULL)
 	{
 		fprintf(stderr, "%s: inst %d: No binary provided. Stage to %s complete.\n", CTI_BE_DAEMON_BINARY, inst, manifest_path);
 		return 0;
 	}
-	
+
 	// anything after the final "--" in the options string will be passed directly to the exec'ed binary
-	
+
 	// create the full path to the binary we are going to exec
 	if (asprintf(&binary_path, "%s/bin/%s", manifest_path, binary) <= 0)
 	{
 		fprintf(stderr, "%s: asprintf failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	if (debug_flag)
 	{
 		fprintf(stderr, "%s: inst %d: Binary path: %s\n", CTI_BE_DAEMON_BINARY, inst, binary_path);
 	}
-	
+
 	// At this point we need to wait on any other previous tool daemons that may
 	// or may not contain depedencies this instance needs. We will try to make
 	// sure each previous instance has a lock file, otherwise we spin until it
@@ -1221,17 +1219,17 @@ main(int argc, char **argv)
 	{
 		// reset sCnt
 		sCnt = 0;
-		
+
 		// free the existing lock path
 		free(lock_path);
-		
+
 		// create the path to this instances lock file
 		if (asprintf(&lock_path, "%s/.lock_%s_%d", tool_path, directory, i) <= 0)
 		{
 			fprintf(stderr, "%s: asprintf failed\n", CTI_BE_DAEMON_BINARY);
 			return 1;
 		}
-		
+
 		// loop until we can stat this lock file
 		while (stat(lock_path, &statbuf))
 		{
@@ -1243,46 +1241,47 @@ main(int argc, char **argv)
 					fprintf(stderr, "%s: inst %d: Lock file %s not found. Sleeping...\n", CTI_BE_DAEMON_BINARY, inst, lock_path);
 				}
 			}
-			
+
 			// sleep until the file is created
 			usleep(10000);
 		}
 	}
-	
+
 	if (debug_flag)
 	{
 		fprintf(stderr, "%s: inst %d: All dependency locks acquired. Ready to exec.\n", CTI_BE_DAEMON_BINARY, inst);
 	}
-	
+
 	// At this point it is safe to assume we have all our dependencies.
-	
+
 	// ensure the binary exists
 	if (stat(binary_path, &statbuf) == -1)
 	{
 		fprintf(stderr, "%s: Could not stat %s\n", CTI_BE_DAEMON_BINARY, binary_path);
 		return 1;
 	}
-	
+
 	// ensure it is a regular file
 	if (!S_ISREG(statbuf.st_mode))
 	{
 		fprintf(stderr, "%s: %s is not a regular file!\n", CTI_BE_DAEMON_BINARY, binary_path);
 		return 1;
 	}
-	
+
 	// setup the new argv array
 	// Note that argv[optind] is the first argument that appears after the "--" terminator
-	// We need to modify what argv[optind - 1] points to so that it follows the standard argv[0] 
+	// We need to modify what argv[optind - 1] points to so that it follows the standard argv[0]
 	// nomenclature.
 	argv[optind - 1] = binary_path;
-	
+
 	// now we can exec our program
 	execv(binary_path, &argv[optind - 1]);
 	
 	fprintf(stderr, "%s: inst %d: Return from exec!\n", CTI_BE_DAEMON_BINARY, inst);
 	
+
 	perror("execv");
-	
+
 	return 1;
 }
 

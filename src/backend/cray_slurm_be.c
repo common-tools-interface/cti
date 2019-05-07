@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * cray_slurm_be.c - Cray native slurm specific backend library functions.
  *
- * Copyright 2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -9,16 +9,10 @@
  * no part of this work or its content may be used, reproduced or disclosed
  * in any form.
  *
- * $HeadURL$
- * $Date$
- * $Rev$
- * $Author$
- *
  *********************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -77,7 +71,7 @@ _cti_be_cray_slurm_init(void)
 {
 	char *	apid_str;
 	char *	ptr;
-	
+
 	// Have we already called init?
 	if (_cti_slurm_isInit)
 		return 0;
@@ -89,10 +83,10 @@ _cti_be_cray_slurm_init(void)
 		fprintf(stderr, "Env var %s not set!", APID_ENV_VAR);
 		return 1;
 	}
-	
+
 	// make a copy of the env var
 	apid_str = strdup(ptr);
-	
+
 	// find the '.' that seperates jobid from stepid
 	if ((ptr = strchr(apid_str, '.')) == NULL)
 	{
@@ -101,16 +95,16 @@ _cti_be_cray_slurm_init(void)
 		free(apid_str);
 		return 1;
 	}
-	
+
 	// set the '.' to a null term
 	*ptr++ = '\0';
-	
+
 	// get the jobid and stepid
 	_cti_jobid = (uint32_t)strtoul(apid_str, NULL, 10);
 	_cti_stepid = (uint32_t)strtoul(ptr, NULL, 10);
-	
+
 	_cti_slurm_isInit = true;
-	
+
 	// done
 	return 0;
 }
@@ -124,19 +118,19 @@ _cti_be_cray_slurm_fini(void)
 		_cti_be_freePmiAttribs(_cti_attrs);
 		_cti_attrs = NULL;
 	}
-	
+
 	if (_cti_layout != NULL)
 	{
 		free(_cti_layout);
 		_cti_layout = NULL;
 	}
-	
+
 	if (_cti_slurm_pids != NULL)
 	{
 		free(_cti_slurm_pids);
 		_cti_slurm_pids = NULL;
 	}
-	
+
 	return;
 }
 
@@ -152,25 +146,25 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 	slurmLayoutFileHeader_t	layout_hdr;
 	slurmLayoutFile_t *		layout;
 	int						i, offset;
-	
+
 	// sanity
 	if (_cti_layout != NULL)
 		return 0;
-		
+
 	char* hostname = _cti_be_cray_slurm_getNodeHostname();
     if (!hostname)
     {
 		fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname failed.\n");
         return 1;
     }
-	
+
 	// allocate the slurmLayout_t object
 	if ((my_layout = malloc(sizeof(slurmLayout_t))) == NULL)
 	{
 		fprintf(stderr, "malloc failed.\n");
 		return 1;
 	}
-	
+
 	// get the file directory were we can find the layout file
 	if ((file_dir = cti_be_getFileDir()) == NULL)
 	{
@@ -178,7 +172,7 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 		free(my_layout);
 		return 1;
 	}
-	
+
 	// create the path to the layout file
 	if (asprintf(&layoutPath, "%s/%s", file_dir, SLURM_LAYOUT_FILE) <= 0)
 	{
@@ -189,7 +183,7 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 	}
 	// cleanup
 	free(file_dir);
-	
+
 	// open the layout file for reading
 	if ((my_file = fopen(layoutPath, "rb")) == NULL)
 	{
@@ -198,7 +192,7 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 		free(layoutPath);
 		return 1;
 	}
-	
+
 	// read the header from the file
 	if (fread(&layout_hdr, sizeof(slurmLayoutFileHeader_t), 1, my_file) != 1)
 	{
@@ -208,7 +202,7 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 		fclose(my_file);
 		return 1;
 	}
-	
+
 	// allocate the layout array based on the header
 	if ((layout = calloc(layout_hdr.numNodes, sizeof(slurmLayoutFile_t))) == NULL)
 	{
@@ -218,7 +212,7 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 		fclose(my_file);
 		return 1;
 	}
-	
+
 	// read the layout info
 	if (fread(layout, sizeof(slurmLayoutFile_t), layout_hdr.numNodes, my_file) != layout_hdr.numNodes)
 	{
@@ -229,15 +223,15 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 		free(layout);
 		return 1;
 	}
-	
+
 	// done reading the file
 	free(layoutPath);
 	fclose(my_file);
-	
+
 	// find the entry for this nid, we need to offset into the host name based on
 	// this nid
 	offset = strlen(layout[0].host) - strlen(hostname);
-	
+
 	for (i=0; i < layout_hdr.numNodes; ++i)
 	{
 		// check if this entry corresponds to our nid
@@ -246,18 +240,18 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 			// found it
 			my_layout->PEsHere = layout[i].PEsHere;
 			my_layout->firstPE = layout[i].firstPE;
-			
+
 			// cleanup
 			free(layout);
-			
+
 			// set global value
 			_cti_layout = my_layout;
-			
+
 			// done
 			return 0;
 		}
 	}
-	
+
 	// if we get here, we didn't find the host in the layout list!
 	fprintf(stderr, "Could not find layout entry for hostname %s\n", hostname);
 	free(my_layout);
@@ -275,11 +269,11 @@ _cti_be_cray_slurm_getSlurmPids(void)
 	slurmPidFileHeader_t	pid_hdr;
 	slurmPidFile_t *		pids;
 	int						i;
-	
+
 	// sanity
 	if (_cti_slurm_pids != NULL)
 		return 0;
-		
+
 	// make sure we have the layout
 	if (_cti_layout == NULL)
 	{
@@ -289,14 +283,14 @@ _cti_be_cray_slurm_getSlurmPids(void)
 			return 1;
 		}
 	}
-	
+
 	// get the file directory were we can find the pid file
 	if ((file_dir = cti_be_getFileDir()) == NULL)
 	{
 		fprintf(stderr, "_cti_be_cray_slurm_getSlurmPids failed.\n");
 		return 1;
 	}
-	
+
 	// create the path to the pid file
 	if (asprintf(&pidPath, "%s/%s", file_dir, SLURM_PID_FILE) <= 0)
 	{
@@ -306,7 +300,7 @@ _cti_be_cray_slurm_getSlurmPids(void)
 	}
 	// cleanup
 	free(file_dir);
-	
+
 	// open the pid file for reading
 	if ((my_file = fopen(pidPath, "rb")) == NULL)
 	{
@@ -314,7 +308,7 @@ _cti_be_cray_slurm_getSlurmPids(void)
 		free(pidPath);
 		return 1;
 	}
-	
+
 	// read the header from the file
 	if (fread(&pid_hdr, sizeof(slurmPidFileHeader_t), 1, my_file) != 1)
 	{
@@ -323,7 +317,7 @@ _cti_be_cray_slurm_getSlurmPids(void)
 		fclose(my_file);
 		return 1;
 	}
-	
+
 	// ensure the file data is in bounds
 	if ((_cti_layout->firstPE + _cti_layout->PEsHere) > pid_hdr.numPids)
 	{
@@ -333,7 +327,7 @@ _cti_be_cray_slurm_getSlurmPids(void)
 		fclose(my_file);
 		return 1;
 	}
-	
+
 	// allocate the pids array based on the number of PEsHere
 	if ((pids = calloc(_cti_layout->PEsHere, sizeof(slurmPidFile_t))) == NULL)
 	{
@@ -342,7 +336,7 @@ _cti_be_cray_slurm_getSlurmPids(void)
 		fclose(my_file);
 		return 1;
 	}
-	
+
 	// fseek to the start of the pid info for this compute node
 	if (fseek(my_file, _cti_layout->firstPE * sizeof(slurmPidFile_t), SEEK_CUR))
 	{
@@ -352,7 +346,7 @@ _cti_be_cray_slurm_getSlurmPids(void)
 		free(pids);
 		return 1;
 	}
-	
+
 	// read the pid info
 	if (fread(pids, sizeof(slurmPidFile_t), _cti_layout->PEsHere, my_file) != _cti_layout->PEsHere)
 	{
@@ -362,11 +356,11 @@ _cti_be_cray_slurm_getSlurmPids(void)
 		free(pids);
 		return 1;
 	}
-	
+
 	// done reading the file
 	free(pidPath);
 	fclose(my_file);
-	
+
 	// allocate an array of pids
 	if ((my_pids = calloc(_cti_layout->PEsHere, sizeof(pid_t))) == NULL)
 	{
@@ -374,19 +368,19 @@ _cti_be_cray_slurm_getSlurmPids(void)
 		free(pids);
 		return 1;
 	}
-	
+
 	// set the pids
 	for (i=0; i < _cti_layout->PEsHere; ++i)
 	{
 		my_pids[i] = pids[i].pid;
 	}
-	
+
 	// set global value
 	_cti_slurm_pids = my_pids;
-	
+
 	// cleanup
 	free(pids);
-	
+
 	return 0;
 }
 
@@ -400,7 +394,7 @@ _cti_be_cray_slurm_findAppPids(void)
 	struct stat 	statbuf;
 	cti_pidList_t * rtn;
 	int				i;
-	
+
 	// First lets check to see if the pmi_attribs file exists
 	if ((tool_path = _cti_be_getToolDir()) == NULL)
 	{
@@ -418,20 +412,20 @@ _cti_be_cray_slurm_findAppPids(void)
 	{
 		// pmi_attribs file doesn't exist
 		char *	file_dir;
-		
+
 		free(file_path);
-		
+
 		// Check if the SLURM_PID_FILE exists and use that if we don't see
 		// the pmi_attribs file right away, otherwise we will fallback and use
 		// the pmi_attribs method because we probably hit the race condition.
-		
+
 		// get the file directory were we can find the pid file
 		if ((file_dir = cti_be_getFileDir()) == NULL)
 		{
 			fprintf(stderr, "_cti_be_cray_slurm_findAppPids failed.\n");
 			return NULL;
 		}
-	
+
 		// create the path to the pid file
 		if (asprintf(&file_path, "%s/%s", file_dir, SLURM_PID_FILE) <= 0)
 		{
@@ -441,7 +435,7 @@ _cti_be_cray_slurm_findAppPids(void)
 		}
 		// cleanup
 		free(file_dir);
-		
+
 		if (stat(file_path, &statbuf) == -1)
 		{
 			// use the pmi_attribs method
@@ -449,9 +443,9 @@ _cti_be_cray_slurm_findAppPids(void)
 			goto use_pmi_attribs;
 		}
 		free(file_path);
-		
+
 		// the pid file exists, so lets use that for now
-		
+
 		if (_cti_slurm_pids == NULL)
 		{
 			// get the pids
@@ -460,16 +454,16 @@ _cti_be_cray_slurm_findAppPids(void)
 				return NULL;
 			}
 		}
-		
+
 		// allocate the return object
 		if ((rtn = malloc(sizeof(cti_pidList_t))) == (void *)0)
 		{
 			fprintf(stderr, "malloc failed.\n");
 			return NULL;
 		}
-		
+
 		rtn->numPids = _cti_layout->PEsHere;
-		
+
 		// allocate the cti_rankPidPair_t array
 		if ((rtn->pids = malloc(rtn->numPids * sizeof(cti_rankPidPair_t))) == (void *)0)
 		{
@@ -477,21 +471,21 @@ _cti_be_cray_slurm_findAppPids(void)
 			free(rtn);
 			return NULL;
 		}
-		
+
 		// set the rtn rank/pid array
 		for (i=0; i < rtn->numPids; ++i)
 		{
 			rtn->pids[i].pid = _cti_slurm_pids[i];
 			rtn->pids[i].rank = i + _cti_layout->firstPE;
 		}
-		
+
 	} else
 	{
-	
+
 use_pmi_attribs:
 
 		// use the pmi_attribs file
-		
+
 		// Call _cti_be_getPmiAttribsInfo - We require the pmi_attribs file to exist
 		// in order to function properly.
 		if (_cti_attrs == NULL)
@@ -503,7 +497,7 @@ use_pmi_attribs:
 				return NULL;
 			}
 		}
-	
+
 		// ensure the _cti_attrs object has a app_rankPidPairs array
 		if (_cti_attrs->app_rankPidPairs == NULL)
 		{
@@ -511,16 +505,16 @@ use_pmi_attribs:
 			fprintf(stderr, "_cti_be_cray_slurm_findAppPids failed.\n");
 			return NULL;
 		}
-		
+
 		// allocate the return object
 		if ((rtn = malloc(sizeof(cti_pidList_t))) == (void *)0)
 		{
 			fprintf(stderr, "malloc failed.\n");
 			return NULL;
 		}
-		
+
 		rtn->numPids = _cti_attrs->app_nodeNumRanks;
-		
+
 		// allocate the cti_rankPidPair_t array
 		if ((rtn->pids = malloc(rtn->numPids * sizeof(cti_rankPidPair_t))) == (void *)0)
 		{
@@ -528,7 +522,7 @@ use_pmi_attribs:
 			free(rtn);
 			return NULL;
 		}
-		
+
 		// set the _cti_attrs rank/pid array to the rtn rank/pid array
 		for (i=0; i < rtn->numPids; ++i)
 		{
@@ -536,7 +530,7 @@ use_pmi_attribs:
 			rtn->pids[i].rank = _cti_attrs->app_rankPidPairs[i].rank;
 		}
 	}
-	
+
 	return rtn;
 }
 
@@ -642,7 +636,7 @@ _cti_be_cray_slurm_getNodeFirstPE()
 			return -1;
 		}
 	}
-	
+
 	return _cti_layout->firstPE;
 }
 
@@ -658,7 +652,7 @@ _cti_be_cray_slurm_getNodePEs()
 			return -1;
 		}
 	}
-	
+
 	return _cti_layout->PEsHere;
 }
 
