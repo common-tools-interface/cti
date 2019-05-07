@@ -230,6 +230,8 @@ static constexpr const char* const default_dir_locs[] = {
     nullptr
 };
 
+} /* namespace cti */
+
 #endif /* __cpluplus */
 
 #endif /* _CTI_DEFS_H */
