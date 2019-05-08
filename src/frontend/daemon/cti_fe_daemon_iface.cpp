@@ -13,10 +13,15 @@
 
 // This pulls in config.h
 #include "cti_defs.h"
+#include "cti_argv_defs.hpp"
+
+#include <sys/types.h>
+#include <sys/prctl.h>
+#include <sys/resource.h>
+#include <sys/time.h>
 
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <string.h>
 
 #include <stdexcept>
@@ -28,13 +33,13 @@
 /* protocol helpers */
 
 // write FD remap control message, binary path, arguments, environment to domain socket
-static void writeLaunchData(int const m_req_sock.getWriteFd(), char const* file, char const* const argv[],
+static void writeLaunchData(int const reqFd, char const* file, char const* const argv[],
 	int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	// verify that m_req_sock.getWriteFd() is a domain socket
+	// verify that reqFd is a domain socket
 	{ struct sockaddr sa;
 		auto len = socklen_t{sizeof(sa)};
-		if (::getsockname(m_req_sock.getWriteFd(), &sa, &len) < 0) {
+		if (::getsockname(reqFd, &sa, &len) < 0) {
 			throw std::runtime_error("getsockname failed: " + std::string{strerror(errno)});
 		}
 		if (sa.sa_family != AF_UNIX) {
@@ -77,39 +82,39 @@ static void writeLaunchData(int const m_req_sock.getWriteFd(), char const* file,
 	}
 
 	// send remap FD message
-	if (::sendmsg(m_req_sock.getWriteFd(), &msg_hdr, 0) < 0) {
+	if (::sendmsg(reqFd, &msg_hdr, 0) < 0) {
 		throw std::runtime_error("failed to receive fds: " + std::string{strerror(errno)});
 	}
 
 	// write filepath string
-	writeLoop(m_req_sock.getWriteFd(), file, strlen(file) + 1);
+	writeLoop(reqFd, file, strlen(file) + 1);
 	// write null-terminated argument array
 	for (auto arg = argv; *arg != nullptr; arg++) {
-		writeLoop(m_req_sock.getWriteFd(), *arg, strlen(*arg) + 1);
+		writeLoop(reqFd, *arg, strlen(*arg) + 1);
 	}
-	rawWriteLoop(m_req_sock.getWriteFd(), '\0');
+	rawWriteLoop(reqFd, '\0');
 	// write null-terminated environment array
 	if (env) {
 		for (auto var = env; *var != nullptr; var++) {
-			writeLoop(m_req_sock.getWriteFd(), *var, strlen(*var) + 1);
+			writeLoop(reqFd, *var, strlen(*var) + 1);
 		}
 	}
-	rawWriteLoop(m_req_sock.getWriteFd(), '\0');
+	rawWriteLoop(reqFd, '\0');
 }
 
 // throw if boolean response is not true, indicating failure
-static void verifyOKResp(int const m_resp_sock.getReadFd())
+static void verifyOKResp(int const reqFd)
 {
-	auto const okResp = rawReadLoop<FE_daemon::OKResp>(m_resp_sock.getReadFd());
+	auto const okResp = rawReadLoop<FE_daemon::OKResp>(reqFd);
 	if ((okResp.type != FE_daemon::RespType::OK) || !okResp.success) {
 		throw std::runtime_error("failed to verify OK response");
 	}
 }
 
 // return PID response content, throw if pid < 0, indicating failure
-static pid_t readPIDResp(int const m_resp_sock.getReadFd())
+static pid_t readPIDResp(int const reqFd)
 {
-	auto const pidResp = rawReadLoop<FE_daemon::PIDResp>(m_resp_sock.getReadFd());
+	auto const pidResp = rawReadLoop<FE_daemon::PIDResp>(reqFd);
 	if ((pidResp.type != FE_daemon::RespType::PID) || (pidResp.pid < 0)) {
 		throw std::runtime_error("failed to read PID response");
 	}
@@ -117,10 +122,10 @@ static pid_t readPIDResp(int const m_resp_sock.getReadFd())
 }
 
 // return MPIR launch / attach data, throw if MPIR ID < 0, indicating failure
-static FE_daemon::MPIRResult readMPIRResp(int const m_resp_sock.getReadFd())
+static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
 {
 	// read basic table information
-	auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(m_resp_sock.getReadFd());
+	auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(reqFd);
 	if ((mpirResp.type != FE_daemon::RespType::MPIR) || !mpirResp.mpir_id) {
 		throw std::runtime_error("failed to read proctable response");
 	}
@@ -136,14 +141,14 @@ static FE_daemon::MPIRResult readMPIRResp(int const m_resp_sock.getReadFd())
 	result.proctable.reserve(mpirResp.num_pids);
 
 	// set up pipe stream
-	cti::FdBuf respBuf{dup(m_resp_sock.getReadFd())};
+	cti::FdBuf respBuf{dup(reqFd)};
 	std::istream respStream{&respBuf};
 
 	// fill in pid and hostname of proctable elements
 	for (int i = 0; i < mpirResp.num_pids; i++) {
 		MPIRProctableElem elem;
 		// read pid
-		elem.pid = rawReadLoop<pid_t>(m_resp_sock.getReadFd());
+		elem.pid = rawReadLoop<pid_t>(reqFd);
 		// read hostname
 		if (!std::getline(respStream, elem.hostname, '\0')) {
 			throw std::runtime_error("failed to read string");

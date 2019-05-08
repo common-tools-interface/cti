@@ -362,7 +362,7 @@ struct SSHSession {
 GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
     : App(fe)
     , m_launcherPid { fe.Daemon().request_RegisterApp(launcherPid) }
-    , m_stepLayout  { fe.fetchStepLayout(launcherInstance->getProcTable()) }
+    , m_stepLayout  { fe.fetchStepLayout(launcherInstance->getProctable()) }
     , m_beDaemonSent { false }
     , m_launcherInstance { std::move(launcherInstance) }
     , m_toolPath    { SSH_TOOL_DIR }
@@ -484,7 +484,7 @@ GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
     if (auto packageName = cti::make_unique_destr(_cti_pathToName(tarPath.c_str()), std::free)) {
         auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
-        _cti_getLogger().write("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
+        writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
         // Send the package to each of the hosts using SCP
         for (auto&& node : m_stepLayout.nodes) {

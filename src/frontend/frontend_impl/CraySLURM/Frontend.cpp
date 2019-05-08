@@ -48,7 +48,7 @@ CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, SrunInstance&& srunInstance)
     , m_launcherPid     { srunInstance.mpirData.launcher_pid }
     , m_jobId           { srunInstance.mpirData.job_id }
     , m_stepId          { srunInstance.mpirData.step_id }
-    , m_stepLayout      {fe.fetchStepLayout(jobid, stepid) }
+    , m_stepLayout      {fe.fetchStepLayout(m_jobId, m_stepId) }
     , m_beDaemonSent    { false }
 
     , m_stoppedSrunId { srunInstance.mpirData.mpir_id }
@@ -73,7 +73,6 @@ CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, SrunInstance&& srunInstance)
         // ctor, which is called after the slurm startup barrier, meaning it will not
         // yet be created when launching. So we need to send over a file containing
         // the information to the compute nodes.
-        m_extraFiles.push_back(CraySLURMFrontend::createPIDListFile(srunInstance.mpirData.proctable, m_stagePath));
         m_extraFiles.push_back(fe.createPIDListFile(srunInstance.mpirData.proctable, m_stagePath));
     }
 }
@@ -91,14 +90,14 @@ CraySLURMApp::~CraySLURMApp()
 
 /* app instance creation */
 
-CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobid, uint32_t stepid)
-    : CraySLURMApp
-        { fe
+CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
+    : CraySLURMApp {
+        fe
         , SrunInstance {
-            .mpirData = cti::fe_daemon::MPIRResult {
-                cti::fe_daemon::MPIRId{0} // mpir_id,
+            .mpirData = FE_daemon::MPIRResult {
+                FE_daemon::MPIRId{0} // mpir_id,
                 , pid_t{0} // launcher_id
-                , jobid
+                , jobId
                 , stepId
                 , MPIRProctable{} // proctable
                 }
@@ -559,8 +558,8 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
         const char * const env_list[])
 {
     auto srunInstance = SrunInstance {
-        .mpirData = cti::fe_daemon::MPIRResult {
-            cti::fe_daemon::MPIRId{0} // mpir_id
+        .mpirData = FE_daemon::MPIRResult {
+            FE_daemon::MPIRId{0} // mpir_id
             , pid_t{0} // launcher_pid
             , uint32_t{0} // job_id
             , uint32_t{0} // step_id
@@ -631,7 +630,7 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 
         return srunInstance;
     } else {
-        throw std::runtime_error("Failed to find launcher in path: " + CraySLURMFrontend::getLauncherName());
+        throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }
 }
 

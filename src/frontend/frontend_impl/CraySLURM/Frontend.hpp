@@ -61,7 +61,7 @@ public: // slurm specific types
 
 	// objects that are created during an App creation. ownership will pass to the App
 	struct SrunInstance {
-		cti::fe_daemon::MPIRResult mpirData;
+		FE_daemon::MPIRResult mpirData;
 		cti::temp_file_handle outputPath; // handle to output fifo file
 		cti::temp_file_handle errorPath;  // handle to error fifo file
 	};
@@ -108,7 +108,7 @@ private: // variables
 	int      m_queuedErrFd; // Where to redirect stderr after barrier release
 	bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
 
-	cti::fe_daemon::MPIRId m_stoppedSrunId; // MPIR instance id to release startup barrier
+	FE_daemon::MPIRId m_stoppedSrunId; // MPIR instance id to release startup barrier
 	cti::temp_file_handle m_outputPath;
 	cti::temp_file_handle m_errorPath;
 

@@ -15,6 +15,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include <cstring>
+
 #include "frontend/mpir_iface/MPIRProctable.hpp"
 
 #include "useful/cti_execvp.hpp"
@@ -31,7 +33,7 @@ static inline void readLoop(char* buf, int const fd, int num_bytes)
             if (errno == EINTR) {
                 continue;
             } else {
-                throw std::runtime_error("read failed: " + std::string{strerror(errno)});
+                throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
             }
         } else {
             num_bytes -= bytes_read;
@@ -59,7 +61,7 @@ static void writeLoop(int const fd, char const* buf, int num_bytes)
             if (errno == EINTR) {
                 continue;
             } else {
-                throw std::runtime_error("write failed: " + std::string{strerror(errno)});
+                throw std::runtime_error("write failed: " + std::string{std::strerror(errno)});
             }
         } else {
             num_bytes -= written;
@@ -210,7 +212,7 @@ public:
     , m_req_sock{AF_UNIX, SOCK_STREAM, 0}
     , m_resp_sock{AF_UNIX, SOCK_STREAM, 0}
     { }
-    ~fe_daemon();
+    ~FE_daemon();
 
     // This must only be called once. It is to workaround an issue in Frontend
     // construction with initialization ordering. Plus we might want to someday
