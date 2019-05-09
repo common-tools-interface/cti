@@ -227,7 +227,7 @@ Frontend::doFileCleanup()
             std::string file{m_cfg_dir + "/" + d->d_name};
             auto fileHandle = cti::file::open(file, "r");
             // read the pid from the file
-            pid_t pid = std::file::readT<pid_t>(fileHandle.get());
+            pid_t pid = cti::file::readT<pid_t>(fileHandle.get());
             // ping the process
             if (kill(pid,0) == 0) {
                 // process is still alive
