@@ -279,7 +279,7 @@ TEST_F(CTIAppUnitTest, CreateSession)
 {
     // run the test
     auto const sessionId = cti_createSession(appId);
-    ASSERT_NE(sessionId, SESSION_ERROR);
+    ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
     // cleanup session
     EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);

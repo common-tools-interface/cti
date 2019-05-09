@@ -19,8 +19,6 @@
 
 #include "MockFrontend/Frontend.hpp"
 
-App& _cti_getApp(cti_app_id_t const appId);
-
 static constexpr auto SUCCESS = int{0};
 static constexpr auto FAILURE = int{1};
 
