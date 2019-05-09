@@ -192,7 +192,7 @@ Frontend::addFileCleanup(std::string file)
     const std::string cleanupFilePath(m_cfg_dir + "/." + file);
     auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
     pid_t pid = getpid();
-    cti::file::writeT(cleanupFileHandle.get(), pid);
+    cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
 }
 
 // BUG 819725:
@@ -365,6 +365,12 @@ Frontend::Frontend()
     m_daemon.initialize(m_fe_daemon_path);
     // Try to conduct cleanup of the cfg dir to prevent forest fires
     doFileCleanup();
+}
+
+Frontend::~Frontend()
+{
+    // Unlink the cleanup files since we are exiting normally
+
 }
 
 std::weak_ptr<Session>
