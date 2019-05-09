@@ -370,8 +370,8 @@ TEST_F(CTIAppUnitTest, GetSessionLockFilesTwoManifests)
 
     // add and finalize file
     ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/print_one/print.c"), SUCCESS) << cti_error_str();
-    ASSERT_EQ(cti_addManifestFile(manifestId2, "../test_support/print_two/print.c"), SUCCESS) << cti_error_str();
     ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_addManifestFile(manifestId2, "../test_support/print_two/print.h"), SUCCESS) << cti_error_str();
     ASSERT_EQ(cti_sendManifest(manifestId2), SUCCESS) << cti_error_str();
 
     // Get the lock files
