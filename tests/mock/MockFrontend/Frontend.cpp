@@ -100,7 +100,7 @@ MockApp::MockApp(MockFrontend& fe, pid_t launcherPid)
 
             // open archive
             if (archive_read_open_filename(archPtr.get(), tarPath.c_str(), 10240) != ARCHIVE_OK) {
-                throw std::runtime_error("failed to open archive");
+                throw std::runtime_error("failed to open archive" + tarPath);
             }
 
             // read each file / directory entry
