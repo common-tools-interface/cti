@@ -338,6 +338,10 @@ TEST_F(CTIAppUnitTest, GetSessionLockFilesOneManifest)
     auto const manifestId = cti_createManifest(sessionId);
     ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
+    // add and finalize file
+    ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/print_one/print.c"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
+
     // Get the lock files
     auto lockFilesList = cti::make_unique_destr(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
     ASSERT_TRUE(lockFilesList != nullptr) << cti_error_str();
@@ -363,6 +367,12 @@ TEST_F(CTIAppUnitTest, GetSessionLockFilesTwoManifests)
     ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
     auto const manifestId2 = cti_createManifest(sessionId);
     ASSERT_NE(manifestId2, MANIFEST_ERROR) << cti_error_str();
+
+    // add and finalize file
+    ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/print_one/print.c"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_addManifestFile(manifestId2, "../test_support/print_two/print.c"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_sendManifest(manifestId2), SUCCESS) << cti_error_str();
 
     // Get the lock files
     auto lockFilesList = cti::make_unique_destr(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
