@@ -109,6 +109,7 @@ Session::generateStagePath() {
 Session::Session(App& owningApp)
     : m_AppPtr{owningApp.shared_from_this()}
     , m_manifests{}
+    , m_add_requirements{true}
     , m_manifestCnt{0}
     , m_seqNum{0}
     , m_folders{}
@@ -117,32 +118,7 @@ Session::Session(App& owningApp)
     , m_stagePath{owningApp.getToolPath() + "/" + m_stageName}
     , m_wlmType{std::to_string(owningApp.getFrontend().getWLMType())}
     , m_ldLibraryPath{m_stagePath + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
-{
-    // Typically it is bad practice to call class methods from constructors,
-    // but in this case we need to ensure we ship dependencies as part of
-    // placing the session in a valid state. We have fully constructed the
-    // session at this point, and the class is marked final.
-    auto wp = createManifest();
-    auto mp = wp.lock();
-    if (!mp) {
-        throw std::runtime_error("Unable to create manifest for session ctor.");
-    }
-    for (auto const& path : owningApp.getExtraBinaries()) {
-        mp->addBinary(path);
-    }
-    for (auto const& path : owningApp.getExtraLibraries()) {
-        mp->addLibrary(path);
-    }
-    for (auto const& path : owningApp.getExtraLibDirs()) {
-        mp->addLibDir(path);
-    }
-    for (auto const& path : owningApp.getExtraFiles()) {
-        mp->addFile(path);
-    }
-
-    // ship basefile manifest and run remote extraction
-    sendManifest(mp);
-}
+{ }
 
 Session::~Session() {
     // Check to see if we need to try cleanup on compute nodes. We bypass the
@@ -247,6 +223,22 @@ Session::sendManifest(std::shared_ptr<Manifest>& mani) {
     auto inst = mani->instance();
     // Get owning app
     auto app = getOwningApp();
+    // Check to see if we need to add baseline App dependencies
+    if ( m_add_requirements ) {
+        for (auto const& path : app->getExtraBinaries()) {
+            mani->addBinary(path);
+        }
+        for (auto const& path : app->getExtraLibraries()) {
+            mani->addLibrary(path);
+        }
+        for (auto const& path : app->getExtraLibDirs()) {
+            mani->addLibDir(path);
+        }
+        for (auto const& path : app->getExtraFiles()) {
+            mani->addFile(path);
+        }
+        m_add_requirements = false;
+    }
     // Ship the manifest
     auto archiveName = shipManifest(mani);
     // create DaemonArgv

@@ -50,6 +50,8 @@ private: // variables
     // Sessions have direct ownership of all Manifest objects underneath it.
     std::unordered_set<std::shared_ptr<Manifest>>
                                 m_manifests;
+    // True if we need to check for App dependencies
+    bool                        m_add_requirements;
     // Counter to track unique manifests
     size_t                      m_manifestCnt;
     // Counter to track shipped manifests
