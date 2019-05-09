@@ -137,3 +137,9 @@ Manifest::addFile(const std::string& rawName) {
 
     checkAndAdd("", filePath, realName);
 }
+
+Manifest::Manifest(size_t instanceCount, Session& owningSession)
+: m_sessionPtr{owningSession.shared_from_this()}
+, m_instance{instanceCount}
+, m_isValid{true}
+{ }

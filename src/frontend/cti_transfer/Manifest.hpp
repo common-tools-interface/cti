@@ -51,12 +51,6 @@ private: // helper functions
         const std::string& realName);
 
 public: // interface
-    Manifest(size_t instanceCount, Session& owningSession)
-    : m_sessionPtr{owningSession.shared_from_this()}
-    , m_instance{instanceCount}
-    , m_isValid{true}
-    { }
-
     // Get a shared_ptr to the owning session
     std::shared_ptr<Session> getOwningSession() {
         if (auto sess = m_sessionPtr.lock()) { return sess; }
@@ -79,4 +73,10 @@ public: // interface
     // Called by the session when it ships the manifest. This denotes that the manifest
     // is no longer modifyable
     void finalize() { m_isValid = false; }
+
+public: // Constructor/destructors
+    Manifest(size_t instanceCount, Session& owningSession);
+    ~Manifest() = default;
+    Manifest(const Manifest&) = delete;
+    Manifest& operator=(const Manifest&) = delete;
 };
