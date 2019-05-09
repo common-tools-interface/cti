@@ -363,6 +363,8 @@ Frontend::Frontend()
     m_be_daemon_path = cti::accessiblePath(m_base_dir + "/libexec/" + CTI_BE_DAEMON_BINARY);
     // init the frontend daemon now that we have the path to the binary
     m_daemon.initialize(m_fe_daemon_path);
+    // Try to conduct cleanup of the cfg dir to prevent forest fires
+    doFileCleanup();
 }
 
 std::weak_ptr<Session>
