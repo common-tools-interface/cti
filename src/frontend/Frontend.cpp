@@ -326,3 +326,18 @@ Frontend::Frontend()
     // init the frontend daemon now that we have the path to the binary
     m_daemon.initialize(m_fe_daemon_path);
 }
+
+std::weak_ptr<Session>
+App::createSession() {
+    auto ret = m_sessions.emplace(std::make_shared<Session>(*this));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new Session object.");
+    }
+    return *ret.first;
+}
+
+void
+App::removeSession(std::shared_ptr<Session>& sess) {
+    // drop the shared_ptr
+    m_sessions.erase(sess);
+}

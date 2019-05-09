@@ -88,13 +88,7 @@ public: // interface
     // Return a list of lock file dependencies for backend to guarantee ordering.
     std::vector<std::string> getSessionLockFiles();
     // create new manifest associated with this session
-    std::weak_ptr<Manifest> createManifest() {
-        auto ret = m_manifests.emplace(std::make_shared<Manifest>(++m_manifestCnt, *this));
-        if (!ret.second) {
-            throw std::runtime_error("Failed to create new Manifest object.");
-        }
-        return *ret.first;
-    }
+    std::weak_ptr<Manifest> createManifest();
     // Used to ship a manifest to the computes and extract it.
     void sendManifest(std::shared_ptr<Manifest>& mani);
     // Used to ship a manifest and execute a tool daemon contained within.

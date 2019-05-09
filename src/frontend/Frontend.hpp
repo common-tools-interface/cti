@@ -228,6 +228,7 @@ public: // impl.-specific interface that derived type must implement
 protected: // Protected data members that belong to any App
     // Reference to Frontend associated with App
     Frontend& m_frontend;
+private:
     // Apps have direct ownership of all Session objects underneath it
     std::unordered_set<std::shared_ptr<Session>> m_sessions;
 
@@ -240,18 +241,9 @@ public:
 
 public: // Public interface to generic WLM-agnostic capabilities
     // Create a new session associated with this app
-    std::weak_ptr<Session> createSession() {
-        auto ret = m_sessions.emplace(std::make_shared<Session>(*this));
-        if (!ret.second) {
-            throw std::runtime_error("Failed to create new Session object.");
-        }
-        return *ret.first;
-    }
+    std::weak_ptr<Session> createSession();
     // Remove a session object
-    void removeSession(std::shared_ptr<Session>& sess) {
-        // drop the shared_ptr
-        m_sessions.erase(sess);
-    }
+    void removeSession(std::shared_ptr<Session>& sess);
     // Frontend acessor
     // TODO: When we switch to std::atomic on shared_ptr with C++20,
     // this can return a shared_ptr handle instead.

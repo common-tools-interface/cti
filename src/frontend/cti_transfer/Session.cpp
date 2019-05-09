@@ -173,6 +173,15 @@ Session::~Session() {
     app->startDaemon(daemonArgv.get() + 1);
 }
 
+std::weak_ptr<Manifest>
+Session::createManifest() {
+    auto ret = m_manifests.emplace(std::make_shared<Manifest>(++m_manifestCnt, *this));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new Manifest object.");
+    }
+    return *ret.first;
+}
+
 std::string
 Session::shipManifest(std::shared_ptr<Manifest>& mani) {
     // Finalize and drop our reference to the manifest.
