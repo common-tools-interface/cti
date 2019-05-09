@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <assert.h>
 #include <unistd.h>
+#include <signal.h>
 
 // CTI Transfer includes
 #include "cti_transfer/Manifest.hpp"
@@ -189,11 +190,9 @@ void
 Frontend::addFileCleanup(std::string file)
 {
     const std::string cleanupFilePath(m_cfg_dir + "/." + file);
-    auto cleanupFileHandle = cti::make_unique_destr(fopen(cleanupFilePath.c_str(), "w"), std::fclose);
+    auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
     pid_t pid = getpid();
-    if (fwrite(&pid, sizeof(pid), 1, cleanupFileHandle.get()) != 1) {
-        throw std::runtime_error("fwrite to cleanup file failed.");
-    }
+    cti::file::writeT(cleanupFileHandle.get(), pid);
 }
 
 // BUG 819725:
@@ -201,7 +200,45 @@ Frontend::addFileCleanup(std::string file)
 void
 Frontend::doFileCleanup()
 {
-    // FIXME: Implementation
+    // Create stage name
+    std::string stage_name{"." + DEFAULT_STAGE_DIR };
+    // get the position of the first 'X'
+    auto found = stage_name.find('X');
+    if (found != std::string::npos) {
+        // Cut the "X" portion out
+        stage_name.erase(found);
+    }
+    // Open cfg dir
+    auto cfgDir = cti::dir::open(m_cfg_dir);
+    // Recurse through each file in the directory
+    while ((auto d = readdir(cfgDir.get())) != nullptr) {
+        std::string name{d->d_name};
+        // Skip the . and .. files
+        if ( name.size() == 1 && name.compare(".") == 0 ) {
+            continue;
+        }
+        if ( name.size() == 2 && name.compare("..") == 0 ) {
+            continue;
+        }
+        // Check this name against the stage_name
+        if ( name.compare(stage_name) == 0 ) {
+            // pattern matches, check to see if we need to remove
+            std::string file{m_cfg_dir + "/" + d->d_name};
+            auto fileHandle = cti::file::open(file, "r");
+            // read the pid from the file
+            pid_t pid = std::file::readT<pid_t>(fileHandle.get());
+            // ping the process
+            if (kill(pid,0) == 0) {
+                // process is still alive
+                continue;
+            }
+            // process is dead we need to remove the tarball
+            std::string tarball_name{m_cfg_dir + "/" + (d->d_name+1)};
+            // unlink the files
+            unlink(tarball_name.c_str());
+            unlink(file.c_str());
+        }
+    }
 }
 
 /*
