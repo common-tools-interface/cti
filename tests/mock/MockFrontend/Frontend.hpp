@@ -27,7 +27,7 @@ public: // mock constructor
 	virtual ~MockFrontend() = default;
 
 public: // inherited interface
-	MOCK_CONST_METHOD0(getWLMType, cti_wlm_type(void));
+	cti_wlm_type getWLMType() const override { return CTI_WLM_MOCK; }
 
 	MOCK_METHOD6(launchBarrier, std::weak_ptr<App>(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 		CStr inputFile, CStr chdirPath, CArgArray env_list));
