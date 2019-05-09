@@ -135,7 +135,7 @@ namespace dir {
     static inline auto try_open(std::string const& path) ->
         std::unique_ptr<DIR, decltype(&::closedir)>
     {
-        return make_unique_destr(opendir(path.c_str()), ::closedir));
+        return make_unique_destr(opendir(path.c_str()), ::closedir);
     }
 
     // open a directory and return a unique DIR* or throw
