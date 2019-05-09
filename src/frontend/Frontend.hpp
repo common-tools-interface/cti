@@ -79,8 +79,10 @@ public: // impl.-specific interface that derived type must implement
     virtual std::string
     getHostname(void) const = 0;
 
-private: // Private static data members that are accessed only via base frontend
+protected: // Protected and Private static data members that are accessed only via base frontend
+    // This is protected for mock testing purposes only - it should be treated as private
     static std::atomic<Frontend*>               m_instance;
+private:
     static std::mutex                           m_mutex;
     static std::unique_ptr<Frontend_cleanup>    m_cleanup;
 
