@@ -206,7 +206,7 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
         }
     }
     // ship package
-    app->shipPackage(archiveName.c_str());
+    app->shipPackage(archive.finalize());
     // Increment shipped count
     ++m_seqNum;
     return archiveName;
