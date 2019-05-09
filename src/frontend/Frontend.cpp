@@ -201,7 +201,7 @@ void
 Frontend::doFileCleanup()
 {
     // Create stage name
-    std::string stage_name{"." + DEFAULT_STAGE_DIR };
+    std::string stage_name{"." + std::string{DEFAULT_STAGE_DIR}};
     // get the position of the first 'X'
     auto found = stage_name.find('X');
     if (found != std::string::npos) {
@@ -211,7 +211,8 @@ Frontend::doFileCleanup()
     // Open cfg dir
     auto cfgDir = cti::dir::open(m_cfg_dir);
     // Recurse through each file in the directory
-    while ((auto d = readdir(cfgDir.get())) != nullptr) {
+    struct dirent *d;
+    while ((d = readdir(cfgDir.get())) != nullptr) {
         std::string name{d->d_name};
         // Skip the . and .. files
         if ( name.size() == 1 && name.compare(".") == 0 ) {
