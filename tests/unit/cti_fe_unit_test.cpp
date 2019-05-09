@@ -95,7 +95,7 @@ TEST_F(CTIFEUnitTest, CurrentWLM)
 TEST_F(CTIFEUnitTest, WLMTypeToString)
 {
     // run the test
-    ASSERT_TRUE(cti_wlm_type_toString(cti_current_wlm()) != nullptr);
+    ASSERT_TRUE(cti_wlm_type_toString(cti_current_wlm()) != nullptr) << cti_error_str();
 }
 
 // char *       cti_getHostname(void);
@@ -110,7 +110,7 @@ TEST_F(CTIFEUnitTest, GetHostname)
 
     // run the test
     auto const rawHostname = cti::make_unique_destr(cti_getHostname(), std::free);
-    ASSERT_TRUE(rawHostname != nullptr);
+    ASSERT_TRUE(rawHostname != nullptr) << cti_error_str();
 }
 
 // int          cti_setAttribute(cti_attr_type attrib, const char *value);
@@ -133,7 +133,7 @@ TEST_F(CTIAppUnitTest, GetLauncherHostname)
 
     // run the test
     auto const rawHostname = cti::make_unique_destr(cti_getLauncherHostName(appId), std::free);
-    ASSERT_TRUE(rawHostname != nullptr);
+    ASSERT_TRUE(rawHostname != nullptr) << cti_error_str();
     EXPECT_EQ(std::string{rawHostname.get()}, "remote-hostname");
 }
 
@@ -146,7 +146,7 @@ TEST_F(CTIAppUnitTest, GetNumAppPEs)
         .WillOnce(Return(getpid()));
 
     // run the test
-    EXPECT_EQ(cti_getNumAppPEs(appId), getpid());
+    EXPECT_EQ(cti_getNumAppPEs(appId), getpid()) << cti_error_str();
 }
 
 // int                  cti_getNumAppNodes(cti_app_id_t);
@@ -158,7 +158,7 @@ TEST_F(CTIAppUnitTest, GetNumAppNodes)
         .WillOnce(Return(getpid()));
 
     // run the test
-    EXPECT_EQ(cti_getNumAppNodes(appId), getpid());
+    EXPECT_EQ(cti_getNumAppNodes(appId), getpid()) << cti_error_str();
 }
 
 // char **              cti_getAppHostsList(cti_app_id_t);
@@ -171,7 +171,7 @@ TEST_F(CTIAppUnitTest, GetAppHostsList)
 
     // run the test
     auto const rawHostsList = cti::make_unique_destr(cti_getAppHostsList(appId), cti::free_ptr_list<char*>);
-    ASSERT_TRUE(rawHostsList != nullptr);
+    ASSERT_TRUE(rawHostsList != nullptr) << cti_error_str();
     EXPECT_EQ(std::string{rawHostsList.get()[0]}, "remote-hostname");
     EXPECT_EQ(rawHostsList.get()[1], nullptr);
 }
@@ -190,7 +190,7 @@ TEST_F(CTIAppUnitTest, GetAppHostsPlacement)
 
     // run the test
     auto const rawHostsList = cti::make_unique_destr(cti_getAppHostsPlacement(appId), cti_destroyHostsList);
-    ASSERT_TRUE(rawHostsList != nullptr);
+    ASSERT_TRUE(rawHostsList != nullptr) << cti_error_str();
     EXPECT_EQ(rawHostsList->numHosts, 1);
     ASSERT_TRUE(rawHostsList->hosts != nullptr);
     ASSERT_TRUE(rawHostsList->hosts[0].hostname != nullptr);
@@ -205,7 +205,7 @@ TEST_F(CTIAppUnitTest, GetAppHostsPlacement)
 TEST_F(CTIAppUnitTest, AppIsValid)
 {
     // run the test
-    EXPECT_EQ(cti_appIsValid(appId), true);
+    EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 }
 
 // cti_app_id_t cti_launchApp(const char * const [], int, int, const char *, const char *, const char * const []);
@@ -221,8 +221,8 @@ TEST_F(CTIFEUnitTest, LaunchApp)
 
     // run the test
     auto const appId = cti_launchApp(mockArgv, -1, -1, nullptr, nullptr, nullptr);
-    ASSERT_NE(appId, APP_ERROR);
-    EXPECT_EQ(cti_releaseAppBarrier(appId), FAILURE);
+    ASSERT_NE(appId, APP_ERROR) << cti_error_str();
+    EXPECT_EQ(cti_releaseAppBarrier(appId), FAILURE) << cti_error_str();
 
     // clean up app launch
     cti_deregisterApp(appId);
@@ -240,8 +240,8 @@ TEST_F(CTIFEUnitTest, LaunchAppBarrier)
 
     // run the test
     auto const appId = cti_launchAppBarrier(mockArgv, -1, -1, nullptr, nullptr, nullptr);
-    ASSERT_NE(appId, APP_ERROR);
-    EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
+    ASSERT_NE(appId, APP_ERROR) << cti_error_str();
+    EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 
     // clean up app launch
     cti_deregisterApp(appId);
@@ -256,7 +256,7 @@ TEST_F(CTIAppUnitTest, ReleaseAppBarrier)
         .Times(1);
 
     // run the test
-    EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS);
+    EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 }
 
 // int          cti_killApp(cti_app_id_t, int);
@@ -268,7 +268,7 @@ TEST_F(CTIAppUnitTest, KillApp)
         .Times(1);
 
     // run the test
-    EXPECT_EQ(cti_killApp(appId, 0), SUCCESS);
+    EXPECT_EQ(cti_killApp(appId, 0), SUCCESS) << cti_error_str();
 }
 
 /* transfer session management tests */
@@ -335,13 +335,13 @@ TEST_F(CTIAppUnitTest, GetSessionRootDir)
 {
     // run the test
     auto const sessionId = cti_createSession(appId);
-    ASSERT_NE(sessionId, SESSION_ERROR);
+    ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
     auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
-    ASSERT_TRUE(rawRootDir != nullptr);
+    ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
 
     // cleanup session
-    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // char *   cti_getSessionBinDir(cti_session_id_t sid);
@@ -353,13 +353,13 @@ TEST_F(CTIAppUnitTest, GetSessionBinDir)
     ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
     auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
-    ASSERT_TRUE(rawRootDir != nullptr);
+    ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
     auto const rawBinDir = cti::make_unique_destr(cti_getSessionBinDir(sessionId), ::free);
-    ASSERT_TRUE(rawBinDir != nullptr);
+    ASSERT_TRUE(rawBinDir != nullptr) << cti_error_str();
     ASSERT_EQ(std::string{rawBinDir.get()}, std::string{rawRootDir.get()} + "/bin");
 
     // cleanup session
-    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // char *   cti_getSessionLibDir(cti_session_id_t sid);
@@ -368,16 +368,16 @@ TEST_F(CTIAppUnitTest, GetSessionLibDir)
 {
     // run the test
     auto const sessionId = cti_createSession(appId);
-    ASSERT_NE(sessionId, SESSION_ERROR);
+    ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
     auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
-    ASSERT_TRUE(rawRootDir != nullptr);
+    ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
     auto const rawLibDir = cti::make_unique_destr(cti_getSessionLibDir(sessionId), ::free);
-    ASSERT_TRUE(rawLibDir != nullptr);
+    ASSERT_TRUE(rawLibDir != nullptr) << cti_error_str();
     ASSERT_EQ(std::string{rawLibDir.get()}, std::string{rawRootDir.get()} + "/lib");
 
     // cleanup session
-    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // char *   cti_getSessionFileDir(cti_session_id_t sid);
@@ -389,13 +389,13 @@ TEST_F(CTIAppUnitTest, GetSessionFileDir)
     ASSERT_NE(sessionId, SESSION_ERROR);
 
     auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
-    ASSERT_TRUE(rawRootDir != nullptr);
+    ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
     auto const rawFileDir = cti::make_unique_destr(cti_getSessionFileDir(sessionId), ::free);
-    ASSERT_TRUE(rawFileDir != nullptr);
+    ASSERT_TRUE(rawFileDir != nullptr) << cti_error_str();
     ASSERT_EQ(std::string{rawFileDir.get()}, std::string{rawRootDir.get()});
 
     // cleanup session
-    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // char *   cti_getSessionTmpDir(cti_session_id_t sid);
@@ -404,16 +404,16 @@ TEST_F(CTIAppUnitTest, GetSessionTmpDir)
 {
     // run the test
     auto const sessionId = cti_createSession(appId);
-    ASSERT_NE(sessionId, SESSION_ERROR);
+    ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
     auto const rawRootDir = cti::make_unique_destr(cti_getSessionRootDir(sessionId), ::free);
-    ASSERT_TRUE(rawRootDir != nullptr);
+    ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
     auto const rawTmpDir = cti::make_unique_destr(cti_getSessionTmpDir(sessionId), ::free);
-    ASSERT_TRUE(rawTmpDir != nullptr);
+    ASSERT_TRUE(rawTmpDir != nullptr) << cti_error_str();
     ASSERT_EQ(std::string{rawTmpDir.get()}, std::string{rawRootDir.get()} + "/tmp");
 
     // cleanup session
-    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 /* transfer manifest management tests */
@@ -423,14 +423,14 @@ TEST_F(CTIAppUnitTest, GetSessionTmpDir)
 TEST_F(CTIAppUnitTest, CreateManifest)
 {
     auto const sessionId = cti_createSession(appId);
-    ASSERT_NE(sessionId, SESSION_ERROR);
+    ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
     // run the test
     auto const manifestId = cti_createManifest(sessionId);
-    ASSERT_NE(manifestId, MANIFEST_ERROR);
+    ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
     // cleanup
-    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS);
+    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
 
 // int                  cti_manifestIsValid(cti_manifest_id_t mid);
@@ -454,11 +454,11 @@ TEST_F(CTIAppUnitTest, ManifestIsValid)
 TEST_F(CTIAppUnitTest, AddManifestBinary)
 {
     auto const sessionId = cti_createSession(appId);
-    ASSERT_NE(sessionId, SESSION_ERROR);
+    ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
     // run the test
     auto const manifestId = cti_createManifest(sessionId);
-    ASSERT_NE(manifestId, MANIFEST_ERROR);
+    ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
     // add and finalize binaries
     ASSERT_EQ(cti_addManifestBinary(manifestId, "../test_support/one_printer"), SUCCESS) << cti_error_str();
