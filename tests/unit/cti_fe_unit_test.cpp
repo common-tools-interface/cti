@@ -312,18 +312,66 @@ TEST_F(CTIAppUnitTest, DestroySession)
 
 // char **  cti_getSessionLockFiles(cti_session_id_t sid);
 // Tests that the interface can get a session's lock files
-TEST_F(CTIAppUnitTest, GetSessionLockFiles)
+TEST_F(CTIAppUnitTest, GetSessionLockFilesNoManifest)
 {
     // run the test
     auto const sessionId = cti_createSession(appId);
     ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
-    auto const lockFilesList = cti::make_unique_destr(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
+    // Sessions without manifests should not have any lock files
+    auto lockFilesList = cti::make_unique_destr(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
+    ASSERT_TRUE(lockFilesList == nullptr) << cti_error_str();
+
+    // cleanup session
+    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
+}
+
+// char **  cti_getSessionLockFiles(cti_session_id_t sid);
+// Tests that the interface can get a session's lock files
+TEST_F(CTIAppUnitTest, GetSessionLockFilesOneManifest)
+{
+    // run the test
+    auto const sessionId = cti_createSession(appId);
+    ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
+
+    // Create one manifest
+    auto const manifestId = cti_createManifest(sessionId);
+    ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
+
+    // Get the lock files
+    auto lockFilesList = cti::make_unique_destr(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
     ASSERT_TRUE(lockFilesList != nullptr) << cti_error_str();
 
-    // there should have been one manifest for the dlaunch binary
+    // there should have been one lock file
     EXPECT_TRUE(lockFilesList.get()[0] != nullptr);
     EXPECT_TRUE(lockFilesList.get()[1] == nullptr);
+
+    // cleanup session
+    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
+}
+
+// char **  cti_getSessionLockFiles(cti_session_id_t sid);
+// Tests that the interface can get a session's lock files
+TEST_F(CTIAppUnitTest, GetSessionLockFilesTwoManifests)
+{
+    // run the test
+    auto const sessionId = cti_createSession(appId);
+    ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
+
+    // Create two manifest
+    auto const manifestId = cti_createManifest(sessionId);
+    ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
+    auto const manifestId2 = cti_createManifest(sessionId);
+    ASSERT_NE(manifestId2, MANIFEST_ERROR) << cti_error_str();
+
+    // Get the lock files
+    auto lockFilesList = cti::make_unique_destr(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
+    ASSERT_TRUE(lockFilesList != nullptr) << cti_error_str();
+
+    // there should have been two lock files
+    EXPECT_TRUE(lockFilesList.get()[0] != nullptr);
+    EXPECT_TRUE(lockFilesList.get()[1] != nullptr);
+    EXPECT_TRUE(lockFilesList.get()[2] == nullptr);
 
     // cleanup session
     EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
