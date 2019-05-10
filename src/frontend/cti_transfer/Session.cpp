@@ -189,7 +189,6 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
     // todo: block signals handle race with file creation
     // create and fill archive
     // Register the cleanup file with the frontend for this archive
-    std::string archivePath{fe.getCfgDir() + "/" + archiveName};
     fe.addFileCleanup(archiveName);
     Archive archive(fe.getCfgDir() + "/" + archiveName);
     // setup basic archive entries
