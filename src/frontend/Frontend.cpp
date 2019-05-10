@@ -221,7 +221,7 @@ Frontend::doFileCleanup()
             continue;
         }
         // Check this name against the stage_name
-        if ( name.compare(stage_name) == 0 ) {
+        if ( name.compare(0, stage_name.size(), stage_name) == 0 ) {
             // pattern matches, check to see if we need to remove
             std::string file{m_cfg_dir + "/" + d->d_name};
             auto fileHandle = cti::file::open(file, "r");
