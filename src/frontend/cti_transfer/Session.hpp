@@ -25,6 +25,7 @@
 // file registry
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <set>
 using FoldersMap = std::map<std::string, std::set<std::string>>;
 using PathMap = std::unordered_map<std::string, std::string>;
@@ -32,87 +33,87 @@ using FolderFilePair = std::pair<std::string, std::string>;
 
 #include "frontend/Frontend.hpp"
 
-class Manifest; // forward declare Manifest
+// Forward declarations
+class Manifest;
 
 class Session final : public std::enable_shared_from_this<Session> {
 public: // types
-	enum class Conflict {
-		None = 0,     // file is not present in session
-		AlreadyAdded, // same file already in session
-		NameOverwrite // different file already in session; would overwrite
-	};
+    enum class Conflict {
+        None = 0,     // file is not present in session
+        AlreadyAdded, // same file already in session
+        NameOverwrite // different file already in session; would overwrite
+    };
 
 private: // variables
-	std::vector<std::shared_ptr<Manifest>> m_manifests;
-	size_t m_shippedManifests = 0;
-
-	FoldersMap m_folders;
-	PathMap m_sourcePaths;
+    // Pointer to owning App
+    std::weak_ptr<App>          m_AppPtr;
+    // Sessions have direct ownership of all Manifest objects underneath it.
+    std::unordered_set<std::shared_ptr<Manifest>>
+                                m_manifests;
+    // True if we need to check for App dependencies
+    bool                        m_add_requirements;
+    // Counter to track unique manifests
+    size_t                      m_manifestCnt;
+    // Counter to track shipped manifests
+    size_t                      m_seqNum;
+    FoldersMap                  m_folders;
+    PathMap                     m_sourcePaths;
+    std::string const           m_stageName;
+    std::string const           m_stagePath;
+    std::string const           m_wlmType;
+    std::string                 m_ldLibraryPath;
 
 private: // helper functions
-	// generate a staging path according to CTI path rules
-	static std::string generateStagePath();
-
-public: // variables
-	App& m_activeApp;
-
-	std::string const m_configPath;
-	std::string const m_stageName;
-	std::string const m_attribsPath;
-	std::string const m_toolPath;
-	std::string const m_jobId;
-	std::string const m_wlmType;
-
-private: // variables
-	std::string m_ldLibraryPath;
+    // generate a staging path according to CTI path rules
+    static std::string generateStagePath();
+    // merge manifest contents into directory of transfered files, return list of
+    // duplicate files that don't need to be shipped
+    std::vector<FolderFilePair> mergeTransfered(const FoldersMap& folders,
+        const PathMap& paths);
+    // Finalize and package manifest into archive. Ship to compute nodes.
+    // This is a helper function to be used by sendManifest and startDaemon
+    std::string shipManifest(std::shared_ptr<Manifest>& mani);
 
 public: // interface
-	Session(cti_wlm_type const wlmType, App& activeApp);
+    std::shared_ptr<App> getOwningApp() {
+        if (auto app = m_AppPtr.lock()) { return app; }
+        throw std::runtime_error("Owning app is no longer valid.");
+    }
+    std::string getStagePath() { return m_stagePath; }
+    // log function for Manifest / RemoteSession
+    template <typename... Args>
+    inline void writeLog(char const* fmt, Args&&... args) const {
+        if (auto sp = m_AppPtr.lock()) {
+            sp->writeLog(fmt, std::forward<Args>(args)...);
+        }
+    }
+    // Return a list of lock file dependencies for backend to guarantee ordering.
+    std::vector<std::string> getSessionLockFiles();
+    // create new manifest associated with this session
+    std::weak_ptr<Manifest> createManifest();
+    // Used to ship a manifest to the computes and extract it.
+    void sendManifest(std::shared_ptr<Manifest>& mani);
+    // Used to ship a manifest and execute a tool daemon contained within.
+    void execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon,
+        const char * const daemonArgs[], const char * const envVars[]);
+    // drop reference to an existing manifest. This invalidates the manifest
+    // and prevents it from being shipped.
+    void removeManifest(std::shared_ptr<Manifest>& mani);
+    /* fileName: filename as provided by client
+        realName: basename following symlinks
+        conflict rules:
+        - realName not in the provided folder -> None
+        - realpath(fileName) == realpath(realName) -> AlreadyAdded
+        - realpath(fileName) != realpath(realName) -> NameOverwrite
+        */
+    Conflict hasFileConflict(const std::string& folderName, const std::string& realName,
+        const std::string& candidatePath) const;
 
-	// accessors
-	inline auto getManifests() const -> const decltype(m_manifests)& { return m_manifests; }
-	inline const std::string& getLdLibraryPath() const { return m_ldLibraryPath; }
-	inline void invalidate() { m_manifests.clear(); }
-
-	// log function for Manifest / RemoteSession
-	template <typename... Args>
-	inline void writeLog(char const* fmt, Args&&... args) const {
-		m_activeApp.writeLog(fmt, std::forward<Args>(args)...);
-	}
-
-	// launch cti_daemon to clean up the session stage directory. invalidates the session
-	void launchCleanup();
-
-	// wlm / daemon wrappers
-	void startDaemon(char * const argv[]);
-	inline void shipPackage(std::string const& tarPath) {
-		m_activeApp.shipPackage(tarPath);
-	}
-
-	// create new manifest and register ownership
-	std::shared_ptr<Manifest> createManifest();
-
-	/* fileName: filename as provided by client
-		realName: basename following symlinks
-		conflict rules:
-		- realName not in the provided folder -> None
-		- realpath(fileName) == realpath(realName) -> AlreadyAdded
-		- realpath(fileName) != realpath(realName) -> NameOverwrite
-		*/
-	Conflict hasFileConflict(const std::string& folderName, const std::string& realName,
-		const std::string& candidatePath) const;
-
-	/* merge manifest contents into directory of transfered files, return list of
-		duplicate files that don't need to be shipped
-		*/
-	std::vector<FolderFilePair> mergeTransfered(const FoldersMap& folders,
-		const PathMap& paths);
-
-	/* prepend a manifest's alternate lib directory path to daemon LD_LIBRARY_PATH
-		override argument
-		*/
-	inline void pushLdLibraryPath(std::string const& folderName) {
-		std::string const remoteLibDirPath{m_toolPath + "/" + m_stageName + "/" + folderName};
-		m_ldLibraryPath = remoteLibDirPath + ":" + m_ldLibraryPath;
-	}
+public: // interface
+    Session(App& activeApp);
+    ~Session();
+    Session(const Session&) = delete;
+    Session& operator=(const Session&) = delete;
+    Session(Session&&) = delete;
+    Session& operator=(Session&&) = delete;
 };

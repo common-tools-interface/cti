@@ -11,11 +11,15 @@
  *
  ******************************************************************************/
 
-#include "cti_fe_unit_test.hpp"
-
 #include "cti_defs.h"
 
 #include <stdlib.h>
+
+// CTI Transfer includes
+#include "frontend/cti_transfer/Manifest.hpp"
+#include "frontend/cti_transfer/Session.hpp"
+
+#include "cti_fe_unit_test.hpp"
 
 class CTI_Environment : public ::testing::Environment
 {
@@ -26,6 +30,6 @@ public:
 
 int main(int argc, char **argv) {
     ::testing::Environment* const cti_env = ::testing::AddGlobalTestEnvironment(new CTI_Environment);
-	::testing::InitGoogleTest(&argc, argv);
-	return RUN_ALL_TESTS();
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

@@ -11,9 +11,17 @@
  *
  ******************************************************************************/
 
+// This pulls in config.h
+#include "cti_defs.h"
+#include "cti_argv_defs.hpp"
+
+#include <sys/types.h>
+#include <sys/prctl.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <string.h>
 
 #include <stdexcept>
@@ -95,35 +103,35 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
 }
 
 // throw if boolean response is not true, indicating failure
-static void verifyOKResp(int const respFd)
+static void verifyOKResp(int const reqFd)
 {
-	auto const okResp = rawReadLoop<cti::fe_daemon::OKResp>(respFd);
-	if ((okResp.type != cti::fe_daemon::RespType::OK) || !okResp.success) {
+	auto const okResp = rawReadLoop<FE_daemon::OKResp>(reqFd);
+	if ((okResp.type != FE_daemon::RespType::OK) || !okResp.success) {
 		throw std::runtime_error("failed to verify OK response");
 	}
 }
 
 // return PID response content, throw if pid < 0, indicating failure
-static pid_t readPIDResp(int const respFd)
+static pid_t readPIDResp(int const reqFd)
 {
-	auto const pidResp = rawReadLoop<cti::fe_daemon::PIDResp>(respFd);
-	if ((pidResp.type != cti::fe_daemon::RespType::PID) || (pidResp.pid < 0)) {
+	auto const pidResp = rawReadLoop<FE_daemon::PIDResp>(reqFd);
+	if ((pidResp.type != FE_daemon::RespType::PID) || (pidResp.pid < 0)) {
 		throw std::runtime_error("failed to read PID response");
 	}
 	return pidResp.pid;
 }
 
 // return MPIR launch / attach data, throw if MPIR ID < 0, indicating failure
-static cti::fe_daemon::MPIRResult readMPIRResp(int const respFd)
+static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
 {
 	// read basic table information
-	auto const mpirResp = rawReadLoop<cti::fe_daemon::MPIRResp>(respFd);
-	if ((mpirResp.type != cti::fe_daemon::RespType::MPIR) || !mpirResp.mpir_id) {
+	auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(reqFd);
+	if ((mpirResp.type != FE_daemon::RespType::MPIR) || !mpirResp.mpir_id) {
 		throw std::runtime_error("failed to read proctable response");
 	}
 
 	// fill in MPIR data excluding proctable
-	cti::fe_daemon::MPIRResult result
+	FE_daemon::MPIRResult result
 		{ mpirResp.mpir_id
 		, mpirResp.launcher_pid
 		, mpirResp.job_id
@@ -133,14 +141,14 @@ static cti::fe_daemon::MPIRResult readMPIRResp(int const respFd)
 	result.proctable.reserve(mpirResp.num_pids);
 
 	// set up pipe stream
-	cti::FdBuf respBuf{dup(respFd)};
+	cti::FdBuf respBuf{dup(reqFd)};
 	std::istream respStream{&respBuf};
 
 	// fill in pid and hostname of proctable elements
 	for (int i = 0; i < mpirResp.num_pids; i++) {
 		MPIRProctableElem elem;
 		// read pid
-		elem.pid = rawReadLoop<pid_t>(respFd);
+		elem.pid = rawReadLoop<pid_t>(reqFd);
 		// read hostname
 		if (!std::getline(respStream, elem.hostname, '\0')) {
 			throw std::runtime_error("failed to read string");
@@ -153,82 +161,163 @@ static cti::fe_daemon::MPIRResult readMPIRResp(int const respFd)
 
 /* interface implementation */
 
-pid_t
-cti::fe_daemon::request_ForkExecvpApp(int const reqFd, int const respFd, char const* file,
-	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+FE_daemon::~FE_daemon()
 {
-	rawWriteLoop(reqFd, ReqType::ForkExecvpApp);
-	writeLaunchData(reqFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
-	return readPIDResp(respFd);
-}
-
-pid_t
-cti::fe_daemon::request_ForkExecvpUtil(int const reqFd, int const respFd, pid_t app_pid, RunMode runMode,
-	char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd,
-	char const* const env[])
-{
-	rawWriteLoop(reqFd, ReqType::ForkExecvpUtil);
-	rawWriteLoop(reqFd, app_pid);
-	rawWriteLoop(reqFd, runMode);
-	writeLaunchData(reqFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
-	return readPIDResp(respFd);
-}
-
-cti::fe_daemon::MPIRResult
-cti::fe_daemon::request_LaunchMPIR(int const reqFd, int const respFd, char const* file,
-	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
-{
-	rawWriteLoop(reqFd, ReqType::LaunchMPIR);
-	writeLaunchData(reqFd, file, argv, stdin_fd, stdout_fd, stderr_fd, env);
-	return readMPIRResp(respFd);
-}
-
-cti::fe_daemon::MPIRResult
-cti::fe_daemon::request_AttachMPIR(int const reqFd, int const respFd, pid_t app_pid)
-{
-	rawWriteLoop(reqFd, ReqType::AttachMPIR);
-	rawWriteLoop(reqFd, app_pid);
-	return readMPIRResp(respFd);
+	// Send shutdown request if we have initialized the daemon
+	if (m_init) {
+		m_init = false;
+		// This should be the only way to call ReqType::Shutdown
+		rawWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
+		verifyOKResp(m_resp_sock.getReadFd());
+	}
+	// FIXME: Shouldn't this do a waitpid???
 }
 
 void
-cti::fe_daemon::request_ReleaseMPIR(int const reqFd, int const respFd, MPIRId mpir_id)
+FE_daemon::initialize(std::string fe_daemon_bin)
 {
-	rawWriteLoop(reqFd, ReqType::ReleaseMPIR);
-	rawWriteLoop(reqFd, mpir_id);
-	verifyOKResp(respFd);
+	// Only fork once!
+	if (m_init) {
+		return;
+	}
+
+	// Start the frontend daemon
+    if (auto const forkedPid = fork()) {
+        // parent case
+
+        // set child in own process gorup
+        if (setpgid(forkedPid, forkedPid) < 0) {
+            perror("setpgid");
+            exit(1);
+        }
+
+        // set up fe_daemon req / resp pipe
+        m_req_sock.closeRead();
+        m_resp_sock.closeWrite();
+
+        // wait until fe_daemon set up
+        if (rawReadLoop<pid_t>(m_resp_sock.getReadFd()) != forkedPid) {
+            throw std::runtime_error("fe_daemon launch failed");
+        }
+    }
+    else {
+    	// child case
+
+		// set in own process gorup
+		if (setpgid(0, 0) < 0) {
+			perror("setpgid");
+			exit(1);
+		}
+
+		// set up death signal
+		prctl(PR_SET_PDEATHSIG, SIGHUP);
+
+		// set up fe_daemon req /resp pipe
+		m_req_sock.closeWrite();
+		m_resp_sock.closeRead();
+
+		// remap standard FDs
+		dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
+		dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
+		dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+
+		// close FDs above pipe FDs
+		auto max_fd = size_t{};
+		{ struct rlimit rl;
+			if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
+				throw std::runtime_error("getrlimit failed.");
+			} else {
+				max_fd = (rl.rlim_max == RLIM_INFINITY) ? 1024 : rl.rlim_max;
+			}
+		}
+		int const min_fd = std::max(m_req_sock.getReadFd(), m_resp_sock.getWriteFd()) + 1;
+		for (size_t i = min_fd; i < max_fd; ++i) {
+			close(i);
+		}
+
+		// setup args
+		using FEDA = CTIFEDaemonArgv;
+		cti::OutgoingArgv<FEDA> fe_daemonArgv{fe_daemon_bin};
+		fe_daemonArgv.add(FEDA::ReadFD,  std::to_string(m_req_sock.getReadFd()));
+		fe_daemonArgv.add(FEDA::WriteFD, std::to_string(m_resp_sock.getWriteFd()));
+
+		// exec
+		execvp(fe_daemon_bin.c_str(), fe_daemonArgv.get());
+		throw std::runtime_error("returned from execvp: " + std::string{strerror(errno)});
+    }
+    // Setup in parent was sucessful
+    m_init = true;
 }
 
 pid_t
-cti::fe_daemon::request_RegisterApp(int const reqFd, int const respFd, pid_t app_pid)
+FE_daemon::request_ForkExecvpApp(char const* file,
+	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-	rawWriteLoop(reqFd, ReqType::RegisterApp);
-	rawWriteLoop(reqFd, app_pid);
-	verifyOKResp(respFd);
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ForkExecvpApp);
+	writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+	return readPIDResp(m_resp_sock.getReadFd());
+}
+
+pid_t
+FE_daemon::request_ForkExecvpUtil(pid_t app_pid, RunMode runMode,
+	char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd,
+	char const* const env[])
+{
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ForkExecvpUtil);
+	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+	rawWriteLoop(m_req_sock.getWriteFd(), runMode);
+	writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+	return readPIDResp(m_resp_sock.getReadFd());
+}
+
+FE_daemon::MPIRResult
+FE_daemon::request_LaunchMPIR(char const* file,
+	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+{
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::LaunchMPIR);
+	writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
+	return readMPIRResp(m_resp_sock.getReadFd());
+}
+
+FE_daemon::MPIRResult
+FE_daemon::request_AttachMPIR(pid_t app_pid)
+{
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::AttachMPIR);
+	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+	return readMPIRResp(m_resp_sock.getReadFd());
+}
+
+void
+FE_daemon::request_ReleaseMPIR(MPIRId mpir_id)
+{
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ReleaseMPIR);
+	rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+	verifyOKResp(m_resp_sock.getReadFd());
+}
+
+pid_t
+FE_daemon::request_RegisterApp(pid_t app_pid)
+{
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterApp);
+	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+	verifyOKResp(m_resp_sock.getReadFd());
 	return app_pid;
 }
 
 pid_t
-cti::fe_daemon::request_RegisterUtil(int const reqFd, int const respFd, pid_t app_pid, pid_t util_pid)
+FE_daemon::request_RegisterUtil(pid_t app_pid, pid_t util_pid)
 {
-	rawWriteLoop(reqFd, ReqType::RegisterUtil);
-	rawWriteLoop(reqFd, app_pid);
-	rawWriteLoop(reqFd, util_pid);
-	verifyOKResp(respFd);
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterUtil);
+	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+	rawWriteLoop(m_req_sock.getWriteFd(), util_pid);
+	verifyOKResp(m_resp_sock.getReadFd());
 	return util_pid;
 }
 
 void
-cti::fe_daemon::request_DeregisterApp(int const reqFd, int const respFd, pid_t app_pid)
+FE_daemon::request_DeregisterApp(pid_t app_pid)
 {
-	rawWriteLoop(reqFd, ReqType::DeregisterApp);
-	rawWriteLoop(reqFd, app_pid);
-	verifyOKResp(respFd);
-}
-
-void
-cti::fe_daemon::request_Shutdown(int const reqFd, int const respFd)
-{
-	rawWriteLoop(reqFd, ReqType::Shutdown);
-	verifyOKResp(respFd);
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::DeregisterApp);
+	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+	verifyOKResp(m_resp_sock.getReadFd());
 }

@@ -12,9 +12,9 @@
  *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
+#include "cti_argv_defs.hpp"
 
 #include <errno.h>
 #include <getopt.h>
@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <future>
 #include <vector>
+#include <unordered_map>
 #include <unordered_set>
 #include <memory>
 
@@ -40,11 +41,11 @@
 #include "frontend/mpir_iface/MPIRInstance.hpp"
 #include "cti_fe_daemon_iface.hpp"
 
-using ReqType   = cti::fe_daemon::ReqType;
-using RespType  = cti::fe_daemon::RespType;
-using OKResp    = cti::fe_daemon::OKResp;
-using PIDResp   = cti::fe_daemon::PIDResp;
-using MPIRResp  = cti::fe_daemon::MPIRResp;
+using ReqType   = FE_daemon::ReqType;
+using RespType  = FE_daemon::RespType;
+using OKResp    = FE_daemon::OKResp;
+using PIDResp   = FE_daemon::PIDResp;
+using MPIRResp  = FE_daemon::MPIRResp;
 
 static void
 tryTerm(pid_t const pid)
@@ -111,9 +112,9 @@ struct ProcSet
 auto appList = ProcSet{};
 auto utilMap = std::unordered_map<pid_t, ProcSet>{};
 
-auto mpirMap = std::unordered_map<cti::fe_daemon::MPIRId, std::unique_ptr<MPIRInstance>>{};
-static cti::fe_daemon::MPIRId newMPIRId() {
-	static auto id = cti::fe_daemon::MPIRId{0};
+auto mpirMap = std::unordered_map<FE_daemon::MPIRId, std::unique_ptr<MPIRInstance>>{};
+static FE_daemon::MPIRId newMPIRId() {
+	static auto id = FE_daemon::MPIRId{0};
 	return ++id;
 }
 
@@ -438,7 +439,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
 		// send failure response
 		rawWriteLoop(respFd, MPIRResp
 			{ .type     = RespType::MPIR
-			, .mpir_id  = cti::fe_daemon::MPIRId{0}
+			, .mpir_id  = FE_daemon::MPIRId{0}
 		});
 	}
 }
@@ -502,7 +503,7 @@ static pid_t forkExec(LaunchData const& launchData)
 	}
 }
 
-static cti::fe_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
+static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 {
 	std::map<int, int> const remapFds
 		{ { launchData.stdin_fd,  STDIN_FILENO  }
@@ -519,7 +520,7 @@ static cti::fe_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 	auto const rawJobId  = idInstPair->second->readStringAt("totalview_jobid");
 	auto const rawStepId = idInstPair->second->readStringAt("totalview_stepid");
 	fprintf(stderr, "launched new mpir id %d\n", idInstPair->first);
-	return cti::fe_daemon::MPIRResult
+	return FE_daemon::MPIRResult
 		{ idInstPair->first // mpir_id
 		, idInstPair->second->getLauncherPid() // launcher_pid
 		, static_cast<uint32_t>(std::stoul(rawJobId)) // job_id
@@ -528,12 +529,12 @@ static cti::fe_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 	};
 }
 
-static cti::fe_daemon::MPIRResult attachMPIR(pid_t const app_pid)
+static FE_daemon::MPIRResult attachMPIR(pid_t const app_pid)
 {
 	throw std::runtime_error("not implemented: handle_mpirAttach");
 }
 
-static void releaseMPIR(cti::fe_daemon::MPIRId const mpir_id)
+static void releaseMPIR(FE_daemon::MPIRId const mpir_id)
 {
 	auto const idInstPair = mpirMap.find(mpir_id);
 	if (idInstPair != mpirMap.end()) {
@@ -562,13 +563,13 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
 {
 	tryWritePIDResp(respFd, [&]() {
 		auto const appPid  = rawReadLoop<pid_t>(reqFd);
-		auto const runMode = rawReadLoop<cti::fe_daemon::RunMode>(reqFd);
+		auto const runMode = rawReadLoop<FE_daemon::RunMode>(reqFd);
 		auto const launchData = readLaunchData(reqFd);
 
 		auto const utilPid = forkExec(launchData);
 
 		registerUtilPID(appPid, utilPid);
-		if (runMode == cti::fe_daemon::Synchronous) {
+		if (runMode == FE_daemon::Synchronous) {
 			::waitpid(utilPid, nullptr, 0);
 		}
 
@@ -605,7 +606,7 @@ static void handle_AttachMPIR(int const reqFd, int const respFd)
 static void handle_ReleaseMPIR(int const reqFd, int const respFd)
 {
 	tryWriteOKResp(respFd, [&]() {
-		auto const mpirId = rawReadLoop<cti::fe_daemon::MPIRId>(reqFd);
+		auto const mpirId = rawReadLoop<FE_daemon::MPIRId>(reqFd);
 
 		releaseMPIR(mpirId);
 	});

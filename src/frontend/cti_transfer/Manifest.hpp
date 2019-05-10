@@ -1,7 +1,6 @@
 /******************************************************************************\
- * Manifest.hpp - In-progress file list that is owned by a session. Call
- * finalizeAndShip() to produce a RemotePackage representing a tarball that
- * is present on compute nodes.
+ * Manifest.hpp - In-progress file list that is owned by a session.
+ *                It is the sessions responsibility to ship a manifest.
  *
  * Copyright 2013-2019 Cray Inc.    All Rights Reserved.
  *
@@ -21,56 +20,65 @@
 #include <memory>
 
 #include "Session.hpp"
-#include "RemotePackage.hpp"
 
 class Manifest final {
 public: // types
-	enum class DepsPolicy {
-		Ignore = 0,
-		Stage
-	};
+    enum class DepsPolicy {
+        Ignore = 0,
+        Stage
+    };
 
 private: // variables
-	std::weak_ptr<Session> m_sessionPtr;
-	size_t const m_instanceCount;
-
-	FoldersMap m_folders;
-	PathMap    m_sourcePaths;
-
-	std::string m_ldLibraryOverrideFolder;
-
-public: // variables
-	std::string const m_lockFilePath;
+    std::weak_ptr<Session>  m_sessionPtr;
+    size_t const            m_instance;
+    FoldersMap              m_folders;
+    PathMap                 m_sourcePaths;
+    std::string             m_ldLibraryOverrideFolder;
+    bool                    m_isValid;
 
 private: // helper functions
-	inline bool empty() { return m_sourcePaths.empty(); }
-	inline void invalidate() { m_sessionPtr.reset(); }
+    void enforceValid() {
+        if (!m_isValid) {
+            throw std::runtime_error("Attempted to modify previously shipped manifest!");
+        }
+    }
 
-	// add dynamic library dependencies to manifest
-	void addLibDeps(const std::string& filePath);
+    // add dynamic library dependencies to manifest
+    void addLibDeps(const std::string& filePath, const std::string& auditPath);
 
-	// if no session conflicts, add to manifest (otherwise throw)
-	void checkAndAdd(const std::string& folder, const std::string& filePath,
-		const std::string& realName);
-
-	// create manifest archive with libarchive and ship package with WLM transfer function
-	RemotePackage createAndShipArchive(const std::string& archiveName,
-		std::shared_ptr<Session>& liveSession);
+    // if no session conflicts, add to manifest (otherwise throw)
+    void checkAndAdd(const std::string& folder, const std::string& filePath,
+        const std::string& realName);
 
 public: // interface
-	Manifest(size_t instanceCount, Session& owningSession) :
-		m_sessionPtr(owningSession.shared_from_this()),
-		m_instanceCount(instanceCount),
-		m_lockFilePath(owningSession.m_toolPath + "/.lock_" + owningSession.m_stageName +
-			"_" + std::to_string(m_instanceCount)) {}
+    // Get a shared_ptr to the owning session
+    std::shared_ptr<Session> getOwningSession() {
+        if (auto sess = m_sessionPtr.lock()) { return sess; }
+        throw std::runtime_error("Owning Session is no longer valid.");
+    }
 
-	// add files and optionally their dependencies to manifest
-	void addBinary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
-	void addLibrary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
-	void addLibDir(const std::string& rawPath);
-	void addFile(const std::string& rawName);
+    // add files and optionally their dependencies to manifest
+    void addBinary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
+    void addLibrary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
+    void addLibDir(const std::string& rawPath);
+    void addFile(const std::string& rawName);
+    // Getters
+    // Returns true if there is nothing in the manifest
+    bool empty() { return m_sourcePaths.empty(); }
+    size_t instance() { return m_instance; }
+    FoldersMap& folders() { return m_folders; }
+    PathMap& sources() { return m_sourcePaths; }
+    std::string& extraLibraryPath() { return m_ldLibraryOverrideFolder; }
 
-	// package files from manifest and ship, return remotely extractable archive object
-	RemotePackage finalizeAndShip();
+    // Called by the session when it ships the manifest. This denotes that the manifest
+    // is no longer modifyable
+    void finalize() { m_isValid = false; }
+
+public: // Constructor/destructors
+    Manifest(size_t instanceCount, Session& owningSession);
+    ~Manifest() = default;
+    Manifest(const Manifest&) = delete;
+    Manifest& operator=(const Manifest&) = delete;
+    Manifest(Manifest&&) = delete;
+    Manifest& operator=(Manifest&&) = delete;
 };
-

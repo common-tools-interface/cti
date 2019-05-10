@@ -46,21 +46,6 @@ private: // functions
 	void addFile(const std::string& entryPath, const std::string& filePath);
 
 public: // interface
-	// create archive on disk and set format
-	Archive(const std::string& archivePath);
-
-	Archive(Archive&& moved) :
-		m_archPtr(std::move(moved.m_archPtr)),
-		m_entryScratchpad(std::move(moved.m_entryScratchpad)),
-		m_archivePath(std::move(moved.m_archivePath)) {}
-
-	// remove archive from disk
-	~Archive() {
-		if (m_archPtr != nullptr) {
-			unlink(m_archivePath.c_str());
-		}
-	}
-
 	// finalize and return path to tarball; after, only valid operations are to destruct
 	const std::string& finalize() {
 		m_archPtr.reset();
@@ -71,4 +56,19 @@ public: // interface
 	void addDirEntry(const std::string& dirPath);
 	// set up archive entry and call addDir / addFile based on stat
 	void addPath(const std::string& entryPath, const std::string& path);
+
+public: // constructor / destructor interface
+	// create archive on disk and set format
+	Archive(const std::string& archivePath);
+	// move constructor
+	Archive(Archive&& moved) :
+		m_archPtr(std::move(moved.m_archPtr)),
+		m_entryScratchpad(std::move(moved.m_entryScratchpad)),
+		m_archivePath(std::move(moved.m_archivePath)) {}
+	// Always remove archive from disk on destruction
+	~Archive() {
+		if (m_archPtr != nullptr) {
+			unlink(m_archivePath.c_str());
+		}
+	}
 };
