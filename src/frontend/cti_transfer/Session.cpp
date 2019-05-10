@@ -170,18 +170,18 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
     const std::string archiveName(m_stageName + std::to_string(inst) + ".tar");
     // Get frontend reference
     auto app = getOwningApp();
-    auto& fe = app->getFrontend();
+    auto&& fe = app->getFrontend();
     writeLog("shipManifest %d: merge into session\n", inst);
     // merge manifest into session and get back list of files to remove
-    auto& folders = mani->folders();
-    auto& sources = mani->sources();
+    auto&& folders = mani->folders();
+    auto&& sources = mani->sources();
     auto toRemove = mergeTransfered(folders, sources);
     for (auto folderFilePair : toRemove) {
         folders[folderFilePair.first].erase(folderFilePair.second);
         sources.erase(folderFilePair.second);
     }
     // Check to see if we have an extra LD_LIBRARY_PATH entry to deal with
-    auto& libPath = mani->extraLibraryPath();
+    auto&& libPath = mani->extraLibraryPath();
     if ( !libPath.empty() ) {
         std::string const remoteLibDirPath{m_stagePath + "/" + libPath};
         m_ldLibraryPath = remoteLibDirPath + ":" + m_ldLibraryPath;

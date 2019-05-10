@@ -59,6 +59,14 @@ public: // ssh specific interface
 	// Launch an app under MPIR control and hold at barrier.
 	std::unique_ptr<MPIRInstance> launchApp(const char * const launcher_argv[],
 		int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+
+public: // constructor / destructor interface
+    GenericSSHFrontend() = default;
+    ~GenericSSHFrontend() = default;
+    GenericSSHFrontend(const GenericSSHFrontend&) = delete;
+    GenericSSHFrontend& operator=(const GenericSSHFrontend&) = delete;
+    GenericSSHFrontend(GenericSSHFrontend&&) = delete;
+    GenericSSHFrontend& operator=(GenericSSHFrontend&&) = delete;
 };
 
 
@@ -77,20 +85,6 @@ private: // variables
 	std::string m_attribsPath; // Backend Cray-specific directory
 	std::string m_stagePath;   // Local directory where files are staged before transfer to BE
 	std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
-
-private: // member helpers
-	GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance);
-
-public: // constructor / destructor interface
-	// register case
-	GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid);
-	// attach case
-	GenericSSHApp(GenericSSHFrontend& fe, std::unique_ptr<MPIRInstance>&& launcherInstance);
-	// launch case
-	GenericSSHApp(GenericSSHFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-		const char *inputFile, const char *chdirPath, const char * const env_list[]);
-
-	~GenericSSHApp();
 
 public: // app interaction interface
 	std::string getJobId()            const override;
@@ -112,4 +106,20 @@ public: // app interaction interface
 
 public: // ssh specific interface
 	/* none */
+
+private: // delegated constructor
+	GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance);
+public: // constructor / destructor interface
+	// register case
+	GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid);
+	// attach case
+	GenericSSHApp(GenericSSHFrontend& fe, std::unique_ptr<MPIRInstance>&& launcherInstance);
+	// launch case
+	GenericSSHApp(GenericSSHFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+		const char *inputFile, const char *chdirPath, const char * const env_list[]);
+	~GenericSSHApp();
+	GenericSSHApp(const GenericSSHApp&) = delete;
+    GenericSSHApp& operator=(const GenericSSHApp&) = delete;
+    GenericSSHApp(GenericSSHApp&&) = delete;
+    GenericSSHApp& operator=(GenericSSHApp&&) = delete;
 };

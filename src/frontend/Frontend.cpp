@@ -75,8 +75,7 @@ Frontend::findCfgDir(struct passwd& pwd)
     }
     else {
         // look in this order: $TMPDIR, /tmp, $HOME
-        std::vector<const char*> defaultDirs {getenv("TMPDIR"), "/tmp", getenv("HOME")};
-        for (const char* dir_var : defaultDirs) {
+        for (auto&& dir_var : { const_cast<const char *>(getenv("TMPDIR")), "/tmp", const_cast<const char *>(getenv("HOME")) }) {
             if ((dir_var != nullptr) && cti::dirHasPerms(dir_var, R_OK | W_OK | X_OK)) {
                 cfgDir = std::string(dir_var);
                 break;

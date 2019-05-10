@@ -49,7 +49,7 @@ constexpr auto MANIFEST_ERROR = FE_iface::MANIFEST_ERROR;
 // Cast the FE pointer to the expected type
 template <typename WLMType>
 static WLMType& downcastFE() {
-    auto& fe = Frontend::inst();
+    auto&& fe = Frontend::inst();
     try {
         return dynamic_cast<WLMType&>(fe);
     } catch (std::bad_cast& bc) {
@@ -95,6 +95,12 @@ FE_iface::get_error_str()
     return const_cast<const char *>(_cti_err_str);
 }
 
+FE_iface::FE_iface()
+: m_app_registry{}
+, m_session_registry{}
+, m_manifest_registry{}
+{ }
+
 /*******************************
 * C API defined functions below
 *******************************/
@@ -112,7 +118,7 @@ cti_error_str(void) {
 cti_wlm_type
 cti_current_wlm(void) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         return fe.getWLMType();
     }, CTI_WLM_NONE);
 }
@@ -136,7 +142,7 @@ cti_wlm_type_toString(cti_wlm_type wlm_type) {
 int
 cti_getNumAppPEs(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         return sp->getNumPEs();
     }, -1);
@@ -145,7 +151,7 @@ cti_getNumAppPEs(cti_app_id_t appId) {
 int
 cti_getNumAppNodes(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         return sp->getNumHosts();
     }, -1);
@@ -154,7 +160,7 @@ cti_getNumAppNodes(cti_app_id_t appId) {
 char**
 cti_getAppHostsList(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         auto const hostList = sp->getHostnameList();
 
@@ -171,7 +177,7 @@ cti_getAppHostsList(cti_app_id_t appId) {
 cti_hostsList_t*
 cti_getAppHostsPlacement(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         auto const hostPlacement = sp->getHostsPlacement();
 
@@ -206,7 +212,7 @@ cti_destroyHostsList(cti_hostsList_t *placement_list) {
 char*
 cti_getHostname() {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         return strdup(fe.getHostname().c_str());
     }, (char*)nullptr);
 }
@@ -214,7 +220,7 @@ cti_getHostname() {
 char*
 cti_getLauncherHostName(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         return strdup(sp->getLauncherHostname().c_str());
     }, (char*)nullptr);
@@ -225,7 +231,7 @@ cti_getLauncherHostName(cti_app_id_t appId) {
 cti_srunProc_t*
 cti_cray_slurm_getJobInfo(pid_t srunPid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = downcastFE<CraySLURMFrontend>();
+        auto&& fe = downcastFE<CraySLURMFrontend>();
         if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
             *result = fe.getSrunInfo(srunPid);
             return result;
@@ -238,7 +244,7 @@ cti_cray_slurm_getJobInfo(pid_t srunPid) {
 cti_app_id_t
 cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = downcastFE<CraySLURMFrontend>();
+        auto&& fe = downcastFE<CraySLURMFrontend>();
         auto wp = fe.registerJob(2, job_id, step_id);
         return fe.Iface().trackApp(wp);
     }, APP_ERROR);
@@ -247,7 +253,7 @@ cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
 cti_srunProc_t*
 cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto ap = downcastApp<CraySLURMApp>(fe.Iface().getApp(appId));
         if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
             *result = ap->getSrunInfo();
@@ -263,7 +269,7 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
 cti_app_id_t
 cti_ssh_registerJob(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = downcastFE<GenericSSHFrontend>();
+        auto&& fe = downcastFE<GenericSSHFrontend>();
         auto wp = fe.registerJob(1, launcher_pid);
         return fe.Iface().trackApp(wp);
     }, APP_ERROR);
@@ -274,7 +280,7 @@ cti_ssh_registerJob(pid_t launcher_pid) {
 int
 cti_appIsValid(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         return fe.Iface().validApp(appId);
     }, false);
 }
@@ -282,7 +288,7 @@ cti_appIsValid(cti_app_id_t appId) {
 void
 cti_deregisterApp(cti_app_id_t appId) {
     FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         // Remove the app
         fe.removeApp(sp);
@@ -300,7 +306,7 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
         auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 
         // release barrier
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         sp->releaseBarrier();
 
@@ -334,7 +340,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stder
         }
 
         // register new app instance held at barrier
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto wp = fe.launchBarrier(launcher_argv, stdoutFd, stderrFd, inputFile, chdirPath, env_list);
 
         return fe.Iface().trackApp(wp);
@@ -345,7 +351,7 @@ int
 cti_releaseAppBarrier(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         // release barrier
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         sp->releaseBarrier();
         return SUCCESS;
@@ -355,7 +361,7 @@ cti_releaseAppBarrier(cti_app_id_t appId) {
 int
 cti_killApp(cti_app_id_t appId, int signum) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         sp->kill(signum);
         return SUCCESS;
@@ -368,7 +374,7 @@ cti_session_id_t
 cti_createSession(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         // register new session instance and ship the WLM-specific base files
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
         auto wp = sp->createSession();
         return fe.Iface().trackSession(wp);
@@ -378,7 +384,7 @@ cti_createSession(cti_app_id_t appId) {
 int
 cti_destroySession(cti_session_id_t sid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getSession(sid);
         auto app_sp = sp->getOwningApp();
         app_sp->removeSession(sp);
@@ -390,7 +396,7 @@ cti_destroySession(cti_session_id_t sid) {
 int
 cti_sessionIsValid(cti_session_id_t sid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         return fe.Iface().validSession(sid);
     }, false);
 }
@@ -398,7 +404,7 @@ cti_sessionIsValid(cti_session_id_t sid) {
 char**
 cti_getSessionLockFiles(cti_session_id_t sid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getSession(sid);
         auto lock_files = sp->getSessionLockFiles();
         // ensure there's at least one manifest instance
@@ -424,7 +430,7 @@ cti_getSessionLockFiles(cti_session_id_t sid) {
 static char* sessionPathAppend(std::string const& caller, cti_session_id_t sid, const std::string& str) {
     return FE_iface::runSafely(caller, [&](){
         // get session and construct string
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getSession(sid);
         std::stringstream ss;
         ss << sp->getStagePath() << str;
@@ -462,7 +468,7 @@ cti_getSessionTmpDir(cti_session_id_t sid) {
 cti_manifest_id_t
 cti_createManifest(cti_session_id_t sid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getSession(sid);
         auto wp = sp->createManifest();
         return fe.Iface().trackManifest(wp);
@@ -472,7 +478,7 @@ cti_createManifest(cti_session_id_t sid) {
 int
 cti_manifestIsValid(cti_manifest_id_t mid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         return fe.Iface().validManifest(mid);
     }, false);
 }
@@ -480,7 +486,7 @@ cti_manifestIsValid(cti_manifest_id_t mid) {
 int
 cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         // Check if we should bypass dependencies
         auto deps = fe.m_stage_deps ?
             Manifest::DepsPolicy::Stage : Manifest::DepsPolicy::Ignore;
@@ -493,7 +499,7 @@ cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName) {
 int
 cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         // Check if we should bypass dependencies
         auto deps = fe.m_stage_deps ?
             Manifest::DepsPolicy::Stage : Manifest::DepsPolicy::Ignore;
@@ -506,7 +512,7 @@ cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName) {
 int
 cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto mp = fe.Iface().getManifest(mid);
         mp->addLibDir(rawName);
         return SUCCESS;
@@ -516,7 +522,7 @@ cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName) {
 int
 cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto mp = fe.Iface().getManifest(mid);
         mp->addFile(rawName);
         return SUCCESS;
@@ -526,7 +532,7 @@ cti_addManifestFile(cti_manifest_id_t mid, const char * rawName) {
 int
 cti_sendManifest(cti_manifest_id_t mid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto mp = fe.Iface().getManifest(mid);
         auto sp = mp->getOwningSession();
         sp->sendManifest(mp);
@@ -541,7 +547,7 @@ cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
     const char * const daemonArgs[], const char * const envVars[])
 {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         auto mp = fe.Iface().getManifest(mid);
         auto sp = mp->getOwningSession();
         sp->execManifest(mp, daemonPath, daemonArgs, envVars);
@@ -554,7 +560,7 @@ int
 cti_setAttribute(cti_attr_type attrib, const char *value)
 {
     return FE_iface::runSafely(__func__, [&](){
-        auto& fe = Frontend::inst();
+        auto&& fe = Frontend::inst();
         switch (attrib) {
             case CTI_ATTR_STAGE_DEPENDENCIES:
                 if (value == nullptr) {

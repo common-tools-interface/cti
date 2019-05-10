@@ -79,4 +79,6 @@ public: // Constructor/destructors
     ~Manifest() = default;
     Manifest(const Manifest&) = delete;
     Manifest& operator=(const Manifest&) = delete;
+    Manifest(Manifest&&) = delete;
+    Manifest& operator=(Manifest&&) = delete;
 };

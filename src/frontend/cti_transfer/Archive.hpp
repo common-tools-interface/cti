@@ -46,6 +46,7 @@ private: // functions
     void addFile(const std::string& entryPath, const std::string& filePath);
 
 public: // interface
+<<<<<<< HEAD
     // finalize and return path to tarball; after, only valid operations are to destruct
     const std::string& finalize() {
         m_archPtr.reset();

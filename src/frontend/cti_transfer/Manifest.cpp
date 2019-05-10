@@ -70,11 +70,9 @@ Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
 
     // add libraries if needed
     if (depsPolicy == DepsPolicy::Stage) {
-        // Need access to FE object
-        auto sess = getOwningSession();
-        auto app = sess->getOwningApp();
-        auto& fe = app->getFrontend();
-        addLibDeps(filePath, fe.getLdAuditPath());
+        // Avoid hodling onto promotion of pointers through recursion call
+        auto const ldAuditPath = getOwningSession()->getOwningApp()->getFrontend().getLdAuditPath();
+        addLibDeps(filePath, ldAuditPath);
     }
 }
 
@@ -111,10 +109,9 @@ Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 
     // add libraries if needed
     if (depsPolicy == DepsPolicy::Stage) {
-        // Need access to FE object
-        auto app = sess->getOwningApp();
-        auto& fe = app->getFrontend();
-        addLibDeps(filePath, fe.getLdAuditPath());
+        // Avoid hodling onto promotion of pointers through recursion call
+        auto const ldAuditPath = sess->getOwningApp()->getFrontend().getLdAuditPath();
+        addLibDeps(filePath, ldAuditPath);
     }
 }
 
