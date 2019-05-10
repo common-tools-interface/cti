@@ -13,6 +13,9 @@
  ******************************************************************************/
 #pragma once
 
+// cti frontend definitions
+#include "cti_defs.h"
+
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -22,11 +25,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-// cti frontend definitions
-#include "cti_defs.h"
 
 #include "useful/cti_useful.h"
 #include "ld_val/ld_val.h"
@@ -104,9 +105,8 @@ namespace file {
     {
         if (auto ufp = try_open(path, mode)) {
             return ufp;
-        } else {
-            throw std::runtime_error("failed to open path " + path);
         }
+        throw std::runtime_error("failed to open path " + path);
     }
 
     // write a POD to file
@@ -117,7 +117,37 @@ namespace file {
             throw std::runtime_error("failed to write to file");
         }
     }
+
+    // read a POD from file
+    template <typename T>
+    static inline T readT(FILE* fp) {
+        static_assert(std::is_pod<T>::value, "type cannot be read bytewise from file");
+        T data;
+        if (fread(&data, sizeof(T), 1, fp) != 1) {
+            throw std::runtime_error("failed to read from file");
+        }
+        return data;
+    }
 } /* namespace cti::file */
+
+namespace dir {
+    // open a directory path and return a unique DIR* or nullptr
+    static inline auto try_open(std::string const& path) ->
+        std::unique_ptr<DIR, decltype(&closedir)>
+    {
+        return make_unique_destr(opendir(path.c_str()), closedir);
+    }
+
+    // open a directory and return a unique DIR* or throw
+    static inline auto open(std::string const& path) ->
+        std::unique_ptr<DIR, decltype(&closedir)>
+    {
+        if (auto udp = try_open(path)) {
+            return udp;
+        }
+        throw std::runtime_error("failed to open directory " + path);
+    }
+} /* namespace cti::dir */
 
 template <typename T>
 static void free_ptr_list(T* head) {

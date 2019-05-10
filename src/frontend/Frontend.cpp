@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <assert.h>
 #include <unistd.h>
+#include <signal.h>
 
 // CTI Transfer includes
 #include "cti_transfer/Manifest.hpp"
@@ -187,12 +188,11 @@ Frontend::findBaseDir(void)
 void
 Frontend::addFileCleanup(std::string file)
 {
-    const std::string cleanupFilePath(m_cfg_dir + "/." + file);
-    auto cleanupFileHandle = cti::make_unique_destr(fopen(cleanupFilePath.c_str(), "w"), std::fclose);
+    std::string cleanupFilePath{m_cfg_dir + "/." + file};
+    auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
     pid_t pid = getpid();
-    if (fwrite(&pid, sizeof(pid), 1, cleanupFileHandle.get()) != 1) {
-        throw std::runtime_error("fwrite to cleanup file failed.");
-    }
+    cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
+    m_cleanup_files.push_back(std::move(cleanupFilePath));
 }
 
 // BUG 819725:
@@ -200,7 +200,46 @@ Frontend::addFileCleanup(std::string file)
 void
 Frontend::doFileCleanup()
 {
-    // FIXME: Implementation
+    // Create stage name
+    std::string stage_name{"." + std::string{DEFAULT_STAGE_DIR}};
+    // get the position of the first 'X'
+    auto found = stage_name.find('X');
+    if (found != std::string::npos) {
+        // Cut the "X" portion out
+        stage_name.erase(found);
+    }
+    // Open cfg dir
+    auto cfgDir = cti::dir::open(m_cfg_dir);
+    // Recurse through each file in the directory
+    struct dirent *d;
+    while ((d = readdir(cfgDir.get())) != nullptr) {
+        std::string name{d->d_name};
+        // Skip the . and .. files
+        if ( name.size() == 1 && name.compare(".") == 0 ) {
+            continue;
+        }
+        if ( name.size() == 2 && name.compare("..") == 0 ) {
+            continue;
+        }
+        // Check this name against the stage_name
+        if ( name.compare(0, stage_name.size(), stage_name) == 0 ) {
+            // pattern matches, check to see if we need to remove
+            std::string file{m_cfg_dir + "/" + d->d_name};
+            auto fileHandle = cti::file::open(file, "r");
+            // read the pid from the file
+            pid_t pid = cti::file::readT<pid_t>(fileHandle.get());
+            // ping the process
+            if (kill(pid,0) == 0) {
+                // process is still alive
+                continue;
+            }
+            // process is dead we need to remove the tarball
+            std::string tarball_name{m_cfg_dir + "/" + (d->d_name+1)};
+            // unlink the files
+            unlink(tarball_name.c_str());
+            unlink(file.c_str());
+        }
+    }
 }
 
 /*
@@ -324,6 +363,16 @@ Frontend::Frontend()
     m_be_daemon_path = cti::accessiblePath(m_base_dir + "/libexec/" + CTI_BE_DAEMON_BINARY);
     // init the frontend daemon now that we have the path to the binary
     m_daemon.initialize(m_fe_daemon_path);
+    // Try to conduct cleanup of the cfg dir to prevent forest fires
+    doFileCleanup();
+}
+
+Frontend::~Frontend()
+{
+    // Unlink the cleanup files since we are exiting normally
+    for (auto&& file : m_cleanup_files) {
+        unlink(file.c_str());
+    }
 }
 
 std::weak_ptr<Session>
