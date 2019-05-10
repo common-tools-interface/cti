@@ -158,6 +158,8 @@ public:
     virtual ~Frontend() = default;
     Frontend(const Frontend&) = delete;
     Frontend& operator=(const Frontend&) = delete;
+    Frontend(Frontend&&) = delete;
+    Frontend& operator=(Frontend&&) = delete;
 };
 
 // Forward declarations
@@ -256,4 +258,6 @@ public: // Constructor/destructors
     virtual ~App() = default;
     App(const App&) = delete;
     App& operator=(const App&) = delete;
+    App(App&&) = delete;
+    App& operator=(App&&) = delete;
 };

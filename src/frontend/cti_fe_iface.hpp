@@ -203,10 +203,10 @@ public:
     removeManifest(cti_manifest_id_t id) { m_manifest_registry.erase(id); }
 
 public: // Constructor/destructors
-    FE_iface()
-    : m_app_registry{}, m_session_registry{}, m_manifest_registry{}
-    { }
+    FE_iface();
     ~FE_iface() = default;
     FE_iface(const FE_iface&) = delete;
     FE_iface& operator=(const FE_iface&) = delete;
+    FE_iface(FE_iface&&) = delete;
+    FE_iface& operator=(FE_iface&&) = delete;
 };

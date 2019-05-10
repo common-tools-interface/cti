@@ -95,6 +95,12 @@ FE_iface::get_error_str()
     return const_cast<const char *>(_cti_err_str);
 }
 
+FE_iface::FE_iface()
+: m_app_registry{}
+, m_session_registry{}
+, m_manifest_registry{}
+{ }
+
 /*******************************
 * C API defined functions below
 *******************************/
