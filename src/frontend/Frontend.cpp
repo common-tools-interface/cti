@@ -188,10 +188,11 @@ Frontend::findBaseDir(void)
 void
 Frontend::addFileCleanup(std::string file)
 {
-    const std::string cleanupFilePath(m_cfg_dir + "/." + file);
+    std::string cleanupFilePath{m_cfg_dir + "/." + file};
     auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
     pid_t pid = getpid();
     cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
+    m_cleanup_files.push_back(std::move(cleanupFilePath));
 }
 
 // BUG 819725:
@@ -369,7 +370,9 @@ Frontend::Frontend()
 Frontend::~Frontend()
 {
     // Unlink the cleanup files since we are exiting normally
-
+    for (auto&& file : m_cleanup_files) {
+        unlink(file.c_str());
+    }
 }
 
 std::weak_ptr<Session>

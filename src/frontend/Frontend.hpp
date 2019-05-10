@@ -95,6 +95,8 @@ private: // Private data members usable only by the base Frontend
     std::string         m_ld_audit_path;
     std::string         m_fe_daemon_path;
     std::string         m_be_daemon_path;
+    // Cleanup files
+    std::vector<std::string>    m_cleanup_files;
 
 protected: // Protected data members that belong to any frontend
     struct passwd       m_pwd;
