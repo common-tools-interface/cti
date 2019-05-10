@@ -73,7 +73,7 @@ Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
         // Need access to FE object
         auto sess = getOwningSession();
         auto app = sess->getOwningApp();
-        auto& fe = app->getFrontend();
+        auto&& fe = app->getFrontend();
         addLibDeps(filePath, fe.getLdAuditPath());
     }
 }
@@ -113,7 +113,7 @@ Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
     if (depsPolicy == DepsPolicy::Stage) {
         // Need access to FE object
         auto app = sess->getOwningApp();
-        auto& fe = app->getFrontend();
+        auto&& fe = app->getFrontend();
         addLibDeps(filePath, fe.getLdAuditPath());
     }
 }
