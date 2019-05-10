@@ -155,7 +155,7 @@ public: // Public interface to generic WLM-agnostic capabilities
 protected: // Constructor/destructors
     Frontend();
 public:
-    virtual ~Frontend() = default;
+    virtual ~Frontend();
     Frontend(const Frontend&) = delete;
     Frontend& operator=(const Frontend&) = delete;
     Frontend(Frontend&&) = delete;

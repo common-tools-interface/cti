@@ -60,12 +60,15 @@ public: // interface
 public: // Constructor/destructors
     // create archive on disk and set format
     Archive(const std::string& archivePath);
-
     // remove archive from disk
     ~Archive() {
         unlink(m_archivePath.c_str());
     }
-
+    // Explicitly delete move/copy constructors.
+    // Archive has file ownership on disk.
+    // We must ensure that gets cleaned up during destructor.
     Archive(const Archive&) = delete;
     Archive& operator=(const Archive&) = delete;
+    Archive(Archive&&) = delete;
+    Archive& operator=(Archive&&) = delete;
 };
