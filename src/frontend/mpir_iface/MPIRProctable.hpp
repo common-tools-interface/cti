@@ -1,8 +1,7 @@
 /******************************************************************************\
- * cti_error.h - Global error handling interface. This should be used on the
- *               frontend only.
+ * MPIRProctable.hpp
  *
- * Copyright 2013 Cray Inc.  All Rights Reserved.
+ * Copyright 2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -11,22 +10,14 @@
  * in any form.
  *
  ******************************************************************************/
+#pragma once
 
-#ifndef _CTI_ERROR_H
-#define _CTI_ERROR_H
+#include <string>
+#include <vector>
 
-#include <stdarg.h>
+struct MPIRProctableElem {
+	pid_t pid;
+	std::string hostname;
+};
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void	_cti_set_error(const char *, ...);
-const char *cti_error_str(void); // expose for c++ wrappers during development
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* _CTI_ERROR_H */
-
+using MPIRProctable = std::vector<MPIRProctableElem>;

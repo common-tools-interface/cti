@@ -1,10 +1,12 @@
 /******************************************************************************\
- * cti_defs.h - A header file for common defines.
+ * cti_defs.h - A header file for common compile time defines.
  *
  * NOTE: These defines are used throughout the internal code base and are all
  *       placed inside this file to make modifications due to WLM changes
  *       easier. The environment variables here should match those found in the
  *       public cray_tools_be.h and cray_tools_fe.h headers.
+ *
+ *       ONLY PUT COMPILE TIME CONSTANTS IN THIS FILE!!!
  *
  * Copyright 2013-2019 Cray Inc.    All Rights Reserved.
  *
@@ -19,6 +21,14 @@
 #ifndef _CTI_DEFS_H
 #define _CTI_DEFS_H
 
+// We use macros defined by configure in this file. So we need to get access to
+// config.h. Since that doesn't have good macro guards, and this file does, it
+// is important to include cti_defs.h in every source file. This ensures configure
+// macros get pulled in as well.
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif /* HAVE_CONFIG_H */
+
 #include <limits.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -27,10 +37,12 @@
 extern "C" {
 #endif
 
-/*
- *  This enum enumerates the various attributes that
- *  can be set by cti_setAttribute.
- */
+/*******************************************************************************
+** Type definitions required by the c interface
+*******************************************************************************/
+
+// This enum enumerates the various attributes that
+// can be set by cti_setAttribute.
 enum cti_attr_type
 {
     CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library
@@ -40,6 +52,18 @@ enum cti_attr_type
                                     // Defaults to 1.
 };
 typedef enum cti_attr_type  cti_attr_type;
+
+typedef struct
+{
+        char *  hostname;
+        int     numPes;
+} cti_host_t;
+
+typedef struct
+{
+    int            numHosts;
+    cti_host_t *   hosts;
+} cti_hostsList_t;
 
 // WLM identifier. This is system specific. Right now only one WLM at a time
 // is supported.
@@ -60,16 +84,24 @@ enum cti_be_wlm_type
 };
 typedef enum cti_be_wlm_type    cti_be_wlm_type;
 
+// Internal identifier used by callers to interface with the library. When they
+// request functionality that operates on applications, they must pass this
+// identifier in.
+typedef int64_t cti_app_id_t;
+// file transfers
+typedef int64_t cti_session_id_t;
+typedef int64_t cti_manifest_id_t;
+
 /*******************************************************************************
 ** Generic defines
 *******************************************************************************/
 #define CTI_BUF_SIZE            4096
+#define CTI_ERR_STR_SIZE        1024
 #define DEFAULT_ERR_STR         "Unknown CTI error"
 
 /*******************************************************************************
 ** Frontend defines relating to the login node
 *******************************************************************************/
-#define CTI_OVERWATCH_BINARY    "cti_overwatch"                     // name of the overwatch binary
 #define DEFAULT_SIG             9                                   // default signal value to use
 #define LD_AUDIT_LIB_NAME       "libaudit.so"                       // ld audit library
 #define OUTPUT_REDIRECT_BINARY  "cti_splice_out_err"                // name of the output redirection binary
@@ -119,6 +151,13 @@ typedef struct
 {
     pid_t   pid;        // pid_t of this PE
 }   slurmPidFile_t;
+
+// Represents a slurm app
+typedef struct
+{
+    uint32_t    jobid;
+    uint32_t    stepid;
+} cti_srunProc_t;
 
 typedef slurmLayoutFileHeader_t cti_layoutFileHeader_t;
 typedef slurmLayoutFile_t       cti_layoutFile_t;
@@ -178,84 +217,20 @@ typedef slurmPidFile_t          cti_pidFile_t;
 
 #ifdef __cplusplus
 }
-#endif
 
 /*
-** C++ only definitions below.
+** C++ only definitions used by frontend below.
 */
-#ifdef __cplusplus
+namespace cti {
 
-#include "useful/cti_argv.hpp"
-
-struct DaemonArgv : public cti::Argv {
-    using Option    = cti::Argv::Option;
-    using Parameter = cti::Argv::Parameter;
-
-    static constexpr Option Clean { "clean", 'c' };
-    static constexpr Option Help  { "help",  'h' };
-    static constexpr Option Debug { "debug",  1 };
-
-    static constexpr Parameter ApID           { "apid",      'a' };
-    static constexpr Parameter Binary         { "binary",    'b' };
-    static constexpr Parameter Directory      { "directory", 'd' };
-    static constexpr Parameter EnvVariable    { "env",       'e' };
-    static constexpr Parameter InstSeqNum     { "inst",      'i' };
-    static constexpr Parameter ManifestName   { "manifest",  'm' };
-    static constexpr Parameter ToolPath       { "path",      'p' };
-    static constexpr Parameter PMIAttribsPath { "apath",     't' };
-    static constexpr Parameter LdLibraryPath  { "ldlibpath", 'l' };
-    static constexpr Parameter WLMEnum        { "wlm",       'w' };
-
-    static constexpr GNUOption long_options[] = {
-        Clean, Help, Debug,
-        ApID, Binary, Directory, EnvVariable, InstSeqNum, ManifestName, ToolPath,
-            PMIAttribsPath, LdLibraryPath, WLMEnum,
-    long_options_done };
+// Default install directories
+static constexpr const char* const default_dir_locs[] = {
+    "/opt/cray/pe/cti/" CTI_RELEASE_VERSION,
+    "/opt/cray/cti/" CTI_RELEASE_VERSION,
+    nullptr
 };
 
-struct SattachArgv : public cti::Argv {
-    using Option    = cti::Argv::Option;
-    using Parameter = cti::Argv::Parameter;
-
-    static constexpr Option PrependWithTaskLabel { "label",    1 };
-    static constexpr Option DisplayLayout        { "layout",   2 };
-    static constexpr Option RunInPty             { "pty",      3 };
-    static constexpr Option QuietOutput          { "quiet",    4 };
-    static constexpr Option VerboseOutput        { "verbose",  5 };
-
-    static constexpr Parameter InputFilter  { "input-filter",  6 };
-    static constexpr Parameter OutputFilter { "output-filter", 7 };
-    static constexpr Parameter ErrorFilter  { "error-filter",  8 };
-
-
-    static constexpr GNUOption long_options[] = {
-        InputFilter, OutputFilter, ErrorFilter,
-        PrependWithTaskLabel, DisplayLayout, RunInPty, QuietOutput, VerboseOutput,
-    long_options_done };
-};
-
-// XXX: flaw in C++11 relating to static constexpr. can be removed in C++17
-#ifdef INSIDE_WORKAROUND_OBJ
-
-constexpr cti::Argv::GNUOption cti::Argv::long_options_done;
-
-using Option    = cti::Argv::Option;
-using Parameter = cti::Argv::Parameter;
-using SA        = SattachArgv;
-using DA        = DaemonArgv;
-
-constexpr Option            SA::PrependWithTaskLabel, SA::DisplayLayout, SA::RunInPty,
-                            SA::QuietOutput, SA::VerboseOutput;
-constexpr Parameter         SA::InputFilter, SA::OutputFilter, SA::ErrorFilter;
-constexpr cti::Argv::GNUOption SA::long_options[];
-
-constexpr Option            DA::Clean, DA::Help, DA::Debug;
-constexpr Parameter         DA::ApID, DA::Binary, DA::Directory, DA::EnvVariable,
-                            DA::InstSeqNum, DA::ManifestName, DA::ToolPath,
-                            DA::PMIAttribsPath, DA::LdLibraryPath, DA::WLMEnum;
-constexpr cti::Argv::GNUOption DA::long_options[];
-
-#endif /* INSIDE_WORKAROUND_OBJ */
+} /* namespace cti */
 
 #endif /* __cpluplus */
 

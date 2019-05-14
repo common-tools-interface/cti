@@ -35,10 +35,10 @@ public: // Constructor/destructor
 public: // inherited interface
 	cti_wlm_type getWLMType() const override { return CTI_WLM_SSH; }
 
-	std::unique_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+	std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 		CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
-	std::unique_ptr<App> registerJob(size_t numIds, ...) override;
+	std::weak_ptr<App> registerJob(size_t numIds, ...) override;
 
 	std::string getHostname() const override;
 
@@ -59,28 +59,36 @@ public: // ssh specific interface
 	std::string getLauncherName();
 
 	// use MPIR proctable to retrieve node / host information about a job
-	StepLayout fetchStepLayout(MPIRInstance::ProcTable const& procTable);
+	StepLayout fetchStepLayout(MPIRProctable const& procTable);
 
 	// Use a SSH Step Layout to create the SSH Node Layout file inside the staging directory, return the new path.
 	std::string createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath);
 
 	// Use an MPIR ProcTable to create the SSH PID List file inside the staging directory, return the new path.
-	std::string createPIDListFile(MPIRInstance::ProcTable const& procTable, std::string const& stagePath);
+	std::string createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath);
 
 	// Launch an app under MPIR control and hold at barrier.
 	std::unique_ptr<MPIRInstance> launchApp(const char * const launcher_argv[],
 		int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+
+public: // constructor / destructor interface
+    GenericSSHFrontend() = default;
+    ~GenericSSHFrontend() = default;
+    GenericSSHFrontend(const GenericSSHFrontend&) = delete;
+    GenericSSHFrontend& operator=(const GenericSSHFrontend&) = delete;
+    GenericSSHFrontend(GenericSSHFrontend&&) = delete;
+    GenericSSHFrontend& operator=(GenericSSHFrontend&&) = delete;
 };
 
 
 /* Types used here */
 
-class GenericSSHApp : public App
+class GenericSSHApp final : public App
 {
 private: // variables
 	pid_t      m_launcherPid; // job launcher PID
 	GenericSSHFrontend::StepLayout m_stepLayout; // SSH Layout of job step
-	bool       m_dlaunchSent; // Have we already shipped over the dlaunch utility?
+	bool       m_beDaemonSent; // Have we already shipped over the backend daemon?
 
 	std::unique_ptr<MPIRInstance> m_launcherInstance; // MPIR instance handle to release startup barrier
 
@@ -88,21 +96,6 @@ private: // variables
 	std::string m_attribsPath; // Backend Cray-specific directory
 	std::string m_stagePath;   // Local directory where files are staged before transfer to BE
 	std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
-
-private: // member helpers
-	GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance);
-
-public: // constructor / destructor interface
-	// register case
-	GenericSSHApp(pid_t launcherPid);
-	// attach case
-	GenericSSHApp(std::unique_ptr<MPIRInstance>&& launcherInstance);
-	// launch case
-	GenericSSHApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-		const char *inputFile, const char *chdirPath, const char * const env_list[]);
-
-	GenericSSHApp(GenericSSHApp&& moved);
-	~GenericSSHApp();
 
 public: // app interaction interface
 	std::string getJobId()            const override;
@@ -124,4 +117,20 @@ public: // app interaction interface
 
 public: // ssh specific interface
 	/* none */
+
+private: // delegated constructor
+	GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance);
+public: // constructor / destructor interface
+	// register case
+	GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid);
+	// attach case
+	GenericSSHApp(GenericSSHFrontend& fe, std::unique_ptr<MPIRInstance>&& launcherInstance);
+	// launch case
+	GenericSSHApp(GenericSSHFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+		const char *inputFile, const char *chdirPath, const char * const env_list[]);
+	~GenericSSHApp();
+	GenericSSHApp(const GenericSSHApp&) = delete;
+    GenericSSHApp& operator=(const GenericSSHApp&) = delete;
+    GenericSSHApp(GenericSSHApp&&) = delete;
+    GenericSSHApp& operator=(GenericSSHApp&&) = delete;
 };

@@ -112,21 +112,17 @@ for f in "${liblist[@]}" "${exelist[@]}" ; do
              $2 != "libcrypto.so.1(libcrypto.so.10)(64bit)" && \
              $2 != "libcrypto.so.1(OPENSSL_1.0.1_EC)(64bit)") {
                     sub(/$/, "()'$lib64'", $2) ;
-		    sub(/0:/, "()'$lib64'", $2);
-		    sub(/:/, "()'$lib64'", $2);
                     print $2;
                 }
             }
 	}
 	/^Version References:$/ { START=2; }
 	(START==2) && /required from/ {
-	    sub(/0:/, "", $3);
 	    sub(/:/, "", $3);
 	    LIBNAME=$3;
 	}
 	(START==2) && (LIBNAME!="") && ($4!="") {
-	    sub(/0:/, "", $4);
-	    sub(/:/, "", $4);
+	    sub(/(0:)/, "", $4);
 	    
 	    if ( $4 != "libcrypto.so.1" && \
             $4 != "OPENSSL_1.0.0" && \

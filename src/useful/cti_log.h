@@ -42,6 +42,8 @@ int _cti_hook_stdoe(cti_log_t* log_file);
 #include <string>
 #include <memory>
 
+namespace cti {
+
 class Logger
 {
 private: // types
@@ -67,6 +69,8 @@ public: // interface
 		}
 	}
 };
+
+} /* namespace cti */
 
 #endif /* __cplusplus */
 

@@ -11,6 +11,9 @@
  *
  ******************************************************************************/
 
+// This pulls in config.h
+#include "cti_defs.h"
+
 #include <dirent.h>
 #include <string.h>
 
@@ -29,26 +32,6 @@ EntryPtr& Archive::freshEntry() {
 	} else {
 		throw std::runtime_error(m_archivePath + " tried to add a path after finalizing");
 	}
-}
-
-Archive::Archive(const std::string& archivePath) :
-	m_archPtr{archive_write_new(), archive_write_free},
-	m_entryScratchpad{archive_entry_new(), archive_entry_free},
-	m_archivePath{archivePath} {
-
-	if (m_archPtr == nullptr) {
-		throw std::runtime_error("archive_write_new_failed");
-	}
-
-	if (archive_write_set_format_gnutar(m_archPtr.get()) != ARCHIVE_OK) {
-		throw std::runtime_error(archive_error_string(m_archPtr.get()));
-	}
-
-	// todo: block signals
-	if (archive_write_open_filename(m_archPtr.get(), m_archivePath.c_str()) != ARCHIVE_OK) {
-		throw std::runtime_error(archive_error_string(m_archPtr.get()));
-	}
-	// todo: unblock signals
 }
 
 static void archiveWriteRetry(struct archive* arch, struct archive_entry* entry) {
@@ -164,4 +147,24 @@ void Archive::addPath(const std::string& entryPath, const std::string& path) {
 	} else {
 		addFile(entryPath, path);
 	}
+}
+
+Archive::Archive(const std::string& archivePath)
+	: m_archPtr{archive_write_new(), archive_write_free}
+	, m_entryScratchpad{archive_entry_new(), archive_entry_free}
+	, m_archivePath{archivePath} {
+
+	if (m_archPtr == nullptr) {
+		throw std::runtime_error("archive_write_new_failed");
+	}
+
+	if (archive_write_set_format_gnutar(m_archPtr.get()) != ARCHIVE_OK) {
+		throw std::runtime_error(archive_error_string(m_archPtr.get()));
+	}
+
+	// todo: block signals
+	if (archive_write_open_filename(m_archPtr.get(), m_archivePath.c_str()) != ARCHIVE_OK) {
+		throw std::runtime_error(archive_error_string(m_archPtr.get()));
+	}
+	// todo: unblock signals
 }

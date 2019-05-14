@@ -11,9 +11,8 @@
  *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -34,8 +33,8 @@
 
 #include <unordered_map>
 
-#include "cti_defs.h"
-#include "cti_fe_iface.h"
+// Pull in manifest to properly define all the forward declarations
+#include "cti_transfer/Manifest.hpp"
 
 #include "GenericSSH/Frontend.hpp"
 
@@ -363,70 +362,59 @@ public: // Constructor/destructor
 	}
 };
 
-GenericSSHApp::GenericSSHApp(pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
-	: m_launcherPid { launcherPid }
-	, m_stepLayout  { GenericSSHFrontend::fetchStepLayout(launcherInstance->getProcTable()) }
-	, m_dlaunchSent { false }
-
-	, m_launcherInstance { std::move(launcherInstance) }
-
-	, m_toolPath    { SSH_TOOL_DIR }
-	, m_attribsPath { SSH_TOOL_DIR }
-	, m_stagePath   { cti::cstr::mkdtemp(std::string{_cti_getCfgDir() + "/" + SSH_STAGE_DIR}) }
-	, m_extraFiles  { GenericSSHFrontend::createNodeLayoutFile(m_stepLayout, m_stagePath) }
-
+GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
+    : App(fe)
+    , m_launcherPid { fe.Daemon().request_RegisterApp(launcherPid) }
+    , m_stepLayout  { fe.fetchStepLayout(launcherInstance->getProctable()) }
+    , m_beDaemonSent { false }
+    , m_launcherInstance { std::move(launcherInstance) }
+    , m_toolPath    { SSH_TOOL_DIR }
+    , m_attribsPath { SSH_TOOL_DIR }
+    , m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR}) }
+    , m_extraFiles  { fe.createNodeLayoutFile(m_stepLayout, m_stagePath) }
 {
-	// Ensure there are running nodes in the job.
-	if (m_stepLayout.nodes.empty()) {
-		throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
-	}
+    // Ensure there are running nodes in the job.
+    if (m_stepLayout.nodes.empty()) {
+        throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
+    }
 
-	// If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
-	if (m_launcherInstance) {
-		m_extraFiles.push_back(GenericSSHFrontend::createPIDListFile(m_launcherInstance->getProcTable(), m_stagePath));
-	}
-}
-
-GenericSSHApp::GenericSSHApp(GenericSSHApp&& moved)
-	: m_launcherPid { moved.m_launcherPid }
-	, m_stepLayout  { moved.m_stepLayout }
-	, m_dlaunchSent { moved.m_dlaunchSent }
-
-	, m_launcherInstance { std::move(moved.m_launcherInstance) }
-
-	, m_toolPath    { moved.m_toolPath }
-	, m_attribsPath { moved.m_attribsPath }
-	, m_stagePath   { moved.m_stagePath }
-	, m_extraFiles  { moved.m_extraFiles }
-{
-	// We have taken ownership of the staging path, so don't let moved delete the directory.
-	moved.m_stagePath.erase();
+    // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
+    if (m_launcherInstance) {
+        m_extraFiles.push_back(fe.createPIDListFile(m_launcherInstance->getProctable(), m_stagePath));
+    }
 }
 
 GenericSSHApp::~GenericSSHApp()
 {
-	// Delete the staging directory if it exists.
-	if (!m_stagePath.empty()) {
-		_cti_removeDirectory(m_stagePath.c_str());
-	}
+    // Delete the staging directory if it exists.
+    if (!m_stagePath.empty()) {
+        _cti_removeDirectory(m_stagePath.c_str());
+    }
+
+    // Inform the FE daemon that this App is going away
+    m_frontend.Daemon().request_DeregisterApp(m_launcherPid);
 }
 
 /* app instance creation */
 
-GenericSSHApp::GenericSSHApp(pid_t launcherPid)
-	: GenericSSHApp{launcherPid, nullptr}
+GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid)
+    : GenericSSHApp{fe, launcherPid, nullptr}
 {}
 
-GenericSSHApp::GenericSSHApp(std::unique_ptr<MPIRInstance>&& launcherInstance)
-	: GenericSSHApp
-		{ launcherInstance->getLauncherPid()
-		, std::move(launcherInstance)
-	}
+GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, std::unique_ptr<MPIRInstance>&& launcherInstance)
+    : GenericSSHApp
+        { fe
+        , launcherInstance->getLauncherPid()
+        , std::move(launcherInstance)
+        }
 {}
 
-GenericSSHApp::GenericSSHApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-	const char *inputFile, const char *chdirPath, const char * const env_list[])
-	: GenericSSHApp{ GenericSSHFrontend::launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list) }
+GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    const char *inputFile, const char *chdirPath, const char * const env_list[])
+    : GenericSSHApp
+        { fe
+        , fe.launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list)
+        }
 {}
 
 /* running app info accessors */
@@ -434,120 +422,119 @@ GenericSSHApp::GenericSSHApp(const char * const launcher_argv[], int stdout_fd, 
 std::string
 GenericSSHApp::getJobId() const
 {
-	return std::to_string(m_launcherPid);
+    return std::to_string(m_launcherPid);
 }
 
 std::string
 GenericSSHApp::getLauncherHostname() const
 {
-	throw std::runtime_error("not supported for WLM: getLauncherHostname");
+    throw std::runtime_error("not supported for WLM: getLauncherHostname");
 }
 
 std::vector<std::string>
 GenericSSHApp::getHostnameList() const
 {
-	std::vector<std::string> result;
-	// extract hostnames from each NodeLayout
-	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-		[](GenericSSHFrontend::NodeLayout const& node) { return node.hostname; });
-	return result;
+    std::vector<std::string> result;
+    // extract hostnames from each NodeLayout
+    std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
+        [](GenericSSHFrontend::NodeLayout const& node) { return node.hostname; });
+    return result;
 }
 
 std::vector<CTIHost>
 GenericSSHApp::getHostsPlacement() const
 {
-	std::vector<CTIHost> result;
-	// construct a CTIHost from each NodeLayout
-	std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-		[](GenericSSHFrontend::NodeLayout const& node) {
-			return CTIHost{node.hostname, node.pids.size()};
-		});
-	return result;
+    std::vector<CTIHost> result;
+    // construct a CTIHost from each NodeLayout
+    std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
+        [](GenericSSHFrontend::NodeLayout const& node) {
+            return CTIHost{node.hostname, node.pids.size()};
+        });
+    return result;
 }
 
 void
 GenericSSHApp::releaseBarrier()
 {
-	// release MPIR barrier if applicable
-	if (!m_launcherInstance) {
-		throw std::runtime_error("app not under MPIR control");
-	}
-	m_launcherInstance.reset();
+    // release MPIR barrier if applicable
+    if (!m_launcherInstance) {
+        throw std::runtime_error("app not under MPIR control");
+    }
+    m_launcherInstance.reset();
 }
 
 void
 GenericSSHApp::kill(int signal)
 {
-	// Connect through ssh to each node and send a kill command to every pid on that node
-	for (auto&& node : m_stepLayout.nodes) {
-		// kill -<sig> <pid> ... <pid>
-		cti::ManagedArgv killArgv
-			{ "kill"
-			, "-" + std::to_string(signal)
-		};
-		for (auto&& pid : node.pids) {
-			killArgv.add(std::to_string(pid));
-		}
+    // Connect through ssh to each node and send a kill command to every pid on that node
+    for (auto&& node : m_stepLayout.nodes) {
+        // kill -<sig> <pid> ... <pid>
+        cti::ManagedArgv killArgv
+            { "kill"
+            , "-" + std::to_string(signal)
+        };
+        for (auto&& pid : node.pids) {
+            killArgv.add(std::to_string(pid));
+        }
 
-		// run remote kill command
-		SSHSession(node.hostname).executeRemoteCommand(killArgv.get(), nullptr);
-	}
+        // run remote kill command
+        SSHSession(node.hostname).executeRemoteCommand(killArgv.get(), nullptr);
+    }
 }
 
 void
 GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
-	if (auto packageName = cti::move_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
-		auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
+    if (auto packageName = cti::move_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
+        auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
+        writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
-		// Send the package to each of the hosts using SCP
-		for (auto&& node : m_stepLayout.nodes) {
-			SSHSession(node.hostname).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-		}
-	} else {
-		throw std::runtime_error("_cti_pathToName failed");
-	}
+        // Send the package to each of the hosts using SCP
+        for (auto&& node : m_stepLayout.nodes) {
+            SSHSession(node.hostname).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+        }
+    } else {
+        throw std::runtime_error("_cti_pathToName failed");
+    }
 }
 
 void
 GenericSSHApp::startDaemon(const char* const args[])
 {
-	// sanity check
-	if (args == nullptr) {
-		throw std::runtime_error("args array is empty!");
-	}
+    // sanity check
+    if (args == nullptr) {
+        throw std::runtime_error("args array is empty!");
+    }
 
-	// Transfer the dlaunch binary to the backends if it has not yet been transferred
-	if (!m_dlaunchSent) {
-		// Get the location of the daemon launcher
-		if (_cti_getDlaunchPath().empty()) {
-			throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
-		}
+    // Transfer the backend daemon to the backends if it has not yet been transferred
+    if (!m_beDaemonSent) {
+        // Get the location of the backend daemon
+        if (m_frontend.getBEDaemonPath().empty()) {
+            throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
+        }
+        shipPackage(m_frontend.getBEDaemonPath());
+        // set transfer to true
+        m_beDaemonSent = true;
+    }
 
-		shipPackage(_cti_getDlaunchPath());
+    // Use location of existing launcher binary on compute node
+    std::string const launcherPath{m_toolPath + "/" + CTI_BE_DAEMON_BINARY};
 
-		// set transfer to true
-		m_dlaunchSent = true;
-	}
+    // Prepare the launcher arguments
+    cti::ManagedArgv launcherArgv { launcherPath };
+    for (const char* const* arg = args; *arg != nullptr; arg++) {
+        launcherArgv.add(*arg);
+    }
 
-	// Use location of existing launcher binary on compute node
-	std::string const launcherPath{m_toolPath + "/" + CTI_DLAUNCH_BINARY};
-
-	// Prepare the launcher arguments
-	cti::ManagedArgv launcherArgv { launcherPath };
-	for (const char* const* arg = args; *arg != nullptr; arg++) {
-		launcherArgv.add(*arg);
-	}
-
-	// Execute the launcher on each of the hosts using SSH
-	auto const forwardedEnvVars = std::vector<char const*>{
-		DBG_LOG_ENV_VAR,
-		DBG_ENV_VAR,
-		nullptr
-	};
-	for (auto&& node : m_stepLayout.nodes) {
-		SSHSession(node.hostname).executeRemoteCommand(launcherArgv.get(), forwardedEnvVars.data());
-	}
+    // Execute the launcher on each of the hosts using SSH
+    auto const forwardedEnvVars = std::vector<char const*>{
+        DBG_LOG_ENV_VAR,
+        DBG_ENV_VAR,
+        nullptr
+    };
+    for (auto&& node : m_stepLayout.nodes) {
+        SSHSession(node.hostname).executeRemoteCommand(launcherArgv.get(), forwardedEnvVars.data());
+    }
 }
 
 /* SSH frontend implementation */
@@ -588,204 +575,217 @@ GenericSSHFrontend::~GenericSSHFrontend()
 	libssh2_exit();
 }
 
-std::unique_ptr<App>
+std::weak_ptr<App>
 GenericSSHFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-		CStr inputFile, CStr chdirPath, CArgArray env_list)
+        CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-	return std::make_unique<GenericSSHApp>(launcher_argv, stdout_fd, stderr_fd, inputFile,
-		chdirPath, env_list);
+    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(  *this,
+                                                                launcher_argv,
+                                                                stdout_fd,
+                                                                stderr_fd,
+                                                                inputFile,
+                                                                chdirPath,
+                                                                env_list));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
 }
 
-std::unique_ptr<App>
+std::weak_ptr<App>
 GenericSSHFrontend::registerJob(size_t numIds, ...)
 {
-	if (numIds != 1) {
-		throw std::logic_error("expecting single pid argument to register app");
-	}
+    if (numIds != 1) {
+        throw std::logic_error("expecting single pid argument to register app");
+    }
 
-	va_list idArgs;
-	va_start(idArgs, numIds);
+    va_list idArgs;
+    va_start(idArgs, numIds);
 
-	pid_t launcherPid = va_arg(idArgs, pid_t);
+    pid_t launcherPid = va_arg(idArgs, pid_t);
 
-	va_end(idArgs);
+    va_end(idArgs);
 
-	return std::make_unique<GenericSSHApp>(launcherPid);
+    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(*this, launcherPid));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
 }
 
 std::string
 GenericSSHFrontend::getHostname() const
 {
-	return cti::cstr::gethostname();
+    return cti::cstr::gethostname();
 }
 
-/* SSH frontend static implementations */
+/* SSH frontend implementations */
 
 std::string
 GenericSSHFrontend::getLauncherName()
 {
-	auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
-		if (char const* envValue = getenv(envVar)) {
-			return envValue;
-		}
-		return defaultValue;
-	};
+    auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
+        if (char const* envValue = getenv(envVar)) {
+            return envValue;
+        }
+        return defaultValue;
+    };
 
-	// Cache the launcher name result.
-	auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME, SRUN)};
-	return launcherName;
+    // Cache the launcher name result.
+    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME, SRUN)};
+    return launcherName;
 }
 
 GenericSSHFrontend::StepLayout
-GenericSSHFrontend::fetchStepLayout(MPIRInstance::ProcTable const& procTable)
+GenericSSHFrontend::fetchStepLayout(MPIRProctable const& procTable)
 {
-	StepLayout layout;
-	layout.numPEs = procTable.size();
+    StepLayout layout;
+    layout.numPEs = procTable.size();
 
-	size_t nodeCount = 0;
-	size_t peCount   = 0;
+    size_t nodeCount = 0;
+    size_t peCount   = 0;
 
-	std::unordered_map<std::string, size_t> hostNidMap;
+    std::unordered_map<std::string, size_t> hostNidMap;
 
-	// For each new host we see, add a host entry to the end of the layout's host list
-	// and hash each hostname to its index into the host list
-	for (auto&& proc : procTable) {
-		size_t nid;
-		auto const hostNidPair = hostNidMap.find(proc.hostname);
-		if (hostNidPair == hostNidMap.end()) {
-			// New host, extend nodes array, and fill in host entry information
-			nid = nodeCount++;
-			layout.nodes.push_back(NodeLayout
-				{ .hostname = proc.hostname
-				, .pids = {}
-				, .firstPE = peCount
-			});
-			hostNidMap[proc.hostname] = nid;
-		} else {
-			nid = hostNidPair->second;
-		}
+    // For each new host we see, add a host entry to the end of the layout's host list
+    // and hash each hostname to its index into the host list
+    for (auto&& proc : procTable) {
+        size_t nid;
+        auto const hostNidPair = hostNidMap.find(proc.hostname);
+        if (hostNidPair == hostNidMap.end()) {
+            // New host, extend nodes array, and fill in host entry information
+            nid = nodeCount++;
+            layout.nodes.push_back(NodeLayout
+                { .hostname = proc.hostname
+                , .pids = {}
+                , .firstPE = peCount
+            });
+            hostNidMap[proc.hostname] = nid;
+        } else {
+            nid = hostNidPair->second;
+        }
 
-		// add new pe to end of host's list
-		layout.nodes[nid].pids.push_back(proc.pid);
+        // add new pe to end of host's list
+        layout.nodes[nid].pids.push_back(proc.pid);
 
-		peCount++;
-	}
+        peCount++;
+    }
 
-	return layout;
+    return layout;
 }
 
 std::string
 GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& stepLayout, std::string const& stagePath)
 {
-	// How a SSH Node Layout File entry is created from a SSH Node Layout entry:
-	auto make_layoutFileEntry = [](NodeLayout const& node) {
-		// Ensure we have good hostname information.
-		auto const hostname_len = node.hostname.size() + 1;
-		if (hostname_len > sizeof(cti_layoutFile_t::host)) {
-			throw std::runtime_error("hostname too large for layout buffer");
-		}
+    // How a SSH Node Layout File entry is created from a SSH Node Layout entry:
+    auto make_layoutFileEntry = [](NodeLayout const& node) {
+        // Ensure we have good hostname information.
+        auto const hostname_len = node.hostname.size() + 1;
+        if (hostname_len > sizeof(cti_layoutFile_t::host)) {
+            throw std::runtime_error("hostname too large for layout buffer");
+        }
 
-		// Extract PE and node information from Node Layout.
-		auto layout_entry    = cti_layoutFile_t{};
-		layout_entry.PEsHere = node.pids.size();
-		layout_entry.firstPE = node.firstPE;
-		memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
+        // Extract PE and node information from Node Layout.
+        auto layout_entry    = cti_layoutFile_t{};
+        layout_entry.PEsHere = node.pids.size();
+        layout_entry.firstPE = node.firstPE;
+        memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
 
-		return layout_entry;
-	};
+        return layout_entry;
+    };
 
-	// Create the file path, write the file using the Step Layout
-	auto const layoutPath = std::string{stagePath + "/" + SSH_LAYOUT_FILE};
-	if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
+    // Create the file path, write the file using the Step Layout
+    auto const layoutPath = std::string{stagePath + "/" + SSH_LAYOUT_FILE};
+    if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
 
-		// Write the Layout header.
-		cti::file::writeT(layoutFile.get(), cti_layoutFileHeader_t
-			{ .numNodes = (int)stepLayout.nodes.size()
-		});
+        // Write the Layout header.
+        cti::file::writeT(layoutFile.get(), cti_layoutFileHeader_t
+            { .numNodes = (int)stepLayout.nodes.size()
+        });
 
-		// Write a Layout entry using node information from each SSH Node Layout entry.
-		for (auto const& node : stepLayout.nodes) {
-			cti::file::writeT(layoutFile.get(), make_layoutFileEntry(node));
-		}
+        // Write a Layout entry using node information from each SSH Node Layout entry.
+        for (auto const& node : stepLayout.nodes) {
+            cti::file::writeT(layoutFile.get(), make_layoutFileEntry(node));
+        }
 
-		return layoutPath;
-	} else {
-		throw std::runtime_error("failed to open layout file path " + layoutPath);
-	}
+        return layoutPath;
+    } else {
+        throw std::runtime_error("failed to open layout file path " + layoutPath);
+    }
 }
 
 std::string
-GenericSSHFrontend::createPIDListFile(MPIRInstance::ProcTable const& procTable, std::string const& stagePath)
+GenericSSHFrontend::createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath)
 {
-	auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
-	if (auto const pidFile = cti::file::open(pidPath, "wb")) {
+    auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
+    if (auto const pidFile = cti::file::open(pidPath, "wb")) {
 
-		// Write the PID List header.
-		cti::file::writeT(pidFile.get(), slurmPidFileHeader_t
-			{ .numPids = (int)procTable.size()
-		});
+        // Write the PID List header.
+        cti::file::writeT(pidFile.get(), slurmPidFileHeader_t
+            { .numPids = (int)procTable.size()
+        });
 
-		// Write a PID entry using information from each MPIR ProcTable entry.
-		for (auto&& elem : procTable) {
-			cti::file::writeT(pidFile.get(), slurmPidFile_t
-				{ .pid = elem.pid
-			});
-		}
+        // Write a PID entry using information from each MPIR ProcTable entry.
+        for (auto&& elem : procTable) {
+            cti::file::writeT(pidFile.get(), slurmPidFile_t
+                { .pid = elem.pid
+            });
+        }
 
-		return pidPath;
-	} else {
-		throw std::runtime_error("failed to open PID file path " + pidPath);
-	}
+        return pidPath;
+    } else {
+        throw std::runtime_error("failed to open PID file path " + pidPath);
+    }
 }
 
 std::unique_ptr<MPIRInstance>
 GenericSSHFrontend::launchApp(const char * const launcher_argv[],
-		int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[])
+        int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
-	// Open input file (or /dev/null to avoid stdin contention).
-	auto openFileOrDevNull = [&](char const* inputFile) {
-		int input_fd = -1;
-		if (inputFile == nullptr) {
-			inputFile = "/dev/null";
-		}
-		errno = 0;
-		input_fd = open(inputFile, O_RDONLY);
-		if (input_fd < 0) {
-			throw std::runtime_error("Failed to open input file " + std::string(inputFile) +": " + std::string(strerror(errno)));
-		}
+    // Open input file (or /dev/null to avoid stdin contention).
+    auto openFileOrDevNull = [&](char const* inputFile) {
+        int input_fd = -1;
+        if (inputFile == nullptr) {
+            inputFile = "/dev/null";
+        }
+        errno = 0;
+        input_fd = open(inputFile, O_RDONLY);
+        if (input_fd < 0) {
+            throw std::runtime_error("Failed to open input file " + std::string(inputFile) +": " + std::string(strerror(errno)));
+        }
 
-		return input_fd;
-	};
+        return input_fd;
+    };
 
-	// Get the launcher path from CTI environment variable / default.
-	if (auto const launcher_path = cti::move_pointer_ownership(_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr), std::free)) {
+    // Get the launcher path from CTI environment variable / default.
+    if (auto const launcher_path = cti::move_pointer_ownership(_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
-		/* construct argv array & instance*/
-		std::vector<std::string> launcherArgv{launcher_path.get()};
-		for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-			launcherArgv.emplace_back(*arg);
-		}
+        /* construct argv array & instance*/
+        std::vector<std::string> launcherArgv{launcher_path.get()};
+        for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+            launcherArgv.emplace_back(*arg);
+        }
 
-		/* env_list null-terminated strings in format <var>=<val>*/
-		std::vector<std::string> envVars;
-		if (env_list != nullptr) {
-			for (const char* const* arg = env_list; *arg != nullptr; arg++) {
-				envVars.emplace_back(*arg);
-			}
-		}
+        /* env_list null-terminated strings in format <var>=<val>*/
+        std::vector<std::string> envVars;
+        if (env_list != nullptr) {
+            for (const char* const* arg = env_list; *arg != nullptr; arg++) {
+                envVars.emplace_back(*arg);
+            }
+        }
 
-		// redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
-		// note: when using SRUN as launcher, this output redirection doesn't work.
-		// see CraySLURM's implementation (need to use SATTACH after launch)
-		std::map<int, int> remapFds {
-			{ openFileOrDevNull(inputFile), STDIN_FILENO }
-		};
-		if (stdout_fd >= 0) { remapFds[stdout_fd] = STDOUT_FILENO; }
-		if (stderr_fd >= 0) { remapFds[stderr_fd] = STDERR_FILENO; }
+        // redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
+        // note: when using SRUN as launcher, this output redirection doesn't work.
+        // see CraySLURM's implementation (need to use SATTACH after launch)
+        std::map<int, int> remapFds {
+            { openFileOrDevNull(inputFile), STDIN_FILENO }
+        };
+        if (stdout_fd >= 0) { remapFds[stdout_fd] = STDOUT_FILENO; }
+        if (stderr_fd >= 0) { remapFds[stderr_fd] = STDERR_FILENO; }
 
-		// Launch program under MPIR control.
-		return std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
-	} else {
-		throw std::runtime_error("Failed to find launcher in path: " + GenericSSHFrontend::getLauncherName());
-	}
+        // Launch program under MPIR control.
+        return std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
+    } else {
+        throw std::runtime_error("Failed to find launcher in path: " + GenericSSHFrontend::getLauncherName());
+    }
 }

@@ -1,7 +1,7 @@
 /******************************************************************************\
  * Inferior.cpp
  *
- * Copyright 2018 Cray Inc.  All Rights Reserved.
+ * Copyright 2018-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -10,6 +10,9 @@
  * in any form.
  *
  ******************************************************************************/
+
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include "Inferior.hpp"
 
@@ -35,7 +38,7 @@ stop_on_breakpoint(Dyninst::ProcControlAPI::Event::const_ptr genericEv) {
 /* inferior implementations */
 
 Inferior::Inferior(std::string const& launcher,
-	std::vector<std::string> const& launcherArgv, 
+	std::vector<std::string> const& launcherArgv,
 	std::vector<std::string> const& envVars,
 	std::map<int, int> const& remapFds)
 	: m_symtab{make_Symtab(launcher), Symtab::closeSymtab}

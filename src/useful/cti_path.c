@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_path.c - Functions relating to searching and setting path variables.
  *
- * Copyright 2011-2017 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -11,9 +11,8 @@
  *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -40,7 +39,7 @@
  * It is the responsiblity of the caller to free the returned buffer when done.
  */
 char *
-_cti_pathFind(const char *file, const char *envPath) 
+_cti_pathFind(const char *file, const char *envPath)
 {
 	struct stat stat_buf;
 	char    buf[PATH_MAX];
@@ -50,15 +49,15 @@ _cti_pathFind(const char *file, const char *envPath)
 	char    *savePtr = NULL;
 	char    *retval;
 
-	if (file == NULL) 
+	if (file == NULL)
 	{
 		return NULL;
 	}
 
 	// Check for possible relative or absolute path
-	if (file[0] == '.' || file[0] == '/') 
+	if (file[0] == '.' || file[0] == '/')
 	{
-		if (stat(file, &stat_buf) == 0) 
+		if (stat(file, &stat_buf) == 0)
 		{
 			// stat resolves symbolic links
 			if (!S_ISREG(stat_buf.st_mode))
@@ -69,14 +68,14 @@ _cti_pathFind(const char *file, const char *envPath)
 			{
 				return strdup(file);
 			}
-		} else 
+		} else
 		{
 			// can't access file
 			return NULL;
 		}
 	}
 
-	if (envPath == NULL) 
+	if (envPath == NULL)
 	{
 		// default to using PATH
 		envPath = "PATH";
@@ -95,12 +94,12 @@ _cti_pathFind(const char *file, const char *envPath)
 	*/
 	// grab the first p_entry in the path
 	p_entry = strtok_r(path, ":", &savePtr);
-	while (p_entry != NULL) 
+	while (p_entry != NULL)
 	{
 		// create the full path string
 		snprintf(buf, PATH_MAX+1, "%s/%s", p_entry, file);
 		// check to see if we can stat it
-		if (stat(buf, &stat_buf) == 0) 
+		if (stat(buf, &stat_buf) == 0)
 		{
 			// we can stat it so make sure its a regular file.
 			if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
@@ -116,7 +115,7 @@ _cti_pathFind(const char *file, const char *envPath)
 	}
 
 	free(path);
-	
+
 	// not found
 	return NULL;
 }
@@ -148,11 +147,11 @@ _cti_libFind(const char *file)
 	FILE *			fp;
 	char *			base;
 	char *			retval;
-	
+
 	/* Check for possible relative or absolute path */
-	if (file[0] == '.' || file[0] == '/') 
+	if (file[0] == '.' || file[0] == '/')
 	{
-		if (stat(file, &stat_buf) == 0) 
+		if (stat(file, &stat_buf) == 0)
 		{
 			if (!S_ISREG(stat_buf.st_mode))
 			{
@@ -162,7 +161,7 @@ _cti_libFind(const char *file)
 			{
 				return strdup(file);
 			}
-		} else 
+		} else
 		{
 			/* can't access file */
 			return NULL;
@@ -171,23 +170,23 @@ _cti_libFind(const char *file)
 
 	/*
 	* Search LD_LIBRARY_PATH first
-	*/	
+	*/
 	if ((tmp = getenv("LD_LIBRARY_PATH")) != NULL)
 	{
 		path = strdup(tmp);
-	
+
 		/*
 		* Start searching the colon-delimited PATH, prepending each
 		* directory and checking to see if stat succeeds
 		*/
 		// grab the first p_entry in the path
 		p_entry = strtok_r(path, ":", &savePtr);
-		while (p_entry != NULL) 
+		while (p_entry != NULL)
 		{
 			// create the full path string
 			snprintf(buf, PATH_MAX+1, "%s/%s", p_entry, file);
 			// check to see if we can stat it
-			if (stat(buf, &stat_buf) == 0) 
+			if (stat(buf, &stat_buf) == 0)
 			{
 				// we can stat it so make sure its a regular file.
 				if ((stat_buf.st_mode & S_IFMT) == S_IFREG)
@@ -199,8 +198,8 @@ _cti_libFind(const char *file)
 			}
 			// grab the next p_entry in the path
 			p_entry = strtok_r(NULL, ":", &savePtr);
-		}	
-		
+		}
+
 		free(path);
 	}
 
@@ -226,7 +225,7 @@ _cti_libFind(const char *file)
 			{
 				res[len-1] = '\0';
 			}
-			
+
 			// check to see if the basename of the result matches our file
 		    if ((base = _cti_pathToName(res)) != NULL)
 			{
@@ -262,24 +261,24 @@ _cti_libFind(const char *file)
 	*/
 	extraPath = strdup(EXTRA_LIBRARY_PATH);
 	p_entry = strtok_r(extraPath, ":", &savePtr);
-	while (p_entry != NULL) 
+	while (p_entry != NULL)
 	{
 		sprintf(buf, "%s/%s", p_entry, file);
-		if (stat(buf, &stat_buf) == 0) 
+		if (stat(buf, &stat_buf) == 0)
 		{
 			// we can stat it so make sure its a regular file or sym link.
-			if (S_ISREG(stat_buf.st_mode)) 
+			if (S_ISREG(stat_buf.st_mode))
 			{
 				retval = strdup(buf);
 				free(extraPath);
 				return retval;
 			}
-		} 
+		}
 		p_entry = strtok_r(NULL, ":", &savePtr);
 	}
-	
+
 	free(extraPath);
-	
+
 	// not found
 	return NULL;
 }
@@ -288,7 +287,7 @@ _cti_libFind(const char *file)
  * Set the path directory to be PATH and LD_LIBRARY_PATH.
  *
  * Also, chdir to the path dir so that files created in "./"
- * have a writable home. This addresses the fact that /tmp 
+ * have a writable home. This addresses the fact that /tmp
  * can not be guaranteed to be writable.
  */
 int
@@ -296,50 +295,50 @@ _cti_adjustPaths(const char *path, const char* libpath)
 {
 	struct stat statbuf;
 	char *binpath = NULL;
-	
+
 	// sanity check
 	if (path == NULL)
 		return 1;
-	
+
 	// stat the directory to get its current perms
 	if (stat(path, &statbuf) == -1)
 		return 1;
-	
+
 	// Relax permissions to ensure we can write to this directory
 	// use the existing perms for group and global settings
 	if (chmod(path, statbuf.st_mode | S_IRWXU) != 0)
 		return 1;
-		
+
 	// change the working directory to path
 	if (chdir(path) != 0)
 		return 1;
-	
+
 	if (asprintf(&binpath, "%s/bin", path) <= 0)
 		return 1;
-	
+
 	// set path to the PATH variable
 	if (setenv("PATH", binpath, 1) != 0)
 	{
 		free(binpath);
 		return 1;
 	}
-	
+
 	free(binpath);
-	
+
 	if (libpath == NULL) {
 		if (asprintf(&libpath, "%s/lib", path) <= 0)
 			return 1;
 	}
-	
+
 	// set path to the LD_LIBRARY_PATH variable
 	if (setenv("LD_LIBRARY_PATH", libpath, 1) != 0)
 	{
 		free(libpath);
 		return 1;
 	}
-	
+
 	free(libpath);
-	
+
 	return 0;
 }
 
@@ -348,14 +347,14 @@ char *
 _cti_pathToName(const char *path)
 {
 	char *  end;
-	
+
 	// locate the last instance of '/' in the path
 	end = strrchr(path, '/');
-	
+
 	// sanity check
 	if (end == NULL)
 		return NULL;
-	
+
 	// increment end to point one char past the final '/'
 	// and strdup from that point to the null term
 	return strdup(++end);
@@ -367,17 +366,17 @@ _cti_pathToDir(const char *path)
 {
 	char *  end;
 	char * result = strdup(path);
-	
+
 	// locate the last instance of '/' in the path
 	end = strrchr(path, '/');
-	
+
 	// sanity check
 	if (end == NULL)
 		return NULL;
 
 	//End the string just before the final slash
 	result[end-path] = '\0';
-	
+
 	return result;
 }
 
@@ -396,14 +395,14 @@ _cti_removeDirectory(const char *path)
 		//_cti_set_error("_cti_removeDirectory: invalid args.");
 		return 1;
 	}
-	
+
 	// open the directory
 	if ((dir = opendir(path)) == NULL)
 	{
 		//_cti_set_error("_cti_removeDirectory: Could not opendir %s.", path);
 		return 1;
 	}
-	
+
 	// Recurse over every file in the directory
 	while ((d = readdir(dir)) != NULL)
 	{
@@ -417,7 +416,7 @@ _cti_removeDirectory(const char *path)
 					continue;
 				}
 				break;
-				
+
 			case 2:
 				if (strcmp(d->d_name, "..") == 0)
 				{
@@ -425,11 +424,11 @@ _cti_removeDirectory(const char *path)
 					continue;
 				}
 				break;
-			
+
 			default:
 				break;
 		}
-	
+
 		// create the full path name
 		if (asprintf(&name_path, "%s/%s", path, d->d_name) <= 0)
 		{
@@ -437,7 +436,7 @@ _cti_removeDirectory(const char *path)
 			closedir(dir);
 			return 1;
 		}
-		
+
 		// stat the file
 		if (stat(name_path, &statbuf) == -1)
 		{
@@ -446,7 +445,7 @@ _cti_removeDirectory(const char *path)
 			free(name_path);
 			return 1;
 		}
-		
+
 		// if this is a directory we need to recursively call this function
 		if (S_ISDIR(statbuf.st_mode))
 		{
@@ -471,16 +470,16 @@ _cti_removeDirectory(const char *path)
 		// done with this file
 		free(name_path);
 	}
-	
+
 	// done with the directory
 	closedir(dir);
-	
+
 	// remove the directory
 	if (remove(path))
 	{
 		//_cti_set_error("_cti_removeDirectory: Could not remove %s.", path);
 		return 1;
 	}
-	
+
 	return 0;
 }

@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 
 #include <sstream>
 #include <streambuf>
@@ -68,9 +69,8 @@ protected:
 	const int fd;
 };
 
-/* Pipe - create and track closed ends of pipe */
-class Pipe {
-private:
+class FdPair {
+protected:
 	enum Ends { ReadEnd = 0, WriteEnd = 1 };
 	bool readOpened = false;
 	bool writeOpened = false;
@@ -82,16 +82,13 @@ public:
 	static const int stdout = 1;
 	static const int stderr = 2;
 
-	Pipe(int flags = 0) {
-		if (pipe2(fds, flags)) {
-			throw std::runtime_error("Pipe error");
-		}
+	FdPair()
+		: readOpened{false}
+		, writeOpened{false}
+		, fds{-1, -1}
+	{}
 
-		readOpened = true;
-		writeOpened = true;
-	}
-
-	~Pipe() {
+	~FdPair() {
 		if (readOpened) {
 			close(fds[ReadEnd]);
 		}
@@ -122,6 +119,37 @@ public:
 	const int getReadFd() { return fds[ReadEnd]; }
 	const int getWriteFd() { return fds[WriteEnd]; }
 };
+
+/* Pipe - create and track closed ends of pipe */
+class Pipe : public FdPair
+{
+public:
+	Pipe(int flags = 0)
+	{
+		if (pipe2(fds, flags)) {
+			throw std::runtime_error("Pipe error");
+		}
+
+		readOpened = true;
+		writeOpened = true;
+	}
+};
+
+/* SocketPair - create and track socket pair */
+class SocketPair : public FdPair
+{
+public:
+	SocketPair(int domain, int type, int protocol)
+	{
+		if (socketpair(domain, type, protocol, fds)) {
+			throw std::runtime_error("socketpair error");
+		}
+
+		readOpened = true;
+		writeOpened = true;
+	}
+};
+
 
 /* Execvp - fork / execvp a program and read its output as an istream */
 // Right now the only constructor is to read output as an istream, but this could

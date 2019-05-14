@@ -1,8 +1,7 @@
 /******************************************************************************\
- * cray_slurm_dl.c - Cray native slurm specific functions for the daemon
- *                   launcher.
+ * slurm_dl.c - Cluster slurm specific functions for the daemon launcher.
  *
- * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2016-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -12,47 +11,41 @@
  *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "cti_daemon.h"
 
 /* static prototypes */
-static int	_cti_cray_slurm_init(void);
-static int	_cti_cray_slurm_getNodeID(void);
+static int	_cti_slurm_init(void);
+static int	_cti_slurm_getNodeID(void);
 
 /* cray slurm wlm proto object */
-cti_wlm_proto_t		_cti_cray_slurm_wlmProto =
+cti_wlm_proto_t		_cti_slurm_wlmProto =
 {
-	CTI_WLM_CRAY_SLURM,			// wlm_type
-	_cti_cray_slurm_init,		// wlm_init
-	_cti_cray_slurm_getNodeID	// wlm_getNodeID
+	CTI_WLM_SSH,			// wlm_type
+	_cti_slurm_init,		// wlm_init
+	_cti_slurm_getNodeID	// wlm_getNodeID
 };
 
 /* functions start here */
 
 static int
-_cti_cray_slurm_init(void)
+_cti_slurm_init(void)
 {
-	// Set LC_ALL to POSIX - on Cray platforms this has been shown to significantly
-	// speed up load times if the tool daemon is invoking the shell.
-	if (setenv("LC_ALL", "POSIX", 1) < 0)
-	{
-		// failure
-		fprintf(stderr, "setenv failed\n");
-		return 1;
-	}
+	// NO-OP
 
 	return 0;
 }
 
 /******************************************************************************
-   _cti_cray_slurm_getNodeID - Gets the id for the current node
+   _cti_slurm_getNodeID - Gets the id for the current node
 
    Detail
         I return a unique id for the current node.
@@ -70,7 +63,7 @@ _cti_cray_slurm_init(void)
 
 */
 static int
-_cti_cray_slurm_getNodeID(void)
+_cti_slurm_getNodeID(void)
 {
 	static  int cachedNid = -1;
 	FILE *	nid_fd;
@@ -87,7 +80,7 @@ _cti_cray_slurm_getNodeID(void)
 	    // we expect this file to have a numeric value giving our current nid
 	    if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
 	    {
-		    fprintf(stderr, "%s: _cti_cray_slurm_getNodeID:fgets failed.\n", CTI_DLAUNCH_BINARY);
+		    fprintf(stderr, "%s: _cti_slurm_getNodeID:fgets failed.\n", CTI_BE_DAEMON_BINARY);
 		    return -1;
 	    }
 
@@ -106,7 +99,7 @@ _cti_cray_slurm_getNodeID(void)
 
         if (gethostname(hostname, HOST_NAME_MAX) < 0)
         {
-            fprintf(stderr, "%s", "_cti_cray_slurm_getNodeID: gethostname() failed!\n");
+            fprintf(stderr, "%s", "_cti_slurm_getNodeID: gethostname() failed!\n");
             return -1;
         }
 

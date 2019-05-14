@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_log.c - Functions used to create log files.
  *
- * Copyright 2011-2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -11,9 +11,8 @@
  *
  ******************************************************************************/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif /* HAVE_CONFIG_H */
+// This pulls in config.h
+#include "cti_defs.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -21,7 +20,6 @@
 
 #include <linux/limits.h>
 
-#include "cti_defs.h"
 #include "cti_log.h"
 
 cti_log_t*
@@ -30,11 +28,11 @@ _cti_create_log(char const* filename, int suffix)
 	char logfile[PATH_MAX];
 	char *envDir;
 	FILE *fp;
-	
+
 	// sanity checks
 	if (filename == (char *)NULL)
 		return (cti_log_t*)NULL;
-	
+
 	// determine where to create the log
 	if ((envDir = getenv(DBG_LOG_ENV_VAR)) == (char *)NULL)
 	{
@@ -42,19 +40,19 @@ _cti_create_log(char const* filename, int suffix)
 		// write to /tmp
 		envDir = "/tmp";
 	}
-	
+
 	// create the fullpath string to the log file using PATH_MAX plus a null term
 	snprintf(logfile, PATH_MAX+1, "%s/dbglog_%s.%d.log", envDir, filename, suffix);
-	
+
 	if ((fp = fopen(logfile, "a")) == (FILE *)NULL)
 	{
 		// could not open log file for writing at the specififed location
 		return (cti_log_t*)NULL;
 	}
-	
+
 	// set the log to be unbuffered - don't return error if this fails
 	setvbuf(fp, NULL, _IONBF, 0);
-	
+
 	return fp;
 }
 
