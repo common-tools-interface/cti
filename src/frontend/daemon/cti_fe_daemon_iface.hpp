@@ -283,7 +283,7 @@ public:
 
     // fe_daemon will attach to a binary and extract its proctable.
     // Write an MPIR attach request to pipe, return MPIR data
-    MPIRResult request_AttachMPIR(pid_t app_pid);
+    MPIRResult request_AttachMPIR(char const* launcher_path, pid_t launcher_pid);
 
     // fe_daemon will release a binary under mpir control from its breakpoint.
     // Write an mpir release request to pipe, verify response

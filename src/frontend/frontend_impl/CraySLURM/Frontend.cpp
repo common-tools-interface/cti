@@ -84,8 +84,8 @@ CraySLURMApp::~CraySLURMApp()
         _cti_removeDirectory(m_stagePath.c_str());
     }
 
-    // Inform the FE daemon that this App is going away
-    if (m_launcherPid) {
+    if (m_launcherPid > 0) {
+        // Inform the FE daemon that this App is going away
         m_frontend.Daemon().request_DeregisterApp(m_launcherPid);
     }
 }
@@ -93,12 +93,12 @@ CraySLURMApp::~CraySLURMApp()
 /* app instance creation */
 
 CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
-    : CraySLURMApp {
-        fe
-        , SrunInstance {
-            .mpirData = FE_daemon::MPIRResult {
-                FE_daemon::MPIRId{0} // mpir_id,
-                , pid_t{0} // launcher_id
+    : CraySLURMApp
+        { fe
+        , SrunInstance
+            { .mpirData = FE_daemon::MPIRResult
+                { FE_daemon::MPIRId{0} // mpir_id,
+                , pid_t{0} // launcher_pid
                 , jobId
                 , stepId
                 , MPIRProctable{} // proctable
@@ -643,8 +643,12 @@ CraySLURMFrontend::getSrunInfo(pid_t srunPid) {
         throw std::runtime_error("Invalid srunPid " + std::to_string(srunPid));
     }
 
-    // tell overwatch to extract information using MPIR attach
-    auto const mpirData = Daemon().request_AttachMPIR(srunPid);
-    Daemon().request_ReleaseMPIR(mpirData.mpir_id);
-    return SrunInfo { mpirData.job_id, mpirData.step_id };
+    if (auto const launcherPath = cti::make_unique_destr(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
+        // tell overwatch to extract information using MPIR attach
+        auto const mpirData = Daemon().request_AttachMPIR(launcherPath.get(), srunPid);
+        Daemon().request_ReleaseMPIR(mpirData.mpir_id);
+        return SrunInfo { mpirData.job_id, mpirData.step_id };
+    } else {
+        throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
+    }
 }

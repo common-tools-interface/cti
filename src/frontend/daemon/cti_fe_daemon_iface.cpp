@@ -280,10 +280,11 @@ FE_daemon::request_LaunchMPIR(char const* file,
 }
 
 FE_daemon::MPIRResult
-FE_daemon::request_AttachMPIR(pid_t app_pid)
+FE_daemon::request_AttachMPIR(char const* launcher_path, pid_t launcher_pid)
 {
 	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::AttachMPIR);
-	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+	writeLoop(m_req_sock.getWriteFd(), launcher_path, strlen(launcher_path) + 1);
+	rawWriteLoop(m_req_sock.getWriteFd(), launcher_pid);
 	return readMPIRResp(m_resp_sock.getReadFd());
 }
 

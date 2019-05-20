@@ -503,6 +503,22 @@ static pid_t forkExec(LaunchData const& launchData)
 	}
 }
 
+static FE_daemon::MPIRResult extractMPIRResult(FE_daemon::MPIRId const mpirId,
+	MPIRInstance& mpirInst)
+{
+	auto const rawJobId  = mpirInst.readStringAt("totalview_jobid");
+	auto const rawStepId = mpirInst.readStringAt("totalview_stepid");
+	fprintf(stderr, "new mpir id %d\n", mpirId);
+
+	return FE_daemon::MPIRResult
+		{ mpirId // mpir_id
+		, mpirInst.getLauncherPid() // launcher_pid
+		, static_cast<uint32_t>(std::stoul(rawJobId)) // job_id
+		, rawStepId.empty() ? 0 : static_cast<uint32_t>(std::stoul(rawStepId)) // step_id
+		, mpirInst.getProctable() // proctable
+	};
+}
+
 static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 {
 	std::map<int, int> const remapFds
@@ -511,27 +527,21 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 		, { launchData.stderr_fd, STDERR_FILENO }
 	};
 
-	auto const idInstPair = mpirMap.emplace(std::make_pair(newMPIRId(),
+	auto idInstPair = mpirMap.emplace(std::make_pair(newMPIRId(),
 		std::make_unique<MPIRInstance>(
 			launchData.filepath, launchData.argvList, launchData.envList, std::map<int, int>{}
 		)
 	)).first;
 
-	auto const rawJobId  = idInstPair->second->readStringAt("totalview_jobid");
-	auto const rawStepId = idInstPair->second->readStringAt("totalview_stepid");
-	fprintf(stderr, "launched new mpir id %d\n", idInstPair->first);
-	return FE_daemon::MPIRResult
-		{ idInstPair->first // mpir_id
-		, idInstPair->second->getLauncherPid() // launcher_pid
-		, static_cast<uint32_t>(std::stoul(rawJobId)) // job_id
-		, rawStepId.empty() ? 0 : static_cast<uint32_t>(std::stoul(rawStepId)) // step_id
-		, idInstPair->second->getProctable() // proctable
-	};
+	return extractMPIRResult(idInstPair->first, *idInstPair->second);
 }
 
-static FE_daemon::MPIRResult attachMPIR(pid_t const app_pid)
+static FE_daemon::MPIRResult attachMPIR(std::string const& launcherPath, pid_t const launcherPid)
 {
-	throw std::runtime_error("not implemented: handle_mpirAttach");
+	auto idInstPair = mpirMap.emplace(std::make_pair(newMPIRId(),
+		std::make_unique<MPIRInstance>(launcherPath.c_str(), launcherPid)
+	)).first;
+	return extractMPIRResult(idInstPair->first, *idInstPair->second);
 }
 
 static void releaseMPIR(FE_daemon::MPIRId const mpir_id)
@@ -593,10 +603,20 @@ static void handle_LaunchMPIR(int const reqFd, int const respFd)
 static void handle_AttachMPIR(int const reqFd, int const respFd)
 {
 	tryWriteMPIRResp(respFd, [&]() {
+		// set up pipe stream
+		cti::FdBuf reqBuf{dup(reqFd)};
+		std::istream reqStream{&reqBuf};
+
+		// read launcher path and pid
+		std::string launcherPath;
+		if (!std::getline(reqStream, launcherPath, '\0')) {
+			throw std::runtime_error("failed to read launcher path");
+		}
 		auto const launcherPid = rawReadLoop<pid_t>(reqFd);
 
-		auto const mpirData = attachMPIR(launcherPid);
+		auto const mpirData = attachMPIR(launcherPath, launcherPid);
 
+		// extract MPIR data
 		registerAppPID(mpirData.launcher_pid);
 
 		return mpirData;
