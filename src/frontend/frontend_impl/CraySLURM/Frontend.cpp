@@ -103,8 +103,8 @@ CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobId, uint32_t stepI
                 , stepId
                 , MPIRProctable{} // proctable
                 }
-            , .outputPath = cti::temp_file_handle{m_frontend.getCfgDir() + "/cti-output-fifo-XXXXXX"}
-            , .errorPath  = cti::temp_file_handle{m_frontend.getCfgDir() + "/cti-error-fifo-XXXXXX"}
+            , .outputPath = cti::temp_file_handle{fe.getCfgDir() + "/cti-output-fifo-XXXXXX"}
+            , .errorPath  = cti::temp_file_handle{fe.getCfgDir() + "/cti-error-fifo-XXXXXX"}
             }
         }
 { }
