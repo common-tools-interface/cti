@@ -1,15 +1,14 @@
-#!/usr/bin/env python
-content='''%define namespace [namespace]
+%define namespace [namespace]
 %define intranamespace_name [intranamespace_name]
 %define two_dig_version [package_branch_two_digit]
 %define two_dig_nodot_version [package_branch_two_digit_nodot]
-%define scripts_d [script_dir]
 %define build_version [version]
+%define curPath [cur_path]
 
-Summary: Performance Application Programming Interface
+Summary: Cray Tools Interface
 Name: %{namespace}-%{intranamespace_name}-%{build_version}
 Version: [package_revision]
-Release: [rpm_release][sles_sub]
+Release: [rpm_release][sles_version]
 License: BSD
 Group: Development/System
 URL: [url]
@@ -19,7 +18,7 @@ Prefix: /opt/cray/pe
 Provides: %{namespace}-%{intranamespace_name} = %{build_version}
 
 %define _use_internal_dependency_generator 0
-%define __find_requires %{scripts_d}/find-requires
+%define __find_requires %{curPath}/scripts/find-requires
 %define debug_package %{nil}
 
 %description
@@ -43,26 +42,49 @@ Cray Tools Interface.
 %build
 
 %install
+CUR_DIR=`pwd`
+
+mkdir -p %{buildroot}%{_name_moduledir}
+cp ${CUR_DIR}%{_version_prefix}/%{build_version} %{buildroot}%{_name_moduledir}/
+chmod o+rx %{buildroot}%{_name_moduledir}/%{build_version}
+
 mkdir -p %{buildroot}%{_version_prefix}
-cp -r cray-cti/* %{buildroot}%{_version_prefix}/
-rm -rf %{buildroot}%{_version_prefix}/modulefiles
 
-install -D modulefile/%{build_version} %{buildroot}%{_name_moduledir}/%{build_version}
-install -D cray-cti/release_info %{buildroot}%{_version_prefix}/
+cp -R ${CUR_DIR}%{_version_prefix} %{buildroot}/%{_name_prefix}/
+rm -rf %{buildroot}/%{_version_prefix}/modulefile
+
+install -D ${CUR_DIR}%{_version_prefix}/release_info %{buildroot}%{_version_prefix}/
 echo "%{build_version}-%{release}" > %{buildroot}%{_version_prefix}/.cray_rpm_release
-mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/
-install -D set_default_%{namespace}-%{intranamespace_name}_%{build_version} %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
-mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/
-install -D set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
-install -D set_default_%{namespace}-%{intranamespace_name}_%{build_version} %{buildroot}%{_version_prefix}/
-install -D set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} %{buildroot}%{_version_prefix}/
-mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTIONS_cti.%{build_version}.txt
 
-# hardlink duplicate files to save space
-#%fdupes %{buildroot}
+mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/
+
+install -D ${CUR_DIR}%{_version_prefix}/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
+            %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
+
+mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/
+
+install -D ${CUR_DIR}%{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} \
+            %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
+
+
+mkdir -p %{buildroot}%{_version_prefix}/docs/
+
+install -D ${CUR_DIR}/../../extras/docs/ATTRIBUTIONS_cti.txt \
+       %{buildroot}%{_version_prefix}/docs/ATTRIBUTIONS_cti.%{build_version}.txt
+
+mkdir -p %{buildroot}%{_version_prefix}/examples
+
+install -D ${CUR_DIR}/../../examples/* %{buildroot}%{_version_prefix}/examples/
+
+#clean  up unwanted content in install dir (/opt/cray/pe/cti/version)
+rm -rf %{buildroot}%{_version_prefix}/lib/cmake
+rm -rf %{buildroot}%{_version_prefix}/lib/libboost_program*
+rm -rf %{buildroot}%{_version_prefix}/bin
+rm -rf %{buildroot}%{_version_prefix}/share
+rm -f %{buildroot}%{_version_prefix}/%{build_version}
 
 %clean
-#rm -rf $RPM_BUILD_ROOT
+rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
@@ -76,49 +98,25 @@ mv cray-cti/docs/ATTRIBUTIONS_cti.txt %{buildroot}%{_version_prefix}/ATTRIBUTION
 %dir %{_version_prefix}/include
 %dir %{_version_prefix}/examples
 
-%{_version_prefix}/examples/
-%{_version_prefix}/examples/cti_transfer_example.c
-%{_version_prefix}/examples/Makefile
-%{_version_prefix}/examples/testing.info
+%{_version_prefix}/docs/ATTRIBUTIONS_cti*.txt
 
-%{_version_prefix}/libexec/
-%{_version_prefix}/libexec/cti_overwatch
-%{_version_prefix}/libexec/cti_dlaunch*
+%{_version_prefix}/examples
+%{_version_prefix}/examples/*
+
+%{_version_prefix}/libexec
+%{_version_prefix}/libexec/*
 
 %{_version_prefix}/lib
-%{_version_prefix}/lib/libaudit.so
-%{_version_prefix}/lib/libaudit.la
-%{_version_prefix}/lib/libcraytools_fe.so*
-%{_version_prefix}/lib/libcraytools_fe.la
-%{_version_prefix}/lib/libcraytools_be.so*
-%{_version_prefix}/lib/libcraytools_be.la
-%{_version_prefix}/lib/pkgconfig/
-%{_version_prefix}/lib/pkgconfig/craytools_be.pc
-%{_version_prefix}/lib/pkgconfig/craytools_fe.pc
-
-%{_version_prefix}/lib/libstackwalk.so*
-%{_version_prefix}/lib/libparseAPI.so*
-%{_version_prefix}/lib/libinstructionAPI.so*
-%{_version_prefix}/lib/libpatchAPI.so*
-%{_version_prefix}/lib/libcommon.so*
-%{_version_prefix}/lib/libdynDwarf.so*
-%{_version_prefix}/lib/libdyninstAPI.so.*
-%{_version_prefix}/lib/libsymtabAPI.so.*
-%{_version_prefix}/lib/libdynElf.so.*
-%{_version_prefix}/lib/libpcontrol.so.*
-%{_version_prefix}/lib/libdw.so.*
+%{_version_prefix}/lib/*
 
 %{_version_prefix}/include
-%{_version_prefix}/include/cray_tools_be.h
-%{_version_prefix}/include/cray_tools_fe.h
+%{_version_prefix}/include/*
 
 %{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 %{_name_moduledir}/%{build_version}
 %{_version_prefix}/.cray_rpm_release
 %{_version_prefix}/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 %{_version_prefix}/release_info
-%{_version_prefix}/ATTRIBUTIONS_cti.%{build_version}.txt
-%{_version_prefix}/docs/ATTRIBUTIONS_cti.txt
 %{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
 %{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
@@ -137,6 +135,9 @@ $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intran
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
 $RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
+
+sed -i "s,\[module_dir\],$RPM_INSTALL_PREFIX/modulefiles,g" \
+$RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version},g" \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/craytools_be.pc
@@ -204,4 +205,3 @@ fi
 
 %changelog
 
-'''

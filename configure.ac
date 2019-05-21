@@ -243,8 +243,8 @@ AC_DEFINE_UNQUOTED([CTI_DLAUNCH_BINARY], ["$CRAYTOOL_DLAUNCH_BINARY"], [Name of 
 ################
 
 AC_CONFIG_FILES([	Makefile
-				 	cray-cti_be.pc
-					cray-cti_fe.pc
+				 	craytools_be.pc
+					craytools_fe.pc
 					external/Makefile
 					src/Makefile
 					src/backend/Makefile

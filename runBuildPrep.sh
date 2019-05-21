@@ -25,6 +25,20 @@ zypper --non-interactive --no-gpg-check install flex
 zypper --non-interactive --no-gpg-check install bison
 zypper --non-interactive --no-gpg-check install binutils-devel
 
+
+echo "############################################"
+echo "#      Capturing Jenkins Env Vars          #"
+echo "############################################"
+#Get the Jenkins BUILD_NUMBER from the ENV.
+BUILD_NUMBER=$(echo $BUILD_NUMBER)
+if [ ! -z $BUILD_NUMBER ]
+then
+  #update the release_versioning file
+  sed -e"s/9999/$BUILD_NUMBER/g" $PWD/release_versioning_template > $PWD/release_versioning
+else
+  cp $PWD/release_versioning_template $PWD/release_versioning
+fi
+
 echo "############################################"
 echo "#      Generating configure files          #"
 echo "############################################"

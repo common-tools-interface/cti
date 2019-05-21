@@ -10,6 +10,14 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
+arch=$(uname -m)
+branch=$(git branch | grep '^*' | colrm 1 2)
+return_code=0
+if [ $branch == 'master' ]
+then
+  mkdir -p /home/jenkins/rpmbuild/RPMS
+  cp $PWD/RPMS/$arch/cray-cti*.rpm /home/jenkins/rpmbuild/RPMS/
+  return_code=$?
+fi
+exit $return_code
 
-mkdir -p /home/jenkins/rpmbuild/RPMS
-# TODO: Copy final rpm to above directory

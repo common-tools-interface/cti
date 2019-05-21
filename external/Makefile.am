@@ -9,10 +9,9 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-
 SUBDIRS = elfutils
 
-install-data-local:
+install-data-hook:
 	cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
 	cd @BOOST_SRC@ && @BOOST_SRC@/b2 install
 	cp @TBB_LIBRARY@/*.so* ${libdir}

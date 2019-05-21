@@ -192,7 +192,8 @@ AC_DEFUN([cray_CONF_ELFUTILS],
 	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl configure
-	./configure --prefix=${prefix} --enable-maintainer-mode
+	test "x$prefix" = xNONE && temp_prefix=$ac_default_prefix		
+	./configure --prefix=${temp_prefix} --enable-maintainer-mode
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[elfutils configure failed.]],
 	 		[]
@@ -252,7 +253,8 @@ AC_DEFUN([cray_BUILD_BOOST],
 	save_LDFLAGS="$LDFLAGS"
 	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
 
-	./bootstrap.sh --prefix=${prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	test "x$prefix" = xNONE && temp_prefix=$ac_default_prefix		
+	./bootstrap.sh --prefix=${temp_prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[boost bootstrap failed.]]
@@ -390,7 +392,8 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	 		)
 
 	dnl cmake to prefix for final build
-	cmake -DCMAKE_INSTALL_PREFIX=${prefix} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	test "x$prefix" = xNONE && temp_prefix=$ac_default_prefix	
+	cmake -DCMAKE_INSTALL_PREFIX=${temp_prefix} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[dyninst cmake failed.]],
 	 		[cray_cv_dyninst_build=yes]

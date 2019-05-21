@@ -14,6 +14,6 @@
 @Library("dst-shared@master") _
 
 sles15PremiumPE {
-    specfile = "scripts/rpm_cray_cti.spec"
+    specfile = "cti.spec"
     timeout = 60
 }
