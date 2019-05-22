@@ -53,9 +53,9 @@ private: // variables
     // True if we need to check for App dependencies
     bool                        m_add_requirements;
     // Counter to track unique manifests
-    size_t                      m_manifestCnt;
+    int                         m_manifestCnt;
     // Counter to track shipped manifests
-    size_t                      m_seqNum;
+    int                         m_seqNum;
     FoldersMap                  m_folders;
     PathMap                     m_sourcePaths;
     std::string const           m_stageName;

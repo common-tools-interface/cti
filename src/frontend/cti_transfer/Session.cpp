@@ -383,7 +383,7 @@ Session::getSessionLockFiles() {
     auto app = getOwningApp();
     auto tp = app->getToolPath();
     // Create the lock files based on the current sequence number
-    for(auto i=0; i < m_seqNum; ++i) {
+    for(int i = 0; i < m_seqNum; ++i) {
         ret.emplace_back(tp + "/.lock_" + m_stageName + "_" + std::to_string(i));
     }
     return ret;
