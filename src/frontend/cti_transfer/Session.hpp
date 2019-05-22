@@ -109,9 +109,12 @@ public: // interface
     Conflict hasFileConflict(const std::string& folderName, const std::string& realName,
         const std::string& candidatePath) const;
 
+    // launch daemon to cleanup remote files. this must be called outside App destructor
+    void finalize();
+
 public: // interface
     Session(App& activeApp);
-    ~Session();
+    ~Session() = default;
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
     Session(Session&&) = delete;

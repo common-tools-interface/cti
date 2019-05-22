@@ -120,15 +120,17 @@ Session::Session(App& owningApp)
     , m_ldLibraryPath{m_stagePath + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
 { }
 
-Session::~Session() {
+void Session::finalize() {
     // Check to see if we need to try cleanup on compute nodes. We bypass the
     // cleanup if we never shipped a manifest.
     if (m_seqNum == 0) {
         return;
     }
-    writeLog("launchCleanup: creating daemonArgv for cleanup\n");
-    // get owning app
+
+    // Get owning app
     auto app = getOwningApp();
+
+    writeLog("launchCleanup: creating daemonArgv for cleanup\n");
     // create DaemonArgv
     cti::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
     daemonArgv.add(DaemonArgv::ApID,                app->getJobId());
@@ -160,10 +162,10 @@ Session::createManifest() {
 
 std::string
 Session::shipManifest(std::shared_ptr<Manifest>& mani) {
-    // Get frontend reference
+    // Get owning app
     auto app = getOwningApp();
+    // Get frontend reference
     auto&& fe = app->getFrontend();
-
     // Check to see if we need to add baseline App dependencies
     if ( m_add_requirements ) {
         for (auto const& path : app->getExtraBinaries()) {
@@ -189,7 +191,6 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
     auto inst = mani->instance();
     // Name of archive to create for the manifest files
     const std::string archiveName(m_stageName + std::to_string(inst) + ".tar");
-
     writeLog("shipManifest %d: merge into session\n", inst);
     // merge manifest into session and get back list of files to remove
     auto&& folders = mani->folders();
