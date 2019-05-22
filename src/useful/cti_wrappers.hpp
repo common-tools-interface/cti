@@ -131,16 +131,20 @@ namespace file {
 } /* namespace cti::file */
 
 namespace dir {
+    namespace {
+        using CloseDirFn = int(*)(DIR*);
+    }
+
     // open a directory path and return a unique DIR* or nullptr
     static inline auto try_open(std::string const& path) ->
-        std::unique_ptr<DIR, decltype(&closedir)>
+        std::unique_ptr<DIR, CloseDirFn>
     {
         return make_unique_destr(opendir(path.c_str()), closedir);
     }
 
     // open a directory and return a unique DIR* or throw
     static inline auto open(std::string const& path) ->
-        std::unique_ptr<DIR, decltype(&closedir)>
+        std::unique_ptr<DIR, CloseDirFn>
     {
         if (auto udp = try_open(path)) {
             return udp;
