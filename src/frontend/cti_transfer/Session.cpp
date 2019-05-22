@@ -160,6 +160,27 @@ Session::createManifest() {
 
 std::string
 Session::shipManifest(std::shared_ptr<Manifest>& mani) {
+    // Get frontend reference
+    auto app = getOwningApp();
+    auto&& fe = app->getFrontend();
+
+    // Check to see if we need to add baseline App dependencies
+    if ( m_add_requirements ) {
+        for (auto const& path : app->getExtraBinaries()) {
+            mani->addBinary(path);
+        }
+        for (auto const& path : app->getExtraLibraries()) {
+            mani->addLibrary(path);
+        }
+        for (auto const& path : app->getExtraLibDirs()) {
+            mani->addLibDir(path);
+        }
+        for (auto const& path : app->getExtraFiles()) {
+            mani->addFile(path);
+        }
+        m_add_requirements = false;
+    }
+
     // Finalize and drop our reference to the manifest.
     // Note we keep it alive via our shared_ptr. We do this early on
     // in case an error happens to guarantee cleanup.
@@ -168,9 +189,7 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
     auto inst = mani->instance();
     // Name of archive to create for the manifest files
     const std::string archiveName(m_stageName + std::to_string(inst) + ".tar");
-    // Get frontend reference
-    auto app = getOwningApp();
-    auto&& fe = app->getFrontend();
+
     writeLog("shipManifest %d: merge into session\n", inst);
     // merge manifest into session and get back list of files to remove
     auto&& folders = mani->folders();
@@ -221,22 +240,6 @@ Session::sendManifest(std::shared_ptr<Manifest>& mani) {
     auto inst = mani->instance();
     // Get owning app
     auto app = getOwningApp();
-    // Check to see if we need to add baseline App dependencies
-    if ( m_add_requirements ) {
-        for (auto const& path : app->getExtraBinaries()) {
-            mani->addBinary(path);
-        }
-        for (auto const& path : app->getExtraLibraries()) {
-            mani->addLibrary(path);
-        }
-        for (auto const& path : app->getExtraLibDirs()) {
-            mani->addLibDir(path);
-        }
-        for (auto const& path : app->getExtraFiles()) {
-            mani->addFile(path);
-        }
-        m_add_requirements = false;
-    }
     // Ship the manifest
     auto archiveName = shipManifest(mani);
     // create DaemonArgv
