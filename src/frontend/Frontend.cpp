@@ -337,14 +337,15 @@ Frontend::inst() {
 void
 Frontend::destroy() {
     // Use sequential consistency here
-    auto instance = m_instance.exchange(nullptr);
+    if (auto instance = m_instance.exchange(nullptr)) {
 
-    // clean up all App/Sessions before destructors are run
-    for (auto&& app : instance->m_apps) {
-        app->finalize();
+        // clean up all App/Sessions before destructors are run
+        for (auto&& app : instance->m_apps) {
+            app->finalize();
+        }
+
+        delete instance;
     }
-
-    delete instance;
 }
 
 Frontend::Frontend()
