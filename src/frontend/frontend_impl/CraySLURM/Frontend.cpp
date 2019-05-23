@@ -85,7 +85,9 @@ CraySLURMApp::~CraySLURMApp()
     }
 
     // Inform the FE daemon that this App is going away
-    m_frontend.Daemon().request_DeregisterApp(m_launcherPid);
+    if (m_launcherPid) {
+        m_frontend.Daemon().request_DeregisterApp(m_launcherPid);
+    }
 }
 
 /* app instance creation */

@@ -325,19 +325,22 @@ _cti_adjustPaths(const char *path, const char* libpath)
 
 	free(binpath);
 
+	char* ld_library_path = NULL;
 	if (libpath == NULL) {
-		if (asprintf(&libpath, "%s/lib", path) <= 0)
+		if (asprintf(&ld_library_path, "%s/lib", path) <= 0)
 			return 1;
+	} else {
+		ld_library_path = strdup(libpath);
 	}
 
 	// set path to the LD_LIBRARY_PATH variable
-	if (setenv("LD_LIBRARY_PATH", libpath, 1) != 0)
+	if (setenv("LD_LIBRARY_PATH", ld_library_path, 1) != 0)
 	{
-		free(libpath);
+		free(ld_library_path);
 		return 1;
 	}
 
-	free(libpath);
+	free(ld_library_path);
 
 	return 0;
 }
