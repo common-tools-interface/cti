@@ -48,7 +48,7 @@ CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, SrunInstance&& srunInstance)
     , m_launcherPid     { srunInstance.mpirData.launcher_pid }
     , m_jobId           { srunInstance.mpirData.job_id }
     , m_stepId          { srunInstance.mpirData.step_id }
-    , m_stepLayout      {fe.fetchStepLayout(m_jobId, m_stepId) }
+    , m_stepLayout      { fe.fetchStepLayout(m_jobId, m_stepId) }
     , m_beDaemonSent    { false }
 
     , m_stoppedSrunId { srunInstance.mpirData.mpir_id }
@@ -98,7 +98,7 @@ CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobId, uint32_t stepI
         , SrunInstance
             { .mpirData = FE_daemon::MPIRResult
                 { FE_daemon::MPIRId{0} // mpir_id,
-                , pid_t{0} // launcher_pid
+                , pid_t{1} // launcher_pid
                 , jobId
                 , stepId
                 , MPIRProctable{} // proctable
@@ -242,20 +242,6 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
     // sanity check
     if (args == nullptr) {
         throw std::runtime_error("args array is null!");
-    }
-
-    // If we have not yet transfered the backend daemon, need to do that in advance with
-    // native slurm
-    if (!m_beDaemonSent) {
-        // Get the location of the daemon
-        if (m_frontend.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
-        }
-
-        shipPackage(m_frontend.getBEDaemonPath());
-
-        // set transfer to true
-        m_beDaemonSent = true;
     }
 
     // use existing daemon binary on compute node
@@ -432,8 +418,7 @@ CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     // wait for sattach to complete
     auto const sattachCode = sattachOutput.getExitStatus();
     if (sattachCode > 0) {
-        // sattach failed, restart it
-        return fetchStepLayout(job_id, step_id);
+        throw std::runtime_error("invalid job id " + std::to_string(job_id));
     }
 
     // start parsing sattach output

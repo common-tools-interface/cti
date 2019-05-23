@@ -235,12 +235,12 @@ static void registerUtilPID(pid_t const app_pid, pid_t const util_pid)
 	}
 
 	// register app pid if valid and not tracked
-	if ((app_pid > 0) && !appList.contains(app_pid)) {
+	if (!appList.contains(app_pid)) {
 		registerAppPID(app_pid);
 	}
 
 	// register utility pid to app
-	if ((app_pid > 0) && (util_pid > 0)) {
+	if (util_pid > 0) {
 		utilMap[app_pid].insert(util_pid);
 	} else {
 		throw std::runtime_error("invalid util pid: " + std::to_string(util_pid));

@@ -72,7 +72,7 @@ private: // helper functions
         const PathMap& paths);
     // Finalize and package manifest into archive. Ship to compute nodes.
     // This is a helper function to be used by sendManifest and startDaemon
-    std::string shipManifest(std::shared_ptr<Manifest>& mani);
+    std::string shipManifest(std::shared_ptr<Manifest> mani);
 
 public: // interface
     std::shared_ptr<App> getOwningApp() {
@@ -92,13 +92,13 @@ public: // interface
     // create new manifest associated with this session
     std::weak_ptr<Manifest> createManifest();
     // Used to ship a manifest to the computes and extract it.
-    void sendManifest(std::shared_ptr<Manifest>& mani);
+    void sendManifest(std::shared_ptr<Manifest> mani);
     // Used to ship a manifest and execute a tool daemon contained within.
-    void execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon,
+    void execManifest(std::shared_ptr<Manifest> mani, const char * const daemon,
         const char * const daemonArgs[], const char * const envVars[]);
     // drop reference to an existing manifest. This invalidates the manifest
     // and prevents it from being shipped.
-    void removeManifest(std::shared_ptr<Manifest>& mani);
+    void removeManifest(std::shared_ptr<Manifest> mani);
     /* fileName: filename as provided by client
         realName: basename following symlinks
         conflict rules:

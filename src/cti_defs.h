@@ -69,10 +69,10 @@ typedef struct
 // is supported.
 enum cti_wlm_type
 {
-    CTI_WLM_NONE,  // error/unitialized state
-    CTI_WLM_ALPS,  // unsupported
+    CTI_WLM_NONE,   // error/unitialized state
+    _DEPRECATED_CTI_WLM_ALPS, // deprecated, included for compatability
     CTI_WLM_CRAY_SLURM,
-    CTI_WLM_SLURM, // unsupported
+    _DEPRECATED_CTI_WLM_SLURM,
     CTI_WLM_SSH,
     CTI_WLM_MOCK // for unit testing only
 };
@@ -80,10 +80,10 @@ typedef enum cti_wlm_type   cti_wlm_type;
 
 enum cti_be_wlm_type
 {
-    CTI_BE_WLM_NONE,  // error/unitialized state
-    CTI_BE_WLM_ALPS,  // unsupported
+    CTI_BE_WLM_NONE,    // error/unitialized state
+    _DEPRECATED_CTI_BE_WLM_ALPS,
     CTI_BE_WLM_CRAY_SLURM,
-    CTI_BE_WLM_SLURM, // unsupported
+    _DEPRECATED_CTI_BE_WLM_SLURM,
     CTI_BE_WLM_SSH
 };
 typedef enum cti_be_wlm_type    cti_be_wlm_type;
