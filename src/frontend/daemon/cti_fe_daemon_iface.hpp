@@ -104,6 +104,7 @@ public: // type definitions
         LaunchMPIR,
         AttachMPIR,
         ReleaseMPIR,
+        TerminateMPIR,
 
         RegisterApp,
         RegisterUtil,
@@ -288,6 +289,10 @@ public:
     // fe_daemon will release a binary under mpir control from its breakpoint.
     // Write an mpir release request to pipe, verify response
     void request_ReleaseMPIR(MPIRId mpir_id);
+
+    // fe_daemon will terminate a binary under mpir control.
+    // Write an mpir release request to pipe, verify response
+    void request_TerminateMPIR(MPIRId mpir_id);
 
     // fe_daemon will register an already-forked process as an app. make sure this is paired with a
     // _cti_deregisterApp for timely cleanup.

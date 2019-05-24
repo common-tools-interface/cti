@@ -82,8 +82,10 @@ Inferior::Inferior(std::string const& launcher, pid_t pid)
 Inferior::~Inferior() {
 	Process::removeEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 
-	m_proc->detach();
-	DEBUG(std::cerr, "~Inferior: detached from " << std::to_string(m_proc->getPid()) << std::endl);
+	if (!m_proc->isTerminated()) {
+		m_proc->detach();
+		DEBUG(std::cerr, "~Inferior: detached from " << std::to_string(m_proc->getPid()) << std::endl);
+	}
 }
 
 pid_t Inferior::getPid() {
@@ -111,6 +113,10 @@ void Inferior::continueRun() {
 		m_proc->continueProc();
 		Process::handleEvents(true); // blocks til event received
 	} while (!m_proc->hasStoppedThread());
+}
+
+void Inferior::terminate() {
+	m_proc->terminate();
 }
 
 void Inferior::addSymbol(std::string const& symName) {

@@ -96,6 +96,7 @@ public: // interface
 	/* process interaction */
 	pid_t getPid();
 	void continueRun();
+	void terminate();
 
 	/* templated over char buf source / dest functions */
 	template <typename T>

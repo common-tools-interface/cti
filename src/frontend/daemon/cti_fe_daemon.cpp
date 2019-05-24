@@ -554,6 +554,17 @@ static void releaseMPIR(FE_daemon::MPIRId const mpir_id)
 	}
 }
 
+static void terminateMPIR(FE_daemon::MPIRId const mpir_id)
+{
+	auto const idInstPair = mpirMap.find(mpir_id);
+	if (idInstPair != mpirMap.end()) {
+		idInstPair->second->terminate();
+		mpirMap.erase(idInstPair);
+	} else {
+		throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+	}
+}
+
 /* handler implementations */
 
 static void handle_ForkExecvpApp(int const reqFd, int const respFd)
@@ -629,6 +640,15 @@ static void handle_ReleaseMPIR(int const reqFd, int const respFd)
 		auto const mpirId = rawReadLoop<FE_daemon::MPIRId>(reqFd);
 
 		releaseMPIR(mpirId);
+	});
+}
+
+static void handle_TerminateMPIR(int const reqFd, int const respFd)
+{
+	tryWriteOKResp(respFd, [&]() {
+		auto const mpirId = rawReadLoop<FE_daemon::MPIRId>(reqFd);
+
+		terminateMPIR(mpirId);
 	});
 }
 
@@ -779,6 +799,10 @@ main(int argc, char *argv[])
 
 			case ReqType::ReleaseMPIR:
 				handle_ReleaseMPIR(reqFd, respFd);
+				break;
+
+			case ReqType::TerminateMPIR:
+				handle_TerminateMPIR(reqFd, respFd);
 				break;
 
 			case ReqType::RegisterApp:

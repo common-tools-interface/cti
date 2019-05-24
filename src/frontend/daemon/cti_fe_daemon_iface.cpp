@@ -296,6 +296,14 @@ FE_daemon::request_ReleaseMPIR(MPIRId mpir_id)
 	verifyOKResp(m_resp_sock.getReadFd());
 }
 
+void
+FE_daemon::request_TerminateMPIR(MPIRId mpir_id)
+{
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::TerminateMPIR);
+	rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+	verifyOKResp(m_resp_sock.getReadFd());
+}
+
 pid_t
 FE_daemon::request_RegisterApp(pid_t app_pid)
 {
