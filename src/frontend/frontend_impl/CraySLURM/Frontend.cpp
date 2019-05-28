@@ -92,17 +92,37 @@ CraySLURMApp::~CraySLURMApp()
 
 /* app instance creation */
 
+static FE_daemon::MPIRResult sattachMPIR(CraySLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
+{
+    cti::OutgoingArgv<SattachArgv> sattachArgv(SATTACH);
+    sattachArgv.add(SattachArgv::Argument("-Q"));
+    sattachArgv.add(SattachArgv::Argument(std::to_string(jobId) + "." + std::to_string(stepId)));
+
+    // get path to SATTACH binary for MPIR control
+    if (auto const sattachPath = cti::make_unique_destr(_cti_pathFind(SATTACH, nullptr), std::free)) {
+        try {
+            // request an MPIR session to extract proctable
+            auto const mpirResult = fe.Daemon().request_LaunchMPIR(
+                sattachPath.get(), sattachArgv.get(), -1, -1, -1, nullptr);
+            // have the proctable, terminate SATTACh
+            fe.Daemon().request_TerminateMPIR(mpirResult.mpir_id);
+
+            return mpirResult;
+
+        } catch (std::exception const& ex) {
+            throw std::runtime_error("Failed to attach to job " +
+                std::to_string(jobId) + " " + std::to_string(stepId));
+        }
+    } else {
+        throw std::runtime_error("Failed to find SATTACH in path");
+    }
+}
+
 CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
     : CraySLURMApp
         { fe
         , SrunInstance
-            { .mpirData = FE_daemon::MPIRResult
-                { FE_daemon::MPIRId{0} // mpir_id,
-                , pid_t{1} // launcher_pid
-                , jobId
-                , stepId
-                , MPIRProctable{} // proctable
-                }
+            { .mpirData = sattachMPIR(fe, jobId, stepId)
             , .outputPath = cti::temp_file_handle{fe.getCfgDir() + "/cti-output-fifo-XXXXXX"}
             , .errorPath  = cti::temp_file_handle{fe.getCfgDir() + "/cti-error-fifo-XXXXXX"}
             }

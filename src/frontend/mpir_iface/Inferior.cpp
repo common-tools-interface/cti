@@ -121,7 +121,8 @@ void Inferior::continueRun() {
 void Inferior::terminate() {
 	if (!isTerminated()) {
 		auto const pid = m_proc->getPid();
-		m_proc->terminate();
+		m_proc->detach();
+		::kill(pid, SIGTERM);
 		::waitpid(pid, nullptr, 0);
 	}
 }
