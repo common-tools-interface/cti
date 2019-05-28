@@ -14,6 +14,9 @@
 // This pulls in config.h
 #include "cti_defs.h"
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
 #include "Inferior.hpp"
 
 /* symtab helpers */
@@ -82,7 +85,7 @@ Inferior::Inferior(std::string const& launcher, pid_t pid)
 Inferior::~Inferior() {
 	Process::removeEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 
-	if (!m_proc->isTerminated()) {
+	if (!isTerminated()) {
 		m_proc->detach();
 		DEBUG(std::cerr, "~Inferior: detached from " << std::to_string(m_proc->getPid()) << std::endl);
 	}
@@ -112,11 +115,15 @@ void Inferior::continueRun() {
 	do {
 		m_proc->continueProc();
 		Process::handleEvents(true); // blocks til event received
-	} while (!m_proc->hasStoppedThread());
+	} while (!isTerminated() && !m_proc->hasStoppedThread());
 }
 
 void Inferior::terminate() {
-	m_proc->terminate();
+	if (!isTerminated()) {
+		auto const pid = m_proc->getPid();
+		m_proc->terminate();
+		::waitpid(pid, nullptr, 0);
+	}
 }
 
 void Inferior::addSymbol(std::string const& symName) {

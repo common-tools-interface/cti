@@ -47,7 +47,6 @@ void MPIRInstance::setupMPIRStandard() {
 	m_inferior.addSymbol("MPIR_Breakpoint");
 	m_inferior.addSymbol("MPIR_debug_state");
 	m_inferior.addSymbol("MPIR_i_am_starter");
-	m_inferior.addSymbol("MPIR_partial_attach_ok");
 	m_inferior.addSymbol("MPIR_proctable");
 	m_inferior.addSymbol("MPIR_proctable_size");
 
@@ -69,6 +68,11 @@ void MPIRInstance::runToMPIRBreakpoint() {
 		DEBUG(std::cerr, "MPIR_debug_state: " << debugState << std::endl);
 		DEBUG(std::cerr, "MPIR_being_debugged: " << m_inferior.readVariable<int>("MPIR_being_debugged") << std::endl);
 		m_inferior.continueRun();
+
+		if (m_inferior.isTerminated()) {
+			throw std::runtime_error("MPIR target terminated before MPIR_Breakpoint");
+		}
+
 		/* inferior now in stopped state. read MPIR_debug_state */
 		debugState = m_inferior.readVariable<MPIRDebugState>("MPIR_debug_state");
 	} while (debugState != MPIRDebugState::DebugSpawned);
