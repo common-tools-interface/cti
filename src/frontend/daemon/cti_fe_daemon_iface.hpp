@@ -83,11 +83,12 @@ static void rawWriteLoop(int const fd, T const& obj)
 */
 class FE_daemon final {
 public: // type definitions
-    using MPIRId = int;
+    using DaemonAppId = int;
+
     // bundle all MPIR data produced by an MPIR launch / attach
     struct MPIRResult
     {
-        MPIRId mpir_id;
+        DaemonAppId mpir_id;
         pid_t launcher_pid;
         uint32_t job_id;
         uint32_t step_id;
@@ -139,7 +140,7 @@ public: // type definitions
 
     // ForkExecvpUtil
     /*
-        send PID of owning application
+        send ID of owning application
         send RunMode indicating synchronous or asynchronous run
         send "Application launch parameters" as for ForkExecvpApp
     */
@@ -153,13 +154,13 @@ public: // type definitions
 
     // RegisterUtil
     /*
-        send PID of owning application
+        send ID of owning application
         send PID of target utility
     */
 
     // ReleaseMPIR
     /*
-        send MPIR ID provided by LaunchMPIR request
+        send ID provided by LaunchMPIR request
     */
 
     // Shutdown
@@ -172,7 +173,7 @@ public: // type definitions
         OK,
 
         // ForkExecvpApp, ForkExecvpUtil
-        PID,
+        ID,
 
         // LaunchMPIR
         MPIR,
@@ -184,16 +185,16 @@ public: // type definitions
         bool success;
     };
 
-    struct PIDResp
+    struct IDResp
     {
         RespType type;
-        pid_t pid;
+        DaemonAppId id;
     };
 
     struct MPIRResp
     {
         RespType type;
-        MPIRId mpir_id;
+        DaemonAppId mpir_id;
         pid_t launcher_pid;
         uint32_t job_id;
         uint32_t step_id;
@@ -218,7 +219,7 @@ public:
     // This must only be called once. It is to workaround an issue in Frontend
     // construction with initialization ordering. Plus we might want to someday
     // delay starting the fe daemon process until it is actually needed.
-    void initialize(std::string fe_daemon_bin);
+    void initialize(std::string const& fe_daemon_bin);
 
     /*
     ** FE daemon interface
@@ -232,49 +233,49 @@ public:
     */
 
     // fe_daemon will fork and execvp a binary and register it as an app
-    // Write an app launch request and parameters to pipe, return launched PID
-    pid_t request_ForkExecvpApp(    char const* file,
-                                    char const* const argv[],
-                                    int stdin_fd, int stdout_fd, int stderr_fd,
-                                    char const* const env[] );
+    // Write an app launch request and parameters to pipe, return launched app id
+    DaemonAppId request_ForkExecvpApp(char const* file,
+                                      char const* const argv[],
+                                      int stdin_fd, int stdout_fd, int stderr_fd,
+                                      char const* const env[] );
 
 private:
-    // fe_daemon will fork and execvp a binary and register it as a utility belonging to app_pid
+    // fe_daemon will fork and execvp a binary and register it as a utility belonging to app_id
     // This can either be synchronous or asynchronous depending on runMode. Synchronous means wait
     // for utility to complete before returning from this call.
-    // Write a utility launch request and parameters to pipe, return launched PID
-    pid_t request_ForkExecvpUtil(   pid_t app_pid,
-                                    RunMode runMode,
-                                    char const* file,
-                                    char const* const argv[],
-                                    int stdin_fd, int stdout_fd, int stderr_fd,
-                                    char const* const env[] );
+    // Write a utility launch request and parameters to pipe, return launched util id
+    void request_ForkExecvpUtil(DaemonAppId app_id,
+                                RunMode runMode,
+                                char const* file,
+                                char const* const argv[],
+                                int stdin_fd, int stdout_fd, int stderr_fd,
+                                char const* const env[] );
 public:
     // Helper functions for request_ForkExecvpUtil
-    pid_t request_ForkExecvpUtil_Async( pid_t app_pid,
-                                        char const* file,
-                                        char const* const argv[],
-                                        int stdin_fd, int stdout_fd, int stderr_fd,
-                                        char const* const env[] )
+    void request_ForkExecvpUtil_Async(DaemonAppId app_id,
+                                      char const* file,
+                                      char const* const argv[],
+                                      int stdin_fd, int stdout_fd, int stderr_fd,
+                                      char const* const env[] )
     {
-        return request_ForkExecvpUtil(  app_pid,
-                                        RunMode::Asynchronous,
-                                        file, argv,
-                                        stdin_fd, stdout_fd, stderr_fd,
-                                        env );
+        request_ForkExecvpUtil(app_id,
+                               RunMode::Asynchronous,
+                               file, argv,
+                               stdin_fd, stdout_fd, stderr_fd,
+                               env);
     }
 
-    pid_t request_ForkExecvpUtil_Sync(  pid_t app_pid,
-                                        char const* file,
-                                        char const* const argv[],
-                                        int stdin_fd, int stdout_fd, int stderr_fd,
-                                        char const* const env[] )
+    void request_ForkExecvpUtil_Sync(DaemonAppId app_id,
+                                     char const* file,
+                                     char const* const argv[],
+                                     int stdin_fd, int stdout_fd, int stderr_fd,
+                                     char const* const env[] )
     {
-        return request_ForkExecvpUtil(  app_pid,
-                                        RunMode::Synchronous,
-                                        file, argv,
-                                        stdin_fd, stdout_fd, stderr_fd,
-                                        env );
+        request_ForkExecvpUtil(app_id,
+                               RunMode::Synchronous,
+                               file, argv,
+                               stdin_fd, stdout_fd, stderr_fd,
+                               env );
     }
 
     // fe_daemon will launch a binary under MPIR control and extract its proctable.
@@ -288,22 +289,22 @@ public:
 
     // fe_daemon will release a binary under mpir control from its breakpoint.
     // Write an mpir release request to pipe, verify response
-    void request_ReleaseMPIR(MPIRId mpir_id);
+    void request_ReleaseMPIR(DaemonAppId mpir_id);
 
     // fe_daemon will terminate a binary under mpir control.
     // Write an mpir release request to pipe, verify response
-    void request_TerminateMPIR(MPIRId mpir_id);
+    void request_TerminateMPIR(DaemonAppId mpir_id);
 
     // fe_daemon will register an already-forked process as an app. make sure this is paired with a
     // _cti_deregisterApp for timely cleanup.
-    // Write an app register request to pipe, verify response, return pid
-    pid_t request_RegisterApp(pid_t app_pid);
+    // Write an app register request to pipe, verify response, return new app id
+    DaemonAppId request_RegisterApp(pid_t app_pid);
 
     // fe_daemon will register an already-forked process as a utility belonging to app_pid.
-    // Write utility register request to pipe, verify response, return pid
-    pid_t request_RegisterUtil(pid_t app_pid, pid_t util_pid);
+    // Write utility register request to pipe, verify response
+    void request_RegisterUtil(DaemonAppId app_id, pid_t util_pid);
 
     // fe_daemon will terminate all utilities belonging to app_pid and deregister app_pid.
     // Write an app deregister request to pipe, verify response
-    void request_DeregisterApp(pid_t app_pid);
+    void request_DeregisterApp(DaemonAppId app_id);
 };

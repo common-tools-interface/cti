@@ -41,11 +41,13 @@
 #include "frontend/mpir_iface/MPIRInstance.hpp"
 #include "cti_fe_daemon_iface.hpp"
 
-using ReqType   = FE_daemon::ReqType;
-using RespType  = FE_daemon::RespType;
-using OKResp    = FE_daemon::OKResp;
-using PIDResp   = FE_daemon::PIDResp;
-using MPIRResp  = FE_daemon::MPIRResp;
+using DAppId = FE_daemon::DaemonAppId;
+
+using ReqType  = FE_daemon::ReqType;
+using RespType = FE_daemon::RespType;
+using OKResp   = FE_daemon::OKResp;
+using IDResp   = FE_daemon::IDResp;
+using MPIRResp = FE_daemon::MPIRResp;
 
 static void
 tryTerm(pid_t const pid)
@@ -108,15 +110,18 @@ struct ProcSet
 
 /* global variables */
 
-// running apps / utils
-auto appList = ProcSet{};
-auto utilMap = std::unordered_map<pid_t, ProcSet>{};
-
-auto mpirMap = std::unordered_map<FE_daemon::MPIRId, std::unique_ptr<MPIRInstance>>{};
-static FE_daemon::MPIRId newMPIRId() {
-	static auto id = FE_daemon::MPIRId{0};
+static DAppId newId() {
+	static auto id = DAppId{0};
 	return ++id;
 }
+auto pidIdMap = std::unordered_map<pid_t, DAppId>{};
+auto idPidMap = std::unordered_map<pid_t, DAppId>{};
+
+// running apps / utils
+auto appList = ProcSet{};
+auto utilMap = std::unordered_map<DAppId, ProcSet>{};
+
+auto mpirMap = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
 
 // communication
 int reqFd  = -1; // incoming request pipe
@@ -194,9 +199,16 @@ sigchld_handler(pid_t const exitedPid)
 		// app already terminated
 		appList.erase(exitedPid);
 	}
-	if (utilMap.find(exitedPid) != utilMap.end()) {
+
+	// find ID associated with exited PID
+	auto const pidIdPair = pidIdMap.find(exitedPid);
+	if (pidIdPair != pidIdMap.end()) {
+		auto const exitedId = pidIdPair->second;
+
 		// terminate all of app's utilities
-		start_thread([&](){ utilMap.erase(exitedPid); });
+		if (utilMap.find(exitedId) != utilMap.end()) {
+			start_thread([&](){ utilMap.erase(exitedId); });
+		}
 	}
 }
 
@@ -217,43 +229,51 @@ cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 
 /* registration helpers */
 
-static void registerAppPID(pid_t const app_pid)
+static DAppId registerAppPID(pid_t const app_pid)
 {
 	if ((app_pid > 0) && !appList.contains(app_pid)) {
 		// register app pid
 		appList.insert(app_pid);
+
+		// create new app ID for pid
+		auto const appId = newId();
+		pidIdMap[app_pid] = appId;
+		idPidMap[appId] = app_pid;
+		return appId;
 	} else {
 		throw std::runtime_error("invalid app pid: " + std::to_string(app_pid));
 	}
 }
 
-static void registerUtilPID(pid_t const app_pid, pid_t const util_pid)
+static void registerUtilPID(DAppId const app_id, pid_t const util_pid)
 {
 	// verify app pid
-	if (app_pid <= 0) {
-		throw std::runtime_error("invalid app pid: " + std::to_string(app_pid));
-	}
-
-	// register app pid if valid and not tracked
-	if (!appList.contains(app_pid)) {
-		registerAppPID(app_pid);
+	if (idPidMap.find(app_id) == idPidMap.end()) {
+		throw std::runtime_error("invalid app id: " + std::to_string(app_id));
 	}
 
 	// register utility pid to app
 	if (util_pid > 0) {
-		utilMap[app_pid].insert(util_pid);
+		utilMap[app_id].insert(util_pid);
 	} else {
 		throw std::runtime_error("invalid util pid: " + std::to_string(util_pid));
 	}
 }
 
 
-static void deregisterAppPID(pid_t const app_pid)
+static void deregisterAppID(DAppId const app_id)
 {
-	if (app_pid > 0) {
+	auto const idPidPair = idPidMap.find(app_id);
+	if (idPidPair != idPidMap.end()) {
+		auto const app_pid = idPidPair->second;
+
+		// remove from ID list
+		idPidMap.erase(idPidPair);
+		pidIdMap.erase(app_pid);
+
 		// terminate all of app's utilities
 		auto utilTermFuture = std::async(std::launch::async,
-			[&](){ utilMap.erase(app_pid); });
+			[&](){ utilMap.erase(app_id); });
 
 		// ensure app is terminated
 		if (appList.contains(app_pid)) {
@@ -265,7 +285,7 @@ static void deregisterAppPID(pid_t const app_pid)
 		// finish util termination
 		utilTermFuture.wait();
 	} else {
-		throw std::runtime_error("invalid app pid: " + std::to_string(app_pid));
+		throw std::runtime_error("invalid app id: " + std::to_string(app_id));
 	}
 }
 
@@ -388,25 +408,25 @@ static void tryWriteOKResp(int const respFd, Func&& func)
 
 // if running the pid-producing function succeeds, write a PID response to pipe
 template <typename Func>
-static void tryWritePIDResp(int const respFd, Func&& func)
+static void tryWriteIDResp(int const respFd, Func&& func)
 {
 	try {
-		// run the pid-producing function
-		auto const pid = func();
+		// run the id-producing function
+		auto const id = func();
 
-		// send PID response
-		rawWriteLoop(respFd, PIDResp
-			{ .type = RespType::PID
-			, .pid  = pid
+		// send ID response
+		rawWriteLoop(respFd, IDResp
+			{ .type = RespType::ID
+			, .id  = id
 		});
 
 	} catch (std::exception const& ex) {
 		fprintf(stderr, "%s\n", ex.what());
 
 		// send failure response
-		rawWriteLoop(respFd, PIDResp
-			{ .type = RespType::PID
-			, .pid  = pid_t{-1}
+		rawWriteLoop(respFd, IDResp
+			{ .type = RespType::ID
+			, .id  = DAppId{-1}
 		});
 	}
 }
@@ -439,7 +459,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
 		// send failure response
 		rawWriteLoop(respFd, MPIRResp
 			{ .type     = RespType::MPIR
-			, .mpir_id  = FE_daemon::MPIRId{0}
+			, .mpir_id  = DAppId{-1}
 		});
 	}
 }
@@ -503,19 +523,29 @@ static pid_t forkExec(LaunchData const& launchData)
 	}
 }
 
-static FE_daemon::MPIRResult extractMPIRResult(FE_daemon::MPIRId const mpirId,
-	MPIRInstance& mpirInst)
+static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& mpirInst)
 {
-	auto const rawJobId  = mpirInst.readStringAt("totalview_jobid");
-	auto const rawStepId = mpirInst.readStringAt("totalview_stepid");
+	// extract job/step ID
+	auto const rawJobId  = mpirInst->readStringAt("totalview_jobid");
+	auto const rawStepId = mpirInst->readStringAt("totalview_stepid");
+
+	// create new app ID
+	auto const launcherPid = mpirInst->getLauncherPid();
+	auto const mpirId = registerAppPID(launcherPid);
 	fprintf(stderr, "new mpir id %d\n", mpirId);
+
+	// extract proctable
+	auto const proctable = mpirInst->getProctable();
+
+	// add to MPIR map for later release
+	mpirMap.emplace(std::make_pair(mpirId, std::move(mpirInst)));
 
 	return FE_daemon::MPIRResult
 		{ mpirId // mpir_id
-		, mpirInst.getLauncherPid() // launcher_pid
+		, launcherPid // launcher_pid
 		, static_cast<uint32_t>(std::stoul(rawJobId)) // job_id
 		, rawStepId.empty() ? 0 : static_cast<uint32_t>(std::stoul(rawStepId)) // step_id
-		, mpirInst.getProctable() // proctable
+		, proctable // proctable
 	};
 }
 
@@ -527,24 +557,19 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 		, { launchData.stderr_fd, STDERR_FILENO }
 	};
 
-	auto idInstPair = mpirMap.emplace(std::make_pair(newMPIRId(),
-		std::make_unique<MPIRInstance>(
-			launchData.filepath, launchData.argvList, launchData.envList, std::map<int, int>{}
-		)
-	)).first;
-
-	return extractMPIRResult(idInstPair->first, *idInstPair->second);
+	return extractMPIRResult(std::make_unique<MPIRInstance>(
+		launchData.filepath, launchData.argvList, launchData.envList, std::map<int, int>{}
+	));
 }
 
 static FE_daemon::MPIRResult attachMPIR(std::string const& launcherPath, pid_t const launcherPid)
 {
-	auto idInstPair = mpirMap.emplace(std::make_pair(newMPIRId(),
-		std::make_unique<MPIRInstance>(launcherPath.c_str(), launcherPid)
-	)).first;
-	return extractMPIRResult(idInstPair->first, *idInstPair->second);
+	return extractMPIRResult(std::make_unique<MPIRInstance>(
+		launcherPath.c_str(), launcherPid
+	));
 }
 
-static void releaseMPIR(FE_daemon::MPIRId const mpir_id)
+static void releaseMPIR(DAppId const mpir_id)
 {
 	auto const idInstPair = mpirMap.find(mpir_id);
 	if (idInstPair != mpirMap.end()) {
@@ -554,7 +579,7 @@ static void releaseMPIR(FE_daemon::MPIRId const mpir_id)
 	}
 }
 
-static void terminateMPIR(FE_daemon::MPIRId const mpir_id)
+static void terminateMPIR(DAppId const mpir_id)
 {
 	auto const idInstPair = mpirMap.find(mpir_id);
 	if (idInstPair != mpirMap.end()) {
@@ -569,32 +594,30 @@ static void terminateMPIR(FE_daemon::MPIRId const mpir_id)
 
 static void handle_ForkExecvpApp(int const reqFd, int const respFd)
 {
-	tryWritePIDResp(respFd, [&]() {
+	tryWriteIDResp(respFd, [&]() {
 		auto const launchData = readLaunchData(reqFd);
 
 		auto const appPid = forkExec(launchData);
 
-		registerAppPID(appPid);
+		auto const appId = registerAppPID(appPid);
 
-		return appPid;
+		return appId;
 	});
 }
 
 static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
 {
-	tryWritePIDResp(respFd, [&]() {
-		auto const appPid  = rawReadLoop<pid_t>(reqFd);
+	tryWriteOKResp(respFd, [&]() {
+		auto const appId  = rawReadLoop<DAppId>(reqFd);
 		auto const runMode = rawReadLoop<FE_daemon::RunMode>(reqFd);
 		auto const launchData = readLaunchData(reqFd);
 
 		auto const utilPid = forkExec(launchData);
 
-		registerUtilPID(appPid, utilPid);
+		registerUtilPID(appId, utilPid);
 		if (runMode == FE_daemon::Synchronous) {
 			::waitpid(utilPid, nullptr, 0);
 		}
-
-		return utilPid;
 	});
 }
 
@@ -604,8 +627,6 @@ static void handle_LaunchMPIR(int const reqFd, int const respFd)
 		auto const launchData = readLaunchData(reqFd);
 
 		auto const mpirData = launchMPIR(launchData);
-
-		registerAppPID(mpirData.launcher_pid);
 
 		return mpirData;
 	});
@@ -627,9 +648,6 @@ static void handle_AttachMPIR(int const reqFd, int const respFd)
 
 		auto const mpirData = attachMPIR(launcherPath, launcherPid);
 
-		// extract MPIR data
-		registerAppPID(mpirData.launcher_pid);
-
 		return mpirData;
 	});
 }
@@ -637,7 +655,7 @@ static void handle_AttachMPIR(int const reqFd, int const respFd)
 static void handle_ReleaseMPIR(int const reqFd, int const respFd)
 {
 	tryWriteOKResp(respFd, [&]() {
-		auto const mpirId = rawReadLoop<FE_daemon::MPIRId>(reqFd);
+		auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
 		releaseMPIR(mpirId);
 	});
@@ -646,7 +664,7 @@ static void handle_ReleaseMPIR(int const reqFd, int const respFd)
 static void handle_TerminateMPIR(int const reqFd, int const respFd)
 {
 	tryWriteOKResp(respFd, [&]() {
-		auto const mpirId = rawReadLoop<FE_daemon::MPIRId>(reqFd);
+		auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
 		terminateMPIR(mpirId);
 	});
@@ -654,29 +672,31 @@ static void handle_TerminateMPIR(int const reqFd, int const respFd)
 
 static void handle_RegisterApp(int const reqFd, int const respFd)
 {
-	tryWriteOKResp(respFd, [&]() {
+	tryWriteIDResp(respFd, [&]() {
 		auto const appPid = rawReadLoop<pid_t>(reqFd);
 
-		registerAppPID(appPid);
+		auto const appId = registerAppPID(appPid);
+
+		return appId;
 	});
 }
 
 static void handle_RegisterUtil(int const reqFd, int const respFd)
 {
 	tryWriteOKResp(respFd, [&]() {
-		auto const appPid  = rawReadLoop<pid_t>(reqFd);
+		auto const appId   = rawReadLoop<DAppId>(reqFd);
 		auto const utilPid = rawReadLoop<pid_t>(reqFd);
 
-		registerUtilPID(appPid, utilPid);
+		registerUtilPID(appId, utilPid);
 	});
 }
 
 static void handle_DeregisterApp(int const reqFd, int const respFd)
 {
 	tryWriteOKResp(respFd, [&]() {
-		auto const appPid = rawReadLoop<pid_t>(reqFd);
+		auto const appId = rawReadLoop<DAppId>(reqFd);
 
-		deregisterAppPID(appPid);
+		deregisterAppID(appId);
 	});
 }
 
