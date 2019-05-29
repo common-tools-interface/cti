@@ -45,13 +45,12 @@
 
 CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, SrunInstance&& srunInstance)
     : App(fe)
-    , m_launcherPid     { srunInstance.mpirData.launcher_pid }
+    , m_daemonAppId     { srunInstance.mpirData.mpir_id }
     , m_jobId           { srunInstance.mpirData.job_id }
     , m_stepId          { srunInstance.mpirData.step_id }
     , m_stepLayout      { fe.fetchStepLayout(m_jobId, m_stepId) }
     , m_beDaemonSent    { false }
 
-    , m_stoppedSrunId { srunInstance.mpirData.mpir_id }
     , m_outputPath    { std::move(srunInstance.outputPath) }
     , m_errorPath     { std::move(srunInstance.errorPath) }
 
@@ -67,13 +66,15 @@ CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, SrunInstance&& srunInstance)
     }
 
     // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
-    if (m_stoppedSrunId) {
+    if (m_daemonAppId) {
         // FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
         // call can be removed. Right now the pmi_attribs file is created in the pmi
         // ctor, which is called after the slurm startup barrier, meaning it will not
         // yet be created when launching. So we need to send over a file containing
         // the information to the compute nodes.
         m_extraFiles.push_back(fe.createPIDListFile(srunInstance.mpirData.proctable, m_stagePath));
+    } else {
+        throw std::runtime_error("tried to create app with invalid daemon id: " + std::to_string(m_daemonAppId));
     }
 }
 
@@ -84,9 +85,9 @@ CraySLURMApp::~CraySLURMApp()
         _cti_removeDirectory(m_stagePath.c_str());
     }
 
-    if (m_launcherPid > 0) {
+    if (m_daemonAppId > 0) {
         // Inform the FE daemon that this App is going away
-        m_frontend.Daemon().request_DeregisterApp(m_launcherPid);
+        m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
     }
 }
 
@@ -177,12 +178,12 @@ CraySLURMApp::getHostsPlacement() const
 
 void CraySLURMApp::releaseBarrier() {
     // check MPIR barrier
-    if (!m_stoppedSrunId) {
+    if (!m_daemonAppId) {
         throw std::runtime_error("app not under MPIR control");
     }
 
     // release MPIR barrier
-    m_frontend.Daemon().request_ReleaseMPIR(m_stoppedSrunId);
+    m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
 }
 
 void
@@ -204,7 +205,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
     }
 
     m_frontend.Daemon().request_ForkExecvpUtil_Async(
-        m_launcherPid, SATTACH, sattachArgv.get(),
+        m_daemonAppId, SATTACH, sattachArgv.get(),
         // redirect stdin / stderr / stdout
         open("/dev/null", O_RDONLY), stdoutFd, stderrFd,
         nullptr);
@@ -222,7 +223,7 @@ void CraySLURMApp::kill(int signum)
 
     // tell frontend daemon to launch scancel, wait for it to finish
     m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-        m_launcherPid, SCANCEL, scancelArgv.get(),
+        m_daemonAppId, SCANCEL, scancelArgv.get(),
         -1, -1, -1,
         nullptr);
 }
@@ -244,18 +245,17 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
     }
 
     // now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
-    auto const forkedPid = m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-        m_launcherPid, SBCAST, sbcastArgv.get(),
+    m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        m_daemonAppId, SBCAST, sbcastArgv.get(),
         -1, -1, -1,
         nullptr);
 
-    // wait until the sbcast finishes
+    // call to request_ForkExecvpUtil_Sync will wait until the sbcast finishes
     // FIXME: There is no way to error check right now because the sbcast command
     // can only send to an entire job, not individual job steps. The /var/spool/alps/<apid>
     // directory will only exist on nodes associated with this particular job step, and the
     // sbcast command will exit with error if the directory doesn't exist even if the transfer
     // worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
-    waitpid(forkedPid, nullptr, 0);
 }
 
 void CraySLURMApp::startDaemon(const char* const args[]) {
@@ -330,7 +330,7 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 
     // tell FE Daemon to launch srun
     m_frontend.Daemon().request_ForkExecvpUtil_Async(
-        m_launcherPid,dynamic_cast<CraySLURMFrontend&>(m_frontend).getLauncherName().c_str(),
+        m_daemonAppId, dynamic_cast<CraySLURMFrontend&>(m_frontend).getLauncherName().c_str(),
         launcherArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
@@ -565,8 +565,8 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
         const char * const env_list[])
 {
     auto srunInstance = SrunInstance {
-        .mpirData = FE_daemon::MPIRResult {
-            FE_daemon::MPIRId{0} // mpir_id
+        .mpirData = FE_daemon::MPIRResult
+            { FE_daemon::DaemonAppId{0} // mpir_id
             , pid_t{0} // launcher_pid
             , uint32_t{0} // job_id
             , uint32_t{0} // step_id
@@ -633,7 +633,7 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
             env_list);
 
         // overwatch redirect utility
-        Daemon().request_RegisterUtil(srunInstance.mpirData.launcher_pid, redirectPid);
+        Daemon().request_RegisterUtil(srunInstance.mpirData.mpir_id, redirectPid);
 
         return srunInstance;
     } else {
