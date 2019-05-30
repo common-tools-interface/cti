@@ -154,6 +154,9 @@ public: // Public interface to generic WLM-agnostic capabilities
     std::string getLdAuditPath() { return m_ld_audit_path; }
     std::string getBEDaemonPath() { return m_be_daemon_path; }
 
+    // tell all Apps to finalize their transfer Sessions
+    void finalize();
+
 protected: // Constructor/destructors
     Frontend();
 public:
@@ -252,6 +255,9 @@ public: // Public interface to generic WLM-agnostic capabilities
     // TODO: When we switch to std::atomic on shared_ptr with C++20,
     // this can return a shared_ptr handle instead.
     Frontend& getFrontend() { return m_frontend; }
+
+    // tell all Sessions to initialize cleanup
+    void finalize();
 
 public: // Constructor/destructors
     App(Frontend& fe)

@@ -120,15 +120,17 @@ Session::Session(App& owningApp)
     , m_ldLibraryPath{m_stagePath + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
 { }
 
-Session::~Session() {
+void Session::finalize() {
     // Check to see if we need to try cleanup on compute nodes. We bypass the
     // cleanup if we never shipped a manifest.
     if (m_seqNum == 0) {
         return;
     }
-    writeLog("launchCleanup: creating daemonArgv for cleanup\n");
-    // get owning app
+
+    // Get owning app
     auto app = getOwningApp();
+
+    writeLog("launchCleanup: creating daemonArgv for cleanup\n");
     // create DaemonArgv
     cti::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
     daemonArgv.add(DaemonArgv::ApID,                app->getJobId());
@@ -159,7 +161,37 @@ Session::createManifest() {
 }
 
 std::string
-Session::shipManifest(std::shared_ptr<Manifest>& mani) {
+Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
+    // Get owning app
+    auto app = getOwningApp();
+    // Get frontend reference
+    auto&& fe = app->getFrontend();
+    // Check to see if we need to add baseline App dependencies
+    if ( m_add_requirements ) {
+        // Get the location of the daemon
+        if (fe.getBEDaemonPath().empty()) {
+            throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
+        }
+
+        // ship CTI backend daemon
+        app->shipPackage(fe.getBEDaemonPath());
+
+        // ship WLM-specific base files
+        for (auto const& path : app->getExtraBinaries()) {
+            mani->addBinary(path);
+        }
+        for (auto const& path : app->getExtraLibraries()) {
+            mani->addLibrary(path);
+        }
+        for (auto const& path : app->getExtraLibDirs()) {
+            mani->addLibDir(path);
+        }
+        for (auto const& path : app->getExtraFiles()) {
+            mani->addFile(path);
+        }
+        m_add_requirements = false;
+    }
+
     // Finalize and drop our reference to the manifest.
     // Note we keep it alive via our shared_ptr. We do this early on
     // in case an error happens to guarantee cleanup.
@@ -168,9 +200,6 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
     auto inst = mani->instance();
     // Name of archive to create for the manifest files
     const std::string archiveName(m_stageName + std::to_string(inst) + ".tar");
-    // Get frontend reference
-    auto app = getOwningApp();
-    auto&& fe = app->getFrontend();
     writeLog("shipManifest %d: merge into session\n", inst);
     // merge manifest into session and get back list of files to remove
     auto&& folders = mani->folders();
@@ -211,7 +240,7 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
 }
 
 void
-Session::sendManifest(std::shared_ptr<Manifest>& mani) {
+Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     // Short circuit if there is nothing to send
     if (mani->empty()) {
         removeManifest(mani);
@@ -221,22 +250,6 @@ Session::sendManifest(std::shared_ptr<Manifest>& mani) {
     auto inst = mani->instance();
     // Get owning app
     auto app = getOwningApp();
-    // Check to see if we need to add baseline App dependencies
-    if ( m_add_requirements ) {
-        for (auto const& path : app->getExtraBinaries()) {
-            mani->addBinary(path);
-        }
-        for (auto const& path : app->getExtraLibraries()) {
-            mani->addLibrary(path);
-        }
-        for (auto const& path : app->getExtraLibDirs()) {
-            mani->addLibDir(path);
-        }
-        for (auto const& path : app->getExtraFiles()) {
-            mani->addFile(path);
-        }
-        m_add_requirements = false;
-    }
     // Ship the manifest
     auto archiveName = shipManifest(mani);
     // create DaemonArgv
@@ -257,7 +270,7 @@ Session::sendManifest(std::shared_ptr<Manifest>& mani) {
 }
 
 void
-Session::execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon,
+Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const daemon,
         const char * const daemonArgs[], const char * const envVars[]) {
     // Add daemon to the manifest
     mani->addBinary(daemon);
@@ -318,7 +331,7 @@ Session::execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon
 }
 
 void
-Session::removeManifest(std::shared_ptr<Manifest>& mani) {
+Session::removeManifest(std::shared_ptr<Manifest> const& mani) {
     // Finalize manifest
     mani->finalize();
     // drop the shared_ptr
@@ -379,7 +392,7 @@ Session::getSessionLockFiles() {
     auto app = getOwningApp();
     auto tp = app->getToolPath();
     // Create the lock files based on the current sequence number
-    for(auto i=0; i < m_seqNum; ++i) {
+    for(int i = 0; i < m_seqNum; ++i) {
         ret.emplace_back(tp + "/.lock_" + m_stageName + "_" + std::to_string(i));
     }
     return ret;

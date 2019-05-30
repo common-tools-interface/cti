@@ -22,19 +22,9 @@
 // pointer management
 #include <memory>
 
-// file registry
-#include <map>
-#include <unordered_map>
-#include <unordered_set>
-#include <set>
-using FoldersMap = std::map<std::string, std::set<std::string>>;
-using PathMap = std::unordered_map<std::string, std::string>;
-using FolderFilePair = std::pair<std::string, std::string>;
-
 #include "frontend/Frontend.hpp"
 
-// Forward declarations
-class Manifest;
+#include "Manifest.hpp"
 
 class Session final : public std::enable_shared_from_this<Session> {
 public: // types
@@ -53,9 +43,9 @@ private: // variables
     // True if we need to check for App dependencies
     bool                        m_add_requirements;
     // Counter to track unique manifests
-    size_t                      m_manifestCnt;
+    int                         m_manifestCnt;
     // Counter to track shipped manifests
-    size_t                      m_seqNum;
+    int                         m_seqNum;
     FoldersMap                  m_folders;
     PathMap                     m_sourcePaths;
     std::string const           m_stageName;
@@ -72,7 +62,21 @@ private: // helper functions
         const PathMap& paths);
     // Finalize and package manifest into archive. Ship to compute nodes.
     // This is a helper function to be used by sendManifest and startDaemon
-    std::string shipManifest(std::shared_ptr<Manifest>& mani);
+    std::string shipManifest(std::shared_ptr<Manifest> const& mani);
+    // drop reference to an existing manifest. This invalidates the manifest
+    // and prevents it from being shipped.
+    void removeManifest(std::shared_ptr<Manifest> const& mani);
+
+private: // friend shared with Manifest
+    // Used to ship a manifest to the computes and extract it.
+    void sendManifest(std::shared_ptr<Manifest> const& mani);
+    friend void Manifest::sendManifest();
+
+    // Used to ship a manifest and execute a tool daemon contained within.
+    void execManifest(std::shared_ptr<Manifest> const& mani, const char * const daemon,
+        const char * const daemonArgs[], const char * const envVars[]);
+    friend void Manifest::execManifest(const char * const daemon, const char * const daemonArgs[],
+        const char * const envVars[]);
 
 public: // interface
     std::shared_ptr<App> getOwningApp() {
@@ -91,14 +95,6 @@ public: // interface
     std::vector<std::string> getSessionLockFiles();
     // create new manifest associated with this session
     std::weak_ptr<Manifest> createManifest();
-    // Used to ship a manifest to the computes and extract it.
-    void sendManifest(std::shared_ptr<Manifest>& mani);
-    // Used to ship a manifest and execute a tool daemon contained within.
-    void execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon,
-        const char * const daemonArgs[], const char * const envVars[]);
-    // drop reference to an existing manifest. This invalidates the manifest
-    // and prevents it from being shipped.
-    void removeManifest(std::shared_ptr<Manifest>& mani);
     /* fileName: filename as provided by client
         realName: basename following symlinks
         conflict rules:
@@ -109,9 +105,12 @@ public: // interface
     Conflict hasFileConflict(const std::string& folderName, const std::string& realName,
         const std::string& candidatePath) const;
 
+    // launch daemon to cleanup remote files. this must be called outside App destructor
+    void finalize();
+
 public: // interface
     Session(App& activeApp);
-    ~Session();
+    ~Session() = default;
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
     Session(Session&&) = delete;

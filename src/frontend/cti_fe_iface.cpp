@@ -143,7 +143,7 @@ int
 cti_getNumAppPEs(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
-        auto sp = fe.Iface().getApp(appId);
+        auto const sp = fe.Iface().getApp(appId);
         return sp->getNumPEs();
     }, -1);
 }
@@ -152,7 +152,7 @@ int
 cti_getNumAppNodes(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
-        auto sp = fe.Iface().getApp(appId);
+        auto const sp = fe.Iface().getApp(appId);
         return sp->getNumHosts();
     }, -1);
 }
@@ -417,7 +417,7 @@ cti_getSessionLockFiles(cti_session_id_t sid) {
             throw std::runtime_error("malloc failed for session id " + std::to_string(sid));
         }
         // create the strings
-        for (auto i = 0; i < lock_files.size(); i++) {
+        for (size_t i = 0; i < lock_files.size(); i++) {
             result[i] = strdup(lock_files[i].c_str());
         }
         // Ensure the list is null terminated
@@ -534,8 +534,7 @@ cti_sendManifest(cti_manifest_id_t mid) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
         auto mp = fe.Iface().getManifest(mid);
-        auto sp = mp->getOwningSession();
-        sp->sendManifest(mp);
+        mp->sendManifest();
         fe.Iface().removeManifest(mid);
         return SUCCESS;
     }, FAILURE);
@@ -549,8 +548,7 @@ cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
         auto mp = fe.Iface().getManifest(mid);
-        auto sp = mp->getOwningSession();
-        sp->execManifest(mp, daemonPath, daemonArgs, envVars);
+        mp->execManifest(daemonPath, daemonArgs, envVars);
         fe.Iface().removeManifest(mid);
         return SUCCESS;
     }, FAILURE);

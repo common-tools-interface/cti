@@ -108,7 +108,7 @@ private: // type aliases
     using SrunInstance = CraySLURMFrontend::SrunInstance;
 
 private: // variables
-    pid_t    m_launcherPid; // launcher PID
+    FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
     uint32_t m_jobId;
     uint32_t m_stepId;
     CraySLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
@@ -116,7 +116,6 @@ private: // variables
     int      m_queuedErrFd; // Where to redirect stderr after barrier release
     bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
 
-    FE_daemon::MPIRId m_stoppedSrunId; // MPIR instance id to release startup barrier
     cti::temp_file_handle m_outputPath;
     cti::temp_file_handle m_errorPath;
 

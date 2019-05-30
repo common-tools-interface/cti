@@ -62,7 +62,9 @@ public: // Constructor/destructors
     Archive(const std::string& archivePath);
     // remove archive from disk
     ~Archive() {
-        unlink(m_archivePath.c_str());
+        if (!m_archivePath.empty()) {
+            unlink(m_archivePath.c_str());
+        }
     }
     // Explicitly delete move/copy constructors.
     // Archive has file ownership on disk.

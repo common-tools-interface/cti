@@ -191,6 +191,15 @@ Frontend::addFileCleanup(std::string file)
     m_cleanup_files.push_back(std::move(cleanupFilePath));
 }
 
+void
+Frontend::finalize()
+{
+    // tell all Apps to finalize transfer sessions
+    for (auto&& app : m_apps) {
+        app->finalize();
+    }
+}
+
 // BUG 819725:
 // Attempt to cleanup old files in the cfg dir
 void
@@ -324,7 +333,15 @@ Frontend::inst() {
 void
 Frontend::destroy() {
     // Use sequential consistency here
-    delete m_instance.exchange(nullptr);
+    if (auto instance = m_instance.exchange(nullptr)) {
+
+        // clean up all App/Sessions before destructors are run
+        for (auto&& app : instance->m_apps) {
+            app->finalize();
+        }
+
+        delete instance;
+    }
 }
 
 Frontend::Frontend()
@@ -372,7 +389,8 @@ Frontend::~Frontend()
 }
 
 std::weak_ptr<Session>
-App::createSession() {
+App::createSession()
+{
     auto ret = m_sessions.emplace(std::make_shared<Session>(*this));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new Session object.");
@@ -381,7 +399,19 @@ App::createSession() {
 }
 
 void
-App::removeSession(std::shared_ptr<Session>& sess) {
+App::removeSession(std::shared_ptr<Session>& sess)
+{
+    // tell session to launch cleanup
+    sess->finalize();
     // drop the shared_ptr
     m_sessions.erase(sess);
+}
+
+void
+App::finalize()
+{
+    // tell all sessions to launch cleanup
+    for (auto&& session : m_sessions) {
+        session->finalize();
+    }
 }
