@@ -103,50 +103,51 @@ AC_DEFUN([cray_ENV_LIBARCHIVE],
 ])
 
 dnl
-dnl build libssh automatically
+dnl build libssh2 automatically
 dnl
-AC_DEFUN([cray_BUILD_LIBSSH],
+AC_DEFUN([cray_BUILD_LIBSSH2],
 [
-	cray_cv_lib_ssh_build=no
+	cray_cv_lib_ssh2_build=no
 
 	dnl External source directory
-	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/libssh"
+	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/libssh2"
 
-	AC_MSG_CHECKING([for libssh submodule])
+	AC_MSG_CHECKING([for libssh2 submodule])
 
-	dnl Ensure the libssh source was checked out
+	dnl Ensure the libssh2 source was checked out
 	AS_IF(	[test ! -f "$_cray_external_srcdir/README"],
-			[AC_MSG_ERROR([git submodule libssh not found.])],
+			[AC_MSG_ERROR([git submodule libssh2 not found.])],
 			[AC_MSG_RESULT([yes])]
 			)
 
 	dnl cd to the checked out source directory
 	cd ${_cray_external_srcdir}
 
-	AC_MSG_NOTICE([Building libssh...])
+	AC_MSG_NOTICE([Building libssh2...])
 
-	dnl configure using cmake
-	rm -rf build
-	mkdir -p build
-	cd build
-	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	dnl configure
+	./configure --prefix=${prefix}
 	AS_IF(	[test $? != 0],
-	 		[AC_MSG_ERROR[libssh cmake failed.]],
+	 		[AC_MSG_ERROR[libssh2 configure failed.]],
 	 		[]
 	 		)
+
+	AC_MSG_NOTICE([Staging libssh2...])
 
 	dnl make
 	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
-	 		[AC_MSG_ERROR[libssh make failed.]],
+	 		[AC_MSG_ERROR[libssh2 make failed.]],
 	 		[]
 	 		)
 
-	dnl install to stage
-	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	dnl install to stage - this also gets included in final package
+	make -j8 install prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
-	 		[AC_MSG_ERROR[libssh make install failed.]],
-	 		[cray_cv_lib_ssh_build=yes]
+	 		[AC_MSG_ERROR[libssh2 make install failed.]],
+	 		[cray_cv_lib_ssh2_build=yes]
 	 		)
 
 	dnl go home
@@ -154,13 +155,11 @@ AC_DEFUN([cray_BUILD_LIBSSH],
 ])
 
 dnl
-dnl define post-cache libssh env
+dnl define post-cache libssh2 env
 dnl
-AC_DEFUN([cray_ENV_LIBSSH],
+AC_DEFUN([cray_ENV_LIBSSH2],
 [
-	AC_SUBST([LIBSSH_SRC], [${CRAYTOOL_EXTERNAL}/libssh])
-	AC_SUBST([INTERNAL_LIBSSH], [${CRAYTOOL_EXTERNAL_INSTALL}])
-	AC_SUBST([LIBSSH_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssh.so])
+	AC_SUBST([INTERNAL_LIBSSH2], [${CRAYTOOL_EXTERNAL_INSTALL}])
 ])
 
 dnl

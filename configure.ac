@@ -68,12 +68,12 @@ AC_CACHE_SAVE
 cray_ENV_LIBARCHIVE
 
 dnl build libssh
-AC_CACHE_CHECK([for libssh], [cray_cv_lib_ssh_build], [cray_BUILD_LIBSSH])
-if test "x$cray_cv_lib_ssh_build" = xno; then
-	AC_MSG_ERROR([libssh build failed.])
+AC_CACHE_CHECK([for libssh2], [cray_cv_lib_ssh2_build], [cray_BUILD_LIBSSH2])
+if test "x$cray_cv_lib_ssh2_build" = xno; then
+	AC_MSG_ERROR([libssh2 build failed.])
 fi
 AC_CACHE_SAVE
-cray_ENV_LIBSSH
+cray_ENV_LIBSSH2
 
 dnl build elfutils
 AC_CACHE_CHECK([for elfutils], [cray_cv_elfutils_conf], [cray_CONF_ELFUTILS])
@@ -150,20 +150,22 @@ AC_SUBST([ARCHIVE_LIBS], ["-larchive"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
-dnl Check for libssh - we dlopen this, just make sure the library exists.
+dnl Check for libssh2
 save_LDFLAGS="$LDFLAGS"
-if test -d "$INTERNAL_LIBSSH/lib"; then
-	LDFLAGS="$LDFLAGS -L$INTERNAL_LIBSSH/lib"
+if test -d "$INTERNAL_LIBSSH2/lib"; then
+	AC_SUBST([SSH2_LDFLAGS], ["-L$INTERNAL_LIBSSH2/lib"])
+	LDFLAGS="$LDFLAGS -L$INTERNAL_LIBSSH2/lib"
 fi
-AC_CHECK_LIB(	[ssh],
-				[ssh_init],
-				[AC_DEFINE(	[HAVE_SSH],
+AC_CHECK_LIB(	[ssh2],
+				[ssh2_init],
+				[AC_DEFINE(	[HAVE_SSH2],
 								[1],
-								[Define to 1 if you have the ssh library (-lssh).]
+								[Define to 1 if you have the ssh2 library (-lssh2).]
 							)
 				],
-				[AC_MSG_ERROR([libssh not found.])]
+				[AC_MSG_ERROR([libssh2 not found.])]
 				)
+AC_SUBST([SSH2_LIBS], ["-lssh2"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
@@ -188,15 +190,15 @@ AC_CHECK_HEADER([archive.h],
 dnl restore flags
 CFLAGS="$save_CFLAGS"
 
-dnl Check for libssh headers
+dnl Check for libssh2 headers
 save_CFLAGS="$CFLAGS"
-if test -f "$INTERNAL_LIBSSH/include/libssh/libssh.h"; then
-	AC_SUBST([SSH_CFLAGS], ["-I$INTERNAL_LIBSSH/include"])
-	CFLAGS="$CFLAGS $SSH_CFLAGS"
+if test -f "$INTERNAL_LIBSSH2/include/libssh2.h"; then
+	AC_SUBST([SSH2_CFLAGS], ["-I$INTERNAL_LIBSSH2/include"])
+	CFLAGS="$CFLAGS $SSH2_CFLAGS"
 fi
-AC_CHECK_HEADER([libssh/libssh.h],
+AC_CHECK_HEADER([libssh2.h],
 				[],
-				[AC_MSG_FAILURE([libssh.h not found.])],
+				[AC_MSG_FAILURE([libssh2.h not found.])],
 				[]
 				)
 dnl restore flags
