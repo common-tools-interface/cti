@@ -109,9 +109,22 @@ namespace file {
         throw std::runtime_error("failed to open path " + path);
     }
 
+    // fread from an open FILE* and conduct error handling
+    static inline auto read(void *ptr, size_t size, size_t nmemb, FILE* fp)
+    {
+        errno = 0;
+        auto ret = fread(ptr, size, nmemb, fp);
+        // check for file read error
+        if(ferror(fp)) {
+            throw std::runtime_error("Error in reading from file: " + strerror(errno));
+        }
+        return ret;
+    }
+
     // write a POD to file
     template <typename T>
-    static inline void writeT(FILE* fp, T const& data) {
+    static inline void writeT(FILE* fp, T const& data)
+    {
         static_assert(std::is_pod<T>::value, "type cannot be written bytewise to file");
         if (fwrite(&data, sizeof(T), 1, fp) != 1) {
             throw std::runtime_error("failed to write to file");
@@ -120,7 +133,8 @@ namespace file {
 
     // read a POD from file
     template <typename T>
-    static inline T readT(FILE* fp) {
+    static inline T readT(FILE* fp)
+    {
         static_assert(std::is_pod<T>::value, "type cannot be read bytewise from file");
         T data;
         if (fread(&data, sizeof(T), 1, fp) != 1) {
@@ -257,6 +271,14 @@ fileHasPerms(char const* filePath, int const perms)
     return !stat(filePath, &st) // make sure this directory exists
         && S_ISREG(st.st_mode)  // make sure it is a regular file
         && !access(filePath, perms); // check that the file has the desired permissions
+}
+
+// Test if a file exists
+static inline bool
+isFile(char const* filePath)
+{
+    struct stat st;
+    return !stat(filePath, &st);
 }
 
 static inline bool
