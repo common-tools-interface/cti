@@ -24,7 +24,7 @@
 [submodule "tests/googletest"]
 	path = tests/test_support/googletest
 	url = ssh://git@stash.us.cray.com:7999/cnos-3rd/googletest.git
-[submodule "external/libssh"]
-	path = external/libssh
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libssh.git
+[submodule "external/libssh2"]
+	path = external/libssh2
+    url = ssh://git@stash.us.cray.com:7999/pe-cdst/libssh2.git
 	branch = cti-external
