@@ -135,6 +135,18 @@ Manifest::addFile(const std::string& rawName) {
     checkAndAdd("", filePath, realName);
 }
 
+void
+Manifest::sendManifest() {
+    getOwningSession()->sendManifest(shared_from_this());
+}
+
+void
+Manifest::execManifest(const char * const daemon, const char * const daemonArgs[],
+    const char * const envVars[]) {
+    getOwningSession()->execManifest(shared_from_this(),
+        daemon, daemonArgs, envVars);
+}
+
 Manifest::Manifest(size_t instanceCount, Session& owningSession)
 : m_sessionPtr{owningSession.shared_from_this()}
 , m_instance{instanceCount}

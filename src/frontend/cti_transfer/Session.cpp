@@ -161,7 +161,7 @@ Session::createManifest() {
 }
 
 std::string
-Session::shipManifest(std::shared_ptr<Manifest> mani) {
+Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     // Get owning app
     auto app = getOwningApp();
     // Get frontend reference
@@ -240,7 +240,7 @@ Session::shipManifest(std::shared_ptr<Manifest> mani) {
 }
 
 void
-Session::sendManifest(std::shared_ptr<Manifest> mani) {
+Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     // Short circuit if there is nothing to send
     if (mani->empty()) {
         removeManifest(mani);
@@ -270,7 +270,7 @@ Session::sendManifest(std::shared_ptr<Manifest> mani) {
 }
 
 void
-Session::execManifest(std::shared_ptr<Manifest> mani, const char * const daemon,
+Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const daemon,
         const char * const daemonArgs[], const char * const envVars[]) {
     // Add daemon to the manifest
     mani->addBinary(daemon);
@@ -331,7 +331,7 @@ Session::execManifest(std::shared_ptr<Manifest> mani, const char * const daemon,
 }
 
 void
-Session::removeManifest(std::shared_ptr<Manifest> mani) {
+Session::removeManifest(std::shared_ptr<Manifest> const& mani) {
     // Finalize manifest
     mani->finalize();
     // drop the shared_ptr
