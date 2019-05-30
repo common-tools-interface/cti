@@ -96,6 +96,8 @@ public: // interface
 	/* process interaction */
 	pid_t getPid();
 	void continueRun();
+	bool isTerminated() { return !m_proc || m_proc->isTerminated(); }
+	void terminate();
 
 	/* templated over char buf source / dest functions */
 	template <typename T>

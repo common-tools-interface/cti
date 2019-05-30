@@ -161,13 +161,22 @@ Session::createManifest() {
 }
 
 std::string
-Session::shipManifest(std::shared_ptr<Manifest>& mani) {
+Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     // Get owning app
     auto app = getOwningApp();
     // Get frontend reference
     auto&& fe = app->getFrontend();
     // Check to see if we need to add baseline App dependencies
     if ( m_add_requirements ) {
+        // Get the location of the daemon
+        if (fe.getBEDaemonPath().empty()) {
+            throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
+        }
+
+        // ship CTI backend daemon
+        app->shipPackage(fe.getBEDaemonPath());
+
+        // ship WLM-specific base files
         for (auto const& path : app->getExtraBinaries()) {
             mani->addBinary(path);
         }
@@ -231,7 +240,7 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
 }
 
 void
-Session::sendManifest(std::shared_ptr<Manifest>& mani) {
+Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     // Short circuit if there is nothing to send
     if (mani->empty()) {
         removeManifest(mani);
@@ -261,7 +270,7 @@ Session::sendManifest(std::shared_ptr<Manifest>& mani) {
 }
 
 void
-Session::execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon,
+Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const daemon,
         const char * const daemonArgs[], const char * const envVars[]) {
     // Add daemon to the manifest
     mani->addBinary(daemon);
@@ -322,7 +331,7 @@ Session::execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon
 }
 
 void
-Session::removeManifest(std::shared_ptr<Manifest>& mani) {
+Session::removeManifest(std::shared_ptr<Manifest> const& mani) {
     // Finalize manifest
     mani->finalize();
     // drop the shared_ptr

@@ -29,6 +29,7 @@
 #include "useful/cti_execvp.hpp"
 
 #include "cti_fe_daemon_iface.hpp"
+using DaemonAppId = FE_daemon::DaemonAppId;
 
 /* protocol helpers */
 
@@ -111,14 +112,14 @@ static void verifyOKResp(int const reqFd)
 	}
 }
 
-// return PID response content, throw if pid < 0, indicating failure
-static pid_t readPIDResp(int const reqFd)
+// return ID response content, throw if id < 0, indicating failure
+static DaemonAppId readIDResp(int const reqFd)
 {
-	auto const pidResp = rawReadLoop<FE_daemon::PIDResp>(reqFd);
-	if ((pidResp.type != FE_daemon::RespType::PID) || (pidResp.pid < 0)) {
-		throw std::runtime_error("failed to read PID response");
+	auto const idResp = rawReadLoop<FE_daemon::IDResp>(reqFd);
+	if ((idResp.type != FE_daemon::RespType::ID) || (idResp.id < 0)) {
+		throw std::runtime_error("failed to read DaemonAppID response");
 	}
-	return pidResp.pid;
+	return idResp.id;
 }
 
 // return MPIR launch / attach data, throw if MPIR ID < 0, indicating failure
@@ -126,7 +127,7 @@ static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
 {
 	// read basic table information
 	auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(reqFd);
-	if ((mpirResp.type != FE_daemon::RespType::MPIR) || !mpirResp.mpir_id) {
+	if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.mpir_id < 0)) {
 		throw std::runtime_error("failed to read proctable response");
 	}
 
@@ -174,7 +175,7 @@ FE_daemon::~FE_daemon()
 }
 
 void
-FE_daemon::initialize(std::string fe_daemon_bin)
+FE_daemon::initialize(std::string const& fe_daemon_bin)
 {
 	// Only fork once!
 	if (m_init) {
@@ -249,25 +250,25 @@ FE_daemon::initialize(std::string fe_daemon_bin)
     m_init = true;
 }
 
-pid_t
+DaemonAppId
 FE_daemon::request_ForkExecvpApp(char const* file,
 	char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
 	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ForkExecvpApp);
 	writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
-	return readPIDResp(m_resp_sock.getReadFd());
+	return readIDResp(m_resp_sock.getReadFd());
 }
 
-pid_t
-FE_daemon::request_ForkExecvpUtil(pid_t app_pid, RunMode runMode,
+void
+FE_daemon::request_ForkExecvpUtil(DaemonAppId app_id, RunMode runMode,
 	char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd,
 	char const* const env[])
 {
 	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ForkExecvpUtil);
-	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+	rawWriteLoop(m_req_sock.getWriteFd(), app_id);
 	rawWriteLoop(m_req_sock.getWriteFd(), runMode);
 	writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
-	return readPIDResp(m_resp_sock.getReadFd());
+	verifyOKResp(m_resp_sock.getReadFd());
 }
 
 FE_daemon::MPIRResult
@@ -280,44 +281,51 @@ FE_daemon::request_LaunchMPIR(char const* file,
 }
 
 FE_daemon::MPIRResult
-FE_daemon::request_AttachMPIR(pid_t app_pid)
+FE_daemon::request_AttachMPIR(char const* launcher_path, pid_t launcher_pid)
 {
 	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::AttachMPIR);
-	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+	writeLoop(m_req_sock.getWriteFd(), launcher_path, strlen(launcher_path) + 1);
+	rawWriteLoop(m_req_sock.getWriteFd(), launcher_pid);
 	return readMPIRResp(m_resp_sock.getReadFd());
 }
 
 void
-FE_daemon::request_ReleaseMPIR(MPIRId mpir_id)
+FE_daemon::request_ReleaseMPIR(DaemonAppId mpir_id)
 {
 	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ReleaseMPIR);
 	rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
 	verifyOKResp(m_resp_sock.getReadFd());
 }
 
-pid_t
+void
+FE_daemon::request_TerminateMPIR(DaemonAppId mpir_id)
+{
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::TerminateMPIR);
+	rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+	verifyOKResp(m_resp_sock.getReadFd());
+}
+
+DaemonAppId
 FE_daemon::request_RegisterApp(pid_t app_pid)
 {
 	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterApp);
 	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
-	verifyOKResp(m_resp_sock.getReadFd());
-	return app_pid;
-}
-
-pid_t
-FE_daemon::request_RegisterUtil(pid_t app_pid, pid_t util_pid)
-{
-	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterUtil);
-	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
-	rawWriteLoop(m_req_sock.getWriteFd(), util_pid);
-	verifyOKResp(m_resp_sock.getReadFd());
-	return util_pid;
+	return readIDResp(m_resp_sock.getReadFd());
 }
 
 void
-FE_daemon::request_DeregisterApp(pid_t app_pid)
+FE_daemon::request_RegisterUtil(DaemonAppId app_id, pid_t util_pid)
+{
+	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterUtil);
+	rawWriteLoop(m_req_sock.getWriteFd(), app_id);
+	rawWriteLoop(m_req_sock.getWriteFd(), util_pid);
+	verifyOKResp(m_resp_sock.getReadFd());
+}
+
+void
+FE_daemon::request_DeregisterApp(DaemonAppId app_id)
 {
 	rawWriteLoop(m_req_sock.getWriteFd(), ReqType::DeregisterApp);
-	rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+	rawWriteLoop(m_req_sock.getWriteFd(), app_id);
 	verifyOKResp(m_resp_sock.getReadFd());
 }
