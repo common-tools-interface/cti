@@ -46,6 +46,9 @@
 #include <libssh/libssh.h>
 #include <dlfcn.h>
 
+template <typename T>
+using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
+
 class LibSSH {
 private: // types
     struct FnTypes {
