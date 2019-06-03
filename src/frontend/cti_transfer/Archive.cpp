@@ -17,15 +17,11 @@
 #include <dirent.h>
 #include <string.h>
 
-#include <archive.h>
-#include <archive_entry.h>
-
 #include "Archive.hpp"
 
-using ArchPtr = Archive::ArchPtr;
-using EntryPtr = Archive::EntryPtr;
+#include "useful/cti_wrappers.hpp"
 
-EntryPtr& Archive::freshEntry() {
+auto Archive::freshEntry() -> decltype(Archive::m_entryScratchpad)& {
 	if (m_entryScratchpad) {
 		archive_entry_clear(m_entryScratchpad.get());
 		return m_entryScratchpad;
@@ -67,7 +63,7 @@ void Archive::addDirEntry(const std::string& entryPath) {
 }
 
 void Archive::addDir(const std::string& entryPath, const std::string& dirPath) {
-	if (auto dirHandle = UniquePtrDestr<DIR>(opendir(dirPath.c_str()), closedir)) {
+	if (auto dirHandle = cti::make_unique_destr(opendir(dirPath.c_str()), closedir)) {
 		errno = 0;
 		for (struct dirent *d = readdir(dirHandle.get()); d != nullptr;
 			d = readdir(dirHandle.get())) {
