@@ -128,51 +128,30 @@ main(int argc, char **argv)
 	// Conduct WLM specific calls
 	switch (mywlm)
 	{
-		case CTI_WLM_ALPS:
-		{
-			cti_aprunProc_t *	myapruninfo;
-			
-			/*
-			 * cti_getAprunInfo - Obtain information about the aprun process
-			 */
-			myapruninfo = cti_alps_getAprunInfo(myapp);
-			if (myapruninfo == NULL)
-			{
-				fprintf(stderr, "Error: cti_alps_getAprunInfo failed!\n");
-				fprintf(stderr, "CTI error: %s\n", cti_error_str());
-				return 1;
-			} else
-			{
-				printf("\nVerify by issuing the following commands in another terminal:\n\n");
-				printf("module load nodehealth\n");
-				printf("pcmd -a %llu \"ls %s\"\n", (long long unsigned int)myapruninfo->apid, file_loc);
-				free(myapruninfo);
-			}
-		}
-			break;
-			
 		case CTI_WLM_CRAY_SLURM:
+	    case CTI_WLM_SLURM:	
+        case CTI_WLM_SSH:
 		{
 			cti_srunProc_t *	mysruninfo;
-			
+
 			/*
 			 * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
 			 */
 			 mysruninfo = cti_cray_slurm_getSrunInfo(myapp);
-			 if (mysruninfo == NULL)
-			 {
+			 if (mysruninfo == NULL) 
+             {
 			 	fprintf(stderr, "Error: cti_cray_slurm_getSrunInfo failed!\n");
 				fprintf(stderr, "CTI error: %s\n", cti_error_str());
-				return 1;
-			 } else
-			 {
+                return 1;
+			 } else 
+             {
 			 	printf("\nVerify by issuing the following commands in another terminal:\n\n");
 			 	printf("srun --jobid=%lu --gres=none --mem-per-cpu=0 ls %s\n", (long unsigned int)mysruninfo->jobid, file_loc);
-				free(mysruninfo);
+			    free(mysruninfo);
 			 }
 		}
 			break;
-		
+			
 		default:
 			// do nothing
 			printf("Unsupported wlm!\n");
