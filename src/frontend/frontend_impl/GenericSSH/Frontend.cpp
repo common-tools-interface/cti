@@ -91,6 +91,12 @@ public:
         }
     }
 
+    // Delete copy/move constructors
+    SSHAgent(const SSHAgent&) = delete;
+    SSHAgent& operator=(const SSHAgent&) = delete;
+    SSHAgent(SSHAgent&&) = delete;
+    SSHAgent& operator=(SSHAgent&&) = delete;
+
     bool auth()
     {
         if (libssh2_agent_connect(m_agent)) {
@@ -316,6 +322,12 @@ public: // Constructor/destructor
     }
 
     ~SSHSession() = default;
+
+    // Delete copy/move constructors
+    SSHSession(const SSHSession&) = delete;
+    SSHSession& operator=(const SSHSession&) = delete;
+    SSHSession(SSHSession&&) = delete;
+    SSHSession& operator=(SSHSession&&) = delete;
 
     /*
      * executeRemoteCommand - Execute a command on a remote host through an ssh session
