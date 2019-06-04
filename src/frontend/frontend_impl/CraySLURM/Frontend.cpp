@@ -100,7 +100,7 @@ static FE_daemon::MPIRResult sattachMPIR(CraySLURMFrontend& fe, uint32_t jobId, 
     sattachArgv.add(SattachArgv::Argument(std::to_string(jobId) + "." + std::to_string(stepId)));
 
     // get path to SATTACH binary for MPIR control
-    if (auto const sattachPath = cti::make_unique_destr(_cti_pathFind(SATTACH, nullptr), std::free)) {
+    if (auto const sattachPath = cti::move_pointer_ownership(_cti_pathFind(SATTACH, nullptr), std::free)) {
         try {
             // request an MPIR session to extract proctable
             auto const mpirResult = fe.Daemon().request_LaunchMPIR(
@@ -648,7 +648,7 @@ CraySLURMFrontend::getSrunInfo(pid_t srunPid) {
         throw std::runtime_error("Invalid srunPid " + std::to_string(srunPid));
     }
 
-    if (auto const launcherPath = cti::make_unique_destr(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
+    if (auto const launcherPath = cti::move_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
         // tell overwatch to extract information using MPIR attach
         auto const mpirData = Daemon().request_AttachMPIR(launcherPath.get(), srunPid);
         Daemon().request_ReleaseMPIR(mpirData.mpir_id);

@@ -116,7 +116,7 @@ namespace file {
         auto ret = fread(ptr, size, nmemb, fp);
         // check for file read error
         if(ferror(fp)) {
-            throw std::runtime_error("Error in reading from file: " + strerror(errno));
+            throw std::runtime_error(std::string{"Error in reading from file: "} + strerror(errno));
         }
         return ret;
     }
@@ -185,16 +185,24 @@ public:
         if (fd < 0) { throw std::runtime_error("File descriptor creation failed."); }
     }
     // Delete copy constructor
-    fd_handle(const &fd_handler) = delete;
+    fd_handle(const fd_handle&) = delete;
+    fd_handle& operator=(const fd_handle&) = delete;
     // Move constructor
-    fd_handle(&&fd_handler old)
+    fd_handle(fd_handle&& old)
     {
-        this.m_fd = old.m_fd;
+        m_fd = old.m_fd;
         old.m_fd = -1;
     }
+    fd_handle& operator=(fd_handle&& other)
+    {
+        m_fd = other.m_fd;
+        other.m_fd = -1;
+        return *this;
+    }
     // custom destructor
-    ~fd_handle() {
-        if (m_fd >= 0 ) close(fd);
+    ~fd_handle()
+    {
+        if (m_fd >= 0 ) close(m_fd);
     }
     // getter
     int fd() { return m_fd; }

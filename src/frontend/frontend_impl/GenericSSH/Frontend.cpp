@@ -32,6 +32,8 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 
+#include <netdb.h>
+
 #include <unordered_map>
 
 // Pull in manifest to properly define all the forward declarations
@@ -48,20 +50,20 @@
 #include <stdlib.h>
 #include <libssh2.h>
 
+// Custom deleters
+static void delete_ssh2_session(LIBSSH2_SESSION *pSession)
+{
+    libssh2_session_disconnect(pSession, "Error occured");
+    libssh2_session_free(pSession);
+}
+
+static void delete_ssh2_channel(LIBSSH2_CHANNEL *pChannel)
+{
+    libssh2_channel_close(pChannel);
+    libssh2_channel_free(pChannel);
+}
+
 class SSHSession {
-private: // Custom deleters
-    void delete_ssh2_session(LIBSSH2_SESSION *pSession)
-    {
-        libssh2_session_disconnect(pSession, "Error occured");
-        libssh2_session_free(pSession);
-    }
-
-    void delete_ssh2_channel(LIBSSH2_CHANNEL *pChannel)
-    {
-        libssh2_channel_close(pChannel);
-        libssh2_channel_free(pChannel);
-    }
-
 private: // Internal objects
 class SSHAgent {
 private:
@@ -101,7 +103,7 @@ public:
         struct libssh2_agent_publickey *identity, *prev_identity = nullptr;
         int rc;
         while (1) {
-            rc = libssh2_agent_get_identity(agent, &identity, prev_identity);
+            rc = libssh2_agent_get_identity(m_agent, &identity, prev_identity);
             if ( rc < 0 ) {
                 throw std::runtime_error("Could not obtain identity from ssh-agent.");
             }
@@ -150,8 +152,8 @@ public: // Constructor/destructor
      *      hostname - hostname of remote host to which to connect
      *
      */
-    SSHSession(std::string const& hostname, struct passwd &pwd)
-    : m_session_ptr{nullptr,&delete_ssh2_session}
+    SSHSession(std::string const& hostname, const struct passwd &pwd)
+    : m_session_ptr{nullptr,delete_ssh2_session}
     , m_pwd{pwd}
     {
         int rc;
@@ -170,14 +172,13 @@ public: // Constructor/destructor
         }
         // Take ownership of the host addrinfo into the unique_ptr.
         // This will enforce cleanup.
-        auto host_ptr = move_pointer_ownership(host,&freeaddrinfo);
-        host = nullptr;
+        auto host_ptr = cti::move_pointer_ownership(std::move(host),freeaddrinfo);
 
         // create the ssh socket
-        m_session_sock = cti::fd_handle{ socket(    host_ptr.get()->ai_family,
+        m_session_sock = std::move(cti::fd_handle{ (int)socket(  host_ptr.get()->ai_family,
                                                     host_ptr.get()->ai_socktype,
                                                     host_ptr.get()->ai_protocol)
-        };
+        });
 
         // Connect the socket
         if (connect(m_session_sock.fd(), host_ptr.get()->ai_addr, host_ptr.get()->ai_addrlen)) {
@@ -185,7 +186,7 @@ public: // Constructor/destructor
         }
 
         // Init a new libssh2 session.
-        if (m_session_ptr = move_pointer_ownership(libssh2_session_init(),&delete_ssh2_session)) {
+        if (m_session_ptr = cti::move_pointer_ownership(libssh2_session_init(),delete_ssh2_session)) {
             throw std::runtime_error("libssh2_session_init() failed");
         }
 
@@ -198,8 +199,8 @@ public: // Constructor/destructor
 
         // At this point we havn't authenticated. The first thing to do is check
         // the hostkey's fingerprint against our known hosts.
-        auto known_host_ptr = move_pointer_ownership(   libssh2_knownhost_init(m_session_ptr.get()),
-                                                        &libssh2_knownhost_free);
+        auto known_host_ptr = cti::move_pointer_ownership(  libssh2_knownhost_init(m_session_ptr.get()),
+                                                            libssh2_knownhost_free);
         if (known_host_ptr == nullptr) {
             throw std::runtime_error("Failure initializing knownhost file");
         }
@@ -275,9 +276,9 @@ public: // Constructor/destructor
             // Next try using the keyfile
             if (!auth) {
                 // Check for the rsa private+public key
-                std::string rsa_path{m_pwd.pw_dir + "/.ssh/id_rsa"};
+                std::string rsa_path{std::string{m_pwd.pw_dir} + "/.ssh/id_rsa"};
                 std::string rsa_pub_path{rsa_path + ".pub"};
-                if (cti::isFile(rsa_path.c_str()) && cti::isFile(rsa_path_pub.c_str())) {
+                if (cti::isFile(rsa_path.c_str()) && cti::isFile(rsa_pub_path.c_str())) {
                     // Try authenticating with an empty passphrase
                     if (!libssh2_userauth_publickey_fromfile(   m_session_ptr.get(),
                                                                 username.c_str(),
@@ -291,9 +292,9 @@ public: // Constructor/destructor
                 // If the rsa method failed, try using dsa instead
                 if (!auth) {
                     // Check for the dsa private+public key
-                    std::string dsa_path{m_pwd.pw_dir + "/.ssh/id_dsa"};
+                    std::string dsa_path{std::string{m_pwd.pw_dir} + "/.ssh/id_dsa"};
                     std::string dsa_pub_path{dsa_path + ".pub"};
-                    if (cti::isFile(dsa_path.c_str()) && cti::isFile(dsa_path_pub.c_str())) {
+                    if (cti::isFile(dsa_path.c_str()) && cti::isFile(dsa_pub_path.c_str())) {
                         // Try authenticating with an empty passphrase
                         if (!libssh2_userauth_publickey_fromfile(   m_session_ptr.get(),
                                                                     username.c_str(),
@@ -334,8 +335,8 @@ public: // Constructor/destructor
         assert(args != nullptr);
         assert(args[0] != nullptr);
         // Create a new ssh channel
-        auto channel_ptr = move_pointer_ownership(  libssh2_channel_open_session(m_session_ptr.get()),
-                                                    &delete_ssh2_channel);
+        auto channel_ptr = cti::move_pointer_ownership( libssh2_channel_open_session(m_session_ptr.get()),
+                                                        delete_ssh2_channel);
         if (channel_ptr == nullptr) {
             throw std::runtime_error("Failure opening SSH channel on session: " + getError());
         }
@@ -344,7 +345,7 @@ public: // Constructor/destructor
         if (environment != nullptr) {
             for (const char* const* var = environment; *var != nullptr; var++) {
                 if (const char* val = getenv(*var)) {
-                    if ( libssh2_channel_setenv(channel.get(), *var, val) ) {
+                    if ( libssh2_channel_setenv(channel_ptr.get(), *var, val) ) {
                         throw std::runtime_error("Failed to set env var on channel: " + getError());
                     }
                 }
@@ -357,11 +358,11 @@ public: // Constructor/destructor
             argvString += std::string(*arg);
         }
         // Request execution of the command on the remote host
-        if (libssh2_channel_exec(channel.get(), argvString.c_str())) {
+        if (libssh2_channel_exec(channel_ptr.get(), argvString.c_str())) {
             throw std::runtime_error("Execution of ssh command failed: " + getError());
         }
         // End the channel
-        libssh2_channel_send_eof(channel.get());
+        libssh2_channel_send_eof(channel_ptr.get());
     }
 
     /*
@@ -384,17 +385,17 @@ public: // Constructor/destructor
         assert(destination_path != nullptr);
         //Get the length of the source file
         struct stat stbuf;
-        {   fd_handle source{ open(source_path, O_RDONLY) };
+        {   cti::fd_handle source{ open(source_path, O_RDONLY) };
             if ((fstat(source.fd(), &stbuf) != 0) || (!S_ISREG(stbuf.st_mode))) {
               throw std::runtime_error("Could not fstat source file for shipping to the backends");
             }
         }
         // Start a new scp transfer
-        auto channel_ptr = move_pointer_ownership(  libssh2_scp_send(   m_session_ptr.get(),
-                                                                        _cti_pathToDir(destination_path),
-                                                                        mode,
-                                                                        stbuf.st_size ),
-                                                    &delete_ssh2_channel);
+        auto channel_ptr = cti::move_pointer_ownership( libssh2_scp_send(   m_session_ptr.get(),
+                                                                            _cti_pathToDir(destination_path),
+                                                                            mode,
+                                                                            stbuf.st_size ),
+                                                        delete_ssh2_channel);
         if (channel_ptr == nullptr) {
             throw std::runtime_error("Failure to scp send on session: " + getError());
         }
@@ -536,7 +537,7 @@ GenericSSHApp::kill(int signal)
         }
 
         // run remote kill command
-        SSHSession(node.hostname, m_pwd).executeRemoteCommand(killArgv.get(), nullptr);
+        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(killArgv.get(), nullptr);
     }
 }
 
@@ -549,7 +550,7 @@ GenericSSHApp::shipPackage(std::string const& tarPath) const
 
         // Send the package to each of the hosts using SCP
         for (auto&& node : m_stepLayout.nodes) {
-            SSHSession(node.hostname, m_pwd).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+            SSHSession(node.hostname, m_frontend.getPwd()).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
         }
     } else {
         throw std::runtime_error("_cti_pathToName failed");
@@ -591,7 +592,7 @@ GenericSSHApp::startDaemon(const char* const args[])
         nullptr
     };
     for (auto&& node : m_stepLayout.nodes) {
-        SSHSession(node.hostname, m_pwd).executeRemoteCommand(launcherArgv.get(), forwardedEnvVars.data());
+        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(launcherArgv.get(), forwardedEnvVars.data());
     }
 }
 

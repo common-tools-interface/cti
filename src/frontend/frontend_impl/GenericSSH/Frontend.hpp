@@ -28,10 +28,6 @@ private: // Global state
 	struct passwd		m_pwd;
 	std::vector<char> 	m_pwd_buf;
 
-public: // Constructor/destructor
-	GenericSSHFrontend();
-	~GenericSSHFrontend();
-
 public: // inherited interface
 	cti_wlm_type getWLMType() const override { return CTI_WLM_SSH; }
 
@@ -72,8 +68,8 @@ public: // ssh specific interface
 		int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
 public: // constructor / destructor interface
-    GenericSSHFrontend() = default;
-    ~GenericSSHFrontend() = default;
+	GenericSSHFrontend();
+	~GenericSSHFrontend();
     GenericSSHFrontend(const GenericSSHFrontend&) = delete;
     GenericSSHFrontend& operator=(const GenericSSHFrontend&) = delete;
     GenericSSHFrontend(GenericSSHFrontend&&) = delete;

@@ -153,6 +153,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     std::string getBaseDir() { return m_base_dir; }
     std::string getLdAuditPath() { return m_ld_audit_path; }
     std::string getBEDaemonPath() { return m_be_daemon_path; }
+    const struct passwd& getPwd() { return m_pwd; }
 
     // tell all Apps to finalize their transfer Sessions
     void finalize();
