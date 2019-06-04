@@ -14,9 +14,6 @@
 // This pulls in config.h
 #include "cti_defs.h"
 
-#include <sys/types.h>
-#include <unistd.h>
-
 // CTI definition includes
 #include "cti_fe_iface.hpp"
 
