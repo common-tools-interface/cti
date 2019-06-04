@@ -125,7 +125,8 @@ AC_DEFUN([cray_BUILD_LIBSSH2],
 
 	AC_MSG_NOTICE([Building libssh2...])
 
-	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	dnl libssh2 has a buildconf script that generates the build files
+	./buildconf >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl configure
 	./configure --prefix=${prefix}
