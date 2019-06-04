@@ -41,7 +41,7 @@ using CArgArray = const char* const[];
 
 // pseudorandom character generator for unique filenames / directories
 class FE_prng {
-    char _cti_r_state[256];
+    char m_r_state[256];
 
 public:
     FE_prng();

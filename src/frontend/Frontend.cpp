@@ -69,10 +69,10 @@ FE_prng::FE_prng()
     seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
 
     // init the state
-    initstate(seed, (char *)_cti_r_state, sizeof(_cti_r_state));
+    initstate(seed, (char *)m_r_state, sizeof(m_r_state));
 
     // set the PRNG state
-    if (setstate((char *)_cti_r_state) == NULL) {
+    if (setstate((char *)m_r_state) == NULL) {
         throw std::runtime_error("setstate failed.");
     }
 }
