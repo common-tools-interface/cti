@@ -25,6 +25,7 @@ extern "C" {
 // current frontend information query
 const char *        cti_version(void);
 const char *        cti_error_str(void);
+int                 cti_error_str_r(char *buf, size_t buf_size);
 cti_wlm_type        cti_current_wlm(void);
 const char *        cti_wlm_type_toString(cti_wlm_type);
 char *              cti_getHostname(void);

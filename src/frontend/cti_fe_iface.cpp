@@ -115,6 +115,20 @@ cti_error_str(void) {
     return FE_iface::get_error_str();
 }
 
+int
+cti_error_str_r(char *buf, size_t buf_len) {
+    if (buf_len < 1) {
+        return ERANGE;
+    }
+
+    // fill buf from error string
+    auto const error_str = FE_iface::get_error_str();
+    std::strncpy(buf, error_str, buf_len - 1);
+    buf[buf_len - 1] = '\0';
+
+    return 0;
+}
+
 cti_wlm_type
 cti_current_wlm(void) {
     return FE_iface::runSafely(__func__, [&](){

@@ -173,6 +173,27 @@ extern const char * cti_version(void);
 extern const char * cti_error_str(void);
 
 /*
+ * cti_error_str_r - Copies an error string associated with a command that
+ *                   returned an error into user-provided buffer (reentrant)
+ *
+ * Detail
+ *      This function copies the internal error string associated with a failed
+ *      command into a user-provided buffer. This string can be used to print
+ *      an informative message about why an API call failed. If no error is
+ *      known, the string will contain "Unknown CTI error". This function is
+ *      reentrant.
+ *
+ * Arguments
+ *      buf - buffer to fill with error string
+ *      buf_len - length of user-provided buffer
+ *
+ * Returns
+ *      0 upon success, or ERANGE if buf_len is invalid
+ *
+ */
+extern int cti_error_str_r(char *buf, size_t buf_len);
+
+/*
  * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
  *                   system.
  *
