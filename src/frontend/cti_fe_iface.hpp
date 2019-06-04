@@ -135,10 +135,12 @@ private:
             return newId;
         }
     };
+
 private: // Static internal data
     // Error string we export to callers - we want this to leak!
     static char *       _cti_err_str;
     static std::string  m_err_str;
+
 private: // Internal data
     // Internal associations between iterface ids and internal objects
     Registry<cti_app_id_t,App> m_app_registry;
@@ -210,4 +212,14 @@ public: // Constructor/destructors
     FE_iface& operator=(const FE_iface&) = delete;
     FE_iface(FE_iface&&) = delete;
     FE_iface& operator=(FE_iface&&) = delete;
+};
+
+// pseudorandom character generator for unique filenames / directories
+class FE_prng {
+    char _cti_r_state[256];
+
+public:
+    FE_prng();
+
+    char genChar();
 };
