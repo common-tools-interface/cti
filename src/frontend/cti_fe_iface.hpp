@@ -213,13 +213,3 @@ public: // Constructor/destructors
     FE_iface(FE_iface&&) = delete;
     FE_iface& operator=(FE_iface&&) = delete;
 };
-
-// pseudorandom character generator for unique filenames / directories
-class FE_prng {
-    char _cti_r_state[256];
-
-public:
-    FE_prng();
-
-    char genChar();
-};

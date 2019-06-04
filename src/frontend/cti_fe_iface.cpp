@@ -104,58 +104,6 @@ FE_iface::FE_iface()
 , m_manifest_registry{}
 { }
 
-FE_prng::FE_prng()
-{
-    // We need to generate a good seed to avoid collisions. Since this
-    // library can be used by automated tests, it is vital to have a
-    // good seed.
-    struct timespec     tv;
-    unsigned int        pval;
-    unsigned int        seed;
-
-    // get the current time from epoch with nanoseconds
-    if (clock_gettime(CLOCK_REALTIME, &tv)) {
-        throw std::runtime_error("clock_gettime failed.");
-    }
-
-    // generate an appropriate value from the pid, we shift this to
-    // the upper 16 bits of the int. This should avoid problems with
-    // collisions due to slight variations in nano time and adding in
-    // pid offsets.
-    pval = (unsigned int)getpid() << ((sizeof(unsigned int) * CHAR_BIT) - 16);
-
-    // Generate the seed. This is not crypto safe, but should have enough
-    // entropy to avoid the case where two procs are started at the same
-    // time that use this interface.
-    seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
-
-    // init the state
-    initstate(seed, (char *)_cti_r_state, sizeof(_cti_r_state));
-
-    // set the PRNG state
-    if (setstate((char *)_cti_r_state) == NULL) {
-        throw std::runtime_error("setstate failed.");
-    }
-}
-
-char FE_prng::genChar()
-{
-    // valid chars array used in seed generation
-    static constexpr char _cti_valid_char[] {
-        '0','1','2','3','4','5','6','7','8','9',
-        'A','B','C','D','E','F','G','H','I','J','K','L','M',
-        'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
-        'a','b','c','d','e','f','g','h','i','j','k','l','m',
-        'n','o','p','q','r','s','t','u','v','w','x','y','z'
-    };
-
-    // Generate a random offset into the array. This is random() modded
-    // with the number of elements in the array.
-    unsigned int oset = random() % (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
-    // assing this char
-    return _cti_valid_char[oset];
-}
-
 /*******************************
 * C API defined functions below
 *******************************/

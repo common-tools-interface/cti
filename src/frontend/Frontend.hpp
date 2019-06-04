@@ -39,6 +39,16 @@ struct CTIHost {
 using CStr      = const char*;
 using CArgArray = const char* const[];
 
+// pseudorandom character generator for unique filenames / directories
+class FE_prng {
+    char _cti_r_state[256];
+
+public:
+    FE_prng();
+
+    char genChar();
+};
+
 /* CTI Frontend object interfaces */
 
 // This is used to ensure the static global pointers get cleaned up upon exit
