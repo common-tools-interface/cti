@@ -157,7 +157,7 @@ if test -d "$INTERNAL_LIBSSH2/lib"; then
 	LDFLAGS="$LDFLAGS -L$INTERNAL_LIBSSH2/lib"
 fi
 AC_CHECK_LIB(	[ssh2],
-				[ssh2_init],
+				[libssh2_init],
 				[AC_DEFINE(	[HAVE_SSH2],
 								[1],
 								[Define to 1 if you have the ssh2 library (-lssh2).]
