@@ -55,7 +55,7 @@ private: // variables
 
 private: // helper functions
     // generate a staging path according to CTI path rules
-    static std::string generateStagePath();
+    static std::string generateStagePath(FE_prng& charSource);
     // merge manifest contents into directory of transfered files, return list of
     // duplicate files that don't need to be shipped
     std::vector<FolderFilePair> mergeTransfered(const FoldersMap& folders,

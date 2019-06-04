@@ -39,6 +39,16 @@ struct CTIHost {
 using CStr      = const char*;
 using CArgArray = const char* const[];
 
+// pseudorandom character generator for unique filenames / directories
+class FE_prng {
+    char m_r_state[256];
+
+public:
+    FE_prng();
+
+    char genChar();
+};
+
 /* CTI Frontend object interfaces */
 
 // This is used to ensure the static global pointers get cleaned up upon exit
@@ -89,6 +99,7 @@ private:
 private: // Private data members usable only by the base Frontend
     FE_iface            m_iface;
     FE_daemon           m_daemon;
+    FE_prng             m_prng;
     // Directory paths
     std::string         m_cfg_dir;
     std::string         m_base_dir;
@@ -146,6 +157,8 @@ public: // Public interface to generic WLM-agnostic capabilities
     FE_iface& Iface() { return m_iface; }
     // Daemon accessor - guarantees access via singleton object
     FE_daemon& Daemon() { return m_daemon; }
+    // PRNG accessor
+    FE_prng& Prng() { return m_prng; }
     // Register a cleanup file
     void addFileCleanup(std::string file);
     // Accessors
