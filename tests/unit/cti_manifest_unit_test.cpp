@@ -30,32 +30,12 @@ using ::testing::_;
 using ::testing::Invoke;
 using ::testing::WithoutArgs;
 
-CTIFEMUnitTest::CTIFEMUnitTest()
-{
-    // manually set the frontend to the custom mock frontend
-    new MockFrontend::Nice{};
-}
-
-CTIFEMUnitTest::~CTIFEMUnitTest()
-{
-    Frontend::destroy();
-}
-
 static constexpr char const* mockArgv[] = {"/usr/bin/true", nullptr};
 CTIManifestUnitTest::CTIManifestUnitTest()
-    : CTIFEMUnitTest{}
-    , appId{cti_launchAppBarrier(mockArgv, -1, -1, nullptr, nullptr, nullptr)}
-    , mockApp{dynamic_cast<MockApp::Nice&>(*Frontend::inst().Iface().getApp(appId))}
+    : CTIAppUnitTest{}
+    , sessionPtr{std::make_shared<Session>(*mockApp)}
+    , manifestPtr{std::make_shared<Manifest>(0, *sessionPtr)}
 {
-    if (appId == cti_app_id_t{0}) {
-        throw std::runtime_error("failed to launch mock app");
-    }
-
-
-    // create the manifest and the session required to make it
-    testSession = new Session(mockApp);
-    testManifest = new Manifest(0, *testSession);
-
     // create a list of suffixes that will be used in test files
     file_suffixes.push_back("_file.txt"); 
     
@@ -66,20 +46,6 @@ CTIManifestUnitTest::CTIManifestUnitTest()
 }
 
 CTIManifestUnitTest::~CTIManifestUnitTest() {
-    if (appId != cti_app_id_t{0}) {
-        cti_deregisterApp(appId);
-    }
-
-    if(testSession){
-        delete testSession;
-        testSession = nullptr;
-    }
-
-    if(testManifest) {
-	delete testManifest;
-        testManifest = nullptr;
-    }
-
     for(std::string suf : file_suffixes) {
        remove(std::string(test_file_path + suf).c_str());
     }
@@ -99,16 +65,14 @@ CTIManifestUnitTest::~CTIManifestUnitTest() {
  *****************************/
 
 TEST_F(CTIManifestUnitTest, empty) {
-
     // test manifest empty at start
-    ASSERT_EQ(testManifest -> empty(), true);
-
+    ASSERT_EQ(manifestPtr->empty(), true);
 }
 
 TEST_F(CTIManifestUnitTest, getOwningSession) {
 
     // test that a session can be gotten
-    ASSERT_NE(testManifest -> getOwningSession(), nullptr);
+    ASSERT_NE(manifestPtr->getOwningSession(), nullptr);
 
     //Attempt to a get a session when none exist
    /* ASSERT_THROW({
@@ -133,7 +97,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
       FAIL() << "Failed to create file for testing addFile";
    }
 
-   ASSERT_NO_THROW(testManifest -> addFile(std::string(test_file_path + file_suffixes[0]).c_str()));
+   ASSERT_NO_THROW(manifestPtr->addFile(std::string(test_file_path + file_suffixes[0]).c_str()));
 
    //Attempt to add a file after manifest has been shipped
    /*

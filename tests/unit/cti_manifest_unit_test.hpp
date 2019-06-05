@@ -23,31 +23,21 @@
 #include "frontend/cti_transfer/Session.hpp"
 #include "frontend/cti_transfer/Manifest.hpp"
 
-// The fixture for unit testing the C frontend interface
-class CTIFEMUnitTest : public ::testing::Test
-{
-protected:
-	CTIFEMUnitTest();
-	virtual ~CTIFEMUnitTest();
-};
+#include "cti_fe_unit_test.hpp"
 
 // The fixture for unit testing the manifest
-class CTIManifestUnitTest : public CTIFEMUnitTest
+class CTIManifestUnitTest : public CTIAppUnitTest
 {
 protected: // variables
-	cti_app_id_t const appId;
-	MockApp::Nice& mockApp;
-
-
-	Session* testSession;
-	Manifest* testManifest;
-	std::vector<std::string> file_suffixes;
+	std::shared_ptr<Session>  sessionPtr;
+	std::shared_ptr<Manifest> manifestPtr;
+	std::vector<std::string>  file_suffixes;
 
 	// string constants
 
-        // Consts for to be created test files
-        const std::string dirPath = "u_test";
-        const std::string test_file_path = "archive_test_file";
+	// Consts for to be created test files
+	const std::string dirPath = "u_test";
+	const std::string test_file_path = "archive_test_file";
 
 protected: // interface
 	CTIManifestUnitTest();
