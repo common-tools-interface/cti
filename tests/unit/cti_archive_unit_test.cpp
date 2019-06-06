@@ -21,6 +21,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <archive.h>
+#include <archive_entry.h>
 
 // CTI Transfer includes
 
