@@ -273,31 +273,25 @@ Session::removeManifest(std::shared_ptr<Manifest> const& mani) {
     m_manifests.erase(mani);
 }
 
-Session::Conflict
-Session::hasFileConflict(const std::string& folderName,
-    const std::string& realName, const std::string& candidatePath) const {
-
+std::string
+Session::getSourcePath(const std::string& folderName, const std::string& realName) const {
     // has /folderName/realName been shipped to the backend?
-    const std::string fileArchivePath(folderName + "/" + realName);
+    const std::string fileArchivePath{folderName + "/" + realName};
     auto namePathPair = m_sourcePaths.find(fileArchivePath);
     if (namePathPair != m_sourcePaths.end()) {
-        if (cti::isSameFile(namePathPair->first, candidatePath)) {
-            return Conflict::AlreadyAdded;
-        } else {
-            return Conflict::NameOverwrite;
-        }
+        return namePathPair->second;
     }
 
-    return Conflict::None;
+    return "";
 }
 
 std::vector<FolderFilePair>
 Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) {
     std::vector<FolderFilePair> toRemove;
-    for (auto folderContentsPair : newFolders) {
-        const std::string& folderName = folderContentsPair.first;
-        const std::set<std::string>& folderContents = folderContentsPair.second;
-        for (auto fileName : folderContents) {
+    for (auto&& folderContentsPair : newFolders) {
+        auto const& folderName = folderContentsPair.first;
+        auto const& folderContents = folderContentsPair.second;
+        for (auto&& fileName : folderContents) {
             // mark fileName to be located at /folderName/fileName
             m_folders[folderName].insert(fileName);
             // map /folderName/fileName to source file path newPaths[fileName]
@@ -312,7 +306,7 @@ Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) 
                     toRemove.push_back(std::make_pair(folderName, fileName));
                 } else {
                     // register new file as coming from Manifest's source
-                    m_sourcePaths[fileArchivePath] = newPaths.at(fileName);
+                    m_sourcePaths[fileArchivePath] = cti::getRealPath(newPaths.at(fileName));
                 }
             }
         }

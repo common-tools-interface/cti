@@ -27,13 +27,6 @@
 #include "Manifest.hpp"
 
 class Session final : public std::enable_shared_from_this<Session> {
-public: // types
-    enum class Conflict {
-        None = 0,     // file is not present in session
-        AlreadyAdded, // same file already in session
-        NameOverwrite // different file already in session; would overwrite
-    };
-
 private: // variables
     // Pointer to owning App
     std::weak_ptr<App>          m_AppPtr;
@@ -95,15 +88,8 @@ public: // interface
     std::vector<std::string> getSessionLockFiles();
     // create new manifest associated with this session
     std::weak_ptr<Manifest> createManifest();
-    /* fileName: filename as provided by client
-        realName: basename following symlinks
-        conflict rules:
-        - realName not in the provided folder -> None
-        - realpath(fileName) == realpath(realName) -> AlreadyAdded
-        - realpath(fileName) != realpath(realName) -> NameOverwrite
-        */
-    Conflict hasFileConflict(const std::string& folderName, const std::string& realName,
-        const std::string& candidatePath) const;
+    // get canonical source path of file for conflict detection. if not present, return empty string
+    std::string getSourcePath(const std::string& folderName, const std::string& realName) const;
 
     // launch daemon to cleanup remote files. this must be called outside App destructor
     void finalize();
