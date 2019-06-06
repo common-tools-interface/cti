@@ -110,10 +110,10 @@ namespace file {
     }
 
     // fread from an open FILE* and conduct error handling
-    static inline auto read(void *ptr, size_t size, size_t nmemb, FILE* fp)
+    static inline size_t read(void *ptr, size_t size, size_t nmemb, FILE* fp)
     {
         errno = 0;
-        auto ret = fread(ptr, size, nmemb, fp);
+        size_t ret = fread(ptr, size, nmemb, fp);
         // check for file read error
         if(ferror(fp)) {
             throw std::runtime_error(std::string{"Error in reading from file: "} + strerror(errno));
