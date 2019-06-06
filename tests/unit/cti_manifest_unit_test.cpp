@@ -37,8 +37,9 @@ CTIManifestUnitTest::CTIManifestUnitTest()
     , manifestPtr{std::make_shared<Manifest>(0, *sessionPtr)}
 {
     // create a list of suffixes that will be used in test files
-    file_suffixes.push_back("_file.txt"); 
-    
+    file_suffixes.push_back("1.txt"); 
+    file_suffixes.push_back("2.txt");
+
     // remove any lingering test files
     for(std::string suf : file_suffixes) {
        remove(std::string(test_file_path + suf).c_str());
@@ -67,6 +68,18 @@ CTIManifestUnitTest::~CTIManifestUnitTest() {
 TEST_F(CTIManifestUnitTest, empty) {
     // test manifest empty at start
     ASSERT_EQ(manifestPtr->empty(), true);
+
+   // create a test file to add to the manifest
+   std::ofstream f1;
+   f1.open(std::string(test_file_path + file_suffixes[0]).c_str());
+   if (!f1.is_open()) {
+      FAIL() << "Failed to create file for testing addFile";
+   }
+   f1 << test_file_path + file_suffixes[0];
+   manifestPtr -> addFile(std::string("./" + test_file_path + file_suffixes[0]).c_str());
+   
+   // test that manifest is no longer empty
+   ASSERT_EQ(manifestPtr->empty(), false);
 }
 
 TEST_F(CTIManifestUnitTest, getOwningSession) {
@@ -75,16 +88,16 @@ TEST_F(CTIManifestUnitTest, getOwningSession) {
     ASSERT_NE(manifestPtr->getOwningSession(), nullptr);
 
     //Attempt to a get a session when none exist
-   /* ASSERT_THROW({
+    /* ASSERT_THROW({
 	    try {
-            //TODO: Actually do get session after we figure out how to handle actually getting a manifest
+            
 	    } catch (const std::exception& ex) {
 		 EXPECT_STREQ("Owning Session is no longer valid.", ex.what());
 		 throw;
 	    }
    
-    }, std::runtime_error);	    */
-
+    }, std::runtime_error);	
+    */
 }
 
 //////
@@ -93,22 +106,39 @@ TEST_F(CTIManifestUnitTest, addFile) {
    // create a test file to add to the manifest
    std::ofstream f1;
    f1.open(std::string(test_file_path + file_suffixes[0]).c_str());
-   if(!f1.is_open()) {
+   if (!f1.is_open()) {
       FAIL() << "Failed to create file for testing addFile";
    }
+   f1 << test_file_path + file_suffixes[0];
 
-   ASSERT_NO_THROW(manifestPtr->addFile(std::string(test_file_path + file_suffixes[0]).c_str()));
+   ASSERT_NO_THROW({
+      try {
+          manifestPtr -> addFile(std::string("./" + test_file_path + file_suffixes[0]).c_str());
+      } catch (std::exception& ex) {
+          FAIL() << ex.what();
+	  throw;
+      }
+   });
 
    //Attempt to add a file after manifest has been shipped
-   /*
+   manifestPtr -> finalize();  
+
+   std::ofstream f2;
+   f2.open(std::string(test_file_path + file_suffixes[1]).c_str());
+   if (!f2.is_open()) {
+      FAIL() << "Failed to create file for testing addFile";
+   }
+   f2 << test_file_path + file_suffixes[1];
+
    ASSERT_THROW({
 	   try {
-
+                manifestPtr -> addFile(std::string("./" + test_file_path + file_suffixes[1]).c_str());
 	   } catch (const std::exception& ex) {
                 EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
+		throw;
 	   }
    }, std::runtime_error);
-   */
+   
 
 }
 
