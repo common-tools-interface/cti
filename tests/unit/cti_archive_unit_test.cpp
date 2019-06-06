@@ -15,6 +15,7 @@
 
 #include <unordered_set>
 #include <fstream> //TODO: Consider replacing with C implementation or easier temp style file.
+#include <algorithm>
 
 // Includes for file creation
 #include <stdlib.h>
@@ -38,7 +39,7 @@ static constexpr auto CROSSMOUNT_FILE_TEMPLATE = "/lus/scratch/tmp/cti-test-XXXX
 #endif
 
 // File template for temporary directory. TODO: REMOVE ME.
-char LOCAL_FILE_TEMPLATE[] = "/tmp/cti-dir-temp-XXXXXX";
+char LOCAL_FILE_TEMPLATE[] = "/tmp/cti-dir-test-temp-XXXXXX";
 
 using ::testing::Return;
 using ::testing::_;
@@ -55,10 +56,10 @@ CTIArchiveUnitTest::CTIArchiveUnitTest()
     archive = new Archive(temp_file_path -> get());
 
     // add all the file suffixes to the vector
-    file_suffixes.push_back("_one.txt");
-    file_suffixes.push_back("_two.txt");
-    file_suffixes.push_back("_three.txt");
-    file_suffixes.push_back("_four.txt");
+    file_suffixes.push_back("1.txt");
+    file_suffixes.push_back("2.txt");
+    file_suffixes.push_back("3.txt");
+    file_suffixes.push_back("4.txt");
     file_suffixes.push_back("_pipe");
 
     // ensure no test files still exist from previous tests
@@ -147,24 +148,40 @@ TEST_F(CTIArchiveUnitTest, addPath)
   
    // write test output and close all test files
    for(int i = 0; i < 3; i++) {
-   	f[i] << "f" << i << " test data\n";
+	// write the files path to the file. makes checking contents easy later
+   	f[i] << dirPath + "/" + test_file_path << i+1 << ".txt";
 	f[i].close();
    }
    f_temp << "ftemp test data\n";
    f_temp.close();
    // run the test
-   
+   std::vector<std::string> test_paths;
+
+   test_paths.push_back(dirPath + "/" + test_file_path + "1.txt");
+   test_paths.push_back(dirPath + "/lib/" + test_file_path + "2.txt");
+   test_paths.push_back(dirPath + "/bin/" + test_file_path + "3.txt");
+   test_paths.push_back(dirPath + "/" + tdir + "/"); //extra / added as thats how archive reads back dirs
+   test_paths.push_back(dirPath + "/" + f_temp_path);
+
    // add /u_test/archive_unit_test_one.txt
-   ASSERT_NO_THROW(archive -> addPath(dirPath + "/" + test_file_path + "_one.txt", test_file_path + "_one.txt"));
+   ASSERT_NO_THROW(archive -> addPath(dirPath + "/" + test_file_path + "1.txt", test_file_path + "1.txt"));
    
    // add /u_test/lib/archive_unit_test_two.txt
-   ASSERT_NO_THROW(archive -> addPath(dirPath + "/lib/" + test_file_path + "_two.txt", test_file_path + "_two.txt"));
+   ASSERT_NO_THROW(archive -> addPath(dirPath + "/lib/" + test_file_path + "2.txt", test_file_path + "2.txt"));
    
    // add /u_test/bin/archive_unit_test_three.txt	   
-   ASSERT_NO_THROW(archive -> addPath(dirPath + "/bin/" + test_file_path + "_three.txt", test_file_path + "_three.txt"));
+   ASSERT_NO_THROW(archive -> addPath(dirPath + "/bin/" + test_file_path + "3.txt", test_file_path + "3.txt"));
 
    // add a directory and its included file
    ASSERT_NO_THROW(archive -> addPath(dirPath + "/" + tdir, tdir));
+
+   //Clean up temporary files now to prevent them from not cleaning if test fails out
+
+   //Delete f_temp
+   remove(f_temp_path.c_str());
+
+   //Delete temp directory
+   rmdir(tdir);
 
    // attempt to add a file that does not exist
    ASSERT_THROW({
@@ -187,13 +204,48 @@ TEST_F(CTIArchiveUnitTest, addPath)
 
    }, std::runtime_error);
 
-   //Clean up temporary files
+   // finalize the archive and check all data is there.
+   archive -> finalize();
 
-   //Delete f_temp
-   remove(f_temp_path.c_str());
+   // setup archive check struct
+   auto archPtr = cti::make_unique_destr(archive_read_new(), archive_read_free);
+   archive_read_support_filter_all(archPtr.get());
+   archive_read_support_format_all(archPtr.get());
 
-   //Delete temp directory
-   rmdir(tdir);
+   // open check archive
+   ASSERT_EQ(archive_read_open_filename(archPtr.get(), temp_file_path -> get(), 10240), ARCHIVE_OK);
+
+   // make sure all dirs and files were shipped properly
+   bool found = false;
+   struct archive_entry *entry;
+   while (archive_read_next_header(archPtr.get(), &entry) == ARCHIVE_OK) {
+       auto const path = std::string{archive_entry_pathname(entry)};
+
+       
+       // if its a folder skip it
+       //if(path.empty() || (path.back() == '/'))
+	 //    continue;
+
+       // search for each entry. should take O(1) as it should always be the first entry for a proper archive
+       for(unsigned int i = 0; i < test_paths.size(); i++) {
+          if(test_paths[i] == path) {
+             found = true;
+	     //check that file contents are correct
+             
+
+
+	     test_paths.erase(test_paths.begin() + i); //ensure no duplicates.
+             break;
+	  }
+       }
+
+       if (!found) {
+          FAIL() << "Unexpected file: " << path;
+       }
+       found = false;
+       archive_read_data_skip(archPtr.get());
+   }
+
 
 }
 
@@ -205,7 +257,7 @@ TEST_F(CTIArchiveUnitTest, finalize) {
    std::ofstream f4;
 
    // open test file four
-   f4.open(std::string(test_file_path + "_four.txt").c_str());
+   f4.open(std::string(test_file_path + "4.txt").c_str());
    if(!f4.is_open()) {
      FAIL() << "Failed to create test file four";
    }
@@ -217,7 +269,7 @@ TEST_F(CTIArchiveUnitTest, finalize) {
    // attempt to add another file when finalized already
    ASSERT_THROW({
    	   try {
-           	archive -> addPath(dirPath + "/bin/" + test_file_path + "_four.txt", test_file_path + "_four.txt");
+           	archive -> addPath(dirPath + "/bin/" + test_file_path + "4.txt", test_file_path + "4.txt");
 	   } catch (const std::exception& ex) {
            	EXPECT_STREQ(std::string(std::string(temp_file_path -> get()) + " tried to add a path after finalizing").c_str(), ex.what());
 		throw;
@@ -249,21 +301,3 @@ TEST_F(CTIArchiveUnitTest, destruc_check) {
 
 }
 
-// Test to confirm data written in previous tests is in fact written and can be read from again.
-/*TEST_F(CTIArchiveUnitTest, data_check) {
-
-   // setup archive check struct
-   auto archPtr = cti::make_unique_destr(archive_read_new(), archive_read_free);
-   archive_read_support_filter_all(archPtr.get());
-   archive_read_support_format_all(archPtr.get());
-
-   // open check archive
-   ASSERT_EQ(archive_read_open_filename(archPtr.get(), temp_file_path -> get(), 10240), ARCHIVE_OK);
-
-   // make sure all dirs and files were shipped properly
-   struct archive_entry *entry;
-   while (archive_read_next_header(archPtr.get(), &entry) == ARCHIVE_OK) {
-       auto const path = std::string{archive_entry_pathname(entry)};
-       EXPECT_STREQ(path, "FAILME");
-   }
-}*/
