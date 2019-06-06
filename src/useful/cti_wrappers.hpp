@@ -287,7 +287,7 @@ fileHasPerms(char const* filePath, int const perms)
 
 // Test if a file exists
 static inline bool
-isFile(char const* filePath)
+pathExists(char const* filePath)
 {
     struct stat st;
     return !stat(filePath, &st);

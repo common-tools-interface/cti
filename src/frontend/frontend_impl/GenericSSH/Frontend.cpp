@@ -284,7 +284,7 @@ public: // Constructor/destructor
                 // Check for the rsa private+public key
                 std::string rsa_path{std::string{m_pwd.pw_dir} + "/.ssh/id_rsa"};
                 std::string rsa_pub_path{rsa_path + ".pub"};
-                if (cti::isFile(rsa_path.c_str()) && cti::isFile(rsa_pub_path.c_str())) {
+                if (cti::pathExists(rsa_path.c_str()) && cti::pathExists(rsa_pub_path.c_str())) {
                     // Try authenticating with an empty passphrase
                     if (!libssh2_userauth_publickey_fromfile(   m_session_ptr.get(),
                                                                 username.c_str(),
@@ -300,7 +300,7 @@ public: // Constructor/destructor
                     // Check for the dsa private+public key
                     std::string dsa_path{std::string{m_pwd.pw_dir} + "/.ssh/id_dsa"};
                     std::string dsa_pub_path{dsa_path + ".pub"};
-                    if (cti::isFile(dsa_path.c_str()) && cti::isFile(dsa_pub_path.c_str())) {
+                    if (cti::pathExists(dsa_path.c_str()) && cti::pathExists(dsa_pub_path.c_str())) {
                         // Try authenticating with an empty passphrase
                         if (!libssh2_userauth_publickey_fromfile(   m_session_ptr.get(),
                                                                     username.c_str(),
