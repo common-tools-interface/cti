@@ -105,22 +105,18 @@ Frontend::getLogger(void)
 }
 
 std::string
-Frontend::findCfgDir(struct passwd& pwd)
+Frontend::findCfgDir()
 {
     // Get the pw info, this is used in the unique name part of cfg directories
     // and when doing the final ownership check
     std::string username;
     decltype(passwd::pw_uid) uid;
-    if (struct passwd *pw = getpwuid(getuid())) {
-        username = std::string(pw->pw_name);
-        uid = pw->pw_uid;
-    }
-    else {
-        throw std::runtime_error(std::string("getpwuid() ") + strerror(errno));
-    }
 
     // FIXME: How to ensure sane pwd?
-    assert(pwd.pw_name != nullptr);
+    assert(m_pwd.pw_name != nullptr);
+
+    username = std::string(m_pwd.pw_name);
+    uid = m_pwd.pw_uid;
 
     // get the cfg dir settings
     std::string customCfgDir, cfgDir;
@@ -426,7 +422,7 @@ Frontend::Frontend()
     }
     // Setup the directories. We break these out into private static methods
     // to avoid pollution in the constructor.
-    m_cfg_dir = findCfgDir(m_pwd);
+    m_cfg_dir = findCfgDir();
     m_base_dir = findBaseDir();
     // Following strings depend on m_base_dir
     m_ld_audit_path = cti::accessiblePath(m_base_dir + "/lib/" + LD_AUDIT_LIB_NAME);

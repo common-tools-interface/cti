@@ -100,7 +100,7 @@ static FE_daemon::MPIRResult sattachMPIR(CraySLURMFrontend& fe, uint32_t jobId, 
     sattachArgv.add(SattachArgv::Argument(std::to_string(jobId) + "." + std::to_string(stepId)));
 
     // get path to SATTACH binary for MPIR control
-    if (auto const sattachPath = cti::make_unique_destr(_cti_pathFind(SATTACH, nullptr), std::free)) {
+    if (auto const sattachPath = cti::move_pointer_ownership(_cti_pathFind(SATTACH, nullptr), std::free)) {
         try {
             // request an MPIR session to extract proctable
             auto const mpirResult = fe.Daemon().request_LaunchMPIR(
@@ -238,7 +238,7 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
         , "--force"
     };
 
-    if (auto packageName = cti::make_unique_destr(_cti_pathToName(tarPath.c_str()), std::free)) {
+    if (auto packageName = cti::move_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
         sbcastArgv.add(std::string(CRAY_SLURM_TOOL_DIR) + "/" + packageName.get());
     } else {
         throw std::runtime_error("_cti_pathToName failed");
@@ -600,7 +600,7 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
     }
 
     // Get the launcher path from CTI environment variable / default.
-    if (auto const launcher_path = cti::make_unique_destr(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
+    if (auto const launcher_path = cti::move_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
         // set up arguments and FDs
         std::string const redirectPath = getBaseDir() + "/libexec/" + OUTPUT_REDIRECT_BINARY;
         char const* redirectArgv[] = {
@@ -648,7 +648,7 @@ CraySLURMFrontend::getSrunInfo(pid_t srunPid) {
         throw std::runtime_error("Invalid srunPid " + std::to_string(srunPid));
     }
 
-    if (auto const launcherPath = cti::make_unique_destr(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
+    if (auto const launcherPath = cti::move_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
         // tell overwatch to extract information using MPIR attach
         auto const mpirData = Daemon().request_AttachMPIR(launcherPath.get(), srunPid);
         Daemon().request_ReleaseMPIR(mpirData.mpir_id);

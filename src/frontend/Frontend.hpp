@@ -121,7 +121,7 @@ public: // Values set by cti_setAttribute
 private: // Private static utility methods used by the generic frontend
     // get the logger associated with the frontend - can only construct logger
     // after fe instantiation!
-    static cti::Logger& getLogger(void);
+    static cti::Logger& getLogger();
     // get the frontend type for this system
     static cti_wlm_type detect_Frontend();
 
@@ -134,9 +134,9 @@ public: // Public static utility methods - Try to keep these to a minimum
 private: // Private utility methods used by the generic frontend
     static bool isRunningOnBackend() { return (getenv(BE_GUARD_ENV_VAR) != nullptr); }
     // use user info to build unique staging path; optionally create the staging direcotry
-    std::string findCfgDir(struct passwd& pwd);
+    std::string findCfgDir();
     // find the base CTI directory from the environment and verify its permissions
-    std::string findBaseDir(void);
+    std::string findBaseDir();
     // Try to cleanup old files left in the cfg dir during the ctor.
     void doFileCleanup();
 
@@ -166,6 +166,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     std::string getBaseDir() { return m_base_dir; }
     std::string getLdAuditPath() { return m_ld_audit_path; }
     std::string getBEDaemonPath() { return m_be_daemon_path; }
+    const struct passwd& getPwd() { return m_pwd; }
 
     // tell all Apps to finalize their transfer Sessions
     void finalize();
