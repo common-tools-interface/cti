@@ -673,3 +673,28 @@ TEST_F(CTIAppUnitTest, ExecToolDaemon)
     // cleanup
     EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
 }
+
+TEST_F(CTIAppUnitTest, ManifestLibraryConflict)
+{
+    auto const sessionId = cti_createSession(appId);
+    ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
+
+    // run the test
+    { auto const manifestId = cti_createManifest(sessionId);
+        ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
+
+        ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/print_one/libprint.so"), SUCCESS) << cti_error_str();
+        ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
+    }
+
+    { auto const manifestId = cti_createManifest(sessionId);
+        ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
+
+        ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/print_two/libprint.so"), FAILURE) <<
+            "Expected failure when manually adding conflicting libraries";
+        ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
+    }
+
+    // cleanup
+    EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
+}
