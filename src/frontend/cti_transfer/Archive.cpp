@@ -127,6 +127,11 @@ void Archive::addPath(const std::string& entryPath, const std::string& path) {
 		throw std::runtime_error(path + " failed stat call");
 	}
 
+        if (!S_ISREG(st.st_mode)) {
+		// This is an unsuported file and should not be added to the manifest
+		throw std::runtime_error(path + " has invalid file type.");
+	}
+
 	// create archive entry from stat
 	{ auto& entryPtr = freshEntry();
 		archive_entry_copy_stat(entryPtr.get(), &st);
@@ -137,10 +142,7 @@ void Archive::addPath(const std::string& entryPath, const std::string& path) {
 	// call proper file/diradd functions
 	if (S_ISDIR(st.st_mode)) {
 		addDir(entryPath, path);
-	} else if (!S_ISREG(st.st_mode)) {
-		// This is an unsuported file and should not be added to the manifest
-		throw std::runtime_error(path + " has invalid file type.");
-	} else {
+	}else {
 		addFile(entryPath, path);
 	}
 }
