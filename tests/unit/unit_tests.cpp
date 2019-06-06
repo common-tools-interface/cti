@@ -20,6 +20,7 @@
 #include "frontend/cti_transfer/Session.hpp"
 
 #include "cti_fe_unit_test.hpp"
+#include "cti_session_unit_test.hpp"
 
 class CTI_Environment : public ::testing::Environment
 {
