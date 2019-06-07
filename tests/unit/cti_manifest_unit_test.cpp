@@ -150,7 +150,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
 TEST_F(CTIManifestUnitTest, addBinary) {
     
    // test that a binary can be added
-   manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore);
+   ASSERT_NO_THROW(manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore));
 
    //chmod("./unit_tests", 
    //At the moment unit_test itself is being used. Not sure if this is a good decision.
@@ -170,9 +170,9 @@ TEST_F(CTIManifestUnitTest, addBinary) {
            throw;
        }
    }, std::runtime_error);
+   //Attempt to add a binary after manifest has been shipped
    
    manifestPtr -> finalize();
-   //Attempt to add a binary after manifest has been shipped
    ASSERT_THROW({
        try {
            manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore);
@@ -183,20 +183,31 @@ TEST_F(CTIManifestUnitTest, addBinary) {
    }, std::runtime_error);
 }
 
-/*
 TEST_F(CTIManifestUnitTest, addLibrary) {
+   
+   std::ofstream f1;
+   f1.open(std::string(TEST_FILE_PATH + file_suffixes[0]).c_str());
+   if(!f1.is_open()) {
+       FAIL () << "Failed to make fake library file";
+   }
+   f1 << "I'm a library";
+   f1.close();
 
+   ASSERT_NO_THROW(manifestPtr -> addLibrary(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str(), Manifest::DepsPolicy::Ignore));
    //Attempt to add a library after manifest has been shipped
+
+   manifestPtr -> finalize();
    ASSERT_THROW({
-	   try {
-
-	   } catch (const std::exception& ex) {
-                EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
-	   }
+       try {
+           manifestPtr -> addLibrary(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str(), Manifest::DepsPolicy::Ignore);
+       } catch (const std::exception& ex) {
+           EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
+	   throw;
+       }
    }, std::runtime_error);
-
 }
 
+/*
 TEST_F(CTIManifestUnitTest, addLibDir) {
 
    //Attempt to add a library directory after manifest has been shipped
