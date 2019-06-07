@@ -445,15 +445,15 @@ Frontend::~Frontend()
 std::weak_ptr<Session>
 App::createSession()
 {
-    auto ret = m_sessions.emplace(std::make_shared<Session>(*this));
-    if (!ret.second) {
+    auto ptrInsertedPair = m_sessions.emplace(Session::make_Session(shared_from_this()));
+    if (!ptrInsertedPair.second) {
         throw std::runtime_error("Failed to create new Session object.");
     }
-    return *ret.first;
+    return *ptrInsertedPair.first;
 }
 
 void
-App::removeSession(std::shared_ptr<Session>& sess)
+App::removeSession(std::shared_ptr<Session> sess)
 {
     // tell session to launch cleanup
     sess->finalize();

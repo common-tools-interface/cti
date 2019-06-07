@@ -26,7 +26,7 @@
 
 #include "Manifest.hpp"
 
-class Session final : public std::enable_shared_from_this<Session> {
+class Session : public std::enable_shared_from_this<Session> {
 private: // variables
     // Pointer to owning App
     std::weak_ptr<App>          m_AppPtr;
@@ -59,6 +59,12 @@ private: // helper functions
     // drop reference to an existing manifest. This invalidates the manifest
     // and prevents it from being shipped.
     void removeManifest(std::shared_ptr<Manifest> const& mani);
+    // ensure that Session owns given Manifest
+    void verifyOwnership(std::shared_ptr<Manifest> const& manifest) {
+        if (m_manifests.count(manifest) == 0) {
+            throw std::invalid_argument("manifest not owned by session");
+        }
+    }
 
 private: // friend shared with Manifest
     // Used to ship a manifest to the computes and extract it.
@@ -84,6 +90,10 @@ public: // interface
             sp->writeLog(fmt, std::forward<Args>(args)...);
         }
     }
+
+    // Get manifest count and advance
+    int nextManifestCount() { return ++m_manifestCnt; }
+
     // Return a list of lock file dependencies for backend to guarantee ordering.
     std::vector<std::string> getSessionLockFiles();
     // create new manifest associated with this session
@@ -94,9 +104,12 @@ public: // interface
     // launch daemon to cleanup remote files. this must be called outside App destructor
     void finalize();
 
+private:
+    // shared_from_this is used in implementation, must enforce that Session is shared_ptr-only
+    Session(std::shared_ptr<App> owningApp);
 public: // interface
-    Session(App& activeApp);
-    ~Session() = default;
+    static std::shared_ptr<Session> make_Session(std::shared_ptr<App> owningApp);
+    virtual ~Session() = default;
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
     Session(Session&&) = delete;

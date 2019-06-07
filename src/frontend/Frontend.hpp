@@ -264,7 +264,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     // Create a new session associated with this app
     std::weak_ptr<Session> createSession();
     // Remove a session object
-    void removeSession(std::shared_ptr<Session>& sess);
+    void removeSession(std::shared_ptr<Session> sess);
     // Frontend acessor
     // TODO: When we switch to std::atomic on shared_ptr with C++20,
     // this can return a shared_ptr handle instead.
