@@ -483,8 +483,9 @@ cti_manifest_id_t
 cti_createManifest(cti_session_id_t sid) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
-        auto sessionPtr  = fe.Iface().getSession(sid);
-        return fe.Iface().trackManifest(sessionPtr->createManifest());
+        auto sp = fe.Iface().getSession(sid);
+        auto wp = sp->createManifest();
+        return fe.Iface().trackManifest(wp);
     }, MANIFEST_ERROR);
 }
 
