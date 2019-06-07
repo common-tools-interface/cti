@@ -175,6 +175,8 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
 
 void
 Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
+    verifyOwnership(mani);
+
     // Short circuit if there is nothing to send
     if (mani->empty()) {
         removeManifest(mani);
@@ -206,6 +208,8 @@ Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
 void
 Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const daemon,
         const char * const daemonArgs[], const char * const envVars[]) {
+    verifyOwnership(mani);
+
     // Add daemon to the manifest
     mani->addBinary(daemon);
     // Get the owning app
@@ -266,6 +270,8 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
 
 void
 Session::removeManifest(std::shared_ptr<Manifest> const& mani) {
+    verifyOwnership(mani);
+
     // Finalize manifest
     mani->finalize();
     // drop the shared_ptr

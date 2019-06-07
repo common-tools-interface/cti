@@ -59,6 +59,12 @@ private: // helper functions
     // drop reference to an existing manifest. This invalidates the manifest
     // and prevents it from being shipped.
     void removeManifest(std::shared_ptr<Manifest> const& mani);
+    // ensure that Session owns given Manifest
+    void verifyOwnership(std::shared_ptr<Manifest> const& manifest) {
+        if (m_manifests.count(manifest) == 0) {
+            throw std::invalid_argument("manifest not owned by session");
+        }
+    }
 
 public: // interface
     std::shared_ptr<App> getOwningApp() {
