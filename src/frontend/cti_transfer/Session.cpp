@@ -97,11 +97,12 @@ void Session::finalize() {
 }
 
 std::weak_ptr<Manifest>
-Session::adoptManifest(std::shared_ptr<Manifest>&& movedManifest) {
-    if (movedManifest == nullptr) {
+Session::createManifest() {
+    auto ret = m_manifests.emplace(Manifest::make_Manifest(shared_from_this()));
+    if (!ret.second) {
         throw std::runtime_error("Failed to create new Manifest object.");
     }
-    return *m_manifests.emplace(std::move(movedManifest)).first;
+    return *ret.first;
 }
 
 std::string

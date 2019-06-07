@@ -146,8 +146,30 @@ Manifest::addFile(const std::string& rawName) {
     checkAndAdd("", filePath, realName);
 }
 
+void
+Manifest::sendManifest() {
+    getOwningSession()->sendManifest(shared_from_this());
+}
+
+void
+Manifest::execManifest(const char * const daemon, const char * const daemonArgs[],
+    const char * const envVars[]) {
+    getOwningSession()->execManifest(shared_from_this(),
+        daemon, daemonArgs, envVars);
+}
+
 Manifest::Manifest(std::shared_ptr<Session> owningSession)
     : m_sessionPtr{owningSession}
     , m_instance{owningSession->nextManifestCount()}
     , m_isValid{true}
 { }
+
+std::shared_ptr<Manifest> Manifest::make_Manifest(std::shared_ptr<Session> owningSession)
+{
+    struct ConstructibleManifest : public Manifest {
+        ConstructibleManifest(std::shared_ptr<Session> owningSession)
+            : Manifest{std::move(owningSession)}
+        {}
+    };
+    return std::make_shared<ConstructibleManifest>(std::move(owningSession));
+}

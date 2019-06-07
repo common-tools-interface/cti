@@ -484,8 +484,7 @@ cti_createManifest(cti_session_id_t sid) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
         auto sessionPtr  = fe.Iface().getSession(sid);
-        auto manifestPtr = sessionPtr->adoptManifest(std::make_shared<Manifest>(sessionPtr));
-        return fe.Iface().trackManifest(manifestPtr);
+        return fe.Iface().trackManifest(sessionPtr->createManifest());
     }, MANIFEST_ERROR);
 }
 
@@ -548,7 +547,7 @@ cti_sendManifest(cti_manifest_id_t mid) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
         auto mp = fe.Iface().getManifest(mid);
-        mp->getOwningSession()->sendManifest(mp);
+        mp->sendManifest();
         fe.Iface().removeManifest(mid);
         return SUCCESS;
     }, FAILURE);
@@ -562,7 +561,7 @@ cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
         auto mp = fe.Iface().getManifest(mid);
-        mp->getOwningSession()->execManifest(mp, daemonPath, daemonArgs, envVars);
+        mp->execManifest(daemonPath, daemonArgs, envVars);
         fe.Iface().removeManifest(mid);
         return SUCCESS;
     }, FAILURE);
