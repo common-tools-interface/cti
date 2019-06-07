@@ -77,15 +77,7 @@ private: // friend shared with Manifest
     friend void Manifest::execManifest(const char * const daemon, const char * const daemonArgs[],
         const char * const envVars[]);
 
-private:
-    // shared_from_this is used in implementation, must enforce that Session is shared_ptr-only
-    Session(std::shared_ptr<App> owningApp);
-
 public: // interface
-    static std::shared_ptr<Session> make_Session(std::shared_ptr<App> owningApp);
-
-    virtual ~Session() = default;
-
     std::shared_ptr<App> getOwningApp() {
         if (auto app = m_AppPtr.lock()) { return app; }
         throw std::runtime_error("Owning app is no longer valid.");
@@ -112,7 +104,12 @@ public: // interface
     // launch daemon to cleanup remote files. this must be called outside App destructor
     void finalize();
 
-public: // noncopyable, nonmoveable
+private:
+    // shared_from_this is used in implementation, must enforce that Session is shared_ptr-only
+    Session(std::shared_ptr<App> owningApp);
+public: // interface
+    static std::shared_ptr<Session> make_Session(std::shared_ptr<App> owningApp);
+    virtual ~Session() = default;
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
     Session(Session&&) = delete;
