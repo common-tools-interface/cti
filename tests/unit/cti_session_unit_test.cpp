@@ -65,14 +65,14 @@ TEST_F(CTISessionUnitTest, getStagePath) {
     //Ensure after creation session has a stage path
     ASSERT_STRNE("", sessionPtr -> getStagePath().c_str());
 }
-/*
+
 TEST_F(CTISessionUnitTest, getOwningApp) {
 
     //Confirm the app is valid at the start of program
-    ASSERT_NO_THROW(session -> getOwningApp());
+    ASSERT_NO_THROW(sessionPtr -> getOwningApp());
 
 }
-
+/*
 TEST_F(CTISessionUnitTest, getOwningAppInvalid) {
     //Confirm session behaves appropriately when invalid owning app
     ASSERT_THROW({
