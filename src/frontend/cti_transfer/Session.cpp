@@ -87,12 +87,11 @@ void Session::finalize() {
 }
 
 std::weak_ptr<Manifest>
-Session::createManifest() {
-    auto ret = m_manifests.emplace(std::make_shared<Manifest>(++m_manifestCnt, *this));
-    if (!ret.second) {
+Session::adoptManifest(std::shared_ptr<Manifest>&& movedManifest) {
+    if (movedManifest == nullptr) {
         throw std::runtime_error("Failed to create new Manifest object.");
     }
-    return *ret.first;
+    return *m_manifests.emplace(std::move(movedManifest)).first;
 }
 
 std::string
@@ -140,7 +139,7 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     auto&& folders = mani->folders();
     auto&& sources = mani->sources();
     auto toRemove = mergeTransfered(folders, sources);
-    for (auto folderFilePair : toRemove) {
+    for (auto&& folderFilePair : toRemove) {
         folders[folderFilePair.first].erase(folderFilePair.second);
         sources.erase(folderFilePair.second);
     }
@@ -161,8 +160,8 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     archive.addDirEntry(m_stageName + "/lib");
     archive.addDirEntry(m_stageName + "/tmp");
     // add the unique files to archive
-    for (auto folderIt : folders) {
-        for (auto fileIt : folderIt.second) {
+    for (auto&& folderIt : folders) {
+        for (auto&& fileIt : folderIt.second) {
             const std::string destPath(m_stageName + "/" + folderIt.first +
                 "/" + fileIt);
             writeLog("shipManifest %d: addPath(%s, %s)\n", inst, destPath.c_str(), sources.at(fileIt).c_str());

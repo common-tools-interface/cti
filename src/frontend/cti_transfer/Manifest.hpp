@@ -31,7 +31,7 @@ using FolderFilePair = std::pair<std::string, std::string>;
 // Forward declarations
 class Session;
 
-class Manifest final : public std::enable_shared_from_this<Manifest> {
+class Manifest final {
 public: // types
     enum class DepsPolicy {
         Ignore = 0,
@@ -40,7 +40,7 @@ public: // types
 
 private: // variables
     std::weak_ptr<Session>  m_sessionPtr;
-    size_t const            m_instance;
+    int const               m_instance;
     FoldersMap              m_folders;
     PathMap                 m_sourcePaths;
     std::string             m_ldLibraryOverrideFolder;
@@ -81,19 +81,12 @@ public: // interface
     PathMap& sources() { return m_sourcePaths; }
     std::string& extraLibraryPath() { return m_ldLibraryOverrideFolder; }
 
-    // Used to ship a manifest to the computes and extract it.
-    void sendManifest();
-
-    // Ship a manifest and execute a tool daemon contained within.
-    void execManifest(const char * const daemon, const char * const daemonArgs[],
-        const char * const envVars[]);
-
     // Called by the session when it ships the manifest. This denotes that the manifest
     // is no longer modifyable
     void finalize() { m_isValid = false; }
 
 public: // Constructor/destructors
-    Manifest(size_t instanceCount, Session& owningSession);
+    Manifest(std::shared_ptr<Session> owningSession);
     ~Manifest() = default;
     Manifest(const Manifest&) = delete;
     Manifest& operator=(const Manifest&) = delete;
