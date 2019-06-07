@@ -26,7 +26,7 @@
 
 #include "Manifest.hpp"
 
-class Session final {
+class Session : public std::enable_shared_from_this<Session> {
 private: // variables
     // Pointer to owning App
     std::weak_ptr<App>          m_AppPtr;
@@ -66,7 +66,15 @@ private: // helper functions
         }
     }
 
+protected:
+    // shared_from_this is used in implementation, must enforce that Session is shared_ptr-only
+    Session(std::shared_ptr<App> owningApp);
+
 public: // interface
+    static std::shared_ptr<Session> make_Session(std::shared_ptr<App> owningApp);
+
+    virtual ~Session() = default;
+
     std::shared_ptr<App> getOwningApp() {
         if (auto app = m_AppPtr.lock()) { return app; }
         throw std::runtime_error("Owning app is no longer valid.");
@@ -102,9 +110,7 @@ public: // interface
     // launch daemon to cleanup remote files. this must be called outside App destructor
     void finalize();
 
-public: // interface
-    Session(std::shared_ptr<App> owningApp);
-    ~Session() = default;
+public: // noncopyable, nonmoveable
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
     Session(Session&&) = delete;

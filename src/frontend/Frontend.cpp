@@ -445,7 +445,7 @@ Frontend::~Frontend()
 std::weak_ptr<Session>
 App::createSession()
 {
-    auto ptrInsertedPair = m_sessions.emplace(std::make_shared<Session>(shared_from_this()));
+    auto ptrInsertedPair = m_sessions.emplace(Session::make_Session(shared_from_this()));
     if (!ptrInsertedPair.second) {
         throw std::runtime_error("Failed to create new Session object.");
     }

@@ -55,6 +55,16 @@ Session::Session(std::shared_ptr<App> owningApp)
     , m_ldLibraryPath{m_stagePath + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
 { }
 
+std::shared_ptr<Session> Session::make_Session(std::shared_ptr<App> owningApp)
+{
+    struct ConstructibleSession : public Session {
+        ConstructibleSession(std::shared_ptr<App> owningApp)
+            : Session{std::move(owningApp)}
+        {}
+    };
+    return std::make_shared<ConstructibleSession>(std::move(owningApp));
+}
+
 void Session::finalize() {
     // Check to see if we need to try cleanup on compute nodes. We bypass the
     // cleanup if we never shipped a manifest.
