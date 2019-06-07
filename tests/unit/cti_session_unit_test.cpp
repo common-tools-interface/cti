@@ -96,24 +96,31 @@ TEST_F(CTISessionUnitTest, createManifest) {
     //Ensure session can create a manifest w/o runtime:error
     ASSERT_NO_THROW(sessionPtr -> createManifest());
 }
-/*
+
 ///////
 TEST_F(CTISessionUnitTest, sendManifest) {
      //This function logs the following:
      //shipManifest %d: merge into session
      //shipManifest %d: addPath(%s, %s)\n
 
-     std::shared_ptr<Manifest> testMan = sessionPtr -> createManifest();
+     std::shared_ptr<Manifest> testMan = (sessionPtr -> createManifest()).lock();
      
-     ASSERT_NO_THROW({
-            // EXPECT_STREQ(m_stageName + std::to_string(inst) + ".tar", session -> shipManifest);
-	    EXPECT_STREQ("", sessionPtr -> shipManifest(testMan).c_str());
-     });
+     // create a test file to add to the manifest so it can be shipped properly
+     std::ofstream f1;
+     f1.open(std::string(testFilePath + fileSuffixes[0]).c_str());
+     if(!f1.is_open()) {
+        FAIL() << "Could not create test file";
+     }
+     f1 << "f1";
+     f1.close();
+     
+     ASSERT_NO_THROW(testMan -> sendManifest());
+     // EXPECT_STREQ(m_stageName + std::to_string(inst) + ".tar", session -> shipManifest);
 
      //read the log file and ensure data is as expected
      //log location:
 }
-*/
+
 /*
 //////test that Session behaves appropriately when sending same file twice
 TEST_F(CTISessionUnitTest, hasFileConflict) {
@@ -150,6 +157,7 @@ TEST_F(CTISessionUnitTest, getSessionLockFiles) {
         FAIL() << "Couldn't make test file";
     }
     f1 << "f1";
+    f1.close();
 
     testMan -> addFile(std::string("./" + testFilePath + fileSuffixes[0]).c_str());   
 
