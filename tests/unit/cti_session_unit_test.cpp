@@ -72,25 +72,27 @@ TEST_F(CTISessionUnitTest, getOwningApp) {
     ASSERT_NO_THROW(sessionPtr -> getOwningApp());
 
 }
+
 /*
 TEST_F(CTISessionUnitTest, getOwningAppInvalid) {
     //Confirm session behaves appropriately when invalid owning app
+    mockApp.reset();
     ASSERT_THROW({
        try {
-          //TODO: session -> getOwningApp; 
+         sessionPtr -> getOwningApp(); 
        } catch (std::exception& ex) {
           EXPECT_STREQ("Owning app is no longer valid.", ex.what());
 	  throw;
        }
     }, std::runtime_error);
 }
-
+*/
 TEST_F(CTISessionUnitTest, createManifest) {
 
     //Ensure session can create a manifest w/o runtime:error
-    ASSERT_NO_THROW(createManifest);
+    ASSERT_NO_THROW(sessionPtr -> createManifest());
 }
-
+/*
 ///////
 TEST_F(CTISessionUnitTest, shipManifest) {
      //This function logs the following:
