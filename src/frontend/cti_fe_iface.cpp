@@ -547,9 +547,8 @@ int
 cti_sendManifest(cti_manifest_id_t mid) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
-        { auto mp = fe.Iface().getManifest(mid);
-            mp->getOwningSession()->sendManifest(mp);
-        }
+        auto mp = fe.Iface().getManifest(mid);
+        mp->getOwningSession()->sendManifest(mp);
         fe.Iface().removeManifest(mid);
         return SUCCESS;
     }, FAILURE);
@@ -562,9 +561,8 @@ cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
-        { auto mp = fe.Iface().getManifest(mid);
-            mp->getOwningSession()->execManifest(mp, daemonPath, daemonArgs, envVars);
-        }
+        auto mp = fe.Iface().getManifest(mid);
+        mp->getOwningSession()->execManifest(mp, daemonPath, daemonArgs, envVars);
         fe.Iface().removeManifest(mid);
         return SUCCESS;
     }, FAILURE);

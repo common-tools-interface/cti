@@ -97,7 +97,7 @@ public: // interface
     void finalize();
 
 public: // interface
-    Session(App& activeApp);
+    Session(std::shared_ptr<App> owningApp);
     ~Session() = default;
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;

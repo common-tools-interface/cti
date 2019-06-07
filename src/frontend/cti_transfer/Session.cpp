@@ -41,17 +41,17 @@ Session::generateStagePath(FE_prng& charSource) {
     return stageName;
 }
 
-Session::Session(App& owningApp)
-    : m_AppPtr{owningApp.shared_from_this()}
+Session::Session(std::shared_ptr<App> owningApp)
+    : m_AppPtr{owningApp}
     , m_manifests{}
     , m_add_requirements{true}
     , m_manifestCnt{0}
     , m_seqNum{0}
     , m_folders{}
     , m_sourcePaths{}
-    , m_stageName{generateStagePath(owningApp.getFrontend().Prng())}
-    , m_stagePath{owningApp.getToolPath() + "/" + m_stageName}
-    , m_wlmType{std::to_string(owningApp.getFrontend().getWLMType())}
+    , m_stageName{generateStagePath(owningApp->getFrontend().Prng())}
+    , m_stagePath{owningApp->getToolPath() + "/" + m_stageName}
+    , m_wlmType{std::to_string(owningApp->getFrontend().getWLMType())}
     , m_ldLibraryPath{m_stagePath + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
 { }
 
