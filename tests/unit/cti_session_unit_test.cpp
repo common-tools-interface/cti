@@ -115,6 +115,18 @@ TEST_F(CTISessionUnitTest, sendManifest) {
      f1.close();
      
      ASSERT_NO_THROW(testMan -> sendManifest());
+     
+     // test that manifest can't have files added after shipped
+     ASSERT_THROW({
+        try {
+            testMan -> addFile(std::string("./" + testFilePath + fileSuffixes[0]).c_str());
+	} catch (std::exception& ex) {
+            EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
+	    throw;
+	}
+     }, std::runtime_error);
+
+
      // EXPECT_STREQ(m_stageName + std::to_string(inst) + ".tar", session -> shipManifest);
 
      //read the log file and ensure data is as expected
@@ -165,5 +177,26 @@ TEST_F(CTISessionUnitTest, getSessionLockFiles) {
     testMan -> sendManifest();
     // test that there is a session lock file for the newly shipped manifest
     ASSERT_EQ(1, int((sessionPtr -> getSessionLockFiles()).size()));
+
+}
+
+TEST_F(CTISessionUnitTest, finalize) {
+    // test finalize when no manifests shipped
+    ASSERT_NO_THROW(sessionPtr -> finalize());
+    std::shared_ptr<Manifest> testMan = (sessionPtr -> createManifest()).lock();
+   
+    // create a test file to add to the manifest so it can be shipped properly
+    std::ofstream f1;
+    f1.open(std::string(testFilePath + fileSuffixes[0]).c_str());
+    if(!f1.is_open()) {
+       FAIL() << "Could not create test file";
+    }
+    f1 << "f1";
+    f1.close();
+    
+    ASSERT_NO_THROW(testMan -> sendManifest());
+
+    // test finalize when a manifest has been shipped
+    ASSERT_NO_THROW(sessionPtr -> finalize());
 
 }
