@@ -58,6 +58,9 @@ CTISessionUnitTest::CTISessionUnitTest()
 
 CTISessionUnitTest::~CTISessionUnitTest()
 {
+    for(std::string suf : fileSuffixes) {
+        remove(std::string(testFilePath + suf).c_str());
+    }
 }
 
 ///////
@@ -131,9 +134,28 @@ TEST_F(CTISessionUnitTest, mergeTransfered) {
 
     }, std::runtime_error);
 }
-
+*/
 //////
 TEST_F(CTISessionUnitTest, getSessionLockFiles) {
-    //test that there is a session lock file for this session
-    ASSERT_GT(1, session -> getSessionLockFiles);
-}*/
+    // test that there are no session lock files when no manifests shipped
+    ASSERT_EQ(0, int((sessionPtr -> getSessionLockFiles()).size()));
+
+    // create a manifest, send it, and check that lock files have changed.
+    std::shared_ptr<Manifest> testMan = (sessionPtr -> createManifest()).lock();
+
+    // create a file to add to manifest so it can be validly sent.
+    std::ofstream f1;
+    f1.open(std::string(testFilePath + fileSuffixes[0]).c_str());
+    if(!f1.is_open()) {
+        FAIL() << "Couldn't make test file";
+    }
+    f1 << "f1";
+
+    testMan -> addFile(std::string("./" + testFilePath + fileSuffixes[0]).c_str());   
+
+    //sessionPtr -> sendManifest(testMan);
+    testMan -> sendManifest();
+    // test that there is a session lock file for the newly shipped manifest
+    ASSERT_EQ(1, int((sessionPtr -> getSessionLockFiles()).size()));
+
+}
