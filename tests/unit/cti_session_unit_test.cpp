@@ -53,6 +53,7 @@ CTISessionUnitTest::CTISessionUnitTest()
     : CTIAppUnitTest{}
     , sessionPtr{std::make_shared<Session>(*mockApp)}
 { 
+    fileSuffixes.push_back("1.txt");
 }
 
 CTISessionUnitTest::~CTISessionUnitTest()
@@ -94,18 +95,23 @@ TEST_F(CTISessionUnitTest, createManifest) {
 }
 /*
 ///////
-TEST_F(CTISessionUnitTest, shipManifest) {
+TEST_F(CTISessionUnitTest, sendManifest) {
      //This function logs the following:
      //shipManifest %d: merge into session
      //shipManifest %d: addPath(%s, %s)\n
 
-     //returns archiveName
-     EXPECT_STREQ(m_stageName + std::to_string(inst) + ".tar", session -> shipManifest);
+     std::shared_ptr<Manifest> testMan = sessionPtr -> createManifest();
+     
+     ASSERT_NO_THROW({
+            // EXPECT_STREQ(m_stageName + std::to_string(inst) + ".tar", session -> shipManifest);
+	    EXPECT_STREQ("", sessionPtr -> shipManifest(testMan).c_str());
+     });
 
      //read the log file and ensure data is as expected
      //log location:
 }
-
+*/
+/*
 //////test that Session behaves appropriately when sending same file twice
 TEST_F(CTISessionUnitTest, hasFileConflict) {
      EXPECT_EQ(session -> send?, Conflict::
