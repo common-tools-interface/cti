@@ -17,6 +17,8 @@
 #include <unordered_set>
 #include <fstream>
 
+#include <sys/stat.h> // for changing binary permissions
+
 // CTI Transfer includes
 #include "frontend/cti_transfer/Manifest.hpp"
 #include "frontend/cti_transfer/Session.hpp"
@@ -110,17 +112,17 @@ TEST_F(CTIManifestUnitTest, addFile) {
    std::ofstream f1;
    f1.open(std::string(TEST_FILE_PATH + file_suffixes[0]).c_str());
    if (!f1.is_open()) {
-      FAIL() << "Failed to create file for testing addFile";
+       FAIL() << "Failed to create file for testing addFile";
    }
    f1 << TEST_FILE_PATH + file_suffixes[0];
 
    ASSERT_NO_THROW({
-      try {
-          manifestPtr -> addFile(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str());
-      } catch (std::exception& ex) {
-          FAIL() << ex.what();
-	  throw;
-      }
+       try {
+           manifestPtr -> addFile(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str());
+       } catch (std::exception& ex) {
+           FAIL() << ex.what();
+           throw;
+       }
    });
 
    //Attempt to add a file after manifest has been shipped
@@ -134,46 +136,54 @@ TEST_F(CTIManifestUnitTest, addFile) {
    f2 << TEST_FILE_PATH + file_suffixes[1];
 
    ASSERT_THROW({
-	   try {
-                manifestPtr -> addFile(std::string("./" + TEST_FILE_PATH + file_suffixes[1]).c_str());
-	   } catch (const std::exception& ex) {
-                EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
-		throw;
-	   }
+       try {
+           manifestPtr -> addFile(std::string("./" + TEST_FILE_PATH + file_suffixes[1]).c_str());
+       } catch (const std::exception& ex) {
+           EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
+           throw;
+       }
    }, std::runtime_error);
-   
-
 }
 
 //////
-/*
+
 TEST_F(CTIManifestUnitTest, addBinary) {
     
    // test that a binary can be added
-   
-   //TODO: create the binary to be added 
-   ASSERT_NO_THROW(testManifest -> addBinary(std::string(TEST_FILE_PATH + file_suffixes[1]).c_str()));
+   manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore);
+
+   //chmod("./unit_tests", 
+   //At the moment unit_test itself is being used. Not sure if this is a good decision.
+   std::ofstream f1;
+   f1.open(std::string(TEST_FILE_PATH + file_suffixes[0]).c_str());
+   if (!f1.is_open()) {
+       FAIL() << "Could not open addBinary file";
+   }
+   f1 << "I'm_a_binary";
+   f1.close();
 
    ASSERT_THROW({
-	   try {
-           //TODO: Add a binary to the manifest where permissions are not set properly
-	   } catch (const std::exception& ex) {
-		 EXPECT_STREQ("Specified binary does not have execute permissoins.", ex.what());
-		 throw;
-	   }
-   
+       try {
+           manifestPtr -> addBinary(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str(), Manifest::DepsPolicy::Ignore);
+       } catch (const std::exception& ex) {
+           EXPECT_STREQ("Specified binary does not have execute permissions.", ex.what());
+           throw;
+       }
    }, std::runtime_error);
-
+   
+   manifestPtr -> finalize();
    //Attempt to add a binary after manifest has been shipped
    ASSERT_THROW({
- 	    try {
-
-	    } catch (const std::exception& ex) {
-                 EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
-	    }
+       try {
+           manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore);
+       } catch (const std::exception& ex) {
+           EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
+	   throw;
+       }
    }, std::runtime_error);
 }
 
+/*
 TEST_F(CTIManifestUnitTest, addLibrary) {
 
    //Attempt to add a library after manifest has been shipped
