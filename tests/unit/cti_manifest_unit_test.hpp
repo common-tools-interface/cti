@@ -35,9 +35,12 @@ protected: // variables
 
 	// string constants
 
-	// Consts for to be created test files
+	// consts for to be created test files
 	const std::string DIR_PATH = "u_test";
 	const std::string TEST_FILE_PATH = "archive_test_file";
+
+	// template for temp files for testing addLibDir
+	//char TEMP_FILE_TEMPLATE[] = "/tmp/cti-test-XXXXXX";
 
 protected: // interface
 	CTIManifestUnitTest();

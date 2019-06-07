@@ -17,7 +17,8 @@
 #include <unordered_set>
 #include <fstream>
 
-#include <sys/stat.h> // for changing binary permissions
+//#include <sys/stat.h> // for changing binary permissions
+#include <stdlib.h>
 
 // CTI Transfer includes
 #include "frontend/cti_transfer/Manifest.hpp"
@@ -207,16 +208,39 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
    }, std::runtime_error);
 }
 
-/*
 TEST_F(CTIManifestUnitTest, addLibDir) {
+   // create temp 'library'
+   char TEMPLATE[] = "/tmp/cti-test-XXXXXX";
+   char* tdir = mkdtemp(TEMPLATE);
+   if(tdir == NULL) {
+       FAIL() <<"Failed to create temporary library";
+   }
 
-   //Attempt to add a library directory after manifest has been shipped
+   // create a temporary file for the library
+   std::ofstream f_temp;
+   std::string f_temp_path = tdir;
+   f_temp_path += "/" + TEST_FILE_PATH + "_temp_file";
+   f_temp.open(f_temp_path.c_str());
+   if(!f_temp.is_open()) {
+       FAIL() << "Failed to create temp library file";
+   }
+   f_temp << "I'm a library file";
+   f_temp.close();
+
+   ASSERT_NO_THROW(manifestPtr -> addLibDir(tdir));
+
+   // test how manifest behaves shipping a library dir after already being shipped
+   manifestPtr -> finalize();
    ASSERT_THROW({
-           try {
-
-	   } catch (const std::exception& ex) {
-	        EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
-	   }
+       try {
+           manifestPtr -> addLibDir(tdir);
+       } catch (const std::exception& ex) {
+           EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
+           throw;
+       }
    }, std::runtime_error);
+
+   // cleanup 'library' files
+   remove(f_temp_path.c_str());
+   rmdir(tdir);
 }
-*/
