@@ -42,13 +42,13 @@ CTIManifestUnitTest::CTIManifestUnitTest()
 
     // remove any lingering test files
     for(std::string suf : file_suffixes) {
-       remove(std::string(test_file_path + suf).c_str());
+        remove(std::string(TEST_FILE_PATH + suf).c_str());
     }
 }
 
 CTIManifestUnitTest::~CTIManifestUnitTest() {
     for(std::string suf : file_suffixes) {
-       remove(std::string(test_file_path + suf).c_str());
+        remove(std::string(TEST_FILE_PATH + suf).c_str());
     }
 }
 
@@ -71,12 +71,12 @@ TEST_F(CTIManifestUnitTest, empty) {
 
    // create a test file to add to the manifest
    std::ofstream f1;
-   f1.open(std::string(test_file_path + file_suffixes[0]).c_str());
+   f1.open(std::string(TEST_FILE_PATH + file_suffixes[0]).c_str());
    if (!f1.is_open()) {
-      FAIL() << "Failed to create file for testing addFile";
+       FAIL() << "Failed to create file for testing addFile";
    }
-   f1 << test_file_path + file_suffixes[0];
-   manifestPtr -> addFile(std::string("./" + test_file_path + file_suffixes[0]).c_str());
+   f1 << TEST_FILE_PATH + file_suffixes[0];
+   manifestPtr -> addFile(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str());
    
    // test that manifest is no longer empty
    ASSERT_EQ(manifestPtr->empty(), false);
@@ -85,19 +85,22 @@ TEST_F(CTIManifestUnitTest, empty) {
 TEST_F(CTIManifestUnitTest, getOwningSession) {
 
     // test that a session can be gotten
-    ASSERT_NE(manifestPtr->getOwningSession(), nullptr);
+    ASSERT_NE(manifestPtr -> getOwningSession(), nullptr);
 
-    //Attempt to a get a session when none exist
-    /* ASSERT_THROW({
-	    try {
-            
-	    } catch (const std::exception& ex) {
-		 EXPECT_STREQ("Owning Session is no longer valid.", ex.what());
-		 throw;
-	    }
+    // destroy the manifests current session
+    sessionPtr.reset();
+
+    // test that manifest's session no longer returns properly
+    ASSERT_THROW({
+        try {
+            manifestPtr -> getOwningSession();
+        } catch (const std::exception& ex) {
+            EXPECT_STREQ("Owning Session is no longer valid.", ex.what());
+            throw;
+        }
    
     }, std::runtime_error);	
-    */
+    
 }
 
 //////
@@ -105,15 +108,15 @@ TEST_F(CTIManifestUnitTest, addFile) {
 
    // create a test file to add to the manifest
    std::ofstream f1;
-   f1.open(std::string(test_file_path + file_suffixes[0]).c_str());
+   f1.open(std::string(TEST_FILE_PATH + file_suffixes[0]).c_str());
    if (!f1.is_open()) {
       FAIL() << "Failed to create file for testing addFile";
    }
-   f1 << test_file_path + file_suffixes[0];
+   f1 << TEST_FILE_PATH + file_suffixes[0];
 
    ASSERT_NO_THROW({
       try {
-          manifestPtr -> addFile(std::string("./" + test_file_path + file_suffixes[0]).c_str());
+          manifestPtr -> addFile(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str());
       } catch (std::exception& ex) {
           FAIL() << ex.what();
 	  throw;
@@ -124,15 +127,15 @@ TEST_F(CTIManifestUnitTest, addFile) {
    manifestPtr -> finalize();  
 
    std::ofstream f2;
-   f2.open(std::string(test_file_path + file_suffixes[1]).c_str());
+   f2.open(std::string(TEST_FILE_PATH + file_suffixes[1]).c_str());
    if (!f2.is_open()) {
       FAIL() << "Failed to create file for testing addFile";
    }
-   f2 << test_file_path + file_suffixes[1];
+   f2 << TEST_FILE_PATH + file_suffixes[1];
 
    ASSERT_THROW({
 	   try {
-                manifestPtr -> addFile(std::string("./" + test_file_path + file_suffixes[1]).c_str());
+                manifestPtr -> addFile(std::string("./" + TEST_FILE_PATH + file_suffixes[1]).c_str());
 	   } catch (const std::exception& ex) {
                 EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
 		throw;
@@ -149,7 +152,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
    // test that a binary can be added
    
    //TODO: create the binary to be added 
-   ASSERT_NO_THROW(testManifest -> addBinary(std::string(test_file_path + file_suffixes[1]).c_str()));
+   ASSERT_NO_THROW(testManifest -> addBinary(std::string(TEST_FILE_PATH + file_suffixes[1]).c_str()));
 
    ASSERT_THROW({
 	   try {

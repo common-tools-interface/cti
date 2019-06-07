@@ -36,8 +36,8 @@ protected: // variables
 	// string constants
 
 	// Consts for to be created test files
-	const std::string dirPath = "u_test";
-	const std::string test_file_path = "archive_test_file";
+	const std::string DIR_PATH = "u_test";
+	const std::string TEST_FILE_PATH = "archive_test_file";
 
 protected: // interface
 	CTIManifestUnitTest();
