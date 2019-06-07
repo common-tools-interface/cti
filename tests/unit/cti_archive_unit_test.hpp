@@ -28,11 +28,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-//static constexpr auto SUCCESS = int{0};
-//static constexpr auto FAILURE = int{1};
-
-//static constexpr auto MANIFEST_ERROR  = cti_manifest_id_t{0};
-
 // the fixture for unit testing the C archive interface
 class CTIArchiveUnitTest : public ::testing::Test
 {
@@ -46,6 +41,7 @@ protected:
 
 	// TODO: add vector containing all file names and dirs
         std::vector<std::string> file_suffixes;
+	std::vector<std::string> dirs;
 
 protected:
 	CTIArchiveUnitTest();
