@@ -236,13 +236,17 @@ Frontend::findBaseDir(void)
 // to remove a tarball if the process exits, but no mechanism exists today that
 // I know about that allows us to share the file with other processes later on.
 void
-Frontend::addFileCleanup(std::string file)
+Frontend::addFileCleanup(std::string const& file)
 {
-    std::string cleanupFilePath{m_cfg_dir + "/." + file};
+    // track file itself
+    m_cleanup_files.push_back(file);
+
+    // track cleanup file that stores this app's PID
+    std::string const cleanupFilePath{m_cfg_dir + "/." + file};
+    m_cleanup_files.push_back(std::move(cleanupFilePath));
     auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
     pid_t pid = getpid();
     cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
-    m_cleanup_files.push_back(std::move(cleanupFilePath));
 }
 
 void

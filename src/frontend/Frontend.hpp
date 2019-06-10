@@ -160,7 +160,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     // PRNG accessor
     FE_prng& Prng() { return m_prng; }
     // Register a cleanup file
-    void addFileCleanup(std::string file);
+    void addFileCleanup(std::string const& file);
     // Accessors
     std::string getCfgDir() { return m_cfg_dir; }
     std::string getBaseDir() { return m_base_dir; }
