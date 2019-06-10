@@ -108,6 +108,12 @@ TEST_F(CTIManifestUnitTest, getOwningSession) {
 
 //////
 TEST_F(CTIManifestUnitTest, addFile) {
+   // test that no files exist at start
+   PathMap p = manifestPtr -> sources();
+   ASSERT_EQ(p.size(), 0);
+
+   FoldersMap fm = manifestPtr -> folders();
+   ASSERT_EQ(fm.size(), 0);
 
    // create a test file to add to the manifest
    std::ofstream f1;
@@ -127,7 +133,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
    });
 
    // test that the file data was actually added to memory
-   PathMap p = manifestPtr -> sources();
+   p = manifestPtr -> sources();
    ASSERT_EQ(p[cti::getNameFromPath(cti::getRealPath("./" + TEST_FILE_PATH + file_suffixes[0]))],
 	           cti::findPath("./" + TEST_FILE_PATH + file_suffixes[0]));
 
@@ -135,15 +141,41 @@ TEST_F(CTIManifestUnitTest, addFile) {
    ASSERT_EQ(p.size(), 1);
 
    // test that file was added to relevant folder
-   FoldersMap fm = manifestPtr -> folders();
+   fm = manifestPtr -> folders();
 
    // test that file folder data is actually in memory
    ASSERT_EQ(*(fm[""].begin()), cti::getNameFromPath(cti::getRealPath("./" + TEST_FILE_PATH + file_suffixes[0]))); 
 
    // test that there was no excess folder data in memory
+   ASSERT_EQ(fm.size(), 1);
    ASSERT_EQ(fm[""].size(), 1); 
 
-   //Attempt to add a file after manifest has been shipped
+   // test that manifest does not add the same file twice
+   manifestPtr -> addFile(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str());
+      
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm[""].size(), 1);
+   ASSERT_EQ(p.size(), 1);
+
+   // test that manifest does not add files that don't exist
+   ASSERT_THROW({
+       try {
+           manifestPtr -> addFile(std::string("./" + TEST_FILE_PATH + file_suffixes[1]).c_str());
+       } catch (const std::exception& ex) {
+           EXPECT_STREQ(std::string("./" + TEST_FILE_PATH + file_suffixes[1] + ": Could not locate in PATH.").c_str(), ex.what());
+	   throw;
+       }
+   }, std::runtime_error);
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm[""].size(), 1);
+   ASSERT_EQ(p.size(), 1);
+
+   // test that manifest cannot have file added after finalizing
    manifestPtr -> finalize();  
 
    std::ofstream f2;
@@ -161,6 +193,12 @@ TEST_F(CTIManifestUnitTest, addFile) {
            throw;
        }
    }, std::runtime_error);
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm[""].size(), 1);
+   ASSERT_EQ(p.size(), 1);
 }
 
 //////
