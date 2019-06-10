@@ -126,6 +126,23 @@ TEST_F(CTIManifestUnitTest, addFile) {
        }
    });
 
+   // test that the file data was actually added to memory
+   PathMap p = manifestPtr -> sources();
+   ASSERT_EQ(p[cti::getNameFromPath(cti::getRealPath("./" + TEST_FILE_PATH + file_suffixes[0]))],
+	           cti::findPath("./" + TEST_FILE_PATH + file_suffixes[0]));
+
+   // test that there is only one data file in memory
+   ASSERT_EQ(p.size(), 1);
+
+   // test that file was added to relevant folder
+   FoldersMap fm = manifestPtr -> folders();
+
+   // test that file folder data is actually in memory
+   ASSERT_EQ(*(fm[""].begin()), cti::getNameFromPath(cti::getRealPath("./" + TEST_FILE_PATH + file_suffixes[0]))); 
+
+   // test that there was no excess folder data in memory
+   ASSERT_EQ(fm[""].size(), 1); 
+
    //Attempt to add a file after manifest has been shipped
    manifestPtr -> finalize();  
 
