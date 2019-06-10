@@ -265,6 +265,22 @@ TEST_F(CTIManifestUnitTest, addBinary) {
    ASSERT_EQ(fm["bin"].size(), 1);
    ASSERT_EQ(p.size(), 1);
 
+   // test that manifest does not add binaries that don't exist
+   ASSERT_THROW({
+       try {
+           manifestPtr -> addBinary(std::string("./" + TEST_FILE_PATH + file_suffixes[1]).c_str());
+       } catch (const std::exception& ex) {
+           EXPECT_STREQ(std::string("./" + TEST_FILE_PATH + file_suffixes[1] + ": Could not locate in PATH.").c_str(), ex.what());
+	   throw;
+       }
+   }, std::runtime_error);
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["bin"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
+
    //Attempt to add a binary after manifest has been shipped
    manifestPtr -> finalize();
    ASSERT_THROW({
@@ -328,7 +344,23 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
    ASSERT_EQ(fm["lib"].size(), 1);
    ASSERT_EQ(p.size(), 1);
 
-   //Attempt to add a library after manifest has been shipped
+   // test that manifest does not add libraries that don't exist
+   ASSERT_THROW({
+       try {
+           manifestPtr -> addLibrary(std::string("./" + TEST_FILE_PATH + file_suffixes[1]).c_str());
+       } catch (const std::exception& ex) {
+           EXPECT_STREQ(std::string("./" + TEST_FILE_PATH + file_suffixes[1] + ": Could not locate in LD_LIBRARY_PATH or system location.").c_str(), ex.what());
+	   throw;
+       }
+   }, std::runtime_error);
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["lib"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
+
+   // test that a library can't be added after manifest shipped
 
    manifestPtr -> finalize();
    ASSERT_THROW({
@@ -348,6 +380,14 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
 }
 
 TEST_F(CTIManifestUnitTest, addLibDir) {
+   // test that no files exist at start
+   PathMap p = manifestPtr -> sources();
+   ASSERT_EQ(p.size(), 0);
+
+   FoldersMap fm = manifestPtr -> folders();
+   ASSERT_EQ(fm.size(), 0);
+
+
    // create temp 'library'
    char TEMPLATE[] = "/tmp/cti-test-XXXXXX";
    char* tdir = mkdtemp(TEMPLATE);
@@ -368,7 +408,49 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
 
    ASSERT_NO_THROW(manifestPtr -> addLibDir(tdir));
 
-   // test how manifest behaves shipping a library dir after already being shipped
+   // test that the file data was actually added to memory
+   p = manifestPtr -> sources();
+   ASSERT_EQ(p[cti::getNameFromPath(cti::getRealPath(tdir))], cti::getRealPath(tdir));
+
+   // test that there is only one data file in memory
+   ASSERT_EQ(p.size(), 1);
+
+   // test that file was added to relevant folder
+   fm = manifestPtr -> folders();
+
+   // test that file folder data is actually in memory
+   ASSERT_EQ(*(fm["lib"].begin()), cti::getNameFromPath(cti::getRealPath(tdir))); 
+
+   // test that there was no excess folder data in memory
+   ASSERT_EQ(fm.size(), 1);
+   ASSERT_EQ(fm["lib"].size(), 1); 
+
+   // test that manifest does not readd libdir's
+   manifestPtr -> addLibDir(tdir);
+ 
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["lib"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
+
+   // test that manifest does not add libdirs that don't exist
+   ASSERT_THROW({
+       try {
+           manifestPtr -> addLibDir(std::string("./" + TEST_FILE_PATH + file_suffixes[1]).c_str());
+       } catch (const std::exception& ex) {
+           EXPECT_STREQ(std::string("realpath failed.").c_str(), ex.what());
+	   throw;
+       }
+   }, std::runtime_error);
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["lib"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
+
+   // test how manifest behaves adding a libdir after already being finalized
    manifestPtr -> finalize();
    ASSERT_THROW({
        try {
@@ -378,6 +460,12 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
            throw;
        }
    }, std::runtime_error);
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["lib"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
 
    // cleanup 'library' files
    remove(f_temp_path.c_str());
