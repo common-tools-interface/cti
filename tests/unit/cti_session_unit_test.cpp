@@ -25,24 +25,6 @@
 
 #include "cti_session_unit_test.hpp"
 
-/*********************
- *Session seems to be very testable.
- *This to some extent stems from the
- *existence of writeLog. This actually
- *gives some output in the void
- *functions thus allowing for more
- *in depth testing of the class.
- *
- *
- *Owning app has a log. I need to
- *read from this document if I want
- *to get better unit testing results
- *for most of session
- *
- *
- *
- */
-
 using ::testing::Return;
 using ::testing::_;
 using ::testing::Invoke;
@@ -73,35 +55,33 @@ TEST_F(CTISessionUnitTest, getStagePath) {
 TEST_F(CTISessionUnitTest, getOwningApp) {
 
     //Confirm the app is valid at the start of program
-    ASSERT_NO_THROW(sessionPtr -> getOwningApp());
+    ASSERT_NE(sessionPtr -> getOwningApp(), nullptr);
 
-}
-
-/*
-TEST_F(CTISessionUnitTest, getOwningAppInvalid) {
     //Confirm session behaves appropriately when invalid owning app
-    mockApp.reset();
+    //TODO: Determine why this can't destroy the mockapp.
+    /*mockApp.reset();
+
     ASSERT_THROW({
-       try {
-         sessionPtr -> getOwningApp(); 
-       } catch (std::exception& ex) {
-          EXPECT_STREQ("Owning app is no longer valid.", ex.what());
-	  throw;
-       }
+        try {
+            sessionPtr -> getOwningApp(); 
+        } catch (const std::exception& ex) {
+            EXPECT_STREQ("Owning app is no longer valid.", ex.what());
+            throw;
+        }
     }, std::runtime_error);
+    */
 }
-*/
+
 TEST_F(CTISessionUnitTest, createManifest) {
+
 
     //Ensure session can create a manifest w/o runtime:error
     ASSERT_NO_THROW(sessionPtr -> createManifest());
 }
 
 ///////
+//Due to tight coupling this now mostly tests manifest 
 TEST_F(CTISessionUnitTest, sendManifest) {
-     //This function logs the following:
-     //shipManifest %d: merge into session
-     //shipManifest %d: addPath(%s, %s)\n
 
      std::shared_ptr<Manifest> testMan = (sessionPtr -> createManifest()).lock();
      
@@ -125,35 +105,8 @@ TEST_F(CTISessionUnitTest, sendManifest) {
 	    throw;
 	}
      }, std::runtime_error);
-
-
-     // EXPECT_STREQ(m_stageName + std::to_string(inst) + ".tar", session -> shipManifest);
-
-     //read the log file and ensure data is as expected
-     //log location:
 }
 
-/*
-//////test that Session behaves appropriately when sending same file twice
-TEST_F(CTISessionUnitTest, hasFileConflict) {
-     EXPECT_EQ(session -> send?, Conflict::
-}
-
-//////
-TEST_F(CTISessionUnitTest, mergeTransfered) {
-
-    //Attempt to merge transfer file when its already in session
-    ASSERT_THROW({
-	   try {
-
-	   }catch(const std::exception& ex) {
-             EXPECT_STREQ("tried to merge transfered file " + fileArchivePath + " but it was already in the session!", ex.what());
-	     throw;
-	   }
-
-    }, std::runtime_error);
-}
-*/
 //////
 TEST_F(CTISessionUnitTest, getSessionLockFiles) {
     // test that there are no session lock files when no manifests shipped
