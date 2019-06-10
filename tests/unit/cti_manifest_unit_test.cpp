@@ -64,7 +64,7 @@ CTIManifestUnitTest::~CTIManifestUnitTest() {
  *confirm that realName + :
  * session conflict occurs
  *
- *
+ * Probably not what i thought it was. 
  *
  *****************************/
 
@@ -134,7 +134,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
 
    // test that the file data was actually added to memory
    p = manifestPtr -> sources();
-   ASSERT_EQ(p[cti::getNameFromPath(cti::getRealPath("./" + TEST_FILE_PATH + file_suffixes[0]))],
+   ASSERT_EQ(p[cti::getNameFromPath(cti::findPath("./" + TEST_FILE_PATH + file_suffixes[0]))],
 	           cti::findPath("./" + TEST_FILE_PATH + file_suffixes[0]));
 
    // test that there is only one data file in memory
@@ -144,7 +144,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
    fm = manifestPtr -> folders();
 
    // test that file folder data is actually in memory
-   ASSERT_EQ(*(fm[""].begin()), cti::getNameFromPath(cti::getRealPath("./" + TEST_FILE_PATH + file_suffixes[0]))); 
+   ASSERT_EQ(*(fm[""].begin()), cti::getNameFromPath(cti::findPath("./" + TEST_FILE_PATH + file_suffixes[0]))); 
 
    // test that there was no excess folder data in memory
    ASSERT_EQ(fm.size(), 1);
@@ -204,12 +204,35 @@ TEST_F(CTIManifestUnitTest, addFile) {
 //////
 
 TEST_F(CTIManifestUnitTest, addBinary) {
+
+   // test that no files exist at start
+   PathMap p = manifestPtr -> sources();
+   ASSERT_EQ(p.size(), 0);
+
+   FoldersMap fm = manifestPtr -> folders();
+   ASSERT_EQ(fm.size(), 0);
     
    // test that a binary can be added
    ASSERT_NO_THROW(manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore));
 
-   //chmod("./unit_tests", 
-   //At the moment unit_test itself is being used. Not sure if this is a good decision.
+   // test that the file data was actually added to memory
+   p = manifestPtr -> sources();
+   ASSERT_EQ(p[cti::getNameFromPath(cti::findPath("./unit_tests"))], cti::findPath("./unit_tests"));
+
+   // test that there is only one data file in memory
+   ASSERT_EQ(p.size(), 1);
+
+   // test that file was added to relevant folder
+   fm = manifestPtr -> folders();
+
+   // test that file folder data is actually in memory
+   ASSERT_EQ(*(fm["bin"].begin()), cti::getNameFromPath(cti::findPath("./unit_tests"))); 
+
+   // test that there was no excess folder data in memory
+   ASSERT_EQ(fm.size(), 1);
+   ASSERT_EQ(fm["bin"].size(), 1); 
+
+   // test that a non-binary file can't be added via addBinary
    std::ofstream f1;
    f1.open(std::string(TEST_FILE_PATH + file_suffixes[0]).c_str());
    if (!f1.is_open()) {
@@ -226,8 +249,23 @@ TEST_F(CTIManifestUnitTest, addBinary) {
            throw;
        }
    }, std::runtime_error);
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["bin"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
+
+   // test that the same binary file can't be added twice via addBinary 
+   ASSERT_NO_THROW(manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore));
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["bin"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
+
    //Attempt to add a binary after manifest has been shipped
-   
    manifestPtr -> finalize();
    ASSERT_THROW({
        try {
@@ -237,9 +275,22 @@ TEST_F(CTIManifestUnitTest, addBinary) {
 	   throw;
        }
    }, std::runtime_error);
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["bin"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
 }
 
 TEST_F(CTIManifestUnitTest, addLibrary) {
+
+   // test that no files exist at start
+   PathMap p = manifestPtr -> sources();
+   ASSERT_EQ(p.size(), 0);
+
+   FoldersMap fm = manifestPtr -> folders();
+   ASSERT_EQ(fm.size(), 0);
    
    std::ofstream f1;
    f1.open(std::string(TEST_FILE_PATH + file_suffixes[0]).c_str());
@@ -250,6 +301,33 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
    f1.close();
 
    ASSERT_NO_THROW(manifestPtr -> addLibrary(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str(), Manifest::DepsPolicy::Ignore));
+
+   // test that the file data was actually added to memory
+   p = manifestPtr -> sources();
+   ASSERT_EQ(p[cti::getNameFromPath(cti::findLib("./" + TEST_FILE_PATH + file_suffixes[0]))], cti::findLib("./" + TEST_FILE_PATH + file_suffixes[0]));
+
+   // test that there is only one data file in memory
+   ASSERT_EQ(p.size(), 1);
+
+   // test that file was added to relevant folder
+   fm = manifestPtr -> folders();
+
+   // test that file folder data is actually in memory
+   ASSERT_EQ(*(fm["lib"].begin()), cti::getNameFromPath(cti::findLib("./" + TEST_FILE_PATH + file_suffixes[0]))); 
+
+   // test that there was no excess folder data in memory
+   ASSERT_EQ(fm.size(), 1);
+   ASSERT_EQ(fm["lib"].size(), 1); 
+
+   // test that manifest does not add the same library again
+   manifestPtr -> addLibrary(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str(), Manifest::DepsPolicy::Ignore);
+   
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["lib"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
+
    //Attempt to add a library after manifest has been shipped
 
    manifestPtr -> finalize();
@@ -261,6 +339,12 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
 	   throw;
        }
    }, std::runtime_error);
+
+   p = manifestPtr -> sources();
+   fm = manifestPtr -> folders();
+
+   ASSERT_EQ(fm["lib"].size(), 1);
+   ASSERT_EQ(p.size(), 1);
 }
 
 TEST_F(CTIManifestUnitTest, addLibDir) {
