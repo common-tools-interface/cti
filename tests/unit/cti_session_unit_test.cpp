@@ -48,6 +48,7 @@ CTISessionUnitTest::~CTISessionUnitTest()
 ///////
 
 TEST_F(CTISessionUnitTest, getStagePath) {
+
     //Ensure after creation session has a stage path
     ASSERT_STRNE("", sessionPtr -> getStagePath().c_str());
 }
@@ -56,31 +57,16 @@ TEST_F(CTISessionUnitTest, getOwningApp) {
 
     //Confirm the app is valid at the start of program
     ASSERT_NE(sessionPtr -> getOwningApp(), nullptr);
-
-    //Confirm session behaves appropriately when invalid owning app
-    //TODO: Determine why this can't destroy the mockapp.
-    /*mockApp.reset();
-
-    ASSERT_THROW({
-        try {
-            sessionPtr -> getOwningApp(); 
-        } catch (const std::exception& ex) {
-            EXPECT_STREQ("Owning app is no longer valid.", ex.what());
-            throw;
-        }
-    }, std::runtime_error);
-    */
 }
 
 TEST_F(CTISessionUnitTest, createManifest) {
-
 
     //Ensure session can create a manifest w/o runtime:error
     ASSERT_NO_THROW(sessionPtr -> createManifest());
 }
 
-///////
-//Due to tight coupling this now mostly tests manifest 
+
+// due to tight coupling this mostly tests manifest 
 TEST_F(CTISessionUnitTest, sendManifest) {
 
      std::shared_ptr<Manifest> testMan = (sessionPtr -> createManifest()).lock();
@@ -107,8 +93,8 @@ TEST_F(CTISessionUnitTest, sendManifest) {
      }, std::runtime_error);
 }
 
-//////
 TEST_F(CTISessionUnitTest, getSessionLockFiles) {
+
     // test that there are no session lock files when no manifests shipped
     ASSERT_EQ(0, int((sessionPtr -> getSessionLockFiles()).size()));
 
@@ -124,16 +110,14 @@ TEST_F(CTISessionUnitTest, getSessionLockFiles) {
     f1 << "f1";
     f1.close();
 
-    testMan -> addFile(std::string("./" + testFilePath + fileSuffixes[0]).c_str());   
-
-    //sessionPtr -> sendManifest(testMan);
+    testMan -> addFile(std::string("./" + testFilePath + fileSuffixes[0]).c_str());
     testMan -> sendManifest();
     // test that there is a session lock file for the newly shipped manifest
     ASSERT_EQ(1, int((sessionPtr -> getSessionLockFiles()).size()));
-
 }
 
 TEST_F(CTISessionUnitTest, finalize) {
+
     // test finalize when no manifests shipped
     ASSERT_NO_THROW(sessionPtr -> finalize());
     std::shared_ptr<Manifest> testMan = (sessionPtr -> createManifest()).lock();
@@ -151,5 +135,4 @@ TEST_F(CTISessionUnitTest, finalize) {
 
     // test finalize when a manifest has been shipped
     ASSERT_NO_THROW(sessionPtr -> finalize());
-
 }
