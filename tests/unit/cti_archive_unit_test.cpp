@@ -41,16 +41,6 @@ static constexpr auto CROSSMOUNT_FILE_TEMPLATE = "/lus/scratch/tmp/cti-test-XXXX
 // file template for temporary directory
 char LOCAL_FILE_TEMPLATE[] = "/tmp/cti-dir-test-temp-XXXXXX";
 
-// other constants
-// nase directory for all archive files:
-const std::string DIR_PATH = "u_test";
-
-// nase name for all test files
-const std::string TEST_FILE_PATH = "archive_test_file";
-
-// number of files to be tested with
-const int FILE_COUNT = 3;
-
 using ::testing::Return;
 using ::testing::_;
 using ::testing::Invoke;
@@ -63,20 +53,20 @@ CTIArchiveUnitTest::CTIArchiveUnitTest()
     archive = new Archive(temp_file_path -> get());
 
     // add all the file suffixes to the vector
-    for(int i = 0; i < FILE_COUNT; i++) {
-        file_suffixes.push_back(std::to_string(i+1) + ".txt");
+    for (int i = 0; i < FILE_COUNT; i++) {
+        file_names.push_back(TEST_FILE_NAME + std::to_string(i+1) + ".txt");
     }
-    file_suffixes.push_back("_pipe");
+    file_names.push_back(TEST_FILE_NAME + "_pipe");
 
     // add all the directories for temp files.
-    dirs.push_back(DIR_PATH);
-    dirs.push_back(DIR_PATH + "/lib");
-    dirs.push_back(DIR_PATH + "/tmp");
-    dirs.push_back(DIR_PATH + "/bin");
+    dir_names.push_back(TEST_DIR_NAME);
+    dir_names.push_back(TEST_DIR_NAME + "/lib");
+    dir_names.push_back(TEST_DIR_NAME + "/tmp");
+    dir_names.push_back(TEST_DIR_NAME + "/bin");
 
     // ensure no test files still exist from previous tests
-    for(std::string suf : file_suffixes) {
-    	remove(std::string(TEST_FILE_PATH + suf).c_str());
+    for (auto&& fil : file_names) {
+    	remove(std::string(fil).c_str());
     }
     
 }
@@ -84,93 +74,93 @@ CTIArchiveUnitTest::CTIArchiveUnitTest()
 CTIArchiveUnitTest::~CTIArchiveUnitTest()
 {
     // clear up allocated memory
-    if(temp_file_path){
+    if (temp_file_path){
         delete temp_file_path;
         temp_file_path = nullptr;
     }
 
-    if(archive){
+    if (archive){
         delete archive;
         archive = nullptr;
     }
 
     // remove all test files from current directory
-    for(std::string suf : file_suffixes) {
-    	remove(std::string(TEST_FILE_PATH + suf).c_str());
+    for (auto&& fil : file_names) {
+    	remove(std::string(fil).c_str());
     }
-    
 }
 
 // test that archive can create directory entries properly 
 TEST_F(CTIArchiveUnitTest, addDirEntry)
 {
     // test all dir entries (/u_test/...{lib}, {tmp}, {bin}) can be added
-    for(std::string path : dirs) {
-        ASSERT_NO_THROW(archive -> addDirEntry(path));
+    for (auto&& dir : dir_names) {
+        ASSERT_NO_THROW(archive -> addDirEntry(dir));
     }
 }
 
 
-// test that archive can add files/dirs properly 
+// test that archive can add files/dir_names properly 
 TEST_F(CTIArchiveUnitTest, addPath)
 {
 
     // create a directory to add to the archive
     char* tdir = mkdtemp(LOCAL_FILE_TEMPLATE);
-    if(tdir == NULL) {
+    if (tdir == NULL) {
         FAIL() <<"Failed to create temporary directory";
     }
  
-    std::ofstream f_temp;
     std::string f_temp_path = tdir;
-    f_temp_path += "/" + TEST_FILE_PATH + "_temp_file";
+
+    {
+        std::ofstream f_temp;
+        f_temp_path += "/" + TEST_FILE_NAME + "_temp_file";
  
-    // create file to add to temporary directory
-    f_temp.open(f_temp_path.c_str());
-    if(!f_temp.is_open()){
-        FAIL() << "Failed to create test file temp_file";
+        // create file to add to temporary directory
+        f_temp.open(f_temp_path.c_str());
+        if (!f_temp.is_open()){
+            FAIL() << "Failed to create test file temp_file";
+        }
+        f_temp << f_temp_path;
+        f_temp.close();
     }
- 
+
     // create some files to add in the test
-    std::ofstream f[FILE_COUNT];
-    for(int i = 0; i < FILE_COUNT; i++) {
-        f[i].open(std::string(TEST_FILE_PATH + file_suffixes[i]).c_str());
-        if(!f[i].is_open()) {
-            FAIL()<< "Failed to create test file " << i;
+    {
+        std::ofstream f[FILE_COUNT];
+        for (int i = 0; i < FILE_COUNT; i++) {
+            f[i].open(std::string(file_names[i]).c_str());
+            if (!f[i].is_open()) {
+                FAIL()<< "Failed to create test file " << i;
+            }
+            f[i] << TEST_DIR_NAME + "/" + file_names[i];
+            f[i].close();
         }
     }
- 
+
     // create a pipe to attempt to send
-    int pipe = mkfifo(std::string(TEST_FILE_PATH + "_pipe").c_str(), S_IRWXU);
-    if(pipe == -1){
+    int pipe = mkfifo(std::string(TEST_FILE_NAME + "_pipe").c_str(), S_IRWXU);
+    if (pipe == -1){
         FAIL() <<"Failed to create pipe";
     }
-   
-    // write test output and close all test files
-    for(int i = 0; i < FILE_COUNT; i++) {
-        // write the files path to the file. makes checking contents easy later
-        f[i] << DIR_PATH + "/" + TEST_FILE_PATH + file_suffixes[i];
-        f[i].close();
-    }
  
-    f_temp << f_temp_path;
-    f_temp.close();
+    
  
     // this vector is used to ensure all files appear when the archive is checked later
     std::vector<std::string> test_paths;
  
-    test_paths.push_back(DIR_PATH + "/" + tdir + "/"); //extra / added as thats how archive reads back dirs
-    test_paths.push_back(DIR_PATH + "/" + f_temp_path);
+    test_paths.push_back(TEST_DIR_NAME + "/" + tdir + "/"); //extra / added as thats how archive reads back dir
+    test_paths.push_back(TEST_DIR_NAME + "/" + f_temp_path);
  
  
     
-    for(int i = 0; i < FILE_COUNT; i++) {
-        ASSERT_NO_THROW(archive -> addPath(dirs[i] + TEST_FILE_PATH + file_suffixes[i], TEST_FILE_PATH + file_suffixes[i]));
-        test_paths.push_back(dirs[i] + TEST_FILE_PATH + file_suffixes[i]);
+    for (int i = 0; i < FILE_COUNT; i++) {
+        ASSERT_NO_THROW(archive -> addPath(dir_names[i] + file_names[i], file_names[i]));
+        test_paths.push_back(dir_names[i] + file_names[i]);
     }
  
     // add a directory and its included file
-    ASSERT_NO_THROW(archive -> addPath(DIR_PATH + "/" + tdir, tdir));
+    ASSERT_NO_THROW(archive -> addPath(TEST_DIR_NAME + "/" + tdir, tdir));
  
     // clean up temporary files now to prevent them from not cleaning if test fails out
     // delete f_temp
@@ -182,9 +172,9 @@ TEST_F(CTIArchiveUnitTest, addPath)
     // test that archive does not add files that don't exist
     ASSERT_THROW({
         try {
-            archive -> addPath(DIR_PATH + "/tmp/" + TEST_FILE_PATH + "_fail.txt", TEST_FILE_PATH + "_fail.txt");
+            archive -> addPath(TEST_DIR_NAME + "/tmp/" + TEST_FILE_NAME + "_fail.txt", TEST_FILE_NAME + "_fail.txt");
         } catch (const std::exception& ex) {
-            EXPECT_STREQ(std::string(TEST_FILE_PATH + "_fail.txt" + " failed stat call").c_str(), ex.what());
+            EXPECT_STREQ(std::string(TEST_FILE_NAME + "_fail.txt" + " failed stat call").c_str(), ex.what());
             throw;
         }
     }, std::runtime_error);
@@ -192,9 +182,9 @@ TEST_F(CTIArchiveUnitTest, addPath)
     // test that archive does not allow for non-traditional files like pipes to be added
     ASSERT_THROW({
         try {
-            archive -> addPath(DIR_PATH + "/tmp/" + TEST_FILE_PATH + "_pipe", TEST_FILE_PATH + "_pipe");
+            archive -> addPath(TEST_DIR_NAME + "/tmp/" + TEST_FILE_NAME + "_pipe", TEST_FILE_NAME + "_pipe");
         } catch (const std::exception& ex) {
-            EXPECT_STREQ(std::string(TEST_FILE_PATH + "_pipe" + " has invalid file type.").c_str(), ex.what());
+            EXPECT_STREQ(std::string(TEST_FILE_NAME + "_pipe" + " has invalid file type.").c_str(), ex.what());
             throw;
         }
     }, std::runtime_error);
@@ -210,14 +200,14 @@ TEST_F(CTIArchiveUnitTest, addPath)
     // open check archive
     ASSERT_EQ(archive_read_open_filename(archPtr.get(), temp_file_path -> get(), 10240), ARCHIVE_OK);
  
-    // make sure all dirs and files were shipped properly
+    // make sure all dir and files were shipped properly
     bool found = false;
     struct archive_entry *entry;
     while (archive_read_next_header(archPtr.get(), &entry) == ARCHIVE_OK) {
         auto const path = std::string{archive_entry_pathname(entry)};
         // search for the entry. should always be the first if archive worked correctly
-        for(unsigned int i = 0; i < test_paths.size(); i++) {
-            if(test_paths[i] == path) {
+        for (unsigned int i = 0; i < test_paths.size(); i++) {
+            if (test_paths[i] == path) {
                 found = true;
  	        test_paths.erase(test_paths.begin() + i);
                 break;
@@ -236,22 +226,22 @@ TEST_F(CTIArchiveUnitTest, finalize) {
     EXPECT_STREQ(temp_file_path->get(), std::string(archive -> finalize()).c_str());
  
     // create a file to attempt to add
-    std::ofstream f1;
+    {
+        std::ofstream f1;
+        f1.open(std::string(file_names[0]).c_str());
+        if(!f1.is_open()) {
+            FAIL() << "Failed to create test file";
+        }
  
-    // open test file
-    f1.open(std::string(TEST_FILE_PATH + "1.txt").c_str());
-    if(!f1.is_open()) {
-        FAIL() << "Failed to create test file";
+        // write to test file
+        f1 << "f1 test data";
+        f1.close();
     }
- 
-    // write to test file one
-    f1 << "f1 test data";
-    f1.close();
  
     // test that archive does not allow adding files after finalizing
     ASSERT_THROW({
         try {
-            archive -> addPath(DIR_PATH + "/bin/" + TEST_FILE_PATH + "1.txt", TEST_FILE_PATH + "1.txt");
+            archive -> addPath(TEST_DIR_NAME + "/bin/" + file_names[0], file_names[0]);
         } catch (const std::exception& ex) {
             EXPECT_STREQ(std::string(std::string(temp_file_path -> get()) + " tried to add a path after finalizing").c_str(), ex.what());
             throw;
@@ -261,7 +251,7 @@ TEST_F(CTIArchiveUnitTest, finalize) {
     // test that archive does not allow adding directories after finalizing
     ASSERT_THROW({
         try {
-            archive -> addDirEntry(DIR_PATH + "/fail");
+            archive -> addDirEntry(TEST_DIR_NAME + "/fail");
         } catch (const std::exception& ex) {
             EXPECT_STREQ(std::string(std::string(temp_file_path -> get()) + " tried to add a path after finalizing").c_str(), ex.what());
             throw;
@@ -273,7 +263,7 @@ TEST_F(CTIArchiveUnitTest, finalize) {
 TEST_F(CTIArchiveUnitTest, destruc_check) {
 
     // delete the archive
-    if(archive) {
+    if (archive) {
         delete archive;
         archive = nullptr;	
     }

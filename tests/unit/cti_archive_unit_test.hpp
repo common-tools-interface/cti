@@ -32,16 +32,21 @@
 class CTIArchiveUnitTest : public ::testing::Test
 {
 protected:
-	//TODO: Use shared pointers instead of normal(?)
 	// used for creating temporary archive file
 	cti::temp_file_handle* temp_file_path;
 
 	// the archive to be used for testing
         Archive* archive;
 
-	// TODO: add vector containing all file names and dirs
-        std::vector<std::string> file_suffixes;
-	std::vector<std::string> dirs;
+        std::vector<std::string> file_names;
+	std::vector<std::string> dir_names;
+
+	// string constants
+	const std::string TEST_DIR_NAME = "u_test";
+	const std::string TEST_FILE_NAME = "archive_test_file";
+
+	// other constants
+	const int FILE_COUNT = 3;
 
 protected:
 	CTIArchiveUnitTest();
