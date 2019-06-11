@@ -224,17 +224,17 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     // test that a binary can be added
     ASSERT_NO_THROW(manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore));
  
-    // test that the file data was actually added to memory
+    // test that the binary was actually added to memory
     p = manifestPtr -> sources();
     ASSERT_EQ(p[cti::getNameFromPath(cti::findPath("./unit_tests"))], cti::findPath("./unit_tests"));
  
     // test that there is only one data file in memory
     ASSERT_EQ(p.size(), 1);
  
-    // test that file was added to relevant folder
+    // test that binary was added to relevant folder
     fm = manifestPtr -> folders();
  
-    // test that file folder data is actually in memory
+    // test that folder data is actually in memory
     ASSERT_EQ(*(fm["bin"].begin()), cti::getNameFromPath(cti::findPath("./unit_tests"))); 
  
     // test that there was no excess folder data in memory
@@ -290,7 +290,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     ASSERT_EQ(fm["bin"].size(), 1);
     ASSERT_EQ(p.size(), 1);
  
-    //Attempt to add a binary after manifest has been shipped
+    // test that manifest can't add binaries after finalizing
     manifestPtr -> finalize();
     ASSERT_THROW({
         try {
@@ -327,7 +327,7 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
  
     ASSERT_NO_THROW(manifestPtr -> addLibrary(std::string("./" + TEST_FILE_PATH + file_suffixes[0]).c_str(), Manifest::DepsPolicy::Ignore));
  
-    // test that the file data was actually added to memory
+    // test that the library data was actually added to memory
     p = manifestPtr -> sources();
     ASSERT_EQ(p[cti::getNameFromPath(cti::findLib("./" + TEST_FILE_PATH + file_suffixes[0]))], cti::findLib("./" + TEST_FILE_PATH + file_suffixes[0]));
  
