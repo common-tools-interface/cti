@@ -29,11 +29,10 @@ class CTISessionUnitTest : public CTIAppUnitTest
 {
 protected: // variables
 	std::shared_ptr<Session> sessionPtr;
-	std::vector<std::string> fileSuffixes;
+	std::vector<std::string> file_names;
 
 	// string constants
-	const std::string dirPath = "u_test";
-	const std::string testFilePath = "archive_test_file";
+	const std::string TEST_FILE_NAME = "archive_test_file";
 
 protected: // interface
 	CTISessionUnitTest();

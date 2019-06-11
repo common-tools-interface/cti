@@ -35,13 +35,16 @@ CTISessionUnitTest::CTISessionUnitTest()
     : CTIAppUnitTest{}
     , sessionPtr{std::make_shared<Session>(*mockApp)}
 { 
-    fileSuffixes.push_back("1.txt");
+    file_names.push_back(TEST_FILE_NAME + "1.txt");
+    for(auto&& fil : file_names) {
+        remove(std::string(fil).c_str());
+    }
 }
 
 CTISessionUnitTest::~CTISessionUnitTest()
 {
-    for(std::string suf : fileSuffixes) {
-        remove(std::string(testFilePath + suf).c_str());
+    for(auto&& fil : file_names) {
+        remove(std::string(fil).c_str());
     }
 }
 
@@ -50,7 +53,7 @@ CTISessionUnitTest::~CTISessionUnitTest()
 TEST_F(CTISessionUnitTest, getStagePath) {
 
     //Ensure after creation session has a stage path
-    ASSERT_STRNE("", sessionPtr -> getStagePath().c_str());
+    ASSERT_STRNE(sessionPtr -> getStagePath().c_str(), "");
 }
 
 TEST_F(CTISessionUnitTest, getOwningApp) {
@@ -69,28 +72,30 @@ TEST_F(CTISessionUnitTest, createManifest) {
 // due to tight coupling this mostly tests manifest 
 TEST_F(CTISessionUnitTest, sendManifest) {
 
-     std::shared_ptr<Manifest> testMan = (sessionPtr -> createManifest()).lock();
+    auto test_manifest = (sessionPtr -> createManifest()).lock();
      
-     // create a test file to add to the manifest so it can be shipped properly
-     std::ofstream f1;
-     f1.open(std::string(testFilePath + fileSuffixes[0]).c_str());
-     if(!f1.is_open()) {
-        FAIL() << "Could not create test file";
-     }
-     f1 << "f1";
-     f1.close();
+    // create a test file to add to the manifest so it can be shipped properly
+    {
+         std::ofstream f1;
+         f1.open(std::string(file_names[0]).c_str());
+         if(!f1.is_open()) {
+         FAIL() << "Could not create test file";
+	 }
+         f1 << "f1";
+         f1.close();
+    }
      
-     ASSERT_NO_THROW(testMan -> sendManifest());
+    ASSERT_NO_THROW(test_manifest -> sendManifest());
      
-     // test that manifest can't have files added after shipped
-     ASSERT_THROW({
+    // test that manifest can't have files added after shipped
+    ASSERT_THROW({
         try {
-            testMan -> addFile(std::string("./" + testFilePath + fileSuffixes[0]).c_str());
+            test_manifest -> addFile(std::string("./" + file_names[0]).c_str());
 	} catch (std::exception& ex) {
             EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
 	    throw;
-	}
-     }, std::runtime_error);
+        }
+    }, std::runtime_error);
 }
 
 TEST_F(CTISessionUnitTest, getSessionLockFiles) {
@@ -99,19 +104,21 @@ TEST_F(CTISessionUnitTest, getSessionLockFiles) {
     ASSERT_EQ(0, int((sessionPtr -> getSessionLockFiles()).size()));
 
     // create a manifest, send it, and check that lock files have changed.
-    std::shared_ptr<Manifest> testMan = (sessionPtr -> createManifest()).lock();
+    auto test_manifest = (sessionPtr -> createManifest()).lock();
 
     // create a file to add to manifest so it can be validly sent.
-    std::ofstream f1;
-    f1.open(std::string(testFilePath + fileSuffixes[0]).c_str());
-    if(!f1.is_open()) {
-        FAIL() << "Couldn't make test file";
+    {
+        std::ofstream f1;
+        f1.open(std::string(file_names[0]).c_str());
+        if(!f1.is_open()) {
+            FAIL() << "Couldn't make test file";
+        }
+        f1 << "f1";
+        f1.close();
     }
-    f1 << "f1";
-    f1.close();
 
-    testMan -> addFile(std::string("./" + testFilePath + fileSuffixes[0]).c_str());
-    testMan -> sendManifest();
+    test_manifest -> addFile(std::string("./" + file_names[0]).c_str());
+    test_manifest -> sendManifest();
     // test that there is a session lock file for the newly shipped manifest
     ASSERT_EQ(1, int((sessionPtr -> getSessionLockFiles()).size()));
 }
@@ -120,18 +127,19 @@ TEST_F(CTISessionUnitTest, finalize) {
 
     // test finalize when no manifests shipped
     ASSERT_NO_THROW(sessionPtr -> finalize());
-    std::shared_ptr<Manifest> testMan = (sessionPtr -> createManifest()).lock();
+    auto test_manifest = (sessionPtr -> createManifest()).lock();
    
     // create a test file to add to the manifest so it can be shipped properly
-    std::ofstream f1;
-    f1.open(std::string(testFilePath + fileSuffixes[0]).c_str());
-    if(!f1.is_open()) {
-       FAIL() << "Could not create test file";
+    {
+        std::ofstream f1;
+        f1.open(std::string(file_names[0]).c_str());
+        if(!f1.is_open()) {
+            FAIL() << "Could not create test file";
+        }
+        f1 << "f1";
+        f1.close();
     }
-    f1 << "f1";
-    f1.close();
-    
-    ASSERT_NO_THROW(testMan -> sendManifest());
+    ASSERT_NO_THROW(test_manifest -> sendManifest());
 
     // test finalize when a manifest has been shipped
     ASSERT_NO_THROW(sessionPtr -> finalize());
