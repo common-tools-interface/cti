@@ -39,6 +39,10 @@ else
   cp $PWD/release_versioning_template $PWD/release_versioning
 fi
 
+#Ensure CTI is build with gcc/6.1.0
+module load gcc/6.1.0
+
+
 echo "############################################"
 echo "#      Generating configure files          #"
 echo "############################################"

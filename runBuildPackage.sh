@@ -141,6 +141,9 @@ TWO_DIGIT_VER=$PKG_MAJOR.$PKG_MINOR
 TWO_DIGIT_NODOT_VER=$PKG_MAJOR$PKG_MINOR
 PKG=$PKG_NAME-$PKG_VERSION-$DATE_COMMIT.$OS_VER.$ARCH.rpm
 
+#Ensure CTI is build with gcc/6.1.0
+module load gcc/6.1.0
+
 echo "############################################"
 echo "#          Running make install            #"
 echo "############################################"

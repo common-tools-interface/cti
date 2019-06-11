@@ -32,7 +32,6 @@ tests:
 
 .PHONY: rpm
 rpm:	RPMS/$(ARCH)/$(PKG) $(PKG).yaml
-	rm -rf $(INSTALL_DIR)/$(PKG_VERSION)
 
 .PHONY: dirs
 dirs:
@@ -102,10 +101,10 @@ SOURCES/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz: set_default_$(PKG_NAME)_$(PKG
 
 
 distclean-local:
-	rm -f scripts/release_info
-	rm -f scripts/cti.spec
-	rm -f $(PKG_VERSION)
-	rm -f scripts/set_default_$(PKG_NAME)_$(PKG_VERSION)
+	rm -f release_versioning
+	rm -f set_default_cray-cti_*
+	rm -f release_info
+	rm -f cti.spec
 	rm -f *.tgz
 	rm -f *.yaml
 	rm -rf BUILD
