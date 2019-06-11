@@ -31,16 +31,10 @@ class CTIManifestUnitTest : public CTIAppUnitTest
 protected: // variables
 	std::shared_ptr<Session>  sessionPtr;
 	std::shared_ptr<Manifest> manifestPtr;
-	std::vector<std::string>  file_suffixes;
+	std::vector<std::string> file_names;
 
-	// string constants
-
-	// consts for to be created test files
-	const std::string DIR_PATH = "u_test";
-	const std::string TEST_FILE_PATH = "archive_test_file";
-
-	// template for temp files for testing addLibDir
-	//char TEMP_FILE_TEMPLATE[] = "/tmp/cti-test-XXXXXX";
+	// consts for test files
+	const std::string TEST_FILE_NAME = "archive_test_file";
 
 protected: // interface
 	CTIManifestUnitTest();
