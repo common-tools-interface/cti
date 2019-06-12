@@ -66,7 +66,7 @@ CTIArchiveUnitTest::CTIArchiveUnitTest()
 
     // ensure no test files still exist from previous tests
     for (auto&& fil : file_names) {
-    	remove(std::string(fil).c_str());
+    	remove(fil.c_str());
     }
     
 }
@@ -86,7 +86,7 @@ CTIArchiveUnitTest::~CTIArchiveUnitTest()
 
     // remove all test files from current directory
     for (auto&& fil : file_names) {
-    	remove(std::string(fil).c_str());
+    	remove(fil.c_str());
     }
 }
 
