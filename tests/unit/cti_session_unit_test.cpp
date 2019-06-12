@@ -37,14 +37,14 @@ CTISessionUnitTest::CTISessionUnitTest()
 { 
     file_names.push_back(TEST_FILE_NAME + "1.txt");
     for(auto&& fil : file_names) {
-        remove(std::string(fil).c_str());
+        remove(fil.c_str());
     }
 }
 
 CTISessionUnitTest::~CTISessionUnitTest()
 {
     for(auto&& fil : file_names) {
-        remove(std::string(fil).c_str());
+        remove(fil.c_str());
     }
 }
 
@@ -77,7 +77,7 @@ TEST_F(CTISessionUnitTest, sendManifest) {
     // create a test file to add to the manifest so it can be shipped properly
     {
          std::ofstream f1;
-         f1.open(std::string(file_names[0]).c_str());
+         f1.open(file_names[0].c_str());
          if(!f1.is_open()) {
          FAIL() << "Could not create test file";
 	 }
@@ -109,7 +109,7 @@ TEST_F(CTISessionUnitTest, getSessionLockFiles) {
     // create a file to add to manifest so it can be validly sent.
     {
         std::ofstream f1;
-        f1.open(std::string(file_names[0]).c_str());
+        f1.open(file_names[0].c_str());
         if(!f1.is_open()) {
             FAIL() << "Couldn't make test file";
         }
@@ -132,7 +132,7 @@ TEST_F(CTISessionUnitTest, finalize) {
     // create a test file to add to the manifest so it can be shipped properly
     {
         std::ofstream f1;
-        f1.open(std::string(file_names[0]).c_str());
+        f1.open(file_names[0].c_str());
         if(!f1.is_open()) {
             FAIL() << "Could not create test file";
         }
