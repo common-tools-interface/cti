@@ -141,6 +141,8 @@ TEST_F(CTIArchiveUnitTest, addPath)
     // create a pipe to attempt to send
     int pipe = mkfifo(std::string(TEST_FILE_NAME + "_pipe").c_str(), S_IRWXU);
     if (pipe == -1){
+        remove(f_temp_path.c_str());
+        rmdir(tdir);
         FAIL() <<"Failed to create pipe";
     }
  
@@ -155,12 +157,12 @@ TEST_F(CTIArchiveUnitTest, addPath)
  
     
     for (int i = 0; i < FILE_COUNT; i++) {
-        ASSERT_NO_THROW(archive -> addPath(dir_names[i] + file_names[i], file_names[i]));
+        EXPECT_NO_THROW(archive -> addPath(dir_names[i] + file_names[i], file_names[i]));
         test_paths.push_back(dir_names[i] + file_names[i]);
     }
  
     // add a directory and its included file
-    ASSERT_NO_THROW(archive -> addPath(TEST_DIR_NAME + "/" + tdir, tdir));
+    EXPECT_NO_THROW(archive -> addPath(TEST_DIR_NAME + "/" + tdir, tdir));
  
     // clean up temporary files now to prevent them from not cleaning if test fails out
     // delete f_temp
@@ -223,12 +225,12 @@ TEST_F(CTIArchiveUnitTest, addPath)
 
 TEST_F(CTIArchiveUnitTest, finalize) {
     // finalize the archive
-    EXPECT_STREQ(temp_file_path->get(), std::string(archive -> finalize()).c_str());
+    EXPECT_STREQ(std::string(temp_file_path->get()).c_str(), archive -> finalize().c_str());
  
     // create a file to attempt to add
     {
         std::ofstream f1;
-        f1.open(std::string(file_names[0]).c_str());
+        f1.open(file_names[0].c_str());
         if(!f1.is_open()) {
             FAIL() << "Failed to create test file";
         }
