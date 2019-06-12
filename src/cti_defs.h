@@ -104,7 +104,6 @@ typedef int64_t cti_manifest_id_t;
 *******************************************************************************/
 #define DEFAULT_SIG             9                                   // default signal value to use
 #define LD_AUDIT_LIB_NAME       "libaudit.so"                       // ld audit library
-#define OUTPUT_REDIRECT_BINARY  "cti_splice_out_err"                // name of the output redirection binary
 
 /*******************************************************************************
 ** Backend defines relating to the compute node
