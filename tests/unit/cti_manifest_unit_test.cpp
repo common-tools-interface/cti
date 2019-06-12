@@ -45,13 +45,13 @@ CTIManifestUnitTest::CTIManifestUnitTest()
 
     // remove any lingering test files
     for(auto&& fil : file_names) {
-        remove(std::string(fil).c_str());
+        remove(fil.c_str());
     }
 }
 
 CTIManifestUnitTest::~CTIManifestUnitTest() {
     for(auto&& fil : file_names) {
-        remove(std::string(fil).c_str());
+        remove(fil.c_str());
     }
 }
 
@@ -62,7 +62,7 @@ TEST_F(CTIManifestUnitTest, empty) {
     // create a test file to add to the manifest
     {
         std::ofstream f1;
-        f1.open(std::string(file_names[0]).c_str());
+        f1.open(file_names[0].c_str());
         if (!f1.is_open()) {
             FAIL() << "Failed to create file for testing addFile";
         }
@@ -129,7 +129,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
     // create a test file to add to the manifest
     {
         std::ofstream f1;
-        f1.open(std::string(file_names[0]).c_str());
+        f1.open(file_names[0].c_str());
         if (!f1.is_open()) {
             FAIL() << "Failed to create file for testing addFile";
         }
@@ -186,7 +186,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
     // create a test file to attempt to add
     {
         std::ofstream f2;
-        f2.open(std::string(file_names[1]).c_str());
+        f2.open(file_names[1].c_str());
         if (!f2.is_open()) {
            FAIL() << "Failed to create file for testing addFile";
         }
@@ -236,7 +236,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     // test that a non-binary file can't be added via addBinary
     {
         std::ofstream f1;
-        f1.open(std::string(file_names[0]).c_str());
+        f1.open(file_names[0].c_str());
         if (!f1.is_open()) {
             FAIL() << "Could not open addBinary file";
         }
@@ -301,7 +301,7 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
 
     {
         std::ofstream f1;
-        f1.open(std::string(file_names[0]).c_str());
+        f1.open(file_names[0].c_str());
         if(!f1.is_open()) {
             FAIL () << "Failed to make fake library file";
         }
@@ -383,48 +383,49 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
         f_temp_path += "/" + TEST_FILE_NAME + "_temp_file";
         f_temp.open(f_temp_path.c_str());
         if(!f_temp.is_open()) {
+            rmdir(tdir);
             FAIL() << "Failed to create temp library file";
         }
         f_temp << "I'm a library file";
         f_temp.close();
     }
-    ASSERT_NO_THROW(manifestPtr -> addLibDir(tdir));
+    EXPECT_NO_THROW(manifestPtr -> addLibDir(tdir));
  
     // test that the file data was actually added to memory
-    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::getRealPath(tdir))], cti::getRealPath(tdir));
+    EXPECT_EQ(fileSources[cti::getNameFromPath(cti::getRealPath(tdir))], cti::getRealPath(tdir));
  
     // test that there is only one data file in memory
-    ASSERT_EQ(fileSources.size(), 1);
+    EXPECT_EQ(fileSources.size(), 1);
  
     // test that file folder data is actually in memory
-    ASSERT_EQ(*(manifestFolders["lib"].begin()), cti::getNameFromPath(cti::getRealPath(tdir))); 
+    EXPECT_EQ(*(manifestFolders["lib"].begin()), cti::getNameFromPath(cti::getRealPath(tdir))); 
  
     // test that there was no excess folder data in memory
-    ASSERT_EQ(manifestFolders.size(), 1);
-    ASSERT_EQ(manifestFolders["lib"].size(), 1); 
+    EXPECT_EQ(manifestFolders.size(), 1);
+    EXPECT_EQ(manifestFolders["lib"].size(), 1); 
  
     // test that manifest does not readd libdir's
     manifestPtr -> addLibDir(tdir);
  
-    ASSERT_EQ(manifestFolders["lib"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 1);
+    EXPECT_EQ(manifestFolders["lib"].size(), 1);
+    EXPECT_EQ(fileSources.size(), 1);
  
     // test that manifest does not add libdirs that don't exist
-    ASSERT_THROW({
+    EXPECT_THROW({
         try {
             manifestPtr -> addLibDir(std::string("./" + file_names[1]).c_str());
         } catch (const std::exception& ex) {
-            EXPECT_STREQ(std::string("realpath failed.").c_str(), ex.what());
+            EXPECT_STREQ("realpath failed.", ex.what());
  	   throw;
         }
     }, std::runtime_error);
  
-    ASSERT_EQ(manifestFolders["lib"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 1);
+    EXPECT_EQ(manifestFolders["lib"].size(), 1);
+    EXPECT_EQ(fileSources.size(), 1);
  
     // test how manifest behaves adding a libdir after already being finalized
     manifestPtr -> finalize();
-    ASSERT_THROW({
+    EXPECT_THROW({
         try {
             manifestPtr -> addLibDir(tdir);
         } catch (const std::exception& ex) {
@@ -432,11 +433,12 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
             throw;
         }
     }, std::runtime_error);
- 
-    ASSERT_EQ(manifestFolders["lib"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 1);
- 
+
     // cleanup 'library' files
     remove(f_temp_path.c_str());
     rmdir(tdir);
+
+    // test thta nothing was added
+    ASSERT_EQ(manifestFolders["lib"].size(), 1);
+    ASSERT_EQ(fileSources.size(), 1);
 }
