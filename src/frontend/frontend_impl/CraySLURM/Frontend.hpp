@@ -59,13 +59,6 @@ public: // slurm specific types
         std::vector<NodeLayout> nodes; // array of hosts
     };
 
-    // objects that are created during an App creation. ownership will pass to the App
-    struct SrunInstance {
-        FE_daemon::MPIRResult mpirData;
-        cti::temp_file_handle outputPath; // handle to output fifo file
-        cti::temp_file_handle errorPath;  // handle to error fifo file
-    };
-
 public: // slurm specific interface
     // Get the default launcher binary name, or, if provided, from the environment.
     std::string getLauncherName();
@@ -86,7 +79,7 @@ public: // slurm specific interface
     std::string createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath);
 
     // Launch a SLURM app under MPIR control and hold at SRUN barrier.
-    SrunInstance launchApp(const char * const launcher_argv[],
+    FE_daemon::MPIRResult launchApp(const char * const launcher_argv[],
         const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
         const char * const env_list[]);
 
@@ -104,9 +97,6 @@ public: // constructor / destructor interface
 
 class CraySLURMApp final : public App
 {
-private: // type aliases
-    using SrunInstance = CraySLURMFrontend::SrunInstance;
-
 private: // variables
     FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
     uint32_t m_jobId;
@@ -115,9 +105,6 @@ private: // variables
     int      m_queuedOutFd; // Where to redirect stdout after barrier release
     int      m_queuedErrFd; // Where to redirect stderr after barrier release
     bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
-
-    cti::temp_file_handle m_outputPath;
-    cti::temp_file_handle m_errorPath;
 
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
@@ -150,7 +137,7 @@ public: // slurm specific interface
     SrunInfo getSrunInfo() const { return SrunInfo { m_jobId, m_stepId }; }
 
 private: // delegated constructor
-    CraySLURMApp(CraySLURMFrontend& fe, SrunInstance&& srunInstance);
+    CraySLURMApp(CraySLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);
 public: // constructor / destructor interface
     // attach case
     CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobid, uint32_t stepid);
