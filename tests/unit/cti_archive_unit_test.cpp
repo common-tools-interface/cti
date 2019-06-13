@@ -121,7 +121,7 @@ TEST_F(CTIArchiveUnitTest, addPath)
         if (!f_temp.is_open()){
             FAIL() << "Failed to create test file temp_file";
         }
-        f_temp << f_temp_path;
+        f_temp << TEST_DIR_NAME + "/" + f_temp_path;
         f_temp.close();
     }
 
@@ -133,7 +133,8 @@ TEST_F(CTIArchiveUnitTest, addPath)
             if (!f[i].is_open()) {
                 FAIL()<< "Failed to create test file " << i;
             }
-            f[i] << TEST_DIR_NAME + "/" + file_names[i];
+	    // write file paths to file to make checking contents trivial
+            f[i] << dir_names[i] + file_names[i];
             f[i].close();
         }
     }
@@ -150,7 +151,7 @@ TEST_F(CTIArchiveUnitTest, addPath)
  
     // this vector is used to ensure all files appear when the archive is checked later
     std::vector<std::string> test_paths;
- 
+
     test_paths.push_back(TEST_DIR_NAME + "/" + tdir + "/"); //extra / added as thats how archive reads back dir
     test_paths.push_back(TEST_DIR_NAME + "/" + f_temp_path);
  
@@ -202,25 +203,38 @@ TEST_F(CTIArchiveUnitTest, addPath)
     // open check archive
     ASSERT_EQ(archive_read_open_filename(archPtr.get(), temp_file_path -> get(), 10240), ARCHIVE_OK);
  
-    // make sure all dir and files were shipped properly
+    // make sure all dir and files were shipped properly and all file contents are correct
     bool found = false;
+    char* buff = (char*) malloc (1000);
+    ssize_t read_len = 0;
+    size_t len = 0;
     struct archive_entry *entry;
     while (archive_read_next_header(archPtr.get(), &entry) == ARCHIVE_OK) {
         auto const path = std::string{archive_entry_pathname(entry)};
+	len = path.length();
+	read_len = archive_read_data(archPtr.get(), buff, len);
+	buff[read_len+1] = '\0';
         // search for the entry. should always be the first if archive worked correctly
         for (unsigned int i = 0; i < test_paths.size(); i++) {
             if (test_paths[i] == path) {
                 found = true;
+		// test that contents are correct
+		if(std::string(buff) != "") { // exclude folders
+	            EXPECT_STREQ(path.c_str(), buff);
+		}
  	        test_paths.erase(test_paths.begin() + i);
                 break;
  	   }
         }
         if (!found) {
-          FAIL() << "Unexpected file: " << path;
+	  free(buff);
+          ADD_FAILURE() << "Unexpected file: " << path;
         }
+	memset(buff, 0, 1000);
         found = false;
         archive_read_data_skip(archPtr.get());
     }
+    free(buff);
 }
 
 TEST_F(CTIArchiveUnitTest, finalize) {
