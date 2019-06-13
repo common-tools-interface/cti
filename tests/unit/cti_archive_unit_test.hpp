@@ -33,10 +33,10 @@ class CTIArchiveUnitTest : public ::testing::Test
 {
 protected:
 	// used for creating temporary archive file
-	cti::temp_file_handle* temp_file_path;
+	cti::temp_file_handle temp_file_path;
 
 	// the archive to be used for testing
-        Archive* archive;
+        Archive archive;
 
 	// vectors for storing testing files
         std::vector<std::string> file_names;
