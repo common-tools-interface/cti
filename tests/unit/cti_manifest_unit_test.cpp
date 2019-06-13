@@ -218,20 +218,31 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     ASSERT_EQ(manifestFolders.size(), 0);
      
     // test that a binary can be added
-    ASSERT_NO_THROW(manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore));
+    ASSERT_NO_THROW(manifestPtr -> addBinary("../test_support/one_printer", Manifest::DepsPolicy::Ignore));
  
     // test that the binary was actually added to memory
-    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("./unit_tests"))], cti::findPath("./unit_tests"));
+    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("../test_support/one_printer"))], cti::findPath("../test_support/one_printer"));
  
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
  
     // test that folder data is actually in memory
-    ASSERT_EQ(*(manifestFolders["bin"].begin()), cti::getNameFromPath(cti::findPath("./unit_tests"))); 
+    ASSERT_EQ(*(manifestFolders["bin"].begin()), cti::getNameFromPath(cti::findPath("../test_support/one_printer"))); 
  
     // test that there was no excess folder data in memory
-    ASSERT_EQ(manifestFolders.size(), 1);
     ASSERT_EQ(manifestFolders["bin"].size(), 1); 
+    ASSERT_EQ(manifestFolders.size(), 1);
+
+    // test that additional dependencies can be added when Manifest::DepsPolicy::Staged is used
+    ASSERT_NO_THROW(manifestPtr -> addBinary("../test_support/one_printer", Manifest::DepsPolicy::Stage));
+    // this should have added created the lib folder and added 12 dependencies to it
+
+    ASSERT_EQ(manifestFolders.size(), 2);
+    ASSERT_EQ(manifestFolders["bin"].size(), 1);
+    ASSERT_EQ(manifestFolders["lib"].size(), 12);
+    ASSERT_EQ(fileSources.size(), 13);
+
+    ASSERT_STREQ((*(manifestFolders["lib"].begin())).c_str(), "libcraymath.so.1");
  
     // test that a non-binary file can't be added via addBinary
     {
@@ -254,13 +265,18 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     }, std::runtime_error);
  
     ASSERT_EQ(manifestFolders["bin"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 1);
+    ASSERT_EQ(fileSources.size(), 13);
  
     // test that the same binary file can't be added twice via addBinary 
     ASSERT_NO_THROW(manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore));
  
-    ASSERT_EQ(manifestFolders["bin"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 1);
+    ASSERT_EQ(manifestFolders["bin"].size(), 2);
+    ASSERT_EQ(fileSources.size(), 14);
+
+    ASSERT_NO_THROW(manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore));
+
+    ASSERT_EQ(manifestFolders["bin"].size(), 2);
+    ASSERT_EQ(fileSources.size(), 14);
  
     // test that manifest does not add binaries that don't exist
     ASSERT_THROW({
@@ -272,22 +288,22 @@ TEST_F(CTIManifestUnitTest, addBinary) {
         }
     }, std::runtime_error);
  
-    ASSERT_EQ(manifestFolders["bin"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 1);
+    ASSERT_EQ(manifestFolders["bin"].size(), 2);
+    ASSERT_EQ(fileSources.size(), 14);
  
     // test that manifest can't add binaries after finalizing
     manifestPtr -> finalize();
     ASSERT_THROW({
         try {
-            manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore);
+            manifestPtr -> addBinary("../test_support/one_printer", Manifest::DepsPolicy::Ignore);
         } catch (const std::exception& ex) {
             EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
  	   throw;
         }
     }, std::runtime_error);
  
-    ASSERT_EQ(manifestFolders["bin"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 1);
+    ASSERT_EQ(manifestFolders["bin"].size(), 2);
+    ASSERT_EQ(fileSources.size(), 14);
 }
 
 TEST_F(CTIManifestUnitTest, addLibrary) {
