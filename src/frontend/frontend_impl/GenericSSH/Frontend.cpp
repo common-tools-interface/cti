@@ -192,14 +192,15 @@ public: // Constructor/destructor
         }
 
         // Init a new libssh2 session.
-        if (m_session_ptr = cti::move_pointer_ownership(libssh2_session_init(),delete_ssh2_session)) {
+        m_session_ptr = cti::move_pointer_ownership(libssh2_session_init(), delete_ssh2_session);
+        if (m_session_ptr == nullptr) {
             throw std::runtime_error("libssh2_session_init() failed");
         }
 
         // Start up the new session.
         // This will trade welcome banners, exchange keys, and setup crypto,
         // compression, and MAC layers.
-        if (libssh2_session_handshake(m_session_ptr.get(), m_session_sock.fd())) {
+        if (libssh2_session_handshake(m_session_ptr.get(), m_session_sock.fd()) < 0) {
             throw std::runtime_error("Failure establishing SSH session: " + getError());
         }
 
@@ -212,7 +213,8 @@ public: // Constructor/destructor
         }
 
         // read all hosts from here
-        rc = libssh2_knownhost_readfile(known_host_ptr.get(), "known_hosts", LIBSSH2_KNOWNHOST_FILE_OPENSSH);
+        std::string const known_hosts_path{std::string{m_pwd.pw_dir} + "/.ssh/known_hosts"};
+        rc = libssh2_knownhost_readfile(known_host_ptr.get(), known_hosts_path.c_str(), LIBSSH2_KNOWNHOST_FILE_OPENSSH);
         if (rc < 0) {
             throw std::runtime_error("Failure reading knownhost file");
         }
@@ -261,64 +263,54 @@ public: // Constructor/destructor
 
         // FIXME: How to ensure sane pwd?
         assert(m_pwd.pw_name != nullptr);
-        std::string username = std::string{m_pwd.pw_name};
+        std::string const username{m_pwd.pw_name};
 
         // check what authentication methods are available
         char *userauthlist = libssh2_userauth_list(m_session_ptr.get(), username.c_str(), strlen(username.c_str()));
 
         // Check to see if we can use the passwordless login method, otherwise ensure
         // we can use interactive login
-        bool auth = false;
         if ( strstr(userauthlist, "publickey") != nullptr ) {
             // Start by trying to use the ssh-agent mechanism
             try {
                 SSHAgent agent(m_session_ptr.get(), username);
-                auth = agent.auth();
+                agent.auth();
+                return;
             }
             catch (std::exception const& ex) {
                 // ignore exceptions from SSHAgent - we fallback on other mechanisms
-                auth = false;
             }
-            // Next try using the keyfile
-            if (!auth) {
-                // Check for the rsa private+public key
-                std::string rsa_path{std::string{m_pwd.pw_dir} + "/.ssh/id_rsa"};
-                std::string rsa_pub_path{rsa_path + ".pub"};
-                if (cti::pathExists(rsa_path.c_str()) && cti::pathExists(rsa_pub_path.c_str())) {
+            auto keyFileAuth = [&](std::string const& pubKeyPath, std::string const& priKeyPath) {
+                if (cti::pathExists(pubKeyPath.c_str()) && cti::pathExists(priKeyPath.c_str())) {
                     // Try authenticating with an empty passphrase
-                    if (!libssh2_userauth_publickey_fromfile(   m_session_ptr.get(),
-                                                                username.c_str(),
-                                                                rsa_pub_path.c_str(),
-                                                                rsa_path.c_str(),
-                                                                "")) {
-                        // We authenticated successfully
-                        auth = true;
+                    int rc = LIBSSH2_ERROR_EAGAIN;
+                    while (rc == LIBSSH2_ERROR_EAGAIN) {
+                        rc = libssh2_userauth_publickey_fromfile(m_session_ptr.get(),
+                                                                 username.c_str(),
+                                                                 pubKeyPath.c_str(),
+                                                                 priKeyPath.c_str(),
+                                                                 nullptr);
                     }
+                    return rc;
+                } else {
+                    return -1;
                 }
-                // If the rsa method failed, try using dsa instead
-                if (!auth) {
-                    // Check for the dsa private+public key
-                    std::string dsa_path{std::string{m_pwd.pw_dir} + "/.ssh/id_dsa"};
-                    std::string dsa_pub_path{dsa_path + ".pub"};
-                    if (cti::pathExists(dsa_path.c_str()) && cti::pathExists(dsa_pub_path.c_str())) {
-                        // Try authenticating with an empty passphrase
-                        if (!libssh2_userauth_publickey_fromfile(   m_session_ptr.get(),
-                                                                    username.c_str(),
-                                                                    dsa_pub_path.c_str(),
-                                                                    dsa_path.c_str(),
-                                                                    "")) {
-                            // We authenticated successfully
-                            auth = true;
-                        }
-                    }
-                }
+            };
+            int rc;
+            rc = keyFileAuth(std::string{m_pwd.pw_dir} + "/.ssh/id_rsa.pub",
+                std::string{m_pwd.pw_dir} + "/.ssh/id_rsa");
+            if (!rc) {
+                return;
+            }
+            rc = keyFileAuth(std::string{m_pwd.pw_dir} + "/.ssh/id_dsa.pub",
+                std::string{m_pwd.pw_dir} + "/.ssh/id_dsa");
+            if (!rc) {
+                return;
             }
         }
         // TODO: Any other valid authentication mechanisms? We don't want to use keyboard interactive
         //       from a library.
-        if (!auth) {
-            throw std::runtime_error("No supported ssh authentication mechanism found. CTI requires passwordless (public key) SSH authentication to the compute nodes. Contact your system adminstrator.");
-        }
+        throw std::runtime_error("No supported ssh authentication mechanism found. CTI requires passwordless (public key) SSH authentication to the compute nodes. Contact your system adminstrator.");
     }
 
     ~SSHSession() = default;
@@ -338,43 +330,35 @@ public: // Constructor/destructor
      *
      * Arguments
      *      args -          null-terminated cstring array which holds the arguments array for the command to be executed
-     *      environment -   A list of environment variables to forward to the backend while executing
-     *                      the command or NULL to forward no environment variables
      */
-    void executeRemoteCommand(const char* const args[], const char* const environment[])
+    void executeRemoteCommand(const char* const args[])
     {
         // sanity
         assert(args != nullptr);
         assert(args[0] != nullptr);
+
         // Create a new ssh channel
         auto channel_ptr = cti::move_pointer_ownership( libssh2_channel_open_session(m_session_ptr.get()),
                                                         delete_ssh2_channel);
         if (channel_ptr == nullptr) {
-            throw std::runtime_error("Failure opening SSH channel on session: " + getError());
+            throw std::runtime_error("Failure opening SSH channel on session");
         }
-        // Forward environment variables before execution. May not be supported on
-        // all systems if user environments are disabled by the ssh server
-        if (environment != nullptr) {
-            for (const char* const* var = environment; *var != nullptr; var++) {
-                if (const char* val = getenv(*var)) {
-                    if ( libssh2_channel_setenv(channel_ptr.get(), *var, val) ) {
-                        throw std::runtime_error("Failed to set env var on channel: " + getError());
-                    }
-                }
-            }
-        }
+
         // Create the command string
         std::string argvString {args[0]};
         for (const char* const* arg = &args[1]; *arg != nullptr; arg++) {
             argvString.push_back(' ');
             argvString += std::string(*arg);
         }
+
+        // Continue command in background after SSH channel disconnects
+        argvString = "nohup " + argvString + " < /dev/null > /dev/null 2>&1 &";
+
         // Request execution of the command on the remote host
-        if (libssh2_channel_exec(channel_ptr.get(), argvString.c_str())) {
-            throw std::runtime_error("Execution of ssh command failed: " + getError());
+        int rc = libssh2_channel_exec(channel_ptr.get(), argvString.c_str());
+        if ((rc < 0) && (rc != LIBSSH2_ERROR_EAGAIN)) {
+            throw std::runtime_error("Execution of ssh command failed: " + std::to_string(rc));
         }
-        // End the channel
-        libssh2_channel_send_eof(channel_ptr.get());
     }
 
     /*
@@ -399,13 +383,13 @@ public: // Constructor/destructor
         struct stat stbuf;
         {   cti::fd_handle source{ open(source_path, O_RDONLY) };
             if ((fstat(source.fd(), &stbuf) != 0) || (!S_ISREG(stbuf.st_mode))) {
-              throw std::runtime_error("Could not fstat source file for shipping to the backends");
+              throw std::runtime_error("Could not fstat file to send: " + std::string{source_path});
             }
         }
         // Start a new scp transfer
         auto channel_ptr = cti::move_pointer_ownership( libssh2_scp_send(   m_session_ptr.get(),
-                                                                            _cti_pathToDir(destination_path),
-                                                                            mode,
+                                                                            destination_path,
+                                                                            mode & 0777,
                                                                             stbuf.st_size ),
                                                         delete_ssh2_channel);
         if (channel_ptr == nullptr) {
@@ -549,7 +533,7 @@ GenericSSHApp::kill(int signal)
         }
 
         // run remote kill command
-        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(killArgv.get(), nullptr);
+        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(killArgv.get());
     }
 }
 
@@ -597,14 +581,11 @@ GenericSSHApp::startDaemon(const char* const args[])
         launcherArgv.add(*arg);
     }
 
+    // TODO for PE-26002: use values in CRAY_DBG_LOG_DIR, CRAY_CTI_DBG to add daemon debug arguments
+
     // Execute the launcher on each of the hosts using SSH
-    auto const forwardedEnvVars = std::vector<char const*>{
-        DBG_LOG_ENV_VAR,
-        DBG_ENV_VAR,
-        nullptr
-    };
     for (auto&& node : m_stepLayout.nodes) {
-        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(launcherArgv.get(), forwardedEnvVars.data());
+        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(launcherArgv.get());
     }
 }
 
