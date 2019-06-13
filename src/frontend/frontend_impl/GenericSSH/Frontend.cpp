@@ -330,43 +330,35 @@ public: // Constructor/destructor
      *
      * Arguments
      *      args -          null-terminated cstring array which holds the arguments array for the command to be executed
-     *      environment -   A list of environment variables to forward to the backend while executing
-     *                      the command or NULL to forward no environment variables
      */
-    void executeRemoteCommand(const char* const args[], const char* const environment[])
+    void executeRemoteCommand(const char* const args[])
     {
         // sanity
         assert(args != nullptr);
         assert(args[0] != nullptr);
+
         // Create a new ssh channel
         auto channel_ptr = cti::move_pointer_ownership( libssh2_channel_open_session(m_session_ptr.get()),
                                                         delete_ssh2_channel);
         if (channel_ptr == nullptr) {
-            throw std::runtime_error("Failure opening SSH channel on session: " + getError());
+            throw std::runtime_error("Failure opening SSH channel on session");
         }
-        // Forward environment variables before execution. May not be supported on
-        // all systems if user environments are disabled by the ssh server
-        if (environment != nullptr) {
-            for (const char* const* var = environment; *var != nullptr; var++) {
-                if (const char* val = getenv(*var)) {
-                    if (libssh2_channel_setenv(channel_ptr.get(), *var, val) < 0) {
-                        throw std::runtime_error("Failed to set env var on channel: " + getError());
-                    }
-                }
-            }
-        }
+
         // Create the command string
         std::string argvString {args[0]};
         for (const char* const* arg = &args[1]; *arg != nullptr; arg++) {
             argvString.push_back(' ');
             argvString += std::string(*arg);
         }
+
+        // Continue command in background after SSH channel disconnects
+        argvString = "nohup " + argvString + " < /dev/null > /dev/null 2>&1 &";
+
         // Request execution of the command on the remote host
-        if (libssh2_channel_exec(channel_ptr.get(), argvString.c_str())) {
-            throw std::runtime_error("Execution of ssh command failed: " + getError());
+        int rc = libssh2_channel_exec(channel_ptr.get(), argvString.c_str());
+        if ((rc < 0) && (rc != LIBSSH2_ERROR_EAGAIN)) {
+            throw std::runtime_error("Execution of ssh command failed: " + std::to_string(rc));
         }
-        // End the channel
-        libssh2_channel_send_eof(channel_ptr.get());
     }
 
     /*
@@ -541,7 +533,7 @@ GenericSSHApp::kill(int signal)
         }
 
         // run remote kill command
-        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(killArgv.get(), nullptr);
+        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(killArgv.get());
     }
 }
 
@@ -589,14 +581,11 @@ GenericSSHApp::startDaemon(const char* const args[])
         launcherArgv.add(*arg);
     }
 
+    // TODO for PE-26002: use values in CRAY_DBG_LOG_DIR, CRAY_CTI_DBG to add daemon debug arguments
+
     // Execute the launcher on each of the hosts using SSH
-    auto const forwardedEnvVars = std::vector<char const*>{
-        DBG_LOG_ENV_VAR,
-        DBG_ENV_VAR,
-        nullptr
-    };
     for (auto&& node : m_stepLayout.nodes) {
-        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(launcherArgv.get(), forwardedEnvVars.data());
+        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(launcherArgv.get());
     }
 }
 
