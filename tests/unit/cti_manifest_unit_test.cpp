@@ -404,6 +404,7 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
     if(tdir == NULL) {
         FAIL() <<"Failed to create temporary library";
     }
+    temp_dir_names.push_back(std::string(tdir));
  
 
     std::string f_temp_path = tdir;
@@ -414,12 +415,10 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
         f_temp_path += "/" + TEST_FILE_NAME + "_temp_file";
         f_temp.open(f_temp_path.c_str());
         if(!f_temp.is_open()) {
-            rmdir(tdir);
             FAIL() << "Failed to create temp library file";
         }
         f_temp << "I'm a library file";
         f_temp.close();
-	temp_dir_names.push_back(std::string(tdir));
 	temp_file_names.push_back(f_temp_path);
     }
     ASSERT_NO_THROW(manifestPtr -> addLibDir(tdir));
