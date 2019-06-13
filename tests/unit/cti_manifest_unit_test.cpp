@@ -345,6 +345,12 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
  
     ASSERT_EQ(manifestFolders["lib"].size(), 1);
     ASSERT_EQ(fileSources.size(), 1);
+
+    // test that manifest can add libraries with Manifest::DepsPolicy::Stage
+    manifestPtr -> addLibrary("../test_support/one_printer", Manifest::DepsPolicy::Stage);
+    ASSERT_EQ(manifestFolders["lib"].size(), 14);
+    ASSERT_EQ(fileSources.size(), 14);
+    ASSERT_STREQ((*std::next(manifestFolders["lib"].begin(), 1)).c_str(), "libcraymath.so.1");
  
     // test that manifest does not add libraries that don't exist
     ASSERT_THROW({
@@ -356,8 +362,8 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
         }
     }, std::runtime_error);
  
-    ASSERT_EQ(manifestFolders["lib"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 1);
+    ASSERT_EQ(manifestFolders["lib"].size(), 14);
+    ASSERT_EQ(fileSources.size(), 14);
  
     // test that a library can't be added after manifest shipped
  
@@ -371,8 +377,8 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
         }
     }, std::runtime_error);
  
-    ASSERT_EQ(manifestFolders["lib"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 1);
+    ASSERT_EQ(manifestFolders["lib"].size(), 14);
+    ASSERT_EQ(fileSources.size(), 14);
 }
 
 TEST_F(CTIManifestUnitTest, addLibDir) {
@@ -393,7 +399,8 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
  
 
     std::string f_temp_path = tdir;
-    // create a temporary file for the library
+    // create a temporary file for the lib dir
+    // this should not be added as addLibDir does not add inner files
     {
         std::ofstream f_temp;
         f_temp_path += "/" + TEST_FILE_NAME + "_temp_file";
