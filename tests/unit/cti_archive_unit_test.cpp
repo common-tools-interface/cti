@@ -88,6 +88,16 @@ CTIArchiveUnitTest::~CTIArchiveUnitTest()
     for (auto&& fil : file_names) {
     	remove(fil.c_str());
     }
+
+    // remove all temporary files from temp directory
+    for (auto&& t_fil : temp_file_names) {
+        remove(t_fil.c_str());
+    }
+
+    // remove all temporary directories
+    for (auto&& t_fol : temp_dir_names) {
+        rmdir(t_fol.c_str());
+    }
 }
 
 // test that archive can create directory entries properly 
@@ -109,6 +119,7 @@ TEST_F(CTIArchiveUnitTest, addPath)
     if (tdir == NULL) {
         FAIL() <<"Failed to create temporary directory";
     }
+    temp_dir_names.push_back(std::string(tdir));
  
     std::string f_temp_path = tdir;
 
@@ -123,6 +134,7 @@ TEST_F(CTIArchiveUnitTest, addPath)
         }
         f_temp << TEST_DIR_NAME + "/" + f_temp_path;
         f_temp.close();
+	temp_file_names.push_back(f_temp_path);
     }
 
     // create some files to add in the test
@@ -164,13 +176,6 @@ TEST_F(CTIArchiveUnitTest, addPath)
  
     // add a directory and its included file
     EXPECT_NO_THROW(archive -> addPath(TEST_DIR_NAME + "/" + tdir, tdir));
- 
-    // clean up temporary files now to prevent them from not cleaning if test fails out
-    // delete f_temp
-    remove(f_temp_path.c_str());
- 
-    // delete temp directory
-    rmdir(tdir);
  
     // test that archive does not add files that don't exist
     ASSERT_THROW({
@@ -285,5 +290,5 @@ TEST_F(CTIArchiveUnitTest, destruc_check) {
     }
  
     // test that the tarball is properly deleted
-    EXPECT_NE(0, remove(temp_file_path -> get()));
+    ASSERT_NE(0, remove(temp_file_path -> get()));
 }

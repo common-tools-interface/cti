@@ -38,8 +38,13 @@ protected:
 	// the archive to be used for testing
         Archive* archive;
 
+	// vectors for storing testing files
         std::vector<std::string> file_names;
 	std::vector<std::string> dir_names;
+
+	// vectors for storing testing files in temp directory
+	std::vector<std::string> temp_dir_names;
+	std::vector<std::string> temp_file_names;
 
 	// string constants
 	const std::string TEST_DIR_NAME = "u_test";
