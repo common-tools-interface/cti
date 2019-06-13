@@ -11,13 +11,9 @@
 # in any form.
 #
 arch=$(uname -m)
-branch=$(git branch | grep '^*' | colrm 1 2)
-return_code=0
-if [ $branch == 'master' ]
-then
-  mkdir -p /home/jenkins/rpmbuild/RPMS
-  cp $PWD/RPMS/$arch/cray-cti*.rpm /home/jenkins/rpmbuild/RPMS/
-  return_code=$?
-fi
+mkdir -p /home/jenkins/rpmbuild/RPMS
+cp $PWD/RPMS/$arch/cray-cti*.rpm /home/jenkins/rpmbuild/RPMS
+return_code=$?
+
 exit $return_code
 

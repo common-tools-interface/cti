@@ -1,6 +1,6 @@
 #!/bin/bash -x
 #
-# runBuild.sh - Build steps for CTI
+# runUnitTest.sh - Build steps for CTI
 #
 # Copyright 2019 Cray Inc.  All Rights Reserved.
 #
@@ -11,17 +11,16 @@
 # in any form.
 #
 echo "############################################"
-echo "#               Running make               #"
+echo "#            Running Unit Tests            #"
 echo "############################################"
 
 #Ensure CTI is build with gcc/6.1.0
 module load gcc/6.1.0
 
-make -j32
-return_code=$?
+make check
 
 echo "############################################"
-echo "#              Done with build             #"
+echo "#              Done with Tests             #"
 echo "############################################"
 
-exit $return_code
+exit 0

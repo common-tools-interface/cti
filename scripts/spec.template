@@ -83,8 +83,6 @@ rm -rf %{buildroot}%{_version_prefix}/bin
 rm -rf %{buildroot}%{_version_prefix}/share
 rm -f %{buildroot}%{_version_prefix}/%{build_version}
 
-%clean
-rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
