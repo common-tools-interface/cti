@@ -225,6 +225,9 @@ TEST_F(CTIFEFunctionTest, CreateManifest) {
 static void
 testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting)
 {
+	// Wait for any previous cleanups to finish (see PE-26018)
+	sleep(5);
+
 	// create manifest
 	auto const manifestId = cti_createManifest(sessionId);
 	ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
