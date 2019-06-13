@@ -89,6 +89,9 @@ void Session::finalize() {
     daemonArgv.add(DaemonArgv::InstSeqNum,          std::to_string(m_seqNum));
     daemonArgv.add(DaemonArgv::Clean);
     if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
+    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
+        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    }
 
     // call cleanup function with DaemonArgv
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
@@ -208,6 +211,9 @@ Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     daemonArgv.add(DaemonArgv::Directory,    m_stageName);
     daemonArgv.add(DaemonArgv::InstSeqNum,   std::to_string(m_seqNum));
     if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
+    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
+        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    }
     // call transfer function with DaemonArgv
     writeLog("sendManifest %d: starting daemon\n", inst);
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
@@ -256,6 +262,9 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
     daemonArgv.add(DaemonArgv::Directory,           m_stageName);
     daemonArgv.add(DaemonArgv::InstSeqNum,          std::to_string(m_seqNum));
     if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
+    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
+        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    }
     // add env vars
     if (envVars != nullptr) {
         for (const char* const* var = envVars; *var != nullptr; var++) {
