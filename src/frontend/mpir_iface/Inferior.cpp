@@ -1,7 +1,7 @@
 /******************************************************************************\
  * Inferior.cpp
  *
- * Copyright 2018 Cray Inc.  All Rights Reserved.
+ * Copyright 2018-2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -10,6 +10,12 @@
  * in any form.
  *
  ******************************************************************************/
+
+// This pulls in config.h
+#include "cti_defs.h"
+
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "Inferior.hpp"
 
@@ -35,7 +41,7 @@ stop_on_breakpoint(Dyninst::ProcControlAPI::Event::const_ptr genericEv) {
 /* inferior implementations */
 
 Inferior::Inferior(std::string const& launcher,
-	std::vector<std::string> const& launcherArgv, 
+	std::vector<std::string> const& launcherArgv,
 	std::vector<std::string> const& envVars,
 	std::map<int, int> const& remapFds)
 	: m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
@@ -79,8 +85,10 @@ Inferior::Inferior(std::string const& launcher, pid_t pid)
 Inferior::~Inferior() {
 	Process::removeEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 
-	m_proc->detach();
-	DEBUG(std::cerr, "~Inferior: detached from " << std::to_string(m_proc->getPid()) << std::endl);
+	if (!isTerminated()) {
+		m_proc->detach();
+		DEBUG(std::cerr, "~Inferior: detached from " << std::to_string(m_proc->getPid()) << std::endl);
+	}
 }
 
 pid_t Inferior::getPid() {
@@ -107,7 +115,16 @@ void Inferior::continueRun() {
 	do {
 		m_proc->continueProc();
 		Process::handleEvents(true); // blocks til event received
-	} while (!m_proc->hasStoppedThread());
+	} while (!isTerminated() && !m_proc->hasStoppedThread());
+}
+
+void Inferior::terminate() {
+	if (!isTerminated()) {
+		auto const pid = m_proc->getPid();
+		m_proc->detach();
+		::kill(pid, SIGTERM);
+		::waitpid(pid, nullptr, 0);
+	}
 }
 
 void Inferior::addSymbol(std::string const& symName) {

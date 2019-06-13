@@ -11,44 +11,23 @@
  *
  ******************************************************************************/
 
+// This pulls in config.h
+#include "cti_defs.h"
+
 #include <dirent.h>
 #include <string.h>
 
-#include <archive.h>
-#include <archive_entry.h>
-
 #include "Archive.hpp"
 
-using ArchPtr = Archive::ArchPtr;
-using EntryPtr = Archive::EntryPtr;
+#include "useful/cti_wrappers.hpp"
 
-EntryPtr& Archive::freshEntry() {
+auto Archive::freshEntry() -> decltype(Archive::m_entryScratchpad)& {
 	if (m_entryScratchpad) {
 		archive_entry_clear(m_entryScratchpad.get());
 		return m_entryScratchpad;
 	} else {
 		throw std::runtime_error(m_archivePath + " tried to add a path after finalizing");
 	}
-}
-
-Archive::Archive(const std::string& archivePath) :
-	m_archPtr{archive_write_new(), archive_write_free},
-	m_entryScratchpad{archive_entry_new(), archive_entry_free},
-	m_archivePath{archivePath} {
-
-	if (m_archPtr == nullptr) {
-		throw std::runtime_error("archive_write_new_failed");
-	}
-
-	if (archive_write_set_format_gnutar(m_archPtr.get()) != ARCHIVE_OK) {
-		throw std::runtime_error(archive_error_string(m_archPtr.get()));
-	}
-
-	// todo: block signals
-	if (archive_write_open_filename(m_archPtr.get(), m_archivePath.c_str()) != ARCHIVE_OK) {
-		throw std::runtime_error(archive_error_string(m_archPtr.get()));
-	}
-	// todo: unblock signals
 }
 
 static void archiveWriteRetry(struct archive* arch, struct archive_entry* entry) {
@@ -84,7 +63,7 @@ void Archive::addDirEntry(const std::string& entryPath) {
 }
 
 void Archive::addDir(const std::string& entryPath, const std::string& dirPath) {
-	if (auto dirHandle = UniquePtrDestr<DIR>(opendir(dirPath.c_str()), closedir)) {
+	if (auto dirHandle = cti::move_pointer_ownership(opendir(dirPath.c_str()), closedir)) {
 		errno = 0;
 		for (struct dirent *d = readdir(dirHandle.get()); d != nullptr;
 			d = readdir(dirHandle.get())) {
@@ -147,6 +126,10 @@ void Archive::addPath(const std::string& entryPath, const std::string& path) {
 	if (stat(path.c_str(), &st)) {
 		throw std::runtime_error(path + " failed stat call");
 	}
+	if (!S_ISDIR(st.st_mode) && !S_ISREG(st.st_mode)) {
+                // This is an unsupported file and should not be added to the manifest
+		throw std::runtime_error(path + " has invalid file type.");
+	}
 
 	// create archive entry from stat
 	{ auto& entryPtr = freshEntry();
@@ -158,10 +141,27 @@ void Archive::addPath(const std::string& entryPath, const std::string& path) {
 	// call proper file/diradd functions
 	if (S_ISDIR(st.st_mode)) {
 		addDir(entryPath, path);
-	} else if (!S_ISREG(st.st_mode)) {
-		// This is an unsuported file and should not be added to the manifest
-		throw std::runtime_error(path + " has invalid file type.");
 	} else {
 		addFile(entryPath, path);
 	}
+}
+
+Archive::Archive(const std::string& archivePath)
+	: m_archPtr{archive_write_new(), archive_write_free}
+	, m_entryScratchpad{archive_entry_new(), archive_entry_free}
+	, m_archivePath{archivePath} {
+
+	if (m_archPtr == nullptr) {
+		throw std::runtime_error("archive_write_new_failed");
+	}
+
+	if (archive_write_set_format_gnutar(m_archPtr.get()) != ARCHIVE_OK) {
+		throw std::runtime_error(archive_error_string(m_archPtr.get()));
+	}
+
+	// todo: block signals
+	if (archive_write_open_filename(m_archPtr.get(), m_archivePath.c_str()) != ARCHIVE_OK) {
+		throw std::runtime_error(archive_error_string(m_archPtr.get()));
+	}
+	// todo: unblock signals
 }

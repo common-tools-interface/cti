@@ -9,7 +9,7 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-SUBDIRS = elfutils
+SUBDIRS = elfutils libssh2
 
 install-data-hook:
 	cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
@@ -19,11 +19,7 @@ install-data-hook:
 
 distclean-local:
 	-rm -rf @CRAYTOOL_EXTERNAL_INSTALL@
-	-rm -rf @ALPS_BASE@
-	-rm -rf @WLM_DETECT_BASE@
-	-rm -rf @SLURM_BASE@
 	cd @LIBARC_SRC@ && $(MAKE) distclean
-	-rm -rf @LIBSSH_SRC@/build
 	-rm -rf @BOOST_SRC@/bin.v2
 	-rm -rf @BOOST_SRC@/stage
 	-rm -rf @DYNINST_BUILD@

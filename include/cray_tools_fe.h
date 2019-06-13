@@ -34,7 +34,7 @@
  *
  * CTI_DBG_LOG_DIR_ENV_VAR (optional)
  *
- *         Used to define a path to write log files to. This location must be 
+ *         Used to define a path to write log files to. This location must be
  *         cross mounted and accessible by the compute nodes in order to receive
  *         debug logs from tool daemons. If CTI_DBG_ENV_VAR is set, and this env
  *         variable is omitted, then the log files will be written to /tmp on
@@ -49,20 +49,20 @@
  *
  *         Used to define the amount of time the daemon will spend attempting to
  *         open the pmi_attribs file when gathering application pid information
- *         on the compute node. If this is not set, the default timeout period 
+ *         on the compute node. If this is not set, the default timeout period
  *         is 60 seconds.
  *
  * CTI_EXTRA_SLEEP_ENV_VAR (optional)
  *
- *         Used to define an extra amount of time to sleep after reading the 
- *         pmi_attribs file if it was not immediately available. This is to 
+ *         Used to define an extra amount of time to sleep after reading the
+ *         pmi_attribs file if it was not immediately available. This is to
  *         avoid a potential race condition. If this is not set, the default is
  *         to wait an order of magnitude less than the amount of time it took to
  *         open the pmi_attribs file.
  *
  * CTI_CFG_DIR_ENV_VAR (optional)
  *
- *         Used to define a location to write internal temporary files and 
+ *         Used to define a location to write internal temporary files and
  *         directories to. This directory must have permissions set to 0700.
  *
  * CTI_DAEMON_STAGE_DIR_ENV_VAR (optional - CAUTION!)
@@ -70,9 +70,9 @@
  *         Used to define the directory root name that will be used for a
  *         sessions unique storage space. This can be used to force multiple
  *         sessions to use the same directory structure. The use of this is not
- *         recommended since it is not guarded against race conditions and 
+ *         recommended since it is not guarded against race conditions and
  *         conflicting file names.
- * 
+ *
  */
 #define CTI_BASE_DIR_ENV_VAR            "CRAY_CTI_DIR"
 #define CTI_DBG_LOG_DIR_ENV_VAR         "CRAY_CTI_LOG_DIR"
@@ -86,33 +86,33 @@
 extern "C" {
 #endif
 
-/* 
- *  This enum enumerates the various attributes that 
+/*
+ *  This enum enumerates the various attributes that
  *  can be set by cti_setAttribute.
  */
 enum cti_attr_type
 {
-    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library 
-                                    // dependencies should be automatically 
-                                    // staged by cti_addManifestBinary and 
+    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library
+                                    // dependencies should be automatically
+                                    // staged by cti_addManifestBinary and
                                     // cti_addManifestLIbrary: 0 or 1
                                     // Defaults to 1.
 };
 typedef enum cti_attr_type  cti_attr_type;
 
-/* 
+/*
  * The following are types used as return values for some API calls.
  */
 typedef struct
 {
-        char *  hostname;
-        int     numPes;
+    char *  hostname;
+    int     numPes;
 } cti_host_t;
 
 typedef struct
 {
-        int            numHosts;
-        cti_host_t *   hosts;
+    int            numHosts;
+    cti_host_t *   hosts;
 } cti_hostsList_t;
 
 enum cti_wlm_type
@@ -124,9 +124,9 @@ enum cti_wlm_type
 };
 typedef enum cti_wlm_type  cti_wlm_type;
 
-typedef uint64_t   cti_app_id_t;
-typedef int        cti_session_id_t;
-typedef int        cti_manifest_id_t;
+typedef int64_t cti_app_id_t;
+typedef int64_t cti_session_id_t;
+typedef int64_t cti_manifest_id_t;
 
 
 /************************************************************
@@ -139,7 +139,7 @@ typedef int        cti_manifest_id_t;
 
 /*
  * cti_version - Returns the version string of the CTI frontend library.
- * 
+ *
  * Detail
  *      This function returns the version string of the frontend library. This
  *      can be used to check for compatibility.
@@ -149,14 +149,14 @@ typedef int        cti_manifest_id_t;
  *
  * Returns
  *      A string containing the current frontend library version.
- * 
+ *
  */
 extern const char * cti_version(void);
 
 /*
  * cti_error_str - Returns an error string associated with a command that
  *                 returned an error value.
- * 
+ *
  * Detail
  *      This function returns the internal error string associated with a failed
  *      command. This string can be used to print an informative message about
@@ -168,14 +168,35 @@ extern const char * cti_version(void);
  *
  * Returns
  *      A string containing the error message, or else "Unknown CTI error".
- * 
+ *
  */
 extern const char * cti_error_str(void);
 
 /*
- * cti_current_wlm - Obtain the current workload manager (WLM) in use on the 
+ * cti_error_str_r - Copies an error string associated with a command that
+ *                   returned an error into user-provided buffer (reentrant)
+ *
+ * Detail
+ *      This function copies the internal error string associated with a failed
+ *      command into a user-provided buffer. This string can be used to print
+ *      an informative message about why an API call failed. If no error is
+ *      known, the string will contain "Unknown CTI error". This function is
+ *      reentrant.
+ *
+ * Arguments
+ *      buf - buffer to fill with error string
+ *      buf_len - length of user-provided buffer
+ *
+ * Returns
+ *      0 upon success, or ERANGE if buf_len is invalid
+ *
+ */
+extern int cti_error_str_r(char *buf, size_t buf_len);
+
+/*
+ * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
  *                   system.
- * 
+ *
  * Detail
  *      This call can be used to obtain the current WLM in use on the system.
  *      The result can be used by the caller to validate arguments to functions
@@ -191,11 +212,11 @@ extern const char * cti_error_str(void);
 extern cti_wlm_type cti_current_wlm(void);
 
 /*
- * cti_wlm_type_toString - Obtain the stringified representation of the 
+ * cti_wlm_type_toString - Obtain the stringified representation of the
  *                         cti_wlm_type.
- * 
+ *
  * Detail
- *      This call can be used to turn the cti_wlm_type returned by 
+ *      This call can be used to turn the cti_wlm_type returned by
  *      cti_current_wlm into a human readable format.
  *
  * Arguments
@@ -209,7 +230,7 @@ extern const char * cti_wlm_type_toString(cti_wlm_type wlm_type);
 
 /*
  * cti_getHostname - Returns the hostname of the current login node.
- * 
+ *
  * Detail
  *      This function determines the hostname of the current login node. This
  *      hostname can be used by tool daemons to create socket connections to
@@ -220,7 +241,7 @@ extern const char * cti_wlm_type_toString(cti_wlm_type wlm_type);
  *
  * Returns
  *      A string containing the hostname, or else a null string on error.
- * 
+ *
  */
 extern char * cti_getHostname();
 
@@ -252,7 +273,7 @@ extern int cti_setAttribute(cti_attr_type attrib, const char *value);
 /*
  * cti_appIsValid - Test if a cti_app_id_t is still valid
  * Detail
- *      This function is used to test if a cti_app_id_t is still valid. An 
+ *      This function is used to test if a cti_app_id_t is still valid. An
  *      app_id becomes invalid for future use upon calling the cti_deregisterApp
  *      function.
  *
@@ -268,7 +289,7 @@ extern int cti_appIsValid(cti_app_id_t app_id);
 /*
  * cti_deregisterApp - Assists in cleaning up internal allocated memory
  *                     associated with a previously registered application.
- * 
+ *
  * Detail
  *      For applications that use the tool interface that wish to operate over
  *      many different applications at once, this function can be used to free
@@ -282,7 +303,7 @@ extern int cti_appIsValid(cti_app_id_t app_id);
  *      force killed with SIGKILL.
  *
  *      Any tool daemons started on the compute nodes will continue executing
- *      after calling this function. If the tool daemons need to be killed, 
+ *      after calling this function. If the tool daemons need to be killed,
  *      the cti_destroySession function needs to be called before calling this
  *      function.
  *
@@ -298,9 +319,9 @@ extern void cti_deregisterApp(cti_app_id_t app_id);
 /*
  * cti_getLauncherHostName - Returns the hostname of the login node where the
  *                           application launcher process resides.
- * 
+ *
  * Detail
- *      This function determines the hostname of the login node where the 
+ *      This function determines the hostname of the login node where the
  *      application launcher used to launch the registerd app_id resides. This
  *      hostname may be different from the result returned by cti_getHostname.
  *
@@ -309,17 +330,17 @@ extern void cti_deregisterApp(cti_app_id_t app_id);
  *
  * Returns
  *      A string containing the launcher host, or else a null string on error.
- * 
+ *
  */
 extern char * cti_getLauncherHostName(cti_app_id_t app_id);
 
 /*
  * cti_getNumAppPEs - Returns the number of processing elements in the
  *                    application associated with the app_id.
- * 
+ *
  * Detail
  *      This function is used to determine the number of PEs (processing
- *      elements) for the application associated with the given app_id. A PE 
+ *      elements) for the application associated with the given app_id. A PE
  *      typically represents a single rank. For MPMD applications, this returns
  *      the total PEs across all apps.
  *
@@ -328,14 +349,14 @@ extern char * cti_getLauncherHostName(cti_app_id_t app_id);
  *
  * Returns
  *      Number of PEs in the application, or else 0 on error.
- * 
+ *
  */
 extern int cti_getNumAppPEs(cti_app_id_t app_id);
 
 /*
  * cti_getNumAppNodes - Returns the number of compute nodes allocated for the
  *                      application associated with the app_id.
- * 
+ *
  * Detail
  *      This function is used to determine the number of compute nodes that
  *      was allocated by the application launcher for the application associated
@@ -348,21 +369,21 @@ extern int cti_getNumAppPEs(cti_app_id_t app_id);
  * Returns
  *      Number of compute nodes allocated for the application,
  *      or else 0 on error.
- * 
+ *
  */
 extern int cti_getNumAppNodes(cti_app_id_t app_id);
 
 /*
  * cti_getAppHostsList - Returns a null terminated array of strings containing
  *                       the hostnames of the compute nodes allocated by the
- *                       application launcher for the application associated 
+ *                       application launcher for the application associated
  *                       with the app_id.
- * 
+ *
  * Detail
  *      This function creates a list of compute node hostnames for each
  *      compute node assoicated with the given app_id. These hostnames
  *      can be used to communicate with the compute nodes over socket
- *      connections. The list is null terminated. It is the callers 
+ *      connections. The list is null terminated. It is the callers
  *      responsibility to free the returned list of strings. For MPMD
  *      applications, this returns the hosts associated with all apps.
  *
@@ -372,17 +393,17 @@ extern int cti_getNumAppNodes(cti_app_id_t app_id);
  * Returns
  *      A null terminated list of pointers to strings, or else a null
  *      pointer on error.
- * 
+ *
  */
 extern char ** cti_getAppHostsList(cti_app_id_t app_id);
 
 /*
  * cti_getAppHostsPlacement - Returns a cti_hostsList_t containing cti_host_t
  *                            entries that contain the hostname of the compute
- *                            nodes allocated by the application launcher and 
- *                            the number of PEs assigned to that host for the 
+ *                            nodes allocated by the application launcher and
+ *                            the number of PEs assigned to that host for the
  *                            application associated with the app_id.
- * 
+ *
  * Detail
  *      This function creates a cti_hostsList_t that contains the number of
  *      hosts associated with the application and cti_host_t entries that
@@ -398,17 +419,17 @@ extern char ** cti_getAppHostsList(cti_app_id_t app_id);
  * Returns
  *      An cti_hostsList_t that contains the number of hosts in the application
  *      and an array of cti_host_t for each host assigned to the application.
- * 
+ *
  */
 extern cti_hostsList_t * cti_getAppHostsPlacement(cti_app_id_t app_id);
 
 /*
- * cti_destroyHostsList - Used to destroy the memory allocated for a 
+ * cti_destroyHostsList - Used to destroy the memory allocated for a
  *                        cti_hostsList_t struct.
- * 
+ *
  * Detail
  *      This function free's a cti_hostsList_t struct. This is used to
- *      safely destroy the data structure returned by a call to the 
+ *      safely destroy the data structure returned by a call to the
  *      getAppHostsPlacement function when the caller is done with the data
  *      that was allocated during its creation.
  *
@@ -433,12 +454,12 @@ extern void cti_destroyHostsList(cti_hostsList_t *placement_list);
  *
  * Detail
  *      This function will launch an application. The application launcher to
- *      use will be automatically determined based on the current workload 
- *      manager of the system. It is up to the caller to ensure that valid 
+ *      use will be automatically determined based on the current workload
+ *      manager of the system. It is up to the caller to ensure that valid
  *      launcher_argv arguments are provided that correspond to the application
  *      launcher. The application launcher will either be aprun or srun.
  *
- *      The stdout/stderr of the launcher can be redirected to an open file 
+ *      The stdout/stderr of the launcher can be redirected to an open file
  *      descriptor. This is enabled by providing valid file descriptors that are
  *      opened for writing to the stdout_fd and/or stderr_fd arguments. If the
  *      stdout_fd and/or stderr_fd arguments are -1, then the stdout/stderr
@@ -451,7 +472,7 @@ extern void cti_destroyHostsList(cti_hostsList_t *placement_list);
  *
  *      The current working directory for the launcher can be changed from its
  *      current location. This is enabled by providing a string with the
- *      pathname of the directory to cd to to the chdirPath argument. If 
+ *      pathname of the directory to cd to to the chdirPath argument. If
  *      chdirPath is NULL, then no cd will take place.
  *
  *      The environment of the launcher can be modified. Any environment
@@ -474,22 +495,22 @@ extern void cti_destroyHostsList(cti_hostsList_t *placement_list);
  *      inputFile -      The pathname of a file to open and redirect stdin or
  *                       NULL if no redirection should take place. If NULL,
  *                       /dev/null will be used for stdin.
- *      chdirPath -      The path to change the current working directory to or 
+ *      chdirPath -      The path to change the current working directory to or
  *                       NULL if no cd should take place.
- *      env_list -       A null terminated list of strings of the form 
+ *      env_list -       A null terminated list of strings of the form
  *                       "name=value". The name in the environment will be set
  *                       to value.
  *
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
+ *
  */
 extern cti_app_id_t cti_launchApp(   const char * const  launcher_argv[],
                                      int                 stdout_fd,
                                      int                 stderr_fd,
                                      const char *        inputFile,
-                                     const char *        chdirPath, 
+                                     const char *        chdirPath,
                                      const char * const  env_list[]);
 
 /*
@@ -504,7 +525,7 @@ extern cti_app_id_t cti_launchApp(   const char * const  launcher_argv[],
  *      /UPC/CAF, the application will not be held at the startup barrier and
  *      this function should not be used. Use cti_launchApp instead.
  *
- *      On Cray systems, the startup barrier is the point at which the 
+ *      On Cray systems, the startup barrier is the point at which the
  *      application processes have been started, but are being held in a CTOR
  *      before main() has been called. Holding an application at this point can
  *      guarantee that tool daemons can be started before the application code
@@ -519,22 +540,22 @@ extern cti_app_id_t cti_launchApp(   const char * const  launcher_argv[],
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
+ *
  */
 extern cti_app_id_t cti_launchAppBarrier(   const char * const  launcher_argv[],
                                             int                 stdout_fd,
                                             int                 stderr_fd,
                                             const char *        inputFile,
-                                            const char *        chdirPath, 
+                                            const char *        chdirPath,
                                             const char * const  env_list[]);
 
 /*
  * cti_releaseAppBarrier - Release the application launcher launched with the
  *                         cti_launchAppBarrier function from its startup
  *                         barrier.
- * 
+ *
  * Detail
- *      This function communicates to the application launcher process that it 
+ *      This function communicates to the application launcher process that it
  *      should be released from the startup barrier it is currently being held
  *      at. Note that this function must be used in conjunction with a valid
  *      app_id that was created by the cti_launchAppBarrier function.
@@ -545,27 +566,27 @@ extern cti_app_id_t cti_launchAppBarrier(   const char * const  launcher_argv[],
  *
  * Returns
  *      0 on success, or else 1 on failure.
- * 
+ *
  */
 extern int cti_releaseAppBarrier(cti_app_id_t app_id);
 
 /*
- * cti_killApp - Send a signal using the appropriate launcher kill mechanism to 
+ * cti_killApp - Send a signal using the appropriate launcher kill mechanism to
  *               an application launcher.
- * 
+ *
  * Detail
- *      This function is used to send the provided signal to the app_id 
+ *      This function is used to send the provided signal to the app_id
  *      associated with a valid application. The app_id must have been obtained
  *      by calling cti_launchAppBarrier or an appropriate register function.
  *
  * Arguments
  *      app_id -  The cti_app_id_t of the registered application.
- *      signum -  The signal number (defined in signal.h) to send to the 
+ *      signum -  The signal number (defined in signal.h) to send to the
  *                application.
  *
  * Returns
  *      0 on success, or else 1 on failure.
- * 
+ *
  */
 extern int cti_killApp(cti_app_id_t app_id, int signum);
 
@@ -587,7 +608,7 @@ typedef struct
  *
  * Detail
  *      This function is used to obtain the jobid/stepid of an srun application
- *      based on its pid It is the callers responsibility to free the allocated 
+ *      based on its pid It is the callers responsibility to free the allocated
  *      storage with free() when it is no longer needed.
  *
  * Arguments
@@ -604,7 +625,7 @@ extern cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid);
  * cti_cray_slurm_registerJobStep - Assists in registering the jobid and stepid
  *                                  of an already running srun application for
  *                                  use with the Cray tool interface.
- * 
+ *
  * Detail
  *      This function is used for registering a valid srun application that was
  *      previously launched through external means for use with the tool
@@ -622,7 +643,7 @@ extern cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid);
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
+ *
  */
 extern cti_app_id_t cti_cray_slurm_registerJobStep( uint32_t job_id,
                                                     uint32_t step_id);
@@ -648,7 +669,7 @@ extern cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
 /*
  * cti_slurm_registerJobStep - Registers an already running application on native SLURM for
  *                             use with the Cray tool interface.
- * 
+ *
  * Detail
  *      This function is used for registering a valid slurm application that was
  *      previously launched through external means for use with the tool
@@ -665,14 +686,14 @@ extern cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
+ *
  */
 extern cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid);
 
 /*
  * _cti_ssh_registerJob - Registers an already running application for
  *                                  use with the Cray tool interface.
- * 
+ *
  * Detail
  *      This function is used for registering a valid application that was
  *      previously launched through external means for use with the tool
@@ -687,7 +708,7 @@ extern cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid);
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
- * 
+ *
  */
 extern cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid);
 
@@ -712,7 +733,7 @@ extern cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid);
  *      associated with the given app_id. The session represents a unique
  *      directory on the compute nodes that will not collide with other tools
  *      that make use of this interface. In order to use the other transfer
- *      functions, a session must first be created. 
+ *      functions, a session must first be created.
  *
  *      The unique directory will have a random name by default to avoid
  *      collisions with other tool daemons using this interface. It will have
@@ -721,7 +742,7 @@ extern cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid);
  *      tool daemon exit. The directory will not be created on the compute nodes
  *      until a manifest is shipped or a tool daemon started.
  *
- *      The session will become invalid for future use upon calling the 
+ *      The session will become invalid for future use upon calling the
  *      cti_deregisterApp function with the app_id associated with the session.
  *
  * Arguments
@@ -753,16 +774,16 @@ extern int cti_sessionIsValid(cti_session_id_t sid);
 /*
  * cti_destroySession - Kill every tool daemon associated with a cti_session_id_t
  *                      and make the session invalid for future use.
- * 
+ *
  * Detail
  *      This function is used to terminate every tool daemon associated with a
  *      cti_session_id_t. After calling, the session becomes invalid for future
  *      use. The tool daemon processes will receive a SIGTERM followed by a
  *      SIGKILL after 10 seconds. Only the tool daemon process will receive a
- *      signal. If it has forked off any children, it is the daemons 
+ *      signal. If it has forked off any children, it is the daemons
  *      responsibilty to ensure they are also terminated during the ten second
  *      period before SIGKILL. Any files that reside in the session directory
- *      on the compute node will be unlinked. 
+ *      on the compute node will be unlinked.
  *
  * Arguments
  *      sid - The cti_session_id_t of the session.
@@ -770,13 +791,13 @@ extern int cti_sessionIsValid(cti_session_id_t sid);
  * Returns
  *      0 on success, or else 1 on failure. On failure, the session is still
  *      valid for future use.
- * 
+ *
  */
 extern int cti_destroySession(cti_session_id_t sid);
 
 /*
  * cti_createManifest - Create a new manifest abstraction that represents a
- *                      list of binaries, libraries, library directories, and 
+ *                      list of binaries, libraries, library directories, and
  *                      files to be sent to the session storage space.
  * Detail
  *      This function is used to create a new manifest list of binaries,
@@ -826,7 +847,7 @@ extern int cti_manifestIsValid(cti_manifest_id_t mid);
 
 /*
  * cti_addManifestBinary - Add a program binary to a manifest.
- * 
+ *
  * Detail
  *      This function is used to add a program binary to a manifest based on the
  *      cti_manifest_id_t argument. The program binary along with any shared
@@ -843,43 +864,43 @@ extern int cti_manifestIsValid(cti_manifest_id_t mid);
  * Arguments
  *      mid -   The cti_manifest_id_t of the manifest.
  *      fstr -  The name of the binary to add to the manifest. This can either
- *              be a fullpath name to the file or else the file name if the 
+ *              be a fullpath name to the file or else the file name if the
  *              binary is found within PATH.
  *
  * Returns
  *      0 on success, or else 1 on failure.
- * 
+ *
  */
 extern int cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_addManifestLibrary - Add a shared library to a manifest.
- * 
+ *
  * Detail
  *      This function is used to add a shared library to a manifest based on the
  *      cti_manifest_id_t argument. Sending a shared library is used when a tool
  *      daemon or program dependency needs to dlopen a shared library at some
  *      point during its lifetime. Upon shipment, shared libraries can be found
- *      in LD_LIBRARY_PATH of the tool daemon environment or by using the CTI 
+ *      in LD_LIBRARY_PATH of the tool daemon environment or by using the CTI
  *      backend API to determine the location.
  *
  * Arguments
  *      mid -     The cti_manifest_id_t of the manifest.
  *      fstr -    The name of the shared library to add to the manifest. This
- *                can either be a fullpath name to the library or else the 
+ *                can either be a fullpath name to the library or else the
  *                library name if the library is found within LD_LIBRARY_PATH or
  *                any of the default system locations where shared libraries are
  *                stored. The RPATH of the calling executable is not queried.
  *
  * Returns
  *      0 on success, or else 1 on failure.
- * 
+ *
  */
 extern int cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_addManifestLibDir - Add a library directory to a manifest.
- * 
+ *
  * Detail
  *      This function is used to add a shared library directory to a manifest
  *      based on the cti_manifest_id_t argument. The contents of the directory
@@ -893,35 +914,35 @@ extern int cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr);
  *
  * Arguments
  *      mid -     The cti_manifest_id_t of the manifest.
- *      fstr -    The name of the shared library directory to add to the 
+ *      fstr -    The name of the shared library directory to add to the
  *                manifest. This must be the fullpath of the directory.
  *
  * Returns
  *      0 on success, or else 1 on failure.
- * 
+ *
  */
 extern int cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_addManifestFile - Add a regular file to a manifest.
- * 
+ *
  * Detail
  *      This function is used to add a regular file to a manifest based on the
  *      cti_manifest_id_t argument. Sending a regular file is used when a tool
- *      daemon needs to read from the file. For example, a required 
+ *      daemon needs to read from the file. For example, a required
  *      configuration file. Upon shipment, the file can be found in PATH of the
  *      tool daemon environment or by using the CTI backend API to determine the
  *      location.
  *
  * Arguments
  *      mid -     The cti_manifest_id_t of the manifest.
- *      fstr -    The name of the file to add to the manifest. This can either 
- *                be a fullpath name to the file or else the file name if the 
+ *      fstr -    The name of the file to add to the manifest. This can either
+ *                be a fullpath name to the file or else the file name if the
  *                file is found within PATH.
  *
  * Returns
  *      0 on success, or else 1 on failure.
- * 
+ *
  */
 extern int cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
 
@@ -935,13 +956,13 @@ extern int cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
  *      not be used and the manifest should be shipped with the
  *      cti_execToolDaemon call instead. This avoids multiple sends across the
  *      network. A manifest needs to be shipped if additional files are needed
- *      by a tool daemon after the tool daemon has launched. The provided 
+ *      by a tool daemon after the tool daemon has launched. The provided
  *      manifest will become invalid for future use upon calling this function.
  *
  *      If the environment variable CTI_DBG_ENV_VAR is defined, the environment
- *      variable defined by CTI_DBG_LOG_DIR_ENV_VAR will be read and log files 
- *      will be created in this location. If CTI_DBG_LOG_DIR_ENV_VAR is not 
- *      defined, log files will be created in the /tmp directory on the compute 
+ *      variable defined by CTI_DBG_LOG_DIR_ENV_VAR will be read and log files
+ *      will be created in this location. If CTI_DBG_LOG_DIR_ENV_VAR is not
+ *      defined, log files will be created in the /tmp directory on the compute
  *      nodes. This log will contain all output during shipment of the manifest
  *      and can be used to locate problems with file shipment.
  *
@@ -950,14 +971,14 @@ extern int cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
  *
  * Returns
  *      0 on success, or else 1 on failure.
- * 
+ *
  */
 extern int cti_sendManifest(cti_manifest_id_t mid);
 
 /*
  * cti_execToolDaemon - Launch a tool daemon onto all the compute nodes
  *                      associated with the provided manifest session.
- * 
+ *
  * Detail
  *      This function is used to launch a program binary onto compute nodes.
  *      It will take care of starting up the binary and ensuring all of the
@@ -965,7 +986,7 @@ extern int cti_sendManifest(cti_manifest_id_t mid);
  *      One tool daemon will be started per compute node of the application.
  *
  *      Any files in the provided manifest argument will be shipped and made
- *      available to the tool daemon. If no other file dependencies are 
+ *      available to the tool daemon. If no other file dependencies are
  *      required, an empty manifest must still be provided by first calling the
  *      cti_createManifest function with the session associated with the
  *      registered application. It is not necessary to add the tool daemon
@@ -973,8 +994,8 @@ extern int cti_sendManifest(cti_manifest_id_t mid);
  *      become invalid for future use upon calling this function.
  *
  *      The tool daemon will have any shipped binaries found in its PATH, any
- *      shared libraries found in its LD_LIBRARY_PATH, and have its TMPDIR 
- *      modified to point at a location that is guaranteed to have read/write 
+ *      shared libraries found in its LD_LIBRARY_PATH, and have its TMPDIR
+ *      modified to point at a location that is guaranteed to have read/write
  *      access. A null terminated list of environment variables can be provided
  *      to set in the environment of the tool daemon. Each entry in this list
  *      should have a "envVar=val" format. Any arguments that need to be passed
@@ -983,16 +1004,16 @@ extern int cti_sendManifest(cti_manifest_id_t mid);
  *      arguments and not the name of the tool daemon binary.
  *
  *      If the environment variable CTI_DBG_ENV_VAR is defined, the environment
- *      variable defined by CTI_DBG_LOG_DIR_ENV_VAR will be read and log files 
- *      will be created in this location. If CTI_DBG_LOG_DIR_ENV_VAR is not 
- *      defined, log files will be created in the /tmp directory on the compute 
+ *      variable defined by CTI_DBG_LOG_DIR_ENV_VAR will be read and log files
+ *      will be created in this location. If CTI_DBG_LOG_DIR_ENV_VAR is not
+ *      defined, log files will be created in the /tmp directory on the compute
  *      nodes. These log files will contain any output written to stdout/stderr
- *      of the tool daemons. If CTI_DBG_ENV_VAR is not defined, tool daemon 
+ *      of the tool daemons. If CTI_DBG_ENV_VAR is not defined, tool daemon
  *      stdout/stderr will be redirected to /dev/null.
  *
  * Arguments
  *      mid -     The cti_manifest_id_t of the manifest.
- *      fstr -    The name of the tool daemon binary to exec on the compute 
+ *      fstr -    The name of the tool daemon binary to exec on the compute
  *                nodes associated with the session. This can either be a
  *                fullpath name to the file or else the file name if the binary
  *                is found within PATH.
@@ -1005,7 +1026,7 @@ extern int cti_sendManifest(cti_manifest_id_t mid);
  *
  * Returns
  *      0 on success, or else 1 on failure.
- * 
+ *
  */
 extern int cti_execToolDaemon( cti_manifest_id_t   mid,
                                const char *        fstr,
@@ -1014,7 +1035,7 @@ extern int cti_execToolDaemon( cti_manifest_id_t   mid,
 
 /*
  * cti_getSessionLockFiles - Get the name(s) of instance dependency lock files.
- * 
+ *
  * Detail
  *      This function is used to return a null terminated list of lock file
  *      locations that must exist for dependency requirements of previously
@@ -1027,14 +1048,14 @@ extern int cti_execToolDaemon( cti_manifest_id_t   mid,
  *
  * Returns
  *      A null terminated array of strings, or else NULL on error.
- * 
+ *
  */
 extern char ** cti_getSessionLockFiles(cti_session_id_t sid);
 
 /*
- * cti_getSessionRootDir - Get root directory of session directory structure on 
+ * cti_getSessionRootDir - Get root directory of session directory structure on
  *                         compute node.
- * 
+ *
  * Detail
  *      This function is used to return the path of the root location of the
  *      session directory on the compute node. The path is not accessible from
@@ -1047,13 +1068,13 @@ extern char ** cti_getSessionLockFiles(cti_session_id_t sid);
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_getSessionRootDir(cti_session_id_t sid);
 
 /*
  * cti_getSessionBinDir - Get bin directory of session binaries on compute node.
- * 
+ *
  * Detail
  *      This function is used to return the path of the binary location of the
  *      bin directory on the compute node. The path is not accessible from
@@ -1067,14 +1088,14 @@ extern char * cti_getSessionRootDir(cti_session_id_t sid);
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_getSessionBinDir(cti_session_id_t sid);
 
 /*
- * cti_getSessionLibDir - Get lib directory of session libraries on compute 
+ * cti_getSessionLibDir - Get lib directory of session libraries on compute
  *                        node.
- * 
+ *
  * Detail
  *      This function is used to return the path of the library location of the
  *      lib directory on the compute node. The path is not accessible from
@@ -1088,13 +1109,13 @@ extern char * cti_getSessionBinDir(cti_session_id_t sid);
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_getSessionLibDir(cti_session_id_t sid);
 
 /*
  * cti_getSessionFileDir - Get file directory of session files on compute node.
- * 
+ *
  * Detail
  *      This function is used to return the path of the file location of the
  *      file directory on the compute node. The path is not accessible from
@@ -1108,18 +1129,18 @@ extern char * cti_getSessionLibDir(cti_session_id_t sid);
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_getSessionFileDir(cti_session_id_t sid);
 
 /*
  * cti_getSessionTmpDir - Get tmp directory of session on compute node.
- * 
+ *
  * Detail
- *      This function is used to return the path of the tmp location on the 
- *      compute node. The path is not accessible from the login node. The 
- *      returned string can be used to modify arguments to tool daemons to 
- *      locate dependencies. It is the callers responsibility to free the 
+ *      This function is used to return the path of the tmp location on the
+ *      compute node. The path is not accessible from the login node. The
+ *      returned string can be used to modify arguments to tool daemons to
+ *      locate dependencies. It is the callers responsibility to free the
  *      allocated storage when it is no longer needed. This tmp dir is not
  *      shared across sessions and populated by the tool daemon only.
  *
@@ -1128,7 +1149,7 @@ extern char * cti_getSessionFileDir(cti_session_id_t sid);
  *
  * Returns
  *      A pointer to the path on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_getSessionTmpDir(cti_session_id_t sid);
 

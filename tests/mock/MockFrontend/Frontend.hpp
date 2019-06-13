@@ -27,12 +27,14 @@ public: // mock constructor
 	virtual ~MockFrontend() = default;
 
 public: // inherited interface
-	MOCK_CONST_METHOD0(getWLMType, cti_wlm_type(void));
+	MOCK_CONST_METHOD0(getWLMType, cti_wlm_type());
 
-	MOCK_METHOD6(launchBarrier, std::unique_ptr<App>(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+	MOCK_METHOD6(launchBarrier, std::weak_ptr<App>(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 		CStr inputFile, CStr chdirPath, CArgArray env_list));
 
-	std::unique_ptr<App> registerJob(size_t numIds, ...) override { return nullptr; }
+	MOCK_METHOD0(mock_registerJob, std::weak_ptr<App>(void));
+
+	std::weak_ptr<App> registerJob(size_t numIds, ...) override { return mock_registerJob(); }
 
 	MOCK_CONST_METHOD0(getHostname, std::string(void));
 };
@@ -52,7 +54,7 @@ private: // variables
 
 public: // constructor / destructor interface
 	// register case
-	MockApp(pid_t launcherPid);
+	MockApp(MockFrontend& fe, pid_t launcherPid);
 	virtual ~MockApp() = default;
 
 public: // inherited interface

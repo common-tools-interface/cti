@@ -11,6 +11,6 @@
 # in any form.
 #
 
-SUBDIRS			= useful frontend backend daemon
+SUBDIRS			= useful frontend backend
 
 noinst_HEADERS	= cti_defs.h

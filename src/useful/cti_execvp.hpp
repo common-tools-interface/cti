@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * ExecvpOutput.hpp - fork / execvp a program and read its output as an istream
+ * cti_execvp.hpp - fork / execvp a program and read its output as an istream
  *
  * Copyright 2014-2019 Cray Inc.	All Rights Reserved.
  *
@@ -10,18 +10,19 @@
  * in any form.
  *
  *********************************************************************************/
-
-#ifndef _EXECVPOUTPUT_HPP
-#define _EXECVPOUTPUT_HPP
+#pragma once
 
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 
 #include <sstream>
 #include <streambuf>
+
+namespace cti {
 
 /* FdBuf - create a streambuf from a file descriptor */
 class FdBuf : public std::streambuf {
@@ -68,9 +69,8 @@ protected:
 	const int fd;
 };
 
-/* Pipe - create and track closed ends of pipe */
-class Pipe {
-private:
+class FdPair {
+protected:
 	enum Ends { ReadEnd = 0, WriteEnd = 1 };
 	bool readOpened = false;
 	bool writeOpened = false;
@@ -82,16 +82,13 @@ public:
 	static const int stdout = 1;
 	static const int stderr = 2;
 
-	Pipe(int flags = 0) {
-		if (pipe2(fds, flags)) {
-			throw std::runtime_error("Pipe error");
-		}
+	FdPair()
+		: readOpened{false}
+		, writeOpened{false}
+		, fds{-1, -1}
+	{}
 
-		readOpened = true;
-		writeOpened = true;
-	}
-
-	~Pipe() {
+	~FdPair() {
 		if (readOpened) {
 			close(fds[ReadEnd]);
 		}
@@ -123,9 +120,42 @@ public:
 	const int getWriteFd() { return fds[WriteEnd]; }
 };
 
-/* ExecvpOutput - fork / execvp a program and read its output as an istream */
-class ExecvpOutput {
+/* Pipe - create and track closed ends of pipe */
+class Pipe : public FdPair
+{
+public:
+	Pipe(int flags = 0)
+	{
+		if (pipe2(fds, flags)) {
+			throw std::runtime_error("Pipe error");
+		}
 
+		readOpened = true;
+		writeOpened = true;
+	}
+};
+
+/* SocketPair - create and track socket pair */
+class SocketPair : public FdPair
+{
+public:
+	SocketPair(int domain, int type, int protocol)
+	{
+		if (socketpair(domain, type, protocol, fds)) {
+			throw std::runtime_error("socketpair error");
+		}
+
+		readOpened = true;
+		writeOpened = true;
+	}
+};
+
+
+/* Execvp - fork / execvp a program and read its output as an istream */
+// Right now the only constructor is to read output as an istream, but this could
+// be extended in the future to accept different types of constructors.
+class Execvp {
+private:
 	class Line : std::string {
 		friend std::istream& operator>>(std::istream& is, Line& line) {
 			return std::getline(is, line);
@@ -137,8 +167,11 @@ class ExecvpOutput {
 	std::istream pipein;
 	pid_t child;
 public:
-	ExecvpOutput(const char *binaryName, char* const* argv) :
-		pipeInBuf(p.getReadFd()), pipein(&pipeInBuf), child(fork()) {
+	Execvp(const char *binaryName, char* const* argv)
+		: pipeInBuf(p.getReadFd())
+		, pipein(&pipeInBuf)
+		, child(fork())
+	{
 
 		if (child < 0) {
 			throw std::runtime_error(std::string("fork() for ") + binaryName + " failed!");
@@ -146,6 +179,8 @@ public:
 			/* prepare the output pipe */
 			p.closeRead();
 			dup2(p.getWriteFd(), Pipe::stdout);
+			dup2(p.getWriteFd(), Pipe::stderr);
+			p.closeWrite();
 
 			execvp(binaryName, argv);
 			throw std::runtime_error(std::string("execvp() on ") + binaryName + " failed!");
@@ -156,8 +191,8 @@ public:
 	}
 
 	int getExitStatus() {
-		int status;
-		if (waitpid(child, &status, 0) < 0) {
+		int status = 0;
+		if ((waitpid(child, &status, 0) < 0) && (errno != ECHILD)) {
 			throw std::runtime_error(
 				std::string("waitpid() on ") + std::to_string(child) + " failed!");
 		}
@@ -167,5 +202,4 @@ public:
 	std::istream& stream() { return pipein; }
 };
 
-
-#endif
+} /* namespace cti */

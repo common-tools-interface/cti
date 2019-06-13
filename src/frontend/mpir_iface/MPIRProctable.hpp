@@ -1,7 +1,7 @@
 /******************************************************************************\
- * cti_useful.h - A standard header file that includes all useful interfaces.
+ * MPIRProctable.hpp
  *
- * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2019 Cray Inc.  All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -10,12 +10,14 @@
  * in any form.
  *
  ******************************************************************************/
+#pragma once
 
-#ifndef _CTI_USEFUL_H
-#define _CTI_USEFUL_H
+#include <string>
+#include <vector>
 
-#include "cti_log.h"
-#include "cti_path.h"
-#include "cti_stack.h"
+struct MPIRProctableElem {
+	pid_t pid;
+	std::string hostname;
+};
 
-#endif /* _CTI_USEFUL_H */
+using MPIRProctable = std::vector<MPIRProctableElem>;

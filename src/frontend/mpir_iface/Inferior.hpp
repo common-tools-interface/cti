@@ -60,9 +60,6 @@ public:
 
 /* inferior: manages dyninst process info, symbols, breakpoints */
 
-template <typename T>
-using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
-
 class Inferior {
 
 public: // types
@@ -81,7 +78,7 @@ private: // variables
 	SignalGuard m_signalGuard;
 
 	/* dyninst symbol / proc members */
-	UniquePtrDestr<Symtab> m_symtab;
+	std::unique_ptr<Symtab, decltype(&Symtab::closeSymtab)> m_symtab;
 	SymbolMap m_symbols;
 	Process::ptr m_proc;
 
@@ -96,6 +93,8 @@ public: // interface
 	/* process interaction */
 	pid_t getPid();
 	void continueRun();
+	bool isTerminated() { return !m_proc || m_proc->isTerminated(); }
+	void terminate();
 
 	/* templated over char buf source / dest functions */
 	template <typename T>

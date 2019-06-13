@@ -15,6 +15,7 @@
 #include <string>
 
 #include "Inferior.hpp"
+#include "MPIRProctable.hpp"
 
 /* instance: implements mpir standard */
 
@@ -36,14 +37,6 @@ private: // types
 		DebugAborting = 2,
 	};
 
-public: // types
-	struct MPIR_ProcTableElem {
-		pid_t pid;
-		std::string hostname;
-	};
-
-	using ProcTable = std::vector<MPIRInstance::MPIR_ProcTableElem>;
-
 private: // variables
 	Inferior m_inferior;
 
@@ -60,10 +53,11 @@ public: // interface
 
 	/* MPIR standard functions */
 	void runToMPIRBreakpoint();
-	ProcTable getProcTable();
+	MPIRProctable getProctable();
 
 	/* inferior access functions */
 	pid_t getLauncherPid() { return m_inferior.getPid(); }
+	void terminate() { m_inferior.terminate(); }
 
 	/* memory access */
 
