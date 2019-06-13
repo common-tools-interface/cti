@@ -12,7 +12,6 @@
 SUBDIRS = elfutils libssh2
 
 install-data-hook:
-	cp @LIBSSH_LOC@ ${libdir}/libssh.so.4
 	cd @BOOST_SRC@ && @BOOST_SRC@/b2 install
 	cp @TBB_LIBRARY@/*.so* ${libdir}
 	cd @DYNINST_BUILD@ && $(MAKE) $(AM_MAKEFLAGS) install
