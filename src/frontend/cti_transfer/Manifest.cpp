@@ -158,8 +158,18 @@ Manifest::execManifest(const char * const daemon, const char * const daemonArgs[
         daemon, daemonArgs, envVars);
 }
 
-Manifest::Manifest(size_t instanceCount, Session& owningSession)
-: m_sessionPtr{owningSession.shared_from_this()}
-, m_instance{instanceCount}
-, m_isValid{true}
+Manifest::Manifest(std::shared_ptr<Session> owningSession)
+    : m_sessionPtr{owningSession}
+    , m_instance{owningSession->nextManifestCount()}
+    , m_isValid{true}
 { }
+
+std::shared_ptr<Manifest> Manifest::make_Manifest(std::shared_ptr<Session> owningSession)
+{
+    struct ConstructibleManifest : public Manifest {
+        ConstructibleManifest(std::shared_ptr<Session> owningSession)
+            : Manifest{std::move(owningSession)}
+        {}
+    };
+    return std::make_shared<ConstructibleManifest>(std::move(owningSession));
+}

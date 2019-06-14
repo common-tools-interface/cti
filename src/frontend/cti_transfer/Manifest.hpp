@@ -31,7 +31,7 @@ using FolderFilePair = std::pair<std::string, std::string>;
 // Forward declarations
 class Session;
 
-class Manifest final : public std::enable_shared_from_this<Manifest> {
+class Manifest : public std::enable_shared_from_this<Manifest> {
 public: // types
     enum class DepsPolicy {
         Ignore = 0,
@@ -40,7 +40,7 @@ public: // types
 
 private: // variables
     std::weak_ptr<Session>  m_sessionPtr;
-    size_t const            m_instance;
+    int const               m_instance;
     FoldersMap              m_folders;
     PathMap                 m_sourcePaths;
     std::string             m_ldLibraryOverrideFolder;
@@ -92,8 +92,11 @@ public: // interface
     // is no longer modifyable
     void finalize() { m_isValid = false; }
 
-public: // Constructor/destructors
-    Manifest(size_t instanceCount, Session& owningSession);
+protected:
+    // can only construct via make_Manifest
+    Manifest(std::shared_ptr<Session> owningSession);
+public:
+    static std::shared_ptr<Manifest> make_Manifest(std::shared_ptr<Session> owningSession);
     ~Manifest() = default;
     Manifest(const Manifest&) = delete;
     Manifest& operator=(const Manifest&) = delete;

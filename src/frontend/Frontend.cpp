@@ -236,13 +236,17 @@ Frontend::findBaseDir(void)
 // to remove a tarball if the process exits, but no mechanism exists today that
 // I know about that allows us to share the file with other processes later on.
 void
-Frontend::addFileCleanup(std::string file)
+Frontend::addFileCleanup(std::string const& file)
 {
-    std::string cleanupFilePath{m_cfg_dir + "/." + file};
+    // track file itself
+    m_cleanup_files.push_back(file);
+
+    // track cleanup file that stores this app's PID
+    std::string const cleanupFilePath{m_cfg_dir + "/." + file};
+    m_cleanup_files.push_back(std::move(cleanupFilePath));
     auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
     pid_t pid = getpid();
     cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
-    m_cleanup_files.push_back(std::move(cleanupFilePath));
 }
 
 void
@@ -445,15 +449,15 @@ Frontend::~Frontend()
 std::weak_ptr<Session>
 App::createSession()
 {
-    auto ret = m_sessions.emplace(std::make_shared<Session>(*this));
-    if (!ret.second) {
+    auto ptrInsertedPair = m_sessions.emplace(Session::make_Session(shared_from_this()));
+    if (!ptrInsertedPair.second) {
         throw std::runtime_error("Failed to create new Session object.");
     }
-    return *ret.first;
+    return *ptrInsertedPair.first;
 }
 
 void
-App::removeSession(std::shared_ptr<Session>& sess)
+App::removeSession(std::shared_ptr<Session> sess)
 {
     // tell session to launch cleanup
     sess->finalize();

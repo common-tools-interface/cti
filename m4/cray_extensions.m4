@@ -12,27 +12,30 @@
 
 dnl
 dnl read release and library version information from disk
-dnl This is not portable due to tr -d and source...
+dnl This is not portable due to source...
 dnl
 AC_DEFUN([cray_INIT],
 [
 	dnl Pull in the revision information from the $PWD/release_versioning file
-	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([source $PWD/release_versioning; echo $craytool_major.$craytool_minor.$craytool_revision | tr -d '\n'])])
+	m4_define([CRAYTOOL_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo "$revision"])])
 
-	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd([source $PWD/release_versioning; echo $be_current | tr -d '\n'])])
-	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd([source $PWD/release_versioning; echo $be_revision | tr -d '\n'])])
-	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd([source $PWD/release_versioning; echo $be_age | tr -d '\n'])])
+	m4_define([CRAYTOOL_MAJOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$craytool_major"])])
+	m4_define([CRAYTOOL_MINOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$craytool_minor"])])
 
-	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd([source $PWD/release_versioning; echo $fe_current | tr -d '\n'])])
-	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd([source $PWD/release_versioning; echo $fe_revision | tr -d '\n'])])
-	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd([source $PWD/release_versioning; echo $fe_age | tr -d '\n'])])
+	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
+	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
 
-	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
-	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
-	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_RELEASE])
+	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
+	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
 
-	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_BE_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
-	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_FE_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
+	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_MAJOR.CRAYTOOL_MINOR.CRAYTOOL_REVISION])
+	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_REVISION:CRAYTOOL_BE_AGE])
+	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_REVISION:CRAYTOOL_FE_AGE])
+
+    AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/CRAYTOOL_MAJOR.CRAYTOOL_MINOR.CRAYTOOL_REVISION"])
+
+	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
+	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
 
 	AC_SUBST([CRAYTOOL_EXTERNAL], [${CRAYTOOL_DIR}/external])
 	AC_SUBST([CRAYTOOL_EXTERNAL_INSTALL], [${CRAYTOOL_DIR}/external/install])
@@ -189,7 +192,8 @@ AC_DEFUN([cray_CONF_ELFUTILS],
 	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl configure
-	./configure --prefix=${prefix} --enable-maintainer-mode
+	test "x$prefix" = xNONE && temp_prefix=$ac_default_prefix		
+	./configure --prefix=${temp_prefix} --enable-maintainer-mode
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[elfutils configure failed.]],
 	 		[]
@@ -249,7 +253,8 @@ AC_DEFUN([cray_BUILD_BOOST],
 	save_LDFLAGS="$LDFLAGS"
 	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
 
-	./bootstrap.sh --prefix=${prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	test "x$prefix" = xNONE && temp_prefix=$ac_default_prefix		
+	./bootstrap.sh --prefix=${temp_prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[boost bootstrap failed.]]
@@ -387,7 +392,8 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	 		)
 
 	dnl cmake to prefix for final build
-	cmake -DCMAKE_INSTALL_PREFIX=${prefix} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	test "x$prefix" = xNONE && temp_prefix=$ac_default_prefix	
+	cmake -DCMAKE_INSTALL_PREFIX=${temp_prefix} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[dyninst cmake failed.]],
 	 		[cray_cv_dyninst_build=yes]

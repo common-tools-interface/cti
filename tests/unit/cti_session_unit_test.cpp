@@ -33,7 +33,7 @@ using ::testing::WithoutArgs;
 static constexpr char const* mockArgv[] = {"/usr/bin/true", nullptr};
 CTISessionUnitTest::CTISessionUnitTest()
     : CTIAppUnitTest{}
-    , sessionPtr{std::make_shared<Session>(*mockApp)}
+    , sessionPtr{Session::make_Session(mockApp)}
 { 
     file_names.push_back(TEST_FILE_NAME + "1.txt");
     for(auto&& fil : file_names) {

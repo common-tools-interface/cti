@@ -41,19 +41,29 @@ Session::generateStagePath(FE_prng& charSource) {
     return stageName;
 }
 
-Session::Session(App& owningApp)
-    : m_AppPtr{owningApp.shared_from_this()}
+Session::Session(std::shared_ptr<App> owningApp)
+    : m_AppPtr{owningApp}
     , m_manifests{}
     , m_add_requirements{true}
     , m_manifestCnt{0}
     , m_seqNum{0}
     , m_folders{}
     , m_sourcePaths{}
-    , m_stageName{generateStagePath(owningApp.getFrontend().Prng())}
-    , m_stagePath{owningApp.getToolPath() + "/" + m_stageName}
-    , m_wlmType{std::to_string(owningApp.getFrontend().getWLMType())}
+    , m_stageName{generateStagePath(owningApp->getFrontend().Prng())}
+    , m_stagePath{owningApp->getToolPath() + "/" + m_stageName}
+    , m_wlmType{std::to_string(owningApp->getFrontend().getWLMType())}
     , m_ldLibraryPath{m_stagePath + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
 { }
+
+std::shared_ptr<Session> Session::make_Session(std::shared_ptr<App> owningApp)
+{
+    struct ConstructibleSession : public Session {
+        ConstructibleSession(std::shared_ptr<App> owningApp)
+            : Session{std::move(owningApp)}
+        {}
+    };
+    return std::make_shared<ConstructibleSession>(std::move(owningApp));
+}
 
 void Session::finalize() {
     // Check to see if we need to try cleanup on compute nodes. We bypass the
@@ -79,6 +89,9 @@ void Session::finalize() {
     daemonArgv.add(DaemonArgv::InstSeqNum,          std::to_string(m_seqNum));
     daemonArgv.add(DaemonArgv::Clean);
     if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
+    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
+        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    }
 
     // call cleanup function with DaemonArgv
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
@@ -88,7 +101,7 @@ void Session::finalize() {
 
 std::weak_ptr<Manifest>
 Session::createManifest() {
-    auto ret = m_manifests.emplace(std::make_shared<Manifest>(++m_manifestCnt, *this));
+    auto ret = m_manifests.emplace(Manifest::make_Manifest(shared_from_this()));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new Manifest object.");
     }
@@ -140,7 +153,7 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     auto&& folders = mani->folders();
     auto&& sources = mani->sources();
     auto toRemove = mergeTransfered(folders, sources);
-    for (auto folderFilePair : toRemove) {
+    for (auto&& folderFilePair : toRemove) {
         folders[folderFilePair.first].erase(folderFilePair.second);
         sources.erase(folderFilePair.second);
     }
@@ -161,8 +174,8 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     archive.addDirEntry(m_stageName + "/lib");
     archive.addDirEntry(m_stageName + "/tmp");
     // add the unique files to archive
-    for (auto folderIt : folders) {
-        for (auto fileIt : folderIt.second) {
+    for (auto&& folderIt : folders) {
+        for (auto&& fileIt : folderIt.second) {
             const std::string destPath(m_stageName + "/" + folderIt.first +
                 "/" + fileIt);
             writeLog("shipManifest %d: addPath(%s, %s)\n", inst, destPath.c_str(), sources.at(fileIt).c_str());
@@ -176,6 +189,8 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
 
 void
 Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
+    verifyOwnership(mani);
+
     // Short circuit if there is nothing to send
     if (mani->empty()) {
         removeManifest(mani);
@@ -196,6 +211,9 @@ Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     daemonArgv.add(DaemonArgv::Directory,    m_stageName);
     daemonArgv.add(DaemonArgv::InstSeqNum,   std::to_string(m_seqNum));
     if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
+    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
+        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    }
     // call transfer function with DaemonArgv
     writeLog("sendManifest %d: starting daemon\n", inst);
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
@@ -207,6 +225,8 @@ Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
 void
 Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const daemon,
         const char * const daemonArgs[], const char * const envVars[]) {
+    verifyOwnership(mani);
+
     // Add daemon to the manifest
     mani->addBinary(daemon);
     // Get the owning app
@@ -242,6 +262,9 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
     daemonArgv.add(DaemonArgv::Directory,           m_stageName);
     daemonArgv.add(DaemonArgv::InstSeqNum,          std::to_string(m_seqNum));
     if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
+    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
+        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    }
     // add env vars
     if (envVars != nullptr) {
         for (const char* const* var = envVars; *var != nullptr; var++) {
@@ -267,6 +290,8 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
 
 void
 Session::removeManifest(std::shared_ptr<Manifest> const& mani) {
+    verifyOwnership(mani);
+
     // Finalize manifest
     mani->finalize();
     // drop the shared_ptr

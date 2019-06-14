@@ -9,10 +9,9 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-
 SUBDIRS = elfutils libssh2
 
-install-data-local:
+install-data-hook:
 	cd @BOOST_SRC@ && @BOOST_SRC@/b2 install
 	cp @TBB_LIBRARY@/*.so* ${libdir}
 	cd @DYNINST_BUILD@ && $(MAKE) $(AM_MAKEFLAGS) install
