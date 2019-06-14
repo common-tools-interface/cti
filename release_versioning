@@ -71,7 +71,7 @@
 #
 
 # Jenkins will override this 
-revision="999"
+revision="9999"
 
 craytool_major="2"
 craytool_minor="0"
