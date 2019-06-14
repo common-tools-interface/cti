@@ -95,12 +95,11 @@ if [ ! -z $BUILD_NUMBER ]
 then
   #update the release_versioning file
   sed -i.bak "s/9999/$BUILD_NUMBER/g" $PWD/release_versioning
+  echo "Set version to $BUILD_NUMBER in release_versioning"
 else
   echo "Unable to determine Jenkins BUILD_NUMBER"
   exit 1
 fi
-
-
 
 echo "############################################"
 echo "#      Generating configure files          #"
