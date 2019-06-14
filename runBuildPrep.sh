@@ -94,9 +94,10 @@ BUILD_NUMBER=$(echo $BUILD_NUMBER)
 if [ ! -z $BUILD_NUMBER ]
 then
   #update the release_versioning file
-  sed -e"s/9999/$BUILD_NUMBER/g" $PWD/release_versioning_template > $PWD/release_versioning
+  sed -i .bak "s/9999/$BUILD_NUMBER/g" $PWD/release_versioning
 else
-  cp $PWD/release_versioning_template $PWD/release_versioning
+  echo "Unable to determine Jenkins BUILD_NUMBER"
+  exit 1
 fi
 
 
