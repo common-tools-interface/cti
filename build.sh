@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cmake_module="cmake/3.5.2"
-gcc_module="gcc/6.1.0"
+gcc_module="gcc/8.1.0"
 redhat_release_file="/etc/redhat-release"
 suse_release_file="/etc/SuSE-release"
 os_release_file="/etc/os-release"
