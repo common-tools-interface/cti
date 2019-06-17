@@ -110,7 +110,7 @@ TEST_F(CTIManifestUnitTest, extraLibraryPath) {
 
 TEST_F(CTIManifestUnitTest, instance) {
     // test the instance() getter works as expected
-    ASSERT_EQ(manifestPtr -> instance(), 0);
+    ASSERT_EQ(manifestPtr -> instance(), 1);
 }
 
 TEST_F(CTIManifestUnitTest, sources) {
