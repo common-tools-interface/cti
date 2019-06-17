@@ -14,9 +14,6 @@ echo "############################################"
 echo "#               Running make               #"
 echo "############################################"
 
-#Ensure CTI is build with gcc/6.1.0
-module load gcc/6.1.0
-
 make -j32
 return_code=$?
 

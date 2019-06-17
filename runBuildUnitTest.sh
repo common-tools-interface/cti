@@ -14,9 +14,6 @@ echo "############################################"
 echo "#            Running Unit Tests            #"
 echo "############################################"
 
-#Ensure CTI is build with gcc/6.1.0
-module load gcc/6.1.0
-
 make check
 
 echo "############################################"
