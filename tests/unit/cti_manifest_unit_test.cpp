@@ -38,7 +38,7 @@ static constexpr char const* mockArgv[] = {"/usr/bin/true", nullptr};
 CTIManifestUnitTest::CTIManifestUnitTest()
     : CTIAppUnitTest{}
     , sessionPtr{Session::make_Session(mockApp)}
-    , manifestPt{Manifest::make_Manifest(sessionPtr)}
+    , manifestPtr{Manifest::make_Manifest(sessionPtr)}
 {
     file_names.push_back(TEST_FILE_NAME + "1");
     file_names.push_back(TEST_FILE_NAME + "2");
