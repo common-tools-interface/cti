@@ -132,7 +132,14 @@ AC_DEFUN([cray_BUILD_LIBSSH2],
 	./buildconf >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl configure
-	./configure --prefix=${prefix}
+    _cray_temp_prefix=${prefix}
+    AS_IF(  [test "x$_cray_temp_prefix" = "xNONE"],
+            [   AC_MSG_NOTICE([Setting prefix to $ac_default_prefix.])
+                _cray_temp_prefix=${ac_default_prefix}
+            ],
+            []
+            )
+	./configure --prefix=${_cray_temp_prefix}
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[libssh2 configure failed.]],
 	 		[]
@@ -192,8 +199,14 @@ AC_DEFUN([cray_CONF_ELFUTILS],
 	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl configure
-	test "x$prefix" = xNONE && temp_prefix=$ac_default_prefix		
-	./configure --prefix=${temp_prefix} --enable-maintainer-mode
+    _cray_temp_prefix=${prefix}
+    AS_IF(  [test "x$_cray_temp_prefix" = "xNONE"],
+            [   AC_MSG_NOTICE([Setting prefix to $ac_default_prefix.])
+                _cray_temp_prefix=${ac_default_prefix}
+            ],
+            []
+            )
+	./configure --prefix=${_cray_temp_prefix} --enable-maintainer-mode
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[elfutils configure failed.]],
 	 		[]
@@ -253,8 +266,14 @@ AC_DEFUN([cray_BUILD_BOOST],
 	save_LDFLAGS="$LDFLAGS"
 	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
 
-	test "x$prefix" = xNONE && temp_prefix=$ac_default_prefix		
-	./bootstrap.sh --prefix=${temp_prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	_cray_temp_prefix=${prefix}
+    AS_IF(  [test "x$_cray_temp_prefix" = "xNONE"],
+            [   AC_MSG_NOTICE([Setting prefix to $ac_default_prefix.])
+                _cray_temp_prefix=${ac_default_prefix}
+            ],
+            []
+            )
+    ./bootstrap.sh --prefix=${_cray_temp_prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[boost bootstrap failed.]]
@@ -392,8 +411,14 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	 		)
 
 	dnl cmake to prefix for final build
-	test "x$prefix" = xNONE && temp_prefix=$ac_default_prefix	
-	cmake -DCMAKE_INSTALL_PREFIX=${temp_prefix} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+    _cray_temp_prefix=${prefix}
+    AS_IF(  [test "x$_cray_temp_prefix" = "xNONE"],
+            [   AC_MSG_NOTICE([Setting prefix to $ac_default_prefix.])
+                _cray_temp_prefix=${ac_default_prefix}
+            ],
+            []
+            )
+	cmake -DCMAKE_INSTALL_PREFIX=${_cray_temp_prefix} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[dyninst cmake failed.]],
 	 		[cray_cv_dyninst_build=yes]
