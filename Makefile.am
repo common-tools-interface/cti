@@ -112,3 +112,5 @@ distclean-local:
 	rm -rf RPMS
 	rm -rf SRPMS
 	rm -rf SPECS
+	rm -f cray-cti_be.pc
+	rm -f cray-cti_fe.pc
