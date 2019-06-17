@@ -37,8 +37,8 @@ static constexpr char const* mockArgv[] = {"/usr/bin/true", nullptr};
 
 CTIManifestUnitTest::CTIManifestUnitTest()
     : CTIAppUnitTest{}
-    , sessionPtr{std::make_shared<Session>(*mockApp)}
-    , manifestPtr{std::make_shared<Manifest>(0, *sessionPtr)}
+    , sessionPtr{Session::make_Session(mockApp)}
+    , manifestPtr{Manifest::make_Manifest(sessionPtr)}
 {
     file_names.push_back(TEST_FILE_NAME + "1");
     file_names.push_back(TEST_FILE_NAME + "2");
@@ -110,7 +110,7 @@ TEST_F(CTIManifestUnitTest, extraLibraryPath) {
 
 TEST_F(CTIManifestUnitTest, instance) {
     // test the instance() getter works as expected
-    ASSERT_EQ(manifestPtr -> instance(), 0);
+    ASSERT_EQ(manifestPtr -> instance(), 1);
 }
 
 TEST_F(CTIManifestUnitTest, sources) {
@@ -155,7 +155,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
  
     // test that the file data was actually added to memory
     ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("./" + file_names[0]))],
- 	           cti::findPath("./" + file_names[0]));
+ 	           cti::getRealPath("./" + file_names[0]));
  
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
@@ -229,7 +229,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     ASSERT_NO_THROW(manifestPtr -> addBinary("../test_support/one_printer", Manifest::DepsPolicy::Ignore));
  
     // test that the binary was actually added to memory
-    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("../test_support/one_printer"))], cti::findPath("../test_support/one_printer"));
+    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("../test_support/one_printer"))], cti::getRealPath("../test_support/one_printer"));
  
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
@@ -336,7 +336,7 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
     ASSERT_NO_THROW(manifestPtr -> addLibrary(std::string("./" + file_names[0]).c_str(), Manifest::DepsPolicy::Ignore));
  
     // test that the library data was actually added to memory
-    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findLib("./" + file_names[0]))], cti::findLib("./" + file_names[0]));
+    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findLib("./" + file_names[0]))], cti::getRealPath("./" + file_names[0]));
  
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
