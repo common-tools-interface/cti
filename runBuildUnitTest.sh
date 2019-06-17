@@ -15,9 +15,10 @@ echo "#            Running Unit Tests            #"
 echo "############################################"
 
 make check
+return_code=$?
 
 echo "############################################"
 echo "#              Done with Tests             #"
 echo "############################################"
 
-exit 0
+exit $return_code
