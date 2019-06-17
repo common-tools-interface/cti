@@ -17,6 +17,11 @@ echo "############################################"
 make check
 return_code=$?
 
+if [ $return_code -ne 0 ]
+then
+  cat tests/unit/test-suite.log
+fi
+
 echo "############################################"
 echo "#              Done with Tests             #"
 echo "############################################"
