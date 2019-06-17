@@ -97,39 +97,3 @@ struct CTIFEDaemonArgv : public cti::Argv {
     };
 };
 
-// XXX: flaw in C++11 relating to static constexpr. can be removed in C++17
-#ifdef INSIDE_WORKAROUND_OBJ
-
-constexpr cti::Argv::GNUOption  cti::Argv::long_options_done;
-
-constexpr cti::Argv::Option     SattachArgv::PrependWithTaskLabel,
-                                SattachArgv::DisplayLayout,
-                                SattachArgv::RunInPty,
-                                SattachArgv::QuietOutput,
-                                SattachArgv::VerboseOutput;
-constexpr cti::Argv::Parameter  SattachArgv::InputFilter,
-                                SattachArgv::OutputFilter,
-                                SattachArgv::ErrorFilter;
-constexpr cti::Argv::GNUOption  SattachArgv::long_options[];
-
-constexpr cti::Argv::Option     DaemonArgv::Clean,
-                                DaemonArgv::Help,
-                                DaemonArgv::Debug;
-constexpr cti::Argv::Parameter  DaemonArgv::ApID,
-                                DaemonArgv::Binary,
-                                DaemonArgv::Directory,
-                                DaemonArgv::EnvVariable,
-                                DaemonArgv::InstSeqNum,
-                                DaemonArgv::ManifestName,
-                                DaemonArgv::ToolPath,
-                                DaemonArgv::PMIAttribsPath,
-                                DaemonArgv::LdLibraryPath,
-                                DaemonArgv::WLMEnum;
-constexpr cti::Argv::GNUOption  DaemonArgv::long_options[];
-
-constexpr cti::Argv::Option     CTIFEDaemonArgv::Help;
-constexpr cti::Argv::Parameter  CTIFEDaemonArgv::ReadFD,
-                                CTIFEDaemonArgv::WriteFD;
-constexpr cti::Argv::GNUOption  CTIFEDaemonArgv::long_options[];
-
-#endif /* INSIDE_WORKAROUND_OBJ */
