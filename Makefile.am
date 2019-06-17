@@ -101,7 +101,6 @@ SOURCES/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz: set_default_$(PKG_NAME)_$(PKG
 
 
 distclean-local:
-	rm -f release_versioning
 	rm -f set_default_cray-cti_*
 	rm -f release_info
 	rm -f cti.spec
