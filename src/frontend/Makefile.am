@@ -26,8 +26,8 @@ libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								cti_transfer/libcti_transfer.la \
 								frontend_impl/libfrontend_impl.la \
 								mpir_iface/libmpir_iface.la \
-								-ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS)
+								-ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS) $(SSH2_LIBS)
 libcraytools_fe_la_LDFLAGS	=	-shared -Wl,-z,origin -Wl,-rpath,\$$ORIGIN -Wl,--enable-new-dtags -Wl,--no-undefined \
 								-Wl,--as-needed -version-info $(CRAYTOOL_FE_VERSION) \
-								$(ARCHIVE_LDFLAGS) $(DYNINST_LDFLAGS)
+								$(ARCHIVE_LDFLAGS) $(DYNINST_LDFLAGS) $(SSH2_LDFLAGS)
 noinst_HEADERS				=	cti_fe_iface.hpp Frontend.hpp

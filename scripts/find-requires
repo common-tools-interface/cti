@@ -23,12 +23,12 @@ fi
 IFS=$'\n'
 filelist=($(grep -Ev '/usr/doc/|/usr/share/doc/'))
 exelist=($(printf "%s\0" "${filelist[@]}" | xargs -0 -r file | \
-	egrep -v ":.* (commands|script) " | \
-	grep ":.*executable" | cut -d: -f1))
+  egrep -v ":.* (commands|script) " | \
+  grep ":.*executable" | cut -d: -f1))
 scriptlist=($(printf "%s\0" "${filelist[@]}" | xargs -0 -r file | \
-	egrep ":.* (commands|script) " | cut -d: -f1))
+  egrep ":.* (commands|script) " | cut -d: -f1))
 liblist=($(printf "%s\0" "${filelist[@]}" | xargs -0 -r file | \
-	grep ":.*shared object" | cut -d : -f1))
+  grep ":.*shared object" | cut -d : -f1))
 
 interplist=()
 perllist=()
@@ -39,8 +39,8 @@ monolist=($(printf "%s\n" "${filelist[@]}" | egrep "\\.(exe|dll)(\\.config)?\$")
 #
 # --- Alpha does not mark 64bit dependencies
 case `uname -m` in
-  alpha*)	mark64="" ;;
-  *)		mark64="()(64bit)" ;;
+  alpha*) mark64="" ;;
+  *)  mark64="()(64bit)" ;;
 esac
 
 if [ "$needed" -eq 0 ]; then
@@ -49,12 +49,12 @@ if [ "$needed" -eq 0 ]; then
   for f in "${exelist[@]}"; do
     [ -r "$f" -a -x "$f" ] || continue
     lib64=`if file -L "$f" 2>/dev/null | \
-	grep "ELF 64-bit" >/dev/null; then echo "$mark64"; fi`
+    grep "ELF 64-bit" >/dev/null; then echo "$mark64"; fi`
     ldd "$f" | awk '/=>/ {
-	if ($1 !~ /libNoVersion.so/ && $1 !~ /4[um]lib.so/ && $1 !~ /linux-gate.so/) {
-	    gsub(/'\''"/,"\\&",$1);
-	    printf "%s'$lib64'\n", $1
-	}
+    if ($1 !~ /libNoVersion.so/ && $1 !~ /4[um]lib.so/ && $1 !~ /linux-gate.so/) {
+      gsub(/'\''"/,"\\&",$1);
+      printf "%s'$lib64'\n", $1
+  }
     }'
   done | xargs -r -n 1 basename | sort -u
 
@@ -63,13 +63,13 @@ if [ "$needed" -eq 0 ]; then
   for f in "${liblist[@]}"; do
     [ -r "$f" ] || continue
     lib64=`if file -L "$f" 2>/dev/null | \
-	grep "ELF 64-bit" >/dev/null; then echo "$mark64"; fi`
+    grep "ELF 64-bit" >/dev/null; then echo "$mark64"; fi`
     ldd "$f" | awk '/=>/ {
-	if ($1 !~ /libNoVersion.so/ && $1 !~ /4[um]lib.so/ && $1 !~ /linux-gate.so/) {
-	    gsub(/'\''"/,"\\&",$1);
-	    printf "%s'$lib64'\n", $1
-	}
-    }'
+    if ($1 !~ /libNoVersion.so/ && $1 !~ /4[um]lib.so/ && $1 !~ /linux-gate.so/) {
+      gsub(/'\''"/,"\\&",$1);
+      printf "%s'$lib64'\n", $1
+    }
+  }'
   done | xargs -r -n 1 basename | sort -u
 fi
 
@@ -80,7 +80,7 @@ for f in "${scriptlist[@]}"; do
     interp=`head -n 1 "$f" | sed -ne 's/^\#\![ 	]*//p' | cut -d" " -f1`
     interplist=("${interplist[@]}" "$interp")
     case $interp in
-    */perl)	perllist=("${perllist[@]}" "$f") ;;
+    */perl) perllist=("${perllist[@]}" "$f") ;;
     esac
 done
 [ -n "$interplist" ] && { printf "%s\n" "${interplist[@]}" | sort -u ; }
@@ -97,41 +97,41 @@ done
 for f in "${liblist[@]}" "${exelist[@]}" ; do
     [ -r "$f" ] || continue
     lib64=`if file -L "$f" 2>/dev/null | \
-	grep "ELF 64-bit" >/dev/null; then echo "$mark64"; fi`
+    grep "ELF 64-bit" >/dev/null; then echo "$mark64"; fi`
     objdump -p "$f" | awk 'BEGIN { START=0; LIBNAME=""; needed='$needed'; }
-	/^$/ { START=0; }
-	/^Dynamic Section:$/ { START=1; }
-	(START==1) && /NEEDED/ {
+    /^$/ { START=0; }
+    /^Dynamic Section:$/ { START=1; }
+    (START==1) && /NEEDED/ {
             if (needed) {
                 if ("'$lib64'" != "" && ! -z $2 && \
                      $2 != "liblzma.so.5" && \
-		     $2 != "libcrypto.so.1(libcrypto.so.10)(64bit)" && \
-		     $2 != "libpthread.so.(GLIBC_2.17)(64bit)" && \
-		     $2 != "libcrypto.so.1.0.(OPENSSL_1.0.0)(64bit)" && \
-		     $2 != "libcrypto.so.1(OPENSSL_1.0.1_EC)(64bit)" && \
-             $2 != "libcrypto.so.1(libcrypto.so.10)(64bit)" && \
-             $2 != "libcrypto.so.1(OPENSSL_1.0.1_EC)(64bit)") {
+                     $2 != "libcrypto.so.1(libcrypto.so.10)(64bit)" && \
+                     $2 != "libpthread.so.(GLIBC_2.17)(64bit)" && \
+                     $2 != "libcrypto.so.1.0.(OPENSSL_1.0.0)(64bit)" && \
+                     $2 != "libcrypto.so.1(OPENSSL_1.0.1_EC)(64bit)" && \
+                     $2 != "libcrypto.so.1(libcrypto.so.10)(64bit)" && \
+                     $2 != "libcrypto.so.1(OPENSSL_1.0.1_EC)(64bit)") {
                     sub(/$/, "()'$lib64'", $2) ;
                     print $2;
                 }
             }
-	}
-	/^Version References:$/ { START=2; }
-	(START==2) && /required from/ {
-	    sub(/:/, "", $3);
-	    LIBNAME=$3;
-	}
-	(START==2) && (LIBNAME!="") && ($4!="") {
-	    sub(/(0:)/, "", $4);
-	    
-	    if ( $4 != "libcrypto.so.1" && \
+  }
+  /^Version References:$/ { START=2; }
+  (START==2) && /required from/ {
+      sub(/:/, "", $3);
+      LIBNAME=$3;
+  }
+  (START==2) && (LIBNAME!="") && ($4!="") {
+      sub(/0:/, "", $4);
+      
+      if ( $4 != "libcrypto.so.1" && \
             $4 != "OPENSSL_1.0.0" && \
             $4 != "GLIBC_2.17"  && \
             $4 != "GLIBC_2.2.5" && \
             $4 != "GLIBC_2.3.2" ) {
-	        print LIBNAME "(" $4 ")'$lib64'";
-	    }
-	}
+          print LIBNAME "(" $4 ")'$lib64'";
+     }
+  }
     '
 done | sort -u
 

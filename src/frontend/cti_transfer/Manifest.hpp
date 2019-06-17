@@ -19,9 +19,19 @@
 // pointer management
 #include <memory>
 
-#include "Session.hpp"
+// file registry
+#include <map>
+#include <unordered_map>
+#include <unordered_set>
+#include <set>
+using FoldersMap = std::map<std::string, std::set<std::string>>;
+using PathMap = std::unordered_map<std::string, std::string>;
+using FolderFilePair = std::pair<std::string, std::string>;
 
-class Manifest final {
+// Forward declarations
+class Session;
+
+class Manifest : public std::enable_shared_from_this<Manifest> {
 public: // types
     enum class DepsPolicy {
         Ignore = 0,
@@ -30,7 +40,7 @@ public: // types
 
 private: // variables
     std::weak_ptr<Session>  m_sessionPtr;
-    size_t const            m_instance;
+    int const               m_instance;
     FoldersMap              m_folders;
     PathMap                 m_sourcePaths;
     std::string             m_ldLibraryOverrideFolder;
@@ -62,6 +72,7 @@ public: // interface
     void addLibrary(const std::string& rawName, DepsPolicy depsPolicy = DepsPolicy::Stage);
     void addLibDir(const std::string& rawPath);
     void addFile(const std::string& rawName);
+
     // Getters
     // Returns true if there is nothing in the manifest
     bool empty() { return m_sourcePaths.empty(); }
@@ -70,12 +81,22 @@ public: // interface
     PathMap& sources() { return m_sourcePaths; }
     std::string& extraLibraryPath() { return m_ldLibraryOverrideFolder; }
 
+    // Used to ship a manifest to the computes and extract it.
+    void sendManifest();
+
+    // Ship a manifest and execute a tool daemon contained within.
+    void execManifest(const char * const daemon, const char * const daemonArgs[],
+        const char * const envVars[]);
+
     // Called by the session when it ships the manifest. This denotes that the manifest
     // is no longer modifyable
     void finalize() { m_isValid = false; }
 
-public: // Constructor/destructors
-    Manifest(size_t instanceCount, Session& owningSession);
+protected:
+    // can only construct via make_Manifest
+    Manifest(std::shared_ptr<Session> owningSession);
+public:
+    static std::shared_ptr<Manifest> make_Manifest(std::shared_ptr<Session> owningSession);
     ~Manifest() = default;
     Manifest(const Manifest&) = delete;
     Manifest& operator=(const Manifest&) = delete;

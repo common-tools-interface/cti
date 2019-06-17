@@ -93,8 +93,8 @@ cp -R $PWD/examples/* $BUILD_DIR/examples
 
 mkdir -p $BUILD_DIR/lib/pkgconfig/
 rm -f $BUILD_DIR/lib/pkgconfig/*
-cp $PWD/scripts/craytools_be.pc  $BUILD_DIR/lib/pkgconfig/craytools_be.pc
-cp $PWD/scripts/craytools_fe.pc  $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
+cp $PWD/craytools_be.pc  $BUILD_DIR/lib/pkgconfig/craytools_be.pc
+cp $PWD/craytools_fe.pc  $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
 chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_be.pc
 chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
 

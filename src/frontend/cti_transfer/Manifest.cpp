@@ -41,17 +41,27 @@ Manifest::checkAndAdd(const std::string& folder, const std::string& filePath,
 
     auto sess = getOwningSession();
 
-    // check for conflicts in session
-    switch (sess->hasFileConflict(folder, realName, filePath)) {
-        case Session::Conflict::None: break;
-        case Session::Conflict::AlreadyAdded: return;
-        case Session::Conflict::NameOverwrite:
-            throw std::runtime_error(realName + ": session conflict");
+    // canonicalize path
+    auto const canonicalPath = cti::getRealPath(filePath);
+
+    // check session for files shipped to the same subfolder
+    auto const shippedSourcePath = sess->getSourcePath(folder, realName);
+    if (!shippedSourcePath.empty()) {
+
+        // check for conflicts
+        if (shippedSourcePath.compare(canonicalPath)) {
+
+            // source paths are not the same, conflict
+            throw std::runtime_error("conflict: shipping " + canonicalPath + " to " +
+                folder + "/" + realName + " would conflict with file already shipped from " + shippedSourcePath);
+        }
+
+        // source paths are the same, the same file was already shipped
     }
 
     // add to manifest registry
     m_folders[folder].emplace(realName);
-    m_sourcePaths[realName] = filePath;
+    m_sourcePaths[realName] = canonicalPath;
 }
 
 void
@@ -85,29 +95,30 @@ Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
 
     auto sess = getOwningSession();
 
-    // check for conflicts in session
-    switch (sess->hasFileConflict("lib", realName, filePath)) {
-        case Session::Conflict::None:
-            // add to manifest registry
-            m_folders["lib"].emplace(realName);
-            m_sourcePaths[realName] = filePath;
-            break;
-        case Session::Conflict::AlreadyAdded:
-            return;
-        case Session::Conflict::NameOverwrite:
-            /* the launcher handles by pointing its LD_LIBRARY_PATH to the
-                override directory containing the conflicting lib.
-            */
+    try {
+
+        // check for conflicts in session and add to library directory
+        checkAndAdd("lib", filePath, realName);
+
+    } catch (std::exception const& ex) {
+
+        if (depsPolicy == DepsPolicy::Stage) {
+            // this was an explicitly-added library, inform user of error
+            throw;
+
+        } else {
+            // this was an implicitly-added library, use library override directory
+            // the launcher handles this by pointing its LD_LIBRARY_PATH to the override directory
             if (m_ldLibraryOverrideFolder.empty()) {
                 m_ldLibraryOverrideFolder = "lib." + std::to_string(m_instance);
             }
 
-            m_folders[m_ldLibraryOverrideFolder].emplace(realName);
-            m_sourcePaths[realName] = filePath;
-            break;
+            // add to library override directory
+            checkAndAdd(m_ldLibraryOverrideFolder, filePath, realName);
+        }
     }
 
-    // add libraries if needed
+    // add library dependencies if needed
     if (depsPolicy == DepsPolicy::Stage) {
         // Avoid hodling onto promotion of pointers through recursion call
         auto const ldAuditPath = sess->getOwningApp()->getFrontend().getLdAuditPath();
@@ -135,8 +146,30 @@ Manifest::addFile(const std::string& rawName) {
     checkAndAdd("", filePath, realName);
 }
 
-Manifest::Manifest(size_t instanceCount, Session& owningSession)
-: m_sessionPtr{owningSession.shared_from_this()}
-, m_instance{instanceCount}
-, m_isValid{true}
+void
+Manifest::sendManifest() {
+    getOwningSession()->sendManifest(shared_from_this());
+}
+
+void
+Manifest::execManifest(const char * const daemon, const char * const daemonArgs[],
+    const char * const envVars[]) {
+    getOwningSession()->execManifest(shared_from_this(),
+        daemon, daemonArgs, envVars);
+}
+
+Manifest::Manifest(std::shared_ptr<Session> owningSession)
+    : m_sessionPtr{owningSession}
+    , m_instance{owningSession->nextManifestCount()}
+    , m_isValid{true}
 { }
+
+std::shared_ptr<Manifest> Manifest::make_Manifest(std::shared_ptr<Session> owningSession)
+{
+    struct ConstructibleManifest : public Manifest {
+        ConstructibleManifest(std::shared_ptr<Session> owningSession)
+            : Manifest{std::move(owningSession)}
+        {}
+    };
+    return std::make_shared<ConstructibleManifest>(std::move(owningSession));
+}

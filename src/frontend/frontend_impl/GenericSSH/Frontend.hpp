@@ -1,5 +1,5 @@
 /******************************************************************************\
- * ssh_fe.h - A header file for the fallback (SSH based) workload manager
+ * Frontend.hpp - A header file for the SSH based workload manager
  *
  * Copyright 2017-2019 Cray Inc.	All Rights Reserved.
  *
@@ -13,7 +13,10 @@
 
 #pragma once
 
+#include <vector>
+
 #include <stdint.h>
+#include <unistd.h>
 #include <sys/types.h>
 
 #include "frontend/Frontend.hpp"
@@ -21,6 +24,10 @@
 
 class GenericSSHFrontend final : public Frontend
 {
+private: // Global state
+	struct passwd		m_pwd;
+	std::vector<char> 	m_pwd_buf;
+
 public: // inherited interface
 	cti_wlm_type getWLMType() const override { return CTI_WLM_SSH; }
 
@@ -61,8 +68,8 @@ public: // ssh specific interface
 		int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
 public: // constructor / destructor interface
-    GenericSSHFrontend() = default;
-    ~GenericSSHFrontend() = default;
+	GenericSSHFrontend();
+	~GenericSSHFrontend();
     GenericSSHFrontend(const GenericSSHFrontend&) = delete;
     GenericSSHFrontend& operator=(const GenericSSHFrontend&) = delete;
     GenericSSHFrontend(GenericSSHFrontend&&) = delete;

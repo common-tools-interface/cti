@@ -21,72 +21,8 @@
 
 #include "useful/cti_wrappers.hpp"
 
-// getpid
-#include <sys/types.h>
-#include <unistd.h>
-// valid chars array used in seed generation
-static const char _cti_valid_char[] {
-    '0','1','2','3','4','5','6','7','8','9',
-    'A','B','C','D','E','F','G','H','I','J','K','L','M',
-    'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
-    'a','b','c','d','e','f','g','h','i','j','k','l','m',
-    'n','o','p','q','r','s','t','u','v','w','x','y','z' };
-class CTIPRNG {
-    char _cti_r_state[256];
-public:
-    CTIPRNG() {
-        // We need to generate a good seed to avoid collisions. Since this
-        // library can be used by automated tests, it is vital to have a
-        // good seed.
-        struct timespec     tv;
-        unsigned int        pval;
-        unsigned int        seed;
-
-        // get the current time from epoch with nanoseconds
-        if (clock_gettime(CLOCK_REALTIME, &tv)) {
-            throw std::runtime_error("clock_gettime failed.");
-        }
-
-        // generate an appropriate value from the pid, we shift this to
-        // the upper 16 bits of the int. This should avoid problems with
-        // collisions due to slight variations in nano time and adding in
-        // pid offsets.
-        pval = (unsigned int)getpid() << ((sizeof(unsigned int) * CHAR_BIT) - 16);
-
-        // Generate the seed. This is not crypto safe, but should have enough
-        // entropy to avoid the case where two procs are started at the same
-        // time that use this interface.
-        seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
-
-        // init the state
-        initstate(seed, (char *)_cti_r_state, sizeof(_cti_r_state));
-
-        // set the PRNG state
-        if (setstate((char *)_cti_r_state) == NULL) {
-            throw std::runtime_error("setstate failed.");
-        }
-    }
-
-    char genChar() {
-        unsigned int oset;
-
-        // Generate a random offset into the array. This is random() modded
-        // with the number of elements in the array.
-        oset = random() % (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
-        // assing this char
-        return _cti_valid_char[oset];
-    }
-};
-
-static CTIPRNG& _cti_getPRNG()
-{
-    static CTIPRNG prng;
-    return prng;
-}
-
-
 std::string
-Session::generateStagePath() {
+Session::generateStagePath(FE_prng& charSource) {
     std::string stageName;
     // check to see if the caller set a staging directory name, otherwise generate one
     if (const char* customStagePath = getenv(DAEMON_STAGE_VAR)) {
@@ -96,29 +32,38 @@ Session::generateStagePath() {
         const std::string stageFormat(DEFAULT_STAGE_DIR);
         stageName = stageFormat.substr(0, stageFormat.find("X"));
 
-        // now start replacing the 'X' characters in the stage_name string with
-        // randomness
+        // replace 'X' characters in the stage_name string with random characters
         size_t numChars = stageFormat.length() - stageName.length();
         for (size_t i = 0; i < numChars; i++) {
-            stageName.push_back(_cti_getPRNG().genChar());
+            stageName.push_back(charSource.genChar());
         }
     }
     return stageName;
 }
 
-Session::Session(App& owningApp)
-    : m_AppPtr{owningApp.shared_from_this()}
+Session::Session(std::shared_ptr<App> owningApp)
+    : m_AppPtr{owningApp}
     , m_manifests{}
     , m_add_requirements{true}
     , m_manifestCnt{0}
     , m_seqNum{0}
     , m_folders{}
     , m_sourcePaths{}
-    , m_stageName{generateStagePath()}
-    , m_stagePath{owningApp.getToolPath() + "/" + m_stageName}
-    , m_wlmType{std::to_string(owningApp.getFrontend().getWLMType())}
+    , m_stageName{generateStagePath(owningApp->getFrontend().Prng())}
+    , m_stagePath{owningApp->getToolPath() + "/" + m_stageName}
+    , m_wlmType{std::to_string(owningApp->getFrontend().getWLMType())}
     , m_ldLibraryPath{m_stagePath + "/lib"} // default libdir /tmp/cti_daemonXXXXXX/lib
 { }
+
+std::shared_ptr<Session> Session::make_Session(std::shared_ptr<App> owningApp)
+{
+    struct ConstructibleSession : public Session {
+        ConstructibleSession(std::shared_ptr<App> owningApp)
+            : Session{std::move(owningApp)}
+        {}
+    };
+    return std::make_shared<ConstructibleSession>(std::move(owningApp));
+}
 
 void Session::finalize() {
     // Check to see if we need to try cleanup on compute nodes. We bypass the
@@ -144,6 +89,9 @@ void Session::finalize() {
     daemonArgv.add(DaemonArgv::InstSeqNum,          std::to_string(m_seqNum));
     daemonArgv.add(DaemonArgv::Clean);
     if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
+    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
+        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    }
 
     // call cleanup function with DaemonArgv
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
@@ -153,7 +101,7 @@ void Session::finalize() {
 
 std::weak_ptr<Manifest>
 Session::createManifest() {
-    auto ret = m_manifests.emplace(std::make_shared<Manifest>(++m_manifestCnt, *this));
+    auto ret = m_manifests.emplace(Manifest::make_Manifest(shared_from_this()));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new Manifest object.");
     }
@@ -161,13 +109,22 @@ Session::createManifest() {
 }
 
 std::string
-Session::shipManifest(std::shared_ptr<Manifest>& mani) {
+Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     // Get owning app
     auto app = getOwningApp();
     // Get frontend reference
     auto&& fe = app->getFrontend();
     // Check to see if we need to add baseline App dependencies
     if ( m_add_requirements ) {
+        // Get the location of the daemon
+        if (fe.getBEDaemonPath().empty()) {
+            throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
+        }
+
+        // ship CTI backend daemon
+        app->shipPackage(fe.getBEDaemonPath());
+
+        // ship WLM-specific base files
         for (auto const& path : app->getExtraBinaries()) {
             mani->addBinary(path);
         }
@@ -196,7 +153,7 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
     auto&& folders = mani->folders();
     auto&& sources = mani->sources();
     auto toRemove = mergeTransfered(folders, sources);
-    for (auto folderFilePair : toRemove) {
+    for (auto&& folderFilePair : toRemove) {
         folders[folderFilePair.first].erase(folderFilePair.second);
         sources.erase(folderFilePair.second);
     }
@@ -217,8 +174,8 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
     archive.addDirEntry(m_stageName + "/lib");
     archive.addDirEntry(m_stageName + "/tmp");
     // add the unique files to archive
-    for (auto folderIt : folders) {
-        for (auto fileIt : folderIt.second) {
+    for (auto&& folderIt : folders) {
+        for (auto&& fileIt : folderIt.second) {
             const std::string destPath(m_stageName + "/" + folderIt.first +
                 "/" + fileIt);
             writeLog("shipManifest %d: addPath(%s, %s)\n", inst, destPath.c_str(), sources.at(fileIt).c_str());
@@ -231,7 +188,9 @@ Session::shipManifest(std::shared_ptr<Manifest>& mani) {
 }
 
 void
-Session::sendManifest(std::shared_ptr<Manifest>& mani) {
+Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
+    verifyOwnership(mani);
+
     // Short circuit if there is nothing to send
     if (mani->empty()) {
         removeManifest(mani);
@@ -252,6 +211,9 @@ Session::sendManifest(std::shared_ptr<Manifest>& mani) {
     daemonArgv.add(DaemonArgv::Directory,    m_stageName);
     daemonArgv.add(DaemonArgv::InstSeqNum,   std::to_string(m_seqNum));
     if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
+    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
+        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    }
     // call transfer function with DaemonArgv
     writeLog("sendManifest %d: starting daemon\n", inst);
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
@@ -261,8 +223,10 @@ Session::sendManifest(std::shared_ptr<Manifest>& mani) {
 }
 
 void
-Session::execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon,
+Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const daemon,
         const char * const daemonArgs[], const char * const envVars[]) {
+    verifyOwnership(mani);
+
     // Add daemon to the manifest
     mani->addBinary(daemon);
     // Get the owning app
@@ -298,6 +262,9 @@ Session::execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon
     daemonArgv.add(DaemonArgv::Directory,           m_stageName);
     daemonArgv.add(DaemonArgv::InstSeqNum,          std::to_string(m_seqNum));
     if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
+    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
+        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    }
     // add env vars
     if (envVars != nullptr) {
         for (const char* const* var = envVars; *var != nullptr; var++) {
@@ -322,38 +289,34 @@ Session::execManifest(std::shared_ptr<Manifest>& mani, const char * const daemon
 }
 
 void
-Session::removeManifest(std::shared_ptr<Manifest>& mani) {
+Session::removeManifest(std::shared_ptr<Manifest> const& mani) {
+    verifyOwnership(mani);
+
     // Finalize manifest
     mani->finalize();
     // drop the shared_ptr
     m_manifests.erase(mani);
 }
 
-Session::Conflict
-Session::hasFileConflict(const std::string& folderName,
-    const std::string& realName, const std::string& candidatePath) const {
-
+std::string
+Session::getSourcePath(const std::string& folderName, const std::string& realName) const {
     // has /folderName/realName been shipped to the backend?
-    const std::string fileArchivePath(folderName + "/" + realName);
+    const std::string fileArchivePath{folderName + "/" + realName};
     auto namePathPair = m_sourcePaths.find(fileArchivePath);
     if (namePathPair != m_sourcePaths.end()) {
-        if (cti::isSameFile(namePathPair->first, candidatePath)) {
-            return Conflict::AlreadyAdded;
-        } else {
-            return Conflict::NameOverwrite;
-        }
+        return namePathPair->second;
     }
 
-    return Conflict::None;
+    return "";
 }
 
 std::vector<FolderFilePair>
 Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) {
     std::vector<FolderFilePair> toRemove;
-    for (auto folderContentsPair : newFolders) {
-        const std::string& folderName = folderContentsPair.first;
-        const std::set<std::string>& folderContents = folderContentsPair.second;
-        for (auto fileName : folderContents) {
+    for (auto&& folderContentsPair : newFolders) {
+        auto const& folderName = folderContentsPair.first;
+        auto const& folderContents = folderContentsPair.second;
+        for (auto&& fileName : folderContents) {
             // mark fileName to be located at /folderName/fileName
             m_folders[folderName].insert(fileName);
             // map /folderName/fileName to source file path newPaths[fileName]
@@ -368,7 +331,7 @@ Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) 
                     toRemove.push_back(std::make_pair(folderName, fileName));
                 } else {
                     // register new file as coming from Manifest's source
-                    m_sourcePaths[fileArchivePath] = newPaths.at(fileName);
+                    m_sourcePaths[fileArchivePath] = cti::getRealPath(newPaths.at(fileName));
                 }
             }
         }

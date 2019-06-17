@@ -23,8 +23,8 @@ m4/ltsugar.m4
 m4/ltversion.m4
 m4/lt~obsolete.m4
 
-cray-cti_be.pc
-cray-cti_fe.pc
+craytools_be.pc
+craytools_fe.pc
 
 external/alps_base
 external/slurm_base

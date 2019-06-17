@@ -16,30 +16,21 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <archive.h>
+#include <archive_entry.h>
+
 #include <memory>
 #include <functional>
 
-// forward declare
-struct archive;
-struct archive_entry;
-
 class Archive {
-private: // types
-    template <typename T>
-    using UniquePtrDestr = std::unique_ptr<T, std::function<void(T*)>>;
-
-public: // types
-    using ArchPtr = UniquePtrDestr<struct archive>;
-    using EntryPtr = UniquePtrDestr<struct archive_entry>;
-
 private: // variables
-    ArchPtr  m_archPtr;
-    EntryPtr m_entryScratchpad;
+    std::unique_ptr<struct archive,       decltype(&archive_write_free)> m_archPtr;
+    std::unique_ptr<struct archive_entry, decltype(&archive_entry_free)> m_entryScratchpad;
     std::string const m_archivePath;
 
 private: // functions
     // refresh the entry scratchpad without reallocating
-    EntryPtr& freshEntry();
+    decltype(m_entryScratchpad)& freshEntry();
     // recursively add directory and contents to archive
     void addDir(const std::string& entryPath, const std::string& dirPath);
     // block-copy file to archive
@@ -62,7 +53,9 @@ public: // Constructor/destructors
     Archive(const std::string& archivePath);
     // remove archive from disk
     ~Archive() {
-        unlink(m_archivePath.c_str());
+        if (!m_archivePath.empty()) {
+            unlink(m_archivePath.c_str());
+        }
     }
     // Explicitly delete move/copy constructors.
     // Archive has file ownership on disk.

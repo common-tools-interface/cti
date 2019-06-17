@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-content='''#%Module######################################################################
+#%Module######################################################################
  #
  #       (C) COPYRIGHT CRAY INC.
  #       UNPUBLISHED PROPRIETARY INFORMATION.
@@ -43,4 +42,3 @@ content='''#%Module#############################################################
 
 module-whatis   "Loads the Cray Tools Interface."
 
-'''

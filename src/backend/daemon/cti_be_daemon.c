@@ -523,6 +523,52 @@ main(int argc, char **argv)
 			break;
 	}
 
+	// process the env args
+	if (env_args != NULL)
+	{
+		// pop the top element
+		val = (char *)_cti_pop(env_args);
+
+		while (val != NULL)
+		{
+			// we need to strsep the string at the "=" character
+			// we expect the user to pass in the -e argument as envVar=val
+			// Note that env will now point at the start and val will point at
+			// the value argument
+			if ((env = strsep(&val, "=")) == NULL)
+			{
+				//error
+				fprintf(stderr, "%s: strsep failed\n", CTI_BE_DAEMON_BINARY);
+				return 1;
+			}
+
+			// ensure the user didn't pass us something stupid i.e. non-conforming
+			if ((*env == '\0') || (*val == '\0'))
+			{
+				// they passed us something stupid
+				fprintf(stderr, "%s: Unrecognized env argument.\n", CTI_BE_DAEMON_BINARY);
+				return 1;
+			}
+
+			// set the actual environment variable
+			if (setenv(env, val, 1) < 0)
+			{
+				// failure
+				fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
+				return 1;
+			}
+
+			// free this element
+			free(env);
+
+			// pop the next element
+			val = (char *)_cti_pop(env_args);
+		}
+
+		// Done with the env_args
+		_cti_consumeStack(env_args);
+	}
+
 	// if debug mode is turned on, redirect stdout/stderr to a log file
 	if (debug_flag)
 	{
@@ -618,52 +664,6 @@ main(int argc, char **argv)
 			return 1;
 		}
 		free(cwd);
-	}
-
-	// process the env args
-	if (env_args != NULL)
-	{
-		// pop the top element
-		val = (char *)_cti_pop(env_args);
-
-		while (val != NULL)
-		{
-			// we need to strsep the string at the "=" character
-			// we expect the user to pass in the -e argument as envVar=val
-			// Note that env will now point at the start and val will point at
-			// the value argument
-			if ((env = strsep(&val, "=")) == NULL)
-			{
-				//error
-				fprintf(stderr, "%s: strsep failed\n", CTI_BE_DAEMON_BINARY);
-				return 1;
-			}
-
-			// ensure the user didn't pass us something stupid i.e. non-conforming
-			if ((*env == '\0') || (*val == '\0'))
-			{
-				// they passed us something stupid
-				fprintf(stderr, "%s: Unrecognized env argument.\n", CTI_BE_DAEMON_BINARY);
-				return 1;
-			}
-
-			// set the actual environment variable
-			if (setenv(env, val, 1) < 0)
-			{
-				// failure
-				fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
-				return 1;
-			}
-
-			// free this element
-			free(env);
-
-			// pop the next element
-			val = (char *)_cti_pop(env_args);
-		}
-
-		// Done with the env_args
-		_cti_consumeStack(env_args);
 	}
 
 	// set the APID_ENV_VAR environment variable to the apid

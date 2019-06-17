@@ -39,6 +39,16 @@ struct CTIHost {
 using CStr      = const char*;
 using CArgArray = const char* const[];
 
+// pseudorandom character generator for unique filenames / directories
+class FE_prng {
+    char m_r_state[256];
+
+public:
+    FE_prng();
+
+    char genChar();
+};
+
 /* CTI Frontend object interfaces */
 
 // This is used to ensure the static global pointers get cleaned up upon exit
@@ -89,6 +99,7 @@ private:
 private: // Private data members usable only by the base Frontend
     FE_iface            m_iface;
     FE_daemon           m_daemon;
+    FE_prng             m_prng;
     // Directory paths
     std::string         m_cfg_dir;
     std::string         m_base_dir;
@@ -110,7 +121,7 @@ public: // Values set by cti_setAttribute
 private: // Private static utility methods used by the generic frontend
     // get the logger associated with the frontend - can only construct logger
     // after fe instantiation!
-    static cti::Logger& getLogger(void);
+    static cti::Logger& getLogger();
     // get the frontend type for this system
     static cti_wlm_type detect_Frontend();
 
@@ -123,9 +134,9 @@ public: // Public static utility methods - Try to keep these to a minimum
 private: // Private utility methods used by the generic frontend
     static bool isRunningOnBackend() { return (getenv(BE_GUARD_ENV_VAR) != nullptr); }
     // use user info to build unique staging path; optionally create the staging direcotry
-    std::string findCfgDir(struct passwd& pwd);
+    std::string findCfgDir();
     // find the base CTI directory from the environment and verify its permissions
-    std::string findBaseDir(void);
+    std::string findBaseDir();
     // Try to cleanup old files left in the cfg dir during the ctor.
     void doFileCleanup();
 
@@ -146,13 +157,16 @@ public: // Public interface to generic WLM-agnostic capabilities
     FE_iface& Iface() { return m_iface; }
     // Daemon accessor - guarantees access via singleton object
     FE_daemon& Daemon() { return m_daemon; }
+    // PRNG accessor
+    FE_prng& Prng() { return m_prng; }
     // Register a cleanup file
-    void addFileCleanup(std::string file);
+    void addFileCleanup(std::string const& file);
     // Accessors
     std::string getCfgDir() { return m_cfg_dir; }
     std::string getBaseDir() { return m_base_dir; }
     std::string getLdAuditPath() { return m_ld_audit_path; }
     std::string getBEDaemonPath() { return m_be_daemon_path; }
+    const struct passwd& getPwd() { return m_pwd; }
 
     // tell all Apps to finalize their transfer Sessions
     void finalize();
@@ -250,7 +264,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     // Create a new session associated with this app
     std::weak_ptr<Session> createSession();
     // Remove a session object
-    void removeSession(std::shared_ptr<Session>& sess);
+    void removeSession(std::shared_ptr<Session> sess);
     // Frontend acessor
     // TODO: When we switch to std::atomic on shared_ptr with C++20,
     // this can return a shared_ptr handle instead.

@@ -12,27 +12,30 @@
 
 dnl
 dnl read release and library version information from disk
-dnl This is not portable due to tr -d and source...
+dnl This is not portable due to source...
 dnl
 AC_DEFUN([cray_INIT],
 [
 	dnl Pull in the revision information from the $PWD/release_versioning file
-	m4_define([CRAYTOOL_RELEASE], [m4_esyscmd([source $PWD/release_versioning; echo $craytool_major.$craytool_minor.$craytool_revision | tr -d '\n'])])
+	m4_define([CRAYTOOL_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo "$revision"])])
 
-	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd([source $PWD/release_versioning; echo $be_current | tr -d '\n'])])
-	m4_define([CRAYTOOL_BE_REVISION], [m4_esyscmd([source $PWD/release_versioning; echo $be_revision | tr -d '\n'])])
-	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd([source $PWD/release_versioning; echo $be_age | tr -d '\n'])])
+	m4_define([CRAYTOOL_MAJOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$craytool_major"])])
+	m4_define([CRAYTOOL_MINOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$craytool_minor"])])
 
-	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd([source $PWD/release_versioning; echo $fe_current | tr -d '\n'])])
-	m4_define([CRAYTOOL_FE_REVISION], [m4_esyscmd([source $PWD/release_versioning; echo $fe_revision | tr -d '\n'])])
-	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd([source $PWD/release_versioning; echo $fe_age | tr -d '\n'])])
+	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
+	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
 
-	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_BE_REVISION:CRAYTOOL_BE_AGE])
-	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_FE_REVISION:CRAYTOOL_FE_AGE])
-	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_RELEASE])
+	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
+	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
 
-	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_BE_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
-	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_FE_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
+	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_MAJOR.CRAYTOOL_MINOR.CRAYTOOL_REVISION])
+	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_REVISION:CRAYTOOL_BE_AGE])
+	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_REVISION:CRAYTOOL_FE_AGE])
+
+    AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/CRAYTOOL_MAJOR.CRAYTOOL_MINOR.CRAYTOOL_REVISION"])
+
+	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
+	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
 
 	AC_SUBST([CRAYTOOL_EXTERNAL], [${CRAYTOOL_DIR}/external])
 	AC_SUBST([CRAYTOOL_EXTERNAL_INSTALL], [${CRAYTOOL_DIR}/external/install])
@@ -103,50 +106,59 @@ AC_DEFUN([cray_ENV_LIBARCHIVE],
 ])
 
 dnl
-dnl build libssh automatically
+dnl build libssh2 automatically
 dnl
-AC_DEFUN([cray_BUILD_LIBSSH],
+AC_DEFUN([cray_BUILD_LIBSSH2],
 [
-	cray_cv_lib_ssh_build=no
+	cray_cv_lib_ssh2_build=no
 
 	dnl External source directory
-	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/libssh"
+	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/libssh2"
 
-	AC_MSG_CHECKING([for libssh submodule])
+	AC_MSG_CHECKING([for libssh2 submodule])
 
-	dnl Ensure the libssh source was checked out
+	dnl Ensure the libssh2 source was checked out
 	AS_IF(	[test ! -f "$_cray_external_srcdir/README"],
-			[AC_MSG_ERROR([git submodule libssh not found.])],
+			[AC_MSG_ERROR([git submodule libssh2 not found.])],
 			[AC_MSG_RESULT([yes])]
 			)
 
 	dnl cd to the checked out source directory
 	cd ${_cray_external_srcdir}
 
-	AC_MSG_NOTICE([Building libssh...])
+	AC_MSG_NOTICE([Building libssh2...])
 
-	dnl configure using cmake
-	rm -rf build
-	mkdir -p build
-	cd build
-	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} -DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=Debug .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	dnl libssh2 has a buildconf script that generates the build files
+	./buildconf >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+
+	dnl configure
+    _cray_temp_prefix=${prefix}
+    AS_IF(  [test "x$_cray_temp_prefix" = "xNONE"],
+            [   AC_MSG_NOTICE([Setting prefix to $ac_default_prefix.])
+                _cray_temp_prefix=${ac_default_prefix}
+            ],
+            []
+            )
+	./configure --prefix=${_cray_temp_prefix}
 	AS_IF(	[test $? != 0],
-	 		[AC_MSG_ERROR[libssh cmake failed.]],
+	 		[AC_MSG_ERROR[libssh2 configure failed.]],
 	 		[]
 	 		)
+
+	AC_MSG_NOTICE([Staging libssh2...])
 
 	dnl make
 	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
-	 		[AC_MSG_ERROR[libssh make failed.]],
+	 		[AC_MSG_ERROR[libssh2 make failed.]],
 	 		[]
 	 		)
 
-	dnl install to stage
-	make install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	dnl install to stage - this also gets included in final package
+	make -j8 install prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
-	 		[AC_MSG_ERROR[libssh make install failed.]],
-	 		[cray_cv_lib_ssh_build=yes]
+	 		[AC_MSG_ERROR[libssh2 make install failed.]],
+	 		[cray_cv_lib_ssh2_build=yes]
 	 		)
 
 	dnl go home
@@ -154,13 +166,11 @@ AC_DEFUN([cray_BUILD_LIBSSH],
 ])
 
 dnl
-dnl define post-cache libssh env
+dnl define post-cache libssh2 env
 dnl
-AC_DEFUN([cray_ENV_LIBSSH],
+AC_DEFUN([cray_ENV_LIBSSH2],
 [
-	AC_SUBST([LIBSSH_SRC], [${CRAYTOOL_EXTERNAL}/libssh])
-	AC_SUBST([INTERNAL_LIBSSH], [${CRAYTOOL_EXTERNAL_INSTALL}])
-	AC_SUBST([LIBSSH_LOC], [${CRAYTOOL_EXTERNAL_INSTALL}/lib/libssh.so])
+	AC_SUBST([INTERNAL_LIBSSH2], [${CRAYTOOL_EXTERNAL_INSTALL}])
 ])
 
 dnl
@@ -189,7 +199,14 @@ AC_DEFUN([cray_CONF_ELFUTILS],
 	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl configure
-	./configure --prefix=${prefix} --enable-maintainer-mode
+    _cray_temp_prefix=${prefix}
+    AS_IF(  [test "x$_cray_temp_prefix" = "xNONE"],
+            [   AC_MSG_NOTICE([Setting prefix to $ac_default_prefix.])
+                _cray_temp_prefix=${ac_default_prefix}
+            ],
+            []
+            )
+	./configure --prefix=${_cray_temp_prefix} --enable-maintainer-mode
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[elfutils configure failed.]],
 	 		[]
@@ -249,7 +266,14 @@ AC_DEFUN([cray_BUILD_BOOST],
 	save_LDFLAGS="$LDFLAGS"
 	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
 
-	./bootstrap.sh --prefix=${prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	_cray_temp_prefix=${prefix}
+    AS_IF(  [test "x$_cray_temp_prefix" = "xNONE"],
+            [   AC_MSG_NOTICE([Setting prefix to $ac_default_prefix.])
+                _cray_temp_prefix=${ac_default_prefix}
+            ],
+            []
+            )
+    ./bootstrap.sh --prefix=${_cray_temp_prefix} --with-toolset=gcc >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[boost bootstrap failed.]]
@@ -387,7 +411,14 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	 		)
 
 	dnl cmake to prefix for final build
-	cmake -DCMAKE_INSTALL_PREFIX=${prefix} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+    _cray_temp_prefix=${prefix}
+    AS_IF(  [test "x$_cray_temp_prefix" = "xNONE"],
+            [   AC_MSG_NOTICE([Setting prefix to $ac_default_prefix.])
+                _cray_temp_prefix=${ac_default_prefix}
+            ],
+            []
+            )
+	cmake -DCMAKE_INSTALL_PREFIX=${_cray_temp_prefix} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[dyninst cmake failed.]],
 	 		[cray_cv_dyninst_build=yes]

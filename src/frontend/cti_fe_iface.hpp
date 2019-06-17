@@ -25,6 +25,7 @@ extern "C" {
 // current frontend information query
 const char *        cti_version(void);
 const char *        cti_error_str(void);
+int                 cti_error_str_r(char *buf, size_t buf_size);
 cti_wlm_type        cti_current_wlm(void);
 const char *        cti_wlm_type_toString(cti_wlm_type);
 char *              cti_getHostname(void);
@@ -108,29 +109,41 @@ private:
         bool isValid(IdType const id)
         {
             // Ensure the id is valid
-            auto itr = m_list.find(id);
-            if (itr == m_list.end())  return false;
-            // Check if the pointer is valid
-            if (auto sp = itr->second.lock()) { return true; }
-            // Pointer is no longer valid
-            // Cleanup the id
-            erase(id);
-            return false;
+            auto const idWeakPtrPair = m_list.find(id);
+            if (idWeakPtrPair != m_list.end()) {
+                // Check if the pointer is valid
+                if (!idWeakPtrPair->second.expired()) {
+                    return true;
+                } else {
+                    // Pointer is no longer valid, cleanup the id
+                    erase(id);
+                    return false;
+                }
+            } else {
+                return false;
+            }
         }
         // Get a handle to the object.
         std::shared_ptr<T> get_handle(IdType const id)
         {
-            auto wp = m_list.at(id);
-            if (auto sp = wp.lock()) { return sp; }
-            // Cleanup the id
-            erase(id);
-            throw std::runtime_error("Provided id is no longer valid.");
+            auto const idWeakPtrPair = m_list.find(id);
+            if (idWeakPtrPair != m_list.end()) {
+                if (auto sharedPtr = idWeakPtrPair->second.lock()) {
+                    return sharedPtr;
+                } else {
+                    // Cleanup the id
+                    erase(id);
+                    throw std::runtime_error("ID " + std::to_string(id) + " is no longer valid");
+                }
+            } else {
+                throw std::runtime_error("ID " + std::to_string(id) + " invalid");
+            }
         }
         // Add a weak_ptr to the registry
         IdType add(std::weak_ptr<T> wp)
         {
             auto const newId = ++m_id;
-            m_list.insert(std::make_pair(newId, wp));
+            m_list.emplace(std::make_pair(newId, wp));
             return newId;
         }
     };

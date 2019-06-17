@@ -42,6 +42,60 @@ Frontend_cleanup::~Frontend_cleanup() {
     Frontend::destroy();
 }
 
+// PRNG initialization
+FE_prng::FE_prng()
+{
+    // We need to generate a good seed to avoid collisions. Since this
+    // library can be used by automated tests, it is vital to have a
+    // good seed.
+    struct timespec     tv;
+    unsigned int        pval;
+    unsigned int        seed;
+
+    // get the current time from epoch with nanoseconds
+    if (clock_gettime(CLOCK_REALTIME, &tv)) {
+        throw std::runtime_error("clock_gettime failed.");
+    }
+
+    // generate an appropriate value from the pid, we shift this to
+    // the upper 16 bits of the int. This should avoid problems with
+    // collisions due to slight variations in nano time and adding in
+    // pid offsets.
+    pval = (unsigned int)getpid() << ((sizeof(unsigned int) * CHAR_BIT) - 16);
+
+    // Generate the seed. This is not crypto safe, but should have enough
+    // entropy to avoid the case where two procs are started at the same
+    // time that use this interface.
+    seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
+
+    // init the state
+    initstate(seed, (char *)m_r_state, sizeof(m_r_state));
+
+    // set the PRNG state
+    if (setstate((char *)m_r_state) == NULL) {
+        throw std::runtime_error("setstate failed.");
+    }
+}
+
+// PRNG character generation
+char FE_prng::genChar()
+{
+    // valid chars array used in seed generation
+    static constexpr char _cti_valid_char[] {
+        '0','1','2','3','4','5','6','7','8','9',
+        'A','B','C','D','E','F','G','H','I','J','K','L','M',
+        'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+        'a','b','c','d','e','f','g','h','i','j','k','l','m',
+        'n','o','p','q','r','s','t','u','v','w','x','y','z'
+    };
+
+    // Generate a random offset into the array. This is random() modded
+    // with the number of elements in the array.
+    unsigned int oset = random() % (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
+    // assing this char
+    return _cti_valid_char[oset];
+}
+
 // Logger object that must be created after frontend instantiation
 cti::Logger&
 Frontend::getLogger(void)
@@ -51,22 +105,18 @@ Frontend::getLogger(void)
 }
 
 std::string
-Frontend::findCfgDir(struct passwd& pwd)
+Frontend::findCfgDir()
 {
     // Get the pw info, this is used in the unique name part of cfg directories
     // and when doing the final ownership check
     std::string username;
     decltype(passwd::pw_uid) uid;
-    if (struct passwd *pw = getpwuid(getuid())) {
-        username = std::string(pw->pw_name);
-        uid = pw->pw_uid;
-    }
-    else {
-        throw std::runtime_error(std::string("getpwuid() ") + strerror(errno));
-    }
 
     // FIXME: How to ensure sane pwd?
-    assert(pwd.pw_name != nullptr);
+    assert(m_pwd.pw_name != nullptr);
+
+    username = std::string(m_pwd.pw_name);
+    uid = m_pwd.pw_uid;
 
     // get the cfg dir settings
     std::string customCfgDir, cfgDir;
@@ -186,13 +236,17 @@ Frontend::findBaseDir(void)
 // to remove a tarball if the process exits, but no mechanism exists today that
 // I know about that allows us to share the file with other processes later on.
 void
-Frontend::addFileCleanup(std::string file)
+Frontend::addFileCleanup(std::string const& file)
 {
-    std::string cleanupFilePath{m_cfg_dir + "/." + file};
+    // track file itself
+    m_cleanup_files.push_back(file);
+
+    // track cleanup file that stores this app's PID
+    std::string const cleanupFilePath{m_cfg_dir + "/." + file};
+    m_cleanup_files.push_back(std::move(cleanupFilePath));
     auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
     pid_t pid = getpid();
     cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
-    m_cleanup_files.push_back(std::move(cleanupFilePath));
 }
 
 void
@@ -372,7 +426,7 @@ Frontend::Frontend()
     }
     // Setup the directories. We break these out into private static methods
     // to avoid pollution in the constructor.
-    m_cfg_dir = findCfgDir(m_pwd);
+    m_cfg_dir = findCfgDir();
     m_base_dir = findBaseDir();
     // Following strings depend on m_base_dir
     m_ld_audit_path = cti::accessiblePath(m_base_dir + "/lib/" + LD_AUDIT_LIB_NAME);
@@ -395,15 +449,15 @@ Frontend::~Frontend()
 std::weak_ptr<Session>
 App::createSession()
 {
-    auto ret = m_sessions.emplace(std::make_shared<Session>(*this));
-    if (!ret.second) {
+    auto ptrInsertedPair = m_sessions.emplace(Session::make_Session(shared_from_this()));
+    if (!ptrInsertedPair.second) {
         throw std::runtime_error("Failed to create new Session object.");
     }
-    return *ret.first;
+    return *ptrInsertedPair.first;
 }
 
 void
-App::removeSession(std::shared_ptr<Session>& sess)
+App::removeSession(std::shared_ptr<Session> sess)
 {
     // tell session to launch cleanup
     sess->finalize();

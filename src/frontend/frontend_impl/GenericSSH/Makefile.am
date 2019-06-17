@@ -17,7 +17,7 @@ AM_CXXFLAGS         = -Wall -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/fronten
 noinst_LTLIBRARIES = libgenericssh.la
 
 libgenericssh_la_SOURCES    =   Frontend.cpp
-libgenericssh_la_CXXFLAGS   =   $(AM_CXXFLAGS) -fPIC $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
+libgenericssh_la_CXXFLAGS   =   $(AM_CXXFLAGS) -fPIC $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS) $(SSH2_CFLAGS)
 libgenericssh_la_CPPFLAGS	=	$(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
 libgenericssh_la_LDFLAGS	=   -static -Wl,--no-undefined
 noinst_HEADERS				=   Frontend.hpp

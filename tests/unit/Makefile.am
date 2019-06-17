@@ -25,7 +25,7 @@ TESTS = unit_tests
 check_PROGRAMS = unit_tests
 
 # unit test binary
-unit_tests_SOURCES  = unit_tests.cpp cti_fe_unit_test.cpp cti_archive_unit_test.cpp
+unit_tests_SOURCES  = unit_tests.cpp cti_fe_unit_test.cpp cti_archive_unit_test.cpp cti_manifest_unit_test.cpp
 unit_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) \
 	-I$(GTEST)/include -I$(GTEST) \
 	-I$(GMOCK)/include -I$(GMOCK) \

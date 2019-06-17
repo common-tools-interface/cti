@@ -93,14 +93,19 @@ MockApp::MockApp(MockFrontend& fe, pid_t launcherPid)
     // add all files in archive to list to be checked by unit test
     ON_CALL(*this, shipPackage(_))
         .WillByDefault(WithArgs<0>(Invoke([&](std::string const& tarPath) {
+            // Skip the be daemon
+            if ( tarPath.compare(m_frontend.getBEDaemonPath()) == 0 ) {
+                return;
+            }
+
             // initialize archive struct
-            auto archPtr = cti::make_unique_destr(archive_read_new(), archive_read_free);
+            auto archPtr = cti::move_pointer_ownership(archive_read_new(), archive_read_free);
             archive_read_support_filter_all(archPtr.get());
             archive_read_support_format_all(archPtr.get());
 
             // open archive
             if (archive_read_open_filename(archPtr.get(), tarPath.c_str(), 10240) != ARCHIVE_OK) {
-                throw std::runtime_error("failed to open archive" + tarPath);
+                throw std::runtime_error("failed to open archive " + tarPath);
             }
 
             // read each file / directory entry

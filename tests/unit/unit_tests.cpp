@@ -19,8 +19,10 @@
 #include "frontend/cti_transfer/Manifest.hpp"
 #include "frontend/cti_transfer/Session.hpp"
 
+// Unit Test includes
 #include "cti_fe_unit_test.hpp"
 #include "cti_archive_unit_test.hpp"
+#include "cti_manifest_unit_test.hpp"
 
 class CTI_Environment : public ::testing::Environment
 {

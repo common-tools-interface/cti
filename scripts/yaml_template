@@ -1,0 +1,130 @@
+#----------------------------------------------------------------------------
+# IMPORTANT: do not rename sections! The installer uses section names
+# to detect changes made to sections, using the MD5 algorithm.
+#----------------------------------------------------------------------------
+section-1:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : kglaser@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL 
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE:
+        ALL_EXCEPT:
+            - SEASTAR
+    OPERATION             : INSTALL
+    OS_VERSION            : [OS_HW]
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : [SYSTEM_TYPE_HW]
+
+section-2:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : kglaser@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS:
+        ALL_EXCEPT:
+            - chpbld01
+            - chpbld02
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : INSTALL
+    OS_VERSION            : [OS_WB]
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : [SYSTEM_TYPE_WB]
+
+section-3:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : kglaser@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE:
+        ALL_EXCEPT:
+            - SEASTAR
+    OPERATION             : UPDATE
+    OS_VERSION            : [OS_HW]
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : [SYSTEM_TYPE_HW]
+    COMMANDS: |
+            if [ -f /etc/SuSE-release ]
+            then
+              OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
+            elif [ -f /etc/os-release ] 
+            then
+              OS_VER=$(cat /etc/os-release |  grep "VERSION=" | cut -d'"' -f2)
+            fi
+              
+            if [[ $OS_VER -lt 12 ]]
+            then
+              pref=/opt/cray
+            else
+              pref=/opt/cray/pe
+            fi
+            $pref/admin-pe/set_default_files/set_default_cray-cti_[VERSION]
+
+section-4:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : kglaser@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS:
+        ALL_EXCEPT:
+            - chpbld01
+            - chpbld02
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : UPDATE
+    OS_VERSION            : [OS_WB]
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : [SYSTEM_TYPE_WB]
+    COMMANDS: |
+            if [ -f /etc/SuSE-release ]
+            then
+              OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
+            elif [ -f /etc/os-release ] 
+            then
+              OS_VER=$(cat /etc/os-release |  grep "VERSION=" | cut -d'"' -f2)
+            fi
+              
+            if [[ $OS_VER -lt 12 ]]
+            then
+              pref=/opt/cray
+            else
+              pref=/opt/cray/pe
+            fi
+            $pref/admin-pe/set_default_files/set_default_cray-cti_[VERSION]
+
+section-5:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : [REMOVAL_DATE]
+    EMAILS                : kglaser@cray.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : REMOVE
+    OS_VERSION            : [OS_HW],[OS_WB]
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : [SYSTEM_TYPE_REMOVE]
+    COMMANDS: |
+        rpm -e cray-cti-[VERSION]-[REVISION]-[RELEASE]
+
+--- |
+#Remove previous versions of this rpm
+for package in  $(rpm -qa | grep ^cray-cti-[VERSION]-)
+do
+  rpm -e $package
+done
+
+OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
+if [[ $OS_VER -lt 12 ]]
+then
+  pref="--prefix=/opt/cray"
+else  
+  pref=
+fi
+
+rpm -ivh $pref --oldpackage cray-cti-[VERSION]-[REVISION]-[RELEASE][OS].[ARCH].rpm
+
