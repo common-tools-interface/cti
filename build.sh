@@ -73,6 +73,7 @@ function set_OS(){
 
 set_OS
 source_module_script
+module purge
 module load $gcc_module
 module load $cmake_module
 
