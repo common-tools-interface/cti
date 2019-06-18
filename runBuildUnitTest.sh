@@ -19,6 +19,14 @@ return_code=$?
 
 if [ $return_code -ne 0 ]
 then
+  echo "############################################"
+  echo "#            Elfutils Test Log             #"
+  echo "############################################"
+  cat external/elfutils/tests/test-suit.log
+
+  echo "############################################"
+  echo "#              Unit Test Log               #"
+  echo "############################################"
   cat tests/unit/test-suite.log
 fi
 
