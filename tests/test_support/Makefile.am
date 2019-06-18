@@ -45,6 +45,10 @@ one_printer_SOURCES = one_printer.c
 one_printer_LDADD   = -L./print_one -lprint
 one_printer_LDFLAGS = -Wl,-rpath,\$$ORIGIN/print_one
 
+clean-local:
+	rm -f print_one/libprint.so
+	rm -f print_two/libprint.so
+
 print_two/libprint.so: print_two/print.c
 	cc -fPIC -shared print_two/print.c -o print_two/libprint.so
 

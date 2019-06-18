@@ -247,10 +247,10 @@ TEST_F(CTIManifestUnitTest, addBinary) {
 
     ASSERT_EQ(manifestFolders.size(), 2);
     ASSERT_EQ(manifestFolders["bin"].size(), 1);
-    ASSERT_EQ(manifestFolders["lib"].size(), 12);
-    ASSERT_EQ(fileSources.size(), 13);
+    ASSERT_EQ(manifestFolders["lib"].size(), 1);
+    ASSERT_EQ(fileSources.size(), 2);
 
-    ASSERT_STREQ((*(manifestFolders["lib"].begin())).c_str(), "libcraymath.so.1");
+    ASSERT_STREQ((*(manifestFolders["lib"].begin())).c_str(), "libprint.so");
  
     // test that a non-binary file can't be added via addBinary
     {
@@ -273,18 +273,18 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     }, std::runtime_error);
  
     ASSERT_EQ(manifestFolders["bin"].size(), 1);
-    ASSERT_EQ(fileSources.size(), 13);
+    ASSERT_EQ(fileSources.size(), 2);
  
     // test that the same binary file can't be added twice via addBinary 
     ASSERT_NO_THROW(manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore));
  
     ASSERT_EQ(manifestFolders["bin"].size(), 2);
-    ASSERT_EQ(fileSources.size(), 14);
+    ASSERT_EQ(fileSources.size(), 3);
 
     ASSERT_NO_THROW(manifestPtr -> addBinary("./unit_tests", Manifest::DepsPolicy::Ignore));
 
     ASSERT_EQ(manifestFolders["bin"].size(), 2);
-    ASSERT_EQ(fileSources.size(), 14);
+    ASSERT_EQ(fileSources.size(), 3);
  
     // test that manifest does not add binaries that don't exist
     ASSERT_THROW({
@@ -297,7 +297,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     }, std::runtime_error);
  
     ASSERT_EQ(manifestFolders["bin"].size(), 2);
-    ASSERT_EQ(fileSources.size(), 14);
+    ASSERT_EQ(fileSources.size(), 3);
  
     // test that manifest can't add binaries after finalizing
     manifestPtr -> finalize();
@@ -311,7 +311,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     }, std::runtime_error);
  
     ASSERT_EQ(manifestFolders["bin"].size(), 2);
-    ASSERT_EQ(fileSources.size(), 14);
+    ASSERT_EQ(fileSources.size(), 3);
 }
 
 TEST_F(CTIManifestUnitTest, addLibrary) {
@@ -356,9 +356,9 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
 
     // test that manifest can add libraries with Manifest::DepsPolicy::Stage
     manifestPtr -> addLibrary("../test_support/one_printer", Manifest::DepsPolicy::Stage);
-    ASSERT_EQ(manifestFolders["lib"].size(), 14);
-    ASSERT_EQ(fileSources.size(), 14);
-    ASSERT_STREQ((*std::next(manifestFolders["lib"].begin(), 1)).c_str(), "libcraymath.so.1");
+    ASSERT_EQ(manifestFolders["lib"].size(), 3);
+    ASSERT_EQ(fileSources.size(), 3);
+    ASSERT_STREQ((*std::next(manifestFolders["lib"].begin(), 1)).c_str(), "libprint.so");
  
     // test that manifest does not add libraries that don't exist
     ASSERT_THROW({
@@ -370,8 +370,8 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
         }
     }, std::runtime_error);
  
-    ASSERT_EQ(manifestFolders["lib"].size(), 14);
-    ASSERT_EQ(fileSources.size(), 14);
+    ASSERT_EQ(manifestFolders["lib"].size(), 3);
+    ASSERT_EQ(fileSources.size(), 3);
  
     // test that a library can't be added after manifest shipped
  
@@ -385,8 +385,8 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
         }
     }, std::runtime_error);
  
-    ASSERT_EQ(manifestFolders["lib"].size(), 14);
-    ASSERT_EQ(fileSources.size(), 14);
+    ASSERT_EQ(manifestFolders["lib"].size(), 3);
+    ASSERT_EQ(fileSources.size(), 3);
 }
 
 TEST_F(CTIManifestUnitTest, addLibDir) {

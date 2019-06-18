@@ -21,6 +21,7 @@
 
 // Unit Test includes
 #include "cti_fe_unit_test.hpp"
+#include "cti_archive_unit_test.hpp"
 #include "cti_session_unit_test.hpp"
 #include "cti_manifest_unit_test.hpp"
 
