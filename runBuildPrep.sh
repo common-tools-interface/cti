@@ -14,7 +14,7 @@
 # TODO: Once we move away from monolithic builds, point at the proper repositories
 # ./add_rpm_repo.sh http://car.dev.cray.com/artifactory/internal/PE-CDST/ /x86_64/dev/master/
 
-gcc_ver=6.1.0
+gcc_ver=8.1.0
 
 function check_exit_status(){
 
@@ -83,8 +83,6 @@ else
   echo "Unable to determine Jenkins BUILD_NUMBER"
   exit 1
 fi
-
-
 
 echo "############################################"
 echo "#      Generating configure files          #"
