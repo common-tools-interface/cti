@@ -46,8 +46,14 @@ check_exit_status $? mksh
 zypper --non-interactive --no-gpg-check install bzip2
 check_exit_status $? bzip2
 
+zypper --non-interactive --no-gpg-check install libbz2-devel
+check_exit_status $? libbz2-devel
+
 zypper --non-interactive --no-gpg-check install liblzma5
 check_exit_status $? liblzma5
+
+zypper --non-interactive --no-gpg-check install xz-devel
+check_exit_status $? xz-devel
 
 zypper --non-interactive --no-gpg-check install tcl
 check_exit_status $? tcl
