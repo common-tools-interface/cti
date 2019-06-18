@@ -23,7 +23,7 @@ libfe_daemon_iface_la_LDFLAGS  = -static -Wl,--no-undefined
 
 libexec_PROGRAMS		= 	cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@
 
-cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_SOURCES  = cti_fe_daemon.cpp $(SRC)/useful/ArgvDefs-c++11-workaround.cpp
+cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_SOURCES  = cti_fe_daemon.cpp 
 cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_CPPFLAGS = $(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
 cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_CXXFLAGS = $(AM_CFLAGS) $(AM_CXXFLAGS) $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
 cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_LDFLAGS  = -Wl,--no-undefined -Wl,--as-needed -Wl,-rpath,\$$ORIGIN/../lib -pthread $(DYNINST_LDFLAGS) $(BOOST_LDFLAGS)
