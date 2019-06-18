@@ -25,6 +25,11 @@ then
   cat external/elfutils/tests/test-suite.log
 
   echo "############################################"
+  echo "#             libssh2 Test Log             #"
+  echo "############################################"
+  cat external/libssh2/tests/test-suite.log
+
+  echo "############################################"
   echo "#              Unit Test Log               #"
   echo "############################################"
   cat tests/unit/test-suite.log
