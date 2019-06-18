@@ -17,7 +17,7 @@ AM_CFLAGS		= -Wall -I$(SRC) -I.
 
 noinst_LTLIBRARIES      = libuseful.la
 
-libuseful_la_SOURCES    = 	cti_log.c cti_path.c cti_stack.c ArgvDefs-c++11-workaround.cpp
+libuseful_la_SOURCES    = 	cti_log.c cti_path.c cti_stack.c
 libuseful_la_CFLAGS     = 	$(AM_CFLAGS) -fPIC
 libuseful_la_CXXFLAGS   = 	$(AM_CXXFLAGS) $(libuseful_la_CFLAGS)
 libuseful_la_LIBADD		=	ld_val/libld_val.la

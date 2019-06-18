@@ -270,7 +270,8 @@ static inline bool
 dirHasPerms(char const* dirPath, int const perms)
 {
     struct stat st;
-    return !stat(dirPath, &st) // make sure this directory exists
+    return dirPath != nullptr
+        && !stat(dirPath, &st) // make sure this directory exists
         && S_ISDIR(st.st_mode) // make sure it is a directory
         && !access(dirPath, perms); // check that the directory has the desired permissions
 }
@@ -280,7 +281,8 @@ static inline bool
 fileHasPerms(char const* filePath, int const perms)
 {
     struct stat st;
-    return !stat(filePath, &st) // make sure this directory exists
+    return filePath != nullptr
+        && !stat(filePath, &st) // make sure this directory exists
         && S_ISREG(st.st_mode)  // make sure it is a regular file
         && !access(filePath, perms); // check that the file has the desired permissions
 }
