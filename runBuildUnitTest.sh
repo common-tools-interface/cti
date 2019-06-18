@@ -22,7 +22,7 @@ then
   echo "############################################"
   echo "#            Elfutils Test Log             #"
   echo "############################################"
-  cat external/elfutils/tests/test-suit.log
+  cat external/elfutils/tests/test-suite.log
 
   echo "############################################"
   echo "#              Unit Test Log               #"
