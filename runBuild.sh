@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 # runBuild.sh - Build steps for CTI
 #

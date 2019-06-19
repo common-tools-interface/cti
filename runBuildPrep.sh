@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 # runBuildPrep.sh - Preps the build environment
 #

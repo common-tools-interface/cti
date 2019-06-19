@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 # runUnitTest.sh - Build steps for CTI
 #

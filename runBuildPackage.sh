@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 # runBuildPackage.sh - Package steps for CTI
 #
