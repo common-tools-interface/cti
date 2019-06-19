@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 # runPostBuild.sh - Build delivery steps for CTI
 #
