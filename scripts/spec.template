@@ -16,6 +16,8 @@ Source: [tarball]
 BuildRoot: %{_tmppath}/%{name}-root
 Prefix: /opt/cray/pe
 Provides: %{namespace}-%{intranamespace_name} = %{build_version}
+Requires: cray-gcc-8.1.0
+
 
 %define _use_internal_dependency_generator 0
 %define __find_requires %{curPath}/scripts/find-requires
@@ -52,6 +54,7 @@ mkdir -p %{buildroot}%{_version_prefix}
 
 cp -R ${CUR_DIR}%{_version_prefix} %{buildroot}/%{_name_prefix}/
 rm -rf %{buildroot}/%{_version_prefix}/modulefile
+rm -rf %{buildroot}/%{_version_prefix}/include/boost
 
 install -D ${CUR_DIR}%{_version_prefix}/release_info %{buildroot}%{_version_prefix}/
 echo "%{build_version}-%{release}" > %{buildroot}%{_version_prefix}/.cray_rpm_release
@@ -98,16 +101,12 @@ rm -f %{buildroot}%{_version_prefix}/%{build_version}
 
 %{_version_prefix}/docs/ATTRIBUTIONS_cti*.txt
 
-%{_version_prefix}/examples
 %{_version_prefix}/examples/*
 
-%{_version_prefix}/libexec
 %{_version_prefix}/libexec/*
 
-%{_version_prefix}/lib
 %{_version_prefix}/lib/*
 
-%{_version_prefix}/include
 %{_version_prefix}/include/*
 
 %{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
