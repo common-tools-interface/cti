@@ -14,7 +14,14 @@ echo "############################################"
 echo "#            Running Unit Tests            #"
 echo "############################################"
 
-make check
+# libssh2 make check requires USER to be set
+tmp_user=$USER
+if [ -z "$tmp_user" ]
+then
+    tmp_user="root"
+fi
+
+USER=$tmp_user make check
 return_code=$?
 
 if [ $return_code -ne 0 ]
