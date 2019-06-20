@@ -75,11 +75,8 @@ cti_test_fe(cti_app_id_t appId)
     // Conduct WLM specific calls
     switch (mywlm) {
         case CTI_WLM_CRAY_SLURM:
-        case CTI_WLM_SLURM:
-        case CTI_WLM_SSH:
         {
             cti_srunProc_t *    mysruninfo;
-
             /*
              * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
              */
@@ -96,13 +93,15 @@ cti_test_fe(cti_app_id_t appId)
         }
             break;
 
+        case CTI_WLM_SLURM:
+        case CTI_WLM_SSH:
+            break;
         default:
             // do nothing
             printf("Unsupported wlm!\n");
             assert(0);
             break;
     }
-
     /*
      * cti_getLauncherHostName - Returns the hostname of the login node where the
      *                           application launcher process resides.
