@@ -385,10 +385,11 @@ CraySLURMFrontend::getHostname() const
         if (auto nidFile = cti::file::try_open(filePath, "r")) {
             int nid;
             { // We expect this file to have a numeric value giving our current Node ID.
-                char buf[BUFSIZ];
+                char buf[BUFSIZ + 1];
                 if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
                     throw std::runtime_error("_cti_cray_slurm_getHostname fgets failed.");
                 }
+                buf[BUFSIZ] = '\0';
                 nid = std::stoi(std::string{buf});
             }
 
@@ -405,6 +406,7 @@ CraySLURMFrontend::getHostname() const
 
                     // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
                     // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
+                    // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
                     auto const macVlanHostname = hostname + "-nmn";
 
                     // Look up and return IPv4 address instead of hostname

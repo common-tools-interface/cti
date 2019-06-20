@@ -33,10 +33,10 @@ external/wlm_detect_base
 .deps
 .libs
 
+src/frontend/daemon/cti_fe_daemon*
+src/backend/daemon/cti_be_daemon*
+
 src/cscope.out
-src/daemon/cti_dlaunch*
-src/useful/cti_overwatch
-src/useful/cti_splice_out_err
 /stamp-h1
 tests/test_binaries
 cscope.out
