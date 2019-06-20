@@ -31,6 +31,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include <sys/socket.h>
+#include <netdb.h>
+
 // Pull in manifest to properly define all the forward declarations
 #include "cti_transfer/Manifest.hpp"
 
@@ -353,6 +356,32 @@ std::string
 CraySLURMFrontend::getHostname() const
 {
     auto tryParseHostnameFile = [](char const* filePath) {
+
+        auto resolveHostname = [](std::string const& hostname) {
+            constexpr auto MAXADDRLEN = 15;
+
+            // Get hostname information
+            struct addrinfo hints;
+            memset(&hints, 0, sizeof(hints));
+            hints.ai_family = AF_INET;
+            struct addrinfo *infoptr = NULL;
+            if (getaddrinfo(hostname.c_str(), NULL, &hints, &infoptr) || !infoptr) {
+                throw std::runtime_error("failed to resolve hostname " + hostname + strerror(errno));
+            }
+
+            // Extract IP address string
+            char ip_addr[MAXADDRLEN + 1];
+            if (auto const rc = getnameinfo(infoptr->ai_addr, infoptr->ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
+                 freeaddrinfo(infoptr);
+                 throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
+            }
+            freeaddrinfo(infoptr);
+            ip_addr[MAXADDRLEN] = '\0';
+
+            return std::string{ip_addr};
+        };
+
+        // File is present on XC systems
         if (auto nidFile = cti::file::try_open(filePath, "r")) {
             int nid;
             { // We expect this file to have a numeric value giving our current Node ID.
@@ -366,8 +395,26 @@ CraySLURMFrontend::getHostname() const
             // Use the NID to create the standard hostname format.
             return cti::cstr::asprintf(CRAY_HOSTNAME_FMT, nid);
 
+        // File is not present on Shasta
         } else {
-            return cti::cstr::gethostname();
+
+            // Detect if running on UAI
+            // UAI hostnames start with 'uai-'
+            auto const hostname = cti::cstr::gethostname();
+            if (hostname.substr(0, 4) == "uai-") {
+
+                    // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
+                    // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
+                    auto const macVlanHostname = hostname + "-nmn";
+
+                    // Look up and return IPv4 address instead of hostname
+                    // UAS hostnames cannot be resolved on compute node
+                    return resolveHostname(macVlanHostname);
+            } else {
+
+                    // Assume not UAI, resolve normal hostname
+                    return resolveHostname(hostname);
+            }
         }
     };
 
