@@ -18,7 +18,6 @@ Prefix: /opt/cray/pe
 Provides: %{namespace}-%{intranamespace_name} = %{build_version}
 Requires: cray-gcc-8.1.0
 
-
 %define _use_internal_dependency_generator 0
 %define __find_requires %{curPath}/scripts/find-requires
 %define debug_package %{nil}
@@ -69,7 +68,6 @@ mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/
 install -D ${CUR_DIR}%{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} \
             %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
-
 mkdir -p %{buildroot}%{_version_prefix}/docs/
 
 install -D ${CUR_DIR}/../../extras/docs/ATTRIBUTIONS_cti.txt \
@@ -78,6 +76,12 @@ install -D ${CUR_DIR}/../../extras/docs/ATTRIBUTIONS_cti.txt \
 mkdir -p %{buildroot}%{_version_prefix}/examples
 
 install -D ${CUR_DIR}/../../examples/* %{buildroot}%{_version_prefix}/examples/
+
+mkdir -p %{buildroot}/etc%{_namespace_prefix}/admin-pe/bindmount.conf.d
+echo %{_namespace_prefix}/%{intranamespace_name} > %{buildroot}/etc%{_namespace_prefix}/admin-pe/bindmount.conf.d/%{intranamespace_name}.conf
+
+mkdir -p %{buildroot}/etc%{_namespace_prefix}/admin-pe/modulepaths.conf.d
+echo %{_name_moduledir} > %{buildroot}/etc%{_namespace_prefix}/admin-pe/modulepaths.conf.d/%{intranamespace_name}.conf
 
 #clean  up unwanted content in install dir (/opt/cray/pe/cti/version)
 rm -rf %{buildroot}%{_version_prefix}/lib/cmake
@@ -101,12 +105,16 @@ rm -f %{buildroot}%{_version_prefix}/%{build_version}
 
 %{_version_prefix}/docs/ATTRIBUTIONS_cti*.txt
 
+%{_version_prefix}/examples
 %{_version_prefix}/examples/*
 
+%{_version_prefix}/libexec
 %{_version_prefix}/libexec/*
 
+%{_version_prefix}/lib
 %{_version_prefix}/lib/*
 
+%{_version_prefix}/include
 %{_version_prefix}/include/*
 
 %{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
@@ -114,6 +122,8 @@ rm -f %{buildroot}%{_version_prefix}/%{build_version}
 %{_version_prefix}/.cray_rpm_release
 %{_version_prefix}/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 %{_version_prefix}/release_info
+/etc%{_namespace_prefix}/admin-pe/bindmount.conf.d/%{intranamespace_name}.conf
+/etc%{_namespace_prefix}/admin-pe/modulepaths.conf.d/%{intranamespace_name}.conf
 %{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
 %{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
