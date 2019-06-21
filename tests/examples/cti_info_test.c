@@ -28,6 +28,7 @@
 const struct option long_opts[] = {
     {"jobid",       required_argument,  0, 'j'},
     {"stepid",      required_argument,  0, 's'},
+    {"pid",         required_argument,  0, 'p'},
     {"help",        no_argument,        0, 'h'},
     {0, 0, 0, 0}
     };
@@ -41,6 +42,7 @@ usage(char *name)
 
     fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
     fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");
+    fprintf(stdout, "\t-p, --pid       pid of launcher process - SSH WLM only.");
     fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
 
     return;
@@ -54,8 +56,10 @@ main(int argc, char **argv)
     char *              eptr;
     int                 j_arg = 0;
     int                 s_arg = 0;
+    int                 p_arg = 0;
     uint32_t            job_id = 0;
     uint32_t            step_id = 0;
+    pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
     cti_wlm_type        mywlm;
     cti_app_id_t        myapp;
@@ -67,7 +71,7 @@ main(int argc, char **argv)
     }
 
     // process longopts
-    while ((c = getopt_long(argc, argv, "j:s:h", long_opts, &opt_ind)) != -1) {
+    while ((c = getopt_long(argc, argv, "j:s:p:h", long_opts, &opt_ind)) != -1) {
         switch (c) {
             case 0:
                 // if this is a flag, do nothing
@@ -133,6 +137,36 @@ main(int argc, char **argv)
 
                 break;
 
+            case 'p':
+                if (optarg == NULL) {
+                    usage(argv[0]);
+                    assert(0);
+                    return 1;
+                }
+
+                // This is the pid of the launcher process
+                errno = 0;
+                launcher_pid = (pid_t)strtol(optarg, &eptr, 10);
+
+                // check for error
+                if ((errno == ERANGE && step_id == ULONG_MAX)
+                        || (errno != 0 && step_id == 0)) {
+                    perror("strtol");
+                    assert(0);
+                    return 1;
+                }
+
+                // check for invalid input
+                if (eptr == optarg || *eptr != '\0') {
+                    fprintf(stderr, "Invalid --pid argument.\n");
+                    assert(0);
+                    return 1;
+                }
+
+                p_arg = 1;
+
+                break;
+
             case 'h':
                 usage(argv[0]);
                 assert(0);
@@ -154,8 +188,6 @@ main(int argc, char **argv)
     // Check the args to make sure they are valid given the wlm in use
     switch (mywlm) {
         case CTI_WLM_CRAY_SLURM:
-        case CTI_WLM_SLURM:
-        case CTI_WLM_SSH:
             if (j_arg == 0 || s_arg == 0) {
                 fprintf(stderr, "Error: Missing --jobid and --stepid argument. This is required for the SLURM WLM.\n");
             }
@@ -163,6 +195,19 @@ main(int argc, char **argv)
             myapp = cti_cray_slurm_registerJobStep(job_id, step_id);
             if (myapp == 0) {
                 fprintf(stderr, "Error: cti_cray_slurm_registerJobStep failed!\n");
+                fprintf(stderr, "CTI error: %s\n", cti_error_str());
+            }
+            assert(myapp != 0);
+            break;
+
+        case CTI_WLM_SSH:
+            if (p_arg == 0) {
+                fprintf(stderr, "Error: Missing --pid argument. This is required for the generic WLM.\n");
+            }
+            assert(p_arg != 0);
+            myapp = cti_ssh_registerJob(launcher_pid);
+            if (myapp == 0) {
+                fprintf(stderr, "Error: cti_ssh_registerJob failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
             }
             assert(myapp != 0);
