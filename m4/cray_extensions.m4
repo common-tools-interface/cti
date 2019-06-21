@@ -43,6 +43,10 @@ AC_DEFUN([cray_INIT],
 	if test ! -d "${CRAYTOOL_EXTERNAL_INSTALL}"; then
 		AS_MKDIR_P([${CRAYTOOL_EXTERNAL_INSTALL}])
 	fi
+
+	if [[ -z "${NUM_JOBS}" ]]; then
+		NUM_JOBS=32
+	fi
 ])
 
 dnl
@@ -81,7 +85,7 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 	 		)
 
 	dnl make
-	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j${NUM_JOBS} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[libarchive make failed.]],
 	 		[]
@@ -148,14 +152,14 @@ AC_DEFUN([cray_BUILD_LIBSSH2],
 	AC_MSG_NOTICE([Staging libssh2...])
 
 	dnl make
-	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j${NUM_JOBS} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[libssh2 make failed.]],
 	 		[]
 	 		)
 
 	dnl install to stage - this also gets included in final package
-	make -j8 install prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j${NUM_JOBS} install prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[libssh2 make install failed.]],
 	 		[cray_cv_lib_ssh2_build=yes]
@@ -215,14 +219,14 @@ AC_DEFUN([cray_CONF_ELFUTILS],
 	AC_MSG_NOTICE([Staging elfutils...])
 
 	dnl make
-	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j${NUM_JOBS} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[elfutils make failed.]],
 	 		[]
 	 		)
 
 	dnl install to stage - this also gets included in final package
-	make -j8 install prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j${NUM_JOBS} install prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[elfutils make install failed.]],
 	 		[cray_cv_elfutils_conf=yes]
@@ -280,10 +284,10 @@ AC_DEFUN([cray_BUILD_BOOST],
 	 		)
 
 	dnl pre-build boost libraries
-	./b2 -j32 stage >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	./b2 -j${NUM_JOBS} stage >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl install to temporary staging location for internal use
-	./b2 -j32 --prefix=${CRAYTOOL_EXTERNAL_INSTALL} install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	./b2 -j${NUM_JOBS} --prefix=${CRAYTOOL_EXTERNAL_INSTALL} install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[boost b2 stage failed.]],
@@ -337,7 +341,7 @@ AC_DEFUN([cray_BUILD_TBB],
 
 	save_LDFLAGS="$LDFLAGS"
 	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
-	tbb_os=linux make -j8 tbb tbbmalloc tbb_build_dir=$_cray_tmpdir tbb_build_prefix=tbb >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	tbb_os=linux make -j${NUM_JOBS} tbb tbbmalloc tbb_build_dir=$_cray_tmpdir tbb_build_prefix=tbb >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test ! -f "$_cray_tmpdir/tbb_release/libtbb.so"],
 			[AC_MSG_ERROR[tbb build failed.]],
@@ -397,7 +401,7 @@ AC_DEFUN([cray_BUILD_DYNINST],
 			)
 
 	dnl make
-	make -j8 >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j${NUM_JOBS} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[dyninst make failed.]],
 	 		[]
