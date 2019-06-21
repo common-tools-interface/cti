@@ -20,13 +20,30 @@ EXAMPLES_PATH = "%s/../examples" % FUNCTIONAL_TESTS_PATH
 SUPPORT_PATH  = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
 
 '''
-cti_barrier launches a binary, holds it at the startup barrier until
-the user presses enter.
-to automate: pipe from `yes`
+Basic test to make sure that the avocado environment
+is functioning properly. Should always pass.
 '''
+
 class SimpTest(Test):
     def test(self):
         process.run("./simp_test.sh", shell = True)
+
+'''
+Test that executes the google tests
+included in ./function_tests
+'''
+
+class GTest(Test):
+    def test(self):
+        try:
+            process.run("./launch_functional_test.sh ./function_tests", shell = True)
+        except process.CmdError:
+            self.fail("Google tests failed. See log for more details")
+'''
+Test that cti is properly identifying
+its workload managers. In this case
+both should not be detected.
+'''
 
 class CTILinkTestNoWLM(Test):
     def test(self):
@@ -40,6 +57,12 @@ class CTILinkTestNoWLM(Test):
                 break
             else:
                 self.fail("")
+'''
+Test that cti is properly identifying
+its workload managers. In this case
+a FE workload manager should be detected
+as SNP launcher is now being used
+'''
 
 class CTILinkTestWLM(Test):
     def test(self):
