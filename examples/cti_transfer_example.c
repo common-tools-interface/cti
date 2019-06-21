@@ -129,8 +129,6 @@ main(int argc, char **argv)
 	switch (mywlm)
 	{
 		case CTI_WLM_CRAY_SLURM:
-	    case CTI_WLM_SLURM:	
-        case CTI_WLM_SSH:
 		{
 			cti_srunProc_t *	mysruninfo;
 
@@ -151,6 +149,9 @@ main(int argc, char **argv)
 			 }
 		}
 			break;
+
+        case CTI_WLM_SSH:
+            break;
 			
 		default:
 			// do nothing

@@ -16,6 +16,6 @@
 
 #include "cray_tools_fe.h"
 
-void	cti_test_fe(cti_app_id_t);
+void    cti_test_fe(cti_app_id_t);
 
 #endif /* _CTI_FE_COMMON_H */

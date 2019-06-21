@@ -13,6 +13,7 @@
 SRC             = @CRAYTOOL_DIR@/src
 SUPPORT         = @CRAYTOOL_DIR@/tests/test_support
 MOCK            = @CRAYTOOL_DIR@/tests/mock
+EXTERNAL		= @CRAYTOOL_DIR@/include
 
 GTEST           = $(SUPPORT)/googletest/googletest
 GMOCK           = $(SUPPORT)/googletest/googlemock
@@ -25,9 +26,11 @@ TESTS = unit_tests
 check_PROGRAMS = unit_tests
 
 # unit test binary
-unit_tests_SOURCES  = unit_tests.cpp cti_fe_unit_test.cpp cti_archive_unit_test.cpp cti_manifest_unit_test.cpp cti_session_unit_test.cpp
+unit_tests_SOURCES  = unit_tests.cpp cti_fe_unit_test.cpp cti_archive_unit_test.cpp \
+					  cti_manifest_unit_test.cpp cti_session_unit_test.cpp \
+					  cti_header_unit_test.cpp
 
-unit_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) \
+unit_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(EXTERNAL) \
 	-I$(GTEST)/include -I$(GTEST) \
 	-I$(GMOCK)/include -I$(GMOCK) \
 	$(ARCHIVE_CFLAGS) \
