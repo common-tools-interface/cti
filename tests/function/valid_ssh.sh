@@ -11,6 +11,7 @@ else
             CURRENT_KEYS="./authorized_keys"
             if grep -Fxq "$YOUR_KEY" "$CURRENT_KEYS" ; then
                 echo "Public key present in authorized keys. Failed to determine cause of failure"
+                exit 1
             else
                 echo "Public key not present in authorized keys file. Considering adding it to it using cat id_rsa.pub >> authorized_keys"
                 exit 1
