@@ -25,19 +25,23 @@ if mkdir avocado-virtual-environment && cd avocado-virtual-environment ; then
                 echo "Cleaning up..."
 	        cd ../
                 rm -r avocado-virtual-environment
+                exit 1
             fi
         else
             echo "Failed to activate python virtual environment"
             echo "Cleaning up..."
             cd ../
             rm -r avocado-virtual-environment
+            exit 1
         fi
     else
         echo "Failed to create python virtual environment"
         echo "Cleaning up..."
         cd ../
         rm -r avocado-virtual-environment
+        exit 1
     fi
 else
     echo "Failed to create avocado-virtual-environment directory"
+    exit 1
 fi
