@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 # runUnitTest.sh - Build steps for CTI
 #
@@ -14,10 +14,36 @@ echo "############################################"
 echo "#            Running Unit Tests            #"
 echo "############################################"
 
-make check
+# libssh2 make check requires USER to be set
+tmp_user=$USER
+if [ -z "$tmp_user" ]
+then
+    tmp_user="root"
+fi
+
+USER=$tmp_user make check
+return_code=$?
+
+if [ $return_code -ne 0 ]
+then
+  echo "############################################"
+  echo "#            Elfutils Test Log             #"
+  echo "############################################"
+  cat external/elfutils/tests/test-suite.log
+
+  echo "############################################"
+  echo "#             libssh2 Test Log             #"
+  echo "############################################"
+  cat external/libssh2/tests/test-suite.log
+
+  echo "############################################"
+  echo "#              Unit Test Log               #"
+  echo "############################################"
+  cat tests/unit/test-suite.log
+fi
 
 echo "############################################"
 echo "#              Done with Tests             #"
 echo "############################################"
 
-exit 0
+exit $return_code

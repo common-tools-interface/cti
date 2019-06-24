@@ -93,9 +93,10 @@ cti_test_fe(cti_app_id_t appId)
         }
             break;
 
-        case CTI_WLM_SLURM:
+
         case CTI_WLM_SSH:
             break;
+
         default:
             // do nothing
             printf("Unsupported wlm!\n");
