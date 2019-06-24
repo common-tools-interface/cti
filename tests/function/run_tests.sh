@@ -2,6 +2,7 @@
 if test ./avocado-virtual-environment ; then
     echo "Valid avocado virtual environment for testing..."
     if ./valid_ssh.sh ; then
+        module load cray-snplauncher
         export MPIEXEC_TIMEOUT=10
         export CRAY_CTI_DIR=$PWD/../../install
         export CRAY_CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
