@@ -74,7 +74,6 @@ class CtiTransferTest(Test):
 			"%s/one_printer" % SUPPORT_PATH],
 			env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
 			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-
 		for line in iter(proc.stdout.readline, ''):
 			if line[:4] == 'srun':
 				# give tool daemon time to execute
@@ -89,6 +88,8 @@ class CtiTransferTest(Test):
 				proc.stdin.close()
 				proc.wait()
 				break
+			elif line.decode("utf-8") == '':
+				self.fail("CTi_Transfer failed")
 
 '''
 cti_info fetches information about a running job.
@@ -121,5 +122,4 @@ class CtiInfoTest(Test):
 				proc.stdin.close()
 				proc.wait()
 				break
-
 		self.assertTrue(jobid is not None and stepid is not None)

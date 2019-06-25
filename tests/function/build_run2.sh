@@ -39,9 +39,7 @@ setup_avocado() {
                 if pip install avocado-framework ; then
  
                 #Install additional avocado plugins
-                #pip install avocado-framework-plugin-loader-yaml
-                #pip install avocado-framework-plugin-varianter-yaml-to-mux
-
+                pip install avocado-framework-plugin-loader-yaml
                 #Configure avocado
                     if mkdir job-results ; then
                         PYTHON_VERSION="$(ls $PWD/avocado/lib/)" 
@@ -86,7 +84,7 @@ run_tests() {
         export CRAY_CTI_DIR=$PWD/../../install
         export CRAY_CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
         export CRAY_CTI_WLM=generic
-        ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py
+        ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py --mux-yaml ./avocado_test_params.yaml
     else
         echo "No avocado environment setup. Cannot execute tests"
         return 1
