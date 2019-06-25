@@ -33,16 +33,16 @@ to automate: pipe from `yes`
 '''
 class CtiBarrierTest(Test):
 	def test(self):
-		process.run("yes | %s/cti_barrier %s/one_printer"
-			% (EXAMPLES_PATH, SUPPORT_PATH), shell = True)
+		process.run("yes | %s/cti_barrier %s/basic_hello_mpi"
+			% (EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
 
 '''
 cti_launch launches a binary and prints out various information about the job.
 '''
 class CtiLaunchTest(Test):
 	def test(self):
-		process.run("%s/cti_launch %s/one_printer"
-			% (EXAMPLES_PATH, SUPPORT_PATH), shell = True)
+		process.run("%s/cti_launch %s/basic_hello_mpi"
+			% (EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
 
 '''
 cti_callback launches a binary and holds it at startup. meanwhile, it launches
@@ -52,8 +52,8 @@ to automate: pipe from `yes` and launch with custom PATH
 '''
 class CtiCallbackTest(Test):
 	def test(self):
-		process.run("yes | PATH=%s:$PATH %s/cti_callback %s/one_printer"
-			% (EXAMPLES_PATH, EXAMPLES_PATH, SUPPORT_PATH), shell = True)
+		process.run("yes | PATH=%s:$PATH %s/cti_callback %s/basic_hello_mpi"
+			% (EXAMPLES_PATH, EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
 
 '''
 cti_link tests that programs can be linked against the FE/BE libraries.
@@ -71,7 +71,7 @@ to automate: launch with custom PATH, extract and run the verification command
 class CtiTransferTest(Test):
 	def test(self):
 		proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_transfer" % EXAMPLES_PATH,
-			"%s/one_printer" % SUPPORT_PATH],
+			"%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
 			env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
 			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
 		for line in iter(proc.stdout.readline, ''):
@@ -89,7 +89,7 @@ class CtiTransferTest(Test):
 				proc.wait()
 				break
 			elif line.decode("utf-8") == '':
-				self.fail("CTi_Transfer failed")
+				self.fail("CTi_Transfer: Incorrect STDOUT result")
 
 '''
 cti_info fetches information about a running job.
@@ -98,7 +98,7 @@ to automate: hold a program at startup with cti_barrier, parse the job/stepid
 class CtiInfoTest(Test):
 	def test(self):
 		proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % EXAMPLES_PATH,
-			"%s/one_printer" % SUPPORT_PATH],
+			"%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
 			# env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
 			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
 

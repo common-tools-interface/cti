@@ -81,6 +81,7 @@ run_tests() {
         echo "Valid avocado virtual environment for testing..."
         module load cray-snplauncher
         export MPIEXEC_TIMEOUT=10
+        export MPICH_SMP_SINGLE_COPY_OFF=0
         export CRAY_CTI_DIR=$PWD/../../install
         export CRAY_CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
         export CRAY_CTI_WLM=generic
@@ -91,16 +92,35 @@ run_tests() {
     fi
 }
 
+create_mpi_app() {
+    if test -f ./basic_hello_mpi ; then
+        echo "MPI app already compiled..."
+    else
+        echo "Compiling basic mpi application for use in testing script..."
+        module load cray-snplauncher
+        export MPICH_SMP_SINGLE_COPY_OFF=0
+        if cc -o basic_hello_mpi hello_mpi.c ; then
+            echo "Application successfully compiled into 'basic_hello_mpi'"
+        else
+            echo "Failed to compile MPI application. Aborting..."
+            exit 1
+        fi
+    fi
+}
+
 # test if avocado environment exists. If it does don't remake it.
 if test -d ./avocado-virtual-environment ; then
     if valid_ssh ; then
-        run_tests
+        if create_mpi_app ; then
+            run_tests
+        fi
     fi
 else
     if setup_avocado ; then
-        #If mpi apps can run
         if valid_ssh ; then
-            run_tests
+            if create_mpi_app ; then
+                run_tests
+            fi
         fi
 
     fi
