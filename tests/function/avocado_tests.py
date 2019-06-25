@@ -26,6 +26,7 @@ class FunctionTest(Test):
 	def test(self):
 		process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
 '''
+
 '''
 cti_barrier launches a binary, holds it at the startup barrier until
 the user presses enter.
@@ -75,6 +76,7 @@ class CtiTransferTest(Test):
 			env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
 			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
 		for line in iter(proc.stdout.readline, ''):
+			print(line)
 			if line[:4] == 'srun':
 				# give tool daemon time to execute
 				time.sleep(5)
@@ -101,10 +103,25 @@ class CtiInfoTest(Test):
 			"%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
 			# env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
 			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+		proc_pid = proc.pid
+		if proc_pid is not None:
+			print(proc_pid)
+			time.sleep(4)
+			# run cti_info
+			process.run("%s/cti_info --pid %s" %
+			(EXAMPLES_PATH, proc_pid), shell = True)
 
+			# release barrier
+			#proc.stdin.write(b'\n')
+			#proc.stdin.flush()
+			#proc.stdin.close()
+			#proc.wait()
+		self.assertTrue(proc_pid is not None)
+		'''
 		jobid = None
 		stepid = None
 		for line in iter(proc.stdout.readline, ''):
+			print(line)
 			line = line.rstrip()
 			if line[:5] == 'jobid':
 				jobid = line.split()[-1]
@@ -123,3 +140,4 @@ class CtiInfoTest(Test):
 				proc.wait()
 				break
 		self.assertTrue(jobid is not None and stepid is not None)
+		'''
