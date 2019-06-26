@@ -96,6 +96,18 @@ create_mpi_app() {
 #    BEGIN MAIN SCRIPT    #
 ###########################
 
+# check that the path to tests/function relative to current
+# directory was provided. If not simply exit.
+
+START_DIR=$PWD
+cd ${1:-./}
+
+# if not in the proper directory. check by comparing against file in functional tests
+if ! test -f ./avocado_tests.py ; then
+    echo "Invalid path to functional tests directory provided"
+    exit 1
+fi
+
 # test if avocado environment exists. If it does don't remake it.
 if ! test -d ./avocado-virtual-environment ; then
     if ! setup_avocado ; then
@@ -107,3 +119,5 @@ if valid_ssh ; then
          run_tests
     fi
 fi
+
+cd $START_DIR
