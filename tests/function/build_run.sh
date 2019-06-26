@@ -97,20 +97,13 @@ create_mpi_app() {
 ###########################
 
 # test if avocado environment exists. If it does don't remake it.
-if test -d ./avocado-virtual-environment ; then
-    if valid_ssh ; then
-        if create_mpi_app ; then
-            run_tests
-        fi
-    fi
-else
-    if setup_avocado ; then
-        if valid_ssh ; then
-            if create_mpi_app ; then
-                run_tests
-            fi
-        fi
-
+if ! test -d ./avocado-virtual-environment ; then
+    if ! setup_avocado ; then
+        exit 1
     fi
 fi
-
+if valid_ssh ; then
+    if create_mpi_app ; then
+         run_tests
+    fi
+fi
