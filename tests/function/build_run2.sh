@@ -1,33 +1,52 @@
 #!/bin/bash
-
-valid_ssh () {
+       
+valid_ssh(){
     if ssh -o PreferredAuthentications=publickey $HOSTNAME /bin/true exit ; then
         echo "SSH is properly setup for functional testing"
     else
         echo "SSH is not properly setup for functional testing"
         echo "Attempting to diagnose issue..."
-        if test ~/.ssh ; then
-            if test -f ~/.ssh/id_rsa.pub ; then
-                echo "Public ssh key exists..."
-                YOUR_KEY="$(cat ~/.ssh/id_rsa.pub)"
-                CURRENT_KEYS="~/.ssh/authorized_keys"
-                if grep -Fxq "$YOUR_KEY" "$CURRENT_KEYS" ; then
-                    echo "Public key present in authorized keys. Failed to determine cause of failure"
-                    return 0
-                else
-                    echo "Public key not present in authorized keys file. Considering adding it to it using cat id_rsa.pub >> authorized_keys"
-                    return 0
-                fi
+        if ! test ~/.ssh ; then
+            echo "No .ssh directory. Creating one..."
+            if mkdir ~/.ssh ; then
+               touch ~/.ssh/authorized_keys
+               echo "Successfully created ~/.ssh and required authroized_keys file"
             else
-                echo "Public ssh key does not exist. Consider making one using githubs ssh key creator"
+               echo "Failed to create directory."
+               return 0
+            fi
+        fi
+        if ! test -f ~/.ssh/id_rsa.pub ; then
+            echo "No public ssh key exists. Creating one..."
+            YOUR_EMAIL="${USER}@cray.com"
+            if ssh-keygen -t rsa -N "" -C "$YOUR_EMAIL" ; then
+                echo "Public ssh key generated as ~/.ssh/id_rsa.pub with no password"
+            else
+                echo "Failed to generate public ssh key. Aborting..."
                 return 0
             fi
+        fi
+        YOUR_KEY="$(cat ~/.ssh/id_rsa.pub)"
+        CURRENT_KEYS="~/.ssh/authorized_keys"
+        if ! grep -Fxq "$YOUR_KEY" "$CURRENT_KEYS" ; then
+            echo "id_rsa.pub key not present in authorized keys. Attempting to append it..."
+            if $YOUR_KEY >> ~/.ssh/authroized_keys ; then
+                echo "Key successfully added. All repair/setup steps completed..."
+            else
+                echo "Failed to append key to file. Check if file exists and permissions are correct. Aborting..."
+                return 0
+            fi
+        fi
+        echo "Attempting to verify SSH again..."
+        if ssh -o PreferredAuthentications=publickey $HOSTNAME /bin/true exit ; then
+            echo "SSH now properly configured. Resuming..."
         else
-            echo ".ssh directory does not exist"
+            echo "SSH failed. Possible the current id_rsa.pub key requires a password. New key required for vaild SSH use."
             return 0
         fi
     fi
 }
+
 
 setup_avocado() {
     #Create avocado environment
@@ -107,6 +126,10 @@ create_mpi_app() {
         fi
     fi
 }
+
+###########################
+#    BEGIN MAIN SCRIPT    #
+###########################
 
 # test if avocado environment exists. If it does don't remake it.
 if test -d ./avocado-virtual-environment ; then
