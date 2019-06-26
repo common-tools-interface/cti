@@ -26,16 +26,23 @@ setup_avocado() {
             if . $PWD/avocado/bin/activate ; then
                 if pip install avocado-framework ; then
  
-                #Install additional avocado plugins
-                pip install avocado-framework-plugin-loader-yaml
-                #Configure avocado
-                    if mkdir job-results ; then
-                        PYTHON_VERSION="$(ls $PWD/avocado/lib/)" 
-                        $PYTHON ../avo_config.py $PWD $PYTHON_VERSION
-                        cd ../
+                    #Install additional avocado plugins
+                    if pip install avocado-framework-plugin-loader-yaml ; then
+                    #Configure avocado
+                        if mkdir job-results ; then
+                            PYTHON_VERSION="$(ls $PWD/avocado/lib/)" 
+                            $PYTHON ../avo_config.py $PWD $PYTHON_VERSION
+                            cd ../
+                        else
+                            echo "Failed to create job-results directory"
+                            echo "Job-results will now be stored in ~/avocado"
+                        fi
                     else
-                        echo "Failed to create job-results directory"
-                        echo "Job-results will now be stored in ~/avocado"
+                        echo "Pip failed to install required avocado yaml loader"
+                        echo "Cleaning up..."
+                        cd ../
+                        rm -r avocado-virtual-environment
+                        return 1
                     fi
                 else
                     echo "Pip failed to install avocado-framework"
@@ -67,7 +74,10 @@ setup_avocado() {
 run_tests() {
     if test -d ./avocado-virtual-environment ; then
         echo "Valid avocado virtual environment for testing..."
-        module load cray-snplauncher
+        if ! module load cray-snplauncher ; then
+            echo "Failed to load cray-snplauncher. Aborting testing..."
+            return 1
+        fi
         export MPIEXEC_TIMEOUT=10
         export MPICH_SMP_SINGLE_COPY_OFF=0
         export CRAY_CTI_DIR=$PWD/../../install
@@ -85,13 +95,16 @@ create_mpi_app() {
         echo "MPI app already compiled..."
     else
         echo "Compiling basic mpi application for use in testing script..."
-        module load cray-snplauncher
+        if ! module load cray-snplauncher ; then
+            echo "Failed to load nessecary cray-snplauncher module. Aborting..."
+            return 1
+        fi
         export MPICH_SMP_SINGLE_COPY_OFF=0
         if cc -o basic_hello_mpi hello_mpi.c ; then
             echo "Application successfully compiled into 'basic_hello_mpi'"
         else
             echo "Failed to compile MPI application. Aborting..."
-            exit 1
+            return 1
         fi
     fi
 }
