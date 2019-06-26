@@ -20,15 +20,6 @@ EXAMPLES_PATH = "%s/../examples" % FUNCTIONAL_TESTS_PATH
 SUPPORT_PATH  = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
 
 '''
-Basic test to make sure that the avocado environment
-is functioning properly. Should always pass.
-'''
-
-class SimpTest(Test):
-    def test(self):
-        process.run("./simp_test.sh", shell = True)
-
-'''
 Test that executes the google tests
 included in ./function_tests
 '''

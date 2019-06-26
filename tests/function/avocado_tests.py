@@ -24,7 +24,10 @@ function_tests runs all of the Googletest-instrumented functional tests
 
 class FunctionTest(Test):
 	def test(self):
-		process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
+		try :
+			process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
+		except process.CmdError:
+			self.fail("Google tests failed. See log for more details")
 '''
 
 '''
@@ -76,7 +79,6 @@ class CtiTransferTest(Test):
 			env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
 			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
 		for line in iter(proc.stdout.readline, ''):
-			print(line)
 			if line[:4] == 'srun':
 				# give tool daemon time to execute
 				time.sleep(5)
