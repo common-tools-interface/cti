@@ -3,7 +3,7 @@
 # This script is designed to determine whether SSH is setup properly #
 # and in the event of invalid setup remedy it in a reasonable way    #
 ######################################################################
-if ssh -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no $HOSTNAME /bin/true exit ; then
+if ssh -o PreferredAuthentications=publickey -o BatchMode=yes -o StrictHostKeyChecking=no $HOSTNAME /bin/true exit ; then
     echo "SSH is properly setup"
 else
     echo "SSH is not properly setup..."
@@ -47,7 +47,7 @@ else
         fi
     fi
     echo "Attempting to verify SSH again..."
-    if ssh -o PreferredAuthentications=publickey -o StrictHostKeyChecking=no $HOSTNAME /bin/true exit ; then
+    if ssh -o PreferredAuthentications=publickey -o BatchMode=yes -o StrictHostKeyChecking=no $HOSTNAME /bin/true exit ; then
         echo "SSH now properly configured."
     else
         echo "SSH failed. Possible the current id_rsa.pub key requires a password. New key required for vaild SSH use."
