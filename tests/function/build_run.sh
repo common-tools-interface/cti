@@ -66,11 +66,20 @@ run_tests() {
             echo "Failed to load cray-snplauncher. Aborting testing..."
             return 1
         fi
-        export MPIEXEC_TIMEOUT=10
-        export MPICH_SMP_SINGLE_COPY_OFF=0
-        export CRAY_CTI_DIR=$PWD/../../install
-        export CRAY_CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
-        export CRAY_CTI_WLM=generic
+        # check if not running on a whitebox and if so load different parameters TODO: Add different configs and expand ilst
+        if [ "$HOSTNAME" = "jupiter" ] || [ "$HOSTNAME" = "kay" ] || [ "$HOSTNAME" = "pepis" ] || [ "$HOSTNAME" = "monster" ] ; then
+            echo "Configuring non-whitebox launcher settings..."
+            export MPIEXEC_TIMEOUT=10
+            export MPICH_SMP_SINGLE_COPY_OFF=0
+            #TODO add more if nessecary
+        else
+            echo "Configuring whitebox launcher settings..."
+            export MPIEXEC_TIMEOUT=10
+            export MPICH_SMP_SINGLE_COPY_OFF=0
+            export CRAY_CTI_DIR=$PWD/../../install
+            export CRAY_CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
+            export CRAY_CTI_WLM=generic
+        fi
         ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py --mux-yaml ./avocado_test_params.yaml
     else
         echo "No avocado environment setup. Cannot execute tests"
