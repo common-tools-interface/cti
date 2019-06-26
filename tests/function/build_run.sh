@@ -5,7 +5,10 @@
 # environment, ensure a proper SSH setup, then execute #
 # all functional tests defined in ./avocado_tests.py   #
 ########################################################
-      
+
+#Contains python to use
+PYTHON=python3
+
 valid_ssh(){
    if ! ../../scripts/validate_ssh.sh ; then
        return 1
@@ -14,9 +17,10 @@ valid_ssh(){
 
 
 setup_avocado() {
+    echo "Creating avocado environment using $PYTHON"
     #Create avocado environment
     if mkdir avocado-virtual-environment && cd avocado-virtual-environment ; then
-        if python3 -m venv avocado ; then
+        if $PYTHON -m venv avocado ; then
 
             #Install avocado plugin
             if . $PWD/avocado/bin/activate ; then
@@ -27,7 +31,7 @@ setup_avocado() {
                 #Configure avocado
                     if mkdir job-results ; then
                         PYTHON_VERSION="$(ls $PWD/avocado/lib/)" 
-                        python3 ../avo_config.py $PWD $PYTHON_VERSION
+                        $PYTHON ../avo_config.py $PWD $PYTHON_VERSION
                         cd ../
                     else
                         echo "Failed to create job-results directory"
@@ -38,25 +42,25 @@ setup_avocado() {
                     echo "Cleaning up..."
                     cd ../
                     rm -r avocado-virtual-environment
-                    return 0
+                    return 1
                 fi
             else
                 echo "Failed to activate python virtual environment"
                 echo "Cleaning up..."
                 cd ../
                 rm -r avocado-virtual-environment
-                return 0
+                return 1
             fi
         else
             echo "Failed to create python virtual environment"
             echo "Cleaning up..."
             cd ../
             rm -r avocado-virtual-environment
-            return 0
+            return 1
         fi
     else
         echo "Failed to create avocado-virtual-environment directory"
-        return 0
+        return 1
     fi   
 }
 
@@ -96,9 +100,20 @@ create_mpi_app() {
 #    BEGIN MAIN SCRIPT    #
 ###########################
 
+# check that running this is feasible at all
+if ! python3 --version > /dev/null ; then
+    if ! python --version > /dev/null ; then
+        echo "No valid python install found. Exiting..."
+        exit 1
+    else
+        PYTHON=python
+    fi
+else
+PYTHON=python3
+fi
+
 # check that the path to tests/function relative to current
 # directory was provided. If not simply exit.
-
 START_DIR=$PWD
 cd ${1:-./}
 
