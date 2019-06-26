@@ -30,45 +30,33 @@ setup_avocado() {
                     if pip install avocado-framework-plugin-loader-yaml ; then
                     #Configure avocado
                         if mkdir job-results ; then
-                            PYTHON_VERSION="$(ls $PWD/avocado/lib/)" 
+                            local PYTHON_VERSION="$(ls $PWD/avocado/lib/)" 
                             $PYTHON ../avo_config.py $PWD $PYTHON_VERSION
-                            cd ../
                         else
                             echo "Failed to create job-results directory"
                             echo "Job-results will now be stored in ~/avocado"
                         fi
+                        cd ../
+                        return 0
                     else
                         echo "Pip failed to install required avocado yaml loader"
-                        echo "Cleaning up..."
-                        cd ../
-                        rm -r avocado-virtual-environment
-                        return 1
                     fi
                 else
                     echo "Pip failed to install avocado-framework"
-                    echo "Cleaning up..."
-                    cd ../
-                    rm -r avocado-virtual-environment
-                    return 1
                 fi
             else
                 echo "Failed to activate python virtual environment"
-                echo "Cleaning up..."
-                cd ../
-                rm -r avocado-virtual-environment
-                return 1
             fi
         else
             echo "Failed to create python virtual environment"
-            echo "Cleaning up..."
-            cd ../
-            rm -r avocado-virtual-environment
-            return 1
         fi
+        echo "Cleaning up..."
+        cd ../
+        rm -r avocado-virtual-environment
     else
         echo "Failed to create avocado-virtual-environment directory"
-        return 1
-    fi   
+    fi
+    return 1
 }
 
 run_tests() {
