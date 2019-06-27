@@ -74,7 +74,7 @@ run_tests() {
             #TODO add more if nessecary
         else
             echo "Configuring whitebox launcher settings..."
-            export MPIEXEC_TIMEOUT=10
+            export MPIEXEC_TIMEOUT=30
             export MPICH_SMP_SINGLE_COPY_OFF=0
             export CRAY_CTI_DIR=$PWD/../../install
             export CRAY_CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
