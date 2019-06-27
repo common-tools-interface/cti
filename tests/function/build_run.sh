@@ -66,10 +66,10 @@ run_tests() {
             echo "Failed to load cray-snplauncher. Aborting testing..."
             return 1
         fi
-        # check if not running on a whitebox and if so load different parameters TODO: Add different configs and expand ilst
+        # check if not running on a whitebox and if so load different parameters TODO: Add different configs and expand list
         if [ "$HOSTNAME" = "jupiter" ] || [ "$HOSTNAME" = "kay" ] || [ "$HOSTNAME" = "pepis" ] || [ "$HOSTNAME" = "monster" ] ; then
             echo "Configuring non-whitebox launcher settings..."
-            export MPIEXEC_TIMEOUT=10
+            export MPIEXEC_TIMEOUT=30
             export MPICH_SMP_SINGLE_COPY_OFF=0
             #TODO add more if nessecary
         else
@@ -92,11 +92,12 @@ create_mpi_app() {
         echo "MPI app already compiled..."
     else
         echo "Compiling basic mpi application for use in testing script..."
-        if ! module load cray-snplauncher ; then
-            echo "Failed to load nessecary cray-snplauncher module. Aborting..."
-            return 1
-        fi
+        module load cray-snplauncher  
+        module load modules/3.2.11.2
+        module load PrgEnv-cray
+        module load cray-mpich/7.7.8
         export MPICH_SMP_SINGLE_COPY_OFF=0
+        module list
         if cc -o basic_hello_mpi hello_mpi.c ; then
             echo "Application successfully compiled into 'basic_hello_mpi'"
         else

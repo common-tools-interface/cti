@@ -39,6 +39,8 @@ src/backend/daemon/cti_be_daemon*
 src/cscope.out
 /stamp-h1
 tests/test_binaries
+tests/function/avocado-virtual-environment
+tests/function/basic_hello_mpi
 cscope.out
 scripts/tmp
 **.o
