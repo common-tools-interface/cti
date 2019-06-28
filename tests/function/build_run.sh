@@ -10,7 +10,7 @@
 PYTHON=python3
 
 valid_ssh(){
-   if ! ../../scripts/validate_ssh.sh ; then
+   if ! ../scripts/validate_ssh.sh ; then
        return 1
    fi
 }
@@ -112,14 +112,8 @@ create_mpi_app() {
 
 # check that running this is feasible at all
 if ! python3 --version > /dev/null ; then
-    if ! python --version > /dev/null ; then
-        echo "No valid python install found. Exiting..."
-        exit 1
-    else
-        PYTHON=python
-    fi
-else
-PYTHON=python3
+    echo "No valid python install found. Exiting..."
+    exit 1
 fi
 
 # check that the path to tests/function relative to current
