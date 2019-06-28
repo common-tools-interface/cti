@@ -97,7 +97,6 @@ create_mpi_app() {
         module load PrgEnv-cray
         module load cray-mpich/7.7.8
         export MPICH_SMP_SINGLE_COPY_OFF=0
-        module list
         if cc -o basic_hello_mpi hello_mpi.c ; then
             echo "Application successfully compiled into 'basic_hello_mpi'"
         else

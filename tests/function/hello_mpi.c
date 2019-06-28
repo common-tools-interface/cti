@@ -11,7 +11,7 @@
 #include <sys/wait.h>
 #include "mpi.h"
 
-main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {
   int myRank, numProcs;
   int source, dest=0, tag=0;
   char message[100];
