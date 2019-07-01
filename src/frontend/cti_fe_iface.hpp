@@ -39,6 +39,9 @@ char **             cti_getAppHostsList(cti_app_id_t);
 cti_hostsList_t *   cti_getAppHostsPlacement(cti_app_id_t);
 void                cti_destroyHostsList(cti_hostsList_t *);
 
+// WLM ops extensions
+cti_wlm_type        cti_open_ops(void **ops);
+
 // app lifecycle management
 int                 cti_appIsValid(cti_app_id_t);
 void                cti_deregisterApp(cti_app_id_t);
@@ -71,16 +74,6 @@ int                 cti_sendManifest(cti_manifest_id_t mid);
 
 // tool daemon management
 int                 cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath, const char * const daemonArgs[], const char * const envVars[]);
-
-/* WLM-specific functions */
-
-// Cray-SLURM
-cti_srunProc_t *    cti_cray_slurm_getJobInfo(pid_t srunPid);
-cti_app_id_t        cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id);
-cti_srunProc_t *    cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
-
-// SSH
-cti_app_id_t        cti_ssh_registerJob(pid_t launcher_pid);
 
 } /* extern "C" */
 

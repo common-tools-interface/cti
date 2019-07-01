@@ -86,6 +86,10 @@
 extern "C" {
 #endif
 
+/************************************************************
+ * Types defined by the Cray tools interface frontend
+ ***********************************************************/
+
 /*
  *  This enum enumerates the various attributes that
  *  can be set by cti_setAttribute.
@@ -590,20 +594,34 @@ extern int cti_releaseAppBarrier(cti_app_id_t app_id);
 extern int cti_killApp(cti_app_id_t app_id, int signum);
 
 /*******************************************************************************
- * Cray SLURM WLM functions - Functions valid with the Cray native SLURM WLM
- *                            only.
+ * WLM specific extensions - Interface for defining WLM specific extensions.
  ******************************************************************************/
 
-// slurm specific type information
-typedef struct
-{
-    uint32_t  jobid;
-    uint32_t  stepid;
-} cti_srunProc_t;
+/*
+ * cti_open_ops - Open the WLM specific extensions for the current WLM in use
+ *                on the system
+ *
+ * Detail
+ *      This function is used to open the WLM specific interface extensions for
+ *      the current WLM in use on the system. The details of returned ops
+ *      interfaces returned are defined below for each WLM.
+ *
+ * Arguments
+ *      ops - A pointer to a pointer of one of the WLM ops structs defined below.
+ *
+ * Returns
+ *      A cti_wlm_type that contains the current WLM in use on the system.
+ *      The ops argument will be set to point at the cooresponding ops struct
+ *      for the WLM in use on the system, or NULL if there are no WLM specific
+ *      extensions.
+ *
+ */
+extern cti_wlm_type cti_open_ops(void **ops);
 
 /*
- * cti_cray_slurm_getJobInfo - Obtain information about the srun process from
- *                             its pid.
+ * cti_cray_slurm_ops extensions - Extensions for the Cray SLURM WLM
+ *-----------------------------------------------------------------------------
+ * getJobInfo - Obtain information about the srun process from its pid.
  *
  * Detail
  *      This function is used to obtain the jobid/stepid of an srun application
@@ -617,13 +635,10 @@ typedef struct
  *      A cti_srunProc_t pointer that contains the jobid and stepid of srun.
  *      NULL is returned on error. The caller should free() the returned pointer
  *      when finished using it.
- */
-extern cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid);
-
-/*
- * cti_cray_slurm_registerJobStep - Assists in registering the jobid and stepid
- *                                  of an already running srun application for
- *                                  use with the Cray tool interface.
+ *-----------------------------------------------------------------------------
+ * registerJobStep - Assists in registering the jobid and stepid of an already
+ *                   running srun application for use with the Cray tool
+ *                   interface.
  *
  * Detail
  *      This function is used for registering a valid srun application that was
@@ -642,12 +657,8 @@ extern cti_srunProc_t * cti_cray_slurm_getJobInfo(pid_t srunPid);
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
- *
- */
-extern cti_app_id_t cti_cray_slurm_registerJobStep( uint32_t job_id,
-                                                    uint32_t step_id);
-/*
- * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
+ *-----------------------------------------------------------------------------
+ * getSrunInfo - Obtain information about the srun process
  *
  * Detail
  *      This function is used to obtain the jobid/stepid of an srun application
@@ -661,37 +672,26 @@ extern cti_app_id_t cti_cray_slurm_registerJobStep( uint32_t job_id,
  *      A cti_srunProc_t pointer that contains the jobid and stepid of srun.
  *      NULL is returned on error. The caller should free() the returned pointer
  *      when finished using it.
- *
+ *-----------------------------------------------------------------------------
  */
-extern cti_srunProc_t * cti_cray_slurm_getSrunInfo(cti_app_id_t appId);
+
+typedef struct
+{
+    uint32_t  jobid;
+    uint32_t  stepid;
+} cti_srunProc_t;
+
+struct cti_cray_slurm_ops {
+    cti_srunProc_t* (*getJobInfo)(pid_t srunPid);
+    cti_app_id_t    (*registerJobStep)(uint32_t job_id,uint32_t step_id);
+    cti_srunProc_t* (*getSrunInfo)(cti_app_id_t appId);
+};
 
 /*
- * cti_slurm_registerJobStep - Registers an already running application on native SLURM for
- *                             use with the Cray tool interface.
- *
- * Detail
- *      This function is used for registering a valid slurm application that was
- *      previously launched through external means for use with the tool
- *      interface. It is recommended to use the built-in functions to launch
- *      applications, however sometimes this is impossible (such is the case for
- *      a debug attach scenario). In order to use any of the functions defined
- *      in this interface, the pid of the launcher process must be
- *      registered. This is done automatically when using the built-in functions
- *      to launch applications.
- *
- * Arguments
- *      launcher_pid - The pid of the launcher process which started the application
- *
- * Returns
- *      A cti_app_id_t that contains the id registered in this interface. This
- *      app_id should be used in subsequent calls. 0 is returned on error.
- *
- */
-extern cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid);
-
-/*
- * _cti_ssh_registerJob - Registers an already running application for
- *                                  use with the Cray tool interface.
+ * cti_ssh_ops extensions - Extensions for the Generic SSH based WLM
+ *-----------------------------------------------------------------------------
+ * registerJob - Registers an already running application for use with the Cray
+ *               tool interface.
  *
  * Detail
  *      This function is used for registering a valid application that was
@@ -709,7 +709,9 @@ extern cti_app_id_t cti_slurm_registerJobStep(pid_t launcher_pid);
  *      app_id should be used in subsequent calls. 0 is returned on error.
  *
  */
-extern cti_app_id_t cti_ssh_registerJob(pid_t launcher_pid);
+struct cti_ssh_ops {
+    cti_app_id_t    (*registerJob)(pid_t launcher_pid);
+};
 
 /*******************************************************************************
  * cti_transfer functions - Functions related to shipping files, shared

@@ -240,10 +240,10 @@ cti_getLauncherHostName(cti_app_id_t appId) {
     }, (char*)nullptr);
 }
 
-// Cray-SLURM
+// Cray-SLURM WLM extensions
 
-cti_srunProc_t*
-cti_cray_slurm_getJobInfo(pid_t srunPid) {
+static cti_srunProc_t*
+_cti_cray_slurm_getJobInfo(pid_t srunPid) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = downcastFE<CraySLURMFrontend>();
         if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
@@ -255,8 +255,8 @@ cti_cray_slurm_getJobInfo(pid_t srunPid) {
     }, (cti_srunProc_t*)nullptr);
 }
 
-cti_app_id_t
-cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
+static cti_app_id_t
+_cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = downcastFE<CraySLURMFrontend>();
         auto wp = fe.registerJob(2, job_id, step_id);
@@ -264,8 +264,8 @@ cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
     }, APP_ERROR);
 }
 
-cti_srunProc_t*
-cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
+static cti_srunProc_t*
+_cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
         auto ap = downcastApp<CraySLURMApp>(fe.Iface().getApp(appId));
@@ -278,15 +278,51 @@ cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
     }, (cti_srunProc_t*)nullptr);
 }
 
-// SSH
+static struct cti_cray_slurm_ops _cti_cray_slurm_ops = {
+    .getJobInfo         = _cti_cray_slurm_getJobInfo,
+    .registerJobStep    = _cti_cray_slurm_registerJobStep,
+    .getSrunInfo        = _cti_cray_slurm_getSrunInfo
+};
 
-cti_app_id_t
-cti_ssh_registerJob(pid_t launcher_pid) {
+// SSH WLM extensions
+
+static cti_app_id_t
+_cti_ssh_registerJob(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = downcastFE<GenericSSHFrontend>();
         auto wp = fe.registerJob(1, launcher_pid);
         return fe.Iface().trackApp(wp);
     }, APP_ERROR);
+}
+
+static struct cti_ssh_ops _cti_ssh_ops = {
+    .registerJob    = _cti_ssh_registerJob
+};
+
+// WLM specific extension ops accessor
+cti_wlm_type
+cti_open_ops(void **ops) {
+    return FE_iface::runSafely(__func__, [&](){
+        if (ops == nullptr) {
+            throw std::runtime_error("NULL pointer for 'ops' argument.");
+        }
+        *ops = nullptr;
+        auto&& fe = Frontend::inst();
+        auto wlm_type = fe.getWLMType();
+        switch (wlm_type) {
+            case CTI_WLM_CRAY_SLURM:
+                *ops = reinterpret_cast<void *>(&_cti_cray_slurm_ops);
+                break;
+            case CTI_WLM_SSH:
+                *ops = reinterpret_cast<void *>(&_cti_ssh_ops);
+                break;
+            case CTI_WLM_NONE:
+            case CTI_WLM_MOCK:
+                *ops = nullptr;
+                break;
+        }
+        return wlm_type;
+    }, CTI_WLM_NONE);
 }
 
 /* app launch / release implementations */

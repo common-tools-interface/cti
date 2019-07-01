@@ -113,5 +113,52 @@ TEST_F(CTIHeaderUnitTest, test_other_types)
                              >::value));
 }
 
+// test cti_srunProc_t
+TEST_F(CTIHeaderUnitTest, test_cti_srunProc_t)
+{
+    ASSERT_TRUE((std::is_class<external::cti_srunProc_t>::value));
+    ASSERT_TRUE((std::is_class<internal::cti_srunProc_t>::value));
+    ASSERT_TRUE((std::is_same<decltype(external::cti_srunProc_t::jobid)
+                             ,decltype(internal::cti_srunProc_t::jobid)
+                             >::value));
+    ASSERT_TRUE((std::is_same<decltype(external::cti_srunProc_t::stepid)
+                             ,decltype(internal::cti_srunProc_t::stepid)
+                             >::value));
+    EXPECT_EQ(offsetof(external::cti_srunProc_t, jobid), offsetof(internal::cti_srunProc_t, jobid));
+    EXPECT_EQ(offsetof(external::cti_srunProc_t, stepid), offsetof(internal::cti_srunProc_t, stepid));
+}
+
+// test struct cti_cray_slurm_ops
+TEST_F(CTIHeaderUnitTest, test_cti_cray_slurm_ops)
+{
+    ASSERT_TRUE((std::is_class<external::cti_cray_slurm_ops>::value));
+    ASSERT_TRUE((std::is_class<internal::cti_cray_slurm_ops>::value));
+    EXPECT_EQ(sizeof(external::cti_cray_slurm_ops), sizeof(internal::cti_cray_slurm_ops));
+    ASSERT_TRUE((std::is_same<decltype(external::cti_cray_slurm_ops::getJobInfo)
+                             ,decltype(internal::cti_cray_slurm_ops::getJobInfo)
+                             >::value));
+    ASSERT_TRUE((std::is_same<decltype(external::cti_cray_slurm_ops::registerJobStep)
+                             ,decltype(internal::cti_cray_slurm_ops::registerJobStep)
+                             >::value));
+    ASSERT_TRUE((std::is_same<decltype(external::cti_cray_slurm_ops::getSrunInfo)
+                             ,decltype(internal::cti_cray_slurm_ops::getSrunInfo)
+                             >::value));
+    EXPECT_EQ(offsetof(external::cti_cray_slurm_ops, getJobInfo), offsetof(internal::cti_cray_slurm_ops, getJobInfo));
+    EXPECT_EQ(offsetof(external::cti_cray_slurm_ops, registerJobStep), offsetof(internal::cti_cray_slurm_ops, registerJobStep));
+    EXPECT_EQ(offsetof(external::cti_cray_slurm_ops, getSrunInfo), offsetof(internal::cti_cray_slurm_ops, getSrunInfo));
+}
+
+// test struct cti_ssh_ops
+TEST_F(CTIHeaderUnitTest, test_cti_ssh_ops)
+{
+    ASSERT_TRUE((std::is_class<external::cti_ssh_ops>::value));
+    ASSERT_TRUE((std::is_class<internal::cti_ssh_ops>::value));
+    EXPECT_EQ(sizeof(external::cti_ssh_ops), sizeof(internal::cti_ssh_ops));
+    ASSERT_TRUE((std::is_same<decltype(external::cti_ssh_ops::registerJob)
+                             ,decltype(internal::cti_ssh_ops::registerJob)
+                             >::value));
+    EXPECT_EQ(offsetof(external::cti_ssh_ops, registerJob), offsetof(internal::cti_ssh_ops, registerJob));
+}
+
 // TODO: Test function types and BE library
 
