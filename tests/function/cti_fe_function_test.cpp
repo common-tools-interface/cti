@@ -10,6 +10,8 @@
 
 #include "cti_fe_function_test.hpp"
 
+#include "cray_tools_fe.h"
+
 #include "useful/cti_execvp.hpp"
 
 /* cti frontend C interface tests */
@@ -47,6 +49,49 @@ testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::stri
 		ASSERT_TRUE(std::getline(outputFile, line));
 		EXPECT_EQ(line, expecting);
 	}
+}
+
+static void
+testSocketDaemon(cti_session_id_t sessionId, char const* daemonpath, std::string const& expecting) {
+    // Wait for any previous cleanups to finish (see PE-26018)
+    sleep(5);
+    
+    // create manifest
+    auto const manifestId = cti_createManifest(sessionId);
+    ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
+   
+    // build 'server' socket'
+    char* myhost = cti_getHostname();
+    int port = 101101;
+    int server;
+    struct sockaddr_in s_address;
+    int address_length = sizeof(s_address);
+    
+    ASSERT_EQ(server = socket(AF_INET, SOCK_STREAM, 0), 0) << "Failed to create server socket";
+     
+    s_address.sin_family = AF_INET;
+    s_address.sin_addr.s_addr = INADDR_ANY;
+    s_address.sin_port = htons(port);
+
+    ASSERT_GT(bind(server, (struct sockaddr *)&s_address, sizeof(s_address)), 0) << "Failed to bind server socket";
+
+    ASSERT_GT(listen(server, 1), 0) << "Failed to listen on server socket";
+
+    // launch socket based program
+    char const* toolDaemonArgs[] = {myhost, port, nullptr};
+    ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, toolDaemonsArgs, nullptr), SUCCESS) << cti_error_str();
+
+    // accept recently launched applications connection
+    int app_socket;
+    ASSERT_GT(app_socket = accept(server, (struct sockaddr *)&s_address, (socklen_t*)&address_length), 0);
+
+    // read data returned from app
+    char buffer[16] = {0};
+    int length = read(app_socket, buffer, 16);
+    buffer[length] = '\0';
+
+    // check for correctness
+    ASSERT_STREQ(buffer, expecting.c_str());
 }
 
 
