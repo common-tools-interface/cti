@@ -67,14 +67,12 @@ run_tests() {
             return 1
         fi
         # check if not running on a whitebox and if so load different parameters TODO: Add different configs and expand list
-        if [ "$HOSTNAME" = "jupiter" ] || [ "$HOSTNAME" = "kay" ] || [ "$HOSTNAME" = "pepis" ] || [ "$HOSTNAME" = "monster" ] ; then
-            echo "Configuring non-whitebox launcher settings..."
-            export MPIEXEC_TIMEOUT=30
+        if srun echo "" > /dev/null ; then
+            echo "srun exists so configuring non-whitebox launcher settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
             #TODO add more if nessecary
         else
-            echo "Configuring whitebox launcher settings..."
-            export MPIEXEC_TIMEOUT=30
+            echo "Given no srun configuring with whitebox launcher settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
             export CRAY_CTI_DIR=$PWD/../../install
             export CRAY_CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
