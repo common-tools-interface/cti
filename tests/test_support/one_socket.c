@@ -1,10 +1,11 @@
 #include <unistd.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-int main(int argc, char const* argv[]) {
+int main(int argc, char* argv[]) {
 
     if (argc != 3) {
         fprintf(stderr, "Invalid parameters\nExpected: SocketIP, SocketPort\n");
