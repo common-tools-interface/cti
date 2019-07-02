@@ -64,7 +64,9 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     // Wait for any previous cleanups to finish (see PE-26018)
     sleep(1);
     
-    // Attempt 2...
+
+    // Find my external IP. Not clean but it gets it done.
+    // See manpage for getifaddrs
     struct ifaddrs *ifaddr, *ifa;
     int family, s, n;
     char host[NI_MAXHOST];
@@ -76,15 +78,17 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
         }
         family = ifa->ifa_addr->sa_family;
         if (family == AF_INET || family == AF_INET6) {
-            s = getnameinfo(ifa->ifa_addr, (family==AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+            s = getnameinfo(ifa->ifa_addr, (family==AF_INET) ?
+                sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
+                host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
             if (s != 0) {
                 FAIL();
             }
-            fprintf(stderr, "%s\n", ifa->ifa_name);
-            //if(ifa -> ifa_name == "eth0")
-            fprintf(stderr, "\t\taddress: %s\n", host);
+            //fprintf(stderr, "%s\n", ifa->ifa_name);
+            //fprintf(stderr, "\t\taddress: %s\n", host);
             if(std::string(host) != "127.0.0.1" && my_ip2 == "") {
                 my_ip2=host;
+                break;
             }
         }
     }
@@ -98,7 +102,6 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
    
     // build 'server' socket
-    char* myhost = cti_getHostname();
     int rc; 
     int server;
 
@@ -110,6 +113,9 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     hints.ai_flags = AI_NUMERICSERV;
 
     struct addrinfo *listener;
+
+    // uses my_ip in order to bind socket to external IP and not localhost
+    // if NULL is used this will ALWAYS give localhost which is not non-wbox compatible
     ASSERT_EQ((rc = getaddrinfo(my_ip2.c_str(), "0", &hints, &listener)), 0); 
     
     // Create the socket (return value is FD)
@@ -131,15 +137,9 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     socklen_t sa_len = sizeof(sa);
     ASSERT_EQ(getsockname(server, (struct sockaddr*) &sa, &sa_len), 0);
 
-    // get socket ip address TODO: NOT LOOPBACK
-    char my_ip[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &sa.sin_addr, my_ip, INET_ADDRSTRLEN);
-
-        //std::cerr << my_ip2;
     // build required parameters for launching external app
     auto const socket_port = std::to_string(ntohs(sa.sin_port));
     char const* sockDaemonArgs[] = {my_ip2.c_str(), socket_port.c_str(), nullptr};
-    std::cerr << sockDaemonArgs[0] << ":" << sockDaemonArgs[1] << std::endl; 
     ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, sockDaemonArgs, nullptr), SUCCESS) << cti_error_str();
 
     // accept recently launched applications connection
