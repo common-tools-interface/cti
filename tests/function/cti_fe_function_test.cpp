@@ -7,10 +7,11 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <fcntl.h>
 
+#include <fcntl.h>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -63,6 +64,35 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     // Wait for any previous cleanups to finish (see PE-26018)
     sleep(1);
     
+    // Attempt 2...
+    struct ifaddrs *ifaddr, *ifa;
+    int family, s, n;
+    char host[NI_MAXHOST];
+    std::string my_ip2 = "";
+    ASSERT_NE(getifaddrs(&ifaddr), -1);
+    for (ifa = ifaddr, n=0; ifa != NULL; ifa = ifa->ifa_next, n++) {
+        if (ifa->ifa_addr == NULL) {
+            continue;
+        }
+        family = ifa->ifa_addr->sa_family;
+        if (family == AF_INET || family == AF_INET6) {
+            s = getnameinfo(ifa->ifa_addr, (family==AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+            if (s != 0) {
+                FAIL();
+            }
+            fprintf(stderr, "%s\n", ifa->ifa_name);
+            //if(ifa -> ifa_name == "eth0")
+            fprintf(stderr, "\t\taddress: %s\n", host);
+            if(std::string(host) != "127.0.0.1" && my_ip2 == "") {
+                my_ip2=host;
+            }
+        }
+    }
+
+
+    freeifaddrs(ifaddr);
+
+
     // create manifest
     auto const manifestId = cti_createManifest(sessionId);
     ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
@@ -80,7 +110,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     hints.ai_flags = AI_NUMERICSERV;
 
     struct addrinfo *listener;
-    ASSERT_EQ((rc = getaddrinfo(NULL, "0", &hints, &listener)), 0); 
+    ASSERT_EQ((rc = getaddrinfo(my_ip2.c_str(), "0", &hints, &listener)), 0); 
     
     // Create the socket (return value is FD)
     ASSERT_NE(server = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), -1) << "Failed to create server socket";
@@ -105,9 +135,10 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     char my_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &sa.sin_addr, my_ip, INET_ADDRSTRLEN);
 
-    // build required paramters for launching external app
+        //std::cerr << my_ip2;
+    // build required parameters for launching external app
     auto const socket_port = std::to_string(ntohs(sa.sin_port));
-    char const* sockDaemonArgs[] = {my_ip, socket_port.c_str(), nullptr};
+    char const* sockDaemonArgs[] = {my_ip2.c_str(), socket_port.c_str(), nullptr};
     std::cerr << sockDaemonArgs[0] << ":" << sockDaemonArgs[1] << std::endl; 
     ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, sockDaemonArgs, nullptr), SUCCESS) << cti_error_str();
 
