@@ -78,6 +78,10 @@ Inferior::Inferior(std::string const& launcher, pid_t pid)
 	, m_symbols{}
 	, m_proc(Process::attachProcess(pid, {}))
 {
+	if (!m_proc) {
+		throw std::runtime_error("failed to attach to PID " + std::to_string(pid));
+	}
+
 	/* prepare breakpoint callback */
 	Process::registerEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 }
