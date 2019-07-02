@@ -12,6 +12,7 @@
 #include <fcntl.h>
 
 #include <fstream>
+#include <iostream>
 #include <memory>
 
 #include "cti_fe_function_test.hpp"
@@ -70,6 +71,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     char* myhost = cti_getHostname();
     int rc; 
     int server;
+
     // setup hints
     struct addrinfo hints;
     memset(&hints, 0, sizeof(struct addrinfo));
@@ -80,8 +82,8 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     struct addrinfo *listener;
     ASSERT_EQ((rc = getaddrinfo(NULL, "0", &hints, &listener)), 0); 
     
-    // Create the socket
-    ASSERT_EQ(server = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), 0) << "Failed to create server socket";
+    // Create the socket (return value is FD)
+    ASSERT_NE(server = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), -1) << "Failed to create server socket";
     
     // Bind the socket
     ASSERT_EQ(bind(server, listener->ai_addr, listener->ai_addrlen), 0) << "Failed to bind server socket";
@@ -91,14 +93,22 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     listener = NULL;
 
     // Begin listening on socket
-    ASSERT_EQ(listen(server, 1), 0) << "Failed to listen on server socket";
-    struct sockaddr_in sa;
-    socklen_t sa_len = sizeof(sa);
-    ASSERT_NE(getsockname(server, (struct sockaddr*) &sa, &sa_len), 0);
+    ASSERT_EQ(listen(server, 2), 0) << "Failed to listen on server socket";
 
-    // launch socket based program
-    //char port[] = std::to_string(sa.sin_port);
-    char const* sockDaemonArgs[] = {myhost, std::to_string(sa.sin_port).c_str(), nullptr};
+    // get my sockets info
+    struct sockaddr_in sa;
+    memset(&sa, 0, sizeof(sa));
+    socklen_t sa_len = sizeof(sa);
+    ASSERT_EQ(getsockname(server, (struct sockaddr*) &sa, &sa_len), 0);
+
+    // get socket ip address TODO: NOT LOOPBACK
+    char my_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &sa.sin_addr, my_ip, INET_ADDRSTRLEN);
+
+    // build required paramters for launching external app
+    auto const socket_port = std::to_string(ntohs(sa.sin_port));
+    char const* sockDaemonArgs[] = {my_ip, socket_port.c_str(), nullptr};
+    std::cerr << sockDaemonArgs[0] << ":" << sockDaemonArgs[1] << std::endl; 
     ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, sockDaemonArgs, nullptr), SUCCESS) << cti_error_str();
 
     // accept recently launched applications connection
@@ -115,6 +125,8 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
 
     // check for correctness
     ASSERT_STREQ(buffer, expecting.c_str());
+
+    close(server);
 }
 
 // Test that an app can run a tool socket based daemon
