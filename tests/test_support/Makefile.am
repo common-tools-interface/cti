@@ -35,7 +35,7 @@ libgmock_la_LDFLAGS  = -pthread
 # support binaries for function and unit tests
 
 # stage test helpers (one_printer, two_printer, libprint.so)
-check_PROGRAMS = one_printer two_printer one_socket
+check_PROGRAMS = one_printer two_printer one_socket two_socket
 
 print_one/libprint.so: print_one/print.c
 	cc -fPIC -shared print_one/print.c -o print_one/libprint.so
@@ -58,3 +58,5 @@ two_printer_LDADD   = -L./print_two -lprint
 two_printer_LDFLAGS = -Wl,-rpath,\$$ORIGIN/print_two
 
 one_socket_SOURCES = one_socket.c
+
+two_socket_SOURCES = two_socket.c
