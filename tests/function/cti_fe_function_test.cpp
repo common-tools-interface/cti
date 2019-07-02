@@ -1,8 +1,14 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include <fcntl.h>
 
 #include <fstream>
@@ -52,38 +58,55 @@ testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::stri
 }
 
 static void
-testSocketDaemon(cti_session_id_t sessionId, char const* daemonpath, std::string const& expecting) {
+testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting) {
     // Wait for any previous cleanups to finish (see PE-26018)
-    sleep(5);
+    sleep(1);
     
     // create manifest
     auto const manifestId = cti_createManifest(sessionId);
     ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
    
-    // build 'server' socket'
+    // build 'server' socket
     char* myhost = cti_getHostname();
-    int port = 101101;
+    int rc; 
     int server;
-    struct sockaddr_in s_address;
-    int address_length = sizeof(s_address);
+    // setup hints
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_NUMERICSERV;
+
+    struct addrinfo *listener;
+    ASSERT_EQ((rc = getaddrinfo(NULL, "0", &hints, &listener)), 0); 
     
-    ASSERT_EQ(server = socket(AF_INET, SOCK_STREAM, 0), 0) << "Failed to create server socket";
-     
-    s_address.sin_family = AF_INET;
-    s_address.sin_addr.s_addr = INADDR_ANY;
-    s_address.sin_port = htons(port);
+    // Create the socket
+    ASSERT_EQ(server = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), 0) << "Failed to create server socket";
+    
+    // Bind the socket
+    ASSERT_EQ(bind(server, listener->ai_addr, listener->ai_addrlen), 0) << "Failed to bind server socket";
 
-    ASSERT_GT(bind(server, (struct sockaddr *)&s_address, sizeof(s_address)), 0) << "Failed to bind server socket";
+    // Clean up listener
+    freeaddrinfo(listener);
+    listener = NULL;
 
-    ASSERT_GT(listen(server, 1), 0) << "Failed to listen on server socket";
+    // Begin listening on socket
+    ASSERT_EQ(listen(server, 1), 0) << "Failed to listen on server socket";
+    struct sockaddr_in sa;
+    socklen_t sa_len = sizeof(sa);
+    ASSERT_NE(getsockname(server, (struct sockaddr*) &sa, &sa_len), 0);
 
     // launch socket based program
-    char const* toolDaemonArgs[] = {myhost, port, nullptr};
-    ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, toolDaemonsArgs, nullptr), SUCCESS) << cti_error_str();
+    //char port[] = std::to_string(sa.sin_port);
+    char const* sockDaemonArgs[] = {myhost, std::to_string(sa.sin_port).c_str(), nullptr};
+    ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, sockDaemonArgs, nullptr), SUCCESS) << cti_error_str();
 
     // accept recently launched applications connection
     int app_socket;
-    ASSERT_GT(app_socket = accept(server, (struct sockaddr *)&s_address, (socklen_t*)&address_length), 0);
+    struct sockaddr_in wa;
+    socklen_t wa_len;
+    wa_len = sizeof(wa);
+    ASSERT_GE(app_socket = accept(server, (struct sockaddr*) &wa, &wa_len), 0);
 
     // read data returned from app
     char buffer[16] = {0};
@@ -94,6 +117,32 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonpath, std::string
     ASSERT_STREQ(buffer, expecting.c_str());
 }
 
+// Test that an app can run a tool socket based daemon
+TEST_F(CTIFEFunctionTest, ExecSockDaemon) {
+	// set up app
+	char const* argv[] = {"/usr/bin/true", nullptr};
+	auto const  stdoutFd = -1;
+	auto const  stderrFd = -1;
+	char const* inputFile = nullptr;
+	char const* chdirPath = nullptr;
+	char const* const* envList  = nullptr;
+
+	// create app
+	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+	ASSERT_GT(appId, 0) << cti_error_str();
+	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
+
+	// create app's session
+	auto const sessionId = cti_createSession(appId);
+	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
+
+	// run socket daemon
+	testSocketDaemon(sessionId, "../test_support/one_socket", "1");
+
+	// cleanup
+	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
+	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
+}
 
 // Test that an app can launch two tool daemons using different libraries with the same name
 TEST_F(CTIFEFunctionTest, DaemonLibDir) {
