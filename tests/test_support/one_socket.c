@@ -15,7 +15,9 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Invalid parameters\nExpected: SocketIP, SocketPort\n");
         return 1;
     }
-    sleep(1); //avoid race conditions in the least elegant way...
+    //avoid race conditions in the least elegant way...
+    sleep(1);     
+    
     //Declare variables to store socket IP and port
     char* ip;
     int port;
@@ -45,28 +47,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    //s_address.sin_family = AF_INET;
-    //s_address.sin_port = htons(port);
-    //sscanf(argv[1], "%d", &s_address.sin_addr.s_addr);
-    //s_address.sin_addr = stoi(argv[1]);
-    //if (inet_pton(AF_INET, ip, &s_address.sin_addr)<=0) {
-    //    fprintf(stderr, "Failed to convert IP address %s\n", ip);
-    //    return 1;
-    //}
-    
     fprintf(stderr, "Connecting...\n");
     fprintf(stderr, "Host: %s\n", argv[1]);
     fprintf(stderr, "Port: %d\n", atoi(argv[2]));
-    
-    //struct addrinfo *p = node;
-    //char host[256];
-    //for(p = node; p != NULL; p = p -> ai_next) {
-    //    getnameinfo(p->ai_addr, p->ai_addrlen, host, sizeof(host), NULL, 0, NI_NUMERICHOST);
-    //    fprintf(stderr, "%s\n", host);
-    //}
 
     if (connect(c_socket, node->ai_addr, node->ai_addrlen) < 0) {
-    //if (connect(c_socket, (struct sockaddr*) &s_address, sizeof(s_address)) < 0) {
         fprintf(stderr, "Failed to connect\n");
         perror("ERROR:");
         return 1;
@@ -74,8 +59,6 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "CONNECTED\n");
     //Send predictable data over socket
     send(c_socket, "1", 1, 0);
-
-    //The 'server' will destroy the socket once its done
     close(c_socket);
     return 0;       
 }
