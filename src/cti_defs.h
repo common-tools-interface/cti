@@ -130,7 +130,7 @@ typedef int64_t cti_manifest_id_t;
 typedef struct
 {
     int numNodes;
-}   cti_slurmLayoutFileHeader_t;
+}   slurmLayoutFileHeader_t;
 // Followed by numNodes of the following:
 typedef struct
 {
