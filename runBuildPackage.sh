@@ -39,7 +39,7 @@ then
 elif [ -f /etc/os-release ]
 then
 	SYSTEM=SuSE
-	OS=`cat /etc/os-release | grep VERSION_ID= cut -d'"' -f2`
+	OS=`cat /etc/os-release | grep VERSION_ID= | cut -d'"' -f2`
 	OS_VER=sles$OS
 fi
 
