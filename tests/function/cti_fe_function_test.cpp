@@ -24,14 +24,6 @@
 
 /* cti frontend C interface tests */
 
-// TODO: transition test output to sockets so we don't have to deal with crossmounted directories
-#define ON_WHITEBOX
-#ifdef ON_WHITEBOX
-static constexpr auto CROSSMOUNT_FILE_TEMPLATE = "/tmp/cti-test-XXXXXX";
-#else
-static constexpr auto CROSSMOUNT_FILE_TEMPLATE = "/lus/scratch/tmp/cti-test-XXXXXX";
-#endif
-
 static void
 testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting) {
     // Wait for any previous cleanups to finish (see PE-26018)
