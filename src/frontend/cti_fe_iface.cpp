@@ -278,7 +278,7 @@ _cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
     }, (cti_srunProc_t*)nullptr);
 }
 
-static struct cti_cray_slurm_ops _cti_cray_slurm_ops = {
+static cti_cray_slurm_ops_t _cti_cray_slurm_ops = {
     .getJobInfo         = _cti_cray_slurm_getJobInfo,
     .registerJobStep    = _cti_cray_slurm_registerJobStep,
     .getSrunInfo        = _cti_cray_slurm_getSrunInfo
@@ -295,7 +295,7 @@ _cti_ssh_registerJob(pid_t launcher_pid) {
     }, APP_ERROR);
 }
 
-static struct cti_ssh_ops _cti_ssh_ops = {
+static cti_ssh_ops_t _cti_ssh_ops = {
     .registerJob    = _cti_ssh_registerJob
 };
 
