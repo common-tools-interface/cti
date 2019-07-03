@@ -230,15 +230,6 @@ TEST_F(CTIFEFunctionTest, StdoutPipe) {
 
 // Test that an app can read input from a file
 TEST_F(CTIFEFunctionTest, InputFile) {
-	// set up string contents
-	auto const echoString = std::to_string(getpid());
-
-	// set up input file
-	auto const inputPath = temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
-	{ auto inputFile = std::unique_ptr<FILE, decltype(&::fclose)>(fopen(inputPath.get(), "w"), ::fclose);
-		ASSERT_TRUE(inputFile != nullptr);
-		fprintf(inputFile.get(), "%s\n", echoString.c_str());
-	}
 
 	// set up stdout fd
 	cti::Pipe p;
@@ -247,11 +238,10 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 	cti::FdBuf pipeInBuf{p.getReadFd()};
 	std::istream pipein{&pipeInBuf};
 
-	// set up launch arguments
 	char const* argv[] = {"/usr/bin/cat", nullptr};
 	auto const  stdoutFd = p.getWriteFd();
 	auto const  stderrFd = -1;
-	char const* inputFile = inputPath.get();
+	char const* inputFile = "./test_data.txt";
 	char const* chdirPath = nullptr;
 	char const* const* envList  = nullptr;
 
@@ -263,7 +253,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 	// get app output
 	{ std::string line;
 		ASSERT_TRUE(std::getline(pipein, line));
-		EXPECT_EQ(line, echoString);
+		EXPECT_EQ(line, "cat");
 	}
 }
 
