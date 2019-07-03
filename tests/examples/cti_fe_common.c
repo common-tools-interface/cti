@@ -77,7 +77,6 @@ cti_test_fe(cti_app_id_t appId)
         case CTI_WLM_CRAY_SLURM:
         {
             cti_srunProc_t *    mysruninfo;
-
             /*
              * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
              */
@@ -94,6 +93,7 @@ cti_test_fe(cti_app_id_t appId)
         }
             break;
 
+
         case CTI_WLM_SSH:
             break;
 
@@ -103,7 +103,6 @@ cti_test_fe(cti_app_id_t appId)
             assert(0);
             break;
     }
-
     /*
      * cti_getLauncherHostName - Returns the hostname of the login node where the
      *                           application launcher process resides.
