@@ -4,3 +4,5 @@ print_two/print.o
 print_two/libprint.so
 one_printer
 two_printer
+one_socket
+two_socket

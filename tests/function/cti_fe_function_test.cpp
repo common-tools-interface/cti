@@ -36,91 +36,90 @@ static void
 testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting) {
     // Wait for any previous cleanups to finish (see PE-26018)
     sleep(5);
-    
+    std::string external_ip = "";
 
-    // Find my external IP. Not clean but it gets it done.
-    // See manpage for getifaddrs
-    struct ifaddrs *ifaddr, *ifa;
-    int family, s, n;
-    char host[NI_MAXHOST];
-    std::string my_ip2 = "";
-    ASSERT_NE(getifaddrs(&ifaddr), -1);
-    for (ifa = ifaddr, n=0; ifa != NULL; ifa = ifa->ifa_next, n++) {
-        if (ifa->ifa_addr == NULL) {
-            continue;
-        }
-        family = ifa->ifa_addr->sa_family;
-        if (family == AF_INET || family == AF_INET6) {
-            s = getnameinfo(ifa->ifa_addr, (family==AF_INET) ?
-                sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
-                host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-            if (s != 0) {
-                FAIL();
+    // Find my external IP
+    {
+        struct ifaddrs *ifaddr, *ifa;
+        int family, s, n;
+        char host[NI_MAXHOST];
+        ASSERT_NE(getifaddrs(&ifaddr), -1);
+        for (ifa = ifaddr, n=0; ifa != NULL; ifa = ifa->ifa_next, n++) {
+            if (ifa->ifa_addr == NULL) {
+                continue;
             }
-            //fprintf(stderr, "%s\n", ifa->ifa_name);
-            //fprintf(stderr, "\t\taddress: %s\n", host);
-            if(std::string(host) != "127.0.0.1" && my_ip2 == "") {
-                my_ip2=host;
-                break;
+            family = ifa->ifa_addr->sa_family;
+            if (family == AF_INET || family == AF_INET6) {
+                s = getnameinfo(ifa->ifa_addr, (family==AF_INET) ?
+                    sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
+                    host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+                if (s != 0) {
+                    FAIL() << "Could not determine non-localhost IP";
+                }
+
+                // Accept the first IP that is not localhost.
+                if(std::string(host) != "127.0.0.1") {
+                    external_ip=host;
+                    break;
+                }
             }
         }
+        // clean up
+        freeifaddrs(ifaddr);
+    }
+   
+    // build 'server' socket  
+    int test_socket;
+    {
+        // setup hints
+        struct addrinfo hints;
+        memset(&hints, 0, sizeof(struct addrinfo));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_flags = AI_NUMERICSERV;
+
+        struct addrinfo *listener;
+
+        // uses external_ip in order to bind socket to external IP and not localhost
+        // if NULL is used this will ALWAYS give localhost which is not non-wbox compatible
+        ASSERT_EQ(getaddrinfo(external_ip.c_str(), "0", &hints, &listener), 0); 
+    
+        // Create the socket
+        ASSERT_NE(test_socket = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), -1) << "Failed to create test_socket socket";
+    
+        // Bind the socket
+        ASSERT_EQ(bind(test_socket, listener->ai_addr, listener->ai_addrlen), 0) << "Failed to bind test_socket socket";
+
+        // Clean up listener
+        freeaddrinfo(listener);
+        listener = NULL;
     }
 
-
-    freeifaddrs(ifaddr);
-
-
-    // create manifest
-    auto const manifestId = cti_createManifest(sessionId);
-    ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
-   
-    // build 'server' socket
-    int rc; 
-    int server;
-
-    // setup hints
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_NUMERICSERV;
-
-    struct addrinfo *listener;
-
-    // uses my_ip in order to bind socket to external IP and not localhost
-    // if NULL is used this will ALWAYS give localhost which is not non-wbox compatible
-    ASSERT_EQ((rc = getaddrinfo(my_ip2.c_str(), "0", &hints, &listener)), 0); 
-    
-    // Create the socket (return value is FD)
-    ASSERT_NE(server = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), -1) << "Failed to create server socket";
-    
-    // Bind the socket
-    ASSERT_EQ(bind(server, listener->ai_addr, listener->ai_addrlen), 0) << "Failed to bind server socket";
-
-    // Clean up listener
-    freeaddrinfo(listener);
-    listener = NULL;
-
     // Begin listening on socket
-    ASSERT_EQ(listen(server, 2), 0) << "Failed to listen on server socket";
+    ASSERT_EQ(listen(test_socket, 2), 0) << "Failed to listen on test_socket socket";
 
     // get my sockets info
     struct sockaddr_in sa;
-    memset(&sa, 0, sizeof(sa));
     socklen_t sa_len = sizeof(sa);
-    ASSERT_EQ(getsockname(server, (struct sockaddr*) &sa, &sa_len), 0);
+    memset(&sa, 0, sizeof(sa));
+    ASSERT_EQ(getsockname(test_socket, (struct sockaddr*) &sa, &sa_len), 0);
 
     // build required parameters for launching external app
-    auto const socket_port = std::to_string(ntohs(sa.sin_port));
-    char const* sockDaemonArgs[] = {my_ip2.c_str(), socket_port.c_str(), nullptr};
-    ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, sockDaemonArgs, nullptr), SUCCESS) << cti_error_str();
+    {   
+        // create manifest and args
+        auto const manifestId = cti_createManifest(sessionId);
+        ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
+        char const* sockDaemonArgs[] = {external_ip.c_str(), std::to_string(ntohs(sa.sin_port)).c_str(), nullptr};
+
+        // launch app
+        ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, sockDaemonArgs, nullptr), SUCCESS) << cti_error_str();
+    }
 
     // accept recently launched applications connection
     int app_socket;
     struct sockaddr_in wa;
-    socklen_t wa_len;
-    wa_len = sizeof(wa);
-    ASSERT_GE(app_socket = accept(server, (struct sockaddr*) &wa, &wa_len), 0);
+    socklen_t wa_len = sizeof(wa);
+    ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
 
     // read data returned from app
     char buffer[16] = {0};
@@ -129,11 +128,13 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
 
     // check for correctness
     ASSERT_STREQ(buffer, expecting.c_str());
-
-    close(server);
+    
+    // close socket
+    close(test_socket);
 }
 
 // Test that an app can launch two tool daemons using different libraries with the same name
+// This test is at the start to avoid a race condition that causes failure if ran later
 TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 	// set up app
 	char const* argv[] = {"/usr/bin/true", nullptr};
