@@ -14,6 +14,7 @@ SUBDIRS = elfutils libssh2
 install-data-hook:
 	cd @BOOST_SRC@ && @BOOST_SRC@/b2 install
 	cp @TBB_LIBRARY@/*.so* ${libdir}
+	cp -R @TBB_INCLUDE_DIR@/tbb ${includedir} 
 	cd @DYNINST_BUILD@ && $(MAKE) $(AM_MAKEFLAGS) install
 
 distclean-local:
