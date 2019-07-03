@@ -33,36 +33,9 @@ static constexpr auto CROSSMOUNT_FILE_TEMPLATE = "/lus/scratch/tmp/cti-test-XXXX
 #endif
 
 static void
-testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting)
-{
-	// Wait for any previous cleanups to finish (see PE-26018)
-	sleep(5);
-
-	// create manifest
-	auto const manifestId = cti_createManifest(sessionId);
-	ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
-
-	// set up output file
-	auto const outputPath = temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
-	char const* toolDaemonArgs[] = {outputPath.get(), nullptr};
-	ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, toolDaemonArgs, nullptr), SUCCESS) << cti_error_str();
-
-	// let daemon run
-	sleep(1);
-
-	// read output file
-	{ std::ifstream outputFile(outputPath.get());
-		ASSERT_TRUE(outputFile.is_open());
-		std::string line;
-		ASSERT_TRUE(std::getline(outputFile, line));
-		EXPECT_EQ(line, expecting);
-	}
-}
-
-static void
 testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting) {
     // Wait for any previous cleanups to finish (see PE-26018)
-    sleep(1);
+    sleep(5);
     
 
     // Find my external IP. Not clean but it gets it done.
@@ -160,33 +133,6 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     close(server);
 }
 
-// Test that an app can run a tool socket based daemon
-TEST_F(CTIFEFunctionTest, ExecSockDaemon) {
-	// set up app
-	char const* argv[] = {"/usr/bin/true", nullptr};
-	auto const  stdoutFd = -1;
-	auto const  stderrFd = -1;
-	char const* inputFile = nullptr;
-	char const* chdirPath = nullptr;
-	char const* const* envList  = nullptr;
-
-	// create app
-	auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-	ASSERT_GT(appId, 0) << cti_error_str();
-	EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
-
-	// create app's session
-	auto const sessionId = cti_createSession(appId);
-	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
-
-	// run socket daemon
-	testSocketDaemon(sessionId, "../test_support/one_socket", "1");
-
-	// cleanup
-	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
-	EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
-}
-
 // Test that an app can launch two tool daemons using different libraries with the same name
 TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 	// set up app
@@ -207,8 +153,8 @@ TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
 	// run printing daemons
-	testPrintingDaemon(sessionId, "../test_support/one_printer", "1");
-	testPrintingDaemon(sessionId, "../test_support/two_printer", "2");
+	testSocketDaemon(sessionId, "../test_support/one_socket", "1");
+	testSocketDaemon(sessionId, "../test_support/two_socket", "2");
 
 	// cleanup
 	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
@@ -435,7 +381,7 @@ TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
 	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
 	// run printing daemons
-	testPrintingDaemon(sessionId, "../test_support/one_printer", "1");
+	testSocketDaemon(sessionId, "../test_support/one_socket", "1");
 
 	// cleanup
 	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
