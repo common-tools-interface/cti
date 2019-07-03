@@ -681,11 +681,11 @@ typedef struct
     uint32_t  stepid;
 } cti_srunProc_t;
 
-struct cti_cray_slurm_ops {
+typedef struct {
     cti_srunProc_t* (*getJobInfo)(pid_t srunPid);
     cti_app_id_t    (*registerJobStep)(uint32_t job_id,uint32_t step_id);
     cti_srunProc_t* (*getSrunInfo)(cti_app_id_t appId);
-};
+} cti_cray_slurm_ops_t;
 
 /*
  * cti_ssh_ops extensions - Extensions for the Generic SSH based WLM
@@ -709,9 +709,9 @@ struct cti_cray_slurm_ops {
  *      app_id should be used in subsequent calls. 0 is returned on error.
  *
  */
-struct cti_ssh_ops {
+typedef struct {
     cti_app_id_t    (*registerJob)(pid_t launcher_pid);
-};
+} cti_ssh_ops_t;
 
 /*******************************************************************************
  * cti_transfer functions - Functions related to shipping files, shared

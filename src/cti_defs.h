@@ -159,11 +159,11 @@ typedef struct
 } cti_srunProc_t;
 
 // cti_cray_slurm_ops extensions - Extensions for the Cray SLURM WLM
-struct cti_cray_slurm_ops {
+typedef struct {
     cti_srunProc_t* (*getJobInfo)(pid_t srunPid);
     cti_app_id_t    (*registerJobStep)(uint32_t job_id,uint32_t step_id);
     cti_srunProc_t* (*getSrunInfo)(cti_app_id_t appId);
-};
+} cti_cray_slurm_ops_t;
 
 #define SRUN                    "srun"                                      // name of slurm job launcher binary
 #define SATTACH                 "sattach"                                   // name of slurm io redirect binary
@@ -186,9 +186,9 @@ typedef slurmPidFileHeader_t    cti_pidFileheader_t;
 typedef slurmPidFile_t          cti_pidFile_t;
 
 // cti_ssh_ops extensions - Extensions for the SSH WLM
-struct cti_ssh_ops {
+typedef struct {
     cti_app_id_t    (*registerJob)(pid_t launcher_pid);
-};
+} cti_ssh_ops_t;
 
 #define CLUSTER_FILE_TEST   "/etc/redhat-release"
 #define SSH_STAGE_DIR       SLURM_STAGE_DIR
