@@ -233,7 +233,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 	char const* argv[] = {"/usr/bin/cat", nullptr};
 	auto const  stdoutFd = p.getWriteFd();
 	auto const  stderrFd = -1;
-	char const* inputFile = "./test_data.txt";
+	char const* inputFile = "../test_support/inputFileData.txt";
 	char const* chdirPath = nullptr;
 	char const* const* envList  = nullptr;
 
@@ -245,7 +245,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 	// get app output
 	{ std::string line;
 		ASSERT_TRUE(std::getline(pipein, line));
-		EXPECT_EQ(line, "cat");
+		EXPECT_EQ(line, "see InputFile in cti_fe_function_test.cpp");
 	}
 }
 
