@@ -606,23 +606,10 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
         const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
         const char * const env_list[])
 {
-    auto openFileOrDevNull = [&](char const* inputFile) {
-        int input_fd = -1;
-        if (inputFile == nullptr) {
-            inputFile = "/dev/null";
-        }
-        errno = 0;
-        input_fd = open(inputFile, O_RDONLY);
-        if (input_fd < 0) {
-            throw std::runtime_error("Failed to open input file " + std::string(inputFile) +": " + std::string(strerror(errno)));
-        }
-
-        return input_fd;
-    };
-
     // Get the launcher path from CTI environment variable / default.
     if (auto const launcher_path = cti::move_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
         // set up arguments and FDs
+        if (inputFile == nullptr) { inputFile = "/dev/null"; }
         if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
         if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
         auto const stdoutPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stdoutFd);
@@ -631,6 +618,7 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
         // construct argv array & instance
         cti::ManagedArgv launcherArgv
             { launcher_path.get()
+            , "--input="  + std::string{inputFile}
             , "--output=" + stdoutPath
             , "--error="  + stderrPath
         };
@@ -641,8 +629,8 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
         // Launch program under MPIR control.
         auto const mpirData = Daemon().request_LaunchMPIR(
             launcher_path.get(), launcherArgv.get(),
-            // redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
-            openFileOrDevNull(inputFile), open("/dev/null", O_RDWR), open("/dev/null", O_RDWR),
+            // redirect stdin/out/err to /dev/null, use SRUN arguments for in/output instead
+            open("/dev/null", O_RDWR), open("/dev/null", O_RDWR), open("/dev/null", O_RDWR),
             env_list);
 
         return mpirData;
