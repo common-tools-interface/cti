@@ -6,20 +6,19 @@
 # all functional tests defined in ./avocado_tests.py   #
 ########################################################
 
-#Contains python modules. Changed for whitebox running.
+#PYTHON VERSION TO USE
 PYTHON=python3
-PIP=pip
-VENV=venv
 ON_WHITEBOX=true
 
 setup_python() { #!WB setup check
+    PYTHON=python
     if ! test -f ~/.local/bin/pip ; then
         echo "No pip detected. Installing..."
         if ! curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py ; then
             echo "Failed to download pip setup script. Aborting..."
             return 1
         fi
-        if ! python get-pip.py --user ; then
+        if ! $PYTHON get-pip.py --user ; then
             echo "Failed to run pip installer. Aborting..."
             return 1
         fi
@@ -47,7 +46,7 @@ create_venv() {
     if [ "$ON_WHITEBOX" = true ] ; then
         $PYTHON -m venv avocado
     else
-        $VENV avocado
+        ~/.local/bin/virtualenv avocado
     fi
     if test -d ./avocado ; then
         return 0
@@ -135,7 +134,7 @@ run_tests() {
         if [ "$ON_WHITEBOX" = true ] ; then
             ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py --mux-yaml ./avocado_test_params.yaml
         else
-            ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py --mux-yaml
+            ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py --mux-yaml ./avocado_test_params.yaml
         fi
     else
         echo "No avocado environment setup. Cannot execute tests"
@@ -152,7 +151,7 @@ create_mpi_app() {
         module load modules/3.2.11.2
         module load PrgEnv-cray
         module load cray-mpich/7.7.8
-        export MPICH_SMP_SINGLE_COPY_OFF=0
+        #export MPICH_SMP_SINGLE_COPY_OFF=0
         if cc -o basic_hello_mpi hello_mpi.c ; then
             echo "Application successfully compiled into 'basic_hello_mpi'"
         else
@@ -167,7 +166,7 @@ create_mpi_app() {
 ###########################
 
 # check that running this is feasible at all
-if [ ! python3 --version > /dev/null ] && [ ! python --version > /dev/null ]  ; then
+if ! python3 --version > /dev/null && ! python --version > /dev/null ; then
     echo "No valid python install found. Exiting..."
     exit 1
 fi
@@ -179,7 +178,6 @@ if srun echo "" > /dev/null ; then
         exit 1
     fi
     echo "Calibrating script for non-whitebox"
-    PYTHON=python
     PIP=~/.local/bin/pip
     VENV=~/.local/bin/virtualenv
     ON_WHITEBOX=false
