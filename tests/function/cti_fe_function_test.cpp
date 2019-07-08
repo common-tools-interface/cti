@@ -33,10 +33,10 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     // Find my external IP
     {
         struct ifaddrs *ifaddr, *ifa;
-        int family, s, n;
+        int family, s;
         char host[NI_MAXHOST];
         ASSERT_NE(getifaddrs(&ifaddr), -1);
-        for (ifa = ifaddr, n=0; ifa != NULL; ifa = ifa->ifa_next, n++) {
+        for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
             if (ifa->ifa_addr == NULL) {
                 continue;
             }
@@ -46,7 +46,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
                     sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
                     host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
                 if (s != 0) {
-                    FAIL() << "Could not determine non-localhost IP";
+                    FAIL() << "Error while trying to find non-locahost IP";
                 }
 
                 // Accept the first IP that is not localhost.
@@ -59,6 +59,8 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
         // clean up
         freeifaddrs(ifaddr);
     }
+
+    ASSERT_NE(external_ip, "");
    
     // build 'server' socket  
     int test_socket;
@@ -84,11 +86,10 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
 
         // Clean up listener
         freeaddrinfo(listener);
-        listener = NULL;
     }
 
     // Begin listening on socket
-    ASSERT_EQ(listen(test_socket, 2), 0) << "Failed to listen on test_socket socket";
+    ASSERT_EQ(listen(test_socket, 1), 0) << "Failed to listen on test_socket socket";
 
     // get my sockets info
     struct sockaddr_in sa;
@@ -116,6 +117,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     // read data returned from app
     char buffer[16] = {0};
     int length = read(app_socket, buffer, 16);
+    ASSERT_LT(length, 16);
     buffer[length] = '\0';
 
     // check for correctness
