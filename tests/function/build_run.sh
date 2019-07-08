@@ -22,6 +22,7 @@ setup_python() { #!WB setup check
             echo "Failed to run pip installer. Aborting..."
             return 1
         fi
+        rm get-pip.py
     fi
     echo "Pip install is valid..."
     if ! test -f ~/.local/bin/virtualenv ; then
@@ -116,10 +117,10 @@ setup_avocado() {
 run_tests() {
     if test -d ./avocado-virtual-environment ; then
         echo "Valid avocado virtual environment for testing..."
-        if ! module load cray-snplauncher ; then
-            echo "Failed to load cray-snplauncher. Aborting testing..."
-            return 1
-        fi
+        #if ! module load cray-snplauncher ; then
+        #    echo "Failed to load cray-snplauncher. Aborting testing..."
+        #    return 1
+        #fi
         # check if not running on a whitebox and if so load different parameters TODO: Add different configs and expand list
         if [ "$ON_WHITEBOX" = true ] ; then
             echo "Configuring with Whitebox settings..."
