@@ -209,6 +209,13 @@ create_mpi_app() {
 #    BEGIN MAIN SCRIPT    #
 ###########################
 
+# check that amount of paramters passed in is valid
+if [ "$#" -gt 2 ] ; then
+    echo "Illegal number of arguments."
+    echo "Expected none or path to function tests directory"
+    exit 1
+fi
+
 # check that running this is feasible at all
 if ! python3 --version > /dev/null && ! python --version > /dev/null ; then
     echo "No valid python install found. Exiting..."
