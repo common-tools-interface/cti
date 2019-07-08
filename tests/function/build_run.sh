@@ -10,7 +10,14 @@
 PYTHON=python3
 ON_WHITEBOX=true
 
-setup_python() { #!WB setup check
+########################################################
+# This function is designed to ensure python is        #
+# properly setup on a non-whitebox system. These       #
+# systems tend to be missing things like PIP and this  #
+# will install them properly so the script can run     #
+########################################################
+
+setup_python() {
     PYTHON=python
     if ! test -f ~/.local/bin/pip ; then
         echo "No pip detected. Installing..."
@@ -37,11 +44,25 @@ setup_python() { #!WB setup check
     return 0
 }
 
+########################################################
+# This function runs the validate_ssh script to ensure #
+# that SSH is properly configured to run functional    #
+# tests. If not it simply aborts as MPI apps need a    #
+# valid SSH setup.                                     #
+########################################################
+
 valid_ssh(){
     if ! ../scripts/validate_ssh.sh ; then
         return 1
     fi
 }
+
+########################################################
+# This function creates the python virtual environment #
+# that the avocado plugin will be installed into. This #
+# provides better containment for any plugins that are #
+# needed for testing.                                  #
+########################################################
 
 create_venv() {
     if [ "$ON_WHITEBOX" = true ] ; then
@@ -54,6 +75,11 @@ create_venv() {
     fi
     return 1
 }
+
+########################################################
+# This function installs any additional avocado        #
+# plugins that are desired for testing.                #
+########################################################
 
 install_additional_plugins() {
     if [ "$ON_WHITEBOX" = true ] ; then
@@ -70,6 +96,13 @@ install_additional_plugins() {
     fi
 }
 
+########################################################
+# This function creates the avocado virtual environment#
+# that everything will be installed in. In the event   #
+# of failure the environment will be cleaned up unless #
+# it has reached a far enough state to be functional   #
+# even with certain errors.                            #
+########################################################
 
 setup_avocado() {
     echo "Creating avocado environment using $PYTHON"
@@ -114,14 +147,18 @@ setup_avocado() {
     return 1
 }
 
+########################################################
+# This function executes the current set of functional #
+# tests. It configures the environment beforehand      #
+# based on whether or not it is being ran on or off of #
+# a white-box.                                         #
+########################################################
+
 run_tests() {
     if test -d ./avocado-virtual-environment ; then
         echo "Valid avocado virtual environment for testing..."
-        #if ! module load cray-snplauncher ; then
-        #    echo "Failed to load cray-snplauncher. Aborting testing..."
-        #    return 1
-        #fi
-        # check if not running on a whitebox and if so load different parameters TODO: Add different configs and expand list
+
+        # check if not running on a whitebox and if so load different parameters
         if [ "$ON_WHITEBOX" = true ] ; then
             echo "Configuring with Whitebox settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
@@ -143,6 +180,13 @@ run_tests() {
     fi
 }
 
+########################################################
+# This function compiles a basic MPI app that simply   #
+# prints hello world based on how many nodes it runs   #
+# on. Due to its simplicity it is used as a basic test #
+# to run various other functional tests on             #
+########################################################
+
 create_mpi_app() {
     if test -f ./basic_hello_mpi ; then
         echo "MPI app already compiled..."
@@ -152,7 +196,6 @@ create_mpi_app() {
         module load modules/3.2.11.2
         module load PrgEnv-cray
         module load cray-mpich/7.7.8
-        #export MPICH_SMP_SINGLE_COPY_OFF=0
         if cc -o basic_hello_mpi hello_mpi.c ; then
             echo "Application successfully compiled into 'basic_hello_mpi'"
         else
