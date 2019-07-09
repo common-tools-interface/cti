@@ -15,6 +15,9 @@
 
 #include "cti_defs.h"
 
+// Need to include external interface definitions
+#include "cray_tools_fe.h"
+
 #include <memory>
 #include <string>
 #include <unordered_map>

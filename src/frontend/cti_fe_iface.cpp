@@ -14,9 +14,6 @@
 // This pulls in config.h
 #include "cti_defs.h"
 
-// Need to include external interface definitions
-#include "cray_tools_fe.h"
-
 // CTI definition includes
 #include "cti_fe_iface.hpp"
 
