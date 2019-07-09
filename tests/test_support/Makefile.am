@@ -34,29 +34,25 @@ libgmock_la_LDFLAGS  = -pthread
 
 # support binaries for function and unit tests
 
-# stage test helpers (one_printer, two_printer, libprint.so)
-check_PROGRAMS = one_printer two_printer one_socket two_socket
+# stage test helpers (one_socket, two_socket, libprint.so)
+check_PROGRAMS = one_socket two_socket
 
-print_one/libprint.so: print_one/print.c
-	cc -fPIC -shared print_one/print.c -o print_one/libprint.so
+message_one/libprint.so: message_one/message.c
+	cc -fPIC -shared message_one/message.c -o message_one/libprint.so
 
-one_printer_DEPENDENCIES = print_one/libprint.so
-one_printer_SOURCES = one_printer.c
-one_printer_LDADD   = -L./print_one -lprint
-one_printer_LDFLAGS = -Wl,-rpath,\$$ORIGIN/print_one
+one_socket_DEPENDENCIES = message_one/libprint.so
+one_socket_SOURCES = one_socket.c
+one_socket_LDADD   = -L./message_one -lprint
+one_socket_LDFLAGS = -Wl,-rpath,\$$ORIGIN/message_one
 
 clean-local:
-	rm -f print_one/libprint.so
-	rm -f print_two/libprint.so
+	rm -f message_one/libprint.so
+	rm -f message_two/libprint.so
 
-print_two/libprint.so: print_two/print.c
-	cc -fPIC -shared print_two/print.c -o print_two/libprint.so
+message_two/libprint.so: message_two/message.c
+	cc -fPIC -shared message_two/message.c -o message_two/libprint.so
 
-two_printer_DEPENDENCIES = print_two/libprint.so
-two_printer_SOURCES = two_printer.c
-two_printer_LDADD   = -L./print_two -lprint
-two_printer_LDFLAGS = -Wl,-rpath,\$$ORIGIN/print_two
-
-one_socket_SOURCES = one_socket.c
-
+two_socket_DEPENDENCIES = message_two/libprint.so
 two_socket_SOURCES = two_socket.c
+two_socket_LDADD   = -L./message_two -lprint
+two_socket_LDFLAGS = -Wl,-rpath,\$$ORIGIN/message_two

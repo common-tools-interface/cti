@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "message_one/message.h"
+
 int main(int argc, char* argv[]) {
 
     if (argc != 3) {
@@ -58,7 +60,7 @@ int main(int argc, char* argv[]) {
     }
     fprintf(stderr, "CONNECTED\n");
     //Send predictable data over socket
-    send(c_socket, "1", 1, 0);
+    send(c_socket, get_message(), 1, 0);
     close(c_socket);
     return 0;       
 }

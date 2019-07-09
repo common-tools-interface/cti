@@ -5,6 +5,8 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
+#include "message_two/message.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,7 +60,7 @@ int main(int argc, char* argv[]) {
     }
     fprintf(stderr, "CONNECTED\n");
     //Send predictable data over socket
-    send(c_socket, "2", 1, 0);
+    send(c_socket, get_message(), 1, 0);
     close(c_socket);
     return 0;       
 }
