@@ -226,23 +226,23 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     ASSERT_EQ(manifestFolders.size(), 0);
      
     // test that a binary can be added
-    ASSERT_NO_THROW(manifestPtr -> addBinary("../test_support/one_printer", Manifest::DepsPolicy::Ignore));
+    ASSERT_NO_THROW(manifestPtr -> addBinary("../test_support/one_socket", Manifest::DepsPolicy::Ignore));
  
     // test that the binary was actually added to memory
-    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("../test_support/one_printer"))], cti::getRealPath("../test_support/one_printer"));
+    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("../test_support/one_socket"))], cti::getRealPath("../test_support/one_socket"));
  
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
  
     // test that folder data is actually in memory
-    ASSERT_EQ(*(manifestFolders["bin"].begin()), cti::getNameFromPath(cti::findPath("../test_support/one_printer"))); 
+    ASSERT_EQ(*(manifestFolders["bin"].begin()), cti::getNameFromPath(cti::findPath("../test_support/one_socket"))); 
  
     // test that there was no excess folder data in memory
     ASSERT_EQ(manifestFolders["bin"].size(), 1); 
     ASSERT_EQ(manifestFolders.size(), 1);
 
     // test that additional dependencies can be added when Manifest::DepsPolicy::Staged is used
-    ASSERT_NO_THROW(manifestPtr -> addBinary("../test_support/one_printer", Manifest::DepsPolicy::Stage));
+    ASSERT_NO_THROW(manifestPtr -> addBinary("../test_support/one_socket", Manifest::DepsPolicy::Stage));
     // this should have added created the lib folder and added 12 dependencies to it
 
     ASSERT_EQ(manifestFolders.size(), 2);
@@ -250,7 +250,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     ASSERT_EQ(manifestFolders["lib"].size(), 1);
     ASSERT_EQ(fileSources.size(), 2);
 
-    ASSERT_STREQ((*(manifestFolders["lib"].begin())).c_str(), "libprint.so");
+    ASSERT_STREQ((*(manifestFolders["lib"].begin())).c_str(), "libmessage.so");
  
     // test that a non-binary file can't be added via addBinary
     {
@@ -303,7 +303,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     manifestPtr -> finalize();
     ASSERT_THROW({
         try {
-            manifestPtr -> addBinary("../test_support/one_printer", Manifest::DepsPolicy::Ignore);
+            manifestPtr -> addBinary("../test_support/one_socket", Manifest::DepsPolicy::Ignore);
         } catch (const std::exception& ex) {
             EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
  	   throw;
@@ -355,10 +355,10 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
     ASSERT_EQ(fileSources.size(), 1);
 
     // test that manifest can add libraries with Manifest::DepsPolicy::Stage
-    manifestPtr -> addLibrary("../test_support/one_printer", Manifest::DepsPolicy::Stage);
+    manifestPtr -> addLibrary("../test_support/one_socket", Manifest::DepsPolicy::Stage);
     ASSERT_EQ(manifestFolders["lib"].size(), 3);
     ASSERT_EQ(fileSources.size(), 3);
-    ASSERT_STREQ((*std::next(manifestFolders["lib"].begin(), 1)).c_str(), "libprint.so");
+    ASSERT_STREQ((*std::next(manifestFolders["lib"].begin(), 1)).c_str(), "libmessage.so");
  
     // test that manifest does not add libraries that don't exist
     ASSERT_THROW({

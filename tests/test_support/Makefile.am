@@ -37,22 +37,22 @@ libgmock_la_LDFLAGS  = -pthread
 # stage test helpers (one_socket, two_socket, libprint.so)
 check_PROGRAMS = one_socket two_socket
 
-message_one/libprint.so: message_one/message.c
-	cc -fPIC -shared message_one/message.c -o message_one/libprint.so
+message_one/libmessage.so: message_one/message.c
+	cc -fPIC -shared message_one/message.c -o message_one/libmessage.so
 
-one_socket_DEPENDENCIES = message_one/libprint.so
+one_socket_DEPENDENCIES = message_one/libmessage.so
 one_socket_SOURCES = one_socket.c
-one_socket_LDADD   = -L./message_one -lprint
+one_socket_LDADD   = -L./message_one -lmessage
 one_socket_LDFLAGS = -Wl,-rpath,\$$ORIGIN/message_one
 
 clean-local:
-	rm -f message_one/libprint.so
-	rm -f message_two/libprint.so
+	rm -f message_one/libmessage.so
+	rm -f message_two/libmessage.so
 
-message_two/libprint.so: message_two/message.c
-	cc -fPIC -shared message_two/message.c -o message_two/libprint.so
+message_two/libmessage.so: message_two/message.c
+	cc -fPIC -shared message_two/message.c -o message_two/libmessage.so
 
-two_socket_DEPENDENCIES = message_two/libprint.so
+two_socket_DEPENDENCIES = message_two/libmessage.so
 two_socket_SOURCES = two_socket.c
-two_socket_LDADD   = -L./message_two -lprint
+two_socket_LDADD   = -L./message_two -lmessage
 two_socket_LDFLAGS = -Wl,-rpath,\$$ORIGIN/message_two

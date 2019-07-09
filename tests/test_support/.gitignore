@@ -1,8 +1,6 @@
-print_one/print.o
-print_one/libprint.so
-print_two/print.o
-print_two/libprint.so
-one_printer
-two_printer
+message_one/message.o
+message_one/libmessage.so
+message_two/message.o
+message_two/libmessage.so
 one_socket
 two_socket
