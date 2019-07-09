@@ -18,8 +18,7 @@
 #ifndef _CRAY_TOOLS_FE_H
 #define _CRAY_TOOLS_FE_H
 
-#include <stdint.h>
-#include <sys/types.h>
+#include "cray_tools_shared.h"
 
 /*
  * The Cray tools interface needs to read environment variables about the system
@@ -115,14 +114,6 @@ typedef struct
     cti_host_t *   hosts;
 } cti_hostsList_t;
 
-enum cti_wlm_type
-{
-    CTI_WLM_NONE,    // error/unitialized state
-    CTI_WLM_CRAY_SLURM,
-    CTI_WLM_SSH
-};
-typedef enum cti_wlm_type  cti_wlm_type;
-
 typedef int64_t cti_app_id_t;
 typedef int64_t cti_session_id_t;
 typedef int64_t cti_manifest_id_t;
@@ -205,27 +196,27 @@ extern int cti_error_str_r(char *buf, size_t buf_len);
  *      None.
  *
  * Returns
- *      A cti_wlm_type that contains the current WLM in use on the system.
+ *      A cti_wlm_type_t that contains the current WLM in use on the system.
  *
  */
-extern cti_wlm_type cti_current_wlm(void);
+extern cti_wlm_type_t cti_current_wlm(void);
 
 /*
  * cti_wlm_type_toString - Obtain the stringified representation of the
- *                         cti_wlm_type.
+ *                         cti_wlm_type_t.
  *
  * Detail
- *      This call can be used to turn the cti_wlm_type returned by
+ *      This call can be used to turn the cti_wlm_type_t returned by
  *      cti_current_wlm into a human readable format.
  *
  * Arguments
- *      wlm_type - The cti_wlm_type to stringify
+ *      wlm_type - The cti_wlm_type_t to stringify
  *
  * Returns
  *      A string containing the human readable format.
  *
  */
-extern const char * cti_wlm_type_toString(cti_wlm_type wlm_type);
+extern const char * cti_wlm_type_toString(cti_wlm_type_t wlm_type);
 
 /*
  * cti_getHostname - Returns the hostname of the current login node.

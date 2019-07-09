@@ -11,8 +11,10 @@
 #
 
 SRC                 = @CRAYTOOL_DIR@/src
+INCLUDE				= @CRAYTOOL_DIR@/include
+
 AM_LIBTOOLFLAGS     = --quiet
-AM_CXXFLAGS         = -Wall -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl
+AM_CXXFLAGS         = -Wall -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl -I$(INCLUDE)
 
 noinst_LTLIBRARIES = libgenericssh.la
 

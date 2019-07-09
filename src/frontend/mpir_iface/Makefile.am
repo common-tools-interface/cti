@@ -10,7 +10,9 @@
 # in any form.
 #
 SRC             = @CRAYTOOL_DIR@/src
-AM_CXXFLAGS		= -Wall -I$(SRC)
+INCLUDE			= @CRAYTOOL_DIR@/include
+
+AM_CXXFLAGS		= -Wall -I$(SRC) -I$(INCLUDE)
 AM_LIBTOOLFLAGS = --quiet
 
 noinst_LTLIBRARIES      	=	libmpir_iface.la

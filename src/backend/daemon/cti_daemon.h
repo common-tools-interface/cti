@@ -21,7 +21,7 @@
 // but that should only be used if an API call is truly incompatible with the wlm.
 typedef struct
 {
-	cti_wlm_type		wlm_type;						// wlm type
+	cti_wlm_type_t		wlm_type;						// wlm type
 	int					(*wlm_init)(void);				// wlm init - return true on error
 	int					(*wlm_getNodeID)(void);			// get node ID of current compute node - return -1 on error
 } cti_wlm_proto_t;

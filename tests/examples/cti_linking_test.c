@@ -20,8 +20,8 @@
 int
 main(int argc, char **argv)
 {
-    cti_wlm_type        mywlm;
-    cti_be_wlm_type     mybewlm;
+    cti_wlm_type_t  mywlm;
+    cti_wlm_type_t  mybewlm;
 
     /*
      * cti_current_wlm - Obtain the current workload manager (WLM) in use on the

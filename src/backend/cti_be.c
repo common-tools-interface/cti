@@ -32,7 +32,7 @@ extern cti_be_wlm_proto_t	_cti_be_slurm_wlmProto;
 /* noneness wlm proto object */
 static cti_be_wlm_proto_t	_cti_be_nonenessProto =
 {
-	CTI_BE_WLM_NONE,					// wlm_type
+	CTI_WLM_NONE,						// wlm_type
 	_cti_be_wlm_init_none,				// wlm_init
 	_cti_be_wlm_fini_none,				// wlm_fini
 	_cti_be_wlm_findAppPids_none,		// wlm_findAppPids
@@ -71,15 +71,16 @@ _cti_be_init(void)
 	// verify that the wlm string is valid
 	switch (atoi(wlm_str))
 	{
-		case CTI_BE_WLM_CRAY_SLURM:
+		case CTI_WLM_CRAY_SLURM:
 			_cti_be_wlmProto = &_cti_be_cray_slurm_wlmProto;
 			break;
 
-		case CTI_BE_WLM_SSH:
+		case CTI_WLM_SSH:
 			_cti_be_wlmProto = &_cti_be_slurm_wlmProto;
 			break;
 
-		case CTI_BE_WLM_NONE:
+		case CTI_WLM_NONE:
+		case CTI_WLM_MOCK:
 			// These wlm are not supported
 			fprintf(stderr, "wlm %s is not yet supported!\n", cti_be_wlm_type_toString(atoi(wlm_str)));
 			return;
@@ -124,24 +125,25 @@ cti_be_version(void)
 	return CTI_BE_VERSION;
 }
 
-cti_be_wlm_type
+cti_wlm_type_t
 cti_be_current_wlm(void)
 {
 	return _cti_be_wlmProto->wlm_type;
 }
 
 const char *
-cti_be_wlm_type_toString(cti_be_wlm_type wlm_type)
+cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
 {
 	switch (wlm_type)
 	{
-		case CTI_BE_WLM_CRAY_SLURM:
+		case CTI_WLM_CRAY_SLURM:
 			return "Cray based SLURM";
 
-		case CTI_BE_WLM_SSH:
+		case CTI_WLM_SSH:
 			return "Fallback (SSH based) workload manager";
 
-		case CTI_BE_WLM_NONE:
+		case CTI_WLM_NONE:
+		case CTI_WLM_MOCK:
 			return "No WLM detected";
 	}
 
