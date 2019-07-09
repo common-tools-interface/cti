@@ -29,6 +29,11 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+// Enable gnu extensions
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1
+#endif
+
 #include <limits.h>
 #include <stdint.h>
 #include <sys/types.h>
