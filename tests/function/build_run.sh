@@ -52,9 +52,8 @@ setup_python() {
 ########################################################
 
 valid_ssh(){
-    if ! ../scripts/validate_ssh.sh ; then
-        return 1
-    fi
+    ../scripts/validate_ssh.sh
+    return $?
 }
 
 ########################################################
@@ -70,10 +69,7 @@ create_venv() {
     else
         ~/.local/bin/virtualenv avocado
     fi
-    if test -d ./avocado ; then
-        return 0
-    fi
-    return 1
+    return $?
 }
 
 ########################################################
