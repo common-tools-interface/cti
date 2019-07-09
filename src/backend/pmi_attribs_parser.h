@@ -20,22 +20,22 @@
 /* struct typedefs */
 typedef struct
 {
-	int		rank;	// This entries rank
-	pid_t	pid;	// This entries pid
+    int     rank;   // This entries rank
+    pid_t   pid;    // This entries pid
 } nodeRankPidPair_t;
 
 typedef struct
 {
-	int						pmi_file_ver;		// pmi_attribs file layout version
-	int						cnode_nidNum;		// compute node nid number
-	int						mpmd_cmdNum;		// command number this node represents in the MPMD set
-	int						app_nodeNumRanks;	// Number of ranks present on this node
-	nodeRankPidPair_t *		app_rankPidPairs;	// Rank/Pid pairs
+    int                     pmi_file_ver;       // pmi_attribs file layout version
+    int                     cnode_nidNum;       // compute node nid number
+    int                     mpmd_cmdNum;        // command number this node represents in the MPMD set
+    int                     app_nodeNumRanks;   // Number of ranks present on this node
+    nodeRankPidPair_t *     app_rankPidPairs;   // Rank/Pid pairs
 } pmi_attribs_t;
 
 /* function prototypes */
-pmi_attribs_t *	_cti_be_getPmiAttribsInfo(void);
-void			_cti_be_freePmiAttribs(pmi_attribs_t *);
+pmi_attribs_t * _cti_be_getPmiAttribsInfo(void);
+void            _cti_be_freePmiAttribs(pmi_attribs_t *);
 
 #endif /* _PMI_ATTRIBS_PARSER_H */
 
