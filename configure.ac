@@ -110,6 +110,9 @@ cray_ENV_DYNINST
 dnl This macro runs check for --with-dyninst
 AX_DYNINST
 
+dnl This marco runs check for --enable-code-coverage
+AX_CODE_COVERAGE
+
 ############################
 ### Check for libraries. ###
 ############################
