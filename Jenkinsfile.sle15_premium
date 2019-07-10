@@ -17,5 +17,5 @@ sles15PremiumPE {
     specfile = "cti.spec"
     timeout = 60
     slackNotification = ["#pe_debuggers", "", false, false, true, true]
-    agent = “dst-big-build”
+    agent = 'dst-big-build'
 }
