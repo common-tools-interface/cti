@@ -112,7 +112,11 @@ AX_DYNINST
 
 dnl This marco runs check for --enable-code-coverage
 AX_CODE_COVERAGE
-
+dnl AC_SUBST(CODE_COVERAGE_CPPFLAGS)
+dnl AC_SUBST(CODE_COVERAGE_CFLAGS)
+dnl AC_SUBST(CODE_COVERAGE_CXXFLAGS)
+dnl AC_SUBST(CODE_COVERAGE_LDFLAGS)
+dnl AC_SUBST(CODE_COVERAGE_LIBS)
 ############################
 ### Check for libraries. ###
 ############################

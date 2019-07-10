@@ -25,8 +25,6 @@ pkgconfig_DATA = craytools_be.pc craytools_fe.pc
 
 include_HEADERS = include/cray_tools_be.h include/cray_tools_fe.h
 
-#include $(top_srcdir)/aminclude_static.am
-
 .PHONY: tests
 tests:
 	cd tests && $(MAKE) $(AM_MAKEFLAGS) tests
