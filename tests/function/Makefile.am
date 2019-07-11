@@ -18,14 +18,16 @@ GTEST           = $(SUPPORT)/googletest/googletest
 AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
+include $(top_srcdir)/aminclude_static.am
 check_PROGRAMS = function_tests
 
 function_tests_SOURCES  = function_tests.cpp cti_fe_function_test.cpp
+function_tests_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS)
 function_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) \
-	-I$(GTEST)/include -I$(GTEST)
-function_tests_CXXFLAGS = $(AM_CXXFLAGS) $(function_tests_CFLAGS)
+	-I$(GTEST)/include -I$(GTEST) $(CODE_COVERAGE_CFLAGS)
+function_tests_CXXFLAGS = $(AM_CXXFLAGS) $(function_tests_CFLAGS) $(CODE_COVERAGE_CXXFLAGS)
 function_tests_LDADD    = -L$(prefix)/lib -lcraytools_fe \
-	$(SUPPORT)/libgtest.la -ldl -lrt -lstdc++
+	$(SUPPORT)/libgtest.la -ldl -lrt -lstdc++ $(CODE_COVERAGE_LIBS)
 function_tests_LDFLAGS  = -pthread -Wl,-z,origin -Wl,-rpath,\$$ORIGIN \
-	-Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed
+	-Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed $(CODE_COVERAGE_LDFLAGS)
 
