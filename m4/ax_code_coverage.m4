@@ -124,6 +124,7 @@ CODE_COVERAGE_OUTPUT_FILE ?= \$(PACKAGE_NAME)-\$(PACKAGE_VERSION)-coverage.info
 CODE_COVERAGE_OUTPUT_DIRECTORY ?= \$(PACKAGE_NAME)-\$(PACKAGE_VERSION)-coverage
 
 CODE_COVERAGE_BRANCH_COVERAGE ?=
+CODE_COVERAGE_LCOV_OPTIONS_GCOVPATH ?= --gcov-tool \"\$(GCOV)\"
 CODE_COVERAGE_IGNORE_PATTERN ?=
 
 GITIGNOREFILES := \$(GITIGNOREFILES) \$(CODE_COVERAGE_OUTPUT_FILE) \$(CODE_COVERAGE_OUTPUT_DIRECTORY)
@@ -140,7 +141,9 @@ check-code-coverage:
 	\$(AM_V_at)\$(MAKE) \$(AM_MAKEFLAGS) code-coverage-capture
 
 # Capture code coverage data
-code-coverage-capture: code-coverage-capture-hook '"$CODE_COVERAGE_RULES_CHECK"'
+code-coverage-capture: code-coverage-capture-hook
+	-\$(AM_V_at)\$(MAKE) \$(AM_MAKEFLAGS) -k check
+	\$(AM_V_at)\$(MAKE) \$(AM_MAKEFLAGS) code-coverage-capture
 
 code-coverage-clean:
 	-rm -rf \"\$(CODE_COVERAGE_OUTPUT_FILE)\" \"\$(CODE_COVERAGE_OUTPUT_FILE).tmp\" \"\$(CODE_COVERAGE_OUTPUT_DIRECTORY)\"
@@ -200,11 +203,15 @@ AC_DEFUN([_AX_CODE_COVERAGE_ENABLED],[
 	CODE_COVERAGE_CFLAGS="-O0 -g -fprofile-arcs -ftest-coverage"
 	CODE_COVERAGE_CXXFLAGS="-O0 -g -fprofile-arcs -ftest-coverage"
 	CODE_COVERAGE_LIBS="-lgcov"
+	CODE_COVERAGE_LDFLAGS="$CODE_COVERAGE_LIBS"
 
 	AC_SUBST([CODE_COVERAGE_CPPFLAGS])
 	AC_SUBST([CODE_COVERAGE_CFLAGS])
 	AC_SUBST([CODE_COVERAGE_CXXFLAGS])
 	AC_SUBST([CODE_COVERAGE_LIBS])
+	AC_SUBST([CODE_COVERAGE_LDFLAGS])
+
+	dnl [CODE_COVERAGE_RULES_CHECK='-$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -k check $(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) code-coverage-capture']
 ])
 
 AC_DEFUN([AX_CODE_COVERAGE],[

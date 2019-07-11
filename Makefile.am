@@ -19,6 +19,7 @@ SUBDIRS = src tests external
 
 EXTRA_DIST = craytools_be.pc.in craytools_fe.pc.in release_versioning
 	     
+include $(top_srcdir)/aminclude_static.am
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = craytools_be.pc craytools_fe.pc
