@@ -61,7 +61,7 @@ main(int argc, char **argv)
     uint32_t            step_id = 0;
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
-    cti_wlm_type        mywlm;
+    cti_wlm_type_t      mywlm;
     cti_app_id_t        myapp;
 
     if (argc < 2) {

@@ -13,4 +13,4 @@
 
 SUBDIRS			= useful frontend backend
 
-noinst_HEADERS	= cti_defs.h
+noinst_HEADERS	= cti_defs.h cti_argv_defs.hpp

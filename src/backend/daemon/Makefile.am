@@ -11,9 +11,10 @@
 #
 
 SRC                 = @CRAYTOOL_DIR@/src
+INCLUDE				= @CRAYTOOL_DIR@/include
 USEFUL              = $(SRC)/useful
 
-AM_CFLAGS       	= -I$(SRC)
+AM_CFLAGS       	= -I$(SRC) -I$(INCLUDE)
 AM_LIBTOOLFLAGS 	= --quiet
 
 libexec_PROGRAMS	= cti_be_daemon@CRAYTOOL_RELEASE_VERSION@

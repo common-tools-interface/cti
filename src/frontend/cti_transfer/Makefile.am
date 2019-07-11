@@ -11,7 +11,9 @@
 #
 
 SRC             = @CRAYTOOL_DIR@/src
-AM_CXXFLAGS		= -Wall -I$(SRC) -I$(src)/frontend
+INCLUDE			= @CRAYTOOL_DIR@/include
+
+AM_CXXFLAGS		= -Wall -I$(SRC) -I$(SRC)/frontend -I$(INCLUDE)
 AM_LIBTOOLFLAGS = --quiet
 
 noinst_LTLIBRARIES			=	libcti_transfer.la
