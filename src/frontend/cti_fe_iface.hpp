@@ -15,67 +15,8 @@
 
 #include "cti_defs.h"
 
-/*
-** The following represents the c interface. These need to be exported as C routines.
-*/
-extern "C" {
-
-/* API function prototypes */
-
-// current frontend information query
-const char *        cti_version(void);
-const char *        cti_error_str(void);
-int                 cti_error_str_r(char *buf, size_t buf_size);
-cti_wlm_type        cti_current_wlm(void);
-const char *        cti_wlm_type_toString(cti_wlm_type);
-char *              cti_getHostname(void);
-int                 cti_setAttribute(cti_attr_type, const char *);
-
-// running app information query
-char *              cti_getLauncherHostName(cti_app_id_t);
-int                 cti_getNumAppPEs(cti_app_id_t);
-int                 cti_getNumAppNodes(cti_app_id_t);
-char **             cti_getAppHostsList(cti_app_id_t);
-cti_hostsList_t *   cti_getAppHostsPlacement(cti_app_id_t);
-void                cti_destroyHostsList(cti_hostsList_t *);
-
-// WLM ops extensions
-cti_wlm_type        cti_open_ops(void **ops);
-
-// app lifecycle management
-int                 cti_appIsValid(cti_app_id_t);
-void                cti_deregisterApp(cti_app_id_t);
-cti_app_id_t        cti_launchApp(const char * const [], int, int, const char *, const char *, const char * const []);
-cti_app_id_t        cti_launchAppBarrier(const char * const [], int, int, const char *, const char *, const char * const []);
-int                 cti_releaseAppBarrier(cti_app_id_t);
-int                 cti_killApp(cti_app_id_t, int);
-
-// transfer session management
-cti_session_id_t    cti_createSession(cti_app_id_t appId);
-int                 cti_sessionIsValid(cti_session_id_t sid);
-int                 cti_destroySession(cti_session_id_t sid);
-
-// transfer session directory listings
-char **             cti_getSessionLockFiles(cti_session_id_t sid);
-char *              cti_getSessionRootDir(cti_session_id_t sid);
-char *              cti_getSessionBinDir(cti_session_id_t sid);
-char *              cti_getSessionLibDir(cti_session_id_t sid);
-char *              cti_getSessionFileDir(cti_session_id_t sid);
-char *              cti_getSessionTmpDir(cti_session_id_t sid);
-
-// transfer manifest management
-cti_manifest_id_t   cti_createManifest(cti_session_id_t sid);
-int                 cti_manifestIsValid(cti_manifest_id_t mid);
-int                 cti_addManifestBinary(cti_manifest_id_t mid, const char * rawName);
-int                 cti_addManifestLibrary(cti_manifest_id_t mid, const char * rawName);
-int                 cti_addManifestLibDir(cti_manifest_id_t mid, const char * rawName);
-int                 cti_addManifestFile(cti_manifest_id_t mid, const char * rawName);
-int                 cti_sendManifest(cti_manifest_id_t mid);
-
-// tool daemon management
-int                 cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath, const char * const daemonArgs[], const char * const envVars[]);
-
-} /* extern "C" */
+// Need to include external interface definitions
+#include "cray_tools_fe.h"
 
 #include <memory>
 #include <string>

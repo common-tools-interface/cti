@@ -76,7 +76,7 @@ TEST_F(CTIFEUnitTest, Version)
     ASSERT_TRUE(cti_version() != nullptr);
 }
 
-// cti_wlm_type cti_current_wlm(void);
+// cti_wlm_type_t cti_current_wlm(void);
 // Tests that the frontend type is set to mock.
 TEST_F(CTIFEUnitTest, CurrentWLM)
 {
@@ -90,7 +90,7 @@ TEST_F(CTIFEUnitTest, CurrentWLM)
     ASSERT_EQ(cti_current_wlm(), CTI_WLM_MOCK);
 }
 
-// const char * cti_wlm_type_toString(cti_wlm_type);
+// const char * cti_wlm_type_toString(cti_wlm_type_t);
 // Tests that the frontend type string is nonnull
 TEST_F(CTIFEUnitTest, WLMTypeToString)
 {

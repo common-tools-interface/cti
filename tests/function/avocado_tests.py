@@ -20,12 +20,46 @@ EXAMPLES_PATH = "%s/../examples" % FUNCTIONAL_TESTS_PATH
 SUPPORT_PATH  = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
 
 '''
+cti_transfer launches a binary and holds it at startup. meanwhile, it transfers
+over `testing.info` from PATH and prints a command to verify its existence on-node.
+to automate: launch with custom PATH, extract and run the verification command
+'''
+class CtiTransferTest(Test):
+	def test(self):
+		proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_transfer" % EXAMPLES_PATH,
+			"%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
+			env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
+			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+		for line in iter(proc.stdout.readline, ''):
+			decoded_line = line.decode("utf-8").rstrip()
+			if decoded_line[:6] == 'Verify':
+				print("Sleeping...")
+				# give tool daemon time to execute
+				time.sleep(5)
+
+				# run remote ls and verify testing.info is present
+				process.run("%s | test -f " % (decoded_line[decoded_line.find('/'):] + "/testing.info"), shell = True)
+
+				# end proc
+				proc.stdin.write(b'\n')
+				proc.stdin.flush()
+				proc.stdin.close()
+				proc.wait()
+				break
+
+
+'''
 function_tests runs all of the Googletest-instrumented functional tests
+'''
 
 class FunctionTest(Test):
 	def test(self):
-		process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
-'''
+		try :
+			process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
+		except process.CmdError:
+			self.fail("Google tests failed. See log for more details")
+
+
 '''
 cti_barrier launches a binary, holds it at the startup barrier until
 the user presses enter.
@@ -33,16 +67,16 @@ to automate: pipe from `yes`
 '''
 class CtiBarrierTest(Test):
 	def test(self):
-		process.run("yes | %s/cti_barrier %s/one_printer"
-			% (EXAMPLES_PATH, SUPPORT_PATH), shell = True)
+		process.run("yes | %s/cti_barrier %s/basic_hello_mpi"
+			% (EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
 
 '''
 cti_launch launches a binary and prints out various information about the job.
 '''
 class CtiLaunchTest(Test):
 	def test(self):
-		process.run("%s/cti_launch %s/one_printer"
-			% (EXAMPLES_PATH, SUPPORT_PATH), shell = True)
+		process.run("%s/cti_launch %s/basic_hello_mpi"
+			% (EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
 
 '''
 cti_callback launches a binary and holds it at startup. meanwhile, it launches
@@ -52,8 +86,8 @@ to automate: pipe from `yes` and launch with custom PATH
 '''
 class CtiCallbackTest(Test):
 	def test(self):
-		process.run("yes | PATH=%s:$PATH %s/cti_callback %s/one_printer"
-			% (EXAMPLES_PATH, EXAMPLES_PATH, SUPPORT_PATH), shell = True)
+		process.run("yes | PATH=%s:$PATH %s/cti_callback %s/basic_hello_mpi"
+			% (EXAMPLES_PATH, EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
 
 '''
 cti_link tests that programs can be linked against the FE/BE libraries.
@@ -63,32 +97,6 @@ class CtiLinkTest(Test):
 		process.run("%s/cti_link"
 			% (EXAMPLES_PATH), shell = True)
 
-'''
-cti_transfer launches a binary and holds it at startup. meanwhile, it transfers
-over `testing.info` from PATH and prints a command to verify its existence on-node.
-to automate: launch with custom PATH, extract and run the verification command
-'''
-class CtiTransferTest(Test):
-	def test(self):
-		proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_transfer" % EXAMPLES_PATH,
-			"%s/one_printer" % SUPPORT_PATH],
-			env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
-			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-
-		for line in iter(proc.stdout.readline, ''):
-			if line[:4] == 'srun':
-				# give tool daemon time to execute
-				time.sleep(5)
-
-				# run remote ls and verify testing.info is present
-				process.run("%s | grep -q testing.info" % line.rstrip(), shell = True)
-
-				# end proc
-				proc.stdin.write(b'\n')
-				proc.stdin.flush()
-				proc.stdin.close()
-				proc.wait()
-				break
 
 '''
 cti_info fetches information about a running job.
@@ -97,13 +105,28 @@ to automate: hold a program at startup with cti_barrier, parse the job/stepid
 class CtiInfoTest(Test):
 	def test(self):
 		proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % EXAMPLES_PATH,
-			"%s/one_printer" % SUPPORT_PATH],
+			"%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
 			# env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
 			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+		proc_pid = proc.pid
+		if proc_pid is not None:
+			print(proc_pid)
+			time.sleep(4)
+			# run cti_info
+			process.run("%s/cti_info --pid %s" %
+			(EXAMPLES_PATH, proc_pid), shell = True)
 
+			# release barrier
+			#proc.stdin.write(b'\n')
+			#proc.stdin.flush()
+			#proc.stdin.close()
+			#proc.wait()
+		self.assertTrue(proc_pid is not None)
+		'''
 		jobid = None
 		stepid = None
 		for line in iter(proc.stdout.readline, ''):
+			print(line)
 			line = line.rstrip()
 			if line[:5] == 'jobid':
 				jobid = line.split()[-1]
@@ -121,5 +144,5 @@ class CtiInfoTest(Test):
 				proc.stdin.close()
 				proc.wait()
 				break
-
 		self.assertTrue(jobid is not None and stepid is not None)
+		'''

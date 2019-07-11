@@ -53,7 +53,6 @@ mkdir -p %{buildroot}%{_version_prefix}
 
 cp -R ${CUR_DIR}%{_version_prefix} %{buildroot}/%{_name_prefix}/
 rm -rf %{buildroot}/%{_version_prefix}/modulefile
-rm -rf %{buildroot}/%{_version_prefix}/include/boost
 
 install -D ${CUR_DIR}%{_version_prefix}/release_info %{buildroot}%{_version_prefix}/
 echo "%{build_version}-%{release}" > %{buildroot}%{_version_prefix}/.cray_rpm_release

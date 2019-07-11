@@ -23,15 +23,15 @@
 #include "cti_daemon.h"
 
 /* static prototypes */
-static int	_cti_slurm_init(void);
-static int	_cti_slurm_getNodeID(void);
+static int  _cti_slurm_init(void);
+static int  _cti_slurm_getNodeID(void);
 
 /* cray slurm wlm proto object */
-cti_wlm_proto_t		_cti_slurm_wlmProto =
+cti_wlm_proto_t     _cti_slurm_wlmProto =
 {
-	CTI_WLM_SSH,			// wlm_type
-	_cti_slurm_init,		// wlm_init
-	_cti_slurm_getNodeID	// wlm_getNodeID
+    CTI_WLM_SSH,            // wlm_type
+    _cti_slurm_init,        // wlm_init
+    _cti_slurm_getNodeID    // wlm_getNodeID
 };
 
 /* functions start here */
@@ -39,9 +39,9 @@ cti_wlm_proto_t		_cti_slurm_wlmProto =
 static int
 _cti_slurm_init(void)
 {
-	// NO-OP
+    // NO-OP
 
-	return 0;
+    return 0;
 }
 
 /******************************************************************************
@@ -65,30 +65,30 @@ _cti_slurm_init(void)
 static int
 _cti_slurm_getNodeID(void)
 {
-	static  int cachedNid = -1;
-	FILE *	nid_fd;
-	char	file_buf[BUFSIZ];
+    static  int cachedNid = -1;
+    FILE *  nid_fd;
+    char    file_buf[BUFSIZ];
 
     // Determined the nid already?
     if (cachedNid != -1)
         return cachedNid;
 
-	// read the nid from the system location
-	// open up the file containing our node id (nid)
-	if ((nid_fd = fopen(CRAY_NID_FILE, "r")) != NULL)
-	{
-	    // we expect this file to have a numeric value giving our current nid
-	    if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
-	    {
-		    fprintf(stderr, "%s: _cti_slurm_getNodeID:fgets failed.\n", CTI_BE_DAEMON_BINARY);
-		    return -1;
-	    }
+    // read the nid from the system location
+    // open up the file containing our node id (nid)
+    if ((nid_fd = fopen(CRAY_NID_FILE, "r")) != NULL)
+    {
+        // we expect this file to have a numeric value giving our current nid
+        if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)
+        {
+            fprintf(stderr, "%s: _cti_slurm_getNodeID:fgets failed.\n", CTI_BE_DAEMON_BINARY);
+            return -1;
+        }
 
-	    // convert this to an integer value
-	    cachedNid = atoi(file_buf);
+        // convert this to an integer value
+        cachedNid = atoi(file_buf);
 
-	    // close the file stream
-	    fclose(nid_fd);
+        // close the file stream
+        fclose(nid_fd);
 
     }
 

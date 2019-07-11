@@ -23,7 +23,8 @@ EXTRA_DIST = craytools_be.pc.in craytools_fe.pc.in release_versioning
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = craytools_be.pc craytools_fe.pc
 
-include_HEADERS = include/cray_tools_be.h include/cray_tools_fe.h
+include_HEADERS = include/cray_tools_be.h include/cray_tools_fe.h \
+				  include/cray_tools_shared.h
 
 
 .PHONY: tests

@@ -29,7 +29,7 @@ main(int argc, char **argv)
     cti_session_id_t    mysid;
     cti_manifest_id_t   mymid;
     char *              file_loc;
-    cti_wlm_type        mywlm;
+    cti_wlm_type_t      mywlm;
     int                 r;
 
     if (argc < 2)

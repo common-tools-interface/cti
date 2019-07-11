@@ -129,7 +129,7 @@ cti_error_str_r(char *buf, size_t buf_len) {
     return 0;
 }
 
-cti_wlm_type
+cti_wlm_type_t
 cti_current_wlm(void) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
@@ -138,7 +138,7 @@ cti_current_wlm(void) {
 }
 
 const char *
-cti_wlm_type_toString(cti_wlm_type wlm_type) {
+cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
     switch (wlm_type) {
         case CTI_WLM_CRAY_SLURM:
             return "Cray based SLURM";

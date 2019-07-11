@@ -11,8 +11,10 @@
 #
 
 SRC             = @CRAYTOOL_DIR@/src
+INCLUDE			= @CRAYTOOL_DIR@/include
+
 AM_LIBTOOLFLAGS = --quiet
-AM_CFLAGS		= -Wall -I$(SRC) -I.
+AM_CFLAGS		= -Wall -I$(SRC) -I. -I$(INCLUDE)
 
 noinst_LTLIBRARIES      = libfe_daemon_iface.la
 
@@ -23,7 +25,7 @@ libfe_daemon_iface_la_LDFLAGS  = -static -Wl,--no-undefined
 
 libexec_PROGRAMS		= 	cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@
 
-cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_SOURCES  = cti_fe_daemon.cpp 
+cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_SOURCES  = cti_fe_daemon.cpp
 cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_CPPFLAGS = $(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS)
 cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_CXXFLAGS = $(AM_CFLAGS) $(AM_CXXFLAGS) $(DYNINST_CXXFLAGS) $(BOOST_CXXFLAGS)
 cti_fe_daemon@CRAYTOOL_RELEASE_VERSION@_LDFLAGS  = -Wl,--no-undefined -Wl,--as-needed -Wl,-rpath,\$$ORIGIN/../lib -pthread $(DYNINST_LDFLAGS) $(BOOST_LDFLAGS)

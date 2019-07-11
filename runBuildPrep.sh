@@ -76,7 +76,7 @@ check_exit_status $? cray-modules
 export SHELL=/bin/sh
 
 #Ensure we can use modules
-module use /opt/cray/pe/modules/default/init/bash
+source /opt/cray/pe/modules/default/init/bash
 
 #Ensure CTI is build with $gcc_ver
 module load gcc/$gcc_ver

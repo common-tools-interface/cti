@@ -21,7 +21,7 @@
 void
 cti_test_fe(cti_app_id_t appId)
 {
-    cti_wlm_type        mywlm;
+    cti_wlm_type_t      mywlm;
     const char *        mywlm_str;
     char *              myhostname;
     char *              mylauncherhostname;
@@ -49,7 +49,7 @@ cti_test_fe(cti_app_id_t appId)
     assert(mywlm != CTI_WLM_NONE);
 
     /*
-     * cti_wlm_type_toString - Obtain stringified version of cti_wlm_type.
+     * cti_wlm_type_toString - Obtain stringified version of cti_wlm_type_t.
      */
     mywlm_str = cti_wlm_type_toString(mywlm);
     if (mywlm_str == NULL) {
@@ -97,6 +97,7 @@ cti_test_fe(cti_app_id_t appId)
         }
             break;
 
+
         case CTI_WLM_SSH:
             break;
 
@@ -106,7 +107,6 @@ cti_test_fe(cti_app_id_t appId)
             assert(0);
             break;
     }
-
     /*
      * cti_getLauncherHostName - Returns the hostname of the login node where the
      *                           application launcher process resides.

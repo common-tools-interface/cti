@@ -420,9 +420,9 @@ public: // Constructor/destructor
 GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
     : App(fe)
     , m_launcherPid { fe.Daemon().request_RegisterApp(launcherPid) }
-    , m_stepLayout  { fe.fetchStepLayout(launcherInstance->getProctable()) }
-    , m_beDaemonSent { false }
     , m_launcherInstance { std::move(launcherInstance) }
+    , m_stepLayout  { fe.fetchStepLayout(m_launcherInstance->getProctable()) }
+    , m_beDaemonSent { false }
     , m_toolPath    { SSH_TOOL_DIR }
     , m_attribsPath { SSH_TOOL_DIR }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR}) }
@@ -453,7 +453,21 @@ GenericSSHApp::~GenericSSHApp()
 /* app instance creation */
 
 GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid)
-    : GenericSSHApp{fe, launcherPid, nullptr}
+    : GenericSSHApp
+        { fe
+        , launcherPid
+
+        // MPIR attach to launcher
+        , std::make_unique<MPIRInstance>(
+
+            // Get path to launcher binary
+            cti::move_pointer_ownership(
+                _cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr),
+                std::free).get(),
+
+            // Attach to existing launcherPid
+            launcherPid)
+        }
 {}
 
 GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, std::unique_ptr<MPIRInstance>&& launcherInstance)

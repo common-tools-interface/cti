@@ -32,19 +32,14 @@ system_type_remove=
 MAN_DIR=$PWD/external/install/share/man
 
 #check what system we are building on
-if [ -f /etc/SuSE-release ]
-then
-	SYSTEM=SuSE
-	OS=`cat /etc/SuSE-release | head -1 | cut -d' ' -f5`
-	OS_VER=sles$OS
-elif [ -f /etc/redhat-release ]
+if [ -f /etc/redhat-release ]
 then
 	SYSTEM=CS
 	OS_VER=el7
 elif [ -f /etc/os-release ]
 then
 	SYSTEM=SuSE
-	OS=`cat /etc/os-release | grep VERSION | head -1 | cut -d'"' -f2`
+	OS=`cat /etc/os-release | grep VERSION_ID= | cut -d'"' -f2`
 	OS_VER=sles$OS
 fi
 
@@ -55,83 +50,31 @@ GIT_FULL_REV=$(git log -n1 --pretty=%H)
 GIT_SHORT_REV=$(echo $GIT_FULL_REV | head -c13)
 GIT_STR=$DATE.$GIT_SHORT_REV
 STATIC_VERSION=
-STATIC_RELEASE_DATE=
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 FIELD=$(expr $BRANCH_LENGTH + 1)
 REL=0
 
-if [ $ARCH == "x86_64" ]
+if [ $OS_VER == "sles15" ]
 then
-  echo "Building for x86_64"
-  if [ $OS_VER == "sles11" ]
-  then
-    echo "Building for sles11"
-	os_list_hw=5.2
-	os_list_wb=sles11sp3
-	system_type_hw=HARDWARE
-	system_type_wb=WHITEBOX
-	system_type_remove=$system_type_hw,$system_type_wb
-  elif [ $OS_VER == "sles12" ]
-  then
-    echo "Building for sles12"
-    os_list_hw=6.0,6.1,6.2,6.3,7.0
-    os_list_wb=sles12
-    system_type_hw=HARDWARE
-    system_type_wb=WHITEBOX
-    system_type_remove=$system_type_hw,$system_type_wb
-  elif [ $OS_VER == "sles15" ]
-  then
     echo "Building for sles15"
     os_list_hw=7.0
     os_list_wb=sles15
     system_type_hw=HARDWARE
     system_type_wb=WHITEBOX
     system_type_remove=$system_type_hw,$system_type_wb
-  elif [ $OS_VER == "el7" ]
-  then
+elif [ $OS_VER == "el7" ]
+then
     echo "Building for el7"
     os_list_hw=6.0,6.1,6.2,6.3,7.0
     os_list_wb=sles12
     system_type_hw=HARDWARE
     system_type_wb=WHITEBOX
     system_type_remove=$system_type_hw,$system_type_wb
-  fi
-elif [ $ARCH == "aarch64" ]
-then
-  echo "Building for aarch64"
-  os_list_hw=6.0,6.1,6.2,6.3,7.0
-  os_list_wb=sles12
-  system_type_hw=AARCH64
-  system_type_wb=AARCH64
-  system_type_remove=AARCH64
 fi
 
-REL_DATE=`source $PWD/scripts/find_release_date.sh`
-#if branch does not have a date associated with it
-if [ "$STATIC_RELEASE_DATE"  == "" ]
-then
-  echo "Using standard release date."
-  #assign standard date to it - cause we dont care
-  RELEASE_DATE=$REL_DATE
-#if the branch does have a release date associated with it
-else
-  echo "Using default release date."
-  #assign release date to it
-  RELEASE_DATE=$REL_DATE
-fi
-echo "Release Date: $RELEASE_DATE"
-
-
-if [ "$STATIC_VERSION" != "" ]
-then
-  PKG_VERSION=$(echo $STATIC_VERSION)
-  echo $PKG_VERSION  
-  REL=0
-fi
+RELEASE_DATE=`source $PWD/scripts/find_release_date.sh`
 DATE_COMMIT=$GIT_STR-$REL
 REL_OS=$REL.$OS_VER
-
-echo " package version "
 PKG_MAJOR=$(cat $PWD/release_versioning | grep ^craytool_major= | cut -d'"' -f2)
 PKG_MINOR=$(cat $PWD/release_versioning | grep ^craytool_minor= | cut -d'"' -f2)
 PKG_BUGFIX=$(cat $PWD/release_versioning | grep ^revision= | cut -d'"' -f2)
@@ -146,12 +89,7 @@ echo "############################################"
 echo "#          Running make install            #"
 echo "############################################"
 
-make install -j32 \
-         PKG_VERSION=$PKG_VERSION \
-         NAME=$NAME \
-         PKG_NAME=$PKG_NAME \
-         INSTALL_DIR=$INSTALL_DIR \
-
+make install -j32
 return_code=$?
 # Short circuit if make install failed
 if [ $return_code -ne 0 ]; then
