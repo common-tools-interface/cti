@@ -503,6 +503,8 @@ static pid_t forkExec(LaunchData const& launchData)
 		close(respFd);
 
 		// dup2 all stdin/out/err to provided FDs
+		// TODO: this should instead open the path /proc/target_pid/fd/fileno as FDs
+		//       would not necessarily have been inherited during daemon setup
 		dup2(launchData.stdin_fd,  STDIN_FILENO);
 		dup2(launchData.stdout_fd, STDOUT_FILENO);
 		dup2(launchData.stderr_fd, STDERR_FILENO);
@@ -551,6 +553,8 @@ static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& m
 
 static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 {
+	// TODO: this should instead open the path /proc/target_pid/fd/fileno as FDs
+	//       would not necessarily have been inherited during daemon setup
 	std::map<int, int> const remapFds
 		{ { launchData.stdin_fd,  STDIN_FILENO  }
 		, { launchData.stdout_fd, STDOUT_FILENO }
