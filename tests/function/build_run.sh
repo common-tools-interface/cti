@@ -225,8 +225,6 @@ if srun echo "" > /dev/null ; then
         exit 1
     fi
     echo "Calibrating script for non-whitebox"
-    PIP=~/.local/bin/pip
-    VENV=~/.local/bin/virtualenv
     ON_WHITEBOX=false
 else
     echo "due to no srun assuming whitebox environment..."
