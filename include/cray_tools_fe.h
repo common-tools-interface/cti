@@ -89,15 +89,14 @@ extern "C" {
  *  This enum enumerates the various attributes that
  *  can be set by cti_setAttribute.
  */
-enum cti_attr_type
+typedef enum
 {
     CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library
                                     // dependencies should be automatically
                                     // staged by cti_addManifestBinary and
                                     // cti_addManifestLIbrary: 0 or 1
                                     // Defaults to 1.
-};
-typedef enum cti_attr_type  cti_attr_type;
+} cti_attr_type_t;
 
 /*
  * The following are types used as return values for some API calls.
