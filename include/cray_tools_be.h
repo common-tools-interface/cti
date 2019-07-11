@@ -18,11 +18,10 @@
 #ifndef _CRAY_TOOLS_BE_H
 #define _CRAY_TOOLS_BE_H
 
-#include <stdint.h>
-#include <sys/types.h>
+#include "cray_tools_shared.h"
 
 /*
- * The Cray tools interface automatically creates/sets several environment 
+ * The Cray tools interface automatically creates/sets several environment
  * variables when the dlaunch utility launches the tool daemon on the compute
  * node. They are defined here. Note that the value of these environment
  * variables are subject to change. Use the defines to guarantee portability.
@@ -34,9 +33,9 @@
  *         storage space. This is set to a location that is guaranteed
  *         to be writable and unique to the instance of the tool daemon.
  *         If temporary storage space is required to be shared between a tool
- *         daemon and the application, the caller should set the value of 
+ *         daemon and the application, the caller should set the value of
  *         CTI_SCRATCH_ENV_VAR in the environment of aprun and then set
- *         CTI_SCRATCH_ENV_VAR in their tool daemon to the value of 
+ *         CTI_SCRATCH_ENV_VAR in their tool daemon to the value of
  *         OLD_SCRATCH_ENV_VAR. If multiple instances of tool daemons need to
  *         share temporary storage space, CTI_SCRATCH_ENV_VAR can be set to the
  *         value of CTI_ROOT_DIR_VAR.
@@ -46,7 +45,7 @@
  *         The environment variable that is used to contain the value of
  *         CTI_SCRATCH_ENV_VAR that was set inside the environment of the aprun
  *         associated with this tool daemon. This is useful if you need to query
- *         the value that was used in conjunction with the environment of the 
+ *         the value that was used in conjunction with the environment of the
  *         application. If CTI_SCRATCH_ENV_VAR was not set in the environment of
  *         aprun, CTI_OLD_SCRATCH_ENV_VAR will not exist in the environment of
  *         the tool daemon.
@@ -66,7 +65,7 @@
 extern "C" {
 #endif
 
-/* 
+/*
  * The following are types used as return values for some API calls.
  */
 typedef struct
@@ -81,22 +80,13 @@ typedef struct
         cti_rankPidPair_t * pids;
 } cti_pidList_t;
 
-enum cti_be_wlm_type
-{
-    CTI_BE_WLM_NONE,    // error/unitialized state
-    CTI_BE_WLM_CRAY_SLURM,
-    CTI_BE_WLM_SLURM,
-    CTI_BE_WLM_SSH
-};
-typedef enum cti_be_wlm_type cti_be_wlm_type;
-
 /*
  * The Cray tools interface backend calls are defined below.
  */
 
 /*
  * cti_be_version - Returns the version string of the CTI backend library.
- * 
+ *
  * Detail
  *      This function returns the version string of the backend library. This
  *      can be used to check for compatibility.
@@ -106,14 +96,14 @@ typedef enum cti_be_wlm_type cti_be_wlm_type;
  *
  * Returns
  *      A string containing the current backend library version.
- * 
+ *
  */
 extern const char * cti_be_version(void);
 
 /*
- * cti_be_current_wlm - Obtain the current workload manager (WLM) in use on the 
+ * cti_be_current_wlm - Obtain the current workload manager (WLM) in use on the
  *                      system.
- * 
+ *
  * Detail
  *      This call can be used to obtain the current WLM in use on the system.
  *      The result can be used by the caller to validate arguments to functions
@@ -123,35 +113,35 @@ extern const char * cti_be_version(void);
  *      None.
  *
  * Returns
- *      A cti_be_wlm_type that contains the current WLM in use on the system.
+ *      A cti_wlm_type_t that contains the current WLM in use on the system.
  *
  */
-extern cti_be_wlm_type cti_be_current_wlm(void);
+extern cti_wlm_type_t cti_be_current_wlm(void);
 
 /*
- * cti_be_wlm_type_toString - Obtain the stringified representation of the 
+ * cti_be_wlm_type_toString - Obtain the stringified representation of the
  *                            cti_be_wlm_type.
- * 
+ *
  * Detail
- *      This call can be used to turn the cti_be_wlm_type returned by 
- *      cti_current_wlm into a human readable format.
+ *      This call can be used to turn the cti_wlm_type_t returned by
+ *      cti_be_current_wlm into a human readable format.
  *
  * Arguments
- *      wlm_type - The cti_be_wlm_type to stringify
+ *      wlm_type - The cti_wlm_type_t to stringify
  *
  * Returns
  *      A string containing the human readable format.
  *
  */
-extern const char * cti_be_wlm_type_toString(cti_be_wlm_type wlm_type);
+extern const char * cti_be_wlm_type_toString(cti_wlm_type_t wlm_type);
 
 /*
  * cti_be_getAppId - Returns the Application id in string format of the
  *                   application associated with this tool daemon.
- * 
+ *
  * Detail
  *      This function returns the application id in string format. This string
- *      is formated in a WLM specific way. It is up to the caller to free the 
+ *      is formated in a WLM specific way. It is up to the caller to free the
  *      returned string.
  *
  * Arguments
@@ -159,7 +149,7 @@ extern const char * cti_be_wlm_type_toString(cti_be_wlm_type wlm_type);
  *
  * Returns
  *      A string containing the application id, or else NULL on error.
- * 
+ *
  */
 extern char * cti_be_getAppId();
 
@@ -170,28 +160,28 @@ extern char * cti_be_getAppId();
  *
  * Detail
  *      This function creates and returns a cti_pidList_t that contains the
- *      number of PE rank/PE PID pairs and cti_nodeRankPidPair entries that 
- *      contain the actual rank number along with the associated pid of the PE. 
+ *      number of PE rank/PE PID pairs and cti_nodeRankPidPair entries that
+ *      contain the actual rank number along with the associated pid of the PE.
  *
  * Arguments
  *      None.
  *
  * Returns
  *      A cti_pidList_t that contains the number of PE rank/PE pid pairings
- *      on the node and an array of cti_nodeRankPidPair that contain the actual 
+ *      on the node and an array of cti_nodeRankPidPair that contain the actual
  *      PE rank/PE pid pairings. Returns NULL on error.
  *
  */
 extern cti_pidList_t * cti_be_findAppPids(void);
 
 /*
- * cti_be_destroyPidList - Used to destroy the memory allocated for a 
+ * cti_be_destroyPidList - Used to destroy the memory allocated for a
  *                         cti_pidList_t.
- * 
+ *
  * Detail
  *      This function free's a cti_pidList_t. It is used to safely destroy
- *      the data structure returned by a call to the cti_findAppPids function 
- *      when the caller is done with the data that was allocated during its 
+ *      the data structure returned by a call to the cti_findAppPids function
+ *      when the caller is done with the data that was allocated during its
  *      creation.
  *
  * Arguments
@@ -205,7 +195,7 @@ extern void cti_be_destroyPidList(cti_pidList_t *pid_list);
 
 /*
  * cti_be_getNodeHostname - Returns the hostname of this compute node.
- * 
+ *
  * Detail
  *      This function determines the hostname of the current compute node. It is
  *      up to the caller to free the returned string.
@@ -215,20 +205,20 @@ extern void cti_be_destroyPidList(cti_pidList_t *pid_list);
  *
  * Returns
  *      A string containing the hostname, or else a null string on error.
- * 
+ *
  */
 extern char * cti_be_getNodeHostname();
 
 /*
  * cti_be_getNodeFirstPE - Returns the first PE number that resides on this
  *                         compute node.
- * 
+ *
  * Detail
- *      This function determines the first PE (as in lowest numbered) that 
+ *      This function determines the first PE (as in lowest numbered) that
  *      resides on the compute node. The PE acronym stands for Processing
  *      Elements and for an entire application are doled out starting at zero
  *      and incrementing progressively through all of the nodes. Any given node
- *      has a consecutive set of PE numbers starting at cti_getNodeFirstPE() up 
+ *      has a consecutive set of PE numbers starting at cti_getNodeFirstPE() up
  *      through cti_getNodeFirstPE() + cti_getNodePEs() - 1.
  *
  * Arguments
@@ -236,14 +226,14 @@ extern char * cti_be_getNodeHostname();
  *
  * Returns
  *      The integer value of the first PE on the node, or else -1 on error.
- * 
+ *
  */
 extern int cti_be_getNodeFirstPE(void);
 
 /*
- * cti_be_getNodePEs - Returns the number of PEs that reside on this compute 
+ * cti_be_getNodePEs - Returns the number of PEs that reside on this compute
  *                     node.
- * 
+ *
  * Detail
  *      This function determines the number of PEs that reside on the compute
  *
@@ -252,19 +242,19 @@ extern int cti_be_getNodeFirstPE(void);
  *
  * Returns
  *      The integer value of the number of PEs on the node, or else -1 on error.
- * 
+ *
  */
 extern int cti_be_getNodePEs(void);
 
 /*
  * cti_be_getRootDir - Get root directory for this tool daemon.
- * 
+ *
  * Detail
  *      This function is used to return the path of the root location for this
- *      tool daemon. Any files that were transfered over will be found inside 
- *      this directory. The binary, libraries, and temp directories are all 
- *      subdirectories of this root value. The cwd of the tool daemon is 
- *      automatically set to this location. It is the callers responsibility to 
+ *      tool daemon. Any files that were transfered over will be found inside
+ *      this directory. The binary, libraries, and temp directories are all
+ *      subdirectories of this root value. The cwd of the tool daemon is
+ *      automatically set to this location. It is the callers responsibility to
  *      free the allocated storage when it is no longer needed.
  *
  * Arguments
@@ -272,19 +262,19 @@ extern int cti_be_getNodePEs(void);
  *
  * Returns
  *      The path string on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_be_getRootDir(void);
 
 /*
  * cti_be_getBinDir - Get bin directory for this tool daemon.
- * 
+ *
  * Detail
  *      This function is used to return the path of the binary location for this
- *      tool daemon. This directory is used to hold the location of any binaries 
- *      that were shipped to the compute node with the manifest. This value is 
- *      automatically added to PATH of the tool daemon. It is the callers 
- *      responsibility to free the allocated storage when it is no longer 
+ *      tool daemon. This directory is used to hold the location of any binaries
+ *      that were shipped to the compute node with the manifest. This value is
+ *      automatically added to PATH of the tool daemon. It is the callers
+ *      responsibility to free the allocated storage when it is no longer
  *      needed.
  *
  * Arguments
@@ -292,52 +282,52 @@ extern char * cti_be_getRootDir(void);
  *
  * Returns
  *      The path string on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_be_getBinDir(void);
 
 /*
  * cti_be_getLibDir - Get lib directory for this tool daemon.
- * 
+ *
  * Detail
  *      This function is used to return the path of the library location for
  *      this tool daemon. This directory is used to hold the location of any
  *      libraries that were shipped to the compute node with the manifest. This
  *      value is automatically added to LD_LIBRARY_PATH of the tool daemon. It
- *      is the callers responsibility to free the allocated storage when it is 
- *      no longer needed. 
+ *      is the callers responsibility to free the allocated storage when it is
+ *      no longer needed.
  *
  * Arguments
  *      None.
  *
  * Returns
  *      The path string on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_be_getLibDir(void);
 
 /*
  * cti_be_getFileDir - Get file directory for this tool daemon.
- * 
+ *
  * Detail
  *      This function is used to return the path of the file location for this
  *      tool daemon. This directory is used to hold the location of any files
- *      that were shipped to the compute node with the manifest. It is the 
- *      callers responsibility to free the allocated storage when it is no 
- *      longer needed. 
+ *      that were shipped to the compute node with the manifest. It is the
+ *      callers responsibility to free the allocated storage when it is no
+ *      longer needed.
  *
  * Arguments
  *      None.
  *
  * Returns
  *      The path string on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_be_getFileDir(void);
 
 /*
  * cti_be_getTmpDir - Get tmp directory for this tool daemon.
- * 
+ *
  * Detail
  *      This function is used to return the path of the tmp location for this
  *      tool daemon. This directory is guaranteed to be writable and is suitable
@@ -350,7 +340,7 @@ extern char * cti_be_getFileDir(void);
  *
  * Returns
  *      The path string on success, or NULL on error.
- * 
+ *
  */
 extern char * cti_be_getTmpDir(void);
 

@@ -12,7 +12,6 @@
 
 SUBDIRS				= CraySLURM GenericSSH
 
-SRC             	= @CRAYTOOL_DIR@/src
 AM_LIBTOOLFLAGS 	= --quiet
 
 noinst_LTLIBRARIES	= libfrontend_impl.la

@@ -309,7 +309,7 @@ Frontend::doFileCleanup()
 * This routine automatically determines the active Workload Manager. The
 * user can force SSH as the "WLM" by setting the environment variable CTI_LAUNCHER_NAME.
 */
-cti_wlm_type
+cti_wlm_type_t
 Frontend::detect_Frontend()
 {
     // We do not want to call init if we are running on the backend inside of

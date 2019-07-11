@@ -11,6 +11,7 @@
 #
 
 SRC             = @CRAYTOOL_DIR@/src
+INCLUDE			= @CRAYTOOL_DIR@/include
 SUPPORT         = @CRAYTOOL_DIR@/tests/test_support
 
 GTEST           = $(SUPPORT)/googletest/googletest
@@ -24,7 +25,7 @@ check_LTLIBRARIES = libmock.la
 # mock frontend library
 libmock_la_SOURCES  =  MockFrontend/Frontend.cpp
 libmock_la_CXXFLAGS =  $(AM_CXXFLAGS) -fPIC $(ARCHIVE_CFLAGS)
-libmock_la_CPPFLAGS = -I$(SRC) -I$(GMOCK)/include -I$(GMOCK) \
+libmock_la_CPPFLAGS = -I$(SRC) -I$(INCLUDE) -I$(GMOCK)/include -I$(GMOCK) \
 	-I$(GTEST)/include -I$(GTEST) \
 	$(ARCHIVE_CPPFLAGS)
 libmock_la_LDFLAGS  =  -static -Wl,--no-undefined -larchive

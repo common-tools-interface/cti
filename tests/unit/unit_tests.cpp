@@ -24,7 +24,6 @@
 #include "cti_archive_unit_test.hpp"
 #include "cti_session_unit_test.hpp"
 #include "cti_manifest_unit_test.hpp"
-#include "cti_header_unit_test.hpp"
 
 class CTI_Environment : public ::testing::Environment
 {

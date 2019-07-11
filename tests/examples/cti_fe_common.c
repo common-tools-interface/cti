@@ -21,7 +21,7 @@
 void
 cti_test_fe(cti_app_id_t appId)
 {
-    cti_wlm_type        mywlm;
+    cti_wlm_type_t      mywlm;
     const char *        mywlm_str;
     char *              myhostname;
     char *              mylauncherhostname;
@@ -49,7 +49,7 @@ cti_test_fe(cti_app_id_t appId)
     assert(mywlm != CTI_WLM_NONE);
 
     /*
-     * cti_wlm_type_toString - Obtain stringified version of cti_wlm_type.
+     * cti_wlm_type_toString - Obtain stringified version of cti_wlm_type_t.
      */
     mywlm_str = cti_wlm_type_toString(mywlm);
     if (mywlm_str == NULL) {

@@ -13,8 +13,10 @@
 SUBDIRS				= cti_transfer frontend_impl mpir_iface daemon
 
 SRC             	= @CRAYTOOL_DIR@/src
+INCLUDE				= @CRAYTOOL_DIR@/include
+
 AM_LIBTOOLFLAGS 	= --quiet
-AM_CXXFLAGS			= -Wall -I$(SRC) -I. -I$(SRC)/frontend/frontend_impl
+AM_CXXFLAGS			= -Wall -I$(SRC) -I. -I$(SRC)/frontend/frontend_impl -I$(INCLUDE)
 
 lib_LTLIBRARIES = libcraytools_fe.la
 
