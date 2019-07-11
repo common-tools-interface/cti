@@ -300,7 +300,7 @@ static cti_ssh_ops_t _cti_ssh_ops = {
 };
 
 // WLM specific extension ops accessor
-cti_wlm_type
+cti_wlm_type_t
 cti_open_ops(void **ops) {
     return FE_iface::runSafely(__func__, [&](){
         if (ops == nullptr) {

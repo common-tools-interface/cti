@@ -125,7 +125,7 @@ main(int argc, char **argv)
         case CTI_WLM_CRAY_SLURM:
         {
             cti_cray_slurm_ops_t * slurm_ops;
-            cti_wlm_type ret = cti_open_ops(&slurm_ops);
+            cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);
             /*

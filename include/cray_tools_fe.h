@@ -601,13 +601,13 @@ extern int cti_killApp(cti_app_id_t app_id, int signum);
  *      ops - A pointer to a pointer of one of the WLM ops structs defined below.
  *
  * Returns
- *      A cti_wlm_type that contains the current WLM in use on the system.
+ *      A cti_wlm_type_t that contains the current WLM in use on the system.
  *      The ops argument will be set to point at the cooresponding ops struct
  *      for the WLM in use on the system, or NULL if there are no WLM specific
  *      extensions.
  *
  */
-extern cti_wlm_type cti_open_ops(void **ops);
+extern cti_wlm_type_t cti_open_ops(void **ops);
 
 /*
  * cti_cray_slurm_ops extensions - Extensions for the Cray SLURM WLM
