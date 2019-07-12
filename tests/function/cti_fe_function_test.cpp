@@ -1,56 +1,134 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+
+#include <fcntl.h>
 #include <fstream>
+#include <iostream>
 #include <memory>
 
 #include "cti_fe_function_test.hpp"
+
+#include "cray_tools_fe.h"
 
 #include "useful/cti_execvp.hpp"
 
 /* cti frontend C interface tests */
 
-// TODO: transition test output to sockets so we don't have to deal with crossmounted directories
-#define ON_WHITEBOX
-#ifdef ON_WHITEBOX
-static constexpr auto CROSSMOUNT_FILE_TEMPLATE = "/tmp/cti-test-XXXXXX";
-#else
-static constexpr auto CROSSMOUNT_FILE_TEMPLATE = "/lus/scratch/tmp/cti-test-XXXXXX";
-#endif
-
 static void
-testPrintingDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting)
-{
-	// Wait for any previous cleanups to finish (see PE-26018)
-	sleep(5);
+testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting) {
+    // Wait for any previous cleanups to finish (see PE-26018)
+    sleep(5);
+    std::string external_ip = "";
 
-	// create manifest
-	auto const manifestId = cti_createManifest(sessionId);
-	ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
+    // Find my external IP
+    {
+        struct ifaddrs *ifaddr, *ifa;
+        int family, s;
+        char host[NI_MAXHOST];
+        ASSERT_NE(getifaddrs(&ifaddr), -1);
+        for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+            if (ifa->ifa_addr == NULL) {
+                continue;
+            }
+            family = ifa->ifa_addr->sa_family;
+            if (family == AF_INET || family == AF_INET6) {
+                s = getnameinfo(ifa->ifa_addr, (family==AF_INET) ?
+                    sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
+                    host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+                if (s != 0) {
+                    FAIL() << "Error while trying to find non-locahost IP";
+                }
 
-	// set up output file
-	auto const outputPath = temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
-	char const* toolDaemonArgs[] = {outputPath.get(), nullptr};
-	ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, toolDaemonArgs, nullptr), SUCCESS) << cti_error_str();
+                // Accept the first IP that is not localhost.
+                if(std::string(host) != "127.0.0.1") {
+                    external_ip=host;
+                    break;
+                }
+            }
+        }
+        // clean up
+        freeifaddrs(ifaddr);
+    }
 
-	// let daemon run
-	sleep(1);
+    ASSERT_NE(external_ip, "");
+   
+    // build 'server' socket  
+    int test_socket;
+    {
+        // setup hints
+        struct addrinfo hints;
+        memset(&hints, 0, sizeof(struct addrinfo));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_flags = AI_NUMERICSERV;
 
-	// read output file
-	{ std::ifstream outputFile(outputPath.get());
-		ASSERT_TRUE(outputFile.is_open());
-		std::string line;
-		ASSERT_TRUE(std::getline(outputFile, line));
-		EXPECT_EQ(line, expecting);
-	}
+        struct addrinfo *listener;
+
+        // uses external_ip in order to bind socket to external IP and not localhost
+        // if NULL is used this will ALWAYS give localhost which is not non-wbox compatible
+        ASSERT_EQ(getaddrinfo(external_ip.c_str(), "0", &hints, &listener), 0); 
+    
+        // Create the socket
+        ASSERT_NE(test_socket = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), -1) << "Failed to create test_socket socket";
+    
+        // Bind the socket
+        ASSERT_EQ(bind(test_socket, listener->ai_addr, listener->ai_addrlen), 0) << "Failed to bind test_socket socket";
+
+        // Clean up listener
+        freeaddrinfo(listener);
+    }
+
+    // Begin listening on socket
+    ASSERT_EQ(listen(test_socket, 1), 0) << "Failed to listen on test_socket socket";
+
+    // get my sockets info
+    struct sockaddr_in sa;
+    socklen_t sa_len = sizeof(sa);
+    memset(&sa, 0, sizeof(sa));
+    ASSERT_EQ(getsockname(test_socket, (struct sockaddr*) &sa, &sa_len), 0);
+
+    // build required parameters for launching external app
+    {   
+        // create manifest and args
+        auto const manifestId = cti_createManifest(sessionId);
+        ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
+        char const* sockDaemonArgs[] = {external_ip.c_str(), std::to_string(ntohs(sa.sin_port)).c_str(), nullptr};
+
+        // launch app
+        ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, sockDaemonArgs, nullptr), SUCCESS) << cti_error_str();
+    }
+
+    // accept recently launched applications connection
+    int app_socket;
+    struct sockaddr_in wa;
+    socklen_t wa_len = sizeof(wa);
+    ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
+
+    // read data returned from app
+    char buffer[16] = {0};
+    int length = read(app_socket, buffer, 16);
+    ASSERT_LT(length, 16);
+    buffer[length] = '\0';
+
+    // check for correctness
+    ASSERT_STREQ(buffer, expecting.c_str());
+    
+    // close socket
+    close(test_socket);
 }
 
-
 // Test that an app can launch two tool daemons using different libraries with the same name
+// This test is at the start to avoid a race condition that causes failure if ran later
 TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 	// set up app
 	char const* argv[] = {"/usr/bin/true", nullptr};
@@ -70,8 +148,8 @@ TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
 	// run printing daemons
-	testPrintingDaemon(sessionId, "../test_support/one_printer", "1");
-	testPrintingDaemon(sessionId, "../test_support/two_printer", "2");
+	testSocketDaemon(sessionId, "../test_support/one_socket", "1");
+	testSocketDaemon(sessionId, "../test_support/two_socket", "2");
 
 	// cleanup
 	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
@@ -146,15 +224,6 @@ TEST_F(CTIFEFunctionTest, StdoutPipe) {
 
 // Test that an app can read input from a file
 TEST_F(CTIFEFunctionTest, InputFile) {
-	// set up string contents
-	auto const echoString = std::to_string(getpid());
-
-	// set up input file
-	auto const inputPath = temp_file_handle{CROSSMOUNT_FILE_TEMPLATE};
-	{ auto inputFile = std::unique_ptr<FILE, decltype(&::fclose)>(fopen(inputPath.get(), "w"), ::fclose);
-		ASSERT_TRUE(inputFile != nullptr);
-		fprintf(inputFile.get(), "%s\n", echoString.c_str());
-	}
 
 	// set up stdout fd
 	cti::Pipe p;
@@ -163,11 +232,10 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 	cti::FdBuf pipeInBuf{p.getReadFd()};
 	std::istream pipein{&pipeInBuf};
 
-	// set up launch arguments
 	char const* argv[] = {"/usr/bin/cat", nullptr};
 	auto const  stdoutFd = p.getWriteFd();
 	auto const  stderrFd = -1;
-	char const* inputFile = inputPath.get();
+	char const* inputFile = "../test_support/inputFileData.txt";
 	char const* chdirPath = nullptr;
 	char const* const* envList  = nullptr;
 
@@ -179,7 +247,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
 	// get app output
 	{ std::string line;
 		ASSERT_TRUE(std::getline(pipein, line));
-		EXPECT_EQ(line, echoString);
+		EXPECT_EQ(line, "see InputFile in cti_fe_function_test.cpp");
 	}
 }
 
@@ -298,7 +366,7 @@ TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
 	ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
 	// run printing daemons
-	testPrintingDaemon(sessionId, "../test_support/one_printer", "1");
+	testSocketDaemon(sessionId, "../test_support/one_socket", "1");
 
 	// cleanup
 	EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();

@@ -12,6 +12,7 @@
 
 SRC             = @CRAYTOOL_DIR@/src
 SUPPORT         = @CRAYTOOL_DIR@/tests/test_support
+EXTERNAL        = @CRAYTOOL_DIR@/include
 
 GTEST           = $(SUPPORT)/googletest/googletest
 
@@ -22,7 +23,7 @@ check_PROGRAMS = function_tests
 
 function_tests_SOURCES  = function_tests.cpp cti_fe_function_test.cpp
 function_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) \
-	-I$(GTEST)/include -I$(GTEST)
+	-I$(GTEST)/include -I$(GTEST) -I$(EXTERNAL)
 function_tests_CXXFLAGS = $(AM_CXXFLAGS) $(function_tests_CFLAGS)
 function_tests_LDADD    = -L$(prefix)/lib -lcraytools_fe \
 	$(SUPPORT)/libgtest.la -ldl -lrt -lstdc++
