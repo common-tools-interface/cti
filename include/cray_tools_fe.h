@@ -242,7 +242,7 @@ extern char * cti_getHostname();
  *      "setting" implementation is defined by the code specific to 'attrib'.
  *
  * Arguments
- *      attrib - The cti_attr_type
+ *      attrib - The cti_attr_type_t
  *                 CTI_ATTR_STAGE_DEPENDENCIES:
  *                   Set to "0" or "1" to disable/enable auto staging of dependencies.
  *                   The startup value is set to '1'.
@@ -252,7 +252,7 @@ extern char * cti_getHostname();
  *      0 on success, or else 1 on failure
  *
  */
-extern int cti_setAttribute(cti_attr_type attrib, const char *value);
+extern int cti_setAttribute(cti_attr_type_t attrib, const char *value);
 
 /*******************************************************************************
  * The following functions require the application to be started or registered
