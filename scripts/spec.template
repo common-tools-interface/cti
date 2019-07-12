@@ -103,17 +103,9 @@ rm -f %{buildroot}%{_version_prefix}/%{build_version}
 %dir %{_version_prefix}/examples
 
 %{_version_prefix}/docs/ATTRIBUTIONS_cti*.txt
-
-%{_version_prefix}/examples
 %{_version_prefix}/examples/*
-
-%{_version_prefix}/libexec
 %{_version_prefix}/libexec/*
-
-%{_version_prefix}/lib
 %{_version_prefix}/lib/*
-
-%{_version_prefix}/include
 %{_version_prefix}/include/*
 
 %{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
@@ -155,14 +147,9 @@ find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcray
 | sed "/.*\.so\.[0-9]\.[0-9]/d" > $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
 # prevent echo of new directory as it messes up install output
-if [[ $RPM_INSTALL_PREFIX = "/opt/cray" ]] || [[ $RPM_INSTALL_PREFIX = "/opt/cray/pe" ]]
-  then
-    if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f $RPM_INSTALL_PREFIX/modulefiles/%{namespace}-%{intranamespace_name}/.version ]
-    then
-      $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
-    else
-      echo "%{namespace}-%{intranamespace_name}_%{build_version} has been installed as non-default."
-    fi
+if [[ $RPM_INSTALL_PREFIX = "/opt/cray/pe" ]]
+then
+  $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 fi
 
 %preun
