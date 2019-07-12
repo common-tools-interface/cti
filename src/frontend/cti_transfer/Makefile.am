@@ -12,7 +12,7 @@
 
 SRC             = @CRAYTOOL_DIR@/src
 
-include $(top_srcdir)/aminclude_static.am
+@CODE_COVERAGE_RULES@
 
 AM_CXXFLAGS		= -Wall -I$(SRC) -I$(src)/frontend 
 AM_LIBTOOLFLAGS = --quiet

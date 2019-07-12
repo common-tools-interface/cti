@@ -18,7 +18,7 @@ GTEST           = $(SUPPORT)/googletest/googletest
 AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
-include $(top_srcdir)/aminclude_static.am
+@CODE_COVERAGE_RULES@
 check_PROGRAMS = function_tests
 
 function_tests_SOURCES  = function_tests.cpp cti_fe_function_test.cpp

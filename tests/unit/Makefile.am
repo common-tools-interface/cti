@@ -25,7 +25,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 TESTS = unit_tests
 check_PROGRAMS = unit_tests
 
-include  $(top_srcdir)/aminclude_static.am
+@CODE_COVERAGE_RULES@
 
 # unit test binary
 unit_tests_SOURCES  = unit_tests.cpp cti_fe_unit_test.cpp cti_archive_unit_test.cpp \
@@ -46,6 +46,3 @@ unit_tests_LDADD    = -L$(prefix)/lib -lcraytools_fe \
         $(CODE_COVERAGE_LIBS)
 unit_tests_LDFLAGS  = -pthread -Wl,-rpath,$(prefix)/lib \
 	-Wl,--enable-new-dtags -Wl,--no-undefined -Wl,--as-needed $(ARCHIVE_LDFLAGS) $(CODE_COVERAGE_LDFLAGS)
-
-clean-local: code-coverage-clean
-distclean-local: code-coverage-dist-clean
