@@ -101,16 +101,10 @@ typedef struct
     pid_t   pid;        // pid_t of this PE
 }   slurmPidFile_t;
 
-typedef slurmLayoutFileHeader_t cti_layoutFileHeader_t;
-typedef slurmLayoutFile_t       cti_layoutFile_t;
-typedef slurmPidFileHeader_t    cti_pidFileheader_t;
-typedef slurmPidFile_t          cti_pidFile_t;
-
 #define SRUN                    "srun"                                      // name of slurm job launcher binary
 #define SATTACH                 "sattach"                                   // name of slurm io redirect binary
 #define SCANCEL                 "scancel"                                   // name of slurm job signal binary
 #define SBCAST                  "sbcast"                                    // name of slurm transfer binary
-#define SLURM_STEP_UTIL         "cti_slurm_util"                            // name of cti slurm job step info utility
 #define CRAY_SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid)    // formula for creating Cray apid from SLURM jobid.stepid
 #define CRAY_SLURM_TOOL_DIR     "/tmp"                                      // Cray SLURM staging path on compute node
 #define CRAY_SLURM_CRAY_DIR     "/var/opt/cray/alps/spool/%llu"             // Location of cray specific directory on compute node - pmi_attribs is here
@@ -121,6 +115,12 @@ typedef slurmPidFile_t          cti_pidFile_t;
 /*******************************************************************************
 ** SSH specific information
 *******************************************************************************/
+// Re-use types defined above
+typedef slurmLayoutFileHeader_t cti_layoutFileHeader_t;
+typedef slurmLayoutFile_t       cti_layoutFile_t;
+typedef slurmPidFileHeader_t    cti_pidFileheader_t;
+typedef slurmPidFile_t          cti_pidFile_t;
+
 #define CLUSTER_FILE_TEST   "/etc/redhat-release"
 #define SSH_STAGE_DIR       SLURM_STAGE_DIR
 #define SSH_LAYOUT_FILE     SLURM_LAYOUT_FILE

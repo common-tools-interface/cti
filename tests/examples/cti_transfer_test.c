@@ -124,14 +124,16 @@ main(int argc, char **argv)
     switch (mywlm) {
         case CTI_WLM_CRAY_SLURM:
         {
-            cti_srunProc_t *    mysruninfo;
-
+            cti_cray_slurm_ops_t * slurm_ops;
+            cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
+            assert(ret == mywlm);
+            assert(slurm_ops != NULL);
             /*
-             * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
+             * getSrunInfo - Obtain information about the srun process
              */
-             mysruninfo = cti_cray_slurm_getSrunInfo(myapp);
+             cti_srunProc_t *mysruninfo = slurm_ops->getSrunInfo(myapp);
              if (mysruninfo == NULL) {
-                fprintf(stderr, "Error: cti_cray_slurm_getSrunInfo failed!\n");
+                fprintf(stderr, "Error: getSrunInfo failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
              }
              else {
