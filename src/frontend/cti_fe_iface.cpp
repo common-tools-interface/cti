@@ -605,7 +605,7 @@ cti_execToolDaemon(cti_manifest_id_t mid, const char *daemonPath,
 }
 
 int
-cti_setAttribute(cti_attr_type attrib, const char *value)
+cti_setAttribute(cti_attr_type_t attrib, const char *value)
 {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
@@ -623,7 +623,7 @@ cti_setAttribute(cti_attr_type attrib, const char *value)
                     throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '" + std::to_string(value[0]) + "'");
                 }
             default:
-                throw std::runtime_error("Invalid cti_attr_type " + std::to_string((int)attrib));
+                throw std::runtime_error("Invalid cti_attr_type_t " + std::to_string((int)attrib));
         }
     }, FAILURE);
 }
