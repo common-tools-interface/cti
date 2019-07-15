@@ -98,7 +98,7 @@ typedef struct
  *      A string containing the current backend library version.
  *
  */
-extern const char * cti_be_version(void);
+const char * cti_be_version(void);
 
 /*
  * cti_be_current_wlm - Obtain the current workload manager (WLM) in use on the
@@ -116,7 +116,7 @@ extern const char * cti_be_version(void);
  *      A cti_wlm_type_t that contains the current WLM in use on the system.
  *
  */
-extern cti_wlm_type_t cti_be_current_wlm(void);
+cti_wlm_type_t cti_be_current_wlm(void);
 
 /*
  * cti_be_wlm_type_toString - Obtain the stringified representation of the
@@ -133,7 +133,7 @@ extern cti_wlm_type_t cti_be_current_wlm(void);
  *      A string containing the human readable format.
  *
  */
-extern const char * cti_be_wlm_type_toString(cti_wlm_type_t wlm_type);
+const char * cti_be_wlm_type_toString(cti_wlm_type_t wlm_type);
 
 /*
  * cti_be_getAppId - Returns the Application id in string format of the
@@ -151,7 +151,7 @@ extern const char * cti_be_wlm_type_toString(cti_wlm_type_t wlm_type);
  *      A string containing the application id, or else NULL on error.
  *
  */
-extern char * cti_be_getAppId();
+char * cti_be_getAppId();
 
 /*
  * cti_be_findAppPids - Returns a cti_pidList_t containing entries that hold
@@ -172,7 +172,7 @@ extern char * cti_be_getAppId();
  *      PE rank/PE pid pairings. Returns NULL on error.
  *
  */
-extern cti_pidList_t * cti_be_findAppPids(void);
+cti_pidList_t * cti_be_findAppPids(void);
 
 /*
  * cti_be_destroyPidList - Used to destroy the memory allocated for a
@@ -191,7 +191,7 @@ extern cti_pidList_t * cti_be_findAppPids(void);
  *      Void. This function behaves similarly to free().
  *
  */
-extern void cti_be_destroyPidList(cti_pidList_t *pid_list);
+void cti_be_destroyPidList(cti_pidList_t *pid_list);
 
 /*
  * cti_be_getNodeHostname - Returns the hostname of this compute node.
@@ -207,7 +207,7 @@ extern void cti_be_destroyPidList(cti_pidList_t *pid_list);
  *      A string containing the hostname, or else a null string on error.
  *
  */
-extern char * cti_be_getNodeHostname();
+char * cti_be_getNodeHostname();
 
 /*
  * cti_be_getNodeFirstPE - Returns the first PE number that resides on this
@@ -228,7 +228,7 @@ extern char * cti_be_getNodeHostname();
  *      The integer value of the first PE on the node, or else -1 on error.
  *
  */
-extern int cti_be_getNodeFirstPE(void);
+int cti_be_getNodeFirstPE(void);
 
 /*
  * cti_be_getNodePEs - Returns the number of PEs that reside on this compute
@@ -244,7 +244,7 @@ extern int cti_be_getNodeFirstPE(void);
  *      The integer value of the number of PEs on the node, or else -1 on error.
  *
  */
-extern int cti_be_getNodePEs(void);
+int cti_be_getNodePEs(void);
 
 /*
  * cti_be_getRootDir - Get root directory for this tool daemon.
@@ -264,7 +264,7 @@ extern int cti_be_getNodePEs(void);
  *      The path string on success, or NULL on error.
  *
  */
-extern char * cti_be_getRootDir(void);
+char * cti_be_getRootDir(void);
 
 /*
  * cti_be_getBinDir - Get bin directory for this tool daemon.
@@ -284,7 +284,7 @@ extern char * cti_be_getRootDir(void);
  *      The path string on success, or NULL on error.
  *
  */
-extern char * cti_be_getBinDir(void);
+char * cti_be_getBinDir(void);
 
 /*
  * cti_be_getLibDir - Get lib directory for this tool daemon.
@@ -304,7 +304,7 @@ extern char * cti_be_getBinDir(void);
  *      The path string on success, or NULL on error.
  *
  */
-extern char * cti_be_getLibDir(void);
+char * cti_be_getLibDir(void);
 
 /*
  * cti_be_getFileDir - Get file directory for this tool daemon.
@@ -323,7 +323,7 @@ extern char * cti_be_getLibDir(void);
  *      The path string on success, or NULL on error.
  *
  */
-extern char * cti_be_getFileDir(void);
+char * cti_be_getFileDir(void);
 
 /*
  * cti_be_getTmpDir - Get tmp directory for this tool daemon.
@@ -342,7 +342,7 @@ extern char * cti_be_getFileDir(void);
  *      The path string on success, or NULL on error.
  *
  */
-extern char * cti_be_getTmpDir(void);
+char * cti_be_getTmpDir(void);
 
 #ifdef __cplusplus
 }
