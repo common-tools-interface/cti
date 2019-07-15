@@ -113,7 +113,7 @@ TEST_F(CTIFEUnitTest, GetHostname)
     ASSERT_TRUE(rawHostname != nullptr) << cti_error_str();
 }
 
-// int          cti_setAttribute(cti_attr_type attrib, const char *value);
+// int          cti_setAttribute(cti_attr_type_t attrib, const char *value);
 // Tests that the frontend can set an attribute
 TEST_F(CTIFEUnitTest, SetAttribute)
 {

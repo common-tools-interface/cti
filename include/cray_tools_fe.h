@@ -93,15 +93,14 @@ extern "C" {
  *  This enum enumerates the various attributes that
  *  can be set by cti_setAttribute.
  */
-enum cti_attr_type
+typedef enum
 {
     CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library
                                     // dependencies should be automatically
                                     // staged by cti_addManifestBinary and
                                     // cti_addManifestLIbrary: 0 or 1
                                     // Defaults to 1.
-};
-typedef enum cti_attr_type  cti_attr_type;
+} cti_attr_type_t;
 
 /*
  * The following are types used as return values for some API calls.
@@ -247,7 +246,7 @@ char * cti_getHostname();
  *      "setting" implementation is defined by the code specific to 'attrib'.
  *
  * Arguments
- *      attrib - The cti_attr_type
+ *      attrib - The cti_attr_type_t
  *                 CTI_ATTR_STAGE_DEPENDENCIES:
  *                   Set to "0" or "1" to disable/enable auto staging of dependencies.
  *                   The startup value is set to '1'.
@@ -257,7 +256,7 @@ char * cti_getHostname();
  *      0 on success, or else 1 on failure
  *
  */
-int cti_setAttribute(cti_attr_type attrib, const char *value);
+int cti_setAttribute(cti_attr_type_t attrib, const char *value);
 
 /*******************************************************************************
  * The following functions require the application to be started or registered
