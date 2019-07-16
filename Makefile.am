@@ -17,7 +17,7 @@ AM_LIBTOOLFLAGS = --quiet
 
 SUBDIRS = src tests external
 
-EXTRA_DIST = craytools_be.pc.in craytools_fe.pc.in release_version
+EXTRA_DIST = craytools_be.pc.in craytools_fe.pc.in release_versioning
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = craytools_be.pc craytools_fe.pc
