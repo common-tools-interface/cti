@@ -272,22 +272,15 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
     // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
     // --input=none --output=none --error=none <tool daemon> <args>
     //
+    auto& craySlurmFrontend = dynamic_cast<CraySLURMFrontend&>(m_frontend);
     auto launcherArgv = cti::ManagedArgv {
-        dynamic_cast<CraySLURMFrontend&>(m_frontend).getLauncherName()
+        craySlurmFrontend.getLauncherName()
         , "--jobid=" + std::to_string(m_jobId)
-        , "--gres=none"
-        , "--mem-per-cpu=0"
-        , "--mem_bind=no"
-        , "--cpu_bind=no"
-        , "--share"
-        , "--ntasks-per-node=1"
         , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
-        , "--disable-status"
-        , "--quiet"
-        , "--mpi=none"
-        , "--output=none"
-        , "--error=none"
     };
+    for (auto&& arg : craySlurmFrontend.getSrunDaemonArgs()) {
+        launcherArgv.add(arg);
+    }
 
     // create the hostlist by contencating all hostnames
     { auto hostlist = std::string{};
@@ -334,6 +327,61 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 }
 
 /* cray slurm frontend implementation */
+
+static std::string getSlurmVersion()
+{
+    char const* const srunVersionArgv[] = {"srun", "--version", nullptr};
+    auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv};
+
+    auto slurmVersion = std::string{};
+    if (!std::getline(srunVersionOutput.stream(), slurmVersion, '\n')) {
+        throw std::runtime_error("failed to get SRUN version number output");
+    }
+    // slurm major.minor.patch
+
+    slurmVersion = slurmVersion.substr(slurmVersion.find(" ") + 1);
+    // major.minor.patch
+
+    slurmVersion = slurmVersion.substr(0, slurmVersion.find("."));
+    // major
+
+    return slurmVersion;
+}
+
+CraySLURMFrontend::CraySLURMFrontend()
+    : m_srunAppArgs {}
+    , m_srunDaemonArgs
+        { "--gres=none"
+        , "--mem-per-cpu=0"
+        , "--ntasks-per-node=1"
+        , "--disable-status"
+        , "--quiet"
+        , "--mpi=none"
+        , "--output=none"
+        , "--error=none"
+        }
+    {
+
+    auto const slurmVersion = getSlurmVersion();
+    if (slurmVersion == "18") {
+        m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
+            { "--mem_bind=no"
+            , "--cpu_bind=no"
+            , "--shared"
+            }
+        );
+    } else if (slurmVersion == "19") {
+        m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
+            { "--mem-bind=no"
+            , "--cpu-bind=no"
+            , "--oversubscribe"
+            }
+        );
+    } else {
+        throw std::runtime_error("unknown SLURM version: " + slurmVersion);
+    }
+}
+
 
 std::weak_ptr<App>
 CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
@@ -622,6 +670,9 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
             , "--output=" + stdoutPath
             , "--error="  + stderrPath
         };
+        for (auto&& arg : getSrunAppArgs()) {
+            launcherArgv.add(arg);
+        }
         for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
             launcherArgv.add(*arg);
         }

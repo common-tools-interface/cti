@@ -47,6 +47,12 @@ public: // inherited interface
 
     std::string getHostname() const override;
 
+private: // slurm specific members
+    // Arguments specified by CTI_SLURM_OVERRIDE / _APPEND for SRUN launches
+    std::vector<std::string> m_srunAppArgs;
+    // Also contains version-specific SRUN arguments
+    std::vector<std::string> m_srunDaemonArgs;
+
 public: // slurm specific types
     struct NodeLayout {
         std::string hostname;
@@ -60,6 +66,9 @@ public: // slurm specific types
     };
 
 public: // slurm specific interface
+    auto const& getSrunAppArgs()    const { return m_srunAppArgs;    }
+    auto const& getSrunDaemonArgs() const { return m_srunDaemonArgs; }
+
     // Get the default launcher binary name, or, if provided, from the environment.
     std::string getLauncherName();
 
@@ -87,7 +96,7 @@ public: // slurm specific interface
     SrunInfo getSrunInfo(pid_t srunPid);
 
 public: // constructor / destructor interface
-    CraySLURMFrontend() = default;
+    CraySLURMFrontend();
     ~CraySLURMFrontend() = default;
     CraySLURMFrontend(const CraySLURMFrontend&) = delete;
     CraySLURMFrontend& operator=(const CraySLURMFrontend&) = delete;
