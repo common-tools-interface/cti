@@ -72,7 +72,7 @@ class App;
 class Frontend {
 public: // impl.-specific interface that derived type must implement
     // wlm type
-    virtual cti_wlm_type
+    virtual cti_wlm_type_t
     getWLMType() const = 0;
 
     // launch application with barrier
@@ -123,7 +123,7 @@ private: // Private static utility methods used by the generic frontend
     // after fe instantiation!
     static cti::Logger& getLogger();
     // get the frontend type for this system
-    static cti_wlm_type detect_Frontend();
+    static cti_wlm_type_t detect_Frontend();
 
 public: // Public static utility methods - Try to keep these to a minimum
     // Get the singleton instance to the Frontend

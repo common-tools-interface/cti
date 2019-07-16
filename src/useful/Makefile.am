@@ -12,8 +12,10 @@
 SUBDIRS				= ld_val
 
 SRC             = @CRAYTOOL_DIR@/src
+INCLUDE			= @CRAYTOOL_DIR@/include
+
 AM_LIBTOOLFLAGS = --quiet
-AM_CFLAGS		= -Wall -I$(SRC) -I.
+AM_CFLAGS		= -Wall -I$(SRC) -I. -I$(INCLUDE)
 
 noinst_LTLIBRARIES      = libuseful.la
 

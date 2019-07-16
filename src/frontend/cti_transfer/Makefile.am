@@ -10,12 +10,14 @@
 # in any form.
 #
 
-SRC             = @CRAYTOOL_DIR@/src
-
 @CODE_COVERAGE_RULES@
 
-AM_CXXFLAGS		= -Wall -I$(SRC) -I$(src)/frontend 
+SRC             = @CRAYTOOL_DIR@/src
+INCLUDE			= @CRAYTOOL_DIR@/include
+
+AM_CXXFLAGS		= -Wall -I$(SRC) -I$(SRC)/frontend -I$(INCLUDE)
 AM_LIBTOOLFLAGS = --quiet
+
 noinst_LTLIBRARIES			=	libcti_transfer.la
 
 libcti_transfer_la_SOURCES	=	Archive.cpp Manifest.cpp Session.cpp

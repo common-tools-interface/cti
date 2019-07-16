@@ -76,7 +76,7 @@ TEST_F(CTIFEUnitTest, Version)
     ASSERT_TRUE(cti_version() != nullptr);
 }
 
-// cti_wlm_type cti_current_wlm(void);
+// cti_wlm_type_t cti_current_wlm(void);
 // Tests that the frontend type is set to mock.
 TEST_F(CTIFEUnitTest, CurrentWLM)
 {
@@ -90,7 +90,7 @@ TEST_F(CTIFEUnitTest, CurrentWLM)
     ASSERT_EQ(cti_current_wlm(), CTI_WLM_MOCK);
 }
 
-// const char * cti_wlm_type_toString(cti_wlm_type);
+// const char * cti_wlm_type_toString(cti_wlm_type_t);
 // Tests that the frontend type string is nonnull
 TEST_F(CTIFEUnitTest, WLMTypeToString)
 {
@@ -113,7 +113,7 @@ TEST_F(CTIFEUnitTest, GetHostname)
     ASSERT_TRUE(rawHostname != nullptr) << cti_error_str();
 }
 
-// int          cti_setAttribute(cti_attr_type attrib, const char *value);
+// int          cti_setAttribute(cti_attr_type_t attrib, const char *value);
 // Tests that the frontend can set an attribute
 TEST_F(CTIFEUnitTest, SetAttribute)
 {
@@ -339,7 +339,7 @@ TEST_F(CTIAppUnitTest, GetSessionLockFilesOneManifest)
     ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
     // add and finalize file
-    ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/print_one/print.c"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/message_one/message.c"), SUCCESS) << cti_error_str();
     ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
     // Get the lock files
@@ -369,9 +369,9 @@ TEST_F(CTIAppUnitTest, GetSessionLockFilesTwoManifests)
     ASSERT_NE(manifestId2, MANIFEST_ERROR) << cti_error_str();
 
     // add and finalize file
-    ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/print_one/print.c"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/message_one/message.c"), SUCCESS) << cti_error_str();
     ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
-    ASSERT_EQ(cti_addManifestFile(manifestId2, "../test_support/print_two/print.h"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_addManifestFile(manifestId2, "../test_support/message_two/message.h"), SUCCESS) << cti_error_str();
     ASSERT_EQ(cti_sendManifest(manifestId2), SUCCESS) << cti_error_str();
 
     // Get the lock files
@@ -519,7 +519,7 @@ TEST_F(CTIAppUnitTest, AddManifestBinary)
     ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
     // add and finalize binaries
-    ASSERT_EQ(cti_addManifestBinary(manifestId, "../test_support/one_printer"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_addManifestBinary(manifestId, "../test_support/one_socket"), SUCCESS) << cti_error_str();
     ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
     // check for expected contents
@@ -528,8 +528,8 @@ TEST_F(CTIAppUnitTest, AddManifestBinary)
 
     auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
     auto const expectedPaths = std::unordered_set<std::string>
-        { tarRoot + "bin/one_printer"
-        , tarRoot + "lib/libprint.so"
+        { tarRoot + "bin/one_socket"
+        , tarRoot + "lib/libmessage.so"
     };
 
     for (auto&& path : mockApp->getShippedFilePaths()) {
@@ -552,7 +552,7 @@ TEST_F(CTIAppUnitTest, AddManifestLibrary)
     ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
     // add and finalize libraries
-    ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/print_one/libprint.so"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/message_one/libmessage.so"), SUCCESS) << cti_error_str();
     ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
     // check for expected contents
@@ -561,7 +561,7 @@ TEST_F(CTIAppUnitTest, AddManifestLibrary)
 
     auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
     auto const expectedPaths = std::unordered_set<std::string>
-        { tarRoot + "lib/libprint.so"
+        { tarRoot + "lib/libmessage.so"
     };
 
     for (auto&& path : mockApp->getShippedFilePaths()) {
@@ -584,7 +584,7 @@ TEST_F(CTIAppUnitTest, AddManifestLibDir)
     ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
     // add and finalize libraries
-    ASSERT_EQ(cti_addManifestLibDir(manifestId, "../test_support/print_one/"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_addManifestLibDir(manifestId, "../test_support/message_one/"), SUCCESS) << cti_error_str();
     ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
     // check for expected contents
@@ -593,9 +593,9 @@ TEST_F(CTIAppUnitTest, AddManifestLibDir)
 
     auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
     auto const expectedPaths = std::unordered_set<std::string>
-        { tarRoot + "lib/print_one/libprint.so"
-        , tarRoot + "lib/print_one/print.c"
-        , tarRoot + "lib/print_one/print.h"
+        { tarRoot + "lib/message_one/libmessage.so"
+        , tarRoot + "lib/message_one/message.c"
+        , tarRoot + "lib/message_one/message.h"
     };
 
     for (auto&& path : mockApp->getShippedFilePaths()) {
@@ -619,7 +619,7 @@ TEST_F(CTIAppUnitTest, AddManifestFile)
     ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
     // add and finalize file
-    ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/print_one/print.c"), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_addManifestFile(manifestId, "../test_support/message_one/message.c"), SUCCESS) << cti_error_str();
     ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
     // check for expected contents
@@ -628,7 +628,7 @@ TEST_F(CTIAppUnitTest, AddManifestFile)
 
     auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
     auto const expectedPaths = std::unordered_set<std::string>
-        { tarRoot + "/print.c"
+        { tarRoot + "/message.c"
     };
 
     for (auto&& path : mockApp->getShippedFilePaths()) {
@@ -654,7 +654,7 @@ TEST_F(CTIAppUnitTest, ExecToolDaemon)
     ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
     // finalize manifest and run tooldaemon
-    ASSERT_EQ(cti_execToolDaemon(manifestId, "../test_support/one_printer", mockArgv, nullptr), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_execToolDaemon(manifestId, "../test_support/one_socket", mockArgv, nullptr), SUCCESS) << cti_error_str();
 
     // check for expected contents
     auto const shippedFilePaths = mockApp->getShippedFilePaths();
@@ -662,8 +662,8 @@ TEST_F(CTIAppUnitTest, ExecToolDaemon)
 
     auto const tarRoot = shippedFilePaths[0].substr(0, shippedFilePaths[0].find("/") + 1);
     auto const expectedPaths = std::unordered_set<std::string>
-        { tarRoot + "bin/one_printer"
-        , tarRoot + "lib/libprint.so"
+        { tarRoot + "bin/one_socket"
+        , tarRoot + "lib/libmessage.so"
     };
 
     for (auto&& path : mockApp->getShippedFilePaths()) {
@@ -683,14 +683,14 @@ TEST_F(CTIAppUnitTest, ManifestLibraryConflict)
     { auto const manifestId = cti_createManifest(sessionId);
         ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
-        ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/print_one/libprint.so"), SUCCESS) << cti_error_str();
+        ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/message_one/libmessage.so"), SUCCESS) << cti_error_str();
         ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
     }
 
     { auto const manifestId = cti_createManifest(sessionId);
         ASSERT_NE(manifestId, MANIFEST_ERROR) << cti_error_str();
 
-        ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/print_two/libprint.so"), FAILURE) <<
+        ASSERT_EQ(cti_addManifestLibrary(manifestId, "../test_support/message_two/libmessage.so"), FAILURE) <<
             "Expected failure when manually adding conflicting libraries";
         ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
     }

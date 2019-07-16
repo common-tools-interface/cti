@@ -61,7 +61,7 @@ main(int argc, char **argv)
     uint32_t            step_id = 0;
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
-    cti_wlm_type        mywlm;
+    cti_wlm_type_t      mywlm;
     cti_app_id_t        myapp;
 
     if (argc < 2) {
@@ -188,29 +188,41 @@ main(int argc, char **argv)
     // Check the args to make sure they are valid given the wlm in use
     switch (mywlm) {
         case CTI_WLM_CRAY_SLURM:
+        {
             if (j_arg == 0 || s_arg == 0) {
                 fprintf(stderr, "Error: Missing --jobid and --stepid argument. This is required for the SLURM WLM.\n");
             }
             assert(j_arg != 0 && s_arg != 0);
-            myapp = cti_cray_slurm_registerJobStep(job_id, step_id);
+            cti_cray_slurm_ops_t * slurm_ops;
+            cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
+            assert(ret == mywlm);
+            assert(slurm_ops != NULL);
+            myapp = slurm_ops->registerJobStep(job_id, step_id);
             if (myapp == 0) {
-                fprintf(stderr, "Error: cti_cray_slurm_registerJobStep failed!\n");
+                fprintf(stderr, "Error: registerJobStep failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
             }
             assert(myapp != 0);
+        }
             break;
 
         case CTI_WLM_SSH:
+        {
             if (p_arg == 0) {
                 fprintf(stderr, "Error: Missing --pid argument. This is required for the generic WLM.\n");
             }
             assert(p_arg != 0);
-            myapp = cti_ssh_registerJob(launcher_pid);
+            cti_ssh_ops_t * ssh_ops;
+            cti_wlm_type_t ret = cti_open_ops(&ssh_ops);
+            assert(ret == mywlm);
+            assert(ssh_ops != NULL);
+            myapp = ssh_ops->registerJob(launcher_pid);
             if (myapp == 0) {
-                fprintf(stderr, "Error: cti_ssh_registerJob failed!\n");
+                fprintf(stderr, "Error: registerJob failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
             }
             assert(myapp != 0);
+        }
             break;
 
         case CTI_WLM_NONE:

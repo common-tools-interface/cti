@@ -6,8 +6,6 @@
  *       easier. The environment variables here should match those found in the
  *       public cray_tools_be.h and cray_tools_fe.h headers.
  *
- *       ONLY PUT COMPILE TIME CONSTANTS IN THIS FILE!!!
- *
  * Copyright 2013-2019 Cray Inc.    All Rights Reserved.
  *
  * Unpublished Proprietary Information.
@@ -21,6 +19,8 @@
 #ifndef _CTI_DEFS_H
 #define _CTI_DEFS_H
 
+#include "cray_tools_shared.h"
+
 // We use macros defined by configure in this file. So we need to get access to
 // config.h. Since that doesn't have good macro guards, and this file does, it
 // is important to include cti_defs.h in every source file. This ensures configure
@@ -29,6 +29,11 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+// Enable gnu extensions
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1
+#endif
+
 #include <limits.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -36,61 +41,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/*******************************************************************************
-** Type definitions required by the c interface
-*******************************************************************************/
-
-// This enum enumerates the various attributes that
-// can be set by cti_setAttribute.
-enum cti_attr_type
-{
-    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library
-                                    // dependencies should be automatically
-                                    // staged by cti_addManifestBinary and
-                                    // cti_addManifestLIbrary: 0 or 1
-                                    // Defaults to 1.
-};
-typedef enum cti_attr_type  cti_attr_type;
-
-typedef struct
-{
-        char *  hostname;
-        int     numPes;
-} cti_host_t;
-
-typedef struct
-{
-    int            numHosts;
-    cti_host_t *   hosts;
-} cti_hostsList_t;
-
-// WLM identifier. This is system specific. Right now only one WLM at a time
-// is supported.
-enum cti_wlm_type
-{
-    CTI_WLM_NONE,   // error/unitialized state
-    CTI_WLM_CRAY_SLURM,
-    CTI_WLM_SSH,
-    CTI_WLM_MOCK // for unit testing only
-};
-typedef enum cti_wlm_type   cti_wlm_type;
-
-enum cti_be_wlm_type
-{
-    CTI_BE_WLM_NONE,    // error/unitialized state
-    CTI_BE_WLM_CRAY_SLURM,
-    CTI_BE_WLM_SSH
-};
-typedef enum cti_be_wlm_type    cti_be_wlm_type;
-
-// Internal identifier used by callers to interface with the library. When they
-// request functionality that operates on applications, they must pass this
-// identifier in.
-typedef int64_t cti_app_id_t;
-// file transfers
-typedef int64_t cti_session_id_t;
-typedef int64_t cti_manifest_id_t;
 
 /*******************************************************************************
 ** Generic defines
@@ -151,23 +101,10 @@ typedef struct
     pid_t   pid;        // pid_t of this PE
 }   slurmPidFile_t;
 
-// Represents a slurm app
-typedef struct
-{
-    uint32_t    jobid;
-    uint32_t    stepid;
-} cti_srunProc_t;
-
-typedef slurmLayoutFileHeader_t cti_layoutFileHeader_t;
-typedef slurmLayoutFile_t       cti_layoutFile_t;
-typedef slurmPidFileHeader_t    cti_pidFileheader_t;
-typedef slurmPidFile_t          cti_pidFile_t;
-
 #define SRUN                    "srun"                                      // name of slurm job launcher binary
 #define SATTACH                 "sattach"                                   // name of slurm io redirect binary
 #define SCANCEL                 "scancel"                                   // name of slurm job signal binary
 #define SBCAST                  "sbcast"                                    // name of slurm transfer binary
-#define SLURM_STEP_UTIL         "cti_slurm_util"                            // name of cti slurm job step info utility
 #define CRAY_SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid)    // formula for creating Cray apid from SLURM jobid.stepid
 #define CRAY_SLURM_TOOL_DIR     "/tmp"                                      // Cray SLURM staging path on compute node
 #define CRAY_SLURM_CRAY_DIR     "/var/opt/cray/alps/spool/%llu"             // Location of cray specific directory on compute node - pmi_attribs is here
@@ -178,6 +115,12 @@ typedef slurmPidFile_t          cti_pidFile_t;
 /*******************************************************************************
 ** SSH specific information
 *******************************************************************************/
+// Re-use types defined above
+typedef slurmLayoutFileHeader_t cti_layoutFileHeader_t;
+typedef slurmLayoutFile_t       cti_layoutFile_t;
+typedef slurmPidFileHeader_t    cti_pidFileheader_t;
+typedef slurmPidFile_t          cti_pidFile_t;
+
 #define CLUSTER_FILE_TEST   "/etc/redhat-release"
 #define SSH_STAGE_DIR       SLURM_STAGE_DIR
 #define SSH_LAYOUT_FILE     SLURM_LAYOUT_FILE

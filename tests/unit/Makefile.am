@@ -29,8 +29,7 @@ check_PROGRAMS = unit_tests
 
 # unit test binary
 unit_tests_SOURCES  = unit_tests.cpp cti_fe_unit_test.cpp cti_archive_unit_test.cpp \
-					  cti_manifest_unit_test.cpp cti_session_unit_test.cpp \
-					  cti_header_unit_test.cpp
+		      cti_manifest_unit_test.cpp cti_session_unit_test.cpp
 unit_tests_CPPFLAGS = $(CODE_COVERAGE_CPPFLAGS)
 unit_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(EXTERNAL) \
 	-I$(GTEST)/include -I$(GTEST) \

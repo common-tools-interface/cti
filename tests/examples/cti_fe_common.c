@@ -21,7 +21,7 @@
 void
 cti_test_fe(cti_app_id_t appId)
 {
-    cti_wlm_type        mywlm;
+    cti_wlm_type_t      mywlm;
     const char *        mywlm_str;
     char *              myhostname;
     char *              mylauncherhostname;
@@ -49,7 +49,7 @@ cti_test_fe(cti_app_id_t appId)
     assert(mywlm != CTI_WLM_NONE);
 
     /*
-     * cti_wlm_type_toString - Obtain stringified version of cti_wlm_type.
+     * cti_wlm_type_toString - Obtain stringified version of cti_wlm_type_t.
      */
     mywlm_str = cti_wlm_type_toString(mywlm);
     if (mywlm_str == NULL) {
@@ -73,16 +73,20 @@ cti_test_fe(cti_app_id_t appId)
     myhostname = NULL;
 
     // Conduct WLM specific calls
+
     switch (mywlm) {
         case CTI_WLM_CRAY_SLURM:
         {
-            cti_srunProc_t *    mysruninfo;
+            cti_cray_slurm_ops_t * slurm_ops;
+            cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
+            assert(ret == mywlm);
+            assert(slurm_ops != NULL);
             /*
-             * cti_cray_slurm_getSrunInfo - Obtain information about the srun process
+             * getSrunInfo - Obtain information about the srun process
              */
-            mysruninfo = cti_cray_slurm_getSrunInfo(appId);
+            cti_srunProc_t *mysruninfo = slurm_ops->getSrunInfo(appId);
             if (mysruninfo == NULL) {
-                fprintf(stderr, "Error: cti_cray_slurm_getSrunInfo failed!\n");
+                fprintf(stderr, "Error: getSrunInfo failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
             }
             assert(mysruninfo != NULL);
