@@ -141,6 +141,9 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define CTI_LAUNCHER_NAME   "CRAY_CTI_LAUNCHER_NAME"    //Frontend: Used to explicitly tell CTI the path to the launcher binary to use
 #define CTI_WLM             "CRAY_CTI_WLM"              //Frontend: Used to explicitly tell CTI which workload manager to use. Accepts "slurm", and "generic"
 
+#define SRUN_OVERRIDE_ARGS_ENV_VAR "CRAY_CTI_SRUN_OVERRIDE" // Frontend: replace variable SRUN arguments with these given arguments
+#define SRUN_APPEND_ARGS_ENV_VAR   "CRAY_CTI_SRUN_APPEND"   // Frontend: append these arguments to the variable list of SRUN arguments
+
 
 #define BE_GUARD_ENV_VAR    "CRAYTOOL_IAMBACKEND"       //Backend: Set by the daemon launcher to ensure proper setup
 #define APID_ENV_VAR        "CRAYTOOL_APID"             //Backend: Used to hold the string representation of the apid (set)

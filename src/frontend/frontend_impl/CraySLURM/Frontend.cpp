@@ -362,6 +362,7 @@ CraySLURMFrontend::CraySLURMFrontend()
         }
     {
 
+    // Detect SLURM version and set SRUN arguments accordingly
     auto const slurmVersion = getSlurmVersion();
     if (slurmVersion == "18") {
         m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
@@ -379,6 +380,35 @@ CraySLURMFrontend::CraySLURMFrontend()
         );
     } else {
         throw std::runtime_error("unknown SLURM version: " + slurmVersion);
+    }
+
+    // Add / override SRUN arguments from environment variables
+    auto addArgsFromRaw = [](std::vector<std::string>& toVec, char const* fromStr) {
+        auto argStr = std::string{fromStr};
+        while (true) {
+            // Add first argument to vector
+            auto const argEnd = argStr.find(" ");
+            toVec.emplace_back(argStr.substr(0, argEnd));
+
+            // Continue with next argument, if present
+            if (argEnd != std::string::npos) {
+                argStr = argStr.substr(argEnd + 1);
+            } else {
+                break;
+            }
+        }
+    };
+
+    if (auto const rawSrunOverrideArgs = getenv(SRUN_OVERRIDE_ARGS_ENV_VAR)) {
+        m_srunAppArgs = {};
+        m_srunDaemonArgs = {};
+        addArgsFromRaw(m_srunAppArgs,    rawSrunOverrideArgs);
+        addArgsFromRaw(m_srunDaemonArgs, rawSrunOverrideArgs);
+    }
+
+    if (auto const rawSrunAppendArgs = getenv(SRUN_APPEND_ARGS_ENV_VAR)) {
+        addArgsFromRaw(m_srunAppArgs,    rawSrunAppendArgs);
+        addArgsFromRaw(m_srunDaemonArgs, rawSrunAppendArgs);
     }
 }
 
