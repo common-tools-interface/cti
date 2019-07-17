@@ -54,3 +54,6 @@ scripts/tmp
 *.marks
 *.pyc
 *.spec
+*.gcov
+*.gcda
+*.gcno
