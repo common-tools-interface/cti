@@ -69,8 +69,10 @@ extern "C" {
 /*******************************************************************************
 ** System information
 *******************************************************************************/
-#define CRAY_NID_FILE           "/proc/cray_xt/nid"                 // file where nid info is located
-#define CRAY_HOSTNAME_FMT       "nid%05d"                           // NID based hostname format string
+#define CRAY_XT_NID_FILE         "/proc/cray_xt/nid"                // file where nid info is located on XT/XC systems
+#define CRAY_XT_HOSTNAME_FMT     "nid%05d"                          // NID based hostname format string
+#define CRAY_SHASTA_NID_FILE     "/etc/cray/nid"                    // file where nid info is located on Shasta systems
+#define CRAY_SHASTA_HOSTNAME_FMT "nid%06d"                          // NID based hostname format string
 
 /*******************************************************************************
 ** Cray SLURM specific information
@@ -140,6 +142,9 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define DBG_ENV_VAR         "CRAY_CTI_DBG"              //Frontend: Used to turn on debug logging to files (read)
 #define CTI_LAUNCHER_NAME   "CRAY_CTI_LAUNCHER_NAME"    //Frontend: Used to explicitly tell CTI the path to the launcher binary to use
 #define CTI_WLM             "CRAY_CTI_WLM"              //Frontend: Used to explicitly tell CTI which workload manager to use. Accepts "slurm", and "generic"
+
+#define SRUN_OVERRIDE_ARGS_ENV_VAR "CRAY_CTI_SRUN_OVERRIDE" // Frontend: replace variable SRUN arguments with these given arguments
+#define SRUN_APPEND_ARGS_ENV_VAR   "CRAY_CTI_SRUN_APPEND"   // Frontend: append these arguments to the variable list of SRUN arguments
 
 
 #define BE_GUARD_ENV_VAR    "CRAYTOOL_IAMBACKEND"       //Backend: Set by the daemon launcher to ensure proper setup

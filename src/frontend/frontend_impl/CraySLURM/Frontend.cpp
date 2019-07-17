@@ -272,22 +272,15 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
     // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
     // --input=none --output=none --error=none <tool daemon> <args>
     //
+    auto& craySlurmFrontend = dynamic_cast<CraySLURMFrontend&>(m_frontend);
     auto launcherArgv = cti::ManagedArgv {
-        dynamic_cast<CraySLURMFrontend&>(m_frontend).getLauncherName()
+        craySlurmFrontend.getLauncherName()
         , "--jobid=" + std::to_string(m_jobId)
-        , "--gres=none"
-        , "--mem-per-cpu=0"
-        , "--mem_bind=no"
-        , "--cpu_bind=no"
-        , "--share"
-        , "--ntasks-per-node=1"
         , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
-        , "--disable-status"
-        , "--quiet"
-        , "--mpi=none"
-        , "--output=none"
-        , "--error=none"
     };
+    for (auto&& arg : craySlurmFrontend.getSrunDaemonArgs()) {
+        launcherArgv.add(arg);
+    }
 
     // create the hostlist by contencating all hostnames
     { auto hostlist = std::string{};
@@ -335,6 +328,91 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 
 /* cray slurm frontend implementation */
 
+static std::string getSlurmVersion()
+{
+    char const* const srunVersionArgv[] = {"srun", "--version", nullptr};
+    auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv};
+
+    auto slurmVersion = std::string{};
+    if (!std::getline(srunVersionOutput.stream(), slurmVersion, '\n')) {
+        throw std::runtime_error("failed to get SRUN version number output");
+    }
+    // slurm major.minor.patch
+
+    slurmVersion = slurmVersion.substr(slurmVersion.find(" ") + 1);
+    // major.minor.patch
+
+    slurmVersion = slurmVersion.substr(0, slurmVersion.find("."));
+    // major
+
+    return slurmVersion;
+}
+
+CraySLURMFrontend::CraySLURMFrontend()
+    : m_srunAppArgs {}
+    , m_srunDaemonArgs
+        { "--gres=none"
+        , "--mem-per-cpu=0"
+        , "--ntasks-per-node=1"
+        , "--disable-status"
+        , "--quiet"
+        , "--mpi=none"
+        , "--output=none"
+        , "--error=none"
+        }
+    {
+
+    // Detect SLURM version and set SRUN arguments accordingly
+    auto const slurmVersion = getSlurmVersion();
+    if (slurmVersion == "18") {
+        m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
+            { "--mem_bind=no"
+            , "--cpu_bind=no"
+            , "--shared"
+            }
+        );
+    } else if (slurmVersion == "19") {
+        m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
+            { "--mem-bind=no"
+            , "--cpu-bind=no"
+            , "--oversubscribe"
+            }
+        );
+    } else {
+        throw std::runtime_error("unknown SLURM version: " + slurmVersion);
+    }
+
+    // Add / override SRUN arguments from environment variables
+    auto addArgsFromRaw = [](std::vector<std::string>& toVec, char const* fromStr) {
+        auto argStr = std::string{fromStr};
+        while (true) {
+            // Add first argument to vector
+            auto const argEnd = argStr.find(" ");
+            toVec.emplace_back(argStr.substr(0, argEnd));
+
+            // Continue with next argument, if present
+            if (argEnd != std::string::npos) {
+                argStr = argStr.substr(argEnd + 1);
+            } else {
+                break;
+            }
+        }
+    };
+
+    if (auto const rawSrunOverrideArgs = getenv(SRUN_OVERRIDE_ARGS_ENV_VAR)) {
+        m_srunAppArgs = {};
+        m_srunDaemonArgs = {};
+        addArgsFromRaw(m_srunAppArgs,    rawSrunOverrideArgs);
+        addArgsFromRaw(m_srunDaemonArgs, rawSrunOverrideArgs);
+    }
+
+    if (auto const rawSrunAppendArgs = getenv(SRUN_APPEND_ARGS_ENV_VAR)) {
+        addArgsFromRaw(m_srunAppArgs,    rawSrunAppendArgs);
+        addArgsFromRaw(m_srunDaemonArgs, rawSrunAppendArgs);
+    }
+}
+
+
 std::weak_ptr<App>
 CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
@@ -355,73 +433,81 @@ CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int std
 std::string
 CraySLURMFrontend::getHostname() const
 {
-    auto tryParseHostnameFile = [](char const* filePath) {
+    // Extract the NID from the provided cti::file pointer and format into hostname
+    auto parseNidFile = [](auto&& nidFile) {
+        // We expect this file to have a numeric value giving our current Node ID.
+        char buf[BUFSIZ + 1];
+        if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
+            throw std::runtime_error("_cti_cray_slurm_getHostname fgets failed.");
+        }
+        buf[BUFSIZ] = '\0';
 
-        auto resolveHostname = [](std::string const& hostname) {
-            constexpr auto MAXADDRLEN = 15;
+        return std::stoi(std::string{buf});
+    };
 
-            // Get hostname information
-            struct addrinfo hints;
-            memset(&hints, 0, sizeof(hints));
-            hints.ai_family = AF_INET;
-            struct addrinfo *infoptr = NULL;
-            if (getaddrinfo(hostname.c_str(), NULL, &hints, &infoptr) || !infoptr) {
-                throw std::runtime_error("failed to resolve hostname " + hostname + strerror(errno));
-            }
+    // Resolve a hostname to IPv4 address
+    auto resolveHostname = [](std::string const& hostname) {
+        constexpr auto MAXADDRLEN = 15;
 
-            // Extract IP address string
-            char ip_addr[MAXADDRLEN + 1];
-            if (auto const rc = getnameinfo(infoptr->ai_addr, infoptr->ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
-                 freeaddrinfo(infoptr);
-                 throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
-            }
+        // Get hostname information
+        struct addrinfo hints;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        struct addrinfo *infoptr = NULL;
+        if (getaddrinfo(hostname.c_str(), NULL, &hints, &infoptr) || !infoptr) {
+            throw std::runtime_error("failed to resolve hostname " + hostname + strerror(errno));
+        }
+
+        // Extract IP address string
+        char ip_addr[MAXADDRLEN + 1];
+        if (auto const rc = getnameinfo(infoptr->ai_addr, infoptr->ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
             freeaddrinfo(infoptr);
-            ip_addr[MAXADDRLEN] = '\0';
+            throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
+        }
+        freeaddrinfo(infoptr);
 
-            return std::string{ip_addr};
-        };
+        ip_addr[MAXADDRLEN] = '\0';
 
-        // File is present on XC systems
-        if (auto nidFile = cti::file::try_open(filePath, "r")) {
-            int nid;
-            { // We expect this file to have a numeric value giving our current Node ID.
-                char buf[BUFSIZ + 1];
-                if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
-                    throw std::runtime_error("_cti_cray_slurm_getHostname fgets failed.");
-                }
-                buf[BUFSIZ] = '\0';
-                nid = std::stoi(std::string{buf});
-            }
+        return std::string{ip_addr};
+    };
 
-            // Use the NID to create the standard hostname format.
-            return cti::cstr::asprintf(CRAY_HOSTNAME_FMT, nid);
+    // Get an address to this host accessible from compute nodes
+    // Behavior changes based on XC / Shasta UAI / Shasta node
+    auto detectAddress = [&parseNidFile, &resolveHostname]() {
+        // XT / XC NID file
+        if (auto nidFile = cti::file::try_open(CRAY_XT_NID_FILE, "r")) {
+            // Use the NID to create the XT hostname format.
+            return cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
+        }
 
-        // File is not present on Shasta
+        // Shasta compute node NID file
+        else if (auto nidFile = cti::file::try_open(CRAY_SHASTA_NID_FILE, "r")) {
+            // Use the NID to create the Shasta hostname format.
+            return cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
+        }
+
+        // On Shasta, look up and return IPv4 address instead of hostname
+        // UAS hostnames cannot be resolved on compute node
+
+        // UAI hostnames start with 'uai-'
+        auto const hostname = cti::cstr::gethostname();
+        if (hostname.substr(0, 4) == "uai-") {
+
+            // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
+            // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
+            // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
+            auto const macVlanHostname = hostname + "-nmn";
+
+            return resolveHostname(macVlanHostname);
+
         } else {
-
-            // Detect if running on UAI
-            // UAI hostnames start with 'uai-'
-            auto const hostname = cti::cstr::gethostname();
-            if (hostname.substr(0, 4) == "uai-") {
-
-                    // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
-                    // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
-                    // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
-                    auto const macVlanHostname = hostname + "-nmn";
-
-                    // Look up and return IPv4 address instead of hostname
-                    // UAS hostnames cannot be resolved on compute node
-                    return resolveHostname(macVlanHostname);
-            } else {
-
-                    // Assume not UAI, resolve normal hostname
-                    return resolveHostname(hostname);
-            }
+            // Assume not UAI, use normal hostname
+            return resolveHostname(hostname);
         }
     };
 
     // Cache the hostname result.
-    static auto hostname = tryParseHostnameFile(CRAY_NID_FILE);
+    static auto hostname = detectAddress();
     return hostname;
 }
 
@@ -622,6 +708,9 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
             , "--output=" + stdoutPath
             , "--error="  + stderrPath
         };
+        for (auto&& arg : getSrunAppArgs()) {
+            launcherArgv.add(arg);
+        }
         for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
             launcherArgv.add(*arg);
         }
