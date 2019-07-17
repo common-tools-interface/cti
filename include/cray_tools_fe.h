@@ -95,11 +95,7 @@ extern "C" {
  */
 typedef enum
 {
-    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library
-                                    // dependencies should be automatically
-                                    // staged by cti_addManifestBinary and
-                                    // cti_addManifestLIbrary: 0 or 1
-                                    // Defaults to 1.
+    CTI_ATTR_STAGE_DEPENDENCIES
 } cti_attr_type_t;
 
 /*
@@ -247,9 +243,11 @@ char * cti_getHostname();
  *
  * Arguments
  *      attrib - The cti_attr_type_t
- *                 CTI_ATTR_STAGE_DEPENDENCIES:
- *                   Set to "0" or "1" to disable/enable auto staging of dependencies.
- *                   The startup value is set to '1'.
+ *          CTI_ATTR_STAGE_DEPENDENCIES:
+ *              Define whether bindary and library dso dependencies should be
+ *              automatically staged by cti_addManifestBinary and
+ *              cti_addManifestLibrary. Set to "0" or "1" to disable/enable.
+ *              Defaults to "1"/enabled.
  *      value  - A string containing appropriate values for a given attrib.
  *
  * Returns
@@ -257,6 +255,24 @@ char * cti_getHostname();
  *
  */
 int cti_setAttribute(cti_attr_type_t attrib, const char *value);
+
+/*
+ * cti_getAttribute - Get 'value' of 'attrib'
+ *
+ * Detail
+ *      This function returns the current 'value' of the requested attribute
+ *      'attrib'. The content of the returned string is defined by the
+ *      specific 'attrib'. See cti_setAttribute above to details about the
+ *      'value' string.
+ *
+ * Arguments
+ *      attrib - The requested cti_attr_type_t
+ *
+ * Returns
+ *      A string containing the 'value', or else a null string on error.
+ *
+ */
+const char * cti_getAttribute(cti_attr_type_t attrib);
 
 /*******************************************************************************
  * The following functions require the application to be started or registered

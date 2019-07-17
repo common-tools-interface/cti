@@ -36,6 +36,7 @@
 *********************/
 char *      FE_iface::_cti_err_str = nullptr;
 std::string FE_iface::m_err_str = DEFAULT_ERR_STR;
+char *      FE_iface::_cti_attr_str = nullptr;
 
 constexpr auto SUCCESS = FE_iface::SUCCESS;
 constexpr auto FAILURE = FE_iface::FAILURE;
@@ -86,6 +87,7 @@ FE_iface::get_error_str()
     if (_cti_err_str == nullptr) {
         // Allocate space for the external string
         _cti_err_str = (char *)std::malloc(CTI_ERR_STR_SIZE);
+        memset(_cti_err_str, '\0', CTI_ERR_STR_SIZE);
     }
     // Copy the internal error string to the external buffer
     strncpy(_cti_err_str, m_err_str.c_str(), CTI_ERR_STR_SIZE);
@@ -93,6 +95,25 @@ FE_iface::get_error_str()
     _cti_err_str[CTI_ERR_STR_SIZE] = '\0';
     // Return the pointer to the external buffer
     return const_cast<const char *>(_cti_err_str);
+}
+
+// Note that we want to leak by design! Do not free the buffer!
+// Since we pass this out via the c interface, we cannot safely
+// reclaim the space.
+const char *
+FE_iface::get_attr_str(const char *value)
+{
+    if (_cti_attr_str == nullptr) {
+        // Allocate space for the external string
+        _cti_attr_str = (char *)std::malloc(CTI_BUF_SIZE);
+        memset(_cti_attr_str, '\0', CTI_BUF_SIZE);
+    }
+    // Copy the value string to the buffer
+    strncpy(_cti_attr_str, value, CTI_BUF_SIZE);
+    // Enforce null termination
+    _cti_attr_str[CTI_BUF_SIZE] = '\0';
+    // Return the pointer to the external buffer
+    return const_cast<const char *>(_cti_attr_str);
 }
 
 FE_iface::FE_iface()
@@ -626,4 +647,25 @@ cti_setAttribute(cti_attr_type_t attrib, const char *value)
                 throw std::runtime_error("Invalid cti_attr_type_t " + std::to_string((int)attrib));
         }
     }, FAILURE);
+}
+
+const char *
+cti_getAttribute(cti_attr_type_t attrib)
+{
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        const char *ret = nullptr;
+        switch (attrib) {
+            case CTI_ATTR_STAGE_DEPENDENCIES:
+                if (fe.m_stage_deps) {
+                    ret = get_attr_str("1");
+                } else {
+                    ret = get_attr_str("0");
+                }
+                break;
+            default:
+                throw std::runtime_error("Invalid cti_attr_type_t " + std::to_string((int)attrib));
+        }
+        return ret;
+    }, (char*)nullptr);
 }
