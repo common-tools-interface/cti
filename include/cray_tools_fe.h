@@ -144,7 +144,7 @@ typedef int64_t cti_manifest_id_t;
  *      A string containing the current frontend library version.
  *
  */
-extern const char * cti_version(void);
+const char * cti_version(void);
 
 /*
  * cti_error_str - Returns an error string associated with a command that
@@ -163,7 +163,7 @@ extern const char * cti_version(void);
  *      A string containing the error message, or else "Unknown CTI error".
  *
  */
-extern const char * cti_error_str(void);
+const char * cti_error_str(void);
 
 /*
  * cti_error_str_r - Copies an error string associated with a command that
@@ -184,7 +184,7 @@ extern const char * cti_error_str(void);
  *      0 upon success, or ERANGE if buf_len is invalid
  *
  */
-extern int cti_error_str_r(char *buf, size_t buf_len);
+int cti_error_str_r(char *buf, size_t buf_len);
 
 /*
  * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
@@ -202,7 +202,7 @@ extern int cti_error_str_r(char *buf, size_t buf_len);
  *      A cti_wlm_type_t that contains the current WLM in use on the system.
  *
  */
-extern cti_wlm_type_t cti_current_wlm(void);
+cti_wlm_type_t cti_current_wlm(void);
 
 /*
  * cti_wlm_type_toString - Obtain the stringified representation of the
@@ -219,7 +219,7 @@ extern cti_wlm_type_t cti_current_wlm(void);
  *      A string containing the human readable format.
  *
  */
-extern const char * cti_wlm_type_toString(cti_wlm_type_t wlm_type);
+const char * cti_wlm_type_toString(cti_wlm_type_t wlm_type);
 
 /*
  * cti_getHostname - Returns the hostname of the current login node.
@@ -236,7 +236,7 @@ extern const char * cti_wlm_type_toString(cti_wlm_type_t wlm_type);
  *      A string containing the hostname, or else a null string on error.
  *
  */
-extern char * cti_getHostname();
+char * cti_getHostname();
 
 /*
  * cti_setAttribute - Set 'attrib' to 'value'
@@ -256,7 +256,7 @@ extern char * cti_getHostname();
  *      0 on success, or else 1 on failure
  *
  */
-extern int cti_setAttribute(cti_attr_type_t attrib, const char *value);
+int cti_setAttribute(cti_attr_type_t attrib, const char *value);
 
 /*******************************************************************************
  * The following functions require the application to be started or registered
@@ -277,7 +277,7 @@ extern int cti_setAttribute(cti_attr_type_t attrib, const char *value);
  *      0 if the app_id is invalid, 1 if the app_id is still valid.
  *
  */
-extern int cti_appIsValid(cti_app_id_t app_id);
+int cti_appIsValid(cti_app_id_t app_id);
 
 /*
  * cti_deregisterApp - Assists in cleaning up internal allocated memory
@@ -307,7 +307,7 @@ extern int cti_appIsValid(cti_app_id_t app_id);
  *      Returns no value.
  *
  */
-extern void cti_deregisterApp(cti_app_id_t app_id);
+void cti_deregisterApp(cti_app_id_t app_id);
 
 /*
  * cti_getLauncherHostName - Returns the hostname of the login node where the
@@ -325,7 +325,7 @@ extern void cti_deregisterApp(cti_app_id_t app_id);
  *      A string containing the launcher host, or else a null string on error.
  *
  */
-extern char * cti_getLauncherHostName(cti_app_id_t app_id);
+char * cti_getLauncherHostName(cti_app_id_t app_id);
 
 /*
  * cti_getNumAppPEs - Returns the number of processing elements in the
@@ -344,7 +344,7 @@ extern char * cti_getLauncherHostName(cti_app_id_t app_id);
  *      Number of PEs in the application, or else 0 on error.
  *
  */
-extern int cti_getNumAppPEs(cti_app_id_t app_id);
+int cti_getNumAppPEs(cti_app_id_t app_id);
 
 /*
  * cti_getNumAppNodes - Returns the number of compute nodes allocated for the
@@ -364,7 +364,7 @@ extern int cti_getNumAppPEs(cti_app_id_t app_id);
  *      or else 0 on error.
  *
  */
-extern int cti_getNumAppNodes(cti_app_id_t app_id);
+int cti_getNumAppNodes(cti_app_id_t app_id);
 
 /*
  * cti_getAppHostsList - Returns a null terminated array of strings containing
@@ -388,7 +388,7 @@ extern int cti_getNumAppNodes(cti_app_id_t app_id);
  *      pointer on error.
  *
  */
-extern char ** cti_getAppHostsList(cti_app_id_t app_id);
+char ** cti_getAppHostsList(cti_app_id_t app_id);
 
 /*
  * cti_getAppHostsPlacement - Returns a cti_hostsList_t containing cti_host_t
@@ -414,7 +414,7 @@ extern char ** cti_getAppHostsList(cti_app_id_t app_id);
  *      and an array of cti_host_t for each host assigned to the application.
  *
  */
-extern cti_hostsList_t * cti_getAppHostsPlacement(cti_app_id_t app_id);
+cti_hostsList_t * cti_getAppHostsPlacement(cti_app_id_t app_id);
 
 /*
  * cti_destroyHostsList - Used to destroy the memory allocated for a
@@ -433,7 +433,7 @@ extern cti_hostsList_t * cti_getAppHostsPlacement(cti_app_id_t app_id);
  *      Void. This function behaves similarly to free().
  *
  */
-extern void cti_destroyHostsList(cti_hostsList_t *placement_list);
+void cti_destroyHostsList(cti_hostsList_t *placement_list);
 
 
 /*******************************************************************************
@@ -499,12 +499,12 @@ extern void cti_destroyHostsList(cti_hostsList_t *placement_list);
  *      app_id should be used in subsequent calls. 0 is returned on error.
  *
  */
-extern cti_app_id_t cti_launchApp(   const char * const  launcher_argv[],
-                                     int                 stdout_fd,
-                                     int                 stderr_fd,
-                                     const char *        inputFile,
-                                     const char *        chdirPath,
-                                     const char * const  env_list[]);
+cti_app_id_t cti_launchApp( const char * const  launcher_argv[],
+                            int                 stdout_fd,
+                            int                 stderr_fd,
+                            const char *        inputFile,
+                            const char *        chdirPath,
+                            const char * const  env_list[]);
 
 /*
  * cti_launchAppBarrier - Start an application using the application launcher
@@ -535,12 +535,12 @@ extern cti_app_id_t cti_launchApp(   const char * const  launcher_argv[],
  *      app_id should be used in subsequent calls. 0 is returned on error.
  *
  */
-extern cti_app_id_t cti_launchAppBarrier(   const char * const  launcher_argv[],
-                                            int                 stdout_fd,
-                                            int                 stderr_fd,
-                                            const char *        inputFile,
-                                            const char *        chdirPath,
-                                            const char * const  env_list[]);
+cti_app_id_t cti_launchAppBarrier(  const char * const  launcher_argv[],
+                                    int                 stdout_fd,
+                                    int                 stderr_fd,
+                                    const char *        inputFile,
+                                    const char *        chdirPath,
+                                    const char * const  env_list[]);
 
 /*
  * cti_releaseAppBarrier - Release the application launcher launched with the
@@ -561,7 +561,7 @@ extern cti_app_id_t cti_launchAppBarrier(   const char * const  launcher_argv[],
  *      0 on success, or else 1 on failure.
  *
  */
-extern int cti_releaseAppBarrier(cti_app_id_t app_id);
+int cti_releaseAppBarrier(cti_app_id_t app_id);
 
 /*
  * cti_killApp - Send a signal using the appropriate launcher kill mechanism to
@@ -581,7 +581,7 @@ extern int cti_releaseAppBarrier(cti_app_id_t app_id);
  *      0 on success, or else 1 on failure.
  *
  */
-extern int cti_killApp(cti_app_id_t app_id, int signum);
+int cti_killApp(cti_app_id_t app_id, int signum);
 
 /*******************************************************************************
  * WLM specific extensions - Interface for defining WLM specific extensions.
@@ -606,7 +606,7 @@ extern int cti_killApp(cti_app_id_t app_id, int signum);
  *      extensions.
  *
  */
-extern cti_wlm_type_t cti_open_ops(void **ops);
+cti_wlm_type_t cti_open_ops(void **ops);
 
 /*
  * cti_cray_slurm_ops extensions - Extensions for the Cray SLURM WLM
@@ -743,7 +743,7 @@ typedef struct {
  *      A non-zero cti_session_id_t on success, or else 0 on failure.
  *
  */
-extern cti_session_id_t cti_createSession(cti_app_id_t app_id);
+cti_session_id_t cti_createSession(cti_app_id_t app_id);
 
 /*
  * cti_sessionIsValid - Test if a cti_session_id_t is still valid
@@ -760,7 +760,7 @@ extern cti_session_id_t cti_createSession(cti_app_id_t app_id);
  *      0 if the session is invalid, 1 if the session is still valid.
  *
  */
-extern int cti_sessionIsValid(cti_session_id_t sid);
+int cti_sessionIsValid(cti_session_id_t sid);
 
 /*
  * cti_destroySession - Kill every tool daemon associated with a cti_session_id_t
@@ -784,7 +784,7 @@ extern int cti_sessionIsValid(cti_session_id_t sid);
  *      valid for future use.
  *
  */
-extern int cti_destroySession(cti_session_id_t sid);
+int cti_destroySession(cti_session_id_t sid);
 
 /*
  * cti_createManifest - Create a new manifest abstraction that represents a
@@ -817,7 +817,7 @@ extern int cti_destroySession(cti_session_id_t sid);
  *      A non-zero cti_manifest_id_t on success, or else 0 on failure.
  *
  */
-extern cti_manifest_id_t cti_createManifest(cti_session_id_t sid);
+cti_manifest_id_t cti_createManifest(cti_session_id_t sid);
 
 /*
  * cti_manifestIsValid - Test if a cti_manifest_id_t is still valid
@@ -834,7 +834,7 @@ extern cti_manifest_id_t cti_createManifest(cti_session_id_t sid);
  *      0 if the manifest is invalid, 1 if the manifest is still valid.
  *
  */
-extern int cti_manifestIsValid(cti_manifest_id_t mid);
+int cti_manifestIsValid(cti_manifest_id_t mid);
 
 /*
  * cti_addManifestBinary - Add a program binary to a manifest.
@@ -862,7 +862,7 @@ extern int cti_manifestIsValid(cti_manifest_id_t mid);
  *      0 on success, or else 1 on failure.
  *
  */
-extern int cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr);
+int cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_addManifestLibrary - Add a shared library to a manifest.
@@ -887,7 +887,7 @@ extern int cti_addManifestBinary(cti_manifest_id_t mid, const char *fstr);
  *      0 on success, or else 1 on failure.
  *
  */
-extern int cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr);
+int cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_addManifestLibDir - Add a library directory to a manifest.
@@ -912,7 +912,7 @@ extern int cti_addManifestLibrary(cti_manifest_id_t mid, const char *fstr);
  *      0 on success, or else 1 on failure.
  *
  */
-extern int cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr);
+int cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_addManifestFile - Add a regular file to a manifest.
@@ -935,7 +935,7 @@ extern int cti_addManifestLibDir(cti_manifest_id_t mid, const char *fstr);
  *      0 on success, or else 1 on failure.
  *
  */
-extern int cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
+int cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
 
 /*
  * cti_sendManifest - Ship a manifest to a sessions unique storage space and
@@ -964,7 +964,7 @@ extern int cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
  *      0 on success, or else 1 on failure.
  *
  */
-extern int cti_sendManifest(cti_manifest_id_t mid);
+int cti_sendManifest(cti_manifest_id_t mid);
 
 /*
  * cti_execToolDaemon - Launch a tool daemon onto all the compute nodes
@@ -1019,10 +1019,10 @@ extern int cti_sendManifest(cti_manifest_id_t mid);
  *      0 on success, or else 1 on failure.
  *
  */
-extern int cti_execToolDaemon( cti_manifest_id_t   mid,
-                               const char *        fstr,
-                               const char * const  args[],
-                               const char * const  env[]);
+int cti_execToolDaemon( cti_manifest_id_t   mid,
+                        const char *        fstr,
+                        const char * const  args[],
+                        const char * const  env[]);
 
 /*
  * cti_getSessionLockFiles - Get the name(s) of instance dependency lock files.
@@ -1041,7 +1041,7 @@ extern int cti_execToolDaemon( cti_manifest_id_t   mid,
  *      A null terminated array of strings, or else NULL on error.
  *
  */
-extern char ** cti_getSessionLockFiles(cti_session_id_t sid);
+char ** cti_getSessionLockFiles(cti_session_id_t sid);
 
 /*
  * cti_getSessionRootDir - Get root directory of session directory structure on
@@ -1061,7 +1061,7 @@ extern char ** cti_getSessionLockFiles(cti_session_id_t sid);
  *      A pointer to the path on success, or NULL on error.
  *
  */
-extern char * cti_getSessionRootDir(cti_session_id_t sid);
+char * cti_getSessionRootDir(cti_session_id_t sid);
 
 /*
  * cti_getSessionBinDir - Get bin directory of session binaries on compute node.
@@ -1081,7 +1081,7 @@ extern char * cti_getSessionRootDir(cti_session_id_t sid);
  *      A pointer to the path on success, or NULL on error.
  *
  */
-extern char * cti_getSessionBinDir(cti_session_id_t sid);
+char * cti_getSessionBinDir(cti_session_id_t sid);
 
 /*
  * cti_getSessionLibDir - Get lib directory of session libraries on compute
@@ -1102,7 +1102,7 @@ extern char * cti_getSessionBinDir(cti_session_id_t sid);
  *      A pointer to the path on success, or NULL on error.
  *
  */
-extern char * cti_getSessionLibDir(cti_session_id_t sid);
+char * cti_getSessionLibDir(cti_session_id_t sid);
 
 /*
  * cti_getSessionFileDir - Get file directory of session files on compute node.
@@ -1122,7 +1122,7 @@ extern char * cti_getSessionLibDir(cti_session_id_t sid);
  *      A pointer to the path on success, or NULL on error.
  *
  */
-extern char * cti_getSessionFileDir(cti_session_id_t sid);
+char * cti_getSessionFileDir(cti_session_id_t sid);
 
 /*
  * cti_getSessionTmpDir - Get tmp directory of session on compute node.
@@ -1142,7 +1142,7 @@ extern char * cti_getSessionFileDir(cti_session_id_t sid);
  *      A pointer to the path on success, or NULL on error.
  *
  */
-extern char * cti_getSessionTmpDir(cti_session_id_t sid);
+char * cti_getSessionTmpDir(cti_session_id_t sid);
 
 #ifdef __cplusplus
 }
