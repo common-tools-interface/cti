@@ -368,7 +368,7 @@ CraySLURMFrontend::CraySLURMFrontend()
         m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
             { "--mem_bind=no"
             , "--cpu_bind=no"
-            , "--shared"
+            , "--share"
             }
         );
     } else if (slurmVersion == "19") {
