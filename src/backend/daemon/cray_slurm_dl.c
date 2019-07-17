@@ -81,7 +81,8 @@ _cti_cray_slurm_getNodeID(void)
 
     // read the nid from the system location
     // open up the file containing our node id (nid)
-    if ((nid_fd = fopen(CRAY_NID_FILE, "r")) != NULL)
+    if (((nid_fd = fopen(CRAY_XT_NID_FILE, "r"))     != NULL) ||
+        ((nid_fd = fopen(CRAY_SHASTA_NID_FILE, "r")) != NULL))
     {
         // we expect this file to have a numeric value giving our current nid
         if (fgets(file_buf, BUFSIZ, nid_fd) == NULL)

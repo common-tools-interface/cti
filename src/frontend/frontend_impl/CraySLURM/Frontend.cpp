@@ -433,73 +433,81 @@ CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int std
 std::string
 CraySLURMFrontend::getHostname() const
 {
-    auto tryParseHostnameFile = [](char const* filePath) {
+    // Extract the NID from the provided cti::file pointer and format into hostname
+    auto parseNidFile = [](auto&& nidFile) {
+        // We expect this file to have a numeric value giving our current Node ID.
+        char buf[BUFSIZ + 1];
+        if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
+            throw std::runtime_error("_cti_cray_slurm_getHostname fgets failed.");
+        }
+        buf[BUFSIZ] = '\0';
 
-        auto resolveHostname = [](std::string const& hostname) {
-            constexpr auto MAXADDRLEN = 15;
+        return std::stoi(std::string{buf});
+    };
 
-            // Get hostname information
-            struct addrinfo hints;
-            memset(&hints, 0, sizeof(hints));
-            hints.ai_family = AF_INET;
-            struct addrinfo *infoptr = NULL;
-            if (getaddrinfo(hostname.c_str(), NULL, &hints, &infoptr) || !infoptr) {
-                throw std::runtime_error("failed to resolve hostname " + hostname + strerror(errno));
-            }
+    // Resolve a hostname to IPv4 address
+    auto resolveHostname = [](std::string const& hostname) {
+        constexpr auto MAXADDRLEN = 15;
 
-            // Extract IP address string
-            char ip_addr[MAXADDRLEN + 1];
-            if (auto const rc = getnameinfo(infoptr->ai_addr, infoptr->ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
-                 freeaddrinfo(infoptr);
-                 throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
-            }
+        // Get hostname information
+        struct addrinfo hints;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        struct addrinfo *infoptr = NULL;
+        if (getaddrinfo(hostname.c_str(), NULL, &hints, &infoptr) || !infoptr) {
+            throw std::runtime_error("failed to resolve hostname " + hostname + strerror(errno));
+        }
+
+        // Extract IP address string
+        char ip_addr[MAXADDRLEN + 1];
+        if (auto const rc = getnameinfo(infoptr->ai_addr, infoptr->ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
             freeaddrinfo(infoptr);
-            ip_addr[MAXADDRLEN] = '\0';
+            throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
+        }
+        freeaddrinfo(infoptr);
 
-            return std::string{ip_addr};
-        };
+        ip_addr[MAXADDRLEN] = '\0';
 
-        // File is present on XC systems
-        if (auto nidFile = cti::file::try_open(filePath, "r")) {
-            int nid;
-            { // We expect this file to have a numeric value giving our current Node ID.
-                char buf[BUFSIZ + 1];
-                if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
-                    throw std::runtime_error("_cti_cray_slurm_getHostname fgets failed.");
-                }
-                buf[BUFSIZ] = '\0';
-                nid = std::stoi(std::string{buf});
-            }
+        return std::string{ip_addr};
+    };
 
-            // Use the NID to create the standard hostname format.
-            return cti::cstr::asprintf(CRAY_HOSTNAME_FMT, nid);
+    // Get an address to this host accessible from compute nodes
+    // Behavior changes based on XC / Shasta UAI / Shasta node
+    auto detectAddress = [&parseNidFile, &resolveHostname]() {
+        // XT / XC NID file
+        if (auto nidFile = cti::file::try_open(CRAY_XT_NID_FILE, "r")) {
+            // Use the NID to create the XT hostname format.
+            return cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
+        }
 
-        // File is not present on Shasta
+        // Shasta compute node NID file
+        else if (auto nidFile = cti::file::try_open(CRAY_SHASTA_NID_FILE, "r")) {
+            // Use the NID to create the Shasta hostname format.
+            return cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
+        }
+
+        // On Shasta, look up and return IPv4 address instead of hostname
+        // UAS hostnames cannot be resolved on compute node
+
+        // UAI hostnames start with 'uai-'
+        auto const hostname = cti::cstr::gethostname();
+        if (hostname.substr(0, 4) == "uai-") {
+
+            // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
+            // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
+            // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
+            auto const macVlanHostname = hostname + "-nmn";
+
+            return resolveHostname(macVlanHostname);
+
         } else {
-
-            // Detect if running on UAI
-            // UAI hostnames start with 'uai-'
-            auto const hostname = cti::cstr::gethostname();
-            if (hostname.substr(0, 4) == "uai-") {
-
-                    // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
-                    // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
-                    // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
-                    auto const macVlanHostname = hostname + "-nmn";
-
-                    // Look up and return IPv4 address instead of hostname
-                    // UAS hostnames cannot be resolved on compute node
-                    return resolveHostname(macVlanHostname);
-            } else {
-
-                    // Assume not UAI, resolve normal hostname
-                    return resolveHostname(hostname);
-            }
+            // Assume not UAI, use normal hostname
+            return resolveHostname(hostname);
         }
     };
 
     // Cache the hostname result.
-    static auto hostname = tryParseHostnameFile(CRAY_NID_FILE);
+    static auto hostname = detectAddress();
     return hostname;
 }
 

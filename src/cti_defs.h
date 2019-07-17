@@ -69,8 +69,10 @@ extern "C" {
 /*******************************************************************************
 ** System information
 *******************************************************************************/
-#define CRAY_NID_FILE           "/proc/cray_xt/nid"                 // file where nid info is located
-#define CRAY_HOSTNAME_FMT       "nid%05d"                           // NID based hostname format string
+#define CRAY_XT_NID_FILE         "/proc/cray_xt/nid"                // file where nid info is located on XT/XC systems
+#define CRAY_XT_HOSTNAME_FMT     "nid%05d"                          // NID based hostname format string
+#define CRAY_SHASTA_NID_FILE     "/etc/cray/nid"                    // file where nid info is located on Shasta systems
+#define CRAY_SHASTA_HOSTNAME_FMT "nid%06d"                          // NID based hostname format string
 
 /*******************************************************************************
 ** Cray SLURM specific information
