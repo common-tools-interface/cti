@@ -64,7 +64,7 @@ START_DIR=$PWD
 # Make sure in proper directory
 if ! test -f ./build_coverage_report.sh ; then 
     echo "Invalid directory for execution."
-    echo "Either launch in coverage directory or path in path to it as a paramter"
+    echo "Either launch in coverage directory or pass in path to it as a parameter"
     exit 1
 fi
 

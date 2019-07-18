@@ -11,11 +11,9 @@ endif
 coverage: coverage.xml
 
 coverage.xml: $(GCDAS)
-	./build_coverage_report.sh
-
-$(GCDAS):
-	../unit/unit_tests
-	../function/build_run.sh ../function/
+	cd ../unit && ./unit_tests
+	cd ../function && ./build_run.sh
+	cd ../coverage && ./build_coverage_report.sh
 
 sonar-scan:
 	./ss-linux/bin/sonar-scanner
