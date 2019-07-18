@@ -66,12 +66,9 @@ for i in "${gcov_dirs[@]}"; do
         filename="${j%.*}"
         mkdir -p $gcov_report_path/$dir_name/$filename
         touch $gcov_report_path/$dir_name/$filename/${filename}_report.txt
-        gcov -k $filename > $gcov_report_path/$dir_name/$filename/${filename}_report.txt
+        gcov -rk $filename > $gcov_report_path/$dir_name/$filename/${filename}_report.txt
         cp *.gcov $gcov_report_path/$dir_name/$filename
         mv *.gcov $gcov_report_path/gcov_all
     done
-    if ls .libs/*.gcno &> /dev/null ; then
-        rm ./*.gc*
-    fi
     cd $START_DIR
 done
