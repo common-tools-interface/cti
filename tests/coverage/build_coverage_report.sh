@@ -26,23 +26,6 @@ setup_gcovr() {
     return 0
 }
 
-setup_sonarscanner() {
-    if test -d ./ss-linux ; then
-        echo "Sonar scanner install is valid..."
-        return 0
-    fi
-    if ! test -f ./ss.zip ; then
-        if ! curl https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.0.0.1744-linux.zip -o ss.zip ; then
-            echo "Failed to download sonar scanner. Aborting..."
-            return 1
-        fi
-    fi
-    unzip ss.zip
-    mv sonar-scanner-cli-4.0.0.1744-linux ss-linux
-    cp ./ss_props.txt ./ss-linux/conf/sonar-scanner.properties
-    rm ss.zip
-}
-
 compiled_with_cc() {
     ls $SRC_DIR/frontend/.libs/*.gcno &> /dev/null
     return $?
@@ -74,9 +57,12 @@ if ! setup_gcovr ; then
 fi
 
 # Make sure sonar scanner is isntalled properly
-if ! setup_sonarscanner ; then
+if ! test -d ./ss-linux ; then
+    echo "Invalid sonarscanner installation."
+    echo "Please run install_sonar.sh and try again."
     exit 1
 fi
+echo "Sonarscanner setup properly..."
 
 # Get absolute path to src directory
 cd ../../
