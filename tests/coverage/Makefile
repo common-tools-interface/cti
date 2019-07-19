@@ -15,6 +15,7 @@ coverage.xml:
 	cd ../coverage && ./build_coverage_report.sh
 
 sonar-scan:
+	./install_sonar.sh
 	./ss-linux/bin/sonar-scanner
 	@echo
 	@echo View SonarQube results at

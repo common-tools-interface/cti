@@ -56,14 +56,6 @@ if ! setup_gcovr ; then
     exit 1
 fi
 
-# Make sure sonar scanner is isntalled properly
-if ! test -d ./ss-linux ; then
-    echo "Invalid sonarscanner installation."
-    echo "Please run install_sonar.sh and try again."
-    exit 1
-fi
-echo "Sonarscanner setup properly..."
-
 # Get absolute path to src directory
 cd ../../
 SRC_DIR=$PWD/src/
@@ -79,8 +71,13 @@ fi
 module purge
 module load gcc/8.1.0
 
-# Create local gcov report which in turn moves files to where they need to be for gcovr
-../scripts/create_gcov_report.sh ../scripts/
+# Move all gcda and gcno files to where they need to be
+GC_DIRS=$(find ${SRC_DIR}frontend/ -name "*.libs" -type d)
+for libdir in $GC_DIRS; do
+    cd $libdir
+    cp *.gc* ../ &> /dev/null
+done
+cd $START_DIR
 
 # Execute gcovr command
 echo "Building coverage report..."
