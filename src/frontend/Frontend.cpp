@@ -341,14 +341,12 @@ Frontend::detect_Frontend()
         if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
             return CTI_WLM_SSH;
         }
-        // Query for the slurm package using rpm
-        // FIXME: This is a hack. This should be addressed by PE-25088
-        auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "slurm" };
-        cti::Execvp rpmOutput("rpm", rpmArgv.get());
-        auto res = rpmOutput.getExitStatus();
-        if (res == 0) {
-            // The slurm package is installed. This is a naive check.
+
+        // Query supported workload managers
+        if (CraySLURMFrontend::isSupported()) {
             return CTI_WLM_CRAY_SLURM;
+        } else if (GenericSSHFrontend::isSupported()) {
+            return CTI_WLM_SSH;
         }
     }
     // Unknown WLM
