@@ -783,6 +783,14 @@ GenericSSHFrontend::createPIDListFile(MPIRProctable const& procTable, std::strin
     }
 }
 
+bool
+GenericSSHFrontend::isSupported()
+{
+    // Could attempt to SSH to compute node here
+
+    return true;
+}
+
 std::unique_ptr<MPIRInstance>
 GenericSSHFrontend::launchApp(const char * const launcher_argv[],
         int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[])

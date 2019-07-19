@@ -412,6 +412,25 @@ CraySLURMFrontend::CraySLURMFrontend()
     }
 }
 
+bool
+CraySLURMFrontend::isSupported()
+{
+    // FIXME: This is a hack. This should be addressed by PE-25088
+
+    // Check that the slurm package is installed
+    auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "slurm" };
+    if (cti::Execvp{"rpm", rpmArgv.get()}.getExitStatus() != 0) {
+        return false;
+    }
+
+    // Check that SLURM version is supported
+    auto const slurmVersion = getSlurmVersion();
+    if (!((slurmVersion == "18") || (slurmVersion == "19"))) {
+        return false;
+    }
+
+    return true;
+}
 
 std::weak_ptr<App>
 CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,

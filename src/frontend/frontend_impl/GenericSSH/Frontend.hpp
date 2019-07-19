@@ -29,6 +29,8 @@ private: // Global state
 	std::vector<char> 	m_pwd_buf;
 
 public: // inherited interface
+	static bool isSupported();
+
 	cti_wlm_type_t getWLMType() const override { return CTI_WLM_SSH; }
 
 	std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,

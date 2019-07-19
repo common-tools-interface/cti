@@ -71,6 +71,11 @@ class App;
 */
 class Frontend {
 public: // impl.-specific interface that derived type must implement
+
+    // Frontend implementations must implement a static function isSupported that will determine,
+    // in an implementation-specific manner, if the Frontend is supported on the current system.
+    // static bool isSupported();
+
     // wlm type
     virtual cti_wlm_type_t
     getWLMType() const = 0;
