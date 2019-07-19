@@ -1,6 +1,5 @@
 SRC := $(PWD)/../../src/
 GCNOS := $(wildcard ../../src/frontend/cti_transfer/.libs/*.gcno)
-GCDAS := $(GCNOS:.gcno=.gcda)
 
 ifeq ($(GCNOS),)
     echo "Please use --enable-code-coverage in build.sh and rebuild"
@@ -10,7 +9,7 @@ endif
 .PHONY: coverage
 coverage: coverage.xml
 
-coverage.xml: $(GCDAS)
+coverage.xml:
 	cd ../unit && ./unit_tests
 	cd ../function && ./build_run.sh
 	cd ../coverage && ./build_coverage_report.sh
