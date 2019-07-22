@@ -71,7 +71,7 @@ void Session::finalize() {
     auto&& fe = app->getFrontend();
     writeLog("launchCleanup: creating daemonArgv for cleanup\n");
     // create DaemonArgv
-    cti::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+    cti::OutgoingArgv<DaemonArgv> daemonArgv(CTI_BE_DAEMON_BINARY);
     daemonArgv.add(DaemonArgv::ApID,                app->getJobId());
     daemonArgv.add(DaemonArgv::ToolPath,            app->getToolPath());
     auto apath = app->getAttribsPath();
