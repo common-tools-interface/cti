@@ -786,9 +786,18 @@ GenericSSHFrontend::createPIDListFile(MPIRProctable const& procTable, std::strin
 bool
 GenericSSHFrontend::isSupported()
 {
-    // Could attempt to SSH to compute node here
+    // Check if this is a cluster system.
+    // FIXME: This is a hack. This is not a reliable check for all environments.
+    // For example, whiteboxes should support direct SSH, but this file will not be present.
+    // In this case, no WLM will be detected, and the user will be instructed to set the
+    // CRAY_CTI_WLM environment variable.
+    { struct stat sb;
+        if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
+            return true;
+        }
+    }
 
-    return true;
+    return false;
 }
 
 std::unique_ptr<MPIRInstance>

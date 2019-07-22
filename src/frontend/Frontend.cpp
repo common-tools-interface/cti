@@ -320,34 +320,26 @@ Frontend::detect_Frontend()
         throw std::runtime_error("Unable to instantiate Frontend from compute node!");
     }
 
-    auto caseInsensitiveMatch = [](std::string const& lhs, std::string const& lowercaseRhs) {
-        std::string lowercaseLhs;
-        std::transform(lhs.begin(), lhs.end(), lowercaseLhs.begin(),
+    auto toLower = [](std::string str) -> std::string {
+        std::transform(str.begin(), str.end(), str.begin(),
             [](unsigned char c){ return std::tolower(c); });
-        return (lowercaseLhs == lowercaseRhs);
+        return str;
     };
 
     // Use the workload manager in the environment variable if it is set
     if (const char* wlm_name_env = getenv(CTI_WLM)) {
-        auto const wlmName = std::string{wlm_name_env};
+        auto const wlmName = toLower(wlm_name_env);
 
         // parse the env string
-        if (caseInsensitiveMatch(wlmName, CraySLURMFrontend::getName())) {
+        if (wlmName == toLower(CraySLURMFrontend::getName())) {
             return CTI_WLM_CRAY_SLURM;
-        } else if (caseInsensitiveMatch(wlmName, GenericSSHFrontend::getName())) {
+        } else if (wlmName == toLower(GenericSSHFrontend::getName())) {
             return CTI_WLM_SSH;
         } else {
-            throw std::runtime_error("Invalid workload manager argument " + wlmName + " provided in " + CTI_WLM);
+            throw std::runtime_error("Invalid workload manager argument '" + wlmName + "' provided in " + CTI_WLM);
         }
     }
     else {
-        // Check if this is a cluster system
-        // FIXME: This is a hack.
-        struct stat sb;
-        if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
-            return CTI_WLM_SSH;
-        }
-
         // Query supported workload managers
         if (CraySLURMFrontend::isSupported()) {
             return CTI_WLM_CRAY_SLURM;
