@@ -319,18 +319,24 @@ Frontend::detect_Frontend()
     if (isRunningOnBackend()) {
         throw std::runtime_error("Unable to instantiate Frontend from compute node!");
     }
-    std::string wlmName;
+
+    auto caseInsensitiveMatch = [](std::string const& lhs, std::string const& lowercaseRhs) {
+        std::string lowercaseLhs;
+        std::transform(lhs.begin(), lhs.end(), lowercaseLhs.begin(),
+            [](unsigned char c){ return std::tolower(c); });
+        return (lowercaseLhs == lowercaseRhs);
+    };
+
     // Use the workload manager in the environment variable if it is set
     if (const char* wlm_name_env = getenv(CTI_WLM)) {
-        wlmName = std::string(wlm_name_env);
+        auto const wlmName = std::string{wlm_name_env};
+
         // parse the env string
-        if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
+        if (caseInsensitiveMatch(wlmName, CraySLURMFrontend::getName())) {
             return CTI_WLM_CRAY_SLURM;
-        }
-        else if (!wlmName.compare("generic")) {
+        } else if (caseInsensitiveMatch(wlmName, GenericSSHFrontend::getName())) {
             return CTI_WLM_SSH;
-        }
-        else {
+        } else {
             throw std::runtime_error("Invalid workload manager argument " + wlmName + " provided in " + CTI_WLM);
         }
     }

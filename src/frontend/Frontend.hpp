@@ -72,9 +72,21 @@ class App;
 class Frontend {
 public: // impl.-specific interface that derived type must implement
 
-    // Frontend implementations must implement a static function isSupported that will determine,
-    // in an implementation-specific manner, if the Frontend is supported on the current system.
-    // static bool isSupported();
+
+    // Frontend implementations must implement the following static functions:
+
+    // static char const* getName()
+    //   return the short name for the WLM that can be set in the CRAY_CTI_WLM environment variable
+
+    // static char const* getDescription()
+    //   return the long description for the WLM used on call to cti_wlm_type_toString
+
+    // static bool isSupported()
+    //   determines in an implementation-specific manner if the Frontend is supported
+    //   on the current system.
+
+
+    // Frontend implementations must implement the following virtual functions:
 
     // wlm type
     virtual cti_wlm_type_t

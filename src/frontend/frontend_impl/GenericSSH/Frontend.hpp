@@ -29,6 +29,8 @@ private: // Global state
 	std::vector<char> 	m_pwd_buf;
 
 public: // inherited interface
+	static char const* getName()        { return "generic"; }
+	static char const* getDescription() { return "Fallback (SSH based) workload manager"; }
 	static bool isSupported();
 
 	cti_wlm_type_t getWLMType() const override { return CTI_WLM_SSH; }
