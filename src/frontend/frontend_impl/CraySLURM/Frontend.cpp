@@ -363,15 +363,15 @@ CraySLURMFrontend::CraySLURMFrontend()
     {
 
     // Detect SLURM version and set SRUN arguments accordingly
-    auto const slurmVersion = getSlurmVersion();
-    if (slurmVersion == "18") {
+    auto const slurmVersion = std::stoi(getSlurmVersion());
+    if (slurmVersion <= 18) {
         m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
             { "--mem_bind=no"
             , "--cpu_bind=no"
             , "--share"
             }
         );
-    } else if (slurmVersion == "19") {
+    } else if (slurmVersion >= 19) {
         m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
             { "--mem-bind=no"
             , "--cpu-bind=no"
@@ -420,12 +420,6 @@ CraySLURMFrontend::isSupported()
     // Check that the slurm package is installed
     auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "slurm" };
     if (cti::Execvp{"rpm", rpmArgv.get()}.getExitStatus() != 0) {
-        return false;
-    }
-
-    // Check that SLURM version is supported
-    auto const slurmVersion = getSlurmVersion();
-    if (!((slurmVersion == "18") || (slurmVersion == "19"))) {
         return false;
     }
 
