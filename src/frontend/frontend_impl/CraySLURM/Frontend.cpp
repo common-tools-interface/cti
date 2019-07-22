@@ -545,7 +545,7 @@ CraySLURMFrontend::getLauncherName()
     };
 
     // Cache the launcher name result.
-    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME, SRUN)};
+    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, SRUN)};
     return launcherName;
 }
 

@@ -633,19 +633,53 @@ cti_setAttribute(cti_attr_type_t attrib, const char *value)
         switch (attrib) {
             case CTI_ATTR_STAGE_DEPENDENCIES:
                 if (value == nullptr) {
-                    throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for 'value'.");
+                    throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for value.");
                 } else if (value[0] == '0') {
                     fe.m_stage_deps = false;
-                    return SUCCESS;
                 } else if (value[0] == '1') {
                     fe.m_stage_deps = true;
-                    return SUCCESS;
                 } else {
-                    throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '" + std::to_string(value[0]) + "'");
+                    throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value " + std::to_string(value[0]));
                 }
+                break;
+            case CTI_LOG_DIR:
+                if (value == nullptr) {
+                    throw std::runtime_error("CTI_LOG_DIR: NULL pointer for value.");
+                } else if (!cti::dirHasPerms(value, R_OK | W_OK | X_OK)) {
+                    throw std::runtime_error(std::string{"CTI_LOG_DIR: Bad directory specified by value "} + value);
+                } else {
+                    fe.m_log_dir = std::string{value};
+                }
+                break;
+            case CTI_DEBUG:
+                if (value == nullptr) {
+                    throw std::runtime_error("CTI_DEBUG: NULL pointer for value.");
+                } else if (value[0] == '0') {
+                    fe.m_debug = false;
+                } else if (value[0] == '1') {
+                    fe.m_debug = true;
+                } else {
+                    throw std::runtime_error("CTI_DEBUG: Unsupported value " + std::to_string(value[0]));
+                }
+                break;
+            case CTI_PMI_FOPEN_TIMEOUT:
+                if (value == nullptr) {
+                    throw std::runtime_error("CTI_PMI_FOPEN_TIMEOUT: NULL pointer for value.");
+                } else {
+                    fe.m_pmi_fopen_timeout = std::stoul(std::string{value});
+                }
+                break;
+            case CTI_EXTRA_SLEEP:
+                if (value == nullptr) {
+                    throw std::runtime_error("CTI_EXTRA_SLEEP: NULL pointer for value.");
+                } else {
+                    fe.m_extra_sleep = std::stoul(std::string{value});
+                }
+                break;
             default:
                 throw std::runtime_error("Invalid cti_attr_type_t " + std::to_string((int)attrib));
         }
+        return SUCCESS;
     }, FAILURE);
 }
 
@@ -662,6 +696,28 @@ cti_getAttribute(cti_attr_type_t attrib)
                 } else {
                     ret = get_attr_str("0");
                 }
+                break;
+            case CTI_LOG_DIR:
+                ret = get_attr_str(fe.m_log_dir.c_str());
+                break;
+            case CTI_DEBUG:
+                if (fe.m_debug) {
+                    ret = get_attr_str("1");
+                } else {
+                    ret = get_attr_str("0");
+                }
+                break;
+            case CTI_PMI_FOPEN_TIMEOUT:
+            {
+                auto str = std::to_string(fe.m_pmi_fopen_timeout);
+                ret = get_attr_str(str.c_str());
+            }
+                break;
+            case CTI_EXTRA_SLEEP:
+            {
+                auto str = std::to_string(fe.m_extra_sleep);
+                ret = get_attr_str(str.c_str());
+            }
                 break;
             default:
                 throw std::runtime_error("Invalid cti_attr_type_t " + std::to_string((int)attrib));

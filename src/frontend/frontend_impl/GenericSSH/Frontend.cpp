@@ -579,7 +579,7 @@ GenericSSHApp::startDaemon(const char* const args[])
     if (!m_beDaemonSent) {
         // Get the location of the backend daemon
         if (m_frontend.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
+            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
         }
         shipPackage(m_frontend.getBEDaemonPath());
         // set transfer to true
@@ -677,7 +677,7 @@ GenericSSHFrontend::getLauncherName()
     };
 
     // Cache the launcher name result.
-    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME, SRUN)};
+    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, SRUN)};
     return launcherName;
 }
 
