@@ -1,5 +1,6 @@
 #Configure here general information about the environment, such as SonarQube server connection details for example
 #No information about specific project should appear here
+#Moved to sonar-scanner install directory as part of installation.
 
 #----- Default SonarQube server
 #sonar.host.url=sonar.us.cray.com

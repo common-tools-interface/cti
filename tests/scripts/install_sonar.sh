@@ -1,4 +1,8 @@
 #!/bin/bash
+SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
+
+cd $SCRIPTS_DIR/../coverage/
+
 if test -d ./ss-linux ; then
     echo "Sonar scanner install is valid..."
     exit 0
@@ -11,5 +15,5 @@ if ! test -f ./ss.zip ; then
 fi
 unzip ss.zip
 mv sonar-scanner-4.0.0.1744-linux ss-linux
-cp ./ss_props.txt ./ss-linux/conf/sonar-scanner.properties
+cp $SCRIPTS_DIR/sonar-scanner.properties.default ./ss-linux/conf/sonar-scanner.properties
 rm ss.zip

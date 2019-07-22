@@ -13,7 +13,7 @@ cd ${1:-./}
 START_DIR=$PWD
 
 # Make sure script is executing in the right place
-if ! test -f ./create_gcov_report.sh ; then
+if ! test -f ./create_local_gcov_report.sh ; then
     echo "Invalid directory for execution."
     echo "Either launch the script from tests/script or provide it with the path to tests/script"
     exit 1

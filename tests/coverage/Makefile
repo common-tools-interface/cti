@@ -12,10 +12,10 @@ coverage: coverage.xml
 coverage.xml:
 	cd ../unit && ./unit_tests
 	cd ../function && ./build_run.sh
-	cd ../coverage && ./build_coverage_report.sh
+	cd ../scripts && ./create_sonar_gcov_report.sh ../coverage
 
 sonar-scan:
-	./install_sonar.sh
+	../scripts/install_sonar.sh
 	./ss-linux/bin/sonar-scanner
 	@echo
 	@echo View SonarQube results at

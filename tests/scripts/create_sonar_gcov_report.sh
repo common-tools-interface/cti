@@ -44,8 +44,10 @@ fi
 cd ${1:-./}
 START_DIR=$PWD
 
+echo $PWD
+
 # Make sure in proper directory
-if ! test -f ./build_coverage_report.sh ; then 
+if ! test -f ./sonar-project.properties ; then 
     echo "Invalid directory for execution."
     echo "Either launch in coverage directory or pass in path to it as a parameter"
     exit 1
