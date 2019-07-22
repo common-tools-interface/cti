@@ -3,14 +3,6 @@
 #
 # Copyright 2011-2019 Cray Inc.  All Rights Reserved.
 #
-# Unpublished Proprietary Information.
-# This unpublished work is protected to trade secret, copyright and other laws.
-# Except as permitted by contract or express written permission of Cray Inc.,
-# no part of this work or its content may be used, reproduced or disclosed
-# in any form.
-#
-
-
 
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
@@ -97,7 +89,6 @@ SOURCES/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz: set_default_$(PKG_NAME)_$(PKG
 		--transform s:opt/cray/pe/cti:$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV)$(INSTALL_DIR):g
 	mkdir -p  $(CUR_DIR)/BUILD/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV)
 	cp $(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz $@
-
 
 distclean-local:
 	rm -f set_default_cray-cti_*

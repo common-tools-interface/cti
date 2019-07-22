@@ -3,18 +3,13 @@
 #
 # Copyright 2015-2019 Cray Inc.  All Rights Reserved.
 #
-# Unpublished Proprietary Information.
-# This unpublished work is protected to trade secret, copyright and other laws.
-# Except as permitted by contract or express written permission of Cray Inc.,
-# no part of this work or its content may be used, reproduced or disclosed
-# in any form.
-#
+
 SUBDIRS = elfutils libssh2
 
 install-data-hook:
 	cd @BOOST_SRC@ && @BOOST_SRC@/b2 install
 	cp @TBB_LIBRARY@/*.so* ${libdir}
-	cp -R @TBB_INCLUDE_DIR@/tbb ${includedir} 
+	cp -R @TBB_INCLUDE_DIR@/tbb ${includedir}
 	cd @DYNINST_BUILD@ && $(MAKE) $(AM_MAKEFLAGS) install
 
 distclean-local:
