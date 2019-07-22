@@ -363,15 +363,15 @@ CraySLURMFrontend::CraySLURMFrontend()
     {
 
     // Detect SLURM version and set SRUN arguments accordingly
-    auto const slurmVersion = getSlurmVersion();
-    if (slurmVersion == "18") {
+    auto const slurmVersion = std::stoi(getSlurmVersion());
+    if (slurmVersion <= 18) {
         m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
             { "--mem_bind=no"
             , "--cpu_bind=no"
             , "--share"
             }
         );
-    } else if (slurmVersion == "19") {
+    } else if (slurmVersion >= 19) {
         m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
             { "--mem-bind=no"
             , "--cpu-bind=no"
@@ -412,6 +412,19 @@ CraySLURMFrontend::CraySLURMFrontend()
     }
 }
 
+bool
+CraySLURMFrontend::isSupported()
+{
+    // FIXME: This is a hack. This should be addressed by PE-25088
+
+    // Check that the slurm package is installed
+    auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "slurm" };
+    if (cti::Execvp{"rpm", rpmArgv.get()}.getExitStatus() != 0) {
+        return false;
+    }
+
+    return true;
+}
 
 std::weak_ptr<App>
 CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,

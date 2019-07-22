@@ -319,36 +319,32 @@ Frontend::detect_Frontend()
     if (isRunningOnBackend()) {
         throw std::runtime_error("Unable to instantiate Frontend from compute node!");
     }
-    std::string wlmName;
+
+    auto toLower = [](std::string str) -> std::string {
+        std::transform(str.begin(), str.end(), str.begin(),
+            [](unsigned char c){ return std::tolower(c); });
+        return str;
+    };
+
     // Use the workload manager in the environment variable if it is set
     if (const char* wlm_name_env = getenv(CTI_WLM)) {
-        wlmName = std::string(wlm_name_env);
+        auto const wlmName = toLower(wlm_name_env);
+
         // parse the env string
-        if (!wlmName.compare("SLURM") || !wlmName.compare("slurm")) {
+        if (wlmName == toLower(CraySLURMFrontend::getName())) {
             return CTI_WLM_CRAY_SLURM;
-        }
-        else if (!wlmName.compare("generic")) {
+        } else if (wlmName == toLower(GenericSSHFrontend::getName())) {
             return CTI_WLM_SSH;
-        }
-        else {
-            throw std::runtime_error("Invalid workload manager argument " + wlmName + " provided in " + CTI_WLM);
+        } else {
+            throw std::runtime_error("Invalid workload manager argument '" + wlmName + "' provided in " + CTI_WLM);
         }
     }
     else {
-        // Check if this is a cluster system
-        // FIXME: This is a hack.
-        struct stat sb;
-        if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
-            return CTI_WLM_SSH;
-        }
-        // Query for the slurm package using rpm
-        // FIXME: This is a hack. This should be addressed by PE-25088
-        auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "slurm" };
-        cti::Execvp rpmOutput("rpm", rpmArgv.get());
-        auto res = rpmOutput.getExitStatus();
-        if (res == 0) {
-            // The slurm package is installed. This is a naive check.
+        // Query supported workload managers
+        if (CraySLURMFrontend::isSupported()) {
             return CTI_WLM_CRAY_SLURM;
+        } else if (GenericSSHFrontend::isSupported()) {
+            return CTI_WLM_SSH;
         }
     }
     // Unknown WLM

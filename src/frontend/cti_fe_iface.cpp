@@ -140,10 +140,13 @@ cti_current_wlm(void) {
 const char *
 cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
     switch (wlm_type) {
+        // WLM Frontend implementations
         case CTI_WLM_CRAY_SLURM:
-            return "Cray based SLURM";
+            return CraySLURMFrontend::getDescription();
         case CTI_WLM_SSH:
-            return "Fallback (SSH based) workload manager";
+            return GenericSSHFrontend::getDescription();
+
+        // Internal / testing types
         case CTI_WLM_MOCK:
             return "Test WLM frontend";
         case CTI_WLM_NONE:
