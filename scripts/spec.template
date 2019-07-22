@@ -72,10 +72,6 @@ mkdir -p %{buildroot}%{_version_prefix}/docs/
 install -D ${CUR_DIR}/../../extras/docs/ATTRIBUTIONS_cti.txt \
        %{buildroot}%{_version_prefix}/docs/ATTRIBUTIONS_cti.%{build_version}.txt
 
-mkdir -p %{buildroot}%{_version_prefix}/examples
-
-install -D ${CUR_DIR}/../../examples/* %{buildroot}%{_version_prefix}/examples/
-
 mkdir -p %{buildroot}/etc%{_namespace_prefix}/admin-pe/bindmount.conf.d
 echo %{_namespace_prefix}/%{intranamespace_name} > %{buildroot}/etc%{_namespace_prefix}/admin-pe/bindmount.conf.d/%{intranamespace_name}.conf
 
@@ -100,10 +96,8 @@ rm -f %{buildroot}%{_version_prefix}/%{build_version}
 %dir %{_version_prefix}/libexec
 %dir %{_version_prefix}/lib
 %dir %{_version_prefix}/include
-%dir %{_version_prefix}/examples
 
 %{_version_prefix}/docs/ATTRIBUTIONS_cti*.txt
-%{_version_prefix}/examples/*
 %{_version_prefix}/libexec/*
 %{_version_prefix}/lib/*
 %{_version_prefix}/include/*
@@ -163,7 +157,7 @@ version="%{build_version}"
 if [ -f ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}/.version ]
 then
   dotversion=`grep ModulesVersion ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}/.version | cut -f2 -d'"'`
-  
+
   if [ "$dotversion" = "$version" ]
   then
     /bin/rm -f ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}/.version
@@ -180,7 +174,7 @@ then
   exit 0
 fi
 
-if [[ -d ${RPM_INSTALL_PREFIX}/%{intranamespace_name} ]] 
+if [[ -d ${RPM_INSTALL_PREFIX}/%{intranamespace_name} ]]
 then
   if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{intranamespace_name}` ]]
   then
