@@ -235,10 +235,6 @@ Frontend::findBaseDir(void)
     // Check if env var is defined
     // TODO: Rethink this. It is probably dangerous...
     const char * base_dir_env = getenv(CTI_BASE_DIR_ENV_VAR);
-    if (base_dir_env != nullptr) {
-        // Honor the env var setting
-        return std::string{base_dir_env};
-    }
     // Check default install locations
     if (!cti::dirHasPerms(base_dir_env, R_OK | X_OK)) {
         for (const char* const* pathPtr = cti::default_dir_locs; *pathPtr != nullptr; pathPtr++) {
@@ -246,6 +242,10 @@ Frontend::findBaseDir(void)
                 return std::string{*pathPtr};
             }
         }
+    }
+    else {
+        // Honor the env var setting
+        return std::string{base_dir_env};
     }
 
     throw std::runtime_error(std::string{"failed to find a CTI installation. Ensure "} + CTI_BASE_DIR_ENV_VAR + " is set properly.");
