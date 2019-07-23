@@ -158,9 +158,9 @@ run_tests() {
         if [ "$ON_WHITEBOX" = true ] ; then
             echo "Configuring with Whitebox settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
-            export CRAY_CTI_DIR=$PWD/../../install
-            export CRAY_CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
-            export CRAY_CTI_WLM=generic
+            export CTI_INSTALL_DIR=$PWD/../../install
+            export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
+            export CTI_WLM_IMPL=generic
         else
             echo "srun exists so configuring non-whitebox launcher settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
