@@ -8,6 +8,7 @@
  * in any form.
 '''
 
+import avocado
 from avocado import Test
 from avocado.utils import process
 
@@ -99,10 +100,13 @@ class CtiLinkTest(Test):
 
 
 '''
+DISABLED: See PE-26488
 cti_info fetches information about a running job.
 to automate: hold a program at startup with cti_barrier, parse the job/stepid
 '''
+
 class CtiInfoTest(Test):
+	@avocado.skip("See PE-26488")
 	def test(self):
 		proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % EXAMPLES_PATH,
 			"%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
