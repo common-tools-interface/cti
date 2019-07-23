@@ -102,7 +102,7 @@ TEST_F(CTISessionUnitTest, sendManifest) {
          f1.open(file_names[0].c_str());
          if(!f1.is_open()) {
          FAIL() << "Could not create test file";
-	 }
+     }
          f1 << "f1";
          f1.close();
     }
@@ -113,9 +113,9 @@ TEST_F(CTISessionUnitTest, sendManifest) {
     ASSERT_THROW({
         try {
             test_manifest -> addFile(std::string("./" + file_names[0]).c_str());
-	} catch (std::exception& ex) {
+    } catch (std::exception& ex) {
             EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
-	    throw;
+        throw;
         }
     }, std::runtime_error);
 }

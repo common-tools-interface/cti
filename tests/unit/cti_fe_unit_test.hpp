@@ -52,18 +52,18 @@ static constexpr auto MANIFEST_ERROR  = cti_manifest_id_t{0};
 class CTIFEUnitTest : public ::testing::Test
 {
 protected:
-	CTIFEUnitTest();
-	virtual ~CTIFEUnitTest();
+    CTIFEUnitTest();
+    virtual ~CTIFEUnitTest();
 };
 
 // The fixture for unit testing the C app interface
 class CTIAppUnitTest : public CTIFEUnitTest
 {
 protected: // variables
-	cti_app_id_t const appId;
-	std::shared_ptr<MockApp::Nice> mockApp;
+    cti_app_id_t const appId;
+    std::shared_ptr<MockApp::Nice> mockApp;
 
 protected: // interface
-	CTIAppUnitTest();
-	~CTIAppUnitTest();
+    CTIAppUnitTest();
+    ~CTIAppUnitTest();
 };
