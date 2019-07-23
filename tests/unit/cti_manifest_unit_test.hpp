@@ -51,18 +51,18 @@
 class CTIManifestUnitTest : public CTIAppUnitTest
 {
 protected: // variables
-	std::shared_ptr<Session>  sessionPtr;
-	std::shared_ptr<Manifest> manifestPtr;
-	std::vector<std::string> file_names;
+    std::shared_ptr<Session>  sessionPtr;
+    std::shared_ptr<Manifest> manifestPtr;
+    std::vector<std::string> file_names;
 
-	// vectors to store temp files in
-	std::vector<std::string> temp_dir_names;
-	std::vector<std::string> temp_file_names;
+    // vectors to store temp files in
+    std::vector<std::string> temp_dir_names;
+    std::vector<std::string> temp_file_names;
 
-	// consts for test files
-	const std::string TEST_FILE_NAME = "archive_test_file";
+    // consts for test files
+    const std::string TEST_FILE_NAME = "archive_test_file";
 
 protected: // interface
-	CTIManifestUnitTest();
-	~CTIManifestUnitTest();
+    CTIManifestUnitTest();
+    ~CTIManifestUnitTest();
 };

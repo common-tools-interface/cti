@@ -40,12 +40,12 @@
 extern "C" {
 #endif
 
-char *	_cti_pathFind(const char *, const char *);
-char *	_cti_libFind(const char *);
-int		_cti_adjustPaths(const char *, const char*);
-char *	_cti_pathToName(const char *);
-char *	_cti_pathToDir(const char *);
-int		_cti_removeDirectory(const char *);
+char *  _cti_pathFind(const char *, const char *);
+char *  _cti_libFind(const char *);
+int     _cti_adjustPaths(const char *, const char*);
+char *  _cti_pathToName(const char *);
+char *  _cti_pathToDir(const char *);
+int     _cti_removeDirectory(const char *);
 
 #ifdef __cplusplus
 }
