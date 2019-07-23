@@ -104,7 +104,7 @@ TEST_F(CTISessionUnitTest, sendManifest) {
          FAIL() << "Could not create test file";
 	 }
          f1 << "f1";
-         f1.close()
+         f1.close();
     }
 
     ASSERT_NO_THROW(test_manifest -> addFile(std::string("./" + file_names[0]).c_str()));
