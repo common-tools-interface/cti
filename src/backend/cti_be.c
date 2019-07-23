@@ -47,7 +47,7 @@
 #include "cti_be.h"
 
 /* wlm specific proto objects defined elsewhere */
-extern cti_be_wlm_proto_t   _cti_be_cray_slurm_wlmProto;
+extern cti_be_wlm_proto_t   _cti_be_slurm_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_generic_ssh_wlmProto;
 
 // Global vars
@@ -93,8 +93,8 @@ _cti_be_init(void)
     // verify that the wlm string is valid
     switch (atoi(wlm_str))
     {
-        case CTI_WLM_CRAY_SLURM:
-            _cti_be_wlmProto = &_cti_be_cray_slurm_wlmProto;
+        case CTI_WLM_SLURM:
+            _cti_be_wlmProto = &_cti_be_slurm_wlmProto;
             break;
 
         case CTI_WLM_SSH:
@@ -158,7 +158,7 @@ cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
 {
     switch (wlm_type)
     {
-        case CTI_WLM_CRAY_SLURM:
+        case CTI_WLM_SLURM:
             return "Cray based SLURM";
 
         case CTI_WLM_SSH:

@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * cray_slurm_be.c - Cray native slurm specific backend library functions.
+ * slurm_be.c - Native slurm specific backend library functions.
  *
  * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
@@ -57,25 +57,25 @@ typedef struct
 } slurmLayout_t;
 
 /* static prototypes */
-static int                  _cti_be_cray_slurm_init(void);
-static void                 _cti_be_cray_slurm_fini(void);
-static int                  _cti_be_cray_slurm_getSlurmLayout(void);
-static int                  _cti_be_cray_slurm_getSlurmPids(void);
-static cti_pidList_t *      _cti_be_cray_slurm_findAppPids(void);
-static char *               _cti_be_cray_slurm_getNodeHostname(void);
-static int                  _cti_be_cray_slurm_getNodeFirstPE(void);
-static int                  _cti_be_cray_slurm_getNodePEs(void);
+static int                  _cti_be_slurm_init(void);
+static void                 _cti_be_slurm_fini(void);
+static int                  _cti_be_slurm_getSlurmLayout(void);
+static int                  _cti_be_slurm_getSlurmPids(void);
+static cti_pidList_t *      _cti_be_slurm_findAppPids(void);
+static char *               _cti_be_slurm_getNodeHostname(void);
+static int                  _cti_be_slurm_getNodeFirstPE(void);
+static int                  _cti_be_slurm_getNodePEs(void);
 
 /* cray slurm wlm proto object */
-cti_be_wlm_proto_t          _cti_be_cray_slurm_wlmProto =
+cti_be_wlm_proto_t          _cti_be_slurm_wlmProto =
 {
-    CTI_WLM_CRAY_SLURM,                 // wlm_type
-    _cti_be_cray_slurm_init,            // wlm_init
-    _cti_be_cray_slurm_fini,            // wlm_fini
-    _cti_be_cray_slurm_findAppPids,     // wlm_findAppPids
-    _cti_be_cray_slurm_getNodeHostname, // wlm_getNodeHostname
-    _cti_be_cray_slurm_getNodeFirstPE,  // wlm_getNodeFirstPE
-    _cti_be_cray_slurm_getNodePEs       // wlm_getNodePEs
+    CTI_WLM_SLURM,                  // wlm_type
+    _cti_be_slurm_init,             // wlm_init
+    _cti_be_slurm_fini,             // wlm_fini
+    _cti_be_slurm_findAppPids,      // wlm_findAppPids
+    _cti_be_slurm_getNodeHostname,  // wlm_getNodeHostname
+    _cti_be_slurm_getNodeFirstPE,   // wlm_getNodeFirstPE
+    _cti_be_slurm_getNodePEs        // wlm_getNodePEs
 };
 
 // Global vars
@@ -89,7 +89,7 @@ static bool                 _cti_slurm_isInit   = false;// Has init been called?
 /* Constructor/Destructor functions */
 
 static int
-_cti_be_cray_slurm_init(void)
+_cti_be_slurm_init(void)
 {
     char *  apid_str;
     char *  ptr;
@@ -132,7 +132,7 @@ _cti_be_cray_slurm_init(void)
 }
 
 static void
-_cti_be_cray_slurm_fini(void)
+_cti_be_slurm_fini(void)
 {
     // cleanup
     if (_cti_attrs != NULL)
@@ -159,7 +159,7 @@ _cti_be_cray_slurm_fini(void)
 /* Static functions */
 
 static int
-_cti_be_cray_slurm_getSlurmLayout(void)
+_cti_be_slurm_getSlurmLayout(void)
 {
     slurmLayout_t *         my_layout;
     char *                  file_dir;
@@ -173,10 +173,10 @@ _cti_be_cray_slurm_getSlurmLayout(void)
     if (_cti_layout != NULL)
         return 0;
 
-    char* hostname = _cti_be_cray_slurm_getNodeHostname();
+    char* hostname = _cti_be_slurm_getNodeHostname();
     if (!hostname)
     {
-        fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname failed.\n");
+        fprintf(stderr, "_cti_be_slurm_getNodeHostname failed.\n");
         return 1;
     }
 
@@ -282,7 +282,7 @@ _cti_be_cray_slurm_getSlurmLayout(void)
 }
 
 static int
-_cti_be_cray_slurm_getSlurmPids(void)
+_cti_be_slurm_getSlurmPids(void)
 {
     pid_t *                 my_pids;
     char *                  file_dir;
@@ -300,7 +300,7 @@ _cti_be_cray_slurm_getSlurmPids(void)
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_cray_slurm_getSlurmLayout())
+        if (_cti_be_slurm_getSlurmLayout())
         {
             return 1;
         }
@@ -309,7 +309,7 @@ _cti_be_cray_slurm_getSlurmPids(void)
     // get the file directory were we can find the pid file
     if ((file_dir = cti_be_getFileDir()) == NULL)
     {
-        fprintf(stderr, "_cti_be_cray_slurm_getSlurmPids failed.\n");
+        fprintf(stderr, "_cti_be_slurm_getSlurmPids failed.\n");
         return 1;
     }
 
@@ -409,7 +409,7 @@ _cti_be_cray_slurm_getSlurmPids(void)
 /* API related calls start here */
 
 static cti_pidList_t *
-_cti_be_cray_slurm_findAppPids(void)
+_cti_be_slurm_findAppPids(void)
 {
     char *          tool_path;
     char *          file_path;
@@ -444,7 +444,7 @@ _cti_be_cray_slurm_findAppPids(void)
         // get the file directory were we can find the pid file
         if ((file_dir = cti_be_getFileDir()) == NULL)
         {
-            fprintf(stderr, "_cti_be_cray_slurm_findAppPids failed.\n");
+            fprintf(stderr, "_cti_be_slurm_findAppPids failed.\n");
             return NULL;
         }
 
@@ -471,7 +471,7 @@ _cti_be_cray_slurm_findAppPids(void)
         if (_cti_slurm_pids == NULL)
         {
             // get the pids
-            if (_cti_be_cray_slurm_getSlurmPids())
+            if (_cti_be_slurm_getSlurmPids())
             {
                 return NULL;
             }
@@ -515,7 +515,7 @@ use_pmi_attribs:
             if ((_cti_attrs = _cti_be_getPmiAttribsInfo()) == NULL)
             {
                 // Something messed up, so fail.
-                fprintf(stderr, "_cti_be_cray_slurm_findAppPids failed.\n");
+                fprintf(stderr, "_cti_be_slurm_findAppPids failed.\n");
                 return NULL;
             }
         }
@@ -524,7 +524,7 @@ use_pmi_attribs:
         if (_cti_attrs->app_rankPidPairs == NULL)
         {
             // Something messed up, so fail.
-            fprintf(stderr, "_cti_be_cray_slurm_findAppPids failed.\n");
+            fprintf(stderr, "_cti_be_slurm_findAppPids failed.\n");
             return NULL;
         }
 
@@ -571,7 +571,7 @@ use_pmi_attribs:
    for successive calls.
  */
 static char *
-_cti_be_cray_slurm_getNodeHostname()
+_cti_be_slurm_getNodeHostname()
 {
     static char *hostname = NULL; // Cache the result
 
@@ -593,7 +593,7 @@ _cti_be_cray_slurm_getNodeHostname()
         char file_buf[BUFSIZ];   // file read buffer
         if (fgets(file_buf, BUFSIZ, nid_fp) == NULL)
         {
-            fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname fgets failed.\n");
+            fprintf(stderr, "_cti_be_slurm_getNodeHostname fgets failed.\n");
             fclose(nid_fp);
             return NULL;
         }
@@ -610,21 +610,21 @@ _cti_be_cray_slurm_getNodeHostname()
         if ((errno == ERANGE && nid == INT_MAX)
                 || (errno != 0 && nid == 0))
         {
-            fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname: strtol failed.\n");
+            fprintf(stderr, "_cti_be_slurm_getNodeHostname: strtol failed.\n");
             return NULL;
         }
 
         // check for invalid input
         if (eptr == file_buf)
         {
-            fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname: Bad data in %s\n", CRAY_XT_NID_FILE);
+            fprintf(stderr, "_cti_be_slurm_getNodeHostname: Bad data in %s\n", CRAY_XT_NID_FILE);
             return NULL;
         }
 
         // create the nid hostname string
         if (asprintf(&hostname, hostname_fmt, nid) <= 0)
         {
-            fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname asprintf failed.\n");
+            fprintf(stderr, "_cti_be_slurm_getNodeHostname asprintf failed.\n");
             free(hostname);
             hostname = NULL;
             return NULL;
@@ -636,13 +636,13 @@ _cti_be_cray_slurm_getNodeHostname()
         // allocate memory for the hostname
         if ((hostname = malloc(HOST_NAME_MAX)) == NULL)
         {
-            fprintf(stderr, "_cti_be_cray_slurm_getNodeHostname: malloc failed.\n");
+            fprintf(stderr, "_cti_be_slurm_getNodeHostname: malloc failed.\n");
             return NULL;
         }
 
         if (gethostname(hostname, HOST_NAME_MAX) < 0)
         {
-            fprintf(stderr, "%s", "_cti_be_cray_slurm_getNodeHostname: gethostname() failed!\n");
+            fprintf(stderr, "%s", "_cti_be_slurm_getNodeHostname: gethostname() failed!\n");
             hostname = NULL;
             return NULL;
         }
@@ -653,13 +653,13 @@ _cti_be_cray_slurm_getNodeHostname()
 
 
 static int
-_cti_be_cray_slurm_getNodeFirstPE()
+_cti_be_slurm_getNodeFirstPE()
 {
     // make sure we have the layout
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_cray_slurm_getSlurmLayout())
+        if (_cti_be_slurm_getSlurmLayout())
         {
             return -1;
         }
@@ -669,13 +669,13 @@ _cti_be_cray_slurm_getNodeFirstPE()
 }
 
 static int
-_cti_be_cray_slurm_getNodePEs()
+_cti_be_slurm_getNodePEs()
 {
     // make sure we have the layout
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_cray_slurm_getSlurmLayout())
+        if (_cti_be_slurm_getSlurmLayout())
         {
             return -1;
         }
