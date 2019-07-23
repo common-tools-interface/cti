@@ -603,8 +603,11 @@ main(int argc, char **argv)
             apid_str = strdup("NOAPID");
         }
 
+        // Get the log dir env var
+        char *envDir = getenv(CTI_LOG_DIR_ENV_VAR);
+
         // setup the log
-        log = _cti_create_log(apid_str, _cti_wlmProto->wlm_getNodeID());
+        log = _cti_create_log(envDir, apid_str, _cti_wlmProto->wlm_getNodeID());
         _cti_hook_stdoe(log);
 
         // cleanup the apid string if it was missing

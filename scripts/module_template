@@ -4,12 +4,12 @@
  #       UNPUBLISHED PROPRIETARY INFORMATION.
  #       ALL RIGHTS RESERVED.
  #
- 
- set CRAY_CTI_LEVEL   <version> 
+
+ set CRAY_CTI_LEVEL   <version>
  set CRAY_CTI_CURPATH  [file dirname ${ModulesCurrentModulefile}]/../../cti/$CRAY_CTI_LEVEL
- 
+
  setenv CRAY_CTI_VERSION  $CRAY_CTI_LEVEL
- setenv CRAY_CTI_DIR $CRAY_CTI_CURPATH
+ setenv CTI_INSTALL_DIR $CRAY_CTI_CURPATH
  setenv PE_CTI_MODULE_NAME cray-cti
 
  append-path   PE_PRODUCT_LIST CRAY-CTI

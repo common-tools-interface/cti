@@ -156,6 +156,10 @@ protected: // Protected data members that belong to any frontend
 
 public: // Values set by cti_setAttribute
     bool                m_stage_deps;
+    std::string         m_log_dir;
+    bool                m_debug;
+    unsigned long       m_pmi_fopen_timeout;
+    unsigned long       m_extra_sleep;
 
 private: // Private static utility methods used by the generic frontend
     // get the logger associated with the frontend - can only construct logger
@@ -200,6 +204,8 @@ public: // Public interface to generic WLM-agnostic capabilities
     FE_prng& Prng() { return m_prng; }
     // Register a cleanup file
     void addFileCleanup(std::string const& file);
+    // Get a list of default env vars to forward to BE daemon
+    std::vector<std::string> getDefaultEnvVars();
     // Accessors
     std::string getCfgDir() { return m_cfg_dir; }
     std::string getBaseDir() { return m_base_dir; }

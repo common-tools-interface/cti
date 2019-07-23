@@ -58,6 +58,7 @@
 *********************/
 char *      FE_iface::_cti_err_str = nullptr;
 std::string FE_iface::m_err_str = DEFAULT_ERR_STR;
+char *      FE_iface::_cti_attr_str = nullptr;
 
 constexpr auto SUCCESS = FE_iface::SUCCESS;
 constexpr auto FAILURE = FE_iface::FAILURE;
@@ -108,6 +109,7 @@ FE_iface::get_error_str()
     if (_cti_err_str == nullptr) {
         // Allocate space for the external string
         _cti_err_str = (char *)std::malloc(CTI_ERR_STR_SIZE);
+        memset(_cti_err_str, '\0', CTI_ERR_STR_SIZE);
     }
     // Copy the internal error string to the external buffer
     strncpy(_cti_err_str, m_err_str.c_str(), CTI_ERR_STR_SIZE);
@@ -115,6 +117,25 @@ FE_iface::get_error_str()
     _cti_err_str[CTI_ERR_STR_SIZE] = '\0';
     // Return the pointer to the external buffer
     return const_cast<const char *>(_cti_err_str);
+}
+
+// Note that we want to leak by design! Do not free the buffer!
+// Since we pass this out via the c interface, we cannot safely
+// reclaim the space.
+const char *
+FE_iface::get_attr_str(const char *value)
+{
+    if (_cti_attr_str == nullptr) {
+        // Allocate space for the external string
+        _cti_attr_str = (char *)std::malloc(CTI_BUF_SIZE);
+        memset(_cti_attr_str, '\0', CTI_BUF_SIZE);
+    }
+    // Copy the value string to the buffer
+    strncpy(_cti_attr_str, value, CTI_BUF_SIZE);
+    // Enforce null termination
+    _cti_attr_str[CTI_BUF_SIZE] = '\0';
+    // Return the pointer to the external buffer
+    return const_cast<const char *>(_cti_attr_str);
 }
 
 FE_iface::FE_iface()
@@ -633,22 +654,81 @@ int
 cti_setAttribute(cti_attr_type_t attrib, const char *value)
 {
     return FE_iface::runSafely(__func__, [&](){
+        if (value == nullptr) {
+            throw std::runtime_error("NULL pointer pass as value argument.");
+        }
         auto&& fe = Frontend::inst();
         switch (attrib) {
             case CTI_ATTR_STAGE_DEPENDENCIES:
-                if (value == nullptr) {
-                    throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: NULL pointer for 'value'.");
-                } else if (value[0] == '0') {
+                if (value[0] == '0') {
                     fe.m_stage_deps = false;
-                    return SUCCESS;
                 } else if (value[0] == '1') {
                     fe.m_stage_deps = true;
-                    return SUCCESS;
                 } else {
-                    throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value '" + std::to_string(value[0]) + "'");
+                    throw std::runtime_error("CTI_ATTR_STAGE_DEPENDENCIES: Unsupported value " + std::to_string(value[0]));
                 }
+                break;
+            case CTI_LOG_DIR:
+                if (!cti::dirHasPerms(value, R_OK | W_OK | X_OK)) {
+                    throw std::runtime_error(std::string{"CTI_LOG_DIR: Bad directory specified by value "} + value);
+                } else {
+                    fe.m_log_dir = std::string{value};
+                }
+                break;
+            case CTI_DEBUG:
+                if (value[0] == '0') {
+                    fe.m_debug = false;
+                } else if (value[0] == '1') {
+                    fe.m_debug = true;
+                } else {
+                    throw std::runtime_error("CTI_DEBUG: Unsupported value " + std::to_string(value[0]));
+                }
+                break;
+            case CTI_PMI_FOPEN_TIMEOUT:
+                fe.m_pmi_fopen_timeout = std::stoul(std::string{value});
+                break;
+            case CTI_EXTRA_SLEEP:
+                fe.m_extra_sleep = std::stoul(std::string{value});
+                break;
             default:
                 throw std::runtime_error("Invalid cti_attr_type_t " + std::to_string((int)attrib));
         }
+        return SUCCESS;
     }, FAILURE);
+}
+
+const char *
+cti_getAttribute(cti_attr_type_t attrib)
+{
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        switch (attrib) {
+            case CTI_ATTR_STAGE_DEPENDENCIES:
+                if (fe.m_stage_deps) {
+                    return FE_iface::get_attr_str("1");
+                }
+                return FE_iface::get_attr_str("0");
+            case CTI_LOG_DIR:
+                return FE_iface::get_attr_str(fe.m_log_dir.c_str());
+            case CTI_DEBUG:
+                if (fe.m_debug) {
+                    return FE_iface::get_attr_str("1");
+                }
+                return FE_iface::get_attr_str("0");
+            case CTI_PMI_FOPEN_TIMEOUT:
+            {
+                auto str = std::to_string(fe.m_pmi_fopen_timeout);
+                return FE_iface::get_attr_str(str.c_str());
+            }
+            case CTI_EXTRA_SLEEP:
+            {
+                auto str = std::to_string(fe.m_extra_sleep);
+                return FE_iface::get_attr_str(str.c_str());
+            }
+            default:
+                throw std::runtime_error("Invalid cti_attr_type_t " + std::to_string((int)attrib));
+        }
+        // Shouldn't get here
+        return (const char *)nullptr;
+    }, (const char*)nullptr);
 }

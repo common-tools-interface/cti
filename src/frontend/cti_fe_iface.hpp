@@ -107,6 +107,8 @@ private: // Static internal data
     // Error string we export to callers - we want this to leak!
     static char *       _cti_err_str;
     static std::string  m_err_str;
+    // Attribs string we export to callers - we want this to leak!
+    static char *       _cti_attr_str;
 private: // Internal data
     // Internal associations between iterface ids and internal objects
     Registry<cti_app_id_t,App> m_app_registry;
@@ -121,6 +123,8 @@ public:
     // Used to obtain a pointer to the internal error string.
     // This is for external consumption.
     static const char *get_error_str();
+    // Used to obtain a pointer to the internal attribute string.
+    static const char *get_attr_str(const char *value);
 
     // Return codes
     static constexpr auto SUCCESS = int{0};

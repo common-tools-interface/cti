@@ -50,11 +50,6 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-// Enable gnu extensions
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE 1
-#endif
-
 #include <limits.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -73,7 +68,6 @@ extern "C" {
 /*******************************************************************************
 ** Frontend defines relating to the login node
 *******************************************************************************/
-#define DEFAULT_SIG             9                                   // default signal value to use
 #define LD_AUDIT_LIB_NAME       "libaudit.so"                       // ld audit library
 
 /*******************************************************************************
@@ -81,10 +75,8 @@ extern "C" {
 *******************************************************************************/
 // The following needs the 'X' for random char replacement.
 #define DEFAULT_STAGE_DIR                   "cti_daemonXXXXXX"      // default directory name for the fake root of the tool daemon
-#define SHELL_ENV_VAR                       "SHELL"                 // The environment variable to set shell info
-#define SHELL_PATH                          "/bin/sh"               // The location of the shell to set SHELL to
 #define PMI_ATTRIBS_FILE_NAME               "pmi_attribs"           // Name of the pmi_attribs file to find pid info
-#define PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT   60                      // default timeout in seconds for trying to open pmi_attribs file
+#define PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT   60ul                    // default timeout in seconds for trying to open pmi_attribs file
 #define PID_FILE                            ".cti_pids"             // Name of the file containing the pids of the tool daemon processes
 
 /*******************************************************************************
@@ -156,17 +148,10 @@ typedef slurmPidFile_t          cti_pidFile_t;
 ** define and the library reads in, and (set) are environment variables that
 ** are set in the users environment by the library.
 *******************************************************************************/
-#define BASE_DIR_ENV_VAR    "CRAY_CTI_DIR"              //Frontend: Used to define the base install location (read)
-#define CFG_DIR_VAR         "CRAY_CTI_CFG_DIR"          //Frontend: Used to define a writable location to create the manifest tarball (read)
-#define DAEMON_STAGE_VAR    "CRAY_CTI_STAGE_DIR"        //Frontend: Used to define a directory name for the fake root of the tool daemon (read)
-#define DBG_LOG_ENV_VAR     "CRAY_DBG_LOG_DIR"          //Frontend: Used to define a directory to write debug logs to (read)
-#define DBG_ENV_VAR         "CRAY_CTI_DBG"              //Frontend: Used to turn on debug logging to files (read)
-#define CTI_LAUNCHER_NAME   "CRAY_CTI_LAUNCHER_NAME"    //Frontend: Used to explicitly tell CTI the path to the launcher binary to use
-#define CTI_WLM             "CRAY_CTI_WLM"              //Frontend: Used to explicitly tell CTI which workload manager to use. Accepts "slurm", and "generic"
 
-#define SRUN_OVERRIDE_ARGS_ENV_VAR "CRAY_CTI_SRUN_OVERRIDE" // Frontend: replace variable SRUN arguments with these given arguments
-#define SRUN_APPEND_ARGS_ENV_VAR   "CRAY_CTI_SRUN_APPEND"   // Frontend: append these arguments to the variable list of SRUN arguments
-
+// Internal overrides for WLM workarounds
+#define SRUN_OVERRIDE_ARGS_ENV_VAR "CTI_SRUN_OVERRIDE" // Frontend: replace variable SRUN arguments with these given arguments (read)
+#define SRUN_APPEND_ARGS_ENV_VAR   "CTI_SRUN_APPEND"   // Frontend: append these arguments to the variable list of SRUN arguments (read)
 
 #define BE_GUARD_ENV_VAR    "CRAYTOOL_IAMBACKEND"       //Backend: Set by the daemon launcher to ensure proper setup
 #define APID_ENV_VAR        "CRAYTOOL_APID"             //Backend: Used to hold the string representation of the apid (set)
@@ -180,8 +165,8 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define LIB_DIR_VAR         "CRAYTOOL_LIB_DIR"          //Backend: Used to denote where libraries are located (set)
 #define FILE_DIR_VAR        "CRAYTOOL_FILE_DIR"         //Backend: Used to denote where files are located (set)
 #define PMI_ATTRIBS_DIR_VAR "CRAYTOOL_PMI_ATTRIBS_DIR"  //Backend: Used to denote where the pmi_attribs file is located (set)
-#define PMI_ATTRIBS_TIMEOUT_ENV_VAR "CRAY_CTI_PMI_FOPEN_TIMEOUT"    //Backend: Used to define a sleep timeout period for creation of pmi_attribs file (read)
-#define PMI_EXTRA_SLEEP_ENV_VAR     "CRAY_CTI_PMI_EXTRA_SLEEP"      //Backend: Used to sleep a fixed period of time after the pmi_attribs file has been opened (read)
+#define PMI_ATTRIBS_TIMEOUT_VAR "CRAY_CTI_PMI_FOPEN_TIMEOUT"    //Backend: Used to define a sleep timeout period for creation of pmi_attribs file (read)
+#define PMI_EXTRA_SLEEP_VAR "CRAY_CTI_PMI_EXTRA_SLEEP"  //Backend: Used to sleep a fixed period of time after the pmi_attribs file has been opened (read)
 
 #ifdef __cplusplus
 }

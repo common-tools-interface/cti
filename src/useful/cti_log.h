@@ -45,9 +45,9 @@ extern "C" {
 typedef FILE cti_log_t;
 
 // if logging is enabled,
-// create a new logfile in temporary storage with format <filename>.<suffix>.log
+// create a new logfile in directory with format <filename>.<suffix>.log
 // otherwise, returns NULL cti_log_t that can be passed to logging functions with no effect
-cti_log_t* _cti_create_log(char const* filename, int suffix);
+cti_log_t* _cti_create_log(char const *directory, char const* filename, int suffix);
 
 // finalize log and close its file (if nonnull)
 int _cti_close_log(cti_log_t* log_file);
@@ -69,27 +69,31 @@ namespace cti {
 class Logger
 {
 private: // types
-	using LogPtr = std::unique_ptr<cti_log_t, int(*)(cti_log_t*)>;
+    using LogPtr = std::unique_ptr<cti_log_t, int(*)(cti_log_t*)>;
 
 private: // variables
-	LogPtr logFile;
+    LogPtr logFile;
 
 public: // interface
-	Logger(std::string const& filename, int suffix) : logFile{nullptr, _cti_close_log}
-	{
-		// determine if logging mode is enabled
-		if (getenv(DBG_ENV_VAR)) {
-			logFile = LogPtr{_cti_create_log(filename.c_str(), suffix), _cti_close_log};
-		}
-	}
+    Logger(bool enable, std::string const& directory, std::string const& filename, int suffix) : logFile{nullptr, _cti_close_log}
+    {
+        // determine if logging mode is enabled
+        if (enable) {
+            char const *dir = nullptr;
+            if (!directory.empty()) {
+                dir = directory.c_str();
+            }
+            logFile = LogPtr{_cti_create_log(dir, filename.c_str(), suffix), _cti_close_log};
+        }
+    }
 
-	template <typename... Args>
-	void write(char const* fmt, Args&&... args)
-	{
-		if (logFile) {
-			_cti_write_log(logFile.get(), fmt, std::forward<Args>(args)...);
-		}
-	}
+    template <typename... Args>
+    void write(char const* fmt, Args&&... args)
+    {
+        if (logFile) {
+            _cti_write_log(logFile.get(), fmt, std::forward<Args>(args)...);
+        }
+    }
 };
 
 } /* namespace cti */
