@@ -1,7 +1,7 @@
 #
 # Makefile.am for the Cray Slurm frontend implementation.
 #
-# Copyright 2019 Cray Inc.  All Rights Reserved.
+# Copyright 2019 Cray Inc. All Rights Reserved.
 #
 
 SRC             	= @CRAYTOOL_DIR@/src

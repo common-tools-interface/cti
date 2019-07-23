@@ -1,7 +1,7 @@
 #
 # Makefile.am for the frontend components of the craytool interface.
 #
-# Copyright 2014-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2014-2019 Cray Inc. All Rights Reserved.
 #
 
 SUBDIRS				= cti_transfer frontend_impl mpir_iface daemon

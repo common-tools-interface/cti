@@ -1,7 +1,7 @@
 #
 # Makefile.am for the CTI unit tests
 #
-# Copyright 2014-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2014-2019 Cray Inc. All Rights Reserved.
 #
 
 SRC             = @CRAYTOOL_DIR@/src

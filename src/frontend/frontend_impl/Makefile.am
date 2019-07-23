@@ -1,7 +1,7 @@
 #
 # Makefile.am for the frontend impl components of the craytool interface.
 #
-# Copyright 2019 Cray Inc.  All Rights Reserved.
+# Copyright 2019 Cray Inc. All Rights Reserved.
 #
 
 @CODE_COVERAGE_RULES@
