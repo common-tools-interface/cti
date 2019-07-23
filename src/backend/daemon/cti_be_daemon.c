@@ -90,7 +90,7 @@ struct cti_pids
 
 /* wlm specific proto objects defined elsewhere */
 extern cti_wlm_proto_t  _cti_cray_slurm_wlmProto;
-extern cti_wlm_proto_t  _cti_slurm_wlmProto;
+extern cti_wlm_proto_t  _cti_generic_ssh_wlmProto;
 
 /* noneness wlm proto object */
 static cti_wlm_proto_t  _cti_nonenessProto =
@@ -536,7 +536,7 @@ main(int argc, char **argv)
             break;
 
         case CTI_WLM_SSH:
-            _cti_wlmProto = &_cti_slurm_wlmProto;
+            _cti_wlmProto = &_cti_generic_ssh_wlmProto;
             break;
 
         case CTI_WLM_NONE:

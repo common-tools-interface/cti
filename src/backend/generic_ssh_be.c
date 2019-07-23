@@ -1,6 +1,7 @@
 /*********************************************************************************\
- * slurm_be.c - Native slurm specific backend library functions.
- *
+ * generic_ssh_be.c - SSH based workload manager specific backend library
+ *                    functions.
+*
  * Copyright 2016-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
@@ -57,45 +58,45 @@ typedef struct
 {
     int     PEsHere;    // Number of PEs placed on this node
     int     firstPE;    // first PE on this node
-} slurmLayout_t;
+} cti_layout_t;
 
 /* static prototypes */
-static int                  _cti_be_slurm_init(void);
-static void                 _cti_be_slurm_fini(void);
-static int                  _cti_be_slurm_getSlurmLayout(void);
-static int                  _cti_be_slurm_getSlurmPids(void);
-static cti_pidList_t *      _cti_be_slurm_findAppPids(void);
-static char *               _cti_be_slurm_getNodeHostname(void);
-static int                  _cti_be_slurm_getNodeFirstPE(void);
-static int                  _cti_be_slurm_getNodePEs(void);
+static int                  _cti_be_generic_ssh_init(void);
+static void                 _cti_be_generic_ssh_fini(void);
+static int                  _cti_be_generic_ssh_getSlurmLayout(void);
+static int                  _cti_be_generic_ssh_getSlurmPids(void);
+static cti_pidList_t *      _cti_be_generic_ssh_findAppPids(void);
+static char *               _cti_be_generic_ssh_getNodeHostname(void);
+static int                  _cti_be_generic_ssh_getNodeFirstPE(void);
+static int                  _cti_be_generic_ssh_getNodePEs(void);
 
-/* cray slurm wlm proto object */
-cti_be_wlm_proto_t          _cti_be_slurm_wlmProto =
+/* wlm ssh proto object */
+cti_be_wlm_proto_t          _cti_be_generic_ssh_wlmProto =
 {
-    CTI_WLM_SSH,                    // wlm_type
-    _cti_be_slurm_init,             // wlm_init
-    _cti_be_slurm_fini,             // wlm_fini
-    _cti_be_slurm_findAppPids,      // wlm_findAppPids
-    _cti_be_slurm_getNodeHostname,  // wlm_getNodeHostname
-    _cti_be_slurm_getNodeFirstPE,   // wlm_getNodeFirstPE
-    _cti_be_slurm_getNodePEs        // wlm_getNodePEs
+    CTI_WLM_SSH,                            // wlm_type
+    _cti_be_generic_ssh_init,               // wlm_init
+    _cti_be_generic_ssh_fini,               // wlm_fini
+    _cti_be_generic_ssh_findAppPids,        // wlm_findAppPids
+    _cti_be_generic_ssh_getNodeHostname,    // wlm_getNodeHostname
+    _cti_be_generic_ssh_getNodeFirstPE,     // wlm_getNodeFirstPE
+    _cti_be_generic_ssh_getNodePEs          // wlm_getNodePEs
 };
 
 // Global vars
-static pmi_attribs_t *      _cti_attrs          = NULL; // node pmi_attribs information
-static slurmLayout_t *      _cti_layout         = NULL; // compute node layout for slurm app
-static pid_t *              _cti_slurm_pids     = NULL; // array of pids here if pmi_attribs is not available
+static pmi_attribs_t *  _cti_attrs          = NULL; // node pmi_attribs information
+static cti_layout_t *   _cti_layout         = NULL; // compute node layout for generic app
+static pid_t *          _cti_generic_pids   = NULL; // array of pids here if pmi_attribs is not available
 
 /* Constructor/Destructor functions */
 
 static int
-_cti_be_slurm_init(void)
+_cti_be_generic_ssh_init(void)
 {
     return 0;
 }
 
 static void
-_cti_be_slurm_fini(void)
+_cti_be_generic_ssh_fini(void)
 {
     // cleanup
     if (_cti_attrs != NULL)
@@ -110,10 +111,10 @@ _cti_be_slurm_fini(void)
         _cti_layout = NULL;
     }
 
-    if (_cti_slurm_pids != NULL)
+    if (_cti_generic_pids != NULL)
     {
-        free(_cti_slurm_pids);
-        _cti_slurm_pids = NULL;
+        free(_cti_generic_pids);
+        _cti_generic_pids = NULL;
     }
 
     return;
@@ -122,24 +123,24 @@ _cti_be_slurm_fini(void)
 /* Static functions */
 
 static int
-_cti_be_slurm_getSlurmLayout(void)
+_cti_be_generic_ssh_getSlurmLayout(void)
 {
-    slurmLayout_t *         my_layout;
+    cti_layout_t *          my_layout;
     char *                  file_dir;
     char *                  layoutPath;
     FILE *                  my_file;
-    slurmLayoutFileHeader_t layout_hdr;
-    slurmLayoutFile_t *     layout;
+    cti_layoutFileHeader_t  layout_hdr;
+    cti_layoutFile_t *      layout;
     int                     i, offset;
 
     // sanity
     if (_cti_layout != NULL)
         return 0;
 
-    char* hostname = _cti_be_slurm_getNodeHostname();
+    char* hostname = _cti_be_generic_ssh_getNodeHostname();
 
-    // allocate the slurmLayout_t object
-    if ((my_layout = malloc(sizeof(slurmLayout_t))) == NULL)
+    // allocate the cti_layout_t object
+    if ((my_layout = malloc(sizeof(cti_layout_t))) == NULL)
     {
         fprintf(stderr, "malloc failed.\n");
         return 1;
@@ -148,7 +149,7 @@ _cti_be_slurm_getSlurmLayout(void)
     // get the file directory were we can find the layout file
     if ((file_dir = cti_be_getFileDir()) == NULL)
     {
-        fprintf(stderr, "_cti_be_slurm_getSlurmLayout failed.\n");
+        fprintf(stderr, "_cti_be_generic_ssh_getSlurmLayout failed.\n");
         free(my_layout);
         return 1;
     }
@@ -174,7 +175,7 @@ _cti_be_slurm_getSlurmLayout(void)
     }
 
     // read the header from the file
-    if (fread(&layout_hdr, sizeof(slurmLayoutFileHeader_t), 1, my_file) != 1)
+    if (fread(&layout_hdr, sizeof(cti_layoutFileHeader_t), 1, my_file) != 1)
     {
         fprintf(stderr, "Could not read %s\n", layoutPath);
         free(my_layout);
@@ -184,7 +185,7 @@ _cti_be_slurm_getSlurmLayout(void)
     }
 
     // allocate the layout array based on the header
-    if ((layout = calloc(layout_hdr.numNodes, sizeof(slurmLayoutFile_t))) == NULL)
+    if ((layout = calloc(layout_hdr.numNodes, sizeof(cti_layoutFile_t))) == NULL)
     {
         fprintf(stderr, "calloc failed.\n");
         free(my_layout);
@@ -194,7 +195,7 @@ _cti_be_slurm_getSlurmLayout(void)
     }
 
     // read the layout info
-    if (fread(layout, sizeof(slurmLayoutFile_t), layout_hdr.numNodes, my_file) != layout_hdr.numNodes)
+    if (fread(layout, sizeof(cti_layoutFile_t), layout_hdr.numNodes, my_file) != layout_hdr.numNodes)
     {
         fprintf(stderr, "Bad data in %s\n", layoutPath);
         free(my_layout);
@@ -240,25 +241,25 @@ _cti_be_slurm_getSlurmLayout(void)
 }
 
 static int
-_cti_be_slurm_getSlurmPids(void)
+_cti_be_generic_ssh_getSlurmPids(void)
 {
     pid_t *                 my_pids;
     char *                  file_dir;
     char *                  pidPath;
     FILE *                  my_file;
-    slurmPidFileHeader_t    pid_hdr;
-    slurmPidFile_t *        pids;
+    cti_pidFileheader_t     pid_hdr;
+    cti_pidFile_t *         pids;
     int                     i;
 
     // sanity
-    if (_cti_slurm_pids != NULL)
+    if (_cti_generic_pids != NULL)
         return 0;
 
     // make sure we have the layout
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_slurm_getSlurmLayout())
+        if (_cti_be_generic_ssh_getSlurmLayout())
         {
             return 1;
         }
@@ -267,7 +268,7 @@ _cti_be_slurm_getSlurmPids(void)
     // get the file directory were we can find the pid file
     if ((file_dir = cti_be_getFileDir()) == NULL)
     {
-        fprintf(stderr, "_cti_be_slurm_getSlurmPids failed.\n");
+        fprintf(stderr, "_cti_be_generic_ssh_getSlurmPids failed.\n");
         return 1;
     }
 
@@ -290,7 +291,7 @@ _cti_be_slurm_getSlurmPids(void)
     }
 
     // read the header from the file
-    if (fread(&pid_hdr, sizeof(slurmPidFileHeader_t), 1, my_file) != 1)
+    if (fread(&pid_hdr, sizeof(cti_pidFileheader_t), 1, my_file) != 1)
     {
         fprintf(stderr, "Could not read %s\n", pidPath);
         free(pidPath);
@@ -309,7 +310,7 @@ _cti_be_slurm_getSlurmPids(void)
     }
 
     // allocate the pids array based on the number of PEsHere
-    if ((pids = calloc(_cti_layout->PEsHere, sizeof(slurmPidFile_t))) == NULL)
+    if ((pids = calloc(_cti_layout->PEsHere, sizeof(cti_pidFile_t))) == NULL)
     {
         fprintf(stderr, "calloc failed.\n");
         free(pidPath);
@@ -318,7 +319,7 @@ _cti_be_slurm_getSlurmPids(void)
     }
 
     // fseek to the start of the pid info for this compute node
-    if (fseek(my_file, _cti_layout->firstPE * sizeof(slurmPidFile_t), SEEK_CUR))
+    if (fseek(my_file, _cti_layout->firstPE * sizeof(cti_pidFile_t), SEEK_CUR))
     {
         fprintf(stderr, "fseek failed.\n");
         free(pidPath);
@@ -328,7 +329,7 @@ _cti_be_slurm_getSlurmPids(void)
     }
 
     // read the pid info
-    if (fread(pids, sizeof(slurmPidFile_t), _cti_layout->PEsHere, my_file) != _cti_layout->PEsHere)
+    if (fread(pids, sizeof(cti_pidFile_t), _cti_layout->PEsHere, my_file) != _cti_layout->PEsHere)
     {
         fprintf(stderr, "Bad data in %s\n", pidPath);
         free(pidPath);
@@ -356,7 +357,7 @@ _cti_be_slurm_getSlurmPids(void)
     }
 
     // set global value
-    _cti_slurm_pids = my_pids;
+    _cti_generic_pids = my_pids;
 
     // cleanup
     free(pids);
@@ -367,12 +368,12 @@ _cti_be_slurm_getSlurmPids(void)
 /* API related calls start here */
 
 static cti_pidList_t *
-_cti_be_slurm_findAppPids(void)
+_cti_be_generic_ssh_findAppPids(void)
 {
     cti_pidList_t * rtn;
     int             i;
 
-    if (_cti_be_slurm_getSlurmPids() == 0)
+    if (_cti_be_generic_ssh_getSlurmPids() == 0)
     {
         // allocate the return object
         if ((rtn = malloc(sizeof(cti_pidList_t))) == (void *)0)
@@ -394,13 +395,13 @@ _cti_be_slurm_findAppPids(void)
         // set the rtn rank/pid array
         for (i=0; i < rtn->numPids; ++i)
         {
-            rtn->pids[i].pid = _cti_slurm_pids[i];
+            rtn->pids[i].pid = _cti_generic_pids[i];
             rtn->pids[i].rank = i + _cti_layout->firstPE;
         }
 
     } else
     {
-        // slurm_pid not found, so use the pmi_attribs file
+        // generic_pid not found, so use the pmi_attribs file
 
         // Call _cti_be_getPmiAttribsInfo - We require the pmi_attribs file to exist
         // in order to function properly.
@@ -409,7 +410,7 @@ _cti_be_slurm_findAppPids(void)
             if ((_cti_attrs = _cti_be_getPmiAttribsInfo()) == NULL)
             {
                 // Something messed up, so fail.
-                fprintf(stderr, "_cti_be_slurm_findAppPids failed (_cti_be_getPmiAttribsInfo NULL).\n");
+                fprintf(stderr, "_cti_be_generic_ssh_findAppPids failed (_cti_be_getPmiAttribsInfo NULL).\n");
                 return NULL;
             }
         }
@@ -418,7 +419,7 @@ _cti_be_slurm_findAppPids(void)
         if (_cti_attrs->app_rankPidPairs == NULL)
         {
             // Something messed up, so fail.
-            fprintf(stderr, "_cti_be_slurm_findAppPids failed (app_rankPidPairs NULL).\n");
+            fprintf(stderr, "_cti_be_generic_ssh_findAppPids failed (app_rankPidPairs NULL).\n");
             return NULL;
         }
 
@@ -465,7 +466,7 @@ _cti_be_slurm_findAppPids(void)
    for successive calls.
  */
 static char *
-_cti_be_slurm_getNodeHostname()
+_cti_be_generic_ssh_getNodeHostname()
 {
     static char *hostname = NULL; // Cache the result
 
@@ -487,7 +488,7 @@ _cti_be_slurm_getNodeHostname()
         char file_buf[BUFSIZ];   // file read buffer
         if (fgets(file_buf, BUFSIZ, nid_fp) == NULL)
         {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname fgets failed.\n");
+            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname fgets failed.\n");
             fclose(nid_fp);
             return NULL;
         }
@@ -504,21 +505,21 @@ _cti_be_slurm_getNodeHostname()
         if ((errno == ERANGE && nid == INT_MAX)
                 || (errno != 0 && nid == 0))
         {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname: strtol failed.\n");
+            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname: strtol failed.\n");
             return NULL;
         }
 
         // check for invalid input
         if (eptr == file_buf)
         {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname: Bad data in %s\n", CRAY_XT_NID_FILE);
+            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname: Bad data in %s\n", CRAY_XT_NID_FILE);
             return NULL;
         }
 
         // create the nid hostname string
         if (asprintf(&hostname, hostname_fmt, nid) <= 0)
         {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname asprintf failed.\n");
+            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname asprintf failed.\n");
             free(hostname);
             hostname = NULL;
             return NULL;
@@ -530,13 +531,13 @@ _cti_be_slurm_getNodeHostname()
         // allocate memory for the hostname
         if ((hostname = malloc(HOST_NAME_MAX)) == NULL)
         {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname: malloc failed.\n");
+            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname: malloc failed.\n");
             return NULL;
         }
 
         if (gethostname(hostname, HOST_NAME_MAX) < 0)
         {
-            fprintf(stderr, "%s", "_cti_be_slurm_getNodeHostname: gethostname() failed!\n");
+            fprintf(stderr, "%s", "_cti_be_generic_ssh_getNodeHostname: gethostname() failed!\n");
             hostname = NULL;
             return NULL;
         }
@@ -546,13 +547,13 @@ _cti_be_slurm_getNodeHostname()
 }
 
 static int
-_cti_be_slurm_getNodeFirstPE()
+_cti_be_generic_ssh_getNodeFirstPE()
 {
     // make sure we have the layout
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_slurm_getSlurmLayout())
+        if (_cti_be_generic_ssh_getSlurmLayout())
         {
             return -1;
         }
@@ -562,13 +563,13 @@ _cti_be_slurm_getNodeFirstPE()
 }
 
 static int
-_cti_be_slurm_getNodePEs()
+_cti_be_generic_ssh_getNodePEs()
 {
     // make sure we have the layout
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_slurm_getSlurmLayout())
+        if (_cti_be_generic_ssh_getSlurmLayout())
         {
             return -1;
         }

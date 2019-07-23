@@ -13,7 +13,7 @@ AM_LIBTOOLFLAGS 	= --quiet
 
 libexec_PROGRAMS	= cti_be_daemon@CRAYTOOL_RELEASE_VERSION@
 
-cti_be_daemon@CRAYTOOL_RELEASE_VERSION@_SOURCES	= cti_be_daemon.c cray_slurm_dl.c slurm_dl.c
+cti_be_daemon@CRAYTOOL_RELEASE_VERSION@_SOURCES	= cti_be_daemon.c cray_slurm_dl.c generic_ssh_dl.c
 cti_be_daemon@CRAYTOOL_RELEASE_VERSION@_CFLAGS	= $(AM_CFLAGS) -I$(USEFUL) $(ARCHIVE_CFLAGS)
 cti_be_daemon@CRAYTOOL_RELEASE_VERSION@_LDADD	= $(USEFUL)/libuseful.la $(ARCHIVE_LIBS)
 cti_be_daemon@CRAYTOOL_RELEASE_VERSION@_LDFLAGS	= -all-static -Wl,--no-undefined -Wl,--as-needed $(ARCHIVE_LDFLAGS)
