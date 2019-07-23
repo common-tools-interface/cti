@@ -99,7 +99,7 @@ cp $PWD/craytools_fe.pc  $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
 chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_be.pc
 chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
 
-# run function test suite
+# run functional test suite
 
 ./tests/function/build_run.sh ./tests/function/
 
