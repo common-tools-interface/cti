@@ -3,13 +3,35 @@
  *
  * Copyright 2014-2019 Cray Inc.    All Rights Reserved.
  *
- * Unpublished Proprietary Information.
- * This unpublished work is protected to trade secret, copyright and other laws.
- * Except as permitted by contract or express written permission of Cray Inc.,
- * no part of this work or its content may be used, reproduced or disclosed
- * in any form.
+ * This software is available to you under a choice of one of two
+ * licenses.  You may choose to be licensed under the terms of the GNU
+ * General Public License (GPL) Version 2, available from the file
+ * COPYING in the main directory of this source tree, or the
+ * BSD license below:
  *
- *********************************************************************************/
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ ******************************************************************************/
 
 #pragma once
 
@@ -134,6 +156,10 @@ protected: // Protected data members that belong to any frontend
 
 public: // Values set by cti_setAttribute
     bool                m_stage_deps;
+    std::string         m_log_dir;
+    bool                m_debug;
+    unsigned long       m_pmi_fopen_timeout;
+    unsigned long       m_extra_sleep;
 
 private: // Private static utility methods used by the generic frontend
     // get the logger associated with the frontend - can only construct logger
@@ -178,6 +204,8 @@ public: // Public interface to generic WLM-agnostic capabilities
     FE_prng& Prng() { return m_prng; }
     // Register a cleanup file
     void addFileCleanup(std::string const& file);
+    // Get a list of default env vars to forward to BE daemon
+    std::vector<std::string> getDefaultEnvVars();
     // Accessors
     std::string getCfgDir() { return m_cfg_dir; }
     std::string getBaseDir() { return m_base_dir; }

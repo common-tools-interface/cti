@@ -7,11 +7,33 @@
  *
  * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
  *
- * Unpublished Proprietary Information.
- * This unpublished work is protected to trade secret, copyright and other laws.
- * Except as permitted by contract or express written permission of Cray Inc.,
- * no part of this work or its content may be used, reproduced or disclosed
- * in any form.
+ * This software is available to you under a choice of one of two
+ * licenses.  You may choose to be licensed under the terms of the GNU
+ * General Public License (GPL) Version 2, available from the file
+ * COPYING in the main directory of this source tree, or the
+ * BSD license below:
+ *
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  *
  ******************************************************************************/
 
@@ -19,67 +41,6 @@
 #define _CRAY_TOOLS_FE_H
 
 #include "cray_tools_shared.h"
-
-/*
- * The Cray tools interface needs to read environment variables about the system
- * configuration dynamically at run time. The environment variables that are
- * read are defined here.  Note that the value of these environment
- * variables are subject to change. Use the defines to guarantee portability.
- *
- * CTI_BASE_DIR_ENV_VAR (required)
- *
- *         Used to define the absolute path to the CTI install directory. This
- *         is required to be defined.
- *
- * CTI_DBG_LOG_DIR_ENV_VAR (optional)
- *
- *         Used to define a path to write log files to. This location must be
- *         cross mounted and accessible by the compute nodes in order to receive
- *         debug logs from tool daemons. If CTI_DBG_ENV_VAR is set, and this env
- *         variable is omitted, then the log files will be written to /tmp on
- *         the compute nodes.
- *
- * CTI_DBG_ENV_VAR (optional)
- *
- *         Used to turn on redirection of tool daemon stdout/stderr to a log
- *         file. This should be used in conjuntion with CTI_DBG_LOG_DIR_ENV_VAR.
- *
- * CTI_ATTRIBS_TIMEOUT_ENV_VAR (optional)
- *
- *         Used to define the amount of time the daemon will spend attempting to
- *         open the pmi_attribs file when gathering application pid information
- *         on the compute node. If this is not set, the default timeout period
- *         is 60 seconds.
- *
- * CTI_EXTRA_SLEEP_ENV_VAR (optional)
- *
- *         Used to define an extra amount of time to sleep after reading the
- *         pmi_attribs file if it was not immediately available. This is to
- *         avoid a potential race condition. If this is not set, the default is
- *         to wait an order of magnitude less than the amount of time it took to
- *         open the pmi_attribs file.
- *
- * CTI_CFG_DIR_ENV_VAR (optional)
- *
- *         Used to define a location to write internal temporary files and
- *         directories to. This directory must have permissions set to 0700.
- *
- * CTI_DAEMON_STAGE_DIR_ENV_VAR (optional - CAUTION!)
- *
- *         Used to define the directory root name that will be used for a
- *         sessions unique storage space. This can be used to force multiple
- *         sessions to use the same directory structure. The use of this is not
- *         recommended since it is not guarded against race conditions and
- *         conflicting file names.
- *
- */
-#define CTI_BASE_DIR_ENV_VAR            "CRAY_CTI_DIR"
-#define CTI_DBG_LOG_DIR_ENV_VAR         "CRAY_CTI_LOG_DIR"
-#define CTI_DBG_ENV_VAR                 "CRAY_CTI_DBG"
-#define CTI_ATTRIBS_TIMEOUT_ENV_VAR     "CRAY_CTI_PMI_FOPEN_TIMEOUT"
-#define CTI_EXTRA_SLEEP_ENV_VAR         "CRAY_CTI_PMI_EXTRA_SLEEP"
-#define CTI_CFG_DIR_ENV_VAR             "CRAY_CTI_CFG_DIR"
-#define CTI_DAEMON_STAGE_DIR_ENV_VAR    "CRAY_CTI_STAGE_DIR"
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,11 +56,11 @@ extern "C" {
  */
 typedef enum
 {
-    CTI_ATTR_STAGE_DEPENDENCIES     // Define whether binary and library
-                                    // dependencies should be automatically
-                                    // staged by cti_addManifestBinary and
-                                    // cti_addManifestLIbrary: 0 or 1
-                                    // Defaults to 1.
+    CTI_ATTR_STAGE_DEPENDENCIES,
+    CTI_LOG_DIR,
+    CTI_DEBUG,
+    CTI_PMI_FOPEN_TIMEOUT,
+    CTI_EXTRA_SLEEP
 } cti_attr_type_t;
 
 /*
@@ -120,7 +81,6 @@ typedef struct
 typedef int64_t cti_app_id_t;
 typedef int64_t cti_session_id_t;
 typedef int64_t cti_manifest_id_t;
-
 
 /************************************************************
  * The Cray tools interface frontend calls are defined below.
@@ -246,17 +206,76 @@ char * cti_getHostname();
  *      "setting" implementation is defined by the code specific to 'attrib'.
  *
  * Arguments
- *      attrib - The cti_attr_type_t
- *                 CTI_ATTR_STAGE_DEPENDENCIES:
- *                   Set to "0" or "1" to disable/enable auto staging of dependencies.
- *                   The startup value is set to '1'.
- *      value  - A string containing appropriate values for a given attrib.
+ *      attrib - The cti_attr_type_t as defined below.
+ *
+ *          CTI_ATTR_STAGE_DEPENDENCIES:
+ *              Define whether bindary and library dso dependencies should be
+ *              automatically staged by cti_addManifestBinary and
+ *              cti_addManifestLibrary. Set to "0" or "1" to disable or enable
+ *              respectively.
+ *              Default: "1" or enabled
+ *
+ *          CTI_LOG_DIR:
+ *              Define a path to write log files to. This location must be
+ *              cross mounted and accessible by the compute nodes in order
+ *              to receive debug logs from tool daemons. The value set here
+ *              overrides the CTI_LOG_DIR_ENV_VAR environment variable.
+ *              Default: "/tmp"
+ *
+ *          CTI_DEBUG:
+ *              Used to turn on debug logging and rediction of tool daemon
+ *              stdout/stderr to a log file. This should be used in conjuction
+ *              with the CTI_LOG_DIR_ENV_VAR environment variable or CTI_LOG_DIR
+ *              attrib. The value set here overrides the CTI_DBG_ENV_VAR
+ *              environment variable. Set to "0" or "1" to disable or enable
+ *              respectively.
+ *              Default: "0" or disabled
+ *
+ *          CTI_PMI_FOPEN_TIMEOUT:
+ *              Used to define the amount of time in seconds the backend daemon
+ *              will attempt to open the pmi_attribs file when gathering
+ *              application pid information on the compute node. This file may
+ *              be generated by the system PMI, or it might be delivered as part
+ *              of the underlying CTI implementation.
+ *              Default: "60" or 60 seconds
+ *
+ *          CTI_EXTRA_SLEEP:
+ *              Used to define an extra amount of time to sleep before reading
+ *              from the pmi_attribs file if it was not immediately available
+ *              for reading. This is to avoid a potential race condition during
+ *              attach. If the pmi_attribs file is generated by the system pmi
+ *              implementation, starting a tool daemon early in the application
+ *              lifecycle can encounter a race condition where the file is in
+ *              the process of being written while the backend daemon is reading
+ *              from it.
+ *              Default: variable or wait an order of magnitude less time in
+ *                       seconds than the time it took to discover the
+ *                       pmi_attribs file.
  *
  * Returns
  *      0 on success, or else 1 on failure
  *
  */
 int cti_setAttribute(cti_attr_type_t attrib, const char *value);
+
+/*
+ * cti_getAttribute - Get 'value' of 'attrib'
+ *
+ * Detail
+ *      This function returns the current 'value' of the requested attribute
+ *      'attrib'. The content of the returned string is defined by the
+ *      specific 'attrib'. See cti_setAttribute above to details about the
+ *      'value' string.
+ *
+ * Arguments
+ *      attrib - The requested cti_attr_type_t. See cti_setAttribute for
+ *               details.
+ *
+ * Returns
+ *      A string containing the 'value', or else a null string on error.
+ *
+ */
+const char * cti_getAttribute(cti_attr_type_t attrib);
 
 /*******************************************************************************
  * The following functions require the application to be started or registered

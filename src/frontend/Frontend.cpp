@@ -3,13 +3,35 @@
  *
  * Copyright 2014-2019 Cray Inc.    All Rights Reserved.
  *
- * Unpublished Proprietary Information.
- * This unpublished work is protected to trade secret, copyright and other laws.
- * Except as permitted by contract or express written permission of Cray Inc.,
- * no part of this work or its content may be used, reproduced or disclosed
- * in any form.
+ * This software is available to you under a choice of one of two
+ * licenses.  You may choose to be licensed under the terms of the GNU
+ * General Public License (GPL) Version 2, available from the file
+ * COPYING in the main directory of this source tree, or the
+ * BSD license below:
  *
- *********************************************************************************/
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ ******************************************************************************/
 
 // This pulls in config.h
 #include "cti_defs.h"
@@ -100,7 +122,7 @@ char FE_prng::genChar()
 cti::Logger&
 Frontend::getLogger(void)
 {
-    static auto _cti_logger = cti::Logger{Frontend::inst().getHostname().c_str(), getpid()};
+    static auto _cti_logger = cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()};
     return _cti_logger;
 }
 
@@ -120,7 +142,7 @@ Frontend::findCfgDir()
 
     // get the cfg dir settings
     std::string customCfgDir, cfgDir;
-    if (const char* cfg_dir_env = getenv(CFG_DIR_VAR)) {
+    if (const char* cfg_dir_env = getenv(CTI_CFG_DIR_ENV_VAR)) {
         customCfgDir = std::string(cfg_dir_env);
     }
     else {
@@ -143,7 +165,7 @@ Frontend::findCfgDir()
     }
     else {
         // We have no where to create a temporary directory...
-        throw std::runtime_error(std::string("Cannot find suitable config directory. Try setting the env variable ") + CFG_DIR_VAR);
+        throw std::runtime_error(std::string("Cannot find suitable config directory. Try setting the env variable ") + CTI_CFG_DIR_ENV_VAR);
     }
 
     if (customCfgDir.empty()) {
@@ -167,11 +189,11 @@ Frontend::findCfgDir()
         }
     }
     else {
-        // The user set CFG_DIR_VAR, we *ALWAYS* want to use that
+        // The user set CTI_CFG_DIR_ENV_VAR, we *ALWAYS* want to use that
         // custom cfgdir behavior: error if not exist or bad perms
         // Check to see if we can write to this directory
         if (!cti::dirHasPerms(cfgPath.c_str(), R_OK | W_OK | X_OK)) {
-            throw std::runtime_error(std::string("Bad directory specified by environment variable ") + CFG_DIR_VAR);
+            throw std::runtime_error(std::string("Bad directory specified by environment variable ") + CTI_CFG_DIR_ENV_VAR);
         }
         // verify that it has the permissions we expect
         struct stat st;
@@ -181,7 +203,7 @@ Frontend::findCfgDir()
         }
         if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU) {
             // bits other than S_IRWXU are set
-            throw std::runtime_error(std::string("Bad permissions (Only 0700 allowed) for directory specified by environment variable ") + CFG_DIR_VAR);
+            throw std::runtime_error(std::string("Bad permissions (Only 0700 allowed) for directory specified by environment variable ") + CTI_CFG_DIR_ENV_VAR);
         }
     }
 
@@ -212,7 +234,7 @@ Frontend::findBaseDir(void)
 {
     // Check if env var is defined
     // TODO: Rethink this. It is probably dangerous...
-    const char * base_dir_env = getenv(BASE_DIR_ENV_VAR);
+    const char * base_dir_env = getenv(CTI_BASE_DIR_ENV_VAR);
     if (base_dir_env != nullptr) {
         // Honor the env var setting
         return std::string{base_dir_env};
@@ -226,7 +248,7 @@ Frontend::findBaseDir(void)
         }
     }
 
-    throw std::runtime_error(std::string{"failed to find a CTI installation. Ensure "} + BASE_DIR_ENV_VAR + " is set properly.");
+    throw std::runtime_error(std::string{"failed to find a CTI installation. Ensure "} + CTI_BASE_DIR_ENV_VAR + " is set properly.");
 }
 
 // BUG 819725:
@@ -307,7 +329,7 @@ Frontend::doFileCleanup()
 
 /*
 * This routine automatically determines the active Workload Manager. The
-* user can force SSH as the "WLM" by setting the environment variable CTI_LAUNCHER_NAME.
+* user can force SSH as the "WLM" by setting the environment variable CTI_WLM_IMPL_ENV_VAR.
 */
 cti_wlm_type_t
 Frontend::detect_Frontend()
@@ -327,16 +349,16 @@ Frontend::detect_Frontend()
     };
 
     // Use the workload manager in the environment variable if it is set
-    if (const char* wlm_name_env = getenv(CTI_WLM)) {
+    if (const char* wlm_name_env = getenv(CTI_WLM_IMPL_ENV_VAR)) {
         auto const wlmName = toLower(wlm_name_env);
-
         // parse the env string
         if (wlmName == toLower(CraySLURMFrontend::getName())) {
             return CTI_WLM_CRAY_SLURM;
         } else if (wlmName == toLower(GenericSSHFrontend::getName())) {
             return CTI_WLM_SSH;
-        } else {
-            throw std::runtime_error("Invalid workload manager argument '" + wlmName + "' provided in " + CTI_WLM);
+        }
+        else {
+            throw std::runtime_error("Invalid workload manager argument '" + wlmName + "' provided in " + CTI_WLM_IMPL_ENV_VAR);
         }
     }
     else {
@@ -348,7 +370,7 @@ Frontend::detect_Frontend()
         }
     }
     // Unknown WLM
-    throw std::runtime_error("Unable to determine wlm in use. Manually set " + std::string{CTI_WLM} + " env var.");
+    throw std::runtime_error("Unable to determine wlm in use. Manually set " + std::string{CTI_WLM_IMPL_ENV_VAR} + " env var.");
 }
 
 Frontend&
@@ -374,7 +396,7 @@ Frontend::inst() {
                     break;
                 case CTI_WLM_NONE:
                 case CTI_WLM_MOCK:
-                    throw std::runtime_error("Unable to determine wlm in use. Manually set " + std::string{CTI_WLM} + " env var.");
+                    throw std::runtime_error("Unable to determine wlm in use. Manually set " + std::string{CTI_WLM_IMPL_ENV_VAR} + " env var.");
             }
             // Only store after fully constructing FE object. Otherwise we could run into
             // partial construction ordering issues.
@@ -398,9 +420,40 @@ Frontend::destroy() {
     }
 }
 
+std::vector<std::string>
+Frontend::getDefaultEnvVars() {
+    std::vector<std::string> ret;
+    // Check each attribute to see if it needs to be forwarded
+    if (!m_log_dir.empty()) {
+        ret.emplace_back(std::string{CTI_LOG_DIR_ENV_VAR} + "=" + m_log_dir);
+    }
+    if (m_pmi_fopen_timeout != PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT) {
+        ret.emplace_back(std::string{PMI_ATTRIBS_TIMEOUT_VAR} + "=" + std::to_string(m_pmi_fopen_timeout));
+    }
+    if (m_extra_sleep != 0) {
+        ret.emplace_back(std::string{PMI_EXTRA_SLEEP_VAR} + "=" + std::to_string(m_extra_sleep));
+    }
+    return ret;
+}
+
 Frontend::Frontend()
 : m_stage_deps{true}
+, m_log_dir{}
+, m_debug{false}
+, m_pmi_fopen_timeout{PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT}
+, m_extra_sleep{0}
 {
+    // Read initial environment variable overrides for default attrib values
+    const char* env_var = nullptr;
+    if ((env_var = getenv(CTI_LOG_DIR_ENV_VAR)) != nullptr) {
+        if (!cti::dirHasPerms(env_var, R_OK | W_OK | X_OK)) {
+            throw std::runtime_error(std::string{"Bad directory specified by environment variable "} + CTI_LOG_DIR_ENV_VAR);
+        }
+        m_log_dir = std::string{env_var};
+    }
+    if (getenv(CTI_DBG_ENV_VAR)) {
+        m_debug = true;
+    }
     // Setup the password file entry. Other utilites need to use this
     size_t buf_len = 4096;
     long rl = sysconf(_SC_GETPW_R_SIZE_MAX);
