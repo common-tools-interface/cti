@@ -96,13 +96,13 @@ private: // Internal data
 private:
     // Used to set the external facing error string
     static void set_error_str(std::string str);
-    // Used to obtain a pointer to the internal attribute string.
-    static const char *get_attr_str(const char *value);
 
 public:
     // Used to obtain a pointer to the internal error string.
     // This is for external consumption.
-    static char *get_error_str();
+    static const char *get_error_str();
+    // Used to obtain a pointer to the internal attribute string.
+    static const char *get_attr_str(const char *value);
 
     // Return codes
     static constexpr auto SUCCESS = int{0};

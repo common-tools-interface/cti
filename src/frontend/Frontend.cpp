@@ -427,7 +427,7 @@ Frontend::Frontend()
 {
     // Read initial environment variable overrides for default attrib values
     const char* env_var = nullptr;
-    if (env_var = getenv(CTI_LOG_DIR_ENV_VAR)) {
+    if ((env_var = getenv(CTI_LOG_DIR_ENV_VAR)) != nullptr) {
         if (!cti::dirHasPerms(env_var, R_OK | W_OK | X_OK)) {
             throw std::runtime_error(std::string{"Bad directory specified by environment variable "} + CTI_LOG_DIR_ENV_VAR);
         }

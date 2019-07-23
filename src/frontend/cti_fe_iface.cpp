@@ -680,30 +680,30 @@ cti_getAttribute(cti_attr_type_t attrib)
         switch (attrib) {
             case CTI_ATTR_STAGE_DEPENDENCIES:
                 if (fe.m_stage_deps) {
-                    return get_attr_str("1");
+                    return FE_iface::get_attr_str("1");
                 }
-                return get_attr_str("0");
+                return FE_iface::get_attr_str("0");
             case CTI_LOG_DIR:
-                return get_attr_str(fe.m_log_dir.c_str());
+                return FE_iface::get_attr_str(fe.m_log_dir.c_str());
             case CTI_DEBUG:
                 if (fe.m_debug) {
-                    return get_attr_str("1");
+                    return FE_iface::get_attr_str("1");
                 }
-                return get_attr_str("0");
+                return FE_iface::get_attr_str("0");
             case CTI_PMI_FOPEN_TIMEOUT:
             {
                 auto str = std::to_string(fe.m_pmi_fopen_timeout);
-                return get_attr_str(str.c_str());
+                return FE_iface::get_attr_str(str.c_str());
             }
             case CTI_EXTRA_SLEEP:
             {
                 auto str = std::to_string(fe.m_extra_sleep);
-                return get_attr_str(str.c_str());
+                return FE_iface::get_attr_str(str.c_str());
             }
             default:
                 throw std::runtime_error("Invalid cti_attr_type_t " + std::to_string((int)attrib));
         }
         // Shouldn't get here
-        return nullptr;
-    }, (char*)nullptr);
+        return (const char *)nullptr;
+    }, (const char*)nullptr);
 }
