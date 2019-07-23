@@ -3,7 +3,7 @@
  *            This contains function prototypes as well as definitions
  *            for the dynamic linker run order.
  *
- * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2015 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU

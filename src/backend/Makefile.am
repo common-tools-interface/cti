@@ -1,7 +1,7 @@
 #
 # Makefile.am for the backend components of the craytool interface.
 #
-# Copyright 2014-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2014-2019 Cray Inc. All Rights Reserved.
 #
 
 SUBDIRS = daemon

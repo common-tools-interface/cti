@@ -1,7 +1,7 @@
 #
 # Makefile.am for the MPIR interface components of the craytool interface.
 #
-# Copyright 2018-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2018-2019 Cray Inc. All Rights Reserved.
 #
 
 SRC             = @CRAYTOOL_DIR@/src

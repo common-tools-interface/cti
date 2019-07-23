@@ -1,7 +1,7 @@
 #
 # Makefile.am for the external components of the craytool interface.
 #
-# Copyright 2015-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2015-2019 Cray Inc. All Rights Reserved.
 #
 
 SUBDIRS = elfutils libssh2

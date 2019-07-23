@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_fe_iface.cpp - C interface layer for the cti frontend.
  *
- * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU

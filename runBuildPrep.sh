@@ -2,7 +2,7 @@
 #
 # runBuildPrep.sh - Preps the build environment
 #
-# Copyright 2019 Cray Inc.  All Rights Reserved.
+# Copyright 2019 Cray Inc. All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -42,7 +42,7 @@ check_exit_status $? binutils-devel
 
 zypper --non-interactive --no-gpg-check install mksh
 check_exit_status $? mksh
-    
+
 zypper --non-interactive --no-gpg-check install bzip2
 check_exit_status $? bzip2
 

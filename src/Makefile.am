@@ -2,7 +2,7 @@
 # Makefile.am for the libcraytool and dlaunch components of the craytool
 # interface.
 #
-# Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2011-2019 Cray Inc. All Rights Reserved.
 #
 
 SUBDIRS			= useful frontend backend

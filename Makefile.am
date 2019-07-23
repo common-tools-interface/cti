@@ -1,7 +1,7 @@
 #
 # Top level Makefile.am for the craytool interface.
 #
-# Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2011-2019 Cray Inc. All Rights Reserved.
 #
 
 ACLOCAL_AMFLAGS = -I m4
