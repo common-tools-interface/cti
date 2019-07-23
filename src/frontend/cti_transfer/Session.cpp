@@ -46,19 +46,13 @@
 std::string
 Session::generateStagePath(FE_prng& charSource) {
     std::string stageName;
-    // check to see if the caller set a staging directory name, otherwise generate one
-    if (const char* customStagePath = getenv(DAEMON_STAGE_VAR)) {
-        stageName = customStagePath;
-    } else {
-        // remove placeholder Xs from DEFAULT_STAGE_DIR
-        const std::string stageFormat(DEFAULT_STAGE_DIR);
-        stageName = stageFormat.substr(0, stageFormat.find("X"));
-
-        // replace 'X' characters in the stage_name string with random characters
-        size_t numChars = stageFormat.length() - stageName.length();
-        for (size_t i = 0; i < numChars; i++) {
-            stageName.push_back(charSource.genChar());
-        }
+    // remove placeholder Xs from DEFAULT_STAGE_DIR
+    const std::string stageFormat(DEFAULT_STAGE_DIR);
+    stageName = stageFormat.substr(0, stageFormat.find("X"));
+    // replace 'X' characters in the stage_name string with random characters
+    size_t numChars = stageFormat.length() - stageName.length();
+    for (size_t i = 0; i < numChars; i++) {
+        stageName.push_back(charSource.genChar());
     }
     return stageName;
 }
@@ -93,13 +87,13 @@ void Session::finalize() {
     if (m_seqNum == 0) {
         return;
     }
-
     // Get owning app
     auto app = getOwningApp();
-
+    // Get frontend reference
+    auto&& fe = app->getFrontend();
     writeLog("launchCleanup: creating daemonArgv for cleanup\n");
     // create DaemonArgv
-    cti::OutgoingArgv<DaemonArgv> daemonArgv("cti_daemon");
+    cti::OutgoingArgv<DaemonArgv> daemonArgv(CTI_BE_DAEMON_BINARY);
     daemonArgv.add(DaemonArgv::ApID,                app->getJobId());
     daemonArgv.add(DaemonArgv::ToolPath,            app->getToolPath());
     auto apath = app->getAttribsPath();
@@ -110,11 +104,11 @@ void Session::finalize() {
     daemonArgv.add(DaemonArgv::Directory,           m_stageName);
     daemonArgv.add(DaemonArgv::InstSeqNum,          std::to_string(m_seqNum));
     daemonArgv.add(DaemonArgv::Clean);
-    if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
-    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
-        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    if (fe.m_debug) { daemonArgv.add(DaemonArgv::Debug); };
+    auto env_vars = fe.getDefaultEnvVars();
+    for (auto i : env_vars) {
+        daemonArgv.add(DaemonArgv::EnvVariable, i);
     }
-
     // call cleanup function with DaemonArgv
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
     writeLog("launchCleanup: launching daemon for cleanup\n");
@@ -140,7 +134,7 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     if ( m_add_requirements ) {
         // Get the location of the daemon
         if (fe.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Required environment variable not set:" + std::string(BASE_DIR_ENV_VAR));
+            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
         }
 
         // ship CTI backend daemon
@@ -222,6 +216,8 @@ Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     auto inst = mani->instance();
     // Get owning app
     auto app = getOwningApp();
+    // Get frontend reference
+    auto&& fe = app->getFrontend();
     // Ship the manifest
     auto archiveName = shipManifest(mani);
     // create DaemonArgv
@@ -232,9 +228,10 @@ Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     daemonArgv.add(DaemonArgv::ManifestName, archiveName);
     daemonArgv.add(DaemonArgv::Directory,    m_stageName);
     daemonArgv.add(DaemonArgv::InstSeqNum,   std::to_string(m_seqNum));
-    if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
-    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
-        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    if (fe.m_debug) { daemonArgv.add(DaemonArgv::Debug); };
+    auto env_vars = fe.getDefaultEnvVars();
+    for (auto i : env_vars) {
+        daemonArgv.add(DaemonArgv::EnvVariable, i);
     }
     // call transfer function with DaemonArgv
     writeLog("sendManifest %d: starting daemon\n", inst);
@@ -253,6 +250,8 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
     mani->addBinary(daemon);
     // Get the owning app
     auto app = getOwningApp();
+    // Get frontend reference
+    auto&& fe = app->getFrontend();
     // Check to see if there is a manifest to send
     std::string archiveName;
     if (!mani->empty()) {
@@ -283,9 +282,10 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
     daemonArgv.add(DaemonArgv::Binary,              binaryName);
     daemonArgv.add(DaemonArgv::Directory,           m_stageName);
     daemonArgv.add(DaemonArgv::InstSeqNum,          std::to_string(m_seqNum));
-    if (getenv(DBG_ENV_VAR)) { daemonArgv.add(DaemonArgv::Debug); };
-    if (auto const dbgLogDir = getenv(DBG_LOG_ENV_VAR)) {
-        daemonArgv.add(DaemonArgv::EnvVariable, std::string{DBG_LOG_ENV_VAR} + "=" + dbgLogDir);
+    if (fe.m_debug) { daemonArgv.add(DaemonArgv::Debug); };
+    auto env_vars = fe.getDefaultEnvVars();
+    for (auto i : env_vars) {
+        daemonArgv.add(DaemonArgv::EnvVariable, i);
     }
     // add env vars
     if (envVars != nullptr) {

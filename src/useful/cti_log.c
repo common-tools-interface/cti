@@ -45,10 +45,9 @@
 #include "cti_log.h"
 
 cti_log_t*
-_cti_create_log(char const* filename, int suffix)
+_cti_create_log(char const* directory, char const* filename, int suffix)
 {
     char logfile[PATH_MAX];
-    char *envDir;
     FILE *fp;
 
     // sanity checks
@@ -56,15 +55,13 @@ _cti_create_log(char const* filename, int suffix)
         return (cti_log_t*)NULL;
 
     // determine where to create the log
-    if ((envDir = getenv(DBG_LOG_ENV_VAR)) == (char *)NULL)
-    {
-        // user didn't set the environment variable, so lets
-        // write to /tmp
-        envDir = "/tmp";
+    if (directory == (char *)NULL) {
+        // Write to /tmp as default
+        directory = "/tmp";
     }
 
     // create the fullpath string to the log file using PATH_MAX plus a null term
-    snprintf(logfile, PATH_MAX+1, "%s/dbglog_%s.%d.log", envDir, filename, suffix);
+    snprintf(logfile, PATH_MAX+1, "%s/dbglog_%s.%d.log", directory, filename, suffix);
 
     if ((fp = fopen(logfile, "a")) == (FILE *)NULL)
     {

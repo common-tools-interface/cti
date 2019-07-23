@@ -51,7 +51,7 @@ class CTI_Environment : public ::testing::Environment
 {
 public:
     // Ensure we override the install env var to our prefix
-    void SetUp() { setenv(BASE_DIR_ENV_VAR, INSTALL_PATH, 1); }
+    void SetUp() { setenv(CTI_BASE_DIR_ENV_VAR, INSTALL_PATH, 1); }
 };
 
 int main(int argc, char **argv) {

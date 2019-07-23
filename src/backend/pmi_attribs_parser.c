@@ -100,7 +100,7 @@ _cti_be_getPmiAttribsInfo(void)
         if (timeout == 0)
         {
             // Query the environment variable setting in case the user set this.
-            if ((env_var_str = getenv(PMI_ATTRIBS_TIMEOUT_ENV_VAR)) != NULL)
+            if ((env_var_str = getenv(PMI_ATTRIBS_TIMEOUT_VAR)) != NULL)
             {
                 // var is set, so use this
                 timeout = strtoul(env_var_str, NULL, 10);
@@ -143,7 +143,7 @@ _cti_be_getPmiAttribsInfo(void)
     if (tcount != 0)
     {
         // Query the environment variable setting in case the user set this.
-        if ((env_var_str = getenv(PMI_EXTRA_SLEEP_ENV_VAR)) != NULL)
+        if ((env_var_str = getenv(PMI_EXTRA_SLEEP_VAR)) != NULL)
         {
             // var is set, so use this
             extra_timeout = strtoul(env_var_str, NULL, 10);
