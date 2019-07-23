@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+#
 
 cmake_module="cmake/3.5.2"
 gcc_module="gcc/8.1.0"
@@ -89,8 +92,6 @@ LD_LIBRARY_PATH=$BUILD_DIR/lib/ make check
 
 mkdir -p $BUILD_DIR/docs
 cp $PWD/extras/docs/ATTRIBUTIONS_cti.txt $BUILD_DIR/docs
-mkdir $BUILD_DIR/examples
-cp -R $PWD/examples/* $BUILD_DIR/examples
 
 mkdir -p $BUILD_DIR/lib/pkgconfig/
 rm -f $BUILD_DIR/lib/pkgconfig/*

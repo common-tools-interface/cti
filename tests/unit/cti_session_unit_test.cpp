@@ -3,11 +3,33 @@
  *
  * Copyright 2019 Cray Inc.  All Rights Reserved.
  *
- * Unpublished Proprietary Information.
- * This unpublished work is protected to trade secret, copyright and other laws.
- * Except as permitted by contract or express written permission of Cray Inc.,
- * no part of this work or its content may be used, reproduced or disclosed
- * in any form.
+ * This software is available to you under a choice of one of two
+ * licenses.  You may choose to be licensed under the terms of the GNU
+ * General Public License (GPL) Version 2, available from the file
+ * COPYING in the main directory of this source tree, or the
+ * BSD license below:
+ *
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  *
  ******************************************************************************/
 
@@ -34,7 +56,7 @@ static constexpr char const* mockArgv[] = {"/usr/bin/true", nullptr};
 CTISessionUnitTest::CTISessionUnitTest()
     : CTIAppUnitTest{}
     , sessionPtr{Session::make_Session(mockApp)}
-{ 
+{
     file_names.push_back(TEST_FILE_NAME + "1.txt");
     for(auto&& fil : file_names) {
         remove(fil.c_str());
@@ -69,11 +91,11 @@ TEST_F(CTISessionUnitTest, createManifest) {
 }
 
 
-// due to tight coupling this mostly tests manifest 
+// due to tight coupling this mostly tests manifest
 TEST_F(CTISessionUnitTest, sendManifest) {
 
     auto test_manifest = (sessionPtr -> createManifest()).lock();
-     
+
     // create a test file to add to the manifest so it can be shipped properly
     {
          std::ofstream f1;
@@ -84,9 +106,9 @@ TEST_F(CTISessionUnitTest, sendManifest) {
          f1 << "f1";
          f1.close();
     }
-     
+
     ASSERT_NO_THROW(test_manifest -> sendManifest());
-     
+
     // test that manifest can't have files added after shipped
     ASSERT_THROW({
         try {
@@ -128,7 +150,7 @@ TEST_F(CTISessionUnitTest, finalize) {
     // test finalize when no manifests shipped
     ASSERT_NO_THROW(sessionPtr -> finalize());
     auto test_manifest = (sessionPtr -> createManifest()).lock();
-   
+
     // create a test file to add to the manifest so it can be shipped properly
     {
         std::ofstream f1;
