@@ -40,8 +40,8 @@
 #include <fstream>
 
 // CTI Transfer includes
-#include "frontend/cti_transfer/Manifest.hpp"
-#include "frontend/cti_transfer/Session.hpp"
+#include "frontend/transfer/Manifest.hpp"
+#include "frontend/transfer/Session.hpp"
 
 #include "useful/cti_wrappers.hpp"
 

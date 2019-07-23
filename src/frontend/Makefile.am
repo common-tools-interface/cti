@@ -4,7 +4,7 @@
 # Copyright 2014-2019 Cray Inc.  All Rights Reserved.
 #
 
-SUBDIRS				= cti_transfer frontend_impl mpir_iface daemon
+SUBDIRS				= transfer frontend_impl mpir_iface daemon
 
 SRC             	= @CRAYTOOL_DIR@/src
 INCLUDE				= @CRAYTOOL_DIR@/include
@@ -21,7 +21,7 @@ libcraytools_fe_la_CXXFLAGS	=	$(AM_CXXFLAGS) -fPIC $(DYNINST_CXXFLAGS) $(BOOST_C
 libcraytools_fe_la_CPPFLAGS	=	$(DYNINST_CPPFLAGS) $(BOOST_CPPFLAGS) $(CODE_COVERAGE_CPPFLAGS)
 libcraytools_fe_la_LIBADD	=	$(SRC)/useful/libuseful.la \
 								daemon/libfe_daemon_iface.la \
-								cti_transfer/libcti_transfer.la \
+								transfer/libtransfer.la \
 								frontend_impl/libfrontend_impl.la \
 								mpir_iface/libmpir_iface.la \
 								-ldl -lrt -lstdc++ $(ARCHIVE_LIBS) $(DYNINST_LIBS) $(SSH2_LIBS) $(CODE_COVERAGE_LIBS)

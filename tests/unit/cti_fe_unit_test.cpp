@@ -39,8 +39,8 @@
 #include <unordered_set>
 
 // CTI Transfer includes
-#include "frontend/cti_transfer/Manifest.hpp"
-#include "frontend/cti_transfer/Session.hpp"
+#include "frontend/transfer/Manifest.hpp"
+#include "frontend/transfer/Session.hpp"
 
 #include "cti_fe_unit_test.hpp"
 

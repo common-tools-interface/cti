@@ -1,9 +1,7 @@
 /******************************************************************************\
  * cray_tools_be.h - The public API definitions for the backend portion of
- *                   the Cray tools interface. This interface should be used
- *                   only on Cray compute nodes. It will not function on eslogin
- *                   or login nodes. Backend refers to the location where
- *                   applications are run.
+ *                   the Cray tools interface. Backend refers to the location
+ *                   where applications are run.
  *
  * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *

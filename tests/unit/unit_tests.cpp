@@ -38,8 +38,8 @@
 #include <stdlib.h>
 
 // CTI Transfer includes
-#include "frontend/cti_transfer/Manifest.hpp"
-#include "frontend/cti_transfer/Session.hpp"
+#include "frontend/transfer/Manifest.hpp"
+#include "frontend/transfer/Session.hpp"
 
 // Unit Test includes
 #include "cti_fe_unit_test.hpp"
