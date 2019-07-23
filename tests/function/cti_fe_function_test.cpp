@@ -1,3 +1,13 @@
+/*
+ * Copyright 2019 Cray Inc. All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -61,8 +71,8 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     }
 
     ASSERT_NE(external_ip, "");
-   
-    // build 'server' socket  
+
+    // build 'server' socket
     int test_socket;
     {
         // setup hints
@@ -76,11 +86,11 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
 
         // uses external_ip in order to bind socket to external IP and not localhost
         // if NULL is used this will ALWAYS give localhost which is not non-wbox compatible
-        ASSERT_EQ(getaddrinfo(external_ip.c_str(), "0", &hints, &listener), 0); 
-    
+        ASSERT_EQ(getaddrinfo(external_ip.c_str(), "0", &hints, &listener), 0);
+
         // Create the socket
         ASSERT_NE(test_socket = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), -1) << "Failed to create test_socket socket";
-    
+
         // Bind the socket
         ASSERT_EQ(bind(test_socket, listener->ai_addr, listener->ai_addrlen), 0) << "Failed to bind test_socket socket";
 
@@ -98,7 +108,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
     ASSERT_EQ(getsockname(test_socket, (struct sockaddr*) &sa, &sa_len), 0);
 
     // build required parameters for launching external app
-    {   
+    {
         // create manifest and args
         auto const manifestId = cti_createManifest(sessionId);
         ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
@@ -122,7 +132,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
 
     // check for correctness
     ASSERT_STREQ(buffer, expecting.c_str());
-    
+
     // close socket
     close(test_socket);
 }

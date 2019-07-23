@@ -2,7 +2,7 @@
  * Manifest.hpp - In-progress file list that is owned by a session.
  *                It is the sessions responsibility to ship a manifest.
  *
- * Copyright 2013-2019 Cray Inc.    All Rights Reserved.
+ * Copyright 2013-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU

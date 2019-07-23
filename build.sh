@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2011-2019 Cray Inc. All Rights Reserved.
 #
 
 cmake_module="cmake/3.5.2"
