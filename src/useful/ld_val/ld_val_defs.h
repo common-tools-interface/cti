@@ -39,11 +39,11 @@
 #ifndef _LD_VAL_DEFS_H
 #define _LD_VAL_DEFS_H
 
-#define LD_AUDIT				"LD_AUDIT"
+#define LD_AUDIT                "LD_AUDIT"
 
-#define BLOCK_SIZE			16
+#define BLOCK_SIZE          16
 // Do not make this larger than the pipe capacity.
-#define READ_BUF_LEN			1024
+#define READ_BUF_LEN            1024
 
 #define MANIFEST_BLACKLIST "/lib:/lib64:/usr/lib:/usr/lib64"
 

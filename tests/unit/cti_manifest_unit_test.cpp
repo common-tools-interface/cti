@@ -177,7 +177,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
 
     // test that the file data was actually added to memory
     ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("./" + file_names[0]))],
- 	           cti::getRealPath("./" + file_names[0]));
+               cti::getRealPath("./" + file_names[0]));
 
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
@@ -314,7 +314,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
             manifestPtr -> addBinary(std::string("./" + file_names[1]).c_str());
         } catch (const std::exception& ex) {
             EXPECT_STREQ(std::string("./" + file_names[1] + ": Could not locate in PATH.").c_str(), ex.what());
- 	   throw;
+       throw;
         }
     }, std::runtime_error);
 
@@ -328,7 +328,7 @@ TEST_F(CTIManifestUnitTest, addBinary) {
             manifestPtr -> addBinary("../test_support/one_socket", Manifest::DepsPolicy::Ignore);
         } catch (const std::exception& ex) {
             EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
- 	   throw;
+       throw;
         }
     }, std::runtime_error);
 
@@ -388,7 +388,7 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
             manifestPtr -> addLibrary(std::string("./" + file_names[1]).c_str());
         } catch (const std::exception& ex) {
             EXPECT_STREQ(std::string("./" + file_names[1] + ": Could not locate in LD_LIBRARY_PATH or system location.").c_str(), ex.what());
- 	   throw;
+       throw;
         }
     }, std::runtime_error);
 
@@ -403,7 +403,7 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
             manifestPtr -> addLibrary(std::string("./" + file_names[0]).c_str(), Manifest::DepsPolicy::Ignore);
         } catch (const std::exception& ex) {
             EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
- 	   throw;
+       throw;
         }
     }, std::runtime_error);
 
@@ -441,7 +441,7 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
         }
         f_temp << "I'm a library file";
         f_temp.close();
-	temp_file_names.push_back(f_temp_path);
+    temp_file_names.push_back(f_temp_path);
     }
     ASSERT_NO_THROW(manifestPtr -> addLibDir(tdir));
 
@@ -470,7 +470,7 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
             manifestPtr -> addLibDir(std::string("./" + file_names[1]).c_str());
         } catch (const std::exception& ex) {
             EXPECT_STREQ("realpath failed.", ex.what());
- 	   throw;
+       throw;
         }
     }, std::runtime_error);
 

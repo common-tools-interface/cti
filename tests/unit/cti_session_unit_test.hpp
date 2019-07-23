@@ -50,13 +50,13 @@
 class CTISessionUnitTest : public CTIAppUnitTest
 {
 protected: // variables
-	std::shared_ptr<Session> sessionPtr;
-	std::vector<std::string> file_names;
+    std::shared_ptr<Session> sessionPtr;
+    std::vector<std::string> file_names;
 
-	// string constants
-	const std::string TEST_FILE_NAME = "archive_test_file";
+    // string constants
+    const std::string TEST_FILE_NAME = "archive_test_file";
 
 protected: // interface
-	CTISessionUnitTest();
-	~CTISessionUnitTest();
+    CTISessionUnitTest();
+    ~CTISessionUnitTest();
 };

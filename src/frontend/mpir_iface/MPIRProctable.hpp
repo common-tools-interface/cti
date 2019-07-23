@@ -38,8 +38,8 @@
 #include <vector>
 
 struct MPIRProctableElem {
-	pid_t pid;
-	std::string hostname;
+    pid_t pid;
+    std::string hostname;
 };
 
 using MPIRProctable = std::vector<MPIRProctableElem>;
