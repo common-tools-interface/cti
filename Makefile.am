@@ -94,7 +94,7 @@ SOURCES/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz: set_default_$(PKG_NAME)_$(PKG
 	mv $(word 2,$^) $(INSTALL_DIR)/$(PKG_VERSION)
 	cp $< $(INSTALL_DIR)/$(PKG_VERSION)
 	tar czvf $(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz $(INSTALL_DIR)/$(PKG_VERSION) \
-		--transform s:opt:$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV)/opt:g
+		--transform s:opt/cray/pe/cti:$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV)$(INSTALL_DIR):g
 	mkdir -p  $(CUR_DIR)/BUILD/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV)
 	cp $(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz $@
 

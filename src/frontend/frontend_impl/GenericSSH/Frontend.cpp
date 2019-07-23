@@ -783,6 +783,23 @@ GenericSSHFrontend::createPIDListFile(MPIRProctable const& procTable, std::strin
     }
 }
 
+bool
+GenericSSHFrontend::isSupported()
+{
+    // Check if this is a cluster system.
+    // FIXME: This is a hack. This is not a reliable check for all environments.
+    // For example, whiteboxes should support direct SSH, but this file will not be present.
+    // In this case, no WLM will be detected, and the user will be instructed to set the
+    // CRAY_CTI_WLM environment variable.
+    { struct stat sb;
+        if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 std::unique_ptr<MPIRInstance>
 GenericSSHFrontend::launchApp(const char * const launcher_argv[],
         int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[])

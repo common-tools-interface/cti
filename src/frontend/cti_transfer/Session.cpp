@@ -322,17 +322,24 @@ Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) 
             // map /folderName/fileName to source file path newPaths[fileName]
             const std::string fileArchivePath(folderName + "/" + fileName);
             if (m_sourcePaths.find(fileArchivePath) != m_sourcePaths.end()) {
-                throw std::runtime_error(
-                    std::string("tried to merge transfered file ") + fileArchivePath +
-                    " but it was already in the session!");
-            } else {
-                if (cti::isSameFile(m_sourcePaths[fileArchivePath], newPaths.at(fileName))) {
+                auto const fileSourcePath = newPaths.at(fileName);
+                if (cti::isSameFile(m_sourcePaths[fileArchivePath], fileSourcePath)) {
                     // duplicate, tell manifest to not bother shipping
+                    writeLog("mergeTransfered: skip already shipped %s\n", fileSourcePath.c_str());
                     toRemove.push_back(std::make_pair(folderName, fileName));
                 } else {
-                    // register new file as coming from Manifest's source
-                    m_sourcePaths[fileArchivePath] = cti::getRealPath(newPaths.at(fileName));
+                    writeLog("mergeTransfered: conflict: shipped %s and tried to merge %s\n",
+                        m_sourcePaths.at(fileArchivePath).c_str(),
+                        fileSourcePath.c_str());
+                    throw std::runtime_error(
+                        std::string("tried to merge transfered file ") + fileArchivePath +
+                        " but it was already in the session!");
                 }
+            } else {
+                // register new file as coming from Manifest's source
+                auto const realFilePath = cti::getRealPath(newPaths.at(fileName));
+                writeLog("mergeTransfered: registering new file %s\n", realFilePath.c_str());
+                m_sourcePaths[fileArchivePath] = realFilePath;
             }
         }
     }

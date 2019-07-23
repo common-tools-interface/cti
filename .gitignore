@@ -32,6 +32,7 @@ external/wlm_detect_base
 
 .deps
 .libs
+.scannerwork
 
 src/frontend/daemon/cti_fe_daemon*
 src/backend/daemon/cti_be_daemon*

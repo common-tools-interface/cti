@@ -38,6 +38,10 @@ struct SrunInfo : public cti_srunProc_t {
 class CraySLURMFrontend final : public Frontend
 {
 public: // inherited interface
+    static char const* getName()        { return "slurm"; }
+    static char const* getDescription() { return "Cray based SLURM"; }
+    static bool isSupported();
+
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_CRAY_SLURM; }
 
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
