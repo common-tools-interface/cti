@@ -13,7 +13,7 @@ cd ${1:-./}
 START_DIR=$PWD
 
 # Make sure script is executing in the right place
-if ! test -f ./create_gcov_report.sh ; then
+if ! test -f ./create_local_gcov_report.sh ; then
     echo "Invalid directory for execution."
     echo "Either launch the script from tests/script or provide it with the path to tests/script"
     exit 1
@@ -23,7 +23,7 @@ fi
 cti=$PWD/../../
 gcov_report_path=$cti/tests/gcov_report/
 frontend_path=$cti/src/frontend/
-gcov_dirs=($cti/tests/unit/ $frontend_path/ $frontend_path/cti_transfer/ $frontend_path/daemon/ $frontend_path/mpir_iface/ $frontend_path/frontend_impl/GenericSSH/ $frontend_path/frontend_impl/CraySLURM/)
+gcov_dirs=($frontend_path/ $frontend_path/cti_transfer/ $frontend_path/daemon/ $frontend_path/mpir_iface/ $frontend_path/frontend_impl/GenericSSH/ $frontend_path/frontend_impl/CraySLURM/)
 
 # Configure modules for gcov usage
 module purge
@@ -47,6 +47,12 @@ fi
 # Clean up old test results
 rm -rf $gcov_report_path/*
 
+# Create directory for .gcov dump
+if ! mkdir $gcov_report_path/gcov_all ; then
+    echo "Failed to create gcov_all directory."
+    exit 1
+fi
+
 # Go to each directory and compile gcov data
 # and place results into directories in gcov_report
 for i in "${gcov_dirs[@]}"; do 
@@ -60,11 +66,9 @@ for i in "${gcov_dirs[@]}"; do
         filename="${j%.*}"
         mkdir -p $gcov_report_path/$dir_name/$filename
         touch $gcov_report_path/$dir_name/$filename/${filename}_report.txt
-        gcov -k $filename > $gcov_report_path/$dir_name/$filename/${filename}_report.txt
-        mv *.gcov $gcov_report_path/$dir_name/$filename
+        gcov -rk $j > $gcov_report_path/$dir_name/$filename/${filename}_report.txt
+        cp *.gcov $gcov_report_path/$dir_name/$filename
+        mv *.gcov $gcov_report_path/gcov_all
     done
-    if ls .libs/*.gcno &> /dev/null ; then
-        rm ./*.gc*
-    fi
     cd $START_DIR
 done
