@@ -100,7 +100,7 @@ char FE_prng::genChar()
 cti::Logger&
 Frontend::getLogger(void)
 {
-    static auto _cti_logger = cti::Logger{Frontend::inst().getHostname().c_str(), getpid()};
+    static auto _cti_logger = cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()};
     return _cti_logger;
 }
 
