@@ -144,9 +144,9 @@ main(int argc, char **argv)
 
     // Conduct WLM specific calls
     switch (mywlm) {
-        case CTI_WLM_CRAY_SLURM:
+        case CTI_WLM_SLURM:
         {
-            cti_cray_slurm_ops_t * slurm_ops;
+            cti_slurm_ops_t * slurm_ops;
             cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);

@@ -209,13 +209,13 @@ main(int argc, char **argv)
 
     // Check the args to make sure they are valid given the wlm in use
     switch (mywlm) {
-        case CTI_WLM_CRAY_SLURM:
+        case CTI_WLM_SLURM:
         {
             if (j_arg == 0 || s_arg == 0) {
                 fprintf(stderr, "Error: Missing --jobid and --stepid argument. This is required for the SLURM WLM.\n");
             }
             assert(j_arg != 0 && s_arg != 0);
-            cti_cray_slurm_ops_t * slurm_ops;
+            cti_slurm_ops_t * slurm_ops;
             cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);
