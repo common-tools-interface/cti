@@ -40,5 +40,5 @@
  }
 
 
-module-whatis   "Loads the Cray Tools Interface."
+module-whatis   "Loads the Cray Common Tools Interface."
 

@@ -40,7 +40,7 @@
 #ifndef _CTI_DEFS_H
 #define _CTI_DEFS_H
 
-#include "cray_tools_shared.h"
+#include "common_tools_shared.h"
 
 // We use macros defined by configure in this file. So we need to get access to
 // config.h. Since that doesn't have good macro guards, and this file does, it
@@ -80,7 +80,7 @@ extern "C" {
 #define PID_FILE                            ".cti_pids"             // Name of the file containing the pids of the tool daemon processes
 
 /*******************************************************************************
-** System information
+** Cray System information
 *******************************************************************************/
 #define CRAY_XT_NID_FILE         "/proc/cray_xt/nid"                // file where nid info is located on XT/XC systems
 #define CRAY_XT_HOSTNAME_FMT     "nid%05d"                          // NID based hostname format string
@@ -157,20 +157,21 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SRUN_OVERRIDE_ARGS_ENV_VAR "CTI_SRUN_OVERRIDE" // Frontend: replace variable SRUN arguments with these given arguments (read)
 #define SRUN_APPEND_ARGS_ENV_VAR   "CTI_SRUN_APPEND"   // Frontend: append these arguments to the variable list of SRUN arguments (read)
 
-#define BE_GUARD_ENV_VAR    "CRAYTOOL_IAMBACKEND"       //Backend: Set by the daemon launcher to ensure proper setup
-#define APID_ENV_VAR        "CRAYTOOL_APID"             //Backend: Used to hold the string representation of the apid (set)
-#define WLM_ENV_VAR         "CRAYTOOL_WLM"              //Backend: Used to hold the enum representation of the wlm (set)
-#define SCRATCH_ENV_VAR     "TMPDIR"                    //Backend: Used to denote temporary storage space (set)
-#define OLD_SCRATCH_ENV_VAR "CRAYTOOL_OLD_TMPDIR"       //Backend: Used to denote the old setting of TMPDIR (set)
-#define OLD_CWD_ENV_VAR     "CRAYTOOL_OLD_CWD"          //Backend: Used to denote the old setting of CWD (set)
-#define TOOL_DIR_VAR        "CRAYTOOL_TOP_LEVEL"        //Backend: KEEP HIDDEN! Used to point at the top level toolhelper dir (set)
-#define ROOT_DIR_VAR        "CRAYTOOL_ROOT_DIR"         //Backend: Used to denote the fake root of the tool daemon (set)
-#define BIN_DIR_VAR         "CRAYTOOL_BIN_DIR"          //Backend: Used to denote where binaries are located (set)
-#define LIB_DIR_VAR         "CRAYTOOL_LIB_DIR"          //Backend: Used to denote where libraries are located (set)
-#define FILE_DIR_VAR        "CRAYTOOL_FILE_DIR"         //Backend: Used to denote where files are located (set)
-#define PMI_ATTRIBS_DIR_VAR "CRAYTOOL_PMI_ATTRIBS_DIR"  //Backend: Used to denote where the pmi_attribs file is located (set)
-#define PMI_ATTRIBS_TIMEOUT_VAR "CRAY_CTI_PMI_FOPEN_TIMEOUT"    //Backend: Used to define a sleep timeout period for creation of pmi_attribs file (read)
-#define PMI_EXTRA_SLEEP_VAR "CRAY_CTI_PMI_EXTRA_SLEEP"  //Backend: Used to sleep a fixed period of time after the pmi_attribs file has been opened (read)
+// Backend related env vars
+#define BE_GUARD_ENV_VAR    "CTI_IAMBACKEND"        //Backend: Set by the daemon launcher to ensure proper setup
+#define APID_ENV_VAR        "CTI_APID"              //Backend: Used to hold the string representation of the apid (set)
+#define WLM_ENV_VAR         "CTI_WLM"               //Backend: Used to hold the enum representation of the wlm (set)
+#define SCRATCH_ENV_VAR     "TMPDIR"                //Backend: Used to denote temporary storage space (set)
+#define OLD_SCRATCH_ENV_VAR "CTI_OLD_TMPDIR"        //Backend: Used to denote the old setting of TMPDIR (set)
+#define OLD_CWD_ENV_VAR     "CTI_OLD_CWD"           //Backend: Used to denote the old setting of CWD (set)
+#define TOOL_DIR_VAR        "CTI_TOP_LEVEL"         //Backend: KEEP HIDDEN! Used to point at the top level toolhelper dir (set)
+#define ROOT_DIR_VAR        "CTI_ROOT_DIR"          //Backend: Used to denote the fake root of the tool daemon (set)
+#define BIN_DIR_VAR         "CTI_BIN_DIR"           //Backend: Used to denote where binaries are located (set)
+#define LIB_DIR_VAR         "CTI_LIB_DIR"           //Backend: Used to denote where libraries are located (set)
+#define FILE_DIR_VAR        "CTI_FILE_DIR"          //Backend: Used to denote where files are located (set)
+#define PMI_ATTRIBS_DIR_VAR "CTI_PMI_ATTRIBS_DIR"   //Backend: Used to denote where the pmi_attribs file is located (set)
+#define PMI_ATTRIBS_TIMEOUT_VAR "CTI_PMI_FOPEN_TIMEOUT" //Backend: Used to define a sleep timeout period for creation of pmi_attribs file (read)
+#define PMI_EXTRA_SLEEP_VAR "CTI_PMI_EXTRA_SLEEP"   //Backend: Used to sleep a fixed period of time after the pmi_attribs file has been opened (read)
 
 #ifdef __cplusplus
 }
@@ -180,7 +181,7 @@ typedef slurmPidFile_t          cti_pidFile_t;
 */
 namespace cti {
 
-// Default install directories
+// Default install directories on cray systems
 static constexpr const char* const default_dir_locs[] = {
     "/opt/cray/pe/cti/" CTI_RELEASE_VERSION,
     "/opt/cray/cti/" CTI_RELEASE_VERSION,

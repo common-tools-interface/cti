@@ -155,13 +155,13 @@ Frontend::findCfgDir()
         }
     }
 
-    // Create the directory name string - we default this to have the name cray_cti-<username>
+    // Create the directory name string - we default this to have the name cti-<username>
     std::string cfgPath;
     if (!customCfgDir.empty()) {
-        cfgPath = customCfgDir + "/cray_cti-" + username;
+        cfgPath = customCfgDir + "/cti-" + username;
     }
     else if (!cfgDir.empty()) {
-        cfgPath = cfgDir + "/cray_cti-" + username;
+        cfgPath = cfgDir + "/cti-" + username;
     }
     else {
         // We have no where to create a temporary directory...

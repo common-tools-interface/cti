@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cti_launch_test.c - An example program which takes advantage of the Cray
+ * cti_launch_test.c - An example program which takes advantage of the common
  *          tools interface which will launch an application from the given
  *          argv and display information about the job
  *
@@ -41,7 +41,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 #include "cti_fe_common.h"
 
 void

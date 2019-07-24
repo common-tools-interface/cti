@@ -5,11 +5,11 @@
 %define build_version [version]
 %define curPath [cur_path]
 
-Summary: Cray Tools Interface
+Summary: Cray Common Tools Interface
 Name: %{namespace}-%{intranamespace_name}-%{build_version}
 Version: [package_revision]
 Release: [rpm_release][sles_version]
-License: BSD
+License: Dual BSD or GPLv2
 Group: Development/System
 URL: [url]
 Source: [tarball]
@@ -23,7 +23,7 @@ Requires: cray-gcc-8.1.0
 %define debug_package %{nil}
 
 %description
-Cray Tools Interface.
+Cray Common Tools Interface.
 
 # version
 %define major_version %(echo %{build_version} | awk -v n=1 'BEGIN { FS = "." } ; { print $n }')
@@ -132,12 +132,12 @@ sed -i "s,\[module_dir\],$RPM_INSTALL_PREFIX/modulefiles,g" \
 $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version},g" \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/craytools_be.pc
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_be.pc
 
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version},g" \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/craytools_fe.pc
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_fe.pc
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcraytools_[bf]e\.so\.1" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcommontools_[bf]e\.so\.1" \
 | sed "/.*\.so\.[0-9]\.[0-9]/d" > $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
 # prevent echo of new directory as it messes up install output

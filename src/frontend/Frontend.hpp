@@ -98,7 +98,7 @@ public: // impl.-specific interface that derived type must implement
     // Frontend implementations must implement the following static functions:
 
     // static char const* getName()
-    //   return the short name for the WLM that can be set in the CRAY_CTI_WLM environment variable
+    //   return the short name for the WLM that can be set by CTI_WLM_IMPL_ENV_VAR
 
     // static char const* getDescription()
     //   return the long description for the WLM used on call to cti_wlm_type_toString

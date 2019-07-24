@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cti_argv_defs.h - A header file to define the strong argv interface]
+ * cti_argv_defs.h - A header file to define the strong argv interface
  *
  * Copyright 2018-2019 Cray Inc. All Rights Reserved.
  *

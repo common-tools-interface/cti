@@ -42,7 +42,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 #include "cti_fe_common.h"
 
 void

@@ -1,13 +1,13 @@
 #
-# Makefile.am for the CTI transfer components of the craytool interface.
+# Makefile.am for the transfer components of the common tools interface
 #
 # Copyright 2014-2019 Cray Inc. All Rights Reserved.
 #
 
 @CODE_COVERAGE_RULES@
 
-SRC             = @CRAYTOOL_DIR@/src
-INCLUDE			= @CRAYTOOL_DIR@/include
+SRC             = @COMMONTOOL_DIR@/src
+INCLUDE			= @COMMONTOOL_DIR@/include
 
 AM_CXXFLAGS		= -Wall -I$(SRC) -I$(SRC)/frontend -I$(INCLUDE)
 AM_LIBTOOLFLAGS = --quiet

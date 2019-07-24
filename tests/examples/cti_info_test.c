@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cti_info_test.c - An example program which takes advantage of the Cray
+ * cti_info_test.c - An example program which takes advantage of the common
  *          tools interface which will gather information from the WLM about a
  *          previously launched job.
  *
@@ -44,7 +44,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 #include "cti_fe_common.h"
 
 const struct option long_opts[] = {
@@ -60,7 +60,7 @@ usage(char *name)
 {
     fprintf(stdout, "USAGE: %s [OPTIONS]...\n", name);
     fprintf(stdout, "Gather information about a previously launched application\n");
-    fprintf(stdout, "using the Cray tools interface.\n\n");
+    fprintf(stdout, "using the common tools interface.\n\n");
 
     fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
     fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");

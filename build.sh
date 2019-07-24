@@ -82,7 +82,7 @@ module load $cmake_module
 
 autoreconf -ifv
 set -x
-./configure --enable-static=no --prefix=$BUILD_DIR #--enable-code-coverage
+./configure -C --enable-static=no --prefix=$BUILD_DIR #--enable-code-coverage
 set +x
 
 make -j32
@@ -95,10 +95,10 @@ cp $PWD/extras/docs/ATTRIBUTIONS_cti.txt $BUILD_DIR/docs
 
 mkdir -p $BUILD_DIR/lib/pkgconfig/
 rm -f $BUILD_DIR/lib/pkgconfig/*
-cp $PWD/craytools_be.pc  $BUILD_DIR/lib/pkgconfig/craytools_be.pc
-cp $PWD/craytools_fe.pc  $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
-chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_be.pc
-chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
+cp $PWD/common_tools_be.pc  $BUILD_DIR/lib/pkgconfig/common_tools_be.pc
+cp $PWD/common_tools_fe.pc  $BUILD_DIR/lib/pkgconfig/common_tools_fe.pc
+chmod a+rwx $BUILD_DIR/lib/pkgconfig/common_tools_be.pc
+chmod a+rwx $BUILD_DIR/lib/pkgconfig/common_tools_fe.pc
 
 # run functional test suite
 

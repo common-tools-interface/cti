@@ -75,8 +75,8 @@ fi
 RELEASE_DATE=`source $PWD/scripts/find_release_date.sh`
 DATE_COMMIT=$GIT_STR-$REL
 REL_OS=$REL.$OS_VER
-PKG_MAJOR=$(cat $PWD/release_versioning | grep ^craytool_major= | cut -d'"' -f2)
-PKG_MINOR=$(cat $PWD/release_versioning | grep ^craytool_minor= | cut -d'"' -f2)
+PKG_MAJOR=$(cat $PWD/release_versioning | grep ^common_tool_major= | cut -d'"' -f2)
+PKG_MINOR=$(cat $PWD/release_versioning | grep ^common_tool_minor= | cut -d'"' -f2)
 PKG_BUGFIX=$(cat $PWD/release_versioning | grep ^revision= | cut -d'"' -f2)
 PKG_VERSION=$PKG_MAJOR.$PKG_MINOR.$PKG_BUGFIX
 INSTALL_DIR=/opt/cray/pe/$NAME
