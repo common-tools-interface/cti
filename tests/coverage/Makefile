@@ -1,5 +1,5 @@
 SRC := $(PWD)/../../src/
-GCNOS := $(wildcard ../../src/frontend/cti_transfer/.libs/*.gcno)
+GCNOS := $(wildcard ../../src/frontend/transfer/.libs/*.gcno)
 
 ifeq ($(GCNOS),)
     echo "Please use --enable-code-coverage in build.sh and rebuild"

@@ -42,7 +42,7 @@
 #include <string>
 #include <vector>
 
-#include "frontend/cti_transfer/Archive.hpp"
+#include "frontend/transfer/Archive.hpp"
 
 #include "useful/cti_wrappers.hpp"
 

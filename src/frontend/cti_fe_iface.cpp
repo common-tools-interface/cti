@@ -40,8 +40,8 @@
 #include "cti_fe_iface.hpp"
 
 // CTI Transfer includes
-#include "cti_transfer/Manifest.hpp"
-#include "cti_transfer/Session.hpp"
+#include "transfer/Manifest.hpp"
+#include "transfer/Session.hpp"
 
 // CTI Frontend / App implementations
 #include "Frontend.hpp"
