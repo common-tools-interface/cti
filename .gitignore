@@ -26,10 +26,6 @@ m4/lt~obsolete.m4
 craytools_be.pc
 craytools_fe.pc
 
-external/alps_base
-external/slurm_base
-external/wlm_detect_base
-
 .deps
 .libs
 .scannerwork
@@ -37,7 +33,6 @@ external/wlm_detect_base
 src/frontend/daemon/cti_fe_daemon*
 src/backend/daemon/cti_be_daemon*
 
-src/cscope.out
 /stamp-h1
 tests/test_binaries
 tests/function/avocado-virtual-environment
@@ -49,7 +44,6 @@ scripts/tmp
 **.la
 *~
 *.swp
-
 *.make
 *.cmake
 *.marks
