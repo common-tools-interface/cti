@@ -1,5 +1,5 @@
 #
-# Makefile.am for the frontend impl components of the craytool interface.
+# Makefile.am for the frontend impl components of the common tools interface
 #
 # Copyright 2019 Cray Inc. All Rights Reserved.
 #

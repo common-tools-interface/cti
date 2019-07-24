@@ -95,10 +95,10 @@ cp $PWD/extras/docs/ATTRIBUTIONS_cti.txt $BUILD_DIR/docs
 
 mkdir -p $BUILD_DIR/lib/pkgconfig/
 rm -f $BUILD_DIR/lib/pkgconfig/*
-cp $PWD/craytools_be.pc  $BUILD_DIR/lib/pkgconfig/craytools_be.pc
-cp $PWD/craytools_fe.pc  $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
-chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_be.pc
-chmod a+rwx $BUILD_DIR/lib/pkgconfig/craytools_fe.pc
+cp $PWD/commontools_be.pc  $BUILD_DIR/lib/pkgconfig/commontools_be.pc
+cp $PWD/commontools_fe.pc  $BUILD_DIR/lib/pkgconfig/commontools_fe.pc
+chmod a+rwx $BUILD_DIR/lib/pkgconfig/commontools_be.pc
+chmod a+rwx $BUILD_DIR/lib/pkgconfig/commontools_fe.pc
 
 # run functional test suite
 

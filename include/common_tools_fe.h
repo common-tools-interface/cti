@@ -1,7 +1,7 @@
 /*****************************************************************************\
- * cray_tools_fe.h - The public API definitions for the frontend portion of the
- *                   Cray tools interface. Frontend refers to the location
- *                   where applications are launched.
+ * common_tools_fe.h - The public API definitions for the frontend portion of
+ *                     the common tools interface. Frontend refers to the
+ *                     location where applications are launched.
  *
  * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *
@@ -35,17 +35,17 @@
  *
  *****************************************************************************/
 
-#ifndef _CRAY_TOOLS_FE_H
-#define _CRAY_TOOLS_FE_H
+#ifndef _COMMON_TOOLS_FE_H
+#define _COMMON_TOOLS_FE_H
 
-#include "cray_tools_shared.h"
+#include "common_tools_shared.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /************************************************************
- * Types defined by the Cray tools interface frontend
+ * Types defined by the common tools interface frontend
  ***********************************************************/
 
 /*
@@ -80,9 +80,9 @@ typedef int64_t cti_app_id_t;
 typedef int64_t cti_session_id_t;
 typedef int64_t cti_manifest_id_t;
 
-/************************************************************
- * The Cray tools interface frontend calls are defined below.
- ***********************************************************/
+/*******************************************************************************
+ * The common tools interface frontend calls are defined below.
+ ******************************************************************************/
 
 /*******************************************************************************
  * The following functions can be called at any time.
@@ -651,7 +651,7 @@ cti_wlm_type_t cti_open_ops(void **ops);
  *      when finished using it.
  *-----------------------------------------------------------------------------
  * registerJobStep - Assists in registering the jobid and stepid of an already
- *                   running srun application for use with the Cray tool
+ *                   running srun application for use with the common tools
  *                   interface.
  *
  * Detail
@@ -704,8 +704,8 @@ typedef struct {
 /*-----------------------------------------------------------------------------
  * cti_ssh_ops extensions - Extensions for the Generic SSH based WLM
  *-----------------------------------------------------------------------------
- * registerJob - Registers an already running application for use with the Cray
- *               tool interface.
+ * registerJob - Registers an already running application for use with the
+ *               common tools interface.
  *
  * Detail
  *      This function is used for registering a valid application that was
@@ -1180,4 +1180,4 @@ char * cti_getSessionTmpDir(cti_session_id_t sid);
 }
 #endif
 
-#endif /* _CRAY_TOOLS_FE_H */
+#endif /* _COMMON_TOOLS_FE_H */

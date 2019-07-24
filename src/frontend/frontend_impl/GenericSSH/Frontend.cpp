@@ -617,8 +617,6 @@ GenericSSHApp::startDaemon(const char* const args[])
         launcherArgv.add(*arg);
     }
 
-    // TODO for PE-26002: use values in CRAY_DBG_LOG_DIR, CRAY_CTI_DBG to add daemon debug arguments
-
     // Execute the launcher on each of the hosts using SSH
     for (auto&& node : m_stepLayout.nodes) {
         SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(launcherArgv.get());
@@ -812,7 +810,7 @@ GenericSSHFrontend::isSupported()
     // FIXME: This is a hack. This is not a reliable check for all environments.
     // For example, whiteboxes should support direct SSH, but this file will not be present.
     // In this case, no WLM will be detected, and the user will be instructed to set the
-    // CRAY_CTI_WLM environment variable.
+    // CTI_WLM_IMPL_ENV_VAR environment variable.
     { struct stat sb;
         if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
             return true;

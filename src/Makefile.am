@@ -1,6 +1,5 @@
 #
-# Makefile.am for the libcraytool and dlaunch components of the craytool
-# interface.
+# Makefile.am for top level src tree
 #
 # Copyright 2011-2019 Cray Inc. All Rights Reserved.
 #

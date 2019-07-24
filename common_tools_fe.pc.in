@@ -35,10 +35,10 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: cray-cti_be
+Name: cti_fe
 URL: http://www.cray.com
-Description: The backend component of the Cray tools interface (CTI). Exposes a useful API to tool programs.
+Description: The frontend component of the common tools interface (CTI). Exposes a useful API to tool programs.
 Version: @VERSION@
 Requires:
-Libs: -L${libdir} -lcraytools_be
+Libs: -L${libdir} -lcommontools_fe -lcommon -lsymtabAPI -lpcontrol -ldynElf -ldynDwarf
 Cflags: -I${includedir}

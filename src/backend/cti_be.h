@@ -42,7 +42,7 @@
 #include <sys/types.h>
 
 #include "cti_defs.h"
-#include "cray_tools_be.h"
+#include "common_tools_be.h"
 
 // This is the wlm proto object that all wlm implementations should define.
 // The noneness functions can be used if a function is not definable by your wlm,

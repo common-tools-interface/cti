@@ -38,7 +38,7 @@
 #include "cti_defs.h"
 
 // Need to include external interface definitions
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 
 #include <memory>
 #include <string>

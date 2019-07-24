@@ -1,13 +1,13 @@
 #
-# Makefile.am for the useful components of the craytool interface.
+# Makefile.am for the useful components of the common tools interface
 #
 # Copyright 2014-2019 Cray Inc. All Rights Reserved.
 #
 
 SUBDIRS			= ld_val
 
-SRC             = @CRAYTOOL_DIR@/src
-INCLUDE			= @CRAYTOOL_DIR@/include
+SRC             = @COMMONTOOL_DIR@/src
+INCLUDE			= @COMMONTOOL_DIR@/include
 
 AM_LIBTOOLFLAGS = --quiet
 AM_CFLAGS		= -Wall -I$(SRC) -I. -I$(INCLUDE)
