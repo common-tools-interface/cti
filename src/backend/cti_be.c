@@ -159,10 +159,10 @@ cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
     switch (wlm_type)
     {
         case CTI_WLM_SLURM:
-            return "Cray based SLURM";
+            return SLURM_WLM_TYPE_STRING;
 
         case CTI_WLM_SSH:
-            return "Fallback (SSH based) workload manager";
+            return SSH_WLM_TYPE_STRING;
 
         case CTI_WLM_NONE:
         case CTI_WLM_MOCK:

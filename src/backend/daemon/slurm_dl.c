@@ -1,5 +1,5 @@
 /******************************************************************************\
- * slurm_dl.c - Native slurm specific functions for the daemon launcher.
+ * slurm_dl.c - SLURM specific functions for the daemon launcher.
  *
  * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
@@ -46,7 +46,7 @@
 static int  _cti_slurm_init(void);
 static int  _cti_slurm_getNodeID(void);
 
-/* cray slurm wlm proto object */
+/* slurm wlm proto object */
 cti_wlm_proto_t     _cti_slurm_wlmProto =
 {
     CTI_WLM_SLURM,          // wlm_type

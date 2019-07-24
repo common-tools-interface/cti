@@ -1,5 +1,5 @@
 /******************************************************************************\
- * cray_slurm_fe.c - Cray SLURM specific frontend library functions.
+ * Frontend.cpp - SLURM specific frontend library functions.
  *
  * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
@@ -68,7 +68,7 @@
 
 /* constructors / destructors */
 
-CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
+SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     : App(fe)
     , m_daemonAppId     { mpirData.mpir_id }
     , m_jobId           { mpirData.job_id }
@@ -76,8 +76,8 @@ CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, FE_daemon::MPIRResult&& mpirDa
     , m_stepLayout      { fe.fetchStepLayout(m_jobId, m_stepId) }
     , m_beDaemonSent    { false }
 
-    , m_toolPath    { CRAY_SLURM_TOOL_DIR }
-    , m_attribsPath { cti::cstr::asprintf(CRAY_SLURM_CRAY_DIR, CRAY_SLURM_APID(m_jobId, m_stepId)) }
+    , m_toolPath    { SLURM_TOOL_DIR }
+    , m_attribsPath { cti::cstr::asprintf(SLURM_CRAY_DIR, SLURM_APID(m_jobId, m_stepId)) }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/" + SLURM_STAGE_DIR}) }
     , m_extraFiles  { fe.createNodeLayoutFile(m_stepLayout, m_stagePath) }
 
@@ -100,7 +100,7 @@ CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, FE_daemon::MPIRResult&& mpirDa
     }
 }
 
-CraySLURMApp::~CraySLURMApp()
+SLURMApp::~SLURMApp()
 {
     // Delete the staging directory if it exists.
     if (!m_stagePath.empty()) {
@@ -115,7 +115,7 @@ CraySLURMApp::~CraySLURMApp()
 
 /* app instance creation */
 
-static FE_daemon::MPIRResult sattachMPIR(CraySLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
+static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
 {
     cti::OutgoingArgv<SattachArgv> sattachArgv(SATTACH);
     sattachArgv.add(SattachArgv::Argument("-Q"));
@@ -141,16 +141,16 @@ static FE_daemon::MPIRResult sattachMPIR(CraySLURMFrontend& fe, uint32_t jobId, 
     }
 }
 
-CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
-    : CraySLURMApp
+SLURMApp::SLURMApp(SLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
+    : SLURMApp
         { fe
         , sattachMPIR(fe, jobId, stepId)
         }
 { }
 
-CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+SLURMApp::SLURMApp(SLURMFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
     const char *inputFile, const char *chdirPath, const char * const env_list[])
-    : CraySLURMApp{ fe, fe.launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list) }
+    : SLURMApp{ fe, fe.launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list) }
 { }
 
 /* running app info accessors */
@@ -159,34 +159,34 @@ CraySLURMApp::CraySLURMApp(CraySLURMFrontend& fe, const char * const launcher_ar
 // it into a Cray apid easier on the backend since we don't lose any information
 // with this format.
 std::string
-CraySLURMApp::getJobId() const
+SLURMApp::getJobId() const
 {
     return std::string{std::to_string(m_jobId) + "." + std::to_string(m_stepId)};
 }
 
 std::string
-CraySLURMApp::getLauncherHostname() const
+SLURMApp::getLauncherHostname() const
 {
     throw std::runtime_error("not supported for WLM: getLauncherHostname");
 }
 
 std::vector<std::string>
-CraySLURMApp::getHostnameList() const
+SLURMApp::getHostnameList() const
 {
     std::vector<std::string> result;
     // extract hostnames from each NodeLayout
     std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-        [](CraySLURMFrontend::NodeLayout const& node) { return node.hostname; });
+        [](SLURMFrontend::NodeLayout const& node) { return node.hostname; });
     return result;
 }
 
 std::vector<CTIHost>
-CraySLURMApp::getHostsPlacement() const
+SLURMApp::getHostsPlacement() const
 {
     std::vector<CTIHost> result;
     // construct a CTIHost from each NodeLayout
     std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-        [](CraySLURMFrontend::NodeLayout const& node) {
+        [](SLURMFrontend::NodeLayout const& node) {
             return CTIHost{node.hostname, node.numPEs};
         });
     return result;
@@ -194,7 +194,7 @@ CraySLURMApp::getHostsPlacement() const
 
 /* running app interaction interface */
 
-void CraySLURMApp::releaseBarrier() {
+void SLURMApp::releaseBarrier() {
     // check MPIR barrier
     if (!m_daemonAppId) {
         throw std::runtime_error("app not under MPIR control");
@@ -205,7 +205,7 @@ void CraySLURMApp::releaseBarrier() {
 }
 
 void
-CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
+SLURMApp::redirectOutput(int stdoutFd, int stderrFd)
 {
     // create sattach argv
     auto sattachArgv = cti::ManagedArgv {
@@ -229,7 +229,7 @@ CraySLURMApp::redirectOutput(int stdoutFd, int stderrFd)
         nullptr);
 }
 
-void CraySLURMApp::kill(int signum)
+void SLURMApp::kill(int signum)
 {
     // create the args for scancel
     auto scancelArgv = cti::ManagedArgv {
@@ -246,7 +246,7 @@ void CraySLURMApp::kill(int signum)
         nullptr);
 }
 
-void CraySLURMApp::shipPackage(std::string const& tarPath) const {
+void SLURMApp::shipPackage(std::string const& tarPath) const {
     // create the args for sbcast
     auto sbcastArgv = cti::ManagedArgv {
         SBCAST
@@ -257,7 +257,7 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
     };
 
     if (auto packageName = cti::move_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
-        sbcastArgv.add(std::string(CRAY_SLURM_TOOL_DIR) + "/" + packageName.get());
+        sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName.get());
     } else {
         throw std::runtime_error("_cti_pathToName failed");
     }
@@ -276,7 +276,7 @@ void CraySLURMApp::shipPackage(std::string const& tarPath) const {
     // worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
 }
 
-void CraySLURMApp::startDaemon(const char* const args[]) {
+void SLURMApp::startDaemon(const char* const args[]) {
     // sanity check
     if (args == nullptr) {
         throw std::runtime_error("args array is null!");
@@ -294,13 +294,13 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
     // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
     // --input=none --output=none --error=none <tool daemon> <args>
     //
-    auto& craySlurmFrontend = dynamic_cast<CraySLURMFrontend&>(m_frontend);
+    auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
     auto launcherArgv = cti::ManagedArgv {
-        craySlurmFrontend.getLauncherName()
+        slurmFrontend.getLauncherName()
         , "--jobid=" + std::to_string(m_jobId)
         , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
     };
-    for (auto&& arg : craySlurmFrontend.getSrunDaemonArgs()) {
+    for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
         launcherArgv.add(arg);
     }
 
@@ -341,14 +341,14 @@ void CraySLURMApp::startDaemon(const char* const args[]) {
 
     // tell FE Daemon to launch srun
     m_frontend.Daemon().request_ForkExecvpUtil_Async(
-        m_daemonAppId, dynamic_cast<CraySLURMFrontend&>(m_frontend).getLauncherName().c_str(),
+        m_daemonAppId, dynamic_cast<SLURMFrontend&>(m_frontend).getLauncherName().c_str(),
         launcherArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
         launcherEnv.get() );
 }
 
-/* cray slurm frontend implementation */
+/* SLURM frontend implementation */
 
 static std::string getSlurmVersion()
 {
@@ -370,7 +370,7 @@ static std::string getSlurmVersion()
     return slurmVersion;
 }
 
-CraySLURMFrontend::CraySLURMFrontend()
+SLURMFrontend::SLURMFrontend()
     : m_srunAppArgs {}
     , m_srunDaemonArgs
         { "--gres=none"
@@ -435,7 +435,7 @@ CraySLURMFrontend::CraySLURMFrontend()
 }
 
 bool
-CraySLURMFrontend::isSupported()
+SLURMFrontend::isSupported()
 {
     // FIXME: This is a hack. This should be addressed by PE-25088
 
@@ -449,10 +449,10 @@ CraySLURMFrontend::isSupported()
 }
 
 std::weak_ptr<App>
-CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto ret = m_apps.emplace(std::make_shared<CraySLURMApp>(   *this,
+    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(   *this,
                                                                 launcher_argv,
                                                                 stdout_fd,
                                                                 stderr_fd,
@@ -466,14 +466,14 @@ CraySLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int std
 }
 
 std::string
-CraySLURMFrontend::getHostname() const
+SLURMFrontend::getHostname() const
 {
     // Extract the NID from the provided cti::file pointer and format into hostname
     auto parseNidFile = [](auto&& nidFile) {
         // We expect this file to have a numeric value giving our current Node ID.
         char buf[BUFSIZ + 1];
         if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
-            throw std::runtime_error("_cti_cray_slurm_getHostname fgets failed.");
+            throw std::runtime_error("fgets failed.");
         }
         buf[BUFSIZ] = '\0';
 
@@ -546,10 +546,10 @@ CraySLURMFrontend::getHostname() const
     return hostname;
 }
 
-/* Cray-SLURM static implementations */
+/* SLURM static implementations */
 
 std::weak_ptr<App>
-CraySLURMFrontend::registerJob(size_t numIds, ...) {
+SLURMFrontend::registerJob(size_t numIds, ...) {
     if (numIds != 2) {
         throw std::logic_error("expecting job and step ID pair to register app");
     }
@@ -562,7 +562,7 @@ CraySLURMFrontend::registerJob(size_t numIds, ...) {
 
     va_end(idArgs);
 
-    auto ret = m_apps.emplace(std::make_shared<CraySLURMApp>(*this, jobId, stepId));
+    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this, jobId, stepId));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -570,7 +570,7 @@ CraySLURMFrontend::registerJob(size_t numIds, ...) {
 }
 
 std::string
-CraySLURMFrontend::getLauncherName()
+SLURMFrontend::getLauncherName()
 {
     auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
         if (char const* envValue = getenv(envVar)) {
@@ -584,8 +584,8 @@ CraySLURMFrontend::getLauncherName()
     return launcherName;
 }
 
-CraySLURMFrontend::StepLayout
-CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
+SLURMFrontend::StepLayout
+SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 {
     // create sattach instance
     cti::OutgoingArgv<SattachArgv> sattachArgv(SATTACH);
@@ -659,7 +659,7 @@ CraySLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 }
 
 std::string
-CraySLURMFrontend::createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath)
+SLURMFrontend::createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath)
 {
     // How a SLURM Node Layout File entry is created from a Slurm Node Layout entry:
     auto make_layoutFileEntry = [](NodeLayout const& node) {
@@ -699,7 +699,7 @@ CraySLURMFrontend::createNodeLayoutFile(StepLayout const& stepLayout, std::strin
 }
 
 std::string
-CraySLURMFrontend::createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath)
+SLURMFrontend::createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath)
 {
     auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
     if (auto const pidFile = cti::file::open(pidPath, "wb")) {
@@ -723,7 +723,7 @@ CraySLURMFrontend::createPIDListFile(MPIRProctable const& procTable, std::string
 }
 
 FE_daemon::MPIRResult
-CraySLURMFrontend::launchApp(const char * const launcher_argv[],
+SLURMFrontend::launchApp(const char * const launcher_argv[],
         const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
         const char * const env_list[])
 {
@@ -765,7 +765,7 @@ CraySLURMFrontend::launchApp(const char * const launcher_argv[],
 }
 
 SrunInfo
-CraySLURMFrontend::getSrunInfo(pid_t srunPid) {
+SLURMFrontend::getSrunInfo(pid_t srunPid) {
     // sanity check
     if (srunPid <= 0) {
         throw std::runtime_error("Invalid srunPid " + std::to_string(srunPid));

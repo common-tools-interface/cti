@@ -352,8 +352,8 @@ Frontend::detect_Frontend()
     if (const char* wlm_name_env = getenv(CTI_WLM_IMPL_ENV_VAR)) {
         auto const wlmName = toLower(wlm_name_env);
         // parse the env string
-        if (wlmName == toLower(CraySLURMFrontend::getName())) {
-            return CTI_WLM_CRAY_SLURM;
+        if (wlmName == toLower(SLURMFrontend::getName())) {
+            return CTI_WLM_SLURM;
         } else if (wlmName == toLower(GenericSSHFrontend::getName())) {
             return CTI_WLM_SSH;
         }
@@ -363,8 +363,8 @@ Frontend::detect_Frontend()
     }
     else {
         // Query supported workload managers
-        if (CraySLURMFrontend::isSupported()) {
-            return CTI_WLM_CRAY_SLURM;
+        if (SLURMFrontend::isSupported()) {
+            return CTI_WLM_SLURM;
         } else if (GenericSSHFrontend::isSupported()) {
             return CTI_WLM_SSH;
         }
@@ -388,8 +388,8 @@ Frontend::inst() {
             m_cleanup = std::make_unique<Frontend_cleanup>();
             // Determine which wlm to instantiate
             switch(detect_Frontend()) {
-                case CTI_WLM_CRAY_SLURM:
-                    inst = new CraySLURMFrontend{};
+                case CTI_WLM_SLURM:
+                    inst = new SLURMFrontend{};
                     break;
                 case CTI_WLM_SSH:
                     inst = new GenericSSHFrontend{};

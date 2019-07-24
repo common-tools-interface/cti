@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * slurm_be.c - Native slurm specific backend library functions.
+ * slurm_be.c - SLURM specific backend library functions.
  *
  * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
@@ -59,14 +59,14 @@ typedef struct
 /* static prototypes */
 static int                  _cti_be_slurm_init(void);
 static void                 _cti_be_slurm_fini(void);
-static int                  _cti_be_slurm_getSlurmLayout(void);
-static int                  _cti_be_slurm_getSlurmPids(void);
+static int                  _cti_be_slurm_getLayout(void);
+static int                  _cti_be_slurm_getPids(void);
 static cti_pidList_t *      _cti_be_slurm_findAppPids(void);
 static char *               _cti_be_slurm_getNodeHostname(void);
 static int                  _cti_be_slurm_getNodeFirstPE(void);
 static int                  _cti_be_slurm_getNodePEs(void);
 
-/* cray slurm wlm proto object */
+/* slurm wlm proto object */
 cti_be_wlm_proto_t          _cti_be_slurm_wlmProto =
 {
     CTI_WLM_SLURM,                  // wlm_type
@@ -159,7 +159,7 @@ _cti_be_slurm_fini(void)
 /* Static functions */
 
 static int
-_cti_be_slurm_getSlurmLayout(void)
+_cti_be_slurm_getLayout(void)
 {
     slurmLayout_t *         my_layout;
     char *                  file_dir;
@@ -282,7 +282,7 @@ _cti_be_slurm_getSlurmLayout(void)
 }
 
 static int
-_cti_be_slurm_getSlurmPids(void)
+_cti_be_slurm_getPids(void)
 {
     pid_t *                 my_pids;
     char *                  file_dir;
@@ -300,7 +300,7 @@ _cti_be_slurm_getSlurmPids(void)
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_slurm_getSlurmLayout())
+        if (_cti_be_slurm_getLayout())
         {
             return 1;
         }
@@ -309,7 +309,7 @@ _cti_be_slurm_getSlurmPids(void)
     // get the file directory were we can find the pid file
     if ((file_dir = cti_be_getFileDir()) == NULL)
     {
-        fprintf(stderr, "_cti_be_slurm_getSlurmPids failed.\n");
+        fprintf(stderr, "_cti_be_slurm_getPids failed.\n");
         return 1;
     }
 
@@ -471,7 +471,7 @@ _cti_be_slurm_findAppPids(void)
         if (_cti_slurm_pids == NULL)
         {
             // get the pids
-            if (_cti_be_slurm_getSlurmPids())
+            if (_cti_be_slurm_getPids())
             {
                 return NULL;
             }
@@ -659,7 +659,7 @@ _cti_be_slurm_getNodeFirstPE()
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_slurm_getSlurmLayout())
+        if (_cti_be_slurm_getLayout())
         {
             return -1;
         }
@@ -675,7 +675,7 @@ _cti_be_slurm_getNodePEs()
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_slurm_getSlurmLayout())
+        if (_cti_be_slurm_getLayout())
         {
             return -1;
         }

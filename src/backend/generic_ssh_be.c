@@ -63,8 +63,8 @@ typedef struct
 /* static prototypes */
 static int                  _cti_be_generic_ssh_init(void);
 static void                 _cti_be_generic_ssh_fini(void);
-static int                  _cti_be_generic_ssh_getSlurmLayout(void);
-static int                  _cti_be_generic_ssh_getSlurmPids(void);
+static int                  _cti_be_generic_ssh_getLayout(void);
+static int                  _cti_be_generic_ssh_getPids(void);
 static cti_pidList_t *      _cti_be_generic_ssh_findAppPids(void);
 static char *               _cti_be_generic_ssh_getNodeHostname(void);
 static int                  _cti_be_generic_ssh_getNodeFirstPE(void);
@@ -123,7 +123,7 @@ _cti_be_generic_ssh_fini(void)
 /* Static functions */
 
 static int
-_cti_be_generic_ssh_getSlurmLayout(void)
+_cti_be_generic_ssh_getLayout(void)
 {
     cti_layout_t *          my_layout;
     char *                  file_dir;
@@ -149,13 +149,13 @@ _cti_be_generic_ssh_getSlurmLayout(void)
     // get the file directory were we can find the layout file
     if ((file_dir = cti_be_getFileDir()) == NULL)
     {
-        fprintf(stderr, "_cti_be_generic_ssh_getSlurmLayout failed.\n");
+        fprintf(stderr, "_cti_be_generic_ssh_getLayout failed.\n");
         free(my_layout);
         return 1;
     }
 
     // create the path to the layout file
-    if (asprintf(&layoutPath, "%s/%s", file_dir, SLURM_LAYOUT_FILE) <= 0)
+    if (asprintf(&layoutPath, "%s/%s", file_dir, SSH_LAYOUT_FILE) <= 0)
     {
         fprintf(stderr, "asprintf failed.\n");
         free(my_layout);
@@ -241,7 +241,7 @@ _cti_be_generic_ssh_getSlurmLayout(void)
 }
 
 static int
-_cti_be_generic_ssh_getSlurmPids(void)
+_cti_be_generic_ssh_getPids(void)
 {
     pid_t *                 my_pids;
     char *                  file_dir;
@@ -259,7 +259,7 @@ _cti_be_generic_ssh_getSlurmPids(void)
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_generic_ssh_getSlurmLayout())
+        if (_cti_be_generic_ssh_getLayout())
         {
             return 1;
         }
@@ -268,12 +268,12 @@ _cti_be_generic_ssh_getSlurmPids(void)
     // get the file directory were we can find the pid file
     if ((file_dir = cti_be_getFileDir()) == NULL)
     {
-        fprintf(stderr, "_cti_be_generic_ssh_getSlurmPids failed.\n");
+        fprintf(stderr, "_cti_be_generic_ssh_getPids failed.\n");
         return 1;
     }
 
     // create the path to the pid file
-    if (asprintf(&pidPath, "%s/%s", file_dir, SLURM_PID_FILE) <= 0)
+    if (asprintf(&pidPath, "%s/%s", file_dir, SSH_PID_FILE) <= 0)
     {
         fprintf(stderr, "asprintf failed.\n");
         free(file_dir);
@@ -373,7 +373,7 @@ _cti_be_generic_ssh_findAppPids(void)
     cti_pidList_t * rtn;
     int             i;
 
-    if (_cti_be_generic_ssh_getSlurmPids() == 0)
+    if (_cti_be_generic_ssh_getPids() == 0)
     {
         // allocate the return object
         if ((rtn = malloc(sizeof(cti_pidList_t))) == (void *)0)
@@ -553,7 +553,7 @@ _cti_be_generic_ssh_getNodeFirstPE()
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_generic_ssh_getSlurmLayout())
+        if (_cti_be_generic_ssh_getLayout())
         {
             return -1;
         }
@@ -569,7 +569,7 @@ _cti_be_generic_ssh_getNodePEs()
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_generic_ssh_getSlurmLayout())
+        if (_cti_be_generic_ssh_getLayout())
         {
             return -1;
         }

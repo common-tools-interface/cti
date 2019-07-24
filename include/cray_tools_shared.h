@@ -100,12 +100,15 @@
 extern "C" {
 #endif
 
+/*
+ * cti_wlm_type_t is used to denote the workload manager in use on the system.
+ */
 typedef enum
 {
-    CTI_WLM_NONE,       // error/unitialized state
-    CTI_WLM_CRAY_SLURM, // SLURM implementation
-    CTI_WLM_SSH,        // Direct SSH implementation
-    CTI_WLM_MOCK        // Used for unit testing
+    CTI_WLM_NONE,   // error/unitialized state
+    CTI_WLM_MOCK,   // Used for unit testing
+    CTI_WLM_SLURM,  // SLURM implementation
+    CTI_WLM_SSH     // Direct SSH implementation
 } cti_wlm_type_t;
 
 #ifdef __cplusplus
