@@ -6,14 +6,14 @@
 
 @CODE_COVERAGE_RULES@
 
-SUBDIRS				= CraySLURM GenericSSH
+SUBDIRS				= SLURM GenericSSH
 
 AM_LIBTOOLFLAGS 	= --quiet
 
 noinst_LTLIBRARIES	= libfrontend_impl.la
 
 libfrontend_impl_la_SOURCES		=
-libfrontend_impl_la_LIBADD		= 	CraySLURM/libslurm.la \
+libfrontend_impl_la_LIBADD		= 	SLURM/libslurm.la \
 									GenericSSH/libgenericssh.la $(CODE_COVERAGE_LIBS)
 libfrontend_impl_la_LDFLAGS		=	-static -Wl,--no-undefined $(CODE_COVERAGE_LDFLAGS)
 libfrontend_impl_la_CPPFLAGS	=	$(CODE_COVERAGE_CPPFLAGS)

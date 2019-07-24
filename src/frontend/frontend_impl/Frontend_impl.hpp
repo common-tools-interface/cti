@@ -35,5 +35,5 @@
 
 #pragma once
 
-#include "CraySLURM/Frontend.hpp"
+#include "SLURM/Frontend.hpp"
 #include "GenericSSH/Frontend.hpp"

@@ -314,7 +314,7 @@ static cti_srunProc_t*
 _cti_slurm_getSrunInfo(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
-        auto ap = downcastApp<CraySLURMApp>(fe.Iface().getApp(appId));
+        auto ap = downcastApp<SLURMApp>(fe.Iface().getApp(appId));
         if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
             *result = ap->getSrunInfo();
             return result;

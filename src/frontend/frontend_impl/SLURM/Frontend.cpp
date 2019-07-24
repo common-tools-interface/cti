@@ -59,7 +59,7 @@
 // Pull in manifest to properly define all the forward declarations
 #include "cti_transfer/Manifest.hpp"
 
-#include "CraySLURM/Frontend.hpp"
+#include "SLURM/Frontend.hpp"
 
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
