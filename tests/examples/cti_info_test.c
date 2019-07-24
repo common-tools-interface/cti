@@ -216,7 +216,7 @@ main(int argc, char **argv)
             }
             assert(j_arg != 0 && s_arg != 0);
             cti_slurm_ops_t * slurm_ops;
-            cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
+            cti_wlm_type_t ret = cti_open_ops((void **)&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);
             myapp = slurm_ops->registerJobStep(job_id, step_id);
@@ -235,7 +235,7 @@ main(int argc, char **argv)
             }
             assert(p_arg != 0);
             cti_ssh_ops_t * ssh_ops;
-            cti_wlm_type_t ret = cti_open_ops(&ssh_ops);
+            cti_wlm_type_t ret = cti_open_ops((void **)&ssh_ops);
             assert(ret == mywlm);
             assert(ssh_ops != NULL);
             myapp = ssh_ops->registerJob(launcher_pid);

@@ -147,7 +147,7 @@ main(int argc, char **argv)
         case CTI_WLM_SLURM:
         {
             cti_slurm_ops_t * slurm_ops;
-            cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
+            cti_wlm_type_t ret = cti_open_ops((void **)&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);
             /*
