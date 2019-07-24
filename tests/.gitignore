@@ -1,0 +1,7 @@
+.dirstamp
+Makefile.in
+unit_tests
+function_tests
+gcov_report
+*.log
+*.trs
