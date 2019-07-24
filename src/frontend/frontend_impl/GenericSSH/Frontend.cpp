@@ -59,7 +59,7 @@
 #include <unordered_map>
 
 // Pull in manifest to properly define all the forward declarations
-#include "cti_transfer/Manifest.hpp"
+#include "transfer/Manifest.hpp"
 
 #include "GenericSSH/Frontend.hpp"
 

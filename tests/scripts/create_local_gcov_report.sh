@@ -23,14 +23,14 @@ fi
 cti=$PWD/../../
 gcov_report_path=$cti/tests/gcov_report/
 frontend_path=$cti/src/frontend/
-gcov_dirs=($frontend_path/ $frontend_path/cti_transfer/ $frontend_path/daemon/ $frontend_path/mpir_iface/ $frontend_path/frontend_impl/GenericSSH/ $frontend_path/frontend_impl/CraySLURM/)
+gcov_dirs=($frontend_path/ $frontend_path/transfer/ $frontend_path/daemon/ $frontend_path/mpir_iface/ $frontend_path/frontend_impl/GenericSSH/ $frontend_path/frontend_impl/CraySLURM/)
 
 # Configure modules for gcov usage
 module purge
 module load gcc/8.1.0
 
 # Make sure code was actually compiled with --enable-code-coverage
-if ! ls $frontend_path/cti_transfer/.libs/*.gcno &> /dev/null ; then
+if ! ls $frontend_path/transfer/.libs/*.gcno &> /dev/null ; then
     echo "Failed to detect gcno files"
     echo "Build with --enable-code-coverage as a configure flag"
     exit 1
@@ -55,14 +55,14 @@ fi
 
 # Go to each directory and compile gcov data
 # and place results into directories in gcov_report
-for i in "${gcov_dirs[@]}"; do 
+for i in "${gcov_dirs[@]}"; do
     cd $i
     dir_name=${PWD##*/}
     mkdir -p $gcov_report_path/$dir_name
     if ls .libs/*.gcno &> /dev/null ; then
         cp -r .libs/*.gc* ./
     fi
-    for j in ./*.gcno ; do 
+    for j in ./*.gcno ; do
         filename="${j%.*}"
         mkdir -p $gcov_report_path/$dir_name/$filename
         touch $gcov_report_path/$dir_name/$filename/${filename}_report.txt

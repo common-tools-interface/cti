@@ -256,7 +256,7 @@ AC_CONFIG_FILES([	Makefile
 					src/backend/daemon/Makefile
 					src/frontend/Makefile
 					src/frontend/daemon/Makefile
-					src/frontend/cti_transfer/Makefile
+					src/frontend/transfer/Makefile
 					src/frontend/frontend_impl/Makefile
 					src/frontend/frontend_impl/CraySLURM/Makefile
 					src/frontend/frontend_impl/GenericSSH/Makefile
