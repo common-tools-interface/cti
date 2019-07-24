@@ -48,7 +48,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include "cray_tools_be.h"
+#include "common_tools_be.h"
 
 #include "cti_callback_test.h"
 

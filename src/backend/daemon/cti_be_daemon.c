@@ -1134,8 +1134,6 @@ main(int argc, char **argv)
     }
 
     // set the SCRATCH_ENV_VAR environment variable to the toolhelper directory.
-    // ALPS will enforce cleanup here and the tool is guaranteed to be able to write
-    // to it.
     if (asprintf(&env_path, "%s/tmp", manifest_path) <= 0)
     {
         fprintf(stderr, "%s: asprintf failed\n", CTI_BE_DAEMON_BINARY);

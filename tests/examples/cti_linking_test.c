@@ -36,8 +36,8 @@
 
 #include <stdio.h>
 
-#include "cray_tools_fe.h"
-#include "cray_tools_be.h"
+#include "common_tools_fe.h"
+#include "common_tools_be.h"
 
 int
 main(int argc, char **argv)

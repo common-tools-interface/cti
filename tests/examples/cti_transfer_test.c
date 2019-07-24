@@ -1,5 +1,5 @@
 /*********************************************************************************\
- * cti_transfer_test.c - An example program which takes advantage of the Cray
+ * cti_transfer_test.c - An example program which takes advantage of the common
  *          tools interface which will launch an application session from the
  *          given argv and transfer test files.
  *
@@ -40,13 +40,13 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 
 void
 usage(char *name)
 {
     fprintf(stdout, "USAGE: %s [LAUNCHER STRING]\n", name);
-    fprintf(stdout, "Launch an application using the Cray Tools Interface\n");
+    fprintf(stdout, "Launch an application using the common tools interface\n");
     fprintf(stdout, "and transfer a test file to the compute node.\n");
     return;
 }

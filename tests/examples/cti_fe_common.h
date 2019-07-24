@@ -36,7 +36,7 @@
 #ifndef _CTI_FE_COMMON_H
 #define _CTI_FE_COMMON_H
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 
 void    cti_test_fe(cti_app_id_t);
 

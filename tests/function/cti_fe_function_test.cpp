@@ -28,7 +28,7 @@
 
 #include "cti_fe_function_test.hpp"
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 
 #include "useful/cti_execvp.hpp"
 
