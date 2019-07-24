@@ -184,8 +184,8 @@ const char *
 cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
     switch (wlm_type) {
         // WLM Frontend implementations
-        case CTI_WLM_CRAY_SLURM:
-            return CraySLURMFrontend::getDescription();
+        case CTI_WLM_SLURM:
+            return SLURMFrontend::getDescription();
         case CTI_WLM_SSH:
             return GenericSSHFrontend::getDescription();
 
@@ -286,12 +286,12 @@ cti_getLauncherHostName(cti_app_id_t appId) {
     }, (char*)nullptr);
 }
 
-// Cray-SLURM WLM extensions
+// SLURM WLM extensions
 
 static cti_srunProc_t*
-_cti_cray_slurm_getJobInfo(pid_t srunPid) {
+_cti_slurm_getJobInfo(pid_t srunPid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto&& fe = downcastFE<CraySLURMFrontend>();
+        auto&& fe = downcastFE<SLURMFrontend>();
         if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
             *result = fe.getSrunInfo(srunPid);
             return result;
@@ -302,19 +302,19 @@ _cti_cray_slurm_getJobInfo(pid_t srunPid) {
 }
 
 static cti_app_id_t
-_cti_cray_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
+_cti_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
     return FE_iface::runSafely(__func__, [&](){
-        auto&& fe = downcastFE<CraySLURMFrontend>();
+        auto&& fe = downcastFE<SLURMFrontend>();
         auto wp = fe.registerJob(2, job_id, step_id);
         return fe.Iface().trackApp(wp);
     }, APP_ERROR);
 }
 
 static cti_srunProc_t*
-_cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
+_cti_slurm_getSrunInfo(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
-        auto ap = downcastApp<CraySLURMApp>(fe.Iface().getApp(appId));
+        auto ap = downcastApp<SLURMApp>(fe.Iface().getApp(appId));
         if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
             *result = ap->getSrunInfo();
             return result;
@@ -324,10 +324,10 @@ _cti_cray_slurm_getSrunInfo(cti_app_id_t appId) {
     }, (cti_srunProc_t*)nullptr);
 }
 
-static cti_cray_slurm_ops_t _cti_cray_slurm_ops = {
-    .getJobInfo         = _cti_cray_slurm_getJobInfo,
-    .registerJobStep    = _cti_cray_slurm_registerJobStep,
-    .getSrunInfo        = _cti_cray_slurm_getSrunInfo
+static cti_slurm_ops_t _cti_slurm_ops = {
+    .getJobInfo         = _cti_slurm_getJobInfo,
+    .registerJobStep    = _cti_slurm_registerJobStep,
+    .getSrunInfo        = _cti_slurm_getSrunInfo
 };
 
 // SSH WLM extensions
@@ -356,8 +356,8 @@ cti_open_ops(void **ops) {
         auto&& fe = Frontend::inst();
         auto wlm_type = fe.getWLMType();
         switch (wlm_type) {
-            case CTI_WLM_CRAY_SLURM:
-                *ops = reinterpret_cast<void *>(&_cti_cray_slurm_ops);
+            case CTI_WLM_SLURM:
+                *ops = reinterpret_cast<void *>(&_cti_slurm_ops);
                 break;
             case CTI_WLM_SSH:
                 *ops = reinterpret_cast<void *>(&_cti_ssh_ops);

@@ -1,7 +1,7 @@
 /*********************************************************************************\
- * slurm_be.c - Native slurm specific backend library functions.
+ * slurm_be.c - SLURM specific backend library functions.
  *
- * Copyright 2016-2019 Cray Inc. All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -41,18 +41,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
-
-#include <limits.h>
-#include <errno.h>
 
 #include "cti_be.h"
 #include "pmi_attribs_parser.h"
 
 // types used here
-
 typedef struct
 {
     int     PEsHere;    // Number of PEs placed on this node
@@ -62,17 +59,17 @@ typedef struct
 /* static prototypes */
 static int                  _cti_be_slurm_init(void);
 static void                 _cti_be_slurm_fini(void);
-static int                  _cti_be_slurm_getSlurmLayout(void);
-static int                  _cti_be_slurm_getSlurmPids(void);
+static int                  _cti_be_slurm_getLayout(void);
+static int                  _cti_be_slurm_getPids(void);
 static cti_pidList_t *      _cti_be_slurm_findAppPids(void);
 static char *               _cti_be_slurm_getNodeHostname(void);
 static int                  _cti_be_slurm_getNodeFirstPE(void);
 static int                  _cti_be_slurm_getNodePEs(void);
 
-/* cray slurm wlm proto object */
+/* slurm wlm proto object */
 cti_be_wlm_proto_t          _cti_be_slurm_wlmProto =
 {
-    CTI_WLM_SSH,                    // wlm_type
+    CTI_WLM_SLURM,                  // wlm_type
     _cti_be_slurm_init,             // wlm_init
     _cti_be_slurm_fini,             // wlm_fini
     _cti_be_slurm_findAppPids,      // wlm_findAppPids
@@ -85,12 +82,52 @@ cti_be_wlm_proto_t          _cti_be_slurm_wlmProto =
 static pmi_attribs_t *      _cti_attrs          = NULL; // node pmi_attribs information
 static slurmLayout_t *      _cti_layout         = NULL; // compute node layout for slurm app
 static pid_t *              _cti_slurm_pids     = NULL; // array of pids here if pmi_attribs is not available
+static uint32_t             _cti_jobid          = 0;    // global jobid obtained from environment variable
+static uint32_t             _cti_stepid         = 0;    // global stepid obtained from environment variable
+static bool                 _cti_slurm_isInit   = false;// Has init been called?
 
 /* Constructor/Destructor functions */
 
 static int
 _cti_be_slurm_init(void)
 {
+    char *  apid_str;
+    char *  ptr;
+
+    // Have we already called init?
+    if (_cti_slurm_isInit)
+        return 0;
+
+    // read information from the environment set by dlaunch
+    if ((ptr = getenv(APID_ENV_VAR)) == NULL)
+    {
+        // Things were not setup properly, missing env vars!
+        fprintf(stderr, "Env var %s not set!", APID_ENV_VAR);
+        return 1;
+    }
+
+    // make a copy of the env var
+    apid_str = strdup(ptr);
+
+    // find the '.' that seperates jobid from stepid
+    if ((ptr = strchr(apid_str, '.')) == NULL)
+    {
+        // Things were not setup properly!
+        fprintf(stderr, "Env var %s has invalid value!", APID_ENV_VAR);
+        free(apid_str);
+        return 1;
+    }
+
+    // set the '.' to a null term
+    *ptr++ = '\0';
+
+    // get the jobid and stepid
+    _cti_jobid = (uint32_t)strtoul(apid_str, NULL, 10);
+    _cti_stepid = (uint32_t)strtoul(ptr, NULL, 10);
+
+    _cti_slurm_isInit = true;
+
+    // done
     return 0;
 }
 
@@ -122,7 +159,7 @@ _cti_be_slurm_fini(void)
 /* Static functions */
 
 static int
-_cti_be_slurm_getSlurmLayout(void)
+_cti_be_slurm_getLayout(void)
 {
     slurmLayout_t *         my_layout;
     char *                  file_dir;
@@ -137,6 +174,11 @@ _cti_be_slurm_getSlurmLayout(void)
         return 0;
 
     char* hostname = _cti_be_slurm_getNodeHostname();
+    if (!hostname)
+    {
+        fprintf(stderr, "_cti_be_slurm_getNodeHostname failed.\n");
+        return 1;
+    }
 
     // allocate the slurmLayout_t object
     if ((my_layout = malloc(sizeof(slurmLayout_t))) == NULL)
@@ -148,7 +190,7 @@ _cti_be_slurm_getSlurmLayout(void)
     // get the file directory were we can find the layout file
     if ((file_dir = cti_be_getFileDir()) == NULL)
     {
-        fprintf(stderr, "_cti_be_slurm_getSlurmLayout failed.\n");
+        fprintf(stderr, "cti_be_getFileDir failed.\n");
         free(my_layout);
         return 1;
     }
@@ -240,7 +282,7 @@ _cti_be_slurm_getSlurmLayout(void)
 }
 
 static int
-_cti_be_slurm_getSlurmPids(void)
+_cti_be_slurm_getPids(void)
 {
     pid_t *                 my_pids;
     char *                  file_dir;
@@ -258,7 +300,7 @@ _cti_be_slurm_getSlurmPids(void)
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_slurm_getSlurmLayout())
+        if (_cti_be_slurm_getLayout())
         {
             return 1;
         }
@@ -267,7 +309,7 @@ _cti_be_slurm_getSlurmPids(void)
     // get the file directory were we can find the pid file
     if ((file_dir = cti_be_getFileDir()) == NULL)
     {
-        fprintf(stderr, "_cti_be_slurm_getSlurmPids failed.\n");
+        fprintf(stderr, "_cti_be_slurm_getPids failed.\n");
         return 1;
     }
 
@@ -369,11 +411,72 @@ _cti_be_slurm_getSlurmPids(void)
 static cti_pidList_t *
 _cti_be_slurm_findAppPids(void)
 {
+    char *          tool_path;
+    char *          file_path;
+    struct stat     statbuf;
     cti_pidList_t * rtn;
     int             i;
 
-    if (_cti_be_slurm_getSlurmPids() == 0)
+    // First lets check to see if the pmi_attribs file exists
+    if ((tool_path = _cti_be_getToolDir()) == NULL)
     {
+        // Something messed up, so fail.
+        fprintf(stderr, "_cti_be_getToolDir failed.\n");
+        return NULL;
+    }
+    if (asprintf(&file_path, "%s/%s", tool_path, PMI_ATTRIBS_FILE_NAME) <= 0)
+    {
+        fprintf(stderr, "asprintf failed.\n");
+        return NULL;
+    }
+    free(tool_path);
+    if (stat(file_path, &statbuf) == -1)
+    {
+        // pmi_attribs file doesn't exist
+        char *  file_dir;
+
+        free(file_path);
+
+        // Check if the SLURM_PID_FILE exists and use that if we don't see
+        // the pmi_attribs file right away, otherwise we will fallback and use
+        // the pmi_attribs method because we probably hit the race condition.
+
+        // get the file directory were we can find the pid file
+        if ((file_dir = cti_be_getFileDir()) == NULL)
+        {
+            fprintf(stderr, "_cti_be_slurm_findAppPids failed.\n");
+            return NULL;
+        }
+
+        // create the path to the pid file
+        if (asprintf(&file_path, "%s/%s", file_dir, SLURM_PID_FILE) <= 0)
+        {
+            fprintf(stderr, "asprintf failed.\n");
+            free(file_dir);
+            return NULL;
+        }
+        // cleanup
+        free(file_dir);
+
+        if (stat(file_path, &statbuf) == -1)
+        {
+            // use the pmi_attribs method
+            free(file_path);
+            goto use_pmi_attribs;
+        }
+        free(file_path);
+
+        // the pid file exists, so lets use that for now
+
+        if (_cti_slurm_pids == NULL)
+        {
+            // get the pids
+            if (_cti_be_slurm_getPids())
+            {
+                return NULL;
+            }
+        }
+
         // allocate the return object
         if ((rtn = malloc(sizeof(cti_pidList_t))) == (void *)0)
         {
@@ -400,7 +503,10 @@ _cti_be_slurm_findAppPids(void)
 
     } else
     {
-        // slurm_pid not found, so use the pmi_attribs file
+
+use_pmi_attribs:
+
+        // use the pmi_attribs file
 
         // Call _cti_be_getPmiAttribsInfo - We require the pmi_attribs file to exist
         // in order to function properly.
@@ -409,7 +515,7 @@ _cti_be_slurm_findAppPids(void)
             if ((_cti_attrs = _cti_be_getPmiAttribsInfo()) == NULL)
             {
                 // Something messed up, so fail.
-                fprintf(stderr, "_cti_be_slurm_findAppPids failed (_cti_be_getPmiAttribsInfo NULL).\n");
+                fprintf(stderr, "_cti_be_slurm_findAppPids failed.\n");
                 return NULL;
             }
         }
@@ -418,7 +524,7 @@ _cti_be_slurm_findAppPids(void)
         if (_cti_attrs->app_rankPidPairs == NULL)
         {
             // Something messed up, so fail.
-            fprintf(stderr, "_cti_be_slurm_findAppPids failed (app_rankPidPairs NULL).\n");
+            fprintf(stderr, "_cti_be_slurm_findAppPids failed.\n");
             return NULL;
         }
 
@@ -545,6 +651,7 @@ _cti_be_slurm_getNodeHostname()
     return strdup(hostname); // One way or the other
 }
 
+
 static int
 _cti_be_slurm_getNodeFirstPE()
 {
@@ -552,7 +659,7 @@ _cti_be_slurm_getNodeFirstPE()
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_slurm_getSlurmLayout())
+        if (_cti_be_slurm_getLayout())
         {
             return -1;
         }
@@ -568,7 +675,7 @@ _cti_be_slurm_getNodePEs()
     if (_cti_layout == NULL)
     {
         // get the layout
-        if (_cti_be_slurm_getSlurmLayout())
+        if (_cti_be_slurm_getLayout())
         {
             return -1;
         }

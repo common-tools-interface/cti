@@ -88,7 +88,7 @@ extern "C" {
 #define CRAY_SHASTA_HOSTNAME_FMT "nid%06d"                          // NID based hostname format string
 
 /*******************************************************************************
-** Cray SLURM specific information
+** SLURM specific information
 *******************************************************************************/
 // Used when reading/writing layout file - used on FE and BE
 // File will begin with the following header
@@ -116,16 +116,18 @@ typedef struct
     pid_t   pid;        // pid_t of this PE
 }   slurmPidFile_t;
 
-#define SRUN                    "srun"                                      // name of slurm job launcher binary
-#define SATTACH                 "sattach"                                   // name of slurm io redirect binary
-#define SCANCEL                 "scancel"                                   // name of slurm job signal binary
-#define SBCAST                  "sbcast"                                    // name of slurm transfer binary
-#define CRAY_SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid)    // formula for creating Cray apid from SLURM jobid.stepid
-#define CRAY_SLURM_TOOL_DIR     "/tmp"                                      // Cray SLURM staging path on compute node
-#define CRAY_SLURM_CRAY_DIR     "/var/opt/cray/alps/spool/%llu"             // Location of cray specific directory on compute node - pmi_attribs is here
-#define SLURM_STAGE_DIR         "slurmXXXXXX"                               // directory name for staging slurm specific files to transfer
-#define SLURM_LAYOUT_FILE       "slurm_layout"                              // name of file containing layout information
-#define SLURM_PID_FILE          "slurm_pid"                                 // name of file containing pid information
+#define SRUN                    "srun"                              // name of slurm job launcher binary
+#define SATTACH                 "sattach"                           // name of slurm io redirect binary
+#define SCANCEL                 "scancel"                           // name of slurm job signal binary
+#define SBCAST                  "sbcast"                            // name of slurm transfer binary
+#define SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid) // formula for creating Cray apid from SLURM jobid.stepid
+#define SLURM_TOOL_DIR          "/tmp"                              // SLURM staging path on compute node
+#define SLURM_CRAY_DIR          "/var/opt/cray/alps/spool/%llu"     // Location of cray specific directory on compute node
+#define SLURM_STAGE_DIR         "slurmXXXXXX"                       // directory name for staging slurm specific files to transfer
+#define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
+#define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
+#define SLURM_WLM_TYPE_STRING   "SLURM based workload manager"      // name returned by wlm_type_toString
+#define SLURM_WLM_TYPE_IMPL     "slurm"                             // name recognized by CTI_WLM_IMPL_ENV_VAR
 
 /*******************************************************************************
 ** SSH specific information
@@ -140,7 +142,9 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_STAGE_DIR       SLURM_STAGE_DIR
 #define SSH_LAYOUT_FILE     SLURM_LAYOUT_FILE
 #define SSH_PID_FILE        SLURM_PID_FILE
-#define SSH_TOOL_DIR        CRAY_SLURM_TOOL_DIR
+#define SSH_TOOL_DIR        SLURM_TOOL_DIR
+#define SSH_WLM_TYPE_STRING "MPIR/SSH based workload manager"
+#define SSH_WLM_TYPE_IMPL   "generic"
 
 /*******************************************************************************
 ** Environment variables that are set/maintained by this library

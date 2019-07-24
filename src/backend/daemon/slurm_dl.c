@@ -1,7 +1,7 @@
 /******************************************************************************\
- * slurm_dl.c - Cluster slurm specific functions for the daemon launcher.
+ * slurm_dl.c - SLURM specific functions for the daemon launcher.
  *
- * Copyright 2016-2019 Cray Inc. All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -36,10 +36,8 @@
 // This pulls in config.h
 #include "cti_defs.h"
 
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
 #include "cti_daemon.h"
@@ -48,10 +46,10 @@
 static int  _cti_slurm_init(void);
 static int  _cti_slurm_getNodeID(void);
 
-/* cray slurm wlm proto object */
+/* slurm wlm proto object */
 cti_wlm_proto_t     _cti_slurm_wlmProto =
 {
-    CTI_WLM_SSH,            // wlm_type
+    CTI_WLM_SLURM,          // wlm_type
     _cti_slurm_init,        // wlm_init
     _cti_slurm_getNodeID    // wlm_getNodeID
 };
@@ -61,7 +59,14 @@ cti_wlm_proto_t     _cti_slurm_wlmProto =
 static int
 _cti_slurm_init(void)
 {
-    // NO-OP
+    // Set LC_ALL to POSIX - on Cray platforms this has been shown to significantly
+    // speed up load times if the tool daemon is invoking the shell.
+    if (setenv("LC_ALL", "POSIX", 1) < 0)
+    {
+        // failure
+        fprintf(stderr, "setenv failed\n");
+        return 1;
+    }
 
     return 0;
 }

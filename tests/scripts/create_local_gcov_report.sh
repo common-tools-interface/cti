@@ -23,7 +23,7 @@ fi
 cti=$PWD/../../
 gcov_report_path=$cti/tests/gcov_report/
 frontend_path=$cti/src/frontend/
-gcov_dirs=($frontend_path/ $frontend_path/transfer/ $frontend_path/daemon/ $frontend_path/mpir_iface/ $frontend_path/frontend_impl/GenericSSH/ $frontend_path/frontend_impl/CraySLURM/)
+gcov_dirs=($frontend_path/ $frontend_path/transfer/ $frontend_path/daemon/ $frontend_path/mpir_iface/ $frontend_path/frontend_impl/GenericSSH/ $frontend_path/frontend_impl/SLURM/)
 
 # Configure modules for gcov usage
 module purge

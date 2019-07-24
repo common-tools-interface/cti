@@ -633,7 +633,7 @@ int cti_killApp(cti_app_id_t app_id, int signum);
 cti_wlm_type_t cti_open_ops(void **ops);
 
 /*-----------------------------------------------------------------------------
- * cti_cray_slurm_ops extensions - Extensions for the Cray SLURM WLM
+ * cti_slurm_ops extensions - Extensions for the SLURM WLM
  *-----------------------------------------------------------------------------
  * getJobInfo - Obtain information about the srun process from its pid.
  *
@@ -699,7 +699,7 @@ typedef struct {
     cti_srunProc_t* (*getJobInfo)(pid_t srunPid);
     cti_app_id_t    (*registerJobStep)(uint32_t job_id,uint32_t step_id);
     cti_srunProc_t* (*getSrunInfo)(cti_app_id_t appId);
-} cti_cray_slurm_ops_t;
+} cti_slurm_ops_t;
 
 /*-----------------------------------------------------------------------------
  * cti_ssh_ops extensions - Extensions for the Generic SSH based WLM

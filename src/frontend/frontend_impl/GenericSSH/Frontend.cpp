@@ -698,7 +698,7 @@ GenericSSHFrontend::getLauncherName()
         return defaultValue;
     };
 
-    // Cache the launcher name result.
+    // Cache the launcher name result. Assume slurm srun launcher by default.
     auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, SRUN)};
     return launcherName;
 }
@@ -784,17 +784,17 @@ GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& s
 std::string
 GenericSSHFrontend::createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath)
 {
-    auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
+    auto const pidPath = std::string{stagePath + "/" + SSH_PID_FILE};
     if (auto const pidFile = cti::file::open(pidPath, "wb")) {
 
         // Write the PID List header.
-        cti::file::writeT(pidFile.get(), slurmPidFileHeader_t
+        cti::file::writeT(pidFile.get(), cti_pidFileheader_t
             { .numPids = (int)procTable.size()
         });
 
         // Write a PID entry using information from each MPIR ProcTable entry.
         for (auto&& elem : procTable) {
-            cti::file::writeT(pidFile.get(), slurmPidFile_t
+            cti::file::writeT(pidFile.get(), cti_pidFile_t
                 { .pid = elem.pid
             });
         }
@@ -860,7 +860,7 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
 
         // redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
         // note: when using SRUN as launcher, this output redirection doesn't work.
-        // see CraySLURM's implementation (need to use SATTACH after launch)
+        // see the SLURM implementation (need to use SATTACH after launch)
         std::map<int, int> remapFds {
             { openFileOrDevNull(inputFile), STDIN_FILENO }
         };
