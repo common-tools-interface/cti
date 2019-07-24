@@ -82,7 +82,7 @@ module load $cmake_module
 
 autoreconf -ifv
 set -x
-./configure --enable-static=no --prefix=$BUILD_DIR #--enable-code-coverage
+./configure -C --enable-static=no --prefix=$BUILD_DIR #--enable-code-coverage
 set +x
 
 make -j32
