@@ -754,7 +754,7 @@ typedef struct {
  *
  *      Files that were previously shipped to compute nodes associated with a
  *      session will be tracked. This elimintates redundant shipping of
- *      depdnencies between multiple transfer calls associated with the same
+ *      dependencies between multiple transfer calls associated with the same
  *      session.
  *
  *      The session will become invalid for future use upon calling the
