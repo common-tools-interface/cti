@@ -74,7 +74,7 @@ module purge
 module load gcc/8.1.0
 
 # Move all gcda and gcno files to where they need to be
-GC_DIRS=$(find ${SRC_DIR}frontend/ -name "*.libs" -type d)
+GC_DIRS=$(find ${SRC_DIR}/ -name "*.libs" -type d)
 for libdir in $GC_DIRS; do
     cd $libdir
     cp *.gc* ../ &> /dev/null
