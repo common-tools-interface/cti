@@ -1,15 +1,14 @@
 SRC := $(PWD)/../../src/
 GCNOS := $(wildcard ../../src/frontend/cti_transfer/.libs/*.gcno)
 
-ifeq ($(GCNOS),)
-    echo "Please use --enable-code-coverage in build.sh and rebuild"
-    exit 1
-endif
-
 .PHONY: coverage
 coverage: coverage.xml
 
 coverage.xml:
+ifeq ($(GCNOS),)
+	echo "Please use --enable-code-coverage in build.sh and rebuild"
+	exit 1
+endif
 	cd ../unit && ./unit_tests
 	cd ../function && ./build_run.sh
 	cd ../scripts && ./create_sonar_gcov_report.sh ../coverage
