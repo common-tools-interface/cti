@@ -221,16 +221,6 @@ TEST_F(CTISessionUnitTest, finalize_dup) {
     test_manifest -> sendManifest();
     test_manifest2 -> sendManifest();
 
-    {
-        std::ofstream f1;
-        f1.open(file_names[0].c_str());
-        if(!f1.is_open()) {
-            FAIL() << "Could not create test file";
-        }
-        f1 << "notf1";
-        f1.close();
-    }
-
-    // test finalize when a manifest has been shipped
+    // test finalize when two manifests with a duplicate have been shipped
     ASSERT_NO_THROW(sessionPtr -> finalize());
 }
