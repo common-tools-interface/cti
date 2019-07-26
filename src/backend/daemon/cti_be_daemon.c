@@ -5,7 +5,7 @@
  *           and allows users to specify environment variable settings
  *           that a tool daemon should inherit.
  *
- * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -89,8 +89,8 @@ struct cti_pids
 };
 
 /* wlm specific proto objects defined elsewhere */
-extern cti_wlm_proto_t  _cti_cray_slurm_wlmProto;
 extern cti_wlm_proto_t  _cti_slurm_wlmProto;
+extern cti_wlm_proto_t  _cti_generic_ssh_wlmProto;
 
 /* noneness wlm proto object */
 static cti_wlm_proto_t  _cti_nonenessProto =
@@ -531,12 +531,12 @@ main(int argc, char **argv)
     // log if asked to. We will error check below.
     switch (wlm_arg)
     {
-        case CTI_WLM_CRAY_SLURM:
-            _cti_wlmProto = &_cti_cray_slurm_wlmProto;
+        case CTI_WLM_SLURM:
+            _cti_wlmProto = &_cti_slurm_wlmProto;
             break;
 
         case CTI_WLM_SSH:
-            _cti_wlmProto = &_cti_slurm_wlmProto;
+            _cti_wlmProto = &_cti_generic_ssh_wlmProto;
             break;
 
         case CTI_WLM_NONE:
@@ -632,7 +632,7 @@ main(int argc, char **argv)
     // Now ensure the user provided a valid wlm argument.
     switch (wlm_arg)
     {
-        case CTI_WLM_CRAY_SLURM:
+        case CTI_WLM_SLURM:
         case CTI_WLM_SSH:
             // These wlm are valid
             break;
@@ -1134,8 +1134,6 @@ main(int argc, char **argv)
     }
 
     // set the SCRATCH_ENV_VAR environment variable to the toolhelper directory.
-    // ALPS will enforce cleanup here and the tool is guaranteed to be able to write
-    // to it.
     if (asprintf(&env_path, "%s/tmp", manifest_path) <= 0)
     {
         fprintf(stderr, "%s: asprintf failed\n", CTI_BE_DAEMON_BINARY);

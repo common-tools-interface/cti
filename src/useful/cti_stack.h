@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_stack.h - Header file for the stack interface.
  *
- * Copyright 2014 Cray Inc.  All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -40,21 +40,21 @@
 extern "C" {
 #endif
 
-#define CTI_DEFAULT_STACK	128
+#define CTI_DEFAULT_STACK   128
 
 /* struct typedefs */
 typedef struct
 {
-	unsigned int	idx;
-	unsigned int	num_elems;
-	void **			elems;
+    unsigned int    idx;
+    unsigned int    num_elems;
+    void **         elems;
 } cti_stack_t;
 
 /* function prototypes */
-cti_stack_t *	_cti_newStack(void);
-void			_cti_consumeStack(cti_stack_t *);
-int				_cti_push(cti_stack_t *, void *);
-void *			_cti_pop(cti_stack_t *);
+cti_stack_t *   _cti_newStack(void);
+void            _cti_consumeStack(cti_stack_t *);
+int             _cti_push(cti_stack_t *, void *);
+void *          _cti_pop(cti_stack_t *);
 
 #ifdef __cplusplus
 }

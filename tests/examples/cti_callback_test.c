@@ -1,10 +1,10 @@
 /*********************************************************************************\
- * cti_callback_test.c - An example program which takes advantage of the Cray
- *          Tool Interface which will launch an aprun session from the given
+ * cti_callback_test.c - An example program which takes advantage of the common
+ *          tools interface which will launch an application from the given
  *          argv, transfer and launch a simple tool daemon that will
  *          communicate with the frontend over a simple socket connection.
  *
- * Copyright 2011-2019 Cray Inc.    All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -49,7 +49,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 
 #include "cti_callback_test.h"
 

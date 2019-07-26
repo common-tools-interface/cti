@@ -1,11 +1,11 @@
 #
 # Makefile.am for the generic SSH frontend implementation.
 #
-# Copyright 2019 Cray Inc.  All Rights Reserved.
+# Copyright 2019 Cray Inc. All Rights Reserved.
 #
 
-SRC                 = @CRAYTOOL_DIR@/src
-INCLUDE				= @CRAYTOOL_DIR@/include
+SRC                 = @COMMONTOOL_DIR@/src
+INCLUDE				= @COMMONTOOL_DIR@/include
 
 @CODE_COVERAGE_RULES@
 

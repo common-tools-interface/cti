@@ -1,5 +1,5 @@
 #
-# configure.ac script for the craytool interface.
+# configure.ac script for the common tools interface.
 #
 # Copyright 2011-2019 Cray Inc. All Rights Reserved
 #
@@ -8,7 +8,7 @@ AC_PREREQ([2.63])
 
 dnl We need to use the m4_esyscmd here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT. This is not portable...
-AC_INIT([craytool_interface], m4_esyscmd([source $PWD/release_versioning; echo $craytool_major.$craytool_minor | tr -d '\n']), [andrewg@cray.com])
+AC_INIT([common_tool_interface], m4_esyscmd([source $PWD/release_versioning; echo $common_tool_major.$common_tool_minor | tr -d '\n']), [andrewg@cray.com])
 AC_COPYRIGHT([Copyright 2011-2019 Cray Inc. All Rights Reserved.])
 
 AC_CONFIG_SRCDIR([src/cti_defs.h])
@@ -21,7 +21,7 @@ AC_USE_SYSTEM_EXTENSIONS
 
 AM_INIT_AUTOMAKE([foreign -Wall])
 
-AC_SUBST([CRAYTOOL_DIR], ["$(cd $srcdir && pwd)"])
+AC_SUBST([COMMONTOOL_DIR], ["$(cd $srcdir && pwd)"])
 
 dnl Pull in Cray specific m4 extensions
 cray_INIT
@@ -235,30 +235,30 @@ AC_CHECK_FUNCS([clock_gettime dup2 getcwd inet_ntoa memchr memmove memset mkdir 
 ########################
 
 dnl Define the release version so that the frontend can look in the right directory
-AC_DEFINE_UNQUOTED([CTI_RELEASE_VERSION], ["$CRAYTOOL_RELEASE_VERSION"], [CTI release version string.])
+AC_DEFINE_UNQUOTED([CTI_RELEASE_VERSION], ["$COMMONTOOL_RELEASE_VERSION"], [CTI release version string.])
 
 dnl Define the dynamic name of the frontend and backend daemon that is version specific
-AC_SUBST([CRAYTOOL_BE_DAEMON_BINARY], ["cti_be_daemon$CRAYTOOL_RELEASE_VERSION"])
-AC_DEFINE_UNQUOTED([CTI_BE_DAEMON_BINARY], ["$CRAYTOOL_BE_DAEMON_BINARY"], [Name of CTI backend daemon binary.])
-AC_SUBST([CRAYTOOL_FE_DAEMON_BINARY], ["cti_fe_daemon$CRAYTOOL_RELEASE_VERSION"])
-AC_DEFINE_UNQUOTED([CTI_FE_DAEMON_BINARY], ["$CRAYTOOL_FE_DAEMON_BINARY"], [Name of CTI frontend daemon binary.])
+AC_SUBST([COMMONTOOL_BE_DAEMON_BINARY], ["cti_be_daemon$COMMONTOOL_RELEASE_VERSION"])
+AC_DEFINE_UNQUOTED([CTI_BE_DAEMON_BINARY], ["$COMMONTOOL_BE_DAEMON_BINARY"], [Name of CTI backend daemon binary.])
+AC_SUBST([COMMONTOOL_FE_DAEMON_BINARY], ["cti_fe_daemon$COMMONTOOL_RELEASE_VERSION"])
+AC_DEFINE_UNQUOTED([CTI_FE_DAEMON_BINARY], ["$COMMONTOOL_FE_DAEMON_BINARY"], [Name of CTI frontend daemon binary.])
 
 ################
 ### Finalize ###
 ################
 
 AC_CONFIG_FILES([	Makefile
-				 	craytools_be.pc
-					craytools_fe.pc
+				 	common_tools_be.pc
+					common_tools_fe.pc
 					external/Makefile
 					src/Makefile
 					src/backend/Makefile
 					src/backend/daemon/Makefile
 					src/frontend/Makefile
 					src/frontend/daemon/Makefile
-					src/frontend/cti_transfer/Makefile
+					src/frontend/transfer/Makefile
 					src/frontend/frontend_impl/Makefile
-					src/frontend/frontend_impl/CraySLURM/Makefile
+					src/frontend/frontend_impl/SLURM/Makefile
 					src/frontend/frontend_impl/GenericSSH/Makefile
 					src/frontend/mpir_iface/Makefile
 					src/useful/Makefile

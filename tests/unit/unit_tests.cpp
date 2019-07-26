@@ -1,7 +1,7 @@
 /******************************************************************************\
  * unit_tests.cpp - Unit test driver
  *
- * Copyright 2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -38,8 +38,8 @@
 #include <stdlib.h>
 
 // CTI Transfer includes
-#include "frontend/cti_transfer/Manifest.hpp"
-#include "frontend/cti_transfer/Session.hpp"
+#include "frontend/transfer/Manifest.hpp"
+#include "frontend/transfer/Session.hpp"
 
 // Unit Test includes
 #include "cti_fe_unit_test.hpp"

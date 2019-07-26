@@ -1,9 +1,7 @@
 /******************************************************************************\
- * cray_tools_be.h - The public API definitions for the backend portion of
- *                   the Cray tools interface. This interface should be used
- *                   only on Cray compute nodes. It will not function on eslogin
- *                   or login nodes. Backend refers to the location where
- *                   applications are run.
+ * common_tools_be.h - The public API definitions for the backend portion of
+ *                     the common tools interface. Backend refers to the
+ *                     location where applications are run.
  *
  * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *
@@ -37,51 +35,10 @@
  *
  ******************************************************************************/
 
-#ifndef _CRAY_TOOLS_BE_H
-#define _CRAY_TOOLS_BE_H
+#ifndef _COMMON_TOOLS_BE_H
+#define _COMMON_TOOLS_BE_H
 
-#include "cray_tools_shared.h"
-
-/*
- * The Cray tools interface automatically creates/sets several environment
- * variables when the dlaunch utility launches the tool daemon on the compute
- * node. They are defined here. Note that the value of these environment
- * variables are subject to change. Use the defines to guarantee portability.
- * These should all be read-only.
- *
- * CTI_SCRATCH_ENV_VAR
- *
- *         The environment variable that is used to denote temporary
- *         storage space. This is set to a location that is guaranteed
- *         to be writable and unique to the instance of the tool daemon.
- *         If temporary storage space is required to be shared between a tool
- *         daemon and the application, the caller should set the value of
- *         CTI_SCRATCH_ENV_VAR in the environment of aprun and then set
- *         CTI_SCRATCH_ENV_VAR in their tool daemon to the value of
- *         OLD_SCRATCH_ENV_VAR. If multiple instances of tool daemons need to
- *         share temporary storage space, CTI_SCRATCH_ENV_VAR can be set to the
- *         value of CTI_ROOT_DIR_VAR.
- *
- * CTI_OLD_SCRATCH_ENV_VAR
- *
- *         The environment variable that is used to contain the value of
- *         CTI_SCRATCH_ENV_VAR that was set inside the environment of the aprun
- *         associated with this tool daemon. This is useful if you need to query
- *         the value that was used in conjunction with the environment of the
- *         application. If CTI_SCRATCH_ENV_VAR was not set in the environment of
- *         aprun, CTI_OLD_SCRATCH_ENV_VAR will not exist in the environment of
- *         the tool daemon.
- *
- * CTI_OLD_CWD_ENV_VAR
- *
- *         The environment variable that is used to contain the value of
- *         current working directory of the aprun associated with this tool
- *         daemon. This is useful if the tool daemon needs to know about the
- *         directory the application is running in to read or write a file.
- */
-#define CTI_SCRATCH_ENV_VAR     "TMPDIR"
-#define CTI_OLD_SCRATCH_ENV_VAR "CRAYTOOL_OLD_TMPDIR"
-#define CTI_OLD_CWD_ENV_VAR     "CRAYTOOL_OLD_CWD"
+#include "common_tools_shared.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -103,7 +60,7 @@ typedef struct
 } cti_pidList_t;
 
 /*
- * The Cray tools interface backend calls are defined below.
+ * The common tools interface backend calls are defined below.
  */
 
 /*
@@ -370,4 +327,4 @@ char * cti_be_getTmpDir(void);
 }
 #endif
 
-#endif /* _CRAY_TOOLS_BE_H */
+#endif /* _COMMON_TOOLS_BE_H */

@@ -1,9 +1,9 @@
 /******************************************************************************\
- * cti_info_test.c - An example program which takes advantage of the Cray
+ * cti_info_test.c - An example program which takes advantage of the common
  *          tools interface which will gather information from the WLM about a
  *          previously launched job.
  *
- * Copyright 2012-2019 Cray Inc.    All Rights Reserved.
+ * Copyright 2012-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -44,7 +44,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 #include "cti_fe_common.h"
 
 const struct option long_opts[] = {
@@ -60,7 +60,7 @@ usage(char *name)
 {
     fprintf(stdout, "USAGE: %s [OPTIONS]...\n", name);
     fprintf(stdout, "Gather information about a previously launched application\n");
-    fprintf(stdout, "using the Cray tools interface.\n\n");
+    fprintf(stdout, "using the common tools interface.\n\n");
 
     fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
     fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");
@@ -209,14 +209,14 @@ main(int argc, char **argv)
 
     // Check the args to make sure they are valid given the wlm in use
     switch (mywlm) {
-        case CTI_WLM_CRAY_SLURM:
+        case CTI_WLM_SLURM:
         {
             if (j_arg == 0 || s_arg == 0) {
                 fprintf(stderr, "Error: Missing --jobid and --stepid argument. This is required for the SLURM WLM.\n");
             }
             assert(j_arg != 0 && s_arg != 0);
-            cti_cray_slurm_ops_t * slurm_ops;
-            cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
+            cti_slurm_ops_t * slurm_ops;
+            cti_wlm_type_t ret = cti_open_ops((void **)&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);
             myapp = slurm_ops->registerJobStep(job_id, step_id);
@@ -235,7 +235,7 @@ main(int argc, char **argv)
             }
             assert(p_arg != 0);
             cti_ssh_ops_t * ssh_ops;
-            cti_wlm_type_t ret = cti_open_ops(&ssh_ops);
+            cti_wlm_type_t ret = cti_open_ops((void **)&ssh_ops);
             assert(ret == mywlm);
             assert(ssh_ops != NULL);
             myapp = ssh_ops->registerJob(launcher_pid);

@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_session_unit_test.hpp - Session unit tests for CTI
  *
- * Copyright 2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -41,8 +41,8 @@
 
 #include "MockFrontend/Frontend.hpp"
 
-#include "frontend/cti_transfer/Session.hpp"
-#include "frontend/cti_transfer/Manifest.hpp"
+#include "frontend/transfer/Session.hpp"
+#include "frontend/transfer/Manifest.hpp"
 
 #include "cti_fe_unit_test.hpp"
 
@@ -50,13 +50,13 @@
 class CTISessionUnitTest : public CTIAppUnitTest
 {
 protected: // variables
-	std::shared_ptr<Session> sessionPtr;
-	std::vector<std::string> file_names;
+    std::shared_ptr<Session> sessionPtr;
+    std::vector<std::string> file_names;
 
-	// string constants
-	const std::string TEST_FILE_NAME = "archive_test_file";
+    // string constants
+    const std::string TEST_FILE_NAME = "archive_test_file";
 
 protected: // interface
-	CTISessionUnitTest();
-	~CTISessionUnitTest();
+    CTISessionUnitTest();
+    ~CTISessionUnitTest();
 };

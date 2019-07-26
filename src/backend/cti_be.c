@@ -4,7 +4,7 @@
  *        to obtain application information for backend tool daemons running on
  *        the compute nodes.
  *
- * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -47,8 +47,8 @@
 #include "cti_be.h"
 
 /* wlm specific proto objects defined elsewhere */
-extern cti_be_wlm_proto_t   _cti_be_cray_slurm_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_slurm_wlmProto;
+extern cti_be_wlm_proto_t   _cti_be_generic_ssh_wlmProto;
 
 // Global vars
 /* noneness wlm proto object */
@@ -93,12 +93,12 @@ _cti_be_init(void)
     // verify that the wlm string is valid
     switch (atoi(wlm_str))
     {
-        case CTI_WLM_CRAY_SLURM:
-            _cti_be_wlmProto = &_cti_be_cray_slurm_wlmProto;
+        case CTI_WLM_SLURM:
+            _cti_be_wlmProto = &_cti_be_slurm_wlmProto;
             break;
 
         case CTI_WLM_SSH:
-            _cti_be_wlmProto = &_cti_be_slurm_wlmProto;
+            _cti_be_wlmProto = &_cti_be_generic_ssh_wlmProto;
             break;
 
         case CTI_WLM_NONE:
@@ -158,11 +158,11 @@ cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
 {
     switch (wlm_type)
     {
-        case CTI_WLM_CRAY_SLURM:
-            return "Cray based SLURM";
+        case CTI_WLM_SLURM:
+            return SLURM_WLM_TYPE_STRING;
 
         case CTI_WLM_SSH:
-            return "Fallback (SSH based) workload manager";
+            return SSH_WLM_TYPE_STRING;
 
         case CTI_WLM_NONE:
         case CTI_WLM_MOCK:

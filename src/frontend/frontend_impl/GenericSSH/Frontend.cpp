@@ -1,7 +1,7 @@
 /******************************************************************************\
  * Frontend.cpp -  Frontend library functions for SSH based workload manager.
  *
- * Copyright 2017-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2017-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -59,7 +59,7 @@
 #include <unordered_map>
 
 // Pull in manifest to properly define all the forward declarations
-#include "cti_transfer/Manifest.hpp"
+#include "transfer/Manifest.hpp"
 
 #include "GenericSSH/Frontend.hpp"
 
@@ -617,8 +617,6 @@ GenericSSHApp::startDaemon(const char* const args[])
         launcherArgv.add(*arg);
     }
 
-    // TODO for PE-26002: use values in CRAY_DBG_LOG_DIR, CRAY_CTI_DBG to add daemon debug arguments
-
     // Execute the launcher on each of the hosts using SSH
     for (auto&& node : m_stepLayout.nodes) {
         SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(launcherArgv.get());
@@ -698,7 +696,7 @@ GenericSSHFrontend::getLauncherName()
         return defaultValue;
     };
 
-    // Cache the launcher name result.
+    // Cache the launcher name result. Assume slurm srun launcher by default.
     auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, SRUN)};
     return launcherName;
 }
@@ -784,17 +782,17 @@ GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& s
 std::string
 GenericSSHFrontend::createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath)
 {
-    auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
+    auto const pidPath = std::string{stagePath + "/" + SSH_PID_FILE};
     if (auto const pidFile = cti::file::open(pidPath, "wb")) {
 
         // Write the PID List header.
-        cti::file::writeT(pidFile.get(), slurmPidFileHeader_t
+        cti::file::writeT(pidFile.get(), cti_pidFileheader_t
             { .numPids = (int)procTable.size()
         });
 
         // Write a PID entry using information from each MPIR ProcTable entry.
         for (auto&& elem : procTable) {
-            cti::file::writeT(pidFile.get(), slurmPidFile_t
+            cti::file::writeT(pidFile.get(), cti_pidFile_t
                 { .pid = elem.pid
             });
         }
@@ -812,7 +810,7 @@ GenericSSHFrontend::isSupported()
     // FIXME: This is a hack. This is not a reliable check for all environments.
     // For example, whiteboxes should support direct SSH, but this file will not be present.
     // In this case, no WLM will be detected, and the user will be instructed to set the
-    // CRAY_CTI_WLM environment variable.
+    // CTI_WLM_IMPL_ENV_VAR environment variable.
     { struct stat sb;
         if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
             return true;
@@ -860,7 +858,7 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
 
         // redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
         // note: when using SRUN as launcher, this output redirection doesn't work.
-        // see CraySLURM's implementation (need to use SATTACH after launch)
+        // see the SLURM implementation (need to use SATTACH after launch)
         std::map<int, int> remapFds {
             { openFileOrDevNull(inputFile), STDIN_FILENO }
         };

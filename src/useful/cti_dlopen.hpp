@@ -2,7 +2,7 @@
  * cti_dlopen: manage a dynamically-loaded library, load pointers from function names
  *   and return function objects
  *
- * Copyright 2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -44,66 +44,66 @@
 namespace cti {
 
 namespace Dlopen {
-	template <class T>
-	class NonCopyable {
-	protected:
-		NonCopyable() {}
-		~NonCopyable() {}
-		NonCopyable(NonCopyable&&);
-		NonCopyable& operator= (NonCopyable&&);
-	};
+    template <class T>
+    class NonCopyable {
+    protected:
+        NonCopyable() {}
+        ~NonCopyable() {}
+        NonCopyable(NonCopyable&&);
+        NonCopyable& operator= (NonCopyable&&);
+    };
 
-	/* helper function to force cast a void* function pointer to a typed C++ std::function */
-	template <typename FnType>
-	std::function<FnType> fptr_cast(void* fptr) {
-		using FnPtrType = FnType*;
-		using PtrSizeType = std::conditional<sizeof(fptr) == 4, long, long long>::type;
-		return reinterpret_cast<FnPtrType>(reinterpret_cast<PtrSizeType>(fptr));
-	}
+    /* helper function to force cast a void* function pointer to a typed C++ std::function */
+    template <typename FnType>
+    std::function<FnType> fptr_cast(void* fptr) {
+        using FnPtrType = FnType*;
+        using PtrSizeType = std::conditional<sizeof(fptr) == 4, long, long long>::type;
+        return reinterpret_cast<FnPtrType>(reinterpret_cast<PtrSizeType>(fptr));
+    }
 
-	/* RAII class for dlopen handle. throws runtime error if loading failed */
-	class Handle : private NonCopyable<Handle> {
-	private:
-		void *handle = NULL;
+    /* RAII class for dlopen handle. throws runtime error if loading failed */
+    class Handle : private NonCopyable<Handle> {
+    private:
+        void *handle = NULL;
 
-	public:
-		/* initialization: make call to dlopen */
-		Handle(std::string const& name) {
-			dlerror();
-			handle = dlopen(name.c_str(), RTLD_LAZY);
-			if (!handle) {
-				throw std::runtime_error(dlerror());
-			}
-		}
+    public:
+        /* initialization: make call to dlopen */
+        Handle(std::string const& name) {
+            dlerror();
+            handle = dlopen(name.c_str(), RTLD_LAZY);
+            if (!handle) {
+                throw std::runtime_error(dlerror());
+            }
+        }
 
-		/* destruction: make call to dlclose */
-		~Handle() {
-			dlclose(handle);
-		}
+        /* destruction: make call to dlclose */
+        ~Handle() {
+            dlclose(handle);
+        }
 
-		/* possibly load a function symbol (or return nullptr) */
-		template <typename FnType>
-		std::function<FnType> loadFailable(std::string const& fn_name){
-			dlerror();
-			void *raw_fn_ptr = dlsym(handle, fn_name.c_str());
-			if (raw_fn_ptr == nullptr) {
-				return nullptr;
-			}
-			return fptr_cast<FnType>(raw_fn_ptr);
-		}
+        /* possibly load a function symbol (or return nullptr) */
+        template <typename FnType>
+        std::function<FnType> loadFailable(std::string const& fn_name){
+            dlerror();
+            void *raw_fn_ptr = dlsym(handle, fn_name.c_str());
+            if (raw_fn_ptr == nullptr) {
+                return nullptr;
+            }
+            return fptr_cast<FnType>(raw_fn_ptr);
+        }
 
-		/* load a function symbol and cast it to a typed std::function */
-		template <typename FnType>
-		std::function<FnType> load(std::string const& fn_name){
-			dlerror(); /* clear error code */
-			void *raw_fn_ptr = dlsym(handle, fn_name.c_str());
-			char *error = NULL;
-			if ((error = dlerror()) != NULL) {
-				throw std::runtime_error(error);
-			}
-			return fptr_cast<FnType>(raw_fn_ptr);
-		}
-	};
+        /* load a function symbol and cast it to a typed std::function */
+        template <typename FnType>
+        std::function<FnType> load(std::string const& fn_name){
+            dlerror(); /* clear error code */
+            void *raw_fn_ptr = dlsym(handle, fn_name.c_str());
+            char *error = NULL;
+            if ((error = dlerror()) != NULL) {
+                throw std::runtime_error(error);
+            }
+            return fptr_cast<FnType>(raw_fn_ptr);
+        }
+    };
 } /* namespace cti::Dlopen */
 
 } /* namespace cti */

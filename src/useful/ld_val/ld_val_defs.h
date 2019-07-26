@@ -4,7 +4,7 @@
  *                 simplified to read from a pipe instead of more advanced IPC
  *                 techniques.
  *
- * Copyright 2011-2015 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -39,14 +39,14 @@
 #ifndef _LD_VAL_DEFS_H
 #define _LD_VAL_DEFS_H
 
-#define LD_AUDIT				"LD_AUDIT"
+#define LD_AUDIT                "LD_AUDIT"
 
-#define BLOCK_SIZE			16
+#define BLOCK_SIZE          16
 // Do not make this larger than the pipe capacity.
-#define READ_BUF_LEN			1024
+#define READ_BUF_LEN            1024
 
 #define MANIFEST_BLACKLIST "/lib:/lib64:/usr/lib:/usr/lib64"
 
-#define MANIFEST_BLACKLIST_ENV_VAR "CRAY_CTI_BLACKLIST_DIRS"
+#define MANIFEST_BLACKLIST_ENV_VAR "CTI_BLACKLIST_DIRS"
 
 #endif /* _LD_VAL_DEFS_H */

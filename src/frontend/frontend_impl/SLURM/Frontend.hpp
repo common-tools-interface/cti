@@ -1,8 +1,7 @@
 /******************************************************************************\
- * cray_slurm_fe.h - A header file for the Cray slurm specific frontend
- *                   interface.
+ * Frontend.hpp - A header file for the SLURM specific frontend interface.
  *
- * Copyright 2014-2019 Cray Inc.    All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -57,14 +56,14 @@ struct SrunInfo : public cti_srunProc_t {
     }
 };
 
-class CraySLURMFrontend final : public Frontend
+class SLURMFrontend final : public Frontend
 {
 public: // inherited interface
-    static char const* getName()        { return "slurm"; }
-    static char const* getDescription() { return "Cray based SLURM"; }
+    static char const* getName()        { return SLURM_WLM_TYPE_IMPL; }
+    static char const* getDescription() { return SLURM_WLM_TYPE_STRING; }
     static bool isSupported();
 
-    cti_wlm_type_t getWLMType() const override { return CTI_WLM_CRAY_SLURM; }
+    cti_wlm_type_t getWLMType() const override { return CTI_WLM_SLURM; }
 
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
@@ -122,21 +121,21 @@ public: // slurm specific interface
     SrunInfo getSrunInfo(pid_t srunPid);
 
 public: // constructor / destructor interface
-    CraySLURMFrontend();
-    ~CraySLURMFrontend() = default;
-    CraySLURMFrontend(const CraySLURMFrontend&) = delete;
-    CraySLURMFrontend& operator=(const CraySLURMFrontend&) = delete;
-    CraySLURMFrontend(CraySLURMFrontend&&) = delete;
-    CraySLURMFrontend& operator=(CraySLURMFrontend&&) = delete;
+    SLURMFrontend();
+    ~SLURMFrontend() = default;
+    SLURMFrontend(const SLURMFrontend&) = delete;
+    SLURMFrontend& operator=(const SLURMFrontend&) = delete;
+    SLURMFrontend(SLURMFrontend&&) = delete;
+    SLURMFrontend& operator=(SLURMFrontend&&) = delete;
 };
 
-class CraySLURMApp final : public App
+class SLURMApp final : public App
 {
 private: // variables
     FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
     uint32_t m_jobId;
     uint32_t m_stepId;
-    CraySLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
+    SLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
     int      m_queuedOutFd; // Where to redirect stdout after barrier release
     int      m_queuedErrFd; // Where to redirect stderr after barrier release
     bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
@@ -168,20 +167,20 @@ public: // app interaction interface
     void startDaemon(const char* const args[]) override;
 
 public: // slurm specific interface
-    uint64_t getApid() const { return CRAY_SLURM_APID(m_jobId, m_stepId); }
+    uint64_t getApid() const { return SLURM_APID(m_jobId, m_stepId); }
     SrunInfo getSrunInfo() const { return SrunInfo { m_jobId, m_stepId }; }
 
 private: // delegated constructor
-    CraySLURMApp(CraySLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);
+    SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);
 public: // constructor / destructor interface
     // attach case
-    CraySLURMApp(CraySLURMFrontend& fe, uint32_t jobid, uint32_t stepid);
+    SLURMApp(SLURMFrontend& fe, uint32_t jobid, uint32_t stepid);
     // launch case
-    CraySLURMApp(CraySLURMFrontend& fe, const char * const launcher_argv[], int stdout_fd,
+    SLURMApp(SLURMFrontend& fe, const char * const launcher_argv[], int stdout_fd,
         int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
-    ~CraySLURMApp();
-    CraySLURMApp(const CraySLURMApp&) = delete;
-    CraySLURMApp& operator=(const CraySLURMApp&) = delete;
-    CraySLURMApp(CraySLURMApp&&) = delete;
-    CraySLURMApp& operator=(CraySLURMApp&&) = delete;
+    ~SLURMApp();
+    SLURMApp(const SLURMApp&) = delete;
+    SLURMApp& operator=(const SLURMApp&) = delete;
+    SLURMApp(SLURMApp&&) = delete;
+    SLURMApp& operator=(SLURMApp&&) = delete;
 };

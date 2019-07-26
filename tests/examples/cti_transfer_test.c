@@ -1,9 +1,9 @@
 /*********************************************************************************\
- * cti_transfer_test.c - An example program which takes advantage of the Cray
+ * cti_transfer_test.c - An example program which takes advantage of the common
  *          tools interface which will launch an application session from the
  *          given argv and transfer test files.
  *
- * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -40,13 +40,13 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 
 void
 usage(char *name)
 {
     fprintf(stdout, "USAGE: %s [LAUNCHER STRING]\n", name);
-    fprintf(stdout, "Launch an application using the Cray Tools Interface\n");
+    fprintf(stdout, "Launch an application using the common tools interface\n");
     fprintf(stdout, "and transfer a test file to the compute node.\n");
     return;
 }
@@ -144,10 +144,10 @@ main(int argc, char **argv)
 
     // Conduct WLM specific calls
     switch (mywlm) {
-        case CTI_WLM_CRAY_SLURM:
+        case CTI_WLM_SLURM:
         {
-            cti_cray_slurm_ops_t * slurm_ops;
-            cti_wlm_type_t ret = cti_open_ops(&slurm_ops);
+            cti_slurm_ops_t * slurm_ops;
+            cti_wlm_type_t ret = cti_open_ops((void **)&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);
             /*

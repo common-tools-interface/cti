@@ -1,7 +1,7 @@
 #
 # cray_extensions.m4 Cray configure extensions.
 #
-# Copyright 2012-2019 Cray Inc.  All Rights Reserved.
+# Copyright 2012-2019 Cray Inc. All Rights Reserved.
 #
 # This software is available to you under a choice of one of two
 # licenses.  You may choose to be licensed under the terms of the GNU
@@ -39,31 +39,31 @@ dnl
 AC_DEFUN([cray_INIT],
 [
 	dnl Pull in the revision information from the $PWD/release_versioning file
-	m4_define([CRAYTOOL_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo "$revision"])])
+	m4_define([COMMONTOOL_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo "$revision"])])
 
-	m4_define([CRAYTOOL_MAJOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$craytool_major"])])
-	m4_define([CRAYTOOL_MINOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$craytool_minor"])])
+	m4_define([COMMONTOOL_MAJOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_major"])])
+	m4_define([COMMONTOOL_MINOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_minor"])])
 
-	m4_define([CRAYTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
-	m4_define([CRAYTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
+	m4_define([COMMONTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
+	m4_define([COMMONTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
 
-	m4_define([CRAYTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
-	m4_define([CRAYTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
+	m4_define([COMMONTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
+	m4_define([COMMONTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
 
-	AC_SUBST([CRAYTOOL_RELEASE_VERSION], [CRAYTOOL_MAJOR.CRAYTOOL_MINOR.CRAYTOOL_REVISION])
-	AC_SUBST([CRAYTOOL_BE_VERSION], [CRAYTOOL_BE_CURRENT:CRAYTOOL_REVISION:CRAYTOOL_BE_AGE])
-	AC_SUBST([CRAYTOOL_FE_VERSION], [CRAYTOOL_FE_CURRENT:CRAYTOOL_REVISION:CRAYTOOL_FE_AGE])
+	AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION])
+	AC_SUBST([COMMONTOOL_BE_VERSION], [COMMONTOOL_BE_CURRENT:COMMONTOOL_REVISION:COMMONTOOL_BE_AGE])
+	AC_SUBST([COMMONTOOL_FE_VERSION], [COMMONTOOL_FE_CURRENT:COMMONTOOL_REVISION:COMMONTOOL_FE_AGE])
 
-    AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/CRAYTOOL_MAJOR.CRAYTOOL_MINOR.CRAYTOOL_REVISION"])
+    AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"])
 
-	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["CRAYTOOL_BE_CURRENT.CRAYTOOL_REVISION.CRAYTOOL_BE_AGE"], [Version number of CTI backend.])
-	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["CRAYTOOL_FE_CURRENT.CRAYTOOL_REVISION.CRAYTOOL_FE_AGE"], [Version number of CTI frontend.])
+	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["COMMONTOOL_BE_CURRENT.COMMONTOOL_REVISION.COMMONTOOL_BE_AGE"], [Version number of CTI backend.])
+	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["COMMONTOOL_FE_CURRENT.COMMONTOOL_REVISION.COMMONTOOL_FE_AGE"], [Version number of CTI frontend.])
 
-	AC_SUBST([CRAYTOOL_EXTERNAL], [${CRAYTOOL_DIR}/external])
-	AC_SUBST([CRAYTOOL_EXTERNAL_INSTALL], [${CRAYTOOL_DIR}/external/install])
+	AC_SUBST([COMMONTOOL_EXTERNAL], [${COMMONTOOL_DIR}/external])
+	AC_SUBST([COMMONTOOL_EXTERNAL_INSTALL], [${COMMONTOOL_DIR}/external/install])
 
-	if test ! -d "${CRAYTOOL_EXTERNAL_INSTALL}"; then
-		AS_MKDIR_P([${CRAYTOOL_EXTERNAL_INSTALL}])
+	if test ! -d "${COMMONTOOL_EXTERNAL_INSTALL}"; then
+		AS_MKDIR_P([${COMMONTOOL_EXTERNAL_INSTALL}])
 	fi
 
 	if [[ -z "${NUM_JOBS}" ]]; then
@@ -79,7 +79,7 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 	cray_cv_lib_archive_build=no
 
 	dnl External source directory
-	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/libarchive"
+	_cray_external_srcdir="${COMMONTOOL_EXTERNAL}/libarchive"
 
 	AC_MSG_CHECKING([for libarchive submodule])
 
@@ -97,7 +97,7 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 	autoreconf -ifv >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl run configure with options that work on build systems
-	./configure --prefix=${CRAYTOOL_EXTERNAL_INSTALL} --disable-shared --with-pic --without-expat --without-xml2 \
+	./configure --prefix=${COMMONTOOL_EXTERNAL_INSTALL} --disable-shared --with-pic --without-expat --without-xml2 \
 	--without-openssl --without-nettle --without-lzo2 --without-lzma --without-libiconv-prefix --without-iconv \
 	--without-lzmadec --without-bz2lib --without-zlib --disable-bsdtar --disable-bsdcpio --disable-acl \
 	--disable-rpath >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
@@ -119,7 +119,7 @@ AC_DEFUN([cray_BUILD_LIBARCHIVE],
 	 		)
 
 	dnl go home
-	cd ${CRAYTOOL_DIR}
+	cd ${COMMONTOOL_DIR}
 ])
 
 dnl
@@ -127,8 +127,8 @@ dnl define post-cache libarchive env
 dnl
 AC_DEFUN([cray_ENV_LIBARCHIVE],
 [
-	AC_SUBST([LIBARC_SRC], [${CRAYTOOL_EXTERNAL}/libarchive])
-	AC_SUBST([INTERNAL_LIBARCHIVE], [${CRAYTOOL_EXTERNAL_INSTALL}])
+	AC_SUBST([LIBARC_SRC], [${COMMONTOOL_EXTERNAL}/libarchive])
+	AC_SUBST([INTERNAL_LIBARCHIVE], [${COMMONTOOL_EXTERNAL_INSTALL}])
 ])
 
 dnl
@@ -139,7 +139,7 @@ AC_DEFUN([cray_BUILD_LIBSSH2],
 	cray_cv_lib_ssh2_build=no
 
 	dnl External source directory
-	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/libssh2"
+	_cray_external_srcdir="${COMMONTOOL_EXTERNAL}/libssh2"
 
 	AC_MSG_CHECKING([for libssh2 submodule])
 
@@ -181,14 +181,14 @@ AC_DEFUN([cray_BUILD_LIBSSH2],
 	 		)
 
 	dnl install to stage - this also gets included in final package
-	make -j${NUM_JOBS} install prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j${NUM_JOBS} install prefix=${COMMONTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[libssh2 make install failed.]],
 	 		[cray_cv_lib_ssh2_build=yes]
 	 		)
 
 	dnl go home
-	cd ${CRAYTOOL_DIR}
+	cd ${COMMONTOOL_DIR}
 ])
 
 dnl
@@ -196,7 +196,7 @@ dnl define post-cache libssh2 env
 dnl
 AC_DEFUN([cray_ENV_LIBSSH2],
 [
-	AC_SUBST([INTERNAL_LIBSSH2], [${CRAYTOOL_EXTERNAL_INSTALL}])
+	AC_SUBST([INTERNAL_LIBSSH2], [${COMMONTOOL_EXTERNAL_INSTALL}])
 ])
 
 dnl
@@ -207,7 +207,7 @@ AC_DEFUN([cray_CONF_ELFUTILS],
 	cray_cv_elfutils_conf=no
 
 	dnl External source directory
-	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/elfutils"
+	_cray_external_srcdir="${COMMONTOOL_EXTERNAL}/elfutils"
 
 	AC_MSG_CHECKING([for elfutils submodule])
 
@@ -248,14 +248,14 @@ AC_DEFUN([cray_CONF_ELFUTILS],
 	 		)
 
 	dnl install to stage - this also gets included in final package
-	make -j${NUM_JOBS} install prefix=${CRAYTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	make -j${NUM_JOBS} install prefix=${COMMONTOOL_EXTERNAL_INSTALL} >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[elfutils make install failed.]],
 	 		[cray_cv_elfutils_conf=yes]
 	 		)
 
 	dnl go home
-	cd ${CRAYTOOL_DIR}
+	cd ${COMMONTOOL_DIR}
 ])
 
 dnl
@@ -263,7 +263,7 @@ dnl define post-cache libssh env
 dnl
 AC_DEFUN([cray_ENV_ELFUTILS],
 [
-	AC_SUBST([INTERNAL_ELFUTILS], [${CRAYTOOL_EXTERNAL_INSTALL}])
+	AC_SUBST([INTERNAL_ELFUTILS], [${COMMONTOOL_EXTERNAL_INSTALL}])
 ])
 
 dnl
@@ -274,7 +274,7 @@ AC_DEFUN([cray_BUILD_BOOST],
 	cray_cv_boost_build=no
 
 	dnl External source directory
-	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/boost"
+	_cray_external_srcdir="${COMMONTOOL_EXTERNAL}/boost"
 
 	AC_MSG_CHECKING([for boost submodule])
 
@@ -309,7 +309,7 @@ AC_DEFUN([cray_BUILD_BOOST],
 	./b2 -j${NUM_JOBS} stage >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	dnl install to temporary staging location for internal use
-	./b2 -j${NUM_JOBS} --prefix=${CRAYTOOL_EXTERNAL_INSTALL} install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	./b2 -j${NUM_JOBS} --prefix=${COMMONTOOL_EXTERNAL_INSTALL} install >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 
 	AS_IF(	[test $? != 0],
 	 		[AC_MSG_ERROR[boost b2 stage failed.]],
@@ -319,7 +319,7 @@ AC_DEFUN([cray_BUILD_BOOST],
 	LDFLAGS="$save_LDFLAGS"
 
 	dnl go home
-	cd ${CRAYTOOL_DIR}
+	cd ${COMMONTOOL_DIR}
 ])
 
 dnl
@@ -327,8 +327,8 @@ dnl define post-cache boost env
 dnl
 AC_DEFUN([cray_ENV_BOOST],
 [
-	AC_SUBST([BOOST_SRC], [${CRAYTOOL_EXTERNAL}/boost])
-	AC_SUBST([BOOST_ROOT], [${CRAYTOOL_EXTERNAL_INSTALL}])
+	AC_SUBST([BOOST_SRC], [${COMMONTOOL_EXTERNAL}/boost])
+	AC_SUBST([BOOST_ROOT], [${COMMONTOOL_EXTERNAL_INSTALL}])
 ])
 
 dnl
@@ -339,10 +339,10 @@ AC_DEFUN([cray_BUILD_TBB],
 	cray_cv_tbb_build=no
 
 	dnl External source directory
-	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/tbb"
+	_cray_external_srcdir="${COMMONTOOL_EXTERNAL}/tbb"
 
 	dnl Temporary build directory
-	_cray_tmpdir="${CRAYTOOL_EXTERNAL_INSTALL}/TBB-build"
+	_cray_tmpdir="${COMMONTOOL_EXTERNAL_INSTALL}/TBB-build"
 
 	if test ! -d "$_cray_tmpdir"; then
 		AS_MKDIR_P([$_cray_tmpdir])
@@ -373,7 +373,7 @@ AC_DEFUN([cray_BUILD_TBB],
 	LDFLAGS="$save_LDFLAGS"
 
 	dnl go home
-	cd ${CRAYTOOL_DIR}
+	cd ${COMMONTOOL_DIR}
 ])
 
 dnl
@@ -381,8 +381,8 @@ dnl define post-cache tbb env
 dnl
 AC_DEFUN([cray_ENV_TBB],
 [
-	AC_SUBST([TBB_LIBRARY], [${CRAYTOOL_EXTERNAL_INSTALL}/TBB-build/tbb_release])
-	AC_SUBST([TBB_INCLUDE_DIR], [${CRAYTOOL_EXTERNAL}/tbb/include])
+	AC_SUBST([TBB_LIBRARY], [${COMMONTOOL_EXTERNAL_INSTALL}/TBB-build/tbb_release])
+	AC_SUBST([TBB_INCLUDE_DIR], [${COMMONTOOL_EXTERNAL}/tbb/include])
 ])
 
 dnl
@@ -393,7 +393,7 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	cray_cv_dyninst_build=no
 
 	dnl External source directory
-	_cray_external_srcdir="${CRAYTOOL_EXTERNAL}/dyninst"
+	_cray_external_srcdir="${COMMONTOOL_EXTERNAL}/dyninst"
 
 	AC_MSG_CHECKING([for dyninst submodule])
 
@@ -416,7 +416,7 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	mkdir -p build
 	cd build
 	_cray_dyninst_cmake_opts="-DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPATH_BOOST=${BOOST_ROOT} -DBoost_INCLUDE_DIR=${BOOST_ROOT}/include -DLIBELF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBELF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libelf.so -DLIBDWARF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBDWARF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libdw.so -DTBB_INCLUDE_DIRS=${TBB_INCLUDE_DIR} -DTBB_tbb_LIBRARY_RELEASE=${TBB_LIBRARY}/libtbb.so -DUSE_OpenMP=OFF"
-	cmake -DCMAKE_INSTALL_PREFIX=${CRAYTOOL_EXTERNAL_INSTALL} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
+	cmake -DCMAKE_INSTALL_PREFIX=${COMMONTOOL_EXTERNAL_INSTALL} $_cray_dyninst_cmake_opts .. >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
 	AS_IF(	[test $? != 0],
 			[AC_MSG_ERROR[dyninst cmake failed.]],
 			[]
@@ -453,7 +453,7 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	LDFLAGS="$save_LDFLAGS"
 
 	dnl go home
-	cd ${CRAYTOOL_DIR}
+	cd ${COMMONTOOL_DIR}
 ])
 
 dnl
@@ -461,6 +461,6 @@ dnl define post-cache dyninst env
 dnl
 AC_DEFUN([cray_ENV_DYNINST],
 [
-	AC_SUBST([DYNINST_BUILD], [${CRAYTOOL_EXTERNAL}/dyninst/build])
-	AC_SUBST([INTERNAL_DYNINST], [${CRAYTOOL_EXTERNAL_INSTALL}])
+	AC_SUBST([DYNINST_BUILD], [${COMMONTOOL_EXTERNAL}/dyninst/build])
+	AC_SUBST([INTERNAL_DYNINST], [${COMMONTOOL_EXTERNAL_INSTALL}])
 ])

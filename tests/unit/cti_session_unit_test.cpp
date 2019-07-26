@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_session_unit_test.cpp - Session unit tests for CTI
  *
- * Copyright 2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -40,8 +40,8 @@
 #include <fstream>
 
 // CTI Transfer includes
-#include "frontend/cti_transfer/Manifest.hpp"
-#include "frontend/cti_transfer/Session.hpp"
+#include "frontend/transfer/Manifest.hpp"
+#include "frontend/transfer/Session.hpp"
 
 #include "useful/cti_wrappers.hpp"
 
@@ -102,7 +102,7 @@ TEST_F(CTISessionUnitTest, sendManifest) {
          f1.open(file_names[0].c_str());
          if(!f1.is_open()) {
          FAIL() << "Could not create test file";
-	 }
+     }
          f1 << "f1";
          f1.close();
     }
@@ -118,9 +118,9 @@ TEST_F(CTISessionUnitTest, sendManifest) {
     ASSERT_THROW({
         try {
             test_manifest -> addFile(std::string("./" + file_names[0]).c_str());
-	} catch (std::exception& ex) {
+    } catch (std::exception& ex) {
             EXPECT_STREQ("Attempted to modify previously shipped manifest!", ex.what());
-	    throw;
+        throw;
         }
     }, std::runtime_error);
 

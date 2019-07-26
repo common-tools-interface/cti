@@ -1,7 +1,7 @@
 /******************************************************************************\
  * Frontend.cpp - A mock frontend implementation
  *
- * Copyright 2019 Cray Inc.    All Rights Reserved.
+ * Copyright 2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -44,8 +44,8 @@
 #include <archive_entry.h>
 
 // CTI Transfer includes
-#include "frontend/cti_transfer/Manifest.hpp"
-#include "frontend/cti_transfer/Session.hpp"
+#include "frontend/transfer/Manifest.hpp"
+#include "frontend/transfer/Session.hpp"
 
 #include "Frontend.hpp"
 

@@ -1,9 +1,9 @@
 /******************************************************************************\
- * cti_launch_test.c - An example program which takes advantage of the Cray
+ * cti_launch_test.c - An example program which takes advantage of the common
  *          tools interface which will launch an application from the given
  *          argv and display information about the job
  *
- * Copyright 2015-2019 Cray Inc.    All Rights Reserved.
+ * Copyright 2015-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -41,7 +41,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 #include "cti_fe_common.h"
 
 void

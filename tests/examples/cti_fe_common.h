@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * cti_fe_common.h - Header file for the common FE API tests.
  *
- * Copyright 2015-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2015-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -36,7 +36,7 @@
 #ifndef _CTI_FE_COMMON_H
 #define _CTI_FE_COMMON_H
 
-#include "cray_tools_fe.h"
+#include "common_tools_fe.h"
 
 void    cti_test_fe(cti_app_id_t);
 

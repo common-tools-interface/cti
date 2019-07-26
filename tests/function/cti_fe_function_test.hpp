@@ -1,8 +1,18 @@
+/*
+ * Copyright 2019 Cray Inc. All Rights Reserved.
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Cray Inc.,
+ * no part of this work or its content may be used, reproduced or disclosed
+ * in any form.
+ */
+
 #pragma once
 
 #include "gtest/gtest.h"
 
-#include "include/cray_tools_fe.h"
+#include "include/common_tools_fe.h"
 
 static constexpr auto SUCCESS = int{0};
 static constexpr auto FAILURE = int{1};
@@ -47,34 +57,34 @@ public:
 class CTIFEFunctionTest : public ::testing::Test
 {
 private:
-	cti_app_id_t runningApp;
+    cti_app_id_t runningApp;
 
 protected:
-	CTIFEFunctionTest()
-		: runningApp{APP_ERROR}
-	{}
+    CTIFEFunctionTest()
+        : runningApp{APP_ERROR}
+    {}
 
-	~CTIFEFunctionTest() override
-	{
-		if (runningApp != APP_ERROR) {
-			// send sigkill to app
-			if (cti_killApp(runningApp, SIGKILL) != SUCCESS) {
-				std::cerr << "warning: failed to kill app on test cleanup" << std::endl;
-			}
+    ~CTIFEFunctionTest() override
+    {
+        if (runningApp != APP_ERROR) {
+            // send sigkill to app
+            if (cti_killApp(runningApp, SIGKILL) != SUCCESS) {
+                std::cerr << "warning: failed to kill app on test cleanup" << std::endl;
+            }
 
-			// force deregister app
-			cti_deregisterApp(runningApp);
-		}
-	}
+            // force deregister app
+            cti_deregisterApp(runningApp);
+        }
+    }
 
-	// note the running app ID so that we can clean it up later
-	cti_app_id_t watchApp(cti_app_id_t appId)
-	{
-		if (runningApp == APP_ERROR) {
-			runningApp = appId;
-			return runningApp;
-		} else {
-			throw std::logic_error("assigned multiple apps to a test");
-		}
-	}
+    // note the running app ID so that we can clean it up later
+    cti_app_id_t watchApp(cti_app_id_t appId)
+    {
+        if (runningApp == APP_ERROR) {
+            runningApp = appId;
+            return runningApp;
+        } else {
+            throw std::logic_error("assigned multiple apps to a test");
+        }
+    }
 };

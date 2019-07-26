@@ -1,8 +1,8 @@
 /******************************************************************************\
- * cray_tools_shared.h - Shared type definitions shared between the FE and
- *                       BE API.
+ * common_tools_shared.h - Shared type definitions shared between the FE and
+ *                         BE API.
  *
- * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -34,14 +34,14 @@
  *
  ******************************************************************************/
 
-#ifndef _CRAY_TOOLS_SHARED_H
-#define _CRAY_TOOLS_SHARED_H
+#ifndef _COMMON_TOOLS_SHARED_H
+#define _COMMON_TOOLS_SHARED_H
 
 #include <stdint.h>
 #include <sys/types.h>
 
 /*
- * The Cray tools interface can read environment variables about the system
+ * The common tools interface can read environment variables about the system
  * configuration dynamically at run time. The environment variables that are
  * read are defined here.  Note that the value of these environment
  * variables are subject to change. Use the defines to guarantee portability.
@@ -85,7 +85,7 @@
  *      use on the system. This can be used to force CTI to instantiate a
  *      specific workload manager. Set this environment variable to the
  *      corresponding string for each of the cti_wlm_type_t defined below:
- *          CTI_WLM_CRAY_SLURM set to "slurm"
+ *          CTI_WLM_SLURM set to "slurm"
  *          CTI_WLM_SSH set to "generic"
  *
  */
@@ -100,16 +100,19 @@
 extern "C" {
 #endif
 
+/*
+ * cti_wlm_type_t is used to denote the workload manager in use on the system.
+ */
 typedef enum
 {
-    CTI_WLM_NONE,       // error/unitialized state
-    CTI_WLM_CRAY_SLURM, // SLURM implementation
-    CTI_WLM_SSH,        // Direct SSH implementation
-    CTI_WLM_MOCK        // Used for unit testing
+    CTI_WLM_NONE,   // error/unitialized state
+    CTI_WLM_MOCK,   // Used for unit testing
+    CTI_WLM_SLURM,  // SLURM implementation
+    CTI_WLM_SSH     // Direct SSH implementation
 } cti_wlm_type_t;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _CRAY_TOOLS_SHARED_H */
+#endif /* _COMMON_TOOLS_SHARED_H */

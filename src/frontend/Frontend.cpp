@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * Frontend.cpp - define workload manager frontend interface and common base class
  *
- * Copyright 2014-2019 Cray Inc.    All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -43,8 +43,8 @@
 #include <signal.h>
 
 // CTI Transfer includes
-#include "cti_transfer/Manifest.hpp"
-#include "cti_transfer/Session.hpp"
+#include "transfer/Manifest.hpp"
+#include "transfer/Session.hpp"
 
 // CTI Frontend / App implementations
 #include "Frontend.hpp"
@@ -155,13 +155,13 @@ Frontend::findCfgDir()
         }
     }
 
-    // Create the directory name string - we default this to have the name cray_cti-<username>
+    // Create the directory name string - we default this to have the name cti-<username>
     std::string cfgPath;
     if (!customCfgDir.empty()) {
-        cfgPath = customCfgDir + "/cray_cti-" + username;
+        cfgPath = customCfgDir + "/cti-" + username;
     }
     else if (!cfgDir.empty()) {
-        cfgPath = cfgDir + "/cray_cti-" + username;
+        cfgPath = cfgDir + "/cti-" + username;
     }
     else {
         // We have no where to create a temporary directory...
@@ -235,10 +235,6 @@ Frontend::findBaseDir(void)
     // Check if env var is defined
     // TODO: Rethink this. It is probably dangerous...
     const char * base_dir_env = getenv(CTI_BASE_DIR_ENV_VAR);
-    if (base_dir_env != nullptr) {
-        // Honor the env var setting
-        return std::string{base_dir_env};
-    }
     // Check default install locations
     if (!cti::dirHasPerms(base_dir_env, R_OK | X_OK)) {
         for (const char* const* pathPtr = cti::default_dir_locs; *pathPtr != nullptr; pathPtr++) {
@@ -246,6 +242,10 @@ Frontend::findBaseDir(void)
                 return std::string{*pathPtr};
             }
         }
+    }
+    else {
+        // Honor the env var setting
+        return std::string{base_dir_env};
     }
 
     throw std::runtime_error(std::string{"failed to find a CTI installation. Ensure "} + CTI_BASE_DIR_ENV_VAR + " is set properly.");
@@ -352,8 +352,8 @@ Frontend::detect_Frontend()
     if (const char* wlm_name_env = getenv(CTI_WLM_IMPL_ENV_VAR)) {
         auto const wlmName = toLower(wlm_name_env);
         // parse the env string
-        if (wlmName == toLower(CraySLURMFrontend::getName())) {
-            return CTI_WLM_CRAY_SLURM;
+        if (wlmName == toLower(SLURMFrontend::getName())) {
+            return CTI_WLM_SLURM;
         } else if (wlmName == toLower(GenericSSHFrontend::getName())) {
             return CTI_WLM_SSH;
         }
@@ -363,8 +363,8 @@ Frontend::detect_Frontend()
     }
     else {
         // Query supported workload managers
-        if (CraySLURMFrontend::isSupported()) {
-            return CTI_WLM_CRAY_SLURM;
+        if (SLURMFrontend::isSupported()) {
+            return CTI_WLM_SLURM;
         } else if (GenericSSHFrontend::isSupported()) {
             return CTI_WLM_SSH;
         }
@@ -388,8 +388,8 @@ Frontend::inst() {
             m_cleanup = std::make_unique<Frontend_cleanup>();
             // Determine which wlm to instantiate
             switch(detect_Frontend()) {
-                case CTI_WLM_CRAY_SLURM:
-                    inst = new CraySLURMFrontend{};
+                case CTI_WLM_SLURM:
+                    inst = new SLURMFrontend{};
                     break;
                 case CTI_WLM_SSH:
                     inst = new GenericSSHFrontend{};

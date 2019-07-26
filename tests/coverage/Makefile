@@ -1,5 +1,5 @@
 SRC := $(PWD)/../../src/
-GCNOS := $(wildcard ../../src/frontend/cti_transfer/.libs/*.gcno)
+GCNOS := $(wildcard ../../src/frontend/transfer/.libs/*.gcno)
 
 .PHONY: coverage
 coverage: coverage.xml

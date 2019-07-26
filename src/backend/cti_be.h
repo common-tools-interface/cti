@@ -4,7 +4,7 @@
  *        to obtain application information for backend tool daemons running on
  *        the compute nodes.
  *
- * Copyright 2011-2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2011-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -42,7 +42,7 @@
 #include <sys/types.h>
 
 #include "cti_defs.h"
-#include "cray_tools_be.h"
+#include "common_tools_be.h"
 
 // This is the wlm proto object that all wlm implementations should define.
 // The noneness functions can be used if a function is not definable by your wlm,

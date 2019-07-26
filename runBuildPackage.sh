@@ -2,7 +2,7 @@
 #
 # runBuildPackage.sh - Package steps for CTI
 #
-# Copyright 2019 Cray Inc.  All Rights Reserved.
+# Copyright 2019 Cray Inc. All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -44,7 +44,7 @@ then
 fi
 
 DATE_1=`git log -n 1 --pretty=format:"%ci" | tail -1 | cut -d' ' -f1-2 | head -c16`
-DATE_2=$(echo $DATE_1 | sed 's/[ ]//g' | tr -d - | tr -d : | tr -d ' ') 
+DATE_2=$(echo $DATE_1 | sed 's/[ ]//g' | tr -d - | tr -d : | tr -d ' ')
 DATE=$(echo $DATE_2 | xargs)
 GIT_FULL_REV=$(git log -n1 --pretty=%H)
 GIT_SHORT_REV=$(echo $GIT_FULL_REV | head -c13)
@@ -75,8 +75,8 @@ fi
 RELEASE_DATE=`source $PWD/scripts/find_release_date.sh`
 DATE_COMMIT=$GIT_STR-$REL
 REL_OS=$REL.$OS_VER
-PKG_MAJOR=$(cat $PWD/release_versioning | grep ^craytool_major= | cut -d'"' -f2)
-PKG_MINOR=$(cat $PWD/release_versioning | grep ^craytool_minor= | cut -d'"' -f2)
+PKG_MAJOR=$(cat $PWD/release_versioning | grep ^common_tool_major= | cut -d'"' -f2)
+PKG_MINOR=$(cat $PWD/release_versioning | grep ^common_tool_minor= | cut -d'"' -f2)
 PKG_BUGFIX=$(cat $PWD/release_versioning | grep ^revision= | cut -d'"' -f2)
 PKG_VERSION=$PKG_MAJOR.$PKG_MINOR.$PKG_BUGFIX
 INSTALL_DIR=/opt/cray/pe/$NAME

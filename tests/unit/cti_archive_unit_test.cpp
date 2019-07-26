@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_fe_unit_test.cpp - Frontend unit tests for CTI
  *
- * Copyright 2019 Cray Inc.  All Rights Reserved.
+ * Copyright 2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -69,7 +69,7 @@ using ::testing::Invoke;
 using ::testing::WithoutArgs;
 
 CTIArchiveUnitTest::CTIArchiveUnitTest() : temp_file_path(cti::temp_file_handle{CROSSMOUNT_FILE_TEMPLATE})
-	                                 , archive(temp_file_path.get())
+                                     , archive(temp_file_path.get())
 {
 
     // add all the file suffixes to the vector
@@ -86,7 +86,7 @@ CTIArchiveUnitTest::CTIArchiveUnitTest() : temp_file_path(cti::temp_file_handle{
 
     // ensure no test files still exist from previous tests
     for (auto&& fil : file_names) {
-    	remove(fil.c_str());
+        remove(fil.c_str());
     }
 
 }
@@ -96,7 +96,7 @@ CTIArchiveUnitTest::~CTIArchiveUnitTest()
 
     // remove all test files from current directory
     for (auto&& fil : file_names) {
-    	remove(fil.c_str());
+        remove(fil.c_str());
     }
 
     // remove all temporary files from temp directory
@@ -144,7 +144,7 @@ TEST_F(CTIArchiveUnitTest, addPath)
         }
         f_temp << TEST_DIR_NAME + "/" + f_temp_path;
         f_temp.close();
-	temp_file_names.push_back(f_temp_path);
+    temp_file_names.push_back(f_temp_path);
     }
 
     // create some files to add in the test
@@ -155,7 +155,7 @@ TEST_F(CTIArchiveUnitTest, addPath)
             if (!f[i].is_open()) {
                 FAIL()<< "Failed to create test file " << i;
             }
-	    // write file paths to file to make checking contents trivial
+        // write file paths to file to make checking contents trivial
             f[i] << dir_names[i] + file_names[i];
             f[i].close();
         }
@@ -226,25 +226,25 @@ TEST_F(CTIArchiveUnitTest, addPath)
     struct archive_entry *entry;
     while (archive_read_next_header(archPtr.get(), &entry) == ARCHIVE_OK) {
         auto const path = std::string{archive_entry_pathname(entry)};
-	len = path.length();
-	read_len = archive_read_data(archPtr.get(), buff, len);
-	buff[read_len] = '\0';
+    len = path.length();
+    read_len = archive_read_data(archPtr.get(), buff, len);
+    buff[read_len] = '\0';
         // search for the entry. should always be the first if archive worked correctly
         for (unsigned int i = 0; i < test_paths.size(); i++) {
             if (test_paths[i] == path) {
                 found = true;
-		// test that contents are correct
-		if(std::string(buff) != "") { // exclude folders
-	            EXPECT_STREQ(path.c_str(), buff);
-		}
- 	        test_paths.erase(test_paths.begin() + i);
+        // test that contents are correct
+        if(std::string(buff) != "") { // exclude folders
+                EXPECT_STREQ(path.c_str(), buff);
+        }
+            test_paths.erase(test_paths.begin() + i);
                 break;
- 	   }
+       }
         }
         if (!found) {
           ADD_FAILURE() << "Unexpected file: " << path;
         }
-	memset(buff, 0, 64);
+    memset(buff, 0, 64);
         found = false;
         archive_read_data_skip(archPtr.get());
     }

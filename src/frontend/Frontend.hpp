@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * Frontend.hpp - define workload manager frontend interface and common base class
  *
- * Copyright 2014-2019 Cray Inc.    All Rights Reserved.
+ * Copyright 2014-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -98,7 +98,7 @@ public: // impl.-specific interface that derived type must implement
     // Frontend implementations must implement the following static functions:
 
     // static char const* getName()
-    //   return the short name for the WLM that can be set in the CRAY_CTI_WLM environment variable
+    //   return the short name for the WLM that can be set by CTI_WLM_IMPL_ENV_VAR
 
     // static char const* getDescription()
     //   return the long description for the WLM used on call to cti_wlm_type_toString

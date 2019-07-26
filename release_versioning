@@ -1,7 +1,7 @@
 #==============================================================================
-# Release and shared library version control for the craytool interface.
+# Release and shared library version control for the common tools interface.
 #
-# 2011-2019 Cray Inc.  All Rights Reserved.
+# 2011-2019 Cray Inc. All Rights Reserved.
 #
 # This software is available to you under a choice of one of two
 # licenses.  You may choose to be licensed under the terms of the GNU
@@ -77,13 +77,13 @@
 # DSO FILE NAMES:
 # ---------------
 # The file names of the DSO files are:
-#    libcraytools_fe.so.<fe_current>.<fe_revision>.<fe_age>
-#    libcraytools_be.so.<be_current>.<be_revision>.<be_age>
+#    libcommontools_fe.so.<fe_current>.<fe_revision>.<fe_age>
+#    libcommontools_be.so.<be_current>.<be_revision>.<be_age>
 #
 # RELEASE VERSION
 # ---------------
 # The traditional release version is tracked by the three digit
-# craytool_major.craytool_minor.craytool_revision string.
+# common_tool_major.common_tool_minor.common_tool_revision string.
 #
 # JENKINS INTEGRATION
 # -------------------
@@ -95,8 +95,8 @@
 # Jenkins will override this
 revision="9999"
 
-craytool_major="2"
-craytool_minor="0"
+common_tool_major="2"
+common_tool_minor="0"
 
 be_current="2"
 be_age="0"
