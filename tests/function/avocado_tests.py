@@ -19,6 +19,7 @@ import time
 FUNCTIONAL_TESTS_PATH = path.dirname(path.realpath(__file__))
 EXAMPLES_PATH = "%s/../examples" % FUNCTIONAL_TESTS_PATH
 SUPPORT_PATH  = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
+SRC_PATH      = "%s/../../src/" % FUNCTIONAL_TESTS_PATH
 
 '''
 cti_transfer launches a binary and holds it at startup. meanwhile, it transfers
@@ -150,3 +151,19 @@ class CtiInfoTest(Test):
 				break
 		self.assertTrue(jobid is not None and stepid is not None)
 		'''
+
+class CTIBEDaemonEmptyLaunchTest(Test):
+	def test(self):
+		try:
+			process.run("%s/backend/daemon/cti_be_daemon2.0.9999" % SRC_PATH)
+		except process.CmdError as details:
+			return 0
+			
+
+class CTIFEDaemonEmptyLaunchTest(Test):
+	def test(self):
+		try:
+			process.run("%s/frontend/daemon/cti_fe_daemon2.0.9999" % SRC_PATH)
+		except process.CmdError as details:
+			return 0
+			

@@ -159,6 +159,7 @@ run_tests() {
             echo "Configuring with Whitebox settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
             export CTI_INSTALL_DIR=$PWD/../../install
+            export LD_LIBRARY_PATH=$PWD/../../install/lib
             export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
             export CTI_WLM_IMPL=generic
         else
