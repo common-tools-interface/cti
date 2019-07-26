@@ -137,7 +137,7 @@ $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version},g" \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_fe.pc
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcommontools_[bf]e\.so\.1" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcommontools_[bf]e\.so\." \
 | sed "/.*\.so\.[0-9]\.[0-9]/d" > $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
 # prevent echo of new directory as it messes up install output
