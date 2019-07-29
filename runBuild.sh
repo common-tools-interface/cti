@@ -10,6 +10,15 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
+#set gcc version
+gcc_ver=8.1.0
+
+#Ensure we can use modules
+source /opt/cray/pe/modules/default/init/bash
+
+#Ensure CTI is build with $gcc_ver
+module load gcc/$gcc_ver
+
 echo "############################################"
 echo "#               Running make               #"
 echo "############################################"

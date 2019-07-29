@@ -84,6 +84,14 @@ TWO_DIGIT_VER=$PKG_MAJOR.$PKG_MINOR
 TWO_DIGIT_NODOT_VER=$PKG_MAJOR$PKG_MINOR
 PKG=$PKG_NAME-$PKG_VERSION-$DATE_COMMIT.$OS_VER.$ARCH.rpm
 
+#set gcc version
+gcc_ver=8.1.0
+
+#Ensure we can use modules
+source /opt/cray/pe/modules/default/init/bash
+
+#Ensure CTI is build with $gcc_ver
+module load gcc/$gcc_ver
 
 echo "############################################"
 echo "#          Running make install            #"
