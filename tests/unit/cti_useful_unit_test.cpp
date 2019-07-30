@@ -1,0 +1,90 @@
+/******************************************************************************\
+ * cti_useful_unit_test.cpp - /Useful unit tests for CTI
+ *
+ * Copyright 2019 Cray Inc. All Rights Reserved.
+ *
+ * This software is available to you under a choice of one of two
+ * licenses.  You may choose to be licensed under the terms of the GNU
+ * General Public License (GPL) Version 2, available from the file
+ * COPYING in the main directory of this source tree, or the
+ * BSD license below:
+ *
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ ******************************************************************************/
+
+#include "cti_defs.h"
+
+#include <unordered_set>
+#include <fstream>
+#include <algorithm>
+
+#include "cti_useful_unit_test.hpp"
+
+using ::testing::Return;
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::WithoutArgs;
+
+CTIUsefulUnitTest::CTIUsefulUnitTest()
+{
+}
+
+CTIUsefulUnitTest::~CTIUsefulUnitTest()
+{
+}
+
+// test that
+TEST_F(CTIUsefulUnitTest, cti_argv)
+{ 
+}
+
+// test that
+TEST_F(CTIUsefulUnitTest, cti_dlopen)
+{ 
+}
+
+// test that
+TEST_F(CTIUsefulUnitTest, cti_execvp)
+{ 
+}
+
+// test that
+TEST_F(CTIUsefulUnitTest, cti_log)
+{ 
+}
+
+// test that
+TEST_F(CTIUsefulUnitTest, cti_path)
+{ 
+}
+
+// test that
+TEST_F(CTIUsefulUnitTest, cti_split)
+{ 
+}
+
+// test that11111111111111
+TEST_F(CTIUsefulUnitTest, cti_wrappers)
+{ 
+}
