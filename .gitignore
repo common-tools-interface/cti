@@ -30,9 +30,6 @@ common_tools_fe.pc
 .libs
 .scannerwork
 
-src/frontend/daemon/cti_fe_daemon*
-src/backend/daemon/cti_be_daemon*
-
 /stamp-h1
 tests/test_binaries
 tests/function/avocado-virtual-environment
