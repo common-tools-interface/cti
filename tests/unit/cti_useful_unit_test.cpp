@@ -39,6 +39,7 @@
 #include <fstream>
 #include <algorithm>
 #include <fcntl.h>
+#include "useful/cti_split.hpp"
 
 #include "cti_useful_unit_test.hpp"
 
@@ -284,13 +285,21 @@ TEST_F(CTIUsefulUnitTest, cti_log)
 TEST_F(CTIUsefulUnitTest, cti_path)
 { 
 }
-
+*/
 // test that
 TEST_F(CTIUsefulUnitTest, cti_split)
 { 
+    std::string test = "      Test";
+    test = cti::split::removeLeadingWhitespace(test, " ");
+    ASSERT_STREQ(test.c_str(), "Test");
+    
+    // test with a slighty more complex "whitespace"
+    test = "thequickbrownfoxjumpedoverthelazydog";
+    test = cti::split::removeLeadingWhitespace(test, "theQUICKbrownfoxjumpedoverthelazydog");
+    ASSERT_STREQ(test.c_str(), "quick");
 }
-
-// test that11111111111111
+/*
+// test that
 TEST_F(CTIUsefulUnitTest, cti_wrappers)
 { 
 }

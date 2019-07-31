@@ -50,7 +50,6 @@
 //#include "useful/cti_split.hpp"
 #include "useful/cti_wrappers.hpp"
 
-
 // include google testing files
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
