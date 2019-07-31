@@ -159,7 +159,63 @@ TEST_F(CTIUsefulUnitTest, cti_execvp)
             ASSERT_EQ(ex,1);
         }
     }
-   
+
+    {
+        // test Pipe
+        cti::Pipe testpipe;
+        ASSERT_NE(-1, testpipe.getReadFd());
+        ASSERT_NE(-1, testpipe.getWriteFd());
+
+        // test close
+        ASSERT_NO_THROW(testpipe.closeWrite());
+        ASSERT_NO_THROW(testpipe.closeRead());
+        {
+            bool ex = 0;
+            try {
+                testpipe.closeRead();
+            } catch (...) {
+                ex = 1;
+            }
+            ASSERT_EQ(ex,1);
+        }
+
+        {
+            bool ex = 0;
+            try {
+                testpipe.closeWrite();
+            } catch (...) {
+                ex = 1;
+            }
+            ASSERT_EQ(ex,1);
+        }
+    }
+
+    // test that cti::Execvp fails as expected
+    {
+        std::initializer_list<std::string const> strlist {"it_will"};
+        cti::ManagedArgv argv(strlist);
+        cti::Execvp test_fail("/this/will/fail", argv.get());
+        EXPECT_EQ(test_fail.getExitStatus(), 1);
+    }
+    
+    // test that cti::Execvp works as expected
+    {
+        std::initializer_list<std::string const> strlist {"-n", "T"};
+        cti::ManagedArgv argv(strlist);
+        cti::Execvp test("/bin/echo", argv.get());
+
+        // test that output is what is expected
+        std::istream& out = test.stream();
+        if(out.fail())
+            FAIL() << "Failed to get istream";
+        if(out.eof())
+            FAIL() << "No data to read";
+        char result = out.get();
+        EXPECT_EQ(result, 'T');
+
+        // test that the exit status is correct
+        ASSERT_EQ(test.getExitStatus(), 0);
+    }
 }
 /*
 // test that
