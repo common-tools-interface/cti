@@ -217,12 +217,69 @@ TEST_F(CTIUsefulUnitTest, cti_execvp)
         ASSERT_EQ(test.getExitStatus(), 0);
     }
 }
-/*
+
 // test that
 TEST_F(CTIUsefulUnitTest, cti_log)
 { 
-}
+    // test that logs aren't created when no filename is given
+    {
+        cti_log_t* log_fail = _cti_create_log(NULL, NULL, 0);
+        ASSERT_EQ(log_fail, nullptr);
+        errno = 0;
+    }
 
+    // test that a log is created when proper params are given and works as expected
+    {
+        cti_log_t* log_succ = _cti_create_log("./", "test_log", 0);
+        EXPECT_NE(log_succ, nullptr);
+        
+        EXPECT_EQ(_cti_write_log(log_succ, "TEST"), 0);
+        EXPECT_EQ(_cti_close_log(log_succ), 0);
+
+        // check that data wrote correctly
+        std::ifstream check;
+        check.open("./dbglog_test_log.0.log", std::ifstream::in);
+        if(!check.is_open())
+            FAIL() << "Log file created but somehow not openable...";
+        std::string res;
+        check >> res;
+        check.close();
+        EXPECT_STREQ(res.c_str(), "TEST");
+        remove("./dbglog_test_log.0.log");
+    }
+
+    // test the logs hookstdoe function
+    {   
+        int fout, ferr;
+        fout = dup(STDOUT_FILENO);
+        ferr = dup(STDERR_FILENO);
+
+        cti_log_t* log_hook = _cti_create_log("./", "test_log", 1);
+        EXPECT_NE(log_hook, nullptr);
+        EXPECT_EQ(_cti_hook_stdoe(log_hook), 0);
+        std::cout << "TEST\n" << std::flush;
+        EXPECT_EQ(_cti_close_log(log_hook), 0);
+
+        // check that data wrote correctly
+        std::ifstream check;
+        check.open("./dbglog_test_log.1.log", std::ifstream::in);
+        if(!check.is_open())
+            FAIL() << "Log file created but somehow not openable...";
+        
+        std::string res;
+        check >> res;
+        check.close();
+        EXPECT_STREQ(res.c_str(), "TEST");
+        remove("./dbglog_test_log.1.log");
+
+        // Reset stdout and stderr so testing can continue as normal
+        dup2(fout, STDOUT_FILENO);
+        dup2(ferr, STDERR_FILENO);
+        close(fout);
+        close(ferr);
+    }
+}
+/*
 // test that
 TEST_F(CTIUsefulUnitTest, cti_path)
 { 
