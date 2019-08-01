@@ -301,9 +301,30 @@ TEST_F(CTIUsefulUnitTest, cti_split)
     test = cti::split::removeLeadingWhitespace(test, "theQUICKbrownfoxjumpedoverthelazydog");
     ASSERT_STREQ(test.c_str(), "quick");
 }
-/*
+
 // test that
-TEST_F(CTIUsefulUnitTest, cti_wrappers)
-{ 
+TEST_F(CTIUsefulUnitTest, cti_wrappers_temp_file_handle_fail)
+{
+    ASSERT_THROW({
+        try {
+            cti::temp_file_handle test_fail("");
+        } catch (const std::exception& ex) {
+            ASSERT_STREQ("mktemp failed", ex.what());
+            throw;
+        }
+    },std::runtime_error);
 }
-*/
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_temp_file_handle_success)
+{
+    char const* path;
+    struct stat buffer;
+    {
+        cti::temp_file_handle test_succ("/tmp/cti-dir-test-temp-XXXXXX");
+        path = test_succ.get();
+        std::ofstream file(path);
+        file.close();
+        EXPECT_EQ(stat(path, &buffer), 0);
+    }
+    EXPECT_NE(stat(path, &buffer), 0);
+}
