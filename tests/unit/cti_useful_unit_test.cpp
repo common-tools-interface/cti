@@ -358,3 +358,9 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_accessiblePath)
 
     ASSERT_NO_THROW(cti::accessiblePath("./unit_tests"));
 }
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_isSameFile)
+{
+    ASSERT_EQ(cti::isSameFile("./unit_tests", "./unit_tests"), true);
+    ASSERT_EQ(cti::isSameFile("./unit_tests", "./cti_useful_unit_test.cpp"), false);
+}
