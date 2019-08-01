@@ -391,4 +391,16 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_getRealPath)
     ASSERT_STRNE(cti::getRealPath("./unit_tests").c_str(), "./unit_tests");
 }
 
+TEST_F(CTIUsefulUnitTest, cti_wrappers_getNameFromPath)
+{
+    ASSERT_STREQ(cti::getNameFromPath("../unit/unit_tests").c_str(), "unit_tests");
+    ASSERT_THROW({
+        try {
+            cti::getNameFromPath("");
+        } catch (const std::exception& ex) {
+            ASSERT_STREQ("Could not convert the fullname to realname.", ex.what());
+            throw;
+        }
+    }, std::runtime_error);
+}
 
