@@ -364,3 +364,24 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_isSameFile)
     ASSERT_EQ(cti::isSameFile("./unit_tests", "./unit_tests"), true);
     ASSERT_EQ(cti::isSameFile("./unit_tests", "./cti_useful_unit_test.cpp"), false);
 }
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_pathExists)
+{
+    ASSERT_EQ(cti::pathExists("./unit_tests"), true);
+    ASSERT_EQ(cti::pathExists("./DNE"), false);
+}
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_fileHasPerms)
+{
+    ASSERT_EQ(cti::fileHasPerms("./unit_tests", X_OK), true);
+    ASSERT_EQ(cti::fileHasPerms("./cti_useful_unit_test.cpp", X_OK), false);
+    ASSERT_EQ(cti::fileHasPerms("../unit/", R_OK), false);
+}
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_dirHasPerms)
+{
+    ASSERT_EQ(cti::dirHasPerms("../unit/", R_OK), true);  // Valid dir valid perms
+    ASSERT_EQ(cti::dirHasPerms("./unit_tests", X_OK), false); // File with valid perms
+    ASSERT_EQ(cti::dirHasPerms("./DNE/", R_OK), false); // Invalid dir
+}
+
