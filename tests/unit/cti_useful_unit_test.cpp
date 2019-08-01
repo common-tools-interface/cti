@@ -328,3 +328,19 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_temp_file_handle_success)
     }
     EXPECT_NE(stat(path, &buffer), 0);
 }
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_canWriteFd_Fail)
+{
+    ASSERT_EQ(cti::canWriteFd(-1), false);
+
+    int rdonly = open("./rdonly.txt", O_RDONLY | O_CREAT, S_IRUSR);
+    EXPECT_EQ(cti::canWriteFd(rdonly), false);
+    remove("./rdonly.txt");
+}
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_canWriteFd_Success)
+{
+    int wr = open("./wr.txt", O_WRONLY | O_CREAT, S_IWUSR);
+    EXPECT_EQ(cti::canWriteFd(wr), true);
+    remove("./wr.txt");
+}
