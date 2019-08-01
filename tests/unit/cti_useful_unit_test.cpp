@@ -344,3 +344,17 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_canWriteFd_Success)
     EXPECT_EQ(cti::canWriteFd(wr), true);
     remove("./wr.txt");
 }
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_accessiblePath)
+{
+    ASSERT_THROW({
+        try {
+            cti::accessiblePath("./WILLFAIL");
+        } catch (const std::exception& ex) {
+            ASSERT_STREQ("path inacessible: ./WILLFAIL", ex.what());
+            throw;
+        }
+    }, std::runtime_error);
+
+    ASSERT_NO_THROW(cti::accessiblePath("./unit_tests"));
+}
