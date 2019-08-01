@@ -404,3 +404,36 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_getNameFromPath)
     }, std::runtime_error);
 }
 
+//TODO: findLib findpath
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_fd_handle_fail)
+{
+    ASSERT_THROW({
+        try {
+            cti::fd_handle test_fdh_fail(-1);
+        } catch (const std::exception& ex) {
+            ASSERT_STREQ("File descriptor creation failed.", ex.what());
+            throw;
+        }
+    }, std::runtime_error);    
+}
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_fd_handle)
+{
+    // test that a fdhandle can be made
+    int file = open("./fd_handle_test.txt", O_WRONLY | O_CREAT, S_IWUSR);
+    cti::fd_handle test_fdh(file);
+    EXPECT_EQ(test_fdh.fd(), file);
+    remove("./fd_handle_test.txt");
+
+    // test that the move constructor works
+    cti::fd_handle move_fdh = std::move(test_fdh);
+    EXPECT_EQ(move_fdh.fd(), file);
+    EXPECT_EQ(test_fdh.fd(), -1);
+
+    // tests that the overloaded = operator works
+    cti::fd_handle eq_fdh;
+    EXPECT_EQ(eq_fdh.fd(), -1);
+    eq_fdh = cti::fd_handle(file);
+    EXPECT_EQ(eq_fdh.fd(), file);
+}
