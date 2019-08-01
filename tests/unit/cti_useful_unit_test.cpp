@@ -319,6 +319,55 @@ TEST_F(CTIUsefulUnitTest, cti_split)
     ASSERT_STREQ(test.c_str(), "quick");
 }
 
+TEST_F(CTIUsefulUnitTest, cti_stack_null)
+{
+    // test stack calls with no parameters provided
+    ASSERT_NO_THROW(_cti_consumeStack(nullptr));
+    ASSERT_EQ(_cti_push(nullptr, nullptr), 0);
+    ASSERT_EQ(_cti_pop(nullptr), nullptr);
+}
+
+TEST_F(CTIUsefulUnitTest, cti_stack_main)
+{
+    // setup stack and pointers to push onto it
+    cti_stack_t* stack = _cti_newStack();
+    int a=0,b=1,c=2;
+    int* ap=&a;
+    int* bp=&b;
+    int* cp=&c;
+
+    // push some data and check that pushed properly
+    EXPECT_EQ(_cti_push(stack, ap), 0);
+    int* pop_test;
+    pop_test =(int*) _cti_pop(stack);
+    EXPECT_EQ(pop_test, ap);
+    EXPECT_EQ(*pop_test, a);
+
+    // push some more data and check that it still works as expected
+    EXPECT_EQ(_cti_push(stack, ap), 0);
+    EXPECT_EQ(_cti_push(stack, bp), 0);
+    EXPECT_EQ(_cti_push(stack, cp), 0);
+
+    pop_test =(int*) _cti_pop(stack);
+    EXPECT_EQ(pop_test, cp);
+    EXPECT_EQ(*pop_test, c);
+
+    pop_test =(int*) _cti_pop(stack);
+    EXPECT_EQ(pop_test, bp);
+    EXPECT_EQ(*pop_test, b);
+
+    pop_test =(int*) _cti_pop(stack);
+    EXPECT_EQ(pop_test, ap);
+    EXPECT_EQ(*pop_test, a);
+
+    // test how pop behaves when no data on stack
+    EXPECT_EQ(_cti_pop(stack), nullptr);
+
+    // free the stack with one element on it for ideal testing
+    EXPECT_EQ(_cti_push(stack, ap), 0);
+    ASSERT_NO_THROW(_cti_consumeStack(stack));
+}
+
 TEST_F(CTIUsefulUnitTest, cti_wrappers_temp_file_handle_fail)
 {
     // test that a temp file handle won't be made when on template is provided
