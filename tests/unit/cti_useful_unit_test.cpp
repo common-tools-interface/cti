@@ -112,10 +112,11 @@ TEST_F(CTIUsefulUnitTest, cti_dlopen)
 }
 */
 
-// test that
 TEST_F(CTIUsefulUnitTest, cti_execvp_fdbuf)
 { 
-    // test fdbuf
+    // test fdbuf class
+    
+    // test that fdbuf recognizes invalid file descriptors
     ASSERT_THROW({
         try {
             cti::FdBuf buf_fail(-1);
@@ -125,6 +126,7 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_fdbuf)
         }
     }, std::invalid_argument);
 
+    // test that fdbuf works with proper file descriptors
     int fd = open("testfile.txt", O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
     EXPECT_NO_THROW(cti::FdBuf buf(fd));
     remove("testfile.txt");
@@ -133,28 +135,29 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_fdbuf)
 TEST_F(CTIUsefulUnitTest, cti_execvp_FdPair)
 {
     
-    // test FdPair
+    // test FdPair class
 
     // test creation of a fdpair
     ASSERT_NO_THROW(cti::FdPair fdp);
 
-    // test that close fd's behave as exxpected
+    // test that fdpair closeRead behaves as expected given no fd
     cti::FdPair testfdp;
     {
         bool ex = 0;
         try {
             testfdp.closeRead();
-        } catch (...) {
+        } catch (...) { // this strange catch required due to closeRead throwing a string
             ex = 1;
         }
         ASSERT_EQ(ex,1);
     }
 
+    // test that fdpair closeWrite behaves as expected given no fd
     {
         bool ex = 0;
         try {
             testfdp.closeWrite();
-        } catch (...) {
+        } catch (...) { // this strange catch required due to closeWrite throwing a string
             ex = 1;
         }
         ASSERT_EQ(ex,1);
@@ -163,14 +166,16 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_FdPair)
 
 TEST_F(CTIUsefulUnitTest, cti_execvp_pipe)
 {
-    // test Pipe
+    // test Pipe class
     cti::Pipe testpipe;
     ASSERT_NE(-1, testpipe.getReadFd());
     ASSERT_NE(-1, testpipe.getWriteFd());
 
-    // test close
+    // test that closes function ends open properly
     ASSERT_NO_THROW(testpipe.closeWrite());
     ASSERT_NO_THROW(testpipe.closeRead());
+
+    // test that closeRead fails when end already closed
     {
         bool ex = 0;
         try {
@@ -180,7 +185,8 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_pipe)
         }
         ASSERT_EQ(ex,1);
     }
-
+    
+    // test that closeWrite fails when end already closed
     {
         bool ex = 0;
         try {
@@ -197,8 +203,10 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_failure)
     // test that cti::Execvp fails as expected
     std::initializer_list<std::string const> strlist {"it_will"};
     cti::ManagedArgv argv(strlist);
+
+    // give bogus binary path and check that exit status indicates failure
     cti::Execvp test_fail("/this/will/fail", argv.get());
-    EXPECT_EQ(test_fail.getExitStatus(), 1);
+    EXPECT_NE(test_fail.getExitStatus(), 0);
 
 }
 
@@ -222,13 +230,11 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_success)
     ASSERT_EQ(test.getExitStatus(), 0);
 }
 
-// test that
 TEST_F(CTIUsefulUnitTest, cti_log_cti_log_failure)
 { 
     // test that logs aren't created when no filename is given
     cti_log_t* log_fail = _cti_create_log(NULL, NULL, 0);
     ASSERT_EQ(log_fail, nullptr);
-    errno = 0;
 }
 
 TEST_F(CTIUsefulUnitTest, cti_log_cti_log_normal) 
@@ -237,40 +243,51 @@ TEST_F(CTIUsefulUnitTest, cti_log_cti_log_normal)
     cti_log_t* log_succ = _cti_create_log("./", "test_log", 0);
     EXPECT_NE(log_succ, nullptr);
         
+    // test that a log can be written to and closed
     EXPECT_EQ(_cti_write_log(log_succ, "TEST"), 0);
     EXPECT_EQ(_cti_close_log(log_succ), 0);
 
-    // check that data wrote correctly
+    // test that file is openable
     std::ifstream check;
     check.open("./dbglog_test_log.0.log", std::ifstream::in);
     if(!check.is_open())
         FAIL() << "Log file created but somehow not openable...";
+
+    // test that data is correct
     std::string res;
     check >> res;
     check.close();
     EXPECT_STREQ(res.c_str(), "TEST");
+
+    // remove log file
     remove("./dbglog_test_log.0.log");
 }
 
 TEST_F(CTIUsefulUnitTest, cti_log_cti_log_hookstdoe)
 {
     // test the logs hookstdoe function   
+
+    // duplicate the stdout and stderr file descriptors so they can be reset later
     int fout, ferr;
     fout = dup(STDOUT_FILENO);
     ferr = dup(STDERR_FILENO);
 
+    // create the log file
     cti_log_t* log_hook = _cti_create_log("./", "test_log", 1);
     EXPECT_NE(log_hook, nullptr);
+
+    // engage the hook and 'write' to the file via stdout
     EXPECT_EQ(_cti_hook_stdoe(log_hook), 0);
-    std::cout << "TEST\n" << std::flush;
+    std::cout << "TEST\n" << std::flush; // fails without std::flush present
     EXPECT_EQ(_cti_close_log(log_hook), 0);
 
-    // check that data wrote correctly
+    // test that file exists
     std::ifstream check;
     check.open("./dbglog_test_log.1.log", std::ifstream::in);
     if(!check.is_open())
         FAIL() << "Log file created but somehow not openable...";
         
+    // test that data was written correctly
     std::string res;
     check >> res;
     check.close();
@@ -284,15 +301,15 @@ TEST_F(CTIUsefulUnitTest, cti_log_cti_log_hookstdoe)
     close(ferr);
 }
 /*
-// test that
 TEST_F(CTIUsefulUnitTest, cti_path)
 { 
 }
 */
-// test that
+
 TEST_F(CTIUsefulUnitTest, cti_split)
 { 
-    std::string test = "      Test";
+    // basic test string with whitespace
+    std::string test = "      Test         ";
     test = cti::split::removeLeadingWhitespace(test, " ");
     ASSERT_STREQ(test.c_str(), "Test");
     
@@ -302,9 +319,9 @@ TEST_F(CTIUsefulUnitTest, cti_split)
     ASSERT_STREQ(test.c_str(), "quick");
 }
 
-// test that
 TEST_F(CTIUsefulUnitTest, cti_wrappers_temp_file_handle_fail)
 {
+    // test that a temp file handle won't be made when on template is provided
     ASSERT_THROW({
         try {
             cti::temp_file_handle test_fail("");
@@ -317,6 +334,7 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_temp_file_handle_fail)
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_temp_file_handle_success)
 {
+    // test that a temp file handle can be made when a valid template is provided
     char const* path;
     struct stat buffer;
     {
@@ -331,8 +349,10 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_temp_file_handle_success)
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_canWriteFd_Fail)
 {
+    // test that canWriteFd fails on invalid file descriptor
     ASSERT_EQ(cti::canWriteFd(-1), false);
 
+    // test that canWriteFd fails when file has invalid permissions
     int rdonly = open("./rdonly.txt", O_RDONLY | O_CREAT, S_IRUSR);
     EXPECT_EQ(cti::canWriteFd(rdonly), false);
     remove("./rdonly.txt");
@@ -340,6 +360,7 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_canWriteFd_Fail)
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_canWriteFd_Success)
 {
+    // that test canWriteFd succeeds when valid permissions
     int wr = open("./wr.txt", O_WRONLY | O_CREAT, S_IWUSR);
     EXPECT_EQ(cti::canWriteFd(wr), true);
     remove("./wr.txt");
@@ -347,6 +368,7 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_canWriteFd_Success)
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_accessiblePath)
 {
+    // test that accessible path fails when invalid path provided
     ASSERT_THROW({
         try {
             cti::accessiblePath("./WILLFAIL");
@@ -356,44 +378,55 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_accessiblePath)
         }
     }, std::runtime_error);
 
+    // test that an accessible path is accessible
     ASSERT_NO_THROW(cti::accessiblePath("./unit_tests"));
 }
 
+
 TEST_F(CTIUsefulUnitTest, cti_wrappers_isSameFile)
 {
+    // test that isSameFile works as expected
     ASSERT_EQ(cti::isSameFile("./unit_tests", "./unit_tests"), true);
     ASSERT_EQ(cti::isSameFile("./unit_tests", "./cti_useful_unit_test.cpp"), false);
 }
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_pathExists)
 {
+    // test that pathExists works as expected
     ASSERT_EQ(cti::pathExists("./unit_tests"), true);
     ASSERT_EQ(cti::pathExists("./DNE"), false);
 }
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_fileHasPerms)
 {
-    ASSERT_EQ(cti::fileHasPerms("./unit_tests", X_OK), true);
-    ASSERT_EQ(cti::fileHasPerms("./cti_useful_unit_test.cpp", X_OK), false);
-    ASSERT_EQ(cti::fileHasPerms("../unit/", R_OK), false);
+    // test that fileHasPerms works as expected
+    ASSERT_EQ(cti::fileHasPerms("./unit_tests", X_OK), true); // valid file valid perms
+    ASSERT_EQ(cti::fileHasPerms("./cti_useful_unit_test.cpp", X_OK), false); // invalid perms
+    ASSERT_EQ(cti::fileHasPerms("./DNE", X_OK), false); // invalid file
+    ASSERT_EQ(cti::fileHasPerms("../unit/", R_OK), false); // invalid file type
 }
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_dirHasPerms)
 {
-    ASSERT_EQ(cti::dirHasPerms("../unit/", R_OK), true);  // Valid dir valid perms
-    ASSERT_EQ(cti::dirHasPerms("./unit_tests", X_OK), false); // File with valid perms
-    ASSERT_EQ(cti::dirHasPerms("./DNE/", R_OK), false); // Invalid dir
+    // test that dirHasPerms works as expected
+    ASSERT_EQ(cti::dirHasPerms("../unit/", R_OK), true);  // valid dir valid perms
+    ASSERT_EQ(cti::dirHasPerms("./unit_tests", X_OK), false); // invalid file type
+    ASSERT_EQ(cti::dirHasPerms("./DNE/", R_OK), false); // invalid directory
 }
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_getRealPath)
 {
+    // test that getRealpath works as expected
     ASSERT_STREQ(cti::getRealPath("/dev/null").c_str(), "/dev/null");
     ASSERT_STRNE(cti::getRealPath("./unit_tests").c_str(), "./unit_tests");
 }
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_getNameFromPath)
 {
+    // test that getNameFromPath works as expected
     ASSERT_STREQ(cti::getNameFromPath("../unit/unit_tests").c_str(), "unit_tests");
+
+    // test that getNameFromPath fails when no path provided
     ASSERT_THROW({
         try {
             cti::getNameFromPath("");
@@ -408,6 +441,7 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_getNameFromPath)
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_fd_handle_fail)
 {
+    // test that fd_handle fails when an invalid file descriptor is given
     ASSERT_THROW({
         try {
             cti::fd_handle test_fdh_fail(-1);
@@ -437,3 +471,5 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_fd_handle)
     eq_fdh = cti::fd_handle(file);
     EXPECT_EQ(eq_fdh.fd(), file);
 }
+
+//TODO cti::file and cti::cstr things
