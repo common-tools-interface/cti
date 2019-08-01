@@ -385,3 +385,10 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_dirHasPerms)
     ASSERT_EQ(cti::dirHasPerms("./DNE/", R_OK), false); // Invalid dir
 }
 
+TEST_F(CTIUsefulUnitTest, cti_wrappers_getRealPath)
+{
+    ASSERT_STREQ(cti::getRealPath("/dev/null").c_str(), "/dev/null");
+    ASSERT_STRNE(cti::getRealPath("./unit_tests").c_str(), "./unit_tests");
+}
+
+
