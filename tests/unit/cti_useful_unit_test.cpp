@@ -56,7 +56,10 @@ CTIUsefulUnitTest::~CTIUsefulUnitTest()
 {
 }
 
-// test that
+/******************************************
+*             CTI_ARGV TESTS              *
+******************************************/
+
 TEST_F(CTIUsefulUnitTest, cti_argv)
 { 
     
@@ -111,6 +114,10 @@ TEST_F(CTIUsefulUnitTest, cti_dlopen)
     
 }
 */
+
+/******************************************
+*             CTI_EXECVP TESTS            *
+******************************************/
 
 TEST_F(CTIUsefulUnitTest, cti_execvp_fdbuf)
 { 
@@ -230,6 +237,10 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_success)
     ASSERT_EQ(test.getExitStatus(), 0);
 }
 
+/******************************************
+*             CTI_LOG TESTS               *
+******************************************/
+
 TEST_F(CTIUsefulUnitTest, cti_log_cti_log_failure)
 { 
     // test that logs aren't created when no filename is given
@@ -306,6 +317,10 @@ TEST_F(CTIUsefulUnitTest, cti_path)
 }
 */
 
+/******************************************
+*             CTI_SPLIT TESTS             *
+******************************************/
+
 TEST_F(CTIUsefulUnitTest, cti_split)
 { 
     // basic test string with whitespace
@@ -318,6 +333,10 @@ TEST_F(CTIUsefulUnitTest, cti_split)
     test = cti::split::removeLeadingWhitespace(test, "theQUICKbrownfoxjumpedoverthelazydog");
     ASSERT_STREQ(test.c_str(), "quick");
 }
+
+/******************************************
+*             CTI_STACK TESTS             *
+******************************************/
 
 TEST_F(CTIUsefulUnitTest, cti_stack_null)
 {
@@ -367,6 +386,10 @@ TEST_F(CTIUsefulUnitTest, cti_stack_main)
     EXPECT_EQ(_cti_push(stack, ap), 0);
     ASSERT_NO_THROW(_cti_consumeStack(stack));
 }
+
+/******************************************
+*           CTI_WRAPPERS TESTS            *
+******************************************/
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_temp_file_handle_fail)
 {
