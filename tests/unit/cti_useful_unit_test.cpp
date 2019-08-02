@@ -367,11 +367,44 @@ TEST_F(CTIUsefulUnitTest, cti_log_cti_log_hookstdoe)
     close(fout);
     close(ferr);
 }
-/*
-TEST_F(CTIUsefulUnitTest, cti_path)
+
+/******************************************
+*             CTI_PATH TESTS              *
+******************************************/
+
+TEST_F(CTIUsefulUnitTest, cti_path_Find)
 { 
+    // test _cti_pathFind with local and non-local paths
+    ASSERT_STREQ(_cti_pathFind("./unit_tests", nullptr), "./unit_tests");
+    ASSERT_STREQ(_cti_pathFind("/bin/echo", nullptr), "/bin/echo");
+    ASSERT_EQ(_cti_pathFind("../unit", nullptr), nullptr);
+    ASSERT_EQ(_cti_pathFind("./DNE", nullptr), nullptr);
+    ASSERT_NE(_cti_pathFind("echo", nullptr), nullptr);
+    ASSERT_EQ(_cti_pathFind("DOESNOTEXISTATALL", nullptr), nullptr);
+    
 }
-*/
+
+TEST_F(CTIUsefulUnitTest, cti_path_adjustPaths)
+{
+    // test that _cti_adjustPaths works as expected
+    ASSERT_EQ(_cti_adjustPaths(nullptr, nullptr), 1);
+    ASSERT_EQ(_cti_adjustPaths("/DOESNOTEXIST", nullptr), 1);
+}
+
+TEST_F(CTIUsefulUnitTest, cti_path_pathToName)
+{
+    // test pathToName to ensure it works properly
+    ASSERT_STREQ(_cti_pathToName("/a/b/c/d/e/f"), "f");
+    ASSERT_EQ(_cti_pathToName(""), nullptr);
+} 
+ 
+TEST_F(CTIUsefulUnitTest, cti_path_pathToDir)
+{  
+    // test pathToDir
+    ASSERT_STREQ(_cti_pathToDir("a/b/c/d/e"), "a/b/c/d");
+    ASSERT_EQ(_cti_pathToDir(""), nullptr);
+}
+
 
 /******************************************
 *             CTI_SPLIT TESTS             *
