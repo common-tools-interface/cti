@@ -107,6 +107,45 @@ TEST_F(CTIUsefulUnitTest, cti_argv)
     /**********************************************************************************/
     // test additional argv classes
 
+TEST_F(CTIUsefulUnitTest, cti_argv_OutgoingArgv) 
+{
+    cti::OutgoingArgv<cti::Argv> test_OA("./unit_tests");
+
+    // test adding short and long flags
+    test_OA.add(cti::Argv::Option(nullptr, 's'));
+    test_OA.add(cti::Argv::Option("long_test", '\0'));
+
+    // test adding a parameterized flag
+    test_OA.add(cti::Argv::Parameter(nullptr, 'p'), "short");
+    test_OA.add(cti::Argv::Parameter("long_test_param", '\0'), "long");
+
+    // test adding an argument
+    test_OA.add(cti::Argv::Argument("AnArg"));
+
+    // test that everything is as it should be
+    char* const* check = test_OA.get();
+    ASSERT_STREQ(check[0], "./unit_tests");
+    ASSERT_STREQ(check[1], "-s");
+    ASSERT_STREQ(check[2], "--long_test");
+    ASSERT_STREQ(check[3], "-p");
+    ASSERT_STREQ(check[4], "short");
+    ASSERT_STREQ(check[5], "--long_test_param=long");
+    ASSERT_STREQ(check[6], "AnArg");
+
+    cti::ManagedArgv move = test_OA.eject();
+    char* const* check_moved = move.get();
+    ASSERT_STREQ(check_moved[0], "./unit_tests");
+    ASSERT_STREQ(check_moved[1], "-s");
+    ASSERT_STREQ(check_moved[2], "--long_test");
+    ASSERT_STREQ(check_moved[3], "-p");
+    ASSERT_STREQ(check_moved[4], "short");
+    ASSERT_STREQ(check_moved[5], "--long_test_param=long");
+    ASSERT_STREQ(check_moved[6], "AnArg");
+
+    char* const* check_empty = test_OA.get();
+    ASSERT_EQ(check_empty, nullptr);
+}
+
 /*
 // test that
 TEST_F(CTIUsefulUnitTest, cti_dlopen)
