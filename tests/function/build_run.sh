@@ -115,7 +115,7 @@ setup_avocado() {
                     #Configure avocado
                         if mkdir job-results ; then
                             local PYTHON_VERSION="$(ls $PWD/avocado/lib/)" 
-                            $PYTHON ../avo_config.py $PWD $PYTHON_VERSION
+                            python3 ../avo_config.py $PWD $PYTHON_VERSION
                         else
                             echo "Failed to create job-results directory"
                             echo "Job-results will now be stored in ~/avocado"
