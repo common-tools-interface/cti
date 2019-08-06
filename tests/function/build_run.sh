@@ -220,7 +220,7 @@ if ! python3 --version > /dev/null && ! python --version > /dev/null ; then
 fi
 
 # calibrate script based on if running on whitebox
-if srun echo "" > /dev/null ; then
+if srun echo "" &> /dev/null ; then
     if ! setup_python ; then
         echo "Failed to setup valid whitebox python environment"
         exit 1
@@ -234,7 +234,8 @@ fi
 # check that the path to tests/function relative to current
 # directory was provided. If not simply exit.
 START_DIR=$PWD
-cd ${1:-./}
+FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
+cd ${1:-$FUNCTION_DIR}
 
 # check if in proper directory by comparing against file in functional tests
 if ! test -f ./avocado_tests.py ; then
