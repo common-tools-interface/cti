@@ -598,7 +598,39 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_getNameFromPath)
     }, std::runtime_error);
 }
 
-//TODO: findLib findpath
+TEST_F(CTIUsefulUnitTest, cti_wrappers_findPath)
+{
+    ASSERT_STREQ(cti::findPath("./unit_tests").c_str(), "./unit_tests");
+    ASSERT_STREQ(cti::findPath("/bin/echo").c_str(), "/bin/echo");
+    ASSERT_THROW({
+        try {
+            cti::findPath("../unit").c_str();
+        } catch(std::exception& ex) {  
+            ASSERT_STREQ("../unit: Could not locate in PATH.", ex.what());
+            throw;
+        }
+    }, std::runtime_error);
+
+    ASSERT_THROW({
+        try {
+            cti::findPath("./DNE").c_str();
+        } catch(std::exception& ex) {  
+            ASSERT_STREQ("./DNE: Could not locate in PATH.", ex.what());
+            throw;
+        }
+    }, std::runtime_error);
+
+    ASSERT_NO_THROW(cti::findPath("echo").c_str());
+
+    ASSERT_THROW({
+        try {
+            cti::findPath("DOESNOTEXISTATALL").c_str();
+        } catch(std::exception& ex) {  
+            ASSERT_STREQ("DOESNOTEXISTATALL: Could not locate in PATH.", ex.what());
+            throw;
+        }
+    }, std::runtime_error);
+}
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_fd_handle_fail)
 {
@@ -633,4 +665,28 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_fd_handle)
     EXPECT_EQ(eq_fdh.fd(), file);
 }
 
-//TODO cti::file and cti::cstr things
+TEST_F(CTIUsefulUnitTest, cti_wrappers_cstr)
+{
+    ASSERT_NO_THROW(cti::cstr::gethostname());
+    
+    ASSERT_STREQ(cti::cstr::asprintf("./test/%s/testing", "test").c_str(), "./test/test/testing");
+    
+    std::string dir = "";
+    ASSERT_NO_THROW(dir = cti::cstr::mkdtemp("/tmp/cti-test-XXXXXX"));
+    rmdir(dir.c_str());
+    
+}
+
+TEST_F(CTIUsefulUnitTest, cti_wrappers_file)
+{
+    ASSERT_NO_THROW(auto fp = cti::file::open("./wrapper_file_test.txt", "w+"));
+    remove("./wrapper_file_test.txt");
+    
+    FILE* fw = fopen("./wrapper_file_test2.txt", "w+");
+    cti::file::writeT<char>(fw, 'w');
+    fclose(fw);
+
+    FILE* fr = fopen("./wrapper_file_test2.txt", "r");
+    char data_check = cti::file::readT<char>(fr);
+    ASSERT_EQ(data_check, 'w');
+}
