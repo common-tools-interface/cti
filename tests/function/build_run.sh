@@ -18,7 +18,12 @@ ON_WHITEBOX=true
 ########################################################
 
 setup_python() {
-    PYTHON=python
+    if [ "$ON_WHITEBOX" = false ] ; then
+        PYTHON=python
+    fi
+    if ! python3 --version &> /dev/null ; then
+        PYTHON=python
+    fi
     if ! test -f ~/.local/bin/pip ; then
         echo "No pip detected. Installing..."
         if ! curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py ; then
@@ -32,14 +37,16 @@ setup_python() {
         rm get-pip.py
     fi
     echo "Pip install is valid..."
-    if ! test -f ~/.local/bin/virtualenv ; then
-        echo "Virtual environment module not installed. Installing..."
-        if ! ~/.local/bin/pip install --user virtualenv ; then
-            echo "Failed to install virtual environment module. Aborting..."
-            return 1
+    if [ "$PYTHON" == "python" ] ; then
+        if ! test -f ~/.local/bin/virtualenv ; then
+            echo "Virtual environment module not installed. Installing..."
+            if ! ~/.local/bin/pip install --user virtualenv ; then
+                echo "Failed to install virtual environment module. Aborting..."
+                return 1
+            fi
         fi
+        echo "VENV install is valid..."
     fi
-    echo "VENV install is valid..."
     echo "Python setup is valid..."
     return 0
 }
@@ -221,15 +228,16 @@ fi
 
 # calibrate script based on if running on whitebox
 if srun echo "" &> /dev/null ; then
-    if ! setup_python ; then
-        echo "Failed to setup valid whitebox python environment"
-        exit 1
-    fi
     echo "Calibrating script for non-whitebox"
     ON_WHITEBOX=false
 else
     echo "due to no srun assuming whitebox environment..."
 fi
+
+if ! setup_python ; then
+    echo "Failed to setup valid whitebox python environment"
+    exit 1
+fi    
 
 # check that the path to tests/function relative to current
 # directory was provided. If not simply exit.
