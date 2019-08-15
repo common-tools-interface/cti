@@ -247,28 +247,41 @@ AC_DEFINE_UNQUOTED([CTI_FE_DAEMON_BINARY], ["$COMMONTOOL_FE_DAEMON_BINARY"], [Na
 ### Finalize ###
 ################
 
-AC_CONFIG_FILES([	Makefile
-				 	common_tools_be.pc
-					common_tools_fe.pc
-					external/Makefile
-					src/Makefile
-					src/backend/Makefile
-					src/backend/daemon/Makefile
-					src/frontend/Makefile
-					src/frontend/daemon/Makefile
-					src/frontend/transfer/Makefile
-					src/frontend/frontend_impl/Makefile
-					src/frontend/frontend_impl/SLURM/Makefile
-					src/frontend/frontend_impl/GenericSSH/Makefile
-					src/frontend/mpir_iface/Makefile
-					src/useful/Makefile
-					src/useful/ld_val/Makefile
-					tests/Makefile
-					tests/test_support/Makefile
-					tests/mock/Makefile
-					tests/unit/Makefile
-					tests/examples/Makefile
-					tests/function/Makefile
+AC_CONFIG_FILES([   Makefile
+		    pkgconfig/common_tools_be.pc
+		    pkgconfig/common_tools_fe.pc
+                    pkgconfig/patchAPI.pc
+                    pkgconfig/parseAPI.pc
+                    pkgconfig/dynC_API.pc
+                    pkgconfig/dynElf.pc
+                    pkgconfig/dynDwarf.pc
+                    pkgconfig/common.pc
+                    pkgconfig/symLite.pc
+                    pkgconfig/pcontrol.pc
+                    pkgconfig/instructionAPI.pc
+                    pkgconfig/dyninstAPI.pc
+                    pkgconfig/dyninstAPI_RT.pc
+                    pkgconfig/stackwalk.pc
+                    pkgconfig/symtabAPI.pc
+		    external/Makefile
+		    src/Makefile
+		    src/backend/Makefile
+		    src/backend/daemon/Makefile
+		    src/frontend/Makefile
+		    src/frontend/daemon/Makefile
+		    src/frontend/transfer/Makefile
+		    src/frontend/frontend_impl/Makefile
+		    src/frontend/frontend_impl/SLURM/Makefile
+		    src/frontend/frontend_impl/GenericSSH/Makefile
+	            src/frontend/mpir_iface/Makefile
+		    src/useful/Makefile
+		    src/useful/ld_val/Makefile
+		    tests/Makefile
+		    tests/test_support/Makefile
+		    tests/mock/Makefile
+		    tests/unit/Makefile
+		    tests/examples/Makefile
+		    tests/function/Makefile
 ])
 
 AC_OUTPUT

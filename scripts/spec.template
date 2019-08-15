@@ -125,13 +125,73 @@ sed -i "s,\[module_dir\],$RPM_INSTALL_PREFIX/modulefiles,g" \
 $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version},g" \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_be.pc
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_be.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_fe.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/patchAPI.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/parseAPI.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dynC_API.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dynElf.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dynDwarf.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/symLite.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/pcontrol.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/instructionAPI.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dyninstAPI.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dyninstAPI_RT.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/stackwalk.pc \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/symtabAPI.pc
 
-sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version},g" \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_fe.pc
-
+#add the libraries needing to be put into ldcache into the .cray_dynamic_file_list
 find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcommontools_[bf]e\.so\." \
 | sed "/.*\.so\.[0-9]\.[0-9]/d" > $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libpatchAPI\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libparseAPI\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdynC_API\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdynElf\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdynDwarf\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcommon\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libsymLite\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libpcontrol\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libinstructionAPI\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdyninstAPI\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdyninstAPI_RT\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libstackwalk\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libsymtabAPI\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libssh2\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdw\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
+
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libelf\.so\." | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+>> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
 # prevent echo of new directory as it messes up install output
 if [ $RPM_INSTALL_PREFIX = "%{prefix}" ]
