@@ -10,6 +10,14 @@
 PYTHON=python3
 ON_WHITEBOX=true
 
+#DIRECTORY RELATED VALUES
+START_DIR=$PWD
+FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
+
+#RUNNING AS PART OF NIGHTLY TESTING?
+NIGHTLY_TEST=false
+
+
 ########################################################
 # This function is designed to ensure python is        #
 # properly setup on a non-whitebox system. These       #
@@ -163,12 +171,23 @@ run_tests() {
 
         # check if not running on a whitebox and if so load different parameters
         if [ "$ON_WHITEBOX" = true ] ; then
-            echo "Configuring with Whitebox settings..."
-            export MPICH_SMP_SINGLE_COPY_OFF=0
-            export CTI_INSTALL_DIR=$PWD/../../install
-            export LD_LIBRARY_PATH=$PWD/../../install/lib
-            export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
-            export CTI_WLM_IMPL=generic
+            if [ "$NIGHTLY_TEST" = true ] ; then
+                echo "Configuring with nightly testing whitebox settings..."
+		#LD_HELP="$(ls $PWD/../../../opt/cray/pe/cti/)"
+                export MPICH_SMP_SINGLE_COPY_OFF=0
+		#export CTI_INSTALL_DIR=$PWD/../../../opt/cray/pe/cti/$LD_HELP
+                #export LD_LIBRARY_PATH=$PWD/../../../opt/cray/pe/cti/$LD_HELP/lib
+                export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
+                export CTI_WLM_IMPL=generic
+
+	    else
+                echo "Configuring with normal whitebox settings..."
+                export MPICH_SMP_SINGLE_COPY_OFF=0
+                export CTI_INSTALL_DIR=$PWD/../../install
+                export LD_LIBRARY_PATH=$PWD/../../install/lib
+                export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
+                export CTI_WLM_IMPL=generic
+	    fi
         else
             echo "srun exists so configuring non-whitebox launcher settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
@@ -209,16 +228,25 @@ create_mpi_app() {
     fi
 }
 
+flags(){
+    echo "Available flags:"
+    echo "-h: display this"
+    echo "-n: run nightly test  DEFAULT : $NIGHTLY_TEST"
+    return 0    
+}
+
 ###########################
 #    BEGIN MAIN SCRIPT    #
 ###########################
 
 # check that amount of paramters passed in is valid
-if [ "$#" -gt 2 ] ; then
-    echo "Illegal number of arguments."
-    echo "Expected none or path to function tests directory"
-    exit 1
-fi
+while getopts 'hn' flag; do
+    case "${flag}" in
+        h) flags
+           exit 0 ;;
+        n) NIGHTLY_TEST=true ;;
+    esac
+done
 
 # check that running this is feasible at all
 if ! python3 --version > /dev/null && ! python --version > /dev/null ; then
@@ -239,11 +267,8 @@ if ! setup_python ; then
     exit 1
 fi    
 
-# check that the path to tests/function relative to current
-# directory was provided. If not simply exit.
-START_DIR=$PWD
-FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
-cd ${1:-$FUNCTION_DIR}
+# switch to the function test directory
+cd $FUNCTION_DIR
 
 # check if in proper directory by comparing against file in functional tests
 if ! test -f ./avocado_tests.py ; then
