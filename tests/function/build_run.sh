@@ -173,10 +173,7 @@ run_tests() {
         if [ "$ON_WHITEBOX" = true ] ; then
             if [ "$NIGHTLY_TEST" = true ] ; then
                 echo "Configuring with nightly testing whitebox settings..."
-		#LD_HELP="$(ls $PWD/../../../opt/cray/pe/cti/)"
                 export MPICH_SMP_SINGLE_COPY_OFF=0
-		#export CTI_INSTALL_DIR=$PWD/../../../opt/cray/pe/cti/$LD_HELP
-                #export LD_LIBRARY_PATH=$PWD/../../../opt/cray/pe/cti/$LD_HELP/lib
                 export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
                 export CTI_WLM_IMPL=generic
 
