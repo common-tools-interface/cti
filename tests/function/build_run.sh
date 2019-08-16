@@ -13,6 +13,7 @@ ON_WHITEBOX=true
 #DIRECTORY RELATED VALUES
 START_DIR=$PWD
 FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
+EXEC_DIR=
 
 #RUNNING AS PART OF NIGHTLY TESTING?
 NIGHTLY_TEST=false
@@ -229,6 +230,7 @@ flags(){
     echo "Available flags:"
     echo "-h: display this"
     echo "-n: run nightly test  DEFAULT : $NIGHTLY_TEST"
+    echo "-d: execution dir     DEFAULT : $EXEC_DIR"
     return 0    
 }
 
@@ -237,11 +239,12 @@ flags(){
 ###########################
 
 # check that amount of paramters passed in is valid
-while getopts 'hn' flag; do
+while getopts 'hnd:' flag; do
     case "${flag}" in
         h) flags
-           exit 0 ;;
+           exit 1 ;;
         n) NIGHTLY_TEST=true ;;
+	d) EXEC_DIR=${OPTARG} ;;
     esac
 done
 
@@ -265,7 +268,7 @@ if ! setup_python ; then
 fi    
 
 # switch to the function test directory
-cd $FUNCTION_DIR
+cd ${EXEC_DIR:-$FUNCTION_DIR}
 
 # check if in proper directory by comparing against file in functional tests
 if ! test -f ./avocado_tests.py ; then
