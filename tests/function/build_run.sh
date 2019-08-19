@@ -13,7 +13,7 @@ ON_WHITEBOX=true
 #DIRECTORY RELATED VALUES
 START_DIR=$PWD
 FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
-EXEC_DIR=
+EXEC_DIR=$FUNCTION_DIR
 
 #RUNNING AS PART OF NIGHTLY TESTING?
 NIGHTLY_TEST=false
@@ -268,7 +268,7 @@ if ! setup_python ; then
 fi    
 
 # switch to the function test directory
-cd ${EXEC_DIR:-$FUNCTION_DIR}
+cd $EXEC_DIR
 
 # check if in proper directory by comparing against file in functional tests
 if ! test -f ./avocado_tests.py ; then
