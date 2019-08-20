@@ -168,70 +168,37 @@ class CTIEmptyLaunchTests(Test):
 			return 0
 
 class CTIBEDaemonAPIDTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -a" % (SRC_PATH, DAEMON_VER))	
-			self.fail
-		except process.CmdError as details:
-			return 0
 	def test_ws(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -a    wspace" % (SRC_PATH, DAEMON_VER))
+			process.run("%s/backend/daemon/cti_be_daemon%s -a '    wspace'" % (SRC_PATH, DAEMON_VER))
 			self.fail
 		except process.CmdError as details:
 			return 0
 
 class CTIBEDaemonBinaryTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -b" % (SRC_PATH, DAEMON_VER))
-			self.fail
-		except process.CmdError as details:
-			return 0
 	def test_ws(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -b    ../test_support/one_print" % (SRC_PATH, DAEMON_VER))
+			process.run("%s/backend/daemon/cti_be_daemon%s -b '    ../test_support/one_print'" % (SRC_PATH, DAEMON_VER))
 			self.fail
 		except process.CmdError as details:
 			print(details)
 			return 0
 
 class CTIBEDaemonDirectoryTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -d" % (SRC_PATH, DAEMON_VER))
-			self.fail
-		except process.CmdError as details:	
-			return 0
 	def test_ws(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -d    %s" % (SRC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
+			process.run("%s/backend/daemon/cti_be_daemon%s -d '    %s'" % (SRC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
 			self.fail
 		except process.CmdError as details:
 			return 0
 
 class CTIBEDaemonEnvTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -e" % (SRC_PATH, DAEMON_VER))
-			self.fail
-		except process.CmdError as details:
-			return 0
 	def test_arg(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -e    CTI_LOG_DIR=%s" % (SRC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
+			process.run("%s/backend/daemon/cti_be_daemon%s -e '    CTI_LOG_DIR=%s'" % (SRC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
 			self.fail
 		except process.CmdError as details:
 			return 0
-
-class CTIBEDaemonInstTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -i" % (SRC_PATH, DAEMON_VER))
-			self.fail
-		except process.CmdError as details:
-			return 0
-
 
 class CTIBEDaemonHelpTest(Test):
 	def test(self):
@@ -242,68 +209,38 @@ class CTIBEDaemonHelpTest(Test):
 			return 0
 
 class CTIBEDaemonManifestTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -m" % (SRC_PATH, DAEMON_VER))
-			self.fail
-		except process.CmdError as details:
-			return 0
 	def test_ws(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -m    ./" % (SRC_PATH, DAEMON_VER))
+			process.run("%s/backend/daemon/cti_be_daemon%s -m '    ./'" % (SRC_PATH, DAEMON_VER))
 			self.fail
 		except process.CmdError as details:
 			return 0
 
 class CTIBEDaemonPathTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -p" % (SRC_PATH, DAEMON_VER))
-			self.fail
-		except process.CmdError as details:
-			return 0
 	def test_ws(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -p    ./" % (SRC_PATH, DAEMON_VER))
+			process.run("%s/backend/daemon/cti_be_daemon%s -p '    ./'" % (SRC_PATH, DAEMON_VER))
 			self.fail
 		except process.CmdError as details:
 			return 0
 
 class CTIBEDaemonAPATHTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -t" % (SRC_PATH, DAEMON_VER))
-			self.fail
-		except process.CmdError as details:
-			return 0
 	def test_ws(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -t    ./" % (SRC_PATH, DAEMON_VER))
+			process.run("%s/backend/daemon/cti_be_daemon%s -t '    ./'" % (SRC_PATH, DAEMON_VER))
 			self.fail
 		except process.CmdError as details:
 			return 0
 
 class CTIBEDaemonLDPathTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -l" % (SRC_PATH, DAEMON_VER))
-			self.fail
-		except process.CmdError as details:
-			return 0
 	def test_ws(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -l    ./" % (SRC_PATH, DAEMON_VER))
+			process.run("%s/backend/daemon/cti_be_daemon%s -l '    ./'" % (SRC_PATH, DAEMON_VER))
 			self.fail
 		except process.CmdError as details:
 			return 0
 
 class CTIBeDaemonWLMTest(Test):
-	def test_null(self):
-		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -w" % (SRC_PATH, DAEMON_VER))
-			self.fail
-		except process.CmdError as details:
-			return 0
 	def test_WLM_NONE(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w CTI_WLM_NONE" % (SRC_PATH, DAEMON_VER))
@@ -312,7 +249,13 @@ class CTIBeDaemonWLMTest(Test):
 			return 0
 	def test_WLM_INVALID(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -w CTI_FAKE_WLM" % (SRC_PATH, DAEMON_VER))
+			process.run("%s/backend/daemon/cti_be_daemon%s -w 12345" % (SRC_PATH, DAEMON_VER))
+			self.fail
+		except process.CmdError as details:
+			return 0
+	def test_WLM_VALID(self):
+		try:
+			process.run("%s/backend/daemon/cti_be_daemon%s -w 3" % (SRC_PATH, DAEMON_VER))
 			self.fail
 		except process.CmdError as details:
 			return 0
@@ -324,3 +267,18 @@ class CTIBeDaemonInvalidArgTest(Test):
 			self.fail
 		except process.CmdError as details:
 			return 0
+
+class CTIBeDaemonNoDirTool(Test):
+	def test_testhelp(self):
+		try:
+			process.run("%s/backend/daemon/cti_be_daemon%s -w 3 -a 1" % (SRC_PATH, DAEMON_VER))
+			self.fail
+		except process.CmdError as details:
+			return 0
+	def test_words(self):
+		try:
+			process.run("%s/backend/daemon/cti_be_daemon%s -w 3 -a 1 -d ./test" % (SRC_PATH, DAEMON_VER))
+			self.fail
+		except process.CmdError as details:
+			return 0
+
