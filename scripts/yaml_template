@@ -48,21 +48,7 @@ section-3:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : [SYSTEM_TYPE_HW]
     COMMANDS: |
-            if [ -f /etc/SuSE-release ]
-            then
-              OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
-            elif [ -f /etc/os-release ] 
-            then
-              OS_VER=$(cat /etc/os-release |  grep "VERSION=" | cut -d'"' -f2)
-            fi
-              
-            if [[ $OS_VER -lt 12 ]]
-            then
-              pref=/opt/cray
-            else
-              pref=/opt/cray/pe
-            fi
-            $pref/admin-pe/set_default_files/set_default_cray-cti_[VERSION]
+            /opt/cray/pe/admin-pe/set_default_files/set_default_cray-cti_[VERSION]
 
 section-4:
     ACCELERATOR           : NONE
@@ -80,21 +66,7 @@ section-4:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : [SYSTEM_TYPE_WB]
     COMMANDS: |
-            if [ -f /etc/SuSE-release ]
-            then
-              OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
-            elif [ -f /etc/os-release ] 
-            then
-              OS_VER=$(cat /etc/os-release |  grep "VERSION=" | cut -d'"' -f2)
-            fi
-              
-            if [[ $OS_VER -lt 12 ]]
-            then
-              pref=/opt/cray
-            else
-              pref=/opt/cray/pe
-            fi
-            $pref/admin-pe/set_default_files/set_default_cray-cti_[VERSION]
+            /opt/cray/pe/admin-pe/set_default_files/set_default_cray-cti_[VERSION]
 
 section-5:
     ACCELERATOR           : NONE
@@ -109,7 +81,7 @@ section-5:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : [SYSTEM_TYPE_REMOVE]
     COMMANDS: |
-        rpm -e cray-cti-[VERSION]-[REVISION]-[RELEASE]
+        rpm -e cray-cti-[VERSION]-[BUILD_METADATA]
 
 --- |
 #Remove previous versions of this rpm
@@ -118,13 +90,5 @@ do
   rpm -e $package
 done
 
-OS_VER=$(cat /etc/SuSE-release | grep VERSION | cut -f3 -d" ")
-if [[ $OS_VER -lt 12 ]]
-then
-  pref="--prefix=/opt/cray"
-else  
-  pref=
-fi
-
-rpm -ivh $pref --oldpackage cray-cti-[VERSION]-[REVISION]-[RELEASE][OS].[ARCH].rpm
+rpm -ivh --oldpackage cray-cti-[VERSION]-[BUILD_METADATA].[ARCH].rpm
 
