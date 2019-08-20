@@ -4,7 +4,7 @@
 # Copyright 2014-2019 Cray Inc. All Rights Reserved.
 #
 
-SUBDIRS				= transfer frontend_impl mpir_iface daemon
+SUBDIRS				= @CHECKSUM_SUBDIR@ transfer frontend_impl mpir_iface daemon
 
 SRC             	= @COMMONTOOL_DIR@/src
 INCLUDE				= @COMMONTOOL_DIR@/include

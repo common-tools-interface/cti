@@ -284,4 +284,7 @@ AC_CONFIG_FILES([   Makefile
 		    tests/function/Makefile
 ])
 
+cray_INIT_CHECKSUM([src/frontend/checksum])
+cray_ADD_CHECKSUM([src/backend/daemon/${COMMONTOOL_BE_DAEMON_BINARY}])
+
 AC_OUTPUT
