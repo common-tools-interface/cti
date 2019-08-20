@@ -73,7 +73,6 @@ then
 fi
 
 RELEASE_DATE=`source $PWD/scripts/find_release_date.sh`
-DATE_COMMIT=$GIT_STR-$REL
 REL_OS=$REL.$OS_VER
 PKG_MAJOR=$(cat $PWD/release_versioning | grep ^common_tool_major= | cut -d'"' -f2)
 PKG_MINOR=$(cat $PWD/release_versioning | grep ^common_tool_minor= | cut -d'"' -f2)
@@ -82,7 +81,8 @@ PKG_VERSION=$PKG_MAJOR.$PKG_MINOR.$PKG_BUGFIX
 INSTALL_DIR=/opt/cray/pe/$NAME
 TWO_DIGIT_VER=$PKG_MAJOR.$PKG_MINOR
 TWO_DIGIT_NODOT_VER=$PKG_MAJOR$PKG_MINOR
-PKG=$PKG_NAME-$PKG_VERSION-$DATE_COMMIT.$OS_VER.$ARCH.rpm
+BUILD_META=$BUILD_METADATA
+PKG=$PKG_NAME-$PKG_VERSION-$BUILD_META.$ARCH.rpm
 
 #set gcc version
 gcc_ver=8.1.0
@@ -120,13 +120,14 @@ make rpm \
          NAME=$NAME \
     	 PKG_NAME=$PKG_NAME \
          CUR_DIR=$CUR_DIR \
+	 BUILD_METADATA=$BUILD_META \
          INSTALL_DIR=$INSTALL_DIR \
-	     REL_DATE="$RELEASE_DATE" \
-	     OS_LIST_HW=$os_list_hw \
+	 REL_DATE="$RELEASE_DATE" \
+	 OS_LIST_HW=$os_list_hw \
          OS_LIST_WB=$os_list_wb \
          SYSTEM_TYPE_HW=$system_type_hw \
-	     SYSTEM_TYPE_WB=$system_type_wb \
-	     SYSTEM_TYPE_REMOVE=$system_type_remove \
+	 SYSTEM_TYPE_WB=$system_type_wb \
+	 SYSTEM_TYPE_REMOVE=$system_type_remove \
          MANPATH=$MAN_DIR
 
 return_code=$?
