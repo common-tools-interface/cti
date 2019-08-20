@@ -33,6 +33,12 @@
  *
  ******************************************************************************/
 
+//UNTESTED THINGS:
+// /useful/ld_val/*
+// /useful/cti_path.c : adjustPath
+// /useful/cti_path.c : removeDirectory
+// /useful/cti_path.c : libFind
+
 #include "cti_defs.h"
 #include "cti_argv_defs.hpp"
 
@@ -161,15 +167,6 @@ TEST_F(CTIUsefulUnitTest, cti_argv_IncomingArgv)
     EXPECT_STREQ(check[0], "--apid=1");
     EXPECT_STREQ(check[1], "--path=./unit_tests");
 }
-
-
-/*
-// test that
-TEST_F(CTIUsefulUnitTest, cti_dlopen)
-{ 
-    
-}
-*/
 
 /******************************************
 *             CTI_EXECVP TESTS            *
