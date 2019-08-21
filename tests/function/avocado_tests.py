@@ -13,6 +13,7 @@ from avocado import Test
 from avocado.utils import process
 
 import subprocess
+import os
 from os import path, environ
 import time
 
@@ -157,13 +158,13 @@ class CTIEmptyLaunchTests(Test):
 	def test_be(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 	def test_fe(self):
 		try:
 			process.run("%s/frontend/daemon/cti_fe_daemon%s" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
@@ -171,7 +172,7 @@ class CTIBEDaemonAPIDTest(Test):
 	def test_ws(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -a '    wspace'" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
@@ -179,7 +180,7 @@ class CTIBEDaemonBinaryTest(Test):
 	def test_ws(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -b '    ../test_support/one_print'" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			print(details)
 			return 0
@@ -188,23 +189,28 @@ class CTIBEDaemonDirectoryTest(Test):
 	def test_ws(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -d '    %s'" % (SRC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
 class CTIBEDaemonEnvTest(Test):
 	def test_arg(self):
 		try:
-			process.run("%s/backend/daemon/cti_be_daemon%s -e '    CTI_LOG_DIR=%s'" % (SRC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
-			self.fail
+			process.run("%s/backend/daemon/cti_be_daemon%s --debug -e '    CTI_LOG_DIR=%s'" % (SRC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
-			return 0
+			result=os.path.isfile("./dbglog_NOAPID.-1.log")
+			os.remove("./dbglog_NOAPID.-1.log")
+			if result:
+				return 0
+			else:
+				self.fail("Log file not created as expected")
 
 class CTIBEDaemonHelpTest(Test):
 	def test(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s --help" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
@@ -212,7 +218,7 @@ class CTIBEDaemonManifestTest(Test):
 	def test_ws(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -m '    ./'" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
@@ -220,7 +226,7 @@ class CTIBEDaemonPathTest(Test):
 	def test_ws(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -p '    ./'" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
@@ -228,7 +234,7 @@ class CTIBEDaemonAPATHTest(Test):
 	def test_ws(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -t '    ./'" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
@@ -236,7 +242,7 @@ class CTIBEDaemonLDPathTest(Test):
 	def test_ws(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -l '    ./'" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
@@ -244,19 +250,19 @@ class CTIBeDaemonWLMTest(Test):
 	def test_WLM_NONE(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w CTI_WLM_NONE" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 	def test_WLM_INVALID(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w 12345" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 	def test_WLM_VALID(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w 3" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
@@ -264,21 +270,21 @@ class CTIBeDaemonInvalidArgTest(Test):
 	def test_null(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -Z" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
 class CTIBeDaemonNoDirTool(Test):
-	def test_testhelp(self):
+	def test_no_dir(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w 3 -a 1" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
-	def test_words(self):
+	def test_no_tool(self):
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w 3 -a 1 -d ./test" % (SRC_PATH, DAEMON_VER))
-			self.fail
+			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 
