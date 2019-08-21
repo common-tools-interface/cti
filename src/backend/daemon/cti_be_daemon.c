@@ -287,12 +287,6 @@ main(int argc, char **argv)
                 break;
 
             case 'a':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // strip leading whitespace
                 while (*optarg == ' ')
                 {
@@ -305,12 +299,6 @@ main(int argc, char **argv)
                 break;
 
             case 'b':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // strip leading whitespace
                 while (*optarg == ' ')
                 {
@@ -329,12 +317,6 @@ main(int argc, char **argv)
                 break;
 
             case 'd':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // strip leading whitespace
                 while (*optarg == ' ')
                 {
@@ -347,12 +329,6 @@ main(int argc, char **argv)
                 break;
 
             case 'e':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // strip leading whitespace
                 while (*optarg == ' ')
                 {
@@ -381,12 +357,6 @@ main(int argc, char **argv)
                 break;
 
             case 'i':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // This is our instance number. We need to wait for all those
                 // before us to finish their work before proceeding.
                 inst = atoi(optarg);
@@ -394,12 +364,6 @@ main(int argc, char **argv)
                 break;
 
             case 'm':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // strip leading whitespace
                 while (*optarg == ' ')
                 {
@@ -412,12 +376,6 @@ main(int argc, char **argv)
                 break;
 
             case 'p':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // strip leading whitespace
                 while (*optarg == ' ')
                 {
@@ -430,12 +388,6 @@ main(int argc, char **argv)
                 break;
 
             case 't':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // strip leading whitespace
                 while (*optarg == ' ')
                 {
@@ -449,12 +401,6 @@ main(int argc, char **argv)
                 break;
 
             case 'l':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // strip leading whitespace
                 while (*optarg == ' ')
                 {
@@ -468,12 +414,6 @@ main(int argc, char **argv)
                 break;
 
             case 'w':
-                if (optarg == NULL)
-                {
-                    usage();
-                    return 1;
-                }
-
                 // this is the wlm value that we should use
                 wlm_arg = atoi(optarg);
 
