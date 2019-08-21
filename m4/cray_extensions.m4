@@ -412,7 +412,7 @@ AC_DEFUN([cray_BUILD_DYNINST],
 	LDFLAGS="$LDFLAGS -Wl,-z,origin -Wl,-rpath,$ORIGIN -Wl,--enable-new-dtags"
 
 	dnl configure using cmake
-	# rm -rf build
+	rm -rf build
 	mkdir -p build
 	cd build
 	_cray_dyninst_cmake_opts="-DCMAKE_C_COMPILER=$(which gcc) -DCMAKE_CXX_COMPILER=$(which g++) -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPATH_BOOST=${BOOST_ROOT} -DBoost_INCLUDE_DIR=${BOOST_ROOT}/include -DLIBELF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBELF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libelf.so -DLIBDWARF_INCLUDE_DIR=${INTERNAL_ELFUTILS}/include -DLIBDWARF_LIBRARIES=${INTERNAL_ELFUTILS}/lib/libdw.so -DTBB_INCLUDE_DIRS=${TBB_INCLUDE_DIR} -DTBB_tbb_LIBRARY_RELEASE=${TBB_LIBRARY}/libtbb.so -DUSE_OpenMP=OFF"
@@ -474,6 +474,7 @@ AC_DEFUN([cray_INIT_CHECKSUM],
 	if test x"${SHA1SUM}" == x"yes"; then
 		AC_DEFINE([HAVE_CHECKSUM], [1], [Define if checksumming support is activated.])
 		AC_SUBST([CHECKSUM_PROG], ["sha1sum"])
+		AC_DEFINE([CHECKSUM_BINARY], ["sha1sum"], [Define the name of the checksum binary])
 
 		dnl enable recursive Makefile (for dependency resolution)
 		AC_SUBST([CHECKSUM_SUBDIR], ["checksum"])

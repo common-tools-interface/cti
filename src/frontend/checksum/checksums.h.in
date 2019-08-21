@@ -1,3 +1,13 @@
 #ifndef CHECKSUMS_H_
 #define CHECKSUMS_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+bool has_same_hash(char const* path, char const* hash);
+
+#ifdef __cplusplus
+}
+#endif
+
