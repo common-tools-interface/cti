@@ -42,7 +42,7 @@ rpm:	RPMS/$(ARCH)/$(PKG) $(PKG).yaml
 
 .PHONY: dirs
 dirs:
-	mkdir -p SOURCES BUILD/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV) RPMS/$(ARCH)
+	mkdir -p SOURCES BUILD/$(PKG_NAME)-$(PKG_VERSION) RPMS/$(ARCH)
 
 $(NAME).spec: $(CUR_DIR)/scripts/spec.template
 	sed -e"s:\[namespace\]:cray:g" \
@@ -50,21 +50,18 @@ $(NAME).spec: $(CUR_DIR)/scripts/spec.template
         -e"s:\[package_branch_two_digit\]:$(TWO_DIGIT_VER):g" \
         -e"s:\[package_branch_two_digit_nodot\]:$(TWO_DIGIT_NODOT_VER):g" \
         -e"s:\[version\]:$(PKG_VERSION):g" \
-        -e"s:\[package_revision\]:$(GIT_REV):g" \
         -e"s:\[rpm_release\]:$(REL):g" \
         -e"s:\[cur_path\]:$(CUR_DIR):g" \
         -e"s:\[sles_version\]:$(OS_VER):g" \
-        -e"s:\[tarball\]:$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz:g" $< > $@
+        -e"s:\[tarball\]:$(PKG_NAME)-$(PKG_VERSION).tgz:g" $< > $@
 	sed --in-place "/Packager/i URL: $(GIT_FULL_REV)" $@
 
-RPMS/$(ARCH)/$(PKG): $(NAME).spec SOURCES/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz
+RPMS/$(ARCH)/$(PKG): $(NAME).spec SOURCES/$(PKG_NAME)-$(PKG_VERSION).tgz
 	rpmbuild -bb --define "_tmppath $(PWD)" --define "_topdir $(PWD)" ./$(NAME).spec
 
 $(PKG).yaml: $(CUR_DIR)/scripts/yaml_template
 	sed -e"s:\[VERSION\]:$(PKG_VERSION):g" \
-	-e"s:\[REVISION\]:$(GIT_REV):g" \
-	-e"s:\[RELEASE\]:$(REL):g" \
-	-e"s:\[OS\]:$(OS_VER):g" \
+	-e"s:\[BUILD_METADATA\]:$(BUILD_METADATA):g" \
 	-e"s:\[ARCH\]:$(ARCH):g" \
 	-e"s:\[OS_WB\]:$(OS_LIST_WB):g" \
 	-e"s:\[OS_HW\]:$(OS_LIST_HW):g" \
@@ -91,20 +88,19 @@ module: $(CUR_DIR)/scripts/module_template
 
 release_info: $(CUR_DIR)/scripts/release_info_template
 	sed -e"s:\[VERSION\]:$(PKG_VERSION):g" \
-	-e"s:\[RELEASE\]:$(REL):g" \
-	-e"s:\[REVISION\]:$(GIT_REV):g" \
+	-e"s:\[BUILD_METADATA\]:$(BUILD_METADATA):g" \
 	-e"s:\[DATE\]:$(REL_DATE):g" \
 	-e"s:\[OS\]:$(OS_VER):g" \
 	-e"s:\[ARCH\]:$(ARCH):g" $< > $@
 	cp $@ $(INSTALL_DIR)/$(PKG_VERSION)/
 
-SOURCES/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz: set_default_$(PKG_NAME)_$(PKG_VERSION) set_pkgconfig_default_$(PKG_NAME)_$(PKG_VERSION) module release_info dirs
+SOURCES/$(PKG_NAME)-$(PKG_VERSION).tgz: set_default_$(PKG_NAME)_$(PKG_VERSION) set_pkgconfig_default_$(PKG_NAME)_$(PKG_VERSION) module release_info dirs
 	mv $(word 2,$^) $(INSTALL_DIR)/$(PKG_VERSION)
 	cp $< $(INSTALL_DIR)/$(PKG_VERSION)
-	tar czvf $(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz $(INSTALL_DIR)/$(PKG_VERSION) \
-		--transform s:opt/cray/pe/cti:$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV)$(INSTALL_DIR):g
-	mkdir -p  $(CUR_DIR)/BUILD/$(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV)
-	cp $(PKG_NAME)-$(PKG_VERSION)-$(GIT_REV).tgz $@
+	tar czvf $(PKG_NAME)-$(PKG_VERSION).tgz $(INSTALL_DIR)/$(PKG_VERSION) \
+		--transform s:opt/cray/pe/cti:$(PKG_NAME)-$(PKG_VERSION)$(INSTALL_DIR):g
+	mkdir -p  $(CUR_DIR)/BUILD/$(PKG_NAME)-$(PKG_VERSION)
+	cp $(PKG_NAME)-$(PKG_VERSION).tgz $@
 
 distclean-local:
 	rm -f set_default_cray-cti_*

@@ -6,9 +6,9 @@
 %define curPath [cur_path]
 
 Summary: Cray Common Tools Interface
-Name: %{namespace}-%{intranamespace_name}-%{build_version}
-Version: [package_revision]
-Release: [rpm_release][sles_version]
+Name: %{namespace}-%{intranamespace_name}
+Version: %{build_version}
+Release: %(echo ${BUILD_METADATA})
 License: Dual BSD or GPLv2
 Group: Development/System
 URL: [url]

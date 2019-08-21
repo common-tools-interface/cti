@@ -48,7 +48,7 @@ Installation instructions:
 
    Installation instructions for [ARCH]:
    =============================================
-      rpm -ivh cray-cti-[VERSION]-[REVISION]-[RELEASE][OS].[ARCH].rpm
+      rpm -ivh cray-cti-[VERSION]-[BUILD_METADATA].[ARCH].rpm
 
       To make cti [VERSION] the default version of cray-cti, execute:
       /opt/cray/admin-pe/set_default_files/set_default_cray-cti-[VERSION]
