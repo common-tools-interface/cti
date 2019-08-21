@@ -1,5 +1,3 @@
 #ifndef CHECKSUMS_H_
 #define CHECKSUMS_H_
 
-#define GET_CHECKSUM(file) file##_CHECKSUM
-

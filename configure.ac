@@ -285,6 +285,6 @@ AC_CONFIG_FILES([   Makefile
 ])
 
 cray_INIT_CHECKSUM([src/frontend/checksum])
-cray_ADD_CHECKSUM([src/backend/daemon/${COMMONTOOL_BE_DAEMON_BINARY}])
+cray_ADD_CHECKSUM([src/backend/daemon/${COMMONTOOL_BE_DAEMON_BINARY}], [CTI_BE_DAEMON])
 
 AC_OUTPUT

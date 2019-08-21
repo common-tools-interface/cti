@@ -489,12 +489,14 @@ AC_DEFUN([cray_INIT_CHECKSUM],
 	fi
 ])
 
-dnl add the file $1 to the checksum list
+dnl add the file $1 to CHECKSUM_FILES list, generated checksum macro will be named
+dnl $2_CHECKSUM
 dnl
 AC_DEFUN([cray_ADD_CHECKSUM],
 [
 	if ${HAVE_CHECKSUM}; then
 		filepath="$(pwd)/$1"
-		AC_SUBST([CHECKSUM_FILES], ["${filepath} ${CHECKSUM_FILES}"])
+		macroname="$2"
+		AC_SUBST([CHECKSUM_FILES], ["${filepath}@${macroname} ${CHECKSUM_FILES}"])
 	fi
 ])
