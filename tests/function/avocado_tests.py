@@ -169,7 +169,17 @@ class CTIEmptyLaunchTests(Test):
 			return 0
 
 class CTIBEDaemonAPIDTest(Test):
+#	def setUp(self):
+#		test = self.params.get('daemon_test', None, 1)
+#		@avocado.skipIf(test == 0, 'Maybe')
 	def test_ws(self):
+		test = self.params.get('daemon_test', None, 1)
+		if test == 0:
+			#self.skip("MAYBE")
+			#self.fail("Just testing")
+			#@avocado.skip("BAKKOOMMM")
+			self.cancel('Cancelled due to param daemon_test')
+			
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -a '    wspace'" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")

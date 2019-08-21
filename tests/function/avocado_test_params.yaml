@@ -1,1 +1,2 @@
 timeout: 100
+daemon_test: 0
