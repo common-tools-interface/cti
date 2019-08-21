@@ -685,5 +685,6 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_file)
 
     FILE* fr = fopen("./wrapper_file_test2.txt", "r");
     char data_check = cti::file::readT<char>(fr);
-    ASSERT_EQ(data_check, 'w');
+    EXPECT_EQ(data_check, 'w');
+    remove("./wrapper_file_test2.txt");
 }
