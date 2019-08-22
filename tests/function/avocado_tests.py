@@ -156,12 +156,20 @@ class CtiInfoTest(Test):
 
 class CTIEmptyLaunchTests(Test):
 	def test_be(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
+
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 	def test_fe(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
+
 		try:
 			process.run("%s/frontend/daemon/cti_fe_daemon%s" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -169,17 +177,10 @@ class CTIEmptyLaunchTests(Test):
 			return 0
 
 class CTIBEDaemonAPIDTest(Test):
-#	def setUp(self):
-#		test = self.params.get('daemon_test', None, 1)
-#		@avocado.skipIf(test == 0, 'Maybe')
 	def test_ws(self):
-		test = self.params.get('daemon_test', None, 1)
-		if test == 0:
-			#self.skip("MAYBE")
-			#self.fail("Just testing")
-			#@avocado.skip("BAKKOOMMM")
-			self.cancel('Cancelled due to param daemon_test')
-			
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -a '    wspace'" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -188,6 +189,9 @@ class CTIBEDaemonAPIDTest(Test):
 
 class CTIBEDaemonBinaryTest(Test):
 	def test_ws(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -b '    ../test_support/one_print'" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -197,6 +201,9 @@ class CTIBEDaemonBinaryTest(Test):
 
 class CTIBEDaemonDirectoryTest(Test):
 	def test_ws(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -d '    %s'" % (SRC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
 			self.fail("Process didn't error as expected")
@@ -205,6 +212,9 @@ class CTIBEDaemonDirectoryTest(Test):
 
 class CTIBEDaemonEnvTest(Test):
 	def test_arg(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s --debug -e '    CTI_LOG_DIR=%s'" % (SRC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
 			self.fail("Process didn't error as expected")
@@ -218,6 +228,9 @@ class CTIBEDaemonEnvTest(Test):
 
 class CTIBEDaemonHelpTest(Test):
 	def test(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s --help" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -226,6 +239,9 @@ class CTIBEDaemonHelpTest(Test):
 
 class CTIBEDaemonManifestTest(Test):
 	def test_ws(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -m '    ./'" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -234,6 +250,9 @@ class CTIBEDaemonManifestTest(Test):
 
 class CTIBEDaemonPathTest(Test):
 	def test_ws(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -p '    ./'" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -242,6 +261,9 @@ class CTIBEDaemonPathTest(Test):
 
 class CTIBEDaemonAPATHTest(Test):
 	def test_ws(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -t '    ./'" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -250,6 +272,10 @@ class CTIBEDaemonAPATHTest(Test):
 
 class CTIBEDaemonLDPathTest(Test):
 	def test_ws(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
+
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -l '    ./'" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -258,18 +284,30 @@ class CTIBEDaemonLDPathTest(Test):
 
 class CTIBeDaemonWLMTest(Test):
 	def test_WLM_NONE(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
+
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w CTI_WLM_NONE" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 	def test_WLM_INVALID(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
+
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w 12345" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 	def test_WLM_VALID(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
+
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w 3" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -278,6 +316,10 @@ class CTIBeDaemonWLMTest(Test):
 
 class CTIBeDaemonInvalidArgTest(Test):
 	def test_null(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
+
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -Z" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
@@ -286,12 +328,20 @@ class CTIBeDaemonInvalidArgTest(Test):
 
 class CTIBeDaemonNoDirTool(Test):
 	def test_no_dir(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
+
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w 3 -a 1" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
 		except process.CmdError as details:
 			return 0
 	def test_no_tool(self):
+		rdt = self.params.get('run_daemon_tests', None, 1)
+		if rdt == 0:
+			self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
+
 		try:
 			process.run("%s/backend/daemon/cti_be_daemon%s -w 3 -a 1 -d ./test" % (SRC_PATH, DAEMON_VER))
 			self.fail("Process didn't error as expected")
