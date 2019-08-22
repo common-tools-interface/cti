@@ -121,7 +121,7 @@ TEST_F(CTIBeUnitTest, cti_be_getFileDirNone)
     ASSERT_EQ(cti_be_getFileDir(), nullptr);
 }
 
-TEST_F(CTIBeUnitTest, cti_be_getTmpDir)
+/*TEST_F(CTIBeUnitTest, cti_be_getTmpDir)
 {
     ASSERT_EQ(cti_be_getTmpDir(), nullptr);
-}
+}*/
