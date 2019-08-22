@@ -476,69 +476,89 @@ SLURMFrontend::getHostname() const
             throw std::runtime_error("fgets failed.");
         }
         buf[BUFSIZ] = '\0';
-
         return std::stoi(std::string{buf});
     };
 
-    // Resolve a hostname to IPv4 address
-    auto resolveHostname = [](std::string const& hostname) {
-        constexpr auto MAXADDRLEN = 15;
-
+    auto checkHostname = [](std::string const& hostname) {
         // Get hostname information
         struct addrinfo hints;
         memset(&hints, 0, sizeof(hints));
         hints.ai_family = AF_INET;
-        struct addrinfo *infoptr = NULL;
-        if (getaddrinfo(hostname.c_str(), NULL, &hints, &infoptr) || !infoptr) {
-            throw std::runtime_error("failed to resolve hostname " + hostname + strerror(errno));
+        struct addrinfo *info_ptr = nullptr;
+        if (auto const rc = getaddrinfo(hostname.c_str(), nullptr, &hints, &info_ptr)) {
+            throw std::runtime_error("getaddrinfo failed: " + std::string{gai_strerror(rc)});
         }
+        if ( info_ptr == nullptr ) {
+            throw std::runtime_error("failed to resolve hostname " + hostname);
+        }
+        return move_pointer_ownership(info_ptr, freeaddrinfo);
+    };
 
+    // Resolve a hostname to IPv4 address
+    auto resolveHostname = [](struct addrinfo *info_ptr) {
+        constexpr auto MAXADDRLEN = 15;
         // Extract IP address string
         char ip_addr[MAXADDRLEN + 1];
-        if (auto const rc = getnameinfo(infoptr->ai_addr, infoptr->ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
-            freeaddrinfo(infoptr);
+        if (auto const rc = getnameinfo(info_ptr->ai_addr, info_ptr->ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
             throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
         }
-        freeaddrinfo(infoptr);
-
         ip_addr[MAXADDRLEN] = '\0';
-
         return std::string{ip_addr};
     };
 
-    // Get an address to this host accessible from compute nodes
-    // Behavior changes based on XC / Shasta UAI / Shasta node
-    auto detectAddress = [&parseNidFile, &resolveHostname]() {
+    // Get the hostname of the interface that is accessible from compute nodes
+    // Behavior changes based on XC / Shasta UAI+UAN
+    auto detectAddress = [&parseNidFile, &checkHostname, &resolveHostname]() {
+        // Try the nid file first. This is the preferred mechanism since it corresponds
+        // to the HSN.
         // XT / XC NID file
         if (auto nidFile = cti::file::try_open(CRAY_XT_NID_FILE, "r")) {
             // Use the NID to create the XT hostname format.
-            return cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
+            auto res = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
+            try {
+                // Ensure we can resolve the hostname
+                auto info = checkHostname(res);
+                // Hostname checks out so return it
+                return res;
+            }
+            catch (std::exception const& ex) {
+                // continue processing
+            }
         }
-
         // Shasta compute node NID file
         else if (auto nidFile = cti::file::try_open(CRAY_SHASTA_NID_FILE, "r")) {
             // Use the NID to create the Shasta hostname format.
-            return cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
+            auto res = cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
+            try {
+                // Ensure we can resolve the hostname
+                auto info = checkHostname(res);
+                // Hostname checks out so return it
+                return res;
+            }
+            catch (std::exception const& ex) {
+                // continue processing
+            }
         }
-
         // On Shasta, look up and return IPv4 address instead of hostname
         // UAS hostnames cannot be resolved on compute node
-
-        // UAI hostnames start with 'uai-'
+        // FIXME: PE-26874 change this once DNS support is added
         auto const hostname = cti::cstr::gethostname();
-        if (hostname.substr(0, 4) == "uai-") {
-
+        try {
             // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
             // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
             // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
             auto const macVlanHostname = hostname + "-nmn";
-
-            return resolveHostname(macVlanHostname);
-
-        } else {
-            // Assume not UAI, use normal hostname
-            return resolveHostname(hostname);
+            auto info = checkHostname(macVlanHostname);
+            // FIXME: Remove this when PE-26874 is fixed
+            auto res = resolveHostname(info.get());
+            return res;
         }
+        catch (std::exception const& ex) {
+            // continue processing
+        }
+        // Try using normal hostname
+        auto info = checkHostname(hostname);
+        return hostname;
     };
 
     // Cache the hostname result.
