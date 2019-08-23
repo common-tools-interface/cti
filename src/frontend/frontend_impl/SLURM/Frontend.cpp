@@ -491,7 +491,7 @@ SLURMFrontend::getHostname() const
         if ( info_ptr == nullptr ) {
             throw std::runtime_error("failed to resolve hostname " + hostname);
         }
-        return cti::move_pointer_ownership(info_ptr, freeaddrinfo);
+        return cti::move_pointer_ownership(std::move(info_ptr), freeaddrinfo);
     };
 
     // Resolve a hostname to IPv4 address
