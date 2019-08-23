@@ -4,7 +4,7 @@
 # Copyright 2014-2019 Cray Inc. All Rights Reserved.
 #
 
-SUBDIRS				= transfer frontend_impl mpir_iface daemon
+SUBDIRS				= checksum transfer frontend_impl mpir_iface daemon
 
 SRC             	= @COMMONTOOL_DIR@/src
 INCLUDE				= @COMMONTOOL_DIR@/include
@@ -24,6 +24,7 @@ libcommontools_fe_la_LIBADD		=	$(SRC)/useful/libuseful.la \
 									transfer/libtransfer.la \
 									frontend_impl/libfrontend_impl.la \
 									mpir_iface/libmpir_iface.la \
+									checksum/libchecksum.la \
 									-ldl -lrt -lstdc++ \
 									$(ARCHIVE_LIBS) $(DYNINST_LIBS) \
 									$(SSH2_LIBS) $(CODE_COVERAGE_LIBS)

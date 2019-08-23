@@ -464,3 +464,32 @@ AC_DEFUN([cray_ENV_DYNINST],
 	AC_SUBST([DYNINST_BUILD], [${COMMONTOOL_EXTERNAL}/dyninst/build])
 	AC_SUBST([INTERNAL_DYNINST], [${COMMONTOOL_EXTERNAL_INSTALL}])
 ])
+
+dnl support checksumming of critical files. generated header will be placed in
+dnl $1/checksums.h
+dnl
+AC_DEFUN([cray_INIT_CHECKSUM],
+[
+	dnl enable checksum Makefile generation
+	AC_CONFIG_FILES([$1/Makefile])
+
+	AC_CHECK_PROG(SHA1SUM, sha1sum, yes)
+	if test x"${SHA1SUM}" == x"yes"; then
+		AC_DEFINE([HAVE_CHECKSUM], [1], [Define if checksumming support is activated.])
+		AC_SUBST([CHECKSUM_PROG], ["sha1sum"])
+		AC_DEFINE([CHECKSUM_BINARY], ["sha1sum"], [Define the name of the checksum binary])
+	else
+		AC_SUBST([CHECKSUM_PROG], ["true"])
+		AC_MSG_WARN([sha1sum not found, checksumming disabled.])
+	fi
+])
+
+dnl add the file $1 to CHECKSUM_FILES list, generated checksum macro will be named
+dnl $2_CHECKSUM
+dnl
+AC_DEFUN([cray_ADD_CHECKSUM],
+[
+	filepath="$(pwd)/$1"
+	macroname="$2"
+	AC_SUBST([CHECKSUM_FILES], ["${filepath}@${macroname} ${CHECKSUM_FILES}"])
+])
