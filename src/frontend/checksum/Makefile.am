@@ -14,18 +14,19 @@ CS_TARGETS = $(patsubst %, %_CHECKSUM, $(CS_FILE_NAME_PAIRS))
 #.PHONY: $(CS_TARGETS)
 
 clean-local:
-	rm -f @CHECKSUM_HEADER_FILE@ @CHECKSUM_HEADER_FILE@.sums
+	rm -f checksums.h checksums.h.sums
 
-@CHECKSUM_HEADER_FILE@: @CHECKSUM_HEADER_FILE@.sums
-	cp @CHECKSUM_HEADER_FILE@.in @CHECKSUM_HEADER_FILE@
-	cat @CHECKSUM_HEADER_FILE@.sums >> @CHECKSUM_HEADER_FILE@
-	printf "\n#endif\n" >> @CHECKSUM_HEADER_FILE@
-	rm @CHECKSUM_HEADER_FILE@.sums
+checksums.h: checksums.h.sums
+	cp checksums.h.in checksums.h
+	cat checksums.h.sums >> checksums.h
+	printf "\n#endif\n" >> checksums.h
+	rm checksums.h.sums
 
-@CHECKSUM_HEADER_FILE@.sums: $(CS_FILES) $(CS_TARGETS)
+checksums.h.sums: $(CS_FILES) $(CS_TARGETS)
+	touch checksums.h.sums
 
 %_CHECKSUM:
 	printf "#define %s \"%s\"\n" \
 	$(subst .,,$(suffix $(subst @,.,$@))) \
 	$(firstword $(shell @CHECKSUM_PROG@ $(basename $(subst @,.,$@)))) \
-	>> @CHECKSUM_HEADER_FILE@.sums
+	>> checksums.h.sums

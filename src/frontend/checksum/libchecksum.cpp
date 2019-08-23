@@ -2,11 +2,11 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
+#include "checksums.h"
+
 #ifdef HAVE_CHECKSUM
 
 #include <sstream>
-
-#include "checksums.h"
 
 #include "useful/cti_execvp.hpp"
 
@@ -27,7 +27,6 @@ static std::string hash_path(std::string const& path)
 
 bool has_same_hash(char const* path, char const* hash)
 {
-	auto const _hash = hash_path(path);
 	return hash_path(path) == hash;
 }
 
