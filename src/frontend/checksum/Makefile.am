@@ -2,7 +2,9 @@ SRC = @COMMONTOOL_DIR@/src
 
 noinst_LTLIBRARIES = libchecksum.la
 
-libchecksum_la_SOURCES = libchecksum.cpp checksums.h
+libchecksum.cpp: checksums.h
+
+libchecksum_la_SOURCES = checksums.h libchecksum.cpp
 libchecksum_la_LDFLAGS = -static -Wl,--no-undefined
 libchecksum_la_CXXFLAGS = -Wall -I$(SRC)
 
