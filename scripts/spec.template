@@ -64,8 +64,8 @@ install -D ${CUR_DIR}%{_version_prefix}/set_default_%{namespace}-%{intranamespac
 
 mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/
 
-install -D ${CUR_DIR}%{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} \
-            %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
+install -D ${CUR_DIR}%{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name} \
+            %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}
 
 mkdir -p %{buildroot}%{_version_prefix}/docs/
 
@@ -102,8 +102,8 @@ rm -f %{buildroot}%{_version_prefix}/%{build_version}
 %{_version_prefix}/.cray_rpm_release
 %{_version_prefix}/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 %{_version_prefix}/release_info
-%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
-%{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
+%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}
+%{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}
 
 
 %post
@@ -118,8 +118,8 @@ sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX,g" \
 $RPM_INSTALL_PREFIX/modulefiles/%{namespace}-%{intranamespace_name}/%{build_version} \
 $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
-$RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version} \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_%{build_version}
+$RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name} \
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}
 
 sed -i "s,\[module_dir\],$RPM_INSTALL_PREFIX/modulefiles,g" \
 $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
