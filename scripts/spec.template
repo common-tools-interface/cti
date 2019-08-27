@@ -145,52 +145,52 @@ $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/symtab
 find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcommontools_[bf]e\.so\." \
 | sed "/.*\.so\.[0-9]\.[0-9]/d" > $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libpatchAPI\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libpatchAPI\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libparseAPI\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libparseAPI\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdynC_API\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdynC_API\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdynElf\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdynElf\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdynDwarf\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdynDwarf\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcommon\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libcommon\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libsymLite\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libsymLite\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libpcontrol\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libpcontrol\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libinstructionAPI\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libinstructionAPI\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdyninstAPI\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdyninstAPI\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdyninstAPI_RT\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdyninstAPI_RT\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libstackwalk\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libstackwalk\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libsymtabAPI\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libsymtabAPI\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libssh2\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libssh2\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdw\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libdw\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
-find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libelf\.so" | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
+find $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version} | grep "libelf\.so\." | head -1 | sed "/.*\.so\.[0-9]\.[0-9]/d" \
 >> $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/.cray_dynamic_file_list
 
 # prevent echo of new directory as it messes up install output
