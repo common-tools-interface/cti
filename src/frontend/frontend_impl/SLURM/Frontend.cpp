@@ -479,7 +479,7 @@ SLURMFrontend::getHostname() const
         return std::stoi(std::string{buf});
     };
 
-    auto checkHostname = [](std::string const& hostname) {
+    auto make_addrinfo = [](std::string const& hostname) {
         // Get hostname information
         struct addrinfo hints;
         memset(&hints, 0, sizeof(hints));
@@ -508,18 +508,18 @@ SLURMFrontend::getHostname() const
 
     // Get the hostname of the interface that is accessible from compute nodes
     // Behavior changes based on XC / Shasta UAI+UAN
-    auto detectAddress = [&parseNidFile, &checkHostname, &resolveHostname]() {
+    auto detectAddress = [&parseNidFile, &make_addrinfo, &resolveHostname]() {
         // Try the nid file first. This is the preferred mechanism since it corresponds
         // to the HSN.
         // XT / XC NID file
         if (auto nidFile = cti::file::try_open(CRAY_XT_NID_FILE, "r")) {
             // Use the NID to create the XT hostname format.
-            auto res = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
+            auto nidXTHostname = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
             try {
                 // Ensure we can resolve the hostname
-                auto info = checkHostname(res);
+                auto info = make_addrinfo(nidXTHostname);
                 // Hostname checks out so return it
-                return res;
+                return nidXTHostname;
             }
             catch (std::exception const& ex) {
                 // continue processing
@@ -528,12 +528,12 @@ SLURMFrontend::getHostname() const
         // Shasta compute node NID file
         else if (auto nidFile = cti::file::try_open(CRAY_SHASTA_NID_FILE, "r")) {
             // Use the NID to create the Shasta hostname format.
-            auto res = cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
+            auto nidShastaHostname = cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
             try {
                 // Ensure we can resolve the hostname
-                auto info = checkHostname(res);
+                auto info = make_addrinfo(nidShastaHostname);
                 // Hostname checks out so return it
-                return res;
+                return nidShastaHostname;
             }
             catch (std::exception const& ex) {
                 // continue processing
@@ -548,16 +548,16 @@ SLURMFrontend::getHostname() const
             // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
             // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
             auto const macVlanHostname = hostname + "-nmn";
-            auto info = checkHostname(macVlanHostname);
+            auto info = make_addrinfo(macVlanHostname);
             // FIXME: Remove this when PE-26874 is fixed
-            auto res = resolveHostname(info.get());
-            return res;
+            auto macVlanIPAddress = resolveHostname(info.get());
+            return macVlanIPAddress;
         }
         catch (std::exception const& ex) {
             // continue processing
         }
         // Try using normal hostname
-        auto info = checkHostname(hostname);
+        auto info = make_addrinfo(hostname);
         return hostname;
     };
 
