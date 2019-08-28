@@ -495,11 +495,12 @@ SLURMFrontend::getHostname() const
     };
 
     // Resolve a hostname to IPv4 address
-    auto resolveHostname = [](struct addrinfo *info_ptr) {
+    // FIXME: PE-26874 change this once DNS support is added
+    auto resolveHostname = [](const struct addrinfo& addr_info) {
         constexpr auto MAXADDRLEN = 15;
         // Extract IP address string
         char ip_addr[MAXADDRLEN + 1];
-        if (auto const rc = getnameinfo(info_ptr->ai_addr, info_ptr->ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
+        if (auto const rc = getnameinfo(addr_info.ai_addr, addr_info.ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
             throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
         }
         ip_addr[MAXADDRLEN] = '\0';
@@ -517,7 +518,7 @@ SLURMFrontend::getHostname() const
             auto nidXTHostname = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
             try {
                 // Ensure we can resolve the hostname
-                auto info = make_addrinfo(nidXTHostname);
+                make_addrinfo(nidXTHostname);
                 // Hostname checks out so return it
                 return nidXTHostname;
             }
@@ -531,7 +532,7 @@ SLURMFrontend::getHostname() const
             auto nidShastaHostname = cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
             try {
                 // Ensure we can resolve the hostname
-                auto info = make_addrinfo(nidShastaHostname);
+                make_addrinfo(nidShastaHostname);
                 // Hostname checks out so return it
                 return nidShastaHostname;
             }
@@ -550,7 +551,7 @@ SLURMFrontend::getHostname() const
             auto const macVlanHostname = hostname + "-nmn";
             auto info = make_addrinfo(macVlanHostname);
             // FIXME: Remove this when PE-26874 is fixed
-            auto macVlanIPAddress = resolveHostname(info.get());
+            auto macVlanIPAddress = resolveHostname(*info);
             return macVlanIPAddress;
         }
         catch (std::exception const& ex) {
