@@ -62,11 +62,6 @@ mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/
 install -D ${CUR_DIR}%{_version_prefix}/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
             %{buildroot}%{_namespace_prefix}/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 
-mkdir -p %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/
-
-install -D ${CUR_DIR}%{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name} \
-            %{buildroot}%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}
-
 mkdir -p %{buildroot}%{_version_prefix}/docs/
 
 install -D ${CUR_DIR}/../../extras/docs/ATTRIBUTIONS_cti.txt \
@@ -102,7 +97,6 @@ rm -f %{buildroot}%{_version_prefix}/%{build_version}
 %{_version_prefix}/.cray_rpm_release
 %{_version_prefix}/set_default_%{namespace}-%{intranamespace_name}_%{build_version}
 %{_version_prefix}/release_info
-%{_namespace_prefix}/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}
 %{_version_prefix}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}
 
 
@@ -118,7 +112,6 @@ sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX,g" \
 $RPM_INSTALL_PREFIX/modulefiles/%{namespace}-%{intranamespace_name}/%{build_version} \
 $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_default_%{namespace}-%{intranamespace_name}_%{build_version} \
-$RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name} \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/set_pkgconfig_default_%{namespace}-%{intranamespace_name}
 
 sed -i "s,\[module_dir\],$RPM_INSTALL_PREFIX/modulefiles,g" \
@@ -211,6 +204,17 @@ then
   echo %{_name_moduledir} > /etc%{_namespace_prefix}/admin-pe/modulepaths.conf.d/%{intranamespace_name}.conf
 
 fi
+
+if [ ! ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ -f $RPM_INSTALL_PREFIX/modulefiles/cray-cti/.version ]
+then
+  rv=`find $RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_* -type l`
+  if [[ $rv != "" ]]
+  then
+    rm $RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_*
+  fi
+fi
+
+/sbin/ldconfig
 
 %preun
 # Cleanup default link if it point to this
