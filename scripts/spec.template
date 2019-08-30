@@ -205,15 +205,6 @@ then
 
 fi
 
-if [ ! ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ -f $RPM_INSTALL_PREFIX/modulefiles/cray-cti/.version ]
-then
-  rv=`find $RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_* -type l`
-  if [[ $rv != "" ]]
-  then
-    rm $RPM_INSTALL_PREFIX/admin-pe/pkgconfig_default_files/set_pkgconfig_default_%{namespace}-%{intranamespace_name}_*
-  fi
-fi
-
 /sbin/ldconfig
 
 %preun
