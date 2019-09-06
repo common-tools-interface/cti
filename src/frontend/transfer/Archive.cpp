@@ -85,7 +85,7 @@ void Archive::addDirEntry(const std::string& entryPath) {
 }
 
 void Archive::addDir(const std::string& entryPath, const std::string& dirPath) {
-    if (auto dirHandle = cti::move_pointer_ownership(opendir(dirPath.c_str()), closedir)) {
+    if (auto dirHandle = cti::take_pointer_ownership(opendir(dirPath.c_str()), closedir)) {
         errno = 0;
         for (struct dirent *d = readdir(dirHandle.get()); d != nullptr;
             d = readdir(dirHandle.get())) {
