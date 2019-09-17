@@ -83,7 +83,7 @@ then
   echo "Set version to $BUILD_NUMBER in release_versioning"
 else
   echo "Unable to determine Jenkins BUILD_NUMBER"
-  exit 1
+  return_code=1 
 fi
 
 echo "############################################"
