@@ -15,63 +15,53 @@
 # ./add_rpm_repo.sh http://car.dev.cray.com/artifactory/internal/PE-CDST/ /x86_64/dev/master/
 
 gcc_ver=8.1.0
+return_code=0
 
 function check_exit_status(){
 
     if [ $1 -ne 0 ]
     then
         echo "There was an error installing $2: $return_value"
-        exit $return_value
+        return_code=$1
     fi
 }
 
 echo "############################################"
 echo "#             Installing deps              #"
 echo "############################################"
-zypper --non-interactive --no-gpg-check install cmake
-check_exit_status $? cmake
+zypper --non-interactive install autoconf \
+				 automake \
+				 binutils-devel \
+				 bison \
+				 bzip2 \
+				 cmake \
+				 ctags \
+				 flex \
+				 m4 \
+				 make \
+				 makeinfo \
+				 mksh \
+				 ncurses \
+				 ncurses-devel \
+				 libbz2-devel \
+				 liblzma5 \
+				 libtool \
+				 tcl \
+				 python-devel \
+				 which \
+				 xz-devel
+check_exit_status $? sys-pkgs
 
-zypper --non-interactive --no-gpg-check install flex
-check_exit_status $? flex
+zypper addrepo http://car.dev.cray.com/artifactory/shasta-premium/SHASTA-OS/sle15_premium/x86_64/cray/sles15-premium/ car-shasta-premium
+check_exit_status $? car-shasta-premium-add-repo
 
-zypper --non-interactive --no-gpg-check install bison
-check_exit_status $? bison
+zypper --non-interactive --no-gpg-check install craype \
+					cray-set-gcc-libs \
+					cray-gcc-$gcc_ver \
+					cray-modules
+check_exit_status $? car-shasta-premium-install-modules
 
-zypper --non-interactive --no-gpg-check install binutils-devel
-check_exit_status $? binutils-devel
-
-zypper --non-interactive --no-gpg-check install mksh
-check_exit_status $? mksh
-
-zypper --non-interactive --no-gpg-check install bzip2
-check_exit_status $? bzip2
-
-zypper --non-interactive --no-gpg-check install libbz2-devel
-check_exit_status $? libbz2-devel
-
-zypper --non-interactive --no-gpg-check install liblzma5
-check_exit_status $? liblzma5
-
-zypper --non-interactive --no-gpg-check install xz-devel
-check_exit_status $? xz-devel
-
-zypper --non-interactive --no-gpg-check install tcl
-check_exit_status $? tcl
-
-zypper addrepo http://car.dev.cray.com/artifactory/shasta-premium/SHASTA-OS/sle15_premium/x86_64/cray/sles15-premium/ CAR
-check_exit_status $? CAR
-
-zypper --non-interactive --no-gpg-check install craype
-check_exit_status $? craype
-
-zypper --non-interactive --no-gpg-check install cray-set-gcc-libs
-check_exit_status $? cray-set-gcc-libs
-
-zypper --non-interactive --no-gpg-check install cray-gcc-$gcc_ver
-check_exit_status $? cray-gcc-$gcc_ver
-
-zypper --non-interactive --no-gpg-check install cray-modules
-check_exit_status $? cray-modules
+zypper rr car-shasta-premium
 
 export SHELL=/bin/sh
 
@@ -101,19 +91,21 @@ echo "#      Generating configure files          #"
 echo "############################################"
 # Create autotools generated files for this build environment
 autoreconf -ifv
+#TODO: should we cature autoreconf return value?
 
 echo "############################################"
 echo "#            Calling Configure             #"
 echo "############################################"
 # Create the make files
+#TODO: add param to script to optionally run configure with caching enabled?
 ./configure --enable-static=no
-return_code=$?
 
 # Dump config.log if configure fails
-if [ $return_code -ne 0 ]; then
+if [ $? -ne 0 ]; then
     echo "############################################"
     echo "#          Dumping config.log              #"
     echo "############################################"
+    return_code=$?
     cat config.log
 fi
 
