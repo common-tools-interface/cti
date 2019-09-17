@@ -99,14 +99,18 @@ echo "############################################"
 # Create the make files
 #TODO: add param to script to optionally run configure with caching enabled?
 ./configure --enable-static=no
+return_code=$?
 
 # Dump config.log if configure fails
-if [ $? -ne 0 ]; then
+if [ $return_code -ne 0 ]; then
     echo "############################################"
     echo "#          Dumping config.log              #"
     echo "############################################"
-    return_code=$?
-    cat config.log
+    if [ ! -f config.log ]; then
+	echo "config.log not found!"
+    else
+	cat config.log
+    fi
 fi
 
 echo "############################################"
