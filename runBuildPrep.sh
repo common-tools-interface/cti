@@ -63,11 +63,7 @@ check_exit_status $? car-shasta-premium-install-modules
 
 zypper rr car-shasta-premium
 
-export SHELL=/bin/sh
-
-#Ensure we can use modules
 source /opt/cray/pe/modules/default/init/bash
-
 #Ensure CTI is build with $gcc_ver
 module load gcc/$gcc_ver
 
