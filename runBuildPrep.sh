@@ -46,7 +46,7 @@ zypper --non-interactive install autoconf \
 				 liblzma5 \
 				 libtool \
 				 libopenssl-devel \
-				 tcl \ 
+				 tcl \
 				 python-devel \
 				 which \
 				 xz-devel
