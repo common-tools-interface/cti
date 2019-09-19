@@ -20,7 +20,7 @@ return_code=0
 function check_exit_status(){
     if [ $1 -ne 0 ]
     then
-        echo "runBuildPrep.sh: error code of $2 from $return_value"
+        echo "runBuildPrep.sh: error code of $1 from $2"
         return_code=$1
     fi
 }
@@ -45,7 +45,8 @@ zypper --non-interactive install autoconf \
 				 libbz2-devel \
 				 liblzma5 \
 				 libtool \
-				 tcl \
+				 libopenssl-devel \
+				 tcl \ 
 				 python-devel \
 				 which \
 				 xz-devel

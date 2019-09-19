@@ -17,7 +17,7 @@ return_code=0
 function check_exit_status(){
     if [ $1 -ne 0 ]
     then
-        echo "runBuild.sh: error code of $2 from $return_value"
+        echo "runBuild.sh: error code of $1 from $2"
         return_code=$1
     fi
 }
