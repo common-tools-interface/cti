@@ -18,10 +18,9 @@ gcc_ver=8.1.0
 return_code=0
 
 function check_exit_status(){
-
     if [ $1 -ne 0 ]
     then
-        echo "There was an error installing $2: $return_value"
+        echo "runBuildPrep.sh: error code of $1 from $2"
         return_code=$1
     fi
 }
@@ -46,6 +45,7 @@ zypper --non-interactive install autoconf \
 				 libbz2-devel \
 				 liblzma5 \
 				 libtool \
+				 libopenssl-devel \
 				 tcl \
 				 python-devel \
 				 which \
@@ -63,10 +63,6 @@ check_exit_status $? car-shasta-premium-install-modules
 
 zypper rr car-shasta-premium
 
-source /opt/cray/pe/modules/default/init/bash
-#Ensure CTI is build with $gcc_ver
-module load gcc/$gcc_ver
-
 echo "############################################"
 echo "#      Capturing Jenkins Env Vars          #"
 echo "############################################"
@@ -83,36 +79,6 @@ else
 fi
 
 echo "############################################"
-echo "#      Generating configure files          #"
-echo "############################################"
-# Create autotools generated files for this build environment
-autoreconf -ifv
-#TODO: should we cature autoreconf return value?
-
-echo "############################################"
-echo "#            Calling Configure             #"
-echo "############################################"
-# Create the make files
-#TODO: add param to script to optionally run configure with caching enabled?
-./configure --enable-static=no
-return_code=$?
-
-# Dump config.log if configure fails
-if [ $return_code -ne 0 ]; then
-    echo "############################################"
-    echo "#          Dumping config.log              #"
-    echo "############################################"
-    if [ ! -f config.log ]; then
-	echo "config.log not found!"
-    else
-	cat config.log
-    fi
-fi
-
-echo "############################################"
 echo "#          Done with build prep            #"
 echo "############################################"
-# We want to capture the config.log in the jenkins output on error.
-# But we also want to return with the return code from the configure
-# call. So do that below.
 exit $return_code
