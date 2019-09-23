@@ -1,15 +1,8 @@
 #!/bin/bash
-
-# Check paramter count
-if [ "$#" -gt 2 ] ; then
-    echo "ERROR:"
-    echo "Illegal number of arguments."
-    echo "Expected none or path to function tests directory"
-    exit 1
-fi
+SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
 
 # Change to tests/script directory and set variable to get back
-cd ${1:-./}
+cd $SCRIPTS_DIR
 START_DIR=$PWD
 
 # Make sure script is executing in the right place
@@ -23,7 +16,8 @@ fi
 cti=$PWD/../../
 gcov_report_path=$cti/tests/gcov_report/
 frontend_path=$cti/src/frontend/
-gcov_dirs=($frontend_path/ $frontend_path/transfer/ $frontend_path/daemon/ $frontend_path/mpir_iface/ $frontend_path/frontend_impl/GenericSSH/ $frontend_path/frontend_impl/SLURM/)
+backend_path=$cti/src/backend/
+gcov_dirs=($frontend_path/ $frontend_path/transfer/ $frontend_path/daemon/ $frontend_path/mpir_iface/ $frontend_path/frontend_impl/GenericSSH/ $frontend_path/frontend_impl/SLURM/ $backend_path/ $backend_path/daemon)
 
 # Configure modules for gcov usage
 module purge

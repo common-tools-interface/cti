@@ -10,6 +10,15 @@
 PYTHON=python3
 ON_WHITEBOX=true
 
+#DIRECTORY RELATED VALUES
+START_DIR=$PWD
+FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
+EXEC_DIR=$FUNCTION_DIR
+
+#RUNNING AS PART OF NIGHTLY TESTING?
+NIGHTLY_TEST=false
+
+
 ########################################################
 # This function is designed to ensure python is        #
 # properly setup on a non-whitebox system. These       #
@@ -18,7 +27,12 @@ ON_WHITEBOX=true
 ########################################################
 
 setup_python() {
-    PYTHON=python
+    if [ "$ON_WHITEBOX" = false ] ; then
+        PYTHON=python
+    fi
+    if ! python3 --version &> /dev/null ; then
+        PYTHON=python
+    fi
     if ! test -f ~/.local/bin/pip ; then
         echo "No pip detected. Installing..."
         if ! curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py ; then
@@ -32,14 +46,16 @@ setup_python() {
         rm get-pip.py
     fi
     echo "Pip install is valid..."
-    if ! test -f ~/.local/bin/virtualenv ; then
-        echo "Virtual environment module not installed. Installing..."
-        if ! ~/.local/bin/pip install --user virtualenv ; then
-            echo "Failed to install virtual environment module. Aborting..."
-            return 1
+    if [ "$PYTHON" == "python" ] ; then
+        if ! test -f ~/.local/bin/virtualenv ; then
+            echo "Virtual environment module not installed. Installing..."
+            if ! ~/.local/bin/pip install --user virtualenv ; then
+                echo "Failed to install virtual environment module. Aborting..."
+                return 1
+            fi
         fi
+        echo "VENV install is valid..."
     fi
-    echo "VENV install is valid..."
     echo "Python setup is valid..."
     return 0
 }
@@ -115,7 +131,7 @@ setup_avocado() {
                     #Configure avocado
                         if mkdir job-results ; then
                             local PYTHON_VERSION="$(ls $PWD/avocado/lib/)" 
-                            $PYTHON ../avo_config.py $PWD $PYTHON_VERSION
+                            python3 ../avo_config.py $PWD $PYTHON_VERSION
                         else
                             echo "Failed to create job-results directory"
                             echo "Job-results will now be stored in ~/avocado"
@@ -156,12 +172,20 @@ run_tests() {
 
         # check if not running on a whitebox and if so load different parameters
         if [ "$ON_WHITEBOX" = true ] ; then
-            echo "Configuring with Whitebox settings..."
-            export MPICH_SMP_SINGLE_COPY_OFF=0
-            export CTI_INSTALL_DIR=$PWD/../../install
-            export LD_LIBRARY_PATH=$PWD/../../install/lib
-            export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
-            export CTI_WLM_IMPL=generic
+            if [ "$NIGHTLY_TEST" = true ] ; then
+                echo "Configuring with nightly testing whitebox settings..."
+                export MPICH_SMP_SINGLE_COPY_OFF=0
+                export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
+                export CTI_WLM_IMPL=generic
+
+	    else
+                echo "Configuring with normal whitebox settings..."
+                export MPICH_SMP_SINGLE_COPY_OFF=0
+                export CTI_INSTALL_DIR=$PWD/../../install
+                export LD_LIBRARY_PATH=$PWD/../../install/lib
+                export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
+                export CTI_WLM_IMPL=generic
+	    fi
         else
             echo "srun exists so configuring non-whitebox launcher settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
@@ -202,16 +226,27 @@ create_mpi_app() {
     fi
 }
 
+flags(){
+    echo "Available flags:"
+    echo "-h: display this"
+    echo "-n: run nightly test  DEFAULT : $NIGHTLY_TEST"
+    echo "-d: execution dir     DEFAULT : $EXEC_DIR"
+    return 0    
+}
+
 ###########################
 #    BEGIN MAIN SCRIPT    #
 ###########################
 
 # check that amount of paramters passed in is valid
-if [ "$#" -gt 2 ] ; then
-    echo "Illegal number of arguments."
-    echo "Expected none or path to function tests directory"
-    exit 1
-fi
+while getopts 'hnd:' flag; do
+    case "${flag}" in
+        h) flags
+           exit 1 ;;
+        n) NIGHTLY_TEST=true ;;
+	d) EXEC_DIR=${OPTARG} ;;
+    esac
+done
 
 # check that running this is feasible at all
 if ! python3 --version > /dev/null && ! python --version > /dev/null ; then
@@ -220,21 +255,20 @@ if ! python3 --version > /dev/null && ! python --version > /dev/null ; then
 fi
 
 # calibrate script based on if running on whitebox
-if srun echo "" > /dev/null ; then
-    if ! setup_python ; then
-        echo "Failed to setup valid whitebox python environment"
-        exit 1
-    fi
+if srun echo "" &> /dev/null ; then
     echo "Calibrating script for non-whitebox"
     ON_WHITEBOX=false
 else
     echo "due to no srun assuming whitebox environment..."
 fi
 
-# check that the path to tests/function relative to current
-# directory was provided. If not simply exit.
-START_DIR=$PWD
-cd ${1:-./}
+if ! setup_python ; then
+    echo "Failed to setup valid whitebox python environment"
+    exit 1
+fi    
+
+# switch to the function test directory
+cd $EXEC_DIR
 
 # check if in proper directory by comparing against file in functional tests
 if ! test -f ./avocado_tests.py ; then

@@ -1,1 +1,2 @@
 timeout: 100
+run_daemon_tests: 1

@@ -77,7 +77,7 @@ set_default_$(PKG_NAME)_$(PKG_VERSION): set_default/set_default_template
 	-e"s:\[module_name_list\]:$(PKG_NAME):g" $< > $@
 	cp $@ $(INSTALL_DIR)/$(PKG_VERSION)/
 
-set_pkgconfig_default_$(PKG_NAME)_$(PKG_VERSION): $(CUR_DIR)/scripts/set_pkgconfig_default_template
+set_pkgconfig_default_$(PKG_NAME): $(CUR_DIR)/scripts/set_pkgconfig_default_template
 	sed -e"s:\[version\]:$(PKG_VERSION):g" $< > $@
 	cp $@ $(INSTALL_DIR)/$(PKG_VERSION)/
 
@@ -94,7 +94,7 @@ release_info: $(CUR_DIR)/scripts/release_info_template
 	-e"s:\[ARCH\]:$(ARCH):g" $< > $@
 	cp $@ $(INSTALL_DIR)/$(PKG_VERSION)/
 
-SOURCES/$(PKG_NAME)-$(PKG_VERSION).tgz: set_default_$(PKG_NAME)_$(PKG_VERSION) set_pkgconfig_default_$(PKG_NAME)_$(PKG_VERSION) module release_info dirs
+SOURCES/$(PKG_NAME)-$(PKG_VERSION).tgz: set_default_$(PKG_NAME)_$(PKG_VERSION) set_pkgconfig_default_$(PKG_NAME) module release_info dirs
 	mv $(word 2,$^) $(INSTALL_DIR)/$(PKG_VERSION)
 	cp $< $(INSTALL_DIR)/$(PKG_VERSION)
 	tar czvf $(PKG_NAME)-$(PKG_VERSION).tgz $(INSTALL_DIR)/$(PKG_VERSION) \

@@ -10,24 +10,60 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-#set gcc version
+
 gcc_ver=8.1.0
+return_code=0
+
+function check_exit_status(){
+    if [ $1 -ne 0 ]
+    then
+        echo "runBuild.sh: error code of $1 from $2"
+        return_code=$1
+    fi
+}
 
 #Ensure we can use modules
 source /opt/cray/pe/modules/default/init/bash
 
 #Ensure CTI is build with $gcc_ver
 module load gcc/$gcc_ver
+check_exit_status $? module-load-gcc
+
+echo "############################################"
+echo "#      Generating configure files          #"
+echo "############################################"
+# Create autotools generated files for this build environment
+autoreconf -ifv
+check_exit_status $? autoreconf-ifv
+
+echo "############################################"
+echo "#            Calling Configure             #"
+echo "############################################"
+#TODO: add param to script to optionally run configure with caching enabled?
+# Create the make files
+./configure --enable-static=no
+check_exit_status $? configure
+
+# Dump config.log if configure fails
+if [ $return_code -ne 0 ]; then
+    # We want to capture the config.log in the jenkins output on error.
+    echo "############################################"
+    echo "#          Dumping config.log              #"
+    echo "############################################"
+    if [ ! -f config.log ]; then
+	check_exit_status 1 config-log-dump-to-stdout
+    else
+	cat config.log
+    fi
+fi
 
 echo "############################################"
 echo "#               Running make               #"
 echo "############################################"
-
 make -j32
-return_code=$?
+check_exit_status $? make
 
 echo "############################################"
 echo "#              Done with build             #"
 echo "############################################"
-
 exit $return_code
