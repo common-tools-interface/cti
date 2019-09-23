@@ -1,5 +1,5 @@
 /******************************************************************************\
- * unit_tests.cpp - Unit test driver
+ * cti_be_unit_test.hpp - be unit test for CTI
  *
  * Copyright 2019 Cray Inc. All Rights Reserved.
  *
@@ -33,31 +33,28 @@
  *
  ******************************************************************************/
 
-#include "cti_defs.h"
+#pragma once
 
-#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
 
-// CTI Transfer includes
-#include "frontend/transfer/Manifest.hpp"
-#include "frontend/transfer/Session.hpp"
+#include <memory>
+#include <string>
+#include <vector>
 
-// Unit Test includes
-#include "cti_fe_unit_test.hpp"
-#include "cti_archive_unit_test.hpp"
-#include "cti_session_unit_test.hpp"
-#include "cti_manifest_unit_test.hpp"
-#include "cti_useful_unit_test.hpp"
-#include "cti_be_unit_test.hpp"
+#include "backend/cti_be.h"
 
-class CTI_Environment : public ::testing::Environment
+// include google testing files
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+
+// the fixture for unit testing the C archive interface
+class CTIBeUnitTest : public ::testing::Test
 {
-public:
-    // Ensure we override the install env var to our prefix
-    void SetUp() { setenv(CTI_BASE_DIR_ENV_VAR, INSTALL_PATH, 1); }
-};
+protected:
+    
 
-int main(int argc, char **argv) {
-    ::testing::Environment* const cti_env = ::testing::AddGlobalTestEnvironment(new CTI_Environment);
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+protected:
+    CTIBeUnitTest();
+    ~CTIBeUnitTest();
+};

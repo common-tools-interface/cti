@@ -131,7 +131,7 @@ TEST_F(CTIFEUnitTest, GetHostname)
         .WillOnce(Return(std::string{"local-hostname"}));
 
     // run the test
-    auto const rawHostname = cti::move_pointer_ownership(cti_getHostname(), std::free);
+    auto const rawHostname = cti::take_pointer_ownership(cti_getHostname(), std::free);
     ASSERT_TRUE(rawHostname != nullptr) << cti_error_str();
 }
 
@@ -154,7 +154,7 @@ TEST_F(CTIAppUnitTest, GetLauncherHostname)
         .WillOnce(Return(std::string{"remote-hostname"}));
 
     // run the test
-    auto const rawHostname = cti::move_pointer_ownership(cti_getLauncherHostName(appId), std::free);
+    auto const rawHostname = cti::take_pointer_ownership(cti_getLauncherHostName(appId), std::free);
     ASSERT_TRUE(rawHostname != nullptr) << cti_error_str();
     EXPECT_EQ(std::string{rawHostname.get()}, "remote-hostname");
 }
@@ -192,7 +192,7 @@ TEST_F(CTIAppUnitTest, GetAppHostsList)
         .WillOnce(Return(std::vector<std::string>{"remote-hostname"}));
 
     // run the test
-    auto const rawHostsList = cti::move_pointer_ownership(cti_getAppHostsList(appId), cti::free_ptr_list<char*>);
+    auto const rawHostsList = cti::take_pointer_ownership(cti_getAppHostsList(appId), cti::free_ptr_list<char*>);
     ASSERT_TRUE(rawHostsList != nullptr) << cti_error_str();
     EXPECT_EQ(std::string{rawHostsList.get()[0]}, "remote-hostname");
     EXPECT_EQ(rawHostsList.get()[1], nullptr);
@@ -211,7 +211,7 @@ TEST_F(CTIAppUnitTest, GetAppHostsPlacement)
         }}));
 
     // run the test
-    auto const rawHostsList = cti::move_pointer_ownership(cti_getAppHostsPlacement(appId), cti_destroyHostsList);
+    auto const rawHostsList = cti::take_pointer_ownership(cti_getAppHostsPlacement(appId), cti_destroyHostsList);
     ASSERT_TRUE(rawHostsList != nullptr) << cti_error_str();
     EXPECT_EQ(rawHostsList->numHosts, 1);
     ASSERT_TRUE(rawHostsList->hosts != nullptr);
@@ -341,7 +341,7 @@ TEST_F(CTIAppUnitTest, GetSessionLockFilesNoManifest)
     ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
     // Sessions without manifests should not have any lock files
-    auto lockFilesList = cti::move_pointer_ownership(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
+    auto lockFilesList = cti::take_pointer_ownership(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
     ASSERT_TRUE(lockFilesList == nullptr) << cti_error_str();
 
     // cleanup session
@@ -365,7 +365,7 @@ TEST_F(CTIAppUnitTest, GetSessionLockFilesOneManifest)
     ASSERT_EQ(cti_sendManifest(manifestId), SUCCESS) << cti_error_str();
 
     // Get the lock files
-    auto lockFilesList = cti::move_pointer_ownership(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
+    auto lockFilesList = cti::take_pointer_ownership(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
     ASSERT_TRUE(lockFilesList != nullptr) << cti_error_str();
 
     // there should have been one lock file
@@ -397,7 +397,7 @@ TEST_F(CTIAppUnitTest, GetSessionLockFilesTwoManifests)
     ASSERT_EQ(cti_sendManifest(manifestId2), SUCCESS) << cti_error_str();
 
     // Get the lock files
-    auto lockFilesList = cti::move_pointer_ownership(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
+    auto lockFilesList = cti::take_pointer_ownership(cti_getSessionLockFiles(sessionId), cti::free_ptr_list<char*>);
     ASSERT_TRUE(lockFilesList != nullptr) << cti_error_str();
 
     // there should have been two lock files
@@ -417,7 +417,7 @@ TEST_F(CTIAppUnitTest, GetSessionRootDir)
     auto const sessionId = cti_createSession(appId);
     ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
-    auto const rawRootDir = cti::move_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
+    auto const rawRootDir = cti::take_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
     ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
 
     // cleanup session
@@ -432,9 +432,9 @@ TEST_F(CTIAppUnitTest, GetSessionBinDir)
     auto const sessionId = cti_createSession(appId);
     ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
-    auto const rawRootDir = cti::move_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
+    auto const rawRootDir = cti::take_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
     ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
-    auto const rawBinDir = cti::move_pointer_ownership(cti_getSessionBinDir(sessionId), ::free);
+    auto const rawBinDir = cti::take_pointer_ownership(cti_getSessionBinDir(sessionId), ::free);
     ASSERT_TRUE(rawBinDir != nullptr) << cti_error_str();
     ASSERT_EQ(std::string{rawBinDir.get()}, std::string{rawRootDir.get()} + "/bin");
 
@@ -450,9 +450,9 @@ TEST_F(CTIAppUnitTest, GetSessionLibDir)
     auto const sessionId = cti_createSession(appId);
     ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
-    auto const rawRootDir = cti::move_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
+    auto const rawRootDir = cti::take_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
     ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
-    auto const rawLibDir = cti::move_pointer_ownership(cti_getSessionLibDir(sessionId), ::free);
+    auto const rawLibDir = cti::take_pointer_ownership(cti_getSessionLibDir(sessionId), ::free);
     ASSERT_TRUE(rawLibDir != nullptr) << cti_error_str();
     ASSERT_EQ(std::string{rawLibDir.get()}, std::string{rawRootDir.get()} + "/lib");
 
@@ -468,9 +468,9 @@ TEST_F(CTIAppUnitTest, GetSessionFileDir)
     auto const sessionId = cti_createSession(appId);
     ASSERT_NE(sessionId, SESSION_ERROR);
 
-    auto const rawRootDir = cti::move_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
+    auto const rawRootDir = cti::take_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
     ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
-    auto const rawFileDir = cti::move_pointer_ownership(cti_getSessionFileDir(sessionId), ::free);
+    auto const rawFileDir = cti::take_pointer_ownership(cti_getSessionFileDir(sessionId), ::free);
     ASSERT_TRUE(rawFileDir != nullptr) << cti_error_str();
     ASSERT_EQ(std::string{rawFileDir.get()}, std::string{rawRootDir.get()});
 
@@ -486,9 +486,9 @@ TEST_F(CTIAppUnitTest, GetSessionTmpDir)
     auto const sessionId = cti_createSession(appId);
     ASSERT_NE(sessionId, SESSION_ERROR) << cti_error_str();
 
-    auto const rawRootDir = cti::move_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
+    auto const rawRootDir = cti::take_pointer_ownership(cti_getSessionRootDir(sessionId), ::free);
     ASSERT_TRUE(rawRootDir != nullptr) << cti_error_str();
-    auto const rawTmpDir = cti::move_pointer_ownership(cti_getSessionTmpDir(sessionId), ::free);
+    auto const rawTmpDir = cti::take_pointer_ownership(cti_getSessionTmpDir(sessionId), ::free);
     ASSERT_TRUE(rawTmpDir != nullptr) << cti_error_str();
     ASSERT_EQ(std::string{rawTmpDir.get()}, std::string{rawRootDir.get()} + "/tmp");
 

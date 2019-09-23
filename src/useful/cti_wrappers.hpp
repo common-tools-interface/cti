@@ -61,12 +61,12 @@ namespace cti {
 // have to explicitly provide the types of T and its destructor function:
 //     std::unique_ptr<T, decltype(&destructor)>{new T{}, destructor}
 // this is a helper function to perform this deduction:
-//     move_pointer_ownership(new T{}, destructor)
+//     take_pointer_ownership(new T{}, destructor)
 // for example:
-//     auto const cstr = move_pointer_ownership(strdup(...), std::free);
+//     auto const cstr = take_pointer_ownership(strdup(...), std::free);
 template <typename T, typename Destr>
 inline static auto
-move_pointer_ownership(T*&& expiring, Destr&& destructor) -> std::unique_ptr<T, decltype(&destructor)>
+take_pointer_ownership(T*&& expiring, Destr&& destructor) -> std::unique_ptr<T, decltype(&destructor)>
 {
     // type of Destr&& is deduced at the same time as Destr -> universal reference
     static_assert(!std::is_rvalue_reference<decltype(destructor)>::value);
@@ -89,13 +89,13 @@ namespace cstr {
         if (::asprintf(&rawResult, formatCStr, std::forward<Args>(args)...) < 0) {
             throw std::runtime_error("asprintf failed.");
         }
-        auto const result = move_pointer_ownership(std::move(rawResult), std::free);
+        auto const result = take_pointer_ownership(std::move(rawResult), std::free);
         return std::string(result.get());
     }
 
     // lifted mkdtemp
     static inline std::string mkdtemp(std::string const& pathTemplate) {
-        auto rawPathTemplate = move_pointer_ownership(strdup(pathTemplate.c_str()), std::free);
+        auto rawPathTemplate = take_pointer_ownership(strdup(pathTemplate.c_str()), std::free);
         if (::mkdtemp(rawPathTemplate.get())) {
             return std::string(rawPathTemplate.get());
         } else {
@@ -118,7 +118,7 @@ namespace file {
     static inline auto try_open(std::string const& path, char const* mode) ->
         std::unique_ptr<FILE, decltype(&std::fclose)>
     {
-        return move_pointer_ownership(fopen(path.c_str(), mode), std::fclose);
+        return take_pointer_ownership(fopen(path.c_str(), mode), std::fclose);
     }
 
     // open a file path and return a unique FILE* or throw
@@ -175,7 +175,7 @@ namespace dir {
     static inline auto try_open(std::string const& path) ->
         std::unique_ptr<DIR, CloseDirFn>
     {
-        return move_pointer_ownership(opendir(path.c_str()), closedir);
+        return take_pointer_ownership(opendir(path.c_str()), closedir);
     }
 
     // open a directory and return a unique DIR* or throw
@@ -246,14 +246,14 @@ namespace ld_val {
         std::unique_ptr<char*, decltype(&free_ptr_list<char*>)>
     {
         auto dependencyArray =  _cti_ld_val(filePath.c_str(), ldAuditPath.c_str());
-        return move_pointer_ownership(std::move(dependencyArray), free_ptr_list<char*>);
+        return take_pointer_ownership(std::move(dependencyArray), free_ptr_list<char*>);
     }
 } /* namespace cti::ld_val */
 
 /* cti_useful wrappers */
 static inline std::string
 findPath(std::string const& fileName) {
-    if (auto fullPath = move_pointer_ownership(_cti_pathFind(fileName.c_str(), nullptr), std::free)) {
+    if (auto fullPath = take_pointer_ownership(_cti_pathFind(fileName.c_str(), nullptr), std::free)) {
         return std::string{fullPath.get()};
     } else { // _cti_pathFind failed with nullptr result
         throw std::runtime_error(fileName + ": Could not locate in PATH.");
@@ -262,7 +262,7 @@ findPath(std::string const& fileName) {
 
 static inline std::string
 findLib(std::string const& fileName) {
-    if (auto fullPath = move_pointer_ownership(_cti_libFind(fileName.c_str()), std::free)) {
+    if (auto fullPath = take_pointer_ownership(_cti_libFind(fileName.c_str()), std::free)) {
         return std::string{fullPath.get()};
     } else { // _cti_libFind failed with nullptr result
         throw std::runtime_error(fileName + ": Could not locate in LD_LIBRARY_PATH or system location.");
@@ -271,7 +271,7 @@ findLib(std::string const& fileName) {
 
 static inline std::string
 getNameFromPath(std::string const& filePath) {
-    if (auto realName = move_pointer_ownership(_cti_pathToName(filePath.c_str()), std::free)) {
+    if (auto realName = take_pointer_ownership(_cti_pathToName(filePath.c_str()), std::free)) {
         return std::string{realName.get()};
     } else { // _cti_pathToName failed with nullptr result
         throw std::runtime_error("Could not convert the fullname to realname.");
@@ -280,7 +280,7 @@ getNameFromPath(std::string const& filePath) {
 
 static inline std::string
 getRealPath(std::string const& filePath) {
-    if (auto realPath = move_pointer_ownership(realpath(filePath.c_str(), nullptr), std::free)) {
+    if (auto realPath = take_pointer_ownership(realpath(filePath.c_str(), nullptr), std::free)) {
         return std::string{realPath.get()};
     } else { // realpath failed with nullptr result
         throw std::runtime_error("realpath failed.");
