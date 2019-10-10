@@ -181,8 +181,16 @@ run_tests() {
 	    else
                 echo "Configuring with normal whitebox settings..."
                 export MPICH_SMP_SINGLE_COPY_OFF=0
-                export CTI_INSTALL_DIR=$PWD/../../install
-                export LD_LIBRARY_PATH=$PWD/../../install/lib
+		# maybe consider checking CTI_INSTALL_DIR both for null and empty with:
+		# : "${CTI_INSTALL_DIR:?Need to set CTI_INSTALL_DIR non-empty}"
+		if [ -z "$CTI_INSTALL_DIR" ] ; then
+		    export CTI_INSTALL_DIR=$PWD/../../install
+		fi
+		if [ ! -d "$CTI_INSTALL_DIR" ]; then
+		    echo "CTI_INSTALL_DIR=$CTI_INSTALL_DIR not found. Cannot execute tests"
+		    return 1
+		fi
+                export LD_LIBRARY_PATH=$CTI_INSTALL_DIR/lib
                 export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
                 export CTI_WLM_IMPL=generic
 	    fi

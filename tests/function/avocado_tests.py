@@ -20,7 +20,19 @@ import time
 FUNCTIONAL_TESTS_PATH = path.dirname(path.realpath(__file__))
 EXAMPLES_PATH = "%s/../examples" % FUNCTIONAL_TESTS_PATH
 SUPPORT_PATH  = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
-LIBEXEC_PATH  = "%s/../../libexec" % FUNCTIONAL_TESTS_PATH
+CTI_INST_DIR  = os.path.expandvars('$CTI_INSTALL_DIR')
+'''
+    Hey, I;d like to do something like the following to check if CTI_INSTALL_DIR
+    exists:
+        if ! os.path.lexists(CTI_INST_DIR) :
+            print("%s doesn't exist" % CTI_INST_DIR)
+            return 1;
+    In a new base class that all of the tests inherit instead of Test?  or is
+    there another centrally located place this can be called (in python, not
+    build_run.sh, which already checks for it; this is to capture bad path if a
+    test is run outside the build_run.sh).
+'''
+LIBEXEC_PATH  = "%s/libexec" % CTI_INST_DIR
 DAEMON_VER    = "2.0.9999"
 
 '''
@@ -116,20 +128,6 @@ class CtiInfoTest(Test):
 			# env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
 			stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
 		proc_pid = proc.pid
-                '''
-		if proc_pid is not None:
-			print(proc_pid)
-			time.sleep(4)
-			# run cti_info
-			process.run("%s/cti_info --pid %s" %
-			(EXAMPLES_PATH, proc_pid), shell = True)
-
-			# release barrier
-			#proc.stdin.write(b'\n')
-			#proc.stdin.flush()
-			#proc.stdin.close()
-			#proc.wait()
-                '''
 		self.assertTrue(proc_pid is not None)
 		jobid = None
 		stepid = None
