@@ -21,17 +21,6 @@ FUNCTIONAL_TESTS_PATH = path.dirname(path.realpath(__file__))
 EXAMPLES_PATH = "%s/../examples" % FUNCTIONAL_TESTS_PATH
 SUPPORT_PATH  = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
 CTI_INST_DIR  = os.path.expandvars('$CTI_INSTALL_DIR')
-'''
-    Hey, I;d like to do something like the following to check if CTI_INSTALL_DIR
-    exists:
-        if ! os.path.lexists(CTI_INST_DIR) :
-            print("%s doesn't exist" % CTI_INST_DIR)
-            return 1;
-    In a new base class that all of the tests inherit instead of Test?  or is
-    there another centrally located place this can be called (in python, not
-    build_run.sh, which already checks for it; this is to capture bad path if a
-    test is run outside the build_run.sh).
-'''
 LIBEXEC_PATH  = "%s/libexec" % CTI_INST_DIR
 DAEMON_VER    = "2.0.9999"
 
