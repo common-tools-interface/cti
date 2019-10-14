@@ -125,12 +125,12 @@ setup_avocado() {
             #Install avocado plugin
             if . $PWD/avocado/bin/activate ; then
                 if pip install avocado-framework ; then
- 
+
                     #Install additional avocado plugins
                     if install_additional_plugins ; then
                     #Configure avocado
                         if mkdir job-results ; then
-                            local PYTHON_VERSION="$(ls $PWD/avocado/lib/)" 
+                            local PYTHON_VERSION="$(ls $PWD/avocado/lib/)"
                             python3 ../avo_config.py $PWD $PYTHON_VERSION
                         else
                             echo "Failed to create job-results directory"
@@ -177,15 +177,22 @@ run_tests() {
                 export MPICH_SMP_SINGLE_COPY_OFF=0
                 export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
                 export CTI_WLM_IMPL=generic
-
-	    else
+            else
                 echo "Configuring with normal whitebox settings..."
                 export MPICH_SMP_SINGLE_COPY_OFF=0
-                export CTI_INSTALL_DIR=$PWD/../../install
-                export LD_LIBRARY_PATH=$PWD/../../install/lib
+                # maybe consider checking CTI_INSTALL_DIR both for null and empty with:
+                # : "${CTI_INSTALL_DIR:?Need to set CTI_INSTALL_DIR non-empty}"
+                if [ -z "$CTI_INSTALL_DIR" ] ; then
+                    export CTI_INSTALL_DIR=$PWD/../../install
+                fi
+                if [ ! -d "$CTI_INSTALL_DIR" ]; then
+                    echo "CTI_INSTALL_DIR=$CTI_INSTALL_DIR not found. Cannot execute tests"
+                    return 1
+                fi
+                export LD_LIBRARY_PATH=$CTI_INSTALL_DIR/lib
                 export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
                 export CTI_WLM_IMPL=generic
-	    fi
+            fi
         else
             echo "srun exists so configuring non-whitebox launcher settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
@@ -213,7 +220,7 @@ create_mpi_app() {
         echo "MPI app already compiled..."
     else
         echo "Compiling basic mpi application for use in testing script..."
-        module load cray-snplauncher  
+        module load cray-snplauncher
         module load modules/3.2.11.2
         module load PrgEnv-cray
         module load cray-mpich/7.7.8
@@ -231,7 +238,7 @@ flags(){
     echo "-h: display this"
     echo "-n: run nightly test  DEFAULT : $NIGHTLY_TEST"
     echo "-d: execution dir     DEFAULT : $EXEC_DIR"
-    return 0    
+    return 0
 }
 
 ###########################
@@ -265,7 +272,7 @@ fi
 if ! setup_python ; then
     echo "Failed to setup valid whitebox python environment"
     exit 1
-fi    
+fi
 
 # switch to the function test directory
 cd $EXEC_DIR
