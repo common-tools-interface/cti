@@ -263,7 +263,6 @@ AC_CONFIG_FILES([   Makefile
                     pkgconfig/dyninstAPI_RT.pc
                     pkgconfig/stackwalk.pc
                     pkgconfig/symtabAPI.pc
-		    external/Makefile
 		    src/Makefile
 		    src/backend/Makefile
 		    src/backend/daemon/Makefile
