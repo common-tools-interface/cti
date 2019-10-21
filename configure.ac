@@ -62,8 +62,6 @@ PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
 ############################
 ### Check for libraries. ###
 ############################
-dnl This macro runs check for --with-dyninst
-AX_DYNINST
 
 dnl Check for libc
 AC_CHECK_LIB(   [c],
@@ -112,6 +110,31 @@ AC_CHECK_LIB(   [ssh2],
                 [AC_MSG_ERROR([libssh2 not found.])]
                 )
 AC_SUBST([SSH2_LIBS], ["-lssh2"])
+dnl restore flags
+LDFLAGS="$save_LDFLAGS"
+
+dnl Check for dyninst
+save_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS $CDST_SUP_LIBS"
+AX_CXX_CHECK_LIB(   [symtabAPI],
+                    [Dyninst::SymtabAPI::Symbol],
+                    [AC_DEFINE( [HAVE_SYMTABAPI],
+                                [1],
+                                [Define to 1 if you have the symtabAPI library (-lsymtabAPI).]
+                            )
+                    ],
+                    [AC_MSG_ERROR([libsymtabAPI not found.])]
+                    )
+AX_CXX_CHECK_LIB(   [pcontrol],
+                    [Dyninst::ProcControlAPI::Process],
+                    [AC_DEFINE( [HAVE_PCONTROL],
+                                [1],
+                                [Define to 1 if you have the pcontrol library (-lpcontrol).]
+                            )
+                    ],
+                    [AC_MSG_ERROR([libpcontrol not found.])]
+                    )
+AC_SUBST([DYNINST_LIBS], ["-lsymtabAPI -lpcontrol"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 

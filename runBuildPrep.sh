@@ -29,6 +29,7 @@ echo "############################################"
 echo "#             Installing deps              #"
 echo "############################################"
 zypper --non-interactive install autoconf \
+                 autoconf-archive \
 				 automake \
 				 binutils-devel \
 				 bison \
