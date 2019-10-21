@@ -29,7 +29,7 @@ unit_tests_CPPFLAGS	=	$(CODE_COVERAGE_CPPFLAGS)
 unit_tests_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) -I$(EXTERNAL) \
 						-I$(GTEST)/include -I$(GTEST) \
 						-I$(GMOCK)/include -I$(GMOCK) \
-						$(ARCHIVE_CFLAGS) $(CODE_COVERAGE_CFLAGS) \
+						$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CFLAGS) \
 						-I$(MOCK) \
 						-DINSTALL_PATH=\"$(prefix)\"
 unit_tests_CXXFLAGS	=	$(AM_CXXFLAGS) $(unit_tests_CFLAGS) \
@@ -41,7 +41,7 @@ unit_tests_LDADD	=	-L$(prefix)/lib -lcommontools_fe \
         				$(CODE_COVERAGE_LIBS)
 unit_tests_LDFLAGS	=	-pthread -Wl,-rpath,$(prefix)/lib \
 						-Wl,--enable-new-dtags -Wl,--no-undefined \
-						-Wl,--as-needed $(ARCHIVE_LDFLAGS) \
+						-Wl,--as-needed $(CDST_SUP_LIBS) \
 						$(CODE_COVERAGE_LDFLAGS) -lcommontools_be
 
 noinst_HEADERS		=	cti_archive_unit_test.hpp cti_fe_unit_test.hpp \

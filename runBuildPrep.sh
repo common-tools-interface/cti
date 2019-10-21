@@ -52,16 +52,25 @@ zypper --non-interactive install autoconf \
 				 xz-devel
 check_exit_status $? sys-pkgs
 
-zypper addrepo http://car.dev.cray.com/artifactory/shasta-premium/SHASTA-OS/sle15_premium/x86_64/cray/sles15-premium/ car-shasta-premium
-check_exit_status $? car-shasta-premium-add-repo
+zypper addrepo http://car.dev.cray.com/artifactory/pe/DST/sle15_pe/x86_64/dev/master/ car-pe-base
+check_exit_status $? "zypper addrepo car-pe-base"
 
 zypper --non-interactive --no-gpg-check install craype \
 					cray-set-gcc-libs \
 					cray-gcc-$gcc_ver \
 					cray-modules
-check_exit_status $? car-shasta-premium-install-modules
+check_exit_status $? "zypper install in car-pe-base"
 
-zypper rr car-shasta-premium
+zypper rr car-pe-base
+
+# FIXME: This should be using the pe-base above...
+zypper addrepo http://car.dev.cray.com/artifactory/internal/PE-CDST/sle15_premium/x86_64/dev/master/ car-cdst-master
+check_exit_status $? "zypper addrepo car-cdst-master"
+
+zypper --non-interactive --no-gpg-check install cray-cdst-support-devel
+check_exit_status $? "zypper install in car-cdst-master"
+
+zypper rr car-cdst-master
 
 echo "############################################"
 echo "#      Capturing Jenkins Env Vars          #"
@@ -75,7 +84,7 @@ then
   echo "Set version to $BUILD_NUMBER in release_versioning"
 else
   echo "Unable to determine Jenkins BUILD_NUMBER"
-  return_code=1 
+  return_code=1
 fi
 
 echo "############################################"
