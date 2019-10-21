@@ -25,4 +25,4 @@ libuseful_la_LDFLAGS    = 	-Wl,--no-undefined $(CODE_COVERAGE_LDFLAGS) $(AM_LDFL
 
 noinst_HEADERS			= 	cti_argv.hpp cti_dlopen.hpp cti_execvp.hpp \
 							cti_log.h cti_path.h cti_split.hpp \
-							cti_stack.h cti_useful.h cti_wrappers.hpp  \
+							cti_stack.h cti_useful.h cti_wrappers.hpp
