@@ -29,6 +29,9 @@ source /opt/cray/pe/modules/default/init/bash
 module load gcc/$gcc_ver
 check_exit_status $? module-load-gcc
 
+module load cray-cdst-support
+check_exit_status $? module-load-cray-cdst-support
+
 echo "############################################"
 echo "#      Generating configure files          #"
 echo "############################################"
