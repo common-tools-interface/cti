@@ -21,7 +21,7 @@ libmock_la_SOURCES	=	MockFrontend/Frontend.cpp
 libmock_la_CXXFLAGS	=	$(AM_CXXFLAGS) -fPIC -I$(SRC) -I$(INCLUDE) \
 						-I$(GMOCK)/include -I$(GMOCK) \
 						-I$(GTEST)/include -I$(GTEST) \
-						$(CDST_SUP_CPPFLAGS)
+						$(CDST_SUP_CFLAGS)
 libmock_la_LDFLAGS	=	-static -Wl,--no-undefined $(ARCHIVE_LIBS)
 
 noinst_HEADERS		=	MockFrontend/Frontend.hpp
