@@ -114,6 +114,7 @@ dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
 dnl Check for dyninst
+AC_LANG_PUSH([C++])
 save_LDFLAGS="$LDFLAGS"
 LDFLAGS="$LDFLAGS $CDST_SUP_LIBS"
 AX_CXX_CHECK_LIB(   [symtabAPI],
@@ -134,6 +135,7 @@ AX_CXX_CHECK_LIB(   [pcontrol],
                     ],
                     [AC_MSG_ERROR([libpcontrol not found.])]
                     )
+AC_LANG_POP([C++])
 AC_SUBST([DYNINST_LIBS], ["-lsymtabAPI -lpcontrol"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
