@@ -44,6 +44,7 @@ AC_LIBTOOL_DLOPEN
 AC_PROG_LIBTOOL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
+AC_PROG_RANLIB
 
 AX_CXX_COMPILE_STDCXX_17([noext])
 
@@ -192,7 +193,7 @@ AC_FUNC_FORK
 AC_FUNC_GETGROUPS
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
-AC_CHECK_FUNCS([clock_gettime dup2 getcwd inet_ntoa memchr memmove memset mkdir putenv realpath select setenv socket strchr strdup strerror strrchr strstr strtol strtoul strtoull])
+AC_CHECK_FUNCS([clock_gettime dup2 getcwd gethostname inet_ntoa memchr memmove memset mkdir mkfifo putenv realpath rmdir select setenv socket strchr strdup strerror strrchr strstr strtol strtoul strtoull])
 
 ########################
 ### Define constants ###

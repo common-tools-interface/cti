@@ -28,30 +28,18 @@ function check_exit_status(){
 echo "############################################"
 echo "#             Installing deps              #"
 echo "############################################"
-zypper --non-interactive install autoconf \
-                 autoconf-archive \
-				 automake \
-				 binutils-devel \
-				 bison \
-				 bzip2 \
-				 cmake \
-				 ctags \
-				 flex \
-                 glibc-devel-static \
-				 m4 \
-				 make \
-				 makeinfo \
-				 mksh \
-				 ncurses \
-				 ncurses-devel \
-				 libbz2-devel \
-				 liblzma5 \
-				 libtool \
-				 libopenssl-devel \
-				 tcl \
-				 python-devel \
-				 which \
-				 xz-devel
+zypper --non-interactive install \
+    autoconf \
+    autoconf-archive \
+    automake \
+    binutils \
+    binutils-devel \
+    glibc-devel-static \
+    m4 \
+    make \
+    make-lang \
+    libtool \
+    zlib-devel
 check_exit_status $? sys-pkgs
 
 zypper addrepo http://car.dev.cray.com/artifactory/pe/DST/sle15_pe/x86_64/dev/master/ car-pe-base
