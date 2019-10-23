@@ -44,7 +44,7 @@ echo "#            Calling Configure             #"
 echo "############################################"
 #TODO: add param to script to optionally run configure with caching enabled?
 # Create the make files
-./configure --enable-static=no --disable-silent-rules
+./configure --disable-silent-rules
 check_exit_status $? configure
 
 # Dump config.log if configure fails

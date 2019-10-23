@@ -37,6 +37,7 @@ zypper --non-interactive install autoconf \
 				 cmake \
 				 ctags \
 				 flex \
+                 glibc-devel-static \
 				 m4 \
 				 make \
 				 makeinfo \
