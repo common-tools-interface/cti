@@ -37,8 +37,8 @@ cti_transfer_LDADD			= -lcommontools_fe
 
 cti_callback_SOURCES		= cti_callback_test.c
 cti_callback_CFLAGS			= -I$(includedir) $(AM_CFLAGS)
-cti_callback_LDFLAGS		= -L$(libdir) -Wl,-rpath,$(libdir) $(CDST_SUP_LIBS) $(AM_LDFLAGS)
-cti_callback_LDADD			= -lcommontools_fe -pthread
+cti_callback_LDFLAGS		= -L$(libdir) -Wl,-rpath,$(libdir) -pthread $(CDST_SUP_LIBS) $(AM_LDFLAGS)
+cti_callback_LDADD			= -lcommontools_fe
 
 cti_callback_daemon_SOURCES = cti_callback_daemon.c
 cti_callback_daemon_CFLAGS	= -I$(includedir) $(AM_CFLAGS)
