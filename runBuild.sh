@@ -29,6 +29,9 @@ source /opt/cray/pe/modules/default/init/bash
 module load gcc/$gcc_ver
 check_exit_status $? module-load-gcc
 
+module load cray-cdst-support
+check_exit_status $? module-load-cray-cdst-support
+
 echo "############################################"
 echo "#      Generating configure files          #"
 echo "############################################"
@@ -41,7 +44,7 @@ echo "#            Calling Configure             #"
 echo "############################################"
 #TODO: add param to script to optionally run configure with caching enabled?
 # Create the make files
-./configure --enable-static=no
+./configure --disable-silent-rules
 check_exit_status $? configure
 
 # Dump config.log if configure fails

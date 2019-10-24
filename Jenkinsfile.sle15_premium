@@ -14,7 +14,6 @@
 @Library("dst-shared@master") _
 
 sles15PremiumPE {
-    specfile = "cti.spec"
-    timeout = 60
-    agent = 'dst-big-build'
+    timeout = 15
+    product = "pe-base"
 }

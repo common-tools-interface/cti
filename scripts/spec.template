@@ -174,21 +174,7 @@ $RPM_INSTALL_PREFIX/admin-pe/set_default_files/set_default_%{namespace}-%{intran
 
 sed -i "s,\[install_dir\],$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version},g" \
 $RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_be.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_fe.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/patchAPI.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/parseAPI.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dynC_API.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dynElf.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dynDwarf.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/symLite.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/pcontrol.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/instructionAPI.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dyninstAPI.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/dyninstAPI_RT.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/stackwalk.pc \
-$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/symtabAPI.pc
-
+$RPM_INSTALL_PREFIX/%{intranamespace_name}/%{build_version}/lib/pkgconfig/common_tools_fe.pc
 
 # prevent echo of new directory as it messes up install output
 if [ $RPM_INSTALL_PREFIX = "%{prefix}" ]

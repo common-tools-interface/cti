@@ -26,6 +26,9 @@ m4/lt~obsolete.m4
 common_tools_be.pc
 common_tools_fe.pc
 
+src/backend/daemon/cti_be_daemon[0-9]*
+src/frontend/daemon/cti_fe_daemon[0-9]*
+
 .deps
 .libs
 .scannerwork

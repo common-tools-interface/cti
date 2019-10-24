@@ -7,27 +7,14 @@
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src tests external
+SUBDIRS = src tests
 
 EXTRA_DIST = pkgconfig \
              release_versioning
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = pkgconfig/common_tools_be.pc \
-                 pkgconfig/common_tools_fe.pc \
-                 pkgconfig/patchAPI.pc \
-                 pkgconfig/parseAPI.pc \
-                 pkgconfig/dynC_API.pc \
-                 pkgconfig/dynElf.pc \
-                 pkgconfig/dynDwarf.pc \
-                 pkgconfig/common.pc \
-                 pkgconfig/symLite.pc \
-                 pkgconfig/pcontrol.pc \
-                 pkgconfig/instructionAPI.pc \
-                 pkgconfig/dyninstAPI.pc \
-                 pkgconfig/dyninstAPI_RT.pc \
-                 pkgconfig/stackwalk.pc \
-                 pkgconfig/symtabAPI.pc
+                 pkgconfig/common_tools_fe.pc
 
 
 include_HEADERS = include/common_tools_be.h include/common_tools_fe.h \
