@@ -53,8 +53,7 @@ check_exit_status $? "zypper install in car-pe-base"
 
 zypper rr car-pe-base
 
-# FIXME: This should be using the pe-base above...
-zypper addrepo http://car.dev.cray.com/artifactory/internal/PE-CDST/sle15_premium/x86_64/dev/master/ car-cdst-master
+zypper addrepo http://car.dev.cray.com/artifactory/pe-base/PE-CDST/sle15_premium/x86_64/dev/master/ car-cdst-master
 check_exit_status $? "zypper addrepo car-cdst-master"
 
 zypper --non-interactive --no-gpg-check install cray-cdst-support-devel
