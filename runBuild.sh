@@ -68,6 +68,12 @@ make $j_flags
 check_exit_status $? make
 
 echo "############################################"
+echo "#          Running make install            #"
+echo "############################################"
+make $j_flags install
+check_exit_status $? "make install"
+
+echo "############################################"
 echo "#              Done with build             #"
 echo "############################################"
 exit $return_code
