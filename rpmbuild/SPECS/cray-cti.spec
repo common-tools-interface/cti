@@ -162,7 +162,7 @@ find ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion} -name '*.so*' > ${RPM_I
 if [ "${RPM_INSTALL_PREFIX}" = "%{cray_prefix}" ]; then
     mkdir -p /etc/%{cray_prefix}/admin-pe/bindmount.conf.d/
     mkdir -p /etc/%{cray_prefix}/admin-pe/modulepaths.conf.d/
-    echo "%{cray_prefix}/%{product}" > /etc/%{cray_prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf
+    echo "%{cray_prefix}/%{product}/%{pkgversion}" > /etc/%{cray_prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf
     echo "%{cray_prefix}/modulefiles/%{modulefile_name}" > /etc/%{cray_prefix}/admin-pe/modulepaths.conf.d/%{modulefile_name}.conf
 fi
 
