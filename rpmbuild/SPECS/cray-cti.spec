@@ -34,6 +34,16 @@
 %global cray_dependency_resolver set_pkgconfig_default_%{cray_name}
 %global cray_dependency_resolver_template_name %{cray_dependency_resolver}.template
 
+# release info
+%global release_info_name release_info
+%global release_info_template_name %{release_info_name}.template
+
+# copyright file
+%global copyright_name COPYRIGHT
+
+# attributions file
+%global attributions_name ATTRIBUTIONS_cti.txt
+
 # dso list of files added to pe cache
 %global cray_dso_list .cray_dynamic_file_list
 
@@ -89,6 +99,9 @@ Source0:    %{module_template_name}
 Source1:    %{devel_module_template_name}
 Source2:    %{set_default_template_name}
 Source3:    %{cray_dependency_resolver_template_name}
+Source4:    %{release_info_template_name}
+Source5:    %{copyright_name}
+Source6:    %{attributions_name}
 
 %description
 Cray Common Tools Interface %{pkgversion}
@@ -107,12 +120,19 @@ Development files for Cray Common Tools Interface
 %setup -q -n %{name} -c -T
 %build
 # external build
+%{__sed} 's|<RELEASE_DATE>|%{release_date}|g;s|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{release}|g;s|<date>\.<REVISION>|%{version}|g;s|<COPYRIGHT>|%{copyright}|g;s|<CRAY_NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<ARCH>|%{_target_cpu}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_info_name}
+%{__cp} -a %{SOURCE5} ${RPM_BUILD_DIR}/%{copyright_name}
+%{__cp} -a %{SOURCE6} ${RPM_BUILD_DIR}/%{attributions_name}
 
 %install
 # copy files from external install
 #
 # Cray PE package root
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}
+# Information files
+%{__cp} -a ${RPM_BUILD_DIR}/%{release_info_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
+%{__cp} -a ${RPM_BUILD_DIR}/%{copyright_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
+%{__cp} -a ${RPM_BUILD_DIR}/%{attributions_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
 # Libraries
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libaudit.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
@@ -240,6 +260,9 @@ fi
 
 %files
 %defattr(755, root, root)
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libaudit.so
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_be.so*
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_fe.so*
