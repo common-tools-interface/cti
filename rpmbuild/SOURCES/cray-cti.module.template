@@ -1,0 +1,40 @@
+#%Module######################################################################
+ #
+ #       Module <CRAY_NAME>
+ #       (C) COPYRIGHT CRAY INC.
+ #       UNPUBLISHED PROPRIETARY INFORMATION.
+ #       ALL RIGHTS RESERVED.
+ #
+
+ set CRAY_CTI_LEVEL     <VERSION>
+ set CRAY_CTI_BASEDIR   <PREFIX>
+
+ setenv CRAY_CTI_VERSION        $CRAY_CTI_LEVEL
+ setenv CRAY_CTI_INSTALL_DIR    $CRAY_CTI_BASEDIR
+ setenv PE_CTI_MODULE_NAME      <CRAY_NAME>
+
+ prepend-path LD_LIBRARY_PATH   $CRAY_CTI_BASEDIR/lib
+
+ conflict <CRAY_NAME>
+
+ if { [ file exists ${CRAY_CTI_BASEDIR}/release_info ] } {
+       set REL_INFO [ exec cat ${CRAY_CTI_BASEDIR}/release_info ]
+    } else {
+       set REL_INFO ""
+    }
+
+ proc ModulesHelp { } {
+    global CRAY_CTI_BASEDIR
+    global CRAY_CTI_LEVEL
+    global REL_INFO
+    puts stderr "The modulefile defines the system paths and"
+    puts stderr "variables for the product <CRAY_NAME>."
+    puts stderr "$REL_INFO"
+    puts stderr "============================================="
+    puts stderr "To re-display <CRAY_NAME>/$CRAY_CTI_LEVEL release information,"
+    puts stderr "type:    less $CRAY_CTI_BASEDIR/release_info"
+    puts stderr "==============================================\n"
+    puts stderr ""
+ }
+
+module-whatis   "Loads the Cray Common Tools Interface."
