@@ -2,6 +2,3 @@
 	path = tests/test_support/googletest
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/googletest.git
 	branch = cdst_external
-[submodule "set_default"]
-	path = set_default
-	url = ssh://git@stash.us.cray.com:7999/pe-cenv/set_default.git
