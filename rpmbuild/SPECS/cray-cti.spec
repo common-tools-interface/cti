@@ -31,7 +31,7 @@
 
 # This file is sourced by craype to resolve dependencies for products without
 # loading modules.
-%global cray_dependency_resolver set_pkgconfig_default_%{cray_product}
+%global cray_dependency_resolver set_pkgconfig_default_%{cray_name}
 %global cray_dependency_resolver_template_name %{cray_dependency_resolver}.template
 
 # dso list of files added to pe cache
