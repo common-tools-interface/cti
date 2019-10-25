@@ -1,0 +1,31 @@
+This is a very rudimentary howto on running the avocado tests.
+
+Assumptions/Prerequisites(by no means complete):
+    1. You've built the cti repo and created an install directory via the
+    configure --prefix=<somewhere>/install command.
+    2. You've cd'd to cti/test/function and run make.
+    2. You've created a symlink in the install directory to cti/test:
+	cd <install>; ln -s <fullpathto test> test
+    3. You've rsync'd (make sure to include the -L option) or otherwise copied
+    this install directory to your target test environment (I've used jupiter).
+
+To run all of the tests:
+    On your target system, cd into your install/test/function directory.
+    run ./build_run.sh
+
+To run a single test:
+    On your target system, cd into your install/test/function directory and run
+    the following command (here we use the CtiInfoTest from the
+    cti/test/function/avocado_tests.py):
+
+./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py:CtiInfoTest.test
+
+
+export CTI_INSTALL_DIR=/home/users/jaredh/cti_install
+export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
+export CTI_WLM_IMPL=generic
+export PATH=$PATH:/cray/css/users/jaredh/ddd-3.3.12/install/bin
+export PATH=$PATH:/home/users/jaredh/.local/bin
+export MPICH_SMP_SINGLE_COPY_OFF=1
+module load cray-snplauncher gcc/8.1.0 /home/users/jaredh/cti_install/cray-cti-module PrgEnv-cray cray-mpich
+

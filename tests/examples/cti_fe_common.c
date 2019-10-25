@@ -121,6 +121,7 @@ cti_test_fe(cti_app_id_t appId)
 
 
         case CTI_WLM_SSH:
+            printf("pid of application %lu\n", appId);
             break;
 
         default:
