@@ -248,6 +248,7 @@ fi
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_product}_%{pkgversion}
 %attr(755, root, root) %{prefix}/%{set_default_path}/%{set_default_command}_%{cray_product}_%{pkgversion}
 %attr(755, root, root) %{prefix}/modulefiles/%{modulefile_name}/%{pkgversion}
+%attr(644, root, root) %verify(not md5 size mtime) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
 
 %files -n %{cray_name}%{pkgversion_separator}devel
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_be.h
