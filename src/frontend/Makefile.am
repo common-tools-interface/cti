@@ -28,7 +28,7 @@ libcommontools_fe_la_LIBADD		= $(SRC)/useful/libuseful.la \
 								checksum/libchecksum.la \
 								-ldl -lrt -lstdc++ \
 								$(CODE_COVERAGE_LIBS)
-libcommontools_fe_la_LDFLAGS	= -Wl,--no-undefined -Wl,--as-needed \
+libcommontools_fe_la_LDFLAGS	= -shared -Wl,--no-undefined -Wl,--as-needed \
 								-version-info $(COMMONTOOL_FE_VERSION) \
 								$(CDST_SUP_LIBS) $(CODE_COVERAGE_LDFLAGS) \
 								$(AM_LDFLAGS)

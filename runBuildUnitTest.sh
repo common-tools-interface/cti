@@ -10,9 +10,18 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
+gcc_ver=8.1.0
+
 echo "############################################"
 echo "#            Running Unit Tests            #"
 echo "############################################"
+
+#Ensure we can use modules
+source /opt/cray/pe/modules/default/init/bash
+
+#Ensure CTI is build with $gcc_ver
+module load gcc/$gcc_ver
+check_exit_status $? module-load-gcc
 
 # libssh2 make check requires USER to be set
 tmp_user=$USER
@@ -26,16 +35,6 @@ return_code=$?
 
 if [ $return_code -ne 0 ]
 then
-  echo "############################################"
-  echo "#            Elfutils Test Log             #"
-  echo "############################################"
-  cat external/elfutils/tests/test-suite.log
-
-  echo "############################################"
-  echo "#             libssh2 Test Log             #"
-  echo "############################################"
-  cat external/libssh2/tests/test-suite.log
-
   echo "############################################"
   echo "#              Unit Test Log               #"
   echo "############################################"

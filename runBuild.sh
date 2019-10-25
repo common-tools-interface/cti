@@ -13,6 +13,7 @@
 
 gcc_ver=8.1.0
 return_code=0
+j_flags=$(rpm -E %{?_smp_mflags})
 
 function check_exit_status(){
     if [ $1 -ne 0 ]
@@ -44,7 +45,7 @@ echo "#            Calling Configure             #"
 echo "############################################"
 #TODO: add param to script to optionally run configure with caching enabled?
 # Create the make files
-./configure --disable-silent-rules
+./configure
 check_exit_status $? configure
 
 # Dump config.log if configure fails
@@ -63,7 +64,7 @@ fi
 echo "############################################"
 echo "#               Running make               #"
 echo "############################################"
-make -j32
+make $j_flags
 check_exit_status $? make
 
 echo "############################################"
