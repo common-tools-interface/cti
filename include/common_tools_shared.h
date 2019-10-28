@@ -85,6 +85,8 @@
  *      use on the system. This can be used to force CTI to instantiate a
  *      specific workload manager. Set this environment variable to the
  *      corresponding string for each of the cti_wlm_type_t defined below:
+ *          CTI_WLM_NONE set to "none"
+ *          CTI_WLM_MOCK set to "mock"
  *          CTI_WLM_SLURM set to "slurm"
  *          CTI_WLM_SSH set to "generic"
  *
@@ -95,9 +97,12 @@
 #define CTI_CFG_DIR_ENV_VAR         "CTI_CFG_DIR"
 #define CTI_LAUNCHER_NAME_ENV_VAR   "CTI_LAUNCHER_NAME"
 #define CTI_WLM_IMPL_ENV_VAR        "CTI_WLM_IMPL"
-// <type>_WLM_TYPE_IMPL below define names recognized by CTI_WLM_IMPL_ENV_VAR
-#define SLURM_WLM_TYPE_IMPL     	"slurm"
-#define SSH_WLM_TYPE_IMPL   		"generic"
+// CTI_WLM_TYPE_<type>_STR recognized by CTI_WLM_IMPL_ENV_VAR and corresponds
+// to values in the cti_wlm_type_t enum.
+#define CTI_WLM_TYPE_NONE_STR   	"none"
+#define CTI_WLM_TYPE_MOCK_STR   	"mock"
+#define CTI_WLM_TYPE_SLURM_STR     	"slurm"
+#define CTI_WLM_TYPE_SSH_STR   		"generic"
 
 #ifdef __cplusplus
 extern "C" {
