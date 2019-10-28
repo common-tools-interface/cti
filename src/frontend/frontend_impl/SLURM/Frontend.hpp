@@ -60,7 +60,6 @@ class SLURMFrontend final : public Frontend
 {
 public: // inherited interface
     static char const* getName()        { return SLURM_WLM_TYPE_IMPL; }
-    static char const* getDescription() { return SLURM_WLM_TYPE_STRING; }
     static bool isSupported();
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SLURM; }
