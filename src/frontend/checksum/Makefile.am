@@ -1,3 +1,9 @@
+#
+# Makefile.am for the CTI frontend checksum utility
+#
+# Copyright 2019 Cray Inc. All Rights Reserved.
+#
+
 SRC = @COMMONTOOL_DIR@/src
 
 noinst_LTLIBRARIES = libchecksum.la
@@ -5,10 +11,8 @@ noinst_LTLIBRARIES = libchecksum.la
 libchecksum.cpp: checksums.h
 
 libchecksum_la_SOURCES = checksums.h libchecksum.cpp
-libchecksum_la_LDFLAGS = -static -Wl,--no-undefined
-libchecksum_la_CXXFLAGS = -Wall -I$(SRC)
-
-
+libchecksum_la_LDFLAGS = -Wl,--no-undefined
+libchecksum_la_CXXFLAGS = -Wall -I$(SRC) -fPIC $(AM_CXXFLAGS)
 
 CS_FILE_NAME_PAIRS = @CHECKSUM_FILES@
 CS_FILES = $(basename $(subst @,.,$(CS_FILE_NAME_PAIRS)))

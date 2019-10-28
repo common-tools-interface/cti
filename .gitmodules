@@ -1,27 +1,3 @@
-[submodule "external/libarchive"]
-	path = external/libarchive
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libarchive.git
-	branch = cti-external
-[submodule "external/dyninst"]
-	path = external/dyninst
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/dyninst.git
-	branch = cti-external
-[submodule "external/elfutils"]
-	path = external/elfutils
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/elfutils.git
-	branch = cti-external
-[submodule "external/boost"]
-	path = external/boost
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/boost.git
-	branch = cti-external
-[submodule "external/tbb"]
-	path = external/tbb
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/tbb.git
-	branch = cti-external
-[submodule "external/libssh2"]
-	path = external/libssh2
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/libssh2.git
-	branch = cti-external
 [submodule "tests/test_support/googletest"]
 	path = tests/test_support/googletest
 	url = ssh://git@stash.us.cray.com:7999/pe-cdst/googletest.git
