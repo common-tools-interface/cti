@@ -160,12 +160,13 @@ cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
     {
         case CTI_WLM_SLURM:
             return CTI_WLM_TYPE_SLURM_STR;
+
         case CTI_WLM_SSH:
             return CTI_WLM_TYPE_SSH_STR;
+            
         case CTI_WLM_NONE:
-            return CTI_WLM_TYPE_NONE_STR;
         case CTI_WLM_MOCK:
-            return CTI_WLM_TYPE_MOCK_STR;
+            return "No WML detected";
     }
 
     // Shouldn't get here
