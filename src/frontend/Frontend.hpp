@@ -100,9 +100,6 @@ public: // impl.-specific interface that derived type must implement
     // static char const* getName()
     //   return the short name for the WLM that can be set by CTI_WLM_IMPL_ENV_VAR
 
-    // static char const* getDescription()
-    //   return the long description for the WLM used on call to cti_wlm_type_toString
-
     // static bool isSupported()
     //   determines in an implementation-specific manner if the Frontend is supported
     //   on the current system.

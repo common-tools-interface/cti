@@ -95,6 +95,9 @@
 #define CTI_CFG_DIR_ENV_VAR         "CTI_CFG_DIR"
 #define CTI_LAUNCHER_NAME_ENV_VAR   "CTI_LAUNCHER_NAME"
 #define CTI_WLM_IMPL_ENV_VAR        "CTI_WLM_IMPL"
+// <type>_WLM_TYPE_IMPL below define names recognized by CTI_WLM_IMPL_ENV_VAR
+#define SLURM_WLM_TYPE_IMPL     	"slurm"
+#define SSH_WLM_TYPE_IMPL   		"generic"
 
 #ifdef __cplusplus
 extern "C" {

@@ -52,7 +52,6 @@ private: // Global state
 
 public: // inherited interface
     static char const* getName()        { return SSH_WLM_TYPE_IMPL; }
-    static char const* getDescription() { return SSH_WLM_TYPE_STRING; }
     static bool isSupported();
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SSH; }

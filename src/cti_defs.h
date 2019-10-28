@@ -126,8 +126,6 @@ typedef struct
 #define SLURM_STAGE_DIR         "slurmXXXXXX"                       // directory name for staging slurm specific files to transfer
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
 #define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
-#define SLURM_WLM_TYPE_STRING   "SLURM based workload manager"      // name returned by wlm_type_toString
-#define SLURM_WLM_TYPE_IMPL     "slurm"                             // name recognized by CTI_WLM_IMPL_ENV_VAR
 
 /*******************************************************************************
 ** SSH specific information
@@ -143,8 +141,6 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_LAYOUT_FILE     SLURM_LAYOUT_FILE
 #define SSH_PID_FILE        SLURM_PID_FILE
 #define SSH_TOOL_DIR        SLURM_TOOL_DIR
-#define SSH_WLM_TYPE_STRING "MPIR/SSH based workload manager"
-#define SSH_WLM_TYPE_IMPL   "generic"
 
 /*******************************************************************************
 ** Environment variables that are set/maintained by this library

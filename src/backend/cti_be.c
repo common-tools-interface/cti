@@ -159,10 +159,10 @@ cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
     switch (wlm_type)
     {
         case CTI_WLM_SLURM:
-            return SLURM_WLM_TYPE_STRING;
+            return SLURM_WLM_TYPE_IMPL;
 
         case CTI_WLM_SSH:
-            return SSH_WLM_TYPE_STRING;
+            return SSH_WLM_TYPE_IMPL;
 
         case CTI_WLM_NONE:
         case CTI_WLM_MOCK:
