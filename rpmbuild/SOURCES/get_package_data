@@ -1,0 +1,18 @@
+#!/bin/sh
+basedir=$(dirname $0)
+
+. ${basedir}/../../release_versioning
+
+crayversion="${common_tool_major:-0}.${common_tool_minor:-0}.${revision}"
+
+arguments=$(getopt -o cs --long crayversion,cdstversion -n ${0} -- "$@")
+
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+
+while true ; do
+    case "$1" in
+        -c|--crayversion) echo "${crayversion}" ; shift ;;
+        -s|--cdstversion) echo "${CRAY_CDST_SUPPORT_VERSION}" ; shift ;;
+        *) break ;;
+    esac
+done

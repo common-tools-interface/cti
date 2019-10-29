@@ -39,6 +39,7 @@ zypper --non-interactive install \
     make \
     make-lang \
     libtool \
+    rpm-build \
     zlib-devel
 check_exit_status $? sys-pkgs
 

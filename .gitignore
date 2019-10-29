@@ -48,7 +48,6 @@ scripts/tmp
 *.cmake
 *.marks
 *.pyc
-*.spec
 *.gcov
 *.gcda
 *.gcno
