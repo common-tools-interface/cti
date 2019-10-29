@@ -95,6 +95,12 @@
 #define CTI_CFG_DIR_ENV_VAR         "CTI_CFG_DIR"
 #define CTI_LAUNCHER_NAME_ENV_VAR   "CTI_LAUNCHER_NAME"
 #define CTI_WLM_IMPL_ENV_VAR        "CTI_WLM_IMPL"
+// CTI_WLM_TYPE_<type>_STR recognized by CTI_WLM_IMPL_ENV_VAR and corresponds
+// to values in the cti_wlm_type_t enum.
+// Note: users should not manualy set CTI_WLM_IMPL environment variable to
+// "none" or "mock" as these workload manager types are for internal use only.
+#define CTI_WLM_TYPE_SLURM_STR     	"slurm"
+#define CTI_WLM_TYPE_SSH_STR   		"generic"
 
 #ifdef __cplusplus
 extern "C" {

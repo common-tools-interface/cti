@@ -185,9 +185,9 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
     switch (wlm_type) {
         // WLM Frontend implementations
         case CTI_WLM_SLURM:
-            return SLURMFrontend::getDescription();
+            return SLURMFrontend::getName();
         case CTI_WLM_SSH:
-            return GenericSSHFrontend::getDescription();
+            return GenericSSHFrontend::getName();
 
         // Internal / testing types
         case CTI_WLM_MOCK:
