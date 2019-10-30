@@ -12,7 +12,7 @@
 #
 arch=$(uname -m)
 mkdir -p /home/jenkins/rpmbuild/RPMS
-cp -a $PWD/rpmbuild/RPMS/* /home/jenkins/rpmbuild/RPMS
+cp -a $PWD/rpmbuild/RPMS/$arch/* /home/jenkins/rpmbuild/RPMS
 return_code=$?
 
 exit $return_code
