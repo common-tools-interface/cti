@@ -48,7 +48,8 @@
 %global cray_dso_list .cray_dynamic_file_list
 
 # cdst-support version
-%global cdst_support_pkgversion %(%{_sourcedir}/get_package_data --cdstversion)
+%global cdst_support_pkgversion_min %(%{_sourcedir}/get_package_data --cdstversionmin)
+%global cdst_support_pkgversion_max %(%{_sourcedir}/get_package_data --cdstversionmax)
 
 # Disable debug package
 %global debug_package %{nil}
@@ -94,7 +95,7 @@ License:    Dual BSD or GPLv2
 Vendor:     Cray Inc.
 Group:      Development/System
 Provides:   %{cray_name} = %{pkgversion}
-Requires:   cray-cdst-support = %{cdst_support_pkgversion}
+Requires:   cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < cdst_support_pkgversion_max
 Source0:    %{module_template_name}
 Source1:    %{devel_module_template_name}
 Source2:    %{set_default_template_name}
