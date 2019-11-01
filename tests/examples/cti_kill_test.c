@@ -73,8 +73,6 @@ int
 main(int argc, char **argv)
 {
     // values returned by the tool_frontend library.
-    int                 rtn;
-
     int                 opt_ind = 0;
     int                 c;
     char *              eptr;
@@ -245,6 +243,7 @@ main(int argc, char **argv)
         }
             break;
 
+        case CTI_WLM_MOCK:
         case CTI_WLM_NONE:
             fprintf(stderr, "Error: Unsupported WLM in use!\n");
             assert(0);
@@ -252,13 +251,46 @@ main(int argc, char **argv)
     }
 
     /*
+     * cti_killApp - Send signal = 0, using the appropriate launcher kill
+     * mechanism to an application launcher.  According to the man page for
+     * kill(2), "If sig is 0, then no signal is sent, but error checking is
+     * still performed; this can be used to check for the existence of a
+     * process ID or process group ID."
+     */
+    /*
      * cti_killApp - Kill an application using the application killer
      *                 with the provided argv array.
      */
-    if (!cti_killApp(myapp, SIGKILL)) {
-        fprintf(stderr, "Error: cti_killApp failed!\n");
+    if (cti_killApp(myapp, 0)) { //if cti_killApp passes when passing signum=0, means the apps are still there.
+        fprintf(stderr, "Error: cti_killApp(0) failed!\n");
         fprintf(stderr, "CTI error: %s\n", cti_error_str());
+    } else {
+        fprintf(stdout, "cti_killApp(0) passed!\n");
     }
+    sleep(10);
+    /*
+    if (cti_killApp(myapp, SIGTERM)) {
+        fprintf(stderr, "Error: cti_killApp(SIGTERM) failed!\n");
+        fprintf(stderr, "CTI error: %s\n", cti_error_str());
+    } else {
+        fprintf(stdout, "cti_killApp(SIGTERM) passed!\n");
+    }
+    sleep(10);
+    */
+    if (cti_killApp(myapp, SIGKILL)) {
+        fprintf(stderr, "Error: cti_killApp(SIGKILL) failed!\n");
+        fprintf(stderr, "CTI error: %s\n", cti_error_str());
+    } else {
+        fprintf(stdout, "cti_killApp(SIGKILL) passed!\n");
+    }
+    sleep(10);
+    if (cti_killApp(myapp, 0)) { //if cti_killApp failes when passing signum=0, means the apps have been killed.
+        fprintf(stderr, "Error: cti_killApp(0) failed!\n");
+        fprintf(stderr, "CTI error: %s\n", cti_error_str());
+    } else {
+        fprintf(stdout, "cti_killApp(0) passed!\n");
+    }
+    sleep(10);
 
     /*
      * cti_deregisterApp - Assists in cleaning up internal allocated memory

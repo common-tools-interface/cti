@@ -10,13 +10,15 @@ AM_LIBTOOLFLAGS	= --quiet
 check_PROGRAMS	=	cti_barrier cti_launch cti_info cti_link cti_transfer cti_callback \
 					cti_callback_daemon cti_kill cti_wlm
 
-cti_kill_CFLAGS				= $(AM_CFLAGS)
+cti_kill_CFLAGS				= -I$(includedir) $(AM_CFLAGS)
 cti_kill_SOURCES			= cti_kill_test.c cti_fe_common.c
-cti_kill_LDFLAGS			= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcommontools_fe
+cti_kill_LDFLAGS			= -L$(libdir) -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS)
+cti_kill_LDADD				= -lcommontools_fe
 
-cti_wlm_CFLAGS				= $(AM_CFLAGS)
+cti_wlm_CFLAGS				= -I$(includedir) $(AM_CFLAGS)
 cti_wlm_SOURCES				= cti_wlm_test.c cti_fe_common.c
-cti_wlm_LDFLAGS				= $(LDFLAGS) -Wl,-rpath,$(libdir) -lcommontools_fe
+cti_wlm_LDFLAGS				= -L$(libdir) -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS)
+cti_wlm_LDADD				= -lcommontools_fe
 
 cti_barrier_SOURCES			= cti_barrier_test.c cti_fe_common.c
 cti_barrier_CFLAGS			= -I$(includedir) $(AM_CFLAGS)
