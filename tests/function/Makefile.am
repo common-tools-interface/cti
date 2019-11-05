@@ -27,8 +27,7 @@ function_tests_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
 function_tests_CXXFLAGS	=	$(AM_CXXFLAGS) $(function_tests_CFLAGS)
 function_tests_LDADD	=	-L$(prefix)/lib -lcommontools_fe \
 							$(SUPPORT)/libgtest.la -ldl -lrt -lstdc++
-function_tests_LDFLAGS	=	-pthread -Wl,-z,origin -Wl,-rpath,\$$ORIGIN \
-							-Wl,--enable-new-dtags -Wl,--no-undefined \
+function_tests_LDFLAGS	=	-pthread -Wl,--enable-new-dtags -Wl,--no-undefined \
 							-Wl,--as-needed
 
 noinst_HEADERS			= cti_fe_function_test.hpp
