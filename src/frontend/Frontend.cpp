@@ -373,7 +373,9 @@ Frontend::detect_Frontend()
     if (const char* wlm_name_env = getenv(CTI_WLM_IMPL_ENV_VAR)) {
         auto const wlmName = toLower(wlm_name_env);
         // parse the env string
-        if (wlmName == toLower(SLURMFrontend::getName())) {
+        if (wlmName == toLower(ALPSFrontend::getName())) {
+            return CTI_WLM_ALPS;
+        } else if (wlmName == toLower(SLURMFrontend::getName())) {
             return CTI_WLM_SLURM;
         } else if (wlmName == toLower(GenericSSHFrontend::getName())) {
             return CTI_WLM_SSH;
@@ -384,7 +386,9 @@ Frontend::detect_Frontend()
     }
     else {
         // Query supported workload managers
-        if (SLURMFrontend::isSupported()) {
+        if (ALPSFrontend::isSupported()) {
+            return CTI_WLM_ALPS;
+        } else if (SLURMFrontend::isSupported()) {
             return CTI_WLM_SLURM;
         } else if (GenericSSHFrontend::isSupported()) {
             return CTI_WLM_SSH;
@@ -409,6 +413,9 @@ Frontend::inst() {
             m_cleanup = std::make_unique<Frontend_cleanup>();
             // Determine which wlm to instantiate
             switch(detect_Frontend()) {
+                case CTI_WLM_ALPS:
+                    inst = new ALPSFrontend{};
+                    break;
                 case CTI_WLM_SLURM:
                     inst = new SLURMFrontend{};
                     break;
