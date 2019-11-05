@@ -24,6 +24,8 @@ CTI_INST_DIR   = os.path.expandvars('$CTI_INSTALL_DIR')
 LIBEXEC_PATH   = "%s/libexec" % CTI_INST_DIR
 DAEMON_VER     = "2.0.9999"
 
+#Note: if you want to skip a test but run the suite, add the folloing line at the top of the class definition:
+#       @avocado.skip("<optional comment here>")
 '''
 cti_transfer launches a binary and holds it at startup. meanwhile, it transfers
 over `testing.info` from PATH and prints a command to verify its existence on-node.
@@ -99,6 +101,10 @@ cti_link tests that programs can be linked against the FE/BE libraries.
 '''
 class CtiLinkTest(Test):
     def test(self):
+        if "LD_LIBRARY_PATH" in os.environ:
+            print("LD_LIBRARY_PATH from os.environ %s" % os.path.expandvars('$LD_LIBRARY_PATH'))
+        else:
+            print("LD_LIBRARY_PATH not defined!")
         process.run("%s/cti_link"
             % (EXAMPLES_PATH), shell = True)
 
@@ -190,7 +196,7 @@ class CtiInfoTest(Test):
                 proc.wait()
                 break
         self.assertTrue(jobid is not None and stepid is not None)
-        
+
     def infoTestSSH(self):
         CTI_LNCHR_NAME = None
         if "CTI_LAUNCHER_NAME" in os.environ:

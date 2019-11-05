@@ -189,7 +189,7 @@ run_tests() {
                     echo "CTI_INSTALL_DIR=$CTI_INSTALL_DIR not found. Cannot execute tests"
                     return 1
                 fi
-                export LD_LIBRARY_PATH=$CTI_INSTALL_DIR/lib
+                export LD_LIBRARY_PATH=$CTI_INSTALL_DIR/lib:$LD_LIBRARY_PATH
                 export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
                 export CTI_WLM_IMPL=generic
             fi
