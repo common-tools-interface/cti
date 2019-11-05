@@ -12,8 +12,6 @@ INCLUDE			= @COMMONTOOL_DIR@/include
 AM_LIBTOOLFLAGS = --quiet
 AM_CFLAGS		= -Wall
 
-@CODE_COVERAGE_RULES@
-
 noinst_LTLIBRARIES      = libuseful.la
 
 libuseful_la_SOURCES    = 	cti_log.c cti_path.c cti_stack.c
@@ -21,7 +19,7 @@ libuseful_la_CFLAGS     = 	-I$(SRC) -I. -I$(INCLUDE) -fPIC \
 							$(CODE_COVERAGE_CFLAGS) $(AM_CFLAGS)
 libuseful_la_CPPFLAGS	=	$(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 libuseful_la_LIBADD		=	ld_val/libld_val.la $(CODE_COVERAGE_LIBS)
-libuseful_la_LDFLAGS    = 	-Wl,--no-undefined $(CODE_COVERAGE_LDFLAGS) $(AM_LDFLAGS)
+libuseful_la_LDFLAGS    = 	-Wl,--no-undefined $(AM_LDFLAGS)
 
 noinst_HEADERS			= 	cti_argv.hpp cti_dlopen.hpp cti_execvp.hpp \
 							cti_log.h cti_path.h cti_split.hpp \
