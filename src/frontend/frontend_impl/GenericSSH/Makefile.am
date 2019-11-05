@@ -20,3 +20,8 @@ libgenericssh_la_LDFLAGS	= -Wl,--no-undefined \
 							$(CDST_SUP_LIBS) $(AM_LDFLAGS)
 libgenericssh_la_LIBADD		= $(SSH2_LIBS) $(CODE_COVERAGE_LIBS)
 noinst_HEADERS				= Frontend.hpp
+
+if CODE_COVERAGE_ENABLED
+clean-local: code-coverage-clean
+distclean-local: code-coverage-dist-clean
+endif

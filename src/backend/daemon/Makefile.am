@@ -20,3 +20,8 @@ cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_LDADD		= $(USEFUL)/libuseful.la $(CODE
 cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_LDFLAGS	= -all-static -Wl,--no-undefined \
 													$(CDST_SUP_LIBS) $(AM_LDFLAGS)
 cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_CPPFLAGS 	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
+
+if CODE_COVERAGE_ENABLED
+clean-local: code-coverage-clean
+distclean-local: code-coverage-dist-clean
+endif

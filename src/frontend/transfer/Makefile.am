@@ -21,5 +21,7 @@ libtransfer_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 libtransfer_la_LIBADD	= $(ARCHIVE_LIBS) $(CODE_COVERAGE_LIBS)
 noinst_HEADERS			= Archive.hpp Manifest.hpp Session.hpp
 
+if CODE_COVERAGE_ENABLED
 clean-local: code-coverage-clean
 distclean-local: code-coverage-dist-clean
+endif
