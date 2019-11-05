@@ -20,12 +20,24 @@ To run a single test:
 
 ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py:CtiInfoTest.test
 
+# MPICH_SMP_SINGLE_COPY_OFF instructs our mpi implementation not to use SMP optimizations which are not supported on whiteboxes you don't need to know the details, I know them because I spent three years working on programming model implementations xpmem allows a process to arbitrarily attach to memory windows in another process shared memory segments on steroids arbitrary load/store access across process address spaces very dangerous, requires kernel mods Linux was like ffffff that we are not taking so we need to apply them to our os'es whiteboxes are not considered supported os'es for xpmem same with login nodes so they are missing patches when you fail to set MPICH_SMP_SINGLE_COPY_OFF, its going to try preemptively mapping segments via xpmem and fail. its an abort type failure setting it prevents that error from happening, but performance is negatively impacted but who cares we are on a whitebox basically the idea is we don't want Mr. Scientist to run their app in such a way that they would miss out on 20% or more performance improvements so we abort, users need to go out of their way to say "yes I know this is going to kill performance. Do it anyway."
 
 export CTI_INSTALL_DIR=/home/users/jaredh/cti_install
-export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
-export CTI_WLM_IMPL=generic
 export PATH=$PATH:/cray/css/users/jaredh/ddd-3.3.12/install/bin
 export PATH=$PATH:/home/users/jaredh/.local/bin
-export MPICH_SMP_SINGLE_COPY_OFF=1
 module load cray-snplauncher gcc/8.1.0 /home/users/jaredh/cti_install/cray-cti-module PrgEnv-cray cray-mpich
 
+
+#For slurm environments,
+#set MPICH_SMP_SINGLE_COPY_OFF to zero, which instructs our mpi implementation to use the SMP optimizations
+export MPICH_SMP_SINGLE_COPY_OFF=0
+#and also set the workload manager type environment variable.
+export CTI_WLM_IMPL=slurm
+
+#For non-slurm environments (whiteboxes)
+#MPICH_SMP_SINGLE_COPY_OFF instructs our mpi implementation not to use SMP optimizations which are not supported on whiteboxes
+export MPICH_SMP_SINGLE_COPY_OFF=1
+#set an environment variable for the launcher:
+export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
+#and also set the workload manager type environment variable.
+export CTI_WLM_IMPL=generic

@@ -18,11 +18,11 @@ from os import path, environ
 import time
 
 FUNCTIONAL_TESTS_PATH = path.dirname(path.realpath(__file__))
-EXAMPLES_PATH = "%s/../examples" % FUNCTIONAL_TESTS_PATH
-SUPPORT_PATH  = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
-CTI_INST_DIR  = os.path.expandvars('$CTI_INSTALL_DIR')
-LIBEXEC_PATH  = "%s/libexec" % CTI_INST_DIR
-DAEMON_VER    = "2.0.9999"
+EXAMPLES_PATH  = "%s/../examples" % FUNCTIONAL_TESTS_PATH
+SUPPORT_PATH   = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
+CTI_INST_DIR   = os.path.expandvars('$CTI_INSTALL_DIR')
+LIBEXEC_PATH   = "%s/libexec" % CTI_INST_DIR
+DAEMON_VER     = "2.0.9999"
 
 '''
 cti_transfer launches a binary and holds it at startup. meanwhile, it transfers
@@ -30,7 +30,6 @@ over `testing.info` from PATH and prints a command to verify its existence on-no
 to automate: launch with custom PATH, extract and run the verification command
 '''
 class CtiTransferTest(Test):
-    @avocado.skip("See PE-26488")
     def test(self):
         proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_transfer" % EXAMPLES_PATH,
             "%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
@@ -57,9 +56,7 @@ class CtiTransferTest(Test):
 '''
 function_tests runs all of the Googletest-instrumented functional tests
 '''
-
 class FunctionTest(Test):
-    @avocado.skip("See PE-26488")
     def test(self):
         try :
             process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
@@ -73,7 +70,6 @@ the user presses enter.
 to automate: pipe from `yes`
 '''
 class CtiBarrierTest(Test):
-    @avocado.skip("See PE-26488")
     def test(self):
         process.run("yes | %s/cti_barrier %s/basic_hello_mpi"
             % (EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
@@ -83,7 +79,6 @@ class CtiBarrierTest(Test):
 cti_launch launches a binary and prints out various information about the job.
 '''
 class CtiLaunchTest(Test):
-    @avocado.skip("See PE-26488")
     def test(self):
         process.run("%s/cti_launch %s/basic_hello_mpi"
             % (EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
@@ -95,7 +90,6 @@ communicate over a socket.
 to automate: pipe from `yes` and launch with custom PATH
 '''
 class CtiCallbackTest(Test):
-    @avocado.skip("See PE-26488")
     def test(self):
         process.run("yes | PATH=%s:$PATH %s/cti_callback %s/basic_hello_mpi"
             % (EXAMPLES_PATH, EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
@@ -110,34 +104,83 @@ class CtiLinkTest(Test):
 
 
 '''
-DISABLED: See PE-26488
 cti_info fetches information about a running job.
 to automate: hold a program at startup with cti_barrier, parse the job/stepid
 '''
-
-class CtiSSHInfoTest(Test):
-    #@avocado.skip("See PE-26488")
+class CtiWLMTest(Test):
     def test(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % EXAMPLES_PATH,
-            "%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
-            # env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % EXAMPLES_PATH],
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc.pid
         self.assertTrue(proc_pid is not None)
-        print("this is the CtiSSHInfoTest, cti_barrier proc_pid %d" % proc_pid)
+        generic = False
+        slurm = False
+        print("this is the CtiWLMTest, cti_wlm proc_pid %d" % proc_pid)
+        while (slurm is not True and generic is not True):
+            line = proc.stdout.readline().decode('utf8')
+            if not line:
+                break
+            print(line)
+            line = line.rstrip()
+            if line[:7] == 'generic':
+                generic = True
+            elif line[:5] == 'slurm':
+                slurm = True
+        if slurm:
+            print("CtiWLMTest, WLM type is slurm")
+        elif generic:
+            print("CtiWLMTest, WLM type is generic")
+        else:
+            print("CtiWLMTest, WLM type not detected!")
+        self.assertTrue(slurm is not False or generic is not False)
+        self.assertTrue(slurm is not True or generic is not True)
+
+class CtiInfoTest(Test):
+    def test(self):
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % EXAMPLES_PATH],
+            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+        proc_pid = proc.pid
+        generic = False
+        slurm = False
+        self.assertTrue(proc_pid is not None)
+        print("this is the CtiInfoTest, cti_wlm proc_pid %d" % proc_pid)
+        while (slurm is not True and generic is not True):
+            line = proc.stdout.readline().decode('utf8')
+            if not line:
+                break
+            line = line.rstrip()
+            if line[:5] == 'slurm':
+                slurm = True
+            elif line[:7] == 'generic':
+                generic = True
+        self.assertTrue(slurm is not False or generic is not False)
+        self.assertTrue(slurm is not True or generic is not True)
+        if slurm:
+            print("CtiInfoTest, detected slurm WLM type, launching CtiSLURMInfoTest")
+            CtiSLURMInfoTest.test(self)
+        elif generic:
+            print("CtiInfoTest, detected generic WLM type, launching CtiSSHInfoTest")
+            CtiSSHInfoTest.test(self)
+
+class CtiSSHInfoTest(Test):
+    def test(self):
+        CTI_LNCHR_NAME = None
+        if "CTI_LAUNCHER_NAME" in os.environ:
+            CTI_LNCHR_NAME = os.path.expandvars('$CTI_LAUNCHER_NAME')
+        self.assertTrue(CTI_LNCHR_NAME is not None)
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s" % CTI_LNCHR_NAME,
+            "%s/basic_hello_mpi_wait" % FUNCTIONAL_TESTS_PATH],
+            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+        proc_pid = proc.pid
+        self.assertTrue(proc_pid is not None)
+        print("CtiSSHInfoTest, cti launcher is %s with a proc_pid of %d" % (CTI_LNCHR_NAME, proc_pid))
         if proc_pid is not None:
             print(proc_pid)
-            time.sleep(4)
+            #time.sleep(4)
             # run cti_info
             process.run("%s/cti_info --pid=%s" % (EXAMPLES_PATH, proc_pid), shell = True)
-            # release barrier
-            proc.stdin.write(b'\n')
-            proc.stdin.flush()
-            proc.stdin.close()
-            proc.wait()
 
 class CtiSLURMInfoTest(Test):
-    #@avocado.skip("See PE-26488")
     def test(self):
         proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % EXAMPLES_PATH,
             "%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
@@ -147,7 +190,7 @@ class CtiSLURMInfoTest(Test):
         self.assertTrue(proc_pid is not None)
         jobid = None
         stepid = None
-        print("this is the CtiSLURMInfoTest, cti_barrier proc_pid %d" % proc_pid)
+        print("CtiSLURMInfoTest, cti_barrier proc_pid %d" % proc_pid)
         for line in iter(proc.stdout.readline, ''):
             print(line)
             line = line.rstrip()
@@ -362,4 +405,3 @@ class CTIBeDaemonNoDirTool(Test):
             self.fail("Process didn't error as expected")
         except process.CmdError as details:
             return 0
-
