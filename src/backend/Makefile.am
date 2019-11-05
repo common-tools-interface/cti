@@ -24,5 +24,7 @@ libcommontools_be_la_LDFLAGS	= -shared -Wl,--no-undefined -Wl,--as-needed \
 libcommontools_be_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 noinst_HEADERS					= cti_be.h
 
+if CODE_COVERAGE_ENABLED
 clean-local: code-coverage-clean
 distclean-local: code-coverage-dist-clean
+endif

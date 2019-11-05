@@ -35,4 +35,8 @@ cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDFLAGS	=	-Wl,--no-undefined -Wl,--as-
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDADD		=	libfe_daemon_iface.la ../mpir_iface/libmpir_iface.la \
 														$(CODE_COVERAGE_LIBS)
 
+if CODE_COVERAGE_ENABLED
+clean-local: code-coverage-clean
+distclean-local: code-coverage-dist-clean
+endif
 

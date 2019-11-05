@@ -45,3 +45,8 @@ unit_tests_LDFLAGS	=	-pthread -Wl,-rpath,$(prefix)/lib \
 noinst_HEADERS		=	cti_archive_unit_test.hpp cti_fe_unit_test.hpp \
 						cti_manifest_unit_test.hpp cti_session_unit_test.hpp \
 						cti_useful_unit_test.hpp cti_be_unit_test.hpp
+
+if CODE_COVERAGE_ENABLED
+clean-local: code-coverage-clean
+distclean-local: code-coverage-dist-clean
+endif

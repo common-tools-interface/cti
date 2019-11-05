@@ -20,3 +20,8 @@ libslurm_la_LDFLAGS		= -Wl,--no-undefined \
 						$(CDST_SUP_LIBS) $(AM_LDFLAGS)
 libslurm_la_LIBADD		= $(CODE_COVERAGE_LIBS)
 noinst_HEADERS			= Frontend.hpp
+
+if CODE_COVERAGE_ENABLED
+clean-local: code-coverage-clean
+distclean-local: code-coverage-dist-clean
+endif

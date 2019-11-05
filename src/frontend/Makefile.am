@@ -31,5 +31,7 @@ libcommontools_fe_la_LDFLAGS	= -shared -Wl,--no-undefined -Wl,--as-needed \
 								$(CDST_SUP_LIBS) $(AM_LDFLAGS)
 noinst_HEADERS					= cti_fe_iface.hpp Frontend.hpp
 
+if CODE_COVERAGE_ENABLED
 clean-local: code-coverage-clean
 distclean-local: code-coverage-dist-clean
+endif
