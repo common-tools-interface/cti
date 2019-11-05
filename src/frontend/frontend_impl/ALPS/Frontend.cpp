@@ -93,6 +93,12 @@ ALPSFrontend::getHostname() const
     throw std::runtime_error("not implemented: "+ std::string{__func__});
 }
 
+uint64_t
+ALPSFrontend::getApid(pid_t aprunPid) const
+{
+    throw std::runtime_error("not implemented: "+ std::string{__func__});
+}
+
 ALPSFrontend::ALPSFrontend()
 {
     throw std::runtime_error("not implemented: "+ std::string{__func__});
@@ -160,6 +166,12 @@ ALPSApp::shipPackage(std::string const& tarPath) const
 
 void
 ALPSApp::startDaemon(const char* const args[])
+{
+    throw std::runtime_error("not implemented: "+ std::string{__func__});
+}
+
+int
+ALPSApp::getAlpsOverlapOrdinal() const
 {
     throw std::runtime_error("not implemented: "+ std::string{__func__});
 }

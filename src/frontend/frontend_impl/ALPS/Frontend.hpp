@@ -66,6 +66,9 @@ public: // alps specific types
 
 public: // alps specific interface
 
+    // Attach and read aprun ID
+    uint64_t getApid(pid_t aprunPid) const;
+
 public: // constructor / destructor interface
     ALPSFrontend();
     ~ALPSFrontend() = default;
@@ -78,9 +81,9 @@ public: // constructor / destructor interface
 class ALPSApp final : public App
 {
 private: // variables
+    pid_t    m_launcherPid; // job launcher PID
     FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
-    uint32_t m_jobId;
-    uint32_t m_stepId;
+    uint32_t m_aprunId; // Aprun application ID
     bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
 
     std::string m_toolPath;    // Backend path where files are unpacked
@@ -110,6 +113,10 @@ public: // app interaction interface
     void startDaemon(const char* const args[]) override;
 
 public: // alps specific interface
+    uint64_t getApid() const { return m_aprunId; }
+    cti_aprunProc_t getAprunInfo() const { return cti_aprunProc_t { m_aprunId, m_launcherPid }; }
+
+    int getAlpsOverlapOrdinal() const;
 
 private: // delegated constructor
     ALPSApp(ALPSFrontend& fe, FE_daemon::MPIRResult&& mpirData);
