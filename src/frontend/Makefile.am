@@ -12,8 +12,6 @@ INCLUDE				= @COMMONTOOL_DIR@/include
 AM_LIBTOOLFLAGS 	= --quiet
 AM_CXXFLAGS			= -Wall
 
-@CODE_COVERAGE_RULES@
-
 lib_LTLIBRARIES = libcommontools_fe.la
 
 libcommontools_fe_la_SOURCES	= Frontend.cpp cti_fe_iface.cpp
@@ -30,8 +28,7 @@ libcommontools_fe_la_LIBADD		= $(SRC)/useful/libuseful.la \
 								$(CODE_COVERAGE_LIBS)
 libcommontools_fe_la_LDFLAGS	= -shared -Wl,--no-undefined -Wl,--as-needed \
 								-version-info $(COMMONTOOL_FE_VERSION) \
-								$(CDST_SUP_LIBS) $(CODE_COVERAGE_LDFLAGS) \
-								$(AM_LDFLAGS)
+								$(CDST_SUP_LIBS) $(AM_LDFLAGS)
 noinst_HEADERS					= cti_fe_iface.hpp Frontend.hpp
 
 clean-local: code-coverage-clean
