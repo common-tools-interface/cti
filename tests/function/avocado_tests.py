@@ -110,8 +110,7 @@ class CtiLinkTest(Test):
 
 
 '''
-cti_info fetches information about a running job.
-to automate: hold a program at startup with cti_barrier, parse the job/stepid
+cti_wlm fetches the work load manager type about a running job.
 '''
 class CtiWLMTest(Test):
     def test(self):
@@ -141,6 +140,13 @@ class CtiWLMTest(Test):
         self.assertTrue(slurm is not False or generic is not False)
         self.assertTrue(slurm is not True or generic is not True)
 
+''' 
+    cti_info fetches information about a running job. There are two versions
+    of the test, one which uses the SLURM wlm, and launches a hello world test
+    via the cti_barrier test; and another that uses the generic (SSH) wlm, and
+    launches a hello world program that sleeps for 100 seconds or until the
+    info test kills the mpi call.
+'''
 class CtiInfoTest(Test):
     def test(self):
         proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % EXAMPLES_PATH],
