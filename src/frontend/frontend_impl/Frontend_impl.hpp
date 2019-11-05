@@ -35,5 +35,6 @@
 
 #pragma once
 
+#include "ALPS/Frontend.hpp"
 #include "SLURM/Frontend.hpp"
 #include "GenericSSH/Frontend.hpp"

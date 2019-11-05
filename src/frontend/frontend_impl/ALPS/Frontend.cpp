@@ -71,7 +71,7 @@
 bool
 ALPSFrontend::isSupported()
 {
-    throw std::runtime_error("not implemented: "+ std::string{__func__});
+    return false;
 }
 
 std::weak_ptr<App>

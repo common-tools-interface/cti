@@ -633,6 +633,13 @@ int cti_killApp(cti_app_id_t app_id, int signum);
 cti_wlm_type_t cti_open_ops(void **ops);
 
 /*-----------------------------------------------------------------------------
+ * cti_alps_ops extensions - Extensions for ALPS based WLM
+ *-----------------------------------------------------------------------------
+ */
+typedef struct {
+} cti_alps_ops_t;
+
+/*-----------------------------------------------------------------------------
  * cti_slurm_ops extensions - Extensions for the SLURM WLM
  *-----------------------------------------------------------------------------
  * getJobInfo - Obtain information about the srun process from its pid.

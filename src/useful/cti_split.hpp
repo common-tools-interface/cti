@@ -47,7 +47,7 @@ namespace cti {
 */
 namespace split {
 
-    std::string removeLeadingWhitespace(const std::string& str, const std::string& whitespace = " \t") {
+    static inline std::string removeLeadingWhitespace(const std::string& str, const std::string& whitespace = " \t") {
         const auto startPos = str.find_first_not_of(whitespace);
         if (startPos == std::string::npos) return "";
         const auto endPos = str.find_last_not_of(whitespace);
@@ -96,7 +96,7 @@ namespace split {
     using NStringTuple = typename repeat<std::string, N, std::tuple>::type;
 
     template <std::size_t N>
-    NStringTuple<N> string(std::string const& line, char delim = ' ') {
+    static inline NStringTuple<N> string(std::string const& line, char delim = ' ') {
         NStringTuple<N> tup;
 
         std::stringstream linestream(line);
