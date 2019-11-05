@@ -232,6 +232,23 @@ create_mpi_app() {
         fi
     fi
 }
+create_mpi_wait_app() {
+    if test -f ./basic_hello_mpi_wait ; then
+        echo "MPI wait app already compiled..."
+    else
+        echo "Compiling basic mpi wait application for use in testing script..."
+        module load cray-snplauncher
+        module load modules/3.2.11.2
+        module load PrgEnv-cray
+        module load cray-mpich/7.7.8
+        if cc -o basic_hello_mpi_wait hello_mpi_wait.c ; then
+            echo "Application successfully compiled into 'basic_hello_mpi_wait'"
+        else
+            echo "Failed to compile MPI wait application. Aborting..."
+            return 1
+        fi
+    fi
+}
 
 flags(){
     echo "Available flags:"
@@ -290,7 +307,7 @@ if ! test -d ./avocado-virtual-environment ; then
     fi
 fi
 if valid_ssh ; then
-    if create_mpi_app ; then
+    if create_mpi_app && create_mpi_wait_app; then
          run_tests
     fi
 fi

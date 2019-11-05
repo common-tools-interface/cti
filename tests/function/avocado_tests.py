@@ -156,14 +156,42 @@ class CtiInfoTest(Test):
         self.assertTrue(slurm is not False or generic is not False)
         self.assertTrue(slurm is not True or generic is not True)
         if slurm:
-            print("CtiInfoTest, detected slurm WLM type, launching CtiSLURMInfoTest")
-            CtiSLURMInfoTest.test(self)
+            print("CtiInfoTest, detected slurm WLM type, launching infoTestSLURM")
+            self.infoTestSLURM()
         elif generic:
-            print("CtiInfoTest, detected generic WLM type, launching CtiSSHInfoTest")
-            CtiSSHInfoTest.test(self)
+            print("CtiInfoTest, detected generic WLM type, launching infoTestSSH")
+            self.infoTestSSH()
 
-class CtiSSHInfoTest(Test):
-    def test(self):
+    def infoTestSLURM(self):
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % EXAMPLES_PATH,
+            "%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
+            # env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
+            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+        proc_pid = proc.pid
+        self.assertTrue(proc_pid is not None)
+        jobid = None
+        stepid = None
+        print("infoTestSLURM, cti_barrier proc_pid %d" % proc_pid)
+        for line in iter(proc.stdout.readline, ''):
+            print(line)
+            line = line.rstrip()
+            if line[:5] == 'jobid':
+                jobid = line.split()[-1]
+            elif line[:6] == 'stepid':
+                stepid = line.split()[-1]
+            if jobid is not None and stepid is not None:
+                # run cti_info
+                process.run("%s/cti_info --jobid=%s --stepid=%s" %
+                (EXAMPLES_PATH, jobid, stepid), shell = True)
+                # release barrier
+                proc.stdin.write(b'\n')
+                proc.stdin.flush()
+                proc.stdin.close()
+                proc.wait()
+                break
+        self.assertTrue(jobid is not None and stepid is not None)
+        
+    def infoTestSSH(self):
         CTI_LNCHR_NAME = None
         if "CTI_LAUNCHER_NAME" in os.environ:
             CTI_LNCHR_NAME = os.path.expandvars('$CTI_LAUNCHER_NAME')
@@ -173,44 +201,11 @@ class CtiSSHInfoTest(Test):
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc.pid
         self.assertTrue(proc_pid is not None)
-        print("CtiSSHInfoTest, cti launcher is %s with a proc_pid of %d" % (CTI_LNCHR_NAME, proc_pid))
+        print("infoTestSSH, cti launcher is %s with a proc_pid of %d" % (CTI_LNCHR_NAME, proc_pid))
         if proc_pid is not None:
             print(proc_pid)
-            #time.sleep(4)
             # run cti_info
             process.run("%s/cti_info --pid=%s" % (EXAMPLES_PATH, proc_pid), shell = True)
-
-class CtiSLURMInfoTest(Test):
-    def test(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % EXAMPLES_PATH,
-            "%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
-            # env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
-            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc.pid
-        self.assertTrue(proc_pid is not None)
-        jobid = None
-        stepid = None
-        print("CtiSLURMInfoTest, cti_barrier proc_pid %d" % proc_pid)
-        for line in iter(proc.stdout.readline, ''):
-            print(line)
-            line = line.rstrip()
-            if line[:5] == 'jobid':
-                jobid = line.split()[-1]
-            elif line[:6] == 'stepid':
-                stepid = line.split()[-1]
-
-            if jobid is not None and stepid is not None:
-                # run cti_info
-                process.run("%s/cti_info --jobid=%s --stepid=%s" %
-                (EXAMPLES_PATH, jobid, stepid), shell = True)
-
-                # release barrier
-                proc.stdin.write(b'\n')
-                proc.stdin.flush()
-                proc.stdin.close()
-                proc.wait()
-                break
-        self.assertTrue(jobid is not None and stepid is not None)
 
 class CTIEmptyLaunchTests(Test):
     def test_be(self):
