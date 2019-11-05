@@ -49,8 +49,11 @@ AX_CXX_COMPILE_STDCXX_17([noext])
 
 LT_INIT
 
-dnl This marco runs check for --enable-code-coverage
+dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENABLED, CODE_COVERAGE_CFLAGS, etc.
 AX_CODE_COVERAGE
+
+dnl This macro runs check for ALPS installation and sets ALPS_BASE, ALPS_CFLAGS, ALPS_LDFLAGS
+cray_SETUP_ALPS_RPMS
 
 PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
 
