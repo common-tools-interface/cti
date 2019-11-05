@@ -60,6 +60,10 @@ usage(char *name)
 int
 main(int argc, char **argv)
 {
+    if (argc != 1) {
+        usage(argv[0]);
+        exit(1);
+    }
     // values returned by the tool_frontend library.
     cti_wlm_type_t      mywlm;
     /*
