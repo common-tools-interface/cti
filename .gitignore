@@ -43,6 +43,7 @@ scripts/tmp
 **.lo
 **.la
 *~
+._*
 *.swp
 *.make
 *.cmake

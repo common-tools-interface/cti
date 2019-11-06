@@ -43,6 +43,7 @@
 #include "frontend/Frontend.hpp"
 
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_dlopen.hpp"
 
 class ALPSFrontend final : public Frontend
 {
@@ -60,12 +61,39 @@ public: // inherited interface
 
     std::string getHostname() const override;
 
-private: // alps specific members
+private: // alps specific types
+    struct LibAlps
+    {
+        struct appInfo_t;
+        struct cmdDetail_t;
+        struct placeNodeList_t;
 
-public: // alps specific types
+        using AlpsGetApidType = uint64_t(int, pid_t);
+        using AlpsGetAppinfoVer2ErrType = int(uint64_t, appInfo_t *, cmdDetail_t **,
+            placeNodeList_t **, char **, int *);
+        using AlpsLaunchToolHelperType = const char*(uint64_t, int, int, int, int, char **);
+        using AlpsGetOverlapOrdinalType = int(uint64_t, char **, int *);
+
+        cti::Dlopen::Handle libAlpsHandle;
+        std::function<AlpsGetApidType>           alps_get_apid;
+        std::function<AlpsGetAppinfoVer2ErrType> alps_get_appinfo_ver2_err;
+        std::function<AlpsLaunchToolHelperType>  alps_launch_tool_helper;
+        std::function<AlpsGetOverlapOrdinalType> alps_get_overlap_ordinal;
+
+        LibAlps(std::string const& libAlpsName)
+            : libAlpsHandle{libAlpsName}
+            , alps_get_apid{libAlpsHandle.load<AlpsGetApidType>("alps_get_apid")}
+            , alps_get_appinfo_ver2_err{libAlpsHandle.load<AlpsGetAppinfoVer2ErrType>("alps_get_appinfo_ver2_err")}
+            , alps_launch_tool_helper{libAlpsHandle.load<AlpsLaunchToolHelperType>("alps_launch_tool_helper")}
+            , alps_get_overlap_ordinal{libAlpsHandle.loadFailable<AlpsGetOverlapOrdinalType>("alps_get_overlap_ordinal")}
+        {}
+    };
+
+private: // alps specific members
+    std::string const libAlpsPath;
+    LibAlps libAlps;
 
 public: // alps specific interface
-
     // Attach and read aprun ID
     uint64_t getApid(pid_t aprunPid) const;
 

@@ -218,7 +218,7 @@ AC_DEFUN([cray_SETUP_ALPS_RPMS],
 
 	AC_MSG_RESULT([yes])
 
-	AC_SUBST([ALPS_BASE], [${CRAYTOOL_EXTERNAL}/alps_base])
+	AC_SUBST([ALPS_BASE], [${_cray_alps_inst}])
 	AC_SUBST([ALPS_LDFLAGS], ["-L${_cray_alps_inst}/lib64 -L${_cray_tmpdir}/usr/lib64"])
 	AC_SUBST([ALPS_CFLAGS], ["-I${_cray_alps_inst}/include"])
 ])

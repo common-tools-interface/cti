@@ -10,6 +10,9 @@ INCLUDE				= @COMMONTOOL_DIR@/include
 AM_LIBTOOLFLAGS 	= --quiet
 AM_CXXFLAGS			= -Wall
 
+libalps_installdir = $(libdir)
+libalps_install_SCRIPTS = $(ALPS_BASE)/lib64/libalps.so
+
 noinst_LTLIBRARIES = libalps.la
 
 libalps_la_SOURCES		= Frontend.cpp
