@@ -56,6 +56,8 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#include "alps/apInfo.h"
+
 // Pull in manifest to properly define all the forward declarations
 #include "transfer/Manifest.hpp"
 
@@ -71,7 +73,11 @@
 bool
 ALPSFrontend::isSupported()
 {
-    return false;
+    try {
+        return !cti::findPath(APRUN).empty();
+    } catch (...) {
+        return false;
+    }
 }
 
 std::weak_ptr<App>
@@ -100,6 +106,8 @@ ALPSFrontend::getApid(pid_t aprunPid) const
 }
 
 ALPSFrontend::ALPSFrontend()
+    : libAlpsPath{cti::accessiblePath(getBaseDir() + "/lib/" + ALPS_FE_LIB_NAME)}
+    , libAlps{libAlpsPath}
 {
     throw std::runtime_error("not implemented: "+ std::string{__func__});
 }

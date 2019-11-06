@@ -55,6 +55,9 @@ AX_CODE_COVERAGE
 dnl This macro runs check for ALPS installation and sets ALPS_BASE, ALPS_CFLAGS, ALPS_LDFLAGS
 cray_SETUP_ALPS_RPMS
 
+export PKG_CONFIG_PATH=$ALPS_BASE/lib/pkgconfig:$PKG_CONFIG_PATH
+PKG_CHECK_MODULES([ALPS], [cray-alps])
+
 PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
 
 ############################
