@@ -119,7 +119,6 @@ main(int argc, char **argv)
 {
     int opt_ind = 0;
     int c;
-    FILE *log;
 
     while ((c = getopt_long(argc, argv, "h:", long_opts, &opt_ind)) != -1) {
         switch (c) {

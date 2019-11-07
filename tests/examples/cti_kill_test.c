@@ -84,7 +84,7 @@ main(int argc, char **argv)
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
     cti_wlm_type_t      mywlm;
-    cti_app_id_t        myapp;
+    cti_app_id_t        myapp = 0;
 
     // process longopts
     while ((c = getopt_long(argc, argv, "j:s:p:h", long_opts, &opt_ind)) != -1) {
@@ -303,3 +303,4 @@ main(int argc, char **argv)
 
     return 0;
 }
+

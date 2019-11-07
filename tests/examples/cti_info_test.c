@@ -84,7 +84,7 @@ main(int argc, char **argv)
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
     cti_wlm_type_t      mywlm;
-    cti_app_id_t        myapp;
+    cti_app_id_t        myapp = 0;
 
     if (argc < 2) {
         usage(argv[0]);
