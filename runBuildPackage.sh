@@ -18,7 +18,7 @@ j_flags=$(rpm -E %{?_smp_mflags})
 function check_exit_status(){
     if [ $1 -ne 0 ]
     then
-        echo "runBuildPrep.sh: error code of $1 from $2"
+        echo "$0: error code of $1 from $2"
         return_code=$1
     fi
 }
