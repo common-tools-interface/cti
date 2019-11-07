@@ -313,7 +313,7 @@ _cti_alps_getAprunInfo(cti_app_id_t appId) {
         auto&& fe = Frontend::inst();
         auto ap = downcastApp<ALPSApp>(fe.Iface().getApp(appId));
         if (auto result = (cti_aprunProc_t*)malloc(sizeof(cti_aprunProc_t))) {
-            *result = ap->getAprunInfo();
+            *result = ap->get_cti_aprunProc_t();
             return result;
         } else {
             throw std::runtime_error("malloc failed.");

@@ -45,6 +45,15 @@
 #include "useful/cti_wrappers.hpp"
 #include "useful/cti_dlopen.hpp"
 
+#ifndef __APINFO_H__
+// It is not possible to forward-declare anonymous typedefed C structs in C++ and then define the typedef in a later C include.
+// Only forward-declare if the apInfo.h header has not been included.
+
+struct appInfo_t;
+struct cmdDetail_t;
+struct placeNodeList_t;
+#endif
+
 class ALPSFrontend final : public Frontend
 {
 public: // inherited interface
@@ -64,10 +73,6 @@ public: // inherited interface
 private: // alps specific types
     struct LibAlps
     {
-        struct appInfo_t;
-        struct cmdDetail_t;
-        struct placeNodeList_t;
-
         using AlpsGetApidType = uint64_t(int, pid_t);
         using AlpsGetAppinfoVer2ErrType = int(uint64_t, appInfo_t *, cmdDetail_t **,
             placeNodeList_t **, char **, int *);
@@ -89,11 +94,21 @@ private: // alps specific types
         {}
     };
 
+    struct AprunInfo
+    {
+        std::unique_ptr<appInfo_t> alpsAppInfo;
+        std::vector<CTIHost>       hostsPlacement;
+    };
+
 private: // alps specific members
-    std::string const libAlpsPath;
-    LibAlps libAlps;
+    std::string const m_libAlpsPath;
+    LibAlps m_libAlps;
+    friend class ALPSApp;
 
 public: // alps specific interface
+    // Use libALPS to get node placement information
+    ALPSFrontend::AprunInfo getAprunInfo(uint64_t aprunId);
+
     // Attach and read aprun ID
     uint64_t getApid(pid_t aprunPid) const;
 
@@ -111,16 +126,16 @@ class ALPSApp final : public App
 private: // variables
     pid_t    m_launcherPid; // job launcher PID
     FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
-    uint32_t m_aprunId; // Aprun application ID
     bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
+
+    std::unique_ptr<appInfo_t> m_alpsAppInfo;
+    std::vector<CTIHost> m_hostsPlacement;
+    ALPSFrontend::LibAlps& m_libAlpsRef;
 
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
-
-private: // member helpers
-    void redirectOutput(int stdoutFd, int stderrFd);
 
 public: // app interaction interface
     std::string getJobId()            const override;
@@ -133,7 +148,7 @@ public: // app interaction interface
     size_t getNumPEs()       const override;
     size_t getNumHosts()     const override;
     std::vector<std::string> getHostnameList()   const override;
-    std::vector<CTIHost>     getHostsPlacement() const override;
+    std::vector<CTIHost>     getHostsPlacement() const override { return  m_hostsPlacement; }
 
     void releaseBarrier() override;
     void kill(int signal) override;
@@ -141,16 +156,16 @@ public: // app interaction interface
     void startDaemon(const char* const args[]) override;
 
 public: // alps specific interface
-    uint64_t getApid() const { return m_aprunId; }
-    cti_aprunProc_t getAprunInfo() const { return cti_aprunProc_t { m_aprunId, m_launcherPid }; }
+    uint64_t getApid() const;
+    cti_aprunProc_t get_cti_aprunProc_t() const;
 
     int getAlpsOverlapOrdinal() const;
 
 private: // delegated constructor
-    ALPSApp(ALPSFrontend& fe, FE_daemon::MPIRResult&& mpirData);
+    ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunInfo&& aprunInfo, FE_daemon::MPIRResult&& mpirData);
 public: // constructor / destructor interface
     // attach case
-    ALPSApp(ALPSFrontend& fe, uint32_t jobid, uint32_t stepid);
+    ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunInfo&& aprunInfo);
     // launch case
     ALPSApp(ALPSFrontend& fe, const char * const launcher_argv[], int stdout_fd,
         int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
