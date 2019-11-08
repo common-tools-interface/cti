@@ -58,7 +58,6 @@ main(int argc, char **argv)
 {
     // values returned by the tool_frontend library.
     cti_app_id_t        myapp;
-    int                 rtn;
 
     if (argc < 2) {
         usage(argv[0]);
