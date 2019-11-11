@@ -52,11 +52,14 @@ LT_INIT
 dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENABLED, CODE_COVERAGE_CFLAGS, etc.
 AX_CODE_COVERAGE
 
-dnl This macro runs check for ALPS installation and sets ALPS_BASE, ALPS_CFLAGS, ALPS_LDFLAGS
-cray_SETUP_ALPS_RPMS
-
-export PKG_CONFIG_PATH=$ALPS_BASE/lib/pkgconfig:$PKG_CONFIG_PATH
-PKG_CHECK_MODULES([ALPS], [cray-alps])
+dnl Set external directory for libALPS headers (library will be dlopened at runtime)
+AC_SUBST([LIBALPS_HEADERS], [$COMMONTOOL_DIR/external/libalps_headers])
+SAVE_CPPFLAGS=$CPPFLAGS
+CPPFLAGS="-I$LIBALPS_HEADERS $CPPFLAGS"
+AC_CHECK_HEADERS([$LIBALPS_HEADERS/alps/apInfo.h],
+[],
+[AC_MSG_ERROR([Couldn't find libALPS headers])],
+[#include "alps/apInfo.h"])
 
 PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
 
