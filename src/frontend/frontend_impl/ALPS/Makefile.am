@@ -10,14 +10,11 @@ INCLUDE				= @COMMONTOOL_DIR@/include
 AM_LIBTOOLFLAGS 	= --quiet
 AM_CXXFLAGS			= -Wall
 
-libalps_installdir = $(libdir)
-libalps_install_SCRIPTS = $(ALPS_BASE)/lib64/libalps.so
-
 noinst_LTLIBRARIES = libalps.la
 
 libalps_la_SOURCES		= Frontend.cpp
 libalps_la_CXXFLAGS	= -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl -I$(INCLUDE) -fPIC \
-						$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS) $(ALPS_CFLAGS)
+						$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS) -I$(LIBALPS_HEADERS)
 libalps_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 libalps_la_LDFLAGS		= -Wl,--no-undefined \
 						$(CDST_SUP_LIBS) $(AM_LDFLAGS)
