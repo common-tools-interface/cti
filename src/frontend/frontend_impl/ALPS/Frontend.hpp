@@ -94,10 +94,14 @@ private: // alps specific types
         {}
     };
 
-    struct AprunInfo
+    struct AprunLaunchInfo
     {
-        std::unique_ptr<appInfo_t> alpsAppInfo;
+        FE_daemon::DaemonAppId     daemonAppId; // used for util registry and MPIR release
+        std::unique_ptr<appInfo_t> alpsAppInfo; // internal libALPS data
+        int pe0Node;
         std::vector<CTIHost>       hostsPlacement;
+        int barrierReleaseFd;
+        int barrierReleaseSync;
     };
 
 private: // alps specific members
@@ -106,11 +110,18 @@ private: // alps specific members
     friend class ALPSApp;
 
 public: // alps specific interface
-    // Use libALPS to get node placement information
-    ALPSFrontend::AprunInfo getAprunInfo(uint64_t aprunId);
+    // Get the default launcher binary name, or, if provided, from the environment.
+    std::string getLauncherName() const;
+
+    // Use libALPS to get APRUN and node placement information
+    AprunLaunchInfo getAprunLaunchInfo(uint64_t aprunId);
 
     // Attach and read aprun ID
     uint64_t getApid(pid_t aprunPid) const;
+
+    // Launch and extract APRUN and node placement information
+    AprunLaunchInfo launchApp(const char * const launcher_argv[], int stdout_fd,
+        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
 public: // constructor / destructor interface
     ALPSFrontend();
@@ -124,13 +135,17 @@ public: // constructor / destructor interface
 class ALPSApp final : public App
 {
 private: // variables
-    pid_t    m_launcherPid; // job launcher PID
-    FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
-    bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
+    bool m_beDaemonSent; // Have we already shipped over the backend daemon?
 
-    std::unique_ptr<appInfo_t> m_alpsAppInfo;
-    std::vector<CTIHost> m_hostsPlacement;
     ALPSFrontend::LibAlps& m_libAlpsRef;
+
+    FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
+    std::unique_ptr<appInfo_t> m_alpsAppInfo;
+    int m_pe0Node;
+    std::vector<CTIHost> m_hostsPlacement;
+
+    int m_barrierReleaseFd;
+    int m_barrierReleaseSync;
 
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
@@ -162,10 +177,10 @@ public: // alps specific interface
     int getAlpsOverlapOrdinal() const;
 
 private: // delegated constructor
-    ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunInfo&& aprunInfo, FE_daemon::MPIRResult&& mpirData);
+    ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunLaunchInfo&& aprunLaunchInfo);
 public: // constructor / destructor interface
     // attach case
-    ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunInfo&& aprunInfo);
+    ALPSApp(ALPSFrontend& fe, uint64_t aprunId);
     // launch case
     ALPSApp(ALPSFrontend& fe, const char * const launcher_argv[], int stdout_fd,
         int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
