@@ -251,30 +251,7 @@ else
 fi
 
 %postun
-#if installing, exit
-if [ $1 == 1 ]
-then
-  exit 0
-fi
-
-# Perform cleanup work
-if [[ -d ${RPM_INSTALL_PREFIX}/%{intranamespace_name} ]]
-then
-  if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{intranamespace_name}` ]]
-  then
-    rm -rf ${RPM_INSTALL_PREFIX}/%{intranamespace_name}
-    rm -rf /etc%{_namespace_prefix}/admin-pe/bindmount.conf.d/%{intranamespace_name}.conf
-    rm -rf /etc%{_namespace_prefix}/admin-pe/modulepaths.conf.d/%{intranamespace_name}.conf
-  fi
-fi
-
-if [[ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name} ]]
-then
-  if [[ -z `ls ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}`/ ]]
-  then
-    rm -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{namespace}-%{intranamespace_name}
-  fi
-fi
+# Nothing to do here for shasta.
 
 %files
 %defattr(755, root, root)
