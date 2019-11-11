@@ -161,6 +161,7 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define OBS_ATTRIBS_DIR			"/var/opt/cray/alps/spool/%llu"					// new pmi_attribs path format on compute node
 #define SHELL_ENV_VAR							"SHELL"									// The environment variable to set shell info
 #define SHELL_PATH							"/bin/sh"								// The location of the shell to set SHELL to
+#define USER_DEF_APRUN_LOC_ENV_VAR "CTI_APRUN_PATH"
 #define ALPS_WLM_TYPE_STRING "Cray ALPS"
 #define ALPS_WLM_TYPE_IMPL   "alps"
 
