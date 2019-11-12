@@ -211,6 +211,15 @@ else
     %{__sed} -i "/^ prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
 fi
 
+# run ldconfig for good measure
+if [ -w /etc/ld.so.cache ]
+then
+    if [[ ${RPM_INSTALL_PREFIX} = "%{cray_prefix}" ]]
+    then
+        /sbin/ldconfig
+    fi
+fi
+
 %post -n %{cray_name}%{pkgversion_separator}devel
 # Add Shasta configuration files for PE content projection
 if [ "${RPM_INSTALL_PREFIX}" = "%{cray_prefix}" ]; then
@@ -241,23 +250,8 @@ else
     fi
 fi
 
-%preun
-# Reset alternatives / defaults
-# Why doesn't the defaults command (set_default) handle this?
-# TODO
-
 %postun
-# Update the list of dynamic shared objects (libraries) for the cray dynamic file list
-find ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion} -name '*.so*' > ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
-
-# run ldconfig for good measure
-if [ -w /etc/ld.so.cache ]
-then
-    if [[ ${RPM_INSTALL_PREFIX} = "%{cray_prefix}" ]]
-    then
-        /sbin/ldconfig
-    fi
-fi
+# Nothing to do here for shasta.
 
 %files
 %defattr(755, root, root)
