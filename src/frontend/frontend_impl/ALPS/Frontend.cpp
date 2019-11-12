@@ -330,6 +330,8 @@ ALPSApp::shipPackage(std::string const& tarPath) const
             if (libAlpsError == nullptr) {
                 return;
             }
+
+            usleep(500000);
         }
     }
 
