@@ -4,8 +4,6 @@
 # Copyright 2019 Cray Inc. All Rights Reserved.
 #
 
-@CODE_COVERAGE_RULES@
-
 SRC             = @COMMONTOOL_DIR@/src
 INCLUDE			= @COMMONTOOL_DIR@/include
 
@@ -18,7 +16,7 @@ libfe_daemon_iface_la_SOURCES	= cti_fe_daemon_iface.cpp
 libfe_daemon_iface_la_CXXFLAGS	= -I$(SRC) -I. -I$(INCLUDE) -fPIC \
 								$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) \
 								$(AM_CXXFLAGS)
-libfe_daemon_iface_la_LDFLAGS	= -Wl,--no-undefined $(CODE_COVERAGE_LDFLAGS) \
+libfe_daemon_iface_la_LDFLAGS	= -Wl,--no-undefined \
 								$(CDST_SUP_LIBS) $(AM_LDFLAGS)
 libfe_daemon_iface_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 libfe_daemon_iface_la_LIBADD	= $(CODE_COVERAGE_LIBS)
@@ -33,9 +31,12 @@ cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_CXXFLAGS	=	-I$(SRC) -I. -I$(INCLUDE) \
 														$(CODE_COVERAGE_CXXFLAGS) \
 														$(AM_CXXFLAGS)
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDFLAGS	=	-Wl,--no-undefined -Wl,--as-needed \
-														-pthread $(CDST_SUP_LIBS) \
-														$(CODE_COVERAGE_LDFLAGS)
+														-pthread $(CDST_SUP_LIBS)
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDADD		=	libfe_daemon_iface.la ../mpir_iface/libmpir_iface.la \
 														$(CODE_COVERAGE_LIBS)
 
+if CODE_COVERAGE_ENABLED
+clean-local: code-coverage-clean
+distclean-local: code-coverage-dist-clean
+endif
 

@@ -43,12 +43,12 @@ scripts/tmp
 **.lo
 **.la
 *~
+._*
 *.swp
 *.make
 *.cmake
 *.marks
 *.pyc
-*.spec
 *.gcov
 *.gcda
 *.gcno

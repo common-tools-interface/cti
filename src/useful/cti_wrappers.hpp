@@ -111,6 +111,15 @@ namespace cstr {
         }
         return std::string{buf};
     }
+
+    // lifted readlink
+    static inline std::string readlink(std::string const& path) {
+        char buf[PATH_MAX + 1];
+        if (::readlink(path.c_str(), buf, PATH_MAX) < 0) {
+            throw std::runtime_error("readlink failed");
+        }
+        return std::string{buf};
+    }
 } /* namespace cti::cstr */
 
 namespace file {

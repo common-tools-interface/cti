@@ -184,6 +184,8 @@ const char *
 cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
     switch (wlm_type) {
         // WLM Frontend implementations
+        case CTI_WLM_ALPS:
+            return ALPSFrontend::getDescription();
         case CTI_WLM_SLURM:
             return SLURMFrontend::getName();
         case CTI_WLM_SSH:
@@ -286,6 +288,55 @@ cti_getLauncherHostName(cti_app_id_t appId) {
     }, (char*)nullptr);
 }
 
+// ALPS WLM extensions
+
+static cti_app_id_t
+_cti_alps_registerApid(uint64_t apid) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<ALPSFrontend>();
+        auto wp = fe.registerJob(1, apid);
+        return fe.Iface().trackApp(wp);
+    }, APP_ERROR);
+}
+
+static uint64_t
+_cti_alps_getApid(pid_t aprunPid) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<ALPSFrontend>();
+        return fe.getApid(aprunPid);
+    }, uint64_t{0});
+}
+
+static cti_aprunProc_t*
+_cti_alps_getAprunInfo(cti_app_id_t appId) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        auto ap = downcastApp<ALPSApp>(fe.Iface().getApp(appId));
+        if (auto result = (cti_aprunProc_t*)malloc(sizeof(cti_aprunProc_t))) {
+            *result = ap->get_cti_aprunProc_t();
+            return result;
+        } else {
+            throw std::runtime_error("malloc failed.");
+        }
+    }, (cti_aprunProc_t*)nullptr);
+}
+
+static int
+_cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        auto ap = downcastApp<ALPSApp>(fe.Iface().getApp(appId));
+        return ap->getAlpsOverlapOrdinal();
+    }, int{-1});
+}
+
+static cti_alps_ops_t _cti_alps_ops = {
+    .registerApid          = _cti_alps_registerApid,
+    .getApid               = _cti_alps_getApid,
+    .getAprunInfo          = _cti_alps_getAprunInfo,
+    .getAlpsOverlapOrdinal = _cti_alps_getAlpsOverlapOrdinal
+};
+
 // SLURM WLM extensions
 
 static cti_srunProc_t*
@@ -356,6 +407,9 @@ cti_open_ops(void **ops) {
         auto&& fe = Frontend::inst();
         auto wlm_type = fe.getWLMType();
         switch (wlm_type) {
+            case CTI_WLM_ALPS:
+                *ops = reinterpret_cast<void *>(&_cti_alps_ops);
+                break;
             case CTI_WLM_SLURM:
                 *ops = reinterpret_cast<void *>(&_cti_slurm_ops);
                 break;

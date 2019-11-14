@@ -19,8 +19,6 @@ AUTOMAKE_OPTIONS = subdir-objects
 TESTS = unit_tests
 check_PROGRAMS = unit_tests
 
-@CODE_COVERAGE_RULES@
-
 # unit test binary
 unit_tests_SOURCES	=	unit_tests.cpp cti_fe_unit_test.cpp cti_archive_unit_test.cpp \
 						cti_manifest_unit_test.cpp cti_session_unit_test.cpp \
@@ -42,8 +40,13 @@ unit_tests_LDADD	=	-L$(prefix)/lib -lcommontools_fe \
 unit_tests_LDFLAGS	=	-pthread -Wl,-rpath,$(prefix)/lib \
 						-Wl,--enable-new-dtags -Wl,--no-undefined \
 						-Wl,--as-needed $(CDST_SUP_LIBS) \
-						$(CODE_COVERAGE_LDFLAGS) -lcommontools_be
+						-lcommontools_be
 
 noinst_HEADERS		=	cti_archive_unit_test.hpp cti_fe_unit_test.hpp \
 						cti_manifest_unit_test.hpp cti_session_unit_test.hpp \
 						cti_useful_unit_test.hpp cti_be_unit_test.hpp
+
+if CODE_COVERAGE_ENABLED
+clean-local: code-coverage-clean
+distclean-local: code-coverage-dist-clean
+endif

@@ -74,7 +74,6 @@ using MPIRResp = FE_daemon::MPIRResp;
 static void
 tryTerm(pid_t const pid)
 {
-    fprintf(stderr, "tryterm %d\n", pid);
     if (::kill(pid, SIGTERM)) {
         return;
     }
