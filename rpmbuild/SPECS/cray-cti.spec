@@ -230,8 +230,8 @@ fi
 # Process relocations
 if [ "${RPM_INSTALL_PREFIX}" != "%{prefix}" ]
 then
-    # Modulefile
-    %{__sed} -i "s|^\(set CRAY_CDST_SUPPORT_BASEDIR[[:space:]]*\)\(.*\)|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
+    # Modulefile for the devel package
+    %{__sed} -i "s|^\([[:space:]]*set CRAY_CTI_BASEDIR[[:space:]]*\)\(.*\)|\1${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}|" ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
     # pkg-config pc files
     find ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/lib/pkgconfig -name '*.pc' -exec %{__sed} -i "s|%{prefix}|${RPM_INSTALL_PREFIX}|g" {} \;
     # set default command
