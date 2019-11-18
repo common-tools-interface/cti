@@ -74,6 +74,18 @@ make $j_flags install
 check_exit_status $? "make install"
 
 echo "############################################"
+echo "#          Running make check              #"
+echo "############################################"
+# runBuildUnitTest isn't run by Jenkins, so building it
+# here to runBuildPackage can make cti-tests.rpm
+
+# libssh2 make check requires USER to be set
+USER=${USER:-root} make $j_flags check
+check_exit_status $? "make check"
+
+
+
+echo "############################################"
 echo "#              Done with build             #"
 echo "############################################"
 exit $return_code
