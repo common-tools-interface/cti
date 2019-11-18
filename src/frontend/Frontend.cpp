@@ -417,7 +417,11 @@ Frontend::inst() {
                     inst = new ALPSFrontend{};
                     break;
                 case CTI_WLM_SLURM:
-                    inst = new SLURMFrontend{};
+                    if (ApolloSLURMFrontend::isSupported()) {
+                        inst = new ApolloSLURMFrontend{};
+                    } else {
+                        inst = new SLURMFrontend{};
+                    }
                     break;
                 case CTI_WLM_SSH:
                     inst = new GenericSSHFrontend{};

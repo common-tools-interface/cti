@@ -56,7 +56,7 @@ struct SrunInfo : public cti_srunProc_t {
     }
 };
 
-class SLURMFrontend final : public Frontend
+class SLURMFrontend : public Frontend
 {
 public: // inherited interface
     static char const* getName()        { return CTI_WLM_TYPE_SLURM_STR; }
@@ -182,4 +182,10 @@ public: // constructor / destructor interface
     SLURMApp& operator=(const SLURMApp&) = delete;
     SLURMApp(SLURMApp&&) = delete;
     SLURMApp& operator=(SLURMApp&&) = delete;
+};
+
+class ApolloSLURMFrontend : public SLURMFrontend {
+public: // interface
+    static bool isSupported();
+    std::string getHostname() const override;
 };
