@@ -807,11 +807,11 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
 // Running on an Apollo machine if the `cminfo` cluster info query program is
 // installed, and it reports running on login / admin node.
 bool ApolloSLURMFrontend::isSupported() {
-    auto cminfoArgv = cti::ManagedArgv { "cminfo", "--name" };
-
     try {
+        char const* cminfoArgv[] = { "cminfo", "--name", nullptr };
+
         // Start cminfo
-        auto cminfoOutput = cti::Execvp{"cminfo", cminfoArgv.get()};
+        auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv};
         if (cminfoOutput.getExitStatus() != 0) {
             return false;
         }

@@ -205,7 +205,7 @@ public:
             p.closeWrite();
 
             execvp(binaryName, argv);
-            throw std::runtime_error(std::string("execvp() on ") + binaryName + " failed!");
+            _exit(-1);
         }
 
         /* create istream from output pipe */
