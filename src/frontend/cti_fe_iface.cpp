@@ -435,6 +435,16 @@ cti_appIsValid(cti_app_id_t appId) {
     }, false);
 }
 
+
+int
+cti_appIsRunning(cti_app_id_t appId) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        auto sp = fe.Iface().getApp(appId);
+        return sp->isRunning();
+    }, false);
+}
+
 void
 cti_deregisterApp(cti_app_id_t appId) {
     FE_iface::runSafely(__func__, [&](){
