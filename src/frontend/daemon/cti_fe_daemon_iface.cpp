@@ -125,12 +125,21 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
     rawWriteLoop(reqFd, '\0');
 }
 
+// return boolean response from pipe
+static bool readOKResp(int const reqFd)
+{
+    auto const okResp = rawReadLoop<FE_daemon::OKResp>(reqFd);
+    if (okResp.type != FE_daemon::RespType::OK) {
+        throw std::runtime_error("daemon did not send expected OK response type");
+    }
+    return okResp.success;
+}
+
 // throw if boolean response is not true, indicating failure
 static void verifyOKResp(int const reqFd)
 {
-    auto const okResp = rawReadLoop<FE_daemon::OKResp>(reqFd);
-    if ((okResp.type != FE_daemon::RespType::OK) || !okResp.success) {
-        throw std::runtime_error("failed to verify OK response");
+    if (readOKResp(reqFd) == false) {
+        throw std::runtime_error("daemon response indicated failure");
     }
 }
 
@@ -229,7 +238,7 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
         // set in own process gorup
         if (setpgid(0, 0) < 0) {
             perror("setpgid");
-            exit(1);
+            _exit(1);
         }
 
         // set up death signal
@@ -266,7 +275,7 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
 
         // exec
         execvp(fe_daemon_bin.c_str(), fe_daemonArgv.get());
-        throw std::runtime_error("returned from execvp: " + std::string{strerror(errno)});
+        exit(-1);
     }
     // Setup in parent was sucessful
     m_init = true;
@@ -350,4 +359,12 @@ FE_daemon::request_DeregisterApp(DaemonAppId app_id)
     rawWriteLoop(m_req_sock.getWriteFd(), ReqType::DeregisterApp);
     rawWriteLoop(m_req_sock.getWriteFd(), app_id);
     verifyOKResp(m_resp_sock.getReadFd());
+}
+
+bool
+FE_daemon::request_CheckApp(DaemonAppId app_id)
+{
+    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::CheckApp);
+    rawWriteLoop(m_req_sock.getWriteFd(), app_id);
+    return readOKResp(m_resp_sock.getReadFd());
 }
