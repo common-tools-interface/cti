@@ -441,7 +441,19 @@ cti_appIsRunning(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
         auto sp = fe.Iface().getApp(appId);
-        return sp->isRunning();
+
+        if (!sp->isRunning()) {
+            // Remove the app if not running anymore
+            fe.removeApp(sp);
+            fe.Iface().removeApp(appId);
+
+            return false;
+
+        // App running
+        } else {
+            return true;
+        }
+
     }, false);
 }
 
