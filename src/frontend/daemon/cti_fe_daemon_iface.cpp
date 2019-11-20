@@ -275,7 +275,7 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
 
         // exec
         execvp(fe_daemon_bin.c_str(), fe_daemonArgv.get());
-        exit(-1);
+        _exit(-1);
     }
     // Setup in parent was sucessful
     m_init = true;
