@@ -125,6 +125,7 @@ public: // app interaction interface
 
     std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 
+    bool   isRunning()       const override;
     size_t getNumPEs()       const override { return m_stepLayout.numPEs;       }
     size_t getNumHosts()     const override { return m_stepLayout.nodes.size(); }
     std::vector<std::string> getHostnameList()   const override;

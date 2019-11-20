@@ -160,6 +160,7 @@ public: // app interaction interface
 
     std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 
+    bool   isRunning()       const override;
     size_t getNumPEs()       const override;
     size_t getNumHosts()     const override;
     std::vector<std::string> getHostnameList()   const override;
