@@ -121,6 +121,7 @@ cti_test_fe(cti_app_id_t appId)
 
 
         case CTI_WLM_SSH:
+            printf("pid of application %lu\n", appId);
             break;
 
         default:
@@ -211,8 +212,11 @@ cti_test_fe(cti_app_id_t appId)
     myhostplacement = NULL;
 
     /*
-     * cti_killApp - Send a signal using the appropriate launcher kill mechanism to
-     *               an application launcher.
+     * cti_killApp - Send signal = 0, using the appropriate launcher kill
+     * mechanism to an application launcher.  According to the man page for
+     * kill(2), "If sig is 0, then no signal is sent, but error checking is
+     * still performed; this can be used to check for the existence of a
+     * process ID or process group ID."
      */
     j = cti_killApp(appId, 0);
     if (j) {

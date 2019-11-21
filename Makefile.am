@@ -7,12 +7,15 @@
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src tests external
+SUBDIRS = src tests
 
-EXTRA_DIST = common_tools_be.pc.in common_tools_fe.pc.in release_versioning
+EXTRA_DIST = pkgconfig \
+             release_versioning
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = common_tools_be.pc common_tools_fe.pc
+pkgconfig_DATA = pkgconfig/common_tools_be.pc \
+                 pkgconfig/common_tools_fe.pc
+
 
 include_HEADERS = include/common_tools_be.h include/common_tools_fe.h \
 				  include/common_tools_shared.h

@@ -122,7 +122,7 @@ static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t jobId, uint
     sattachArgv.add(SattachArgv::Argument(std::to_string(jobId) + "." + std::to_string(stepId)));
 
     // get path to SATTACH binary for MPIR control
-    if (auto const sattachPath = cti::move_pointer_ownership(_cti_pathFind(SATTACH, nullptr), std::free)) {
+    if (auto const sattachPath = cti::take_pointer_ownership(_cti_pathFind(SATTACH, nullptr), std::free)) {
         try {
             // request an MPIR session to extract proctable
             auto const mpirResult = fe.Daemon().request_LaunchMPIR(
@@ -256,7 +256,7 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
         , "--force"
     };
 
-    if (auto packageName = cti::move_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
+    if (auto packageName = cti::take_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
         sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName.get());
     } else {
         throw std::runtime_error("_cti_pathToName failed");
@@ -476,67 +476,90 @@ SLURMFrontend::getHostname() const
             throw std::runtime_error("fgets failed.");
         }
         buf[BUFSIZ] = '\0';
-
         return std::stoi(std::string{buf});
     };
 
-    // Resolve a hostname to IPv4 address
-    auto resolveHostname = [](std::string const& hostname) {
-        constexpr auto MAXADDRLEN = 15;
-
+    auto make_addrinfo = [](std::string const& hostname) {
         // Get hostname information
         struct addrinfo hints;
         memset(&hints, 0, sizeof(hints));
         hints.ai_family = AF_INET;
-        struct addrinfo *infoptr = NULL;
-        if (getaddrinfo(hostname.c_str(), NULL, &hints, &infoptr) || !infoptr) {
-            throw std::runtime_error("failed to resolve hostname " + hostname + strerror(errno));
+        struct addrinfo *info_ptr = nullptr;
+        if (auto const rc = getaddrinfo(hostname.c_str(), nullptr, &hints, &info_ptr)) {
+            throw std::runtime_error("getaddrinfo failed: " + std::string{gai_strerror(rc)});
         }
+        if ( info_ptr == nullptr ) {
+            throw std::runtime_error("failed to resolve hostname " + hostname);
+        }
+        return cti::take_pointer_ownership(std::move(info_ptr), freeaddrinfo);
+    };
 
+    // Resolve a hostname to IPv4 address
+    // FIXME: PE-26874 change this once DNS support is added
+    auto resolveHostname = [](const struct addrinfo& addr_info) {
+        constexpr auto MAXADDRLEN = 15;
         // Extract IP address string
         char ip_addr[MAXADDRLEN + 1];
-        if (auto const rc = getnameinfo(infoptr->ai_addr, infoptr->ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
-            freeaddrinfo(infoptr);
+        if (auto const rc = getnameinfo(addr_info.ai_addr, addr_info.ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
             throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
         }
-        freeaddrinfo(infoptr);
-
         ip_addr[MAXADDRLEN] = '\0';
-
         return std::string{ip_addr};
     };
 
-    // Get an address to this host accessible from compute nodes
-    // Behavior changes based on XC / Shasta UAI / Shasta node
-    auto detectAddress = [&parseNidFile, &resolveHostname]() {
+    // Get the hostname of the interface that is accessible from compute nodes
+    // Behavior changes based on XC / Shasta UAI+UAN
+    auto detectAddress = [&parseNidFile, &make_addrinfo, &resolveHostname]() {
+        // Try the nid file first. This is the preferred mechanism since it corresponds
+        // to the HSN.
         // XT / XC NID file
         if (auto nidFile = cti::file::try_open(CRAY_XT_NID_FILE, "r")) {
             // Use the NID to create the XT hostname format.
-            return cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
+            auto nidXTHostname = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
+            try {
+                // Ensure we can resolve the hostname
+                make_addrinfo(nidXTHostname);
+                // Hostname checks out so return it
+                return nidXTHostname;
+            }
+            catch (std::exception const& ex) {
+                // continue processing
+            }
         }
-
         // Shasta compute node NID file
         else if (auto nidFile = cti::file::try_open(CRAY_SHASTA_NID_FILE, "r")) {
             // Use the NID to create the Shasta hostname format.
-            return cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
+            auto nidShastaHostname = cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
+            try {
+                // Ensure we can resolve the hostname
+                make_addrinfo(nidShastaHostname);
+                // Hostname checks out so return it
+                return nidShastaHostname;
+            }
+            catch (std::exception const& ex) {
+                // continue processing
+            }
         }
-
         // On Shasta, look up and return IPv4 address instead of hostname
         // UAS hostnames cannot be resolved on compute node
-
-        // UAI hostnames start with 'uai-'
+        // FIXME: PE-26874 change this once DNS support is added
         auto const hostname = cti::cstr::gethostname();
-        if (hostname.substr(0, 4) == "uai-") {
-
+        try {
             // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
+            // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
+            // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
             auto const macVlanHostname = hostname + "-nmn";
-
-            return resolveHostname(macVlanHostname);
-
-        } else {
-            // Assume not UAI, use normal hostname
-            return resolveHostname(hostname);
+            auto info = make_addrinfo(macVlanHostname);
+            // FIXME: Remove this when PE-26874 is fixed
+            auto macVlanIPAddress = resolveHostname(*info);
+            return macVlanIPAddress;
         }
+        catch (std::exception const& ex) {
+            // continue processing
+        }
+        // Try using normal hostname
+        auto info = make_addrinfo(hostname);
+        return hostname;
     };
 
     // Cache the hostname result.
@@ -726,7 +749,7 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
         const char * const env_list[])
 {
     // Get the launcher path from CTI environment variable / default.
-    if (auto const launcher_path = cti::move_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
+    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
         // set up arguments and FDs
         if (inputFile == nullptr) { inputFile = "/dev/null"; }
         if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
@@ -769,7 +792,7 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
         throw std::runtime_error("Invalid srunPid " + std::to_string(srunPid));
     }
 
-    if (auto const launcherPath = cti::move_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
+    if (auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
         // tell overwatch to extract information using MPIR attach
         auto const mpirData = Daemon().request_AttachMPIR(launcherPath.get(), srunPid);
         Daemon().request_ReleaseMPIR(mpirData.mpir_id);

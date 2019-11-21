@@ -200,7 +200,7 @@ public: // Constructor/destructor
         }
         // Take ownership of the host addrinfo into the unique_ptr.
         // This will enforce cleanup.
-        auto host_ptr = cti::move_pointer_ownership(std::move(host),freeaddrinfo);
+        auto host_ptr = cti::take_pointer_ownership(std::move(host),freeaddrinfo);
 
         // create the ssh socket
         m_session_sock = std::move(cti::fd_handle{ (int)socket(  host_ptr.get()->ai_family,
@@ -214,7 +214,7 @@ public: // Constructor/destructor
         }
 
         // Init a new libssh2 session.
-        m_session_ptr = cti::move_pointer_ownership(libssh2_session_init(), delete_ssh2_session);
+        m_session_ptr = cti::take_pointer_ownership(libssh2_session_init(), delete_ssh2_session);
         if (m_session_ptr == nullptr) {
             throw std::runtime_error("libssh2_session_init() failed");
         }
@@ -228,7 +228,7 @@ public: // Constructor/destructor
 
         // At this point we havn't authenticated. The first thing to do is check
         // the hostkey's fingerprint against our known hosts.
-        auto known_host_ptr = cti::move_pointer_ownership(  libssh2_knownhost_init(m_session_ptr.get()),
+        auto known_host_ptr = cti::take_pointer_ownership(  libssh2_knownhost_init(m_session_ptr.get()),
                                                             libssh2_knownhost_free);
         if (known_host_ptr == nullptr) {
             throw std::runtime_error("Failure initializing knownhost file");
@@ -360,7 +360,7 @@ public: // Constructor/destructor
         assert(args[0] != nullptr);
 
         // Create a new ssh channel
-        auto channel_ptr = cti::move_pointer_ownership( libssh2_channel_open_session(m_session_ptr.get()),
+        auto channel_ptr = cti::take_pointer_ownership( libssh2_channel_open_session(m_session_ptr.get()),
                                                         delete_ssh2_channel);
         if (channel_ptr == nullptr) {
             throw std::runtime_error("Failure opening SSH channel on session");
@@ -409,7 +409,7 @@ public: // Constructor/destructor
             }
         }
         // Start a new scp transfer
-        auto channel_ptr = cti::move_pointer_ownership( libssh2_scp_send(   m_session_ptr.get(),
+        auto channel_ptr = cti::take_pointer_ownership( libssh2_scp_send(   m_session_ptr.get(),
                                                                             destination_path,
                                                                             mode & 0777,
                                                                             stbuf.st_size ),
@@ -483,7 +483,7 @@ GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid)
         , std::make_unique<MPIRInstance>(
 
             // Get path to launcher binary
-            cti::move_pointer_ownership(
+            cti::take_pointer_ownership(
                 _cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr),
                 std::free).get(),
 
@@ -576,7 +576,7 @@ GenericSSHApp::kill(int signal)
 void
 GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
-    if (auto packageName = cti::move_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
+    if (auto packageName = cti::take_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
         auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
         writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
@@ -840,7 +840,7 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
     };
 
     // Get the launcher path from CTI environment variable / default.
-    if (auto const launcher_path = cti::move_pointer_ownership(_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr), std::free)) {
+    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr), std::free)) {
 
         /* construct argv array & instance*/
         std::vector<std::string> launcherArgv{launcher_path.get()};
