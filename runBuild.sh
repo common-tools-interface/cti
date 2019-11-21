@@ -80,7 +80,7 @@ echo "############################################"
 # here to runBuildPackage can make cti-tests.rpm
 
 # libssh2 make check requires USER to be set
-USER=${USER:-root} make $j_flags check
+USER=${USER:-root} make $j_flags check TESTS=
 check_exit_status $? "make check"
 
 
