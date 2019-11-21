@@ -164,7 +164,7 @@ cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
     switch (wlm_type)
     {
         case CTI_WLM_ALPS:
-            return ALPS_WLM_TYPE_STRING;
+            return CTI_WLM_TYPE_ALPS_STR;
 
         case CTI_WLM_SLURM:
             return CTI_WLM_TYPE_SLURM_STR;

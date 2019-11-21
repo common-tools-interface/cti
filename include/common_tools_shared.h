@@ -101,6 +101,7 @@
 // Note: users should not manualy set CTI_WLM_IMPL environment variable to
 // "none" or "mock" as these workload manager types are for internal use only.
 #define CTI_WLM_TYPE_SLURM_STR     	"slurm"
+#define CTI_WLM_TYPE_ALPS_STR       "alps"
 #define CTI_WLM_TYPE_SSH_STR   		"generic"
 
 #ifdef __cplusplus

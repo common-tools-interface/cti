@@ -51,6 +51,7 @@
 const struct option long_opts[] = {
     {"jobid",       required_argument,  0, 'j'},
     {"stepid",      required_argument,  0, 's'},
+    {"apid",        required_argument,  0, 'a'},
     {"pid",         required_argument,  0, 'p'},
     {"help",        no_argument,        0, 'h'},
     {0, 0, 0, 0}
@@ -63,6 +64,7 @@ usage(char *name)
     fprintf(stdout, "kill an application using the common tools interface.\n\n");
     fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
     fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");
+    fprintf(stdout, "\t-a, --apid      alps apid - ALPS WLM only.\n");
     fprintf(stdout, "\t-p, --pid       pid of launcher process - SSH WLM only.");
     fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
 
@@ -78,16 +80,18 @@ main(int argc, char **argv)
     char *              eptr;
     int                 j_arg = 0;
     int                 s_arg = 0;
+    int                 a_arg = 0;
     int                 p_arg = 0;
     uint32_t            job_id = 0;
     uint32_t            step_id = 0;
+    uint64_t            apid = 0;
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
     cti_wlm_type_t      mywlm;
     cti_app_id_t        myapp = 0;
 
     // process longopts
-    while ((c = getopt_long(argc, argv, "j:s:p:h", long_opts, &opt_ind)) != -1) {
+    while ((c = getopt_long(argc, argv, "j:s:a:p:h", long_opts, &opt_ind)) != -1) {
         switch (c) {
             case 0:
                 // if this is a flag, do nothing
@@ -150,6 +154,36 @@ main(int argc, char **argv)
                 }
 
                 s_arg = 1;
+
+                break;
+
+            case 'a':
+                if (optarg == NULL) {
+                    usage(argv[0]);
+                    assert(0);
+                    return 1;
+                }
+
+                // This is the apid
+                errno = 0;
+                apid = (uint64_t)strtoull(optarg, &eptr, 10);
+
+                // check for error
+                if ((errno == ERANGE && step_id == ULONG_MAX)
+                        || (errno != 0 && step_id == 0)) {
+                    perror("strtol");
+                    assert(0);
+                    return 1;
+                }
+
+                // check for invalid input
+                if (eptr == optarg || *eptr != '\0') {
+                    fprintf(stderr, "Invalid --apid argument.\n");
+                    assert(0);
+                    return 1;
+                }
+
+                a_arg = 1;
 
                 break;
 
@@ -216,6 +250,25 @@ main(int argc, char **argv)
             myapp = slurm_ops->registerJobStep(job_id, step_id);
             if (myapp == 0) {
                 fprintf(stderr, "Error: registerJobStep failed!\n");
+                fprintf(stderr, "CTI error: %s\n", cti_error_str());
+            }
+            assert(myapp != 0);
+        }
+            break;
+
+        case CTI_WLM_ALPS:
+        {
+            if (a_arg == 0 ) {
+                fprintf(stderr, "Error: Missing --apid argument. This is required for the ALPS WLM.\n");
+            }
+            assert(a_arg != 0);
+            cti_alps_ops_t * alps_ops = NULL;
+            cti_wlm_type_t ret = cti_open_ops((void **)&alps_ops);
+            assert(ret == mywlm);
+            assert(alps_ops != NULL);
+            myapp = alps_ops->registerApid(apid);
+            if (myapp == 0) {
+                fprintf(stderr, "Error: registerApid failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
             }
             assert(myapp != 0);
