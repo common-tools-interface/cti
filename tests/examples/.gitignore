@@ -1,4 +1,6 @@
 cti_barrier
+cti_kill
+cti_wlm
 cti_callback
 cti_callback_daemon
 cti_info

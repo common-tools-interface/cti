@@ -211,7 +211,7 @@ TEST_F(CTIArchiveUnitTest, addPath)
     archive.finalize();
 
     // setup archive check struct
-    auto archPtr = cti::move_pointer_ownership(archive_read_new(), archive_read_free);
+    auto archPtr = cti::take_pointer_ownership(archive_read_new(), archive_read_free);
     archive_read_support_filter_all(archPtr.get());
     archive_read_support_format_all(archPtr.get());
 

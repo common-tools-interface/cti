@@ -53,6 +53,7 @@
 // utility includes
 #include "useful/cti_log.h"
 #include "useful/cti_wrappers.hpp"
+#include "checksum/checksums.h"
 
 // Static data objects
 std::atomic<Frontend*>              Frontend::m_instance{nullptr};
@@ -233,22 +234,42 @@ std::string
 Frontend::findBaseDir(void)
 {
     // Check if env var is defined
-    // TODO: Rethink this. It is probably dangerous...
-    const char * base_dir_env = getenv(CTI_BASE_DIR_ENV_VAR);
-    // Check default install locations
-    if (!cti::dirHasPerms(base_dir_env, R_OK | X_OK)) {
-        for (const char* const* pathPtr = cti::default_dir_locs; *pathPtr != nullptr; pathPtr++) {
-            if (cti::dirHasPerms(*pathPtr, R_OK | X_OK)) {
-                return std::string{*pathPtr};
+    auto findUnverifiedBaseDir = []() {
+        const char * base_dir_env = getenv(CTI_BASE_DIR_ENV_VAR);
+        // Check default install locations
+        if (!cti::dirHasPerms(base_dir_env, R_OK | X_OK)) {
+            for (const char* const* pathPtr = cti::default_dir_locs; *pathPtr != nullptr; pathPtr++) {
+                if (cti::dirHasPerms(*pathPtr, R_OK | X_OK)) {
+                    return std::string{*pathPtr};
+                }
             }
         }
-    }
-    else {
-        // Honor the env var setting
-        return std::string{base_dir_env};
-    }
+        else {
+            // Honor the env var setting
+            return std::string{base_dir_env};
+        }
 
-    throw std::runtime_error(std::string{"failed to find a CTI installation. Ensure "} + CTI_BASE_DIR_ENV_VAR + " is set properly.");
+        throw std::runtime_error(std::string{"failed to find a CTI installation. Ensure "} + CTI_BASE_DIR_ENV_VAR + " is set properly.");
+    };
+
+    auto verifyBaseDir = [](std::string const& unverifiedBaseDir) {
+
+        // Hash the file at the given path
+        auto checkHash = [](std::string const& path, std::string const& hash) {
+            if (!has_same_hash(path.c_str(), hash.c_str())) {
+                throw std::runtime_error("hash mismatch: " + path);
+            }
+        };
+
+        // Checksum important binaries in the detected directory
+        checkHash(unverifiedBaseDir + "/libexec/" + CTI_BE_DAEMON_BINARY, CTI_BE_DAEMON_CHECKSUM);
+    };
+
+    // Find and verify base dir
+    auto const baseDir = findUnverifiedBaseDir();
+    verifyBaseDir(baseDir);
+
+    return baseDir;
 }
 
 // BUG 819725:
