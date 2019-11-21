@@ -75,14 +75,13 @@ main(int argc, char **argv)
     // Print out the wlm type using the defined text for each WLM type.
     switch (mywlm) {
         case CTI_WLM_SLURM:
-        {
-            fprintf(stdout, "%s WLM type.\n", SLURM_WLM_TYPE_IMPL);
-        }
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_SLURM_STR);
+            break;
+        case CTI_WLM_ALPS:
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_ALPS_STR);
             break;
         case CTI_WLM_SSH:
-        {
-            fprintf(stdout, "%s WLM type.\n", SSH_WLM_TYPE_IMPL);
-        }
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_SSH_STR);
             break;
         case CTI_WLM_MOCK:
         case CTI_WLM_NONE:
