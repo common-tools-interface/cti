@@ -221,6 +221,12 @@ ALPSApp::getLauncherHostname() const
     return cti::cstr::asprintf(ALPS_XT_HOSTNAME_FMT, m_alpsAppInfo->aprunNid);
 }
 
+bool
+ALPSApp::isRunning() const
+{
+    return m_frontend.Daemon().request_CheckApp(m_daemonAppId);
+}
+
 size_t
 ALPSApp::getNumPEs() const
 {

@@ -170,6 +170,12 @@ SLURMApp::getLauncherHostname() const
     throw std::runtime_error("not supported for WLM: getLauncherHostname");
 }
 
+bool
+SLURMApp::isRunning() const
+{
+    return m_frontend.Daemon().request_CheckApp(m_daemonAppId);
+}
+
 std::vector<std::string>
 SLURMApp::getHostnameList() const
 {

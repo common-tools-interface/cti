@@ -262,6 +262,9 @@ public: // impl.-specific interface that derived type must implement
 
     /* running app information accessors */
 
+    // return if launched app is still running
+    virtual bool isRunning() const = 0;
+
     // retrieve number of PEs in app
     virtual size_t getNumPEs() const = 0;
 

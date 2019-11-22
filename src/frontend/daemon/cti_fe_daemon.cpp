@@ -281,7 +281,6 @@ static void registerUtilPID(DAppId const app_id, pid_t const util_pid)
     }
 }
 
-
 static void deregisterAppID(DAppId const app_id)
 {
     auto const idPidPair = idPidMap.find(app_id);
@@ -305,6 +304,21 @@ static void deregisterAppID(DAppId const app_id)
 
         // finish util termination
         utilTermFuture.wait();
+    } else {
+        throw std::runtime_error("invalid app id: " + std::to_string(app_id));
+    }
+}
+
+static bool checkAppID(DAppId const app_id)
+{
+    auto const idPidPair = idPidMap.find(app_id);
+    if (idPidPair != idPidMap.end()) {
+        auto const app_pid = idPidPair->second;
+
+        // Check if app's PID is still valid
+        auto const pidValid = bool{::kill(app_pid, 0) == 0};
+
+        return pidValid;
     } else {
         throw std::runtime_error("invalid app id: " + std::to_string(app_id));
     }
@@ -542,7 +556,7 @@ static pid_t forkExec(LaunchData const& launchData)
         // exec srun
         execvp(launchData.filepath.c_str(), argv.get());
         perror("execvp");
-        exit(1);
+        _exit(1);
     }
 }
 
@@ -640,8 +654,23 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
         auto const utilPid = forkExec(launchData);
 
         registerUtilPID(appId, utilPid);
+
+        // If synchronous, wait for return code
         if (runMode == FE_daemon::Synchronous) {
-            ::waitpid(utilPid, nullptr, 0);
+            int status;
+            if (::waitpid(utilPid, &status, 0) < 0) {
+                return false;
+            }
+
+            if (WIFEXITED(status)) {
+                fprintf(stderr, "exited with code %d\n", WEXITSTATUS(status));
+            }
+
+            return bool{WIFEXITED(status) && (WEXITSTATUS(status) == 0)};
+
+        // Otherwise, report successful
+        } else {
+            return true;
         }
     });
 }
@@ -683,6 +712,8 @@ static void handle_ReleaseMPIR(int const reqFd, int const respFd)
         auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
         releaseMPIR(mpirId);
+
+        return true;
     });
 }
 
@@ -692,6 +723,8 @@ static void handle_TerminateMPIR(int const reqFd, int const respFd)
         auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
         terminateMPIR(mpirId);
+
+        return true;
     });
 }
 
@@ -713,6 +746,8 @@ static void handle_RegisterUtil(int const reqFd, int const respFd)
         auto const utilPid = rawReadLoop<pid_t>(reqFd);
 
         registerUtilPID(appId, utilPid);
+
+        return true;
     });
 }
 
@@ -722,20 +757,29 @@ static void handle_DeregisterApp(int const reqFd, int const respFd)
         auto const appId = rawReadLoop<DAppId>(reqFd);
 
         deregisterAppID(appId);
+
+        return true;
+    });
+}
+
+static void handle_CheckApp(int const reqFd, int const respFd)
+{
+    tryWriteOKResp(respFd, [&]() {
+        auto const appId = rawReadLoop<DAppId>(reqFd);
+
+        return checkAppID(appId);
     });
 }
 
 static void handle_Shutdown(int const reqFd, int const respFd)
 {
-    tryWriteOKResp(respFd, [&]() {
-        // send OK response
-        rawWriteLoop(respFd, OKResp
-            { .type = RespType::OK
-            , .success = true
-        });
-
-        shutdown_and_exit(0);
+    // send OK response
+    rawWriteLoop(respFd, OKResp
+        { .type = RespType::OK
+        , .success = true
     });
+
+    shutdown_and_exit(0);
 }
 
 
@@ -860,6 +904,10 @@ main(int argc, char *argv[])
 
             case ReqType::DeregisterApp:
                 handle_DeregisterApp(reqFd, respFd);
+                break;
+
+            case ReqType::CheckApp:
+                handle_CheckApp(reqFd, respFd);
                 break;
 
             case ReqType::Shutdown:

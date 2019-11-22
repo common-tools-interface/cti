@@ -87,6 +87,7 @@ public: // inherited interface
 
     MOCK_CONST_METHOD0(getExtraFiles, std::vector<std::string>(void));
 
+    MOCK_CONST_METHOD0(isRunning,   bool(void));
     MOCK_CONST_METHOD0(getNumPEs,   size_t(void));
     MOCK_CONST_METHOD0(getNumHosts, size_t(void));
     MOCK_CONST_METHOD0(getHostnameList,   std::vector<std::string>(void));
