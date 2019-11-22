@@ -17,4 +17,5 @@ sles15PremiumPE {
     timeout = 15
     product = "pe-base"
     receiveEvent = ["cdst_support-complete"]
+    sendEvents = ["cti-complete"]
 }
