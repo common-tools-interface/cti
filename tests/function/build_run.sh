@@ -18,6 +18,11 @@ EXEC_DIR=$FUNCTION_DIR
 #RUNNING AS PART OF NIGHTLY TESTING?
 NIGHTLY_TEST=false
 
+# take an argument as a single test to run
+if [[ $# -eq 1 ]] ; then
+    ONE_TEST=":"$1
+fi
+
 
 ########################################################
 # This function is designed to ensure python is        #
@@ -197,11 +202,7 @@ run_tests() {
             echo "srun exists so configuring non-whitebox launcher settings..."
             export MPICH_SMP_SINGLE_COPY_OFF=0
         fi
-        if [ "$ON_WHITEBOX" = true ] ; then
-            ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py --mux-yaml ./avocado_test_params.yaml
-        else
-            ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py --mux-yaml ./avocado_test_params.yaml
-        fi
+        ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py${ONE_TEST} --mux-yaml ./avocado_test_params.yaml
     else
         echo "No avocado environment setup. Cannot execute tests"
         return 1
