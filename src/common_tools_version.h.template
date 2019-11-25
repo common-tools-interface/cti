@@ -1,0 +1,108 @@
+/******************************************************************************\
+ * common_tools_verion.h - Version information for the common tools API
+ *
+ * Copyright 2011-2019 Cray Inc. All Rights Reserved.
+ *
+ * This software is available to you under a choice of one of two
+ * licenses.  You may choose to be licensed under the terms of the GNU
+ * General Public License (GPL) Version 2, available from the file
+ * COPYING in the main directory of this source tree, or the
+ * BSD license below:
+ *
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ ******************************************************************************/
+
+#ifndef _COMMON_TOOLS_VERSION_H
+#define _COMMON_TOOLS_VERSION_H
+
+/*
+ *  This file contains macros for defining the package and library
+ *  version of the common tools interface.
+ */
+
+/*
+ * Version of the common tools interface package in form 
+ * "major.minor.patch"
+ */
+#define CTI_PACKAGE_VERSION "<common_tool_major>.<common_tool_minor>.<revision>"
+
+/*
+ * Major version of the common tools interface. 
+*/
+#define CTI_PACKAGE_MAJOR <common_tool_major>
+
+/* 
+ * Minor version of the common tools inteface package.
+ */
+#define CTI_PACKAGE_MINOR <common_tool_minor>
+
+/*
+ * Patch revision of the common tools interface package.
+ */
+#define CTI_PACKAGE_REVISION <revision>
+
+/*
+ * Current version of the backend interface as defined by libtool.
+ * Note the value returned by cti_be_version is:
+ * CTI_BE_CURRENT-CTI_BE_AGE.CTI_BE_AGE.CTI_BE_REVISION.
+ */
+#define CTI_BE_CURRENT <be_current>
+
+/*
+ * Age of the backend interface as defined by libtool.  
+ * This version of the backend interface (as defined by CTI_BE_CURRENT)
+ * is backwards compatible with the previous CTI_BE_AGE versions.
+ */
+#define CTI_BE_AGE <be_age>
+
+/*
+ * Revison of the backend interface as defined by libtool.
+ * This corresponds to a patch number where a higher revision 
+ * indicates implementation changes with no change in the interface.
+ */
+#define CTI_BE_REVISION <revision>
+
+/*
+ * Current version of the frontend interface as defined by libtool.
+ * Note the value returned by cti_be_version is:
+ * CTI_BE_CURRENT-CTI_BE_AGE.CTI_BE_AGE.CTI_BE_REVISION.
+ */
+#define CTI_FE_CURRENT <fe_current>
+
+/*
+ * Age of the frontend interface as defined by libtool.  
+ * This version of the frontend interface (as defined by CTI_BE_CURRENT)
+ * is backwards compatible with the previous CTI_BE_AGE versions.
+ */
+#define CTI_FE_AGE <fe_age>
+
+/*
+ * Revison of the frontend interface as defined by libtool.
+ * This corresponds to a patch number where a higher revision 
+ * indicates implementation changes with no change in the interface.
+ */
+#define CTI_FE_REVISION <revision>
+
+#endif /* _COMMON_TOOLS_VERSION_H */
+
