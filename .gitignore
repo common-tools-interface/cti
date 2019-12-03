@@ -36,6 +36,7 @@ src/frontend/daemon/cti_fe_daemon[0-9]*
 .scannerwork
 
 /stamp-h1
+include/stamp-h2
 tests/test_binaries
 tests/function/avocado-virtual-environment
 tests/function/basic_hello_mpi

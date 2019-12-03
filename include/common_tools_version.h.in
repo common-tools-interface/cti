@@ -45,64 +45,74 @@
  * Version of the common tools interface package in form 
  * "major.minor.patch"
  */
-#define CTI_PACKAGE_VERSION "<common_tool_major>.<common_tool_minor>.<revision>"
+#undef CTI_PACKAGE_VERSION
 
 /*
  * Major version of the common tools interface. 
 */
-#define CTI_PACKAGE_MAJOR <common_tool_major>
+#undef CTI_PACKAGE_MAJOR
 
 /* 
  * Minor version of the common tools inteface package.
  */
-#define CTI_PACKAGE_MINOR <common_tool_minor>
+#undef CTI_PACKAGE_MINOR
 
 /*
  * Patch revision of the common tools interface package.
  */
-#define CTI_PACKAGE_REVISION <revision>
+#undef CTI_PACKAGE_REVISION
+
+/*
+ * Version of the backend interface as a string.
+ *
+ * The value is "CTI_BE_CURRENT-CTI_BE_AGE.CTI_BE_AGE.CTI_BE_REVISION"
+ */
+#undef CTI_BE_VERSION
 
 /*
  * Current version of the backend interface as defined by libtool.
- * Note the value returned by cti_be_version is:
- * CTI_BE_CURRENT-CTI_BE_AGE.CTI_BE_AGE.CTI_BE_REVISION.
  */
-#define CTI_BE_CURRENT <be_current>
+#undef CTI_BE_CURRENT
 
 /*
  * Age of the backend interface as defined by libtool.  
  * This version of the backend interface (as defined by CTI_BE_CURRENT)
  * is backwards compatible with the previous CTI_BE_AGE versions.
  */
-#define CTI_BE_AGE <be_age>
+#undef CTI_BE_AGE
 
 /*
  * Revison of the backend interface as defined by libtool.
  * This corresponds to a patch number where a higher revision 
  * indicates implementation changes with no change in the interface.
  */
-#define CTI_BE_REVISION <revision>
+#undef CTI_BE_REVISION
+
+/*
+ * Version of the frontend interface as a string.
+ *
+ * The value is "CTI_FE_CURRENT-CTI_FE_AGE.CTI_FE_AGE.CTI_FE_REVISION"
+ */
+#undef CTI_FE_VERSION
 
 /*
  * Current version of the frontend interface as defined by libtool.
- * Note the value returned by cti_be_version is:
- * CTI_BE_CURRENT-CTI_BE_AGE.CTI_BE_AGE.CTI_BE_REVISION.
  */
-#define CTI_FE_CURRENT <fe_current>
+#undef CTI_FE_CURRENT
 
 /*
  * Age of the frontend interface as defined by libtool.  
  * This version of the frontend interface (as defined by CTI_BE_CURRENT)
  * is backwards compatible with the previous CTI_BE_AGE versions.
  */
-#define CTI_FE_AGE <fe_age>
+#undef CTI_FE_AGE
 
 /*
  * Revison of the frontend interface as defined by libtool.
  * This corresponds to a patch number where a higher revision 
  * indicates implementation changes with no change in the interface.
  */
-#define CTI_FE_REVISION <revision>
+#undef CTI_FE_REVISION
 
 #endif /* _COMMON_TOOLS_VERSION_H */
 

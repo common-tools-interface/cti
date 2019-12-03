@@ -42,6 +42,7 @@
 #include <fcntl.h>
 
 #include "cti_be_unit_test.hpp"
+#include "common_tools_version.h"
 
 using ::testing::Return;
 using ::testing::_;
@@ -73,6 +74,31 @@ TEST_F(CTIBeUnitTest, cti_be_current_wlmNone)
 
 TEST_F(CTIBeUnitTest, cti_be_versionNone)
 {
+    const char* cti_package_version_str = CTI_PACKAGE_VERSION;
+    int cti_package_major = CTI_PACKAGE_MAJOR;
+    int cti_package_minor = CTI_PACKAGE_MINOR;
+    int cti_package_revision = CTI_PACKAGE_REVISION;
+    const char* cti_be_version_str = CTI_BE_VERSION;
+    int cti_be_current = CTI_BE_CURRENT;
+    int cti_be_age = CTI_BE_AGE;
+    int cti_be_revision = CTI_BE_REVISION;
+    const char* cti_fe_version_str = CTI_FE_VERSION;
+    int cti_fe_current = CTI_FE_CURRENT;
+    int cti_fe_age = CTI_FE_AGE;
+    int cti_fe_revision = CTI_FE_REVISION;
+
+    ASSERT_GE(cti_package_major, 0);
+    ASSERT_GE(cti_package_minor, 0);
+    ASSERT_GE(cti_package_revision, 0);
+    ASSERT_GE(cti_be_current, 0);
+    ASSERT_GE(cti_be_age, 0);
+    ASSERT_LE(cti_be_age, cti_be_current);
+    ASSERT_GE(cti_be_revision, 0);
+    ASSERT_GE(cti_be_current, 0);
+    ASSERT_GE(cti_be_age, 0);
+    ASSERT_LE(cti_be_age, cti_be_current);
+    ASSERT_GE(cti_be_revision,0);
+
     ASSERT_NE(cti_be_version(), nullptr);
 }
 
