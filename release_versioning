@@ -38,23 +38,16 @@
 # --------------------------
 # current, revision, and age are a libtools concept. They are completely
 # orthogonal to the Cray release version system (which correlates with
-# the module name (e.g. cray-cti/1.0.1)), but intertwine with the DSO file
-# names.
+# the module name (e.g. cray-cti/1.0.1))
 #
 # Libtools flag: -version-info <current>:<revision>:<age>
 #
-# I am not sure where 'current' shows up, but it is to be incremented
-# for any change to the API (and revision zeroed). I think of this as
-# being the most recent API definition.
-#
-# 'revision' should be incremented for any source change whatsoever.
-# I think of this as a count of any type of change since the last
-# incompatible change (i.e, 'current' was incremented).
-#
-# 'age' should be incremented if any interfaces have been added, but
-# zeroed if interfaces were removed or changed. I think if this as a
-# count of API extensions since the last incompatible change (i.e,
-# 'current' was incremented).
+# 'current' combines the roles of major and minor versions so it updated
+# every time the API changes.
+# 'age' is the number of previous versions that the current version is 
+# backward compatible with.   So normally age == minor version
+# 'revision' tracks the *internal* changes of the library, so should be 
+# updated whenever the binaries change in any way.
 #
 # The following explanation may help to understand the above rules a
 # bit better: consider that there are three possible kinds of reactions
@@ -74,26 +67,35 @@
 # 3. Programs may need to be changed, recompiled, and relinked in order to use
 #    the new version. Bump current, set revision and age to 0.
 #
-# DSO FILE NAMES:
-# ---------------
-# The file names of the DSO files are:
-#    libcommontools_fe.so.<fe_current>.<fe_revision>.<fe_age>
-#    libcommontools_be.so.<be_current>.<be_revision>.<be_age>
-#
 # RELEASE VERSION
 # ---------------
 # The traditional release version is tracked by the three digit
 # common_tool_major.common_tool_minor.common_tool_revision string.
 #
+# Note that both version are only updated once per release, not every time
+# a change is made.
+#
+# DSO FILE NAMES:
+# ---------------
+# The file names of the DSO files are ('-' = 'minus' not 'dash'):
+#    libcommontools_fe.so.fe_current-fe_age.fe_age.revision
+#    libcommontools_be.so.be_current-be_age.be_age.revision
+#
 # JENKINS INTEGRATION
 # -------------------
 # We now key off the BUILD_NUMBER environment variable from jenkins
-# to get the revision number. We hardcode the revision to "999" if the
+# to get the revision number. We hardcode the revision to "9999" if the
 # environment variable is not set.
+#
+#----- the rules in summary --------------------------------------------------
+# if the new release removes or changes an existing interface:
+#     increment common_tool_major, be_current and fe_current
+#     reset common_tool_minor, be_age and fe_age = 0
+# else if the new release adds new interface functions:
+#     increment common_tool_minor, be_current, be_age, fe_current and fe_age
+# else:
+#     leave the versions alone
 #==============================================================================
-
-# Jenkins will override this
-revision="9999"
 
 common_tool_major="2"
 common_tool_minor="0"
@@ -103,3 +105,8 @@ be_age="0"
 
 fe_current="2"
 fe_age="0"
+
+# Jenkins will override this
+revision="9999"
+
+

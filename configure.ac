@@ -14,7 +14,7 @@ AC_COPYRIGHT([Copyright 2011-2019 Cray Inc. All Rights Reserved.])
 AC_CONFIG_SRCDIR([src/cti_defs.h])
 AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_HEADERS([config.h include/common_tools_version.h])
 
 dnl Turn on Posix extensions
 AC_USE_SYSTEM_EXTENSIONS

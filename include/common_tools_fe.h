@@ -99,7 +99,9 @@ typedef int64_t cti_manifest_id_t;
  *      None.
  *
  * Returns
- *      A string containing the current frontend library version.
+ *      A string containing the current frontend library version in the form
+ *      major.minor.revision.   For a libtool current:revison:age format
+ *      major = current - age and minor = age.
  *
  */
 const char * cti_version(void);

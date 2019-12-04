@@ -74,8 +74,9 @@ typedef struct
  *      None.
  *
  * Returns
- *      A string containing the current backend library version.
- *
+ *      A string containing the current backend library version in the form 
+ *      major.minor.revision.   For a libtool current:revison:age format 
+ *      major = current - age and minor = age. 
  */
 const char * cti_be_version(void);
 
