@@ -47,6 +47,7 @@
 // dyninst processcontrol
 #include <PCProcess.h>
 #include <Event.h>
+#include <PlatFeatures.h>
 
 // #define DEBUG(str, x) do { str << x; } while (0)
 #define DEBUG(str, x)
@@ -92,6 +93,7 @@ private: // types
     using Process    = Dyninst::ProcControlAPI::Process;
     using Breakpoint = Dyninst::ProcControlAPI::Breakpoint;
     using Symtab     = Dyninst::SymtabAPI::Symtab;
+    using FollowFork = Dyninst::ProcControlAPI::FollowFork;
 
     using SymbolMap = std::map<std::string, Symbol*>;
 
@@ -100,6 +102,7 @@ private: // variables
     SignalGuard m_signalGuard;
 
     /* dyninst symbol / proc members */
+    FollowFork::follow_t m_followForkMode;
     std::unique_ptr<Symtab, decltype(&Symtab::closeSymtab)> m_symtab;
     SymbolMap m_symbols;
     Process::ptr m_proc;
