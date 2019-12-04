@@ -294,7 +294,7 @@ const char * cti_getAttribute(cti_attr_type_t attrib);
  * Detail
  *      This function is used to test if a cti_app_id_t is valid. An app_id
  *      becomes invalid for future use upon calling the cti_deregisterApp
- *      function.
+ *      function, or upon job completion.
  *
  * Arguments
  *      app_id - The cti_app_id_t of the previously registered application.
@@ -304,23 +304,6 @@ const char * cti_getAttribute(cti_attr_type_t attrib);
  *
  */
 int cti_appIsValid(cti_app_id_t app_id);
-
-/*
- * cti_appIsRunning - Test if a cti_app_id_t is still running.
- *
- * Detail
- *      This function is used to test if the application associated with a
- *      cti_app_id_t is still running. Applications can crash or quit without
- *      being deregistered from CTI.
- *
- * Arguments
- *      app_id - The cti_app_id_t of the previously registered application.
- *
- * Returns
- *      0 if the app_id is no longer running, 1 if the app_id is still running.
- *
- */
-int cti_appIsRunning(cti_app_id_t app_id);
 
 /*
  * cti_deregisterApp - Assists in cleaning up internal allocated memory
