@@ -89,6 +89,7 @@ struct cti_pids
 };
 
 /* wlm specific proto objects defined elsewhere */
+extern cti_wlm_proto_t	_cti_alps_wlmProto;
 extern cti_wlm_proto_t  _cti_slurm_wlmProto;
 extern cti_wlm_proto_t  _cti_generic_ssh_wlmProto;
 
@@ -471,6 +472,10 @@ main(int argc, char **argv)
     // log if asked to. We will error check below.
     switch (wlm_arg)
     {
+        case CTI_WLM_ALPS:
+            _cti_wlmProto = &_cti_alps_wlmProto;
+            break;
+
         case CTI_WLM_SLURM:
             _cti_wlmProto = &_cti_slurm_wlmProto;
             break;
@@ -572,6 +577,7 @@ main(int argc, char **argv)
     // Now ensure the user provided a valid wlm argument.
     switch (wlm_arg)
     {
+        case CTI_WLM_ALPS:
         case CTI_WLM_SLURM:
         case CTI_WLM_SSH:
             // These wlm are valid

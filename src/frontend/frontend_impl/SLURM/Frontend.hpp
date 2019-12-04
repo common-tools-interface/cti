@@ -56,11 +56,10 @@ struct SrunInfo : public cti_srunProc_t {
     }
 };
 
-class SLURMFrontend final : public Frontend
+class SLURMFrontend : public Frontend
 {
 public: // inherited interface
-    static char const* getName()        { return SLURM_WLM_TYPE_IMPL; }
-    static char const* getDescription() { return SLURM_WLM_TYPE_STRING; }
+    static char const* getName()        { return CTI_WLM_TYPE_SLURM_STR; }
     static bool isSupported();
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SLURM; }
@@ -156,6 +155,7 @@ public: // app interaction interface
 
     std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 
+    bool   isRunning()       const override;
     size_t getNumPEs()       const override { return m_stepLayout.numPEs;       }
     size_t getNumHosts()     const override { return m_stepLayout.nodes.size(); }
     std::vector<std::string> getHostnameList()   const override;
@@ -183,4 +183,10 @@ public: // constructor / destructor interface
     SLURMApp& operator=(const SLURMApp&) = delete;
     SLURMApp(SLURMApp&&) = delete;
     SLURMApp& operator=(SLURMApp&&) = delete;
+};
+
+class ApolloSLURMFrontend : public SLURMFrontend {
+public: // interface
+    static bool isSupported();
+    std::string getHostname() const override;
 };

@@ -26,6 +26,8 @@ m4/lt~obsolete.m4
 common_tools_be.pc
 common_tools_fe.pc
 
+include/common_tools_version.h
+
 src/backend/daemon/cti_be_daemon[0-9]*
 src/frontend/daemon/cti_fe_daemon[0-9]*
 
@@ -34,6 +36,7 @@ src/frontend/daemon/cti_fe_daemon[0-9]*
 .scannerwork
 
 /stamp-h1
+include/stamp-h2
 tests/test_binaries
 tests/function/avocado-virtual-environment
 tests/function/basic_hello_mpi
@@ -43,6 +46,7 @@ scripts/tmp
 **.lo
 **.la
 *~
+._*
 *.swp
 *.make
 *.cmake

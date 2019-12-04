@@ -87,6 +87,7 @@
  *      corresponding string for each of the cti_wlm_type_t defined below:
  *          CTI_WLM_SLURM set to "slurm"
  *          CTI_WLM_SSH set to "generic"
+ *          CTI_WLM_ALPS set to "alps"
  *
  */
 #define CTI_BASE_DIR_ENV_VAR        "CTI_INSTALL_DIR"
@@ -95,6 +96,13 @@
 #define CTI_CFG_DIR_ENV_VAR         "CTI_CFG_DIR"
 #define CTI_LAUNCHER_NAME_ENV_VAR   "CTI_LAUNCHER_NAME"
 #define CTI_WLM_IMPL_ENV_VAR        "CTI_WLM_IMPL"
+// CTI_WLM_TYPE_<type>_STR recognized by CTI_WLM_IMPL_ENV_VAR and corresponds
+// to values in the cti_wlm_type_t enum.
+// Note: users should not manualy set CTI_WLM_IMPL environment variable to
+// "none" or "mock" as these workload manager types are for internal use only.
+#define CTI_WLM_TYPE_SLURM_STR     	"slurm"
+#define CTI_WLM_TYPE_ALPS_STR       "alps"
+#define CTI_WLM_TYPE_SSH_STR   		"generic"
 
 #ifdef __cplusplus
 extern "C" {
@@ -108,7 +116,8 @@ typedef enum
     CTI_WLM_NONE,   // error/unitialized state
     CTI_WLM_MOCK,   // Used for unit testing
     CTI_WLM_SLURM,  // SLURM implementation
-    CTI_WLM_SSH     // Direct SSH implementation
+    CTI_WLM_SSH,    // Direct SSH implementation
+    CTI_WLM_ALPS    // ALPS implementation
 } cti_wlm_type_t;
 
 #ifdef __cplusplus

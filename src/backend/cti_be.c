@@ -47,6 +47,7 @@
 #include "cti_be.h"
 
 /* wlm specific proto objects defined elsewhere */
+extern cti_be_wlm_proto_t   _cti_be_alps_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_slurm_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_generic_ssh_wlmProto;
 
@@ -93,6 +94,10 @@ _cti_be_init(void)
     // verify that the wlm string is valid
     switch (atoi(wlm_str))
     {
+        case CTI_WLM_ALPS:
+            _cti_be_wlmProto = &_cti_be_alps_wlmProto;
+            break;
+
         case CTI_WLM_SLURM:
             _cti_be_wlmProto = &_cti_be_slurm_wlmProto;
             break;
@@ -158,11 +163,14 @@ cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
 {
     switch (wlm_type)
     {
+        case CTI_WLM_ALPS:
+            return CTI_WLM_TYPE_ALPS_STR;
+
         case CTI_WLM_SLURM:
-            return SLURM_WLM_TYPE_STRING;
+            return CTI_WLM_TYPE_SLURM_STR;
 
         case CTI_WLM_SSH:
-            return SSH_WLM_TYPE_STRING;
+            return CTI_WLM_TYPE_SSH_STR;
 
         case CTI_WLM_NONE:
         case CTI_WLM_MOCK:

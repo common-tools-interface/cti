@@ -132,6 +132,7 @@ public: // type definitions
         RegisterApp,
         RegisterUtil,
         DeregisterApp,
+        CheckApp,
 
         Shutdown
     };
@@ -191,7 +192,7 @@ public: // type definitions
     // Response types
 
     enum RespType : long {
-        // Shutdown, RegisterApp, RegisterUtil, ReleaseMPIR
+        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR
         OK,
 
         // ForkExecvpApp, ForkExecvpUtil
@@ -329,4 +330,7 @@ public:
     // fe_daemon will terminate all utilities belonging to app_pid and deregister app_pid.
     // Write an app deregister request to pipe, verify response
     void request_DeregisterApp(DaemonAppId app_id);
+
+    // Write an app run check request to pipe, return response
+    bool request_CheckApp(DaemonAppId app_id);
 };

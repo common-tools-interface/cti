@@ -18,4 +18,5 @@ pkgconfig_DATA = pkgconfig/common_tools_be.pc \
 
 
 include_HEADERS = include/common_tools_be.h include/common_tools_fe.h \
-				  include/common_tools_shared.h
+		 include/common_tools_shared.h include/common_tools_version.h
+

@@ -14,7 +14,7 @@ AC_COPYRIGHT([Copyright 2011-2019 Cray Inc. All Rights Reserved.])
 AC_CONFIG_SRCDIR([src/cti_defs.h])
 AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_HEADERS([config.h include/common_tools_version.h])
 
 dnl Turn on Posix extensions
 AC_USE_SYSTEM_EXTENSIONS
@@ -49,8 +49,17 @@ AX_CXX_COMPILE_STDCXX_17([noext])
 
 LT_INIT
 
-dnl This marco runs check for --enable-code-coverage
+dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENABLED, CODE_COVERAGE_CFLAGS, etc.
 AX_CODE_COVERAGE
+
+dnl Set external directory for libALPS headers (library will be dlopened at runtime)
+AC_SUBST([LIBALPS_HEADERS], [$COMMONTOOL_DIR/external/libalps_headers])
+SAVE_CPPFLAGS=$CPPFLAGS
+CPPFLAGS="-I$LIBALPS_HEADERS $CPPFLAGS"
+AC_CHECK_HEADERS([$LIBALPS_HEADERS/alps/apInfo.h],
+[],
+[AC_MSG_ERROR([Couldn't find libALPS headers])],
+[#include "alps/apInfo.h"])
 
 PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
 
@@ -217,6 +226,7 @@ AC_CONFIG_FILES([
     src/frontend/daemon/Makefile
     src/frontend/transfer/Makefile
     src/frontend/frontend_impl/Makefile
+    src/frontend/frontend_impl/ALPS/Makefile
     src/frontend/frontend_impl/SLURM/Makefile
     src/frontend/frontend_impl/GenericSSH/Makefile
     src/frontend/mpir_iface/Makefile

@@ -51,8 +51,7 @@ private: // Global state
     std::vector<char>   m_pwd_buf;
 
 public: // inherited interface
-    static char const* getName()        { return SSH_WLM_TYPE_IMPL; }
-    static char const* getDescription() { return SSH_WLM_TYPE_STRING; }
+    static char const* getName()        { return CTI_WLM_TYPE_SSH_STR; }
     static bool isSupported();
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SSH; }
@@ -126,6 +125,7 @@ public: // app interaction interface
 
     std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 
+    bool   isRunning()       const override;
     size_t getNumPEs()       const override { return m_stepLayout.numPEs;       }
     size_t getNumHosts()     const override { return m_stepLayout.nodes.size(); }
     std::vector<std::string> getHostnameList()   const override;

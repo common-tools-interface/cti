@@ -13,14 +13,16 @@
 
 # Path definitions
 %global cray_prefix /opt/cray/pe
-%global test_prefix /opt/cray/tests
+%global tests_prefix /opt/cray/tests
 
 #FIXME: This should be relocatable
 %global external_build_dir %{cray_prefix}/%{cray_product}/%{pkgversion}
+%global tests_source_dir %{_topdir}/../tests
 
 # modulefile definitions
 %global modulefile_name %{cray_name}
 %global devel_modulefile_name %{cray_name}%{pkgversion_separator}devel
+
 %global module_template_name %{modulefile_name}.module.template
 %global devel_module_template_name %{devel_modulefile_name}.module.template
 
@@ -116,6 +118,15 @@ Requires:   cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
 %description -n %{cray_name}%{pkgversion_separator}devel
 Development files for Cray Common Tools Interface
 
+%package -n %{cray_name}%{pkgversion_separator}tests
+Summary:    Cray Common Tools Interface test binariess
+Group:      Development
+Provides:   %{cray_name}%{pkgversion_separator}tests = %{pkgversion}
+Requires:   cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
+%description -n %{cray_name}%{pkgversion_separator}tests
+Test files for Cray Common Tools Interface
+
+
 %prep
 # Run q(uiet) with build directory name, c(reate) subdirectory, disable T(arball) unpacking
 %setup -q -n %{name} -c -T
@@ -149,6 +160,7 @@ Development files for Cray Common Tools Interface
 %{__cp} -a %{external_build_dir}/include/common_tools_be.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
 %{__cp} -a %{external_build_dir}/include/common_tools_fe.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
 %{__cp} -a %{external_build_dir}/include/common_tools_shared.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
+%{__cp} -a %{external_build_dir}/include/common_tools_version.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
 # libexec binaries
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_be_daemon%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
@@ -165,12 +177,46 @@ Development files for Cray Common Tools Interface
 %{__sed} 's|<CRAY_PREFIX>|%{cray_prefix}|g;s|<PKG_VERSION>|%{pkgversion}|g;s|<PE_PRODUCT>|%{cray_product}|g' %{SOURCE3} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 # Set default script into admin-pe
 # set_default scripts
-%{__sed} 's|<PREFIX>|%{prefix}|g;s|<CRAY_PRODUCT>|%{cray_product}|g;s|<VERSION>|%{pkgversion}|g;s|<MODULEFILE_NAME>|%{modulefile_name}|g' %{SOURCE2} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_product}_%{pkgversion}
-%{__sed} 's|<PREFIX>|%{prefix}|g;s|<CRAY_PRODUCT>|%{cray_product}|g;s|<VERSION>|%{pkgversion}|g;s|<MODULEFILE_NAME>|%{devel_modulefile_name}|g' %{SOURCE2} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_product}%{pkgversion_separator}devel_%{pkgversion}
+%{__sed} 's|<PREFIX>|%{prefix}|g;s|<CRAY_PRODUCT>|%{cray_product}|g;s|<VERSION>|%{pkgversion}|g;s|<MODULEFILE_NAME>|%{modulefile_name}|g' %{SOURCE2} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
+%{__sed} 's|<PREFIX>|%{prefix}|g;s|<CRAY_PRODUCT>|%{cray_product}|g;s|<VERSION>|%{pkgversion}|g;s|<MODULEFILE_NAME>|%{devel_modulefile_name}|g' %{SOURCE2} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
 # set_default into admin-pe
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}
-%{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_product}_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{cray_product}_%{pkgversion}
-%{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_product}%{pkgversion_separator}devel_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{cray_product}%{pkgversion_separator}devel_%{pkgversion}
+%{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
+%{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
+
+# Test files
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/scripts
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two
+
+%{__cp} -a %{tests_source_dir}/examples/cti_barrier ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_barrier
+%{__cp} -a %{tests_source_dir}/examples/cti_callback ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_callback
+%{__cp} -a %{tests_source_dir}/examples/cti_callback_daemon ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_callback_daemon
+%{__cp} -a %{tests_source_dir}/examples/cti_info ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_info
+%{__cp} -a %{tests_source_dir}/examples/cti_kill ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_kill
+%{__cp} -a %{tests_source_dir}/examples/cti_launch ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_launch
+%{__cp} -a %{tests_source_dir}/examples/cti_link ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_link
+%{__cp} -a %{tests_source_dir}/examples/cti_transfer ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_transfer
+%{__cp} -a %{tests_source_dir}/examples/cti_wlm ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_wlm
+%{__cp} -a %{tests_source_dir}/examples/testing.info ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/testing.info
+%{__cp} -a %{tests_source_dir}/function/avocado_test_params.yaml ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_test_params.yaml
+%{__cp} -a %{tests_source_dir}/function/avo_config.py ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/avo_config.py
+%{__cp} -a %{tests_source_dir}/function/function_tests ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/function_tests
+%{__cp} -a %{tests_source_dir}/function/hello_mpi_wait.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/hello_mpi_wait.c
+%{__cp} -a %{tests_source_dir}/function/avocado_tests.py ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_tests.py
+%{__cp} -a %{tests_source_dir}/function/build_run.sh ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/build_run.sh
+%{__cp} -a %{tests_source_dir}/function/hello_mpi.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/hello_mpi.c
+%{__cp} -a %{tests_source_dir}/scripts/validate_ssh.sh ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/scripts/validate_ssh.sh
+%{__cp} -a %{tests_source_dir}/test_support/inputFileData.txt ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/inputFileData.txt
+%{__cp} -a %{tests_source_dir}/test_support/one_print ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print
+%{__cp} -a %{tests_source_dir}/test_support/one_socket ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_socket
+%{__cp} -a %{tests_source_dir}/test_support/two_socket ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/two_socket
+%{__cp} -a %{tests_source_dir}/test_support/message_one/libmessage.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/libmessage.so
+%{__cp} -a %{tests_source_dir}/test_support/message_two/libmessage.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/libmessage.so
 
 # Touch the cray dynamic file list which will be populated/updated post-install
 touch ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
@@ -191,9 +237,9 @@ fi
 if [ "${RPM_INSTALL_PREFIX}" != "%{prefix}" ]
 then
     # Modulefile
-    %{__sed} -i "s|^\([[:space:]]*set CRAY_CTI_BASEDIR[[:space:]]*\)\(.*\)|\1${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}|" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
+    %{__sed} -i "s|^\([[:space:]]*set CTI_BASEDIR[[:space:]]*\)\(.*\)|\1${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}|" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
     # set default command
-    %{__sed} -i "s|^\(export CRAY_inst_dir=\).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_product}_%{pkgversion}
+    %{__sed} -i "s|^\(export CRAY_inst_dir=\).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
 else
     # Only call set_default if we are not relocating the rpm
     # Set as default if no default exists either because this is first install
@@ -203,9 +249,9 @@ else
     # or CRAY_INSTALL_DEFAULT=1 and previous default was deleted
     if [ "${CRAY_INSTALL_DEFAULT}" = "1" ] || [ ! -f ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/.version ]
     then
-        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_product}_%{pkgversion}
+        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
     else
-        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_product}_%{pkgversion} -cray_links_only
+        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion} -cray_links_only
     fi
     # Don't want to set LD_LIBRARY_PATH if we are not relocating since rpath was set properly
     %{__sed} -i "/^ prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
@@ -231,11 +277,12 @@ fi
 if [ "${RPM_INSTALL_PREFIX}" != "%{prefix}" ]
 then
     # Modulefile for the devel package
-    %{__sed} -i "s|^\([[:space:]]*set CRAY_CTI_BASEDIR[[:space:]]*\)\(.*\)|\1${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}|" ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
+    %{__sed} -i "s|^\([[:space:]]*set CTI_BASEDIR[[:space:]]*\)\(.*\)|\1${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}|" ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
     # pkg-config pc files
     find ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/lib/pkgconfig -name '*.pc' -exec %{__sed} -i "s|%{prefix}|${RPM_INSTALL_PREFIX}|g" {} \;
     # set default command
-    %{__sed} -i "s|^\(export CRAY_inst_dir=\).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_product}%{pkgversion_separator}devel_%{pkgversion}
+    %{__sed} -i "s|^\(export CRAY_inst_dir=\).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
+
     # dependency resolver
     %{__sed} -i "s|^\(set install_root \).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 else
@@ -244,9 +291,11 @@ else
     # or CRAY_INSTALL_DEFAULT=1 and previous default was deleted
     if [ "${CRAY_INSTALL_DEFAULT}" = "1" ] || [ ! -f ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}/.version ]
     then
-        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_product}%{pkgversion_separator}devel_%{pkgversion}
+        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
+
     else
-        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_product}%{pkgversion_separator}devel_%{pkgversion} -cray_links_only
+        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion} -cray_links_only
+
     fi
 fi
 
@@ -263,8 +312,8 @@ fi
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_fe.so*
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_be_daemon%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_fe_daemon%{pkgversion}
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_product}_%{pkgversion}
-%attr(755, root, root) %{prefix}/%{set_default_path}/%{set_default_command}_%{cray_product}_%{pkgversion}
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
+%attr(755, root, root) %{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
 %attr(755, root, root) %{prefix}/modulefiles/%{modulefile_name}/%{pkgversion}
 %attr(644, root, root) %verify(not md5 size mtime) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
 
@@ -272,9 +321,39 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_be.h
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_fe.h
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_shared.h
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_version.h
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig/common_tools_be.pc
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig/common_tools_fe.pc
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_product}%{pkgversion_separator}devel_%{pkgversion}
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
-%attr(755, root, root) %{prefix}/%{set_default_path}/%{set_default_command}_%{cray_product}%{pkgversion_separator}devel_%{pkgversion}
+%attr(755, root, root) %{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
 %attr(755, root, root) %{prefix}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
+
+%files -n %{cray_name}%{pkgversion_separator}tests
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_barrier
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_callback
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_callback_daemon
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_info
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_kill
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_launch
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_link
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_transfer
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_wlm
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/testing.info
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_test_params.yaml
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_tests.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/avo_config.py
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/build_run.sh
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/function_tests
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/hello_mpi.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/hello_mpi_wait.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/scripts/validate_ssh.sh
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/inputFileData.txt
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/libmessage.so
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/libmessage.so
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_socket
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/two_socket
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
+
+

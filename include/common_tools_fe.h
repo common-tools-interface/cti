@@ -99,7 +99,9 @@ typedef int64_t cti_manifest_id_t;
  *      None.
  *
  * Returns
- *      A string containing the current frontend library version.
+ *      A string containing the current frontend library version in the form
+ *      major.minor.revision.   For a libtool current:revison:age format
+ *      major = current - age and minor = age.
  *
  */
 const char * cti_version(void);
@@ -302,6 +304,23 @@ const char * cti_getAttribute(cti_attr_type_t attrib);
  *
  */
 int cti_appIsValid(cti_app_id_t app_id);
+
+/*
+ * cti_appIsRunning - Test if a cti_app_id_t is still running.
+ *
+ * Detail
+ *      This function is used to test if the application associated with a
+ *      cti_app_id_t is still running. Applications can crash or quit without
+ *      being deregistered from CTI.
+ *
+ * Arguments
+ *      app_id - The cti_app_id_t of the previously registered application.
+ *
+ * Returns
+ *      0 if the app_id is no longer running, 1 if the app_id is still running.
+ *
+ */
+int cti_appIsRunning(cti_app_id_t app_id);
 
 /*
  * cti_deregisterApp - Assists in cleaning up internal allocated memory
@@ -631,6 +650,83 @@ int cti_killApp(cti_app_id_t app_id, int signum);
  *
  */
 cti_wlm_type_t cti_open_ops(void **ops);
+
+/*-----------------------------------------------------------------------------
+ * cti_alps_ops extensions - Extensions for the ALPS WLM
+ *-----------------------------------------------------------------------------
+ * registerApid - Assists in registering the application ID of an already
+ *                running aprun application for use with the common tools
+ *                interface.
+ *
+ * Detail
+ *      This function is used for registering a valid aprun application that was
+ *      previously launched through external means for use with the tool
+ *      interface. It is recommended to use the built-in functions to launch
+ *      applications, however sometimes this is impossible (such is the case for
+ *      a debug attach scenario). In order to use any of the functions defined
+ *      in this interface, the apid of the aprun application must be
+ *      registered. This is done automatically when using the built-in functions
+ *      to launch applications. The apid can be obtained from apstat.
+ *
+ * Arguments
+ *      apid - The application ID of the aprun application to register.
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ *-----------------------------------------------------------------------------
+ * getApid - Obtain application ID of aprun process
+ *
+ * Detail
+ *      This function is used to obtain the apid of an existing aprun
+ *      application.
+ *
+ * Arguments
+ *      aprunPid - The PID of the aprun application to query.
+ *
+ * Returns
+ *      An ALPS application ID. 0 is returned on error.
+ *-----------------------------------------------------------------------------
+ * getAprunInfo - Obtain information about the aprun process
+ *
+ * Detail
+ *      This function is used to obtain the apid / launcher PID of an aprun
+ *      application based on the registered app_id. It is the caller's
+ *      responsibility to free the allocated storage with free() when it is no
+ *      longer needed.
+ *
+ * Arguments
+ *      appId -  The cti_app_id_t of the registered application.
+ *
+ * Returns
+ *      A cti_aprunProc_t pointer that contains the apid / launcher PID of aprun.
+ *      NULL is returned on error. The caller should free() the returned pointer
+ *      when finished using it.
+ *-----------------------------------------------------------------------------
+ * getAlpsOverlapOrdinal - 
+ *
+ * Detail
+ *
+ * Arguments
+ *      appId -  The cti_app_id_t of the registered application.
+ *
+ * Returns
+ *      -1 is returned on error.
+ *-----------------------------------------------------------------------------
+ */
+
+typedef struct
+{
+    uint64_t apid;
+    pid_t    aprunPid;
+} cti_aprunProc_t;
+
+typedef struct {
+    cti_app_id_t     (*registerApid)(uint64_t apid);
+    uint64_t         (*getApid)(pid_t aprunPid);
+    cti_aprunProc_t* (*getAprunInfo)(cti_app_id_t appId);
+    int              (*getAlpsOverlapOrdinal)(cti_app_id_t appId);
+} cti_alps_ops_t;
 
 /*-----------------------------------------------------------------------------
  * cti_slurm_ops extensions - Extensions for the SLURM WLM

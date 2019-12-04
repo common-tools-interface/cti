@@ -14,9 +14,10 @@ AM_LIBTOOLFLAGS = --quiet
 
 lib_LTLIBRARIES = libcommontools_be.la
 
-libcommontools_be_la_SOURCES	= cti_be.c slurm_be.c pmi_attribs_parser.c generic_ssh_be.c \
+libcommontools_be_la_SOURCES	= cti_be.c alps_be.c slurm_be.c pmi_attribs_parser.c generic_ssh_be.c \
 								pmi_attribs_parser.h
-libcommontools_be_la_CFLAGS		= -I$(SRC) -I$(INCLUDE) -fPIC $(CODE_COVERAGE_CFLAGS) $(AM_CFLAGS)
+libcommontools_be_la_CFLAGS		= -I$(SRC) -I$(INCLUDE) -fPIC $(CODE_COVERAGE_CFLAGS) $(AM_CFLAGS) -I$(LIBALPS_HEADERS)
+
 libcommontools_be_la_LIBADD		= -ldl $(CODE_COVERAGE_LIBS)
 libcommontools_be_la_LDFLAGS	= -shared -Wl,--no-undefined -Wl,--as-needed \
 								-version-info $(COMMONTOOL_BE_VERSION) \
