@@ -142,7 +142,8 @@ public:
         try {
             return std::forward<FuncType>(func)();
         } catch (std::exception const& ex) {
-            set_error_str(caller + ": " + ex.what());
+            auto const message = std::string{ex.what() ? ex.what() : "(null error string)"};
+            set_error_str(caller + ": " + message);
             return onError;
         }
     }

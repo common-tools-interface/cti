@@ -41,8 +41,17 @@
 
 #include "Inferior.hpp"
 
-/* symtab helpers */
+/* process management helpers */
 
+static Dyninst::ProcControlAPI::FollowFork::follow_t disableGlobalFollowFork() {
+    using FollowFork = Dyninst::ProcControlAPI::FollowFork;
+
+    FollowFork::setDefaultFollowFork(FollowFork::DisableBreakpointsDetach);
+
+    return FollowFork::getDefaultFollowFork();
+}
+
+/* symtab helpers */
 static Dyninst::SymtabAPI::Symtab* make_Symtab(std::string const& binary) {
     using Symtab = Dyninst::SymtabAPI::Symtab;
 
@@ -66,10 +75,15 @@ Inferior::Inferior(std::string const& launcher,
     std::vector<std::string> const& launcherArgv,
     std::vector<std::string> const& envVars,
     std::map<int, int> const& remapFds)
-    : m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
+    : m_followForkMode{disableGlobalFollowFork()}
+    , m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
     , m_symbols{}
     , m_proc{Process::createProcess(launcher, launcherArgv, envVars, remapFds)}
 {
+    if (m_followForkMode != FollowFork::DisableBreakpointsDetach) {
+        throw std::runtime_error("failed to disable ProcessControl follow-fork mode");
+    }
+
     if (!m_proc) {
         throw std::runtime_error("failed to launch " + launcher);
     }
@@ -96,10 +110,15 @@ Inferior::Inferior(char const* launcher, char const* const launcherArgv[],
 {}
 
 Inferior::Inferior(std::string const& launcher, pid_t pid)
-    : m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
+    : m_followForkMode{disableGlobalFollowFork()}
+    , m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
     , m_symbols{}
     , m_proc(Process::attachProcess(pid, {}))
 {
+    if (m_followForkMode != FollowFork::DisableBreakpointsDetach) {
+        throw std::runtime_error("failed to disable ProcessControl follow-fork mode");
+    }
+
     if (!m_proc) {
         throw std::runtime_error("failed to attach to PID " + std::to_string(pid));
     }
