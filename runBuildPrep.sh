@@ -25,6 +25,26 @@ function check_exit_status(){
     fi
 }
 
+# Dynamically set repo path based on the branch
+branch_name=`git rev-parse --abbrev-ref HEAD`
+branch=`echo $branch_name | cut -d'/' -f1`
+child_dir=''
+parent_dir=''
+
+if [[ ! $branch == "master" && ! $branch == "release" ]]
+then
+  branch=master
+fi
+if [ $branch == "master" ]
+then 
+  parent_dir=dev
+  child_dir=$branch
+elif [ $branch == "release" ]
+then
+  parent_dir=$branch
+  child_dir=`echo $branch_name | cut -d'/' -f2`
+fi
+
 echo "############################################"
 echo "#             Installing deps              #"
 echo "############################################"
@@ -54,13 +74,13 @@ check_exit_status $? "zypper install in car-pe-base"
 
 zypper rr car-pe-base
 
-zypper addrepo http://car.dev.cray.com/artifactory/pe-base/PE-CDST/sle15_premium/x86_64/dev/master/ car-cdst-master
-check_exit_status $? "zypper addrepo car-cdst-master"
+zypper addrepo http://car.dev.cray.com/artifactory/pe-base/PE-CDST/sle15_premium/x86_64/$parent_dir/$branch/ car-cdst-$branch
+check_exit_status $? "zypper addrepo car-cdst-$branch"
 
 zypper --non-interactive --no-gpg-check install cray-cdst-support-devel
-check_exit_status $? "zypper install in car-cdst-master"
+check_exit_status $? "zypper install in car-cdst-$branch"
 
-zypper rr car-cdst-master
+zypper rr car-cdst-$branch
 
 echo "############################################"
 echo "#      Capturing Jenkins Env Vars          #"
