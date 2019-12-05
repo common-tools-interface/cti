@@ -27,7 +27,6 @@ function check_exit_status(){
 
 # Dynamically set repo path based on the branch
 branch_name=`git rev-parse --abbrev-ref HEAD`
-branch_name='release/pe-19.12'
 branch=`echo $branch_name | cut -d'/' -f1`
 parent_dir=''
 child_dir=''
