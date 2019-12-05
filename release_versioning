@@ -98,7 +98,7 @@
 #==============================================================================
 
 common_tool_major="2"
-common_tool_minor="0"
+common_tool_minor="9999"
 
 be_current="2"
 be_age="0"
