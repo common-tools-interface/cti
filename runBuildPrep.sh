@@ -27,9 +27,10 @@ function check_exit_status(){
 
 # Dynamically set repo path based on the branch
 branch_name=`git rev-parse --abbrev-ref HEAD`
+branch_name='release/pe-19.12'
 branch=`echo $branch_name | cut -d'/' -f1`
-child_dir=''
 parent_dir=''
+child_dir=''
 
 if [[ ! $branch == "master" && ! $branch == "release" ]]
 then
@@ -74,11 +75,11 @@ check_exit_status $? "zypper install in car-pe-base"
 
 zypper rr car-pe-base
 
-zypper addrepo http://car.dev.cray.com/artifactory/pe-base/PE-CDST/sle15_premium/x86_64/$parent_dir/$branch/ car-cdst-$branch
+zypper addrepo http://car.dev.cray.com/artifactory/pe-base/PE-CDST/sle15_premium/x86_64/$parent_dir/$child_dir/ car-cdst-$branch
 check_exit_status $? "zypper addrepo car-cdst-$branch"
 
 zypper --non-interactive --no-gpg-check install cray-cdst-support-devel
-check_exit_status $? "zypper install in car-cdst-$branch"
+check_exit_status $? "zypper install in car-cdst-deps"
 
 zypper rr car-cdst-$branch
 
