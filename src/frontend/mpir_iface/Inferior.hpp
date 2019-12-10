@@ -52,35 +52,6 @@
 // #define DEBUG(str, x) do { str << x; } while (0)
 #define DEBUG(str, x)
 
-/* RAII for signal blocking */
-class SignalGuard {
-    const int IGNORED_SIGNALS[13] {
-        64, 63, 39, 33, 32, SIGUSR1, SIGUSR2, SIGCONT, SIGTSTP,
-        SIGCHLD, SIGPROF, SIGALRM, SIGVTALRM
-    };
-
-public:
-    SignalGuard() {
-        struct sigaction ignore_action { SIG_IGN };
-
-        for (auto sig : IGNORED_SIGNALS) {
-            if (sigaction(sig, &ignore_action, NULL) == -1) {
-                DEBUG(std::cerr, "failed to block signal " << sig << std::endl);
-            }
-        }
-    }
-
-    ~SignalGuard() {
-        struct sigaction default_action { SIG_DFL };
-
-        for (auto sig : IGNORED_SIGNALS) {
-            if (sigaction(sig, &default_action, NULL) == -1) {
-                DEBUG(std::cerr, "failed to unblock signal " << sig << std::endl);
-            }
-        }
-    }
-};
-
 /* inferior: manages dyninst process info, symbols, breakpoints */
 
 class Inferior {
@@ -98,9 +69,6 @@ private: // types
     using SymbolMap = std::map<std::string, Symbol*>;
 
 private: // variables
-    /* block signals during MPIR control of process */
-    SignalGuard m_signalGuard;
-
     /* dyninst symbol / proc members */
     FollowFork::follow_t m_followForkMode;
     std::unique_ptr<Symtab, decltype(&Symtab::closeSymtab)> m_symtab;
