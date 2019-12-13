@@ -129,6 +129,9 @@ public: // type definitions
         ReleaseMPIR,
         TerminateMPIR,
 
+        LaunchMPIRShim,
+        ReleaseMPIRShim,
+
         RegisterApp,
         RegisterUtil,
         DeregisterApp,
@@ -192,13 +195,13 @@ public: // type definitions
     // Response types
 
     enum RespType : long {
-        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR
+        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR, ReleaseMPIRShim
         OK,
 
         // ForkExecvpApp, ForkExecvpUtil
         ID,
 
-        // LaunchMPIR
+        // LaunchMPIR, LaunchMPIRShim
         MPIR,
     };
 
@@ -317,6 +320,17 @@ public:
     // fe_daemon will terminate a binary under mpir control.
     // Write an mpir release request to pipe, verify response
     void request_TerminateMPIR(DaemonAppId mpir_id);
+
+    // fe_daemon will launch the provided wrapper script, masquerading the MPIR shim utility
+    // as the provided launcher name in path. the launch is completed under MPIR control
+    // and proctable is extraced.
+    // Write an mpir launch request and parameters to pipe, return MPIR data including proctable
+    MPIRResult request_LaunchMPIRShim(char const* scriptPath, char const* shimmedLauncherPath,
+        char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
+
+    // fe_daemon will release a binary under mpir shim control from its breakpoint.
+    // Write an mpir release request to pipe, verify response
+    void request_ReleaseMPIRShim(DaemonAppId mpir_id);
 
     // fe_daemon will register an already-forked process as an app. make sure this is paired with a
     // _cti_deregisterApp for timely cleanup.
