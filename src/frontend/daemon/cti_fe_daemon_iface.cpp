@@ -200,7 +200,11 @@ FE_daemon::~FE_daemon()
         m_init = false;
         // This should be the only way to call ReqType::Shutdown
         rawWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
-        verifyOKResp(m_resp_sock.getReadFd());
+        try {
+            verifyOKResp(m_resp_sock.getReadFd());
+        } catch (...) {
+            fprintf(stderr, "warning: daemon shutdown failed\n");
+        }
     }
     // FIXME: Shouldn't this do a waitpid???
 }
@@ -332,6 +336,24 @@ void
 FE_daemon::request_TerminateMPIR(DaemonAppId mpir_id)
 {
     rawWriteLoop(m_req_sock.getWriteFd(), ReqType::TerminateMPIR);
+    rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+    verifyOKResp(m_resp_sock.getReadFd());
+}
+
+FE_daemon::MPIRResult
+FE_daemon::request_LaunchMPIRShim(char const* scriptPath, char const* shimmedLauncherPath,
+    char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+{
+    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::LaunchMPIRShim);
+    writeLoop(m_req_sock.getWriteFd(), shimmedLauncherPath, strlen(shimmedLauncherPath) + 1);
+    writeLaunchData(m_req_sock.getWriteFd(), scriptPath, argv, stdin_fd, stdout_fd, stderr_fd, env);
+    return readMPIRResp(m_resp_sock.getReadFd());
+}
+
+void
+FE_daemon::request_ReleaseMPIRShim(DaemonAppId mpir_id)
+{
+    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ReleaseMPIRShim);
     rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
     verifyOKResp(m_resp_sock.getReadFd());
 }
