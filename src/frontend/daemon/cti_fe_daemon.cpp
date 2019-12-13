@@ -627,6 +627,43 @@ static void releaseMPIR(DAppId const mpir_id)
     }
 }
 
+static FE_daemon::MPIRResult readMPIRShimResult(int const shimOutputFd)
+{
+    // read basic table information
+    auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(shimOutputFd);
+    if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.mpir_id < 0)) {
+        throw std::runtime_error("failed to read proctable response");
+    }
+
+    // fill in MPIR data excluding proctable
+    FE_daemon::MPIRResult result
+        { mpirResp.mpir_id
+        , mpirResp.launcher_pid
+        , mpirResp.job_id
+        , mpirResp.step_id
+        , {} // proctable
+    };
+    result.proctable.reserve(mpirResp.num_pids);
+
+    // set up pipe stream
+    cti::FdBuf shimOutputBuf{dup(shimOutputFd)};
+    std::istream shimOutputStream{&shimOutputBuf};
+
+    // fill in pid and hostname of proctable elements
+    for (int i = 0; i < mpirResp.num_pids; i++) {
+        MPIRProctableElem elem;
+        // read pid
+        elem.pid = rawReadLoop<pid_t>(shimOutputFd);
+        // read hostname
+        if (!std::getline(shimOutputStream, elem.hostname, '\0')) {
+            throw std::runtime_error("failed to read string");
+        }
+        result.proctable.emplace_back(std::move(elem));
+    }
+
+    return result;
+}
+
 static FE_daemon::MPIRResult launchMPIRShim(std::string const& shimmedLauncherPath,
     LaunchData const& launchData)
 {
@@ -635,7 +672,20 @@ static FE_daemon::MPIRResult launchMPIRShim(std::string const& shimmedLauncherPa
 
 static void releaseMPIRShim(DAppId const mpir_id)
 {
-    throw std::runtime_error("not implemented: releaseMPIRShim");
+    auto const idShimPidPair = mpirShimMap.find(mpir_id);
+    if (idShimPidPair != mpirShimMap.end()) {
+        auto const shimPid = idShimPidPair->second;
+
+        // Continue shim from breakpoint
+        if (::kill(SIGCONT, shimPid)) {
+            throw std::runtime_error("failed to continue MPIR shim PID " + std::to_string(shimPid));
+        }
+
+        // Remove from active shim map
+        mpirShimMap.erase(idShimPidPair);
+    } else {
+        throw std::runtime_error("mpir shim id not found: " + std::to_string(mpir_id));
+    }
 }
 
 static void terminateMPIR(DAppId const mpir_id)
