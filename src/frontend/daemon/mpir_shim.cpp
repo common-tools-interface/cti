@@ -10,19 +10,8 @@
 #include <memory>
 #include <vector>
 
-#include "MPIRInstance.hpp"
-
-#include "useful/cti_wrappers.hpp"
-
-/* use launcher MPIR interface to output the following:
-<number of job process elements>
-<pid of process 0>
-<hostname where process 0 resides>
-...
-<pid of process N>
-<hostname where process N resides>
-<NEWLINE>
-*/
+#include "frontend/mpir_iface/MPIRInstance.hpp"
+#include "cti_fe_daemon_iface.hpp"
 
 /*
  * Client scripts can read this data in until a newline is encountered. At
@@ -32,77 +21,57 @@
  * After continuing, the target program's output will be sent to standard out / standard error.
 */
 
-void usage(char const* argv[], int return_code) {
-	std::cerr << "usage: " << argv[0] << " --launcher_path=<launcher path> <launcher args>" << std::endl;
-	std::cerr << "       " << argv[0] << " --attach_pid=<target pid>" << std::endl;
-	exit(return_code);
-}
-
-static auto parse_argv(int argc, char const* argv[])
+static auto parse_from_env(int argc, char const* argv[])
 {
-	std::string launcherPath;
+	auto outputFd = int{-1};
+	auto launcherPath = std::string{};
 	std::vector<std::string> launcherArgv;
-	pid_t attachPid = 0;
 
-	// parse arguments with getopt
-	optind = 0;
-	static struct option long_options[] = {
-		{"launcher_path", required_argument, 0, 'l'},
-		{"attach_pid",    required_argument, 0, 'a'},
-		{"help", no_argument, 0, 'h'},
-		{nullptr, 0, nullptr, 0}
-	};
-
-	// parse arguments with getopt
-	int ch; int option_index;
-	while ((ch = getopt_long(argc, (char* const*)argv, "l:a:h", long_options, &option_index)) != -1) {
-		switch (ch) {
-		case 'l': // launch
-			launcherPath = std::string(optarg);
-			break;
-		case 'a': // attach
-			attachPid = std::stoi(optarg);
-			break;
-		case 'h':
-			usage(argv, 0);
-		case '?':
-		default:
-			usage(argv, 1);
-		}
+	if (auto const rawOutputFd     = ::getenv("CTI_MPIR_SHIM_OUTPUT_FD")) {
+		outputFd = std::stoi(rawOutputFd);
+	}
+	if (auto const rawLauncherPath = ::getenv("CTI_MPIR_LAUNCHER_PATH")) {
+		launcherPath = std::string{rawLauncherPath};
 	}
 
-	// leftover is launcher arguments
 	launcherArgv = {launcherPath};
-	for (int i = optind; i < argc; i++) {
+	for (int i = 0; i < argc; i++) {
 		launcherArgv.push_back(argv[i]);
 	}
 
-	return std::make_tuple(launcherPath, launcherArgv, attachPid);
+	return std::make_tuple(outputFd, launcherPath, launcherArgv);
 }
 
 int main(int argc, char const* argv[])
 {
 	// Parse and verify arguments
-	auto const [launcherPath, launcherArgv, attachPid] = parse_argv(argc, argv);
-	auto const launchMode = (!launcherPath.empty() && !launcherArgv.empty() && !attachPid);
-	auto const attachMode = ( launcherPath.empty() &&  launcherArgv.empty() &&  attachPid);
-	if (!launchMode && !attachMode) {
-		usage(argv, 1);
+	auto const [outputFd, launcherPath, launcherArgv] = parse_from_env(argc, argv);
+	if (launcherPath.empty() || launcherArgv.empty()) {
+		exit(1);
 	}
 
-	// Create MPIR launch or attach instance based on arguments
-	auto mpirInstance = launchMode
-		? MPIRInstance{launcherPath, launcherArgv}
-		: MPIRInstance{cti::cstr::readlink("/proc/" + std::to_string(attachPid) + "/exe"), attachPid};
+	// Redirect output
+	if (STDOUT_FILENO != outputFd) {
+		::dup2(STDOUT_FILENO, outputFd);
+	}
 
-	// read and output num_pids, proctable
+	// Create MPIR launch instance based on arguments
+	auto mpirInstance = MPIRInstance{launcherPath, launcherArgv};
+
+	// send the MPIR data
 	auto const mpirProctable = mpirInstance.getProctable();
-	// num_pids followed by proctable elements: proc pid newline hostname newline
-	fprintf(stdout, "%lu\n", mpirProctable.size());
+	rawWriteLoop(outputFd, FE_daemon::MPIRResp
+		{ .type     = FE_daemon::RespType::MPIR
+		, .mpir_id  = -1
+		, .launcher_pid = mpirInstance.getLauncherPid()
+		, .job_id   = 0
+		, .step_id  = 0
+		, .num_pids = static_cast<int>(mpirProctable.size())
+	});
 	for (auto&& [pid, hostname] : mpirProctable) {
-		fprintf(stdout, "%d\n%s\n", pid, hostname.c_str());
+		rawWriteLoop(outputFd, pid);
+		writeLoop(outputFd, hostname.c_str(), hostname.length() + 1);
 	}
-	fprintf(stdout, "\n");
 
 	// STOP self, continue from MPIR_Breakpoint by sending SIGCONT
 	signal(SIGINT, SIG_IGN);
