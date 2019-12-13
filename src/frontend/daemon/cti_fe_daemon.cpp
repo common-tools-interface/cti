@@ -142,7 +142,8 @@ auto idPidMap = std::unordered_map<pid_t, DAppId>{};
 auto appList = ProcSet{};
 auto utilMap = std::unordered_map<DAppId, ProcSet>{};
 
-auto mpirMap = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
+auto mpirMap     = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
+auto mpirShimMap = std::unordered_map<DAppId, pid_t>{};
 
 // communication
 int reqFd  = -1; // incoming request pipe
@@ -598,8 +599,6 @@ static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& m
 
 static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 {
-    // TODO: this should instead open the path /proc/target_pid/fd/fileno as FDs
-    //       would not necessarily have been inherited during daemon setup
     std::map<int, int> const remapFds
         { { launchData.stdin_fd,  STDIN_FILENO  }
         , { launchData.stdout_fd, STDOUT_FILENO }
@@ -626,6 +625,17 @@ static void releaseMPIR(DAppId const mpir_id)
     } else {
         throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
     }
+}
+
+static FE_daemon::MPIRResult launchMPIRShim(std::string const& shimmedLauncherPath,
+    LaunchData const& launchData)
+{
+    throw std::runtime_error("not implemented: launchMPIRShim");
+}
+
+static void releaseMPIRShim(DAppId const mpir_id)
+{
+    throw std::runtime_error("not implemented: releaseMPIRShim");
 }
 
 static void terminateMPIR(DAppId const mpir_id)
@@ -722,6 +732,39 @@ static void handle_ReleaseMPIR(int const reqFd, int const respFd)
         auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
         releaseMPIR(mpirId);
+
+        return true;
+    });
+}
+
+static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
+{
+    tryWriteMPIRResp(respFd, [&]() {
+        // set up pipe stream
+        cti::FdBuf reqBuf{dup(reqFd)};
+        std::istream reqStream{&reqBuf};
+
+        // Read launcher path to shim
+        std::string shimmedLauncherPath;
+        if (!std::getline(reqStream, shimmedLauncherPath, '\0')) {
+            throw std::runtime_error("failed to read launcher path");
+        }
+
+        // Read MPIR launch data
+        auto const launchData = readLaunchData(reqFd);
+
+        auto const mpirData = launchMPIRShim(shimmedLauncherPath, launchData);
+
+        return mpirData;
+    });
+}
+
+static void handle_ReleaseMPIRShim(int const reqFd, int const respFd)
+{
+    tryWriteOKResp(respFd, [&]() {
+        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+
+        releaseMPIRShim(mpirId);
 
         return true;
     });
@@ -902,6 +945,14 @@ main(int argc, char *argv[])
 
             case ReqType::TerminateMPIR:
                 handle_TerminateMPIR(reqFd, respFd);
+                break;
+
+            case ReqType::LaunchMPIRShim:
+                handle_LaunchMPIRShim(reqFd, respFd);
+                break;
+
+            case ReqType::ReleaseMPIRShim:
+                handle_ReleaseMPIRShim(reqFd, respFd);
                 break;
 
             case ReqType::RegisterApp:
