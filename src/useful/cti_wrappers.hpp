@@ -120,6 +120,16 @@ namespace cstr {
         }
         return std::string{buf};
     }
+
+    // lifted basename
+    static inline std::string basename(std::string const& path) {
+        auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
+        if (auto const baseName = ::basename(rawPath.get())) {
+            return std::string(baseName);
+        } else {
+            throw std::runtime_error("basename failed on " + path);
+        }
+    }
 } /* namespace cti::cstr */
 
 namespace file {
