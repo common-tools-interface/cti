@@ -341,10 +341,14 @@ FE_daemon::request_TerminateMPIR(DaemonAppId mpir_id)
 }
 
 FE_daemon::MPIRResult
-FE_daemon::request_LaunchMPIRShim(char const* scriptPath, char const* shimmedLauncherPath,
-    char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+FE_daemon::request_LaunchMPIRShim(
+    char const* shimBinaryPath, char const* temporaryShimBinDir, char const* shimmedLauncherPath,
+    char const* scriptPath, char const* const argv[],
+    int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
     rawWriteLoop(m_req_sock.getWriteFd(), ReqType::LaunchMPIRShim);
+    writeLoop(m_req_sock.getWriteFd(), shimBinaryPath,      strlen(shimBinaryPath)      + 1);
+    writeLoop(m_req_sock.getWriteFd(), temporaryShimBinDir, strlen(temporaryShimBinDir) + 1);
     writeLoop(m_req_sock.getWriteFd(), shimmedLauncherPath, strlen(shimmedLauncherPath) + 1);
     writeLaunchData(m_req_sock.getWriteFd(), scriptPath, argv, stdin_fd, stdout_fd, stderr_fd, env);
     return readMPIRResp(m_resp_sock.getReadFd());

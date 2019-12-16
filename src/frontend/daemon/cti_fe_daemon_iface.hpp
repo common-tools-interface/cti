@@ -323,10 +323,12 @@ public:
 
     // fe_daemon will launch the provided wrapper script, masquerading the MPIR shim utility
     // as the provided launcher name in path. the launch is completed under MPIR control
-    // and proctable is extraced.
+    // and proctable is extraced. Provide path to mpir_shim binary and the temporary link location.
     // Write an mpir launch request and parameters to pipe, return MPIR data including proctable
-    MPIRResult request_LaunchMPIRShim(char const* scriptPath, char const* shimmedLauncherPath,
-        char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
+    MPIRResult request_LaunchMPIRShim(
+        char const* shimBinaryPath, char const* temporaryShimBinDir, char const* shimmedLauncherPath,
+        char const* scriptPath, char const* const argv[],
+        int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
     // fe_daemon will release a binary under mpir shim control from its breakpoint.
     // Write an mpir release request to pipe, verify response

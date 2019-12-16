@@ -59,6 +59,7 @@
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
+#include "useful/cti_wrappers.hpp"
 
 #include "frontend/mpir_iface/MPIRInstance.hpp"
 #include "cti_fe_daemon_iface.hpp"
@@ -344,6 +345,12 @@ struct LaunchData {
     std::vector<std::string> envList;
 };
 
+struct ShimData {
+    std::string shimBinaryPath;
+    std::string temporaryShimBinDir;
+    std::string shimmedLauncherPath;
+};
+
 // read stdin/out/err fds, filepath, argv, environment map appended to an app / util / mpir launch request
 static LaunchData readLaunchData(int const reqFd)
 {
@@ -627,7 +634,19 @@ static void releaseMPIR(DAppId const mpir_id)
     }
 }
 
-static FE_daemon::MPIRResult readMPIRShimResult(int const shimOutputFd)
+static void terminateMPIR(DAppId const mpir_id)
+{
+    auto const idInstPair = mpirMap.find(mpir_id);
+    if (idInstPair != mpirMap.end()) {
+        idInstPair->second->terminate();
+        mpirMap.erase(idInstPair);
+    } else {
+        throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+    }
+}
+
+
+static FE_daemon::MPIRResult readShimMPIRResult(int const shimOutputFd)
 {
     // read basic table information
     auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(shimOutputFd);
@@ -635,9 +654,11 @@ static FE_daemon::MPIRResult readMPIRShimResult(int const shimOutputFd)
         throw std::runtime_error("failed to read proctable response");
     }
 
+    auto const mpirId = registerAppPID(mpirResp.launcher_pid);
+
     // fill in MPIR data excluding proctable
     FE_daemon::MPIRResult result
-        { mpirResp.mpir_id
+        { mpirId
         , mpirResp.launcher_pid
         , mpirResp.job_id
         , mpirResp.step_id
@@ -664,10 +685,69 @@ static FE_daemon::MPIRResult readMPIRShimResult(int const shimOutputFd)
     return result;
 }
 
-static FE_daemon::MPIRResult launchMPIRShim(std::string const& shimmedLauncherPath,
-    LaunchData const& launchData)
+struct Dir
 {
-    throw std::runtime_error("not implemented: launchMPIRShim");
+    static constexpr auto mode755 = int{S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH};
+
+    std::string path;
+    Dir(std::string const& path_, int mode = mode755)
+        : path{path_}
+    {
+        if (::mkdir(path.c_str(), mode)) {
+            throw std::runtime_error("mkdir " + path + " failed: " + strerror(errno));
+        }
+    }
+
+    ~Dir()
+    {
+        if (::rmdir(path.c_str())) {
+            throw std::runtime_error("rmdir " + path + " failed: " + strerror(errno));
+        }
+    }
+};
+
+struct Link
+{
+    std::string linkPath;
+    Link(std::string const& fromPath, std::string const& toPath)
+        : linkPath{toPath}
+    {
+        if (::link(fromPath.c_str(), toPath.c_str())) {
+            throw std::runtime_error("link " + fromPath + " -> " + toPath + " failed: " + strerror(errno));
+        }
+    }
+    ~Link()
+    {
+        if (::unlink(linkPath.c_str())) {
+            throw std::runtime_error("unlink " + linkPath + " failed: " + strerror(errno));
+        }
+    }
+};
+
+static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData const& launchData)
+{
+    int shimPipe[2];
+    ::pipe(shimPipe);
+
+    auto modifiedLaunchData = launchData;
+
+    auto const shimmedLauncherName = cti::cstr::basename(shimData.shimmedLauncherPath);
+    auto const shimBinDir = Dir{shimData.temporaryShimBinDir};
+    auto const shimBinLink = Link{shimData.shimBinaryPath,
+        shimBinDir.path + "/" + shimmedLauncherName};
+
+    // Modify PATH in launchData
+    modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.path);
+
+    // Communicate output pipe and real launcher path to shim
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_INPUT_FD="  + std::to_string(shimPipe[0]));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_OUTPUT_FD=" + std::to_string(shimPipe[1]));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_LAUNCHER_PATH=" + shimData.shimmedLauncherPath);
+
+    auto const shimPid = forkExec(modifiedLaunchData);
+    close(shimPipe[1]);
+
+    return readShimMPIRResult(shimPipe[0]);
 }
 
 static void releaseMPIRShim(DAppId const mpir_id)
@@ -685,17 +765,6 @@ static void releaseMPIRShim(DAppId const mpir_id)
         mpirShimMap.erase(idShimPidPair);
     } else {
         throw std::runtime_error("mpir shim id not found: " + std::to_string(mpir_id));
-    }
-}
-
-static void terminateMPIR(DAppId const mpir_id)
-{
-    auto const idInstPair = mpirMap.find(mpir_id);
-    if (idInstPair != mpirMap.end()) {
-        idInstPair->second->terminate();
-        mpirMap.erase(idInstPair);
-    } else {
-        throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
     }
 }
 
@@ -794,16 +863,22 @@ static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
         cti::FdBuf reqBuf{dup(reqFd)};
         std::istream reqStream{&reqBuf};
 
-        // Read launcher path to shim
-        std::string shimmedLauncherPath;
-        if (!std::getline(reqStream, shimmedLauncherPath, '\0')) {
-            throw std::runtime_error("failed to read launcher path");
+        // Read shim setup data
+        ShimData shimData;
+        if (!std::getline(reqStream, shimData.shimBinaryPath, '\0')) {
+            throw std::runtime_error("failed to read shim binary path");
+        }
+        if (!std::getline(reqStream, shimData.temporaryShimBinDir, '\0')) {
+            throw std::runtime_error("failed to read temporary shim directory");
+        }
+        if (!std::getline(reqStream, shimData.shimmedLauncherPath, '\0')) {
+            throw std::runtime_error("failed to read shimmed launcher path");
         }
 
         // Read MPIR launch data
         auto const launchData = readLaunchData(reqFd);
 
-        auto const mpirData = launchMPIRShim(shimmedLauncherPath, launchData);
+        auto const mpirData = launchMPIRShim(shimData, launchData);
 
         return mpirData;
     });
