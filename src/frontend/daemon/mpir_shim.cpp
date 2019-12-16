@@ -23,10 +23,14 @@
 
 static auto parse_from_env(int argc, char const* argv[])
 {
+	auto inputFd  = int{-1};
 	auto outputFd = int{-1};
 	auto launcherPath = std::string{};
 	std::vector<std::string> launcherArgv;
 
+	if (auto const rawInputFd      = ::getenv("CTI_MPIR_SHIM_INPUT_FD")) {
+		inputFd = std::stoi(rawInputFd);
+	}
 	if (auto const rawOutputFd     = ::getenv("CTI_MPIR_SHIM_OUTPUT_FD")) {
 		outputFd = std::stoi(rawOutputFd);
 	}
@@ -39,21 +43,19 @@ static auto parse_from_env(int argc, char const* argv[])
 		launcherArgv.push_back(argv[i]);
 	}
 
-	return std::make_tuple(outputFd, launcherPath, launcherArgv);
+	return std::make_tuple(inputFd, outputFd, launcherPath, launcherArgv);
 }
 
 int main(int argc, char const* argv[])
 {
 	// Parse and verify arguments
-	auto const [outputFd, launcherPath, launcherArgv] = parse_from_env(argc, argv);
+	auto const [inputFd, outputFd, launcherPath, launcherArgv] = parse_from_env(argc, argv);
 	if (launcherPath.empty() || launcherArgv.empty()) {
 		exit(1);
 	}
 
-	// Redirect output
-	if (STDOUT_FILENO != outputFd) {
-		::dup2(STDOUT_FILENO, outputFd);
-	}
+	// Close unused pipe end
+	::close(inputFd);
 
 	// Create MPIR launch instance based on arguments
 	auto mpirInstance = MPIRInstance{launcherPath, launcherArgv};
@@ -72,6 +74,9 @@ int main(int argc, char const* argv[])
 		rawWriteLoop(outputFd, pid);
 		writeLoop(outputFd, hostname.c_str(), hostname.length() + 1);
 	}
+
+	// Close pipe
+	::close(outputFd);
 
 	// STOP self, continue from MPIR_Breakpoint by sending SIGCONT
 	signal(SIGINT, SIG_IGN);
