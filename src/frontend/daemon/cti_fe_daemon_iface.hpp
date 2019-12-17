@@ -112,8 +112,6 @@ public: // type definitions
     {
         DaemonAppId mpir_id;
         pid_t launcher_pid;
-        uint32_t job_id;
-        uint32_t step_id;
         MPIRProctable proctable;
     };
 
@@ -126,6 +124,7 @@ public: // type definitions
 
         LaunchMPIR,
         AttachMPIR,
+        ReadStringMPIR,
         ReleaseMPIR,
         TerminateMPIR,
 
@@ -184,9 +183,26 @@ public: // type definitions
         send PID of target utility
     */
 
+    // ReadStringMPIR
+    /*
+        send ID of target application
+        send string name of variable to read from memory
+    */
+
     // ReleaseMPIR
     /*
         send ID provided by LaunchMPIR request
+    */
+
+    // LaunchMPIRShim
+    /*
+        send path to shim binary, temporary shim link directory, launcher path to shim
+        send launch parameters as in LaunchMPIR
+    */
+
+    // ReleaseMPIRShim
+    /*
+        send ID of target application
     */
 
     // Shutdown
@@ -200,6 +216,9 @@ public: // type definitions
 
         // ForkExecvpApp, ForkExecvpUtil
         ID,
+
+        // ReadStringMPIR
+        String,
 
         // LaunchMPIR, LaunchMPIRShim
         MPIR,
@@ -217,13 +236,18 @@ public: // type definitions
         DaemonAppId id;
     };
 
+    struct StringResp
+    {
+        RespType type;
+        bool success;
+        // after sending this struct, send a null-terminated string value if successful
+    };
+
     struct MPIRResp
     {
         RespType type;
         DaemonAppId mpir_id;
         pid_t launcher_pid;
-        uint32_t job_id;
-        uint32_t step_id;
         int num_pids;
         // after sending this struct, send `num_pids` elements of:
         // - pid followed by null-terminated hostname
@@ -316,6 +340,10 @@ public:
     // fe_daemon will release a binary under mpir control from its breakpoint.
     // Write an mpir release request to pipe, verify response
     void request_ReleaseMPIR(DaemonAppId mpir_id);
+
+    // fe_daemon will read the value of a variable from memory under MPIR control.
+    // Write an mpir string read request to pipe, return value
+    std::string request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable);
 
     // fe_daemon will terminate a binary under mpir control.
     // Write an mpir release request to pipe, verify response

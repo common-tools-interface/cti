@@ -70,6 +70,7 @@ using ReqType  = FE_daemon::ReqType;
 using RespType = FE_daemon::RespType;
 using OKResp   = FE_daemon::OKResp;
 using IDResp   = FE_daemon::IDResp;
+using StringResp = FE_daemon::StringResp;
 using MPIRResp = FE_daemon::MPIRResp;
 
 static void
@@ -415,10 +416,11 @@ static LaunchData readLaunchData(int const reqFd)
         if (arg.empty()) {
             break;
         } else {
-            fprintf(stderr, "got arg: %s\n", arg.c_str());
+            fprintf(stderr, "%s ", arg.c_str());
             result.argvList.emplace_back(std::move(arg));
         }
     }
+    fprintf(stderr, "\n");
 
     // read env
     while (true) {
@@ -479,7 +481,33 @@ static void tryWriteIDResp(int const respFd, Func&& func)
         // send failure response
         rawWriteLoop(respFd, IDResp
             { .type = RespType::ID
-            , .id  = DAppId{-1}
+            , .id  = DAppId{0}
+        });
+    }
+}
+
+// if running the function succeeds, write a string response to pipe
+template <typename Func>
+static void tryWriteStringResp(int const respFd, Func&& func)
+{
+    try {
+        // run the string-producing function
+        auto const stringData = func();
+
+        // send the string data
+        rawWriteLoop(respFd, StringResp
+            { .type     = RespType::String
+            , .success  = true
+        });
+        writeLoop(respFd, stringData.c_str(), stringData.length() + 1);
+
+    } catch (std::exception const& ex) {
+        fprintf(stderr, "%s\n", ex.what());
+
+        // send failure response
+        rawWriteLoop(respFd, StringResp
+            { .type     = RespType::String
+            , .success  = false
         });
     }
 }
@@ -497,8 +525,6 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
             { .type     = RespType::MPIR
             , .mpir_id  = mpirData.mpir_id
             , .launcher_pid = mpirData.launcher_pid
-            , .job_id   = mpirData.job_id
-            , .step_id  = mpirData.step_id
             , .num_pids = static_cast<int>(mpirData.proctable.size())
         });
         for (auto&& elem : mpirData.proctable) {
@@ -512,7 +538,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
         // send failure response
         rawWriteLoop(respFd, MPIRResp
             { .type     = RespType::MPIR
-            , .mpir_id  = DAppId{-1}
+            , .mpir_id  = DAppId{0}
         });
     }
 }
@@ -580,14 +606,9 @@ static pid_t forkExec(LaunchData const& launchData)
 
 static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& mpirInst)
 {
-    // extract job/step ID
-    auto const rawJobId  = mpirInst->readStringAt("totalview_jobid");
-    auto const rawStepId = mpirInst->readStringAt("totalview_stepid");
-
     // create new app ID
     auto const launcherPid = mpirInst->getLauncherPid();
     auto const mpirId = registerAppPID(launcherPid);
-    fprintf(stderr, "jobId %s stepId %s new mpir id %d\n", rawJobId.c_str(), rawStepId.c_str(), mpirId);
 
     // extract proctable
     auto const proctable = mpirInst->getProctable();
@@ -598,8 +619,6 @@ static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& m
     return FE_daemon::MPIRResult
         { mpirId // mpir_id
         , launcherPid // launcher_pid
-        , static_cast<uint32_t>(std::stoul(rawJobId)) // job_id
-        , rawStepId.empty() ? 0 : static_cast<uint32_t>(std::stoul(rawStepId)) // step_id
         , proctable // proctable
     };
 }
@@ -634,6 +653,16 @@ static void releaseMPIR(DAppId const mpir_id)
     }
 }
 
+static std::string readStringMPIR(DAppId const mpir_id, std::string const& variable)
+{
+    auto const idInstPair = mpirMap.find(mpir_id);
+    if (idInstPair != mpirMap.end()) {
+        return idInstPair->second->readStringAt(variable);
+    } else {
+        throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+    }
+}
+
 static void terminateMPIR(DAppId const mpir_id)
 {
     auto const idInstPair = mpirMap.find(mpir_id);
@@ -650,7 +679,7 @@ static FE_daemon::MPIRResult readShimMPIRResult(int const shimOutputFd)
 {
     // read basic table information
     auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(shimOutputFd);
-    if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.mpir_id < 0)) {
+    if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.launcher_pid == 0)) {
         throw std::runtime_error("failed to read proctable response");
     }
 
@@ -660,8 +689,6 @@ static FE_daemon::MPIRResult readShimMPIRResult(int const shimOutputFd)
     FE_daemon::MPIRResult result
         { mpirId
         , mpirResp.launcher_pid
-        , mpirResp.job_id
-        , mpirResp.step_id
         , {} // proctable
     };
     result.proctable.reserve(mpirResp.num_pids);
@@ -895,11 +922,31 @@ static void handle_ReleaseMPIRShim(int const reqFd, int const respFd)
     });
 }
 
+static void handle_ReadStringMPIR(int const reqFd, int const respFd)
+{
+    tryWriteStringResp(respFd, [&]() {
+        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+
+        // set up pipe stream
+        cti::FdBuf reqBuf{dup(reqFd)};
+        std::istream reqStream{&reqBuf};
+
+        std::string variable;
+        if (!std::getline(reqStream, variable, '\0')) {
+            throw std::runtime_error("failed to read variable name");
+        }
+        fprintf(stderr, "read string '%s' from mpir id %d\n", variable.c_str(), mpirId);
+
+        return readStringMPIR(mpirId, variable);
+    });
+}
+
 static void handle_TerminateMPIR(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
         auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
+        fprintf(stderr, "terminating mpir id %d\n", mpirId);
         terminateMPIR(mpirId);
 
         return true;
@@ -1066,6 +1113,10 @@ main(int argc, char *argv[])
 
             case ReqType::ReleaseMPIR:
                 handle_ReleaseMPIR(reqFd, respFd);
+                break;
+
+            case ReqType::ReadStringMPIR:
+                handle_ReadStringMPIR(reqFd, respFd);
                 break;
 
             case ReqType::TerminateMPIR:
