@@ -4,7 +4,7 @@
 %global copyright Copyright 2010-2019 Cray Inc. All rights reserved.
 
 # RPM build time
-%global release_date %(date +%%B\\ %%e,\\ %%Y)
+%global release_date %(date +%%B\\ %%Y)
 
 %global cray_product_prefix cray-
 %global product cti
@@ -35,6 +35,10 @@
 # loading modules.
 %global cray_dependency_resolver set_pkgconfig_default_%{cray_name}
 %global cray_dependency_resolver_template_name %{cray_dependency_resolver}.template
+
+# lmod modulefiles
+%global lmod_template_cti template_%{product}.lua
+%global lmod_template_cti_pkgconfig template_set_pkgconfig_default_%{cray_name}.lua
 
 # release info
 %global release_info_name release_info
@@ -105,6 +109,8 @@ Source3:    %{cray_dependency_resolver_template_name}
 Source4:    %{release_info_template_name}
 Source5:    %{copyright_name}
 Source6:    %{attributions_name}
+Source7:    %{lmod_template_cti}
+Source8:    %{lmod_template_cti_pkgconfig}
 
 %description
 Cray Common Tools Interface %{pkgversion}
@@ -114,7 +120,7 @@ Certain components, files or programs contained within this package or product a
 Summary:    Cray Common Tools Interface development files
 Group:      Development
 Provides:   %{cray_name}%{pkgversion_separator}devel = %{pkgversion}
-Requires:   cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
+Requires:   set_default2, cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
 %description -n %{cray_name}%{pkgversion_separator}devel
 Development files for Cray Common Tools Interface
 
@@ -175,7 +181,6 @@ Test files for Cray Common Tools Interface
 %{__sed} 's|<PREFIX>|%{external_build_dir}|g;s|<CRAY_NAME>|%{cray_name}%{pkgversion_separator}devel|g;s|<CRAY_BASE_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g' %{SOURCE1} > ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
 # Cray PE dependency resolver
 %{__sed} 's|<CRAY_PREFIX>|%{cray_prefix}|g;s|<PKG_VERSION>|%{pkgversion}|g;s|<PE_PRODUCT>|%{cray_product}|g' %{SOURCE3} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
-# Set default script into admin-pe
 # set_default scripts
 %{__sed} 's|<PREFIX>|%{prefix}|g;s|<CRAY_PRODUCT>|%{cray_product}|g;s|<VERSION>|%{pkgversion}|g;s|<MODULEFILE_NAME>|%{modulefile_name}|g' %{SOURCE2} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
 %{__sed} 's|<PREFIX>|%{prefix}|g;s|<CRAY_PRODUCT>|%{cray_product}|g;s|<VERSION>|%{pkgversion}|g;s|<MODULEFILE_NAME>|%{devel_modulefile_name}|g' %{SOURCE2} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
@@ -183,7 +188,12 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}
 %{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
 %{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
-
+# lmod modulefile
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/%{cray_name}
+%{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE7} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/%{cray_name}/%{pkgversion}.lua 
+# lmod pkgconfig modulefile
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lmod
+%{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lmod/set_pkgconfig_default_%{cray_name}_%{pkgversion}.lua
 # Test files
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples
@@ -192,7 +202,6 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two
-
 %{__cp} -a %{tests_source_dir}/examples/cti_barrier ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_barrier
 %{__cp} -a %{tests_source_dir}/examples/cti_callback ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_callback
 %{__cp} -a %{tests_source_dir}/examples/cti_callback_daemon ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_callback_daemon
@@ -226,11 +235,21 @@ touch ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
 find ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion} -name '*.so*' > ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
 
 # Add Shasta configuration files for PE content projection
-if [ "${RPM_INSTALL_PREFIX}" = "%{cray_prefix}" ]; then
-    mkdir -p /etc/%{cray_prefix}/admin-pe/bindmount.conf.d/
-    mkdir -p /etc/%{cray_prefix}/admin-pe/modulepaths.conf.d/
-    echo "%{cray_prefix}/%{product}/%{pkgversion}" > /etc/%{cray_prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf
-    echo "%{cray_prefix}/modulefiles/%{modulefile_name}" > /etc/%{cray_prefix}/admin-pe/modulepaths.conf.d/%{modulefile_name}.conf
+if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
+    mkdir -p /etc/%{prefix}/admin-pe/bindmount.conf.d/
+    mkdir -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
+    echo "%{prefix}/%{product}/%{pkgversion}" > /etc/%{prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf
+    echo "%{prefix}/modulefiles/%{modulefile_name}" > /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{modulefile_name}.conf
+
+    mkdir -p %{prefix}/admin-pe/lmod_pkgconfig_default_files/
+    # Create a link to the lmod set default pkgconfig
+    if [ -L %{prefix}/admin-pe/lmod_pkgconfig_default_files/set_pkgconfig_default_%{cray_name}.lua ]
+    then
+      rm %{prefix}/admin-pe/lmod_pkgconfig_default_files/set_pkgconfig_default_%{cray_name}.lua
+    fi
+    /usr/bin/ln -s %{prefix}/%{cray_product}/%{pkgversion}/lmod/set_pkgconfig_default_%{cray_name}_%{pkgversion}.lua %{prefix}/admin-pe/lmod_pkgconfig_default_files/set_pkgconfig_default_%{cray_name}.lua
+
+    echo -e '#%Modulefile\r\nset  ModulesVersion "%{pkgversion}"' > %{prefix}/lmod/modulefiles/%{cray_name}/.version
 fi
 
 # Process relocations
@@ -241,26 +260,16 @@ then
     # set default command
     %{__sed} -i "s|^\(export CRAY_inst_dir=\).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
 else
-    # Only call set_default if we are not relocating the rpm
-    # Set as default if no default exists either because this is first install
-    # or CRAY_INSTALL_DEFAULT=1 and previous default was deleted
-    # Only call set_default if we are not relocating the rpm
-    # Set as default if no default exists either because this is first install
-    # or CRAY_INSTALL_DEFAULT=1 and previous default was deleted
-    if [ "${CRAY_INSTALL_DEFAULT}" = "1" ] || [ ! -f ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/.version ]
-    then
-        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
-    else
-        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion} -cray_links_only
-    fi
     # Don't want to set LD_LIBRARY_PATH if we are not relocating since rpath was set properly
     %{__sed} -i "/^ prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
+    # Set default - TCL
+    ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
 fi
 
 # run ldconfig for good measure
 if [ -w /etc/ld.so.cache ]
 then
-    if [[ ${RPM_INSTALL_PREFIX} = "%{cray_prefix}" ]]
+    if [[ ${RPM_INSTALL_PREFIX} = "%{prefix}" ]]
     then
         /sbin/ldconfig
     fi
@@ -268,9 +277,9 @@ fi
 
 %post -n %{cray_name}%{pkgversion_separator}devel
 # Add Shasta configuration files for PE content projection
-if [ "${RPM_INSTALL_PREFIX}" = "%{cray_prefix}" ]; then
-    mkdir -p /etc/%{cray_prefix}/admin-pe/modulepaths.conf.d/
-    echo "%{cray_prefix}/modulefiles/%{devel_modulefile_name}" > /etc/%{cray_prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
+if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
+    mkdir -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
+    echo "%{prefix}/modulefiles/%{devel_modulefile_name}" > /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
 fi
 
 # Process relocations
@@ -286,17 +295,8 @@ then
     # dependency resolver
     %{__sed} -i "s|^\(set install_root \).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 else
-    # Only call set_default if we are not relocating the rpm
-    # Set as default if no default exists either because this is first install
-    # or CRAY_INSTALL_DEFAULT=1 and previous default was deleted
-    if [ "${CRAY_INSTALL_DEFAULT}" = "1" ] || [ ! -f ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}/.version ]
-    then
-        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
-
-    else
-        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion} -cray_links_only
-
-    fi
+    # set default
+    ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}%{pkgversion_separator}devel_%{pkgversion}
 fi
 
 %postun
@@ -315,6 +315,9 @@ fi
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
 %attr(755, root, root) %{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
 %attr(755, root, root) %{prefix}/modulefiles/%{modulefile_name}/%{pkgversion}
+%attr(644, root, root) %{prefix}/lmod/modulefiles/%{cray_name}/%{pkgversion}.lua
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lmod/set_pkgconfig_default_%{cray_name}_%{pkgversion}.lua
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 %attr(644, root, root) %verify(not md5 size mtime) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
 
 %files -n %{cray_name}%{pkgversion_separator}devel
