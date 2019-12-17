@@ -64,10 +64,8 @@ int main(int argc, char const* argv[])
 	auto const mpirProctable = mpirInstance.getProctable();
 	rawWriteLoop(outputFd, FE_daemon::MPIRResp
 		{ .type     = FE_daemon::RespType::MPIR
-		, .mpir_id  = -1
+		, .mpir_id  = 0
 		, .launcher_pid = mpirInstance.getLauncherPid()
-		, .job_id   = 0
-		, .step_id  = 0
 		, .num_pids = static_cast<int>(mpirProctable.size())
 	});
 	for (auto&& [pid, hostname] : mpirProctable) {

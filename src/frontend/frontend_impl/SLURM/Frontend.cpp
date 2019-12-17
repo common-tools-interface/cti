@@ -71,8 +71,8 @@
 SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     : App(fe)
     , m_daemonAppId     { mpirData.mpir_id }
-    , m_jobId           { mpirData.job_id }
-    , m_stepId          { mpirData.step_id }
+    , m_jobId           { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_jobid")) }
+    , m_stepId          { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_stepid")) }
     , m_stepLayout      { fe.fetchStepLayout(m_jobId, m_stepId) }
     , m_beDaemonSent    { false }
 
@@ -87,17 +87,19 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
         throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
     }
 
-    // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
-    if (m_daemonAppId) {
-        // FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
-        // call can be removed. Right now the pmi_attribs file is created in the pmi
-        // ctor, which is called after the slurm startup barrier, meaning it will not
-        // yet be created when launching. So we need to send over a file containing
-        // the information to the compute nodes.
-        m_extraFiles.push_back(fe.createPIDListFile(mpirData.proctable, m_stagePath));
-    } else {
+    // Ensure application has been registered with daemon
+    if (!m_daemonAppId) {
         throw std::runtime_error("tried to create app with invalid daemon id: " + std::to_string(m_daemonAppId));
     }
+
+    // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
+
+    // FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
+    // call can be removed. Right now the pmi_attribs file is created in the pmi
+    // ctor, which is called after the slurm startup barrier, meaning it will not
+    // yet be created when launching. So we need to send over a file containing
+    // the information to the compute nodes.
+    m_extraFiles.push_back(fe.createPIDListFile(mpirData.proctable, m_stagePath));
 }
 
 SLURMApp::~SLURMApp()
@@ -107,10 +109,8 @@ SLURMApp::~SLURMApp()
         _cti_removeDirectory(m_stagePath.c_str());
     }
 
-    if (m_daemonAppId > 0) {
-        // Inform the FE daemon that this App is going away
-        m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
-    }
+    // Inform the FE daemon that this App is going away
+    m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
 }
 
 /* app instance creation */
@@ -127,8 +127,6 @@ static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t jobId, uint
             // request an MPIR session to extract proctable
             auto const mpirResult = fe.Daemon().request_LaunchMPIR(
                 sattachPath.get(), sattachArgv.get(), -1, -1, -1, nullptr);
-            // have the proctable, terminate SATTACh
-            fe.Daemon().request_TerminateMPIR(mpirResult.mpir_id);
 
             return mpirResult;
 
@@ -201,11 +199,6 @@ SLURMApp::getHostsPlacement() const
 /* running app interaction interface */
 
 void SLURMApp::releaseBarrier() {
-    // check MPIR barrier
-    if (!m_daemonAppId) {
-        throw std::runtime_error("app not under MPIR control");
-    }
-
     // release MPIR barrier
     m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
 }
@@ -801,8 +794,15 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
     if (auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
         // tell overwatch to extract information using MPIR attach
         auto const mpirData = Daemon().request_AttachMPIR(launcherPath.get(), srunPid);
+
+        // Get job and step ID via memory read
+        auto const jobId  = (uint32_t)std::stoi(Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_jobid"));
+        auto const stepId = (uint32_t)std::stoi(Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_stepid"));
+
+        // Release MPIR control
         Daemon().request_ReleaseMPIR(mpirData.mpir_id);
-        return SrunInfo { mpirData.job_id, mpirData.step_id };
+
+        return SrunInfo { jobId, stepId };
     } else {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }
