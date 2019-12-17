@@ -439,11 +439,11 @@ public: // Constructor/destructor
     }
 };
 
-GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance)
+GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     : App(fe)
-    , m_launcherPid { fe.Daemon().request_RegisterApp(launcherPid) }
-    , m_launcherInstance { std::move(launcherInstance) }
-    , m_stepLayout  { fe.fetchStepLayout(m_launcherInstance->getProctable()) }
+    , m_daemonAppId { mpirData.mpir_id }
+    , m_launcherPid { mpirData.launcher_pid }
+    , m_stepLayout  { fe.fetchStepLayout(mpirData.proctable) }
     , m_beDaemonSent { false }
     , m_toolPath    { SSH_TOOL_DIR }
     , m_attribsPath { SSH_TOOL_DIR }
@@ -455,10 +455,13 @@ GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::uni
         throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
     }
 
-    // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
-    if (m_launcherInstance) {
-        m_extraFiles.push_back(fe.createPIDListFile(m_launcherInstance->getProctable(), m_stagePath));
+    // Ensure application has been registered with daemon
+    if (!m_daemonAppId) {
+        throw std::runtime_error("tried to create app with invalid daemon id: " + std::to_string(m_daemonAppId));
     }
+
+    // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
+    m_extraFiles.push_back(fe.createPIDListFile(mpirData.proctable, m_stagePath));
 }
 
 GenericSSHApp::~GenericSSHApp()
@@ -469,7 +472,7 @@ GenericSSHApp::~GenericSSHApp()
     }
 
     // Inform the FE daemon that this App is going away
-    m_frontend.Daemon().request_DeregisterApp(m_launcherPid);
+    m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
 }
 
 /* app instance creation */
@@ -477,26 +480,15 @@ GenericSSHApp::~GenericSSHApp()
 GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid)
     : GenericSSHApp
         { fe
-        , launcherPid
 
         // MPIR attach to launcher
-        , std::make_unique<MPIRInstance>(
-
+        , fe.Daemon().request_AttachMPIR(
             // Get path to launcher binary
             cti::take_pointer_ownership(
                 _cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr),
                 std::free).get(),
-
             // Attach to existing launcherPid
             launcherPid)
-        }
-{}
-
-GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, std::unique_ptr<MPIRInstance>&& launcherInstance)
-    : GenericSSHApp
-        { fe
-        , launcherInstance->getLauncherPid()
-        , std::move(launcherInstance)
         }
 {}
 
@@ -525,7 +517,7 @@ GenericSSHApp::getLauncherHostname() const
 bool
 GenericSSHApp::isRunning() const
 {
-    return m_frontend.Daemon().request_CheckApp(m_launcherPid);
+    return m_frontend.Daemon().request_CheckApp(m_daemonAppId);
 }
 
 std::vector<std::string>
@@ -553,11 +545,8 @@ GenericSSHApp::getHostsPlacement() const
 void
 GenericSSHApp::releaseBarrier()
 {
-    // release MPIR barrier if applicable
-    if (!m_launcherInstance) {
-        throw std::runtime_error("app not under MPIR control");
-    }
-    m_launcherInstance.reset();
+    // release MPIR barrier
+    m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
 }
 
 void
@@ -826,54 +815,62 @@ GenericSSHFrontend::isSupported()
     return false;
 }
 
-std::unique_ptr<MPIRInstance>
-GenericSSHFrontend::launchApp(const char * const launcher_argv[],
-        int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[])
+static std::string
+getShimmedLauncherName(std::string const& launcherPath)
 {
-    // Open input file (or /dev/null to avoid stdin contention).
-    auto openFileOrDevNull = [&](char const* inputFile) {
-        int input_fd = -1;
-        if (inputFile == nullptr) {
-            inputFile = "/dev/null";
-        }
-        errno = 0;
-        input_fd = open(inputFile, O_RDONLY);
-        if (input_fd < 0) {
-            throw std::runtime_error("Failed to open input file " + std::string(inputFile) +": " + std::string(strerror(errno)));
-        }
+    if (cti::cstr::basename(launcherPath) == "mpirun") {
+        return "mpiexec.hydra";
+    }
 
-        return input_fd;
-    };
+    return "";
+}
 
+FE_daemon::MPIRResult
+GenericSSHFrontend::launchApp(const char * const launcher_argv[],
+        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[])
+{
     // Get the launcher path from CTI environment variable / default.
-    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr), std::free)) {
+    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
+        // set up arguments and FDs
+        if (inputFile == nullptr) { inputFile = "/dev/null"; }
+        if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
+        if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
 
-        /* construct argv array & instance*/
-        std::vector<std::string> launcherArgv{launcher_path.get()};
-        for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-            launcherArgv.emplace_back(*arg);
-        }
-
-        /* env_list null-terminated strings in format <var>=<val>*/
-        std::vector<std::string> envVars;
-        if (env_list != nullptr) {
-            for (const char* const* arg = env_list; *arg != nullptr; arg++) {
-                envVars.emplace_back(*arg);
-            }
-        }
-
-        // redirect stdout / stderr to /dev/null; use sattach to redirect the output instead
-        // note: when using SRUN as launcher, this output redirection doesn't work.
-        // see the SLURM implementation (need to use SATTACH after launch)
-        std::map<int, int> remapFds {
-            { openFileOrDevNull(inputFile), STDIN_FILENO }
+        // construct argv array & instance
+        cti::ManagedArgv launcherArgv
+            { launcher_path.get()
         };
-        if (stdout_fd >= 0) { remapFds[stdout_fd] = STDOUT_FILENO; }
-        if (stderr_fd >= 0) { remapFds[stderr_fd] = STDERR_FILENO; }
+        for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+            launcherArgv.add(*arg);
+        }
+
+        // Use MPIR shim if detected to be necessary
+        auto const shimmedLauncherName = getShimmedLauncherName(launcher_path.get());
+        if (!shimmedLauncherName.empty()) {
+            // Get the shim setup paths from the frontend instance
+            auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
+            auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
+            auto const shimmedLauncherPath = cti::take_pointer_ownership(_cti_pathFind(shimmedLauncherName.c_str(), nullptr), std::free);
+            if (shimmedLauncherPath == nullptr) {
+                throw std::runtime_error("Failed to find launcher in path: " +
+                    std::string{shimmedLauncherPath.get()});
+            }
+
+            // Launch script with MPIR shim.
+            return Daemon().request_LaunchMPIRShim(
+                shimBinaryPath.c_str(), temporaryShimBinDir.c_str(), shimmedLauncherPath.get(),
+                launcher_path.get(), launcherArgv.get(),
+                ::open(inputFile, O_RDONLY), stdoutFd, stderrFd,
+                env_list);
+        }
 
         // Launch program under MPIR control.
-        return std::make_unique<MPIRInstance>(launcher_path.get(), launcherArgv, envVars, remapFds);
+        return Daemon().request_LaunchMPIR(
+            launcher_path.get(), launcherArgv.get(),
+            ::open(inputFile, O_RDONLY), stdoutFd, stderrFd,
+            env_list);
+
     } else {
-        throw std::runtime_error("Failed to find launcher in path: " + GenericSSHFrontend::getLauncherName());
+        throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }
 }
