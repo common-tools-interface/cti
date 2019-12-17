@@ -187,11 +187,11 @@ shutdown_and_exit(int const rc)
     sigset_t block_set;
     memset(&block_set, 0, sizeof(block_set));
     if (sigfillset(&block_set)) {
-        perror("sigfillset");
+        fprintf(stderr, "sigfillset: %s\n", strerror(errno));
         exit(1);
     }
     if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
-        perror("sigprocmask");
+        fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
         exit(1);
     }
 
@@ -599,7 +599,7 @@ static pid_t forkExec(LaunchData const& launchData)
 
         // exec srun
         execvp(launchData.filepath.c_str(), argv.get());
-        perror("execvp");
+        fprintf(stderr, "execvp: %s", strerror(errno));
         _exit(1);
     }
 }
@@ -1050,38 +1050,43 @@ main(int argc, char *argv[])
         exit(1);
     }
 
-    // block all signals except SIGTERM, SIGCHLD, SIGPIPE, SIGTRAP, SIGHUP
+    // block all signals except noted
+    auto const handledSignals = std::vector<int>
+        { SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+        , SIGTRAP // used for Dyninst breakpoint events
+        , SIGTTIN // used for mpiexec job control
+
+        // mpiexec sends SIGSEGV if a job process segfaults, ignore it
+        , SIGSEGV
+    };
+
     sigset_t block_set;
     memset(&block_set, 0, sizeof(block_set));
     if (sigfillset(&block_set)) {
-        perror("sigfillset");
+        fprintf(stderr, "sigfillset: %s\n", strerror(errno));
         return 1;
     }
-    if (sigdelset(&block_set, SIGTERM) ||
-        sigdelset(&block_set, SIGCHLD) ||
-        sigdelset(&block_set, SIGPIPE) ||
-        sigdelset(&block_set, SIGTRAP) ||
-        sigdelset(&block_set, SIGHUP)) {
-        perror("sigdelset");
-        return 1;
+
+    for (auto&& signum : handledSignals) {
+        if (sigdelset(&block_set, signum)) {
+            fprintf(stderr, "sigdelset: %s\n", strerror(errno));
+            return 1;
+        }
     }
     if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
-        perror("sigprocmask");
+        fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
         return 1;
     }
 
-
-    // set handler for SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
-    // SIGTRAP is used by Dyninst for breakpoint events
+    // set handler for signals
     struct sigaction sig_action;
     sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
     sig_action.sa_sigaction = cti_fe_daemon_handler;
-    if (sigaction(SIGTERM, &sig_action, nullptr) ||
-        sigaction(SIGCHLD, &sig_action, nullptr) ||
-        sigaction(SIGPIPE, &sig_action, nullptr) ||
-        sigaction(SIGHUP,  &sig_action, nullptr)) {
-        perror("sigaction");
-        return 1;
+    for (auto&& signum : handledSignals) {
+        if (sigaction(signum, &sig_action, nullptr)) {
+            fprintf(stderr, "sigaction %d: %s\n", signum, strerror(errno));
+            return 1;
+        }
     }
 
     // write our PID to signal to the parent we are all set up
