@@ -42,7 +42,6 @@
 #include <sys/types.h>
 
 #include "frontend/Frontend.hpp"
-#include "mpir_iface/MPIRInstance.hpp"
 
 class GenericSSHFrontend final : public Frontend
 {
@@ -89,8 +88,8 @@ public: // ssh specific interface
     std::string createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath);
 
     // Launch an app under MPIR control and hold at barrier.
-    std::unique_ptr<MPIRInstance> launchApp(const char * const launcher_argv[],
-        int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+    FE_daemon::MPIRResult launchApp(const char * const launcher_argv[],
+        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
 public: // constructor / destructor interface
     GenericSSHFrontend();
@@ -107,8 +106,8 @@ public: // constructor / destructor interface
 class GenericSSHApp final : public App
 {
 private: // variables
+    FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     pid_t      m_launcherPid; // job launcher PID
-    std::unique_ptr<MPIRInstance> m_launcherInstance; // MPIR instance handle to release startup barrier
     GenericSSHFrontend::StepLayout m_stepLayout; // SSH Layout of job step
     bool       m_beDaemonSent; // Have we already shipped over the backend daemon?
 
@@ -140,12 +139,10 @@ public: // ssh specific interface
     /* none */
 
 private: // delegated constructor
-    GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance);
+    GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpirData);
 public: // constructor / destructor interface
-    // register case
-    GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid);
     // attach case
-    GenericSSHApp(GenericSSHFrontend& fe, std::unique_ptr<MPIRInstance>&& launcherInstance);
+    GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid);
     // launch case
     GenericSSHApp(GenericSSHFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
         const char *inputFile, const char *chdirPath, const char * const env_list[]);
