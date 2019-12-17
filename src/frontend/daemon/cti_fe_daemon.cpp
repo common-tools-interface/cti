@@ -733,17 +733,17 @@ struct Dir
     }
 };
 
-struct Link
+struct Softlink
 {
     std::string linkPath;
-    Link(std::string const& fromPath, std::string const& toPath)
+    Softlink(std::string const& fromPath, std::string const& toPath)
         : linkPath{toPath}
     {
-        if (::link(fromPath.c_str(), toPath.c_str())) {
+        if (::symlink(fromPath.c_str(), toPath.c_str())) {
             throw std::runtime_error("link " + fromPath + " -> " + toPath + " failed: " + strerror(errno));
         }
     }
-    ~Link()
+    ~Softlink()
     {
         if (::unlink(linkPath.c_str())) {
             throw std::runtime_error("unlink " + linkPath + " failed: " + strerror(errno));
@@ -760,11 +760,15 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
 
     auto const shimmedLauncherName = cti::cstr::basename(shimData.shimmedLauncherPath);
     auto const shimBinDir = Dir{shimData.temporaryShimBinDir};
-    auto const shimBinLink = Link{shimData.shimBinaryPath,
+    auto const shimBinLink = Softlink{shimData.shimBinaryPath,
         shimBinDir.path + "/" + shimmedLauncherName};
 
     // Modify PATH in launchData
-    modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.path);
+    auto const rawPath = ::getenv("PATH");
+    auto const existingPath = (rawPath != nullptr)
+        ? ":" + std::string{rawPath}
+        : "";
+    modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.path + existingPath);
 
     // Communicate output pipe and real launcher path to shim
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_INPUT_FD="  + std::to_string(shimPipe[0]));
