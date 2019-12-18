@@ -120,7 +120,7 @@ Certain components, files or programs contained within this package or product a
 Summary:    Cray Common Tools Interface development files
 Group:      Development
 Provides:   %{cray_name}%{pkgversion_separator}devel = %{pkgversion}
-Requires:   set_default2, cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
+Requires:   set_default_2, cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
 %description -n %{cray_name}%{pkgversion_separator}devel
 Development files for Cray Common Tools Interface
 
