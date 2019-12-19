@@ -645,11 +645,37 @@ static FE_daemon::MPIRResult attachMPIR(std::string const& launcherPath, pid_t c
 
 static void releaseMPIR(DAppId const mpir_id)
 {
+for (auto&& [mpirId, ptr] : mpirMap) {
+	fprintf(stderr, "mpir id %d, ptr\n", mpirId);
+}
+for (auto&& [mpirId, shimPid] : mpirShimMap) {
+	fprintf(stderr, "mpir shim id %d, pid %d\n", mpirId, shimPid);
+}
     auto const idInstPair = mpirMap.find(mpir_id);
     if (idInstPair != mpirMap.end()) {
+
+        // Release from MPIR breakpoint
         mpirMap.erase(idInstPair);
     } else {
-        throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+        auto const idShimPidPair = mpirShimMap.find(mpir_id);
+        if (idShimPidPair != mpirShimMap.end()) {
+
+            // Release MPIR shim breakpoint
+            auto const shimPid = idShimPidPair->second;
+
+            if (::kill(shimPid, SIGCONT)) {
+                throw std::runtime_error("failed to continue MPIR shim PID " + std::to_string(shimPid) + ": " + std::string{strerror(errno)});
+            }
+
+            // Wait for exit
+            ::waitpid(shimPid, nullptr, 0);
+
+            // Remove from active shim map
+            mpirShimMap.erase(idShimPidPair);
+
+        } else {
+            throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+        }
     }
 }
 
@@ -675,8 +701,11 @@ static void terminateMPIR(DAppId const mpir_id)
 }
 
 
-static FE_daemon::MPIRResult readShimMPIRResult(int const shimOutputFd)
+static auto readShimMPIRResult(int const shimOutputFd)
 {
+    // read MPIR shim PID
+    auto const shimPid = rawReadLoop<pid_t>(shimOutputFd);
+
     // read basic table information
     auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(shimOutputFd);
     if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.launcher_pid == 0)) {
@@ -709,7 +738,7 @@ static FE_daemon::MPIRResult readShimMPIRResult(int const shimOutputFd)
         result.proctable.emplace_back(std::move(elem));
     }
 
-    return result;
+    return std::make_tuple(shimPid, result);
 }
 
 struct Dir
@@ -765,38 +794,24 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
 
     // Modify PATH in launchData
     auto const rawPath = ::getenv("PATH");
-    auto const existingPath = (rawPath != nullptr)
-        ? ":" + std::string{rawPath}
+    auto const originalPath = (rawPath != nullptr)
+        ? std::string{rawPath}
         : "";
-    modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.path + existingPath);
+    modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.path + (originalPath.empty() ? "" : (":" + originalPath)));
 
     // Communicate output pipe and real launcher path to shim
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_INPUT_FD="  + std::to_string(shimPipe[0]));
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_OUTPUT_FD=" + std::to_string(shimPipe[1]));
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_LAUNCHER_PATH=" + shimData.shimmedLauncherPath);
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_ORIGINAL_PATH=" + originalPath);
 
-    auto const shimPid = forkExec(modifiedLaunchData);
+    auto const scriptPid = forkExec(modifiedLaunchData);
     close(shimPipe[1]);
 
-    return readShimMPIRResult(shimPipe[0]);
-}
+    auto const [shimPid, mpirResult] = readShimMPIRResult(shimPipe[0]);
+    mpirShimMap.emplace(mpirResult.mpir_id, shimPid);
 
-static void releaseMPIRShim(DAppId const mpir_id)
-{
-    auto const idShimPidPair = mpirShimMap.find(mpir_id);
-    if (idShimPidPair != mpirShimMap.end()) {
-        auto const shimPid = idShimPidPair->second;
-
-        // Continue shim from breakpoint
-        if (::kill(SIGCONT, shimPid)) {
-            throw std::runtime_error("failed to continue MPIR shim PID " + std::to_string(shimPid));
-        }
-
-        // Remove from active shim map
-        mpirShimMap.erase(idShimPidPair);
-    } else {
-        throw std::runtime_error("mpir shim id not found: " + std::to_string(mpir_id));
-    }
+    return mpirResult;
 }
 
 /* handler implementations */
@@ -912,17 +927,6 @@ static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
         auto const mpirData = launchMPIRShim(shimData, launchData);
 
         return mpirData;
-    });
-}
-
-static void handle_ReleaseMPIRShim(int const reqFd, int const respFd)
-{
-    tryWriteOKResp(respFd, [&]() {
-        auto const mpirId = rawReadLoop<DAppId>(reqFd);
-
-        releaseMPIRShim(mpirId);
-
-        return true;
     });
 }
 
@@ -1134,10 +1138,6 @@ main(int argc, char *argv[])
 
             case ReqType::LaunchMPIRShim:
                 handle_LaunchMPIRShim(reqFd, respFd);
-                break;
-
-            case ReqType::ReleaseMPIRShim:
-                handle_ReleaseMPIRShim(reqFd, respFd);
                 break;
 
             case ReqType::RegisterApp:

@@ -123,13 +123,11 @@ public: // type definitions
         ForkExecvpUtil,
 
         LaunchMPIR,
+        LaunchMPIRShim,
         AttachMPIR,
         ReadStringMPIR,
         ReleaseMPIR,
         TerminateMPIR,
-
-        LaunchMPIRShim,
-        ReleaseMPIRShim,
 
         RegisterApp,
         RegisterUtil,
@@ -200,18 +198,13 @@ public: // type definitions
         send launch parameters as in LaunchMPIR
     */
 
-    // ReleaseMPIRShim
-    /*
-        send ID of target application
-    */
-
     // Shutdown
     /* No data */
 
     // Response types
 
     enum RespType : long {
-        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR, ReleaseMPIRShim
+        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR
         OK,
 
         // ForkExecvpApp, ForkExecvpUtil
@@ -357,10 +350,6 @@ public:
         char const* shimBinaryPath, char const* temporaryShimBinDir, char const* shimmedLauncherPath,
         char const* scriptPath, char const* const argv[],
         int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
-
-    // fe_daemon will release a binary under mpir shim control from its breakpoint.
-    // Write an mpir release request to pipe, verify response
-    void request_ReleaseMPIRShim(DaemonAppId mpir_id);
 
     // fe_daemon will register an already-forked process as an app. make sure this is paired with a
     // _cti_deregisterApp for timely cleanup.

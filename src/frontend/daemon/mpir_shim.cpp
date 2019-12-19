@@ -26,6 +26,7 @@ static auto parse_from_env(int argc, char const* argv[])
 	auto inputFd  = int{-1};
 	auto outputFd = int{-1};
 	auto launcherPath = std::string{};
+	auto originalPath = std::string{};
 	std::vector<std::string> launcherArgv;
 
 	if (auto const rawInputFd      = ::getenv("CTI_MPIR_SHIM_INPUT_FD")) {
@@ -37,19 +38,22 @@ static auto parse_from_env(int argc, char const* argv[])
 	if (auto const rawLauncherPath = ::getenv("CTI_MPIR_LAUNCHER_PATH")) {
 		launcherPath = std::string{rawLauncherPath};
 	}
+	if (auto const rawOriginalPath = ::getenv("CTI_MPIR_ORIGINAL_PATH")) {
+		originalPath = std::string{rawOriginalPath};
+	}
 
 	launcherArgv = {launcherPath};
 	for (int i = 0; i < argc; i++) {
 		launcherArgv.push_back(argv[i]);
 	}
 
-	return std::make_tuple(inputFd, outputFd, launcherPath, launcherArgv);
+	return std::make_tuple(inputFd, outputFd, launcherPath, originalPath, launcherArgv);
 }
 
 int main(int argc, char const* argv[])
 {
 	// Parse and verify arguments
-	auto const [inputFd, outputFd, launcherPath, launcherArgv] = parse_from_env(argc, argv);
+	auto const [inputFd, outputFd, launcherPath, originalPath, launcherArgv] = parse_from_env(argc, argv);
 	if (launcherPath.empty() || launcherArgv.empty()) {
 		exit(1);
 	}
@@ -57,8 +61,27 @@ int main(int argc, char const* argv[])
 	// Close unused pipe end
 	::close(inputFd);
 
+	// Restore original PATH
+	for (auto&& env_var :
+		{ "CTI_MPIR_SHIM_INPUT_FD"
+		, "CTI_MPIR_SHIM_OUTPUT_FD"
+		, "CTI_MPIR_LAUNCHER_PATH"
+		, "CTI_MPIR_ORIGINAL_PATH" }) {
+		::unsetenv(env_var);
+	}
+	if (::setenv("PATH", originalPath.c_str(), 1)) {
+		fprintf(stderr, "failed to restore PATH: %s\n", strerror(errno));
+		exit(-1);
+	}
+
 	// Create MPIR launch instance based on arguments
+	std::string logcmd = "echo mpir_shim launch " + launcherPath + " >> /home/users/adangelo/log/shim." + std::to_string(getpid()) + ".log";
+	system(logcmd.c_str());
+	fprintf(stderr, "mpir_shim: launch instance %s\n", launcherPath.c_str());
 	auto mpirInstance = MPIRInstance{launcherPath, launcherArgv};
+
+	// send PID
+	rawWriteLoop(outputFd, getpid());
 
 	// send the MPIR data
 	auto const mpirProctable = mpirInstance.getProctable();
