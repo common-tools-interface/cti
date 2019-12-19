@@ -316,9 +316,19 @@ static bool checkAppID(DAppId const app_id)
         auto const app_pid = idPidPair->second;
 
         // Check if app's PID is still valid
-        auto const pidValid = bool{::kill(app_pid, 0) == 0};
+        if (::kill(app_pid, 0) == 0) {
+            // Check if zombie
+            auto const statusFilePath = "/proc/" + std::to_string(app_pid) + "/status";
+            char const* grepArgv[] = { "grep", "Z (zombie)", statusFilePath.c_str(), nullptr };
+            auto grepOutput = cti::Execvp{"grep", (char* const*)grepArgv};
+            auto const grepExitStatus = grepOutput.getExitStatus();
+            auto const pidZombie = (grepExitStatus == 0);
 
-        return pidValid;
+            return !pidZombie;
+        } else {
+            // PID no longer valid
+            return false;
+        }
     } else {
         throw std::runtime_error("invalid app id: " + std::to_string(app_id));
     }
@@ -422,12 +432,12 @@ static void tryWriteOKResp(int const respFd, Func&& func)
 {
     try {
         // run the function
-        func();
+        auto const success = func();
 
         // send OK response
         rawWriteLoop(respFd, OKResp
             { .type = RespType::OK
-            , .success = true
+            , .success = success
         });
 
     } catch (std::exception const& ex) {
@@ -569,7 +579,7 @@ static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& m
     // create new app ID
     auto const launcherPid = mpirInst->getLauncherPid();
     auto const mpirId = registerAppPID(launcherPid);
-    fprintf(stderr, "new mpir id %d\n", mpirId);
+    fprintf(stderr, "jobId %s stepId %s new mpir id %d\n", rawJobId.c_str(), rawStepId.c_str(), mpirId);
 
     // extract proctable
     auto const proctable = mpirInst->getProctable();
