@@ -387,14 +387,6 @@ FE_daemon::request_LaunchMPIRShim(
     return readMPIRResp(m_resp_sock.getReadFd());
 }
 
-void
-FE_daemon::request_ReleaseMPIRShim(DaemonAppId mpir_id)
-{
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ReleaseMPIRShim);
-    rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
-    verifyOKResp(m_resp_sock.getReadFd());
-}
-
 DaemonAppId
 FE_daemon::request_RegisterApp(pid_t app_pid)
 {
