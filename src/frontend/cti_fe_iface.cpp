@@ -190,6 +190,7 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
             return SLURMFrontend::getName();
         case CTI_WLM_SSH:
             return GenericSSHFrontend::getName();
+
         // Internal / testing types
         case CTI_WLM_MOCK:
             return "Test WLM frontend";
@@ -430,29 +431,26 @@ int
 cti_appIsValid(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
-        return fe.Iface().validApp(appId);
-    }, false);
-}
 
+        // Check if app registered
+        if (!fe.Iface().validApp(appId)) {
+            return false;
+        }
 
-int
-cti_appIsRunning(cti_app_id_t appId) {
-    return FE_iface::runSafely(__func__, [&](){
-        auto&& fe = Frontend::inst();
+        // Get app instance
         auto sp = fe.Iface().getApp(appId);
 
+        // Check if app running
         if (!sp->isRunning()) {
             // Remove the app if not running anymore
             fe.removeApp(sp);
             fe.Iface().removeApp(appId);
 
             return false;
-
-        // App running
-        } else {
-            return true;
         }
 
+        // App is valid and running
+        return true;
     }, false);
 }
 
