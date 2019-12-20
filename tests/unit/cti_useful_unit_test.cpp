@@ -110,6 +110,11 @@ TEST_F(CTIUsefulUnitTest, cti_argv)
     for(int i = 0; i < 5; i++) {
        ASSERT_STREQ(argv_data2[i], std::to_string(i).c_str());
     }
+
+    // test that adding a NULL pointer throws
+    cti::ManagedArgv argv3;
+    ASSERT_NO_THROW(argv3.add(""));
+    ASSERT_THROW(argv3.add(NULL), std::logic_error);
 }
     /**********************************************************************************/
     // test additional argv classes
