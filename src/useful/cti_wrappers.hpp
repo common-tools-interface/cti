@@ -249,6 +249,43 @@ public:
     int fd() { return m_fd; }
 };
 
+struct dir_handle {
+    static constexpr auto mode755 = int{S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH};
+
+    std::string m_path;
+    dir_handle(std::string const& path, int mode = mode755)
+        : m_path{path}
+    {
+        if (::mkdir(m_path.c_str(), mode)) {
+            throw std::runtime_error("mkdir " + m_path + " failed: " + strerror(errno));
+        }
+    }
+
+    ~dir_handle()
+    {
+        if (::rmdir(m_path.c_str())) {
+            fprintf(stderr, "warning: rmdir %s failed: %s\n", m_path.c_str(), strerror(errno));
+        }
+    }
+};
+
+struct softlink_handle {
+    std::string m_linkPath;
+    softlink_handle(std::string const& fromPath, std::string const& toPath)
+        : m_linkPath{toPath}
+    {
+        if (::symlink(fromPath.c_str(), toPath.c_str())) {
+            throw std::runtime_error("link " + fromPath + " -> " + toPath + " failed: " + strerror(errno));
+        }
+    }
+    ~softlink_handle()
+    {
+        if (::unlink(m_linkPath.c_str())) {
+            fprintf(stderr, "unlink %s failed: %s\n", m_linkPath.c_str(), strerror(errno));
+        }
+    }
+};
+
 template <typename T>
 static void free_ptr_list(T* head) {
     auto elem = head;
