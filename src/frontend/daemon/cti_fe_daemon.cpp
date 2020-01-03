@@ -645,12 +645,6 @@ static FE_daemon::MPIRResult attachMPIR(std::string const& launcherPath, pid_t c
 
 static void releaseMPIR(DAppId const mpir_id)
 {
-for (auto&& [mpirId, ptr] : mpirMap) {
-	fprintf(stderr, "mpir id %d, ptr\n", mpirId);
-}
-for (auto&& [mpirId, shimPid] : mpirShimMap) {
-	fprintf(stderr, "mpir shim id %d, pid %d\n", mpirId, shimPid);
-}
     auto const idInstPair = mpirMap.find(mpir_id);
     if (idInstPair != mpirMap.end()) {
 
