@@ -5,6 +5,7 @@
  #       UNPUBLISHED PROPRIETARY INFORMATION.
  #       ALL RIGHTS RESERVED.
  #
+ conflict <CRAY_NAME>
 
  set CTI_LEVEL     <VERSION>
  set CTI_BASEDIR   <PREFIX>
@@ -35,8 +36,6 @@
      module-whatis   "Loads the developer Cray Common Tools Interface."
      exit 0
  }
-
- conflict <CRAY_NAME>
 
  setenv CTI_DEVEL_VERSION      $CTI_LEVEL
  setenv PE_CTI_DEVEL_MODULE_NAME    <CRAY_NAME>
