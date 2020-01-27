@@ -5,8 +5,8 @@ basedir=$(dirname $0)
 
 crayversion="${common_tool_major:-0}.${common_tool_minor:-0}.${revision}"
 
-cdstsupportversionmin=$(echo ${CDST_SUPPORT_VERSION} | awk -F . '{ print $1"."$2 }')
-tmpver=$(echo ${CDST_SUPPORT_VERSION} | awk -F . '{ print $1 }')
+cdstsupportversionmin=$(echo ${CRAY_CDST_SUPPORT_VERSION} | awk -F . '{ print $1"."$2 }')
+tmpver=$(echo ${CRAY_CDST_SUPPORT_VERSION} | awk -F . '{ print $1 }')
 cdstsupportversionmax=$(($tmpver+1))
 
 arguments=$(getopt -o csm --long crayversion,cdstversionmin,cdstversionmax -n ${0} -- "$@")
