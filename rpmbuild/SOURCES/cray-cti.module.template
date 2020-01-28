@@ -5,17 +5,16 @@
  #       UNPUBLISHED PROPRIETARY INFORMATION.
  #       ALL RIGHTS RESERVED.
  #
+ conflict <CRAY_NAME>
 
  set CTI_LEVEL     <VERSION>
  set CTI_BASEDIR   <PREFIX>
 
- setenv CTI_VERSION        $CTI_LEVEL
- setenv CTI_INSTALL_DIR    $CTI_BASEDIR
- setenv PE_CTI_MODULE_NAME      <CRAY_NAME>
+ setenv CTI_VERSION         $CTI_LEVEL
+ setenv CTI_INSTALL_DIR     $CTI_BASEDIR
+ setenv PE_CTI_MODULE_NAME  <CRAY_NAME>
 
  prepend-path LD_LIBRARY_PATH   $CTI_BASEDIR/lib
-
- conflict <CRAY_NAME>
 
  if { [ file exists ${CTI_BASEDIR}/release_info ] } {
        set REL_INFO [ exec cat ${CTI_BASEDIR}/release_info ]
