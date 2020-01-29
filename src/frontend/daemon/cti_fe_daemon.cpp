@@ -73,6 +73,31 @@ using IDResp   = FE_daemon::IDResp;
 using StringResp = FE_daemon::StringResp;
 using MPIRResp = FE_daemon::MPIRResp;
 
+cti::Logger&
+getLogger(void)
+{
+    static auto _cti_logger = []() {
+        // Check if logging is enabled in environment
+        if (getenv(CTI_DBG_ENV_VAR)) {
+            // Get logging setting / directory from environment
+            if (auto const cti_log_dir = getenv(CTI_LOG_DIR_ENV_VAR)) {
+                // Check directory permissions
+                if (cti::dirHasPerms(cti_log_dir, R_OK | W_OK | X_OK)) {
+                    return cti::Logger
+                        { true // enabled
+                        , std::string{cti_log_dir}
+                        , "cti_fe_daemon"
+                        , getpid()
+                    };
+                }
+            }
+        }
+        // Logging disabled
+        return cti::Logger{false, "", "", 0};
+    }();
+    return _cti_logger;
+}
+
 static void
 tryTerm(pid_t const pid)
 {
@@ -406,9 +431,9 @@ static LaunchData readLaunchData(int const reqFd)
     std::istream reqStream{&reqBuf};
 
     // read filepath
-    fprintf(stderr, "recv filename\n");
+    getLogger().write("recv filename\n");
     result.filepath = receiveString(reqStream);
-    fprintf(stderr, "got file: %s\n", result.filepath.c_str());
+    getLogger().write("got file: %s\n", result.filepath.c_str());
 
     // read arguments
     while (true) {
@@ -416,11 +441,11 @@ static LaunchData readLaunchData(int const reqFd)
         if (arg.empty()) {
             break;
         } else {
-            fprintf(stderr, "%s ", arg.c_str());
+            getLogger().write("%s ", arg.c_str());
             result.argvList.emplace_back(std::move(arg));
         }
     }
-    fprintf(stderr, "\n");
+    getLogger().write("\n");
 
     // read env
     while (true) {
@@ -428,7 +453,7 @@ static LaunchData readLaunchData(int const reqFd)
         if (envVarVal.empty()) {
             break;
         } else {
-            fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
+            getLogger().write("got envvar: %s\n", envVarVal.c_str());
             result.envList.emplace_back(std::move(envVarVal));
         }
     }
@@ -451,7 +476,7 @@ static void tryWriteOKResp(int const respFd, Func&& func)
         });
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "%s\n", ex.what());
+        getLogger().write("%s\n", ex.what());
 
         // send failure response
         rawWriteLoop(respFd, OKResp
@@ -476,7 +501,7 @@ static void tryWriteIDResp(int const respFd, Func&& func)
         });
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "%s\n", ex.what());
+        getLogger().write("%s\n", ex.what());
 
         // send failure response
         rawWriteLoop(respFd, IDResp
@@ -502,7 +527,7 @@ static void tryWriteStringResp(int const respFd, Func&& func)
         writeLoop(respFd, stringData.c_str(), stringData.length() + 1);
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "%s\n", ex.what());
+        getLogger().write("%s\n", ex.what());
 
         // send failure response
         rawWriteLoop(respFd, StringResp
@@ -533,7 +558,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
         }
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "%s\n", ex.what());
+        getLogger().write("%s\n", ex.what());
 
         // send failure response
         rawWriteLoop(respFd, MPIRResp
@@ -560,7 +585,7 @@ static pid_t forkExec(LaunchData const& launchData)
         if (equalsAt == std::string::npos) {
             throw std::runtime_error("failed to parse env var: " + envVarVal);
         } else {
-            fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
+            getLogger().write("got envvar: %s\n", envVarVal.c_str());
             envMap.emplace(envVarVal.substr(0, equalsAt), envVarVal.substr(equalsAt + 1));
         }
     }
@@ -806,7 +831,7 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
             }
 
             if (WIFEXITED(status)) {
-                fprintf(stderr, "exited with code %d\n", WEXITSTATUS(status));
+                getLogger().write("exited with code %d\n", WEXITSTATUS(status));
             }
 
             return bool{WIFEXITED(status) && (WEXITSTATUS(status) == 0)};
@@ -901,7 +926,7 @@ static void handle_ReadStringMPIR(int const reqFd, int const respFd)
         if (!std::getline(reqStream, variable, '\0')) {
             throw std::runtime_error("failed to read variable name");
         }
-        fprintf(stderr, "read string '%s' from mpir id %d\n", variable.c_str(), mpirId);
+        getLogger().write("read string '%s' from mpir id %d\n", variable.c_str(), mpirId);
 
         return readStringMPIR(mpirId, variable);
     });
@@ -912,7 +937,7 @@ static void handle_TerminateMPIR(int const reqFd, int const respFd)
     tryWriteOKResp(respFd, [&]() {
         auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
-        fprintf(stderr, "terminating mpir id %d\n", mpirId);
+        getLogger().write("terminating mpir id %d\n", mpirId);
         terminateMPIR(mpirId);
 
         return true;
@@ -1056,13 +1081,13 @@ main(int argc, char *argv[])
     }
 
     // write our PID to signal to the parent we are all set up
-    fprintf(stderr, "%d sending initial ok\n", getpid());
+    getLogger().write("%d sending initial ok\n", getpid());
     rawWriteLoop(respFd, getpid());
 
     // wait for pipe commands
     while (true) {
         auto const reqType = rawReadLoop<ReqType>(reqFd);
-        fprintf(stderr, "req type %ld\n", reqType);
+        getLogger().write("req type %ld\n", reqType);
 
         switch (reqType) {
 
@@ -1119,7 +1144,7 @@ main(int argc, char *argv[])
                 break;
 
             default:
-                fprintf(stderr, "unknown req type %ld\n", reqType);
+                getLogger().write("unknown req type %ld\n", reqType);
                 break;
 
         }
