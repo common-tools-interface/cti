@@ -112,8 +112,6 @@ public: // type definitions
     {
         DaemonAppId mpir_id;
         pid_t launcher_pid;
-        uint32_t job_id;
-        uint32_t step_id;
         MPIRProctable proctable;
     };
 
@@ -125,7 +123,9 @@ public: // type definitions
         ForkExecvpUtil,
 
         LaunchMPIR,
+        LaunchMPIRShim,
         AttachMPIR,
+        ReadStringMPIR,
         ReleaseMPIR,
         TerminateMPIR,
 
@@ -181,9 +181,21 @@ public: // type definitions
         send PID of target utility
     */
 
+    // ReadStringMPIR
+    /*
+        send ID of target application
+        send string name of variable to read from memory
+    */
+
     // ReleaseMPIR
     /*
         send ID provided by LaunchMPIR request
+    */
+
+    // LaunchMPIRShim
+    /*
+        send path to shim binary, temporary shim link directory, launcher path to shim
+        send launch parameters as in LaunchMPIR
     */
 
     // Shutdown
@@ -198,7 +210,10 @@ public: // type definitions
         // ForkExecvpApp, ForkExecvpUtil
         ID,
 
-        // LaunchMPIR
+        // ReadStringMPIR
+        String,
+
+        // LaunchMPIR, LaunchMPIRShim
         MPIR,
     };
 
@@ -214,13 +229,18 @@ public: // type definitions
         DaemonAppId id;
     };
 
+    struct StringResp
+    {
+        RespType type;
+        bool success;
+        // after sending this struct, send a null-terminated string value if successful
+    };
+
     struct MPIRResp
     {
         RespType type;
         DaemonAppId mpir_id;
         pid_t launcher_pid;
-        uint32_t job_id;
-        uint32_t step_id;
         int num_pids;
         // after sending this struct, send `num_pids` elements of:
         // - pid followed by null-terminated hostname
@@ -314,9 +334,22 @@ public:
     // Write an mpir release request to pipe, verify response
     void request_ReleaseMPIR(DaemonAppId mpir_id);
 
+    // fe_daemon will read the value of a variable from memory under MPIR control.
+    // Write an mpir string read request to pipe, return value
+    std::string request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable);
+
     // fe_daemon will terminate a binary under mpir control.
     // Write an mpir release request to pipe, verify response
     void request_TerminateMPIR(DaemonAppId mpir_id);
+
+    // fe_daemon will launch the provided wrapper script, masquerading the MPIR shim utility
+    // as the provided launcher name in path. the launch is completed under MPIR control
+    // and proctable is extraced. Provide path to mpir_shim binary and the temporary link location.
+    // Write an mpir launch request and parameters to pipe, return MPIR data including proctable
+    MPIRResult request_LaunchMPIRShim(
+        char const* shimBinaryPath, char const* temporaryShimBinDir, char const* shimmedLauncherPath,
+        char const* scriptPath, char const* const argv[],
+        int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
     // fe_daemon will register an already-forked process as an app. make sure this is paired with a
     // _cti_deregisterApp for timely cleanup.

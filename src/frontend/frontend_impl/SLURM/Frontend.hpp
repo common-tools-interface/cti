@@ -131,7 +131,7 @@ public: // constructor / destructor interface
 class SLURMApp final : public App
 {
 private: // variables
-    FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
+    FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     uint32_t m_jobId;
     uint32_t m_stepId;
     SLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step

@@ -59,6 +59,7 @@
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
+#include "useful/cti_wrappers.hpp"
 
 #include "frontend/mpir_iface/MPIRInstance.hpp"
 #include "cti_fe_daemon_iface.hpp"
@@ -69,6 +70,7 @@ using ReqType  = FE_daemon::ReqType;
 using RespType = FE_daemon::RespType;
 using OKResp   = FE_daemon::OKResp;
 using IDResp   = FE_daemon::IDResp;
+using StringResp = FE_daemon::StringResp;
 using MPIRResp = FE_daemon::MPIRResp;
 
 static void
@@ -142,7 +144,8 @@ auto idPidMap = std::unordered_map<pid_t, DAppId>{};
 auto appList = ProcSet{};
 auto utilMap = std::unordered_map<DAppId, ProcSet>{};
 
-auto mpirMap = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
+auto mpirMap     = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
+auto mpirShimMap = std::unordered_map<DAppId, pid_t>{};
 
 // communication
 int reqFd  = -1; // incoming request pipe
@@ -184,11 +187,11 @@ shutdown_and_exit(int const rc)
     sigset_t block_set;
     memset(&block_set, 0, sizeof(block_set));
     if (sigfillset(&block_set)) {
-        perror("sigfillset");
+        fprintf(stderr, "sigfillset: %s\n", strerror(errno));
         exit(1);
     }
     if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
-        perror("sigprocmask");
+        fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
         exit(1);
     }
 
@@ -343,6 +346,12 @@ struct LaunchData {
     std::vector<std::string> envList;
 };
 
+struct ShimData {
+    std::string shimBinaryPath;
+    std::string temporaryShimBinDir;
+    std::string shimmedLauncherPath;
+};
+
 // read stdin/out/err fds, filepath, argv, environment map appended to an app / util / mpir launch request
 static LaunchData readLaunchData(int const reqFd)
 {
@@ -407,10 +416,11 @@ static LaunchData readLaunchData(int const reqFd)
         if (arg.empty()) {
             break;
         } else {
-            fprintf(stderr, "got arg: %s\n", arg.c_str());
+            fprintf(stderr, "%s ", arg.c_str());
             result.argvList.emplace_back(std::move(arg));
         }
     }
+    fprintf(stderr, "\n");
 
     // read env
     while (true) {
@@ -471,7 +481,33 @@ static void tryWriteIDResp(int const respFd, Func&& func)
         // send failure response
         rawWriteLoop(respFd, IDResp
             { .type = RespType::ID
-            , .id  = DAppId{-1}
+            , .id  = DAppId{0}
+        });
+    }
+}
+
+// if running the function succeeds, write a string response to pipe
+template <typename Func>
+static void tryWriteStringResp(int const respFd, Func&& func)
+{
+    try {
+        // run the string-producing function
+        auto const stringData = func();
+
+        // send the string data
+        rawWriteLoop(respFd, StringResp
+            { .type     = RespType::String
+            , .success  = true
+        });
+        writeLoop(respFd, stringData.c_str(), stringData.length() + 1);
+
+    } catch (std::exception const& ex) {
+        fprintf(stderr, "%s\n", ex.what());
+
+        // send failure response
+        rawWriteLoop(respFd, StringResp
+            { .type     = RespType::String
+            , .success  = false
         });
     }
 }
@@ -489,8 +525,6 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
             { .type     = RespType::MPIR
             , .mpir_id  = mpirData.mpir_id
             , .launcher_pid = mpirData.launcher_pid
-            , .job_id   = mpirData.job_id
-            , .step_id  = mpirData.step_id
             , .num_pids = static_cast<int>(mpirData.proctable.size())
         });
         for (auto&& elem : mpirData.proctable) {
@@ -504,7 +538,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
         // send failure response
         rawWriteLoop(respFd, MPIRResp
             { .type     = RespType::MPIR
-            , .mpir_id  = DAppId{-1}
+            , .mpir_id  = DAppId{0}
         });
     }
 }
@@ -565,21 +599,16 @@ static pid_t forkExec(LaunchData const& launchData)
 
         // exec srun
         execvp(launchData.filepath.c_str(), argv.get());
-        perror("execvp");
+        fprintf(stderr, "execvp: %s", strerror(errno));
         _exit(1);
     }
 }
 
 static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& mpirInst)
 {
-    // extract job/step ID
-    auto const rawJobId  = mpirInst->readStringAt("totalview_jobid");
-    auto const rawStepId = mpirInst->readStringAt("totalview_stepid");
-
     // create new app ID
     auto const launcherPid = mpirInst->getLauncherPid();
     auto const mpirId = registerAppPID(launcherPid);
-    fprintf(stderr, "jobId %s stepId %s new mpir id %d\n", rawJobId.c_str(), rawStepId.c_str(), mpirId);
 
     // extract proctable
     auto const proctable = mpirInst->getProctable();
@@ -590,16 +619,12 @@ static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& m
     return FE_daemon::MPIRResult
         { mpirId // mpir_id
         , launcherPid // launcher_pid
-        , static_cast<uint32_t>(std::stoul(rawJobId)) // job_id
-        , rawStepId.empty() ? 0 : static_cast<uint32_t>(std::stoul(rawStepId)) // step_id
         , proctable // proctable
     };
 }
 
 static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 {
-    // TODO: this should instead open the path /proc/target_pid/fd/fileno as FDs
-    //       would not necessarily have been inherited during daemon setup
     std::map<int, int> const remapFds
         { { launchData.stdin_fd,  STDIN_FILENO  }
         , { launchData.stdout_fd, STDOUT_FILENO }
@@ -622,7 +647,37 @@ static void releaseMPIR(DAppId const mpir_id)
 {
     auto const idInstPair = mpirMap.find(mpir_id);
     if (idInstPair != mpirMap.end()) {
+
+        // Release from MPIR breakpoint
         mpirMap.erase(idInstPair);
+    } else {
+        auto const idShimPidPair = mpirShimMap.find(mpir_id);
+        if (idShimPidPair != mpirShimMap.end()) {
+
+            // Release MPIR shim breakpoint
+            auto const shimPid = idShimPidPair->second;
+
+            if (::kill(shimPid, SIGCONT)) {
+                throw std::runtime_error("failed to continue MPIR shim PID " + std::to_string(shimPid) + ": " + std::string{strerror(errno)});
+            }
+
+            // Wait for exit
+            ::waitpid(shimPid, nullptr, 0);
+
+            // Remove from active shim map
+            mpirShimMap.erase(idShimPidPair);
+
+        } else {
+            throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+        }
+    }
+}
+
+static std::string readStringMPIR(DAppId const mpir_id, std::string const& variable)
+{
+    auto const idInstPair = mpirMap.find(mpir_id);
+    if (idInstPair != mpirMap.end()) {
+        return idInstPair->second->readStringAt(variable);
     } else {
         throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
     }
@@ -637,6 +692,84 @@ static void terminateMPIR(DAppId const mpir_id)
     } else {
         throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
     }
+}
+
+
+static auto readShimMPIRResult(int const shimOutputFd)
+{
+    // read MPIR shim PID
+    auto const shimPid = rawReadLoop<pid_t>(shimOutputFd);
+
+    // read basic table information
+    auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(shimOutputFd);
+    if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.launcher_pid == 0)) {
+        throw std::runtime_error("failed to read proctable response");
+    }
+
+    auto const mpirId = registerAppPID(mpirResp.launcher_pid);
+
+    // fill in MPIR data excluding proctable
+    FE_daemon::MPIRResult result
+        { mpirId
+        , mpirResp.launcher_pid
+        , {} // proctable
+    };
+    result.proctable.reserve(mpirResp.num_pids);
+
+    // set up pipe stream
+    cti::FdBuf shimOutputBuf{dup(shimOutputFd)};
+    std::istream shimOutputStream{&shimOutputBuf};
+
+    // fill in pid and hostname of proctable elements
+    for (int i = 0; i < mpirResp.num_pids; i++) {
+        MPIRProctableElem elem;
+        // read pid
+        elem.pid = rawReadLoop<pid_t>(shimOutputFd);
+        // read hostname
+        if (!std::getline(shimOutputStream, elem.hostname, '\0')) {
+            throw std::runtime_error("failed to read string");
+        }
+        result.proctable.emplace_back(std::move(elem));
+    }
+
+    return std::make_tuple(shimPid, result);
+}
+
+static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData const& launchData)
+{
+    int shimPipe[2];
+    ::pipe(shimPipe);
+
+    auto modifiedLaunchData = launchData;
+
+    auto const shimmedLauncherName = cti::cstr::basename(shimData.shimmedLauncherPath);
+    auto const shimBinDir = cti::dir_handle{shimData.temporaryShimBinDir};
+    auto const shimBinLink = cti::softlink_handle{shimData.shimBinaryPath,
+        shimBinDir.m_path + "/" + shimmedLauncherName};
+
+    // Modify PATH in launchData
+    auto const rawPath = ::getenv("PATH");
+    auto const originalPath = (rawPath != nullptr)
+        ? std::string{rawPath}
+        : "";
+    modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.m_path + (originalPath.empty() ? "" : (":" + originalPath)));
+
+    // Communicate output pipe and real launcher path to shim
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_INPUT_FD="  + std::to_string(shimPipe[0]));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_OUTPUT_FD=" + std::to_string(shimPipe[1]));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_LAUNCHER_PATH="  + shimData.shimmedLauncherPath);
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_ORIGINAL_PATH="  + originalPath);
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDIN_FD="       + std::to_string(launchData.stdin_fd));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDOUT_FD="      + std::to_string(launchData.stdout_fd));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDERR_FD="      + std::to_string(launchData.stderr_fd));
+
+    auto const scriptPid = forkExec(modifiedLaunchData);
+    close(shimPipe[1]);
+
+    auto const [shimPid, mpirResult] = readShimMPIRResult(shimPipe[0]);
+    mpirShimMap.emplace(mpirResult.mpir_id, shimPid);
+
+    return mpirResult;
 }
 
 /* handler implementations */
@@ -727,11 +860,59 @@ static void handle_ReleaseMPIR(int const reqFd, int const respFd)
     });
 }
 
+static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
+{
+    tryWriteMPIRResp(respFd, [&]() {
+        // set up pipe stream
+        cti::FdBuf reqBuf{dup(reqFd)};
+        std::istream reqStream{&reqBuf};
+
+        // Read shim setup data
+        ShimData shimData;
+        if (!std::getline(reqStream, shimData.shimBinaryPath, '\0')) {
+            throw std::runtime_error("failed to read shim binary path");
+        }
+        if (!std::getline(reqStream, shimData.temporaryShimBinDir, '\0')) {
+            throw std::runtime_error("failed to read temporary shim directory");
+        }
+        if (!std::getline(reqStream, shimData.shimmedLauncherPath, '\0')) {
+            throw std::runtime_error("failed to read shimmed launcher path");
+        }
+
+        // Read MPIR launch data
+        auto const launchData = readLaunchData(reqFd);
+
+        auto const mpirData = launchMPIRShim(shimData, launchData);
+
+        return mpirData;
+    });
+}
+
+static void handle_ReadStringMPIR(int const reqFd, int const respFd)
+{
+    tryWriteStringResp(respFd, [&]() {
+        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+
+        // set up pipe stream
+        cti::FdBuf reqBuf{dup(reqFd)};
+        std::istream reqStream{&reqBuf};
+
+        std::string variable;
+        if (!std::getline(reqStream, variable, '\0')) {
+            throw std::runtime_error("failed to read variable name");
+        }
+        fprintf(stderr, "read string '%s' from mpir id %d\n", variable.c_str(), mpirId);
+
+        return readStringMPIR(mpirId, variable);
+    });
+}
+
 static void handle_TerminateMPIR(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
         auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
+        fprintf(stderr, "terminating mpir id %d\n", mpirId);
         terminateMPIR(mpirId);
 
         return true;
@@ -835,38 +1016,43 @@ main(int argc, char *argv[])
         exit(1);
     }
 
-    // block all signals except SIGTERM, SIGCHLD, SIGPIPE, SIGTRAP, SIGHUP
+    // block all signals except noted
+    auto const handledSignals = std::vector<int>
+        { SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+        , SIGTRAP // used for Dyninst breakpoint events
+        , SIGTTIN // used for mpiexec job control
+
+        // mpiexec sends SIGSEGV if a job process segfaults, ignore it
+        , SIGSEGV
+    };
+
     sigset_t block_set;
     memset(&block_set, 0, sizeof(block_set));
     if (sigfillset(&block_set)) {
-        perror("sigfillset");
+        fprintf(stderr, "sigfillset: %s\n", strerror(errno));
         return 1;
     }
-    if (sigdelset(&block_set, SIGTERM) ||
-        sigdelset(&block_set, SIGCHLD) ||
-        sigdelset(&block_set, SIGPIPE) ||
-        sigdelset(&block_set, SIGTRAP) ||
-        sigdelset(&block_set, SIGHUP)) {
-        perror("sigdelset");
-        return 1;
+
+    for (auto&& signum : handledSignals) {
+        if (sigdelset(&block_set, signum)) {
+            fprintf(stderr, "sigdelset: %s\n", strerror(errno));
+            return 1;
+        }
     }
     if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
-        perror("sigprocmask");
+        fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
         return 1;
     }
 
-
-    // set handler for SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
-    // SIGTRAP is used by Dyninst for breakpoint events
+    // set handler for signals
     struct sigaction sig_action;
     sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
     sig_action.sa_sigaction = cti_fe_daemon_handler;
-    if (sigaction(SIGTERM, &sig_action, nullptr) ||
-        sigaction(SIGCHLD, &sig_action, nullptr) ||
-        sigaction(SIGPIPE, &sig_action, nullptr) ||
-        sigaction(SIGHUP,  &sig_action, nullptr)) {
-        perror("sigaction");
-        return 1;
+    for (auto&& signum : handledSignals) {
+        if (sigaction(signum, &sig_action, nullptr)) {
+            fprintf(stderr, "sigaction %d: %s\n", signum, strerror(errno));
+            return 1;
+        }
     }
 
     // write our PID to signal to the parent we are all set up
@@ -900,8 +1086,16 @@ main(int argc, char *argv[])
                 handle_ReleaseMPIR(reqFd, respFd);
                 break;
 
+            case ReqType::ReadStringMPIR:
+                handle_ReadStringMPIR(reqFd, respFd);
+                break;
+
             case ReqType::TerminateMPIR:
                 handle_TerminateMPIR(reqFd, respFd);
+                break;
+
+            case ReqType::LaunchMPIRShim:
+                handle_LaunchMPIRShim(reqFd, respFd);
                 break;
 
             case ReqType::RegisterApp:

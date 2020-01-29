@@ -153,22 +153,46 @@ static DaemonAppId readIDResp(int const reqFd)
     return idResp.id;
 }
 
+// return string data, throw if failure indicated
+static std::string readStringResp(int const reqFd)
+{
+    // read basic response information
+    auto const stringResp = rawReadLoop<FE_daemon::StringResp>(reqFd);
+    if (stringResp.type != FE_daemon::RespType::String) {
+        throw std::runtime_error("daemon did not send expected String response type");
+    } else if (stringResp.success == false) {
+        throw std::runtime_error("daemon failed to read string from memory");
+    }
+
+    // set up pipe stream
+    cti::FdBuf respBuf{dup(reqFd)};
+    std::istream respStream{&respBuf};
+
+    // read value
+    std::string result;
+    if (!std::getline(respStream, result, '\0')) {
+        throw std::runtime_error("failed to read string");
+    }
+
+    return result;
+}
+
 // return MPIR launch / attach data, throw if MPIR ID < 0, indicating failure
 static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
 {
     // read basic table information
     auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(reqFd);
-    if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.mpir_id < 0)) {
-        throw std::runtime_error("failed to read proctable response");
+    if (mpirResp.type != FE_daemon::RespType::MPIR) {
+        throw std::runtime_error("daemon did not send expected MPIR response type");
+    } else if (mpirResp.mpir_id == 0) {
+        throw std::runtime_error("daemon failed to perform MPIR launch");
     }
 
     // fill in MPIR data excluding proctable
     FE_daemon::MPIRResult result
-        { mpirResp.mpir_id
-        , mpirResp.launcher_pid
-        , mpirResp.job_id
-        , mpirResp.step_id
-        , {} // proctable
+        { .mpir_id = mpirResp.mpir_id
+        , .launcher_pid = mpirResp.launcher_pid
+        , .proctable = {}
     };
     result.proctable.reserve(mpirResp.num_pids);
 
@@ -200,7 +224,11 @@ FE_daemon::~FE_daemon()
         m_init = false;
         // This should be the only way to call ReqType::Shutdown
         rawWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
-        verifyOKResp(m_resp_sock.getReadFd());
+        try {
+            verifyOKResp(m_resp_sock.getReadFd());
+        } catch (...) {
+            fprintf(stderr, "warning: daemon shutdown failed\n");
+        }
     }
     // FIXME: Shouldn't this do a waitpid???
 }
@@ -328,12 +356,35 @@ FE_daemon::request_ReleaseMPIR(DaemonAppId mpir_id)
     verifyOKResp(m_resp_sock.getReadFd());
 }
 
+std::string
+FE_daemon::request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable)
+{
+    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ReadStringMPIR);
+    rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+    writeLoop(m_req_sock.getWriteFd(), variable, strlen(variable) + 1);
+    return readStringResp(m_resp_sock.getReadFd());
+}
+
 void
 FE_daemon::request_TerminateMPIR(DaemonAppId mpir_id)
 {
     rawWriteLoop(m_req_sock.getWriteFd(), ReqType::TerminateMPIR);
     rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
     verifyOKResp(m_resp_sock.getReadFd());
+}
+
+FE_daemon::MPIRResult
+FE_daemon::request_LaunchMPIRShim(
+    char const* shimBinaryPath, char const* temporaryShimBinDir, char const* shimmedLauncherPath,
+    char const* scriptPath, char const* const argv[],
+    int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+{
+    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::LaunchMPIRShim);
+    writeLoop(m_req_sock.getWriteFd(), shimBinaryPath,      strlen(shimBinaryPath)      + 1);
+    writeLoop(m_req_sock.getWriteFd(), temporaryShimBinDir, strlen(temporaryShimBinDir) + 1);
+    writeLoop(m_req_sock.getWriteFd(), shimmedLauncherPath, strlen(shimmedLauncherPath) + 1);
+    writeLaunchData(m_req_sock.getWriteFd(), scriptPath, argv, stdin_fd, stdout_fd, stderr_fd, env);
+    return readMPIRResp(m_resp_sock.getReadFd());
 }
 
 DaemonAppId
