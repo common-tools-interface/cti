@@ -120,9 +120,6 @@ int main(int argc, char const* argv[])
 	}
 
 	// Create MPIR launch instance based on arguments
-	std::string logcmd = "echo mpir_shim launch " + launcherPath + " >> /home/users/adangelo/log/shim." + std::to_string(getpid()) + ".log";
-	system(logcmd.c_str());
-	fprintf(stderr, "mpir_shim: launch instance %s\n", launcherPath.c_str());
 	auto mpirInstance = MPIRInstance{launcherPath, launcherArgv};
 
 	// send PID
