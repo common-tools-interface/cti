@@ -58,3 +58,4 @@ setenv (           "PE_CTI_DEVEL_MODULE_NAME", myModuleName()                )
 
 prepend_path  (    "PE_PKGCONFIG_PRODUCTS",    "PE_CTI"                      )
 prepend_path  (    "PKG_CONFIG_PATH",          PE_DIR .. "/lib/pkgconfig"    )
+prepend_path  (    "PE_PKG_CONFIG_PATH",       PE_DIR .. "/lib/pkgconfig"    )
