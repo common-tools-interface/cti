@@ -32,7 +32,7 @@ cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_CXXFLAGS	=	-I$(SRC) -I. -I$(INCLUDE) \
 														$(AM_CXXFLAGS)
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDFLAGS	=	-Wl,--no-undefined -Wl,--as-needed \
 														-pthread $(CDST_SUP_LIBS)
-cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDADD		=	libfe_daemon_iface.la ../mpir_iface/libmpir_iface.la \
+cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDADD		=	libfe_daemon_iface.la ../mpir_iface/libmpir_iface.la $(SRC)/useful/libuseful.la \
 														$(CODE_COVERAGE_LIBS)
 
 mpir_shim@COMMONTOOL_RELEASE_VERSION@_SOURCES  = mpir_shim.cpp

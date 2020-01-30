@@ -30,6 +30,7 @@ include/common_tools_version.h
 
 src/backend/daemon/cti_be_daemon[0-9]*
 src/frontend/daemon/cti_fe_daemon[0-9]*
+mpir_shim
 
 .deps
 .libs
