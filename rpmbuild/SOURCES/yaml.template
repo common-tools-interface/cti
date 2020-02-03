@@ -1,0 +1,95 @@
+'''---
+#----------------------------------------------------------------------------
+# IMPORTANT: do not rename sections! The installer uses section names
+# to detect changes made to sections, using the MD5 algorithm.
+#----------------------------------------------------------------------------
+section-1:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL 
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE:
+        ALL_EXCEPT:
+            - SEASTAR
+    OPERATION             : INSTALL
+    OS_VERSION            : 7.0
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : HARDWARE
+
+section-2:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS:
+        ALL_EXCEPT:
+            - chpbld01
+            - chpbld02
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : INSTALL
+    OS_VERSION            : sles15
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : WHITEBOX
+
+section-3:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE:
+        ALL_EXCEPT:
+            - SEASTAR
+    OPERATION             : UPDATE
+    OS_VERSION            : 7.0
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : HARDWARE
+    COMMANDS: |
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
+
+section-4:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS:
+        ALL_EXCEPT:
+            - chpbld01
+            - chpbld02
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : UPDATE
+    OS_VERSION            : sles15
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : WHITEBOX
+    COMMANDS: |
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
+
+section-5:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : <REMOVAL_DATE>
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : REMOVE
+    OS_VERSION            : 7.0, sles15
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : HARDWARE,WHITEBOX
+    COMMANDS: |
+        rpm -e <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>
+
+--- |
+#Remove previous versions of this rpm
+for package in  $(rpm -qa | grep ^<PRODUCT>-<VERSION>-)
+do
+  rpm -e $package
+done
+
+rpm -ivh <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>.rpm
+'''
