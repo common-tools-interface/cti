@@ -49,7 +49,7 @@ section-3:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : HARDWARE
     COMMANDS: |
-            /opt/cray/pe/admin-pe/set_default_files/set_default_cray-cti_<VERSION>
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
 
 section-4:
     ACCELERATOR           : NONE
@@ -67,11 +67,11 @@ section-4:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : WHITEBOX
     COMMANDS: |
-            /opt/cray/pe/admin-pe/set_default_files/set_default_cray-cti_<VERSION>
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
 
 section-5:
     ACCELERATOR           : NONE
-    EFFECTIVE_DATE        : [REMOVAL_DATE]
+    EFFECTIVE_DATE        : <REMOVAL_DATE>
     EMAILS                : karen.glaser@hpe.com
     EMAIL_BUILDER         : NO
     HOSTS                 : ALL
@@ -82,14 +82,14 @@ section-5:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : HARDWARE,WHITEBOX
     COMMANDS: |
-        rpm -e cray-cti-<VERSION>-<BUILD_METADATA>.<ARCH>
+        rpm -e <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>
 
 --- |
 #Remove previous versions of this rpm
-for package in  $(rpm -qa | grep ^cray-cti-<VERSION>-)
+for package in  $(rpm -qa | grep ^<PRODUCT>-<VERSION>-)
 do
   rpm -e $package
 done
 
-rpm -ivh cray-cti-<VERSION>-<BUILD_METADATA>.<ARCH>.rpm
+rpm -ivh <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>.rpm
 '''
