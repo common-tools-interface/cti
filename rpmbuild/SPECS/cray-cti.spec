@@ -44,6 +44,10 @@
 %global release_info_name release_info
 %global release_info_template_name %{release_info_name}.template
 
+# yaml file
+%global yaml_template yaml.template
+%global removal_date (date '+%Y-%m-%d' -d "+5 years")
+
 # copyright file
 %global copyright_name COPYRIGHT
 
@@ -110,6 +114,7 @@ Source4:    %{release_info_template_name}
 Source5:    %{copyright_name}
 Source6:    %{attributions_name}
 Source7:    %{lmod_template_cti}
+Source9:    %{yaml_template}
 
 %description
 Cray Common Tools Interface %{pkgversion}
@@ -193,6 +198,8 @@ Test files for Cray Common Tools Interface
 %{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE7} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}
 %{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua 
+# yaml file(s)
+%{__sed} 's|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{release}|g;s|<ARCH>|%{BuildArch}|g;s|<REMOVAL_DATE>|%{removal_date}|g' %{SOURCE9} > %{_rpmdir}/%{cray_name}-%{pkgversion}-%{release}.%{BuildArch}.rpm.yaml
 # Test files
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/examples
