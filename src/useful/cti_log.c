@@ -92,6 +92,22 @@ _cti_write_log(cti_log_t* log_file, const char *fmt, ...)
     FILE* fp = (FILE*)log_file;
     if (fp != NULL) {
         va_list vargs;
+
+        struct timeval tv;
+        int rc = -1;
+        // try to get the time of day 10 times, otherwise, we'll just print zeros below.
+        for (int count = 0; rc == -1 && count < 10; ++count) {
+            rc = gettimeofday(&tv, NULL);
+        }
+
+        if (rc == -1) {
+            fprintf(fp, "%ld.%06ld: ", 0ul, 0ul);
+        } else {
+            //FIXME: this is to align this timestamp with the debug output in MRNET.  Ugly but quick; future fix should have a standard value for all debug output.
+            auto MRN_RELEASE_DATE_SECS = 1308200400;
+            fprintf(fp, "%ld.%06ld: ", tv.tv_sec-MRN_RELEASE_DATE_SECS, tv.tv_usec);
+        }
+
         va_start(vargs, fmt);
         vfprintf(fp, fmt, vargs);
         va_end(vargs);
