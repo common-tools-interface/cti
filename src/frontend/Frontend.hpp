@@ -144,6 +144,8 @@ private: // Private data members usable only by the base Frontend
     std::string         m_be_daemon_path;
     // Cleanup files
     std::vector<std::string>    m_cleanup_files;
+    // Saved env vars
+    std::string         m_ld_preload;
 
 protected: // Protected data members that belong to any frontend
     struct passwd       m_pwd;
@@ -204,6 +206,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     // Get a list of default env vars to forward to BE daemon
     std::vector<std::string> getDefaultEnvVars();
     // Accessors
+    std::string getOldLdPreload() { return m_ld_preload; }
     std::string getCfgDir() { return m_cfg_dir; }
     std::string getBaseDir() { return m_base_dir; }
     std::string getLdAuditPath() { return m_ld_audit_path; }

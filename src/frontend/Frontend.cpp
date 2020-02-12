@@ -469,7 +469,8 @@ Frontend::getDefaultEnvVars() {
 }
 
 Frontend::Frontend()
-: m_stage_deps{true}
+: m_ld_preload{}
+, m_stage_deps{true}
 , m_log_dir{}
 , m_debug{false}
 , m_pmi_fopen_timeout{PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT}
@@ -485,6 +486,13 @@ Frontend::Frontend()
     }
     if (getenv(CTI_DBG_ENV_VAR)) {
         m_debug = true;
+    }
+    // Unload any LD_PRELOAD values, this may muck up CTI daemons.
+    // Make sure to save this to pass to the environment of any application
+    // that gets launched.
+    if ((env_var = getenv("LD_PRELOAD")) != nullptr) {
+        m_ld_preload = std::string{env_var};
+        unsetenv("LD_PRELOAD");
     }
     // Setup the password file entry. Other utilites need to use this
     size_t buf_len = 4096;
