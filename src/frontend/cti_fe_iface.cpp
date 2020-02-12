@@ -539,7 +539,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stder
                 }
                 else {
                     // not LD_PRELOAD, add it back
-                    env_vars_ptr->push_back(strdup(env_list[i]);
+                    env_vars_ptr->push_back(strdup(env_list[i]));
                 }
             }
             env_list = (const char * const *)env_vars_ptr->data();
