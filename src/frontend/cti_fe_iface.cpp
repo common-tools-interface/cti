@@ -515,8 +515,10 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stder
             new std::vector<char *>,
             [](std::vector<char *> *vec_ptr)
             {
-                for( auto str : vec_ptr) {
-                    free(str);
+                if (vec_ptr != nullptr) {
+                    for( auto str : *vec_ptr) {
+                        free(str);
+                    }
                 }
                 delete vec_ptr;
             }
@@ -526,7 +528,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stder
             // need to potentially fixup the list
             for (auto i=0; env_list[i] != nullptr; ++i) {
                 if (strncmp(env_list[i], "LD_PRELOAD", 10) == 0) {
-                    char * sub_ptr = strrchr(env_list[i], '=');
+                    char * sub_ptr = strrchr(const_cast<char *>(env_list[i]), '=');
                     if (sub_ptr == nullptr) {
                         throw std::runtime_error("Invalid LD_PRELOAD detected in env_list argument.");
                     }
@@ -537,7 +539,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stder
                 }
                 else {
                     // not LD_PRELOAD, add it back
-                    env_vars_ptr->push_back(strdup(env_list[i].c_str()));
+                    env_vars_ptr->push_back(strdup(env_list[i]);
                 }
             }
             env_list = (const char * const *)env_vars_ptr->data();
