@@ -96,11 +96,7 @@ _cti_write_log(cti_log_t* log_file, const char *fmt, ...)
         va_list vargs;
 
         struct timeval tv;
-        int rc = -1;
-        // try to get the time of day 10 times, otherwise, we'll just print zeros below.
-        for (int count = 0; rc == -1 && count < 10; ++count) {
-            rc = gettimeofday(&tv, NULL);
-        }
+        int rc = gettimeofday(&tv, NULL);
 
         if (rc == -1) {
             fprintf(fp, "0000-00-00 00:00:00.%06ld: ", 0ul);

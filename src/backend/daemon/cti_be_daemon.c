@@ -570,7 +570,7 @@ main(int argc, char **argv)
     {
         for (i=0; i < argc; ++i)
         {
-            _cti_write_log(stderr, "%s: argv[%d] = \"%s\"\n", CTI_BE_DAEMON_BINARY, i, argv[i]);
+            _cti_write_log(log, "%s: argv[%d] = \"%s\"\n", CTI_BE_DAEMON_BINARY, i, argv[i]);
         }
     }
 
@@ -662,7 +662,7 @@ main(int argc, char **argv)
     // cd to the tool_path and relax the permissions
     if (debug_flag)
     {
-        _cti_write_log(stderr, "%s: inst %d: Toolhelper path: %s\n", CTI_BE_DAEMON_BINARY, inst, tool_path);
+        _cti_write_log(log, "%s: inst %d: Toolhelper path: %s\n", CTI_BE_DAEMON_BINARY, inst, tool_path);
     }
 
     if (stat(tool_path, &statbuf) == -1)
@@ -753,7 +753,7 @@ main(int argc, char **argv)
     {
         if (debug_flag)
         {
-            _cti_write_log(stderr, "%s: inst %d: Manifest provided: %s\n", CTI_BE_DAEMON_BINARY, inst, manifest);
+            _cti_write_log(log, "%s: inst %d: Manifest provided: %s\n", CTI_BE_DAEMON_BINARY, inst, manifest);
         }
 
         // create the manifest path string
@@ -843,7 +843,7 @@ main(int argc, char **argv)
     {
         if (debug_flag)
         {
-            _cti_write_log(stderr, "%s: inst %d: Directory provided: %s\n", CTI_BE_DAEMON_BINARY, inst, directory);
+            _cti_write_log(log, "%s: inst %d: Directory provided: %s\n", CTI_BE_DAEMON_BINARY, inst, directory);
         }
 
         // create the manifest path string
@@ -1176,7 +1176,7 @@ main(int argc, char **argv)
 
     if (debug_flag)
     {
-        _cti_write_log(stderr, "%s: inst %d: Binary path: %s\n", CTI_BE_DAEMON_BINARY, inst, binary_path);
+        _cti_write_log(log, "%s: inst %d: Binary path: %s\n", CTI_BE_DAEMON_BINARY, inst, binary_path);
     }
 
     // At this point we need to wait on any other previous tool daemons that may
@@ -1207,7 +1207,7 @@ main(int argc, char **argv)
             {
                 if (sCnt++%100 == 0)
                 {
-                    _cti_write_log(stderr, "%s: inst %d: Lock file %s not found. Sleeping...\n", CTI_BE_DAEMON_BINARY, inst, lock_path);
+                    _cti_write_log(log, "%s: inst %d: Lock file %s not found. Sleeping...\n", CTI_BE_DAEMON_BINARY, inst, lock_path);
                 }
             }
 
@@ -1218,7 +1218,7 @@ main(int argc, char **argv)
 
     if (debug_flag)
     {
-        _cti_write_log(stderr, "%s: inst %d: All dependency locks acquired. Ready to exec.\n", CTI_BE_DAEMON_BINARY, inst);
+        _cti_write_log(log, "%s: inst %d: All dependency locks acquired. Ready to exec.\n", CTI_BE_DAEMON_BINARY, inst);
     }
 
     // At this point it is safe to assume we have all our dependencies.
