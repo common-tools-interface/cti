@@ -329,7 +329,7 @@ TEST_F(CTIUsefulUnitTest, cti_log_cti_log_normal)
     EXPECT_STREQ(res.c_str(), "TEST");
 
     // remove log file
-    remove("./dbglog_test_log.0.log");
+    //remove("./dbglog_test_log.0.log");
 }
 
 TEST_F(CTIUsefulUnitTest, cti_log_cti_log_hookstdoe)

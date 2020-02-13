@@ -101,11 +101,15 @@ _cti_write_log(cti_log_t* log_file, const char *fmt, ...)
         }
 
         if (rc == -1) {
-            fprintf(fp, "%ld.%06ld: ", 0ul, 0ul);
+            fprintf(fp, "0000-00-00 00:00:00.%06ld: ", 0ul, 0ul);
         } else {
-            //FIXME: this is to align this timestamp with the debug output in MRNET.  Ugly but quick; future fix should have a standard value for all debug output.
-            auto MRN_RELEASE_DATE_SECS = 1308200400;
-            fprintf(fp, "%ld.%06ld: ", tv.tv_sec-MRN_RELEASE_DATE_SECS, tv.tv_usec);
+            if ((struct tm *tmptr = localtime(tv.tv_sec)) == NULL) {
+                fprintf(fp, "%ld.%06ld: ", tv.tv_sec, tv.tv_usec);
+            } else {
+                fprintf(fp, "%Y-%m-%d %H:%M:%S.%06ld: ", tmptr->tm_year,
+                        tmptr->tm_mon, tmptr->tm_mday, tmptr->tm_hour,
+                        tmptr->tm_min, tmptr->tm_sec, tv.tv_usec);
+            }   
         }
 
         va_start(vargs, fmt);
