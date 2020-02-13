@@ -477,8 +477,7 @@ Frontend::Frontend()
 , m_extra_sleep{0}
 {
     // Read initial environment variable overrides for default attrib values
-    const char* env_var = nullptr;
-    if ((env_var = getenv(CTI_LOG_DIR_ENV_VAR)) != nullptr) {
+    if ((auto const env_var = getenv(CTI_LOG_DIR_ENV_VAR)) != nullptr) {
         if (!cti::dirHasPerms(env_var, R_OK | W_OK | X_OK)) {
             throw std::runtime_error(std::string{"Bad directory specified by environment variable "} + CTI_LOG_DIR_ENV_VAR);
         }
@@ -490,7 +489,7 @@ Frontend::Frontend()
     // Unload any LD_PRELOAD values, this may muck up CTI daemons.
     // Make sure to save this to pass to the environment of any application
     // that gets launched.
-    if ((env_var = getenv("LD_PRELOAD")) != nullptr) {
+    if ((auto const env_var = getenv("LD_PRELOAD")) != nullptr) {
         m_ld_preload = std::string{env_var};
         unsetenv("LD_PRELOAD");
     }
