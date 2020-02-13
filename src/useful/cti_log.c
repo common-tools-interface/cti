@@ -39,6 +39,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include <linux/limits.h>
 
@@ -101,14 +103,16 @@ _cti_write_log(cti_log_t* log_file, const char *fmt, ...)
         }
 
         if (rc == -1) {
-            fprintf(fp, "0000-00-00 00:00:00.%06ld: ", 0ul, 0ul);
+            fprintf(fp, "0000-00-00 00:00:00.%06ld: ", 0ul);
         } else {
-            if ((struct tm *tmptr = localtime(tv.tv_sec)) == NULL) {
+            struct tm *tmptr = localtime(&(tv.tv_sec));
+            if (tmptr == NULL) {
                 fprintf(fp, "%ld.%06ld: ", tv.tv_sec, tv.tv_usec);
             } else {
-                fprintf(fp, "%Y-%m-%d %H:%M:%S.%06ld: ", tmptr->tm_year,
-                        tmptr->tm_mon, tmptr->tm_mday, tmptr->tm_hour,
-                        tmptr->tm_min, tmptr->tm_sec, tv.tv_usec);
+                size_t buflen = 32;
+                char buf[buflen];
+                strftime(buf, buflen, "%Y-%m-%d %H:%M:%S", tmptr);  
+                fprintf(fp, "%s.%06ld: ", buf, tv.tv_usec);
             }   
         }
 
