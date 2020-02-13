@@ -519,7 +519,7 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stder
             for (auto i=0; env_list[i] != nullptr; ++i) {
                 if (strncmp(env_list[i], "LD_PRELOAD", 10) == 0) {
                     found = true;
-                    const char * sub_ptr = strrchr(const_cast<char *>(env_list[i]), '=');
+                    const char * sub_ptr = strrchr(env_list[i], '=');
                     if (sub_ptr == nullptr) {
                         throw std::runtime_error("Invalid LD_PRELOAD detected in env_list argument.");
                     }
