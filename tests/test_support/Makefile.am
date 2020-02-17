@@ -58,5 +58,5 @@ one_print_LDFLAGS 		= -Wl,-rpath,\$$ORIGIN/message_one
 
 preload_print_DEPENDENCIES = message_one/libmessage.so
 preload_print_SOURCES	= preload_test.c
-preload_print_LDFLAGS	= -fPIC
+preload_print_CFLAGS	= -fPIC
 
