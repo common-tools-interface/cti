@@ -52,8 +52,12 @@
 class CTI_Environment : public ::testing::Environment
 {
 public:
-    // Ensure we override the install env var to our prefix
-    void SetUp() { setenv(CTI_BASE_DIR_ENV_VAR, INSTALL_PATH, 1); }
+    void SetUp() {
+        // Ensure we override the install env var to our prefix
+        setenv(CTI_BASE_DIR_ENV_VAR, INSTALL_PATH, 1);
+        // Set a dummy LD_PRELOAD to ensure frontend removes it
+        setenv("LD_PRELOAD", "/dev/null", 1);
+    }
 };
 
 int main(int argc, char **argv) {
