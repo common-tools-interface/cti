@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-char const* get_message() __attribute__ ((weak)) {
+__attribute__ ((weak)) char const* get_message() {
     return "In weak function!";
 }
 
