@@ -54,6 +54,7 @@ using ::testing::Return;
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::WithoutArgs;
+using ::testing::EndsWith;
 
 CTIUsefulUnitTest::CTIUsefulUnitTest()
 {
@@ -324,10 +325,10 @@ TEST_F(CTIUsefulUnitTest, cti_log_cti_log_normal)
 
     // test that data is correct
     std::string res;
-    check >> res;
+    getline(check, res);
     check.close();
-    EXPECT_STREQ(res.c_str(), "TEST");
 
+    ASSERT_THAT(res.c_str(), EndsWith("TEST"));
     // remove log file
     remove("./dbglog_test_log.0.log");
 }
