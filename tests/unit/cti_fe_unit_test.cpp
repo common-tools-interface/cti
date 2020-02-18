@@ -89,6 +89,9 @@ TEST_F(CTIFEUnitTest, ld_preload_helper)
     MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
     std::string saved = mockFrontend.getOldLdPreload();
     ASSERT_STREQ("/dev/null", saved.c_str());
+    // Ensure LD_PRELOAD is unset
+    char *envStr = getenv("LD_PRELOAD");
+    ASSERT_EQ(envStr, nullptr);
 }
 
 // const char * cti_error_str(void)
