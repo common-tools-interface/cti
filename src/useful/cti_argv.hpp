@@ -50,7 +50,7 @@ private:
 public:
     /* constructor creates NULL-terminator. */
     ManagedArgv() {
-        argv.push_back(NULL);
+        argv.push_back(nullptr);
     }
 
     ManagedArgv(std::initializer_list<std::string const> str_list) {
@@ -58,7 +58,7 @@ public:
         for (auto&& str : str_list) {
             argv.push_back(strdup(str.c_str()));
         }
-        argv.push_back(NULL);
+        argv.push_back(nullptr);
     }
 
     /* destructor frees the strdup'ed memory */
@@ -83,7 +83,7 @@ public:
     void add(std::string const& str) { argv.insert(argv.end() - 1, strdup(str.c_str())); }
     void add(const char* str) {
         if (str == nullptr) {
-            throw std::logic_error("attempted to add NULL pointer to managed argument array");
+            throw std::logic_error("attempted to add nullptr pointer to managed argument array");
         }
         argv.insert(argv.end() - 1, strdup(str));
     }

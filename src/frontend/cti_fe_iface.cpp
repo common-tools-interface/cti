@@ -510,6 +510,52 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stder
 
         // register new app instance held at barrier
         auto&& fe = Frontend::inst();
+        // Ensure LD_PRELOAD gets added to the env_list
+        cti::ManagedArgv env_vars;
+        std::string ld_preload_str = fe.getOldLdPreload();
+        if (!ld_preload_str.empty()) {
+            // need to potentially fixup the list
+            bool found = false;
+            for (auto i=0; env_list[i] != nullptr; ++i) {
+                if (strncmp(env_list[i], "LD_PRELOAD", 10) == 0) {
+                    found = true;
+                    const char * sub_ptr = strrchr(env_list[i], '=');
+                    if (sub_ptr == nullptr) {
+                        throw std::runtime_error("Invalid LD_PRELOAD detected in env_list argument.");
+                    }
+                    // Advance past '='
+                    ++sub_ptr;
+                    // conditionally advance past "
+                    if (*sub_ptr == '"') {
+                        ++sub_ptr;
+                        // terminating quote should already be present
+                        std::string fixup{std::string{  "LD_PRELOAD=\""}
+                                                        + ld_preload_str
+                                                        + std::string{":"}
+                                                        + std::string{sub_ptr} };
+                        env_vars.add(fixup);
+                    }
+                    else {
+                        std::string fixup{std::string{  "LD_PRELOAD=\""}
+                                                        + ld_preload_str
+                                                        + std::string{":"}
+                                                        + std::string{sub_ptr}
+                                                        + std::string{"\""} };
+                        env_vars.add(fixup);
+                    }
+                }
+                else {
+                    // not LD_PRELOAD, add it back
+                    env_vars.add(env_list[i]);
+                }
+            }
+            // Conditionally add LD_PRELOAD to the list
+            if (!found) {
+                env_vars.add(std::string{std::string{"LD_PRELOAD=\""} + ld_preload_str + std::string{"\""}});
+            }
+            // reset env_list
+            env_list = (const char * const *)env_vars.get();
+        }
         auto wp = fe.launchBarrier(launcher_argv, stdoutFd, stderrFd, inputFile, chdirPath, env_list);
 
         return fe.Iface().trackApp(wp);

@@ -82,6 +82,18 @@ CTIAppUnitTest::~CTIAppUnitTest()
 
 /* current frontend information query tests */
 
+// Test LD_PRELOAD getter function
+TEST_F(CTIFEUnitTest, ld_preload_helper)
+{
+    // We set LD_PRELOAD to /dev/null in the unit test setup
+    MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
+    std::string saved = mockFrontend.getOldLdPreload();
+    ASSERT_STREQ("/dev/null", saved.c_str());
+    // Ensure LD_PRELOAD is unset
+    char *envStr = getenv("LD_PRELOAD");
+    ASSERT_EQ(envStr, nullptr);
+}
+
 // const char * cti_error_str(void)
 // Test the the current error string is not set
 TEST_F(CTIFEUnitTest, error_str)

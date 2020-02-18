@@ -469,15 +469,15 @@ Frontend::getDefaultEnvVars() {
 }
 
 Frontend::Frontend()
-: m_stage_deps{true}
+: m_ld_preload{}
+, m_stage_deps{true}
 , m_log_dir{}
 , m_debug{false}
 , m_pmi_fopen_timeout{PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT}
 , m_extra_sleep{0}
 {
     // Read initial environment variable overrides for default attrib values
-    const char* env_var = nullptr;
-    if ((env_var = getenv(CTI_LOG_DIR_ENV_VAR)) != nullptr) {
+    if (const char* env_var = getenv(CTI_LOG_DIR_ENV_VAR)) {
         if (!cti::dirHasPerms(env_var, R_OK | W_OK | X_OK)) {
             throw std::runtime_error(std::string{"Bad directory specified by environment variable "} + CTI_LOG_DIR_ENV_VAR);
         }
@@ -485,6 +485,13 @@ Frontend::Frontend()
     }
     if (getenv(CTI_DBG_ENV_VAR)) {
         m_debug = true;
+    }
+    // Unload any LD_PRELOAD values, this may muck up CTI daemons.
+    // Make sure to save this to pass to the environment of any application
+    // that gets launched.
+    if (const char* env_var = getenv("LD_PRELOAD")) {
+        m_ld_preload = std::string{env_var};
+        unsetenv("LD_PRELOAD");
     }
     // Setup the password file entry. Other utilites need to use this
     size_t buf_len = 4096;
