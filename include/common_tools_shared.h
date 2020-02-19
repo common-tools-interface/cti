@@ -88,6 +88,7 @@
  *          CTI_WLM_SLURM set to "slurm"
  *          CTI_WLM_SSH set to "generic"
  *          CTI_WLM_ALPS set to "alps"
+ *          CTI_WLM_PALS set to "pals"
  *
  */
 #define CTI_BASE_DIR_ENV_VAR        "CTI_INSTALL_DIR"
@@ -103,6 +104,7 @@
 #define CTI_WLM_TYPE_SLURM_STR     	"slurm"
 #define CTI_WLM_TYPE_ALPS_STR       "alps"
 #define CTI_WLM_TYPE_SSH_STR   		"generic"
+#define CTI_WLM_TYPE_PALS_STR       "pals"
 
 #ifdef __cplusplus
 extern "C" {
@@ -117,7 +119,8 @@ typedef enum
     CTI_WLM_MOCK,   // Used for unit testing
     CTI_WLM_SLURM,  // SLURM implementation
     CTI_WLM_SSH,    // Direct SSH implementation
-    CTI_WLM_ALPS    // ALPS implementation
+    CTI_WLM_ALPS,   // ALPS implementation
+    CTI_WLM_PALS    // PALS implementation
 } cti_wlm_type_t;
 
 #ifdef __cplusplus

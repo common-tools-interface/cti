@@ -377,6 +377,8 @@ Frontend::detect_Frontend()
             return CTI_WLM_ALPS;
         } else if (wlmName == toLower(SLURMFrontend::getName())) {
             return CTI_WLM_SLURM;
+        } else if (wlmName == toLower(PALSFrontend::getName())) {
+            return CTI_WLM_PALS;
         } else if (wlmName == toLower(GenericSSHFrontend::getName())) {
             return CTI_WLM_SSH;
         }
@@ -390,6 +392,8 @@ Frontend::detect_Frontend()
             return CTI_WLM_ALPS;
         } else if (SLURMFrontend::isSupported()) {
             return CTI_WLM_SLURM;
+        } else if (PALSFrontend::isSupported()) {
+            return CTI_WLM_PALS;
         } else if (GenericSSHFrontend::isSupported()) {
             return CTI_WLM_SSH;
         }
@@ -422,6 +426,9 @@ Frontend::inst() {
                     } else {
                         inst = new SLURMFrontend{};
                     }
+                    break;
+                case CTI_WLM_PALS:
+                    inst = new PALSFrontend{};
                     break;
                 case CTI_WLM_SSH:
                     inst = new GenericSSHFrontend{};

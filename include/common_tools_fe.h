@@ -781,6 +781,15 @@ typedef struct {
 } cti_slurm_ops_t;
 
 /*-----------------------------------------------------------------------------
+ * cti_pals_ops extensions - Extensions for the PALS WLM
+ *-----------------------------------------------------------------------------
+ */
+
+typedef struct {
+    cti_app_id_t     (*registerApid)(uint64_t apid);
+} cti_pals_ops_t;
+
+/*-----------------------------------------------------------------------------
  * cti_ssh_ops extensions - Extensions for the Generic SSH based WLM
  *-----------------------------------------------------------------------------
  * registerJob - Registers an already running application for use with the

@@ -37,4 +37,5 @@
 
 #include "ALPS/Frontend.hpp"
 #include "SLURM/Frontend.hpp"
+#include "PALS/Frontend.hpp"
 #include "GenericSSH/Frontend.hpp"
