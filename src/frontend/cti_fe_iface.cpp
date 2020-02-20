@@ -386,7 +386,7 @@ static cti_slurm_ops_t _cti_slurm_ops = {
 // PALS WLM extensions
 
 static cti_app_id_t
-_cti_pals_registerApid(uint64_t apid) {
+_cti_pals_registerApid(char const* apid) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = downcastFE<PALSFrontend>();
         auto wp = fe.registerJob(1, apid);

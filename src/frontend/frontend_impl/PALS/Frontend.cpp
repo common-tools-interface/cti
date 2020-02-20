@@ -16,12 +16,41 @@
 #include "cti_argv_defs.hpp"
 
 #include <memory>
+#include <thread>
 
 #include "transfer/Manifest.hpp"
 
 #include "PALS/Frontend.hpp"
 
+#include "useful/cti_websocket.hpp"
+
+// Boost JSON
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+
 /* helper functions */
+
+// Load token from disk
+static constexpr auto defaultTokenFilePattern = "~/.config/cray/tokens/%s.%s";
+static auto readAccessToken(std::string const& tokenPath)
+{
+    namespace pt = boost::property_tree;
+
+    // Load and parse token JSON
+    auto root = pt::ptree{};
+    try {
+        pt::read_json(tokenPath, root);
+    } catch (pt::json_parser::json_parser_error const& parse_ex) {
+        throw std::runtime_error("failed to read token file at " + tokenPath);
+    }
+
+    // Extract token value
+    try {
+        return root.get<std::string>("access_token");
+    } catch (pt::ptree_bad_path const& path_ex) {
+        throw std::runtime_error("failed to find 'access_token' in file " + tokenPath);
+    }
+}
 
 /* PALSFrontend implementation */
 
@@ -119,6 +148,18 @@ PALSApp::shipPackage(std::string const& tarPath) const
 
 void
 PALSApp::startDaemon(const char* const args[])
+{
+    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+}
+
+PALSApp::PALSApp(PALSFrontend& fe, std::string const& apId)
+    : App{fe}
+    , m_beDaemonSent{}
+    , m_hostsPlacement{}
+    , m_toolPath{}
+    , m_attribsPath{}
+    , m_stagePath{}
+    , m_extraFiles{}
 {
     throw std::runtime_error{"not implemented: " + std::string{__func__}};
 }

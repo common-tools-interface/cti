@@ -112,7 +112,7 @@ public: // pals specific interface
 
 public: // constructor / destructor interface
     // attach case
-    PALSApp(PALSFrontend& fe, uint64_t aprunId);
+    PALSApp(PALSFrontend& fe, std::string const& apId);
     // launch case
     PALSApp(PALSFrontend& fe, const char * const launcher_argv[], int stdout_fd,
         int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);

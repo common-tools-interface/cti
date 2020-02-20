@@ -786,7 +786,7 @@ typedef struct {
  */
 
 typedef struct {
-    cti_app_id_t     (*registerApid)(uint64_t apid);
+    cti_app_id_t     (*registerApid)(char const* apid);
 } cti_pals_ops_t;
 
 /*-----------------------------------------------------------------------------
