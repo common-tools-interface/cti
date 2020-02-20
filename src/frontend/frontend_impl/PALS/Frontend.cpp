@@ -18,6 +18,8 @@
 #include <memory>
 #include <thread>
 
+#include <fstream>
+
 #include "transfer/Manifest.hpp"
 
 #include "PALS/Frontend.hpp"
@@ -30,8 +32,83 @@
 
 /* helper functions */
 
+static auto const home_directory()
+{
+    static auto const _dir = []() {
+        if (auto const homeDir = ::getenv("HOME")) {
+            return std::string{homeDir};
+        }
+
+        auto const [pwd, pwd_buf] = cti::getpwuid(geteuid());
+
+        return std::string{pwd.pw_dir};
+    }();
+
+    return _dir.c_str();
+}
+
+// Get name of active configuration
+static constexpr auto defaultActiveConfigFilePattern  = "%s/.config/cray/active_config";
+static auto readActiveConfig(std::string const& activeConfigFilePath)
+{
+    auto result = std::string{};
+
+    auto fileStream = std::ifstream{activeConfigFilePath};
+    if (std::getline(fileStream, result)) {
+        return result;
+    }
+
+    throw std::runtime_error("failed to read active config from " + activeConfigFilePath);
+}
+
+// Get pair of hostname, username for authentication
+static constexpr auto defaultConfigFilePattern = "%s/.config/cray/configurations/%s";
+static auto readHostnameUsernamePair(std::string const& configFilePath)
+{
+    auto hostname = std::string{};
+    auto username = std::string{};
+
+    auto fileStream = std::ifstream{configFilePath};
+    auto line = std::string{};
+    while (std::getline(fileStream, line)) {
+        if (line.substr(0, 12) == "hostname = \"") {
+            hostname = line.substr(12, line.length() - 13);
+        } else if (line.substr(0, 12) == "username = \"") {
+            username = line.substr(12, line.length() - 13);
+        }
+    }
+
+    if (hostname.empty() || username.empty()) {
+        throw std::runtime_error("failed to read hostname and username from " + configFilePath);
+    }
+
+    return std::make_pair(hostname, username);
+}
+
+// Hostname into token name
+// See `hostname_to_name` in https://stash.us.cray.com/projects/CLOUD/repos/craycli/browse/cray/utils.py
+static auto hostnameToName(std::string url)
+{
+    // Extract hostname from URL
+    auto const protocolSep = url.find("://");
+    auto const start = (protocolSep != std::string::npos)
+        ? protocolSep + 3
+        : 0;
+    auto const endpointSep = url.find("/");
+    auto const len = (endpointSep != std::string::npos)
+        ? endpointSep - start
+        : std::string::npos;
+    url = url.substr(start, len);
+
+    // Replace - and . with _
+    std::replace(url.begin(), url.end(), '-', '_');
+    std::replace(url.begin(), url.end(), '.', '_');
+
+    return url;
+}
+
 // Load token from disk
-static constexpr auto defaultTokenFilePattern = "~/.config/cray/tokens/%s.%s";
+static constexpr auto defaultTokenFilePattern = "%s/.config/cray/tokens/%s.%s";
 static auto readAccessToken(std::string const& tokenPath)
 {
     namespace pt = boost::property_tree;
@@ -57,6 +134,15 @@ static auto readAccessToken(std::string const& tokenPath)
 bool
 PALSFrontend::isSupported()
 {
+    auto const activeConfig = readActiveConfig(
+        cti::cstr::asprintf(defaultActiveConfigFilePattern, home_directory()));
+    auto const [hostnameUrl, username] = readHostnameUsernamePair(
+        cti::cstr::asprintf(defaultConfigFilePattern, home_directory(), activeConfig.c_str()));
+    auto const tokenName = hostnameToName(hostnameUrl);
+    auto const accessToken = readAccessToken(
+        cti::cstr::asprintf(defaultTokenFilePattern, home_directory(), tokenName.c_str(), username.c_str()));
+    fprintf(stderr, "access token: %s\n", accessToken.c_str());
+
     return false;
 }
 

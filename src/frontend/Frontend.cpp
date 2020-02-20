@@ -501,24 +501,8 @@ Frontend::Frontend()
         unsetenv("LD_PRELOAD");
     }
     // Setup the password file entry. Other utilites need to use this
-    size_t buf_len = 4096;
-    long rl = sysconf(_SC_GETPW_R_SIZE_MAX);
-    if (rl != -1) buf_len = static_cast<size_t>(rl);
-    // resize the vector
-    m_pwd_buf.resize(buf_len);
-    // Get the password file
-    struct passwd *result = nullptr;
-    if (getpwuid_r( geteuid(),
-                    &m_pwd,
-                    m_pwd_buf.data(),
-                    m_pwd_buf.size(),
-                    &result)) {
-        throw std::runtime_error("getpwuid_r failed: " + std::string{strerror(errno)});
-    }
-    // Ensure we obtained a result
-    if (result == nullptr) {
-        throw std::runtime_error("password file entry not found for euid " + std::to_string(geteuid()));
-    }
+    std::tie(m_pwd, m_pwd_buf) = cti::getpwuid(geteuid());
+
     // Setup the directories. We break these out into private static methods
     // to avoid pollution in the constructor.
     m_cfg_dir = findCfgDir();
