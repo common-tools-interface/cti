@@ -16,6 +16,15 @@ AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h include/common_tools_version.h])
 
+AC_ARG_ENABLE([CODE_COVERAGE_ENABLED],
+[  --enable-code-coverage    Turn on code coverage],
+[case "${enableval}" in
+  yes) CODE_COVERAGE_ENABLED=true ;;
+  no)  CODE_COVERAGE_ENABLED=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-code-coverage]) ;;
+esac],[debug=false])
+AM_CONDITIONAL([CODE_COVERAGE_ENABLED], [test x$CODE_COVERAGE_ENABLED = xtrue])
+
 dnl Turn on Posix extensions
 AC_USE_SYSTEM_EXTENSIONS
 
