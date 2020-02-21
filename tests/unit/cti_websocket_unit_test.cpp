@@ -80,7 +80,7 @@ TEST_F(CTIUsefulUnitTest, PostJsonReq)
     auto const postEndpoint = "/post";
     auto const postMessage = std::to_string(::getpid());
 
-    auto const resp = cti::postJsonReq(postHost, postEndpoint, postMessage);
+    auto const resp = cti::postJsonReq(postHost, postEndpoint, "", postMessage);
 
     EXPECT_TRUE(!resp.empty());
 }

@@ -53,7 +53,7 @@
 namespace cti
 {
 
-std::string postJsonReq(std::string const& hostname, std::string const& endpoint, std::string const& body)
+std::string postJsonReq(std::string const& hostname, std::string const& endpoint, std::string const& token, std::string const& body)
 {
     auto ioc = boost::asio::io_context{};
 
@@ -66,10 +66,13 @@ std::string postJsonReq(std::string const& hostname, std::string const& endpoint
 
     auto req = boost::beast::http::request<boost::beast::http::string_body>{boost::beast::http::verb::post, endpoint, 11};
     req.set(boost::beast::http::field::host, hostname);
+    req.set("Authorization", "Bearer " + token);
     req.set(boost::beast::http::field::user_agent, CTI_RELEASE_VERSION);
 
+    req.set(boost::beast::http::field::accept, "application/json");
     req.set(boost::beast::http::field::content_type, "application/json");
     req.body() = body;
+    req.prepare_payload();
 
     boost::beast::http::write(stream, req);
 
