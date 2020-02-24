@@ -74,17 +74,6 @@ TEST_F(CTIUsefulUnitTest, WebSocketTask)
     EXPECT_GT(webSocketTask.get(), 0);
 }
 
-TEST_F(CTIUsefulUnitTest, PostJsonReq)
-{
-    auto const postHost = "httpbin.org";
-    auto const postEndpoint = "/post";
-    auto const postMessage = std::to_string(::getpid());
-
-    auto const resp = cti::postJsonReq(postHost, postEndpoint, "", postMessage);
-
-    EXPECT_TRUE(!resp.empty());
-}
-
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

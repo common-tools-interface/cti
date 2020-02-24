@@ -50,6 +50,10 @@
 
 #include <boost/beast/http/string_body.hpp>
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
+
 namespace cti
 {
 
@@ -102,7 +106,8 @@ public: // types
 
 private: // helpers
     static auto make_WebSocketStream(boost::asio::io_context& ioc,
-        std::string const& hostname, std::string const& port)
+        std::string const& hostname, std::string const& port,
+        std::string const& token)
     {
         auto resolver = boost::asio::ip::tcp::resolver{ioc};
         auto result = WebSocketStream{ioc};
@@ -110,15 +115,24 @@ private: // helpers
         auto const resolver_results = resolver.resolve(hostname, port);
         boost::asio::connect(result.next_layer(), resolver_results.begin(), resolver_results.end());
 
+        result.set_option(boost::beast::websocket::stream_base::decorator(
+            [hostname, token](boost::beast::websocket::request_type& req) {
+                req.set(boost::beast::http::field::host, hostname);
+                req.set("Authorization", "Bearer " + token);
+                req.set(boost::beast::http::field::user_agent, CTI_RELEASE_VERSION);
+
+                req.set(boost::beast::http::field::accept, "application/json");
+                req.set(boost::beast::http::field::content_type, "application/json");
+            }));
+
         return result;
     }
 
     static int relayWorker(WebSocketStream&& webSocketStream,
-        std::string const& hostname, std::string const& endpoint, std::string const& body,
+        std::string const& hostname, std::string const& endpoint,
         Func&& dataCallback)
     {
         webSocketStream.handshake(hostname, endpoint);
-        webSocketStream.write(boost::asio::buffer(body));
 
         auto buffer = boost::beast::flat_buffer{};
         auto ec = boost::beast::error_code{};
@@ -148,15 +162,14 @@ private: // members
     std::future<int> m_relayFuture;
 
 public: // interface
-    WebSocketTask(std::string const& hostname, std::string const& endpoint, std::string const& body,
+    WebSocketTask(std::string const& hostname, std::string const& endpoint, std::string const& token,
         Func&& dataCallback)
         : m_ioc{}
         , m_relayFuture{std::async(std::launch::async
             , relayWorker
-            , make_WebSocketStream(m_ioc, hostname, "80")
+            , make_WebSocketStream(m_ioc, hostname, "80", token)
             , hostname
             , endpoint
-            , body
             , std::forward<Func>(dataCallback))}
     {}
 

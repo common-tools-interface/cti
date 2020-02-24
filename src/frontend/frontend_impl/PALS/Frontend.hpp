@@ -61,13 +61,26 @@ public: // inherited interface
 
     std::string getHostname() const override;
 
-private: // pals specific types
+public: // pals specific types
+    struct PalsLaunchInfo
+    {
+        std::string apId;
+        std::vector<CTIHost> hostsPlacement;
+    };
 
 private: // pals specific members
+    friend class PALSApp;
 
 public: // pals specific interface
     // Get the default launcher binary name, or, if provided, from the environment.
     std::string getLauncherName() const;
+
+    // Use PALS API to get application and node placement information
+    PalsLaunchInfo getAprunLaunchInfo(std::string const& apId);
+
+    // Launch and extract application and node placement information
+    PalsLaunchInfo launchApp(const char * const launcher_argv[], int stdout_fd,
+        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
 public: // constructor / destructor interface
     PALSFrontend();
@@ -110,6 +123,8 @@ public: // app interaction interface
 
 public: // pals specific interface
 
+private: // delegated constructor
+    PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo);
 public: // constructor / destructor interface
     // attach case
     PALSApp(PALSFrontend& fe, std::string const& apId);
