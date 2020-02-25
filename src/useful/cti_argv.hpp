@@ -146,23 +146,33 @@ public:
 template <class ArgvDef>
 class IncomingArgv : public ArgvDef {
 private:
-    std::string flagSpec;
-    const int argc;
-    char* const* argv;
+    const int m_argc;
+    char* const* m_argv;
+    std::string m_flagSpec;
+    int m_optind;
 
 public:
-    IncomingArgv(int argc_, char* const* argv_) : argc(argc_), argv(argv_) {
+    IncomingArgv(int argc, char* const* argv)
+        : m_argc(argc)
+        , m_argv(argv)
+        , m_flagSpec{}
+        , m_optind{0}
+    {
         for (const Argv::GNUOption* opt_ptr = ArgvDef::long_options;
             opt_ptr->val != 0; opt_ptr++) {
-            flagSpec.push_back((char)(opt_ptr->val));
+            m_flagSpec.push_back((char)(opt_ptr->val));
             if (opt_ptr->has_arg != no_argument) {
-                flagSpec.push_back(':');
+                m_flagSpec.push_back(':');
             }
         }
     }
 
     std::pair<int, std::string> get_next() {
-        int c = getopt_long(argc, argv, flagSpec.c_str(), ArgvDef::long_options, nullptr);
+        auto const old_optind = optind;
+        optind = m_optind;
+        int c = getopt_long(m_argc, m_argv, m_flagSpec.c_str(), ArgvDef::long_options, nullptr);
+        m_optind = optind;
+        optind = old_optind;
         if ((c < 0) || (optarg == nullptr)) {
             return std::make_pair(c, "");
         }
@@ -170,7 +180,7 @@ public:
     }
 
     char* const* get_rest() {
-        return argv + optind;
+        return m_argv + m_optind;
     }
 };
 

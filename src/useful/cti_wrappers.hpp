@@ -131,6 +131,16 @@ namespace cstr {
             throw std::runtime_error("basename failed on " + path);
         }
     }
+
+    // lifted getcwd
+    static inline std::string getcwd() {
+        char buf[PATH_MAX + 1];
+        if (auto const cwd = ::getcwd(buf, PATH_MAX)) {
+            return std::string{cwd};
+        }
+
+        throw std::runtime_error("getcwd failed: " + std::string{strerror(errno)});
+    }
 } /* namespace cti::cstr */
 
 namespace file {

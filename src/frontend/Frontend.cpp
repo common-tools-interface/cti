@@ -387,8 +387,6 @@ Frontend::detect_Frontend()
         }
     }
     else {
-        PALSFrontend::isSupported();
-        throw std::runtime_error("done");
         // Query supported workload managers
         if (ALPSFrontend::isSupported()) {
             return CTI_WLM_ALPS;

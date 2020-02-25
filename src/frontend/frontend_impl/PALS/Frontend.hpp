@@ -39,12 +39,12 @@
 #include <sys/types.h>
 
 #include <stdexcept>
-
-#include <boost/beast.hpp>
+#include <future>
 
 #include "frontend/Frontend.hpp"
 
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_websocket.hpp"
 
 class PALSFrontend final : public Frontend
 {
@@ -62,6 +62,13 @@ public: // inherited interface
     std::string getHostname() const override;
 
 public: // pals specific types
+    struct PalsApiInfo
+    {
+        std::string hostname;
+        std::string username;
+        std::string accessToken;
+    };
+
     struct PalsLaunchInfo
     {
         std::string apId;
@@ -69,14 +76,18 @@ public: // pals specific types
     };
 
 private: // pals specific members
+    PalsApiInfo m_palsApiInfo;
     friend class PALSApp;
 
 public: // pals specific interface
     // Get the default launcher binary name, or, if provided, from the environment.
     std::string getLauncherName() const;
 
+    // Get API authentication information
+    auto const& getApiInfo() const { return m_palsApiInfo; }
+
     // Use PALS API to get application and node placement information
-    PalsLaunchInfo getAprunLaunchInfo(std::string const& apId);
+    PalsLaunchInfo getPalsLaunchInfo(std::string const& apId);
 
     // Launch and extract application and node placement information
     PalsLaunchInfo launchApp(const char * const launcher_argv[], int stdout_fd,
@@ -94,6 +105,7 @@ public: // constructor / destructor interface
 class PALSApp final : public App
 {
 private: // variables
+    std::string m_apId;
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
     std::vector<CTIHost> m_hostsPlacement;
 
@@ -101,6 +113,12 @@ private: // variables
     std::string m_attribsPath; // Backend Cray-specific directory
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
+
+    // Redirect websocket output to stdout/err_fd and inputFile to websocket input
+    boost::asio::io_context m_stdioIoc; // stdio stream context
+    cti::WebSocketStream m_stdioStream;   // stdio stream
+    std::future<int> m_stdioInputFuture;  // Task relaying input from stdin to stdio stream
+    std::future<int> m_stdioOutputFuture; // Task relaying output from stdio stream to stdout/err
 
 public: // app interaction interface
     std::string getJobId()            const override;
