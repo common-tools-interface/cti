@@ -2,7 +2,7 @@
 #
 # runBuildPackage.sh - Package steps for CTI
 #
-# Copyright 2019 Cray Inc. All Rights Reserved.
+# Copyright 2019-2020 Cray Inc. All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -10,39 +10,25 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
-gcc_ver=8.1.0
-return_code=0
-top_level=$PWD
-j_flags=$(rpm -E %{?_smp_mflags})
 
-function check_exit_status(){
-    if [ $1 -ne 0 ]
-    then
-        echo "$0: error code of $1 from $2"
-        return_code=$1
-    fi
-}
+source ./cdst_build_library/build_lib
 
-#Ensure we can use modules
-source /opt/cray/pe/modules/default/init/bash
+setup_modules
 
-#Ensure CTI is build with $gcc_ver
-module load gcc/$gcc_ver
-
-#Ensure cdst-support module is loaded
 module load cray-cdst-support
-check_exit_status $? module-load-cray-cdst-support
+check_exit_status
 
 echo "############################################"
 echo "#             Creating rpm                 #"
 echo "############################################"
-rpmbuilddir=${top_level}/rpmbuild
+rpmbuilddir=$PWD/rpmbuild
 cd ${rpmbuilddir}
+check_exit_status
 rpmbuild -bb -D "_topdir ${rpmbuilddir}" SPECS/cray-cti.spec
-return_code=$?
+check_exit_status
 
 echo "############################################"
 echo "#          Done with packaging             #"
 echo "############################################"
 
-exit $return_code
+exit_with_status

@@ -10,9 +10,13 @@
 # no part of this work or its content may be used, reproduced or disclosed
 # in any form.
 #
+
+source ./cdst_build_library/build_lib
+
 arch=$(uname -m)
 mkdir -p /home/jenkins/rpmbuild/RPMS
+check_exit_status
 cp -a $PWD/rpmbuild/RPMS/$arch/* /home/jenkins/rpmbuild/RPMS
-return_code=$?
+check_exit_status
 
-exit $return_code
+exit_with_status

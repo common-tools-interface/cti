@@ -16,7 +16,6 @@ AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
 # specify test binaries
-TESTS = unit_tests
 check_PROGRAMS = unit_tests
 
 # unit test binary
@@ -32,15 +31,17 @@ unit_tests_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) -I$(EXTERNAL) \
 						-DINSTALL_PATH=\"$(prefix)\"
 unit_tests_CXXFLAGS	=	$(AM_CXXFLAGS) $(unit_tests_CFLAGS) \
 						$(CODE_COVERAGE_CXXFLAGS)
-unit_tests_LDADD	=	-L$(prefix)/lib -lcommontools_fe \
-						$(SUPPORT)/libgtest.la $(SUPPORT)/libgmock.la \
-						$(MOCK)/libmock.la $(ARCHIVE_LIBS) \
+unit_tests_LDADD	=	$(SRC)/frontend/libcommontools_fe.la \
+						$(SRC)/backend/libcommontools_be.la \
+						$(SUPPORT)/libgtest.la \
+						$(SUPPORT)/libgmock.la \
+						$(MOCK)/libmock.la \
+						$(ARCHIVE_LIBS) \
 						-ldl -lrt -lstdc++ \
         				$(CODE_COVERAGE_LIBS)
 unit_tests_LDFLAGS	=	-pthread -Wl,-rpath,$(prefix)/lib \
 						-Wl,--enable-new-dtags -Wl,--no-undefined \
-						-Wl,--as-needed $(CDST_SUP_LIBS) \
-						-lcommontools_be
+						-Wl,--as-needed $(CDST_SUP_LIBS)
 
 noinst_HEADERS		=	cti_archive_unit_test.hpp cti_fe_unit_test.hpp \
 						cti_manifest_unit_test.hpp cti_session_unit_test.hpp \

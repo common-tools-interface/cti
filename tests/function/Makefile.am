@@ -1,7 +1,7 @@
 #
 # Makefile.am for the CTI frontend unit tests
 #
-# Copyright 2019 Cray Inc. All Rights Reserved.
+# Copyright 2019-2020 Cray Inc. All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -19,16 +19,17 @@ GTEST           = $(SUPPORT)/googletest/googletest
 AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
-check_PROGRAMS = function_tests
+noinst_PROGRAMS = function_tests
 
 function_tests_SOURCES	=	function_tests.cpp cti_fe_function_test.cpp
 function_tests_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) \
 							-I$(GTEST)/include -I$(GTEST) -I$(EXTERNAL)
 function_tests_CXXFLAGS	=	$(AM_CXXFLAGS) $(function_tests_CFLAGS)
-function_tests_LDADD	=	-L$(prefix)/lib -lcommontools_fe \
-							$(SUPPORT)/libgtest.la -ldl -lrt -lstdc++
+function_tests_LDADD	=	$(SRC)/frontend/libcommontools_fe.la \
+							$(SUPPORT)/libgtest.la \
+							-ldl -lrt -lstdc++
 function_tests_LDFLAGS	=	-pthread -Wl,--enable-new-dtags -Wl,--no-undefined \
-							-Wl,--as-needed
+							-Wl,--as-needed -Wl,-rpath,$(libdir)
 
 noinst_HEADERS			= cti_fe_function_test.hpp
 

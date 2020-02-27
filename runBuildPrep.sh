@@ -2,7 +2,7 @@
 #
 # runBuildPrep.sh - Preps the build environment
 #
-# Copyright 2019 Cray Inc. All Rights Reserved.
+# Copyright 2019-2020 Cray Inc. All Rights Reserved.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -11,39 +11,7 @@
 # in any form.
 #
 
-# TODO: Once we move away from monolithic builds, point at the proper repositories
-# ./add_rpm_repo.sh http://car.dev.cray.com/artifactory/internal/PE-CDST/ /x86_64/dev/master/
-
-gcc_ver=8.1.0
-return_code=0
-
-function check_exit_status(){
-    if [ $1 -ne 0 ]
-    then
-        echo "runBuildPrep.sh: error code of $1 from $2"
-        return_code=$1
-    fi
-}
-
-# Dynamically set repo path based on the branch
-branch_name=`git rev-parse --abbrev-ref HEAD`
-branch=`echo $branch_name | cut -d'/' -f1`
-parent_dir=''
-child_dir=''
-
-if [[ ! $branch == "master" && ! $branch == "release" ]]
-then
-  branch=master
-fi
-if [ $branch == "master" ]
-then 
-  parent_dir=dev
-  child_dir=$branch
-elif [ $branch == "release" ]
-then
-  parent_dir=$branch
-  child_dir=`echo $branch_name | cut -d'/' -f2`
-fi
+source ./cdst_build_library/build_lib
 
 echo "############################################"
 echo "#             Installing deps              #"
@@ -63,41 +31,17 @@ zypper --non-interactive install \
     zlib-devel
 check_exit_status $? sys-pkgs
 
-zypper addrepo http://car.dev.cray.com/artifactory/pe/DST/sle15_pe/x86_64/dev/master/ car-pe-base
-check_exit_status $? "zypper addrepo car-pe-base"
+# Install the common PE components
+install_common_pe
 
-zypper --non-interactive --no-gpg-check install craype \
-					cray-set-gcc-libs \
-					cray-gcc-$gcc_ver \
-					cray-modules
-check_exit_status $? "zypper install in car-pe-base"
+# Install cdst_support
+install_cdst_support
 
-zypper rr car-pe-base
-
-zypper addrepo http://car.dev.cray.com/artifactory/pe-base/PE-CDST/sle15_premium/x86_64/$parent_dir/$child_dir/ car-cdst-$branch
-check_exit_status $? "zypper addrepo car-cdst-$branch"
-
-zypper --non-interactive --no-gpg-check install cray-cdst-support-devel
-check_exit_status $? "zypper install in car-cdst-deps"
-
-zypper rr car-cdst-$branch
-
-echo "############################################"
-echo "#      Capturing Jenkins Env Vars          #"
-echo "############################################"
-#Get the Jenkins BUILD_NUMBER from the ENV.
-BUILD_NUMBER=$(echo $BUILD_NUMBER)
-if [ ! -z $BUILD_NUMBER ]
-then
-  #update the release_versioning file
-  sed -i.bak "s/revision=\"9999\"/revision=\"$BUILD_NUMBER\"/g" $PWD/release_versioning
-  echo "Set version to $BUILD_NUMBER in release_versioning"
-else
-  echo "Unable to determine Jenkins BUILD_NUMBER"
-  return_code=1
-fi
+capture_jenkins_build
+check_exit_status
 
 echo "############################################"
 echo "#          Done with build prep            #"
 echo "############################################"
-exit $return_code
+
+exit_with_status
