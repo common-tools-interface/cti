@@ -15,7 +15,7 @@ echo "############################################"
 echo "#            Setup environment.            #"
 echo "############################################"
 
-source ./cdst_build_library/build_lib
+source ./external/cdst_build_library/build_lib
 
 setup_modules
 

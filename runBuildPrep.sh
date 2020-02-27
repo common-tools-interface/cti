@@ -11,7 +11,7 @@
 # in any form.
 #
 
-source ./cdst_build_library/build_lib
+source ./external/cdst_build_library/build_lib
 
 echo "############################################"
 echo "#             Installing deps              #"
