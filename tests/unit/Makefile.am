@@ -16,6 +16,7 @@ AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
 # specify test binaries
+TESTS = unit_tests
 check_PROGRAMS = unit_tests
 
 # unit test binary
