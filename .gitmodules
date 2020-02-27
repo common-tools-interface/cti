@@ -5,3 +5,7 @@
 [submodule "external/libalps_headers"]
 	path = external/libalps_headers
 	url = ssh://stash.us.cray.com:7999/pe-cdst/libalps_headers.git
+[submodule "cdst_build_library"]
+	path = cdst_build_library
+	url = ssh://git@stash.us.cray.com:7999/pe-cdst/cdst_build_library.git
+	branch = master

@@ -1,7 +1,7 @@
 /******************************************************************************\
- * Jenkinsfile.sle15_premium - DST Jenkins pipeline for Sles 15 Shasta premium
+ * Jenkinsfile.sle15sp1_premium - DST Jenkins pipeline for Sles 15 SP1 Shasta
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
+ * Copyright 2020 Cray Inc. All Rights Reserved.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -13,9 +13,9 @@
 
 @Library("dst-shared@master") _
 
-sles15PremiumPE {
+sle15sp1PE {
     timeout = 30
     product = "pe-base"
-    receiveEvent = ["cdst_support-complete"]
-    sendEvents = ["cti-complete"]
+    receiveEvent = ["cdst_support-sles15sp1-complete"]
+    sendEvents = ["cti-sles15sp1-complete"]
 }
