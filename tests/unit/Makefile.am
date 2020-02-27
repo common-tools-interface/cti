@@ -1,7 +1,7 @@
 #
 # Makefile.am for the CTI unit tests
 #
-# Copyright 2019 Cray Inc. All Rights Reserved.
+# Copyright 2019-2020 Cray Inc. All Rights Reserved.
 #
 
 SRC             = @COMMONTOOL_DIR@/src
