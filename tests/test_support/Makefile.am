@@ -1,7 +1,7 @@
 #
 # Makefile.am for the CTI unit tests
 #
-# Copyright 2014-2019 Cray Inc. All Rights Reserved.
+# Copyright 2014-2020 Cray Inc. All Rights Reserved.
 #
 
 SRC             = @COMMONTOOL_DIR@/src
@@ -14,13 +14,13 @@ AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
 # google test framework library
-check_LTLIBRARIES		= libgtest.la
+noinst_LTLIBRARIES		= libgtest.la
 libgtest_la_SOURCES		= googletest/googletest/src/gtest-all.cc
 libgtest_la_CPPFLAGS	= -I$(GTEST)/include -I$(GTEST)
 libgtest_la_LDFLAGS		= -pthread
 
 # google mock framework library
-check_LTLIBRARIES		+=	libgmock.la
+noinst_LTLIBRARIES		+=	libgmock.la
 libgmock_la_SOURCES		=	googletest/googlemock/src/gmock-all.cc
 libgmock_la_CPPFLAGS	=	-I$(GTEST)/include -I$(GTEST) \
 							-I$(GMOCK)/include -I$(GMOCK)
@@ -29,7 +29,7 @@ libgmock_la_LDFLAGS		=	-pthread
 # support binaries for function and unit tests
 
 # stage test helpers (one_socket, two_socket, libprint.so)
-check_PROGRAMS = one_socket two_socket one_print preload_print
+noinst_PROGRAMS = one_socket two_socket one_print preload_print
 
 message_one/libmessage.so: message_one/message.c message_one/message.h
 	$(CC) -fPIC -shared message_one/message.c -o message_one/libmessage.so
