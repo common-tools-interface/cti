@@ -40,6 +40,8 @@
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
 
+#include "useful/cti_websocket.hpp"
+
 /* helper functions */
 
 template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
@@ -304,28 +306,21 @@ namespace pals
 
 } // namespace pals
 
-static constexpr auto launchJson = R"(
-{ "argv": ["/lus/adangelo/signals"]
-, "wdir": "/lus/adangelo"
-, "hosts":
-    [ "nid000001"
-    , "nid000002"
-    ]
-, "nranks": 4
-, "ppn": 2
-, "depth": 1
-, "environment":
-    [ "PATH=/bin"
-    , "USER=uastest"
-    , "LD_LIBRARY_PATH=/opt/cray/pe/papi/default/lib64:/opt/cray/libfabric/1.9.0a1-064cb7444/lib64"
-    ]
-, "envalias":
-    { "APRUN_APP_ID": "PALS_APID"
-    }
-}
-)";
-
 /* PALSFrontend implementation */
+
+// Forward-declared in Frontend.hpp
+struct PALSFrontend::CtiWSSImpl
+{
+    boost::asio::io_context ioc;
+    cti::WebSocketStream websocket;
+
+    CtiWSSImpl(std::string const& hostname, std::string const& port, std::string const& accessToken)
+        : ioc{}
+        , websocket{cti::make_WebSocketStream(
+            boost::asio::io_context::strand(ioc),
+            hostname, port, accessToken)}
+    {}
+};
 
 bool
 PALSFrontend::isSupported()
@@ -594,6 +589,54 @@ PALSApp::startDaemon(const char* const args[])
     throw std::runtime_error{"not implemented: " + std::string{__func__}};
 }
 
+
+// PALS websocket callbacks
+
+static auto constexpr WebsocketContinue = false;
+static auto constexpr WebsocketComplete = true;
+
+static auto make_stdioInputCallback()
+{
+    return [](std::string& line) {
+        line = pals::rpc::generateStdinEofJson();
+        return WebsocketComplete;
+    };
+}
+
+static auto make_stdioOutputCallback()
+{
+    return [](char const* line) {
+
+        // Parse stdio notification
+        auto const stdioNotification = pals::response::parseStdio(line);
+
+        // React to each notification type
+        return std::visit(overload
+
+        { [](pals::response::StdoutData const& stdoutData) {
+                fprintf(stdout, stdoutData.content.c_str());
+                return WebsocketContinue;
+            }
+
+        , [](pals::response::StderrData const& stderrData) {
+                fprintf(stderr, stderrData.content.c_str());
+                return WebsocketContinue;
+            }
+
+        , [](pals::response::ExitData const& exitData) {
+                fprintf(stderr, "rank %d exited with status %d\n", exitData.rank, exitData.status);
+                return WebsocketContinue;
+            }
+
+        , [](pals::response::Complete) {
+                fprintf(stderr, "all ranks completed\n");
+                return WebsocketComplete;
+            }
+
+        }, stdioNotification);
+    };
+}
+
 PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo)
     : App{fe}
     , m_apId{std::move(palsLaunchInfo.apId)}
@@ -604,78 +647,38 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_stagePath{}
     , m_extraFiles{}
 
-    , m_stdioIoc{}
-    , m_stdioStream{cti::make_WebSocketStream(boost::asio::io_context::strand(m_stdioIoc),
+    , m_stdioStream{std::make_unique<PALSFrontend::CtiWSSImpl>(
         fe.getApiInfo().hostname, "80", fe.getApiInfo().accessToken)}
     , m_stdioInputFuture{}
     , m_stdioOutputFuture{}
 {
     // Initialize websocket stream
-    m_stdioStream.handshake(fe.getApiInfo().hostname, "/apis/pals/v1/apps/" + m_apId + "/stdio");
+    m_stdioStream->websocket.handshake(fe.getApiInfo().hostname, "/apis/pals/v1/apps/" + m_apId + "/stdio");
 
     // Request application stream mode and start application
-    pals::rpc::writeStream(m_stdioStream, m_apId);
-    pals::rpc::writeStart(m_stdioStream, m_apId);
-
-    auto const Continue = false;
-    auto const Complete = true;
+    pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
+    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
 
     // Launch stdio input generation thread
     m_stdioInputFuture = std::async(std::launch::async, [this]() {
         try {
-            cti::webSocketInputTask(m_stdioStream,
-                [](std::string& line) {
-                    line = pals::rpc::generateStdinEofJson();
-                    return Complete;
-                });
-
-            return 0;
+            cti::webSocketInputTask(m_stdioStream->websocket, make_stdioInputCallback());
         } catch (std::exception const& ex) {
             fprintf(stderr, "write loop exception: %s\n", ex.what());
             return -1;
         }
+        return 0;
     });
 
     // Launch stdio output responder thread
     m_stdioOutputFuture = std::async(std::launch::async, [this]() {
         try {
-            cti::webSocketOutputTask(m_stdioStream,
-                [](char const* line) {
-
-                    // Parse stdio notification
-                    auto const stdioNotification = pals::response::parseStdio(line);
-
-                    // React to each notification type
-                    return std::visit(overload
-
-                    { [](pals::response::StdoutData const& stdoutData) {
-                            fprintf(stdout, stdoutData.content.c_str());
-                            return Continue;
-                        }
-
-                    , [](pals::response::StderrData const& stderrData) {
-                            fprintf(stderr, stderrData.content.c_str());
-                            return Continue;
-                        }
-
-                    , [](pals::response::ExitData const& exitData) {
-                            fprintf(stderr, "rank %d exited with status %d\n", exitData.rank, exitData.status);
-                            return Continue;
-                        }
-
-                    , [](pals::response::Complete) {
-                            fprintf(stderr, "all ranks completed\n");
-                            return Complete;
-                        }
-
-                    }, stdioNotification);
-                });
-
-            return 0;
+            cti::webSocketOutputTask(m_stdioStream->websocket, make_stdioOutputCallback());
         } catch (std::exception const& ex) {
             fprintf(stderr, "read loop exception: %s\n", ex.what());
             return -1;
         }
+        return 0;
     });
 
     // Check stdio task results
@@ -687,7 +690,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     }
 
     // Close stdio stream
-    m_stdioStream.close(boost::beast::websocket::close_code::normal);
+    m_stdioStream->websocket.close(boost::beast::websocket::close_code::normal);
 
     // End test
     _exit(1);

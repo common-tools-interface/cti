@@ -44,7 +44,6 @@
 #include "frontend/Frontend.hpp"
 
 #include "useful/cti_wrappers.hpp"
-#include "useful/cti_websocket.hpp"
 
 class PALSFrontend final : public Frontend
 {
@@ -74,6 +73,9 @@ public: // pals specific types
         std::string apId;
         std::vector<CTIHost> hostsPlacement;
     };
+
+    // Forward-declare heavy Boost structures
+    struct CtiWSSImpl;
 
 private: // pals specific members
     PalsApiInfo m_palsApiInfo;
@@ -115,8 +117,7 @@ private: // variables
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
 
     // Redirect websocket output to stdout/err_fd and inputFile to websocket input
-    boost::asio::io_context m_stdioIoc; // stdio stream context
-    cti::WebSocketStream m_stdioStream;   // stdio stream
+    std::unique_ptr<PALSFrontend::CtiWSSImpl> m_stdioStream; // stdin / out / err stream
     std::future<int> m_stdioInputFuture;  // Task relaying input from stdin to stdio stream
     std::future<int> m_stdioOutputFuture; // Task relaying output from stdio stream to stdout/err
 
