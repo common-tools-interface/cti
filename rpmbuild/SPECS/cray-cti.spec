@@ -13,7 +13,7 @@
 
 # Path definitions
 %global cray_prefix /opt/cray/pe
-%global tests_prefix /opt/cray/tests
+%global test_prefix /opt/cray/tests
 
 #FIXME: This should be relocatable
 %global external_build_dir %{cray_prefix}/%{cray_product}/%{pkgversion}
@@ -89,11 +89,33 @@
 %global privlibs %{privlibs}|libtbb.*
 %global __requires_exclude ^(%{privlibs})\\.so*
 
-# Check for the dist tag and set if not populated
-# Note: for now sles 15 is the only supported OS without a dist tag, this will need updating if that changes
-%{!?dist:
+# Dist tags for SuSE need to be manually set
+%if 0%{?suse_version}
+%if 0%{?suse_version} == 1315
+%global dist .sles12
+%endif
+%if 0%{?sle_version} == 120000
+%global dist .sles12
+%endif
+%if 0%{?sle_version} == 120100
+%global dist .sles12sp1
+%endif
+%if 0%{?sle_version} == 120200
+%global dist .sles12sp2
+%endif
+%if 0%{?sle_version} == 120300
+%global dist .sles12sp3
+%endif
+%if 0%{?sle_version} == 120400
+%global dist .sles12sp4
+%endif
+%if 0%{?sle_version} == 150000
 %global dist .sles15
-}
+%endif
+%if 0%{?sle_version} == 150100
+%global dist .sles15sp1
+%endif
+%endif
 
 Summary:    Cray Common Tools Interface
 Name:       %{cray_name}
@@ -197,7 +219,7 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{cray_name}
 %{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE7} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}
-%{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua 
+%{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
 %{__mkdir} -p %{_rpmdir}/%{_arch}
 # yaml file - cray-cti
 %{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{release}.%{_arch}.rpm.yaml
