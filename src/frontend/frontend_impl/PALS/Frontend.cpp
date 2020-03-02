@@ -355,13 +355,27 @@ PALSFrontend::getHostname() const
 std::string
 PALSFrontend::getLauncherName() const
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    throw std::runtime_error{"not supported for PALS: " + std::string{__func__}};
 }
 
 PALSFrontend::PalsLaunchInfo
 PALSFrontend::getPalsLaunchInfo(std::string const& apId)
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    // Send HTTP GET request
+    auto const appResult = cti::httpGetReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps" + apId,
+        m_palsApiInfo.accessToken);
+
+    // Extract app information
+    auto [resultApId, hostsPlacement] = pals::response::parseLaunchInfo(appResult);
+
+    // Collect results
+    return PalsLaunchInfo
+        { .apId = std::move(resultApId)
+        , .hostsPlacement = std::move(hostsPlacement)
+        , .stdinFd  = ::open("/dev/null", O_RDONLY)
+        , .stdoutFd = dup(STDOUT_FILENO)
+        , .stderrFd = dup(STDERR_FILENO)
+    };
 }
 
 static auto parse_argv(int argc, char* const argv[])
@@ -495,7 +509,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
     fprintf(stderr, "launch json: '%s'\n", launchJson.c_str());
 
     // Send launch JSON command
-    auto const launchResult = cti::postJsonReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps", m_palsApiInfo.accessToken, launchJson);
+    auto const launchResult = cti::httpPostJsonReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps", m_palsApiInfo.accessToken, launchJson);
     fprintf(stderr, "launch result: '%s'\n", launchResult.c_str());
 
     // Extract launch result information
@@ -535,13 +549,13 @@ PALSFrontend::PALSFrontend()
 std::string
 PALSApp::getJobId() const
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    return m_apId;
 }
 
 std::string
 PALSApp::getLauncherHostname() const
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    throw std::runtime_error{"not supported for PALS: " + std::string{__func__}};
 }
 
 bool
@@ -653,13 +667,13 @@ static int stdioOutputTask(cti::WebSocketStream& webSocketStream, int stdoutFd, 
         // React to each notification type
         return std::visit(overload
 
-        { [](pals::response::StdoutData const& stdoutData) {
-                fprintf(stdoutFd, stdoutData.content.c_str());
+        { [stdoutFd](pals::response::StdoutData const& stdoutData) {
+                writeLoop(stdoutFd, stdoutData.content.c_str(), stdoutData.content.size() + 1);
                 return WebsocketContinue;
             }
 
-        , [](pals::response::StderrData const& stderrData) {
-                fprintf(stderrFd, stderrData.content.c_str());
+        , [stderrFd](pals::response::StderrData const& stderrData) {
+                writeLoop(stderrFd, stderrData.content.c_str(), stderrData.content.size() + 1);
                 return WebsocketContinue;
             }
 
