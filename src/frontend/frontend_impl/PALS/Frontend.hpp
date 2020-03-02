@@ -72,6 +72,7 @@ public: // pals specific types
     {
         std::string apId;
         std::vector<CTIHost> hostsPlacement;
+        int stdinFd, stdoutFd, stderrFd;
     };
 
     // Forward-declare heavy Boost structures
