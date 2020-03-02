@@ -343,7 +343,22 @@ PALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_f
 std::weak_ptr<App>
 PALSFrontend::registerJob(size_t numIds, ...)
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    if (numIds != 1) {
+        throw std::logic_error("expecting single apId argument to register app");
+    }
+
+    va_list idArgs;
+    va_start(idArgs, numIds);
+
+    char const* apId = va_arg(idArgs, char const*);
+
+    va_end(idArgs);
+
+    auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this, apId));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
 }
 
 std::string
@@ -362,8 +377,8 @@ PALSFrontend::PalsLaunchInfo
 PALSFrontend::getPalsLaunchInfo(std::string const& apId)
 {
     // Send HTTP GET request
-    auto const appResult = cti::httpGetReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps" + apId,
-        m_palsApiInfo.accessToken);
+    auto const appResult = cti::httpGetReq(getApiInfo().hostname, "/apis/pals/v1/apps" + apId,
+        getApiInfo().accessToken);
 
     // Extract app information
     auto [resultApId, hostsPlacement] = pals::response::parseLaunchInfo(appResult);
@@ -509,7 +524,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
     fprintf(stderr, "launch json: '%s'\n", launchJson.c_str());
 
     // Send launch JSON command
-    auto const launchResult = cti::httpPostJsonReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps", m_palsApiInfo.accessToken, launchJson);
+    auto const launchResult = cti::httpPostJsonReq(getApiInfo().hostname, "/apis/pals/v1/apps", getApiInfo().accessToken, launchJson);
     fprintf(stderr, "launch result: '%s'\n", launchResult.c_str());
 
     // Extract launch result information
@@ -539,9 +554,9 @@ PALSFrontend::PALSFrontend()
         cti::cstr::asprintf(craycli::defaultConfigFilePattern, home_directory(), activeConfig.c_str()));
 
     // Read access token from active Cray CLI configuration
-    auto const tokenName = craycli::hostnameToName(m_palsApiInfo.hostname);
+    auto const tokenName = craycli::hostnameToName(getApiInfo().hostname);
     m_palsApiInfo.accessToken = craycli::readAccessToken(
-        cti::cstr::asprintf(craycli::defaultTokenFilePattern, home_directory(), tokenName.c_str(), m_palsApiInfo.username.c_str()));
+        cti::cstr::asprintf(craycli::defaultTokenFilePattern, home_directory(), tokenName.c_str(), getApiInfo().username.c_str()));
 }
 
 /* PALSApp implementation */
@@ -561,25 +576,22 @@ PALSApp::getLauncherHostname() const
 bool
 PALSApp::isRunning() const
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
-}
-
-size_t
-PALSApp::getNumPEs() const
-{
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
-}
-
-size_t
-PALSApp::getNumHosts() const
-{
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    try {
+        return !cti::httpGetReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId,
+            m_palsApiInfo.accessToken).empty();
+    } catch (...) {
+        return false;
+    }
 }
 
 std::vector<std::string>
 PALSApp::getHostnameList() const
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    std::vector<std::string> result;
+    // extract hostnames from CTIHost list
+    std::transform(m_hostsPlacement.begin(), m_hostsPlacement.end(), std::back_inserter(result),
+        [](CTIHost const& ctiHost) { return ctiHost.hostname; });
+    return result;
 }
 
 void
@@ -588,10 +600,12 @@ PALSApp::releaseBarrier()
     throw std::runtime_error{"not implemented: " + std::string{__func__}};
 }
 
+static constexpr auto signalJsonPattern = "{\"signum\": %d}";
 void
 PALSApp::kill(int signal)
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    cti::httpPostJsonReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/signal",
+        m_palsApiInfo.accessToken, cti::cstr::asprintf(signalJsonPattern, signal));
 }
 
 void
@@ -713,19 +727,24 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     : App{fe}
     , m_apId{std::move(palsLaunchInfo.apId)}
     , m_beDaemonSent{}
+    , m_numPEs{std::accumulate(
+        palsLaunchInfo.hostsPlacement.begin(), palsLaunchInfo.hostsPlacement.end(), size_t{},
+        [](size_t total, CTIHost const& ctiHost) { return total + ctiHost.numPEs; })}
     , m_hostsPlacement{std::move(palsLaunchInfo.hostsPlacement)}
+    , m_palsApiInfo{fe.getApiInfo()}
+
     , m_toolPath{}
     , m_attribsPath{}
     , m_stagePath{}
     , m_extraFiles{}
 
     , m_stdioStream{std::make_unique<PALSFrontend::CtiWSSImpl>(
-        fe.getApiInfo().hostname, "80", fe.getApiInfo().accessToken)}
+        m_palsApiInfo.hostname, "80", m_palsApiInfo.accessToken)}
     , m_stdioInputFuture{}
     , m_stdioOutputFuture{}
 {
     // Initialize websocket stream
-    m_stdioStream->websocket.handshake(fe.getApiInfo().hostname, "/apis/pals/v1/apps/" + m_apId + "/stdio");
+    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/stdio");
 
     // Request application stream mode and start application
     pals::rpc::writeStream(m_stdioStream->websocket, m_apId);

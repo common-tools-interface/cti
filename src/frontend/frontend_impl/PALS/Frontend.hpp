@@ -110,7 +110,9 @@ class PALSApp final : public App
 private: // variables
     std::string m_apId;
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
+    size_t m_numPEs;
     std::vector<CTIHost> m_hostsPlacement;
+    PALSFrontend::PalsApiInfo const m_palsApiInfo;
 
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
@@ -125,14 +127,14 @@ private: // variables
 public: // app interaction interface
     std::string getJobId()            const override;
     std::string getLauncherHostname() const override;
-    std::string getToolPath()         const override { return m_toolPath;    }
+    std::string getToolPath()         const override { return m_toolPath; }
     std::string getAttribsPath()      const override { return m_attribsPath; }
 
     std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 
     bool   isRunning()       const override;
-    size_t getNumPEs()       const override;
-    size_t getNumHosts()     const override;
+    size_t getNumPEs()       const override { return m_numPEs; }
+    size_t getNumHosts()     const override { return m_hostsPlacement.size(); }
     std::vector<std::string> getHostnameList()   const override;
     std::vector<CTIHost>     getHostsPlacement() const override { return  m_hostsPlacement; }
 
