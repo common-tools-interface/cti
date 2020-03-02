@@ -13,7 +13,7 @@
 
 @Library("dst-shared@master") _
 
-sles15PremiumPE {
+sle15PE {
     timeout = 30
     product = "pe-base"
     receiveEvent = ["cdst_support-complete"]
