@@ -56,22 +56,6 @@ CTIUsefulUnitTest::~CTIUsefulUnitTest()
 
 TEST_F(CTIUsefulUnitTest, WebSocketTask)
 {
-    auto const echoHost = "echo.websocket.org";
-    auto const echoEndpoint = "/";
-    auto const echoMessage = std::to_string(::getpid());
-
-    auto webSocketTask = cti::WebSocketTask{echoHost, echoEndpoint, echoMessage,
-        [echoMessage](auto const& responseBody) {
-            auto const responseBodyString = std::string{(char const*)responseBody.data()};
-
-            if (echoMessage != responseBodyString) {
-                return -1;
-            }
-
-            return 1;
-        }};
-
-    EXPECT_GT(webSocketTask.get(), 0);
 }
 
 int main(int argc, char **argv) {
