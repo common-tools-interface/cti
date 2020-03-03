@@ -124,6 +124,8 @@ private: // variables
     std::future<int> m_stdioInputFuture;  // Task relaying input from stdin to stdio stream
     std::future<int> m_stdioOutputFuture; // Task relaying output from stdio stream to stdout/err
 
+    std::vector<std::string> m_toolIds; // PALS IDs of running tool helpers
+
 public: // app interaction interface
     std::string getJobId()            const override;
     std::string getLauncherHostname() const override;

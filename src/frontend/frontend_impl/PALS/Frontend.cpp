@@ -255,6 +255,27 @@ namespace pals
             return std::make_tuple(apId, hostsPlacement);
         }
 
+        // Extract tool helper ID JSON string
+        static auto parseToolInfo(std::string const& toolInfoJson)
+        {
+            namespace pt = boost::property_tree;
+
+            // Create stream from string source
+            auto jsonSource = boost::iostreams::array_source{toolInfoJson.c_str(), toolInfoJson.size()};
+            auto jsonStream = boost::iostreams::stream<boost::iostreams::array_source>{jsonSource};
+
+            // Load and parse JSON
+            auto root = pt::ptree{};
+            try {
+                pt::read_json(jsonStream, root);
+            } catch (pt::json_parser::json_parser_error const& parse_ex) {
+                throw std::runtime_error("failed to parse json: '" + toolInfoJson + "'");
+            }
+
+            // Extract tool ID
+            return root.get<std::string>("toolid");
+        }
+
         struct StdoutData { std::string content; };
         struct StderrData { std::string content; };
         struct ExitData   { int rank; int status; };
@@ -364,7 +385,54 @@ PALSFrontend::registerJob(size_t numIds, ...)
 std::string
 PALSFrontend::getHostname() const
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    auto const make_addrinfo = [](std::string const& hostname) {
+        // Get hostname information
+        struct addrinfo hints;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        struct addrinfo *info_ptr = nullptr;
+        if (auto const rc = getaddrinfo(hostname.c_str(), nullptr, &hints, &info_ptr)) {
+            throw std::runtime_error("getaddrinfo failed: " + std::string{gai_strerror(rc)});
+        }
+        if ( info_ptr == nullptr ) {
+            throw std::runtime_error("failed to resolve hostname " + hostname);
+        }
+        return cti::take_pointer_ownership(std::move(info_ptr), freeaddrinfo);
+    };
+
+    // Resolve a hostname to IPv4 address
+    // FIXME: PE-26874 change this once DNS support is added
+    auto const resolveHostname = [](const struct addrinfo& addr_info) {
+        constexpr auto MAXADDRLEN = 15;
+        // Extract IP address string
+        char ip_addr[MAXADDRLEN + 1];
+        if (auto const rc = getnameinfo(addr_info.ai_addr, addr_info.ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
+            throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
+        }
+        ip_addr[MAXADDRLEN] = '\0';
+        return std::string{ip_addr};
+    };
+
+    // On Shasta, look up and return IPv4 address instead of hostname
+    // UAS hostnames cannot be resolved on compute node
+    // FIXME: PE-26874 change this once DNS support is added
+    auto const hostname = cti::cstr::gethostname();
+    try {
+        // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
+        // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
+        // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
+        auto const macVlanHostname = hostname + "-nmn";
+        auto info = make_addrinfo(macVlanHostname);
+        // FIXME: Remove this when PE-26874 is fixed
+        auto macVlanIPAddress = resolveHostname(*info);
+        return macVlanIPAddress;
+    }
+    catch (std::exception const& ex) {
+        // continue processing
+    }
+    // Try using normal hostname
+    auto info = make_addrinfo(hostname);
+    return hostname;
 }
 
 std::string
@@ -617,7 +685,23 @@ PALSApp::shipPackage(std::string const& tarPath) const
 void
 PALSApp::startDaemon(const char* const args[])
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    // Create tool launch JSON command
+    auto toolLaunchJsonStream = std::stringstream{};
+
+    toolLaunchJsonStream << "{\"argv\":[";
+    for (char const* const* arg = args; *arg != nullptr; arg++) {
+        toolLaunchJsonStream << ((arg == args) ? "\"" : ",\"") << *arg << "\"";
+    }
+    toolLaunchJsonStream << "]}";
+
+    auto const toolLaunchJson = toolLaunchJsonStream.str();
+
+    // Make POST request
+    auto const toolInfoJson = cti::httpPostJsonReq(m_palsApiInfo.hostname,
+        "/apis/pals/v1/apps/" + m_apId + "/tools", m_palsApiInfo.accessToken, toolLaunchJson);
+
+    // Track tool ID
+    m_toolIds.emplace_back(pals::response::parseToolInfo(toolInfoJson));
 }
 
 
@@ -742,6 +826,8 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
         m_palsApiInfo.hostname, "80", m_palsApiInfo.accessToken)}
     , m_stdioInputFuture{}
     , m_stdioOutputFuture{}
+
+    , m_toolIds{}
 {
     // Initialize websocket stream
     m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/stdio");
@@ -757,20 +843,6 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     // Launch stdio output responder thread
     m_stdioOutputFuture = std::async(std::launch::async, stdioOutputTask,
         std::ref(m_stdioStream->websocket), palsLaunchInfo.stdoutFd, palsLaunchInfo.stderrFd);
-
-    // Check stdio task results
-    if (auto const rc = m_stdioInputFuture.get()) {
-        throw std::runtime_error("websocket input task failed with code " + std::to_string(rc));
-    }
-    if (auto const rc = m_stdioOutputFuture.get()) {
-        throw std::runtime_error("websocket print task failed with code " + std::to_string(rc));
-    }
-
-    // Close stdio stream
-    m_stdioStream->websocket.close(boost::beast::websocket::close_code::normal);
-
-    // End test
-    _exit(1);
 }
 
 PALSApp::PALSApp(PALSFrontend& fe, std::string const& apId)
@@ -783,4 +855,22 @@ PALSApp::PALSApp(PALSFrontend& fe, const char * const launcher_argv[], int stdou
 {}
 
 PALSApp::~PALSApp()
-{}
+{
+    // Delete application from PALS
+    try {
+        cti::httpDeleteReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps" + m_apId, m_palsApiInfo.accessToken);
+    } catch (std::exception const& ex) {
+        fprintf(stderr, "warning: PALS delete failed: %s\n", ex.what());
+    }
+
+    // Check stdio task results
+    if (auto const rc = m_stdioInputFuture.get()) {
+        fprintf(stderr, "warning: websocket input task failed with code %d\n", rc);
+    }
+    if (auto const rc = m_stdioOutputFuture.get()) {
+        fprintf(stderr, "warning: websocket output task failed with code %d\n", rc);
+    }
+
+    // Close stdio stream
+    m_stdioStream->websocket.close(boost::beast::websocket::close_code::normal);
+}

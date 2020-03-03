@@ -68,7 +68,45 @@ static inline std::string httpGetReq(std::string const& hostname, std::string co
 
     stream.connect(resolver_results);
 
-    auto req = boost::beast::http::request<boost::beast::http::string_body>{boost::beast::http::verb::post, endpoint, 11};
+    auto req = boost::beast::http::request<boost::beast::http::string_body>{boost::beast::http::verb::get, endpoint, 11};
+    req.set(boost::beast::http::field::host, hostname);
+    req.set("Authorization", "Bearer " + token);
+    req.set(boost::beast::http::field::user_agent, CTI_RELEASE_VERSION);
+
+    req.set(boost::beast::http::field::accept, "application/json");
+    req.prepare_payload();
+
+    boost::beast::http::write(stream, req);
+
+    auto buffer = boost::beast::flat_buffer{};
+    auto resp = boost::beast::http::response<boost::beast::http::string_body>{};
+
+    boost::beast::http::read(stream, buffer, resp);
+
+    auto const result = std::string{resp.body().data()};
+
+    auto ec = boost::beast::error_code{};
+    stream.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+
+    if (ec && (ec != boost::beast::errc::not_connected)) {
+        throw boost::beast::system_error{ec};
+    }
+
+    return result;
+}
+
+static inline std::string httpDeleteReq(std::string const& hostname, std::string const& endpoint, std::string const& token)
+{
+    auto ioc = boost::asio::io_context{};
+
+    auto resolver = boost::asio::ip::tcp::resolver{ioc};
+    auto stream = boost::beast::tcp_stream{ioc};
+
+    auto const resolver_results = resolver.resolve(hostname, "80");
+
+    stream.connect(resolver_results);
+
+    auto req = boost::beast::http::request<boost::beast::http::string_body>{boost::beast::http::verb::delete_, endpoint, 11};
     req.set(boost::beast::http::field::host, hostname);
     req.set("Authorization", "Bearer " + token);
     req.set(boost::beast::http::field::user_agent, CTI_RELEASE_VERSION);
