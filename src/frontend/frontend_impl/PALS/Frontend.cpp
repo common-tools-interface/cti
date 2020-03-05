@@ -662,49 +662,6 @@ PALSApp::getHostnameList() const
     return result;
 }
 
-void
-PALSApp::releaseBarrier()
-{
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
-}
-
-static constexpr auto signalJsonPattern = "{\"signum\": %d}";
-void
-PALSApp::kill(int signal)
-{
-    cti::httpPostJsonReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/signal",
-        m_palsApiInfo.accessToken, cti::cstr::asprintf(signalJsonPattern, signal));
-}
-
-void
-PALSApp::shipPackage(std::string const& tarPath) const
-{
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
-}
-
-void
-PALSApp::startDaemon(const char* const args[])
-{
-    // Create tool launch JSON command
-    auto toolLaunchJsonStream = std::stringstream{};
-
-    toolLaunchJsonStream << "{\"argv\":[";
-    for (char const* const* arg = args; *arg != nullptr; arg++) {
-        toolLaunchJsonStream << ((arg == args) ? "\"" : ",\"") << *arg << "\"";
-    }
-    toolLaunchJsonStream << "]}";
-
-    auto const toolLaunchJson = toolLaunchJsonStream.str();
-
-    // Make POST request
-    auto const toolInfoJson = cti::httpPostJsonReq(m_palsApiInfo.hostname,
-        "/apis/pals/v1/apps/" + m_apId + "/tools", m_palsApiInfo.accessToken, toolLaunchJson);
-
-    // Track tool ID
-    m_toolIds.emplace_back(pals::response::parseToolInfo(toolInfoJson));
-}
-
-
 // PALS websocket callbacks
 
 static auto constexpr WebsocketContinue = false;
@@ -807,43 +764,150 @@ cleanup_stdioOutputTask:
     return rc;
 }
 
+void
+PALSApp::releaseBarrier()
+{
+    // Initialize websocket stream
+    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/stdio");
+
+    // Request application stream mode
+    pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
+
+    // Launch stdio output responder thread
+    m_stdioOutputFuture = std::async(std::launch::async, stdioOutputTask,
+        std::ref(m_stdioStream->websocket), m_queuedOutFd, m_queuedErrFd);
+
+    // Request start application
+    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
+
+    // Launch stdio input generation thread
+    m_stdioInputFuture = std::async(std::launch::async, stdioInputTask,
+        std::ref(m_stdioStream->websocket), m_queuedInFd);
+
+}
+
+static constexpr auto signalJsonPattern = "{\"signum\": %d}";
+void
+PALSApp::kill(int signal)
+{
+    cti::httpPostJsonReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/signal",
+        m_palsApiInfo.accessToken, cti::cstr::asprintf(signalJsonPattern, signal));
+}
+
+static constexpr auto filesJsonPattern = "{\"name\": \"%s\", \"path\": \"%s\"}";
+void
+PALSApp::shipPackage(std::string const& tarPath) const
+{
+    auto const hostname = m_palsApiInfo.hostname;
+    auto const endpointBase = "/apis/pals/v1/apps/" + m_apId + "/files";
+    auto const token = m_palsApiInfo.accessToken;
+    auto const fileName = cti::cstr::basename(tarPath);
+    auto const endpoint = endpointBase + "?name=" + fileName;
+
+
+    fprintf(stderr, "POST: %s %s\n", endpoint.c_str(), tarPath.c_str());
+    auto ioc = boost::asio::io_context{};
+
+    auto resolver = boost::asio::ip::tcp::resolver{ioc};
+    auto stream = boost::beast::tcp_stream{ioc};
+
+    auto const resolver_results = resolver.resolve(hostname, "80");
+
+    stream.connect(resolver_results);
+
+    auto req = boost::beast::http::request<boost::beast::http::file_body>{boost::beast::http::verb::post, endpoint, 11};
+    req.set(boost::beast::http::field::host, hostname);
+    req.set("Authorization", "Bearer " + token);
+    req.set(boost::beast::http::field::user_agent, CTI_RELEASE_VERSION);
+    req.set(boost::beast::http::field::accept, "application/json");
+    req.set(boost::beast::http::field::content_type, "application/octet-stream");
+
+    auto ec = boost::beast::error_code{};
+    req.body().open(tarPath.c_str(), boost::beast::file_mode::read, ec);
+    if (ec) {
+        throw boost::beast::system_error{ec};
+    }
+    req.prepare_payload();
+
+    boost::beast::http::write(stream, req);
+
+    auto buffer = boost::beast::flat_buffer{};
+    auto resp = boost::beast::http::response<boost::beast::http::string_body>{};
+
+    boost::beast::http::read(stream, buffer, resp);
+
+    auto const result = std::string{resp.body().data()};
+
+    stream.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+
+    if (ec && (ec != boost::beast::errc::not_connected)) {
+        throw boost::beast::system_error{ec};
+    }
+
+    fprintf(stderr, "result '%s'\n", result.c_str());
+}
+
+void
+PALSApp::startDaemon(const char* const args[])
+{
+    // Send daemon if not already shipped
+    if (!m_beDaemonSent) {
+        // shipPackage(Frontend::inst().getBEDaemonPath());
+        m_beDaemonSent = true;
+    }
+
+    // Prepare to start daemon binary on compute node
+    auto const remoteBEDaemonPath = m_toolPath + "/" + CTI_BE_DAEMON_BINARY;
+
+    // Create tool launch JSON command
+    auto toolLaunchJsonStream = std::stringstream{};
+
+    toolLaunchJsonStream << "{\"argv\":[\"" << remoteBEDaemonPath << "\"";
+    fprintf(stderr, "\n%s ", remoteBEDaemonPath.c_str());
+    for (char const* const* arg = args; *arg != nullptr; arg++) {
+        toolLaunchJsonStream << ",\"" << *arg << "\"";
+        fprintf(stderr, "%s ", *arg);
+    }
+    toolLaunchJsonStream << "]}";
+    fprintf(stderr, "\n\n");
+
+    auto const toolLaunchJson = toolLaunchJsonStream.str();
+
+    // Make POST request
+    auto const toolInfoJson = cti::httpPostJsonReq(m_palsApiInfo.hostname,
+        "/apis/pals/v1/apps/" + m_apId + "/tools", m_palsApiInfo.accessToken, toolLaunchJson);
+    fprintf(stderr, "daemon response: %s\n", toolInfoJson.c_str());
+
+    // Track tool ID
+    m_toolIds.emplace_back(pals::response::parseToolInfo(toolInfoJson));
+}
+
 PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo)
     : App{fe}
     , m_apId{std::move(palsLaunchInfo.apId)}
-    , m_beDaemonSent{}
+    , m_beDaemonSent{false}
     , m_numPEs{std::accumulate(
         palsLaunchInfo.hostsPlacement.begin(), palsLaunchInfo.hostsPlacement.end(), size_t{},
         [](size_t total, CTIHost const& ctiHost) { return total + ctiHost.numPEs; })}
     , m_hostsPlacement{std::move(palsLaunchInfo.hostsPlacement)}
     , m_palsApiInfo{fe.getApiInfo()}
 
-    , m_toolPath{}
-    , m_attribsPath{}
-    , m_stagePath{}
+
+    , m_toolPath{"/var/run/palsd/" + m_apId + "/files"}
+    , m_attribsPath{"/tmp"}
+    , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
     , m_extraFiles{}
 
     , m_stdioStream{std::make_unique<PALSFrontend::CtiWSSImpl>(
         m_palsApiInfo.hostname, "80", m_palsApiInfo.accessToken)}
+    , m_queuedInFd{palsLaunchInfo.stdinFd}
+    , m_queuedOutFd{palsLaunchInfo.stdoutFd}
+    , m_queuedErrFd{palsLaunchInfo.stderrFd}
     , m_stdioInputFuture{}
     , m_stdioOutputFuture{}
 
     , m_toolIds{}
-{
-    // Initialize websocket stream
-    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/stdio");
-
-    // Request application stream mode and start application
-    pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
-    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
-
-    // Launch stdio input generation thread
-    m_stdioInputFuture = std::async(std::launch::async, stdioInputTask,
-        std::ref(m_stdioStream->websocket), palsLaunchInfo.stdinFd);
-
-    // Launch stdio output responder thread
-    m_stdioOutputFuture = std::async(std::launch::async, stdioOutputTask,
-        std::ref(m_stdioStream->websocket), palsLaunchInfo.stdoutFd, palsLaunchInfo.stderrFd);
-}
+{}
 
 PALSApp::PALSApp(PALSFrontend& fe, std::string const& apId)
     : PALSApp{fe, fe.getPalsLaunchInfo(apId)}

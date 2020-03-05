@@ -121,6 +121,9 @@ private: // variables
 
     // Redirect websocket output to stdout/err_fd and inputFile to websocket input
     std::unique_ptr<PALSFrontend::CtiWSSImpl> m_stdioStream; // stdin / out / err stream
+    int m_queuedInFd;  // Where to source stdin after barrier release
+    int m_queuedOutFd; // Where to redirect stdout after barrier release
+    int m_queuedErrFd; // Where to redirect stderr after barrier release
     std::future<int> m_stdioInputFuture;  // Task relaying input from stdin to stdio stream
     std::future<int> m_stdioOutputFuture; // Task relaying output from stdio stream to stdout/err
 
