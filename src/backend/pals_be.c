@@ -31,9 +31,13 @@ typedef struct {
 	void *handle;
 	pals_rc_t (*pals_init)(pals_state_t *state);
 	pals_rc_t (*pals_fini)(pals_state_t *state);
+
 	pals_rc_t (*pals_get_nodes)(pals_state_t *state, pals_node_t **nodes, int *nnodes);
-	pals_rc_t (*pals_get_cmds)(pals_state_t *state, pals_cmd_t **cmds, int *ncmds);
 	pals_rc_t (*pals_get_nodeidx)(pals_state_t *state, int *nodeidx);
+
+	pals_rc_t (*pals_get_pes)(pals_state_t *state, pals_pe_t **pes, int *npes);
+	pals_rc_t (*pals_get_peidx)(pals_state_t *state, int *peidx);
+	pals_rc_t (*pals_get_cmds)(pals_state_t *state, pals_cmd_t **cmds, int *ncmds);
 } cti_libpals_funcs_t;
 
 /* static prototypes */
@@ -60,9 +64,25 @@ static cti_libpals_funcs_t* _cti_libpals_funcs = NULL; // libpals wrappers
 static pals_state_t *_cti_pals_state = NULL; // libpals state
 static pmi_attribs_t *_cti_pmi_attrs = NULL; // node pmi_attribs information
 
+static int _cti_node_idx = -1; // node index for PALS accessors
+static pals_node_t *_cti_pals_nodes = NULL; // list of job nodes
+static int _cti_pals_num_nodes = -1; // number of job nodes
+
+static int _cti_pe_idx = -1; // PE index for PALS accessors
+static pals_pe_t *_cti_pals_pes = NULL; // list of PEs
+static int _cti_pals_num_pes = -1; // number of PEs
+static pals_cmd_t *_cti_pals_cmds = NULL; // list of cmd entries
+static int _cti_pals_num_cmds = -1; // number of cmd entries
+
 static void
-cleanup_cti_be_globals(void)
+_cti_cleanup_be_globals(void)
 {
+	// Cleanup node list
+	if (_cti_pals_nodes != NULL) {
+		free(_cti_pals_nodes);
+		_cti_pals_nodes = NULL;
+	}
+
 	// Cleanup pmi_attribs storage
 	if (_cti_pmi_attrs != NULL) {
 		free(_cti_pmi_attrs);
@@ -143,7 +163,23 @@ _cti_be_pals_init(void)
 		goto cleanup__cti_be_pals_init;
 	}
 
-	// pals_get_cmds
+	// pals_get_nodeidx
+	dlerror();
+	_cti_libpals_funcs->pals_get_nodeidx = dlsym(_cti_libpals_funcs->handle, "pals_get_nodeidx");
+	if (dlerror() != NULL) {
+		fprintf(stderr, "dlsym: %s\n", dlerror());
+		goto cleanup__cti_be_pals_init;
+	}
+
+	// pals_get_pes
+	dlerror();
+	_cti_libpals_funcs->pals_get_pes = dlsym(_cti_libpals_funcs->handle, "pals_get_pes");
+	if (dlerror() != NULL) {
+		fprintf(stderr, "dlsym: %s\n", dlerror());
+		goto cleanup__cti_be_pals_init;
+	}
+
+	// pals_get_peidx
 	dlerror();
 	_cti_libpals_funcs->pals_get_cmds = dlsym(_cti_libpals_funcs->handle, "pals_get_cmds");
 	if (dlerror() != NULL) {
@@ -151,9 +187,9 @@ _cti_be_pals_init(void)
 		goto cleanup__cti_be_pals_init;
 	}
 
-	// pals_get_nodeidx
+	// pals_get_cmds
 	dlerror();
-	_cti_libpals_funcs->pals_get_nodeidx = dlsym(_cti_libpals_funcs->handle, "pals_get_nodeidx");
+	_cti_libpals_funcs->pals_get_peidx = dlsym(_cti_libpals_funcs->handle, "pals_get_peidx");
 	if (dlerror() != NULL) {
 		fprintf(stderr, "dlsym: %s\n", dlerror());
 		goto cleanup__cti_be_pals_init;
@@ -176,7 +212,7 @@ _cti_be_pals_init(void)
 
 cleanup__cti_be_pals_init:
 	if (rc) {
-		cleanup_cti_be_globals();
+		_cti_cleanup_be_globals();
 	}
 
 	return rc;
@@ -185,7 +221,7 @@ cleanup__cti_be_pals_init:
 static void
 _cti_be_pals_fini(void)
 {
-	cleanup_cti_be_globals();
+	_cti_cleanup_be_globals();
 
 	return;
 }
@@ -250,11 +286,84 @@ cleanup__cti_be_pals_findAppPids:
 	return result;
 }
 
+static int
+_cti_get_nodes_info()
+{
+	int rc = -1;
+
+	// Check libpals functions
+	if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_nodes == NULL)) {
+		goto cleanup__cti_get_nodes_info;
+	}
+
+	// Call libpals accessor
+	if (_cti_libpals_funcs->pals_get_nodes(_cti_pals_state, &_cti_pals_nodes, &_cti_pals_num_nodes) != PALS_OK) {
+		fprintf(stderr, "libpals pals_get_nodes failed\n");
+		goto cleanup__cti_get_nodes_info;
+	}
+
+	// Successfully retrieved node information
+	rc = 0;
+
+cleanup__cti_get_nodes_info:
+	return rc;
+}
+
+static int
+_cti_get_node_idx()
+{
+	int rc = -1;
+
+	// Check libpals functions
+	if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_nodeidx == NULL)) {
+		goto cleanup__cti_get_node_idx;
+	}
+
+	// Call libpals accessor
+	if (_cti_libpals_funcs->pals_get_nodeidx(_cti_pals_state, &_cti_node_idx) != PALS_OK) {
+		fprintf(stderr, "libpals pals_get_nodes failed\n");
+		goto cleanup__cti_get_node_idx;
+	}
+
+	// Successfully retrieved node index
+	rc = 0;
+
+cleanup__cti_get_node_idx:
+	return rc;
+}
+
 static char*
 _cti_be_pals_getNodeHostname()
 {
 	int failed = 1;
 	char *result = NULL;
+
+	// Ensure nodes array and current node index is filled in
+	if (_cti_pals_nodes == NULL) {
+		if (_cti_get_nodes_info() || (_cti_pals_nodes == NULL)) {
+			fprintf(stderr, "_cti_get_nodes_info failed\n");
+			goto cleanup__cti_be_pals_getNodeHostname;
+		}
+	}
+	if (_cti_node_idx < 0) {
+		if (_cti_get_node_idx() || (_cti_node_idx < 0)) {
+			fprintf(stderr, "pals_get_nodeidx failed\n");
+			goto cleanup__cti_be_pals_getNodeHostname;
+		}
+	}
+
+	// Ensure information for current node is available
+	if (_cti_pals_num_nodes <= _cti_node_idx) {
+		fprintf(stderr, "libpals reported current node index %d, but only have %d entries\n",
+			_cti_node_idx, _cti_pals_num_nodes);
+		goto cleanup__cti_be_pals_getNodeHostname;
+	}
+
+	// Get hostname of node
+	result = strdup(_cti_pals_nodes[_cti_node_idx].hostname);
+
+	// Successfully obtained hostname
+	failed = 0;
 
 cleanup__cti_be_pals_getNodeHostname:
 	if (failed) {
@@ -264,13 +373,119 @@ cleanup__cti_be_pals_getNodeHostname:
 		}
 	}
 
-	return NULL;
+	return result;
+}
+
+static int
+_cti_get_pes_info()
+{
+	int rc = -1;
+
+	// Check libpals functions
+	if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_pes == NULL)) {
+		goto cleanup__cti_get_pes_info;
+	}
+
+	// Call libpals accessor
+	if (_cti_libpals_funcs->pals_get_pes(_cti_pals_state, &_cti_pals_pes, &_cti_pals_num_pes) != PALS_OK) {
+		fprintf(stderr, "libpals pals_get_pes failed\n");
+		goto cleanup__cti_get_pes_info;
+	}
+
+	// Successfully retrieved PE information
+	rc = 0;
+
+cleanup__cti_get_pes_info:
+	return rc;
+}
+
+static int
+_cti_get_pe_idx()
+{
+	int rc = -1;
+
+	// Check libpals functions
+	if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_peidx == NULL)) {
+		goto cleanup__cti_get_pe_idx;
+	}
+
+	// Call libpals accessor
+	if (_cti_libpals_funcs->pals_get_peidx(_cti_pals_state, &_cti_pe_idx) != PALS_OK) {
+		fprintf(stderr, "libpals pals_get_peidx failed\n");
+		goto cleanup__cti_get_pe_idx;
+	}
+
+	// Successfully retrieved PE index
+	rc = 0;
+
+cleanup__cti_get_pe_idx:
+	return rc;
+}
+
+static int
+_cti_get_cmds_info()
+{
+	int rc = -1;
+
+	// Check libpals functions
+	if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_cmds == NULL)) {
+		goto cleanup__cti_get_cmds_info;
+	}
+
+	// Call libpals accessor
+	if (_cti_libpals_funcs->pals_get_cmds(_cti_pals_state, &_cti_pals_cmds, &_cti_pals_num_cmds) != PALS_OK) {
+		fprintf(stderr, "libpals pals_get_cmds failed\n");
+		goto cleanup__cti_get_cmds_info;
+	}
+
+	// Successfully retrieved PE information
+	rc = 0;
+
+cleanup__cti_get_cmds_info:
+	return rc;
 }
 
 static int
 _cti_be_pals_getNodeFirstPE()
 {
 	int result = -1;
+
+	// Ensure PEs array, current PE index, and cmd entries are filled in
+	if (_cti_pals_pes == NULL) {
+		if (_cti_get_pes_info() || (_cti_pals_pes == NULL)) {
+			fprintf(stderr, "_cti_get_pes_info failed\n");
+			goto cleanup__cti_be_pals_getNodeFirstPE;
+		}
+	}
+	if (_cti_pe_idx < 0) {
+		if (_cti_get_pe_idx() || (_cti_pe_idx < 0)) {
+			fprintf(stderr, "_cti_get_pe_idx failed\n");
+			goto cleanup__cti_be_pals_getNodeFirstPE;
+		}
+	}
+	if (_cti_pals_cmds == NULL) {
+		if (_cti_get_cmds_info() || (_cti_pals_cmds == NULL)) {
+			fprintf(stderr, "_cti_get_cmds_info failed\n");
+			goto cleanup__cti_be_pals_getNodeFirstPE;
+		}
+	}
+
+	// Ensure information for current PE / cmd is available
+	if (_cti_pals_num_pes <= _cti_pe_idx) {
+		fprintf(stderr, "libpals reported current PE index %d, but only have %d entries\n",
+			_cti_pe_idx, _cti_pals_num_pes);
+		goto cleanup__cti_be_pals_getNodeFirstPE;
+	}
+
+	int const cmd_idx = _cti_pals_pes[_cti_pe_idx].cmdidx;
+
+	if (_cti_pals_num_cmds <= cmd_idx) {
+		fprintf(stderr, "libpals reported current cmd index %d, but only have %d entries\n",
+			cmd_idx, _cti_pals_num_cmds);
+		goto cleanup__cti_be_pals_getNodeFirstPE;
+	}
+
+	// TODO: determine first PE
 
 cleanup__cti_be_pals_getNodeFirstPE:
 	return result;
@@ -280,6 +495,44 @@ static int
 _cti_be_pals_getNodePEs()
 {
 	int result = -1;
+
+	// Ensure PEs array, current PE index, and cmd entries are filled in
+	if (_cti_pals_pes == NULL) {
+		if (_cti_get_pes_info() || (_cti_pals_pes == NULL)) {
+			fprintf(stderr, "_cti_get_pes_info failed\n");
+			goto cleanup__cti_be_pals_getNodePEs;
+		}
+	}
+	if (_cti_pe_idx < 0) {
+		if (_cti_get_pe_idx() || (_cti_pe_idx < 0)) {
+			fprintf(stderr, "_cti_get_pe_idx failed\n");
+			goto cleanup__cti_be_pals_getNodePEs;
+		}
+	}
+	if (_cti_pals_cmds == NULL) {
+		if (_cti_get_cmds_info() || (_cti_pals_cmds == NULL)) {
+			fprintf(stderr, "_cti_get_cmds_info failed\n");
+			goto cleanup__cti_be_pals_getNodePEs;
+		}
+	}
+
+	// Ensure information for current PE / cmd is available
+	if (_cti_pals_num_pes <= _cti_pe_idx) {
+		fprintf(stderr, "libpals reported current PE index %d, but only have %d entries\n",
+			_cti_pe_idx, _cti_pals_num_pes);
+		goto cleanup__cti_be_pals_getNodePEs;
+	}
+
+	int const cmd_idx = _cti_pals_pes[_cti_pe_idx].cmdidx;
+
+	if (_cti_pals_num_cmds <= cmd_idx) {
+		fprintf(stderr, "libpals reported current cmd index %d, but only have %d entries\n",
+			cmd_idx, _cti_pals_num_cmds);
+		goto cleanup__cti_be_pals_getNodePEs;
+	}
+
+	// Determined number of PEs
+	result = _cti_pals_cmds[cmd_idx].pes_per_node;
 
 cleanup__cti_be_pals_getNodePEs:
 	return result;
