@@ -16,20 +16,46 @@ source ./external/cdst_build_library/build_lib
 echo "############################################"
 echo "#             Installing deps              #"
 echo "############################################"
-zypper --non-interactive install \
-    autoconf \
-    autoconf-archive \
-    automake \
-    binutils \
-    binutils-devel \
-    glibc-devel-static \
-    m4 \
-    make \
-    make-lang \
-    libtool \
-    rpm-build \
-    zlib-devel
-check_exit_status $? sys-pkgs
+target_pm=$(get_pm)
+if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
+    # Install zypper based dependencies
+    zypper --non-interactive install \
+        autoconf \
+        autoconf-archive \
+        automake \
+        binutils \
+        binutils-devel \
+        glibc-devel-static \
+        m4 \
+        make \
+        make-lang \
+        libtool \
+        rpm-build \
+        zlib-devel
+    check_exit_status
+elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
+    # Install yum based components
+    yum --assumeyes --enablerepo=PowerTools install \
+        autoconf \
+        autoconf-archive \
+        automake \
+        binutils \
+        binutils-devel \
+        environment-modules \
+        glibc-devel \
+        m4 \
+        make \
+        libtool \
+        rpm-build \
+        zlib-devel \
+        tcl \
+        wget
+    check_exit_status
+else
+    # Unknown OS! Exit with error.
+    echo "Unsupported Package Manager detected!"
+    exit 1
+fi
 
 # Install the common PE components
 install_common_pe
