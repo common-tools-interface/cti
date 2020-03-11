@@ -19,6 +19,7 @@
 #include <netinet/in.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #include <netdb.h>
 
 #include <fcntl.h>
@@ -35,69 +36,100 @@
 
 /* cti frontend C interface tests */
 
+// Find my external IP
+static auto getExternalAddress()
+{
+    // Get information structs about all network interfaces
+    struct ifaddrs *ifaddr = nullptr;
+    if (getifaddrs(&ifaddr) < 0) {
+        throw std::runtime_error(strerror(errno));
+    }
+
+    // Find the first IP address that isn't localhost
+    for (struct ifaddrs* ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == NULL) {
+            continue;
+        }
+
+        // Limit to IPv4 and IPv6
+        auto const family = ifa->ifa_addr->sa_family;
+        if ((family == AF_INET) || (family == AF_INET6)) {
+
+            // Skip if loopback
+            if (ifa->ifa_flags & IFF_LOOPBACK) {
+                continue;
+            }
+
+            // Get hostname for interface
+            char address[NI_MAXHOST];
+            auto const sockaddr_size = (family == AF_INET)
+                ? sizeof(struct sockaddr_in)
+                : sizeof(struct sockaddr_in6);
+
+            if (auto const rc = getnameinfo(ifa->ifa_addr, sockaddr_size,
+                address, NI_MAXHOST, nullptr, 0, NI_NUMERICHOST)) {
+
+                // Clean up ifaddr
+                freeifaddrs(ifaddr);
+
+                throw std::runtime_error(strerror(errno));
+            }
+
+            // Clean up ifaddr
+            freeifaddrs(ifaddr);
+
+            return std::string{address};
+        }
+    }
+
+    // Clean up ifaddr
+    freeifaddrs(ifaddr);
+
+    throw std::runtime_error("failed to find any external address");
+}
+
+static auto bindAny(std::string const& address)
+{
+    // setup hints
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_NUMERICSERV;
+
+    // uses external_ip in order to bind socket to external IP and not localhost
+    // if NULL is used this will ALWAYS give localhost which is not non-wbox compatible
+    struct addrinfo *raw_listener = nullptr;
+    if (auto const rc = getaddrinfo(address.c_str(), "0", &hints, &raw_listener)) {
+        throw std::runtime_error(gai_strerror(rc));
+    }
+    auto listener = cti::take_pointer_ownership(std::move(raw_listener), freeaddrinfo);
+    raw_listener = nullptr;
+
+    // Create the socket
+    auto const socketFd = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol);
+    if (socketFd < 0) {
+        throw std::runtime_error(strerror(errno));
+    }
+
+    // Bind the socket
+    if (bind(socketFd, listener->ai_addr, listener->ai_addrlen) < 0) {
+        throw std::runtime_error(strerror(errno));
+    }
+
+    return socketFd;
+}
+
 static void
 testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string const& expecting) {
     // Wait for any previous cleanups to finish (see PE-26018)
     sleep(5);
-    std::string external_ip = "";
 
-    // Find my external IP
-    {
-        struct ifaddrs *ifaddr, *ifa;
-        int family, s;
-        char host[NI_MAXHOST];
-        ASSERT_NE(getifaddrs(&ifaddr), -1);
-        for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-            if (ifa->ifa_addr == NULL) {
-                continue;
-            }
-            family = ifa->ifa_addr->sa_family;
-            if (family == AF_INET || family == AF_INET6) {
-                s = getnameinfo(ifa->ifa_addr, (family==AF_INET) ?
-                    sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
-                    host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-                if (s != 0) {
-                    FAIL() << "Error while trying to find non-locahost IP";
-                }
-
-                // Accept the first IP that is not localhost.
-                if(std::string(host) != "127.0.0.1") {
-                    external_ip=host;
-                    break;
-                }
-            }
-        }
-        // clean up
-        freeifaddrs(ifaddr);
-    }
-
-    ASSERT_NE(external_ip, "");
+    // Get address accessible from compute node
+    auto const address = getExternalAddress();
 
     // build 'server' socket
-    int test_socket;
-    {
-        // setup hints
-        struct addrinfo hints;
-        memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_flags = AI_NUMERICSERV;
-
-        struct addrinfo *listener;
-
-        // uses external_ip in order to bind socket to external IP and not localhost
-        // if NULL is used this will ALWAYS give localhost which is not non-wbox compatible
-        ASSERT_EQ(getaddrinfo(external_ip.c_str(), "0", &hints, &listener), 0);
-
-        // Create the socket
-        ASSERT_NE(test_socket = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), -1) << "Failed to create test_socket socket";
-
-        // Bind the socket
-        ASSERT_EQ(bind(test_socket, listener->ai_addr, listener->ai_addrlen), 0) << "Failed to bind test_socket socket";
-
-        // Clean up listener
-        freeaddrinfo(listener);
-    }
+    auto const test_socket = bindAny(address);
 
     // Begin listening on socket
     ASSERT_EQ(listen(test_socket, 1), 0) << "Failed to listen on test_socket socket";
@@ -113,7 +145,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::string
         // create manifest and args
         auto const manifestId = cti_createManifest(sessionId);
         ASSERT_EQ(cti_manifestIsValid(manifestId), true) << cti_error_str();
-        char const* sockDaemonArgs[] = {external_ip.c_str(), std::to_string(ntohs(sa.sin_port)).c_str(), nullptr};
+        char const* sockDaemonArgs[] = {address.c_str(), std::to_string(ntohs(sa.sin_port)).c_str(), nullptr};
 
         // launch app
         ASSERT_EQ(cti_execToolDaemon(manifestId, daemonPath, sockDaemonArgs, nullptr), SUCCESS) << cti_error_str();
@@ -177,66 +209,13 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
 {
     // Wait for any previous cleanups to finish (see PE-26018)
     sleep(5);
-    auto address = std::string{};
     auto port = std::string{};
 
-    // Find my external IP
-    {
-        struct ifaddrs *ifaddr, *ifa;
-        int family, s;
-        char host[NI_MAXHOST];
-        ASSERT_NE(getifaddrs(&ifaddr), -1);
-        for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-            if (ifa->ifa_addr == NULL) {
-                continue;
-            }
-            family = ifa->ifa_addr->sa_family;
-            if (family == AF_INET || family == AF_INET6) {
-                s = getnameinfo(ifa->ifa_addr, (family==AF_INET) ?
-                    sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
-                    host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-                if (s != 0) {
-                    FAIL() << "Error while trying to find non-locahost IP";
-                }
-
-                // Accept the first IP that is not localhost.
-                if(std::string(host) != "127.0.0.1") {
-                    address=host;
-                    break;
-                }
-            }
-        }
-        // clean up
-        freeifaddrs(ifaddr);
-    }
-
-    ASSERT_NE(address, "");
+    // Get address accessible from compute node
+    auto const address = getExternalAddress();
 
     // build 'server' socket
-    int test_socket;
-    {
-        // setup hints
-        struct addrinfo hints;
-        memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_flags = AI_NUMERICSERV;
-
-        struct addrinfo *listener;
-
-        // uses external_ip in order to bind socket to external IP and not localhost
-        // if NULL is used this will ALWAYS give localhost which is not non-wbox compatible
-        ASSERT_EQ(getaddrinfo(address.c_str(), "0", &hints, &listener), 0);
-
-        // Create the socket
-        ASSERT_NE(test_socket = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), -1) << "Failed to create test_socket socket";
-
-        // Bind the socket
-        ASSERT_EQ(bind(test_socket, listener->ai_addr, listener->ai_addrlen), 0) << "Failed to bind test_socket socket";
-
-        // Clean up listener
-        freeaddrinfo(listener);
-    }
+    auto const test_socket = bindAny(address);
 
     // Begin listening on socket
     ASSERT_EQ(listen(test_socket, 1), 0) << "Failed to listen on test_socket socket";
