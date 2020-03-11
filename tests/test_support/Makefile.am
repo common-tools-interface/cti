@@ -29,7 +29,7 @@ libgmock_la_LDFLAGS		=	-pthread
 # support binaries for function and unit tests
 
 # stage test helpers (one_socket, two_socket, libprint.so)
-noinst_PROGRAMS = one_socket two_socket one_print preload_print
+noinst_PROGRAMS = one_socket two_socket one_print
 
 message_one/libmessage.so: message_one/message.c message_one/message.h
 	$(CC) -fPIC -shared message_one/message.c -o message_one/libmessage.so
@@ -55,8 +55,3 @@ one_print_DEPENDENCIES = message_one/libmessage.so
 one_print_SOURCES 		= one_print.c
 one_print_LDADD 		= -L./message_one -lmessage
 one_print_LDFLAGS 		= -Wl,-rpath,\$$ORIGIN/message_one
-
-preload_print_DEPENDENCIES = message_one/libmessage.so
-preload_print_SOURCES	= preload_test.c
-preload_print_CFLAGS	= -fPIC
-

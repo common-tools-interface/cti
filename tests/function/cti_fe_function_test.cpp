@@ -31,6 +31,7 @@
 #include "common_tools_fe.h"
 
 #include "useful/cti_execvp.hpp"
+#include "useful/cti_wrappers.hpp"
 
 /* cti frontend C interface tests */
 
@@ -169,6 +170,120 @@ TEST_F(CTIFEFunctionTest, DaemonLibDir) {
 // Tests that the frontend type was correctly detected.
 TEST_F(CTIFEFunctionTest, HaveValidFrontend) {
     ASSERT_NE(cti_current_wlm(), CTI_WLM_NONE) << cti_error_str();
+}
+
+// Test that LD_PRELOAD is restored to environment of job
+TEST_F(CTIFEFunctionTest, LdPreloadSet)
+{
+    // Wait for any previous cleanups to finish (see PE-26018)
+    sleep(5);
+    auto address = std::string{};
+    auto port = std::string{};
+
+    // Find my external IP
+    {
+        struct ifaddrs *ifaddr, *ifa;
+        int family, s;
+        char host[NI_MAXHOST];
+        ASSERT_NE(getifaddrs(&ifaddr), -1);
+        for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+            if (ifa->ifa_addr == NULL) {
+                continue;
+            }
+            family = ifa->ifa_addr->sa_family;
+            if (family == AF_INET || family == AF_INET6) {
+                s = getnameinfo(ifa->ifa_addr, (family==AF_INET) ?
+                    sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
+                    host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+                if (s != 0) {
+                    FAIL() << "Error while trying to find non-locahost IP";
+                }
+
+                // Accept the first IP that is not localhost.
+                if(std::string(host) != "127.0.0.1") {
+                    address=host;
+                    break;
+                }
+            }
+        }
+        // clean up
+        freeifaddrs(ifaddr);
+    }
+
+    ASSERT_NE(address, "");
+
+    // build 'server' socket
+    int test_socket;
+    {
+        // setup hints
+        struct addrinfo hints;
+        memset(&hints, 0, sizeof(struct addrinfo));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_flags = AI_NUMERICSERV;
+
+        struct addrinfo *listener;
+
+        // uses external_ip in order to bind socket to external IP and not localhost
+        // if NULL is used this will ALWAYS give localhost which is not non-wbox compatible
+        ASSERT_EQ(getaddrinfo(address.c_str(), "0", &hints, &listener), 0);
+
+        // Create the socket
+        ASSERT_NE(test_socket = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol), -1) << "Failed to create test_socket socket";
+
+        // Bind the socket
+        ASSERT_EQ(bind(test_socket, listener->ai_addr, listener->ai_addrlen), 0) << "Failed to bind test_socket socket";
+
+        // Clean up listener
+        freeaddrinfo(listener);
+    }
+
+    // Begin listening on socket
+    ASSERT_EQ(listen(test_socket, 1), 0) << "Failed to listen on test_socket socket";
+
+    // get my sockets info
+    struct sockaddr_in sa;
+    socklen_t sa_len = sizeof(sa);
+    memset(&sa, 0, sizeof(sa));
+    ASSERT_EQ(getsockname(test_socket, (struct sockaddr*) &sa, &sa_len), 0);
+    port = std::to_string(ntohs(sa.sin_port));
+
+    // Get program and library paths
+    auto const testSupportPath = cti::cstr::getcwd() + "/../test_support/";
+    auto const oneSocketPath = testSupportPath + "one_socket";
+    auto const messageTwoPath = testSupportPath + "message_two/libmessage.so";
+    auto const ldPreload = "LD_PRELOAD=" + messageTwoPath;
+
+    // set up app
+    char const* argv[] = {oneSocketPath.c_str(), address.c_str(), port.c_str(), nullptr};
+    auto const  stdoutFd = -1;
+    auto const  stderrFd = -1;
+    char const* inputFile = nullptr;
+    char const* chdirPath = nullptr;
+    char const* const envList[] = {ldPreload.c_str(), nullptr};
+
+    // create app
+    auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    ASSERT_GT(appId, 0) << cti_error_str();
+    EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
+
+    // accept recently launched applications connection
+    int app_socket;
+    struct sockaddr_in wa;
+    socklen_t wa_len = sizeof(wa);
+    ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
+
+    // read data returned from app
+    char buffer[16] = {0};
+    int length = read(app_socket, buffer, 16);
+    ASSERT_LT(length, 16);
+    buffer[length] = '\0';
+
+    // check for correctness
+    ASSERT_STREQ(buffer, "2");
+
+    // close socket
+    close(test_socket);
 }
 
 // Test that an app can launch successfully
