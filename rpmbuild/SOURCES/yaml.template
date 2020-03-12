@@ -1,4 +1,4 @@
-'''---
+---
 #----------------------------------------------------------------------------
 # IMPORTANT: do not rename sections! The installer uses section names
 # to detect changes made to sections, using the MD5 algorithm.
@@ -92,4 +92,4 @@ do
 done
 
 rpm -ivh <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>.rpm
-'''
+
