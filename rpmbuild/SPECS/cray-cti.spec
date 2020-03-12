@@ -327,11 +327,68 @@ else
     ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
 fi
 
+%preun
+default_link="${RPM_INSTALL_PREFIX}/%{cray_product}/default"
+
+# Cleanup module .version if it points to this version
+if [ -f ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/.version ]
+then
+  dotversion=`grep ModulesVersion ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/.version | cut -f2 -d'"'`
+
+  if [ "$dotversion" == "%{pkgversion}" ]
+  then
+    %{__rm} -f ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/.version
+    echo "Uninstalled version and .version file match = ${default_version}."
+    echo "Removing %{modulefile_name} .version file."
+    %{__rm} -f ${default_link}
+  fi
+fi
+
 %postun
-# Nothing to do here for shasta.
+if [ $1 == 1 ]
+then
+  exit 0
+fi
+
+# If the install dir exists
+if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{cray_product}` ]]; then
+  %{__rm} -rf ${RPM_INSTALL_PREFIX}/%{cray_product}
+  if [ -f /etc%{prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf ]; then
+    %{__rm} -rf /etc%{prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf
+  fi
+  if [ -f /etc%{prefix}/admin-pe/modulepaths.conf.d/%{cray_name}.conf ]; then
+    %{__rm} -rf /etc%{prefix}/admin-pe/modulepaths.conf.d/%{cray_name}.conf
+  fi
+  if [ -d ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{cray_name} ]; then
+    %{__rm} -rf ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{cray_name}
+  fi
+  if [ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{cray_name} ]; then
+    %{__rm} -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{cray_name}
+  fi
+fi
+
+%postun -n %{devel_modulefile_name}
+if [ $1 == 1 ]
+then
+  exit 0
+fi
+
+# If the install dir exists
+if [ -f /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf ]; then
+  rm -rf /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
+fi
+if [ -d ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name} ]; then
+  rm -rf ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name}
+fi
+if [ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name} ]; then
+  rm -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}
+fi
 
 %files
 %defattr(755, root, root)
+%dir %{prefix}/%{cray_product}/%{pkgversion}
+%dir %{prefix}/%{cray_product}/%{pkgversion}/lib
+%dir %{prefix}/%{cray_product}/%{pkgversion}/libexec
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
@@ -348,6 +405,8 @@ fi
 %attr(644, root, root) %verify(not md5 size mtime) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
 
 %files -n %{devel_modulefile_name}
+%dir %{prefix}/%{cray_product}/%{pkgversion}/include
+%dir %{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_be.h
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_fe.h
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_shared.h
@@ -361,6 +420,13 @@ fi
 %attr(644, root, root) %{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
 
 %files -n %{cray_name}%{pkgversion_separator}tests
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/examples
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/function
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/scripts
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two 
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_barrier
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_callback
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/examples/cti_callback_daemon
