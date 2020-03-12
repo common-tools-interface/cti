@@ -64,8 +64,7 @@ protected:
         : runningApp{APP_ERROR}
     {}
 
-    ~CTIFEFunctionTest() override
-    {
+    void stopApp() {
         if (runningApp != APP_ERROR) {
             // send sigkill to app
             if (cti_killApp(runningApp, SIGKILL) != SUCCESS) {
@@ -74,7 +73,14 @@ protected:
 
             // force deregister app
             cti_deregisterApp(runningApp);
+
+            runningApp = APP_ERROR;
         }
+    }
+
+    ~CTIFEFunctionTest() override
+    {
+        stopApp();
     }
 
     // note the running app ID so that we can clean it up later
@@ -87,4 +93,11 @@ protected:
             throw std::logic_error("assigned multiple apps to a test");
         }
     }
+
+    cti_app_id_t replaceApp(cti_app_id_t appId)
+    {
+        stopApp();
+        return watchApp(appId);
+    }
+
 };

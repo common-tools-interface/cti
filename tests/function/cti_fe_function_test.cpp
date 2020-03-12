@@ -205,6 +205,11 @@ TEST_F(CTIFEFunctionTest, HaveValidFrontend) {
 }
 
 // Test that LD_PRELOAD is restored to environment of job
+// one_socket is dynamically linked to message_one/libmessage.so
+// libmessage implements get_message() that will return a value of 1, then sent over socket to FE.
+// The test will first verify that one_socket normally sends a value of 1.
+// Then, it wil LD_PRELOAD message_two/libmessage.so, which implements get_message() returning value 2.
+// The test will then verify that LD_PRELOAD overrides the get_message() impl. to send a value of 2.
 TEST_F(CTIFEFunctionTest, LdPreloadSet)
 {
     // Wait for any previous cleanups to finish (see PE-26018)
@@ -233,33 +238,65 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
     auto const messageTwoPath = testSupportPath + "message_two/libmessage.so";
     auto const ldPreload = "LD_PRELOAD=" + messageTwoPath;
 
-    // set up app
-    char const* argv[] = {oneSocketPath.c_str(), address.c_str(), port.c_str(), nullptr};
-    auto const  stdoutFd = -1;
-    auto const  stderrFd = -1;
-    char const* inputFile = nullptr;
-    char const* chdirPath = nullptr;
-    char const* const envList[] = {ldPreload.c_str(), nullptr};
+    { // Launch application without preload, expect response of 1
+        // set up app
+        char const* argv[] = {oneSocketPath.c_str(), address.c_str(), port.c_str(), nullptr};
+        auto const  stdoutFd = -1;
+        auto const  stderrFd = -1;
+        char const* inputFile = nullptr;
+        char const* chdirPath = nullptr;
+        char const* const* envList = nullptr;
 
-    // create app
-    auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
-    ASSERT_GT(appId, 0) << cti_error_str();
-    EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
+        // create app
+        auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+        ASSERT_GT(appId, 0) << cti_error_str();
+        EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
-    // accept recently launched applications connection
-    int app_socket;
-    struct sockaddr_in wa;
-    socklen_t wa_len = sizeof(wa);
-    ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
+        // accept recently launched applications connection
+        int app_socket;
+        struct sockaddr_in wa;
+        socklen_t wa_len = sizeof(wa);
+        ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
 
-    // read data returned from app
-    char buffer[16] = {0};
-    int length = read(app_socket, buffer, 16);
-    ASSERT_LT(length, 16);
-    buffer[length] = '\0';
+        // read data returned from app
+        char buffer[16] = {0};
+        int length = read(app_socket, buffer, 16);
+        ASSERT_LT(length, 16);
+        buffer[length] = '\0';
 
-    // check for correctness
-    ASSERT_STREQ(buffer, "2");
+        // check for correctness
+        ASSERT_STREQ(buffer, "1");
+    }
+
+    { // Launch application with preload, expect response of 2
+        // set up app
+        char const* argv[] = {oneSocketPath.c_str(), address.c_str(), port.c_str(), nullptr};
+        auto const  stdoutFd = -1;
+        auto const  stderrFd = -1;
+        char const* inputFile = nullptr;
+        char const* chdirPath = nullptr;
+        char const* const envList[] = {ldPreload.c_str(), nullptr};
+
+        // create app
+        auto const appId = replaceApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+        ASSERT_GT(appId, 0) << cti_error_str();
+        EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
+
+        // accept recently launched applications connection
+        int app_socket;
+        struct sockaddr_in wa;
+        socklen_t wa_len = sizeof(wa);
+        ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
+
+        // read data returned from app
+        char buffer[16] = {0};
+        int length = read(app_socket, buffer, 16);
+        ASSERT_LT(length, 16);
+        buffer[length] = '\0';
+
+        // check for correctness
+        ASSERT_STREQ(buffer, "2");
+    }
 
     // close socket
     close(test_socket);
