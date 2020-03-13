@@ -1,7 +1,7 @@
-/*********************************************************************************\
- * Frontend_impl.h - Common includes for derived frontend implementations.
+/******************************************************************************\
+ * cti_websocket_unit_test.cpp - CTI HTTP and WebSocket tests
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
+ * Copyright 2020 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -33,9 +33,32 @@
  *
  ******************************************************************************/
 
-#pragma once
+#include "cti_defs.h"
+#include "cti_argv_defs.hpp"
 
-#include "ALPS/Frontend.hpp"
-#include "SLURM/Frontend.hpp"
-#include "PALS/Frontend.hpp"
-#include "GenericSSH/Frontend.hpp"
+#include "cti_useful_unit_test.hpp"
+
+#include "useful/cti_websocket.hpp"
+
+using ::testing::Return;
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::WithoutArgs;
+using ::testing::EndsWith;
+
+CTIUsefulUnitTest::CTIUsefulUnitTest()
+{
+}
+
+CTIUsefulUnitTest::~CTIUsefulUnitTest()
+{
+}
+
+TEST_F(CTIUsefulUnitTest, WebSocketTask)
+{
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}

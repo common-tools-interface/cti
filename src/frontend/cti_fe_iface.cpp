@@ -188,6 +188,8 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
             return ALPSFrontend::getName();
         case CTI_WLM_SLURM:
             return SLURMFrontend::getName();
+        case CTI_WLM_PALS:
+            return PALSFrontend::getName();
         case CTI_WLM_SSH:
             return GenericSSHFrontend::getName();
 
@@ -381,6 +383,21 @@ static cti_slurm_ops_t _cti_slurm_ops = {
     .getSrunInfo        = _cti_slurm_getSrunInfo
 };
 
+// PALS WLM extensions
+
+static cti_app_id_t
+_cti_pals_registerApid(char const* apid) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<PALSFrontend>();
+        auto wp = fe.registerJob(1, apid);
+        return fe.Iface().trackApp(wp);
+    }, APP_ERROR);
+}
+
+static cti_pals_ops_t _cti_pals_ops = {
+    .registerApid = _cti_pals_registerApid
+};
+
 // SSH WLM extensions
 
 static cti_app_id_t
@@ -412,6 +429,9 @@ cti_open_ops(void **ops) {
                 break;
             case CTI_WLM_SLURM:
                 *ops = reinterpret_cast<void *>(&_cti_slurm_ops);
+                break;
+            case CTI_WLM_PALS:
+                *ops = reinterpret_cast<void *>(&_cti_pals_ops);
                 break;
             case CTI_WLM_SSH:
                 *ops = reinterpret_cast<void *>(&_cti_ssh_ops);

@@ -119,3 +119,17 @@ struct CTIFEDaemonArgv : public cti::Argv {
     };
 };
 
+struct PALSLauncherArgv : public cti::Argv {
+    using Option    = cti::Argv::Option;
+    using Parameter = cti::Argv::Parameter;
+
+    static constexpr Parameter NRanks { "nranks", 'n' };
+    static constexpr Parameter PPN    { "ppn",    'N' };
+    static constexpr Parameter Depth  { "depth",  'd' };
+    static constexpr Parameter NodeList { "node-list",  'L' };
+
+    static constexpr GNUOption long_options[] = {
+        NRanks, PPN, Depth, NodeList,
+        long_options_done
+    };
+};

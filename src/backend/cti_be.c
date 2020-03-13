@@ -48,6 +48,7 @@
 
 /* wlm specific proto objects defined elsewhere */
 extern cti_be_wlm_proto_t   _cti_be_alps_wlmProto;
+extern cti_be_wlm_proto_t   _cti_be_pals_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_slurm_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_generic_ssh_wlmProto;
 
@@ -96,6 +97,10 @@ _cti_be_init(void)
     {
         case CTI_WLM_ALPS:
             _cti_be_wlmProto = &_cti_be_alps_wlmProto;
+            break;
+
+        case CTI_WLM_PALS:
+            _cti_be_wlmProto = &_cti_be_pals_wlmProto;
             break;
 
         case CTI_WLM_SLURM:

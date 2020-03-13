@@ -163,15 +163,16 @@ TEST_F(CTIUsefulUnitTest, cti_argv_IncomingArgv)
 {
     // setup test argv for IncomingArgv
     // DaemonArgv used as only Argv with long_options which is required by IncomingArgv
-    cti::OutgoingArgv<DaemonArgv> test_OA("CTI_BE_DAEMON_BINARY");
+    cti::OutgoingArgv<DaemonArgv> test_OA(CTI_BE_DAEMON_BINARY);
     test_OA.add(DaemonArgv::ApID, "1");
     test_OA.add(DaemonArgv::ToolPath, "./unit_tests");
 
     // create IncomingArgv
     cti::IncomingArgv<CTIFEDaemonArgv> test_IA(3, test_OA.get());
     char* const* check = test_IA.get_rest();
-    EXPECT_STREQ(check[0], "--apid=1");
-    EXPECT_STREQ(check[1], "--path=./unit_tests");
+    EXPECT_STREQ(check[0], CTI_BE_DAEMON_BINARY);
+    EXPECT_STREQ(check[1], "--apid=1");
+    EXPECT_STREQ(check[2], "--path=./unit_tests");
 }
 
 /******************************************

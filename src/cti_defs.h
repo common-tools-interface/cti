@@ -163,6 +163,13 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SHELL_PATH							"/bin/sh"								// The location of the shell to set SHELL to
 #define USER_DEF_APRUN_LOC_ENV_VAR "CTI_APRUN_PATH"
 
+/*
+** PALS specific information
+*/
+
+#define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
+
+
 /*******************************************************************************
 ** Environment variables that are set/maintained by this library
 ** Note that (read) is used to denote environment variables that the user will
