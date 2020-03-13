@@ -46,6 +46,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <pwd.h>
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -129,6 +130,16 @@ namespace cstr {
         } else {
             throw std::runtime_error("basename failed on " + path);
         }
+    }
+
+    // lifted getcwd
+    static inline std::string getcwd() {
+        char buf[PATH_MAX + 1];
+        if (auto const cwd = ::getcwd(buf, PATH_MAX)) {
+            return std::string{cwd};
+        }
+
+        throw std::runtime_error("getcwd failed: " + std::string{strerror(errno)});
     }
 } /* namespace cti::cstr */
 
@@ -433,5 +444,39 @@ public:
 
     char const* get() const { return m_path.get(); }
 };
+
+// Read passwd file and resize buffer as needed
+static inline auto
+getpwuid(uid_t const uid)
+{
+    auto pwd = passwd{};
+    auto pwd_buf = std::vector<char>{};
+
+    size_t buf_len = 4096;
+    long rl = sysconf(_SC_GETPW_R_SIZE_MAX);
+    if (rl != -1) {
+        buf_len = static_cast<size_t>(rl);
+    }
+
+    // Resize the vector
+    pwd_buf.resize(buf_len);
+
+    // Get the password file
+    struct passwd *result = nullptr;
+    if (getpwuid_r(uid,
+                   &pwd,
+                   pwd_buf.data(),
+                   pwd_buf.size(),
+                   &result)) {
+        throw std::runtime_error("getpwuid_r failed: " + std::string{strerror(errno)});
+    }
+
+    // Ensure we obtained a result
+    if (result == nullptr) {
+        throw std::runtime_error("password file entry not found for uid " + std::to_string(uid));
+    }
+
+    return std::make_pair(std::move(pwd), std::move(pwd_buf));
+}
 
 } /* namespace cti */
