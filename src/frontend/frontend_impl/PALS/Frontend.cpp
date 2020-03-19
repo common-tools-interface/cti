@@ -514,72 +514,87 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
     auto const [nranks, ppn, depth, nodeListSpec, binaryArgv] = parse_argv(launcher_argc + 1, (char* const*)(launcher_argv - 1));
 
     // Create launch JSON command
-    auto launchJsonStream = std::stringstream{};
+    namespace pt = boost::property_tree;
+    auto launchPtree = pt::ptree{};
 
-    launchJsonStream << R"({ "argv": [)";
-    for (char const* const* arg = binaryArgv; *arg != nullptr; arg++) {
-        launchJsonStream << ((arg == binaryArgv) ? "\"" : ",\"") << *arg << "\"";
+    auto const make_array_elem = [](std::string const& value) {
+        auto node = pt::ptree{};
+        node.put("", value);
+        return std::make_pair("", node);
+    };
+
+    { auto argvPtree = pt::ptree{};
+        for (char const* const* arg = binaryArgv; *arg != nullptr; arg++) {
+            argvPtree.push_back(make_array_elem(*arg));
+        }
+        launchPtree.add_child("argv", std::move(argvPtree));
     }
-    launchJsonStream << "]";
 
     // If no chdirPath specified, use CWD
-    launchJsonStream <<  R"(, "wdir": ")" << (chdirPath ? chdirPath : cti::cstr::getcwd()) << "\"";
+    launchPtree.put("wdir", chdirPath ? chdirPath : cti::cstr::getcwd());
 
     // Read list of hostnames for PALS
     if (!nodeListSpec.empty()) {
         // TODO: determine necessary zero-padding for node numbers above 9
-        launchJsonStream << R"(, "hosts": ["nid00000[)" << nodeListSpec << R"(]"])";
-        // launchJsonStream << R"(, "hosts": ["nid000001","nid000002"])";
+        launchPtree.put("hosts", "nid00000[" + nodeListSpec + "]");
+
+    // Read each node name from node file
     } else if (auto const nodeFilePath = ::getenv("PBS_NODEFILE")) {
         auto fileStream = std::ifstream{nodeFilePath};
         auto line = std::string{};
 
-        launchJsonStream << R"(, "hosts": [)";
-        auto first = true;
+        // Insert into hostname list
+        auto hostsPtree = pt::ptree{};
         while (std::getline(fileStream, line)) {
-            launchJsonStream << (first ? "\"" : ",\"") << line << "\"";
-            first = false;
+            hostsPtree.push_back(make_array_elem(line));
         }
-        launchJsonStream << "]";
+
+        launchPtree.add_child("hosts", std::move(hostsPtree));
     } else {
         throw std::runtime_error("no node list provided");
     }
 
     // Add parsed node count information
     if (nranks > 0) {
-        launchJsonStream <<  R"(, "nranks": )" << std::to_string(nranks);
+        launchPtree.put("nranks", std::to_string(nranks));
     }
     if (ppn > 0) {
-        launchJsonStream <<  R"(, "ppn": )" << std::to_string(ppn);
+        launchPtree.put("ppn", std::to_string(ppn));
     }
     if (depth > 0) {
-        launchJsonStream <<  R"(, "depth": )" << std::to_string(depth);
+        launchPtree.put("depth", std::to_string(depth));
     }
 
     // Add necessary environment variables
-    launchJsonStream << R"(, "environment": [)";
-    auto first = true;
-    for (auto&& envVar : {"PATH", "USER", "LD_LIBRARY_PATH"}) {
-        if (auto const envVal = ::getenv(envVar)) {
-            launchJsonStream << (first ? "\"" : ",\"") << envVar << "=" << envVal << "\"";
-            first = false;
+    { auto environmentPtree = pt::ptree{};
+
+        // Add required inherited environment variables
+        for (auto&& envVar : {"PATH", "USER", "LD_LIBRARY_PATH"}) {
+            if (auto const envVal = ::getenv(envVar)) {
+                environmentPtree.push_back(make_array_elem(envVar + std::string{"="} + envVal));
+            }
         }
-    }
-    // Add user-supplied environment variables
-    if (env_list != nullptr) {
-        for (char const* const* env_val = env_list; *env_val != nullptr; env_val++) {
-            launchJsonStream << (first ? "\"" : ",\"") << *env_val << "\"";
-            launchJsonStream << ",\"" << *env_val << "\"";
-            first = false;
+
+        // Add user-supplied environment variables
+        if (env_list != nullptr) {
+            for (char const* const* env_val = env_list; *env_val != nullptr; env_val++) {
+                environmentPtree.push_back(make_array_elem(*env_val));
+            }
         }
+
+        launchPtree.add_child("environment", std::move(environmentPtree));
     }
-    launchJsonStream << "]";
 
     // Add default environment alias
-    launchJsonStream << R"(, "envalias": { "APRUN_APP_ID": "PALS_APID" })";
+    { auto envaliasPtree = pt::ptree{};
+        envaliasPtree.put("APRUN_APP_ID", "PALS_APID");
 
-    // Terminate map
-    launchJsonStream << "}";
+        launchPtree.add_child("envalias", std::move(envaliasPtree));
+    }
+
+    // Encode as json string
+    auto launchJsonStream = std::stringstream{};
+    pt::json_parser::write_json(launchJsonStream, launchPtree);
     return launchJsonStream.str();
 }
 
@@ -860,17 +875,30 @@ PALSApp::startDaemon(const char* const args[])
     auto const remoteBEDaemonPath = m_toolPath + "/" + CTI_BE_DAEMON_BINARY;
 
     // Create tool launch JSON command
-    auto toolLaunchJsonStream = std::stringstream{};
+    namespace pt = boost::property_tree;
+    auto toolLaunchPtree = pt::ptree{};
 
-    toolLaunchJsonStream << "{\"argv\":[\"" << remoteBEDaemonPath << "\"";
-    fprintf(stderr, "\n%s ", remoteBEDaemonPath.c_str());
-    for (char const* const* arg = args; *arg != nullptr; arg++) {
-        toolLaunchJsonStream << ",\"" << *arg << "\"";
-        fprintf(stderr, "%s ", *arg);
+    auto const make_array_elem = [](std::string const& value) {
+        auto node = pt::ptree{};
+        node.put("", value);
+        return std::make_pair("", node);
+    };
+
+    { auto argvPtree = pt::ptree{};
+        // Add daemon path
+        argvPtree.push_back(make_array_elem(remoteBEDaemonPath));
+
+        // Add specified arguments
+        for (char const* const* arg = args; *arg != nullptr; arg++) {
+            argvPtree.push_back(make_array_elem(*arg));
+        }
+
+        toolLaunchPtree.add_child("argv", std::move(argvPtree));
     }
-    toolLaunchJsonStream << "]}";
-    fprintf(stderr, "\n\n");
 
+    // Encode as json string
+    auto toolLaunchJsonStream = std::stringstream{};
+    pt::json_parser::write_json(toolLaunchJsonStream, toolLaunchPtree);
     auto const toolLaunchJson = toolLaunchJsonStream.str();
 
     // Make POST request
