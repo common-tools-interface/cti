@@ -1014,7 +1014,26 @@ static void handle_Shutdown(int const reqFd, int const respFd)
     shutdown_and_exit(0);
 }
 
-
+// Return string value of request type for logging
+static auto reqTypeString(ReqType const reqType)
+{
+    switch (reqType) {
+        case ReqType::ForkExecvpApp:  return "ForkExecvpApp";
+        case ReqType::ForkExecvpUtil: return "ForkExecvpUtil";
+        case ReqType::LaunchMPIR:     return "LaunchMPIR";
+        case ReqType::AttachMPIR:     return "AttachMPIR";
+        case ReqType::ReleaseMPIR:    return "ReleaseMPIR";
+        case ReqType::ReadStringMPIR: return "ReadStringMPIR";
+        case ReqType::TerminateMPIR:  return "TerminateMPIR";
+        case ReqType::LaunchMPIRShim: return "LaunchMPIRShim";
+        case ReqType::RegisterApp:    return "RegisterApp";
+        case ReqType::RegisterUtil:   return "RegisterUtil";
+        case ReqType::DeregisterApp:  return "DeregisterApp";
+        case ReqType::CheckApp:       return "CheckApp";
+        case ReqType::Shutdown:       return "Shutdown";
+        default: return "(unknown)";
+    }
+}
 
 int
 main(int argc, char *argv[])
@@ -1103,59 +1122,59 @@ main(int argc, char *argv[])
     // wait for pipe commands
     while (true) {
         auto const reqType = rawReadLoop<ReqType>(reqFd);
-        getLogger().write("req type %ld\n", reqType);
+        getLogger().write("Received request type %ld: %s\n", reqType, reqTypeString(reqType));
 
         switch (reqType) {
 
-            case ReqType::ForkExecvpApp: // 0
+            case ReqType::ForkExecvpApp:
                 handle_ForkExecvpApp(reqFd, respFd);
                 break;
 
-            case ReqType::ForkExecvpUtil: // 1
+            case ReqType::ForkExecvpUtil:
                 handle_ForkExecvpUtil(reqFd, respFd);
                 break;
 
-            case ReqType::LaunchMPIR: // 2
+            case ReqType::LaunchMPIR:
                 handle_LaunchMPIR(reqFd, respFd);
                 break;
 
-            case ReqType::AttachMPIR: // 3
+            case ReqType::AttachMPIR:
                 handle_AttachMPIR(reqFd, respFd);
                 break;
 
-            case ReqType::ReleaseMPIR: // 4
+            case ReqType::ReleaseMPIR:
                 handle_ReleaseMPIR(reqFd, respFd);
                 break;
 
-            case ReqType::ReadStringMPIR: // 5
+            case ReqType::ReadStringMPIR:
                 handle_ReadStringMPIR(reqFd, respFd);
                 break;
 
-            case ReqType::TerminateMPIR: // 6
+            case ReqType::TerminateMPIR:
                 handle_TerminateMPIR(reqFd, respFd);
                 break;
 
-            case ReqType::LaunchMPIRShim: // 7
+            case ReqType::LaunchMPIRShim:
                 handle_LaunchMPIRShim(reqFd, respFd);
                 break;
 
-            case ReqType::RegisterApp: // 8
+            case ReqType::RegisterApp:
                 handle_RegisterApp(reqFd, respFd);
                 break;
 
-            case ReqType::RegisterUtil: // 9
+            case ReqType::RegisterUtil:
                 handle_RegisterUtil(reqFd, respFd);
                 break;
 
-            case ReqType::DeregisterApp: // 10
+            case ReqType::DeregisterApp:
                 handle_DeregisterApp(reqFd, respFd);
                 break;
 
-            case ReqType::CheckApp: // 11
+            case ReqType::CheckApp:
                 handle_CheckApp(reqFd, respFd);
                 break;
 
-            case ReqType::Shutdown: // 12
+            case ReqType::Shutdown:
                 handle_Shutdown(reqFd, respFd);
                 break;
 

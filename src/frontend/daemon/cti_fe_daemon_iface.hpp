@@ -118,7 +118,7 @@ public: // type definitions
     /* request types */
 
     // sent before a request to indicate the type of request data that will follow
-    enum ReqType : long {
+    enum class ReqType : long {
         ForkExecvpApp,
         ForkExecvpUtil,
 
