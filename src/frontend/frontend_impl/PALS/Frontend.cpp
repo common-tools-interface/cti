@@ -535,8 +535,8 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
 
     // Read list of hostnames for PALS
     if (!nodeListSpec.empty()) {
-        // TODO: determine necessary zero-padding for node numbers above 9
-        launchPtree.put("hosts", "nid00000[" + nodeListSpec + "]");
+        // User manually specified host list argument
+        launchPtree.put("hosts", nodeListSpec);
 
     // Read each node name from node file
     } else if (auto const nodeFilePath = ::getenv("PBS_NODEFILE")) {
