@@ -256,6 +256,9 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
         // set child in own process gorup
         if (setpgid(forkedPid, forkedPid) < 0) {
             perror("setpgid");
+
+            // All exit calls indicating fatal CTI initalization error should be _exit
+            // (exit will run global destructors, but initalization hasn't completed yet)
             _exit(1);
         }
 
