@@ -344,6 +344,7 @@ static bool checkAppID(DAppId const app_id)
         auto const app_pid = idPidPair->second;
 
         // Check if app's PID is still valid
+        getLogger().write("check pid %d\n", app_pid);
         if (::kill(app_pid, 0) == 0) {
             // Check if zombie
             auto const statusFilePath = "/proc/" + std::to_string(app_pid) + "/status";
@@ -352,8 +353,14 @@ static bool checkAppID(DAppId const app_id)
             auto const grepExitStatus = grepOutput.getExitStatus();
             auto const pidZombie = (grepExitStatus == 0);
 
+            static int count = 0;
+            getLogger().write("%05d %s: %s\n", count++, statusFilePath.c_str(),
+                pidZombie ? "zombie" : "no zombie");
+
             return !pidZombie;
         } else {
+            getLogger().write("kill %d sig 0 failed\n", app_pid);
+
             // PID no longer valid
             return false;
         }
@@ -436,16 +443,19 @@ static LaunchData readLaunchData(int const reqFd)
     getLogger().write("got file: %s\n", result.filepath.c_str());
 
     // read arguments
-    while (true) {
-        auto const arg = receiveString(reqStream);
-        if (arg.empty()) {
-            break;
-        } else {
-            getLogger().write("%s ", arg.c_str());
-            result.argvList.emplace_back(std::move(arg));
+    { std::stringstream argvLog;
+        while (true) {
+            auto const arg = receiveString(reqStream);
+            if (arg.empty()) {
+                break;
+            } else {
+                argvLog << arg << " ";
+                result.argvList.emplace_back(std::move(arg));
+            }
         }
+        auto const argvString = argvLog.str();
+        getLogger().write("%s\n", argvString.c_str());
     }
-    getLogger().write("\n");
 
     // read env
     while (true) {
@@ -590,6 +600,9 @@ static pid_t forkExec(LaunchData const& launchData)
         }
     }
 
+    getLogger().write("remap stdin %d stdout %d stderr %d\n",
+        launchData.stdin_fd, launchData.stdout_fd, launchData.stderr_fd);
+
     // fork exec
     if (auto const forkedPid = fork()) {
         if (forkedPid < 0) {
@@ -607,8 +620,6 @@ static pid_t forkExec(LaunchData const& launchData)
         close(respFd);
 
         // dup2 all stdin/out/err to provided FDs
-        // TODO: this should instead open the path /proc/target_pid/fd/fileno as FDs
-        //       would not necessarily have been inherited during daemon setup
         dup2(launchData.stdin_fd,  STDIN_FILENO);
         dup2(launchData.stdout_fd, STDOUT_FILENO);
         dup2(launchData.stderr_fd, STDERR_FILENO);
@@ -650,6 +661,7 @@ static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& m
 
 static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 {
+
     std::map<int, int> const remapFds
         { { launchData.stdin_fd,  STDIN_FILENO  }
         , { launchData.stdout_fd, STDOUT_FILENO }
@@ -657,7 +669,7 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
     };
 
     return extractMPIRResult(std::make_unique<MPIRInstance>(
-        launchData.filepath, launchData.argvList, launchData.envList, std::map<int, int>{}
+        launchData.filepath, launchData.argvList, launchData.envList, remapFds
     ));
 }
 
@@ -693,9 +705,11 @@ static void releaseMPIR(DAppId const mpir_id)
             mpirShimMap.erase(idShimPidPair);
 
         } else {
-            throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+            throw std::runtime_error("release mpir id not found: " + std::to_string(mpir_id));
         }
     }
+
+    getLogger().write("successfully released mpir id %d\n", mpir_id);
 }
 
 static std::string readStringMPIR(DAppId const mpir_id, std::string const& variable)
@@ -704,7 +718,7 @@ static std::string readStringMPIR(DAppId const mpir_id, std::string const& varia
     if (idInstPair != mpirMap.end()) {
         return idInstPair->second->readStringAt(variable);
     } else {
-        throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+        throw std::runtime_error("read string mpir id not found: " + std::to_string(mpir_id));
     }
 }
 
@@ -715,8 +729,10 @@ static void terminateMPIR(DAppId const mpir_id)
         idInstPair->second->terminate();
         mpirMap.erase(idInstPair);
     } else {
-        throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+        throw std::runtime_error("terminate mpir id not found: " + std::to_string(mpir_id));
     }
+
+    getLogger().write("successfully terminated mpir id %d\n", mpir_id);
 }
 
 
@@ -998,7 +1014,26 @@ static void handle_Shutdown(int const reqFd, int const respFd)
     shutdown_and_exit(0);
 }
 
-
+// Return string value of request type for logging
+static auto reqTypeString(ReqType const reqType)
+{
+    switch (reqType) {
+        case ReqType::ForkExecvpApp:  return "ForkExecvpApp";
+        case ReqType::ForkExecvpUtil: return "ForkExecvpUtil";
+        case ReqType::LaunchMPIR:     return "LaunchMPIR";
+        case ReqType::AttachMPIR:     return "AttachMPIR";
+        case ReqType::ReleaseMPIR:    return "ReleaseMPIR";
+        case ReqType::ReadStringMPIR: return "ReadStringMPIR";
+        case ReqType::TerminateMPIR:  return "TerminateMPIR";
+        case ReqType::LaunchMPIRShim: return "LaunchMPIRShim";
+        case ReqType::RegisterApp:    return "RegisterApp";
+        case ReqType::RegisterUtil:   return "RegisterUtil";
+        case ReqType::DeregisterApp:  return "DeregisterApp";
+        case ReqType::CheckApp:       return "CheckApp";
+        case ReqType::Shutdown:       return "Shutdown";
+        default: return "(unknown)";
+    }
+}
 
 int
 main(int argc, char *argv[])
@@ -1087,7 +1122,7 @@ main(int argc, char *argv[])
     // wait for pipe commands
     while (true) {
         auto const reqType = rawReadLoop<ReqType>(reqFd);
-        getLogger().write("req type %ld\n", reqType);
+        getLogger().write("Received request type %ld: %s\n", reqType, reqTypeString(reqType));
 
         switch (reqType) {
 

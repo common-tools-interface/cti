@@ -222,12 +222,17 @@ FE_daemon::~FE_daemon()
     // Send shutdown request if we have initialized the daemon
     if (m_init) {
         m_init = false;
-        // This should be the only way to call ReqType::Shutdown
-        rawWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
-        try {
-            verifyOKResp(m_resp_sock.getReadFd());
-        } catch (...) {
-            fprintf(stderr, "warning: daemon shutdown failed\n");
+
+        // Send daemon a shutdown request if we are the "main" PID
+        if (getpid() == m_mainPid) {
+
+            // This should be the only way to call ReqType::Shutdown
+            rawWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
+            try {
+                verifyOKResp(m_resp_sock.getReadFd());
+            } catch (...) {
+                fprintf(stderr, "warning: daemon shutdown failed\n");
+            }
         }
     }
     // FIXME: Shouldn't this do a waitpid???
@@ -245,10 +250,16 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
     if (auto const forkedPid = fork()) {
         // parent case
 
+        // Set this PID as the one responsible for cleaning up the daemon
+        m_mainPid = getpid();
+
         // set child in own process gorup
         if (setpgid(forkedPid, forkedPid) < 0) {
             perror("setpgid");
-            exit(1);
+
+            // All exit calls indicating fatal CTI initalization error should be _exit
+            // (exit will run global destructors, but initalization hasn't completed yet)
+            _exit(1);
         }
 
         // set up fe_daemon req / resp pipe

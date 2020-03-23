@@ -118,7 +118,7 @@ public: // type definitions
     /* request types */
 
     // sent before a request to indicate the type of request data that will follow
-    enum ReqType : long {
+    enum class ReqType : long {
         ForkExecvpApp,
         ForkExecvpUtil,
 
@@ -248,12 +248,14 @@ public: // type definitions
 
 private: // Internal data
     bool                m_init;
+    pid_t               m_mainPid; // Main CTI PID that is responsible for daemon cleanup
     cti::SocketPair     m_req_sock;
     cti::SocketPair     m_resp_sock;
 
 public:
     FE_daemon()
     : m_init{false}
+    , m_mainPid{-1} // Set during daemon fork/exec
     , m_req_sock{AF_UNIX, SOCK_STREAM, 0}
     , m_resp_sock{AF_UNIX, SOCK_STREAM, 0}
     { }
