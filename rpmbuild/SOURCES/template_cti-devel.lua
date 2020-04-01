@@ -8,9 +8,6 @@
 
 ]]--
 
--- reasons to keep module from continuing --
-family  ("cray-cti-devel")
-
 -- local vars: define & assign --
 load("cray-cti")
 
