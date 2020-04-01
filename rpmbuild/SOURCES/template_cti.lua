@@ -8,9 +8,6 @@
 
 ]]--
 
--- reasons to keep module from continuing --
-family  ("cray-cti")
-
 -- local vars: define & assign --
 
 -- template variables ----------------------------------------------------------
