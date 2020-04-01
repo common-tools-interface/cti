@@ -275,7 +275,8 @@ if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
     mkdir -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
     echo "%{prefix}/%{product}/%{pkgversion}" > /etc/%{prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf
     echo "%{prefix}/modulefiles/%{modulefile_name}" > /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{modulefile_name}.conf
-
+    echo "%{prefix}/lmod/modulefiles/core/%{cray_name}" >> /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{modulefile_name}.conf
+    
     echo -e '#%Modulefile\r\nset  ModulesVersion "%{pkgversion}"' > %{prefix}/lmod/modulefiles/core/%{cray_name}/.version
 fi
 
@@ -307,6 +308,8 @@ fi
 if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
     mkdir -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
     echo "%{prefix}/modulefiles/%{devel_modulefile_name}" > /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
+    echo "%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}" >> /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
+    
     echo -e '#%Modulefile\r\nset  ModulesVersion "%{pkgversion}"' > %{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/.version
 fi
 
