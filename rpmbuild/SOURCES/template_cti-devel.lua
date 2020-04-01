@@ -1,6 +1,6 @@
 --[[
 
-    Module cray-cti
+    Module cray-cti-devel
 
     (C) COPYRIGHT CRAY INC.
     UNPUBLISHED PROPRIETARY INFORMATION.
@@ -8,6 +8,8 @@
 
 ]]--
 
+-- reasons to keep module from continuing --
+family  ("cray-cti-devel")
 
 -- local vars: define & assign --
 load("cray-cti")
@@ -32,7 +34,6 @@ end
 
  -- standered Lmod functions --
 
-
 help ([[
 
 The modulefile defines the system paths and
@@ -47,11 +48,9 @@ type:    less ]] .. REL_FILE .. "\n" .. [[
 
 ]])
 
- whatis("Loads the developer Common Tools Interface.")
-
+whatis("Loads the developer Common Tools Interface.")
 
  -- environment modifications --
-
 
 setenv (           "CTI_DEVEL_VERSION",        MOD_LEVEL                     )
 setenv (           "PE_CTI_DEVEL_MODULE_NAME", myModuleName()                )
