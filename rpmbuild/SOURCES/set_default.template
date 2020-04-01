@@ -5,7 +5,7 @@ export CRAY_version=<VERSION>
 export CRAY_inst_dir=<PREFIX>
 export CRAY_mod_dir="${CRAY_inst_dir}"/modulefiles
 export CRAY_mod_names=<MODULEFILE_NAME>
-export CRAY_lmod_dirs="${CRAY_inst_dir}"/lmod/modulefiles/core/"${CRAY_product}"
+export CRAY_lmod_dirs="${CRAY_inst_dir}"/lmod/modulefiles/core
 export CRAY_lmod_names="${CRAY_mod_names}"
 
 if [ -L "${CRAY_inst_dir}"/bin/set_default ] ; then
