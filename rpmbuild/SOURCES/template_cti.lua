@@ -8,9 +8,7 @@
 
 ]]--
 
-
 -- local vars: define & assign --
-
 
 -- template variables ----------------------------------------------------------
 local INSTALL_ROOT       = "[@%PREFIX_PATH%@]"
@@ -30,9 +28,7 @@ if isFile(REL_FILE) then
     if data ~= nill then rel_info = data end
 end
 
-
  -- standered Lmod functions --
-
 
 help ([[
 
@@ -48,11 +44,9 @@ type:    less ]] .. REL_FILE .. "\n" .. [[
 
 ]])
 
- whatis("Loads the Cray Tools Interface.")
-
+whatis("Loads the Cray Tools Interface.")
 
  -- environment modifications --
-
 
 setenv (           "CTI_VERSION",              MOD_LEVEL                     )
 setenv (           "CTI_INSTALL_DIR",          PE_DIR                        )
