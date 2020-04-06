@@ -35,7 +35,7 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
     check_exit_status
 elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
     # Install yum based components
-    yum install dnf-plugins-core
+    yum info epel-release
     yum config-manager --set-enabled PowerTools
     yum --assumeyes --enablerepo=PowerTools install \
         autoconf \
