@@ -288,10 +288,14 @@ then
     # set default command
     %{__sed} -i "s|^\(export CRAY_inst_dir=\).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
 else
-    # Don't want to set LD_LIBRARY_PATH if we are not relocating since rpath was set properly
-    %{__sed} -i "/^ prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
     # Set default - TCL
     ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
+    
+    # Don't want to set LD_LIBRARY_PATH if we are not relocating since rpath was set properly
+    # tcl module
+    %{__sed} -i "/^ prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
+    # lua module
+    %{__sed} -i "/^prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
 fi
 
 # run ldconfig for good measure
@@ -306,7 +310,7 @@ fi
 %post -n %{devel_modulefile_name}
 # Add Shasta configuration files for PE content projection
 if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
-    mkdir -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
+    %{__mkdir} -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
     echo "%{prefix}/modulefiles/%{devel_modulefile_name}" > /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
     echo "%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}" >> /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
     
@@ -378,13 +382,13 @@ fi
 
 # If the install dir exists
 if [ -f /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf ]; then
-  rm -rf /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
+  %{__rm} -rf /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
 fi
 if [ -d ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name} ]; then
-  rm -rf ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name}
+  %{__rm} -rf ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name}
 fi
 if [ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name} ]; then
-  rm -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}
+  %{__rm} -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}
 fi
 
 %files
