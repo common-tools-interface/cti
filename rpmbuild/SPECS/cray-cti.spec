@@ -64,6 +64,11 @@
 # Disable debug package
 %global debug_package %{nil}
 
+# Disable stripping of binaries
+# Particularly, backend daemon's hash is hardcoded into frontend library, don't want RPM to strip
+# or modify the binary
+%global __os_install_post %{nil}
+
 # System strip command may be too old, use current path
 %global __strip strip
 
