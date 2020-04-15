@@ -346,7 +346,26 @@ struct PALSFrontend::CtiWSSImpl
 bool
 PALSFrontend::isSupported()
 {
-    return false;
+    // Check that PBS is installed (required for PALS)
+    auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
+    if (cti::Execvp{"rpm", rpmArgv.get()}.getExitStatus() != 0) {
+        return false;
+    }
+
+    // Check that craycli tool is available (Shasta system)
+    auto whichArgv = cti::ManagedArgv { "which", "cray" };
+    if (cti::Execvp{"which", whichArgv.get()}.getExitStatus() != 0) {
+        return false;
+    }
+
+    // Check that the craycli tool is properly authenticated, as we will be using its token
+    auto craycliArgv = cti::ManagedArgv { "cray", "pals", "apps", "list" };
+    if (cti::Execvp{"cray", craycliArgv.get()}.getExitStatus() != 0) {
+        fprintf(stderr, "craycli check failed. You may need to authenticate using `cray auth login`.\n");
+        return false;
+    }
+
+    return true;
 }
 
 std::weak_ptr<App>
