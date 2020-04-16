@@ -32,6 +32,7 @@
 // Boost JSON
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/algorithm/string/replace.hpp>
 
 // Boost Beast
 #include <boost/beast.hpp>
@@ -87,13 +88,27 @@ static auto readHostnameUsernamePair(std::string const& configFilePath)
     auto hostname = std::string{};
     auto username = std::string{};
 
-    auto fileStream = std::ifstream{configFilePath};
-    auto line = std::string{};
-    while (std::getline(fileStream, line)) {
-        if (line.substr(0, 20) == "hostname = \"https://") {
-            hostname = line.substr(20, line.length() - 21);
-        } else if (line.substr(0, 12) == "username = \"") {
-            username = line.substr(12, line.length() - 13);
+    // If PALS debug mode is enabled, use local API server with root user
+    if (::getenv(PALS_DEBUG)) {
+        hostname = "127.0.0.1";
+        username = "root";
+
+    // Otherwise, use configured API gateway and user
+    } else {
+
+        // Parse the configuration file
+        auto fileStream = std::ifstream{configFilePath};
+        auto line = std::string{};
+        while (std::getline(fileStream, line)) {
+
+            // Extract hostname
+            if (line.substr(0, 20) == "hostname = \"https://") {
+                hostname = line.substr(20, line.length() - 21) + "/apis/pals";
+
+            // Extract username
+            } else if (line.substr(0, 12) == "username = \"") {
+                username = line.substr(12, line.length() - 13);
+            }
         }
     }
 
@@ -127,6 +142,11 @@ static constexpr auto defaultTokenFilePattern = "%s/.config/cray/tokens/%s.%s";
 static auto readAccessToken(std::string const& tokenPath)
 {
     namespace pt = boost::property_tree;
+
+    // If PALS debug mode is enabled, API server will accept any token
+    if (::getenv(PALS_DEBUG)) {
+        return std::string{"PALS_DEBUG_MODE"};
+    }
 
     // Load and parse token JSON
     auto root = pt::ptree{};
@@ -346,6 +366,11 @@ struct PALSFrontend::CtiWSSImpl
 bool
 PALSFrontend::isSupported()
 {
+    // Check manual PALS debug mode flag
+    if (::getenv(PALS_DEBUG)) {
+        return true;
+    }
+
     // Check that PBS is installed (required for PALS)
     auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
     if (cti::Execvp{"rpm", rpmArgv.get()}.getExitStatus() != 0) {
@@ -464,7 +489,7 @@ PALSFrontend::PalsLaunchInfo
 PALSFrontend::getPalsLaunchInfo(std::string const& apId)
 {
     // Send HTTP GET request
-    auto const appResult = cti::httpGetReq(getApiInfo().hostname, "/apis/pals/v1/apps" + apId,
+    auto const appResult = cti::httpGetReq(getApiInfo().hostname, "/v1/apps" + apId,
         getApiInfo().accessToken);
 
     // Extract app information
@@ -482,9 +507,9 @@ PALSFrontend::getPalsLaunchInfo(std::string const& apId)
 
 static auto parse_argv(int argc, char* const argv[])
 {
-    auto nranks = int{-1};
-    auto ppn    = int{-1};
-    auto depth  = int{-1};
+    auto nranks = int{1};
+    auto ppn    = int{1};
+    auto depth  = int{1};
     auto nodeListSpec = std::string{};
 
     auto incomingArgv = cti::IncomingArgv<PALSLauncherArgv>{argc, argv};
@@ -536,6 +561,9 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
     namespace pt = boost::property_tree;
     auto launchPtree = pt::ptree{};
 
+    // Ptree formats all integers as strings in JSON, so need to post-process the JSON
+    auto integerReplacements = std::map<std::string, int>{};
+
     auto const make_array_elem = [](std::string const& value) {
         auto node = pt::ptree{};
         node.put("", value);
@@ -554,8 +582,24 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
 
     // Read list of hostnames for PALS
     if (!nodeListSpec.empty()) {
-        // User manually specified host list argument
-        launchPtree.put("hosts", nodeListSpec);
+        // User manually specified host list argument JSON
+
+        namespace pt = boost::property_tree;
+
+        // Create stream from string source
+        auto jsonSource = boost::iostreams::array_source{nodeListSpec.c_str(), nodeListSpec.size()};
+        auto jsonStream = boost::iostreams::stream<boost::iostreams::array_source>{jsonSource};
+
+        // Load and parse JSON
+        auto root = pt::ptree{};
+        try {
+            pt::read_json(jsonStream, root);
+        } catch (pt::json_parser::json_parser_error const& parse_ex) {
+            throw std::runtime_error("failed to parse node list: '" + nodeListSpec + "'");
+        }
+
+        // Insert node into request
+        launchPtree.add_child("hosts", root);
 
     // Read each node name from node file
     } else if (auto const nodeFilePath = ::getenv("PBS_NODEFILE")) {
@@ -575,13 +619,16 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
 
     // Add parsed node count information
     if (nranks > 0) {
-        launchPtree.put("nranks", std::to_string(nranks));
+        integerReplacements["%%nranks"] = nranks;
+        launchPtree.put("nranks", "%%nranks");
     }
     if (ppn > 0) {
-        launchPtree.put("ppn", std::to_string(ppn));
+        integerReplacements["%%ppn"] = ppn;
+        launchPtree.put("ppn", "%%ppn");
     }
     if (depth > 0) {
-        launchPtree.put("depth", std::to_string(depth));
+        integerReplacements["%%depth"] = depth;
+        launchPtree.put("depth", "%%depth");
     }
 
     // Add necessary environment variables
@@ -614,7 +661,15 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
     // Encode as json string
     auto launchJsonStream = std::stringstream{};
     pt::json_parser::write_json(launchJsonStream, launchPtree);
-    return launchJsonStream.str();
+    auto launchJson = launchJsonStream.str();
+
+    // Replace placeholder values with integers
+    for (auto const& keyValuePair : integerReplacements) {
+        boost::replace_all(launchJson, "\"" + keyValuePair.first + "\"",
+            std::to_string(keyValuePair.second));
+    }
+
+    return launchJson;
 }
 
 PALSFrontend::PalsLaunchInfo
@@ -626,7 +681,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
     fprintf(stderr, "launch json: '%s'\n", launchJson.c_str());
 
     // Send launch JSON command
-    auto const launchResult = cti::httpPostJsonReq(getApiInfo().hostname, "/apis/pals/v1/apps", getApiInfo().accessToken, launchJson);
+    auto const launchResult = cti::httpPostJsonReq(getApiInfo().hostname, "/v1/apps", getApiInfo().accessToken, launchJson);
     fprintf(stderr, "launch result: '%s'\n", launchResult.c_str());
 
     // Extract launch result information
@@ -679,7 +734,7 @@ bool
 PALSApp::isRunning() const
 {
     try {
-        return !cti::httpGetReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId,
+        return !cti::httpGetReq(m_palsApiInfo.hostname, "/v1/apps/" + m_apId,
             m_palsApiInfo.accessToken).empty();
     } catch (...) {
         return false;
@@ -802,7 +857,7 @@ void
 PALSApp::releaseBarrier()
 {
     // Initialize websocket stream
-    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/stdio");
+    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/v1/apps/" + m_apId + "/stdio");
 
     // Request application stream mode
     pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
@@ -824,7 +879,7 @@ static constexpr auto signalJsonPattern = "{\"signum\": %d}";
 void
 PALSApp::kill(int signal)
 {
-    cti::httpPostJsonReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/signal",
+    cti::httpPostJsonReq(m_palsApiInfo.hostname, "/v1/apps/" + m_apId + "/signal",
         m_palsApiInfo.accessToken, cti::cstr::asprintf(signalJsonPattern, signal));
 }
 
@@ -833,7 +888,7 @@ void
 PALSApp::shipPackage(std::string const& tarPath) const
 {
     auto const hostname = m_palsApiInfo.hostname;
-    auto const endpointBase = "/apis/pals/v1/apps/" + m_apId + "/files";
+    auto const endpointBase = "/v1/apps/" + m_apId + "/files";
     auto const token = m_palsApiInfo.accessToken;
     auto const fileName = cti::cstr::basename(tarPath);
     auto const endpoint = endpointBase + "?name=" + fileName;
@@ -922,7 +977,7 @@ PALSApp::startDaemon(const char* const args[])
 
     // Make POST request
     auto const toolInfoJson = cti::httpPostJsonReq(m_palsApiInfo.hostname,
-        "/apis/pals/v1/apps/" + m_apId + "/tools", m_palsApiInfo.accessToken, toolLaunchJson);
+        "/v1/apps/" + m_apId + "/tools", m_palsApiInfo.accessToken, toolLaunchJson);
     fprintf(stderr, "daemon response: %s\n", toolInfoJson.c_str());
 
     // Track tool ID
@@ -969,7 +1024,7 @@ PALSApp::~PALSApp()
 {
     // Delete application from PALS
     try {
-        cti::httpDeleteReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps" + m_apId, m_palsApiInfo.accessToken);
+        cti::httpDeleteReq(m_palsApiInfo.hostname, "/v1/apps" + m_apId, m_palsApiInfo.accessToken);
     } catch (std::exception const& ex) {
         fprintf(stderr, "warning: PALS delete failed: %s\n", ex.what());
     }
