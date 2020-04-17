@@ -279,6 +279,9 @@ namespace pals
                 throw std::runtime_error("failed to parse json: '" + launchInfoJson + "'");
             }
 
+            // Check for error
+            checkErrorJson(root);
+
             // Extract PALS hostname and placement data into CTI host array
             auto apId = root.get<std::string>("apid");
             auto hostsPlacement = std::vector<CTIHost>{};
@@ -316,6 +319,9 @@ namespace pals
             } catch (pt::json_parser::json_parser_error const& parse_ex) {
                 throw std::runtime_error("failed to parse json: '" + toolInfoJson + "'");
             }
+
+            // Check for error
+            checkErrorJson(root);
 
             // Extract tool ID
             return root.get<std::string>("toolid");
