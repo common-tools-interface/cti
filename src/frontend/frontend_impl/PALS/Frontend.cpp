@@ -208,17 +208,26 @@ namespace pals
         fprintf(stderr, "RPC start response: '%s'\n", startResponse.c_str());
     }
 
-    // TODO: see if escaping is needed
-    static constexpr auto stdinJsonPattern = " \
-        { \"jsonrpc\": \"2.0\" \
-        , \"method\": \"stdin\" \
-        , \"params\": { \"content\": \"%s\" } \
-        , \"id\": \"%s\" \
-    }";
     static auto generateStdinJson(std::string const& content) {
-        // Generate RPC call
+        namespace pt = boost::property_tree;
+
+        // Create JSON
         auto const uuid = boost::uuids::to_string(boost::uuids::random_generator()());
-        return cti::cstr::asprintf(stdinJsonPattern, content.c_str(), uuid.c_str());
+        auto rpcPtree = pt::ptree{};
+        rpcPtree.put("jsonrpc", "2.0");
+        rpcPtree.put("method", "stdin");
+        { auto paramsPtree = pt::ptree{};
+
+            // Content will be properly escaped
+            paramsPtree.put("content", content);
+            rpcPtree.add_child("params", std::move(paramsPtree));
+        }
+        rpcPtree.put("id", uuid);
+
+        // Encode as json string
+        auto rpcJsonStream = std::stringstream{};
+        pt::json_parser::write_json(rpcJsonStream, rpcPtree);
+        return rpcJsonStream.str();
     }
 
     static constexpr auto stdinEofJsonPattern = " \
@@ -237,6 +246,22 @@ namespace pals
 
     namespace response
     {
+        // If JSON response contains error, throw
+        static auto checkErrorJson(boost::property_tree::ptree const& root)
+        {
+            if (auto const errorPtree = root.get_child_optional("error")) {
+                auto const errorCode = errorPtree->get_optional<std::string>("code");
+                auto const errorMessage = errorPtree->get_optional<std::string>("message");
+
+                // Report error
+                if (errorCode && errorMessage) {
+                    throw std::runtime_error(*errorMessage + " (code " + *errorCode + ")");
+                } else {
+                    throw std::runtime_error("malformed error response");
+                }
+            }
+        }
+
         // Extract and map application and node placement information from JSON string
         static auto parseLaunchInfo(std::string const& launchInfoJson)
         {
@@ -321,29 +346,35 @@ namespace pals
 
             fprintf(stderr, "stdio json: '%s'\n", stdioJson.c_str());
 
+            // Check for error
+            checkErrorJson(root);
+
             // Parse based on method
-            auto const method = root.get<std::string>("method");
-            if (method == "stdout") {
+            auto const method = root.get_optional<std::string>("method");
+            if (!method) {
+                throw std::runtime_error("stdio failed: no method found in malformed response");
+            }
+            if (*method == "stdout") {
                 return StdoutData
                     { .content = root.get<std::string>("params.content")
                 };
 
-            } else if (method == "stderr") {
+            } else if (*method == "stderr") {
                 return StdoutData
                     { .content = root.get<std::string>("params.content")
                 };
 
-            } else if (method == "exit") {
+            } else if (*method == "exit") {
                 return ExitData
                     { .rank = root.get<int>("params.rankid")
                     , .status = root.get<int>("params.status")
                 };
 
-            } else if (method == "complete") {
+            } else if (*method == "complete") {
                 return Complete{};
             }
 
-            throw std::runtime_error("unknown method: " + method);
+            throw std::runtime_error("unknown method: " + *method);
         }
     } // namespace response
 
@@ -773,6 +804,7 @@ static int stdioInputTask(cti::WebSocketStream& webSocketStream, int stdinFd)
         // Generate RPC input notification
         if (bytes_read > 0) {
             buf[bytes_read] = '\0';
+            fprintf(stderr, "sending %ld bytes: '%s'\n", bytes_read, buf);
 
             line = pals::rpc::generateStdinJson(buf);
             return WebsocketContinue;
