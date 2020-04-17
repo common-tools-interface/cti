@@ -319,6 +319,8 @@ namespace pals
                 throw std::runtime_error("failed to parse json: '" + stdioJson + "'");
             }
 
+            fprintf(stderr, "stdio json: '%s'\n", stdioJson.c_str());
+
             // Parse based on method
             auto const method = root.get<std::string>("method");
             if (method == "stdout") {
@@ -352,11 +354,13 @@ namespace pals
 // Forward-declared in Frontend.hpp
 struct PALSFrontend::CtiWSSImpl
 {
+    bool connected;
     boost::asio::io_context ioc;
     cti::WebSocketStream websocket;
 
     CtiWSSImpl(std::string const& hostname, std::string const& port, std::string const& accessToken)
-        : ioc{}
+        : connected{false}
+        , ioc{}
         , websocket{cti::make_WebSocketStream(
             boost::asio::io_context::strand(ioc),
             hostname, port, accessToken)}
@@ -856,18 +860,25 @@ cleanup_stdioOutputTask:
 void
 PALSApp::releaseBarrier()
 {
+    if ((m_stdioStream == nullptr) || m_stdioStream->connected) {
+        throw std::runtime_error("barrier already released (stdio websocket connected)");
+    }
+
     // Initialize websocket stream
     m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/v1/apps/" + m_apId + "/stdio");
+
+    // Websocket is connected
+    m_stdioStream->connected = true;
 
     // Request application stream mode
     pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
 
+    // Request start application
+    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
+
     // Launch stdio output responder thread
     m_stdioOutputFuture = std::async(std::launch::async, stdioOutputTask,
         std::ref(m_stdioStream->websocket), m_queuedOutFd, m_queuedErrFd);
-
-    // Request start application
-    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
 
     // Launch stdio input generation thread
     m_stdioInputFuture = std::async(std::launch::async, stdioInputTask,
@@ -1039,4 +1050,5 @@ PALSApp::~PALSApp()
 
     // Close stdio stream
     m_stdioStream->websocket.close(boost::beast::websocket::close_code::normal);
+    m_stdioStream.reset();
 }
