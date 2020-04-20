@@ -38,6 +38,7 @@
 #include "cti_argv_defs.hpp"
 
 #include <algorithm>
+#include <fstream>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -467,17 +468,6 @@ SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_
 std::string
 SLURMFrontend::getHostname() const
 {
-    // Extract the NID from the provided cti::file pointer and format into hostname
-    auto parseNidFile = [](auto&& nidFile) {
-        // We expect this file to have a numeric value giving our current Node ID.
-        char buf[BUFSIZ + 1];
-        if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
-            throw std::runtime_error("fgets failed.");
-        }
-        buf[BUFSIZ] = '\0';
-        return std::stoi(std::string{buf});
-    };
-
     auto make_addrinfo = [](std::string const& hostname) {
         // Get hostname information
         struct addrinfo hints;
@@ -508,32 +498,35 @@ SLURMFrontend::getHostname() const
 
     // Get the hostname of the interface that is accessible from compute nodes
     // Behavior changes based on XC / Shasta UAI+UAN
-    auto detectAddress = [&parseNidFile, &make_addrinfo, &resolveHostname]() {
-        // Try the nid file first. This is the preferred mechanism since it corresponds
-        // to the HSN.
+    auto detectAddress = [&make_addrinfo, &resolveHostname]() {
+        // Try the nid file first. This is the preferred mechanism since it corresponds to the HSN.
         // XT / XC NID file
-        if (auto nidFile = cti::file::try_open(CRAY_XT_NID_FILE, "r")) {
+        try {
             // Use the NID to create the XT hostname format.
-            auto nidXTHostname = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
-            try {
-                // Ensure we can resolve the hostname
-                make_addrinfo(nidXTHostname);
-                // Hostname checks out so return it
-                return nidXTHostname;
+            // We expect this file to have a numeric value giving our current Node ID.
+            std::string nidString;
+            if (!std::getline(std::ifstream{CRAY_XT_NID_FILE}, nidString)) {
+                throw std::runtime_error("failed to parse NID file");
             }
-            catch (std::exception const& ex) {
-                // continue processing
-            }
+            auto const nid = std::stoi(nidString);
+            auto nidXTHostname = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, nid);
+            // Ensure we can resolve the hostname
+            make_addrinfo(nidXTHostname);
+            // Hostname checks out so return it
+            return nidXTHostname;
+        } catch (std::exception const& ex) {
+            // continue processing
         }
 
         // Shasta UAN xname file
-        else if (auto xnameFile = cti::file::try_open(CRAY_SHASTA_UAN_XNAME_FILE, "r")) {
+        try {
             // Try to extract the hostname from the xname file path
-            char buf[BUFSIZ + 1];
-            if (fgets(buf, BUFSIZ, xnameFile.get())) {
-                buf[BUFSIZ] = '\0';
-                return std::string{buf};
+            std::string xnameString;
+            if (std::getline(std::ifstream{CRAY_SHASTA_UAN_XNAME_FILE}, xnameString)) {
+                return xnameString;
             }
+        } catch (std::exception const& ex) {
+            // continue processing
         }
 
         // On Shasta UAI, look up and return IPv4 address instead of hostname
