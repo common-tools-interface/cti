@@ -478,16 +478,6 @@ SLURMFrontend::getHostname() const
         return std::stoi(std::string{buf});
     };
 
-    // Extract the hostname from the provided cti::file pointer
-    auto parseXnameFile = [](auto&& nidFile) {
-        char buf[BUFSIZ + 1];
-        if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
-            throw std::runtime_error("fgets failed.");
-        }
-        buf[BUFSIZ] = '\0';
-        return std::string{buf};
-    };
-
     auto make_addrinfo = [](std::string const& hostname) {
         // Get hostname information
         struct addrinfo hints;
@@ -518,7 +508,7 @@ SLURMFrontend::getHostname() const
 
     // Get the hostname of the interface that is accessible from compute nodes
     // Behavior changes based on XC / Shasta UAI+UAN
-    auto detectAddress = [&parseNidFile, &parseXnameFile, &make_addrinfo, &resolveHostname]() {
+    auto detectAddress = [&parseNidFile, &make_addrinfo, &resolveHostname]() {
         // Try the nid file first. This is the preferred mechanism since it corresponds
         // to the HSN.
         // XT / XC NID file
@@ -536,23 +526,17 @@ SLURMFrontend::getHostname() const
             }
         }
 
-        // On Shasta, look up and return IPv4 address instead of hostname
-
         // Shasta UAN xname file
         else if (auto xnameFile = cti::file::try_open(CRAY_SHASTA_UAN_XNAME_FILE, "r")) {
-            // Read UAN hostname from file
-            auto uanHostname = parseXnameFile(xnameFile);
-            try {
-                // Resolve to get IP on NMN interface
-                auto info = make_addrinfo(uanHostname);
-                auto nmnIPAddress = resolveHostname(*info);
-                return nmnIPAddress;
-            }
-            catch (std::exception const& ex) {
-                // continue processing
+            // Try to extract the hostname from the xname file path
+            char buf[BUFSIZ + 1];
+            if (fgets(buf, BUFSIZ, xnameFile.get())) {
+                buf[BUFSIZ] = '\0';
+                return std::string{buf};
             }
         }
 
+        // On Shasta UAI, look up and return IPv4 address instead of hostname
         // UAI hostnames cannot be resolved on compute node
         // FIXME: PE-26874 change this once DNS support is added
         auto const hostname = cti::cstr::gethostname();
