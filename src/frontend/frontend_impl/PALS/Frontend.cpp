@@ -42,6 +42,7 @@
 #include <boost/iostreams/stream.hpp>
 
 #include "useful/cti_websocket.hpp"
+#include "useful/cti_hostname.hpp"
 
 /* helper functions */
 
@@ -464,54 +465,8 @@ PALSFrontend::registerJob(size_t numIds, ...)
 std::string
 PALSFrontend::getHostname() const
 {
-    auto const make_addrinfo = [](std::string const& hostname) {
-        // Get hostname information
-        struct addrinfo hints;
-        memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_INET;
-        struct addrinfo *info_ptr = nullptr;
-        if (auto const rc = getaddrinfo(hostname.c_str(), nullptr, &hints, &info_ptr)) {
-            throw std::runtime_error("getaddrinfo failed: " + std::string{gai_strerror(rc)});
-        }
-        if ( info_ptr == nullptr ) {
-            throw std::runtime_error("failed to resolve hostname " + hostname);
-        }
-        return cti::take_pointer_ownership(std::move(info_ptr), freeaddrinfo);
-    };
-
-    // Resolve a hostname to IPv4 address
-    // FIXME: PE-26874 change this once DNS support is added
-    auto const resolveHostname = [](const struct addrinfo& addr_info) {
-        constexpr auto MAXADDRLEN = 15;
-        // Extract IP address string
-        char ip_addr[MAXADDRLEN + 1];
-        if (auto const rc = getnameinfo(addr_info.ai_addr, addr_info.ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
-            throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
-        }
-        ip_addr[MAXADDRLEN] = '\0';
-        return std::string{ip_addr};
-    };
-
-    // On Shasta, look up and return IPv4 address instead of hostname
-    // UAS hostnames cannot be resolved on compute node
-    // FIXME: PE-26874 change this once DNS support is added
-    auto const hostname = cti::cstr::gethostname();
-    try {
-        // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
-        // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
-        // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
-        auto const macVlanHostname = hostname + "-nmn";
-        auto info = make_addrinfo(macVlanHostname);
-        // FIXME: Remove this when PE-26874 is fixed
-        auto macVlanIPAddress = resolveHostname(*info);
-        return macVlanIPAddress;
-    }
-    catch (std::exception const& ex) {
-        // continue processing
-    }
-    // Try using normal hostname
-    auto info = make_addrinfo(hostname);
-    return hostname;
+    // Delegate to shared implementation supporting both XC and Shasta
+    return cti::detectFrontendHostname();
 }
 
 std::string
