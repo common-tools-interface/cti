@@ -182,12 +182,10 @@ namespace pals
         // Send RPC call
         auto const uuid = boost::uuids::to_string(boost::uuids::random_generator()());
         auto const rpcJson = cti::cstr::asprintf(streamRpcCallPattern, apId.c_str(), uuid.c_str());
-        fprintf(stderr, "stream json: '%s'\n", rpcJson.c_str());
         stream.write(boost::asio::buffer(rpcJson));
 
         // TODO: Verify response
         auto const streamResponse = cti::webSocketReadString(stream);
-        fprintf(stderr, "RPC stream response: '%s'\n", streamResponse.c_str());
     }
 
     static constexpr auto startRpcCallPattern = " \
@@ -200,12 +198,10 @@ namespace pals
         // Send RPC call
         auto const uuid = boost::uuids::to_string(boost::uuids::random_generator()());
         auto const rpcJson = cti::cstr::asprintf(startRpcCallPattern, apId.c_str(), uuid.c_str());
-        fprintf(stderr, "start json: '%s'\n", rpcJson.c_str());
         stream.write(boost::asio::buffer(rpcJson));
 
         // TODO: Verify response
         auto const startResponse = cti::webSocketReadString(stream);
-        fprintf(stderr, "RPC start response: '%s'\n", startResponse.c_str());
     }
 
     static auto generateStdinJson(std::string const& content) {
@@ -349,8 +345,6 @@ namespace pals
             } catch (pt::json_parser::json_parser_error const& parse_ex) {
                 throw std::runtime_error("failed to parse json: '" + stdioJson + "'");
             }
-
-            fprintf(stderr, "stdio json: '%s'\n", stdioJson.c_str());
 
             // Check for error
             checkErrorJson(root);
@@ -719,17 +713,17 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
 {
     // Create launch JSON from launch arguments
     auto const launchJson = make_launch_json(launcher_argv, chdirPath, env_list);
-    fprintf(stderr, "launch json: '%s'\n", launchJson.c_str());
+    writeLog("launch json: '%s'\n", launchJson.c_str());
 
     // Send launch JSON command
     auto const launchResult = cti::httpPostJsonReq(getApiInfo().hostname, "/v1/apps", getApiInfo().accessToken, launchJson);
-    fprintf(stderr, "launch result: '%s'\n", launchResult.c_str());
+    writeLog("launch result: '%s'\n", launchResult.c_str());
 
     // Extract launch result information
     auto [apId, hostsPlacement] = pals::response::parseLaunchInfo(launchResult);
-    fprintf(stderr, "apId: %s\n", apId.c_str());
+    writeLog("apId: %s\n", apId.c_str());
     for (auto&& ctiHost : hostsPlacement) {
-        fprintf(stderr, "host %s has %lu ranks\n", ctiHost.hostname.c_str(), ctiHost.numPEs);
+        writeLog("host %s has %lu ranks\n", ctiHost.hostname.c_str(), ctiHost.numPEs);
     }
 
     // Collect results
@@ -810,7 +804,6 @@ static int stdioInputTask(cti::WebSocketStream& webSocketStream, int stdinFd)
         // Generate RPC input notification
         if (bytes_read > 0) {
             buf[bytes_read] = '\0';
-            fprintf(stderr, "sending %ld bytes: '%s'\n", bytes_read, buf);
 
             line = pals::rpc::generateStdinJson(buf);
             return WebsocketContinue;
@@ -828,7 +821,7 @@ static int stdioInputTask(cti::WebSocketStream& webSocketStream, int stdinFd)
         cti::webSocketInputTask(webSocketStream, stdioInputCallback);
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "write loop exception: %s\n", ex.what());
+        fprintf(stderr, "stdio input loop exception: %s\n", ex.what());
         rc = -1;
         goto cleanup_stdioInputTask;
     }
@@ -864,12 +857,10 @@ static int stdioOutputTask(cti::WebSocketStream& webSocketStream, int stdoutFd, 
             }
 
         , [](pals::response::ExitData const& exitData) {
-                fprintf(stderr, "rank %d exited with status %d\n", exitData.rank, exitData.status);
                 return WebsocketContinue;
             }
 
         , [](pals::response::Complete) {
-                fprintf(stderr, "all ranks completed\n");
                 return WebsocketComplete;
             }
 
@@ -882,7 +873,7 @@ static int stdioOutputTask(cti::WebSocketStream& webSocketStream, int stdoutFd, 
         cti::webSocketOutputTask(webSocketStream, stdioOutputCallback);
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "write loop exception: %s\n", ex.what());
+        fprintf(stderr, "stdio output loop exception: %s\n", ex.what());
         rc = -1;
         goto cleanup_stdioOutputTask;
     }
@@ -943,7 +934,7 @@ PALSApp::shipPackage(std::string const& tarPath) const
     auto const endpoint = endpointBase + "?name=" + fileName;
 
 
-    fprintf(stderr, "POST: %s %s\n", endpoint.c_str(), tarPath.c_str());
+    writeLog("shipPackage POST: %s %s\n", endpoint.c_str(), tarPath.c_str());
     auto ioc = boost::asio::io_context{};
 
     auto resolver = boost::asio::ip::tcp::resolver{ioc};
@@ -982,7 +973,7 @@ PALSApp::shipPackage(std::string const& tarPath) const
         throw boost::beast::system_error{ec};
     }
 
-    fprintf(stderr, "result '%s'\n", result.c_str());
+    writeLog("shipPackage result '%s'\n", result.c_str());
 }
 
 void
@@ -1027,7 +1018,7 @@ PALSApp::startDaemon(const char* const args[])
     // Make POST request
     auto const toolInfoJson = cti::httpPostJsonReq(m_palsApiInfo.hostname,
         "/v1/apps/" + m_apId + "/tools", m_palsApiInfo.accessToken, toolLaunchJson);
-    fprintf(stderr, "daemon response: %s\n", toolInfoJson.c_str());
+    writeLog("startDaemon result '%s'\n", toolInfoJson.c_str());
 
     // Track tool ID
     m_toolIds.emplace_back(pals::response::parseToolInfo(toolInfoJson));
