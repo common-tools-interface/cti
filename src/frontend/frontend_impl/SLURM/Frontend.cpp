@@ -53,9 +53,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <sys/socket.h>
-#include <netdb.h>
-
 // Pull in manifest to properly define all the forward declarations
 #include "transfer/Manifest.hpp"
 
@@ -64,6 +61,7 @@
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
 #include "useful/cti_split.hpp"
+#include "useful/cti_hostname.hpp"
 #include "useful/cti_wrappers.hpp"
 
 /* constructors / destructors */
@@ -467,116 +465,8 @@ SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_
 std::string
 SLURMFrontend::getHostname() const
 {
-    // Extract the NID from the provided cti::file pointer and format into hostname
-    auto parseNidFile = [](auto&& nidFile) {
-        // We expect this file to have a numeric value giving our current Node ID.
-        char buf[BUFSIZ + 1];
-        if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
-            throw std::runtime_error("fgets failed.");
-        }
-        buf[BUFSIZ] = '\0';
-        return std::stoi(std::string{buf});
-    };
-
-    // Extract the hostname from the provided cti::file pointer
-    auto parseXnameFile = [](auto&& nidFile) {
-        char buf[BUFSIZ + 1];
-        if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
-            throw std::runtime_error("fgets failed.");
-        }
-        buf[BUFSIZ] = '\0';
-        return std::string{buf};
-    };
-
-    auto make_addrinfo = [](std::string const& hostname) {
-        // Get hostname information
-        struct addrinfo hints;
-        memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_INET;
-        struct addrinfo *info_ptr = nullptr;
-        if (auto const rc = getaddrinfo(hostname.c_str(), nullptr, &hints, &info_ptr)) {
-            throw std::runtime_error("getaddrinfo failed: " + std::string{gai_strerror(rc)});
-        }
-        if ( info_ptr == nullptr ) {
-            throw std::runtime_error("failed to resolve hostname " + hostname);
-        }
-        return cti::take_pointer_ownership(std::move(info_ptr), freeaddrinfo);
-    };
-
-    // Resolve a hostname to IPv4 address
-    // FIXME: PE-26874 change this once DNS support is added
-    auto resolveHostname = [](const struct addrinfo& addr_info) {
-        constexpr auto MAXADDRLEN = 15;
-        // Extract IP address string
-        char ip_addr[MAXADDRLEN + 1];
-        if (auto const rc = getnameinfo(addr_info.ai_addr, addr_info.ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
-            throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
-        }
-        ip_addr[MAXADDRLEN] = '\0';
-        return std::string{ip_addr};
-    };
-
-    // Get the hostname of the interface that is accessible from compute nodes
-    // Behavior changes based on XC / Shasta UAI+UAN
-    auto detectAddress = [&parseNidFile, &parseXnameFile, &make_addrinfo, &resolveHostname]() {
-        // Try the nid file first. This is the preferred mechanism since it corresponds
-        // to the HSN.
-        // XT / XC NID file
-        if (auto nidFile = cti::file::try_open(CRAY_XT_NID_FILE, "r")) {
-            // Use the NID to create the XT hostname format.
-            auto nidXTHostname = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
-            try {
-                // Ensure we can resolve the hostname
-                make_addrinfo(nidXTHostname);
-                // Hostname checks out so return it
-                return nidXTHostname;
-            }
-            catch (std::exception const& ex) {
-                // continue processing
-            }
-        }
-
-        // On Shasta, look up and return IPv4 address instead of hostname
-
-        // Shasta UAN xname file
-        else if (auto xnameFile = cti::file::try_open(CRAY_SHASTA_UAN_XNAME_FILE, "r")) {
-            // Read UAN hostname from file
-            auto uanHostname = parseXnameFile(xnameFile);
-            try {
-                // Resolve to get IP on NMN interface
-                auto info = make_addrinfo(uanHostname);
-                auto nmnIPAddress = resolveHostname(*info);
-                return nmnIPAddress;
-            }
-            catch (std::exception const& ex) {
-                // continue processing
-            }
-        }
-
-        // UAI hostnames cannot be resolved on compute node
-        // FIXME: PE-26874 change this once DNS support is added
-        auto const hostname = cti::cstr::gethostname();
-        try {
-            // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
-            // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
-            // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
-            auto const macVlanHostname = hostname + "-nmn";
-            auto info = make_addrinfo(macVlanHostname);
-            // FIXME: Remove this when PE-26874 is fixed
-            auto macVlanIPAddress = resolveHostname(*info);
-            return macVlanIPAddress;
-        }
-        catch (std::exception const& ex) {
-            // continue processing
-        }
-        // Try using normal hostname
-        auto info = make_addrinfo(hostname);
-        return hostname;
-    };
-
-    // Cache the hostname result.
-    static auto hostname = detectAddress();
-    return hostname;
+    // Delegate to shared implementation supporting both XC and Shasta
+    return cti::detectFrontendHostname();
 }
 
 /* SLURM static implementations */

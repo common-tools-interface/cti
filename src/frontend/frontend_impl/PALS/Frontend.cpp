@@ -32,6 +32,7 @@
 // Boost JSON
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/algorithm/string/replace.hpp>
 
 // Boost Beast
 #include <boost/beast.hpp>
@@ -41,6 +42,7 @@
 #include <boost/iostreams/stream.hpp>
 
 #include "useful/cti_websocket.hpp"
+#include "useful/cti_hostname.hpp"
 
 /* helper functions */
 
@@ -87,13 +89,27 @@ static auto readHostnameUsernamePair(std::string const& configFilePath)
     auto hostname = std::string{};
     auto username = std::string{};
 
-    auto fileStream = std::ifstream{configFilePath};
-    auto line = std::string{};
-    while (std::getline(fileStream, line)) {
-        if (line.substr(0, 20) == "hostname = \"https://") {
-            hostname = line.substr(20, line.length() - 21);
-        } else if (line.substr(0, 12) == "username = \"") {
-            username = line.substr(12, line.length() - 13);
+    // If PALS debug mode is enabled, use local API server with root user
+    if (::getenv(PALS_DEBUG)) {
+        hostname = "127.0.0.1";
+        username = "root";
+
+    // Otherwise, use configured API gateway and user
+    } else {
+
+        // Parse the configuration file
+        auto fileStream = std::ifstream{configFilePath};
+        auto line = std::string{};
+        while (std::getline(fileStream, line)) {
+
+            // Extract hostname
+            if (line.substr(0, 20) == "hostname = \"https://") {
+                hostname = line.substr(20, line.length() - 21) + "/apis/pals";
+
+            // Extract username
+            } else if (line.substr(0, 12) == "username = \"") {
+                username = line.substr(12, line.length() - 13);
+            }
         }
     }
 
@@ -127,6 +143,11 @@ static constexpr auto defaultTokenFilePattern = "%s/.config/cray/tokens/%s.%s";
 static auto readAccessToken(std::string const& tokenPath)
 {
     namespace pt = boost::property_tree;
+
+    // If PALS debug mode is enabled, API server will accept any token
+    if (::getenv(PALS_DEBUG)) {
+        return std::string{"PALS_DEBUG_MODE"};
+    }
 
     // Load and parse token JSON
     auto root = pt::ptree{};
@@ -162,12 +183,10 @@ namespace pals
         // Send RPC call
         auto const uuid = boost::uuids::to_string(boost::uuids::random_generator()());
         auto const rpcJson = cti::cstr::asprintf(streamRpcCallPattern, apId.c_str(), uuid.c_str());
-        fprintf(stderr, "stream json: '%s'\n", rpcJson.c_str());
         stream.write(boost::asio::buffer(rpcJson));
 
         // TODO: Verify response
         auto const streamResponse = cti::webSocketReadString(stream);
-        fprintf(stderr, "RPC stream response: '%s'\n", streamResponse.c_str());
     }
 
     static constexpr auto startRpcCallPattern = " \
@@ -180,25 +199,32 @@ namespace pals
         // Send RPC call
         auto const uuid = boost::uuids::to_string(boost::uuids::random_generator()());
         auto const rpcJson = cti::cstr::asprintf(startRpcCallPattern, apId.c_str(), uuid.c_str());
-        fprintf(stderr, "start json: '%s'\n", rpcJson.c_str());
         stream.write(boost::asio::buffer(rpcJson));
 
         // TODO: Verify response
         auto const startResponse = cti::webSocketReadString(stream);
-        fprintf(stderr, "RPC start response: '%s'\n", startResponse.c_str());
     }
 
-    // TODO: see if escaping is needed
-    static constexpr auto stdinJsonPattern = " \
-        { \"jsonrpc\": \"2.0\" \
-        , \"method\": \"stdin\" \
-        , \"params\": { \"content\": \"%s\" } \
-        , \"id\": \"%s\" \
-    }";
     static auto generateStdinJson(std::string const& content) {
-        // Generate RPC call
+        namespace pt = boost::property_tree;
+
+        // Create JSON
         auto const uuid = boost::uuids::to_string(boost::uuids::random_generator()());
-        return cti::cstr::asprintf(stdinJsonPattern, content.c_str(), uuid.c_str());
+        auto rpcPtree = pt::ptree{};
+        rpcPtree.put("jsonrpc", "2.0");
+        rpcPtree.put("method", "stdin");
+        { auto paramsPtree = pt::ptree{};
+
+            // Content will be properly escaped
+            paramsPtree.put("content", content);
+            rpcPtree.add_child("params", std::move(paramsPtree));
+        }
+        rpcPtree.put("id", uuid);
+
+        // Encode as json string
+        auto rpcJsonStream = std::stringstream{};
+        pt::json_parser::write_json(rpcJsonStream, rpcPtree);
+        return rpcJsonStream.str();
     }
 
     static constexpr auto stdinEofJsonPattern = " \
@@ -217,6 +243,22 @@ namespace pals
 
     namespace response
     {
+        // If JSON response contains error, throw
+        static auto checkErrorJson(boost::property_tree::ptree const& root)
+        {
+            if (auto const errorPtree = root.get_child_optional("error")) {
+                auto const errorCode = errorPtree->get_optional<std::string>("code");
+                auto const errorMessage = errorPtree->get_optional<std::string>("message");
+
+                // Report error
+                if (errorCode && errorMessage) {
+                    throw std::runtime_error(*errorMessage + " (code " + *errorCode + ")");
+                } else {
+                    throw std::runtime_error("malformed error response");
+                }
+            }
+        }
+
         // Extract and map application and node placement information from JSON string
         static auto parseLaunchInfo(std::string const& launchInfoJson)
         {
@@ -233,6 +275,9 @@ namespace pals
             } catch (pt::json_parser::json_parser_error const& parse_ex) {
                 throw std::runtime_error("failed to parse json: '" + launchInfoJson + "'");
             }
+
+            // Check for error
+            checkErrorJson(root);
 
             // Extract PALS hostname and placement data into CTI host array
             auto apId = root.get<std::string>("apid");
@@ -272,6 +317,9 @@ namespace pals
                 throw std::runtime_error("failed to parse json: '" + toolInfoJson + "'");
             }
 
+            // Check for error
+            checkErrorJson(root);
+
             // Extract tool ID
             return root.get<std::string>("toolid");
         }
@@ -299,29 +347,35 @@ namespace pals
                 throw std::runtime_error("failed to parse json: '" + stdioJson + "'");
             }
 
+            // Check for error
+            checkErrorJson(root);
+
             // Parse based on method
-            auto const method = root.get<std::string>("method");
-            if (method == "stdout") {
+            auto const method = root.get_optional<std::string>("method");
+            if (!method) {
+                throw std::runtime_error("stdio failed: no method found in malformed response");
+            }
+            if (*method == "stdout") {
                 return StdoutData
                     { .content = root.get<std::string>("params.content")
                 };
 
-            } else if (method == "stderr") {
+            } else if (*method == "stderr") {
                 return StdoutData
                     { .content = root.get<std::string>("params.content")
                 };
 
-            } else if (method == "exit") {
+            } else if (*method == "exit") {
                 return ExitData
                     { .rank = root.get<int>("params.rankid")
                     , .status = root.get<int>("params.status")
                 };
 
-            } else if (method == "complete") {
+            } else if (*method == "complete") {
                 return Complete{};
             }
 
-            throw std::runtime_error("unknown method: " + method);
+            throw std::runtime_error("unknown method: " + *method);
         }
     } // namespace response
 
@@ -332,11 +386,13 @@ namespace pals
 // Forward-declared in Frontend.hpp
 struct PALSFrontend::CtiWSSImpl
 {
+    bool connected;
     boost::asio::io_context ioc;
     cti::WebSocketStream websocket;
 
     CtiWSSImpl(std::string const& hostname, std::string const& port, std::string const& accessToken)
-        : ioc{}
+        : connected{false}
+        , ioc{}
         , websocket{cti::make_WebSocketStream(
             boost::asio::io_context::strand(ioc),
             hostname, port, accessToken)}
@@ -346,6 +402,11 @@ struct PALSFrontend::CtiWSSImpl
 bool
 PALSFrontend::isSupported()
 {
+    // Check manual PALS debug mode flag
+    if (::getenv(PALS_DEBUG)) {
+        return true;
+    }
+
     // Check that PBS is installed (required for PALS)
     auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
     if (cti::Execvp{"rpm", rpmArgv.get()}.getExitStatus() != 0) {
@@ -404,54 +465,8 @@ PALSFrontend::registerJob(size_t numIds, ...)
 std::string
 PALSFrontend::getHostname() const
 {
-    auto const make_addrinfo = [](std::string const& hostname) {
-        // Get hostname information
-        struct addrinfo hints;
-        memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_INET;
-        struct addrinfo *info_ptr = nullptr;
-        if (auto const rc = getaddrinfo(hostname.c_str(), nullptr, &hints, &info_ptr)) {
-            throw std::runtime_error("getaddrinfo failed: " + std::string{gai_strerror(rc)});
-        }
-        if ( info_ptr == nullptr ) {
-            throw std::runtime_error("failed to resolve hostname " + hostname);
-        }
-        return cti::take_pointer_ownership(std::move(info_ptr), freeaddrinfo);
-    };
-
-    // Resolve a hostname to IPv4 address
-    // FIXME: PE-26874 change this once DNS support is added
-    auto const resolveHostname = [](const struct addrinfo& addr_info) {
-        constexpr auto MAXADDRLEN = 15;
-        // Extract IP address string
-        char ip_addr[MAXADDRLEN + 1];
-        if (auto const rc = getnameinfo(addr_info.ai_addr, addr_info.ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
-            throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
-        }
-        ip_addr[MAXADDRLEN] = '\0';
-        return std::string{ip_addr};
-    };
-
-    // On Shasta, look up and return IPv4 address instead of hostname
-    // UAS hostnames cannot be resolved on compute node
-    // FIXME: PE-26874 change this once DNS support is added
-    auto const hostname = cti::cstr::gethostname();
-    try {
-        // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
-        // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
-        // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
-        auto const macVlanHostname = hostname + "-nmn";
-        auto info = make_addrinfo(macVlanHostname);
-        // FIXME: Remove this when PE-26874 is fixed
-        auto macVlanIPAddress = resolveHostname(*info);
-        return macVlanIPAddress;
-    }
-    catch (std::exception const& ex) {
-        // continue processing
-    }
-    // Try using normal hostname
-    auto info = make_addrinfo(hostname);
-    return hostname;
+    // Delegate to shared implementation supporting both XC and Shasta
+    return cti::detectFrontendHostname();
 }
 
 std::string
@@ -464,7 +479,7 @@ PALSFrontend::PalsLaunchInfo
 PALSFrontend::getPalsLaunchInfo(std::string const& apId)
 {
     // Send HTTP GET request
-    auto const appResult = cti::httpGetReq(getApiInfo().hostname, "/apis/pals/v1/apps" + apId,
+    auto const appResult = cti::httpGetReq(getApiInfo().hostname, "/v1/apps" + apId,
         getApiInfo().accessToken);
 
     // Extract app information
@@ -482,9 +497,9 @@ PALSFrontend::getPalsLaunchInfo(std::string const& apId)
 
 static auto parse_argv(int argc, char* const argv[])
 {
-    auto nranks = int{-1};
-    auto ppn    = int{-1};
-    auto depth  = int{-1};
+    auto nranks = int{1};
+    auto ppn    = int{1};
+    auto depth  = int{1};
     auto nodeListSpec = std::string{};
 
     auto incomingArgv = cti::IncomingArgv<PALSLauncherArgv>{argc, argv};
@@ -536,6 +551,9 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
     namespace pt = boost::property_tree;
     auto launchPtree = pt::ptree{};
 
+    // Ptree formats all integers as strings in JSON, so need to post-process the JSON
+    auto integerReplacements = std::map<std::string, int>{};
+
     auto const make_array_elem = [](std::string const& value) {
         auto node = pt::ptree{};
         node.put("", value);
@@ -554,8 +572,24 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
 
     // Read list of hostnames for PALS
     if (!nodeListSpec.empty()) {
-        // User manually specified host list argument
-        launchPtree.put("hosts", nodeListSpec);
+        // User manually specified host list argument JSON
+
+        namespace pt = boost::property_tree;
+
+        // Create stream from string source
+        auto jsonSource = boost::iostreams::array_source{nodeListSpec.c_str(), nodeListSpec.size()};
+        auto jsonStream = boost::iostreams::stream<boost::iostreams::array_source>{jsonSource};
+
+        // Load and parse JSON
+        auto root = pt::ptree{};
+        try {
+            pt::read_json(jsonStream, root);
+        } catch (pt::json_parser::json_parser_error const& parse_ex) {
+            throw std::runtime_error("failed to parse node list: '" + nodeListSpec + "'");
+        }
+
+        // Insert node into request
+        launchPtree.add_child("hosts", root);
 
     // Read each node name from node file
     } else if (auto const nodeFilePath = ::getenv("PBS_NODEFILE")) {
@@ -575,13 +609,16 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
 
     // Add parsed node count information
     if (nranks > 0) {
-        launchPtree.put("nranks", std::to_string(nranks));
+        integerReplacements["%%nranks"] = nranks;
+        launchPtree.put("nranks", "%%nranks");
     }
     if (ppn > 0) {
-        launchPtree.put("ppn", std::to_string(ppn));
+        integerReplacements["%%ppn"] = ppn;
+        launchPtree.put("ppn", "%%ppn");
     }
     if (depth > 0) {
-        launchPtree.put("depth", std::to_string(depth));
+        integerReplacements["%%depth"] = depth;
+        launchPtree.put("depth", "%%depth");
     }
 
     // Add necessary environment variables
@@ -614,7 +651,15 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
     // Encode as json string
     auto launchJsonStream = std::stringstream{};
     pt::json_parser::write_json(launchJsonStream, launchPtree);
-    return launchJsonStream.str();
+    auto launchJson = launchJsonStream.str();
+
+    // Replace placeholder values with integers
+    for (auto const& keyValuePair : integerReplacements) {
+        boost::replace_all(launchJson, "\"" + keyValuePair.first + "\"",
+            std::to_string(keyValuePair.second));
+    }
+
+    return launchJson;
 }
 
 PALSFrontend::PalsLaunchInfo
@@ -623,17 +668,17 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
 {
     // Create launch JSON from launch arguments
     auto const launchJson = make_launch_json(launcher_argv, chdirPath, env_list);
-    fprintf(stderr, "launch json: '%s'\n", launchJson.c_str());
+    writeLog("launch json: '%s'\n", launchJson.c_str());
 
     // Send launch JSON command
-    auto const launchResult = cti::httpPostJsonReq(getApiInfo().hostname, "/apis/pals/v1/apps", getApiInfo().accessToken, launchJson);
-    fprintf(stderr, "launch result: '%s'\n", launchResult.c_str());
+    auto const launchResult = cti::httpPostJsonReq(getApiInfo().hostname, "/v1/apps", getApiInfo().accessToken, launchJson);
+    writeLog("launch result: '%s'\n", launchResult.c_str());
 
     // Extract launch result information
     auto [apId, hostsPlacement] = pals::response::parseLaunchInfo(launchResult);
-    fprintf(stderr, "apId: %s\n", apId.c_str());
+    writeLog("apId: %s\n", apId.c_str());
     for (auto&& ctiHost : hostsPlacement) {
-        fprintf(stderr, "host %s has %lu ranks\n", ctiHost.hostname.c_str(), ctiHost.numPEs);
+        writeLog("host %s has %lu ranks\n", ctiHost.hostname.c_str(), ctiHost.numPEs);
     }
 
     // Collect results
@@ -679,7 +724,7 @@ bool
 PALSApp::isRunning() const
 {
     try {
-        return !cti::httpGetReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId,
+        return !cti::httpGetReq(m_palsApiInfo.hostname, "/v1/apps/" + m_apId,
             m_palsApiInfo.accessToken).empty();
     } catch (...) {
         return false;
@@ -731,7 +776,7 @@ static int stdioInputTask(cti::WebSocketStream& webSocketStream, int stdinFd)
         cti::webSocketInputTask(webSocketStream, stdioInputCallback);
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "write loop exception: %s\n", ex.what());
+        fprintf(stderr, "stdio input loop exception: %s\n", ex.what());
         rc = -1;
         goto cleanup_stdioInputTask;
     }
@@ -767,12 +812,10 @@ static int stdioOutputTask(cti::WebSocketStream& webSocketStream, int stdoutFd, 
             }
 
         , [](pals::response::ExitData const& exitData) {
-                fprintf(stderr, "rank %d exited with status %d\n", exitData.rank, exitData.status);
                 return WebsocketContinue;
             }
 
         , [](pals::response::Complete) {
-                fprintf(stderr, "all ranks completed\n");
                 return WebsocketComplete;
             }
 
@@ -785,7 +828,7 @@ static int stdioOutputTask(cti::WebSocketStream& webSocketStream, int stdoutFd, 
         cti::webSocketOutputTask(webSocketStream, stdioOutputCallback);
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "write loop exception: %s\n", ex.what());
+        fprintf(stderr, "stdio output loop exception: %s\n", ex.what());
         rc = -1;
         goto cleanup_stdioOutputTask;
     }
@@ -801,18 +844,25 @@ cleanup_stdioOutputTask:
 void
 PALSApp::releaseBarrier()
 {
+    if ((m_stdioStream == nullptr) || m_stdioStream->connected) {
+        throw std::runtime_error("barrier already released (stdio websocket connected)");
+    }
+
     // Initialize websocket stream
-    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/stdio");
+    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/v1/apps/" + m_apId + "/stdio");
+
+    // Websocket is connected
+    m_stdioStream->connected = true;
 
     // Request application stream mode
     pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
 
+    // Request start application
+    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
+
     // Launch stdio output responder thread
     m_stdioOutputFuture = std::async(std::launch::async, stdioOutputTask,
         std::ref(m_stdioStream->websocket), m_queuedOutFd, m_queuedErrFd);
-
-    // Request start application
-    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
 
     // Launch stdio input generation thread
     m_stdioInputFuture = std::async(std::launch::async, stdioInputTask,
@@ -824,7 +874,7 @@ static constexpr auto signalJsonPattern = "{\"signum\": %d}";
 void
 PALSApp::kill(int signal)
 {
-    cti::httpPostJsonReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps/" + m_apId + "/signal",
+    cti::httpPostJsonReq(m_palsApiInfo.hostname, "/v1/apps/" + m_apId + "/signal",
         m_palsApiInfo.accessToken, cti::cstr::asprintf(signalJsonPattern, signal));
 }
 
@@ -833,13 +883,13 @@ void
 PALSApp::shipPackage(std::string const& tarPath) const
 {
     auto const hostname = m_palsApiInfo.hostname;
-    auto const endpointBase = "/apis/pals/v1/apps/" + m_apId + "/files";
+    auto const endpointBase = "/v1/apps/" + m_apId + "/files";
     auto const token = m_palsApiInfo.accessToken;
     auto const fileName = cti::cstr::basename(tarPath);
     auto const endpoint = endpointBase + "?name=" + fileName;
 
 
-    fprintf(stderr, "POST: %s %s\n", endpoint.c_str(), tarPath.c_str());
+    writeLog("shipPackage POST: %s %s\n", endpoint.c_str(), tarPath.c_str());
     auto ioc = boost::asio::io_context{};
 
     auto resolver = boost::asio::ip::tcp::resolver{ioc};
@@ -878,7 +928,7 @@ PALSApp::shipPackage(std::string const& tarPath) const
         throw boost::beast::system_error{ec};
     }
 
-    fprintf(stderr, "result '%s'\n", result.c_str());
+    writeLog("shipPackage result '%s'\n", result.c_str());
 }
 
 void
@@ -922,8 +972,8 @@ PALSApp::startDaemon(const char* const args[])
 
     // Make POST request
     auto const toolInfoJson = cti::httpPostJsonReq(m_palsApiInfo.hostname,
-        "/apis/pals/v1/apps/" + m_apId + "/tools", m_palsApiInfo.accessToken, toolLaunchJson);
-    fprintf(stderr, "daemon response: %s\n", toolInfoJson.c_str());
+        "/v1/apps/" + m_apId + "/tools", m_palsApiInfo.accessToken, toolLaunchJson);
+    writeLog("startDaemon result '%s'\n", toolInfoJson.c_str());
 
     // Track tool ID
     m_toolIds.emplace_back(pals::response::parseToolInfo(toolInfoJson));
@@ -969,7 +1019,7 @@ PALSApp::~PALSApp()
 {
     // Delete application from PALS
     try {
-        cti::httpDeleteReq(m_palsApiInfo.hostname, "/apis/pals/v1/apps" + m_apId, m_palsApiInfo.accessToken);
+        cti::httpDeleteReq(m_palsApiInfo.hostname, "/v1/apps" + m_apId, m_palsApiInfo.accessToken);
     } catch (std::exception const& ex) {
         fprintf(stderr, "warning: PALS delete failed: %s\n", ex.what());
     }
@@ -984,4 +1034,5 @@ PALSApp::~PALSApp()
 
     // Close stdio stream
     m_stdioStream->websocket.close(boost::beast::websocket::close_code::normal);
+    m_stdioStream.reset();
 }

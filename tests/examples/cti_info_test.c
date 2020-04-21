@@ -65,7 +65,7 @@ usage(char *name)
 
     fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
     fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");
-    fprintf(stdout, "\t-a, --apid      alps apid - ALPS WLM only.\n");
+    fprintf(stdout, "\t-a, --apid      alps apid - ALPS and PALS WLM only.\n");
     fprintf(stdout, "\t-p, --pid       pid of launcher process - SSH WLM only.");
     fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
 
@@ -294,6 +294,25 @@ main(int argc, char **argv)
             myapp = ssh_ops->registerJob(launcher_pid);
             if (myapp == 0) {
                 fprintf(stderr, "Error: registerJob failed!\n");
+                fprintf(stderr, "CTI error: %s\n", cti_error_str());
+            }
+            assert(myapp != 0);
+        }
+            break;
+
+        case CTI_WLM_PALS:
+        {
+            if (a_arg == 0 ) {
+                fprintf(stderr, "Error: Missing --apid argument. This is required for the PALS WLM.\n");
+            }
+            assert(a_arg != 0);
+            cti_pals_ops_t * pals_ops = NULL;
+            cti_wlm_type_t ret = cti_open_ops((void **)&pals_ops);
+            assert(ret == mywlm);
+            assert(pals_ops != NULL);
+            myapp = pals_ops->registerApid(apid);
+            if (myapp == 0) {
+                fprintf(stderr, "Error: PALS registerApid failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
             }
             assert(myapp != 0);

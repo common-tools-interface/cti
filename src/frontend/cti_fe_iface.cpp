@@ -493,6 +493,9 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
     return FE_iface::runSafely(__func__, [&](){
         // delegate app launch and registration to launchAppBarrier
         auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
+        if (appId == APP_ERROR) {
+            return APP_ERROR;
+        }
 
         // release barrier
         auto&& fe = Frontend::inst();

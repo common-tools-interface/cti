@@ -83,6 +83,9 @@ main(int argc, char **argv)
         case CTI_WLM_SSH:
             fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_SSH_STR);
             break;
+        case CTI_WLM_PALS:
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_PALS_STR);
+            break;
         case CTI_WLM_MOCK:
         case CTI_WLM_NONE:
             fprintf(stderr, "Error: Unsupported WLM in use!\n");
