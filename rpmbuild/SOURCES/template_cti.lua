@@ -25,7 +25,7 @@ if isFile(REL_FILE) then
     local f = io.open(REL_FILE, "r")
     local data = f:read("*all")
     f:close()
-    if data ~= nill then rel_info = data end
+    if data ~= nil then rel_info = data end
 end
 
  -- standered Lmod functions --
