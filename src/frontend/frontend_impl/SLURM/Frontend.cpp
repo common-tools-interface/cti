@@ -446,6 +446,13 @@ SLURMFrontend::isSupported()
 }
 
 std::weak_ptr<App>
+SLURMFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+    CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    throw std::runtime_error("not implemented: " + std::string{__func__});
+}
+
+std::weak_ptr<App>
 SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {

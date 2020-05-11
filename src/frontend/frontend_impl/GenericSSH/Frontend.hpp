@@ -55,6 +55,9 @@ public: // inherited interface
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SSH; }
 
+    std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
