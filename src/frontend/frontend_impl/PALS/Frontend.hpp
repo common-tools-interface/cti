@@ -161,15 +161,8 @@ public: // app interaction interface
 
 public: // pals specific interface
 
-private: // delegated constructor
-    PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo);
 public: // constructor / destructor interface
-    // attach case
-    PALSApp(PALSFrontend& fe, std::string const& apId);
-    // launch case
-    PALSApp(PALSFrontend& fe, const char * const launcher_argv[], int stdout_fd,
-        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[],
-        PALSFrontend::LaunchBarrierMode const launchBarrierMode);
+    PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo);
     ~PALSApp();
     PALSApp(const PALSApp&) = delete;
     PALSApp& operator=(const PALSApp&) = delete;

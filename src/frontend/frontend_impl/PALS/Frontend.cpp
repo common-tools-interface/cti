@@ -432,8 +432,8 @@ PALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
-        launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list,
-        LaunchBarrierMode::Disabled));
+        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list,
+        LaunchBarrierMode::Disabled)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -445,8 +445,8 @@ PALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_f
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
-        launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list,
-        LaunchBarrierMode::Enabled));
+        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list,
+        LaunchBarrierMode::Enabled)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -467,7 +467,7 @@ PALSFrontend::registerJob(size_t numIds, ...)
 
     va_end(idArgs);
 
-    auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this, apId));
+    auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this, getPalsLaunchInfo(apId)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -1027,17 +1027,6 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     m_stdioInputFuture = std::async(std::launch::async, stdioInputTask,
         std::ref(m_stdioStream->websocket), m_queuedInFd);
 }
-
-PALSApp::PALSApp(PALSFrontend& fe, std::string const& apId)
-    : PALSApp{fe, fe.getPalsLaunchInfo(apId)}
-{}
-
-PALSApp::PALSApp(PALSFrontend& fe, const char * const launcher_argv[], int stdout_fd,
-    int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[],
-    PALSFrontend::LaunchBarrierMode const launchBarrierMode)
-    : PALSApp{fe, fe.launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list,
-        launchBarrierMode)}
-{}
 
 PALSApp::~PALSApp()
 {

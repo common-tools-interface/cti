@@ -475,31 +475,6 @@ GenericSSHApp::~GenericSSHApp()
     m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
 }
 
-/* app instance creation */
-
-GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid)
-    : GenericSSHApp
-        { fe
-
-        // MPIR attach to launcher
-        , fe.Daemon().request_AttachMPIR(
-            // Get path to launcher binary
-            cti::take_pointer_ownership(
-                _cti_pathFind(GenericSSHFrontend::getLauncherName().c_str(), nullptr),
-                std::free).get(),
-            // Attach to existing launcherPid
-            launcherPid)
-        }
-{}
-
-GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-    const char *inputFile, const char *chdirPath, const char * const env_list[])
-    : GenericSSHApp
-        { fe
-        , fe.launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list)
-        }
-{}
-
 /* running app info accessors */
 
 std::string
@@ -640,7 +615,7 @@ GenericSSHFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto appPtr = std::make_shared<GenericSSHApp>(*this,
-        launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
+        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list));
 
     // Release barrier and continue launch
     appPtr->releaseBarrier();
@@ -658,13 +633,8 @@ std::weak_ptr<App>
 GenericSSHFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(  *this,
-                                                                launcher_argv,
-                                                                stdout_fd,
-                                                                stderr_fd,
-                                                                inputFile,
-                                                                chdirPath,
-                                                                env_list));
+    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(*this,
+        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -685,7 +655,15 @@ GenericSSHFrontend::registerJob(size_t numIds, ...)
 
     va_end(idArgs);
 
-    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(*this, launcherPid));
+    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(*this,
+        // MPIR attach to launcher
+        Daemon().request_AttachMPIR(
+            // Get path to launcher binary
+            cti::take_pointer_ownership(
+                _cti_pathFind(getLauncherName().c_str(), nullptr),
+                std::free).get(),
+            // Attach to existing launcherPid
+            launcherPid)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
