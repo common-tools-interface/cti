@@ -125,6 +125,10 @@ public: // alps specific interface
     AprunLaunchInfo launchApp(const char * const launcher_argv[], int stdout_fd,
         int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
+    // Launch with barrier and extract APRUN and node placement information
+    AprunLaunchInfo launchAppBarrier(const char * const launcher_argv[], int stdout_fd,
+        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+
 public: // constructor / destructor interface
     ALPSFrontend();
     ~ALPSFrontend() = default;
@@ -179,14 +183,8 @@ public: // alps specific interface
 
     int getAlpsOverlapOrdinal() const;
 
-private: // delegated constructor
-    ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunLaunchInfo&& aprunLaunchInfo);
 public: // constructor / destructor interface
-    // attach case
-    ALPSApp(ALPSFrontend& fe, uint64_t aprunId);
-    // launch case
-    ALPSApp(ALPSFrontend& fe, const char * const launcher_argv[], int stdout_fd,
-        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+    ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunLaunchInfo&& aprunLaunchInfo);
     ~ALPSApp();
     ALPSApp(const ALPSApp&) = delete;
     ALPSApp& operator=(const ALPSApp&) = delete;
