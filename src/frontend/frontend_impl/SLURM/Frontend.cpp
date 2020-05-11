@@ -449,7 +449,21 @@ std::weak_ptr<App>
 SLURMFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    throw std::runtime_error("not implemented: " + std::string{__func__});
+    // Slurm calls the launch barrier correctly even when the program is not an MPI application.
+    // Delegating to barrier implementation works properly even for serial applications.
+    auto appPtr = std::make_shared<SLURMApp>(*this,
+        launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
+
+    // Release barrier and continue launch
+    appPtr->releaseBarrier();
+
+    // Register with frontend application set
+    auto resultInsertedPair = m_apps.emplace(std::move(appPtr));
+    if (!resultInsertedPair.second) {
+        throw std::runtime_error("Failed to insert new App object.");
+    }
+
+    return *resultInsertedPair.first;
 }
 
 std::weak_ptr<App>
