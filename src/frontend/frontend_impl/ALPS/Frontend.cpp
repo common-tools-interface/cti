@@ -450,9 +450,13 @@ ALPSApp::ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunLaunchInfo&& aprunInfo)
 // functionality has been added to alps, but sites are still using the
 // wrapper. If this is no longer true in the future, rip this stuff out.
 
+// If the executable under launchedPid does not have the basename of launcherName,
+// then CTI will sleep and retry. This is due to a race condition where CTI has
+// forked, but hasn't yet execed the launcher process.
+
 // FIXME: This doesn't handle multiple layers of depth.
 static pid_t
-findRealAprunPid(pid_t launchedPid)
+findRealAprunPid(std::string const& launcherName, pid_t launchedPid)
 {
     auto const _cti_alps_checkPathForWrappedAprun = [](char const* aprun_path) {
         char *          usr_aprun_path;
@@ -522,11 +526,20 @@ findRealAprunPid(pid_t launchedPid)
     // first read the link of the exe in /proc for the aprun pid.
 
     // create the path to the /proc/<pid>/exe location
-    auto const launcherProcExePath = "/proc/" + std::to_string(launchedPid) + "/exe";
-    auto const launcherPath = cti::cstr::readlink(launcherProcExePath);
+    auto const procExePath = "/proc/" + std::to_string(launchedPid) + "/exe";
+    auto realExePath = cti::cstr::readlink(procExePath);
+
+    // Sleep and retry if CTI hasn't execed launcher yet
+    for (int retry = 0; retry < 5; retry++) {
+        realExePath = cti::cstr::readlink(procExePath);
+        if (cti::cstr::basename(realExePath) == launcherName) {
+            break;
+        }
+        sleep(1);
+    }
 
     // check the link path to see if its the real aprun binary
-    if (_cti_alps_checkPathForWrappedAprun(launcherPath.c_str())) {
+    if (_cti_alps_checkPathForWrappedAprun(realExePath.c_str())) {
 
         // aprun is wrapped, we need to start harvesting stuff out from /proc.
         if (auto procDirPtr = cti::take_pointer_ownership(::opendir("/proc"), closedir)) {
@@ -608,7 +621,7 @@ ALPSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
             auto launcherPidGuard = PidGuard{std::move(launcherPid)};
 
             // Find wrapped APRUN pid, if detected as wrapped
-            auto const aprunPid = findRealAprunPid(launcherPidGuard.get());
+            auto const aprunPid = findRealAprunPid(getLauncherName(), launcherPidGuard.get());
 
             // Get ALPS info from real APRUN PID
             auto aprunInfo = getAprunLaunchInfo(getApid(aprunPid));
@@ -623,7 +636,6 @@ ALPSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
             return aprunInfo;
 
         } else {
-
             // set up arguments and FDs
             if (inputFile == nullptr) { inputFile = "/dev/null"; }
             if (::dup2(::open(inputFile, O_RDONLY), STDIN_FILENO) < 0) {
@@ -720,7 +732,7 @@ ALPSFrontend::launchAppBarrier(const char * const launcher_argv[], int stdout_fd
             ::close(aprunToCtiPipe[ReadEnd]);
 
             // Find wrapped APRUN pid, if detected as wrapped
-            auto const aprunPid = findRealAprunPid(launcherPidGuard.get());
+            auto const aprunPid = findRealAprunPid(getLauncherName(), launcherPidGuard.get());
 
             // Get ALPS info from real APRUN PID
             auto aprunInfo = getAprunLaunchInfo(getApid(aprunPid));
