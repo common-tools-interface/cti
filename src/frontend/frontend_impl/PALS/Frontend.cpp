@@ -386,13 +386,11 @@ namespace pals
 // Forward-declared in Frontend.hpp
 struct PALSFrontend::CtiWSSImpl
 {
-    bool connected;
     boost::asio::io_context ioc;
     cti::WebSocketStream websocket;
 
     CtiWSSImpl(std::string const& hostname, std::string const& port, std::string const& accessToken)
-        : connected{false}
-        , ioc{}
+        : ioc{}
         , websocket{cti::make_WebSocketStream(
             boost::asio::io_context::strand(ioc),
             hostname, port, accessToken)}
@@ -433,7 +431,13 @@ std::weak_ptr<App>
 PALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    throw std::runtime_error("not implemented: " + std::string{__func__});
+    auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
+        launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list,
+        LaunchBarrierMode::Disabled));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
 }
 
 std::weak_ptr<App>
@@ -441,7 +445,8 @@ PALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_f
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
-        launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list));
+        launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list,
+        LaunchBarrierMode::Enabled));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -499,6 +504,7 @@ PALSFrontend::getPalsLaunchInfo(std::string const& apId)
         , .stdinFd  = ::open("/dev/null", O_RDONLY)
         , .stdoutFd = dup(STDOUT_FILENO)
         , .stderrFd = dup(STDERR_FILENO)
+        , .atBarrier = false
     };
 }
 
@@ -547,7 +553,7 @@ static auto parse_argv(int argc, char* const argv[])
 }
 
 static auto make_launch_json(const char * const launcher_argv[], const char *chdirPath,
-    const char * const env_list[])
+    const char * const env_list[], PALSFrontend::LaunchBarrierMode const launchBarrierMode)
 {
     // Parse launcher_argv
     auto launcher_argc = int{0};
@@ -638,6 +644,11 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
             }
         }
 
+        // If barrier is enabled, add barrier environment variable
+        if (launchBarrierMode == PALSFrontend::LaunchBarrierMode::Enabled) {
+            environmentPtree.push_back(make_array_elem("PALS_STARTUP_BARRIER=1"));
+        }
+
         // Add user-supplied environment variables
         if (env_list != nullptr) {
             for (char const* const* env_val = env_list; *env_val != nullptr; env_val++) {
@@ -671,10 +682,11 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
 
 PALSFrontend::PalsLaunchInfo
 PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
-        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[])
+        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[],
+        LaunchBarrierMode const launchBarrierMode)
 {
     // Create launch JSON from launch arguments
-    auto const launchJson = make_launch_json(launcher_argv, chdirPath, env_list);
+    auto const launchJson = make_launch_json(launcher_argv, chdirPath, env_list, launchBarrierMode);
     writeLog("launch json: '%s'\n", launchJson.c_str());
 
     // Send launch JSON command
@@ -695,6 +707,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
         , .stdinFd  = ::open(inputFile ? inputFile : "/dev/null", O_RDONLY)
         , .stdoutFd = (stdout_fd < 0) ? dup(STDOUT_FILENO) : stdout_fd
         , .stderrFd = (stderr_fd < 0) ? dup(STDERR_FILENO) : stderr_fd
+        , .atBarrier = (launchBarrierMode == LaunchBarrierMode::Enabled)
     };
 }
 
@@ -851,30 +864,14 @@ cleanup_stdioOutputTask:
 void
 PALSApp::releaseBarrier()
 {
-    if ((m_stdioStream == nullptr) || m_stdioStream->connected) {
-        throw std::runtime_error("barrier already released (stdio websocket connected)");
+    if (!m_atBarrier) {
+        throw std::runtime_error("application is not at startup barrier");
     }
 
-    // Initialize websocket stream
-    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/v1/apps/" + m_apId + "/stdio");
+    // Send PALS the barrier release signal
+    kill(SIGCONT);
 
-    // Websocket is connected
-    m_stdioStream->connected = true;
-
-    // Request application stream mode
-    pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
-
-    // Request start application
-    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
-
-    // Launch stdio output responder thread
-    m_stdioOutputFuture = std::async(std::launch::async, stdioOutputTask,
-        std::ref(m_stdioStream->websocket), m_queuedOutFd, m_queuedErrFd);
-
-    // Launch stdio input generation thread
-    m_stdioInputFuture = std::async(std::launch::async, stdioInputTask,
-        std::ref(m_stdioStream->websocket), m_queuedInFd);
-
+    m_atBarrier = false;
 }
 
 static constexpr auto signalJsonPattern = "{\"signum\": %d}";
@@ -1009,17 +1006,37 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_queuedErrFd{palsLaunchInfo.stderrFd}
     , m_stdioInputFuture{}
     , m_stdioOutputFuture{}
+    , m_atBarrier{palsLaunchInfo.atBarrier}
 
     , m_toolIds{}
-{}
+{
+    // Initialize websocket stream
+    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/v1/apps/" + m_apId + "/stdio");
+
+    // Request application stream mode
+    pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
+
+    // Request start application
+    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
+
+    // Launch stdio output responder thread
+    m_stdioOutputFuture = std::async(std::launch::async, stdioOutputTask,
+        std::ref(m_stdioStream->websocket), m_queuedOutFd, m_queuedErrFd);
+
+    // Launch stdio input generation thread
+    m_stdioInputFuture = std::async(std::launch::async, stdioInputTask,
+        std::ref(m_stdioStream->websocket), m_queuedInFd);
+}
 
 PALSApp::PALSApp(PALSFrontend& fe, std::string const& apId)
     : PALSApp{fe, fe.getPalsLaunchInfo(apId)}
 {}
 
 PALSApp::PALSApp(PALSFrontend& fe, const char * const launcher_argv[], int stdout_fd,
-    int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[])
-    : PALSApp{fe, fe.launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list)}
+    int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[],
+    PALSFrontend::LaunchBarrierMode const launchBarrierMode)
+    : PALSApp{fe, fe.launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list,
+        launchBarrierMode)}
 {}
 
 PALSApp::~PALSApp()
