@@ -267,6 +267,12 @@ void SLURMApp::startDaemon(const char* const args[]) {
         throw std::runtime_error("args array is null!");
     }
 
+    // Send daemon if not already shipped
+    if (!m_beDaemonSent) {
+        shipPackage(m_frontend.getBEDaemonPath());
+        m_beDaemonSent = true;
+    }
+
     // use existing daemon binary on compute node
     std::string const remoteBEDaemonPath{m_toolPath + "/" + CTI_BE_DAEMON_BINARY};
 

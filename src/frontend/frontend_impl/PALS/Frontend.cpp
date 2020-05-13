@@ -940,7 +940,7 @@ PALSApp::startDaemon(const char* const args[])
 {
     // Send daemon if not already shipped
     if (!m_beDaemonSent) {
-        // shipPackage(Frontend::inst().getBEDaemonPath());
+        shipPackage(m_frontend.getBEDaemonPath());
         m_beDaemonSent = true;
     }
 
