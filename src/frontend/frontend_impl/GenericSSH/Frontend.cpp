@@ -567,19 +567,36 @@ GenericSSHApp::startDaemon(const char* const args[])
         throw std::runtime_error("args array is empty!");
     }
 
-    // Transfer the backend daemon to the backends if it has not yet been transferred
+    // Send daemon if not already shipped
     if (!m_beDaemonSent) {
         // Get the location of the backend daemon
         if (m_frontend.getBEDaemonPath().empty()) {
             throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
         }
-        shipPackage(m_frontend.getBEDaemonPath());
+
+        // Copy the BE binary to its unique storage name
+        auto const sourcePath = m_frontend.getBEDaemonPath();
+        auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
+
+        // Create the args for copy
+        auto copyArgv = cti::ManagedArgv {
+            "cp", sourcePath.c_str(), destinationPath.c_str()
+        };
+
+        // Run copy command
+        m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "cp", copyArgv.get(),
+            -1, -1, -1,
+            nullptr);
+
+        // Ship the unique backend daemon
+        shipPackage(destinationPath);
         // set transfer to true
         m_beDaemonSent = true;
     }
 
     // Use location of existing launcher binary on compute node
-    std::string const launcherPath{m_toolPath + "/" + CTI_BE_DAEMON_BINARY};
+    std::string const launcherPath{m_toolPath + "/" + getBEDaemonName()};
 
     // Prepare the launcher arguments
     cti::ManagedArgv launcherArgv { launcherPath };
