@@ -882,15 +882,21 @@ PALSApp::kill(int signal)
         m_palsApiInfo.accessToken, cti::cstr::asprintf(signalJsonPattern, signal));
 }
 
-static constexpr auto filesJsonPattern = "{\"name\": \"%s\", \"path\": \"%s\"}";
 void
 PALSApp::shipPackage(std::string const& tarPath) const
+{
+    // Ship tarpath without changing its name on the backend
+    shipPackage(tarPath, cti::cstr::basename(tarPath));
+}
+
+static constexpr auto filesJsonPattern = "{\"name\": \"%s\", \"path\": \"%s\"}";
+void
+PALSApp::shipPackage(std::string const& tarPath, std::string const& remoteName) const
 {
     auto const hostname = m_palsApiInfo.hostname;
     auto const endpointBase = "/v1/apps/" + m_apId + "/files";
     auto const token = m_palsApiInfo.accessToken;
-    auto const fileName = cti::cstr::basename(tarPath);
-    auto const endpoint = endpointBase + "?name=" + fileName;
+    auto const endpoint = endpointBase + "?name=" + remoteName;
 
 
     writeLog("shipPackage POST: %s %s\n", endpoint.c_str(), tarPath.c_str());
@@ -938,14 +944,22 @@ PALSApp::shipPackage(std::string const& tarPath) const
 void
 PALSApp::startDaemon(const char* const args[])
 {
+    // Prepare to start daemon binary on compute node
+    auto const remoteBEDaemonPath = m_toolPath + "/" + getBEDaemonName();
+
     // Send daemon if not already shipped
     if (!m_beDaemonSent) {
-        shipPackage(m_frontend.getBEDaemonPath());
+        // Get the location of the backend daemon
+        if (m_frontend.getBEDaemonPath().empty()) {
+            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
+        }
+
+        // Ship the BE binary to its unique storage name
+        shipPackage(m_frontend.getBEDaemonPath(), remoteBEDaemonPath);
+
+        // set transfer to true
         m_beDaemonSent = true;
     }
-
-    // Prepare to start daemon binary on compute node
-    auto const remoteBEDaemonPath = m_toolPath + "/" + CTI_BE_DAEMON_BINARY;
 
     // Create tool launch JSON command
     namespace pt = boost::property_tree;
