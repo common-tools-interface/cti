@@ -62,7 +62,11 @@ std::unique_ptr<Frontend_cleanup>   Frontend::m_cleanup{nullptr};
 
 // This ensures the singleton gets deleted
 Frontend_cleanup::~Frontend_cleanup() {
-    Frontend::destroy();
+    try {
+        Frontend::destroy();
+    } catch (std::exception const& ex) {
+        // Ignore cleanup exceptions
+    }
 }
 
 // PRNG initialization
