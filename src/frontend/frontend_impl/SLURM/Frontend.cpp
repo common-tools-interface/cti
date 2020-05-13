@@ -269,12 +269,34 @@ void SLURMApp::startDaemon(const char* const args[]) {
 
     // Send daemon if not already shipped
     if (!m_beDaemonSent) {
-        shipPackage(m_frontend.getBEDaemonPath());
+        // Get the location of the backend daemon
+        if (m_frontend.getBEDaemonPath().empty()) {
+            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
+        }
+
+        // Copy the BE binary to its unique storage name
+        auto const sourcePath = m_frontend.getBEDaemonPath();
+        auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
+
+        // Create the args for link
+        auto linkArgv = cti::ManagedArgv {
+            "ln", "-s", sourcePath.c_str(), destinationPath.c_str()
+        };
+
+        // Run link command
+        m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "ln", linkArgv.get(),
+            -1, -1, -1,
+            nullptr);
+
+        // Ship the unique backend daemon
+        shipPackage(destinationPath);
+        // set transfer to true
         m_beDaemonSent = true;
     }
 
     // use existing daemon binary on compute node
-    std::string const remoteBEDaemonPath{m_toolPath + "/" + CTI_BE_DAEMON_BINARY};
+    std::string const remoteBEDaemonPath{m_toolPath + "/" + getBEDaemonName()};
 
     // Start adding the args to the launchder argv array
     //
