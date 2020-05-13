@@ -111,6 +111,11 @@ public: // impl.-specific interface that derived type must implement
     virtual cti_wlm_type_t
     getWLMType() const = 0;
 
+    // launch application
+    virtual std::weak_ptr<App>
+    launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) = 0;
+
     // launch application with barrier
     virtual std::weak_ptr<App>
     launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
@@ -206,7 +211,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     // Get a list of default env vars to forward to BE daemon
     std::vector<std::string> getDefaultEnvVars();
     // Accessors
-    std::string getOldLdPreload() { return m_ld_preload; }
+    std::string getGlobalLdPreload() { return m_ld_preload; }
     std::string getCfgDir() { return m_cfg_dir; }
     std::string getBaseDir() { return m_base_dir; }
     std::string getLdAuditPath() { return m_ld_audit_path; }

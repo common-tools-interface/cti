@@ -64,6 +64,9 @@ public: // inherited interface
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SLURM; }
 
+    std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
@@ -170,14 +173,8 @@ public: // slurm specific interface
     uint64_t getApid() const { return SLURM_APID(m_jobId, m_stepId); }
     SrunInfo getSrunInfo() const { return SrunInfo { m_jobId, m_stepId }; }
 
-private: // delegated constructor
-    SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);
 public: // constructor / destructor interface
-    // attach case
-    SLURMApp(SLURMFrontend& fe, uint32_t jobid, uint32_t stepid);
-    // launch case
-    SLURMApp(SLURMFrontend& fe, const char * const launcher_argv[], int stdout_fd,
-        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+    SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);
     ~SLURMApp();
     SLURMApp(const SLURMApp&) = delete;
     SLURMApp& operator=(const SLURMApp&) = delete;

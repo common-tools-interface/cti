@@ -53,6 +53,9 @@ public: // inherited interface
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_PALS; }
 
+    std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
@@ -61,6 +64,11 @@ public: // inherited interface
     std::string getHostname() const override;
 
 public: // pals specific types
+    enum class LaunchBarrierMode
+        { Disabled = 0
+        , Enabled  = 1
+    };
+
     struct PalsApiInfo
     {
         std::string hostname;
@@ -73,6 +81,7 @@ public: // pals specific types
         std::string apId;
         std::vector<CTIHost> hostsPlacement;
         int stdinFd, stdoutFd, stderrFd;
+        bool atBarrier;
     };
 
     // Forward-declare heavy Boost structures
@@ -94,7 +103,8 @@ public: // pals specific interface
 
     // Launch and extract application and node placement information
     PalsLaunchInfo launchApp(const char * const launcher_argv[], int stdout_fd,
-        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[],
+        LaunchBarrierMode const launchBarrierMode);
 
 public: // constructor / destructor interface
     PALSFrontend();
@@ -126,6 +136,7 @@ private: // variables
     int m_queuedErrFd; // Where to redirect stderr after barrier release
     std::future<int> m_stdioInputFuture;  // Task relaying input from stdin to stdio stream
     std::future<int> m_stdioOutputFuture; // Task relaying output from stdio stream to stdout/err
+    bool m_atBarrier; // Flag that the application is at the startup barrier.
 
     std::vector<std::string> m_toolIds; // PALS IDs of running tool helpers
 
@@ -150,14 +161,8 @@ public: // app interaction interface
 
 public: // pals specific interface
 
-private: // delegated constructor
-    PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo);
 public: // constructor / destructor interface
-    // attach case
-    PALSApp(PALSFrontend& fe, std::string const& apId);
-    // launch case
-    PALSApp(PALSFrontend& fe, const char * const launcher_argv[], int stdout_fd,
-        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+    PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo);
     ~PALSApp();
     PALSApp(const PALSApp&) = delete;
     PALSApp& operator=(const PALSApp&) = delete;

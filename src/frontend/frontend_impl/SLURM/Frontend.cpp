@@ -137,18 +137,6 @@ static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t jobId, uint
     }
 }
 
-SLURMApp::SLURMApp(SLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
-    : SLURMApp
-        { fe
-        , sattachMPIR(fe, jobId, stepId)
-        }
-{ }
-
-SLURMApp::SLURMApp(SLURMFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-    const char *inputFile, const char *chdirPath, const char * const env_list[])
-    : SLURMApp{ fe, fe.launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list) }
-{ }
-
 /* running app info accessors */
 
 // Note that we should provide this as a jobid.stepid format. It will make turning
@@ -446,16 +434,33 @@ SLURMFrontend::isSupported()
 }
 
 std::weak_ptr<App>
+SLURMFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+    CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    // Slurm calls the launch barrier correctly even when the program is not an MPI application.
+    // Delegating to barrier implementation works properly even for serial applications.
+    auto appPtr = std::make_shared<SLURMApp>(*this,
+        launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list));
+
+    // Release barrier and continue launch
+    appPtr->releaseBarrier();
+
+    // Register with frontend application set
+    auto resultInsertedPair = m_apps.emplace(std::move(appPtr));
+    if (!resultInsertedPair.second) {
+        throw std::runtime_error("Failed to insert new App object.");
+    }
+
+    return *resultInsertedPair.first;
+}
+
+std::weak_ptr<App>
 SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(   *this,
-                                                                launcher_argv,
-                                                                stdout_fd,
-                                                                stderr_fd,
-                                                                inputFile,
-                                                                chdirPath,
-                                                                env_list));
+    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this,
+        launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list)));
+
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -485,7 +490,7 @@ SLURMFrontend::registerJob(size_t numIds, ...) {
 
     va_end(idArgs);
 
-    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this, jobId, stepId));
+    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this, sattachMPIR(*this, jobId, stepId)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }

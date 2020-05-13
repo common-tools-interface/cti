@@ -486,102 +486,134 @@ cti_deregisterApp(cti_app_id_t appId) {
     }, false);
 }
 
-cti_app_id_t
-cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-    const char *inputFile, const char *chdirPath, const char * const env_list[])
+namespace
 {
-    return FE_iface::runSafely(__func__, [&](){
-        // delegate app launch and registration to launchAppBarrier
-        auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
-        if (appId == APP_ERROR) {
-            return APP_ERROR;
+    enum class LaunchBarrierMode
+        { Disabled = 0
+        , Enabled  = 1
+    };
+}
+
+static cti_app_id_t
+launchAppImplementation(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    const char *input_file, const char *chdir_path, const char * const env_list[],
+    LaunchBarrierMode const launchBarrierMode)
+{
+    auto&& fe = Frontend::inst();
+
+    // If stdout or stderr FDs are provided, ensure that they are writable
+    if ((stdout_fd > 0) && !cti::canWriteFd(stdout_fd)) {
+        throw std::runtime_error("Invalid stdoutFd argument. No write access.");
+    }
+    if ((stderr_fd > 0) && !cti::canWriteFd(stderr_fd)) {
+        throw std::runtime_error("Invalid stderr_fd argument. No write access.");
+    }
+
+    // If an input file is provided, ensure that it is readable
+    if ((input_file != nullptr) && !cti::fileHasPerms(input_file, R_OK)) {
+        throw std::runtime_error("Invalid inputFile argument. No read access.");
+    }
+    // If a working directory is provided, ensure that is a readable / writable / executable directory
+    if ((chdir_path != nullptr) && !cti::dirHasPerms(chdir_path, R_OK | W_OK | X_OK)) {
+        throw std::runtime_error("Invalid chdirPath argument. No RWX access.");
+    }
+
+    // If LD_PRELOAD was set globally, ensure that the global value gets added to the job environment
+    auto fixedEnvVars = cti::ManagedArgv{};
+    auto const globalLdPreload = fe.getGlobalLdPreload();
+    if (!globalLdPreload.empty()) {
+
+        // If LD_PRELOAD is set in the job environment, the global LD_PRELOAD will be prepended
+        auto ldPreloadAdded = false;
+        for (int i=0; env_list[i] != nullptr; ++i) {
+
+            if (strcmp(env_list[i], "LD_PRELOAD") == 0) {
+                // Find separator '='
+                const char * sub_ptr = strrchr(env_list[i], '=');
+                if (sub_ptr == nullptr) {
+                    throw std::runtime_error("Invalid environment variable set: '" +
+                        std::string{env_list[i]} + "'");
+                }
+
+                // Advance past '='
+                ++sub_ptr;
+
+                // Remove beginning / trailing quotation marks
+
+                // Conditionally advance past beginning quotation mark
+                if (*sub_ptr == '"') {
+                    ++sub_ptr;
+                }
+
+                // Determine if trailing quote is present
+                auto trailingQuotePresent = false;
+                for (char const* cursor = sub_ptr; *cursor != '\0'; cursor++) {
+                    if (cursor[0] == '"') {
+
+                        // Ensure that the quote is trailing
+                        if (cursor[1] != '\0') {
+                            throw std::runtime_error("Invalid environment variable set: '" +
+                                std::string{env_list[i]} + "'");
+                        }
+
+                        trailingQuotePresent = true;
+                    }
+                }
+
+                // Prepend global LD_PRELOAD value to job environment LD_PRELOAD
+                fixedEnvVars.add(std::string{"LD_PRELOAD=\""}
+                    + globalLdPreload + ":" + sub_ptr
+                    + (trailingQuotePresent ? "" : "\""));
+
+                ldPreloadAdded = true;
+
+            } else {
+                // Environment variable is not LD_PRELOAD, add unchanged to job environment
+                fixedEnvVars.add(env_list[i]);
+            }
         }
 
-        // release barrier
-        auto&& fe = Frontend::inst();
-        auto sp = fe.Iface().getApp(appId);
-        sp->releaseBarrier();
+        // If LD_PRELOAD was not set in the job environment, add the global LD_PRELOAD value
+        if (!ldPreloadAdded) {
+            fixedEnvVars.add(std::string{"LD_PRELOAD=\""} + globalLdPreload + "\"");
+        }
 
-        return appId;
+        // Set job environment list to the fixed list containing the global LD_PRELOAD value
+        env_list = (const char * const *)fixedEnvVars.get();
+    }
+
+    // If using barrier mode, call the barrier launch implementation
+    auto wp = (launchBarrierMode == LaunchBarrierMode::Disabled)
+        ? fe.launch(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list)
+        : fe.launchBarrier(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list);
+
+    // Assign a CTI application ID to the newly launched application
+    return fe.Iface().trackApp(wp);
+}
+
+cti_app_id_t
+cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    const char *input_file, const char *chdir_path, const char * const env_list[])
+{
+    return FE_iface::runSafely(__func__, [&](){
+
+        // Delegate to common launch implementation
+        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list,
+            LaunchBarrierMode::Disabled);
+
     }, APP_ERROR);
 }
 
 cti_app_id_t
-cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stderrFd,
-    const char *inputFile, const char *chdirPath, const char * const env_list[])
+cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    const char *input_file, const char *chdir_path, const char * const env_list[])
 {
     return FE_iface::runSafely(__func__, [&](){
-        // verify that FDs are writable, input file path is readable, and chdir path is
-        // read/write/executable. if not, throw an exception with the corresponding error message
 
-        // ensure stdout, stderr can be written to (fd is -1, then ignore)
-        if ((stdoutFd > 0) && !cti::canWriteFd(stdoutFd)) {
-            throw std::runtime_error("Invalid stdoutFd argument. No write access.");
-        }
-        if ((stderrFd > 0) && !cti::canWriteFd(stderrFd)) {
-            throw std::runtime_error("Invalid stderr_fd argument. No write access.");
-        }
+        // Delegate to common launch implementation
+        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list,
+            LaunchBarrierMode::Enabled);
 
-        // verify inputFile is a file that can be read
-        if ((inputFile != nullptr) && !cti::fileHasPerms(inputFile, R_OK)) {
-            throw std::runtime_error("Invalid inputFile argument. No read access.");
-        }
-        // verify chdirPath is a directory that can be read, written, and executed
-        if ((chdirPath != nullptr) && !cti::dirHasPerms(chdirPath, R_OK | W_OK | X_OK)) {
-            throw std::runtime_error("Invalid chdirPath argument. No RWX access.");
-        }
-
-        // register new app instance held at barrier
-        auto&& fe = Frontend::inst();
-        // Ensure LD_PRELOAD gets added to the env_list
-        cti::ManagedArgv env_vars;
-        std::string ld_preload_str = fe.getOldLdPreload();
-        if (!ld_preload_str.empty()) {
-            // need to potentially fixup the list
-            bool found = false;
-            for (auto i=0; env_list[i] != nullptr; ++i) {
-                if (strncmp(env_list[i], "LD_PRELOAD", 10) == 0) {
-                    found = true;
-                    const char * sub_ptr = strrchr(env_list[i], '=');
-                    if (sub_ptr == nullptr) {
-                        throw std::runtime_error("Invalid LD_PRELOAD detected in env_list argument.");
-                    }
-                    // Advance past '='
-                    ++sub_ptr;
-                    // conditionally advance past "
-                    if (*sub_ptr == '"') {
-                        ++sub_ptr;
-                        // terminating quote should already be present
-                        std::string fixup{std::string{  "LD_PRELOAD=\""}
-                                                        + ld_preload_str
-                                                        + std::string{":"}
-                                                        + std::string{sub_ptr} };
-                        env_vars.add(fixup);
-                    }
-                    else {
-                        std::string fixup{std::string{  "LD_PRELOAD=\""}
-                                                        + ld_preload_str
-                                                        + std::string{":"}
-                                                        + std::string{sub_ptr}
-                                                        + std::string{"\""} };
-                        env_vars.add(fixup);
-                    }
-                }
-                else {
-                    // not LD_PRELOAD, add it back
-                    env_vars.add(env_list[i]);
-                }
-            }
-            // Conditionally add LD_PRELOAD to the list
-            if (!found) {
-                env_vars.add(std::string{std::string{"LD_PRELOAD=\""} + ld_preload_str + std::string{"\""}});
-            }
-            // reset env_list
-            env_list = (const char * const *)env_vars.get();
-        }
-        auto wp = fe.launchBarrier(launcher_argv, stdoutFd, stderrFd, inputFile, chdirPath, env_list);
-
-        return fe.Iface().trackApp(wp);
     }, APP_ERROR);
 }
 

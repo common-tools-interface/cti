@@ -87,7 +87,7 @@ TEST_F(CTIFEUnitTest, ld_preload_helper)
 {
     // We set LD_PRELOAD to /dev/null in the unit test setup
     MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
-    std::string saved = mockFrontend.getOldLdPreload();
+    std::string saved = mockFrontend.getGlobalLdPreload();
     ASSERT_STREQ("/dev/null", saved.c_str());
     // Ensure LD_PRELOAD is unset
     char *envStr = getenv("LD_PRELOAD");
@@ -249,8 +249,8 @@ TEST_F(CTIFEUnitTest, LaunchApp)
 {
     MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
 
-    // describe behavior of mock launchBarrier
-    EXPECT_CALL(mockFrontend, launchBarrier(mockArgv, -1, -1, nullptr, nullptr, nullptr))
+    // describe behavior of mock launch
+    EXPECT_CALL(mockFrontend, launch(mockArgv, -1, -1, nullptr, nullptr, nullptr))
         .Times(1);
 
     // run the test
