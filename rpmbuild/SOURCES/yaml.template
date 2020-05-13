@@ -91,5 +91,5 @@ do
   rpm -e $package
 done
 
-rpm -ivh <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>.rpm
+rpm -ivh --oldpackage <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>.rpm
 
