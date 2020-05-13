@@ -305,6 +305,8 @@ protected: // Protected data members that belong to any App
 private:
     // Apps have direct ownership of all Session objects underneath it
     std::unordered_set<std::shared_ptr<Session>> m_sessions;
+    // Each app will have its own uniquely named BE daemon to prevent collisions
+    std::string m_uniqueBEDaemonName;
 
 public:
     // App specific logger
@@ -326,10 +328,20 @@ public: // Public interface to generic WLM-agnostic capabilities
     // tell all Sessions to initialize cleanup
     void finalize();
 
+    // Return the unique BE daemon name
+    std::string getBEDaemonName() const { return m_uniqueBEDaemonName; }
+
 public: // Constructor/destructors
     App(Frontend& fe)
-    : m_frontend{fe}, m_sessions{}
-    { }
+        : m_frontend{fe}
+        , m_sessions{}
+        , m_uniqueBEDaemonName{CTI_BE_DAEMON_BINARY}
+    {
+        // Generate the unique BE daemon name
+        for (size_t i = 0; i < 6; i++) {
+            m_uniqueBEDaemonName.push_back(m_frontend.Prng().genChar());
+        }
+    }
     virtual ~App() = default;
     App(const App&) = delete;
     App& operator=(const App&) = delete;

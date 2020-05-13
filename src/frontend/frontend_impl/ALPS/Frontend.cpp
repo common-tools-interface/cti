@@ -350,14 +350,36 @@ ALPSApp::startDaemon(const char* const args[])
     }
 
     auto const transferDaemon = m_beDaemonSent ? 0 : 1;
-    auto const beDaemonPath = m_beDaemonSent
-        ? m_toolPath + "/" + CTI_BE_DAEMON_BINARY // Reuse daemon already on backend
-        : m_frontend.getBEDaemonPath();
 
     // Build command string
     auto commandStream = std::stringstream{};
-    commandStream << beDaemonPath;
 
+    if (m_beDaemonSent) {
+        // Use daemon already on backend
+        auto const beDaemonPath = m_toolPath + "/" + getBEDaemonName();
+
+        commandStream << beDaemonPath;
+    } else {
+        // Copy the BE binary to its unique storage name
+
+        auto const sourcePath = m_frontend.getBEDaemonPath();
+        auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
+
+        // Create the args for link
+        auto linkArgv = cti::ManagedArgv {
+            "ln", "-s", sourcePath.c_str(), destinationPath.c_str()
+        };
+
+        // Run link command
+        m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "ln", linkArgv.get(),
+            -1, -1, -1,
+            nullptr);
+
+        commandStream << destinationPath;
+    }
+
+    // Add daemon arguments
     if (args != nullptr) {
         for (const char* const* arg = args; *arg != nullptr; arg++) {
             commandStream << " " << *arg;

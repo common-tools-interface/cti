@@ -132,14 +132,6 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     auto&& fe = app->getFrontend();
     // Check to see if we need to add baseline App dependencies
     if ( m_add_requirements ) {
-        // Get the location of the daemon
-        if (fe.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
-        }
-
-        // ship CTI backend daemon
-        app->shipPackage(fe.getBEDaemonPath());
-
         // ship WLM-specific base files
         for (auto const& path : app->getExtraBinaries()) {
             mani->addBinary(path);

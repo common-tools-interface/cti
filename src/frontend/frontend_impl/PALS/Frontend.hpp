@@ -160,6 +160,8 @@ public: // app interaction interface
     void startDaemon(const char* const args[]) override;
 
 public: // pals specific interface
+    // PALS allows shipping to an arbitrarily-named destination
+    void shipPackage(std::string const& tarPath, std::string const& remoteName) const;
 
 public: // constructor / destructor interface
     PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo);
