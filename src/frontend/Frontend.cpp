@@ -62,11 +62,7 @@ std::unique_ptr<Frontend_cleanup>   Frontend::m_cleanup{nullptr};
 
 // This ensures the singleton gets deleted
 Frontend_cleanup::~Frontend_cleanup() {
-    try {
-        Frontend::destroy();
-    } catch (std::exception const& ex) {
-        // Ignore cleanup exceptions
-    }
+    Frontend::destroy();
 }
 
 // PRNG initialization
@@ -96,10 +92,12 @@ FE_prng::FE_prng()
     seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
 
     // init the state
-    initstate(seed, (char *)m_r_state, sizeof(m_r_state));
+    memset((char*)&m_r_data, 0, sizeof(m_r_data));
+    memset(m_r_state, 0, sizeof(m_r_state));
+    initstate_r(seed, (char *)m_r_state, sizeof(m_r_state), &m_r_data);
 
     // set the PRNG state
-    if (setstate((char *)m_r_state) == NULL) {
+    if (setstate_r((char *)m_r_state, &m_r_data)) {
         throw std::runtime_error("setstate failed.");
     }
 }
@@ -454,9 +452,13 @@ Frontend::destroy() {
     // Use sequential consistency here
     if (auto instance = m_instance.exchange(nullptr)) {
 
-        // clean up all App/Sessions before destructors are run
-        for (auto&& app : instance->m_apps) {
-            app->finalize();
+        try {
+            // clean up all App/Sessions before destructors are run
+            for (auto&& app : instance->m_apps) {
+                app->finalize();
+            }
+        } catch (std::exception const& ex) {
+            // Ignore cleanup exceptions
         }
 
         delete instance;
