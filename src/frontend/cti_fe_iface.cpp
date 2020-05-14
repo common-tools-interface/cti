@@ -114,7 +114,7 @@ FE_iface::get_error_str()
     // Copy the internal error string to the external buffer
     strncpy(_cti_err_str, m_err_str.c_str(), CTI_ERR_STR_SIZE);
     // Enforce null termination
-    _cti_err_str[CTI_ERR_STR_SIZE] = '\0';
+    _cti_err_str[CTI_ERR_STR_SIZE - 1] = '\0';
     // Return the pointer to the external buffer
     return const_cast<const char *>(_cti_err_str);
 }
