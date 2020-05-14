@@ -452,13 +452,13 @@ Frontend::destroy() {
     // Use sequential consistency here
     if (auto instance = m_instance.exchange(nullptr)) {
 
-        try {
-            // clean up all App/Sessions before destructors are run
-            for (auto&& app : instance->m_apps) {
+        // clean up all App/Sessions before destructors are run
+        for (auto&& app : instance->m_apps) {
+            try {
                 app->finalize();
+            } catch (std::exception const& ex) {
+                // Ignore cleanup exceptions
             }
-        } catch (std::exception const& ex) {
-            // Ignore cleanup exceptions
         }
 
         delete instance;
