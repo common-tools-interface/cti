@@ -69,10 +69,13 @@ _cti_pals_getNodeID(void)
 	pals_state_t _cti_pals_state;
 	int libpals_initialized = 0;
 
+	char const* dl_err = NULL;
+
 	// dlopen libpals
 	_cti_libpals_funcs.handle = dlopen(PALS_BE_LIB_NAME, RTLD_LAZY);
+	dl_err = dlerror();
 	if (_cti_libpals_funcs.handle == NULL) {
-		fprintf(stderr, "dlopen: %s\n", dlerror());
+		fprintf(stderr, "pals_dl " PALS_BE_LIB_NAME " dlopen: %s\n", dl_err);
 		goto cleanup__cti_pals_getNodeID;
 	}
 
@@ -81,24 +84,27 @@ _cti_pals_getNodeID(void)
 	// pals_init
 	dlerror(); // Clear any existing error
 	_cti_libpals_funcs.pals_init = dlsym(_cti_libpals_funcs.handle, "pals_init");
-	if (dlerror() != NULL) {
-		fprintf(stderr, "dlsym: %s\n", dlerror());
+	dl_err = dlerror();
+	if (dl_err != NULL) {
+		fprintf(stderr, "pals_dl " PALS_BE_LIB_NAME " dlsym: %s\n", dl_err);
 		goto cleanup__cti_pals_getNodeID;
 	}
 
 	// pals_fini
 	dlerror();
 	_cti_libpals_funcs.pals_fini = dlsym(_cti_libpals_funcs.handle, "pals_init");
-	if (dlerror() != NULL) {
-		fprintf(stderr, "dlsym: %s\n", dlerror());
+	dl_err = dlerror();
+	if (dl_err != NULL) {
+		fprintf(stderr, "pals_dl " PALS_BE_LIB_NAME " dlsym: %s\n", dl_err);
 		goto cleanup__cti_pals_getNodeID;
 	}
 
 	// pals_get_nodeidx
 	dlerror();
 	_cti_libpals_funcs.pals_get_nodeidx = dlsym(_cti_libpals_funcs.handle, "pals_get_nodeidx");
-	if (dlerror() != NULL) {
-		fprintf(stderr, "dlsym: %s\n", dlerror());
+	dl_err = dlerror();
+	if (dl_err != NULL) {
+		fprintf(stderr, "pals_dl " PALS_BE_LIB_NAME " dlsym: %s\n", dl_err);
 		goto cleanup__cti_pals_getNodeID;
 	}
 
@@ -111,7 +117,7 @@ _cti_pals_getNodeID(void)
 
 	// Call pals_get_nodeidx
 	if (_cti_libpals_funcs.pals_get_nodeidx(&_cti_pals_state, &result) != PALS_OK) {
-		fprintf(stderr, "pals_get_nodeidx failed\n");
+		fprintf(stderr, "pals_dl pals_get_nodeidx: %s\n", _cti_pals_state.errbuf);
 		goto cleanup__cti_pals_getNodeID;
 	}
 
@@ -128,6 +134,6 @@ cleanup__cti_pals_getNodeID:
 		_cti_libpals_funcs.handle = NULL;
 	}
 
-	return -1;
+	return result;
 }
 
