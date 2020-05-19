@@ -81,7 +81,7 @@ public: // pals specific types
         std::string apId;
         std::vector<CTIHost> hostsPlacement;
         int stdinFd, stdoutFd, stderrFd;
-        bool atBarrier;
+        bool started, atBarrier;
     };
 
     // Forward-declare heavy Boost structures
@@ -124,6 +124,7 @@ private: // variables
     std::vector<CTIHost> m_hostsPlacement;
     PALSFrontend::PalsApiInfo const m_palsApiInfo;
 
+    std::string m_apinfoPath;  // Backend path where the libpals apinfo file is located
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE

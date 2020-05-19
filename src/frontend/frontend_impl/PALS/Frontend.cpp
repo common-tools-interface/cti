@@ -328,7 +328,8 @@ namespace pals
         struct StderrData { std::string content; };
         struct ExitData   { int rank; int status; };
         struct Complete   {};
-        using StdioNotification = std::variant<StdoutData, StderrData, ExitData, Complete>;
+        struct AcknowledgementData { std::string id; };
+        using StdioNotification = std::variant<StdoutData, StderrData, ExitData, Complete, AcknowledgementData>;
 
         // Extract relevant data from stdio stream notifications
         static StdioNotification parseStdio(std::string const& stdioJson)
@@ -353,7 +354,19 @@ namespace pals
             // Parse based on method
             auto const method = root.get_optional<std::string>("method");
             if (!method) {
-                throw std::runtime_error("stdio failed: no method found in malformed response");
+                // Check for acknowledgement
+                if (auto const result = root.get_optional<std::string>("result")) {
+                    if (*result != "null") {
+                        throw std::runtime_error("request failed: " + *result);
+                    }
+
+                    return AcknowledgementData
+                        { .id = root.get<std::string>("id")
+                    };
+                }
+
+                // Message was not an acknowledgement
+                throw std::runtime_error("stdio failed: no method found in malformed response '" + stdioJson + "'");
             }
             if (*method == "stdout") {
                 return StdoutData
@@ -491,7 +504,7 @@ PALSFrontend::PalsLaunchInfo
 PALSFrontend::getPalsLaunchInfo(std::string const& apId)
 {
     // Send HTTP GET request
-    auto const appResult = cti::httpGetReq(getApiInfo().hostname, "/v1/apps" + apId,
+    auto const appResult = cti::httpGetReq(getApiInfo().hostname, "/v1/apps/" + apId,
         getApiInfo().accessToken);
 
     // Extract app information
@@ -504,6 +517,7 @@ PALSFrontend::getPalsLaunchInfo(std::string const& apId)
         , .stdinFd  = ::open("/dev/null", O_RDONLY)
         , .stdoutFd = dup(STDOUT_FILENO)
         , .stderrFd = dup(STDERR_FILENO)
+        , .started = true
         , .atBarrier = false
     };
 }
@@ -707,6 +721,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
         , .stdinFd  = ::open(inputFile ? inputFile : "/dev/null", O_RDONLY)
         , .stdoutFd = (stdout_fd < 0) ? dup(STDOUT_FILENO) : stdout_fd
         , .stderrFd = (stderr_fd < 0) ? dup(STDERR_FILENO) : stderr_fd
+        , .started = false
         , .atBarrier = (launchBarrierMode == LaunchBarrierMode::Enabled)
     };
 }
@@ -839,6 +854,10 @@ static int stdioOutputTask(cti::WebSocketStream& webSocketStream, int stdoutFd, 
                 return WebsocketComplete;
             }
 
+        , [](pals::response::AcknowledgementData const& /* unused */) {
+                return WebsocketContinue;
+            }
+
         }, stdioNotification);
     };
 
@@ -898,7 +917,6 @@ PALSApp::shipPackage(std::string const& tarPath, std::string const& remoteName) 
     auto const token = m_palsApiInfo.accessToken;
     auto const endpoint = endpointBase + "?name=" + remoteName;
 
-
     writeLog("shipPackage POST: %s %s\n", endpoint.c_str(), tarPath.c_str());
     auto ioc = boost::asio::io_context{};
 
@@ -955,7 +973,7 @@ PALSApp::startDaemon(const char* const args[])
         }
 
         // Ship the BE binary to its unique storage name
-        shipPackage(m_frontend.getBEDaemonPath(), remoteBEDaemonPath);
+        shipPackage(m_frontend.getBEDaemonPath(), getBEDaemonName());
 
         // set transfer to true
         m_beDaemonSent = true;
@@ -1008,6 +1026,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_palsApiInfo{fe.getApiInfo()}
 
 
+    , m_apinfoPath{"/var/run/palsd/" + m_apId + "/apinfo"}
     , m_toolPath{"/var/run/palsd/" + m_apId + "/files"}
     , m_attribsPath{"/tmp"}
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
@@ -1030,8 +1049,10 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     // Request application stream mode
     pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
 
-    // Request start application
-    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
+    // Request start application if not already started
+    if (!palsLaunchInfo.started) {
+        pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
+    }
 
     // Launch stdio output responder thread
     m_stdioOutputFuture = std::async(std::launch::async, stdioOutputTask,
