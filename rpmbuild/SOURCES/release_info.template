@@ -16,15 +16,16 @@ Product Description:
 
 Purpose:
 ---------
-  This is a feature fix release.
+  This is a feature release.
 
-  - Initial support for Shasta systems
+  - Initial support for Cray XC/CS platforms
+  - Various bugfixes/stability improvements
 
 Product and OS Dependencies:
 -----------------------------
   The Cray CTI <VERSION> release is supported on the following Cray systems:
-    - Cray XC systems with CLE release 6.0 or later
-    - Cray CS systems
+    - Cray XC systems with CLE release 7.0 or later
+    - Cray CS systems with CentOS/RH 8.0 or later
 
   Product Dependencies:
     - GCC 8.1.0 associated runtime libraries are required on all systems.
@@ -48,4 +49,4 @@ Installation instructions:
 
 
  Certain components, files or programs contained within this package or
- product are Copyright 2007-2019 Cray Inc. All rights reserved.
+ product are Copyright 2007-2020 Cray Inc. All rights reserved.
