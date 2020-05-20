@@ -362,6 +362,15 @@ then
   exit 0
 fi
 
+# run ldconfig for good measure to ensure ldcache is cleaned up
+if [ -w /etc/ld.so.cache ]
+then
+    if [[ ${RPM_INSTALL_PREFIX} = "%{prefix}" ]]
+    then
+        /sbin/ldconfig
+    fi
+fi
+
 # If the install dir exists
 if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{cray_product}` ]]; then
   %{__rm} -rf ${RPM_INSTALL_PREFIX}/%{cray_product}
