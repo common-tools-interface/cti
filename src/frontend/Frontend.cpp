@@ -116,8 +116,10 @@ char FE_prng::genChar()
 
     // Generate a random offset into the array. This is random() modded
     // with the number of elements in the array.
-    unsigned int oset = random() % (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
-    // assing this char
+    int32_t oset;
+    random_r(&m_r_data, &oset);
+    oset %= (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
+    // assign this char
     return _cti_valid_char[oset];
 }
 
