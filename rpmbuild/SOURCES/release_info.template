@@ -20,6 +20,7 @@ Purpose:
 
   - Initial support for Cray XC/CS platforms
   - Various bugfixes/stability improvements
+  - CAST-21152: Add Intel MPI support to CTI for CCDB
 
 Product and OS Dependencies:
 -----------------------------
