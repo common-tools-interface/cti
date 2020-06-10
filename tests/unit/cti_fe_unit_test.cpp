@@ -232,6 +232,32 @@ TEST_F(CTIAppUnitTest, GetAppHostsPlacement)
     EXPECT_EQ(rawHostsList->hosts[0].numPes, getpid());
 }
 
+// cti_binaryList_t *   cti_getAppBinaryList(cti_app_id_t);
+// void                 cti_destroyBinaryList(cti_binaryList_t *);
+// Tests that the app will generate a binary list for the application
+TEST_F(CTIAppUnitTest, GetAppBinaryList)
+{
+    // describe behavior of mock getBinaryList
+    EXPECT_CALL(*mockApp, getNumPEs())
+        .WillOnce(Return(4));
+    EXPECT_CALL(*mockApp, getBinaryRankMap())
+        .WillOnce(Return(std::map<std::string, std::vector<int>>
+            { {"/bin1", {0, 2}}
+            , {"/bin2", {1, 3}}
+        }));
+
+    // run the test
+    auto const rawBinaryList = cti::take_pointer_ownership(cti_getAppBinaryList(appId), cti_destroyBinaryList);
+    ASSERT_TRUE(rawBinaryList != nullptr) << cti_error_str();
+    ASSERT_TRUE(rawBinaryList->binaries != nullptr);
+    EXPECT_EQ(std::string{rawBinaryList->binaries[0]}, "/bin1");
+    EXPECT_EQ(std::string{rawBinaryList->binaries[1]}, "/bin2");
+    EXPECT_EQ(rawBinaryList->rankMap[0], 0);
+    EXPECT_EQ(rawBinaryList->rankMap[1], 1);
+    EXPECT_EQ(rawBinaryList->rankMap[2], 0);
+    EXPECT_EQ(rawBinaryList->rankMap[3], 1);
+}
+
 /* app lifecycle management tests */
 
 // int          cti_appIsValid(cti_app_id_t);

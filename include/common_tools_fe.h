@@ -76,6 +76,12 @@ typedef struct
     cti_host_t *   hosts;
 } cti_hostsList_t;
 
+typedef struct
+{
+    char **  binaries;
+    int *    rankMap;
+} cti_binaryList_t;
+
 typedef int64_t cti_app_id_t;
 typedef int64_t cti_session_id_t;
 typedef int64_t cti_manifest_id_t;
@@ -461,6 +467,49 @@ cti_hostsList_t * cti_getAppHostsPlacement(cti_app_id_t app_id);
  *
  */
 void cti_destroyHostsList(cti_hostsList_t *placement_list);
+
+/*
+ * cti_getAppBinaryList - Returns a structure containing the following:
+ *      * array of strings containing the paths to the binaries for the
+ *        application associated with the app_id
+ *      * array of ints, where index N refers to the binary path for rank N
+ *
+ * Detail
+ *      This function returns a list of binary paths associated with the
+ *      given app_id. For non-MPMD applications, the structure will contain
+ *      one binary path. For MPMD applications, the structure contains multiple
+ *      binary paths. The rank-binary map portion of the structure maps a rank N
+ *      at index N to an index in the binary path list.
+ *
+ * Arguments
+ *      app_id -  The cti_app_id_t of the registered application.
+ *
+ * Returns
+ *      A completed cti_binaryList_t object as described above, or else a null
+ *      pointer on error.
+ *
+ */
+cti_binaryList_t* cti_getAppBinaryList(cti_app_id_t app_id);
+
+
+/*
+ * cti_destroyBinariesList - Used to destroy the memory allocated for a
+    *                        cti_binaryList_t struct.
+ *
+ * Detail
+ *      This function frees a cti_binaryList struct. This is used to
+ *      safely destroy the data structure returned by a call to the
+ *      cti_getAppBinaryList function when the caller is done with the data
+ *      that was allocated during its creation.
+ *
+ * Arguments
+ *      binary_list - A pointer to the cti_binaryList_t to free.
+ *
+ * Returns
+ *      Void. This function behaves similarly to free().
+ *
+ */
+void cti_destroyBinaryList(cti_binaryList_t *binary_list);
 
 
 /*******************************************************************************

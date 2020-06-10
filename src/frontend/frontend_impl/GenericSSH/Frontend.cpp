@@ -505,6 +505,12 @@ GenericSSHApp::getHostnameList() const
     return result;
 }
 
+std::map<std::string, std::vector<int>>
+GenericSSHApp::getBinaryRankMap() const
+{
+    throw std::runtime_error("not implemented: getBinaryRankMap");
+}
+
 std::vector<CTIHost>
 GenericSSHApp::getHostsPlacement() const
 {

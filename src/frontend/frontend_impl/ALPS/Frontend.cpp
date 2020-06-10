@@ -263,6 +263,12 @@ ALPSApp::getHostnameList() const
     return result;
 }
 
+std::map<std::string, std::vector<int>>
+ALPSApp::getBinaryRankMap() const
+{
+    throw std::runtime_error("not implemented: getBinaryRankMap");
+}
+
 void
 ALPSApp::releaseBarrier()
 {

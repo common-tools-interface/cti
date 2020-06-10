@@ -761,6 +761,12 @@ PALSApp::getHostnameList() const
     return result;
 }
 
+std::map<std::string, std::vector<int>>
+PALSApp::getBinaryRankMap() const
+{
+    throw std::runtime_error("not implemented: getBinaryRankMap");
+}
+
 // PALS websocket callbacks
 
 static auto constexpr WebsocketContinue = false;

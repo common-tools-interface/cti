@@ -182,6 +182,12 @@ SLURMApp::getHostsPlacement() const
     return result;
 }
 
+std::map<std::string, std::vector<int>>
+SLURMApp::getBinaryRankMap() const
+{
+    throw std::runtime_error("not implemented: getBinaryRankMap");
+}
+
 /* running app interaction interface */
 
 void SLURMApp::releaseBarrier() {

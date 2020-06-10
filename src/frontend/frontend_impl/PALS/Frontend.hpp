@@ -153,6 +153,7 @@ public: // app interaction interface
     size_t getNumHosts()     const override { return m_hostsPlacement.size(); }
     std::vector<std::string> getHostnameList()   const override;
     std::vector<CTIHost>     getHostsPlacement() const override { return  m_hostsPlacement; }
+    std::map<std::string, std::vector<int>> getBinaryRankMap() const override;
 
     void releaseBarrier() override;
     void kill(int signal) override;
