@@ -71,6 +71,7 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     , m_daemonAppId     { mpirData.mpir_id }
     , m_jobId           { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_jobid")) }
     , m_stepId          { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_stepid")) }
+    , m_binaryRankMap   { std::move(mpirData.binaryRankMap) }
     , m_stepLayout      { fe.fetchStepLayout(m_jobId, m_stepId) }
     , m_beDaemonSent    { false }
 
@@ -185,7 +186,7 @@ SLURMApp::getHostsPlacement() const
 std::map<std::string, std::vector<int>>
 SLURMApp::getBinaryRankMap() const
 {
-    throw std::runtime_error("not implemented: getBinaryRankMap");
+    return m_binaryRankMap;
 }
 
 /* running app interaction interface */
