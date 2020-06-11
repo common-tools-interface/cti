@@ -83,6 +83,9 @@ public: // interface
 
     /* memory access */
 
+    // read c-string at address
+    std::string readStringAt(Address strAddress);
+
     // read c-string pointed to by symbol
     std::string readStringAt(std::string const& symName);
 };

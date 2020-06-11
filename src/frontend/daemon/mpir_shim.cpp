@@ -133,9 +133,10 @@ int main(int argc, char const* argv[])
 		, .launcher_pid = mpirInstance.getLauncherPid()
 		, .num_pids = static_cast<int>(mpirProctable.size())
 	});
-	for (auto&& [pid, hostname] : mpirProctable) {
+	for (auto&& [pid, hostname, executable] : mpirProctable) {
 		rawWriteLoop(outputFd, pid);
 		writeLoop(outputFd, hostname.c_str(), hostname.length() + 1);
+		writeLoop(outputFd, executable.c_str(), executable.length() + 1);
 	}
 
 	// Close pipe

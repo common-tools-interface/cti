@@ -193,6 +193,7 @@ static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
         { .mpir_id = mpirResp.mpir_id
         , .launcher_pid = mpirResp.launcher_pid
         , .proctable = {}
+        , .binaryRankMap = {}
     };
     result.proctable.reserve(mpirResp.num_pids);
 
@@ -200,7 +201,7 @@ static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
     cti::FdBuf respBuf{dup(reqFd)};
     std::istream respStream{&respBuf};
 
-    // fill in pid and hostname of proctable elements
+    // fill in pid and hostname of proctable elements, generate executable path to rank ID map
     for (int i = 0; i < mpirResp.num_pids; i++) {
         MPIRProctableElem elem;
         // read pid
@@ -209,6 +210,14 @@ static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
         if (!std::getline(respStream, elem.hostname, '\0')) {
             throw std::runtime_error("failed to read string");
         }
+        // read executable name
+        if (!std::getline(respStream, elem.executable, '\0')) {
+            throw std::runtime_error("failed to read string");
+        }
+
+        // fill in binary rank map
+        result.binaryRankMap[elem.executable].push_back(i);
+
         result.proctable.emplace_back(std::move(elem));
     }
 
