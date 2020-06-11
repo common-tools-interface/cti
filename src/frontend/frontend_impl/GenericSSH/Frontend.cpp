@@ -443,6 +443,7 @@ GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpi
     : App(fe)
     , m_daemonAppId { mpirData.mpir_id }
     , m_launcherPid { mpirData.launcher_pid }
+    , m_binaryRankMap { std::move(mpirData.binaryRankMap) }
     , m_stepLayout  { fe.fetchStepLayout(mpirData.proctable) }
     , m_beDaemonSent { false }
     , m_toolPath    { SSH_TOOL_DIR }
@@ -508,7 +509,7 @@ GenericSSHApp::getHostnameList() const
 std::map<std::string, std::vector<int>>
 GenericSSHApp::getBinaryRankMap() const
 {
-    throw std::runtime_error("not implemented: getBinaryRankMap");
+    return m_binaryRankMap;
 }
 
 std::vector<CTIHost>

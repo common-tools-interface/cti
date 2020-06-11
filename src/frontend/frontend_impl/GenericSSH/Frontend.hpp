@@ -111,6 +111,7 @@ class GenericSSHApp final : public App
 private: // variables
     FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     pid_t      m_launcherPid; // job launcher PID
+    std::map<std::string, std::vector<int>> m_binaryRankMap; // Binary to rank ID map
     GenericSSHFrontend::StepLayout m_stepLayout; // SSH Layout of job step
     bool       m_beDaemonSent; // Have we already shipped over the backend daemon?
 
