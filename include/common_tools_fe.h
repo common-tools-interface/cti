@@ -471,8 +471,10 @@ void cti_destroyHostsList(cti_hostsList_t *placement_list);
 /*
  * cti_getAppBinaryList - Returns a structure containing the following:
  *      * array of strings containing the paths to the binaries for the
- *        application associated with the app_id
- *      * array of ints, where index N refers to the binary path for rank N
+ *        application associated with the app_id. The array is NULL-terminated
+ *      * array of ints, where index N refers to the binary path for rank N.
+ *        The total number of elements is equal to the number of ranks,
+ *        obtained from cti_getNumAppPEs.
  *
  * Detail
  *      This function returns a list of binary paths associated with the
@@ -486,7 +488,8 @@ void cti_destroyHostsList(cti_hostsList_t *placement_list);
  *
  * Returns
  *      A completed cti_binaryList_t object as described above, or else a null
- *      pointer on error.
+ *      pointer on error. The resulting object should be freed with
+ *      cti_destroyBinaryList.
  *
  */
 cti_binaryList_t* cti_getAppBinaryList(cti_app_id_t app_id);
@@ -500,7 +503,8 @@ cti_binaryList_t* cti_getAppBinaryList(cti_app_id_t app_id);
  *      This function frees a cti_binaryList struct. This is used to
  *      safely destroy the data structure returned by a call to the
  *      cti_getAppBinaryList function when the caller is done with the data
- *      that was allocated during its creation.
+ *      that was allocated during its creation. Performs no operation when
+ *      provided a NULL pointer.
  *
  * Arguments
  *      binary_list - A pointer to the cti_binaryList_t to free.
