@@ -301,7 +301,7 @@ namespace pals
             auto binaryPaths = std::vector<std::string>{};
             for (auto const& commandInfoPair : root.get_child("cmds")) {
                 auto const commandInfo = commandInfoPair.second;
-                binaryPaths.emplace_back(commandInfo.get_child("argv").template get<std::string>(""));
+                binaryPaths.emplace_back(commandInfo.get_child("argv").begin()->second.template get<std::string>(""));
             }
 
             // Fill in MPMD rank map
@@ -415,6 +415,7 @@ struct PALSFrontend::CtiWSSImpl
             hostname, port, accessToken)}
     {}
 };
+
 
 bool
 PALSFrontend::isSupported()
