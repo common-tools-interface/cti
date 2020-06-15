@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
+#include <string.h>
 
 #include "common_tools_fe.h"
 #include "cti_fe_common.h"
@@ -78,7 +79,7 @@ main(int argc, char **argv)
     int                 p_arg = 0;
     uint32_t            job_id = 0;
     uint32_t            step_id = 0;
-    uint64_t            apid = 0;
+    char *              raw_apid = NULL;
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
     cti_wlm_type_t      mywlm;
@@ -165,23 +166,7 @@ main(int argc, char **argv)
                 }
 
                 // This is the apid
-                errno = 0;
-                apid = (uint64_t)strtoull(optarg, &eptr, 10);
-
-                // check for error
-                if ((errno == ERANGE && step_id == ULONG_MAX)
-                        || (errno != 0 && step_id == 0)) {
-                    perror("strtol");
-                    assert(0);
-                    return 1;
-                }
-
-                // check for invalid input
-                if (eptr == optarg || *eptr != '\0') {
-                    fprintf(stderr, "Invalid --apid argument.\n");
-                    assert(0);
-                    return 1;
-                }
+                raw_apid = strdup(optarg);
 
                 a_arg = 1;
 
@@ -262,6 +247,26 @@ main(int argc, char **argv)
                 fprintf(stderr, "Error: Missing --apid argument. This is required for the ALPS WLM.\n");
             }
             assert(a_arg != 0);
+
+            // parse numeric apid
+            errno = 0;
+            uint64_t apid = (uint64_t)strtoull(optarg, &eptr, 10);
+
+            // check for error
+            if ((errno == ERANGE && step_id == ULONG_MAX)
+                    || (errno != 0 && step_id == 0)) {
+                perror("strtol");
+                assert(0);
+                return 1;
+            }
+
+            // check for invalid input
+            if (eptr == optarg || *eptr != '\0') {
+                fprintf(stderr, "Invalid --apid argument.\n");
+                assert(0);
+                return 1;
+            }
+
             cti_alps_ops_t * alps_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&alps_ops);
             assert(ret == mywlm);
@@ -304,7 +309,7 @@ main(int argc, char **argv)
             cti_wlm_type_t ret = cti_open_ops((void **)&pals_ops);
             assert(ret == mywlm);
             assert(pals_ops != NULL);
-            myapp = pals_ops->registerApid(apid);
+            myapp = pals_ops->registerApid(raw_apid);
             if (myapp == 0) {
                 fprintf(stderr, "Error: PALS registerApid failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -339,6 +344,10 @@ main(int argc, char **argv)
     // cleanup
     cti_destroyBinaryList(binaryList);
     cti_deregisterApp(myapp);
+    if (raw_apid != NULL) {
+        free(raw_apid);
+        raw_apid = NULL;
+    }
 
     // ensure deregister worked.
     assert(cti_appIsValid(myapp) == 0);
