@@ -297,7 +297,26 @@ namespace pals
                 hostsPlacement[nodeIdx].numPEs++;
             }
 
-            return std::make_tuple(apId, hostsPlacement);
+            // Fill in application binary paths
+            auto binaryPaths = std::vector<std::string>{};
+            for (auto const& commandInfoPair : root.get_child("cmds")) {
+                auto const commandInfo = commandInfoPair.second;
+                binaryPaths.emplace_back(commandInfo.get_child("argv").template get<std::string>(""));
+            }
+
+            // Fill in MPMD rank map
+            auto binaryRankMap = std::map<std::string, std::vector<int>>{};
+            size_t rank = 0;
+            for (auto const& commandIdxPair : root.get_child("cmdidxs")) {
+                auto const commandIdx = commandIdxPair.second.template get<size_t>("");
+                if (commandIdx >= binaryPaths.size()) {
+                    throw std::runtime_error("invalid command index: " + std::to_string(commandIdx));
+                }
+                binaryRankMap[binaryPaths[commandIdx]].push_back(rank);
+                rank++;
+            }
+
+            return std::make_tuple(apId, std::move(hostsPlacement), std::move(binaryRankMap));
         }
 
         // Extract tool helper ID JSON string
@@ -495,12 +514,13 @@ PALSFrontend::getPalsLaunchInfo(std::string const& apId)
         getApiInfo().accessToken);
 
     // Extract app information
-    auto [resultApId, hostsPlacement] = pals::response::parseLaunchInfo(appResult);
+    auto [resultApId, hostsPlacement, binaryRankMap] = pals::response::parseLaunchInfo(appResult);
 
     // Collect results
     return PalsLaunchInfo
         { .apId = std::move(resultApId)
         , .hostsPlacement = std::move(hostsPlacement)
+        , .binaryRankMap = std::move(binaryRankMap)
         , .stdinFd  = ::open("/dev/null", O_RDONLY)
         , .stdoutFd = dup(STDOUT_FILENO)
         , .stderrFd = dup(STDERR_FILENO)
@@ -694,7 +714,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
     writeLog("launch result: '%s'\n", launchResult.c_str());
 
     // Extract launch result information
-    auto [apId, hostsPlacement] = pals::response::parseLaunchInfo(launchResult);
+    auto [apId, hostsPlacement, binaryRankMap] = pals::response::parseLaunchInfo(launchResult);
     writeLog("apId: %s\n", apId.c_str());
     for (auto&& ctiHost : hostsPlacement) {
         writeLog("host %s has %lu ranks\n", ctiHost.hostname.c_str(), ctiHost.numPEs);
@@ -704,6 +724,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
     return PalsLaunchInfo
         { .apId = std::move(apId)
         , .hostsPlacement = std::move(hostsPlacement)
+        , .binaryRankMap = std::move(binaryRankMap)
         , .stdinFd  = ::open(inputFile ? inputFile : "/dev/null", O_RDONLY)
         , .stdoutFd = (stdout_fd < 0) ? dup(STDOUT_FILENO) : stdout_fd
         , .stderrFd = (stderr_fd < 0) ? dup(STDERR_FILENO) : stderr_fd
@@ -764,7 +785,7 @@ PALSApp::getHostnameList() const
 std::map<std::string, std::vector<int>>
 PALSApp::getBinaryRankMap() const
 {
-    throw std::runtime_error("not implemented: getBinaryRankMap");
+    return m_binaryRankMap;
 }
 
 // PALS websocket callbacks
@@ -1011,11 +1032,12 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
         palsLaunchInfo.hostsPlacement.begin(), palsLaunchInfo.hostsPlacement.end(), size_t{},
         [](size_t total, CTIHost const& ctiHost) { return total + ctiHost.numPEs; })}
     , m_hostsPlacement{std::move(palsLaunchInfo.hostsPlacement)}
+    , m_binaryRankMap{std::move(palsLaunchInfo.binaryRankMap)}
     , m_palsApiInfo{fe.getApiInfo()}
 
 
     , m_toolPath{"/var/run/palsd/" + m_apId + "/files"}
-    , m_attribsPath{"/tmp"}
+    , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
     , m_extraFiles{}
 
