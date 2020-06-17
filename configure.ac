@@ -244,12 +244,6 @@ AC_CONFIG_FILES([
     src/frontend/mpir_iface/Makefile
     src/useful/Makefile
     src/useful/ld_val/Makefile
-    tests/Makefile
-    tests/test_support/Makefile
-    tests/mock/Makefile
-    tests/unit/Makefile
-    tests/examples/Makefile
-    tests/function/Makefile
 ])
 
 cray_INIT_CHECKSUM([src/frontend/checksum])

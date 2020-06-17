@@ -6,10 +6,6 @@
 # all functional tests defined in ./avocado_tests.py   #
 ########################################################
 
-#PYTHON VERSION TO USE
-PYTHON=python3
-ON_WHITEBOX=true
-
 #DIRECTORY RELATED VALUES
 START_DIR=$PWD
 FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
@@ -32,35 +28,27 @@ fi
 ########################################################
 
 setup_python() {
-    if [ "$ON_WHITEBOX" = false ] ; then
-        PYTHON=python
-    fi
-    if ! python3 --version &> /dev/null ; then
-        PYTHON=python
-    fi
     if ! test -f ~/.local/bin/pip ; then
         echo "No pip detected. Installing..."
         if ! curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py ; then
             echo "Failed to download pip setup script. Aborting..."
             return 1
         fi
-        if ! $PYTHON get-pip.py --user ; then
+        if ! python3 get-pip.py --user ; then
             echo "Failed to run pip installer. Aborting..."
             return 1
         fi
         rm get-pip.py
     fi
     echo "Pip install is valid..."
-    if [ "$PYTHON" == "python" ] ; then
-        if ! test -f ~/.local/bin/virtualenv ; then
-            echo "Virtual environment module not installed. Installing..."
-            if ! ~/.local/bin/pip install --user virtualenv ; then
-                echo "Failed to install virtual environment module. Aborting..."
-                return 1
-            fi
+    if ! test -f ~/.local/bin/virtualenv ; then
+        echo "Virtual environment module not installed. Installing..."
+        if ! ~/.local/bin/pip install --user virtualenv ; then
+            echo "Failed to install virtual environment module. Aborting..."
+            return 1
         fi
-        echo "VENV install is valid..."
     fi
+    echo "VENV install is valid..."
     echo "Python setup is valid..."
     return 0
 }
@@ -85,11 +73,7 @@ valid_ssh(){
 ########################################################
 
 create_venv() {
-    if [ "$ON_WHITEBOX" = true ] ; then
-        $PYTHON -m venv avocado
-    else
-        ~/.local/bin/virtualenv avocado
-    fi
+    ~/.local/bin/virtualenv avocado
     return $?
 }
 
@@ -99,18 +83,15 @@ create_venv() {
 ########################################################
 
 install_additional_plugins() {
-    if [ "$ON_WHITEBOX" = true ] ; then
-        #Install all desired whitebox plugins.
-        if ! pip install avocado-framework-plugin-loader-yaml ; then
-            return 1
-        fi
-    else
-        #Install all desired non-whitebox plugins
-        if ! pip install avocado-framework-plugin-loader-yaml ; then
-            return 1
-        fi
-        return 0
+    if ! pip install avocado-framework-plugin-loader-yaml ; then
+        return 1
     fi
+
+    if ! pip install avocado-framework-plugin-result-html ; then
+        return 1
+    fi
+    
+    return 0
 }
 
 ########################################################
@@ -122,7 +103,7 @@ install_additional_plugins() {
 ########################################################
 
 setup_avocado() {
-    echo "Creating avocado environment using $PYTHON"
+    echo "Creating avocado environment using python3"
     #Create avocado environment
     if mkdir avocado-virtual-environment && cd avocado-virtual-environment ; then
         if create_venv ; then
@@ -274,8 +255,8 @@ while getopts 'hnd:' flag; do
 done
 
 # check that running this is feasible at all
-if ! python3 --version > /dev/null && ! python --version > /dev/null ; then
-    echo "No valid python install found. Exiting..."
+if ! python3 --version > /dev/null ; then
+    echo "python3 not found. Exiting..."
     exit 1
 fi
 

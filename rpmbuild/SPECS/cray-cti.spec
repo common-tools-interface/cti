@@ -160,7 +160,7 @@ Development files for Cray Common Tools Interface
 Summary:    Cray Common Tools Interface test binariess
 Group:      Development
 Provides:   %{cray_name}%{pkgversion_separator}tests = %{pkgversion}
-Requires:   cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
+Requires:   cray-gcc-8.1.0, %{cray_name} = %{pkgversion}, %{devel_modulefile_name} = %{pkgversion}
 %description -n %{cray_name}%{pkgversion_separator}tests
 Test files for Cray Common Tools Interface
 

@@ -7,7 +7,7 @@
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src tests
+SUBDIRS = src
 
 EXTRA_DIST = pkgconfig \
              release_versioning
