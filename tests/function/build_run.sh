@@ -11,9 +11,6 @@ START_DIR=$PWD
 FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
 EXEC_DIR=$FUNCTION_DIR
 
-#RUNNING AS PART OF NIGHTLY TESTING?
-NIGHTLY_TEST=false
-
 # take an argument as a single test to run
 if [[ $# -eq 1 ]] ; then
     ONE_TEST=":"$1
@@ -158,30 +155,13 @@ run_tests() {
 
         # check if not running on a whitebox and if so load different parameters
         if [ "$ON_WHITEBOX" = true ] ; then
-            if [ "$NIGHTLY_TEST" = true ] ; then
-                echo "Configuring with nightly testing whitebox settings..."
-                export MPICH_SMP_SINGLE_COPY_OFF=0
-                export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
-                export CTI_WLM_IMPL=generic
-            else
-                echo "Configuring with normal whitebox settings..."
-                export MPICH_SMP_SINGLE_COPY_OFF=0
-                # maybe consider checking CTI_INSTALL_DIR both for null and empty with:
-                # : "${CTI_INSTALL_DIR:?Need to set CTI_INSTALL_DIR non-empty}"
-                if [ -z "$CTI_INSTALL_DIR" ] ; then
-                    export CTI_INSTALL_DIR=$PWD/../../install
-                fi
-                if [ ! -d "$CTI_INSTALL_DIR" ]; then
-                    echo "CTI_INSTALL_DIR=$CTI_INSTALL_DIR not found. Cannot execute tests"
-                    return 1
-                fi
-                export LD_LIBRARY_PATH=$CTI_INSTALL_DIR/lib:$LD_LIBRARY_PATH
-                export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
-                export CTI_WLM_IMPL=generic
-            fi
-        else
-            echo "srun exists so configuring non-whitebox launcher settings..."
+            echo "Configuring with whitebox settings..."
+            # export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec; just load the module
+            # module load cray snplauncher
+            export CTI_WLM_IMPL=generic
             export MPICH_SMP_SINGLE_COPY_OFF=0
+        else
+            echo "Configuring non-whitebox launcher settings..."
         fi
         ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py${ONE_TEST} --mux-yaml ./avocado_test_params.yaml
     else
@@ -202,10 +182,10 @@ create_mpi_app() {
         echo "MPI app already compiled..."
     else
         echo "Compiling basic mpi application for use in testing script..."
+        module load modules
         module load cray-snplauncher
-        module load modules/3.2.11.2
         module load PrgEnv-cray
-        module load cray-mpich/7.7.8
+        module load cray-mpich
         if cc -o basic_hello_mpi hello_mpi.c ; then
             echo "Application successfully compiled into 'basic_hello_mpi'"
         else
@@ -219,10 +199,10 @@ create_mpi_wait_app() {
         echo "MPI wait app already compiled..."
     else
         echo "Compiling basic mpi wait application for use in testing script..."
+        module load modules
         module load cray-snplauncher
-        module load modules/3.2.11.2
         module load PrgEnv-cray
-        module load cray-mpich/7.7.8
+        module load cray-mpich
         if cc -o basic_hello_mpi_wait hello_mpi_wait.c ; then
             echo "Application successfully compiled into 'basic_hello_mpi_wait'"
         else
@@ -232,27 +212,9 @@ create_mpi_wait_app() {
     fi
 }
 
-flags(){
-    echo "Available flags:"
-    echo "-h: display this"
-    echo "-n: run nightly test  DEFAULT : $NIGHTLY_TEST"
-    echo "-d: execution dir     DEFAULT : $EXEC_DIR"
-    return 0
-}
-
 ###########################
 #    BEGIN MAIN SCRIPT    #
 ###########################
-
-# check that amount of paramters passed in is valid
-while getopts 'hnd:' flag; do
-    case "${flag}" in
-        h) flags
-           exit 1 ;;
-        n) NIGHTLY_TEST=true ;;
-	d) EXEC_DIR=${OPTARG} ;;
-    esac
-done
 
 # check that running this is feasible at all
 if ! python3 --version > /dev/null ; then
@@ -260,13 +222,14 @@ if ! python3 --version > /dev/null ; then
     exit 1
 fi
 
+# TODO
 # calibrate script based on if running on whitebox
-if srun echo "" &> /dev/null ; then
-    echo "Calibrating script for non-whitebox"
-    ON_WHITEBOX=false
-else
-    echo "due to no srun assuming whitebox environment..."
-fi
+# if srun echo "" &> /dev/null ; then
+#     echo "Calibrating script for non-whitebox"
+#     ON_WHITEBOX=false
+# else
+#     echo "due to no srun assuming whitebox environment..."
+# fi
 
 if ! setup_python ; then
     echo "Failed to setup valid whitebox python environment"
@@ -289,9 +252,7 @@ if ! test -d ./avocado-virtual-environment ; then
     fi
 fi
 if valid_ssh ; then
-    if create_mpi_app && create_mpi_wait_app; then
-         run_tests
-    fi
+    run_tests
 fi
 
 cd $START_DIR

@@ -246,4 +246,17 @@ cti_test_fe(cti_app_id_t appId)
     cti_destroyHostsList(myhostplacement);
     myhostplacement = NULL;
 
+    /*
+        * cti_killApp - Send signal = 0, using the appropriate launcher kill
+        * mechanism to an application launcher.  According to the man page for
+        * kill(2), "If sig is 0, then no signal is sent, but error checking is
+        * still performed; this can be used to check for the existence of a
+        * process ID or process group ID."
+        */
+    j = cti_killApp(appId, 15);
+    if (j) {
+        fprintf(stderr, "Error: cti_killApp failed!\n");
+        fprintf(stderr, "CTI error: %s\n", cti_error_str());
+    }
+    assert(j == 0);
 }

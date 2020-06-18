@@ -14,16 +14,43 @@ from avocado.utils import process
 
 import subprocess
 import os
-from os import path, environ
 import time
+import logging
 
-FUNCTIONAL_TESTS_PATH = path.dirname(path.realpath(__file__))
-EXAMPLES_PATH  = "%s/../examples" % FUNCTIONAL_TESTS_PATH
-SUPPORT_PATH   = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
-CTI_INST_DIR   = os.path.expandvars('$CTI_INSTALL_DIR')
-LIBEXEC_PATH   = "%s/libexec" % CTI_INST_DIR
-DAEMON_VER     = "2.0.9999"
+# these are set in readVariablesFromEnv during test setup
+FUNCTIONAL_TESTS_PATH = ""
+EXAMPLES_PATH         = ""
+SUPPORT_PATH          = ""
+CTI_INST_DIR          = ""
+LIBEXEC_PATH          = ""
+DAEMON_VER            = ""
+LAUNCHER_ARGS         = ""
 
+def readVariablesFromEnv(test):
+    global FUNCTIONAL_TESTS_PATH
+    global EXAMPLES_PATH
+    global SUPPORT_PATH
+    global CTI_INST_DIR
+    global LIBEXEC_PATH
+    global DAEMON_VER
+    global LAUNCHER_ARGS
+
+    FUNCTIONAL_TESTS_PATH = os.path.dirname(os.path.realpath(__file__))
+    EXAMPLES_PATH  = "%s/../examples" % FUNCTIONAL_TESTS_PATH
+    SUPPORT_PATH   = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
+    try:
+        CTI_INST_DIR = os.environ['CTI_INSTALL_DIR']
+    except KeyError as e:
+        test.error("Couldn't read %s from environment. Is the CTI module loaded?" % e)
+    LIBEXEC_PATH   = "%s/libexec" % CTI_INST_DIR
+    try:
+        DAEMON_VER = os.environ['CTI_VERSION']
+    except KeyError as e:
+        test.error("Couldn't read %s from environment. Is the CTI module loaded?" % e)
+
+    # todo: support other wlms than slurm
+    LAUNCHER_ARGS = "-n4 --ntasks-per-node=2"
+    
 #Note: if you want to skip a test but run the suite, add the folloing line at the top of the class definition:
 #       @avocado.skip("<optional comment here>")
 '''
@@ -32,20 +59,26 @@ over `testing.info` from PATH and prints a command to verify its existence on-no
 to automate: launch with custom PATH, extract and run the verification command
 '''
 class CtiTransferTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_transfer" % EXAMPLES_PATH,
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_transfer" % EXAMPLES_PATH, "%s/testing.info" % EXAMPLES_PATH, *LAUNCHER_ARGS.split(),
             "%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
-            env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-        for line in iter(proc.stdout.readline, ''):
+        print("launched")
+        for line in iter(proc.stdout.readline, b''):
             decoded_line = line.decode("utf-8").rstrip()
+            print(decoded_line)
             if decoded_line[:6] == 'Verify':
                 print("Sleeping...")
                 # give tool daemon time to execute
                 time.sleep(5)
-
-                # run remote ls and verify testing.info is present
-                process.run("%s | test -f " % (decoded_line[decoded_line.find('/'):] + "/testing.info"), shell = True)
+            elif decoded_line[:4] == "srun":
+                print("running", decoded_line)
+                # run remote file test and verify testing.info is present
+                # exact command is provided by testing binary since it knows the jobid and file
+                process.run(decoded_line, shell = True)
 
                 # end proc
                 proc.stdin.write(b'\n')
@@ -59,8 +92,11 @@ class CtiTransferTest(Test):
 function_tests runs all of the Googletest-instrumented functional tests
 '''
 class FunctionTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test(self):
-        try :
+        try:
             process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
         except process.CmdError:
             self.fail("Google tests failed. See log for more details")
@@ -72,18 +108,24 @@ the user presses enter.
 to automate: pipe from `yes`
 '''
 class CtiBarrierTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+
     def test(self):
-        process.run("yes | %s/cti_barrier %s/basic_hello_mpi"
-            % (EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
+        process.run("yes | %s/cti_barrier %s %s/basic_hello_mpi"
+            % (EXAMPLES_PATH, LAUNCHER_ARGS, FUNCTIONAL_TESTS_PATH), shell = True)
 
 
 '''
 cti_launch launches a binary and prints out various information about the job.
 '''
 class CtiLaunchTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test(self):
-        process.run("%s/cti_launch %s/basic_hello_mpi"
-            % (EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
+        process.run("%s/cti_launch %s %s/basic_hello_mpi"
+            % (EXAMPLES_PATH, LAUNCHER_ARGS, FUNCTIONAL_TESTS_PATH), shell = True)
 
 '''
 cti_callback launches a binary and holds it at startup. meanwhile, it launches
@@ -92,14 +134,20 @@ communicate over a socket.
 to automate: pipe from `yes` and launch with custom PATH
 '''
 class CtiCallbackTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test(self):
-        process.run("yes | PATH=%s:$PATH %s/cti_callback %s/basic_hello_mpi"
-            % (EXAMPLES_PATH, EXAMPLES_PATH, FUNCTIONAL_TESTS_PATH), shell = True)
+        process.run("yes | PATH=%s:$PATH %s/cti_callback %s %s/basic_hello_mpi"
+            % (EXAMPLES_PATH, EXAMPLES_PATH, LAUNCHER_ARGS, FUNCTIONAL_TESTS_PATH), shell = True)
 
 '''
 cti_link tests that programs can be linked against the FE/BE libraries.
 '''
 class CtiLinkTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test(self):
         if "LD_LIBRARY_PATH" in os.environ:
             print("LD_LIBRARY_PATH from os.environ %s" % os.path.expandvars('$LD_LIBRARY_PATH'))
@@ -113,6 +161,9 @@ class CtiLinkTest(Test):
 cti_wlm fetches the work load manager type about a running job.
 '''
 class CtiWLMTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test(self):
         proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % EXAMPLES_PATH],
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
@@ -137,8 +188,8 @@ class CtiWLMTest(Test):
             print("CtiWLMTest, WLM type is generic")
         else:
             print("CtiWLMTest, WLM type not detected!")
-        self.assertTrue(slurm is not False or generic is not False)
-        self.assertTrue(slurm is not True or generic is not True)
+        self.assertTrue(slurm is not False or generic is not False, "Couldn't detect a WLM")
+        self.assertTrue(slurm is not True or generic is not True, "Detected multiple WLMs")
 
 ''' 
     cti_info fetches information about a running job. There are two versions
@@ -148,6 +199,9 @@ class CtiWLMTest(Test):
     info test kills the mpi call.
 '''
 class CtiInfoTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test(self):
         proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % EXAMPLES_PATH],
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
@@ -186,12 +240,15 @@ class CtiInfoTest(Test):
         print("infoTestSLURM, cti_barrier proc_pid %d" % proc_pid)
         for line in iter(proc.stdout.readline, ''):
             print(line)
-            line = line.rstrip()
+            line = line.decode('utf-8').rstrip()
             if line[:5] == 'jobid':
                 jobid = line.split()[-1]
+                print("jobid:", jobid)
             elif line[:6] == 'stepid':
                 stepid = line.split()[-1]
+                print("stepid:", stepid)
             if jobid is not None and stepid is not None:
+                print("running cti_info...")
                 # run cti_info
                 process.run("%s/cti_info --jobid=%s --stepid=%s" %
                 (EXAMPLES_PATH, jobid, stepid), shell = True)
@@ -201,7 +258,8 @@ class CtiInfoTest(Test):
                 proc.stdin.close()
                 proc.wait()
                 break
-        self.assertTrue(jobid is not None and stepid is not None)
+        self.assertTrue(jobid is not None, "Couldn't determine jobid")
+        self.assertTrue(stepid is not None, "Couldn't determine stepid")
 
     def infoTestSSH(self):
         CTI_LNCHR_NAME = None
@@ -220,6 +278,9 @@ class CtiInfoTest(Test):
             process.run("%s/cti_info --pid=%s" % (EXAMPLES_PATH, proc_pid), shell = True)
 
 class CTIEmptyLaunchTests(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_be(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -242,6 +303,9 @@ class CTIEmptyLaunchTests(Test):
             return 0
 
 class CTIBEDaemonAPIDTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -253,6 +317,9 @@ class CTIBEDaemonAPIDTest(Test):
             return 0
 
 class CTIBEDaemonBinaryTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -265,6 +332,9 @@ class CTIBEDaemonBinaryTest(Test):
             return 0
 
 class CTIBEDaemonDirectoryTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -276,6 +346,9 @@ class CTIBEDaemonDirectoryTest(Test):
             return 0
 
 class CTIBEDaemonEnvTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_arg(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -292,6 +365,9 @@ class CTIBEDaemonEnvTest(Test):
                 self.fail("Log file not created as expected")
 
 class CTIBEDaemonHelpTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -303,6 +379,9 @@ class CTIBEDaemonHelpTest(Test):
             return 0
 
 class CTIBEDaemonManifestTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -314,6 +393,9 @@ class CTIBEDaemonManifestTest(Test):
             return 0
 
 class CTIBEDaemonPathTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -325,6 +407,9 @@ class CTIBEDaemonPathTest(Test):
             return 0
 
 class CTIBEDaemonAPATHTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -336,6 +421,9 @@ class CTIBEDaemonAPATHTest(Test):
             return 0
 
 class CTIBEDaemonLDPathTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -348,6 +436,9 @@ class CTIBEDaemonLDPathTest(Test):
             return 0
 
 class CTIBeDaemonWLMTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_WLM_NONE(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -380,6 +471,9 @@ class CTIBeDaemonWLMTest(Test):
             return 0
 
 class CTIBeDaemonInvalidArgTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_null(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -392,6 +486,9 @@ class CTIBeDaemonInvalidArgTest(Test):
             return 0
 
 class CTIBeDaemonNoDirTool(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
     def test_no_dir(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:

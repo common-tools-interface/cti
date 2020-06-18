@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <libgen.h>
 #include <assert.h>
 
 #include "common_tools_fe.h"
@@ -45,7 +46,7 @@
 void
 usage(char *name)
 {
-    fprintf(stdout, "USAGE: %s [LAUNCHER STRING]\n", name);
+    fprintf(stdout, "USAGE: %s <file> [LAUNCHER STRING]\n", name);
     fprintf(stdout, "Launch an application using the common tools interface\n");
     fprintf(stdout, "and transfer a test file to the compute node.\n");
     return;
@@ -61,9 +62,9 @@ main(int argc, char **argv)
     cti_wlm_type_t      mywlm;
     int                 r;
 
-    if (argc < 2) {
+    if (argc < 3) {
         usage(argv[0]);
-        assert(argc > 2);
+        assert(argc >= 3);
         return 1;
     }
 
@@ -73,7 +74,7 @@ main(int argc, char **argv)
      *                        hold the application at its startup barrier for
      *                        MPI/SHMEM/UPC/CAF applications.
      */
-    myapp = cti_launchAppBarrier((const char * const *)&argv[1],-1,-1,NULL,NULL,NULL);
+    myapp = cti_launchAppBarrier((const char * const *)&argv[2],-1,-1,NULL,NULL,NULL);
     if (myapp == 0) {
         fprintf(stderr, "Error: cti_launchAppBarrier failed!\n");
         fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -106,7 +107,7 @@ main(int argc, char **argv)
     assert(cti_manifestIsValid(mymid) != 0);
 
     // Add the file to the manifest
-    r = cti_addManifestFile(mymid, "testing.info");
+    r = cti_addManifestFile(mymid, argv[1]);
     if (r) {
         fprintf(stderr, "Error: cti_addManifestFile failed!\n");
         fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -160,7 +161,7 @@ main(int argc, char **argv)
              }
              else {
                 printf("\nVerify by issuing the following commands in another terminal:\n\n");
-                printf("srun --jobid=%lu --gres=none --mem-per-cpu=0 ls %s\n", (long unsigned int)mysruninfo->jobid, file_loc);
+                printf("srun --jobid=%lu --gres=none --mem-per-cpu=0 test -f %s/%s\n", (long unsigned int)mysruninfo->jobid, file_loc, basename(argv[1]));
              }
              assert(mysruninfo != NULL);
              free(mysruninfo);
