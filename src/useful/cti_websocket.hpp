@@ -229,6 +229,8 @@ static inline std::string httpPostFileReq(std::string const& hostname, std::stri
     }
     req.prepare_payload();
 
+    boost::beast::http::write(stream, req);
+
     auto buffer = boost::beast::flat_buffer{};
     auto resp = boost::beast::http::response<boost::beast::http::string_body>{};
 
