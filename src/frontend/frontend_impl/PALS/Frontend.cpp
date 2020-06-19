@@ -931,49 +931,12 @@ static constexpr auto filesJsonPattern = "{\"name\": \"%s\", \"path\": \"%s\"}";
 void
 PALSApp::shipPackage(std::string const& tarPath, std::string const& remoteName) const
 {
-    auto const hostname = m_palsApiInfo.hostname;
-    auto const endpointBase = "/v1/apps/" + m_apId + "/files";
-    auto const token = m_palsApiInfo.accessToken;
-    auto const endpoint = endpointBase + "?name=" + remoteName;
-
-    writeLog("shipPackage POST: %s %s\n", endpoint.c_str(), tarPath.c_str());
-    auto ioc = boost::asio::io_context{};
-
-    auto resolver = boost::asio::ip::tcp::resolver{ioc};
-    auto stream = boost::beast::tcp_stream{ioc};
-
-    auto const resolver_results = resolver.resolve(hostname, "80");
-
-    stream.connect(resolver_results);
-
-    auto req = boost::beast::http::request<boost::beast::http::file_body>{boost::beast::http::verb::post, endpoint, 11};
-    req.set(boost::beast::http::field::host, hostname);
-    req.set("Authorization", "Bearer " + token);
-    req.set(boost::beast::http::field::user_agent, CTI_RELEASE_VERSION);
-    req.set(boost::beast::http::field::accept, "application/json");
-    req.set(boost::beast::http::field::content_type, "application/octet-stream");
-
-    auto ec = boost::beast::error_code{};
-    req.body().open(tarPath.c_str(), boost::beast::file_mode::read, ec);
-    if (ec) {
-        throw boost::beast::system_error{ec};
-    }
-    req.prepare_payload();
-
-    boost::beast::http::write(stream, req);
-
-    auto buffer = boost::beast::flat_buffer{};
-    auto resp = boost::beast::http::response<boost::beast::http::string_body>{};
-
-    boost::beast::http::read(stream, buffer, resp);
-
-    auto const result = std::string{resp.body().data()};
-
-    stream.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-
-    if (ec && (ec != boost::beast::errc::not_connected)) {
-        throw boost::beast::system_error{ec};
-    }
+    writeLog("shipPackage POST: %s -> %s\n", tarPath.c_str(), remoteName.c_str());
+    auto const result = cti::httpPostFileReq(
+        m_palsApiInfo.hostname,
+        m_palsApiInfo.endpointBase + "v1/apps/" + m_apId + "/files?name=" + remoteName,
+        m_palsApiInfo.accessToken,
+        tarPath);
 
     writeLog("shipPackage result '%s'\n", result.c_str());
 }

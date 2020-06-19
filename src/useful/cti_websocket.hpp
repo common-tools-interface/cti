@@ -36,6 +36,7 @@
 
 #include <thread>
 #include <future>
+#include <type_traits>
 
 // // Boost JSON
 // #include <boost/property_tree/ptree.hpp>
@@ -61,11 +62,12 @@
 namespace cti
 {
 
-static inline std::string httpGetReq(std::string const& hostname, std::string const& endpoint, std::string const& token)
+namespace
 {
-    auto ioc = boost::asio::io_context{};
 
-    auto ssl_ctx = boost::asio::ssl::context{boost::asio::ssl::context::tlsv12_client};
+template <typename SslCtx>
+static inline auto set_ssl_certs(SslCtx&& ssl_ctx)
+{
 #if 0
     ssl_ctx.add_certificate_authority(
         boost::asio::buffer(cert.data(), cert.size()), ec);
@@ -77,19 +79,47 @@ static inline std::string httpGetReq(std::string const& hostname, std::string co
     ssl_ctx.set_verify_mode(boost::asio::ssl::verify_none);
 #endif
 
-    auto resolver = boost::asio::ip::tcp::resolver{ioc};
-    auto stream = boost::beast::ssl_stream<boost::beast::tcp_stream>{ioc, ssl_ctx};
+}
+
+template <typename Ioc, typename SslCtx, typename Stream>
+static inline auto connect_ssl_stream(Ioc&& ioc, SslCtx&& ssl_ctx, Stream&& stream, std::string const& hostname)
+{
+    set_ssl_certs(ssl_ctx);
 
     if(!SSL_set_tlsext_host_name(stream.native_handle(), hostname.c_str())) {
         boost::beast::error_code ec{static_cast<int>(::ERR_get_error()), boost::asio::error::get_ssl_category()};
         throw boost::beast::system_error{ec};
     }
 
+    auto resolver = boost::asio::ip::tcp::resolver{ioc};
     auto const resolver_results = resolver.resolve(hostname, "443");
-
     boost::beast::get_lowest_layer(stream).connect(resolver_results);
 
     stream.handshake(boost::asio::ssl::stream_base::client);
+}
+
+template <typename Stream,
+    class = typename std::enable_if<!std::is_lvalue_reference<Stream>::value>::type>
+static inline auto shutdown_ssl_stream(Stream&& stream)
+{
+    auto ec = boost::beast::error_code{};
+    boost::beast::get_lowest_layer(stream).socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+
+    if (ec && (ec != boost::beast::errc::not_connected)) {
+        throw boost::beast::system_error{ec};
+    }
+}
+
+}
+
+using TcpStream = boost::beast::ssl_stream<boost::beast::tcp_stream>;
+
+static inline std::string httpGetReq(std::string const& hostname, std::string const& endpoint, std::string const& token)
+{
+    auto ioc = boost::asio::io_context{};
+    auto ssl_ctx = boost::asio::ssl::context{boost::asio::ssl::context::tlsv12_client};
+    auto stream = TcpStream{ioc, ssl_ctx};
+    connect_ssl_stream(ioc, ssl_ctx, stream, hostname);
 
     auto req = boost::beast::http::request<boost::beast::http::string_body>{boost::beast::http::verb::get, endpoint, 11};
     req.set(boost::beast::http::field::host, hostname);
@@ -113,12 +143,7 @@ static inline std::string httpGetReq(std::string const& hostname, std::string co
 
     auto const result = std::string{resp.body().data()};
 
-    auto ec = boost::beast::error_code{};
-    boost::beast::get_lowest_layer(stream).socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-
-    if (ec && (ec != boost::beast::errc::not_connected)) {
-        throw boost::beast::system_error{ec};
-    }
+    shutdown_ssl_stream(std::move(stream));
 
     return result;
 }
@@ -126,13 +151,9 @@ static inline std::string httpGetReq(std::string const& hostname, std::string co
 static inline std::string httpDeleteReq(std::string const& hostname, std::string const& endpoint, std::string const& token)
 {
     auto ioc = boost::asio::io_context{};
-
-    auto resolver = boost::asio::ip::tcp::resolver{ioc};
-    auto stream = boost::beast::tcp_stream{ioc};
-
-    auto const resolver_results = resolver.resolve(hostname, "80");
-
-    stream.connect(resolver_results);
+    auto ssl_ctx = boost::asio::ssl::context{boost::asio::ssl::context::tlsv12_client};
+    auto stream = TcpStream{ioc, ssl_ctx};
+    connect_ssl_stream(ioc, ssl_ctx, stream, hostname);
 
     auto req = boost::beast::http::request<boost::beast::http::string_body>{boost::beast::http::verb::delete_, endpoint, 11};
     req.set(boost::beast::http::field::host, hostname);
@@ -151,12 +172,7 @@ static inline std::string httpDeleteReq(std::string const& hostname, std::string
 
     auto const result = std::string{resp.body().data()};
 
-    auto ec = boost::beast::error_code{};
-    stream.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-
-    if (ec && (ec != boost::beast::errc::not_connected)) {
-        throw boost::beast::system_error{ec};
-    }
+    shutdown_ssl_stream(std::move(stream));
 
     return result;
 }
@@ -164,13 +180,9 @@ static inline std::string httpDeleteReq(std::string const& hostname, std::string
 static inline std::string httpPostJsonReq(std::string const& hostname, std::string const& endpoint, std::string const& token, std::string const& body)
 {
     auto ioc = boost::asio::io_context{};
-
-    auto resolver = boost::asio::ip::tcp::resolver{ioc};
-    auto stream = boost::beast::tcp_stream{ioc};
-
-    auto const resolver_results = resolver.resolve(hostname, "80");
-
-    stream.connect(resolver_results);
+    auto ssl_ctx = boost::asio::ssl::context{boost::asio::ssl::context::tlsv12_client};
+    auto stream = TcpStream{ioc, ssl_ctx};
+    connect_ssl_stream(ioc, ssl_ctx, stream, hostname);
 
     auto req = boost::beast::http::request<boost::beast::http::string_body>{boost::beast::http::verb::post, endpoint, 11};
     req.set(boost::beast::http::field::host, hostname);
@@ -191,12 +203,45 @@ static inline std::string httpPostJsonReq(std::string const& hostname, std::stri
 
     auto const result = std::string{resp.body().data()};
 
-    auto ec = boost::beast::error_code{};
-    stream.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    shutdown_ssl_stream(std::move(stream));
 
-    if (ec && (ec != boost::beast::errc::not_connected)) {
+    return result;
+}
+
+static inline std::string httpPostFileReq(std::string const& hostname, std::string const& endpoint, std::string const& token, std::string const& filePath)
+{
+    auto ioc = boost::asio::io_context{};
+    auto ssl_ctx = boost::asio::ssl::context{boost::asio::ssl::context::tlsv12_client};
+    auto stream = TcpStream{ioc, ssl_ctx};
+    connect_ssl_stream(ioc, ssl_ctx, stream, hostname);
+
+    auto req = boost::beast::http::request<boost::beast::http::file_body>{boost::beast::http::verb::post, endpoint, 11};
+    req.set(boost::beast::http::field::host, hostname);
+    req.set("Authorization", "Bearer " + token);
+    req.set(boost::beast::http::field::user_agent, CTI_RELEASE_VERSION);
+    req.set(boost::beast::http::field::accept, "application/json");
+    req.set(boost::beast::http::field::content_type, "application/octet-stream");
+
+    auto ec = boost::beast::error_code{};
+    req.body().open(filePath.c_str(), boost::beast::file_mode::read, ec);
+    if (ec) {
         throw boost::beast::system_error{ec};
     }
+    req.prepare_payload();
+
+    auto buffer = boost::beast::flat_buffer{};
+    auto resp = boost::beast::http::response<boost::beast::http::string_body>{};
+
+    boost::beast::http::read(stream, buffer, resp);
+
+    if (resp.base().result_int() == 301) {
+        auto const location = std::string{resp.base()["Location"]};
+        throw std::runtime_error("301 redirect: " + location);
+    }
+
+    auto const result = std::string{resp.body().data()};
+
+    shutdown_ssl_stream(std::move(stream));
 
     return result;
 }
@@ -208,21 +253,11 @@ static inline auto make_WebSocketStream(Ioc&& ioc, SslCtx&& ssl_ctx,
     std::string const& hostname, std::string const& port,
     std::string const& token)
 {
+    set_ssl_certs(ssl_ctx);
 
-#if 0
-    ssl_ctx.add_certificate_authority(
-        boost::asio::buffer(cert.data(), cert.size()), ec);
-    if (ec) {
-        throw boost::beast::system_error{ec};
-    }
-    ssl_ctx.set_verify_mode(boost::asio::ssl::verify_peer);
-#else
-    ssl_ctx.set_verify_mode(boost::asio::ssl::verify_none);
-#endif
-
-    auto resolver = boost::asio::ip::tcp::resolver{ioc};
     auto result = WebSocketStream{ioc, ssl_ctx};
 
+    auto resolver = boost::asio::ip::tcp::resolver{ioc};
     auto const resolver_results = resolver.resolve(hostname, port);
     boost::asio::connect(boost::beast::get_lowest_layer(result), resolver_results.begin(), resolver_results.end());
 
