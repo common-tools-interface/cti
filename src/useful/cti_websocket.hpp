@@ -48,6 +48,10 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+#include <boost/beast/ssl.hpp>
+#include <boost/asio/ssl/error.hpp>
+#include <boost/asio/ssl/stream.hpp>
+
 #include <boost/beast/http/string_body.hpp>
 
 #include <boost/uuid/uuid.hpp>
@@ -61,12 +65,31 @@ static inline std::string httpGetReq(std::string const& hostname, std::string co
 {
     auto ioc = boost::asio::io_context{};
 
+    auto ssl_ctx = boost::asio::ssl::context{boost::asio::ssl::context::tlsv12_client};
+#if 0
+    ssl_ctx.add_certificate_authority(
+        boost::asio::buffer(cert.data(), cert.size()), ec);
+    if (ec) {
+        throw boost::beast::system_error{ec};
+    }
+    ssl_ctx.set_verify_mode(boost::asio::ssl::verify_peer);
+#else
+    ssl_ctx.set_verify_mode(boost::asio::ssl::verify_none);
+#endif
+
     auto resolver = boost::asio::ip::tcp::resolver{ioc};
-    auto stream = boost::beast::tcp_stream{ioc};
+    auto stream = boost::beast::ssl_stream<boost::beast::tcp_stream>{ioc, ssl_ctx};
 
-    auto const resolver_results = resolver.resolve(hostname, "80");
+    if(!SSL_set_tlsext_host_name(stream.native_handle(), hostname.c_str())) {
+        boost::beast::error_code ec{static_cast<int>(::ERR_get_error()), boost::asio::error::get_ssl_category()};
+        throw boost::beast::system_error{ec};
+    }
 
-    stream.connect(resolver_results);
+    auto const resolver_results = resolver.resolve(hostname, "443");
+
+    boost::beast::get_lowest_layer(stream).connect(resolver_results);
+
+    stream.handshake(boost::asio::ssl::stream_base::client);
 
     auto req = boost::beast::http::request<boost::beast::http::string_body>{boost::beast::http::verb::get, endpoint, 11};
     req.set(boost::beast::http::field::host, hostname);
@@ -83,10 +106,15 @@ static inline std::string httpGetReq(std::string const& hostname, std::string co
 
     boost::beast::http::read(stream, buffer, resp);
 
+    if (resp.base().result_int() == 301) {
+        auto const location = std::string{resp.base()["Location"]};
+        throw std::runtime_error("301 redirect: " + location);
+    }
+
     auto const result = std::string{resp.body().data()};
 
     auto ec = boost::beast::error_code{};
-    stream.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    boost::beast::get_lowest_layer(stream).socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
 
     if (ec && (ec != boost::beast::errc::not_connected)) {
         throw boost::beast::system_error{ec};
@@ -173,18 +201,32 @@ static inline std::string httpPostJsonReq(std::string const& hostname, std::stri
     return result;
 }
 
-using WebSocketStream = boost::beast::websocket::stream<boost::asio::ip::tcp::socket>;
+using WebSocketStream = boost::beast::websocket::stream<boost::beast::ssl_stream<boost::asio::ip::tcp::socket>>;
 
-template <typename Ioc>
-static inline auto make_WebSocketStream(Ioc&& ioc,
+template <typename Ioc, typename SslCtx>
+static inline auto make_WebSocketStream(Ioc&& ioc, SslCtx&& ssl_ctx,
     std::string const& hostname, std::string const& port,
     std::string const& token)
 {
+
+#if 0
+    ssl_ctx.add_certificate_authority(
+        boost::asio::buffer(cert.data(), cert.size()), ec);
+    if (ec) {
+        throw boost::beast::system_error{ec};
+    }
+    ssl_ctx.set_verify_mode(boost::asio::ssl::verify_peer);
+#else
+    ssl_ctx.set_verify_mode(boost::asio::ssl::verify_none);
+#endif
+
     auto resolver = boost::asio::ip::tcp::resolver{ioc};
-    auto result = WebSocketStream{ioc};
+    auto result = WebSocketStream{ioc, ssl_ctx};
 
     auto const resolver_results = resolver.resolve(hostname, port);
-    boost::asio::connect(result.next_layer(), resolver_results.begin(), resolver_results.end());
+    boost::asio::connect(boost::beast::get_lowest_layer(result), resolver_results.begin(), resolver_results.end());
+
+    result.next_layer().handshake(boost::asio::ssl::stream_base::client);
 
     result.set_option(boost::beast::websocket::stream_base::decorator(
         [hostname, token](boost::beast::websocket::request_type& req) {

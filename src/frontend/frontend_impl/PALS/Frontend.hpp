@@ -74,6 +74,7 @@ public: // pals specific types
         std::string hostname;
         std::string username;
         std::string accessToken;
+        std::string endpointBase;
     };
 
     struct PalsLaunchInfo

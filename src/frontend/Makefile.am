@@ -28,7 +28,7 @@ libcommontools_fe_la_LIBADD		= $(SRC)/useful/libuseful.la \
 								$(CODE_COVERAGE_LIBS)
 libcommontools_fe_la_LDFLAGS	= -shared -Wl,--no-undefined -Wl,--as-needed \
 								-version-info $(COMMONTOOL_FE_VERSION) \
-								$(CDST_SUP_LIBS) $(AM_LDFLAGS)
+								$(CDST_SUP_LIBS) $(AM_LDFLAGS) -lssl -lcrypto
 noinst_HEADERS					= cti_fe_iface.hpp Frontend.hpp
 
 if CODE_COVERAGE_ENABLED
