@@ -80,6 +80,7 @@ public: // pals specific types
     {
         std::string apId;
         std::vector<CTIHost> hostsPlacement;
+        std::map<std::string, std::vector<int>> binaryRankMap;
         int stdinFd, stdoutFd, stderrFd;
         bool atBarrier;
     };
@@ -122,6 +123,7 @@ private: // variables
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
     size_t m_numPEs;
     std::vector<CTIHost> m_hostsPlacement;
+    std::map<std::string, std::vector<int>> m_binaryRankMap;
     PALSFrontend::PalsApiInfo const m_palsApiInfo;
 
     std::string m_toolPath;    // Backend path where files are unpacked
@@ -153,6 +155,7 @@ public: // app interaction interface
     size_t getNumHosts()     const override { return m_hostsPlacement.size(); }
     std::vector<std::string> getHostnameList()   const override;
     std::vector<CTIHost>     getHostsPlacement() const override { return  m_hostsPlacement; }
+    std::map<std::string, std::vector<int>> getBinaryRankMap() const override;
 
     void releaseBarrier() override;
     void kill(int signal) override;

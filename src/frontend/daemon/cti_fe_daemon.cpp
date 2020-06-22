@@ -565,6 +565,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
         for (auto&& elem : mpirData.proctable) {
             rawWriteLoop(respFd, elem.pid);
             writeLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
+            writeLoop(respFd, elem.executable.c_str(), elem.executable.length() + 1);
         }
 
     } catch (std::exception const& ex) {
@@ -768,7 +769,11 @@ static auto readShimMPIRResult(int const shimOutputFd)
         elem.pid = rawReadLoop<pid_t>(shimOutputFd);
         // read hostname
         if (!std::getline(shimOutputStream, elem.hostname, '\0')) {
-            throw std::runtime_error("failed to read string");
+            throw std::runtime_error("failed to read hostname");
+        }
+        // read executable
+        if (!std::getline(shimOutputStream, elem.executable, '\0')) {
+            throw std::runtime_error("failed to read executable");
         }
         result.proctable.emplace_back(std::move(elem));
     }

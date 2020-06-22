@@ -97,6 +97,7 @@ public: // inherited interface
     MOCK_CONST_METHOD0(getNumHosts, size_t(void));
     MOCK_CONST_METHOD0(getHostnameList,   std::vector<std::string>(void));
     MOCK_CONST_METHOD0(getHostsPlacement, std::vector<CTIHost>(void));
+    MOCK_CONST_METHOD0(getBinaryRankMap,  std::map<std::string, std::vector<int>>(void));
 
     MOCK_METHOD0(releaseBarrier, void(void));
     MOCK_METHOD1(kill, void(int));

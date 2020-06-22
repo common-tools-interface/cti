@@ -113,6 +113,7 @@ public: // type definitions
         DaemonAppId mpir_id;
         pid_t launcher_pid;
         MPIRProctable proctable;
+        BinaryRankMap binaryRankMap;
     };
 
     /* request types */
@@ -243,7 +244,7 @@ public: // type definitions
         pid_t launcher_pid;
         int num_pids;
         // after sending this struct, send `num_pids` elements of:
-        // - pid followed by null-terminated hostname
+        // - pid, null-terminated hostname, null-terminated executable name
     };
 
 private: // Internal data

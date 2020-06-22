@@ -273,6 +273,63 @@ cti_destroyHostsList(cti_hostsList_t *placement_list) {
     free(placement_list);
 }
 
+cti_binaryList_t*
+cti_getAppBinaryList(cti_app_id_t appId) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        auto sp = fe.Iface().getApp(appId);
+        auto const binaryRankMap = sp->getBinaryRankMap();
+        auto const numPEs = sp->getNumPEs();
+
+        // Allocate the result structures
+        cti_binaryList_t *result = (cti_binaryList_t*)malloc(sizeof(cti_binaryList_t));
+        result->binaries = (char**)malloc(sizeof(char*) * (binaryRankMap.size() + 1));
+        result->rankMap  = (int*)malloc(sizeof(int) * (numPEs + 1));
+
+        // Teminate the lists
+        result->binaries[binaryRankMap.size()] = nullptr;
+        result->rankMap[numPEs] = -1;
+
+        { size_t i = 0;
+            for (auto&& [binary, ranks] : binaryRankMap) {
+                // Copy binary path
+                result->binaries[i] = strdup(binary.c_str());
+
+                // Set each result rank in rankIndices to the binary path index
+                for (auto&& rank : ranks) {
+                    result->rankMap[rank] = i;
+                }
+
+                i++;
+            }
+        }
+
+        return result;
+    }, (cti_binaryList_t*)nullptr);
+}
+
+void
+cti_destroyBinaryList(cti_binaryList_t *binary_list) {
+    if (binary_list == nullptr) {
+        return;
+    }
+
+    if (binary_list->binaries) {
+        for (char **binary_ptr = binary_list->binaries; *binary_ptr != nullptr; binary_ptr++) {
+            free(*binary_ptr);
+        }
+        free(binary_list->binaries);
+        binary_list->binaries = nullptr;
+    }
+
+    if (binary_list->rankMap) {
+        free(binary_list->rankMap);
+        binary_list->rankMap = nullptr;
+    }
+
+    free(binary_list);
+}
+
 char*
 cti_getHostname() {
     return FE_iface::runSafely(__func__, [&](){

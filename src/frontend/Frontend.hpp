@@ -43,6 +43,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_set>
+#include <map>
 #include <vector>
 
 #include <pwd.h>
@@ -285,6 +286,9 @@ public: // impl.-specific interface that derived type must implement
 
     // get PE rank/host placement for app
     virtual std::vector<CTIHost> getHostsPlacement() const = 0;
+
+    // get binary / rank map for app
+    virtual std::map<std::string, std::vector<int>> getBinaryRankMap() const = 0;
 
     /* running app interaction interface */
 

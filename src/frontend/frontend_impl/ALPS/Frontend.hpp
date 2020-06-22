@@ -99,9 +99,10 @@ private: // alps specific types
     struct AprunLaunchInfo
     {
         FE_daemon::DaemonAppId     daemonAppId; // used for util registry and MPIR release
-        std::unique_ptr<appInfo_t> alpsAppInfo; // internal libALPS data
+        std::unique_ptr<appInfo_t> alpsAppInfo; // libALPS application data
+        std::vector<cmdDetail_t> alpsCmdDetail; // libALPS command information
+        std::vector<placeNodeList_t> alpsPlaceNodeList; // libALPS placement information
         int pe0Node;
-        std::vector<CTIHost>       hostsPlacement;
         int barrierReleaseFd;
         int barrierReleaseSync;
     };
@@ -147,8 +148,9 @@ private: // variables
 
     FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
     std::unique_ptr<appInfo_t> m_alpsAppInfo;
+    std::vector<cmdDetail_t> m_alpsCmdDetail;
+    std::vector<placeNodeList_t> m_alpsPlaceNodeList;
     int m_pe0Node;
-    std::vector<CTIHost> m_hostsPlacement;
 
     int m_barrierReleaseFd;
     int m_barrierReleaseSync;
@@ -170,7 +172,8 @@ public: // app interaction interface
     size_t getNumPEs()       const override;
     size_t getNumHosts()     const override;
     std::vector<std::string> getHostnameList()   const override;
-    std::vector<CTIHost>     getHostsPlacement() const override { return  m_hostsPlacement; }
+    std::vector<CTIHost>     getHostsPlacement() const override;
+    std::map<std::string, std::vector<int>> getBinaryRankMap() const override;
 
     void releaseBarrier() override;
     void kill(int signal) override;

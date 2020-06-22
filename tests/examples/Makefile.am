@@ -10,7 +10,7 @@ AM_CFLAGS		= -Wall
 AM_LIBTOOLFLAGS	= --quiet
 
 noinst_PROGRAMS	=	cti_barrier cti_launch cti_info cti_link cti_transfer cti_callback \
-					cti_callback_daemon cti_kill cti_wlm
+					cti_callback_daemon cti_kill cti_wlm cti_mpmd
 
 cti_kill_CFLAGS				= -I$(includedir) $(AM_CFLAGS)
 cti_kill_SOURCES			= cti_kill_test.c cti_fe_common.c
@@ -36,6 +36,11 @@ cti_info_SOURCES			= cti_info_test.c cti_fe_common.c
 cti_info_CFLAGS				= -I$(includedir) $(AM_CFLAGS)
 cti_info_LDFLAGS			= -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS)
 cti_info_LDADD				= $(SRC)/frontend/libcommontools_fe.la
+
+cti_mpmd_SOURCES			= cti_mpmd_test.c cti_fe_common.c
+cti_mpmd_CFLAGS				= -I$(includedir) $(AM_CFLAGS)
+cti_mpmd_LDFLAGS			= -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS)
+cti_mpmd_LDADD				= $(SRC)/frontend/libcommontools_fe.la
 
 cti_link_SOURCES			= cti_linking_test.c
 cti_link_CFLAGS				= -I$(includedir) $(AM_CFLAGS)

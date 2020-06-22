@@ -443,6 +443,7 @@ GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpi
     : App(fe)
     , m_daemonAppId { mpirData.mpir_id }
     , m_launcherPid { mpirData.launcher_pid }
+    , m_binaryRankMap { std::move(mpirData.binaryRankMap) }
     , m_stepLayout  { fe.fetchStepLayout(mpirData.proctable) }
     , m_beDaemonSent { false }
     , m_toolPath    { SSH_TOOL_DIR }
@@ -503,6 +504,12 @@ GenericSSHApp::getHostnameList() const
     std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
         [](GenericSSHFrontend::NodeLayout const& node) { return node.hostname; });
     return result;
+}
+
+std::map<std::string, std::vector<int>>
+GenericSSHApp::getBinaryRankMap() const
+{
+    return m_binaryRankMap;
 }
 
 std::vector<CTIHost>

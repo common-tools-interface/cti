@@ -190,19 +190,24 @@ ALPSFrontend::getAprunLaunchInfo(uint64_t aprunId)
     auto result = AprunLaunchInfo
         { .daemonAppId = daemonAppId
         , .alpsAppInfo = std::move(alpsAppInfo)
+        , .alpsCmdDetail = {}
+        , .alpsPlaceNodeList = {}
         , .pe0Node = alpsPlaceNodeList.get()[0].nid
-        , .hostsPlacement = {}
         , .barrierReleaseFd = -1
         , .barrierReleaseSync = -1
     };
 
-    result.hostsPlacement.reserve(result.alpsAppInfo->numPlaces);
-    for (int i = 0; i < result.alpsAppInfo->numPlaces; i++) {
-        result.hostsPlacement.emplace_back( CTIHost
-            { cti::cstr::asprintf(ALPS_XT_HOSTNAME_FMT, alpsPlaceNodeList.get()[i].nid)
-            , (size_t)alpsPlaceNodeList.get()[i].numPEs
-        } );
+    // Move C-array cmdDetail into vector
+    for (int i = 0; i < result.alpsAppInfo->numCmds; i++) {
+        result.alpsCmdDetail.emplace_back(std::move(alpsCmdDetail.get()[i]));
     }
+    alpsCmdDetail.reset();
+
+    // Move C-array placeNodeList into vector
+    for (int i = 0; i < result.alpsAppInfo->numPlaces; i++) {
+        result.alpsPlaceNodeList.emplace_back(std::move(alpsPlaceNodeList.get()[i]));
+    }
+    alpsPlaceNodeList.reset();
 
     return result;
 }
@@ -242,14 +247,14 @@ ALPSApp::isRunning() const
 size_t
 ALPSApp::getNumPEs() const
 {
-    return std::accumulate(m_hostsPlacement.begin(), m_hostsPlacement.end(), 0,
-        [](int total, CTIHost const& host) { return total + host.numPEs; });
+    return std::accumulate(m_alpsPlaceNodeList.begin(), m_alpsPlaceNodeList.end(), 0,
+        [](int total, placeNodeList_t const& placeNodeElem) { return total + placeNodeElem.numPEs; });
 }
 
 size_t
 ALPSApp::getNumHosts() const
 {
-    return m_hostsPlacement.size();
+    return m_alpsPlaceNodeList.size();
 }
 
 std::vector<std::string>
@@ -257,8 +262,50 @@ ALPSApp::getHostnameList() const
 {
     auto result = std::vector<std::string>{};
 
-    std::transform(m_hostsPlacement.begin(), m_hostsPlacement.end(), std::back_inserter(result),
-        [](CTIHost const& host) { return host.hostname; });
+    std::transform(m_alpsPlaceNodeList.begin(), m_alpsPlaceNodeList.end(), std::back_inserter(result),
+        [](placeNodeList_t const& placeNodeElem) {
+            return cti::cstr::asprintf(ALPS_XT_HOSTNAME_FMT, placeNodeElem.nid);
+        });
+
+    return result;
+}
+
+std::vector<CTIHost>
+ALPSApp::getHostsPlacement() const
+{
+    auto result = std::vector<CTIHost>{};
+
+    std::transform(m_alpsPlaceNodeList.begin(), m_alpsPlaceNodeList.end(), std::back_inserter(result),
+        [](placeNodeList_t const& placeNodeElem) {
+            return CTIHost
+                { cti::cstr::asprintf(ALPS_XT_HOSTNAME_FMT, placeNodeElem.nid)
+                , (size_t)placeNodeElem.numPEs
+            };
+        });
+
+    return result;
+}
+
+// Build binary to rank map using libALPS cmdDetail structure
+std::map<std::string, std::vector<int>>
+ALPSApp::getBinaryRankMap() const
+{
+    auto result = std::map<std::string, std::vector<int>>{};
+
+    // Get placeList_t to map PEs to cmdDetail index
+    size_t rank = 0;
+    for (auto&& placeNodeElem : m_alpsPlaceNodeList) {
+        auto const cmdDetailIdx = (size_t)placeNodeElem.cmdIx;
+        if (cmdDetailIdx >= m_alpsCmdDetail.size()) {
+            throw std::runtime_error("PE has invalid cmdDetail index " + std::to_string(cmdDetailIdx));
+        }
+
+        // libALPS does not provide full paths to binaries, only the names
+        auto const binaryName = std::string{m_alpsCmdDetail[cmdDetailIdx].cmd};
+        result[binaryName].push_back(rank);
+
+        rank++;
+    }
 
     return result;
 }
@@ -439,8 +486,9 @@ ALPSApp::ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunLaunchInfo&& aprunInfo)
 
     , m_daemonAppId{aprunInfo.daemonAppId}
     , m_alpsAppInfo{std::move(aprunInfo.alpsAppInfo)}
+    , m_alpsCmdDetail{std::move(aprunInfo.alpsCmdDetail)}
+    , m_alpsPlaceNodeList{std::move(aprunInfo.alpsPlaceNodeList)}
     , m_pe0Node{aprunInfo.pe0Node}
-    , m_hostsPlacement{std::move(aprunInfo.hostsPlacement)}
 
     , m_barrierReleaseFd{aprunInfo.barrierReleaseFd}
     , m_barrierReleaseSync{aprunInfo.barrierReleaseSync}

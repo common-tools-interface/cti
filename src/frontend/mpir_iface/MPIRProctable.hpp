@@ -36,10 +36,13 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 struct MPIRProctableElem {
     pid_t pid;
     std::string hostname;
+    std::string executable;
 };
 
 using MPIRProctable = std::vector<MPIRProctableElem>;
+using BinaryRankMap = std::map<std::string, std::vector<int>>;

@@ -137,6 +137,7 @@ private: // variables
     FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     uint32_t m_jobId;
     uint32_t m_stepId;
+    std::map<std::string, std::vector<int>> m_binaryRankMap; // Binary to rank ID map
     SLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
     int      m_queuedOutFd; // Where to redirect stdout after barrier release
     int      m_queuedErrFd; // Where to redirect stderr after barrier release
@@ -163,6 +164,7 @@ public: // app interaction interface
     size_t getNumHosts()     const override { return m_stepLayout.nodes.size(); }
     std::vector<std::string> getHostnameList()   const override;
     std::vector<CTIHost>     getHostsPlacement() const override;
+    std::map<std::string, std::vector<int>> getBinaryRankMap() const override;
 
     void releaseBarrier() override;
     void kill(int signal) override;
