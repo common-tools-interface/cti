@@ -191,8 +191,8 @@ TEST_F(CTIFEFunctionTest, DaemonLibDir) {
     ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
     // run printing daemons
-    testSocketDaemon(sessionId, "../test_support/one_socket", "1");
-    testSocketDaemon(sessionId, "../test_support/two_socket", "2");
+    testSocketDaemon(sessionId, "../../test_support/one_socket", "1");
+    testSocketDaemon(sessionId, "../../test_support/two_socket", "2");
 
     // cleanup
     EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
@@ -233,7 +233,7 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
     port = std::to_string(ntohs(sa.sin_port));
 
     // Get program and library paths
-    auto const testSupportPath = cti::cstr::getcwd() + "/../test_support/";
+    auto const testSupportPath = cti::cstr::getcwd() + "/../../test_support/";
     auto const oneSocketPath = testSupportPath + "one_socket";
     auto const messageTwoPath = testSupportPath + "message_two/libmessage.so";
     auto const ldPreload = "LD_PRELOAD=" + messageTwoPath;
@@ -376,7 +376,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
     char const* argv[] = {"/usr/bin/cat", nullptr};
     auto const  stdoutFd = p.getWriteFd();
     auto const  stderrFd = -1;
-    char const* inputFile = "../test_support/inputFileData.txt";
+    char const* inputFile = "../../test_support/inputFileData.txt";
     char const* chdirPath = nullptr;
     char const* const* envList  = nullptr;
 
@@ -507,7 +507,7 @@ TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
     ASSERT_EQ(cti_sessionIsValid(sessionId), true) << cti_error_str();
 
     // run printing daemons
-    testSocketDaemon(sessionId, "../test_support/one_socket", "1");
+    testSocketDaemon(sessionId, "../../test_support/one_socket", "1");
 
     // cleanup
     EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();

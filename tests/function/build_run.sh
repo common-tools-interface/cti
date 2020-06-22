@@ -170,48 +170,6 @@ run_tests() {
     fi
 }
 
-########################################################
-# This function compiles a basic MPI app that simply   #
-# prints hello world based on how many nodes it runs   #
-# on. Due to its simplicity it is used as a basic test #
-# to run various other functional tests on             #
-########################################################
-
-create_mpi_app() {
-    if test -f ./basic_hello_mpi ; then
-        echo "MPI app already compiled..."
-    else
-        echo "Compiling basic mpi application for use in testing script..."
-        module load modules
-        module load cray-snplauncher
-        module load PrgEnv-cray
-        module load cray-mpich
-        if cc -o basic_hello_mpi hello_mpi.c ; then
-            echo "Application successfully compiled into 'basic_hello_mpi'"
-        else
-            echo "Failed to compile MPI application. Aborting..."
-            return 1
-        fi
-    fi
-}
-create_mpi_wait_app() {
-    if test -f ./basic_hello_mpi_wait ; then
-        echo "MPI wait app already compiled..."
-    else
-        echo "Compiling basic mpi wait application for use in testing script..."
-        module load modules
-        module load cray-snplauncher
-        module load PrgEnv-cray
-        module load cray-mpich
-        if cc -o basic_hello_mpi_wait hello_mpi_wait.c ; then
-            echo "Application successfully compiled into 'basic_hello_mpi_wait'"
-        else
-            echo "Failed to compile MPI wait application. Aborting..."
-            return 1
-        fi
-    fi
-}
-
 ###########################
 #    BEGIN MAIN SCRIPT    #
 ###########################

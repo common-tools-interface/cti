@@ -16,7 +16,7 @@ AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
 # specify test binaries
-TESTS = unit_tests
+TESTS = unit_tests websocket_tests
 check_PROGRAMS = unit_tests websocket_tests
 
 # unit test binary
@@ -27,13 +27,13 @@ unit_tests_CPPFLAGS	=	$(CODE_COVERAGE_CPPFLAGS)
 unit_tests_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) -I$(EXTERNAL) \
 						-I$(GTEST)/include -I$(GTEST) \
 						-I$(GMOCK)/include -I$(GMOCK) \
-						$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CFLAGS) \
+						$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CFLAGS) $(CRAY_CTI_FE_CFLAGS) \
 						-I$(MOCK) \
 						-DINSTALL_PATH=\"$(prefix)\"
-unit_tests_CXXFLAGS	=	$(AM_CXXFLAGS) $(unit_tests_CFLAGS) \
+unit_tests_CXXFLAGS	=	$(AM_CXXFLAGS) $(unit_tests_CFLAGS) $(CRAY_CTI_FE_CFLAGS) \
 						$(CODE_COVERAGE_CXXFLAGS)
-unit_tests_LDADD	=	$(SRC)/frontend/libcommontools_fe.la \
-						$(SRC)/backend/libcommontools_be.la \
+unit_tests_LDADD	=	$(CRAY_CTI_FE_LIBS) \
+						$(CRAY_CTI_BE_LIBS) \
 						$(SUPPORT)/libgtest.la \
 						$(SUPPORT)/libgmock.la \
 						$(MOCK)/libmock.la \

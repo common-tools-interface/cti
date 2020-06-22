@@ -18,8 +18,7 @@ import time
 import logging
 
 # these are set in readVariablesFromEnv during test setup
-FUNCTIONAL_TESTS_PATH = ""
-EXAMPLES_PATH         = ""
+TESTS_PATH            = ""
 SUPPORT_PATH          = ""
 CTI_INST_DIR          = ""
 LIBEXEC_PATH          = ""
@@ -27,17 +26,15 @@ DAEMON_VER            = ""
 LAUNCHER_ARGS         = ""
 
 def readVariablesFromEnv(test):
-    global FUNCTIONAL_TESTS_PATH
-    global EXAMPLES_PATH
+    global TESTS_PATH
     global SUPPORT_PATH
     global CTI_INST_DIR
     global LIBEXEC_PATH
     global DAEMON_VER
     global LAUNCHER_ARGS
 
-    FUNCTIONAL_TESTS_PATH = os.path.dirname(os.path.realpath(__file__))
-    EXAMPLES_PATH  = "%s/../examples" % FUNCTIONAL_TESTS_PATH
-    SUPPORT_PATH   = "%s/../test_support"  % FUNCTIONAL_TESTS_PATH
+    TESTS_PATH  = "%s/tests" % os.path.dirname(os.path.realpath(__file__))
+    SUPPORT_PATH   = "%s/../test_support"  % os.path.dirname(os.path.realpath(__file__))
     try:
         CTI_INST_DIR = os.environ['CTI_INSTALL_DIR']
     except KeyError as e:
@@ -63,8 +60,8 @@ class CtiTransferTest(Test):
         readVariablesFromEnv(self)
     
     def test(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_transfer" % EXAMPLES_PATH, "%s/testing.info" % EXAMPLES_PATH, *LAUNCHER_ARGS.split(),
-            "%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_transfer" % TESTS_PATH, "%s/testing.info" % TESTS_PATH, *LAUNCHER_ARGS.split(),
+            "%s/basic_hello_mpi" % TESTS_PATH],
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
         print("launched")
         for line in iter(proc.stdout.readline, b''):
@@ -91,16 +88,89 @@ class CtiTransferTest(Test):
 '''
 function_tests runs all of the Googletest-instrumented functional tests
 '''
-class FunctionTest(Test):
+class GTestFunctionTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
+        # chdir needed for relative paths in the function test binary to be correct.
+        # avocado runs each test in its own process so we don't need to change back.
+        os.chdir("%s" % TESTS_PATH)
     
-    def test(self):
+    def test_DaemonLibDir(self):
+        testname = "DaemonLibDir"
         try:
-            process.run("%s/function_tests" % FUNCTIONAL_TESTS_PATH)
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
         except process.CmdError:
-            self.fail("Google tests failed. See log for more details")
-
+            self.fail("Google test %s failed." % testname)
+    
+    def test_HaveValidFrontend(self):
+        testname = "HaveValidFrontend"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+    
+    def test_LdPreloadSet(self):
+        testname = "LdPreloadSet"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+    
+    def test_Launch(self):
+        testname = "Launch"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+    
+    def test_DoubleRelease(self):
+        testname = "DoubleRelease"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+    
+    def test_StdoutPipe(self):
+        testname = "StdoutPipe"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+    
+    def test_InputFile(self):
+        testname = "InputFile"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+    
+    def test_EnvVars(self):
+        testname = "EnvVars"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+    
+    def test_CreateSession(self):
+        testname = "CreateSession"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+    
+    def test_CreateManifest(self):
+        testname = "CreateManifest"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+    
+    def test_ExecToolDaemon(self):
+        testname = "ExecToolDaemon"
+        try:
+            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
 
 '''
 cti_barrier launches a binary, holds it at the startup barrier until
@@ -112,8 +182,8 @@ class CtiBarrierTest(Test):
         readVariablesFromEnv(self)
 
     def test(self):
-        process.run("yes | %s/cti_barrier %s %s/basic_hello_mpi"
-            % (EXAMPLES_PATH, LAUNCHER_ARGS, FUNCTIONAL_TESTS_PATH), shell = True)
+        process.run("yes | %s/cti_barrier %s %s/hello_mpi"
+            % (TESTS_PATH, LAUNCHER_ARGS, TESTS_PATH), shell = True)
 
 
 '''
@@ -124,8 +194,19 @@ class CtiLaunchTest(Test):
         readVariablesFromEnv(self)
     
     def test(self):
-        process.run("%s/cti_launch %s %s/basic_hello_mpi"
-            % (EXAMPLES_PATH, LAUNCHER_ARGS, FUNCTIONAL_TESTS_PATH), shell = True)
+        process.run("%s/cti_launch %s %s/hello_mpi"
+            % (TESTS_PATH, LAUNCHER_ARGS, TESTS_PATH), shell = True)
+
+'''
+cti_kill launches a binary and then immediately sends a SIGTERM to it.
+'''
+class CtiKillTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
+    def test(self):
+        process.run("%s/cti_kill %s %s/hello_mpi_wait"
+            % (TESTS_PATH, LAUNCHER_ARGS, TESTS_PATH), shell = True)
 
 '''
 cti_callback launches a binary and holds it at startup. meanwhile, it launches
@@ -138,8 +219,8 @@ class CtiCallbackTest(Test):
         readVariablesFromEnv(self)
     
     def test(self):
-        process.run("yes | PATH=%s:$PATH %s/cti_callback %s %s/basic_hello_mpi"
-            % (EXAMPLES_PATH, EXAMPLES_PATH, LAUNCHER_ARGS, FUNCTIONAL_TESTS_PATH), shell = True)
+        process.run("yes | PATH=%s:$PATH %s/cti_callback %s %s/hello_mpi"
+            % (TESTS_PATH, TESTS_PATH, LAUNCHER_ARGS, TESTS_PATH), shell = True)
 
 '''
 cti_link tests that programs can be linked against the FE/BE libraries.
@@ -154,7 +235,7 @@ class CtiLinkTest(Test):
         else:
             print("LD_LIBRARY_PATH not defined!")
         process.run("%s/cti_link"
-            % (EXAMPLES_PATH), shell = True)
+            % (TESTS_PATH), shell = True)
 
 
 '''
@@ -165,7 +246,7 @@ class CtiWLMTest(Test):
         readVariablesFromEnv(self)
     
     def test(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % EXAMPLES_PATH],
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % TESTS_PATH],
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc.pid
         self.assertTrue(proc_pid is not None)
@@ -203,7 +284,7 @@ class CtiInfoTest(Test):
         readVariablesFromEnv(self)
     
     def test(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % EXAMPLES_PATH],
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % TESTS_PATH],
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc.pid
         generic = False
@@ -229,9 +310,9 @@ class CtiInfoTest(Test):
             self.infoTestSSH()
 
     def infoTestSLURM(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % EXAMPLES_PATH,
-            "%s/basic_hello_mpi" % FUNCTIONAL_TESTS_PATH],
-            # env = dict(environ, PATH='%s:%s' % (EXAMPLES_PATH, environ['PATH'])),
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_PATH,
+            "%s/hello_mpi" % TESTS_PATH],
+            # env = dict(environ, PATH='%s:%s' % (TESTS_PATH, environ['PATH'])),
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc.pid
         self.assertTrue(proc_pid is not None)
@@ -251,7 +332,7 @@ class CtiInfoTest(Test):
                 print("running cti_info...")
                 # run cti_info
                 process.run("%s/cti_info --jobid=%s --stepid=%s" %
-                (EXAMPLES_PATH, jobid, stepid), shell = True)
+                (TESTS_PATH, jobid, stepid), shell = True)
                 # release barrier
                 proc.stdin.write(b'\n')
                 proc.stdin.flush()
@@ -267,7 +348,7 @@ class CtiInfoTest(Test):
             CTI_LNCHR_NAME = os.path.expandvars('$CTI_LAUNCHER_NAME')
         self.assertTrue(CTI_LNCHR_NAME is not None)
         proc = subprocess.Popen(["stdbuf", "-oL", "%s" % CTI_LNCHR_NAME,
-            "%s/basic_hello_mpi_wait" % FUNCTIONAL_TESTS_PATH],
+            "%s/hello_mpi_wait" % TESTS_PATH],
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc.pid
         self.assertTrue(proc_pid is not None)
@@ -275,7 +356,7 @@ class CtiInfoTest(Test):
         if proc_pid is not None:
             print(proc_pid)
             # run cti_info
-            process.run("%s/cti_info --pid=%s" % (EXAMPLES_PATH, proc_pid), shell = True)
+            process.run("%s/cti_info --pid=%s" % (TESTS_PATH, proc_pid), shell = True)
 
 class CTIEmptyLaunchTests(Test):
     def setUp(self):
@@ -340,7 +421,7 @@ class CTIBEDaemonDirectoryTest(Test):
         if rdt == 0:
             self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
         try:
-            process.run("%s/cti_be_daemon%s -d '    %s'" % (LIBEXEC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
+            process.run("%s/cti_be_daemon%s -d '    %s'" % (LIBEXEC_PATH, DAEMON_VER, TESTS_PATH))
             self.fail("Process didn't error as expected")
         except process.CmdError as details:
             return 0
@@ -354,11 +435,11 @@ class CTIBEDaemonEnvTest(Test):
         if rdt == 0:
             self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
         try:
-            process.run("%s/cti_be_daemon%s --debug -e '    CTI_LOG_DIR=%s'" % (LIBEXEC_PATH, DAEMON_VER, FUNCTIONAL_TESTS_PATH))
+            process.run("%s/cti_be_daemon%s --debug -e '    CTI_LOG_DIR=%s'" % (LIBEXEC_PATH, DAEMON_VER, TESTS_PATH))
             self.fail("Process didn't error as expected")
         except process.CmdError as details:
-            result=os.path.isfile("./dbglog_NOAPID.-1.log")
-            os.remove("./dbglog_NOAPID.-1.log")
+            result=os.path.isfile("%s/dbglog_NOAPID.-1.log" % TESTS_PATH)
+            os.remove("%s/dbglog_NOAPID.-1.log" % TESTS_PATH)
             if result:
                 return 0
             else:
