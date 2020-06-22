@@ -1013,7 +1013,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
 
     , m_apinfoPath{"/var/run/palsd/" + m_apId + "/apinfo"}
     , m_toolPath{"/var/run/palsd/" + m_apId + "/files"}
-    , m_attribsPath{"/var/run/palsd/" + m_apId} // Backend looks for <m_attribsPath>/pmi_attribs
+    , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
     , m_extraFiles{}
 
