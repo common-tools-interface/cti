@@ -27,13 +27,13 @@ unit_tests_CPPFLAGS	=	$(CODE_COVERAGE_CPPFLAGS)
 unit_tests_CFLAGS	=	$(AM_CFLAGS) -fPIC -I$(SRC) -I$(EXTERNAL) \
 						-I$(GTEST)/include -I$(GTEST) \
 						-I$(GMOCK)/include -I$(GMOCK) \
-						$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CFLAGS) $(CRAY_CTI_FE_CFLAGS) \
+						$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CFLAGS) \
 						-I$(MOCK) \
 						-DINSTALL_PATH=\"$(prefix)\"
-unit_tests_CXXFLAGS	=	$(AM_CXXFLAGS) $(unit_tests_CFLAGS) $(CRAY_CTI_FE_CFLAGS) \
+unit_tests_CXXFLAGS	=	$(AM_CXXFLAGS) $(unit_tests_CFLAGS) \
 						$(CODE_COVERAGE_CXXFLAGS)
-unit_tests_LDADD	=	$(CRAY_CTI_FE_LIBS) \
-						$(CRAY_CTI_BE_LIBS) \
+unit_tests_LDADD	=	$(SRC)/frontend/libcommontools_fe.la \
+						$(SRC)/backend/libcommontools_be.la \
 						$(SUPPORT)/libgtest.la \
 						$(SUPPORT)/libgmock.la \
 						$(MOCK)/libmock.la \

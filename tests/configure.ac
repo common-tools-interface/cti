@@ -69,8 +69,6 @@ AC_DEFINE_UNQUOTED([CTI_FE_DAEMON_BINARY], ["$COMMONTOOL_FE_DAEMON_BINARY"], [Na
 AC_CONFIG_FILES([
     Makefile
     test_support/Makefile
-    mock/Makefile
-    unit/Makefile
     function/Makefile
     function/tests/Makefile
 ])
