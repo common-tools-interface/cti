@@ -27,6 +27,8 @@ AC_SUBST([COMMONTOOL_DIR], ["$(cd $srcdir/.. && pwd)"])
 dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENABLED, CODE_COVERAGE_CFLAGS, etc.
 AX_CODE_COVERAGE
 
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+
 cray_INIT
 AC_PROG_CC([cc])
 AC_PROG_CXX([CC])
