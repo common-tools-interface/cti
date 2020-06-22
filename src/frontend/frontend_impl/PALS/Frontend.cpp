@@ -89,27 +89,18 @@ static auto readHostnameUsernamePair(std::string const& configFilePath)
     auto hostname = std::string{};
     auto username = std::string{};
 
-    // If PALS debug mode is enabled, use local API server with root user
-    if (::getenv(PALS_DEBUG)) {
-        hostname = "127.0.0.1";
-        username = "root";
+    // Parse the configuration file
+    auto fileStream = std::ifstream{configFilePath};
+    auto line = std::string{};
+    while (std::getline(fileStream, line)) {
 
-    // Otherwise, use configured API gateway and user
-    } else {
+        // Extract hostname
+        if (line.substr(0, 20) == "hostname = \"https://") {
+            hostname = line.substr(20, line.length() - 21);
 
-        // Parse the configuration file
-        auto fileStream = std::ifstream{configFilePath};
-        auto line = std::string{};
-        while (std::getline(fileStream, line)) {
-
-            // Extract hostname
-            if (line.substr(0, 20) == "hostname = \"https://") {
-                hostname = line.substr(20, line.length() - 21) + "/apis/pals";
-
-            // Extract username
-            } else if (line.substr(0, 12) == "username = \"") {
-                username = line.substr(12, line.length() - 13);
-            }
+        // Extract username
+        } else if (line.substr(0, 12) == "username = \"") {
+            username = line.substr(12, line.length() - 13);
         }
     }
 
@@ -347,7 +338,8 @@ namespace pals
         struct StderrData { std::string content; };
         struct ExitData   { int rank; int status; };
         struct Complete   {};
-        using StdioNotification = std::variant<StdoutData, StderrData, ExitData, Complete>;
+        struct AcknowledgementData { std::string id; };
+        using StdioNotification = std::variant<StdoutData, StderrData, ExitData, Complete, AcknowledgementData>;
 
         // Extract relevant data from stdio stream notifications
         static StdioNotification parseStdio(std::string const& stdioJson)
@@ -372,7 +364,19 @@ namespace pals
             // Parse based on method
             auto const method = root.get_optional<std::string>("method");
             if (!method) {
-                throw std::runtime_error("stdio failed: no method found in malformed response");
+                // Check for acknowledgement
+                if (auto const result = root.get_optional<std::string>("result")) {
+                    if (*result != "null") {
+                        throw std::runtime_error("request failed: " + *result);
+                    }
+
+                    return AcknowledgementData
+                        { .id = root.get<std::string>("id")
+                    };
+                }
+
+                // Message was not an acknowledgement
+                throw std::runtime_error("stdio failed: no method found in malformed response '" + stdioJson + "'");
             }
             if (*method == "stdout") {
                 return StdoutData
@@ -406,12 +410,14 @@ namespace pals
 struct PALSFrontend::CtiWSSImpl
 {
     boost::asio::io_context ioc;
+    boost::asio::ssl::context ssl_ctx;
     cti::WebSocketStream websocket;
 
     CtiWSSImpl(std::string const& hostname, std::string const& port, std::string const& accessToken)
         : ioc{}
+        , ssl_ctx{boost::asio::ssl::context::tlsv12_client}
         , websocket{cti::make_WebSocketStream(
-            boost::asio::io_context::strand(ioc),
+            boost::asio::io_context::strand(ioc), ssl_ctx,
             hostname, port, accessToken)}
     {}
 };
@@ -511,7 +517,9 @@ PALSFrontend::PalsLaunchInfo
 PALSFrontend::getPalsLaunchInfo(std::string const& apId)
 {
     // Send HTTP GET request
-    auto const appResult = cti::httpGetReq(getApiInfo().hostname, "/v1/apps" + apId,
+    auto const appResult = cti::httpGetReq(
+        getApiInfo().hostname,
+        getApiInfo().endpointBase + "v1/apps/" + apId,
         getApiInfo().accessToken);
 
     // Extract app information
@@ -525,6 +533,7 @@ PALSFrontend::getPalsLaunchInfo(std::string const& apId)
         , .stdinFd  = ::open("/dev/null", O_RDONLY)
         , .stdoutFd = dup(STDOUT_FILENO)
         , .stderrFd = dup(STDERR_FILENO)
+        , .started = true
         , .atBarrier = false
     };
 }
@@ -711,7 +720,11 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
     writeLog("launch json: '%s'\n", launchJson.c_str());
 
     // Send launch JSON command
-    auto const launchResult = cti::httpPostJsonReq(getApiInfo().hostname, "/v1/apps", getApiInfo().accessToken, launchJson);
+    auto const launchResult = cti::httpPostJsonReq(
+        getApiInfo().hostname,
+        getApiInfo().endpointBase + "/v1/apps",
+        getApiInfo().accessToken,
+        launchJson);
     writeLog("launch result: '%s'\n", launchResult.c_str());
 
     // Extract launch result information
@@ -729,6 +742,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
         , .stdinFd  = ::open(inputFile ? inputFile : "/dev/null", O_RDONLY)
         , .stdoutFd = (stdout_fd < 0) ? dup(STDOUT_FILENO) : stdout_fd
         , .stderrFd = (stderr_fd < 0) ? dup(STDERR_FILENO) : stderr_fd
+        , .started = false
         , .atBarrier = (launchBarrierMode == LaunchBarrierMode::Enabled)
     };
 }
@@ -739,13 +753,28 @@ PALSFrontend::PALSFrontend()
     // Read hostname and username from active Cray CLI configuration
     auto const activeConfig = craycli::readActiveConfig(
         cti::cstr::asprintf(craycli::defaultActiveConfigFilePattern, home_directory()));
-    std::tie(m_palsApiInfo.hostname, m_palsApiInfo.username) = craycli::readHostnameUsernamePair(
-        cti::cstr::asprintf(craycli::defaultConfigFilePattern, home_directory(), activeConfig.c_str()));
 
-    // Read access token from active Cray CLI configuration
-    auto const tokenName = craycli::hostnameToName(getApiInfo().hostname);
-    m_palsApiInfo.accessToken = craycli::readAccessToken(
-        cti::cstr::asprintf(craycli::defaultTokenFilePattern, home_directory(), tokenName.c_str(), getApiInfo().username.c_str()));
+    // If PALS debug mode is enabled, use local API server with root user
+    if (::getenv(PALS_DEBUG)) {
+        m_palsApiInfo.hostname = "127.0.0.1";
+        m_palsApiInfo.username = "root";
+        m_palsApiInfo.endpointBase = "/";
+        m_palsApiInfo.accessToken = "";
+
+    // Otherwise, use configured API gateway and user, Shasta endpoint base
+    } else {
+        std::tie(m_palsApiInfo.hostname, m_palsApiInfo.username) = craycli::readHostnameUsernamePair(
+            cti::cstr::asprintf(craycli::defaultConfigFilePattern, home_directory(), activeConfig.c_str()));
+
+        // Read access token from active Cray CLI configuration
+        auto const tokenName = craycli::hostnameToName(getApiInfo().hostname);
+        m_palsApiInfo.accessToken = craycli::readAccessToken(
+            cti::cstr::asprintf(craycli::defaultTokenFilePattern, home_directory(), tokenName.c_str(), getApiInfo().username.c_str()));
+
+        // Default Shasta endpoint base using gateway server
+        m_palsApiInfo.endpointBase = "/apis/pals/";
+     }
+
 }
 
 /* PALSApp implementation */
@@ -766,7 +795,9 @@ bool
 PALSApp::isRunning() const
 {
     try {
-        return !cti::httpGetReq(m_palsApiInfo.hostname, "/v1/apps/" + m_apId,
+        return !cti::httpGetReq(
+            m_palsApiInfo.hostname,
+            m_palsApiInfo.endpointBase + "v1/apps/" + m_apId,
             m_palsApiInfo.accessToken).empty();
     } catch (...) {
         return false;
@@ -867,6 +898,10 @@ static int stdioOutputTask(cti::WebSocketStream& webSocketStream, int stdoutFd, 
                 return WebsocketComplete;
             }
 
+        , [](pals::response::AcknowledgementData const& /* unused */) {
+                return WebsocketContinue;
+            }
+
         }, stdioNotification);
     };
 
@@ -906,8 +941,11 @@ static constexpr auto signalJsonPattern = "{\"signum\": %d}";
 void
 PALSApp::kill(int signal)
 {
-    cti::httpPostJsonReq(m_palsApiInfo.hostname, "/v1/apps/" + m_apId + "/signal",
-        m_palsApiInfo.accessToken, cti::cstr::asprintf(signalJsonPattern, signal));
+    cti::httpPostJsonReq(
+            m_palsApiInfo.hostname,
+            m_palsApiInfo.endpointBase + "v1/apps/" + m_apId + "/signal",
+            m_palsApiInfo.accessToken,
+            cti::cstr::asprintf(signalJsonPattern, signal));
 }
 
 void
@@ -921,50 +959,12 @@ static constexpr auto filesJsonPattern = "{\"name\": \"%s\", \"path\": \"%s\"}";
 void
 PALSApp::shipPackage(std::string const& tarPath, std::string const& remoteName) const
 {
-    auto const hostname = m_palsApiInfo.hostname;
-    auto const endpointBase = "/v1/apps/" + m_apId + "/files";
-    auto const token = m_palsApiInfo.accessToken;
-    auto const endpoint = endpointBase + "?name=" + remoteName;
-
-
-    writeLog("shipPackage POST: %s %s\n", endpoint.c_str(), tarPath.c_str());
-    auto ioc = boost::asio::io_context{};
-
-    auto resolver = boost::asio::ip::tcp::resolver{ioc};
-    auto stream = boost::beast::tcp_stream{ioc};
-
-    auto const resolver_results = resolver.resolve(hostname, "80");
-
-    stream.connect(resolver_results);
-
-    auto req = boost::beast::http::request<boost::beast::http::file_body>{boost::beast::http::verb::post, endpoint, 11};
-    req.set(boost::beast::http::field::host, hostname);
-    req.set("Authorization", "Bearer " + token);
-    req.set(boost::beast::http::field::user_agent, CTI_RELEASE_VERSION);
-    req.set(boost::beast::http::field::accept, "application/json");
-    req.set(boost::beast::http::field::content_type, "application/octet-stream");
-
-    auto ec = boost::beast::error_code{};
-    req.body().open(tarPath.c_str(), boost::beast::file_mode::read, ec);
-    if (ec) {
-        throw boost::beast::system_error{ec};
-    }
-    req.prepare_payload();
-
-    boost::beast::http::write(stream, req);
-
-    auto buffer = boost::beast::flat_buffer{};
-    auto resp = boost::beast::http::response<boost::beast::http::string_body>{};
-
-    boost::beast::http::read(stream, buffer, resp);
-
-    auto const result = std::string{resp.body().data()};
-
-    stream.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-
-    if (ec && (ec != boost::beast::errc::not_connected)) {
-        throw boost::beast::system_error{ec};
-    }
+    writeLog("shipPackage POST: %s -> %s\n", tarPath.c_str(), remoteName.c_str());
+    auto const result = cti::httpPostFileReq(
+        m_palsApiInfo.hostname,
+        m_palsApiInfo.endpointBase + "v1/apps/" + m_apId + "/files?name=" + remoteName,
+        m_palsApiInfo.accessToken,
+        tarPath);
 
     writeLog("shipPackage result '%s'\n", result.c_str());
 }
@@ -983,7 +983,7 @@ PALSApp::startDaemon(const char* const args[])
         }
 
         // Ship the BE binary to its unique storage name
-        shipPackage(m_frontend.getBEDaemonPath(), remoteBEDaemonPath);
+        shipPackage(m_frontend.getBEDaemonPath(), getBEDaemonName());
 
         // set transfer to true
         m_beDaemonSent = true;
@@ -1017,8 +1017,11 @@ PALSApp::startDaemon(const char* const args[])
     auto const toolLaunchJson = toolLaunchJsonStream.str();
 
     // Make POST request
-    auto const toolInfoJson = cti::httpPostJsonReq(m_palsApiInfo.hostname,
-        "/v1/apps/" + m_apId + "/tools", m_palsApiInfo.accessToken, toolLaunchJson);
+    auto const toolInfoJson = cti::httpPostJsonReq(
+        m_palsApiInfo.hostname,
+        m_palsApiInfo.endpointBase + "v1/apps/" + m_apId + "/tools",
+        m_palsApiInfo.accessToken,
+        toolLaunchJson);
     writeLog("startDaemon result '%s'\n", toolInfoJson.c_str());
 
     // Track tool ID
@@ -1037,13 +1040,14 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_palsApiInfo{fe.getApiInfo()}
 
 
+    , m_apinfoPath{"/var/run/palsd/" + m_apId + "/apinfo"}
     , m_toolPath{"/var/run/palsd/" + m_apId + "/files"}
     , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
     , m_extraFiles{}
 
     , m_stdioStream{std::make_unique<PALSFrontend::CtiWSSImpl>(
-        m_palsApiInfo.hostname, "80", m_palsApiInfo.accessToken)}
+        m_palsApiInfo.hostname, "443", m_palsApiInfo.accessToken)}
     , m_queuedInFd{palsLaunchInfo.stdinFd}
     , m_queuedOutFd{palsLaunchInfo.stdoutFd}
     , m_queuedErrFd{palsLaunchInfo.stderrFd}
@@ -1054,13 +1058,17 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_toolIds{}
 {
     // Initialize websocket stream
-    m_stdioStream->websocket.handshake(m_palsApiInfo.hostname, "/v1/apps/" + m_apId + "/stdio");
+    m_stdioStream->websocket.handshake(
+         m_palsApiInfo.hostname,
+         m_palsApiInfo.endpointBase + "v1/apps/" + m_apId + "/stdio");
 
     // Request application stream mode
     pals::rpc::writeStream(m_stdioStream->websocket, m_apId);
 
-    // Request start application
-    pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
+    // Request start application if not already started
+    if (!palsLaunchInfo.started) {
+        pals::rpc::writeStart(m_stdioStream->websocket, m_apId);
+    }
 
     // Launch stdio output responder thread
     m_stdioOutputFuture = std::async(std::launch::async, stdioOutputTask,
@@ -1075,7 +1083,10 @@ PALSApp::~PALSApp()
 {
     // Delete application from PALS
     try {
-        cti::httpDeleteReq(m_palsApiInfo.hostname, "/v1/apps" + m_apId, m_palsApiInfo.accessToken);
+        cti::httpDeleteReq(
+            m_palsApiInfo.hostname,
+            m_palsApiInfo.endpointBase + "v1/apps" + m_apId,
+            m_palsApiInfo.accessToken);
     } catch (std::exception const& ex) {
         fprintf(stderr, "warning: PALS delete failed: %s\n", ex.what());
     }
