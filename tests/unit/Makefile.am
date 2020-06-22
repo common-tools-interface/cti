@@ -62,7 +62,7 @@ websocket_tests_CXXFLAGS = $(AM_CXXFLAGS) $(unit_tests_CFLAGS) \
 
 websocket_tests_LDADD = $(SUPPORT)/libgtest.la $(SUPPORT)/libgmock.la \
 	$(MOCK)/libmock.la $(ARCHIVE_LIBS) \
-	-ldl -lrt -lstdc++ \
+	-ldl -lrt -lstdc++ -lcrypto -lssl \
         $(CODE_COVERAGE_LIBS)
 
 websocket_tests_LDFLAGS	= -pthread -Wl,-rpath,$(prefix)/lib \
