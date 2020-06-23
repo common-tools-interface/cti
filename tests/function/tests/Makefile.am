@@ -39,9 +39,8 @@ cti_info_CFLAGS				= $(CRAY_CTI_FE_CFLAGS) $(AM_CFLAGS)
 cti_info_LDFLAGS			= -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS) $(CRAY_CTI_FE_LIBS)
 
 cti_mpmd_SOURCES			= cti_mpmd_test.c cti_fe_common.c
-cti_mpmd_CFLAGS				= -I$(includedir) $(AM_CFLAGS)
-cti_mpmd_LDFLAGS			= -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS)
-cti_mpmd_LDADD				= $(SRC)/frontend/libcommontools_fe.la
+cti_mpmd_CFLAGS				= $(CRAY_CTI_FE_CFLAGS) $(AM_CFLAGS)
+cti_mpmd_LDFLAGS			= -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS) $(CRAY_CTI_FE_LIBS)
 
 cti_link_SOURCES			= cti_linking_test.c
 cti_link_CFLAGS				= $(CRAY_CTI_FE_CFLAGS) $(CRAY_CTI_BE_CFLAGS) $(AM_CFLAGS)

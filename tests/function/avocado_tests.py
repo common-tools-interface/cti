@@ -47,7 +47,31 @@ def readVariablesFromEnv(test):
 
     # todo: support other wlms than slurm
     LAUNCHER_ARGS = "-n4 --ntasks-per-node=2"
+
+# depends on readVariablesFromEnv happening first
+def detectWLM(test):
+    test.assertTrue(TESTS_PATH != "", "No TESTS_PATH when detecting WLM. Did you call readVariablesFromEnv?")
+    proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % TESTS_PATH],
+        stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+    proc_pid = proc.pid
+    test.assertTrue(proc_pid is not None)
+
+    wlm = ""
+
+    while (wlm == ""):
+        line = proc.stdout.readline().decode('utf8')
+        if not line:
+            break
+        line = line.rstrip()
+        if line[:5] == 'slurm':
+            wlm = "slurm"
+        elif line[:7] == 'generic':
+            wlm = "generic"
     
+    test.assertTrue(wlm != "", "Didn't dectect a WLM in detectWLM.")
+
+    return wlm
+
 #Note: if you want to skip a test but run the suite, add the folloing line at the top of the class definition:
 #       @avocado.skip("<optional comment here>")
 '''
@@ -83,7 +107,6 @@ class CtiTransferTest(Test):
                 proc.stdin.close()
                 proc.wait()
                 break
-
 
 '''
 function_tests runs all of the Googletest-instrumented functional tests
@@ -284,42 +307,26 @@ class CtiInfoTest(Test):
         readVariablesFromEnv(self)
     
     def test(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_wlm" % TESTS_PATH],
-            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc.pid
-        generic = False
-        slurm = False
-        self.assertTrue(proc_pid is not None)
-        print("this is the CtiInfoTest, cti_wlm proc_pid %d" % proc_pid)
-        while (slurm is not True and generic is not True):
-            line = proc.stdout.readline().decode('utf8')
-            if not line:
-                break
-            line = line.rstrip()
-            if line[:5] == 'slurm':
-                slurm = True
-            elif line[:7] == 'generic':
-                generic = True
-        self.assertTrue(slurm is not False or generic is not False)
-        self.assertTrue(slurm is not True or generic is not True)
-        if slurm:
+        wlm = detectWLM(self)
+        if wlm == "slurm":
             print("CtiInfoTest, detected slurm WLM type, launching infoTestSLURM")
             self.infoTestSLURM()
-        elif generic:
+        elif wlm == "generic":
             print("CtiInfoTest, detected generic WLM type, launching infoTestSSH")
             self.infoTestSSH()
+        else:
+            self.error("Unsupported WLM!")
 
     def infoTestSLURM(self):
         proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_PATH,
             "%s/hello_mpi" % TESTS_PATH],
-            # env = dict(environ, PATH='%s:%s' % (TESTS_PATH, environ['PATH'])),
             stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc.pid
         self.assertTrue(proc_pid is not None)
         jobid = None
         stepid = None
         print("infoTestSLURM, cti_barrier proc_pid %d" % proc_pid)
-        for line in iter(proc.stdout.readline, ''):
+        for line in iter(proc.stdout.readline, b''):
             print(line)
             line = line.decode('utf-8').rstrip()
             if line[:5] == 'jobid':
@@ -357,6 +364,85 @@ class CtiInfoTest(Test):
             print(proc_pid)
             # run cti_info
             process.run("%s/cti_info --pid=%s" % (TESTS_PATH, proc_pid), shell = True)
+
+''' 
+    cti_mpmd is like cti_info, but it calls cti_getBinaryRankList to map binary
+    names to rank IDs.
+'''
+class CtiMPMDTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+    
+    def test(self):
+        wlm = detectWLM(self)
+        if wlm == "slurm":
+            self.MPMDTestSLURM()
+        else:
+            self.error("Unsupported WLM!")
+
+    def MPMDTestSLURM(self):
+        answers = {
+            "rank   0": " /usr/bin/echo",
+            "rank   1": " /usr/bin/echo",
+            "rank   2": " /usr/bin/echo",
+            "rank   3": " /usr/bin/echo",
+            "rank   4": " /usr/bin/echo",
+            "rank   5": " /usr/bin/echo",
+            "rank   6": " /usr/bin/echo",
+            "rank   7": " /usr/bin/sleep"
+        }
+
+        proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_PATH, 
+            "-n8", "-l", "--multi-prog", "./tests/mpmd.conf"],
+            stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.STDOUT)
+        proc_pid = proc_barrier.pid
+        self.assertTrue(proc_pid is not None, "Couldn't start cti_barrier.")
+        jobid = None
+        stepid = None
+        for line in iter(proc_barrier.stdout.readline, b''):
+            line = line.decode('utf-8').rstrip()
+            print(line)
+            if line[:5] == 'jobid':
+                jobid = line.split()[-1]
+                print("jobid:", jobid)
+            elif line[:6] == 'stepid':
+                stepid = line.split()[-1]
+                print("stepid:", stepid)
+            if jobid is not None and stepid is not None:
+                print("running cti_mpmd...")
+
+                # test for exit code
+                process.run("%s/cti_mpmd --jobid=%s --stepid=%s" % (TESTS_PATH, jobid, stepid), shell = True)
+
+                # test for correctness
+                proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_PATH, 
+                    "-j", jobid, "-s", stepid],
+                    stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+                
+                for line_ctimpmd in iter(proc_ctimpmd.stdout.readline, b''):
+                    line_ctimpmd = line_ctimpmd.decode("utf-8").rstrip()
+                    print(line_ctimpmd)
+                    if line_ctimpmd[:4] == "rank":
+                        split = line_ctimpmd.split(":")
+                        lhs = split[0]
+                        rhs = split[1]
+                        print("lhs:", lhs)
+                        print("rhs:", rhs)
+                        if lhs in answers:
+                            self.assertTrue(answers[lhs] == rhs, "Incorrect output: %s, should be %s" % (line_ctimpmd, answers[lhs]))
+                        else:
+                            self.error("Got an unexpected result from cti_mpmd.")
+
+                # release barrier
+                proc_barrier.stdin.write(b'\n')
+                proc_barrier.stdin.flush()
+                proc_barrier.stdin.close()
+                proc_barrier.wait()
+                proc_ctimpmd.wait()
+                break
+        
+        self.assertTrue(jobid is not None, "Couldn't determine jobid")
+        self.assertTrue(stepid is not None, "Couldn't determine stepid")
 
 class CTIEmptyLaunchTests(Test):
     def setUp(self):
