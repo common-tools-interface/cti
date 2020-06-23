@@ -60,6 +60,7 @@
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_split.hpp"
 
 #include "frontend/mpir_iface/MPIRInstance.hpp"
 #include "cti_fe_daemon_iface.hpp"
@@ -669,8 +670,28 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
         , { launchData.stderr_fd, STDERR_FILENO }
     };
 
+    // Restores environment even in exception case
+    struct env_var_restore {
+        std::string var, val;
+        env_var_restore(std::string const& var_, std::string const& val_) : var{var_}, val{val_} {}
+        ~env_var_restore() { ::setenv(var.c_str(), val.c_str(), true); }
+    };
+
+    // Store environment variables that are going to be overwritten
+    auto overwrittenEnv = std::vector<env_var_restore>{};
+    for (auto&& envVarVal : launchData.envList) {
+        // Get variable name and value to set
+        auto const [var, val] = cti::split::string<2>(envVarVal, '=');
+        // If variable is set in current environment, set it to restore on scope exit
+        if (auto const oldVal = ::getenv(var.c_str())) {
+            overwrittenEnv.emplace_back(var, oldVal);
+        }
+        // Set environment variable to inherit in MPIR instance
+        ::setenv(var.c_str(), val.c_str(), true);
+    }
+
     return extractMPIRResult(std::make_unique<MPIRInstance>(
-        launchData.filepath, launchData.argvList, launchData.envList, remapFds
+        launchData.filepath, launchData.argvList, std::vector<std::string>{}, remapFds
     ));
 }
 
