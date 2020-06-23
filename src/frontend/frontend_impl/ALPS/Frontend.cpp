@@ -302,9 +302,15 @@ ALPSApp::getBinaryRankMap() const
 
         // libALPS does not provide full paths to binaries, only the names
         auto const binaryName = std::string{m_alpsCmdDetail[cmdDetailIdx].cmd};
-        result[binaryName].push_back(rank);
 
-        rank++;
+        // Add each PE on this node
+        auto& binaryRanks = result[binaryName];
+        binaryRanks.reserve(binaryRanks.size() + placeNodeElem.numPEs);
+        for (int i = 0; i < placeNodeElem.numPEs; i++) {
+            binaryRanks.push_back(rank + i);
+        }
+
+        rank += placeNodeElem.numPEs;
     }
 
     return result;

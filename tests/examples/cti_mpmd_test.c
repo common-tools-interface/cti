@@ -250,7 +250,7 @@ main(int argc, char **argv)
 
             // parse numeric apid
             errno = 0;
-            uint64_t apid = (uint64_t)strtoull(optarg, &eptr, 10);
+            uint64_t apid = (uint64_t)strtoull(raw_apid, &eptr, 10);
 
             // check for error
             if ((errno == ERANGE && step_id == ULONG_MAX)
