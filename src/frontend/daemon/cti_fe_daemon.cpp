@@ -673,8 +673,18 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
     // Restores environment even in exception case
     struct env_var_restore {
         std::string var, val;
-        env_var_restore(std::string const& var_, std::string const& val_) : var{var_}, val{val_} {}
-        ~env_var_restore() { ::setenv(var.c_str(), val.c_str(), true); }
+        bool clear;
+        env_var_restore(std::string const& var_, std::string const& val_)
+            : var{var_}, val{val_}, clear{false} {}
+        env_var_restore(std::string const& var_)
+            : var{var_}, val{}, clear{true} {}
+        ~env_var_restore() {
+            if (clear) {
+                ::unsetenv(var.c_str());
+            } else {
+                ::setenv(var.c_str(), val.c_str(), true);
+            }
+        }
     };
 
     // Store environment variables that are going to be overwritten
@@ -685,6 +695,9 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
         // If variable is set in current environment, set it to restore on scope exit
         if (auto const oldVal = ::getenv(var.c_str())) {
             overwrittenEnv.emplace_back(var, oldVal);
+        // If not set in environment, clear it on scope exit
+        } else {
+            overwrittenEnv.emplace_back(var);
         }
         // Set environment variable to inherit in MPIR instance
         ::setenv(var.c_str(), val.c_str(), true);
