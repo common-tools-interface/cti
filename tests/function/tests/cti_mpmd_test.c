@@ -77,8 +77,9 @@ main(int argc, char **argv)
     int                 s_arg = 0;
     int                 a_arg = 0;
     int                 p_arg = 0;
-    uint32_t            job_id = 0;
-    uint32_t            step_id = 0;
+    uint64_t            job_id = 0;
+    uint64_t            step_id = 0;
+    uint64_t            apid = 0;
     char *              raw_apid = NULL;
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
@@ -107,7 +108,7 @@ main(int argc, char **argv)
 
                 // This is the job id
                 errno = 0;
-                job_id = (uint32_t)strtol(optarg, &eptr, 10);
+                job_id = (uint64_t)strtol(optarg, &eptr, 10);
 
                 // check for error
                 if ((errno == ERANGE && job_id == ULONG_MAX)
@@ -137,7 +138,7 @@ main(int argc, char **argv)
 
                 // This is the step id
                 errno = 0;
-                step_id = (uint32_t)strtol(optarg, &eptr, 10);
+                step_id = (uint64_t)strtol(optarg, &eptr, 10);
 
                 // check for error
                 if ((errno == ERANGE && step_id == ULONG_MAX)
@@ -166,7 +167,24 @@ main(int argc, char **argv)
                 }
 
                 // This is the apid
+                errno = 0;
                 raw_apid = strdup(optarg);
+                apid = (uint64_t)strtoull(raw_apid, &eptr, 10);
+
+                // check for error
+                if ((errno == ERANGE && apid == ULLONG_MAX)
+                        || (errno != 0 && apid == 0)) {
+                    perror("strtoull");
+                    assert(0);
+                    return 1;
+                }
+
+                // check for invalid input
+                if (eptr == raw_apid || *eptr != '\0') {
+                    fprintf(stderr, "Invalid --apid argument.\n");
+                    assert(0);
+                    return 1;
+                }
 
                 a_arg = 1;
 
@@ -247,25 +265,6 @@ main(int argc, char **argv)
                 fprintf(stderr, "Error: Missing --apid argument. This is required for the ALPS WLM.\n");
             }
             assert(a_arg != 0);
-
-            // parse numeric apid
-            errno = 0;
-            uint64_t apid = (uint64_t)strtoull(raw_apid, &eptr, 10);
-
-            // check for error
-            if ((errno == ERANGE && step_id == ULONG_MAX)
-                    || (errno != 0 && step_id == 0)) {
-                perror("strtol");
-                assert(0);
-                return 1;
-            }
-
-            // check for invalid input
-            if (eptr == optarg || *eptr != '\0') {
-                fprintf(stderr, "Invalid --apid argument.\n");
-                assert(0);
-                return 1;
-            }
 
             cti_alps_ops_t * alps_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&alps_ops);

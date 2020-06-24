@@ -76,6 +76,8 @@ main(int argc, char **argv)
     }
     assert(myapp != 0);
 
+    assert(cti_appIsValid(myapp) == 1);
+
     // call the common FE tests
     cti_test_fe(myapp);
 

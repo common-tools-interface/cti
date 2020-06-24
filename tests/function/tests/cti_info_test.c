@@ -82,8 +82,8 @@ main(int argc, char **argv)
     int                 s_arg = 0;
     int                 a_arg = 0;
     int                 p_arg = 0;
-    uint32_t            job_id = 0;
-    uint32_t            step_id = 0;
+    uint64_t            job_id = 0;
+    uint64_t            step_id = 0;
     uint64_t            apid = 0;
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
@@ -112,7 +112,7 @@ main(int argc, char **argv)
 
                 // This is the job id
                 errno = 0;
-                job_id = (uint32_t)strtol(optarg, &eptr, 10);
+                job_id = (uint64_t)strtol(optarg, &eptr, 10);
 
                 // check for error
                 if ((errno == ERANGE && job_id == ULONG_MAX)
@@ -142,7 +142,7 @@ main(int argc, char **argv)
 
                 // This is the step id
                 errno = 0;
-                step_id = (uint32_t)strtol(optarg, &eptr, 10);
+                step_id = (uint64_t)strtol(optarg, &eptr, 10);
 
                 // check for error
                 if ((errno == ERANGE && step_id == ULONG_MAX)

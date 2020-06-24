@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    sleep(100);
+    sleep(15);
 
     MPI_Finalize();
 

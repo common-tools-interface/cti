@@ -80,6 +80,8 @@ main(int argc, char **argv)
     }
     assert(myapp != 0);
 
+    assert(cti_appIsValid(myapp) == 1);
+
     // call the common FE tests
     cti_test_fe(myapp);
 
@@ -100,6 +102,9 @@ main(int argc, char **argv)
         cti_killApp(myapp, SIGKILL);
     }
     assert(rtn == 0);
+
+    // give program time to run before it gets killed by deregister
+    sleep(5);
 
     /*
      * cti_deregisterApp - Assists in cleaning up internal allocated memory

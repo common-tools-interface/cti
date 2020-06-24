@@ -14,9 +14,9 @@ AM_CFLAGS		= -Wall
 AM_LIBTOOLFLAGS	= --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
-noinst_PROGRAMS	=	cti_barrier cti_launch cti_info cti_link cti_transfer cti_callback \
+noinst_PROGRAMS	=	cti_barrier cti_launch cti_info cti_link cti_callback \
 					cti_callback_daemon cti_kill cti_wlm cti_mpmd function_tests hello_mpi \
-					hello_mpi_wait
+					hello_mpi_wait mpi_wrapper
 
 cti_kill_CFLAGS				= $(CRAY_CTI_FE_CFLAGS) $(AM_CFLAGS)
 cti_kill_SOURCES			= cti_kill_test.c cti_fe_common.c
@@ -46,10 +46,6 @@ cti_link_SOURCES			= cti_linking_test.c
 cti_link_CFLAGS				= $(CRAY_CTI_FE_CFLAGS) $(CRAY_CTI_BE_CFLAGS) $(AM_CFLAGS)
 cti_link_LDFLAGS			= -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS) $(CRAY_CTI_FE_LIBS) $(CRAY_CTI_BE_LIBS)
 
-cti_transfer_SOURCES		= cti_transfer_test.c
-cti_transfer_CFLAGS			= $(CRAY_CTI_FE_CFLAGS) $(AM_CFLAGS)
-cti_transfer_LDFLAGS		= -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS) $(CRAY_CTI_FE_LIBS)
-
 cti_callback_SOURCES		= cti_callback_test.c
 cti_callback_CFLAGS			= $(CRAY_CTI_FE_CFLAGS) $(AM_CFLAGS)
 cti_callback_LDFLAGS		= -Wl,-rpath,$(libdir) -Wl,--as-needed -pthread $(AM_LDFLAGS) $(CRAY_CTI_FE_LIBS)
@@ -73,5 +69,8 @@ hello_mpi_SOURCES			= hello_mpi.c
 
 hello_mpi_wait_CFLAGS		= $(AM_CFLAGS)
 hello_mpi_wait_SOURCES		= hello_mpi_wait.c
+
+mpi_wrapper_CFLAGS			= $(AM_CFLAGS)
+mpi_wrapper_SOURCES			= mpi_wrapper.c
 
 noinst_HEADERS				= cti_callback_test.h cti_fe_common.h cti_fe_function_test.hpp
