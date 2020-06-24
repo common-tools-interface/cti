@@ -679,12 +679,15 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
         env_var_restore(std::string const& var_)
             : var{var_}, val{}, clear{true} {}
         ~env_var_restore() {
-            if (clear) {
-                ::unsetenv(var.c_str());
-            } else {
-                ::setenv(var.c_str(), val.c_str(), true);
+            if (!var.empty()) {
+                if (clear) {
+                    ::unsetenv(var.c_str());
+                } else {
+                    ::setenv(var.c_str(), val.c_str(), true);
+                }
             }
         }
+        env_var_restore(env_var_restore&& moved) = default;
     };
 
     // Store environment variables that are going to be overwritten
