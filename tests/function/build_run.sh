@@ -142,6 +142,13 @@ setup_avocado() {
     return 1
 }
 
+prepare_environment() {
+    # TODO: make this auto-detect things
+    export CTI_TESTS_LAUNCHER_ARGS="-n4 --ntasks-per-node=2 --mpi=cray_shasta"
+
+    return 0
+}
+
 ########################################################
 # This function executes the current set of functional #
 # tests. It configures the environment beforehand      #
@@ -162,6 +169,10 @@ run_tests() {
             export MPICH_SMP_SINGLE_COPY_OFF=0
         else
             echo "Configuring non-whitebox launcher settings..."
+        fi
+        if ! prepare_environment ; then
+            echo "Failed to configure environment variables."
+            return 1
         fi
         ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py${ONE_TEST} --mux-yaml ./avocado_test_params.yaml
     else

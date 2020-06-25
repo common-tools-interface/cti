@@ -9,8 +9,19 @@
  */
 
 #include "cti_fe_function_test.hpp"
+#include <string>
+
+// defined in cti_fe_function_test.cpp
+extern void setSysArguments(std::string argv);
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
+
+    if (argc < 2) {
+        setSysArguments("");
+    } else {
+        setSysArguments(argv[1]);
+    }
+
     return RUN_ALL_TESTS();
 }

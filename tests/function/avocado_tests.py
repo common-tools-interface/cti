@@ -36,24 +36,24 @@ def readVariablesFromEnv(test):
 
     TESTS_PATH  = "%s/tests" % os.path.dirname(os.path.realpath(__file__))
     SUPPORT_PATH   = "%s/../test_support"  % os.path.dirname(os.path.realpath(__file__))
+    
     try:
         CTI_INST_DIR = os.environ['CTI_INSTALL_DIR']
     except KeyError as e:
         test.error("Couldn't read %s from environment. Is the CTI module loaded?" % e)
+    
     LIBEXEC_PATH   = "%s/libexec" % CTI_INST_DIR
+    
     try:
         DAEMON_VER = os.environ['CTI_VERSION']
     except KeyError as e:
         test.error("Couldn't read %s from environment. Is the CTI module loaded?" % e)
 
-    # todo: support other wlms than slurm
-    wlm = detectWLM()
-    if wlm == "slurm":
-        LAUNCHER_ARGS = "-n4 --ntasks-per-node=2"
-    elif wlm == "alps":
-        LAUNCHER_ARGS = "-n4"
-    else:
-        raise "Unsupported WLM!"
+    try:
+        LAUNCHER_ARGS = os.environ["CTI_TESTS_LAUNCHER_ARGS"]
+    except KeyError as e:
+        test.error("Couldn't read %s from environment." % e)
+
 
 # depends on TESTS_PATH being set first first
 def detectWLM(test = None):
@@ -114,84 +114,84 @@ class GTestFunctionTest(Test):
     def test_DaemonLibDir(self):
         testname = "DaemonLibDir"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_HaveValidFrontend(self):
         testname = "HaveValidFrontend"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_LdPreloadSet(self):
         testname = "LdPreloadSet"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_Launch(self):
         testname = "Launch"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_DoubleRelease(self):
         testname = "DoubleRelease"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_StdoutPipe(self):
         testname = "StdoutPipe"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_InputFile(self):
         testname = "InputFile"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_EnvVars(self):
         testname = "EnvVars"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_CreateSession(self):
         testname = "CreateSession"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_CreateManifest(self):
         testname = "CreateManifest"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
     
     def test_ExecToolDaemon(self):
         testname = "ExecToolDaemon"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
 
     def test_Transfer(self):
         testname = "Transfer"
         try:
-            process.run("%s/function_tests --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, testname))
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
 
@@ -217,7 +217,7 @@ class CtiLaunchTest(Test):
         readVariablesFromEnv(self)
     
     def test(self):
-        process.run("%s/cti_launch %s %s/hello_mpi_wait"
+        process.run("%s/cti_launch %s %s/hello_mpi"
             % (TESTS_PATH, LAUNCHER_ARGS, TESTS_PATH), shell = True)
 
 '''

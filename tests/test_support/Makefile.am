@@ -53,7 +53,7 @@ clean-local:
 	rm -f two_socket
 	rm -f remote_filecheck
 
-one_print_DEPENDENCIES = message_one/libmessage.so
+one_print_DEPENDENCIES  = message_one/libmessage.so
 one_print_SOURCES 		= one_print.c
 one_print_LDADD 		= -L./message_one -lmessage
 one_print_LDFLAGS 		= -Wl,-rpath,\$$ORIGIN/message_one

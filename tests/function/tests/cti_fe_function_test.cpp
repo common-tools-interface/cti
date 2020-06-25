@@ -24,8 +24,11 @@
 
 #include <fcntl.h>
 #include <fstream>
+#include <sstream>
+#include <iterator>
 #include <iostream>
 #include <memory>
+#include <cstdlib>
 
 #include "cti_fe_function_test.hpp"
 
@@ -34,7 +37,55 @@
 #include "useful/cti_execvp.hpp"
 #include "useful/cti_wrappers.hpp"
 
+std::string g_systemSpecificArguments = "";
+
 /* cti frontend C interface tests */
+
+// set up g_systemSpecificArguments for further use.
+// this is called from main() with a command line argument
+void setSysArguments(std::string argv) {
+    g_systemSpecificArguments = argv;
+    std::cout << "Set system specific arguments to \"" << g_systemSpecificArguments << "\".\n";
+}
+
+// take a vector of strings and prepend the system specific arguements to it
+std::vector<std::string> createSystemArgv(const std::vector<std::string>& argv) {
+    std::vector<std::string> fullArgv;
+
+    // split system specific args by whitespace and insert into fullArgv
+    std::istringstream iss(g_systemSpecificArguments);
+    for (auto iter = std::istream_iterator<std::string>(iss); 
+        iter != std::istream_iterator<std::string>();
+        ++iter) {
+        
+        fullArgv.push_back(*iter);
+    }
+
+    // append passed in argv
+    std::copy(argv.begin(), argv.end(), std::back_inserter(fullArgv));
+
+    for (const auto &str : fullArgv) {
+        std::cout << str << " ";
+    }
+    std::cout << std::endl;
+
+    return fullArgv;
+}
+
+// take a vector of strings, copy their c_str() pointers to a new vector,
+// and add a nullptr at the end. the return value can then be used in
+// ctiLaunchApp and similar via "return_value.data()""
+std::vector<const char*> cstrVector(const std::vector<std::string> &v) {
+    std::vector<const char*> r;
+
+    for (const auto &str : v) {
+        r.push_back(str.c_str());
+    }
+
+    r.push_back(nullptr);
+
+    return r;
+}
 
 // Find my external IP
 static auto getExternalAddress()
@@ -121,7 +172,7 @@ static auto bindAny(std::string const& address)
 }
 
 static void
-testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector<char const*> extra_argv, std::string const& expecting) {
+testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector<char const*> extra_argv, std::string const& expecting, int times=1) {
     // Wait for any previous cleanups to finish (see PE-26018)
     sleep(5);
 
@@ -161,18 +212,21 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector
     int app_socket;
     struct sockaddr_in wa;
     socklen_t wa_len = sizeof(wa);
-    ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
 
-    // read data returned from app
-    std::cout << "Reading data...\n";
-    char buffer[16] = {0};
-    int length = read(app_socket, buffer, 16);
-    ASSERT_LT(length, 16);
-    buffer[length] = '\0';
+    for (int i = 0; i < times; ++i) {
+        ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
 
-    // check for correctness
-    std::cout << "Checking for correctness...\n";
-    ASSERT_STREQ(buffer, expecting.c_str());
+        // read data returned from app
+        std::cout << "Reading data...\n";
+        char buffer[16] = {0};
+        int length = read(app_socket, buffer, 16);
+        ASSERT_LT(length, 16);
+        buffer[length] = '\0';
+
+        // check for correctness
+        std::cout << "Checking for correctness...\n";
+        ASSERT_STREQ(buffer, expecting.c_str());
+    }
 
     // close socket
     std::cout << "Closing socket...\n";
@@ -185,7 +239,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector
 // This test is at the start to avoid a race condition that causes failure if ran later
 TEST_F(CTIFEFunctionTest, DaemonLibDir) {
     // set up app
-    char const* argv[] = {"./hello_mpi", nullptr};
+    auto const  argv = createSystemArgv({"./hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -193,7 +247,7 @@ TEST_F(CTIFEFunctionTest, DaemonLibDir) {
     char const* const* envList  = nullptr;
 
     // create app
-    auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
     EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
@@ -248,11 +302,19 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
     auto const oneSocketPath = testSupportPath + "one_socket";
     auto const messageTwoPath = testSupportPath + "message_two/libmessage.so";
     auto const ldPreload = "LD_PRELOAD=" + messageTwoPath;
-    auto const ldLibPath = "LD_LIBRARY_PATH=" + testSupportPath + "message_one";
+    auto       ldLibPath = "LD_LIBRARY_PATH=" + testSupportPath + "message_one";
+
+    if (std::getenv("LD_LIBRARY_PATH") != nullptr) {
+        if (std::string(std::getenv("LD_LIBRARY_PATH")) != "") {
+            ldLibPath += ":" + std::string(std::getenv("LD_LIBRARY_PATH"));
+        }
+    }
+
+    std::cout << "Lib path is: " << ldLibPath << std::endl;
 
     { // Launch application without preload, expect response of 1
         // set up app
-        char const* argv[] = {"./mpi_wrapper", oneSocketPath.c_str(), address.c_str(), port.c_str(), nullptr};
+        auto const  argv = createSystemArgv({"./mpi_wrapper", oneSocketPath, address, port});
         auto const  stdoutFd = -1;
         auto const  stderrFd = -1;
         char const* inputFile = nullptr;
@@ -260,31 +322,41 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
         char const* envList[] = {ldLibPath.c_str(), nullptr};
 
         // create app
-        auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+        auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
         ASSERT_GT(appId, 0) << cti_error_str();
         EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
         EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 
+        // count number of sockets launched
+        int num_pes   = cti_getNumAppPEs(appId);
+        EXPECT_NE(num_pes, 0) << cti_error_str();
+        std::cout << num_pes << " sockets launched...\n";
+
         // accept recently launched applications connection
         int app_socket;
         struct sockaddr_in wa;
         socklen_t wa_len = sizeof(wa);
-        ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
 
-        // read data returned from app
-        char buffer[16] = {0};
-        int length = read(app_socket, buffer, 16);
-        ASSERT_LT(length, 16);
-        buffer[length] = '\0';
+        for (int i = 0; i < num_pes; ++i) {
+            ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
 
-        // check for correctness
-        ASSERT_STREQ(buffer, "1");
+            std::cout << "Got something...\n";
+
+            // read data returned from app
+            char buffer[16] = {0};
+            int length = read(app_socket, buffer, 16);
+            ASSERT_LT(length, 16);
+            buffer[length] = '\0';
+
+            // check for correctness
+            ASSERT_STREQ(buffer, "1");
+        }
     }
 
     { // Launch application with preload, expect response of 2
         // set up app
-        char const* argv[] = {"./mpi_wrapper", oneSocketPath.c_str(), address.c_str(), port.c_str(), nullptr};
+        auto const  argv = createSystemArgv({"./mpi_wrapper", oneSocketPath.c_str(), address.c_str(), port.c_str()});
         auto const  stdoutFd = -1;
         auto const  stderrFd = -1;
         char const* inputFile = nullptr;
@@ -292,26 +364,34 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
         char const* const envList[] = {ldLibPath.c_str(), ldPreload.c_str(), nullptr};
 
         // create app
-        auto const appId = replaceApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+        auto const appId = replaceApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
         ASSERT_GT(appId, 0) << cti_error_str();
         EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
         EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 
+        // count number of sockets launched
+        int num_pes   = cti_getNumAppPEs(appId);
+        EXPECT_NE(num_pes, 0) << cti_error_str();
+        std::cout << num_pes << " sockets launched...\n";
+
         // accept recently launched applications connection
         int app_socket;
         struct sockaddr_in wa;
         socklen_t wa_len = sizeof(wa);
-        ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
 
-        // read data returned from app
-        char buffer[16] = {0};
-        int length = read(app_socket, buffer, 16);
-        ASSERT_LT(length, 16);
-        buffer[length] = '\0';
+        for (int i = 0; i < num_pes; ++i) {
+            ASSERT_GE(app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len), 0);
 
-        // check for correctness
-        ASSERT_STREQ(buffer, "2");
+            // read data returned from app
+            char buffer[16] = {0};
+            int length = read(app_socket, buffer, 16);
+            ASSERT_LT(length, 16);
+            buffer[length] = '\0';
+
+            // check for correctness
+            ASSERT_STREQ(buffer, "2");
+        }
     }
 
     // close socket
@@ -320,28 +400,28 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
 
 // Test that an app can launch successfully
 TEST_F(CTIFEFunctionTest, Launch) {
-    char const* argv[] = {"sleep", "10", nullptr};
+    auto const  argv = createSystemArgv({"sleep", "10"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
     char const* chdirPath = nullptr;
     char const* const* envList  = nullptr;
 
-    auto const appId = watchApp(cti_launchApp(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    auto const appId = watchApp(cti_launchApp(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
     EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 }
 
 // Test that an app can't be released twice
 TEST_F(CTIFEFunctionTest, DoubleRelease) {
-    char const* argv[] = {"./hello_mpi", nullptr};
+    auto const  argv = createSystemArgv({"./hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
     char const* chdirPath = nullptr;
     char const* const* envList = nullptr;
 
-    auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
     EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
     EXPECT_EQ(cti_releaseAppBarrier(appId), FAILURE) << cti_error_str();
@@ -360,7 +440,7 @@ TEST_F(CTIFEFunctionTest, StdoutPipe) {
     std::istream pipein{&pipeInBuf};
 
     // set up launch arguments
-    char const* argv[] = {"./mpi_wrapper", "/usr/bin/echo", echoString.c_str(), nullptr};
+    std::vector<std::string> argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/echo", echoString.c_str()});
     auto const  stdoutFd = p.getWriteFd();
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -368,7 +448,7 @@ TEST_F(CTIFEFunctionTest, StdoutPipe) {
     char const* const* envList  = nullptr;
 
     // launch app
-    auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
     EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
@@ -391,7 +471,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
     cti::FdBuf pipeInBuf{p.getReadFd()};
     std::istream pipein{&pipeInBuf};
 
-    char const* argv[] = {"./mpi_wrapper", "/usr/bin/cat", nullptr};
+    auto const  argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/cat"});
     auto const  stdoutFd = p.getWriteFd();
     auto const  stderrFd = -1;
     char const* inputFile = "../../test_support/inputFileData.txt";
@@ -399,7 +479,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
     char const* const* envList  = nullptr;
 
     // launch app
-    auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
     EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
@@ -427,7 +507,7 @@ TEST_F(CTIFEFunctionTest, EnvVars) {
     std::istream pipein{&pipeInBuf};
 
     // set up launch arguments
-    char const* argv[] = {"./mpi_wrapper", "/usr/bin/env", nullptr};
+    auto const  argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/env"});
     auto const  stdoutFd = p.getWriteFd();
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -435,7 +515,7 @@ TEST_F(CTIFEFunctionTest, EnvVars) {
     char const* const envList[] = {envString.c_str(), nullptr};
 
     // launch app
-    auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
     EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
@@ -460,7 +540,7 @@ TEST_F(CTIFEFunctionTest, EnvVars) {
 // Test that an app can create a transfer session
 TEST_F(CTIFEFunctionTest, CreateSession) {
     // set up app
-    char const* argv[] = {"./hello_mpi", nullptr};
+    auto const  argv = createSystemArgv({"./hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -468,7 +548,7 @@ TEST_F(CTIFEFunctionTest, CreateSession) {
     char const* const* envList  = nullptr;
 
     // create app
-    auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
     EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
@@ -484,7 +564,7 @@ TEST_F(CTIFEFunctionTest, CreateSession) {
 // Test that an app can create a transfer manifest
 TEST_F(CTIFEFunctionTest, CreateManifest) {
     // set up app
-    char const* argv[] = {"./hello_mpi", nullptr};
+    auto const  argv = createSystemArgv({"./hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -492,7 +572,7 @@ TEST_F(CTIFEFunctionTest, CreateManifest) {
     char const* const* envList  = nullptr;
 
     // create app
-    auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
     EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
@@ -512,7 +592,7 @@ TEST_F(CTIFEFunctionTest, CreateManifest) {
 // Test that an app can run a tool daemon
 TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
     // set up app
-    char const* argv[] = {"./hello_mpi", nullptr};
+    auto const  argv = createSystemArgv({"./hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -520,7 +600,7 @@ TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
     char const* const* envList  = nullptr;
 
     // create app
-    auto const appId = watchApp(cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList));
+    auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
     EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
@@ -538,7 +618,7 @@ TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
 
 // Test transferring a file in a manifest
 TEST_F(CTIFEFunctionTest, Transfer) {
-    char const* argv[] = {"./hello_mpi", nullptr};
+    auto const  argv = createSystemArgv({"./hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -548,7 +628,7 @@ TEST_F(CTIFEFunctionTest, Transfer) {
     char * file_loc;
     int r;
 
-    auto const myapp = cti_launchAppBarrier(argv, stdoutFd, stderrFd, inputFile, chdirPath, envList);
+    auto const myapp = cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList);
     ASSERT_NE(myapp, 0) << cti_error_str();
 
     // Ensure app is valid

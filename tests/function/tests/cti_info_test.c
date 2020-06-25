@@ -301,24 +301,6 @@ main(int argc, char **argv)
             break;
 
         case CTI_WLM_PALS:
-        {
-            if (a_arg == 0 ) {
-                fprintf(stderr, "Error: Missing --apid argument. This is required for the PALS WLM.\n");
-            }
-            assert(a_arg != 0);
-            cti_pals_ops_t * pals_ops = NULL;
-            cti_wlm_type_t ret = cti_open_ops((void **)&pals_ops);
-            assert(ret == mywlm);
-            assert(pals_ops != NULL);
-            myapp = pals_ops->registerApid(apid);
-            if (myapp == 0) {
-                fprintf(stderr, "Error: PALS registerApid failed!\n");
-                fprintf(stderr, "CTI error: %s\n", cti_error_str());
-            }
-            assert(myapp != 0);
-        }
-            break;
-
         case CTI_WLM_MOCK:
         case CTI_WLM_NONE:
             fprintf(stderr, "Error: Unsupported WLM in use!\n");

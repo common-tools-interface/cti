@@ -81,6 +81,9 @@ main(int argc, char **argv)
     // call the common FE tests
     cti_test_fe(myapp);
 
+    // give the app time to do its thing before it's killed at deregister
+    sleep(5);
+
     /*
      * cti_deregisterApp - Assists in cleaning up internal allocated memory
      *                     associated with a previously registered application.

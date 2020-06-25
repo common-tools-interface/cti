@@ -11,7 +11,7 @@ AC_COPYRIGHT([Copyright 2020 Cray Inc.])
 : ${CXXFLAGS="-g -O0"}
 : ${CFLAGS="-g -O0"}
 
-AC_CONFIG_MACRO_DIRS([../m4])
+AC_CONFIG_MACRO_DIRS([m4])
 
 AC_ARG_ENABLE([CODE_COVERAGE_ENABLED],
 [  --enable-code-coverage    Turn on code coverage],
