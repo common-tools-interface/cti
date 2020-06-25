@@ -217,7 +217,7 @@ class CtiLaunchTest(Test):
         readVariablesFromEnv(self)
     
     def test(self):
-        process.run("%s/cti_launch %s %s/hello_mpi"
+        process.run("%s/cti_launch %s %s/hello_mpi_wait"
             % (TESTS_PATH, LAUNCHER_ARGS, TESTS_PATH), shell = True)
 
 '''
