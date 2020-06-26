@@ -11,14 +11,19 @@
 #include <unistd.h>
 #include <assert.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include "mpi.h"
+
+// need to use environ instead of envp from main since MPI_Init corrupts envp
+// on some systems
+extern char ** environ;
 
 void usage() {
     printf("./mpi_wrapper <program>");
 }
 
-int main(int argc, char *argv[], char *envp[]) {
+int main(int argc, char *argv[]) {
     if (argc < 2) {
         usage();
         assert(0);
@@ -27,12 +32,12 @@ int main(int argc, char *argv[], char *envp[]) {
 
     MPI_Init(&argc,&argv);
 
-    pid_t pid;
-
-    pid = fork();
+    pid_t pid = fork();
 
     if (pid == 0) {
-        execve(argv[1], &argv[1], envp);
+        errno = 0;
+        int e = execve(argv[1], &argv[1], environ);
+        printf("execve failed: %d, %d\n", e, errno);
     } else {
         wait(0);
     }
