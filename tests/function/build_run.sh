@@ -143,8 +143,22 @@ setup_avocado() {
 }
 
 prepare_environment() {
-    # TODO: make this auto-detect things
-    export CTI_TESTS_LAUNCHER_ARGS="-n4 --ntasks-per-node=2 --mpi=cray_shasta"
+    if [[ -z "$CTI_INSTALL_DIR" ]]; then
+        echo "CTI_INSTALL_DIR not found. Trying to load it."
+        if ! module load cray-cti &> /dev/null; then
+            echo "Couldn't load cray-cti module."
+            return 1
+        fi
+        echo "Success."
+    fi
+
+    if [[ -z "$CTI_TESTS_LAUNCHER_ARGS" ]]; then
+        echo "Sourcing system specific setup script..."
+        if ! source ../system_specific_setup.sh; then
+            echo "Failed to get system specific setup."
+            return 1
+        fi
+    fi
 
     return 0
 }
