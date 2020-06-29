@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -33,9 +34,6 @@
 #include "cti_fe_function_test.hpp"
 
 #include "common_tools_fe.h"
-
-#include "useful/cti_execvp.hpp"
-#include "useful/cti_wrappers.hpp"
 
 std::string g_systemSpecificArguments = "";
 
@@ -154,7 +152,7 @@ static auto bindAny(std::string const& address)
     if (auto const rc = getaddrinfo(address.c_str(), "0", &hints, &raw_listener)) {
         throw std::runtime_error(gai_strerror(rc));
     }
-    auto listener = cti::take_pointer_ownership(std::move(raw_listener), freeaddrinfo);
+    auto listener = std::unique_ptr<struct addrinfo, decltype(&freeaddrinfo)>(std::move(raw_listener), freeaddrinfo);
     raw_listener = nullptr;
 
     // Create the socket
@@ -297,8 +295,14 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
     ASSERT_EQ(getsockname(test_socket, (struct sockaddr*) &sa, &sa_len), 0);
     port = std::to_string(ntohs(sa.sin_port));
 
+    // doing the C way to get cwd so we don't have to include internal headers
+    char buf[PATH_MAX + 1];
+    auto const cwd_cstr = getcwd(buf, PATH_MAX);
+    ASSERT_NE(cwd_cstr, nullptr) << "getcwd failed.";
+    std::string cwd = std::string(cwd_cstr);
+    
     // Get program and library paths
-    auto const testSupportPath = cti::cstr::getcwd() + "/../../test_support/";
+    auto const testSupportPath = cwd + "/../../test_support/";
     auto const oneSocketPath = testSupportPath + "one_socket";
     auto const messageTwoPath = testSupportPath + "message_two/libmessage.so";
     auto const ldPreload = "LD_PRELOAD=" + messageTwoPath;
@@ -431,17 +435,19 @@ TEST_F(CTIFEFunctionTest, DoubleRelease) {
 TEST_F(CTIFEFunctionTest, StdoutPipe) {
     // set up string contents
     auto const echoString = std::to_string(getpid());
+    
+    int pipes[2];
+    int r = 0;
+    
+    r = pipe(pipes);
+    ASSERT_EQ(r, 0) << "Failed to create a pipe.";
 
-    // set up stdout fd
-    cti::Pipe p;
-    ASSERT_GE(p.getReadFd(), 0);
-    ASSERT_GE(p.getWriteFd(), 0);
-    cti::FdBuf pipeInBuf{p.getReadFd()};
-    std::istream pipein{&pipeInBuf};
+    FILE *piperead = fdopen(pipes[0], "r");
+    ASSERT_NE(piperead, nullptr) << "Failed to open pipe for reading.";
 
     // set up launch arguments
     std::vector<std::string> argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/echo", echoString.c_str()});
-    auto const  stdoutFd = p.getWriteFd();
+    auto const  stdoutFd = pipes[1];
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
     char const* chdirPath = nullptr;
@@ -450,29 +456,44 @@ TEST_F(CTIFEFunctionTest, StdoutPipe) {
     // launch app
     auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
-    EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
+    ASSERT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
-    EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
+
+    char buf[64];
+    memset(buf, '\0', 64);
+
+    // count number of pes launched
+    int num_pes = cti_getNumAppPEs(appId);
+    ASSERT_GT(num_pes, 0) << cti_error_str();
+    std::cout << num_pes << " pes launched...\n";
 
     // get app output
-    { std::string line;
-        ASSERT_TRUE(std::getline(pipein, line));
-        EXPECT_EQ(line, echoString);
+    for (int i = 0; i < num_pes; ++i) {
+        ASSERT_NE(fgets(buf, 64, piperead), nullptr) << "Failed to read app output from pipe.";
+        std::cout << "Got: " << buf;
+        ASSERT_EQ(std::string(buf), echoString + "\n");
     }
+
+    fclose(piperead);
+    close(pipes[0]);
+    close(pipes[1]);
 }
 
-// Test that an app can read input from a file
+// // Test that an app can read input from a file
 TEST_F(CTIFEFunctionTest, InputFile) {
 
-    // set up stdout fd
-    cti::Pipe p;
-    ASSERT_GE(p.getReadFd(), 0);
-    ASSERT_GE(p.getWriteFd(), 0);
-    cti::FdBuf pipeInBuf{p.getReadFd()};
-    std::istream pipein{&pipeInBuf};
+    int pipes[2];
+    int r = 0;
+
+    r = pipe(pipes);
+    ASSERT_EQ(r, 0) << "Failed to create a pipe.";
+
+    FILE *piperead = fdopen(pipes[0], "r");
+    ASSERT_NE(piperead, nullptr) << "Failed to open pipe for reading.";
 
     auto const  argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/cat"});
-    auto const  stdoutFd = p.getWriteFd();
+    auto const  stdoutFd = pipes[1];
     auto const  stderrFd = -1;
     char const* inputFile = "../../test_support/inputFileData.txt";
     char const* chdirPath = nullptr;
@@ -481,34 +502,42 @@ TEST_F(CTIFEFunctionTest, InputFile) {
     // launch app
     auto const appId = watchApp(cti_launchAppBarrier(cstrVector(argv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     ASSERT_GT(appId, 0) << cti_error_str();
-    EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
+    ASSERT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 
-    EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
+    ASSERT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
+
+    char buf[128];
+    memset(buf, '\0', 128);
 
     // get app output
-    { std::string line;
-        ASSERT_TRUE(std::getline(pipein, line));
-        EXPECT_EQ(line, "see InputFile in cti_fe_function_test.cpp");
-    }
+    ASSERT_NE(fgets(buf, 128, piperead), nullptr) << "Failed to read app output from pipe.";
+    std::cout << "Got: " << buf;
+    ASSERT_EQ(std::string(buf), "see InputFile in cti_fe_function_test.cpp\n");
+
+    fclose(piperead);
+    close(pipes[0]);
+    close(pipes[1]);
 }
 
-// Test that an app can forward environment variables
+// // Test that an app can forward environment variables
 TEST_F(CTIFEFunctionTest, EnvVars) {
     // set up string contents
     auto const envVar = std::string{"CTI_TEST_VAR"};
     auto const envVal = std::to_string(getpid());
     auto const envString = envVar + "=" + envVal;
 
-    // set up stdout fd
-    cti::Pipe p;
-    ASSERT_GE(p.getReadFd(), 0);
-    ASSERT_GE(p.getWriteFd(), 0);
-    cti::FdBuf pipeInBuf{p.getReadFd()};
-    std::istream pipein{&pipeInBuf};
+    int pipes[2];
+    int r = 0;
+    
+    r = pipe(pipes);
+    ASSERT_EQ(r, 0) << "Failed to create a pipe.";
+
+    FILE *piperead = fdopen(pipes[0], "r");
+    ASSERT_NE(piperead, nullptr) << "Failed to open pipe for reading.";
 
     // set up launch arguments
     auto const  argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/env"});
-    auto const  stdoutFd = p.getWriteFd();
+    auto const  stdoutFd = pipes[1];
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
     char const* chdirPath = nullptr;
@@ -521,20 +550,33 @@ TEST_F(CTIFEFunctionTest, EnvVars) {
 
     EXPECT_EQ(cti_releaseAppBarrier(appId), SUCCESS) << cti_error_str();
 
+    char buf[512];
+    memset(buf, '\0', 512);
+
+    // count number of pes launched
+    int num_pes = cti_getNumAppPEs(appId);
+    ASSERT_GT(num_pes, 0) << cti_error_str();
+    std::cout << num_pes << " pes launched...\n";
+
     // get app output
     bool found = false;
-    { std::string line;
-        while (std::getline(pipein, line)) {
+    for (int i = 0; i < num_pes; ++i) {
+        while (fgets(buf, 512, piperead) != nullptr) {
+            std::string line = std::string(buf);
             auto const var = line.substr(0, line.find('='));
             auto const val = line.substr(line.find('=') + 1);
 
-            if (!var.compare(envVar) && !val.compare(envVal)) {
+            if (!var.compare(envVar) && !val.compare(envVal + '\n')) {
                 found = true;
                 break;
             }
         }
+        ASSERT_TRUE(found);
     }
-    EXPECT_TRUE(found);
+
+    fclose(piperead);
+    close(pipes[0]);
+    close(pipes[1]);
 }
 
 // Test that an app can create a transfer session
