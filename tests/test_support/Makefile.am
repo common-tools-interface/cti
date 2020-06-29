@@ -5,7 +5,7 @@
 #
 
 SRC             = @COMMONTOOL_DIR@/src
-SUPPORT         = @COMMONTOOL_DIR@/tests/test_support
+SUPPORT         = @COMMONTOOL_DIR@/@TESTS_DIR_NAME@/test_support
 
 GTEST           = $(SUPPORT)/googletest/googletest
 GMOCK           = $(SUPPORT)/googletest/googlemock

@@ -31,6 +31,7 @@ AC_USE_SYSTEM_EXTENSIONS
 AM_INIT_AUTOMAKE([foreign -Wall])
 
 AC_SUBST([COMMONTOOL_DIR], ["$(cd $srcdir && pwd)"])
+AC_SUBST([TESTS_DIR_NAME], ["tests"])
 
 dnl Pull in Cray specific m4 extensions
 cray_INIT

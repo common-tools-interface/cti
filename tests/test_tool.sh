@@ -48,7 +48,7 @@ pretest_checks() {
         return 1
     fi
 
-    if ! source ./system_specific_setup.sh; then
+    if ! source ./scripts/system_specific_setup.sh; then
         echo "Failed to get system specific setup."
         return 1
     fi

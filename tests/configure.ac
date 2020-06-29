@@ -23,6 +23,7 @@ esac],[debug=false])
 AM_CONDITIONAL([CODE_COVERAGE_ENABLED], [test x$CODE_COVERAGE_ENABLED = xtrue])
 
 AC_SUBST([COMMONTOOL_DIR], ["$(cd $srcdir/.. && pwd)"])
+AC_SUBST([TESTS_DIR_NAME], ["$(cd $srcdir && basename `pwd`)"])
 
 dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENABLED, CODE_COVERAGE_CFLAGS, etc.
 AX_CODE_COVERAGE

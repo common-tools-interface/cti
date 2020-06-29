@@ -154,7 +154,7 @@ prepare_environment() {
 
     if [[ -z "$CTI_TESTS_LAUNCHER_ARGS" ]]; then
         echo "Sourcing system specific setup script..."
-        if ! source ../system_specific_setup.sh; then
+        if ! source ../scripts/system_specific_setup.sh; then
             echo "Failed to get system specific setup."
             return 1
         fi
@@ -176,11 +176,17 @@ run_tests() {
 
         # check if not running on a whitebox and if so load different parameters
         if [ "$ON_WHITEBOX" = true ] ; then
+            echo "! WARNING: Whitebox settings currently untested."
             echo "Configuring with whitebox settings..."
-            # export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec; just load the module
-            # module load cray snplauncher
+
+            if ! module load cray-snplauncher; then
+                echo "Couldn't load cray-snplauncher."
+                return 1
+            fi
+            echo "Successfully loaded cray-snplauncher."
+            
             export CTI_WLM_IMPL=generic
-            export MPICH_SMP_SINGLE_COPY_OFF=0
+            export MPICH_SMP_SINGLE_COPY_OFF=1
         else
             echo "Configuring non-whitebox launcher settings..."
         fi

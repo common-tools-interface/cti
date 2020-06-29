@@ -4,8 +4,7 @@
 # Copyright 2011-2020 Cray Inc. All Rights Reserved.
 #
 
-SRC             = @COMMONTOOL_DIR@/src
-SUPPORT         = @COMMONTOOL_DIR@/tests/test_support
+SUPPORT         = @COMMONTOOL_DIR@/@TESTS_DIR_NAME@/test_support
 EXTERNAL        = @COMMONTOOL_DIR@/include
 
 GTEST           = $(SUPPORT)/googletest/googletest
@@ -55,9 +54,9 @@ cti_callback_daemon_CFLAGS	= $(CRAY_CTI_FE_CFLAGS) $(AM_CFLAGS)
 cti_callback_daemon_LDFLAGS = -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS) $(CRAY_CTI_BE_LIBS)
 
 function_tests_SOURCES		=	function_tests.cpp cti_fe_function_test.cpp
-function_tests_CFLAGS		=	$(AM_CFLAGS) -fPIC -I$(SRC) \
+function_tests_CFLAGS		=	$(AM_CFLAGS) -fPIC $(CRAY_CTI_FE_CFLAGS) \
 								-I$(GTEST)/include -I$(GTEST) -I$(EXTERNAL)
-function_tests_CXXFLAGS		=	$(AM_CXXFLAGS) $(function_tests_CFLAGS) -std=c++17
+function_tests_CXXFLAGS		=	$(AM_CXXFLAGS) $(function_tests_CFLAGS)
 function_tests_LDADD		=	$(CRAY_CTI_FE_LIBS) \
 								$(SUPPORT)/libgtest.la \
 								-ldl -lrt -lstdc++

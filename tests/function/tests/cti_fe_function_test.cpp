@@ -495,7 +495,7 @@ TEST_F(CTIFEFunctionTest, InputFile) {
     auto const  argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/cat"});
     auto const  stdoutFd = pipes[1];
     auto const  stderrFd = -1;
-    char const* inputFile = "../../test_support/inputFileData.txt";
+    char const* inputFile = "./inputFileData.txt";
     char const* chdirPath = nullptr;
     char const* const* envList  = nullptr;
 
