@@ -7,6 +7,7 @@ AC_PREREQ([2.63])
 AC_INIT([cti_tests], [1.0])
 AM_INIT_AUTOMAKE([subdir-objects foreign -Wall])
 AC_COPYRIGHT([Copyright 2020 Cray Inc.])
+AC_CONFIG_MACRO_DIRS([m4])
 
 : ${CXXFLAGS="-g -O0"}
 : ${CFLAGS="-g -O0"}
