@@ -11,22 +11,8 @@ AC_COPYRIGHT([Copyright 2020 Cray Inc.])
 : ${CXXFLAGS="-g -O0"}
 : ${CFLAGS="-g -O0"}
 
-AC_CONFIG_MACRO_DIRS([m4])
-
-AC_ARG_ENABLE([CODE_COVERAGE_ENABLED],
-[  --enable-code-coverage    Turn on code coverage],
-[case "${enableval}" in
-  yes) CODE_COVERAGE_ENABLED=true ;;
-  no)  CODE_COVERAGE_ENABLED=false ;;
-  *) AC_MSG_ERROR([bad value ${enableval} for --enable-code-coverage]) ;;
-esac],[debug=false])
-AM_CONDITIONAL([CODE_COVERAGE_ENABLED], [test x$CODE_COVERAGE_ENABLED = xtrue])
-
 AC_SUBST([COMMONTOOL_DIR], ["$(cd $srcdir/.. && pwd)"])
 AC_SUBST([TESTS_DIR_NAME], ["$(cd $srcdir && basename `pwd`)"])
-
-dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENABLED, CODE_COVERAGE_CFLAGS, etc.
-AX_CODE_COVERAGE
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
@@ -55,18 +41,6 @@ AC_CHECK_LIB(   [archive],
 AC_SUBST([ARCHIVE_LIBS], ["-larchive"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
-
-dnl Define the release version so that the frontend can look in the right directory
-AC_DEFINE_UNQUOTED([CTI_RELEASE_VERSION], ["$COMMONTOOL_RELEASE_VERSION"], [CTI release version string.])
-
-dnl Define the release version so that the frontend can look in the right directory
-AC_DEFINE_UNQUOTED([CTI_RELEASE_VERSION], ["$COMMONTOOL_RELEASE_VERSION"], [CTI release version string.])
-
-dnl Define the dynamic name of the frontend and backend daemon that is version specific
-AC_SUBST([COMMONTOOL_BE_DAEMON_BINARY], ["cti_be_daemon$COMMONTOOL_RELEASE_VERSION"])
-AC_DEFINE_UNQUOTED([CTI_BE_DAEMON_BINARY], ["$COMMONTOOL_BE_DAEMON_BINARY"], [Name of CTI backend daemon binary.])
-AC_SUBST([COMMONTOOL_FE_DAEMON_BINARY], ["cti_fe_daemon$COMMONTOOL_RELEASE_VERSION"])
-AC_DEFINE_UNQUOTED([CTI_FE_DAEMON_BINARY], ["$COMMONTOOL_FE_DAEMON_BINARY"], [Name of CTI frontend daemon binary.])
 
 AC_CONFIG_FILES([
     Makefile
