@@ -238,7 +238,6 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
 %{__cp} -a %{tests_source_dir}/configure.ac       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/configure.ac
 %{__cp} -a %{tests_source_dir}/Makefile.am        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile.am
-%{__cp} -a %{_topdir}/../release_versioning       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/release_versioning
 %{__cp} -a %{tests_source_dir}/test_tool.sh       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool.sh
 %{__cp} -a %{tests_source_dir}/README.md          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
 
@@ -302,9 +301,6 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock
 %{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/src ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
 %{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/include ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
-
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/m4
-%{__cp} -a %{_topdir}/../m4/cray_extensions.m4 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/m4/cray_extensions.m4
 
 # Touch the cray dynamic file list which will be populated/updated post-install
 touch ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
@@ -485,7 +481,6 @@ fi
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/configure.ac
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile.am
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/release_versioning
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool.sh
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
 
@@ -546,6 +541,3 @@ fi
 %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
 %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
 %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
-
-%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/m4
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/m4/cray_extensions.m4

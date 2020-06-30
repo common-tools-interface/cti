@@ -240,8 +240,14 @@ if ! test -d ./avocado-virtual-environment ; then
         exit 1
     fi
 fi
-if valid_ssh ; then
-    run_tests
+
+if [ "$ON_WHITEBOX" = true ]; then
+    if ! valid_ssh ; then
+        echo "Failed to validate ssh."
+        exit 1
+    fi
 fi
+
+run_tests
 
 cd $START_DIR

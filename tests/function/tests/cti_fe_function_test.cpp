@@ -41,23 +41,16 @@ std::string g_systemSpecificArguments = "";
 
 // set up g_systemSpecificArguments for further use.
 // this is called from main() with a command line argument
-void setSysArguments(std::string argv) {
+void setSysArguments(const std::string &argv) {
     g_systemSpecificArguments = argv;
     std::cout << "Set system specific arguments to \"" << g_systemSpecificArguments << "\".\n";
 }
 
 // take a vector of strings and prepend the system specific arguements to it
 std::vector<std::string> createSystemArgv(const std::vector<std::string>& argv) {
-    std::vector<std::string> fullArgv;
-
     // split system specific args by whitespace and insert into fullArgv
     std::istringstream iss(g_systemSpecificArguments);
-    for (auto iter = std::istream_iterator<std::string>(iss); 
-        iter != std::istream_iterator<std::string>();
-        ++iter) {
-        
-        fullArgv.push_back(*iter);
-    }
+    auto fullArgv = std::vector<std::string>{std::istream_iterator<std::string>(iss), std::istream_iterator<std::string>()};
 
     // append passed in argv
     std::copy(argv.begin(), argv.end(), std::back_inserter(fullArgv));
@@ -72,7 +65,7 @@ std::vector<std::string> createSystemArgv(const std::vector<std::string>& argv) 
 
 // take a vector of strings, copy their c_str() pointers to a new vector,
 // and add a nullptr at the end. the return value can then be used in
-// ctiLaunchApp and similar via "return_value.data()""
+// ctiLaunchApp and similar via "return_value.data()"
 std::vector<const char*> cstrVector(const std::vector<std::string> &v) {
     std::vector<const char*> r;
 

@@ -1,16 +1,29 @@
 #!/bin/bash
+# 
+# Copyright 2019-2020 Cray Inc. All Rights Reserved.
+# 
+# Unpublished Proprietary Information.
+# This unpublished work is protected to trade secret, copyright and other laws.
+# Except as permitted by contract or express written permission of Cray Inc.,
+# no part of this work or its content may be used, reproduced or disclosed
+# in any form.
+# 
+# test_tool.sh
+#
+# This script is the "button" in "push button testing".
+# running it with no arguments will build and run all functional tests.
+# see ./test_tool.sh -h for other options.
 
 SCRIPT=$(basename "$0")
 BUILD=true
 TEST_ALL=true
 DIR=$(cd `dirname $0` && pwd)
 
+# this is the default action of the script - perform checks and then build and run all tests
 run_tests() {
-    # default action - run all tests
-
     if [ $BUILD = true ]; then
         if ! prebuild_checks ; then
-            "Failed pre build checks."
+            echo "Failed pre build checks."
             exit 1
         fi
 
@@ -30,12 +43,12 @@ run_tests() {
     cd "$DIR"
 }
 
+# check performed after tests have been built but before they are run
 pretest_checks() {
-    # is the cray-cti module loaded?
+    # does CTI_INSTALL_DIR exist?
     if [[ -z "$CTI_INSTALL_DIR" ]]; then
         echo "CTI_INSTALL_DIR not found. Trying to load cray-cti to fix it."
-        if ! module load cray-cti &> /dev/null; then
-            echo "Couldn't load cray-cti module."
+        if ! require_module "cray-cti"; then
             return 1
         fi
         echo "Success."
@@ -72,58 +85,30 @@ pretest_checks() {
     return 0
 }
 
+# checks performed before building tests
 prebuild_checks() {
     if ! pkg-config --version 2>&1 > /dev/null; then
         echo "pkg-config not found."
         return 1
     fi
 
-    if ! pkg-config common_tools_fe; then
-        echo "Didn't find common tools headers, attempting to load cray-cti-devel module..."
-
-        if ! module load cray-cti-devel; then
-            echo "Couldn't load cray-cti-devel."
-            return 1
-        fi
-        echo "Successfully loaded module."
-
-        if ! pkg-config common_tools_fe; then
-            echo "Loaded the cray-cti-devel module, but still couldn't find common tools headers..."
-            return 1
-        fi
+    if ! require_pkg_config "common_tools_fe" "cray-cti-devel"; then
+        echo "Couldn't find required pkg-config files for common_tools_fe."
+        return 1
     fi
 
-    if ! pkg-config common_tools_be; then
-        echo "Didn't find common tools headers, attempting to load cray-cti-devel module..."
-
-        if ! module load cray-cti-devel; then
-            echo "Couldn't load cray-cti-devel."
-            return 1
-        fi
-        echo "Successfully loaded module."
-
-        if ! pkg-config common_tools_be; then
-            echo "Loaded the cray-cti-devel module, but still couldn't find common tools headers..."
-            return 1
-        fi
+    if ! require_pkg_config "common_tools_be" "cray-cti-devel"; then
+        echo "Couldn't find required pkg-config files for common_tools_be."
+        return 1
     fi
 
-    if ! pkg-config cray-cdst-support; then
-        echo "Didn't find cdst support headers, attempting to load cray-cdst-support module..."
-
-        if ! module load cray-cdst-support; then
-            echo "Couldn't load cray-cdst-support."
-            return 1
-        fi
-        echo "Successfully loaded module."
-
-        if ! pkg-config cray-cdst-support; then
-            echo "Loaded the cray-cdst-support module, but still couldn't find cdst support headers..."
-            return 1
-        fi
+    if ! require_pkg_config "cray-cdst-support" "cray-cdst-support"; then
+        echo "Couldn't find required pkg-config files for cray-cdst-support."
+        return 1
     fi
 }
 
+# build tests with autotools
 build() {
     local source_files_glob="$DIR/function/tests/*.c \
                              $DIR/function/tests/*.cpp \
@@ -154,6 +139,8 @@ build() {
     return 0
 }
 
+# copy tests to another directory - useful when cray-cti-tests is installed in a
+# directory only writable by root
 copy_to_usage() { 
     echo "Usage: ./$SCRIPT [-c|--cp] <destination>" 
 }
@@ -181,6 +168,73 @@ copy_to() {
     return 0
 }
 
+# check that a module exists on the system
+check_for_module() {
+    if [ "$#" -lt 1 ]; then
+        echo "Warning: No module passed to check_for_module"
+        return 1
+    fi
+
+    # module show exits with 0 regardless of the result, so we have
+    # to use grep to check for an error message.
+
+    if module show "$1" 2>&1 | grep "ERROR" -q; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+# check that a module exists and load it
+require_module() {
+    if [ "$#" -lt 1 ]; then
+        echo "Warning: No module passed to require_module"
+        return 1
+    fi
+
+    if ! check_for_module "$1"; then
+        echo "Couldn't find $1 module."
+        return 1
+    fi
+
+    if ! module load "$1"; then
+        echo "Couldn't load $1 module."
+        return 1
+    fi
+
+    echo "Successfully loaded $1 module."
+}
+
+# check that pkg-config for a given library exists, and load a module to try to
+# fix it if it doesn't.
+#
+# usage: require_pkg_config <pkg-config name> <module to load>
+require_pkg_config() {
+    if [ "$#" -lt 2 ]; then
+        echo "Warning: Not enough arguments for require_pkg_config."
+        return 1
+    fi
+
+    if ! pkg-config "$1"; then
+        echo "Didn't find pkg-config for $1, attempting to load $2 module..."
+
+        if ! require_module "$2"; then
+            return 1
+        fi
+
+        if ! pkg-config "$1"; then
+            echo "Loaded the $2 module, but still couldn't find pkg-config for $1..."
+            return 1
+        fi
+    fi
+}
+
+# process script arguments
+#
+# -t: run a single test
+# -c: copy tests to another specified directory
+# -s: skip the build step and go straight to testing
+# -h: show help
 process_arguments() {
     if [ "$#" -ne 0 ]; then
         # process arguments

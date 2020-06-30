@@ -19,13 +19,13 @@
 // on some systems
 extern char ** environ;
 
-void usage() {
-    printf("./mpi_wrapper <program>");
+void usage(char* argv[]) {
+    fprintf(stderr, "./%s <program>\n", argv[0]);
 }
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        usage();
+        usage(argv);
         assert(0);
         return 1;
     }
@@ -36,8 +36,8 @@ int main(int argc, char *argv[]) {
 
     if (pid == 0) {
         errno = 0;
-        int e = execve(argv[1], &argv[1], environ);
-        printf("execve failed: %d, %d\n", e, errno);
+        execve(argv[1], &argv[1], environ);
+        perror("execve failed: ");
     } else {
         wait(0);
     }

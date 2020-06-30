@@ -12,7 +12,7 @@
 #include <string>
 
 // defined in cti_fe_function_test.cpp
-extern void setSysArguments(std::string argv);
+extern void setSysArguments(const std::string &argv);
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
