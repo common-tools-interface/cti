@@ -194,9 +194,17 @@ require_module() {
         return 1
     fi
 
-    # no -q for grep here so the error is shown to the user
-    if module load "$1" 2>&1 | grep "ERROR"; then
+    # this never actually fails - leaving exit code check in in case that ever
+    # changes
+    if ! module load "$1" ; then
         echo "Couldn't load $1 module."
+        return 1
+    fi
+
+    # check to make sure we actually loaded the module - module load returns 0
+    # even on failure so we need to read the list ourselves
+    if ! module list &| grep "$1/" ; then
+        echo "Couldn't load $1 module"
         return 1
     fi
 
