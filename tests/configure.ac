@@ -25,23 +25,6 @@ LT_INIT
 PKG_PROG_PKG_CONFIG
 PKG_CHECK_MODULES([CRAY_CTI_FE], 	[common_tools_fe],[],[AC_MSG_ERROR([libcommontools_fe.so not found.])])
 PKG_CHECK_MODULES([CRAY_CTI_BE], 	[common_tools_be],[],[AC_MSG_ERROR([libcommontools_be.so not found.])])
-PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support],[],AC_MSG_ERROR([cray-cdst-support not found.]))
-
-dnl Check for libarchive
-save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $CDST_SUP_LIBS"
-AC_CHECK_LIB(   [archive],
-                [archive_read_new],
-                [AC_DEFINE( [HAVE_ARCHIVE],
-                                [1],
-                                [Define to 1 if you have the archive library (-larchive).]
-                            )
-                ],
-                [AC_MSG_ERROR([libarchive not found.])]
-                )
-AC_SUBST([ARCHIVE_LIBS], ["-larchive"])
-dnl restore flags
-LDFLAGS="$save_LDFLAGS"
 
 AC_CONFIG_FILES([
     Makefile

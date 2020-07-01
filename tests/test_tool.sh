@@ -102,10 +102,7 @@ prebuild_checks() {
         return 1
     fi
 
-    if ! require_pkg_config "cray-cdst-support" "cray-cdst-support"; then
-        echo "Couldn't find required pkg-config files for cray-cdst-support."
-        return 1
-    fi
+    return 0
 }
 
 # build tests with autotools
