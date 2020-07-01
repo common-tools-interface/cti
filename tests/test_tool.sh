@@ -194,7 +194,8 @@ require_module() {
         return 1
     fi
 
-    if ! module load "$1"; then
+    # no -q for grep here so the error is shown to the user
+    if module load "$1" 2>&1 | grep "ERROR"; then
         echo "Couldn't load $1 module."
         return 1
     fi
