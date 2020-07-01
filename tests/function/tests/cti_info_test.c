@@ -1,4 +1,8 @@
 /******************************************************************************\
+ * cti_info_test.c - An example program which takes advantage of the common
+ *          tools interface which will gather information from the WLM about a
+ *          previously launched job.
+ *
  * Copyright 2012-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
@@ -39,7 +43,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
-#include <string.h>
 
 #include "common_tools_fe.h"
 #include "cti_fe_common.h"
@@ -57,6 +60,8 @@ void
 usage(char *name)
 {
     fprintf(stdout, "USAGE: %s [OPTIONS]...\n", name);
+    fprintf(stdout, "Gather information about a previously launched application\n");
+    fprintf(stdout, "using the common tools interface.\n\n");
 
     fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
     fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");
@@ -77,9 +82,9 @@ main(int argc, char **argv)
     int                 s_arg = 0;
     int                 a_arg = 0;
     int                 p_arg = 0;
-    uint32_t            job_id = 0;
-    uint32_t            step_id = 0;
-    char *              raw_apid = NULL;
+    uint64_t            job_id = 0;
+    uint64_t            step_id = 0;
+    uint64_t            apid = 0;
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
     cti_wlm_type_t      mywlm;
@@ -107,7 +112,7 @@ main(int argc, char **argv)
 
                 // This is the job id
                 errno = 0;
-                job_id = (uint32_t)strtol(optarg, &eptr, 10);
+                job_id = (uint64_t)strtol(optarg, &eptr, 10);
 
                 // check for error
                 if ((errno == ERANGE && job_id == ULONG_MAX)
@@ -137,7 +142,7 @@ main(int argc, char **argv)
 
                 // This is the step id
                 errno = 0;
-                step_id = (uint32_t)strtol(optarg, &eptr, 10);
+                step_id = (uint64_t)strtol(optarg, &eptr, 10);
 
                 // check for error
                 if ((errno == ERANGE && step_id == ULONG_MAX)
@@ -166,7 +171,23 @@ main(int argc, char **argv)
                 }
 
                 // This is the apid
-                raw_apid = strdup(optarg);
+                errno = 0;
+                apid = (uint64_t)strtoull(optarg, &eptr, 10);
+
+                // check for error
+                if ((errno == ERANGE && step_id == ULONG_MAX)
+                        || (errno != 0 && step_id == 0)) {
+                    perror("strtol");
+                    assert(0);
+                    return 1;
+                }
+
+                // check for invalid input
+                if (eptr == optarg || *eptr != '\0') {
+                    fprintf(stderr, "Invalid --apid argument.\n");
+                    assert(0);
+                    return 1;
+                }
 
                 a_arg = 1;
 
@@ -247,26 +268,6 @@ main(int argc, char **argv)
                 fprintf(stderr, "Error: Missing --apid argument. This is required for the ALPS WLM.\n");
             }
             assert(a_arg != 0);
-
-            // parse numeric apid
-            errno = 0;
-            uint64_t apid = (uint64_t)strtoull(raw_apid, &eptr, 10);
-
-            // check for error
-            if ((errno == ERANGE && step_id == ULONG_MAX)
-                    || (errno != 0 && step_id == 0)) {
-                perror("strtol");
-                assert(0);
-                return 1;
-            }
-
-            // check for invalid input
-            if (eptr == optarg || *eptr != '\0') {
-                fprintf(stderr, "Invalid --apid argument.\n");
-                assert(0);
-                return 1;
-            }
-
             cti_alps_ops_t * alps_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&alps_ops);
             assert(ret == mywlm);
@@ -300,24 +301,6 @@ main(int argc, char **argv)
             break;
 
         case CTI_WLM_PALS:
-        {
-            if (a_arg == 0 ) {
-                fprintf(stderr, "Error: Missing --apid argument. This is required for the PALS WLM.\n");
-            }
-            assert(a_arg != 0);
-            cti_pals_ops_t * pals_ops = NULL;
-            cti_wlm_type_t ret = cti_open_ops((void **)&pals_ops);
-            assert(ret == mywlm);
-            assert(pals_ops != NULL);
-            myapp = pals_ops->registerApid(raw_apid);
-            if (myapp == 0) {
-                fprintf(stderr, "Error: PALS registerApid failed!\n");
-                fprintf(stderr, "CTI error: %s\n", cti_error_str());
-            }
-            assert(myapp != 0);
-        }
-            break;
-
         case CTI_WLM_MOCK:
         case CTI_WLM_NONE:
             fprintf(stderr, "Error: Unsupported WLM in use!\n");
@@ -328,26 +311,8 @@ main(int argc, char **argv)
     // call the common FE tests
     cti_test_fe(myapp);
 
-    // get mpmd info map
-    cti_binaryList_t * binaryList = cti_getAppBinaryList(myapp);
-    if (binaryList == NULL) {
-        fprintf(stderr, "failed to get binary list: %s\n", cti_error_str());
-        assert(0);
-        return 1;
-    }
-
-    // print mpmd info map
-    for (int i = 0; i < cti_getNumAppPEs(myapp); i++) {
-        fprintf(stdout, "rank %3d: %s\n", i, binaryList->binaries[binaryList->rankMap[i]]);
-    }
-
     // cleanup
-    cti_destroyBinaryList(binaryList);
     cti_deregisterApp(myapp);
-    if (raw_apid != NULL) {
-        free(raw_apid);
-        raw_apid = NULL;
-    }
 
     // ensure deregister worked.
     assert(cti_appIsValid(myapp) == 0);

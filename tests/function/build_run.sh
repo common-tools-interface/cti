@@ -6,17 +6,10 @@
 # all functional tests defined in ./avocado_tests.py   #
 ########################################################
 
-#PYTHON VERSION TO USE
-PYTHON=python3
-ON_WHITEBOX=true
-
 #DIRECTORY RELATED VALUES
 START_DIR=$PWD
 FUNCTION_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 &&pwd )"
 EXEC_DIR=$FUNCTION_DIR
-
-#RUNNING AS PART OF NIGHTLY TESTING?
-NIGHTLY_TEST=false
 
 # take an argument as a single test to run
 if [[ $# -eq 1 ]] ; then
@@ -32,35 +25,27 @@ fi
 ########################################################
 
 setup_python() {
-    if [ "$ON_WHITEBOX" = false ] ; then
-        PYTHON=python
-    fi
-    if ! python3 --version &> /dev/null ; then
-        PYTHON=python
-    fi
     if ! test -f ~/.local/bin/pip ; then
         echo "No pip detected. Installing..."
         if ! curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py ; then
             echo "Failed to download pip setup script. Aborting..."
             return 1
         fi
-        if ! $PYTHON get-pip.py --user ; then
+        if ! python3 get-pip.py --user ; then
             echo "Failed to run pip installer. Aborting..."
             return 1
         fi
         rm get-pip.py
     fi
     echo "Pip install is valid..."
-    if [ "$PYTHON" == "python" ] ; then
-        if ! test -f ~/.local/bin/virtualenv ; then
-            echo "Virtual environment module not installed. Installing..."
-            if ! ~/.local/bin/pip install --user virtualenv ; then
-                echo "Failed to install virtual environment module. Aborting..."
-                return 1
-            fi
+    if ! test -f ~/.local/bin/virtualenv ; then
+        echo "Virtual environment module not installed. Installing..."
+        if ! ~/.local/bin/pip install --user virtualenv ; then
+            echo "Failed to install virtual environment module. Aborting..."
+            return 1
         fi
-        echo "VENV install is valid..."
     fi
+    echo "VENV install is valid..."
     echo "Python setup is valid..."
     return 0
 }
@@ -85,11 +70,7 @@ valid_ssh(){
 ########################################################
 
 create_venv() {
-    if [ "$ON_WHITEBOX" = true ] ; then
-        $PYTHON -m venv avocado
-    else
-        ~/.local/bin/virtualenv avocado
-    fi
+    ~/.local/bin/virtualenv avocado
     return $?
 }
 
@@ -99,18 +80,15 @@ create_venv() {
 ########################################################
 
 install_additional_plugins() {
-    if [ "$ON_WHITEBOX" = true ] ; then
-        #Install all desired whitebox plugins.
-        if ! pip install avocado-framework-plugin-loader-yaml ; then
-            return 1
-        fi
-    else
-        #Install all desired non-whitebox plugins
-        if ! pip install avocado-framework-plugin-loader-yaml ; then
-            return 1
-        fi
-        return 0
+    if ! pip install avocado-framework-plugin-loader-yaml ; then
+        return 1
     fi
+
+    if ! pip install avocado-framework-plugin-result-html ; then
+        return 1
+    fi
+    
+    return 0
 }
 
 ########################################################
@@ -122,7 +100,7 @@ install_additional_plugins() {
 ########################################################
 
 setup_avocado() {
-    echo "Creating avocado environment using $PYTHON"
+    echo "Creating avocado environment using python3"
     #Create avocado environment
     if mkdir avocado-virtual-environment && cd avocado-virtual-environment ; then
         if create_venv ; then
@@ -164,6 +142,27 @@ setup_avocado() {
     return 1
 }
 
+prepare_environment() {
+    if [[ -z "$CTI_INSTALL_DIR" ]]; then
+        echo "CTI_INSTALL_DIR not found. Trying to load it."
+        if ! module load cray-cti &> /dev/null; then
+            echo "Couldn't load cray-cti module."
+            return 1
+        fi
+        echo "Success."
+    fi
+
+    if [[ -z "$CTI_TESTS_LAUNCHER_ARGS" ]]; then
+        echo "Sourcing system specific setup script..."
+        if ! source ../scripts/system_specific_setup.sh; then
+            echo "Failed to get system specific setup."
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
 ########################################################
 # This function executes the current set of functional #
 # tests. It configures the environment beforehand      #
@@ -177,30 +176,23 @@ run_tests() {
 
         # check if not running on a whitebox and if so load different parameters
         if [ "$ON_WHITEBOX" = true ] ; then
-            if [ "$NIGHTLY_TEST" = true ] ; then
-                echo "Configuring with nightly testing whitebox settings..."
-                export MPICH_SMP_SINGLE_COPY_OFF=0
-                export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
-                export CTI_WLM_IMPL=generic
-            else
-                echo "Configuring with normal whitebox settings..."
-                export MPICH_SMP_SINGLE_COPY_OFF=0
-                # maybe consider checking CTI_INSTALL_DIR both for null and empty with:
-                # : "${CTI_INSTALL_DIR:?Need to set CTI_INSTALL_DIR non-empty}"
-                if [ -z "$CTI_INSTALL_DIR" ] ; then
-                    export CTI_INSTALL_DIR=$PWD/../../install
-                fi
-                if [ ! -d "$CTI_INSTALL_DIR" ]; then
-                    echo "CTI_INSTALL_DIR=$CTI_INSTALL_DIR not found. Cannot execute tests"
-                    return 1
-                fi
-                export LD_LIBRARY_PATH=$CTI_INSTALL_DIR/lib:$LD_LIBRARY_PATH
-                export CTI_LAUNCHER_NAME=/opt/cray/pe/snplauncher/default/bin/mpiexec
-                export CTI_WLM_IMPL=generic
+            echo "! WARNING: Whitebox settings currently untested."
+            echo "Configuring with whitebox settings..."
+
+            if ! module load cray-snplauncher; then
+                echo "Couldn't load cray-snplauncher."
+                return 1
             fi
+            echo "Successfully loaded cray-snplauncher."
+            
+            export CTI_WLM_IMPL=generic
+            export MPICH_SMP_SINGLE_COPY_OFF=1
         else
-            echo "srun exists so configuring non-whitebox launcher settings..."
-            export MPICH_SMP_SINGLE_COPY_OFF=0
+            echo "Configuring non-whitebox launcher settings..."
+        fi
+        if ! prepare_environment ; then
+            echo "Failed to configure environment variables."
+            return 1
         fi
         ./avocado-virtual-environment/avocado/bin/avocado run ./avocado_tests.py${ONE_TEST} --mux-yaml ./avocado_test_params.yaml
     else
@@ -209,83 +201,24 @@ run_tests() {
     fi
 }
 
-########################################################
-# This function compiles a basic MPI app that simply   #
-# prints hello world based on how many nodes it runs   #
-# on. Due to its simplicity it is used as a basic test #
-# to run various other functional tests on             #
-########################################################
-
-create_mpi_app() {
-    if test -f ./basic_hello_mpi ; then
-        echo "MPI app already compiled..."
-    else
-        echo "Compiling basic mpi application for use in testing script..."
-        module load cray-snplauncher
-        module load modules/3.2.11.2
-        module load PrgEnv-cray
-        module load cray-mpich/7.7.8
-        if cc -o basic_hello_mpi hello_mpi.c ; then
-            echo "Application successfully compiled into 'basic_hello_mpi'"
-        else
-            echo "Failed to compile MPI application. Aborting..."
-            return 1
-        fi
-    fi
-}
-create_mpi_wait_app() {
-    if test -f ./basic_hello_mpi_wait ; then
-        echo "MPI wait app already compiled..."
-    else
-        echo "Compiling basic mpi wait application for use in testing script..."
-        module load cray-snplauncher
-        module load modules/3.2.11.2
-        module load PrgEnv-cray
-        module load cray-mpich/7.7.8
-        if cc -o basic_hello_mpi_wait hello_mpi_wait.c ; then
-            echo "Application successfully compiled into 'basic_hello_mpi_wait'"
-        else
-            echo "Failed to compile MPI wait application. Aborting..."
-            return 1
-        fi
-    fi
-}
-
-flags(){
-    echo "Available flags:"
-    echo "-h: display this"
-    echo "-n: run nightly test  DEFAULT : $NIGHTLY_TEST"
-    echo "-d: execution dir     DEFAULT : $EXEC_DIR"
-    return 0
-}
-
 ###########################
 #    BEGIN MAIN SCRIPT    #
 ###########################
 
-# check that amount of paramters passed in is valid
-while getopts 'hnd:' flag; do
-    case "${flag}" in
-        h) flags
-           exit 1 ;;
-        n) NIGHTLY_TEST=true ;;
-	d) EXEC_DIR=${OPTARG} ;;
-    esac
-done
-
 # check that running this is feasible at all
-if ! python3 --version > /dev/null && ! python --version > /dev/null ; then
-    echo "No valid python install found. Exiting..."
+if ! python3 --version > /dev/null ; then
+    echo "python3 not found. Exiting..."
     exit 1
 fi
 
+# TODO
 # calibrate script based on if running on whitebox
-if srun echo "" &> /dev/null ; then
-    echo "Calibrating script for non-whitebox"
-    ON_WHITEBOX=false
-else
-    echo "due to no srun assuming whitebox environment..."
-fi
+# if srun echo "" &> /dev/null ; then
+#     echo "Calibrating script for non-whitebox"
+#     ON_WHITEBOX=false
+# else
+#     echo "due to no srun assuming whitebox environment..."
+# fi
 
 if ! setup_python ; then
     echo "Failed to setup valid whitebox python environment"
@@ -307,10 +240,14 @@ if ! test -d ./avocado-virtual-environment ; then
         exit 1
     fi
 fi
-if valid_ssh ; then
-    if create_mpi_app && create_mpi_wait_app; then
-         run_tests
+
+if [ "$ON_WHITEBOX" = true ]; then
+    if ! valid_ssh ; then
+        echo "Failed to validate ssh."
+        exit 1
     fi
 fi
+
+run_tests
 
 cd $START_DIR

@@ -1,9 +1,9 @@
 /******************************************************************************\
- * cti_launch_test.c - An example program which takes advantage of the common
- *          tools interface which will launch an application from the given
- *          argv and display information about the job
+ * cti_wlm_test.c - An example program which takes advantage of the common
+ *          tools interface which will gather information from the WLM about a
+ *          previously launched job.
  *
- * Copyright 2015-2019 Cray Inc. All Rights Reserved.
+ * Copyright 2012-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -35,58 +35,60 @@
  *
  ******************************************************************************/
 
+#include <errno.h>
+#include <getopt.h>
+#include <inttypes.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <unistd.h>
 #include <assert.h>
 
 #include "common_tools_fe.h"
-#include "cti_fe_common.h"
 
 void
 usage(char *name)
 {
-    fprintf(stdout, "USAGE: %s [LAUNCHER STRING]\n", name);
-    fprintf(stdout, "Launch an application using the cti library\n");
-    fprintf(stdout, "and print out information.\n");
+    fprintf(stdout, "USAGE: %s\n", name);
+    fprintf(stdout, "Print out the workload manager cti_wlm_type_t for this system\n");
+    fprintf(stdout, "using the common tools interface.\n\n");
     return;
 }
 
 int
 main(int argc, char **argv)
 {
-    // values returned by the tool_frontend library.
-    cti_app_id_t        myapp;
-
-    if (argc < 2) {
+    if (argc != 1) {
         usage(argv[0]);
-        assert(argc > 2);
-        return 1;
+        exit(1);
     }
-
+    // values returned by the tool_frontend library.
+    cti_wlm_type_t      mywlm;
     /*
-     * cti_launchApp - Start an application using the application launcher
-     *                 with the provided argv array.
+     * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
+     *                   system.
      */
-    myapp = cti_launchApp((const char * const *)&argv[1],-1,-1,NULL,NULL,NULL);
-    if (myapp == 0) {
-        fprintf(stderr, "Error: cti_launchApp failed!\n");
-        fprintf(stderr, "CTI error: %s\n", cti_error_str());
+    mywlm = cti_current_wlm();
+
+    // Print out the wlm type using the defined text for each WLM type.
+    switch (mywlm) {
+        case CTI_WLM_SLURM:
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_SLURM_STR);
+            break;
+        case CTI_WLM_ALPS:
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_ALPS_STR);
+            break;
+        case CTI_WLM_SSH:
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_SSH_STR);
+            break;
+        case CTI_WLM_PALS:
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_PALS_STR);
+            break;
+        case CTI_WLM_MOCK:
+        case CTI_WLM_NONE:
+            fprintf(stderr, "Error: Unsupported WLM in use!\n");
+            assert(0);
+            return 1;
     }
-    assert(myapp != 0);
-
-    // call the common FE tests
-    cti_test_fe(myapp);
-
-    /*
-     * cti_deregisterApp - Assists in cleaning up internal allocated memory
-     *                     associated with a previously registered application.
-     */
-    cti_deregisterApp(myapp);
-
-    // ensure deregister worked.
-    assert(cti_appIsValid(myapp) == 0);
-
     return 0;
 }

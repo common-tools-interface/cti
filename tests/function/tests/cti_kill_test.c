@@ -1,10 +1,9 @@
 /******************************************************************************\
- * cti_barrier_test.c - An example program which takes advantage of the Cray
- *          tools interface which will launch an application from the given
- *          argv, display information about the job, and hold it at the
- *          startup barrier.
+ * cti_kill_test.c - An example program which takes advantage of the common
+ *          tools interface which will launch an application, display info
+ *          about the job, then send a sigterm to it.
  *
- * Copyright 2011-2019 Cray Inc. All Rights Reserved.
+ * Copyright 2015-2020 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -37,9 +36,7 @@
  ******************************************************************************/
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <signal.h>
-#include <unistd.h>
 #include <assert.h>
 
 #include "common_tools_fe.h"
@@ -49,7 +46,7 @@ void
 usage(char *name)
 {
     fprintf(stdout, "USAGE: %s [LAUNCHER STRING]\n", name);
-    fprintf(stdout, "Launch an application using the cti library\n");
+    fprintf(stdout, "Launch and then kill an application using the cti library\n");
     fprintf(stdout, "and print out information.\n");
     return;
 }
@@ -59,7 +56,7 @@ main(int argc, char **argv)
 {
     // values returned by the tool_frontend library.
     cti_app_id_t        myapp;
-    int                 rtn;
+    int                 r;
 
     if (argc < 2) {
         usage(argv[0]);
@@ -68,14 +65,12 @@ main(int argc, char **argv)
     }
 
     /*
-     * cti_launchAppBarrier - Start an application using the application launcher
-     *                        with the provided argv array and have the launcher
-     *                        hold the application at its startup barrier for
-     *                        MPI/SHMEM/UPC/CAF applications.
+     * cti_launchApp - Start an application using the application launcher
+     *                 with the provided argv array.
      */
-    myapp = cti_launchAppBarrier((const char * const *)&argv[1],-1,-1,NULL,NULL,NULL);
+    myapp = cti_launchApp((const char * const *)&argv[1],-1,-1,NULL,NULL,NULL);
     if (myapp == 0) {
-        fprintf(stderr, "Error: cti_launchAppBarrier failed!\n");
+        fprintf(stderr, "Error: cti_launchApp failed!\n");
         fprintf(stderr, "CTI error: %s\n", cti_error_str());
     }
     assert(myapp != 0);
@@ -83,23 +78,12 @@ main(int argc, char **argv)
     // call the common FE tests
     cti_test_fe(myapp);
 
-    printf("\nHit return to release the application from the startup barrier...");
-
-    // just read a single character from stdin then release the app/exit
-    (void)getchar();
-
-    /*
-     * cti_releaseAppBarrier - Release the application launcher launched with the
-     *                         cti_launchAppBarrier function from its startup
-     *                         barrier.
-     */
-    rtn = cti_releaseAppBarrier(myapp);
-    if (rtn) {
-        fprintf(stderr, "Error: cti_releaseAppBarrier failed!\n");
+    r = cti_killApp(myapp, SIGTERM);
+    if (r) {
+        fprintf(stderr, "Error: cti_killApp failed!\n");
         fprintf(stderr, "CTI error: %s\n", cti_error_str());
-        cti_killApp(myapp, SIGKILL);
     }
-    assert(rtn == 0);
+    assert(r == 0);
 
     /*
      * cti_deregisterApp - Assists in cleaning up internal allocated memory

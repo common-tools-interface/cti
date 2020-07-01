@@ -12,7 +12,7 @@
 
 #include "gtest/gtest.h"
 
-#include "include/common_tools_fe.h"
+#include "common_tools_fe.h"
 
 static constexpr auto SUCCESS = int{0};
 static constexpr auto FAILURE = int{1};

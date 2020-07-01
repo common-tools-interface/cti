@@ -4,4 +4,6 @@
 # Copyright 2011-2019 Cray Inc. All Rights Reserved.
 #
 
-SUBDIRS = test_support mock unit examples function
+ACLOCAL_AMFLAGS = -I m4
+
+SUBDIRS = test_support function

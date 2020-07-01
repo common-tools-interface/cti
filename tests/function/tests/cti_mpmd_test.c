@@ -1,9 +1,5 @@
 /******************************************************************************\
- * cti_kill_test.c - An example program which takes advantage of the common
- *          tools interface which will kill an application from the given
- *          argv and display information about the job
- *
- * Copyright 2015-2019 Cray Inc. All Rights Reserved.
+ * Copyright 2012-2019 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -35,15 +31,15 @@
  *
  ******************************************************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <unistd.h>
-#include <assert.h>
 #include <errno.h>
 #include <getopt.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <assert.h>
+#include <string.h>
 
 #include "common_tools_fe.h"
 #include "cti_fe_common.h"
@@ -61,7 +57,7 @@ void
 usage(char *name)
 {
     fprintf(stdout, "USAGE: %s [OPTIONS]...\n", name);
-    fprintf(stdout, "kill an application using the common tools interface.\n\n");
+
     fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
     fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");
     fprintf(stdout, "\t-a, --apid      alps apid - ALPS and PALS WLM only.\n");
@@ -74,7 +70,6 @@ usage(char *name)
 int
 main(int argc, char **argv)
 {
-    // values returned by the tool_frontend library.
     int                 opt_ind = 0;
     int                 c;
     char *              eptr;
@@ -82,13 +77,20 @@ main(int argc, char **argv)
     int                 s_arg = 0;
     int                 a_arg = 0;
     int                 p_arg = 0;
-    uint32_t            job_id = 0;
-    uint32_t            step_id = 0;
+    uint64_t            job_id = 0;
+    uint64_t            step_id = 0;
     uint64_t            apid = 0;
+    char *              raw_apid = NULL;
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
     cti_wlm_type_t      mywlm;
     cti_app_id_t        myapp = 0;
+
+    if (argc < 2) {
+        usage(argv[0]);
+        assert(argc > 2);
+        return 1;
+    }
 
     // process longopts
     while ((c = getopt_long(argc, argv, "j:s:a:p:h", long_opts, &opt_ind)) != -1) {
@@ -106,7 +108,7 @@ main(int argc, char **argv)
 
                 // This is the job id
                 errno = 0;
-                job_id = (uint32_t)strtol(optarg, &eptr, 10);
+                job_id = (uint64_t)strtol(optarg, &eptr, 10);
 
                 // check for error
                 if ((errno == ERANGE && job_id == ULONG_MAX)
@@ -136,7 +138,7 @@ main(int argc, char **argv)
 
                 // This is the step id
                 errno = 0;
-                step_id = (uint32_t)strtol(optarg, &eptr, 10);
+                step_id = (uint64_t)strtol(optarg, &eptr, 10);
 
                 // check for error
                 if ((errno == ERANGE && step_id == ULONG_MAX)
@@ -166,18 +168,19 @@ main(int argc, char **argv)
 
                 // This is the apid
                 errno = 0;
-                apid = (uint64_t)strtoull(optarg, &eptr, 10);
+                raw_apid = strdup(optarg);
+                apid = (uint64_t)strtoull(raw_apid, &eptr, 10);
 
                 // check for error
-                if ((errno == ERANGE && step_id == ULONG_MAX)
-                        || (errno != 0 && step_id == 0)) {
-                    perror("strtol");
+                if ((errno == ERANGE && apid == ULLONG_MAX)
+                        || (errno != 0 && apid == 0)) {
+                    perror("strtoull");
                     assert(0);
                     return 1;
                 }
 
                 // check for invalid input
-                if (eptr == optarg || *eptr != '\0') {
+                if (eptr == raw_apid || *eptr != '\0') {
                     fprintf(stderr, "Invalid --apid argument.\n");
                     assert(0);
                     return 1;
@@ -243,7 +246,7 @@ main(int argc, char **argv)
                 fprintf(stderr, "Error: Missing --jobid and --stepid argument. This is required for the SLURM WLM.\n");
             }
             assert(j_arg != 0 && s_arg != 0);
-            cti_slurm_ops_t * slurm_ops;
+            cti_slurm_ops_t * slurm_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);
@@ -262,6 +265,7 @@ main(int argc, char **argv)
                 fprintf(stderr, "Error: Missing --apid argument. This is required for the ALPS WLM.\n");
             }
             assert(a_arg != 0);
+
             cti_alps_ops_t * alps_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&alps_ops);
             assert(ret == mywlm);
@@ -279,11 +283,9 @@ main(int argc, char **argv)
         {
             if (p_arg == 0) {
                 fprintf(stderr, "Error: Missing --pid argument. This is required for the generic WLM.\n");
-            } else {
-                fprintf(stdout, "generic WLM: --pid argument %d.\n", p_arg);
             }
             assert(p_arg != 0);
-            cti_ssh_ops_t * ssh_ops;
+            cti_ssh_ops_t * ssh_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&ssh_ops);
             assert(ret == mywlm);
             assert(ssh_ops != NULL);
@@ -306,7 +308,7 @@ main(int argc, char **argv)
             cti_wlm_type_t ret = cti_open_ops((void **)&pals_ops);
             assert(ret == mywlm);
             assert(pals_ops != NULL);
-            myapp = pals_ops->registerApid(apid);
+            myapp = pals_ops->registerApid(raw_apid);
             if (myapp == 0) {
                 fprintf(stderr, "Error: PALS registerApid failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -322,57 +324,32 @@ main(int argc, char **argv)
             return 1;
     }
 
-    /*
-     * cti_killApp - Send signal = 0, using the appropriate launcher kill
-     * mechanism to an application launcher.  According to the man page for
-     * kill(2), "If sig is 0, then no signal is sent, but error checking is
-     * still performed; this can be used to check for the existence of a
-     * process ID or process group ID."
-     */
-    /*
-     * cti_killApp - Kill an application using the application killer
-     *                 with the provided argv array.
-     */
-    if (cti_killApp(myapp, 0)) { //if cti_killApp passes when passing signum=0, means the apps are still there.
-        fprintf(stderr, "Error: cti_killApp(0) failed!\n");
-        fprintf(stderr, "CTI error: %s\n", cti_error_str());
-    } else {
-        fprintf(stdout, "cti_killApp(0) passed!\n");
-    }
-    sleep(10);
-    /*
-    if (cti_killApp(myapp, SIGTERM)) {
-        fprintf(stderr, "Error: cti_killApp(SIGTERM) failed!\n");
-        fprintf(stderr, "CTI error: %s\n", cti_error_str());
-    } else {
-        fprintf(stdout, "cti_killApp(SIGTERM) passed!\n");
-    }
-    sleep(10);
-    */
-    if (cti_killApp(myapp, SIGKILL)) {
-        fprintf(stderr, "Error: cti_killApp(SIGKILL) failed!\n");
-        fprintf(stderr, "CTI error: %s\n", cti_error_str());
-    } else {
-        fprintf(stdout, "cti_killApp(SIGKILL) passed!\n");
-    }
-    sleep(10);
-    if (cti_killApp(myapp, 0)) { //if cti_killApp failes when passing signum=0, means the apps have been killed.
-        fprintf(stderr, "Error: cti_killApp(0) failed!\n");
-        fprintf(stderr, "CTI error: %s\n", cti_error_str());
-    } else {
-        fprintf(stdout, "cti_killApp(0) passed!\n");
-    }
-    sleep(10);
+    // call the common FE tests
+    cti_test_fe(myapp);
 
-    /*
-     * cti_deregisterApp - Assists in cleaning up internal allocated memory
-     *                     associated with a previously registered application.
-     */
+    // get mpmd info map
+    cti_binaryList_t * binaryList = cti_getAppBinaryList(myapp);
+    if (binaryList == NULL) {
+        fprintf(stderr, "failed to get binary list: %s\n", cti_error_str());
+        assert(0);
+        return 1;
+    }
+
+    // print mpmd info map
+    for (int i = 0; i < cti_getNumAppPEs(myapp); i++) {
+        fprintf(stdout, "rank %3d: %s\n", i, binaryList->binaries[binaryList->rankMap[i]]);
+    }
+
+    // cleanup
+    cti_destroyBinaryList(binaryList);
     cti_deregisterApp(myapp);
+    if (raw_apid != NULL) {
+        free(raw_apid);
+        raw_apid = NULL;
+    }
 
     // ensure deregister worked.
     assert(cti_appIsValid(myapp) == 0);
 
     return 0;
 }
-

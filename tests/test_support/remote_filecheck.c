@@ -1,6 +1,6 @@
 /******************************************************************************\
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
+ * Copyright 2019-2020 Cray Inc. All Rights Reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -35,6 +35,7 @@
 #include <unistd.h>
 
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -43,16 +44,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "message_one/message.h"
-
 int main(int argc, char* argv[]) {
-    if (argc != 3) {
-        fprintf(stderr, "Invalid parameters\nExpected: SocketIP, SocketPort\n");
+    if (argc != 4) {
+        fprintf(stderr, "Invalid parameters\nExpected: SocketIP, SocketPort, Filepath\n");
         return 1;
     }
-
-    //avoid race conditions in the least elegant way...
-    sleep(1);
 
     //Declare variables to store socket IP and port
     char* ip;
@@ -94,8 +90,19 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     fprintf(stderr, "CONNECTED\n");
-    //Send predictable data over socket
-    send(c_socket, get_message(), 1, 0);
+    fprintf(stderr, "Checking for %s...\n", argv[3]);
+    
+    struct stat buf;
+    int r = stat(argv[3], &buf);
+
+    if (r == 0) {
+        // file found
+        send(c_socket, "1", 1, 0);
+    } else {
+        // file not found
+        send(c_socket, "0", 1, 0);
+    }
+
     close(c_socket);
 
     return 0;

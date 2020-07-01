@@ -245,5 +245,4 @@ cti_test_fe(cti_app_id_t appId)
     }
     cti_destroyHostsList(myhostplacement);
     myhostplacement = NULL;
-
 }
