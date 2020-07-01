@@ -203,7 +203,7 @@ require_module() {
 
     # check to make sure we actually loaded the module - module load returns 0
     # even on failure so we need to read the list ourselves
-    if ! module list &| grep "$1/" ; then
+    if ! module list |& grep "$1/" ; then
         echo "Couldn't load $1 module"
         return 1
     fi
