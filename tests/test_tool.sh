@@ -194,16 +194,23 @@ require_module() {
         return 1
     fi
 
-    # this never actually fails - leaving exit code check in in case that ever
-    # changes
-    if ! module load "$1" ; then
+    # check for any errors that will happen when we load the module.
+    # because of module load's behavior with stdout and pipes, this won't actually 
+    # load anything, only get module to emit an error if there will be one.
+    if module load "$1" |& grep "ERROR"; then
+        echo "Error while loading $1 module."
+        return 1
+    fi
+    
+    # now we do the actual module load.
+    if ! module load "$1"; then
         echo "Couldn't load $1 module."
         return 1
     fi
 
     # check to make sure we actually loaded the module - module load returns 0
     # even on failure so we need to read the list ourselves
-    if ! module list |& grep "$1/" ; then
+    if ! module list |& grep "$1/" -q; then
         echo "Couldn't load $1 module"
         return 1
     fi

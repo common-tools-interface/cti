@@ -277,7 +277,6 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/scripts/validate_ssh.sh          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/scripts/validate_ssh.sh
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
-%{__cp} -a %{tests_source_dir}/test_support/libgtest.la        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/libgtest.la
 %{__cp} -a %{tests_source_dir}/test_support/Makefile.am        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile.am
 %{__cp} -a %{tests_source_dir}/test_support/one_print.c        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print.c
 %{__cp} -a %{tests_source_dir}/test_support/one_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_socket.c
@@ -520,7 +519,6 @@ fi
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/scripts/validate_ssh.sh
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/libgtest.la
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile.am
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_socket.c
