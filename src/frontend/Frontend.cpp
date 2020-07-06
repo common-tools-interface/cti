@@ -53,6 +53,7 @@
 // utility includes
 #include "useful/cti_log.h"
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_dlopen.hpp"
 #include "checksum/checksums.h"
 
 // Static data objects
@@ -390,18 +391,50 @@ Frontend::detect_Frontend()
             throw std::runtime_error("Invalid workload manager argument '" + wlmName + "' provided in " + CTI_WLM_IMPL_ENV_VAR);
         }
     }
-    else {
-        // Query supported workload managers
-        if (ALPSFrontend::isSupported()) {
-            return CTI_WLM_ALPS;
-        } else if (SLURMFrontend::isSupported()) {
-            return CTI_WLM_SLURM;
-        } else if (PALSFrontend::isSupported()) {
-            return CTI_WLM_PALS;
-        } else if (GenericSSHFrontend::isSupported()) {
-            return CTI_WLM_SSH;
+
+    // Try to load and use wlm_detect, if available
+    try {
+        // Define libwlm_detect function types
+        using WlmDetectGetActiveType = char*(void);
+        using WlmDetectGetDefaultType = char*(void);
+
+        // Try to load libwlm_detect functions
+        auto libWlmDetectHandle = cti::Dlopen::Handle{WLM_DETECT_LIB_NAME};
+        auto wlm_detect_get_active = libWlmDetectHandle.load<WlmDetectGetActiveType>("wlm_detect_get_active");
+        auto wlm_detect_get_default = libWlmDetectHandle.load<WlmDetectGetDefaultType>("wlm_detect_get_default");
+
+        // Call libwlm_detect functions to determine WLM
+        auto wlmName = std::string{};
+        if (auto activeWlmName = cti::take_pointer_ownership(wlm_detect_get_active(), ::free)) {
+            wlmName = activeWlmName.get();
+        } else if (auto defaultWlmName = cti::take_pointer_ownership(wlm_detect_get_default(), ::free)) {
+            wlmName = defaultWlmName.get();
+        } else {
+            throw std::runtime_error("no active or default WLM detected");
         }
+
+        // Compare WLM name to determine Slurm or ALPS
+        if (wlmName == "ALPS") {
+            return CTI_WLM_ALPS;
+        } else if (wlmName == "SLURM") {
+            return CTI_WLM_SLURM;
+        }
+
+    } catch (std::runtime_error const& ex) {
+        getLogger().write("warning: wlm_detect failed: %s\n", ex.what());
     }
+
+    // Query supported workload managers
+    if (ALPSFrontend::isSupported()) {
+        return CTI_WLM_ALPS;
+    } else if (SLURMFrontend::isSupported()) {
+        return CTI_WLM_SLURM;
+    } else if (PALSFrontend::isSupported()) {
+        return CTI_WLM_PALS;
+    } else if (GenericSSHFrontend::isSupported()) {
+        return CTI_WLM_SSH;
+    }
+
     // Unknown WLM
     throw std::runtime_error("Unable to determine wlm in use. Manually set " + std::string{CTI_WLM_IMPL_ENV_VAR} + " env var.");
 }
