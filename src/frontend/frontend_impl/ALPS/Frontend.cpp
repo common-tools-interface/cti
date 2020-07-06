@@ -75,9 +75,27 @@ getSvcNid()
 bool
 ALPSFrontend::isSupported()
 {
-    try {
-        return !cti::findPath(APRUN).empty();
-    } catch (...) {
+    // Check that aprun version returns expected content
+    { auto aprunTestArgv = cti::ManagedArgv{"aprun", "--version"};
+        auto aprunOutput = cti::Execvp{"aprun", aprunTestArgv.get()};
+
+        // Wait for aprun to complete
+        if (aprunOutput.getExitStatus()) {
+            return false;
+        }
+
+        // Read first line, ensure it is in format "aprun (ALPS) <version>"
+        auto& aprunStream = aprunOutput.stream();
+        auto versionLine = std::string{};
+        if (std::getline(aprunStream, versionLine)) {
+
+            // Split line into each word
+            auto const [aprun, alps, version] = cti::split::string<3>(versionLine, ' ');
+            if ((aprun == "aprun") && (alps == "(ALPS)")) {
+                return true;
+            }
+        }
+
         return false;
     }
 }
