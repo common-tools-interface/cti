@@ -466,20 +466,20 @@ SLURMFrontend::isSupported()
 
     // Check that srun is a binary and not a script
     { auto binaryTestArgv = cti::ManagedArgv{"bash", "-c",
-        R"("file --mime `which srun` | grep application/x-executable")"};
+        "file --mime `which srun` | grep application/x-executable"};
         if (cti::Execvp{"bash", binaryTestArgv.get()}.getExitStatus()) {
             throw std::runtime_error("srun was detected on the system, but it is not a binary file. \
-                Tool launch requires direct access to the srun binary. \
-                Ensure that the srun command is not wrapped by a script");
+Tool launch requires direct access to the srun binary. \
+Ensure that the srun command is not wrapped by a script");
         }
     }
 
     // Check that the srun binary contains MPIR symbols
     { auto symbolTestArgv = cti::ManagedArgv{"bash", "-c",
-        R"("nm `which srun` | grep MPIR_Breakpoint$")"};
+        "nm `which srun` | grep MPIR_Breakpoint$"};
         if (cti::Execvp{"bash", symbolTestArgv.get()}.getExitStatus()) {
             throw std::runtime_error("srun was detected on the system, but it does not contain debug symbols. \
-                Tool launch is coordinated through reading information at these symbols");
+Tool launch is coordinated through reading information at these symbols");
         }
     }
 
