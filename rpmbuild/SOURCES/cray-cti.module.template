@@ -14,7 +14,16 @@
  setenv CTI_INSTALL_DIR     $CTI_BASEDIR
  setenv PE_CTI_MODULE_NAME  <CRAY_NAME>
 
- prepend-path LD_LIBRARY_PATH   $CTI_BASEDIR/lib
+ # If the default version of CTI is loaded, don't set LD_LIBRARY_PATH.
+ if { [ catch { source /opt/cray/pe/modulefiles/cray-cti/.version } ] } {
+       prepend-path CRAY_LD_LIBRARY_PATH   $CTI_BASEDIR/lib
+    } else {
+       if { [ string equal $ModulesVersion $CTI_LEVEL ] } {
+             prepend-path CRAY_LD_LIBRARY_PATH   $CTI_BASEDIR/lib
+          } else {
+             prepend-path LD_LIBRARY_PATH   $CTI_BASEDIR/lib
+          }
+    }
 
  if { [ file exists ${CTI_BASEDIR}/release_info ] } {
        set REL_INFO [ exec cat ${CTI_BASEDIR}/release_info ]
