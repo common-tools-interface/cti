@@ -127,13 +127,13 @@ char FE_prng::genChar()
 
 // initialized helper for getLogger.
 Frontend::LoggerInit::LoggerInit() {
-        Frontend::m_logger.reset(new cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()});
+    Frontend::m_logger.reset(new cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()});
 }
 
 Frontend::LoggerInit::operator cti::Logger&() { return *Frontend::m_logger; }
 
 // Logger object that must be created after frontend instantiation, but also must be destroyed after
-// frontenv instantiation, hence the extra LoggerInit logic. 
+// frontend instantiation, hence the extra LoggerInit logic. 
 cti::Logger&
 Frontend::getLogger(void)
 {
