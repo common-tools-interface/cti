@@ -28,7 +28,7 @@ if isFile(REL_FILE) then
     if data ~= nil then rel_info = data end
 end
 
- -- standered Lmod functions --
+ -- standard Lmod functions --
 
 help ([[
 
@@ -54,7 +54,23 @@ setenv (           "PE_CTI_MODULE_NAME",       myModuleName()                )
 
 append_path   (    "PE_PRODUCT_LIST",          "CRAY-CTI"                    )
 
-prepend_path  (    "LD_LIBRARY_PATH",          PE_DIR .. "/lib"              )
 prepend_path  (    "PE_PKGCONFIG_PRODUCTS",    "PE_CTI"                      )
 prepend_path  (    "PKG_CONFIG_PATH",          PE_DIR .. "/lib/pkgconfig"    )
 prepend_path  (    "PE_PKG_CONFIG_PATH",       PE_DIR .. "/lib/pkgconfig"    )
+
+ -- set LD_LIBRARY_PATH only if non-default version
+local DEFAULT_VER_FILE = INSTALL_ROOT .. "/lmod/modulefiles/core/cray-cti/.version"
+local default_ver      = nil
+if isFile(DEFAULT_VER_FILE) then
+    local f = io.open(DEFAULT_VER_FILE, "r")
+    local data = f:read("*line")
+    data = f:read("*line")
+    f:close()
+    default_ver = string.match(data, "set ModulesVersion \"(.+)\"")
+end
+
+if (default_ver == nil) or (MOD_LEVEL == default_ver) then
+    prepend_path  (    "CRAY_LD_LIBRARY_PATH",     PE_DIR .. "/lib"              )
+else
+    prepend_path  (    "LD_LIBRARY_PATH",          PE_DIR .. "/lib"              )
+end
