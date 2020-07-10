@@ -171,7 +171,7 @@ public: // Values set by cti_setAttribute
 private: // Private static utility methods used by the generic frontend
     // get the logger associated with the frontend - can only construct logger
     // after fe instantiation!
-    struct LoggerInit { LoggerInit(); operator cti::Logger&(); };
+    struct LoggerInit { LoggerInit(); cti::Logger& get(); };
     static cti::Logger& getLogger();
     // get the frontend type for this system
     static cti_wlm_type_t detect_Frontend();
