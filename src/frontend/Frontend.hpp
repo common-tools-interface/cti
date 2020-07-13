@@ -137,6 +137,7 @@ protected: // Protected and Private static data members that are accessed only v
     static std::atomic<Frontend*>               m_instance;
 private:
     static std::mutex                           m_mutex;
+    static std::unique_ptr<cti::Logger>         m_logger;
     static std::unique_ptr<Frontend_cleanup>    m_cleanup;
 
 private: // Private data members usable only by the base Frontend
@@ -170,6 +171,7 @@ public: // Values set by cti_setAttribute
 private: // Private static utility methods used by the generic frontend
     // get the logger associated with the frontend - can only construct logger
     // after fe instantiation!
+    struct LoggerInit { LoggerInit(); cti::Logger& get(); };
     static cti::Logger& getLogger();
     // get the frontend type for this system
     static cti_wlm_type_t detect_Frontend();

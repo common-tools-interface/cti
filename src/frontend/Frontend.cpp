@@ -59,6 +59,7 @@
 // Static data objects
 std::atomic<Frontend*>              Frontend::m_instance{nullptr};
 std::mutex                          Frontend::m_mutex;
+std::unique_ptr<cti::Logger>        Frontend::m_logger;  // must be destroyed after m_cleanup
 std::unique_ptr<Frontend_cleanup>   Frontend::m_cleanup{nullptr};
 
 // This ensures the singleton gets deleted
@@ -124,12 +125,20 @@ char FE_prng::genChar()
     return _cti_valid_char[oset];
 }
 
-// Logger object that must be created after frontend instantiation
+// initialized helper for getLogger.
+Frontend::LoggerInit::LoggerInit() {
+    Frontend::m_logger.reset(new cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()});
+}
+
+cti::Logger& Frontend::LoggerInit::get() { return *Frontend::m_logger; }
+
+// Logger object that must be created after frontend instantiation, but also must be destroyed after
+// frontend instantiation, hence the extra LoggerInit logic. 
 cti::Logger&
 Frontend::getLogger(void)
 {
-    static auto _cti_logger = cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()};
-    return _cti_logger;
+    static auto _cti_init = LoggerInit{};
+    return _cti_init.get();
 }
 
 std::string
