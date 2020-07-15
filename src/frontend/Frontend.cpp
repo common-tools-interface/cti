@@ -133,7 +133,8 @@ Frontend::LoggerInit::LoggerInit() {
 cti::Logger& Frontend::LoggerInit::get() { return *Frontend::m_logger; }
 
 // Logger object that must be created after frontend instantiation, but also must be destroyed after
-// frontend instantiation, hence the extra LoggerInit logic. 
+// frontend instantiation, hence the extra LoggerInit logic. Do not call inside Frontend
+// instantiation, as it depends on Frontend::inst() state and will deadlock.
 cti::Logger&
 Frontend::getLogger(void)
 {
@@ -430,7 +431,8 @@ Frontend::detect_Frontend()
         }
 
     } catch (...) {
-        // Ignore wlm_detect errors and continue with heuristics
+        // Ignore wlm_detect errors and continue with heuristics. Logger cannot be called
+        // during construction, as it depends on Frontend state and will deadlock.
     }
 
     // Query supported workload managers
