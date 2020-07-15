@@ -429,8 +429,8 @@ Frontend::detect_Frontend()
             return CTI_WLM_SLURM;
         }
 
-    } catch (std::runtime_error const& ex) {
-        getLogger().write("warning: wlm_detect failed: %s\n", ex.what());
+    } catch (...) {
+        // Ignore wlm_detect errors and continue with heuristics
     }
 
     // Query supported workload managers
