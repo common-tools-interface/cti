@@ -47,7 +47,7 @@ cti_link_LDFLAGS			= -Wl,-rpath,$(libdir) -Wl,--as-needed $(AM_LDFLAGS) $(CRAY_C
 
 cti_callback_SOURCES		= cti_callback_test.c
 cti_callback_CFLAGS			= $(CRAY_CTI_FE_CFLAGS) $(AM_CFLAGS)
-cti_callback_LDFLAGS		= -Wl,-rpath,$(libdir) -Wl,--as-needed -pthread $(AM_LDFLAGS) $(CRAY_CTI_FE_LIBS)
+cti_callback_LDFLAGS		= -Wl,-rpath,$(libdir) -Wl,--as-needed -lpthread $(AM_LDFLAGS) $(CRAY_CTI_FE_LIBS)
 
 cti_callback_daemon_SOURCES = cti_callback_daemon.c
 cti_callback_daemon_CFLAGS	= $(CRAY_CTI_FE_CFLAGS) $(AM_CFLAGS)
@@ -60,7 +60,7 @@ function_tests_CXXFLAGS		=	$(AM_CXXFLAGS) $(function_tests_CFLAGS)
 function_tests_LDADD		=	$(CRAY_CTI_FE_LIBS) \
 								$(SUPPORT)/libgtest.la \
 								-ldl -lrt -lstdc++
-function_tests_LDFLAGS		=	-pthread -Wl,--enable-new-dtags -Wl,--no-undefined \
+function_tests_LDFLAGS		=	-lpthread -Wl,--enable-new-dtags -Wl,--no-undefined \
 								-Wl,--as-needed -Wl,-rpath,$(libdir)
 
 hello_mpi_CFLAGS			= $(AM_CFLAGS)
