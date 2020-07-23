@@ -21,6 +21,7 @@ AC_PROG_CC([cc])
 AC_PROG_CXX([CC])
 AM_PROG_AR
 LT_INIT
+AX_PTHREAD
 
 PKG_PROG_PKG_CONFIG
 PKG_CHECK_MODULES([CRAY_CTI_FE], 	[common_tools_fe],[],[AC_MSG_ERROR([libcommontools_fe.so not found.])])
