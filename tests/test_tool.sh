@@ -76,7 +76,7 @@ pretest_checks() {
 
     # can i run mpi apps?
     echo "Trying to run an mpi app..."
-    if ! eval "$CTI_TESTS_LAUNCHER $CTI_TESTS_LAUNCHER_ARGS ./function/tests/hello_mpi"; then
+    if ! eval "$CTI_TESTS_LAUNCHER $CTI_TESTS_LAUNCHER_ARGS ./function/src/hello_mpi"; then
         echo "Can't run a basic mpi app. Do you need different launcher arguments?"
         return 1
     fi
@@ -107,8 +107,7 @@ prebuild_checks() {
 
 # build tests with autotools
 build() {
-    local source_files_glob="$DIR/function/tests/*.c \
-                             $DIR/function/tests/*.cpp \
+    local source_files_glob="$DIR/function/src/*.c \
                              $DIR/test_support/*.c"
     
     # touch source files to force rebuild

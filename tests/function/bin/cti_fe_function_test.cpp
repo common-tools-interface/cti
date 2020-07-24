@@ -230,7 +230,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector
 // This test is at the start to avoid a race condition that causes failure if ran later
 TEST_F(CTIFEFunctionTest, DaemonLibDir) {
     // set up app
-    auto const  argv = createSystemArgv({"./hello_mpi"});
+    auto const  argv = createSystemArgv({"../src/hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -311,7 +311,7 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
 
     { // Launch application without preload, expect response of 1
         // set up app
-        auto const  argv = createSystemArgv({"./mpi_wrapper", oneSocketPath, address, port});
+        auto const  argv = createSystemArgv({"../src/mpi_wrapper", oneSocketPath, address, port});
         auto const  stdoutFd = -1;
         auto const  stderrFd = -1;
         char const* inputFile = nullptr;
@@ -353,7 +353,7 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
 
     { // Launch application with preload, expect response of 2
         // set up app
-        auto const  argv = createSystemArgv({"./mpi_wrapper", oneSocketPath.c_str(), address.c_str(), port.c_str()});
+        auto const  argv = createSystemArgv({"../src/mpi_wrapper", oneSocketPath.c_str(), address.c_str(), port.c_str()});
         auto const  stdoutFd = -1;
         auto const  stderrFd = -1;
         char const* inputFile = nullptr;
@@ -411,7 +411,7 @@ TEST_F(CTIFEFunctionTest, Launch) {
 
 // Test that an app can't be released twice
 TEST_F(CTIFEFunctionTest, DoubleRelease) {
-    auto const  argv = createSystemArgv({"./hello_mpi"});
+    auto const  argv = createSystemArgv({"../src/hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -439,7 +439,7 @@ TEST_F(CTIFEFunctionTest, StdoutPipe) {
     ASSERT_NE(piperead, nullptr) << "Failed to open pipe for reading.";
 
     // set up launch arguments
-    std::vector<std::string> argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/echo", echoString.c_str()});
+    std::vector<std::string> argv = createSystemArgv({"../src/mpi_wrapper", "/usr/bin/echo", echoString.c_str()});
     auto const  stdoutFd = pipes[1];
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -485,10 +485,10 @@ TEST_F(CTIFEFunctionTest, InputFile) {
     FILE *piperead = fdopen(pipes[0], "r");
     ASSERT_NE(piperead, nullptr) << "Failed to open pipe for reading.";
 
-    auto const  argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/cat"});
+    auto const  argv = createSystemArgv({"../src/mpi_wrapper", "/usr/bin/cat"});
     auto const  stdoutFd = pipes[1];
     auto const  stderrFd = -1;
-    char const* inputFile = "./inputFileData.txt";
+    char const* inputFile = "../src/inputFileData.txt";
     char const* chdirPath = nullptr;
     char const* const* envList  = nullptr;
 
@@ -529,7 +529,7 @@ TEST_F(CTIFEFunctionTest, EnvVars) {
     ASSERT_NE(piperead, nullptr) << "Failed to open pipe for reading.";
 
     // set up launch arguments
-    auto const  argv = createSystemArgv({"./mpi_wrapper", "/usr/bin/env"});
+    auto const  argv = createSystemArgv({"../src/mpi_wrapper", "/usr/bin/env"});
     auto const  stdoutFd = pipes[1];
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -575,7 +575,7 @@ TEST_F(CTIFEFunctionTest, EnvVars) {
 // Test that an app can create a transfer session
 TEST_F(CTIFEFunctionTest, CreateSession) {
     // set up app
-    auto const  argv = createSystemArgv({"./hello_mpi"});
+    auto const  argv = createSystemArgv({"../src/hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -599,7 +599,7 @@ TEST_F(CTIFEFunctionTest, CreateSession) {
 // Test that an app can create a transfer manifest
 TEST_F(CTIFEFunctionTest, CreateManifest) {
     // set up app
-    auto const  argv = createSystemArgv({"./hello_mpi"});
+    auto const  argv = createSystemArgv({"../src/hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -627,7 +627,7 @@ TEST_F(CTIFEFunctionTest, CreateManifest) {
 // Test that an app can run a tool daemon
 TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
     // set up app
-    auto const  argv = createSystemArgv({"./hello_mpi"});
+    auto const  argv = createSystemArgv({"../src/hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -653,13 +653,13 @@ TEST_F(CTIFEFunctionTest, ExecToolDaemon) {
 
 // Test transferring a file in a manifest
 TEST_F(CTIFEFunctionTest, Transfer) {
-    auto const  argv = createSystemArgv({"./hello_mpi"});
+    auto const  argv = createSystemArgv({"../src/hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
     char const* chdirPath = nullptr;
     char const* const* envList  = nullptr;
-    char const* filename = "./testing.info";
+    char const* filename = "../src/testing.info";
     char * file_loc;
     int r;
 
