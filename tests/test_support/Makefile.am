@@ -16,15 +16,15 @@ AUTOMAKE_OPTIONS = subdir-objects
 # google test framework library
 noinst_LTLIBRARIES		= libgtest.la
 libgtest_la_SOURCES		= googletest/googletest/src/gtest-all.cc
-libgtest_la_CPPFLAGS	= -I$(GTEST)/include -I$(GTEST)
-libgtest_la_LDFLAGS		= -pthread
+libgtest_la_CPPFLAGS	= -I$(GTEST)/include -I$(GTEST) $(PTHREAD_CFLAGS)
+libgtest_la_LDFLAGS		= $(PTHREAD_LIBS)
 
 # google mock framework library
 noinst_LTLIBRARIES		+=	libgmock.la
 libgmock_la_SOURCES		=	googletest/googlemock/src/gmock-all.cc
 libgmock_la_CPPFLAGS	=	-I$(GTEST)/include -I$(GTEST) \
-							-I$(GMOCK)/include -I$(GMOCK)
-libgmock_la_LDFLAGS		=	-pthread
+							-I$(GMOCK)/include -I$(GMOCK) $(PTHREAD_CFLAGS)
+libgmock_la_LDFLAGS		=	$(PTHREAD_LIBS)
 
 # support binaries for function and unit tests
 
