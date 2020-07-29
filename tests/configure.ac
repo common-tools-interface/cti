@@ -31,7 +31,8 @@ AC_CONFIG_FILES([
     Makefile
     test_support/Makefile
     function/Makefile
-    function/tests/Makefile
+    function/bin/Makefile
+    function/src/Makefile
 ])
 
 AC_OUTPUT

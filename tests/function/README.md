@@ -1,6 +1,6 @@
 # Functional Tests
 
-Test source code is in `./tests`. They can be executed with the `build_run.sh`
+Test binaries are in `./bin` and source code and data are in `./src`. They can be executed with the `build_run.sh`
 script in this directory.
 
 `build_run.sh` is smart enough to make sure you have avocado/python3/etc set up,

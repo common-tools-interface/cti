@@ -10,4 +10,4 @@
 # in any form.
 #
 
-SUBDIRS = tests
+SUBDIRS = src bin

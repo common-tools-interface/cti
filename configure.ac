@@ -248,6 +248,7 @@ AC_CONFIG_FILES([
     tests/test_support/Makefile
     tests/mock/Makefile
     tests/unit/Makefile
+    tests/function/bin/Makefile
 ])
 
 cray_INIT_CHECKSUM([src/frontend/checksum])
