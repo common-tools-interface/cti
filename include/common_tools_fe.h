@@ -833,6 +833,7 @@ typedef struct {
  */
 
 typedef struct {
+    char*            (*getApid)(pid_t craycliPid);
     cti_app_id_t     (*registerApid)(char const* apid);
 } cti_pals_ops_t;
 

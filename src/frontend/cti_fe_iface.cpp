@@ -436,6 +436,14 @@ static cti_slurm_ops_t _cti_slurm_ops = {
 
 // PALS WLM extensions
 
+static char*
+_cti_pals_getApid(pid_t craycliPid) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<PALSFrontend>();
+        return strdup(fe.getApid(craycliPid).c_str());
+    }, (char*)nullptr);
+}
+
 static cti_app_id_t
 _cti_pals_registerApid(char const* apid) {
     return FE_iface::runSafely(__func__, [&](){
@@ -446,6 +454,7 @@ _cti_pals_registerApid(char const* apid) {
 }
 
 static cti_pals_ops_t _cti_pals_ops = {
+    .getApid      = _cti_pals_getApid,
     .registerApid = _cti_pals_registerApid
 };
 
