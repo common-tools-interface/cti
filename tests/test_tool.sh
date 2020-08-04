@@ -102,6 +102,9 @@ prebuild_checks() {
         return 1
     fi
 
+    # add cti lib directory to LD_LIBRARY_PATH to make sure we load the right library
+    export LD_LIBRARY_PATH="$CTI_INSTALL_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
     return 0
 }
 
