@@ -46,8 +46,11 @@
 
 class Archive {
 private: // variables
+    static constexpr size_t CTI_BLOCK_SIZE = 65536;
+
     std::unique_ptr<struct archive,       decltype(&archive_write_free)> m_archPtr;
     std::unique_ptr<struct archive_entry, decltype(&archive_entry_free)> m_entryScratchpad;
+    std::unique_ptr<char[]> m_readBuf;
     std::string const m_archivePath;
 
 private: // functions
@@ -63,6 +66,7 @@ public: // interface
     const std::string& finalize() {
         m_archPtr.reset();
         m_entryScratchpad.reset();
+        m_readBuf.reset();
         return m_archivePath;
     }
     // create archive directory entry
