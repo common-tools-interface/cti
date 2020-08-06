@@ -53,7 +53,7 @@ def readVariablesFromEnv(test):
         test.error("Couldn't read %s from environment. Is the CTI module loaded?" % e)
 
     try:
-        LAUNCHER_ARGS = os.environ["CTI_TESTS_LAUNCHER_ARGS"]
+        LAUNCHER_ARGS = os.environ["CDST_TESTS_LAUNCHER_ARGS"]
     except KeyError as e:
         test.error("Couldn't read %s from environment." % e)
 

@@ -160,7 +160,7 @@ Development files for Cray Common Tools Interface
 Summary:    Cray Common Tools Interface test binariess
 Group:      Development
 Provides:   %{cray_name}%{pkgversion_separator}tests = %{pkgversion}
-Requires:   cray-gcc-8.1.0, %{cray_name} = %{pkgversion}, %{devel_modulefile_name} = %{pkgversion}
+Requires:   cray-gcc-8.1.0, cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst-support-devel < %{cdst_support_pkgversion_max}, %{cray_name} = %{pkgversion}, %{devel_modulefile_name} = %{pkgversion}
 %description -n %{cray_name}%{pkgversion_separator}tests
 Test files for Cray Common Tools Interface
 
@@ -236,15 +236,15 @@ Test files for Cray Common Tools Interface
 %{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}%{pkgversion_separator}tests|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;'/admin-pe'/d' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}%{pkgversion_separator}tests-%{pkgversion}-%{release}.%{_arch}.rpm.yaml
 # Test files
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
-%{__cp} -a %{tests_source_dir}/configure.ac       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/configure.ac
-%{__cp} -a %{tests_source_dir}/Makefile.am        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile.am
-%{__cp} -a %{tests_source_dir}/test_tool.sh       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool.sh
-%{__cp} -a %{tests_source_dir}/README.md          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
+%{__cp} -a %{tests_source_dir}/configure.ac             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/configure.ac
+%{__cp} -a %{tests_source_dir}/Makefile.am              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile.am
+%{__cp} -a %{tests_source_dir}/test_tool_starter.py     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_starter.py
+%{__cp} -a %{tests_source_dir}/test_tool_config.yaml    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_config.yaml
+%{__cp} -a %{tests_source_dir}/README.md                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function
-%{__cp} -a %{tests_source_dir}/function/avocado_test_params.yaml ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_test_params.yaml
-%{__cp} -a %{tests_source_dir}/function/avocado_tests.py         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_tests.py
-%{__cp} -a %{tests_source_dir}/function/build_run.sh             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/build_run.sh
+%{__cp} -a %{tests_source_dir}/function/avocado_config.yaml      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_config.yaml
+%{__cp} -a %{tests_source_dir}/function/tests.py                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/tests.py
 %{__cp} -a %{tests_source_dir}/function/Makefile.am              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile.am
 %{__cp} -a %{tests_source_dir}/function/README.md                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/README.md
 
@@ -270,10 +270,6 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/src/testing.info             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/testing.info
 %{__cp} -a %{tests_source_dir}/function/src/inputFileData.txt        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/inputFileData.txt
 
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/scripts
-%{__cp} -a %{tests_source_dir}/scripts/system_specific_setup.sh ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/scripts/system_specific_setup.sh
-%{__cp} -a %{tests_source_dir}/scripts/validate_ssh.sh          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/scripts/validate_ssh.sh
-
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
 %{__cp} -a %{tests_source_dir}/test_support/Makefile.am        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile.am
 %{__cp} -a %{tests_source_dir}/test_support/one_print.c        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print.c
@@ -293,11 +289,15 @@ Test files for Cray Common Tools Interface
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googletest/src ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googletest/include ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
+%{__cp} -a %{tests_source_dir}/test_support/googletest/googletest/src/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
+%{__cp} -a %{tests_source_dir}/test_support/googletest/googletest/include/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/src ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/include ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
+%{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/src/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
+%{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/include/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
 
 # Touch the cray dynamic file list which will be populated/updated post-install
 touch ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
@@ -478,13 +478,13 @@ fi
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/configure.ac
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile.am
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool.sh
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_starter.py
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_config.yaml
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/function
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_test_params.yaml
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_tests.py
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/build_run.sh
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_config.yaml
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/tests.py
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile.am
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/README.md
 
@@ -509,10 +509,6 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/mpmd.conf
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/testing.info
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/inputFileData.txt
-
-%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/scripts
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/scripts/system_specific_setup.sh
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/scripts/validate_ssh.sh
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile.am
