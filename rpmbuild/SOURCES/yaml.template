@@ -14,7 +14,7 @@ section-1:
         ALL_EXCEPT:
             - SEASTAR
     OPERATION             : INSTALL
-    OS_VERSION            : 7.0
+    OS_VERSION            : 7.0,7.1
     RPM_LIST              : NONE
     SYSTEM_TYPE           : HARDWARE
 
@@ -23,10 +23,7 @@ section-2:
     EFFECTIVE_DATE        : NONE
     EMAILS                : karen.glaser@hpe.com
     EMAIL_BUILDER         : NO
-    HOSTS:
-        ALL_EXCEPT:
-            - chpbld01
-            - chpbld02
+    HOSTS                 : ALL
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : INSTALL
@@ -45,21 +42,18 @@ section-3:
         ALL_EXCEPT:
             - SEASTAR
     OPERATION             : UPDATE
-    OS_VERSION            : 7.0
+    OS_VERSION            : 7.0,7.1
     RPM_LIST              : NONE
     SYSTEM_TYPE           : HARDWARE
     COMMANDS: |
-            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT_NAME>_<VERSION>
 
 section-4:
     ACCELERATOR           : NONE
     EFFECTIVE_DATE        : NONE
     EMAILS                : karen.glaser@hpe.com
     EMAIL_BUILDER         : NO
-    HOSTS:
-        ALL_EXCEPT:
-            - chpbld01
-            - chpbld02
+    HOSTS                 : ALL
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : UPDATE
@@ -67,7 +61,7 @@ section-4:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : WHITEBOX
     COMMANDS: |
-            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT_NAME>_<VERSION>
 
 section-5:
     ACCELERATOR           : NONE
@@ -78,18 +72,18 @@ section-5:
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : REMOVE
-    OS_VERSION            : 7.0, sles15
+    OS_VERSION            : 7.0,7.1,sles15
     RPM_LIST              : NONE
     SYSTEM_TYPE           : HARDWARE,WHITEBOX
     COMMANDS: |
-        rpm -e <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>
+        rpm -e <PRODUCT>-<BUILD_METADATA><RELEASE>.<ARCH>
 
 --- |
 #Remove previous versions of this rpm
-for package in  $(rpm -qa | grep ^<PRODUCT>-<VERSION>-)
+for package in  $(rpm -qa | grep ^<PRODUCT>-)
 do
   rpm -e $package
 done
 
-rpm -ivh --oldpackage <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>.rpm
+rpm -ivh --oldpackage <PRODUCT>-<BUILD_METADATA><RELEASE>.<ARCH>.rpm
 
