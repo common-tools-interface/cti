@@ -264,7 +264,7 @@ TEST_F(CTIFEFunctionTest, HaveValidFrontend) {
 // one_socket is dynamically linked to message_one/libmessage.so
 // libmessage implements get_message() that will return a value of 1, then sent over socket to FE.
 // The test will first verify that one_socket normally sends a value of 1.
-// Then, it wil LD_PRELOAD message_two/libmessage.so, which implements get_message() returning value 2.
+// Then, it will LD_PRELOAD message_two/libmessage.so, which implements get_message() returning value 2.
 // The test will then verify that LD_PRELOAD overrides the get_message() impl. to send a value of 2.
 TEST_F(CTIFEFunctionTest, LdPreloadSet)
 {
@@ -343,8 +343,11 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
             // read data returned from app
             char buffer[16] = {0};
             int length = read(app_socket, buffer, 16);
+            std::cout << "Read " << length << " bytes.\n";
             ASSERT_LT(length, 16);
             buffer[length] = '\0';
+
+            std::cout << "Got: " << buffer << std::endl;
 
             // check for correctness
             ASSERT_STREQ(buffer, "1");
@@ -383,8 +386,11 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
             // read data returned from app
             char buffer[16] = {0};
             int length = read(app_socket, buffer, 16);
+            std::cout << "Read " << length << " bytes.\n";
             ASSERT_LT(length, 16);
             buffer[length] = '\0';
+
+            std::cout << "Got: " << buffer << std::endl;
 
             // check for correctness
             ASSERT_STREQ(buffer, "2");
