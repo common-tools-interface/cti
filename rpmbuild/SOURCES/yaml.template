@@ -14,9 +14,9 @@ section-1:
         ALL_EXCEPT:
             - SEASTAR
     OPERATION             : INSTALL
-    OS_VERSION            : 7.0,7.1
+    OS_VERSION            : <OS_HW_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : HARDWARE
+    SYSTEM_TYPE           : <SYS_HW_TAG>
 
 section-2:
     ACCELERATOR           : NONE
@@ -27,9 +27,9 @@ section-2:
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : INSTALL
-    OS_VERSION            : sles15
+    OS_VERSION            : <OS_WB_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : WHITEBOX
+    SYSTEM_TYPE           : <SYS_WB_TAG>
 
 section-3:
     ACCELERATOR           : NONE
@@ -42,9 +42,9 @@ section-3:
         ALL_EXCEPT:
             - SEASTAR
     OPERATION             : UPDATE
-    OS_VERSION            : 7.0,7.1
+    OS_VERSION            : <OS_HW_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : HARDWARE
+    SYSTEM_TYPE           : <SYS_HW_TAG>
     COMMANDS: |
             /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT_NAME>_<VERSION>
 
@@ -57,9 +57,9 @@ section-4:
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : UPDATE
-    OS_VERSION            : sles15
+    OS_VERSION            : <OS_WB_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : WHITEBOX
+    SYSTEM_TYPE           : <SYS_WB_TAG>
     COMMANDS: |
             /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT_NAME>_<VERSION>
 
@@ -72,11 +72,11 @@ section-5:
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : REMOVE
-    OS_VERSION            : 7.0,7.1,sles15
+    OS_VERSION            : <OS_HW_TAG>,<OS_WB_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : HARDWARE,WHITEBOX
+    SYSTEM_TYPE           : <SYS_HW_TAG>,<SYS_WB_TAG>
     COMMANDS: |
-        rpm -e <PRODUCT>-<BUILD_METADATA><RELEASE>.<ARCH>
+        rpm -e <PRODUCT>-<BUILD_METADATA>-<RELEASE>.<ARCH>
 
 --- |
 #Remove previous versions of this rpm
@@ -85,5 +85,5 @@ do
   rpm -e $package
 done
 
-rpm -ivh --oldpackage <PRODUCT>-<BUILD_METADATA><RELEASE>.<ARCH>.rpm
+rpm -ivh --oldpackage <PRODUCT>-<BUILD_METADATA>-<RELEASE>.<ARCH>.rpm
 
