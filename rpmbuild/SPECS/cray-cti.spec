@@ -164,21 +164,21 @@ Source9:    %{yaml_template}
 Cray Common Tools Interface %{pkgversion}
 Certain components, files or programs contained within this package or product are %{copyright}
 
-%package -n %{name}%{pkgversion_separator}devel
+%package -n %{cray_name}-devel-%{pkgversion}
 Summary:    Cray Common Tools Interface development files
 Group:      Development
 Provides:   %{cray_name}-devel = %{pkgversion}
 Requires:   set_default_2, cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
 Source8:    %{lmod_template_cti_devel}
-%description -n %{name}-devel
+%description -n %{cray_name}%{pkgversion_separator}devel%{pkgversion_separator}%{pkgversion}
 Development files for Cray Common Tools Interface
 
-%package -n %{name}%{pkgversion_separator}tests
+%package -n %{cray_name}-tests-%{pkgversion}
 Summary:    Cray Common Tools Interface test binariess
 Group:      Development
 Provides:   %{cray_name}-tests = %{pkgversion}
 Requires:   cray-gcc-8.1.0, %{cray_name} = %{pkgversion}, %{cray_name}-devel = %{pkgversion}
-%description -n %{name}%{pkgversion_separator}tests
+%description -n %{cray_name}-tests-%{pkgversion}
 Test files for Cray Common Tools Interface
 
 
@@ -244,13 +244,13 @@ Test files for Cray Common Tools Interface
 %{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
 %{__mkdir} -p %{_rpmdir}/%{_arch}
 # yaml file - cray-cti
-%{__sed} 's|<PRODUCT>|%{name}|g;s|<PRODUCT_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{name}-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # yaml file - cray-cti-devel
-%{__sed} 's|<PRODUCT>|%{name}-devel|g;s|<PRODUCT_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{name}-devel-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # yaml file - cray-cti-tests
 %global start_rmLine %(sed -n /section-3/= %{SOURCE9})
 %global end_rmLine %(sed -n /admin-pe/= %{SOURCE9} | tail -1)
-%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{name}-tests|g;s|<PRODUCT_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;'/admin-pe'/d' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{name}-tests-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-tests|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;'/admin-pe'/d' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # Test files
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
 %{__cp} -a %{tests_source_dir}/configure.ac       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/configure.ac
@@ -361,7 +361,7 @@ then
     fi
 fi
 
-%post -n %{name}%{pkgversion_separator}devel
+%post -n %{cray_name}-devel-%{pkgversion}
 # Add Shasta configuration files for PE content projection
 if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
     %{__mkdir} -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
@@ -437,7 +437,7 @@ if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{cray_product}` ]]; then
   fi
 fi
 
-%postun -n %{name}%{pkgversion_separator}devel
+%postun -n %{cray_name}-devel-%{pkgversion}
 if [ $1 == 1 ]
 then
   exit 0
@@ -454,7 +454,7 @@ if [ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name} ]; then
   %{__rm} -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}
 fi
 
-%postun -n %{name}%{pkgversion_separator}tests
+%postun -n %{cray_name}-tests-%{pkgversion}
 if [ $1 == 1 ]
 then
   exit 0
@@ -497,7 +497,7 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 %attr(644, root, root) %verify(not md5 size mtime) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
 
-%files -n %{name}%{pkgversion_separator}devel
+%files -n %{cray_name}-devel-%{pkgversion}
 %dir %{prefix}/%{cray_product}/%{pkgversion}/include
 %dir %{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_be.h
@@ -512,7 +512,7 @@ fi
 %attr(755, root, root) %{prefix}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
 %attr(644, root, root) %{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
 
-%files -n %{name}%{pkgversion_separator}tests
+%files -n %{cray_name}-tests-%{pkgversion}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests

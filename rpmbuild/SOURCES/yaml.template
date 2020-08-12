@@ -46,7 +46,7 @@ section-3:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : <SYS_HW_TAG>
     COMMANDS: |
-            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT_NAME>_<VERSION>
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
 
 section-4:
     ACCELERATOR           : NONE
@@ -61,7 +61,7 @@ section-4:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : <SYS_WB_TAG>
     COMMANDS: |
-            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT_NAME>_<VERSION>
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
 
 section-5:
     ACCELERATOR           : NONE
@@ -76,14 +76,14 @@ section-5:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : <SYS_HW_TAG>,<SYS_WB_TAG>
     COMMANDS: |
-        rpm -e <PRODUCT>-<BUILD_METADATA>-<RELEASE>.<ARCH>
+        rpm -e <PRODUCT>-<VERSION>-<BUILD_METADATA>-<RELEASE>.<ARCH>
 
 --- |
 #Remove previous versions of this rpm
-for package in  $(rpm -qa | grep ^<PRODUCT>-)
+for package in  $(rpm -qa | grep ^<PRODUCT>-<VERSION>-)
 do
   rpm -e $package
 done
 
-rpm -ivh --oldpackage <PRODUCT>-<BUILD_METADATA>-<RELEASE>.<ARCH>.rpm
+rpm -ivh --oldpackage <PRODUCT>-<VERSION>-<BUILD_METADATA>-<RELEASE>.<ARCH>.rpm
 
