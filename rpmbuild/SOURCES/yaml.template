@@ -14,25 +14,22 @@ section-1:
         ALL_EXCEPT:
             - SEASTAR
     OPERATION             : INSTALL
-    OS_VERSION            : 7.0
+    OS_VERSION            : <OS_HW_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : HARDWARE
+    SYSTEM_TYPE           : <SYS_HW_TAG>
 
 section-2:
     ACCELERATOR           : NONE
     EFFECTIVE_DATE        : NONE
     EMAILS                : karen.glaser@hpe.com
     EMAIL_BUILDER         : NO
-    HOSTS:
-        ALL_EXCEPT:
-            - chpbld01
-            - chpbld02
+    HOSTS                 : ALL
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : INSTALL
-    OS_VERSION            : sles15
+    OS_VERSION            : <OS_WB_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : WHITEBOX
+    SYSTEM_TYPE           : <SYS_WB_TAG>
 
 section-3:
     ACCELERATOR           : NONE
@@ -45,9 +42,9 @@ section-3:
         ALL_EXCEPT:
             - SEASTAR
     OPERATION             : UPDATE
-    OS_VERSION            : 7.0
+    OS_VERSION            : <OS_HW_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : HARDWARE
+    SYSTEM_TYPE           : <SYS_HW_TAG>
     COMMANDS: |
             /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
 
@@ -56,16 +53,13 @@ section-4:
     EFFECTIVE_DATE        : NONE
     EMAILS                : karen.glaser@hpe.com
     EMAIL_BUILDER         : NO
-    HOSTS:
-        ALL_EXCEPT:
-            - chpbld01
-            - chpbld02
+    HOSTS                 : ALL
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : UPDATE
-    OS_VERSION            : sles15
+    OS_VERSION            : <OS_WB_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : WHITEBOX
+    SYSTEM_TYPE           : <SYS_WB_TAG>
     COMMANDS: |
             /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
 
@@ -78,11 +72,11 @@ section-5:
     INSTALL_DEFAULT_HOSTS : NONE
     NETWORK_TYPE          : NONE
     OPERATION             : REMOVE
-    OS_VERSION            : 7.0, sles15
+    OS_VERSION            : <OS_HW_TAG>,<OS_WB_TAG>
     RPM_LIST              : NONE
-    SYSTEM_TYPE           : HARDWARE,WHITEBOX
+    SYSTEM_TYPE           : <SYS_HW_TAG>,<SYS_WB_TAG>
     COMMANDS: |
-        rpm -e <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>
+        rpm -e <PRODUCT>-<VERSION>-<BUILD_METADATA>-<RELEASE>.<ARCH>
 
 --- |
 #Remove previous versions of this rpm
@@ -91,5 +85,5 @@ do
   rpm -e $package
 done
 
-rpm -ivh --oldpackage <PRODUCT>-<VERSION>-<BUILD_METADATA>.<ARCH>.rpm
+rpm -ivh --oldpackage <PRODUCT>-<VERSION>-<BUILD_METADATA>-<RELEASE>.<ARCH>.rpm
 

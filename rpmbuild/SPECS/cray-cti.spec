@@ -96,37 +96,36 @@
 
 # Dist tags for SuSE need to be manually set
 %if 0%{?suse_version}
-%if 0%{?suse_version} == 1315
-%global dist .sles12
-%endif
-%if 0%{?sle_version} == 120000
-%global dist .sles12
-%endif
-%if 0%{?sle_version} == 120100
-%global dist .sles12sp1
-%endif
-%if 0%{?sle_version} == 120200
-%global dist .sles12sp2
-%endif
-%if 0%{?sle_version} == 120300
-%global dist .sles12sp3
-%endif
-%if 0%{?sle_version} == 120400
-%global dist .sles12sp4
-%endif
 %if 0%{?sle_version} == 150000
 %global dist .sles15
+%global OS_HW_TAG 7.0,7.1
+%global OS_WB_TAG sles15
 %endif
 %if 0%{?sle_version} == 150100
 %global dist .sles15sp1
+%global OS_HW_TAG 7.0,7.1
+%global OS_WB_TAG sles15sp1
 %endif
 %endif
 
+%if %{_arch} == aarch64
+%global SYS_HW_TAG AARCH64
+%global SYS_WB_TAG AARCH64
+%endif
+%if %{_arch} == x86_64
+%global SYS_HW_TAG HARDWARE
+%global SYS_WB_TAG WHITEBOX
+%endif
+%if 0%{?rhel} == 8
+%global OS_HW_TAG el8
+%global OS_WB_TAG el8
+%endif
+
 Summary:    Cray Common Tools Interface
-Name:       %{cray_name}
-Version:    %{pkgversion}
+Name:       %{cray_name}%{pkgversion_separator}%{pkgversion}
 # BUILD_METADATA is set by Jenkins
-Release:    %(echo ${BUILD_METADATA})%{dist}
+Version:    %(echo ${BUILD_METADATA})
+Release:    1%{dist}
 Prefix:     %{cray_prefix}
 License:    Dual BSD or GPLv2
 Vendor:     Cray Inc.
@@ -147,21 +146,21 @@ Source9:    %{yaml_template}
 Cray Common Tools Interface %{pkgversion}
 Certain components, files or programs contained within this package or product are %{copyright}
 
-%package -n %{devel_modulefile_name}
+%package -n %{cray_name}-devel-%{pkgversion}
 Summary:    Cray Common Tools Interface development files
 Group:      Development
-Provides:   %{devel_modulefile_name} = %{pkgversion}
+Provides:   %{cray_name}-devel = %{pkgversion}
 Requires:   set_default_2, cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
 Source8:    %{lmod_template_cti_devel}
-%description -n %{devel_modulefile_name}
+%description -n %{cray_name}-devel-%{pkgversion}
 Development files for Cray Common Tools Interface
 
-%package -n %{cray_name}%{pkgversion_separator}tests
+%package -n %{cray_name}-tests-%{pkgversion}
 Summary:    Cray Common Tools Interface test binariess
 Group:      Development
-Provides:   %{cray_name}%{pkgversion_separator}tests = %{pkgversion}
-Requires:   cray-gcc-8.1.0, cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst-support-devel < %{cdst_support_pkgversion_max}, %{cray_name} = %{pkgversion}, %{devel_modulefile_name} = %{pkgversion}
-%description -n %{cray_name}%{pkgversion_separator}tests
+Provides:   %{cray_name}-tests = %{pkgversion}
+Requires:   cray-gcc-8.1.0, cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst-support-devel < %{cdst_support_pkgversion_max}, %{cray_name} = %{pkgversion}, %{cray_name}-devel = %{pkgversion}
+%description -n %{cray_name}-tests-%{pkgversion}
 Test files for Cray Common Tools Interface
 
 
@@ -227,13 +226,13 @@ Test files for Cray Common Tools Interface
 %{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
 %{__mkdir} -p %{_rpmdir}/%{_arch}
 # yaml file - cray-cti
-%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{release}.%{_arch}.rpm.yaml
+%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # yaml file - cray-cti-devel
-%{__sed} 's|<PRODUCT>|%{devel_modulefile_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{devel_modulefile_name}-%{pkgversion}-%{release}.%{_arch}.rpm.yaml
+%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # yaml file - cray-cti-tests
-%global start_rmLine%(sed -n /section-3/= %{SOURCE9})
+%global start_rmLine %(sed -n /section-3/= %{SOURCE9})
 %global end_rmLine %(sed -n /admin-pe/= %{SOURCE9} | tail -1)
-%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}%{pkgversion_separator}tests|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;'/admin-pe'/d' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}%{pkgversion_separator}tests-%{pkgversion}-%{release}.%{_arch}.rpm.yaml
+%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-tests|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;'/admin-pe'/d' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # Test files
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
 %{__cp} -a %{tests_source_dir}/configure.ac             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/configure.ac
@@ -344,7 +343,7 @@ then
     fi
 fi
 
-%post -n %{devel_modulefile_name}
+%post -n %{cray_name}-devel-%{pkgversion}
 # Add Shasta configuration files for PE content projection
 if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
     %{__mkdir} -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
@@ -420,7 +419,7 @@ if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{cray_product}` ]]; then
   fi
 fi
 
-%postun -n %{devel_modulefile_name}
+%postun -n %{cray_name}-devel-%{pkgversion}
 if [ $1 == 1 ]
 then
   exit 0
@@ -437,6 +436,29 @@ if [ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name} ]; then
   %{__rm} -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}
 fi
 
+%postun -n %{cray_name}-tests-%{pkgversion}
+if [ $1 == 1 ]
+then
+  exit 0
+fi
+
+# If the install dir exists
+if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest/googlemock ]; then
+  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest/googlemock
+fi
+if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest/googletest ]; then
+  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest/googletest
+fi
+if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest ]; then
+  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest
+fi
+if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support ]; then
+  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support
+fi
+if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests ]; then
+  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests
+fi
+
 %files
 %defattr(755, root, root)
 %dir %{prefix}/%{cray_product}/%{pkgversion}
@@ -446,8 +468,8 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libaudit.so
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_be.so*
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_fe.so*
+%{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_be.so*
+%{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_fe.so*
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_be_daemon%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_fe_daemon%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
@@ -457,7 +479,7 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 %attr(644, root, root) %verify(not md5 size mtime) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
 
-%files -n %{devel_modulefile_name}
+%files -n %{cray_name}-devel-%{pkgversion}
 %dir %{prefix}/%{cray_product}/%{pkgversion}/include
 %dir %{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/include/common_tools_be.h
@@ -472,7 +494,7 @@ fi
 %attr(755, root, root) %{prefix}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
 %attr(644, root, root) %{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
 
-%files -n %{cray_name}%{pkgversion_separator}tests
+%files -n %{cray_name}-tests-%{pkgversion}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests
@@ -531,3 +553,4 @@ fi
 %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
 %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
 %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
+
