@@ -170,7 +170,7 @@ Group:      Development
 Provides:   %{cray_name}-devel = %{pkgversion}
 Requires:   set_default_2, cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
 Source8:    %{lmod_template_cti_devel}
-%description -n %{cray_name}%{pkgversion_separator}devel%{pkgversion_separator}%{pkgversion}
+%description -n %{cray_name}-devel-%{pkgversion}
 Development files for Cray Common Tools Interface
 
 %package -n %{cray_name}-tests-%{pkgversion}
@@ -178,7 +178,7 @@ Summary:    Cray Common Tools Interface test binariess
 Group:      Development
 Provides:   %{cray_name}-tests = %{pkgversion}
 Requires:   cray-gcc-8.1.0, cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst-support-devel < %{cdst_support_pkgversion_max}, %{cray_name} = %{pkgversion}, %{cray_name}-devel = %{pkgversion}
-%description -n %{cray_name}%{pkgversion_separator}tests
+%description -n %{cray_name}-tests-%{pkgversion}
 Test files for Cray Common Tools Interface
 
 
