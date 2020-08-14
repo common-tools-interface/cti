@@ -1,0 +1,32 @@
+---
+build:
+  modules:
+    - cray-cti-devel
+  pkg-config:
+    - common_tools_fe
+    - common_tools_be
+  targets:
+    all:
+      directory: .
+
+test:
+  modules:
+    - cray-cti
+  env-vars-present:
+    - CTI_INSTALL_DIR
+  prepend-env-vars:
+    LD_LIBRARY_PATH: ${CTI_INSTALL_DIR}/lib
+  path:
+    ./function/tests.py
+
+launch:
+  args:
+    slurm: "-n4 --ntasks-per-node=2"
+    alps: "-n4 -N2"
+    ssh: "-n4 --ntasks-per-node=2"
+
+# system specific overides
+cfa6k:
+  launch:
+    args:
+      slurm: "-n4 --ntasks-per-node=2 --mpi=cray_shasta"
