@@ -579,12 +579,6 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     auto& sattachStream = sattachOutput.stream();
     std::string sattachLine;
 
-    // wait for sattach to complete
-    auto const sattachCode = sattachOutput.getExitStatus();
-    if (sattachCode > 0) {
-        throw std::runtime_error("invalid job id " + std::to_string(job_id));
-    }
-
     // start parsing sattach output
 
     // "Job step layout:"
@@ -634,6 +628,12 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
             , std::stoul(numPEs)
             , std::stoul(pe_0)
         });
+    }
+
+    // wait for sattach to complete
+    auto const sattachCode = sattachOutput.getExitStatus();
+    if (sattachCode > 0) {
+        throw std::runtime_error("invalid job id " + std::to_string(job_id));
     }
 
     return layout;
