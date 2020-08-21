@@ -1,7 +1,7 @@
 #
 # Top level Makefile.am for the common tools interface.
 #
-# Copyright 2011-2019 Cray Inc. All Rights Reserved.
+# (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
 ACLOCAL_AMFLAGS = -I m4

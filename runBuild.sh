@@ -2,7 +2,7 @@
 #
 # runBuild.sh - Build steps for CTI
 #
-# Copyright 2019-2020 Cray Inc. All Rights Reserved.
+# (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.

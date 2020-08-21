@@ -1,5 +1,5 @@
 '''
- * Copyright 2019 Cray Inc. All Rights Reserved.
+ * (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -39,14 +39,14 @@ def readVariablesFromEnv(test):
     TESTS_BIN_PATH  = "%s/bin" % os.path.dirname(os.path.realpath(__file__))
     TESTS_SRC_PATH  = "%s/src" % os.path.dirname(os.path.realpath(__file__))
     SUPPORT_PATH   = "%s/../test_support"  % os.path.dirname(os.path.realpath(__file__))
-    
+
     try:
         CTI_INST_DIR = os.environ['CTI_INSTALL_DIR']
     except KeyError as e:
         test.error("Couldn't read %s from environment. Is the CTI module loaded?" % e)
-    
+
     LIBEXEC_PATH   = "%s/libexec" % CTI_INST_DIR
-    
+
     try:
         DAEMON_VER = os.environ['CTI_VERSION']
     except KeyError as e:
@@ -69,13 +69,13 @@ def detectWLM(test = None):
         test.assertTrue(TESTS_BIN_PATH != "", "No TESTS_BIN_PATH when detecting WLM. Did you call readVariablesFromEnv?")
     else:
         assert(TESTS_BIN_PATH != "", "No TESTS_BIN_PATH when detecting WLM. Did you call readVariablesFromEnv?")
-    
+
     launch = ["stdbuf", "-oL", "%s/cti_wlm" % TESTS_BIN_PATH]
     print("Launching: " + " ".join(launch))
     proc = subprocess.Popen(launch,
         stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
     proc_pid = proc.pid
-    
+
     if test:
         test.assertTrue(proc_pid is not None)
     else:
@@ -94,7 +94,7 @@ def detectWLM(test = None):
             wlm = "alps"
         elif line[:7] == "generic":
             wlm = "generic"
-    
+
     if test:
         test.assertTrue(wlm != "", "Didn't dectect a WLM in detectWLM.")
     else:
@@ -115,77 +115,77 @@ class GTestFunctionTest(Test):
         # chdir needed for relative paths in the function test binary to be correct.
         # avocado runs each test in its own process so we don't need to change back.
         os.chdir("%s" % TESTS_BIN_PATH)
-    
+
     def test_DaemonLibDir(self):
         testname = "DaemonLibDir"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_HaveValidFrontend(self):
         testname = "HaveValidFrontend"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_LdPreloadSet(self):
         testname = "LdPreloadSet"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_Launch(self):
         testname = "Launch"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_DoubleRelease(self):
         testname = "DoubleRelease"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_StdoutPipe(self):
         testname = "StdoutPipe"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_InputFile(self):
         testname = "InputFile"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_EnvVars(self):
         testname = "EnvVars"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_CreateSession(self):
         testname = "CreateSession"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_CreateManifest(self):
         testname = "CreateManifest"
         try:
             process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
-    
+
     def test_ExecToolDaemon(self):
         testname = "ExecToolDaemon"
         try:
@@ -220,7 +220,7 @@ cti_launch launches a binary and prints out various information about the job.
 class CtiLaunchTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test(self):
         process.run("%s/cti_launch %s %s/hello_mpi_wait"
             % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
@@ -231,7 +231,7 @@ cti_kill launches a binary and then immediately sends a SIGTERM to it.
 class CtiKillTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test(self):
         process.run("%s/cti_kill %s %s/hello_mpi_wait"
             % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
@@ -245,7 +245,7 @@ to automate: pipe from `yes` and launch with custom PATH
 class CtiCallbackTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test(self):
         process.run("yes | PATH=%s:$PATH %s/cti_callback %s %s/hello_mpi"
             % (TESTS_BIN_PATH, TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
@@ -256,7 +256,7 @@ cti_link tests that programs can be linked against the FE/BE libraries.
 class CtiLinkTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test(self):
         if "LD_LIBRARY_PATH" in os.environ:
             print("LD_LIBRARY_PATH from os.environ %s" % os.path.expandvars('$LD_LIBRARY_PATH'))
@@ -272,11 +272,11 @@ cti_wlm fetches the work load manager type about a running job.
 class CtiWLMTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test(self):
         detectWLM(self)
 
-''' 
+'''
     cti_info fetches information about a running job. There are two versions
     of the test, one which uses the SLURM wlm, and launches a hello world test
     via the cti_barrier test; and another that uses the generic (SSH) wlm, and
@@ -286,7 +286,7 @@ class CtiWLMTest(Test):
 class CtiInfoTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test(self):
         wlm = detectWLM(self)
         if wlm == "slurm":
@@ -343,7 +343,7 @@ class CtiInfoTest(Test):
             if line[:4] == 'apid':
                 apid = line.split()[-1]
                 print("apid:", apid)
-            
+
             if apid is not None:
                 print("running cti_info...")
                 # run cti_info
@@ -372,14 +372,14 @@ class CtiInfoTest(Test):
             # run cti_info
             process.run("%s/cti_info --pid=%s" % (TESTS_BIN_PATH, proc_pid), shell = True)
 
-''' 
+'''
     cti_mpmd is like cti_info, but it calls cti_getBinaryRankList to map binary
     names to rank IDs.
 '''
 class CtiMPMDTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test(self):
         wlm = detectWLM(self)
         if wlm == "slurm":
@@ -401,7 +401,7 @@ class CtiMPMDTest(Test):
             "rank   7": " /usr/bin/sleep"
         }
 
-        proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH, 
+        proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
             "-n8", "-l", "--multi-prog", "./src/mpmd.conf"],
             stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc_barrier.pid
@@ -424,10 +424,10 @@ class CtiMPMDTest(Test):
                 process.run("%s/cti_mpmd --jobid=%s --stepid=%s" % (TESTS_BIN_PATH, jobid, stepid), shell = True)
 
                 # test for correctness
-                proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_BIN_PATH, 
+                proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_BIN_PATH,
                     "-j", jobid, "-s", stepid],
                     stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-                
+
                 for line_ctimpmd in iter(proc_ctimpmd.stdout.readline, b''):
                     line_ctimpmd = line_ctimpmd.decode("utf-8").rstrip()
                     print(line_ctimpmd)
@@ -449,7 +449,7 @@ class CtiMPMDTest(Test):
                 proc_barrier.wait()
                 proc_ctimpmd.wait()
                 break
-        
+
         self.assertTrue(jobid is not None, "Couldn't determine jobid")
         self.assertTrue(stepid is not None, "Couldn't determine stepid")
 
@@ -461,7 +461,7 @@ class CtiMPMDTest(Test):
             "rank   3": " hello_mpi_wait",
         }
 
-        proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH, 
+        proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
             "-n2", "%s/hello_mpi" % TESTS_SRC_PATH, ":", "-n2", "%s/hello_mpi_wait" % TESTS_SRC_PATH],
             stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc_barrier.pid
@@ -473,7 +473,7 @@ class CtiMPMDTest(Test):
             if line[:4] == 'apid':
                 apid = line.split()[-1]
                 print("apid:", apid)
-            
+
             if apid is not None:
                 print("running cti_mpmd...")
 
@@ -481,10 +481,10 @@ class CtiMPMDTest(Test):
                 process.run("%s/cti_mpmd --apid=%s" % (TESTS_BIN_PATH, apid), shell = True)
 
                 # test for correctness
-                proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_BIN_PATH, 
+                proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_BIN_PATH,
                     "--apid", apid],
                     stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-                
+
                 for line_ctimpmd in iter(proc_ctimpmd.stdout.readline, b''):
                     line_ctimpmd = line_ctimpmd.decode("utf-8").rstrip()
                     print(line_ctimpmd)
@@ -506,13 +506,13 @@ class CtiMPMDTest(Test):
                 proc_barrier.wait()
                 proc_ctimpmd.wait()
                 break
-        
+
         self.assertTrue(apid is not None, "Couldn't determine apid")
 
 class CTIEmptyLaunchTests(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_be(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -537,7 +537,7 @@ class CTIEmptyLaunchTests(Test):
 class CTIBEDaemonAPIDTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -551,7 +551,7 @@ class CTIBEDaemonAPIDTest(Test):
 class CTIBEDaemonBinaryTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -566,7 +566,7 @@ class CTIBEDaemonBinaryTest(Test):
 class CTIBEDaemonDirectoryTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -580,7 +580,7 @@ class CTIBEDaemonDirectoryTest(Test):
 class CTIBEDaemonEnvTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_arg(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -599,7 +599,7 @@ class CTIBEDaemonEnvTest(Test):
 class CTIBEDaemonHelpTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -613,7 +613,7 @@ class CTIBEDaemonHelpTest(Test):
 class CTIBEDaemonManifestTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -627,7 +627,7 @@ class CTIBEDaemonManifestTest(Test):
 class CTIBEDaemonPathTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -641,7 +641,7 @@ class CTIBEDaemonPathTest(Test):
 class CTIBEDaemonAPATHTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -655,7 +655,7 @@ class CTIBEDaemonAPATHTest(Test):
 class CTIBEDaemonLDPathTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_ws(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -670,7 +670,7 @@ class CTIBEDaemonLDPathTest(Test):
 class CTIBeDaemonWLMTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_WLM_NONE(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -705,7 +705,7 @@ class CTIBeDaemonWLMTest(Test):
 class CTIBeDaemonInvalidArgTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_null(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:
@@ -720,7 +720,7 @@ class CTIBeDaemonInvalidArgTest(Test):
 class CTIBeDaemonNoDirTool(Test):
     def setUp(self):
         readVariablesFromEnv(self)
-    
+
     def test_no_dir(self):
         rdt = self.params.get('run_daemon_tests', None, 1)
         if rdt == 0:

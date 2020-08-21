@@ -1,7 +1,7 @@
 #
 # Makefile.am for the test utilities
 #
-# Copyright 2011-2020 Cray Inc. All Rights Reserved.
+# (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SUPPORT         = @COMMONTOOL_DIR@/@TESTS_DIR_NAME@/test_support
@@ -15,7 +15,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 noinst_PROGRAMS	=	        cti_barrier cti_launch cti_info cti_link cti_callback \
 						    cti_callback_daemon cti_kill cti_wlm cti_mpmd function_tests
-					
+
 cti_kill_CFLAGS				= -I$(EXTERNAL) $(AM_CFLAGS)
 cti_kill_SOURCES			= cti_kill_test.c cti_fe_common.c
 cti_kill_LDFLAGS			= -Wl,-rpath,$(libdir) -Wl,-rpath,$(CTI_INSTALL_DIR)/lib $(AM_LDFLAGS) $(CRAY_CTI_FE_LIBS)
@@ -60,6 +60,6 @@ function_tests_LDADD		=	$(CRAY_CTI_FE_LIBS) \
 								$(SUPPORT)/libgtest.la \
 								-ldl -lrt -lstdc++
 function_tests_LDFLAGS		=	-Wl,--enable-new-dtags -Wl,--no-undefined \
-								-Wl,-rpath,$(libdir) -Wl,-rpath,$(CTI_INSTALL_DIR)/lib $(PTHREAD_LIBS) 
+								-Wl,-rpath,$(libdir) -Wl,-rpath,$(CTI_INSTALL_DIR)/lib $(PTHREAD_LIBS)
 
 noinst_HEADERS				= cti_callback_test.h cti_fe_common.h cti_fe_function_test.hpp

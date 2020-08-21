@@ -1,7 +1,7 @@
 #
 # Makefile.am for top level src tree
 #
-# Copyright 2011-2019 Cray Inc. All Rights Reserved.
+# (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SUBDIRS			= useful backend frontend

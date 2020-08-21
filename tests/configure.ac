@@ -1,12 +1,12 @@
 # configure.ac for cti tests.
 #
-# Copyright 2020 Cray Inc.
+# (C) Copyright 2020 Hewlett Packard Enterprise Development LP.
 #
 
 AC_PREREQ([2.63])
 AC_INIT([cti_tests], [1.0])
 AM_INIT_AUTOMAKE([subdir-objects foreign -Wall])
-AC_COPYRIGHT([Copyright 2020 Cray Inc.])
+AC_COPYRIGHT([(C) Copyright 2020 Hewlett Packard Enterprise Development LP.])
 AC_CONFIG_MACRO_DIRS([m4])
 
 : ${CXXFLAGS="-g -O0"}

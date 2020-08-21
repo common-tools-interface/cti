@@ -1,7 +1,7 @@
 #
 # Makefile.am for the CTI unit tests
 #
-# Copyright 2014-2020 Cray Inc. All Rights Reserved.
+# (C) Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             = @COMMONTOOL_DIR@/src
