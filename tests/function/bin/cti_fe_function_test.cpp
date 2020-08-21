@@ -1,11 +1,27 @@
 /*
- * Copyright 2019 Cray Inc. All Rights Reserved.
+ * (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
- * Unpublished Proprietary Information.
- * This unpublished work is protected to trade secret, copyright and other laws.
- * Except as permitted by contract or express written permission of Cray Inc.,
- * no part of this work or its content may be used, reproduced or disclosed
- * in any form.
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 
 #include <stdio.h>
@@ -222,7 +238,7 @@ testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector
     // close socket
     std::cout << "Closing socket...\n";
     close(test_socket);
-    
+
     std::cout << "Done!\n";
 }
 
@@ -293,7 +309,7 @@ TEST_F(CTIFEFunctionTest, LdPreloadSet)
     auto const cwd_cstr = getcwd(buf, PATH_MAX);
     ASSERT_NE(cwd_cstr, nullptr) << "getcwd failed.";
     std::string cwd = std::string(cwd_cstr);
-    
+
     // Get program and library paths
     auto const testSupportPath = cwd + "/../../test_support/";
     auto const oneSocketPath = testSupportPath + "one_socket";
@@ -434,10 +450,10 @@ TEST_F(CTIFEFunctionTest, DoubleRelease) {
 TEST_F(CTIFEFunctionTest, StdoutPipe) {
     // set up string contents
     auto const echoString = std::to_string(getpid());
-    
+
     int pipes[2];
     int r = 0;
-    
+
     r = pipe(pipes);
     ASSERT_EQ(r, 0) << "Failed to create a pipe.";
 
@@ -527,7 +543,7 @@ TEST_F(CTIFEFunctionTest, EnvVars) {
 
     int pipes[2];
     int r = 0;
-    
+
     r = pipe(pipes);
     ASSERT_EQ(r, 0) << "Failed to create a pipe.";
 
@@ -712,7 +728,7 @@ TEST_F(CTIFEFunctionTest, Transfer) {
     std::cout << "Sent testing.info to " << file << " on the compute node(s).\n";
 
     testSocketDaemon(mysid, "../../test_support/remote_filecheck", {file.c_str()}, "1");
-    
+
     EXPECT_EQ(cti_destroySession(mysid), SUCCESS) << cti_error_str();
     EXPECT_EQ(cti_releaseAppBarrier(myapp), SUCCESS) << cti_error_str();
 }

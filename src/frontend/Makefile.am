@@ -1,7 +1,7 @@
 #
 # Makefile.am for the frontend components of the common tools interface
 #
-# Copyright 2014-2019 Cray Inc. All Rights Reserved.
+# (C) Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SUBDIRS				= checksum transfer frontend_impl mpir_iface daemon

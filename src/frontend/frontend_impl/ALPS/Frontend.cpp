@@ -1,13 +1,29 @@
 /******************************************************************************\
  * Frontend.cpp - ALPS specific frontend library functions.
  *
- * Copyright 2014-2019 Cray Inc. All Rights Reserved.
+ * (C) Copyright 2020 Hewlett Packard Enterprise Development LP.
  *
- * Unpublished Proprietary Information.
- * This unpublished work is protected to trade secret, copyright and other laws.
- * Except as permitted by contract or express written permission of Cray Inc.,
- * no part of this work or its content may be used, reproduced or disclosed
- * in any form.
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  *
  ******************************************************************************/
 
@@ -556,7 +572,7 @@ findRealAprunPid(std::string const& launcherName, pid_t launchedPid)
         char *          usr_aprun_path;
         char *          default_obs_realpath = NULL;
         struct stat     buf;
-        
+
         // The following is used when a user sets the CRAY_APRUN_PATH environment
         // variable to the absolute location of aprun. It overrides the default
         // behavior.
@@ -572,7 +588,7 @@ findRealAprunPid(std::string const& launcherName, pid_t launchedPid)
                     // This is a wrapper. Return 1.
                     return 1;
                 }
-                
+
                 // This is a real aprun. Return 0.
                 return 0;
             } else
@@ -582,12 +598,12 @@ findRealAprunPid(std::string const& launcherName, pid_t launchedPid)
                 throw std::runtime_error(std::string{USER_DEF_APRUN_LOC_ENV_VAR} + " is set but cannot stat its value.");
             }
         }
-        
+
         // check to see if the path points at the old aprun location
         if (strncmp(aprun_path, OLD_APRUN_LOCATION, strlen(OLD_APRUN_LOCATION)))
         {
             // it doesn't point to the old aprun location, so check the new OBS
-            // location. Note that we need to resolve this location with a call to 
+            // location. Note that we need to resolve this location with a call to
             // realpath.
             if ((default_obs_realpath = realpath(OBS_APRUN_LOCATION, NULL)) == NULL)
             {

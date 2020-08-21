@@ -1,7 +1,7 @@
 # Packaging definitions
 %global pkgversion %(%{_sourcedir}/get_package_data --crayversion)
 %global pkgversion_separator -
-%global copyright Copyright 2010-2020 Cray Inc. All rights reserved.
+%global copyright (C) Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
 
 # RPM build time
 %global release_date %(date +%%B\\ %%Y)
@@ -312,7 +312,7 @@ if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
     echo "%{prefix}/%{product}/%{pkgversion}" > /etc/%{prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf
     echo "%{prefix}/modulefiles/%{modulefile_name}" > /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{modulefile_name}.conf
     echo "%{prefix}/lmod/modulefiles/core/%{cray_name}" >> /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{modulefile_name}.conf
-    
+
     echo -e '#%Modulefile\r\nset  ModulesVersion "%{pkgversion}"' > %{prefix}/lmod/modulefiles/core/%{cray_name}/.version
 fi
 
@@ -326,7 +326,7 @@ then
 else
     # Set default - TCL
     ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
-    
+
     # Don't want to set LD_LIBRARY_PATH if we are not relocating since rpath was set properly
     # tcl module
     %{__sed} -i "/^ prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
@@ -349,7 +349,7 @@ if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
     %{__mkdir} -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
     echo "%{prefix}/modulefiles/%{devel_modulefile_name}" > /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
     echo "%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}" >> /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
-    
+
     echo -e '#%Modulefile\r\nset  ModulesVersion "%{pkgversion}"' > %{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/.version
 fi
 

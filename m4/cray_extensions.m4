@@ -1,13 +1,7 @@
 #
 # cray_extensions.m4 Cray configure extensions.
 #
-# Copyright 2012-2019 Cray Inc. All Rights Reserved.
-#
-# This software is available to you under a choice of one of two
-# licenses.  You may choose to be licensed under the terms of the GNU
-# General Public License (GPL) Version 2, available from the file
-# COPYING in the main directory of this source tree, or the
-# BSD license below:
+# (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 #     Redistribution and use in source and binary forms, with or
 #     without modification, are permitted provided that the following
@@ -71,7 +65,7 @@ AC_DEFUN([cray_INIT],
 	AC_DEFINE([CTI_FE_CURRENT], [COMMONTOOL_FE_CURRENT], [Frontend current version])
 	AC_DEFINE([CTI_FE_AGE], [COMMONTOOL_FE_AGE], [Frontend age])
 	AC_DEFINE([CTI_FE_REVISION], [COMMONTOOL_REVISION], [Frontend revision])
-	
+
 	AC_SUBST([COMMONTOOL_EXTERNAL], [${COMMONTOOL_DIR}/external])
 	AC_SUBST([COMMONTOOL_EXTERNAL_INSTALL], [${COMMONTOOL_DIR}/external/install])
 

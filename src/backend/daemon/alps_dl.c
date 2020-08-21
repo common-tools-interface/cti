@@ -1,13 +1,29 @@
 /******************************************************************************\
  * alps_dl.c - Alps specific functions for the daemon launcher.
  *
- * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
+ * (C) Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
- * Unpublished Proprietary Information.
- * This unpublished work is protected to trade secret, copyright and other laws.
- * Except as permitted by contract or express written permission of Cray Inc.,
- * no part of this work or its content may be used, reproduced or disclosed
- * in any form.
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  *
  ******************************************************************************/
 
@@ -45,7 +61,7 @@ _cti_alps_init(void)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	// set the SHELL environment variable to the shell included on the compute
 	// node. Note that other shells other than /bin/sh are not currently supported
 	// in CNL.
@@ -55,7 +71,7 @@ _cti_alps_init(void)
 		fprintf(stderr, "%s: setenv failed\n", CTI_BE_DAEMON_BINARY);
 		return 1;
 	}
-	
+
 	return 0;
 }
 
@@ -73,20 +89,20 @@ _cti_alps_getNodeID(void)
 		fprintf(stderr, "%s: %s not found.\n", CTI_BE_DAEMON_BINARY, ALPS_XT_NID);
 		return -1;
 	}
-		
+
 	// we expect this file to have a numeric value giving our current nid
 	if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
 	{
 		fprintf(stderr, "%s: fgets failed.\n", CTI_BE_DAEMON_BINARY);
 		return -1;
 	}
-		
+
 	// convert this to an integer value
 	nid = atoi(file_buf);
-	
+
 	// close the file stream
 	fclose(alps_fd);
-	
+
 	return nid;
 }
 

@@ -1,13 +1,29 @@
 /*********************************************************************************\
  * alps_be.c - alps specific backend library functions.
  *
- * Copyright 2014-2019 Cray Inc.  All Rights Reserved.
+ * (C) Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
- * Unpublished Proprietary Information.
- * This unpublished work is protected to trade secret, copyright and other laws.
- * Except as permitted by contract or express written permission of Cray Inc.,
- * no part of this work or its content may be used, reproduced or disclosed
- * in any form.
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  *
  *********************************************************************************/
 
@@ -80,7 +96,7 @@ _cti_be_alps_init(void)
 	// Only init once.
 	if (_cti_alps_ptr != NULL)
 		return 0;
-		
+
 	// Create a new cti_alps_funcs_t
 	if ((_cti_alps_ptr = malloc(sizeof(cti_alps_funcs_t))) == NULL)
 	{
@@ -88,7 +104,7 @@ _cti_be_alps_init(void)
 		return 1;
 	}
 	memset(_cti_alps_ptr, 0, sizeof(cti_alps_funcs_t));     // clear it to NULL
-	
+
 	if ((_cti_alps_ptr->handle = dlopen(ALPS_BE_LIB_NAME, RTLD_LAZY)) == NULL)
 	{
 		fprintf(stderr, "dlopen: %s", dlerror());
@@ -96,10 +112,10 @@ _cti_be_alps_init(void)
 		_cti_alps_ptr = NULL;
 		return 1;
 	}
-	
+
 	// Clear any existing error
 	dlerror();
-	
+
 	// load alps_get_placement_info
 	_cti_alps_ptr->alps_get_placement_info = dlsym(_cti_alps_ptr->handle, "alps_get_placement_info");
 	if ((error = dlerror()) != NULL)
@@ -110,7 +126,7 @@ _cti_be_alps_init(void)
 		_cti_alps_ptr = NULL;
 		return 1;
 	}
-	
+
 	// read information from the environment set by dlaunch
 	if ((apid_str = getenv(APID_ENV_VAR)) == NULL)
 	{
@@ -121,9 +137,9 @@ _cti_be_alps_init(void)
 		_cti_alps_ptr = NULL;
 		return 1;
 	}
-	
+
 	_cti_apid = (uint64_t)strtoull(apid_str, NULL, 10);
-	
+
 	// done
 	return 0;
 }
@@ -137,25 +153,25 @@ _cti_be_alps_fini(void)
 		free(_cti_alps_ptr);
 		_cti_alps_ptr = NULL;
 	}
-	
+
 	if (_cti_thisNode != NULL)
 	{
 		free(_cti_thisNode);
 		_cti_thisNode = NULL;
 	}
-	
+
 	if (_cti_appLayout != NULL)
 	{
 		free(_cti_appLayout);
 		_cti_appLayout = NULL;
 	}
-	
+
 	if (_cti_attrs != NULL)
 	{
 		_cti_be_freePmiAttribs(_cti_attrs);
 		_cti_attrs = NULL;
 	}
-	
+
 	return;
 }
 
@@ -167,7 +183,7 @@ _cti_be_alps_get_placement_info(uint64_t a1, alpsAppLayout_t *a2, int **a3, int 
 	// sanity check
 	if (_cti_alps_ptr == NULL)
 		return -1;
-		
+
 	return (*_cti_alps_ptr->alps_get_placement_info)(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11);
 }
 
@@ -179,11 +195,11 @@ _cti_be_alps_getComputeNodeInfo()
 	FILE *alps_fd;			// ALPS NID file stream
 	char file_buf[BUFSIZ];	// file read buffer
 	computeNode_t *my_node;	// struct containing compute node info
-	
+
 	// sanity
 	if (_cti_thisNode != NULL)
 		return 0;
-	
+
 	// allocate the computeNode_t object, its the callers responsibility to
 	// free this.
 	if ((my_node = malloc(sizeof(computeNode_t))) == (void *)0)
@@ -191,7 +207,7 @@ _cti_be_alps_getComputeNodeInfo()
 		fprintf(stderr, "malloc failed.\n");
 		return 1;
 	}
-	
+
 	// open up the file defined in the alps header containing our node id (nid)
 	if ((alps_fd = fopen(ALPS_XT_NID, "r")) == NULL)
 	{
@@ -199,7 +215,7 @@ _cti_be_alps_getComputeNodeInfo()
 		free(my_node);
 		return 1;
 	}
-	
+
 	// we expect this file to have a numeric value giving our current nid
 	if (fgets(file_buf, BUFSIZ, alps_fd) == NULL)
 	{
@@ -210,13 +226,13 @@ _cti_be_alps_getComputeNodeInfo()
 	}
 	// convert this to an integer value
 	my_node->nid = atoi(file_buf);
-	
+
 	// close the file stream
 	fclose(alps_fd);
-	
+
 	// set the global pointer
 	_cti_thisNode = my_node;
-	
+
 	return 0;
 }
 
@@ -224,18 +240,18 @@ static int
 _cti_be_alps_getPlacementInfo()
 {
 	alpsAppLayout_t *	tmpLayout;
-	
+
 	// sanity check
 	if (_cti_appLayout != NULL)
 		return 0;
-	
+
 	// sanity check
 	if (_cti_apid == 0)
 	{
 		fprintf(stderr, "_cti_be_alps_getPlacementInfo failed.\n");
 		return 1;
 	}
-	
+
 	// malloc size for the struct
 	if ((tmpLayout = malloc(sizeof(alpsAppLayout_t))) == (void *)0)
 	{
@@ -243,17 +259,17 @@ _cti_be_alps_getPlacementInfo()
 		return 1;
 	}
 	memset(tmpLayout, 0, sizeof(alpsAppLayout_t));     // clear it to NULL
-	
+
 	// get application information from alps
 	if (_cti_be_alps_get_placement_info(_cti_apid, tmpLayout, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) < 0)
 	{
 		fprintf(stderr, "_cti_be_alps_getPlacementInfo failed.\n");
 		return 1;
 	}
-	
+
 	// set the global pointer
 	_cti_appLayout = tmpLayout;
-	
+
 	return 0;
 }
 
@@ -264,7 +280,7 @@ _cti_be_alps_findAppPids()
 {
 	cti_pidList_t * rtn;
 	int i;
-	
+
 	// Call _cti_be_getPmiAttribsInfo - We require the pmi_attribs file to exist
 	// in order to function properly.
 	if (_cti_attrs == NULL)
@@ -276,7 +292,7 @@ _cti_be_alps_findAppPids()
 			return NULL;
 		}
 	}
-	
+
 	// ensure the _cti_attrs object has a app_rankPidPairs array
 	if (_cti_attrs->app_rankPidPairs == NULL)
 	{
@@ -284,16 +300,16 @@ _cti_be_alps_findAppPids()
 		fprintf(stderr, "_cti_be_alps_findAppPids failed.\n");
 		return NULL;
 	}
-	
+
 	// allocate the return object
 	if ((rtn = malloc(sizeof(cti_pidList_t))) == (void *)0)
 	{
 		fprintf(stderr, "malloc failed.\n");
 		return NULL;
 	}
-	
+
 	rtn->numPids = _cti_attrs->app_nodeNumRanks;
-	
+
 	// allocate the cti_rankPidPair_t array
 	if ((rtn->pids = malloc(rtn->numPids * sizeof(cti_rankPidPair_t))) == (void *)0)
 	{
@@ -301,14 +317,14 @@ _cti_be_alps_findAppPids()
 		free(rtn);
 		return NULL;
 	}
-	
+
 	// set the _cti_attrs rank/pid array to the rtn rank/pid array
 	for (i=0; i < rtn->numPids; ++i)
 	{
 		rtn->pids[i].pid = _cti_attrs->app_rankPidPairs[i].pid;
 		rtn->pids[i].rank = _cti_attrs->app_rankPidPairs[i].rank;
 	}
-	
+
 	return rtn;
 }
 
@@ -327,14 +343,14 @@ _cti_be_alps_getNodeHostname()
 			return NULL;
 		}
 	}
-	
+
 	// create the nid hostname string
 	if (asprintf(&nidHost, ALPS_XT_HOSTNAME_FMT, _cti_thisNode->nid) <= 0)
 	{
 		fprintf(stderr, "_cti_be_alps_getNodeHostname failed.\n");
 		return NULL;
 	}
-	
+
 	// return the nid hostname
 	return nidHost;
 }
@@ -351,7 +367,7 @@ _cti_be_alps_getNodeFirstPE()
 			return -1;
 		}
 	}
-	
+
 	return _cti_appLayout->firstPe;
 }
 
@@ -367,7 +383,7 @@ _cti_be_alps_getNodePEs()
 			return -1;
 		}
 	}
-	
+
 	return _cti_appLayout->numPesHere;
 }
 

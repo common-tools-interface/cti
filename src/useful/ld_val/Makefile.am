@@ -1,7 +1,7 @@
 #
 # Makefile.am for the ldval and libaudit components of the common tools interface
 #
-# Copyright 2011-2019 Cray Inc. All Rights Reserved.
+# (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
 AM_CFLAGS				= -Wall
