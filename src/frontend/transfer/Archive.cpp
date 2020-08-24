@@ -115,20 +115,22 @@ void Archive::addFile(const std::string& entryPath, const std::string& filePath)
     // copy data from file to archive
     if (auto fdHandle = FdHandle(filePath)) {
         while (true) {
-            size_t readLen = read(fdHandle.fd, m_readBuf.get(), CTI_BLOCK_SIZE);
+            ssize_t readLen = read(fdHandle.fd, m_readBuf.get(), CTI_BLOCK_SIZE);
             if (readLen < 0) {
                 throw std::runtime_error(filePath + " failed read call");
             } else if (readLen == 0) {
                 break;
             }
 
-            size_t writeLen = archive_write_data(m_archPtr.get(), m_readBuf.get(), readLen);
-            if (writeLen < 0) {
-                throw std::runtime_error(filePath + " failed archive_write_data: " +
-                    archive_error_string(m_archPtr.get()));
-            } else if (writeLen != readLen) {
-                throw std::runtime_error(filePath +
-                    " had archive_write_data length mismatch.");
+            ssize_t writeLen = 0;
+            while (writeLen < readLen) {
+                ssize_t bytesWritten = archive_write_data(m_archPtr.get(),
+                    m_readBuf.get() + writeLen, readLen);
+                if (bytesWritten < 0) {
+                    throw std::runtime_error(filePath + " failed archive_write_data to " + m_archivePath + ": " +
+                        archive_error_string(m_archPtr.get()) + " - " + strerror(errno));
+                }
+                writeLen += bytesWritten;
             }
         }
     }

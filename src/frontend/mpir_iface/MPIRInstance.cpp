@@ -55,6 +55,16 @@ MPIRInstance::MPIRInstance(std::string const& launcher, pid_t pid) :
     m_inferior{launcher, pid} {
 
     setupMPIRStandard();
+
+    /* wait until proctable has been filled */
+    while (m_inferior.readVariable<int>("MPIR_proctable_size") == 0) {
+        m_inferior.continueRun();
+
+        /* ensure execution wasn't stopped due to termination */
+        if (m_inferior.isTerminated()) {
+            throw std::runtime_error("MPIR attach target terminated before proctable filled");
+        }
+    }
 }
 
 void MPIRInstance::setupMPIRStandard() {
@@ -86,7 +96,7 @@ void MPIRInstance::runToMPIRBreakpoint() {
         m_inferior.continueRun();
 
         if (m_inferior.isTerminated()) {
-            throw std::runtime_error("MPIR target terminated before MPIR_Breakpoint");
+            throw std::runtime_error("MPIR launch target terminated before MPIR_Breakpoint");
         }
 
         /* inferior now in stopped state. read MPIR_debug_state */
