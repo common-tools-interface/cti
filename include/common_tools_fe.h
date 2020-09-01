@@ -829,6 +829,40 @@ typedef struct {
 
 /*-----------------------------------------------------------------------------
  * cti_pals_ops extensions - Extensions for the PALS WLM
+/*-----------------------------------------------------------------------------
+ * getApid - Obtain PALS application ID running in craycli process
+ *
+ * Detail
+ *      This function is used to obtain the apid of an existing PALS
+ *      application from the craycli process that launched it.
+ *
+ * Arguments
+ *      craycliPid - The PID of the craycli process to query.
+ *
+ * Returns
+ *      A PALS application ID string to be freed by user.
+ *      NULL is returned on error.
+ *-----------------------------------------------------------------------------
+ * registerApid - Register the application ID of an already
+ *                running PALS application for use with the Common Tools
+ *                Interface.
+ *
+ * Detail
+ *      This function is used for registering a PALS application that was
+ *      previously launched for use with the Common Tools Interface.
+ *      It is recommended to use the built-in functions to launch
+ *      applications, however sometimes this is impossible (such is the case for
+ *      a debug attach scenario). In order to use any of the functions defined
+ *      in this interface, the application ID must be registered. This is done
+ *      automatically when using the built-in CTI functions to launch
+ *      applications.
+ *
+ * Arguments
+ *      apid - The application ID of the PALS application to register.
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
  *-----------------------------------------------------------------------------
  */
 
