@@ -1,7 +1,7 @@
 #
 # Makefile.am for the frontend impl components of the common tools interface
 #
-# (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SUBDIRS				= ALPS SLURM PALS GenericSSH

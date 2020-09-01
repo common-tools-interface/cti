@@ -2,7 +2,7 @@
  * pmi_attribs_parser.c - A interface to parse the pmi_attribs file that exists
               on the compute node.
  *
- * (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

@@ -3,14 +3,14 @@ Except for the third party modules discussed below and software licensed
 by Hewlett Packard Enterprise Development LP through proprietary
 agreements, components, files or programs contained within this package
 or product are
-(C) Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
+Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
 ------------------------------------------------------------------------
 
 ==================================================================
 
                BSD license
 
-(C) Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
+Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions

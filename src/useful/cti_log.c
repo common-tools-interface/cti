@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_log.c - Functions used to create log files.
  *
- * (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

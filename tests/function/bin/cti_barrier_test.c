@@ -4,7 +4,7 @@
  *          argv, display information about the job, and hold it at the
  *          startup barrier.
  *
- * (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

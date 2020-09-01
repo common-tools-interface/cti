@@ -2,7 +2,7 @@
  * generic_ssh_dl.c - SSH based workload manager specific functions for the
  *              daemon launcher.
  *
- * (C) Copyright 2016-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2016-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

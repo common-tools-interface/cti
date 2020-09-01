@@ -1,7 +1,7 @@
 #
 # cray_extensions.m4 Cray configure extensions.
 #
-# (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 #     Redistribution and use in source and binary forms, with or
 #     without modification, are permitted provided that the following

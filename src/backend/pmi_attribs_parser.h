@@ -1,7 +1,7 @@
 /******************************************************************************\
  * pmi_attribs_parser.h - A header file for the pmi_attribs file parser.
  *
- * (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

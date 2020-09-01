@@ -1,7 +1,7 @@
 # Packaging definitions
 %global pkgversion %(%{_sourcedir}/get_package_data --crayversion)
 %global pkgversion_separator -
-%global copyright (C) Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
+%global copyright Copyright 2010-2020 Hewlett Packard Enterprise Development LP
 
 # RPM build time
 %global release_date %(date +%%B\\ %%Y)
@@ -128,7 +128,7 @@ Version:    %(echo ${BUILD_METADATA})
 Release:    1%{dist}
 Prefix:     %{cray_prefix}
 License:    Dual BSD or GPLv2
-Vendor:     Cray Inc.
+Vendor:     Hewlett Packard Enterprise Development LP
 Group:      Development/System
 Provides:   %{cray_name} = %{pkgversion}
 Requires:   set_default_2, cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < %{cdst_support_pkgversion_max}

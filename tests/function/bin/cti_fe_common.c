@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_fe_common.c - A test routine that exercises all of the FE API calls.
  *
- * (C) Copyright 2015-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2015-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

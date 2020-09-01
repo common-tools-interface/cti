@@ -1,7 +1,7 @@
 #
 # Makefile.am for the test utilities
 #
-# (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
 AM_CFLAGS		= -Wall

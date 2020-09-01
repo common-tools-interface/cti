@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_fe_unit_test.cpp - Frontend unit tests for CTI
  *
- * (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

@@ -5,7 +5,7 @@
  *       placed inside this file to make modifications due to WLM changes
  *       easier.
  *
- * (C) Copyright 2013-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2013-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

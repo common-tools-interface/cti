@@ -3,7 +3,7 @@
  *          tools interface which will launch an application from the given
  *          argv and display information about the job
  *
- * (C) Copyright 2015-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2015-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

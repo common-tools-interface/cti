@@ -1,7 +1,7 @@
 #
 # Makefile.am for the ALPS frontend implementation.
 #
-# (C) Copyright 2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2020 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             	= @COMMONTOOL_DIR@/src

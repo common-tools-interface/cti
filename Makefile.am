@@ -1,7 +1,7 @@
 #
 # Top level Makefile.am for the common tools interface.
 #
-# (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
 ACLOCAL_AMFLAGS = -I m4
