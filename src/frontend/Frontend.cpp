@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * Frontend.cpp - define workload manager frontend interface and common base class
  *
- * (C) Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

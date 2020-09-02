@@ -1,7 +1,7 @@
 /******************************************************************************\
  * mpir_shim.cpp - cti fe_daemon utility to extract MPIR proctable information
  *
- * (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

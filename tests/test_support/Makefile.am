@@ -1,7 +1,7 @@
 #
 # Makefile.am for the CTI unit tests
 #
-# (C) Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             = @COMMONTOOL_DIR@/src

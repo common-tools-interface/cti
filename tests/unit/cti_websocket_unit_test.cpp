@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_websocket_unit_test.cpp - CTI HTTP and WebSocket tests
  *
- * (C) Copyright 2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

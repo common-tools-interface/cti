@@ -1,7 +1,7 @@
 #
 # Makefile.am for the test utilities
 #
-# (C) Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SUPPORT         = @COMMONTOOL_DIR@/@TESTS_DIR_NAME@/test_support

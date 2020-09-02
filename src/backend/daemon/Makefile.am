@@ -1,7 +1,7 @@
 #
 # Makefile.am for the BE daemon components of the common tools interface
 #
-# (C) Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SRC                 = @COMMONTOOL_DIR@/src

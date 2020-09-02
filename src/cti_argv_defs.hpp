@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_argv_defs.h - A header file to define the strong argv interface
  *
- * (C) Copyright 2018-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2018-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

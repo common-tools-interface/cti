@@ -2,7 +2,7 @@
  * cti_linking_test.c - An example program that tests linking in both FE and BE
  *                      libraries at the same time
  *
- * (C) Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

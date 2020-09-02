@@ -1,7 +1,7 @@
 #
 # Makefile.am for the PALS frontend implementation.
 #
-# (C) Copyright 2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2020 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             	= @COMMONTOOL_DIR@/src

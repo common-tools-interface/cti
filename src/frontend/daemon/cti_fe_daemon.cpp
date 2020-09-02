@@ -2,7 +2,7 @@
  * cti_fe_daemon.cpp - cti fe_daemon process used to ensure child
  *                     processes will be cleaned up on unexpected exit.
  *
- * (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

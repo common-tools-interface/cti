@@ -1,7 +1,7 @@
 /******************************************************************************\
  * pals_dl.c - PALS specific functions for the daemon launcher.
  *
- * (C) Copyright 2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
