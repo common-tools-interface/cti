@@ -59,6 +59,7 @@
 
 #include "useful/cti_websocket.hpp"
 #include "useful/cti_hostname.hpp"
+#include "frontend/mpir_iface/Inferior.hpp"
 
 /* helper functions */
 
@@ -761,6 +762,30 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
         , .started = false
         , .atBarrier = (launchBarrierMode == LaunchBarrierMode::Enabled)
     };
+}
+
+std::string
+PALSFrontend::getApid(pid_t craycliPid) const
+{
+    // Get path to craycli binary for ptrace attach
+    auto const procExePath = "/proc/" + std::to_string(craycliPid) + "/exe";
+    auto const craycliPath = cti::cstr::readlink(procExePath);
+
+    // Attach to craycli process
+    auto craycliInferior = Inferior{craycliPath, craycliPid};
+
+    // Get address of "totalview_jobid"
+    auto jobidAddress = craycliInferior.readVariable<Inferior::Address>("totalview_jobid");
+
+    // Read string variable value
+    auto result = std::string{};
+    while (auto c = craycliInferior.readMemory<char>(jobidAddress++)) {
+        result.push_back(c);
+    }
+
+    // Process is detached upon destruction of craycliInferior
+
+    return result;
 }
 
 PALSFrontend::PALSFrontend()

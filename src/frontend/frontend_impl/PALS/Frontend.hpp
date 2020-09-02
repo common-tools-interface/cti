@@ -102,6 +102,9 @@ public: // pals specific interface
         int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[],
         LaunchBarrierMode const launchBarrierMode);
 
+    // Read out the currently running apid from a craycli instance
+    std::string getApid(pid_t craycliPid) const;
+
 public: // constructor / destructor interface
     PALSFrontend();
     ~PALSFrontend() = default;
