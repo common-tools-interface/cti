@@ -451,9 +451,22 @@ SLURMFrontend::SLURMFrontend()
 bool
 SLURMFrontend::isSupported()
 {
-    // Check that the srun check returns expected code
-    { auto srunTestArgv = cti::ManagedArgv{"srun", "--test-only"};
-        if (cti::Execvp{"srun", srunTestArgv.get()}.getExitStatus()) {
+    // Check that the srun version starts with "slurm "
+    { auto srunArgv = cti::ManagedArgv{"srun", "--version"};
+        auto srunOutput = cti::Execvp{"srun", srunArgv.get()};
+
+        // Read output line
+        auto versionLine = std::string{};
+        if (std::getline(srunOutput.stream(), versionLine)) {
+            if (versionLine.substr(0, 6) != "slurm ") {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        // Ensure exited properly
+        if (srunOutput.getExitStatus()) {
             return false;
         }
     }
