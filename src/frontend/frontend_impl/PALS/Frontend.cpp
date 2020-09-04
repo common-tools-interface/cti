@@ -315,6 +315,9 @@ namespace pals
                 auto const commandInfo = commandInfoPair.second;
                 binaryPaths.emplace_back(commandInfo.get_child("argv").begin()->second.template get<std::string>(""));
             }
+            if (binaryPaths.empty()) {
+                binaryPaths.emplace_back(root.get_child("argv").begin()->second.template get<std::string>(""));
+            }
 
             // Fill in MPMD rank map
             auto binaryRankMap = std::map<std::string, std::vector<int>>{};
@@ -745,7 +748,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
     // Send launch JSON command
     auto const launchResult = cti::httpPostJsonReq(
         getApiInfo().hostname,
-        getApiInfo().endpointBase + "/v1/apps",
+        getApiInfo().endpointBase + "v1/apps",
         getApiInfo().accessToken,
         launchJson);
     writeLog("launch result: '%s'\n", launchResult.c_str());
