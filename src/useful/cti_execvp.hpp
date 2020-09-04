@@ -172,12 +172,6 @@ public:
 // be extended in the future to accept different types of constructors.
 class Execvp {
 private:
-    class Line : std::string {
-        friend std::istream& operator>>(std::istream& is, Line& line) {
-            return std::getline(is, line);
-        }
-    };
-
     Pipe p;
     FdBuf pipeInBuf;
     std::istream pipein;
