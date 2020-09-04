@@ -829,7 +829,7 @@ typedef struct {
 
 /*-----------------------------------------------------------------------------
  * cti_pals_ops extensions - Extensions for the PALS WLM
-/*-----------------------------------------------------------------------------
+ *-----------------------------------------------------------------------------
  * getApid - Obtain PALS application ID running in craycli process
  *
  * Detail
