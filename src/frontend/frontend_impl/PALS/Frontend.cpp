@@ -470,7 +470,7 @@ PALSFrontend::isSupported()
     }
 
     // Check that the craycli tool is properly authenticated, as we will be using its token
-    auto craycliArgv = cti::ManagedArgv { "cray", "pals", "apps", "list" };
+    auto craycliArgv = cti::ManagedArgv { "cray", "uas", "list" };
     if (cti::Execvp{"cray", craycliArgv.get()}.getExitStatus() != 0) {
         fprintf(stderr, "craycli check failed. You may need to authenticate using `cray auth login`.\n");
         return false;
