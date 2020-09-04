@@ -40,15 +40,17 @@ AC_DEFUN([cray_INIT],
 
 	m4_define([COMMONTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
 	m4_define([COMMONTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
+    m4_define([COMMONTOOL_BE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_revision])])
 	m4_define([COMMONTOOL_BE_MAJOR], [m4_eval( COMMONTOOL_BE_CURRENT - COMMONTOOL_BE_AGE)])
 
 	m4_define([COMMONTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
 	m4_define([COMMONTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
+    m4_define([COMMONTOOL_FE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_revision])])
 	m4_define([COMMONTOOL_FE_MAJOR], [m4_eval( COMMONTOOL_FE_CURRENT - COMMONTOOL_FE_AGE)])
 
 	AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION])
-	AC_SUBST([COMMONTOOL_BE_VERSION], [COMMONTOOL_BE_CURRENT:COMMONTOOL_REVISION:COMMONTOOL_BE_AGE])
-	AC_SUBST([COMMONTOOL_FE_VERSION], [COMMONTOOL_FE_CURRENT:COMMONTOOL_REVISION:COMMONTOOL_FE_AGE])
+	AC_SUBST([COMMONTOOL_BE_VERSION], [COMMONTOOL_BE_CURRENT:COMMONTOOL_BE_REVISION:COMMONTOOL_BE_AGE])
+	AC_SUBST([COMMONTOOL_FE_VERSION], [COMMONTOOL_FE_CURRENT:COMMONTOOL_FE_REVISION:COMMONTOOL_FE_AGE])
 
     AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"])
 
