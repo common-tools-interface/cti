@@ -149,7 +149,7 @@ public:
     IncomingArgv(int argc, char* const* argv)
         : m_argc(argc)
         , m_argv(argv)
-        , m_flagSpec{}
+        , m_flagSpec{"+"} // Follow POSIX behavior, do not reorder
         , m_optind{0}
     {
         for (const Argv::GNUOption* opt_ptr = ArgvDef::long_options;
