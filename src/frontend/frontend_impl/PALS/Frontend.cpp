@@ -59,6 +59,7 @@
 
 #include "useful/cti_websocket.hpp"
 #include "useful/cti_hostname.hpp"
+#include "useful/cti_split.hpp"
 #include "frontend/mpir_iface/Inferior.hpp"
 
 /* helper functions */
@@ -555,36 +556,138 @@ PALSFrontend::getPalsLaunchInfo(std::string const& apId)
     };
 }
 
-static auto parse_argv(int argc, char* const argv[])
+struct PalsLaunchArgs
 {
-    auto nranks = int{1};
-    auto ppn    = int{1};
-    auto depth  = int{1};
-    auto nodeListSpec = std::string{};
+    boost::optional<int> nranks, ppn, depth;
+    std::vector<std::string> nodeList;
+    boost::optional<std::string> umask;
+    std::vector<std::pair<std::string, std::string>> envAlias;
+    boost::optional<int> fanout;
+    boost::optional<std::string> cpuBind, memBind, pmi;
+    std::optional<bool> exclusive, lineBuffered, abortOnFailure;
+    std::vector<std::tuple<std::string, int, int>> rlimits;
+};
 
-    auto incomingArgv = cti::IncomingArgv<PALSLauncherArgv>{argc, argv};
+static auto parse_args(char const* const* launcher_args)
+{
+    // Parse a yes/no option as boolean
+    auto parse_yes_no = [](std::string const& str) {
+        if (str == "yes") { return true;  }
+        if (str == "no")  { return false; }
+        throw std::runtime_error("invalid argument: '" + str + "' (enter 'yes' or 'no')");
+    };
+
+    // Split string on delimiter into vector
+    auto split_on = [](std::string const& str, char delim) {
+        auto result = std::vector<std::string>{};
+        if (str.empty()) {
+            return result;
+        }
+
+        auto ss = std::stringstream{str};
+        auto tok = std::string{};
+        while (std::getline(ss, tok, delim)) {
+            result.emplace_back(std::move(tok));
+        }
+
+        return result;
+    };
+
+    auto result = PalsLaunchArgs{};
+    auto rawRequest = std::string{};
+
+    // Count number of arguments
+    auto launcher_argc = int{0};
+    while (launcher_args[launcher_argc] != nullptr) { launcher_argc++; }
+
+    // Make new argv array with an argv[0] for getopt
+    launcher_argc++;
+    char const* launcher_argv[launcher_argc + 1];
+    launcher_argv[0] = "pals-launch";
+    for (int i = 0; i < launcher_argc; i++) {
+        launcher_argv[i + 1] = launcher_args[i];
+    }
+    launcher_argv[launcher_argc] = nullptr;
+
+    auto incomingArgv = cti::IncomingArgv<PALSLauncherArgv>{launcher_argc, (char* const*)launcher_argv};
+    auto binaryArgv = launcher_args;
     while (true) {
         auto const [c, optarg] = incomingArgv.get_next();
         if (c < 0) {
             break;
         }
 
+        // When launcher arguments are done, the remaining argv elements are binary arguments
+        binaryArgv++;
+
         switch (c) {
 
         case PALSLauncherArgv::NRanks.val:
-            nranks = std::stoi(optarg);
+            result.nranks = std::stoi(optarg);
             break;
 
         case PALSLauncherArgv::PPN.val:
-            ppn = std::stoi(optarg);
+            result.ppn = std::stoi(optarg);
             break;
 
         case PALSLauncherArgv::Depth.val:
-            depth = std::stoi(optarg);
+            result.depth = std::stoi(optarg);
             break;
 
         case PALSLauncherArgv::NodeList.val:
-            nodeListSpec = optarg;
+            result.nodeList = split_on(optarg, ',');
+            break;
+
+        case PALSLauncherArgv::UMask.val:
+            result.umask = optarg;
+            break;
+
+        case PALSLauncherArgv::EnvAlias.val:
+            { auto varValPairs = split_on(optarg, ',');
+                for (auto&& varValPair : varValPairs) {
+                    auto [var, val] = cti::split::string<2>(std::move(varValPair), '=');
+                    result.envAlias.emplace_back(std::move(var), std::move(val));
+                }
+            }
+            break;
+
+        case PALSLauncherArgv::Fanout.val:
+            result.fanout = std::stoi(optarg);
+            break;
+
+        case PALSLauncherArgv::CpuBind.val:
+            result.cpuBind = optarg;
+            break;
+
+        case PALSLauncherArgv::MemBind.val:
+            result.memBind = optarg;
+            break;
+
+        case PALSLauncherArgv::Pmi.val:
+            result.pmi = optarg;
+            break;
+
+        case PALSLauncherArgv::Exclusive.val:
+            result.exclusive = parse_yes_no(optarg);
+            break;
+
+        case PALSLauncherArgv::LineBuffered.val:
+            result.lineBuffered = parse_yes_no(optarg);
+            break;
+
+        case PALSLauncherArgv::AbortOnFailure.val:
+            result.abortOnFailure = parse_yes_no(optarg);
+            break;
+
+        case PALSLauncherArgv::Rlimits.val:
+            { auto [rlimit, lowHigh] = cti::split::string<2>(std::move(optarg), '=');
+                auto [lowStr, highStr] = cti::split::string<2>(std::move(lowHigh), ',');
+               result.rlimits.emplace_back(std::move(rlimit), std::stoi(lowStr), std::stoi(highStr));
+            }
+            break;
+
+        case PALSLauncherArgv::RawRequest.val:
+            rawRequest = std::move(optarg);
             break;
 
         case '?':
@@ -594,25 +697,28 @@ static auto parse_argv(int argc, char* const argv[])
         }
     }
 
-    auto const binaryArgv = incomingArgv.get_rest();
-
-    return std::make_tuple(nranks, ppn, depth, nodeListSpec, binaryArgv);
+    return std::make_tuple(result, binaryArgv, rawRequest);
 }
 
-static auto make_launch_json(const char * const launcher_argv[], const char *chdirPath,
+static auto make_launch_json(const char * const launcher_args[], const char *chdirPath,
     const char * const env_list[], PALSFrontend::LaunchBarrierMode const launchBarrierMode)
 {
-    // Parse launcher_argv
-    auto launcher_argc = int{0};
-    while (launcher_argv[launcher_argc] != nullptr) { launcher_argc++; }
-    auto const [nranks, ppn, depth, nodeListSpec, binaryArgv] = parse_argv(launcher_argc + 1, (char* const*)(launcher_argv - 1));
+    // Parse launcher_argv (does not include argv[0])
+    auto const [palsLaunchArgs, binaryArgv, rawRequest] = parse_args(launcher_args);
+
+    // If the raw launcher request JSON was supplied as an argument, use that
+    if (!rawRequest.empty()) {
+        return rawRequest;
+    }
 
     // Create launch JSON command
     namespace pt = boost::property_tree;
     auto launchPtree = pt::ptree{};
 
-    // Ptree formats all integers as strings in JSON, so need to post-process the JSON
+    // Ptree formats all booleans / integers as strings in JSON,
+    // so need to post-process the JSON
     auto integerReplacements = std::map<std::string, int>{};
+    auto booleanReplacements = std::map<std::string, bool>{};
 
     auto const make_array_elem = [](std::string const& value) {
         auto node = pt::ptree{};
@@ -630,55 +736,45 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
     // If no chdirPath specified, use CWD
     launchPtree.put("wdir", chdirPath ? chdirPath : cti::cstr::getcwd());
 
-    // Read list of hostnames for PALS
-    if (!nodeListSpec.empty()) {
-        // User manually specified host list argument JSON
-
-        namespace pt = boost::property_tree;
-
-        // Create stream from string source
-        auto jsonSource = boost::iostreams::array_source{nodeListSpec.c_str(), nodeListSpec.size()};
-        auto jsonStream = boost::iostreams::stream<boost::iostreams::array_source>{jsonSource};
-
-        // Load and parse JSON
-        auto root = pt::ptree{};
-        try {
-            pt::read_json(jsonStream, root);
-        } catch (pt::json_parser::json_parser_error const& parse_ex) {
-            throw std::runtime_error("failed to parse node list: '" + nodeListSpec + "'");
-        }
-
-        // Insert node into request
-        launchPtree.add_child("hosts", root);
-
-    // Read each node name from node file
-    } else if (auto const nodeFilePath = ::getenv("PBS_NODEFILE")) {
-        auto fileStream = std::ifstream{nodeFilePath};
-        auto line = std::string{};
-
-        // Insert into hostname list
-        auto hostsPtree = pt::ptree{};
-        while (std::getline(fileStream, line)) {
-            hostsPtree.push_back(make_array_elem(line));
-        }
-
-        launchPtree.add_child("hosts", std::move(hostsPtree));
-    } else {
-        throw std::runtime_error("no node list provided");
-    }
-
-    // Add parsed node count information
-    if (nranks > 0) {
-        integerReplacements["%%nranks"] = nranks;
+    // Add launcher arguments to request
+    if (palsLaunchArgs.nranks) {
+        integerReplacements["%%nranks"] = *palsLaunchArgs.nranks;
         launchPtree.put("nranks", "%%nranks");
     }
-    if (ppn > 0) {
-        integerReplacements["%%ppn"] = ppn;
+    if (palsLaunchArgs.ppn) {
+        integerReplacements["%%ppn"] = *palsLaunchArgs.ppn;
         launchPtree.put("ppn", "%%ppn");
     }
-    if (depth > 0) {
-        integerReplacements["%%depth"] = depth;
+    if (palsLaunchArgs.depth) {
+        integerReplacements["%%depth"] = *palsLaunchArgs.depth;
         launchPtree.put("depth", "%%depth");
+    }
+
+    // Read list of hostnames for PALS
+    { auto hostsPtree = pt::ptree{};
+
+        // Use user-supplied node list
+        if (!palsLaunchArgs.nodeList.empty()) {
+            for (auto&& node : palsLaunchArgs.nodeList) {
+                hostsPtree.push_back(make_array_elem(node));
+            }
+
+        // Read each node name from node file
+        } else if (auto const nodeFilePath = ::getenv("PBS_NODEFILE")) {
+            auto fileStream = std::ifstream{nodeFilePath};
+            auto line = std::string{};
+
+            // Insert into hostname list
+            while (std::getline(fileStream, line)) {
+                hostsPtree.push_back(make_array_elem(line));
+            }
+
+        } else {
+            throw std::runtime_error("no node list provided");
+        }
+
+        // Insert hosts node into request
+        launchPtree.add_child("hosts", std::move(hostsPtree));
     }
 
     // Add necessary environment variables
@@ -706,11 +802,55 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
         launchPtree.add_child("environment", std::move(environmentPtree));
     }
 
-    // Add default environment alias
+    if (palsLaunchArgs.umask) {
+        launchPtree.put("umask", *palsLaunchArgs.umask);
+    }
+
+    // Add environment aliases
     { auto envaliasPtree = pt::ptree{};
+        // Default environment alias
         envaliasPtree.put("APRUN_APP_ID", "PALS_APID");
 
+        for (auto&& [var, val] : palsLaunchArgs.envAlias) {
+            envaliasPtree.put(var, val);
+        }
+
         launchPtree.add_child("envalias", std::move(envaliasPtree));
+    }
+
+    if (palsLaunchArgs.fanout) {
+        integerReplacements["%%fanout"] = *palsLaunchArgs.fanout;
+        launchPtree.put("fanout", "%%fanout");
+    }
+    if (palsLaunchArgs.cpuBind) {
+        launchPtree.put("cpubind", *palsLaunchArgs.cpuBind);
+    }
+    if (palsLaunchArgs.memBind) {
+        launchPtree.put("membind", *palsLaunchArgs.memBind);
+    }
+    if (palsLaunchArgs.pmi) {
+        launchPtree.put("pmi", *palsLaunchArgs.pmi);
+    }
+    if (palsLaunchArgs.exclusive) {
+        booleanReplacements["%%exclusive"] = *palsLaunchArgs.exclusive;
+        launchPtree.put("exclusive", "%%exclusive");
+    }
+    if (palsLaunchArgs.lineBuffered) {
+        booleanReplacements["%%line_buffered"] = *palsLaunchArgs.lineBuffered;
+        launchPtree.put("line_buffered", "%%line_buffered");
+    }
+    if (palsLaunchArgs.abortOnFailure) {
+        booleanReplacements["%%abort_on_failure"] = *palsLaunchArgs.abortOnFailure;
+        launchPtree.put("abort_on_failure", "%%abort_on_failure");
+    }
+
+    // Add resource limits
+    { auto rlimitsPtree = pt::ptree{};
+        for (auto&& [rlimit, low, high] : palsLaunchArgs.rlimits) {
+            rlimitsPtree.put(rlimit, std::to_string(low) + " " + std::to_string(high));
+        }
+
+        launchPtree.add_child("rlimits", std::move(rlimitsPtree));
     }
 
     // Encode as json string
@@ -722,6 +862,10 @@ static auto make_launch_json(const char * const launcher_argv[], const char *chd
     for (auto const& keyValuePair : integerReplacements) {
         boost::replace_all(launchJson, "\"" + keyValuePair.first + "\"",
             std::to_string(keyValuePair.second));
+    }
+    for (auto const& keyValuePair : booleanReplacements) {
+        boost::replace_all(launchJson, "\"" + keyValuePair.first + "\"",
+            keyValuePair.second ? "true" : "false");
     }
 
     return launchJson;
