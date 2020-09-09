@@ -128,26 +128,26 @@ static auto readHostnameUsernamePair(std::string const& configFilePath)
     return std::make_pair(hostname, username);
 }
 
-// Hostname into token name
-// See `hostname_to_name` in https://stash.us.cray.com/projects/CLOUD/repos/craycli/browse/cray/utils.py
-static auto hostnameToName(std::string url)
+static auto formatTokenName(std::string hostname, std::string username)
 {
+    // Hostname into token name
+    // See `hostname_to_name` in https://stash.us.cray.com/projects/CLOUD/repos/craycli/browse/cray/utils.py
     // Extract hostname from URL
-    auto const endpointSep = url.find("/");
-    auto const len = (endpointSep != std::string::npos)
-        ? endpointSep
-        : std::string::npos;
-    url = url.substr(0, len);
+    hostname = hostname.substr(0, hostname.find("/"));
 
     // Replace - and . with _
-    std::replace(url.begin(), url.end(), '-', '_');
-    std::replace(url.begin(), url.end(), '.', '_');
+    std::replace(hostname.begin(), hostname.end(), '-', '_');
+    std::replace(hostname.begin(), hostname.end(), '.', '_');
 
-    return url;
+    // Process username into token name, replace - and . with _
+    // See `set_name` in https://stash.us.cray.com/projects/CLOUD/repos/craycli/browse/cray/auth.py
+    std::replace(username.begin(), username.end(), '.', '_');
+
+    return hostname + "." + username;
 }
 
 // Load token from disk
-static constexpr auto defaultTokenFilePattern = "%s/.config/cray/tokens/%s.%s";
+static constexpr auto defaultTokenFilePattern = "%s/.config/cray/tokens/%s";
 static auto readAccessToken(std::string const& tokenPath)
 {
     namespace pt = boost::property_tree;
@@ -311,6 +311,9 @@ namespace pals
                 auto const commandInfo = commandInfoPair.second;
                 binaryPaths.emplace_back(commandInfo.get_child("argv").begin()->second.template get<std::string>(""));
             }
+            if (binaryPaths.empty()) {
+                binaryPaths.emplace_back(root.get_child("argv").begin()->second.template get<std::string>(""));
+            }
 
             // Fill in MPMD rank map
             auto binaryRankMap = std::map<std::string, std::vector<int>>{};
@@ -449,19 +452,21 @@ PALSFrontend::isSupported()
     }
 
     // Check that PBS is installed (required for PALS)
-    auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
-    if (cti::Execvp{"rpm", rpmArgv.get()}.getExitStatus() != 0) {
+    auto rpmClientArgv    = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
+    auto rpmExecutionArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-execution" };
+    if ((cti::Execvp{"rpm", rpmClientArgv.get()}.getExitStatus() != 0)
+     && (cti::Execvp{"rpm", rpmExecutionArgv.get()}.getExitStatus() != 0)) {
         return false;
     }
 
     // Check that craycli tool is available (Shasta system)
-    auto whichArgv = cti::ManagedArgv { "which", "cray" };
-    if (cti::Execvp{"which", whichArgv.get()}.getExitStatus() != 0) {
+    auto crayArgv = cti::ManagedArgv { "cray", "--version" };
+    if (cti::Execvp{"cray", crayArgv.get()}.getExitStatus() != 0) {
         return false;
     }
 
     // Check that the craycli tool is properly authenticated, as we will be using its token
-    auto craycliArgv = cti::ManagedArgv { "cray", "pals", "apps", "list" };
+    auto craycliArgv = cti::ManagedArgv { "cray", "uas", "list" };
     if (cti::Execvp{"cray", craycliArgv.get()}.getExitStatus() != 0) {
         fprintf(stderr, "craycli check failed. You may need to authenticate using `cray auth login`.\n");
         return false;
@@ -739,7 +744,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
     // Send launch JSON command
     auto const launchResult = cti::httpPostJsonReq(
         getApiInfo().hostname,
-        getApiInfo().endpointBase + "/v1/apps",
+        getApiInfo().endpointBase + "v1/apps",
         getApiInfo().accessToken,
         launchJson);
     writeLog("launch result: '%s'\n", launchResult.c_str());
@@ -808,9 +813,9 @@ PALSFrontend::PALSFrontend()
             cti::cstr::asprintf(craycli::defaultConfigFilePattern, home_directory(), activeConfig.c_str()));
 
         // Read access token from active Cray CLI configuration
-        auto const tokenName = craycli::hostnameToName(getApiInfo().hostname);
+        auto const tokenName = craycli::formatTokenName(getApiInfo().hostname, getApiInfo().username);
         m_palsApiInfo.accessToken = craycli::readAccessToken(
-            cti::cstr::asprintf(craycli::defaultTokenFilePattern, home_directory(), tokenName.c_str(), getApiInfo().username.c_str()));
+            cti::cstr::asprintf(craycli::defaultTokenFilePattern, home_directory(), tokenName.c_str()));
 
         // Default Shasta endpoint base using gateway server
         m_palsApiInfo.endpointBase = "/apis/pals/";
