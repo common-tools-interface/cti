@@ -133,11 +133,7 @@ static auto formatTokenName(std::string hostname, std::string username)
     // Hostname into token name
     // See `hostname_to_name` in https://stash.us.cray.com/projects/CLOUD/repos/craycli/browse/cray/utils.py
     // Extract hostname from URL
-    auto const endpointSep = hostname.find("/");
-    auto const len = (endpointSep != std::string::npos)
-        ? endpointSep
-        : std::string::npos;
-    hostname = hostname.substr(0, len);
+    hostname = hostname.substr(0, hostname.find("/"));
 
     // Replace - and . with _
     std::replace(hostname.begin(), hostname.end(), '-', '_');
