@@ -117,13 +117,28 @@ struct PALSLauncherArgv : public cti::Argv {
     using Option    = cti::Argv::Option;
     using Parameter = cti::Argv::Parameter;
 
-    static constexpr Parameter NRanks { "nranks", 'n' };
-    static constexpr Parameter PPN    { "ppn",    'N' };
-    static constexpr Parameter Depth  { "depth",  'd' };
-    static constexpr Parameter NodeList { "node-list",  'L' };
+    static constexpr Parameter NRanks   { "nranks",    'n' };
+    static constexpr Parameter PPN      { "ppn",       'N' };
+    static constexpr Parameter Depth    { "depth",     'd' };
+    static constexpr Parameter NodeList { "nodelist",  'L' };
+    static constexpr Parameter UMask    { "umask",     'u' };
+    static constexpr Parameter EnvAlias { "envalias",  'e' };
+    static constexpr Parameter Fanout   { "fanout",    'f' };
+    static constexpr Parameter CpuBind  { "cpubind",   'c' };
+    static constexpr Parameter MemBind  { "membind",   'm' };
+    static constexpr Parameter Pmi      { "pmi",       'p' };
+
+    static constexpr Parameter Exclusive      { "exclusive",        'F' };
+    static constexpr Parameter LineBuffered   { "line-buffered",    'l' };
+    static constexpr Parameter AbortOnFailure { "abort-on-failure", 'a' };
+
+    static constexpr Parameter Rlimits  { "rlimits",   'r' };
+
+    static constexpr Parameter RawRequest { "raw-request", 'R' };
 
     static constexpr GNUOption long_options[] = {
-        NRanks, PPN, Depth, NodeList,
+        NRanks, PPN, Depth, NodeList, UMask, EnvAlias, Fanout, CpuBind, MemBind,
+        Pmi, Exclusive, LineBuffered, AbortOnFailure, Rlimits, RawRequest,
         long_options_done
     };
 };
