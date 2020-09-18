@@ -161,7 +161,7 @@ auto pidIdMap = std::unordered_map<pid_t, DAppId>{};
 auto idPidMap = std::unordered_map<pid_t, DAppId>{};
 
 // running apps / utils
-auto appList = ProcSet{};
+auto appCleanupList = ProcSet{};
 auto utilMap = std::unordered_map<DAppId, ProcSet>{};
 
 auto mpirMap     = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
@@ -219,7 +219,7 @@ shutdown_and_exit(int const rc)
     auto utilTermFuture = std::async(std::launch::async, [&](){ utilMap.clear(); });
 
     // terminate all running apps
-    auto appTermFuture = std::async(std::launch::async, [&](){ appList.clear(); });
+    auto appTermFuture = std::async(std::launch::async, [&](){ appCleanupList.clear(); });
 
     // wait for all threads
     utilTermFuture.wait();
@@ -239,9 +239,9 @@ static void
 sigchld_handler(pid_t const exitedPid)
 {
     // regular app termination
-    if (appList.contains(exitedPid)) {
+    if (appCleanupList.contains(exitedPid)) {
         // app already terminated
-        appList.erase(exitedPid);
+        appCleanupList.erase(exitedPid);
     }
 
     // find ID associated with exited PID
@@ -275,10 +275,7 @@ cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 
 static DAppId registerAppPID(pid_t const app_pid)
 {
-    if ((app_pid > 0) && !appList.contains(app_pid)) {
-        // register app pid
-        appList.insert(app_pid);
-
+    if ((app_pid > 0) && (pidIdMap.find(app_pid) == pidIdMap.end())) {
         // create new app ID for pid
         auto const appId = newId();
         pidIdMap[app_pid] = appId;
@@ -319,9 +316,9 @@ static void deregisterAppID(DAppId const app_id)
             [&](){ utilMap.erase(app_id); });
 
         // ensure app is terminated
-        if (appList.contains(app_pid)) {
+        if (appCleanupList.contains(app_pid)) {
             auto appTermFuture = std::async(std::launch::async, [&](){ tryTerm(app_pid); });
-            appList.erase(app_pid);
+            appCleanupList.erase(app_pid);
             appTermFuture.wait();
         }
 
@@ -700,9 +697,14 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
         ::setenv(var.c_str(), val.c_str(), true);
     }
 
-    return extractMPIRResult(std::make_unique<MPIRInstance>(
+    auto mpirResult = extractMPIRResult(std::make_unique<MPIRInstance>(
         launchData.filepath, launchData.argvList, std::vector<std::string>{}, remapFds
     ));
+
+    // Terminate launched application on daemon exit
+    appCleanupList.insert(mpirResult.launcher_pid);
+
+    return mpirResult;
 }
 
 static FE_daemon::MPIRResult attachMPIR(std::string const& launcherPath, pid_t const launcherPid)
@@ -1071,9 +1073,24 @@ static auto reqTypeString(ReqType const reqType)
     }
 }
 
+static void log_terminate()
+{
+    if (auto eptr = std::current_exception()) {
+        try {
+            std::rethrow_exception(eptr);
+        } catch(const std::exception& e) {
+            getLogger().write(e.what());
+        }
+    }
+
+    std::abort();
+}
+
 int
 main(int argc, char *argv[])
 {
+    std::set_terminate(log_terminate);
+
     // parse incoming argv for request and response FDs
     { auto incomingArgv = cti::IncomingArgv<CTIFEDaemonArgv>{argc, argv};
         int c; std::string optarg;
@@ -1142,6 +1159,7 @@ main(int argc, char *argv[])
 
     // set handler for signals
     struct sigaction sig_action;
+    memset(&sig_action, 0, sizeof(sig_action));
     sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
     sig_action.sa_sigaction = cti_fe_daemon_handler;
     for (auto&& signum : handledSignals) {
