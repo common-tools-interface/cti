@@ -1,13 +1,7 @@
 /******************************************************************************\
  * Frontend.hpp - A header file for the SSH based workload manager
  *
- * Copyright 2017-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2017-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -42,7 +36,6 @@
 #include <sys/types.h>
 
 #include "frontend/Frontend.hpp"
-#include "mpir_iface/MPIRInstance.hpp"
 
 class GenericSSHFrontend final : public Frontend
 {
@@ -51,11 +44,13 @@ private: // Global state
     std::vector<char>   m_pwd_buf;
 
 public: // inherited interface
-    static char const* getName()        { return SSH_WLM_TYPE_IMPL; }
-    static char const* getDescription() { return SSH_WLM_TYPE_STRING; }
+    static char const* getName()        { return CTI_WLM_TYPE_SSH_STR; }
     static bool isSupported();
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SSH; }
+
+    std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
@@ -90,8 +85,8 @@ public: // ssh specific interface
     std::string createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath);
 
     // Launch an app under MPIR control and hold at barrier.
-    std::unique_ptr<MPIRInstance> launchApp(const char * const launcher_argv[],
-        int stdout_fd, int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+    FE_daemon::MPIRResult launchApp(const char * const launcher_argv[],
+        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
 public: // constructor / destructor interface
     GenericSSHFrontend();
@@ -108,8 +103,9 @@ public: // constructor / destructor interface
 class GenericSSHApp final : public App
 {
 private: // variables
+    FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     pid_t      m_launcherPid; // job launcher PID
-    std::unique_ptr<MPIRInstance> m_launcherInstance; // MPIR instance handle to release startup barrier
+    std::map<std::string, std::vector<int>> m_binaryRankMap; // Binary to rank ID map
     GenericSSHFrontend::StepLayout m_stepLayout; // SSH Layout of job step
     bool       m_beDaemonSent; // Have we already shipped over the backend daemon?
 
@@ -126,10 +122,12 @@ public: // app interaction interface
 
     std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 
+    bool   isRunning()       const override;
     size_t getNumPEs()       const override { return m_stepLayout.numPEs;       }
     size_t getNumHosts()     const override { return m_stepLayout.nodes.size(); }
     std::vector<std::string> getHostnameList()   const override;
     std::vector<CTIHost>     getHostsPlacement() const override;
+    std::map<std::string, std::vector<int>> getBinaryRankMap() const override;
 
     void releaseBarrier() override;
     void kill(int signal) override;
@@ -139,16 +137,8 @@ public: // app interaction interface
 public: // ssh specific interface
     /* none */
 
-private: // delegated constructor
-    GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid, std::unique_ptr<MPIRInstance>&& launcherInstance);
 public: // constructor / destructor interface
-    // register case
-    GenericSSHApp(GenericSSHFrontend& fe, pid_t launcherPid);
-    // attach case
-    GenericSSHApp(GenericSSHFrontend& fe, std::unique_ptr<MPIRInstance>&& launcherInstance);
-    // launch case
-    GenericSSHApp(GenericSSHFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-        const char *inputFile, const char *chdirPath, const char * const env_list[]);
+    GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpirData);
     ~GenericSSHApp();
     GenericSSHApp(const GenericSSHApp&) = delete;
     GenericSSHApp& operator=(const GenericSSHApp&) = delete;

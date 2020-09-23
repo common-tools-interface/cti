@@ -1,11 +1,11 @@
 #
 # Makefile.am for the CTI unit tests
 #
-# Copyright 2014-2019 Cray Inc. All Rights Reserved.
+# Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             = @COMMONTOOL_DIR@/src
-SUPPORT         = @COMMONTOOL_DIR@/tests/test_support
+SUPPORT         = @COMMONTOOL_DIR@/@TESTS_DIR_NAME@/test_support
 
 GTEST           = $(SUPPORT)/googletest/googletest
 GMOCK           = $(SUPPORT)/googletest/googlemock
@@ -14,44 +14,46 @@ AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
 # google test framework library
-check_LTLIBRARIES		= libgtest.la
+noinst_LTLIBRARIES		= libgtest.la
 libgtest_la_SOURCES		= googletest/googletest/src/gtest-all.cc
-libgtest_la_CPPFLAGS	= -I$(GTEST)/include -I$(GTEST)
-libgtest_la_LDFLAGS		= -pthread
+libgtest_la_CPPFLAGS	= -I$(GTEST)/include -I$(GTEST) $(PTHREAD_CFLAGS)
+libgtest_la_LDFLAGS		= $(PTHREAD_LIBS)
 
 # google mock framework library
-check_LTLIBRARIES		+=	libgmock.la
+noinst_LTLIBRARIES		+=	libgmock.la
 libgmock_la_SOURCES		=	googletest/googlemock/src/gmock-all.cc
 libgmock_la_CPPFLAGS	=	-I$(GTEST)/include -I$(GTEST) \
-							-I$(GMOCK)/include -I$(GMOCK)
-libgmock_la_LDFLAGS		=	-pthread
+							-I$(GMOCK)/include -I$(GMOCK) $(PTHREAD_CFLAGS)
+libgmock_la_LDFLAGS		=	$(PTHREAD_LIBS)
 
 # support binaries for function and unit tests
 
-# stage test helpers (one_socket, two_socket, libprint.so)
-check_PROGRAMS = one_socket two_socket one_print
+# stage test helpers
+noinst_PROGRAMS = one_print one_socket two_socket remote_filecheck
 
 message_one/libmessage.so: message_one/message.c message_one/message.h
-	$(CC) -fPIC -shared message_one/message.c -o message_one/libmessage.so
+	gcc -fPIC -shared message_one/message.c -o message_one/libmessage.so
 
-one_socket_DEPENDENCIES	= message_one/libmessage.so
-one_socket_SOURCES		= one_socket.c
-one_socket_LDADD		= -L./message_one -lmessage
-one_socket_LDFLAGS		= -Wl,-rpath,\$$ORIGIN/message_one
+message_two/libmessage.so: message_two/message.c message_two/message.h
+	gcc -fPIC -shared message_two/message.c -o message_two/libmessage.so
+
+one_socket$(EXEEXT): message_one/libmessage.so
+	gcc one_socket.c -L./message_one -lmessage -Wl,-rpath,\$$ORIGIN/message_one -o one_socket
+
+two_socket$(EXEEXT): message_two/libmessage.so
+	gcc two_socket.c -L./message_two -lmessage -Wl,-rpath,\$$ORIGIN/message_two -o two_socket
+
+remote_filecheck$(EXEEXT):
+	gcc remote_filecheck.c -o remote_filecheck
 
 clean-local:
 	rm -f message_one/libmessage.so
 	rm -f message_two/libmessage.so
+	rm -f one_socket
+	rm -f two_socket
+	rm -f remote_filecheck
 
-message_two/libmessage.so: message_two/message.c message_two/message.h
-	$(CC) -fPIC -shared message_two/message.c -o message_two/libmessage.so
-
-two_socket_DEPENDENCIES	= message_two/libmessage.so
-two_socket_SOURCES		= two_socket.c
-two_socket_LDADD		= -L./message_two -lmessage
-two_socket_LDFLAGS		= -Wl,-rpath,\$$ORIGIN/message_two
-
-one_print_DEPENDENCIES = message_one/libmessage.so
+one_print_DEPENDENCIES  = message_one/libmessage.so
 one_print_SOURCES 		= one_print.c
 one_print_LDADD 		= -L./message_one -lmessage
 one_print_LDFLAGS 		= -Wl,-rpath,\$$ORIGIN/message_one

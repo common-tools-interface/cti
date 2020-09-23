@@ -1,13 +1,7 @@
 /******************************************************************************\
  * MPIRInstance.cpp
  *
- * Copyright 2018-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2018-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -61,6 +55,16 @@ MPIRInstance::MPIRInstance(std::string const& launcher, pid_t pid) :
     m_inferior{launcher, pid} {
 
     setupMPIRStandard();
+
+    /* wait until proctable has been filled */
+    while (m_inferior.readVariable<int>("MPIR_proctable_size") == 0) {
+        m_inferior.continueRun();
+
+        /* ensure execution wasn't stopped due to termination */
+        if (m_inferior.isTerminated()) {
+            throw std::runtime_error("MPIR attach target terminated before proctable filled");
+        }
+    }
 }
 
 void MPIRInstance::setupMPIRStandard() {
@@ -92,7 +96,7 @@ void MPIRInstance::runToMPIRBreakpoint() {
         m_inferior.continueRun();
 
         if (m_inferior.isTerminated()) {
-            throw std::runtime_error("MPIR target terminated before MPIR_Breakpoint");
+            throw std::runtime_error("MPIR launch target terminated before MPIR_Breakpoint");
         }
 
         /* inferior now in stopped state. read MPIR_debug_state */
@@ -109,6 +113,25 @@ static T readArrayElem(Inferior& inf, std::string const& symName, size_t idx) {
     return inf.readMemory<T>(elem_addr);
 }
 
+std::string MPIRInstance::readStringAt(MPIRInstance::Address strAddress) {
+    /* read string */
+    std::string result;
+    while (char c = m_inferior.readMemory<char>(strAddress++)) {
+        result.push_back(c);
+    }
+
+    return result;
+}
+
+std::string MPIRInstance::readStringAt(std::string const& symName) {
+    /* get address */
+    auto strAddress = m_inferior.readVariable<Address>(symName);
+
+    /* delegate read string */
+    return readStringAt(strAddress);
+}
+
+
 MPIRProctable MPIRInstance::getProctable() {
     auto num_pids = m_inferior.readVariable<int>("MPIR_proctable_size");
     DEBUG(std::cerr, "procTable has size " << std::to_string(num_pids) << std::endl);
@@ -119,30 +142,14 @@ MPIRProctable MPIRInstance::getProctable() {
     for (int i = 0; i < num_pids; i++) {
         auto procDesc = readArrayElem<MPIR_ProcDescElem>(m_inferior, "MPIR_proctable", i);
 
-        /* read hostname */
-        auto buf = m_inferior.readMemory<std::array<char, HOST_NAME_MAX+1>>(procDesc.host_name);
-        buf[HOST_NAME_MAX] = '\0';
+        /* read hostname and executable */
+        auto hostname = readStringAt(procDesc.host_name);
+        auto executable = readStringAt(procDesc.executable_name);
 
-        /* copy hostname */
-        { std::stringstream ss;
-            ss << buf.data();
-            DEBUG(std::cerr, "procTable[" << i << "]: " << procDesc.pid << ", " << ss.str() << std::endl);
-            proctable.emplace_back(MPIRProctableElem{procDesc.pid, ss.str()});
-        }
+        DEBUG(std::cerr, "procTable[" << i << "]: " << procDesc.pid << ", " << hostname << ", " << executable << std::endl);
+
+        proctable.emplace_back(MPIRProctableElem{procDesc.pid, std::move(hostname), std::move(executable)});
     }
 
     return proctable;
-}
-
-std::string MPIRInstance::readStringAt(std::string const& symName) {
-    /* get address */
-    auto strAddress = m_inferior.readVariable<Address>(symName);
-
-    /* read string */
-    std::string result;
-    while (char c = m_inferior.readMemory<char>(strAddress++)) {
-        result.push_back(c);
-    }
-
-    return result;
 }

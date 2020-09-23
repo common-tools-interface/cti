@@ -1,13 +1,7 @@
 /******************************************************************************\
  * Session.cpp - Session object impl
  *
- * Copyright 2013-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2013-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -132,14 +126,6 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     auto&& fe = app->getFrontend();
     // Check to see if we need to add baseline App dependencies
     if ( m_add_requirements ) {
-        // Get the location of the daemon
-        if (fe.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
-        }
-
-        // ship CTI backend daemon
-        app->shipPackage(fe.getBEDaemonPath());
-
         // ship WLM-specific base files
         for (auto const& path : app->getExtraBinaries()) {
             mani->addBinary(path);

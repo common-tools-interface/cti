@@ -1,0 +1,3 @@
+# This is a dummy makefile that will be distributed with the tests rpm and prebuilt binaries.
+# It is needed to satisfy the makefiles in the parent directories.
+# It is here to enable tests to be built both from a tests rpm and a cloned git repo.

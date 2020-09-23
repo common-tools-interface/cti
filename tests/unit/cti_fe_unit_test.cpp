@@ -1,13 +1,7 @@
 /******************************************************************************\
  * cti_fe_unit_test.cpp - Frontend unit tests for CTI
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -81,6 +75,18 @@ CTIAppUnitTest::~CTIAppUnitTest()
 }
 
 /* current frontend information query tests */
+
+// Test LD_PRELOAD getter function
+TEST_F(CTIFEUnitTest, ld_preload_helper)
+{
+    // We set LD_PRELOAD to /dev/null in the unit test setup
+    MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
+    std::string saved = mockFrontend.getGlobalLdPreload();
+    ASSERT_STREQ("/dev/null", saved.c_str());
+    // Ensure LD_PRELOAD is unset
+    char *envStr = getenv("LD_PRELOAD");
+    ASSERT_EQ(envStr, nullptr);
+}
 
 // const char * cti_error_str(void)
 // Test the the current error string is not set
@@ -220,6 +226,32 @@ TEST_F(CTIAppUnitTest, GetAppHostsPlacement)
     EXPECT_EQ(rawHostsList->hosts[0].numPes, getpid());
 }
 
+// cti_binaryList_t *   cti_getAppBinaryList(cti_app_id_t);
+// void                 cti_destroyBinaryList(cti_binaryList_t *);
+// Tests that the app will generate a binary list for the application
+TEST_F(CTIAppUnitTest, GetAppBinaryList)
+{
+    // describe behavior of mock getBinaryList
+    EXPECT_CALL(*mockApp, getNumPEs())
+        .WillOnce(Return(4));
+    EXPECT_CALL(*mockApp, getBinaryRankMap())
+        .WillOnce(Return(std::map<std::string, std::vector<int>>
+            { {"/bin1", {0, 2}}
+            , {"/bin2", {1, 3}}
+        }));
+
+    // run the test
+    auto const rawBinaryList = cti::take_pointer_ownership(cti_getAppBinaryList(appId), cti_destroyBinaryList);
+    ASSERT_TRUE(rawBinaryList != nullptr) << cti_error_str();
+    ASSERT_TRUE(rawBinaryList->binaries != nullptr);
+    EXPECT_EQ(std::string{rawBinaryList->binaries[0]}, "/bin1");
+    EXPECT_EQ(std::string{rawBinaryList->binaries[1]}, "/bin2");
+    EXPECT_EQ(rawBinaryList->rankMap[0], 0);
+    EXPECT_EQ(rawBinaryList->rankMap[1], 1);
+    EXPECT_EQ(rawBinaryList->rankMap[2], 0);
+    EXPECT_EQ(rawBinaryList->rankMap[3], 1);
+}
+
 /* app lifecycle management tests */
 
 // int          cti_appIsValid(cti_app_id_t);
@@ -237,8 +269,8 @@ TEST_F(CTIFEUnitTest, LaunchApp)
 {
     MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
 
-    // describe behavior of mock launchBarrier
-    EXPECT_CALL(mockFrontend, launchBarrier(mockArgv, -1, -1, nullptr, nullptr, nullptr))
+    // describe behavior of mock launch
+    EXPECT_CALL(mockFrontend, launch(mockArgv, -1, -1, nullptr, nullptr, nullptr))
         .Times(1);
 
     // run the test

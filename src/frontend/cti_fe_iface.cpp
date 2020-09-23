@@ -1,13 +1,7 @@
 /******************************************************************************\
  * cti_fe_iface.cpp - C interface layer for the cti frontend.
  *
- * Copyright 2014-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -114,7 +108,7 @@ FE_iface::get_error_str()
     // Copy the internal error string to the external buffer
     strncpy(_cti_err_str, m_err_str.c_str(), CTI_ERR_STR_SIZE);
     // Enforce null termination
-    _cti_err_str[CTI_ERR_STR_SIZE] = '\0';
+    _cti_err_str[CTI_ERR_STR_SIZE - 1] = '\0';
     // Return the pointer to the external buffer
     return const_cast<const char *>(_cti_err_str);
 }
@@ -184,10 +178,14 @@ const char *
 cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
     switch (wlm_type) {
         // WLM Frontend implementations
+        case CTI_WLM_ALPS:
+            return ALPSFrontend::getName();
         case CTI_WLM_SLURM:
-            return SLURMFrontend::getDescription();
+            return SLURMFrontend::getName();
+        case CTI_WLM_PALS:
+            return PALSFrontend::getName();
         case CTI_WLM_SSH:
-            return GenericSSHFrontend::getDescription();
+            return GenericSSHFrontend::getName();
 
         // Internal / testing types
         case CTI_WLM_MOCK:
@@ -269,6 +267,63 @@ cti_destroyHostsList(cti_hostsList_t *placement_list) {
     free(placement_list);
 }
 
+cti_binaryList_t*
+cti_getAppBinaryList(cti_app_id_t appId) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        auto sp = fe.Iface().getApp(appId);
+        auto const binaryRankMap = sp->getBinaryRankMap();
+        auto const numPEs = sp->getNumPEs();
+
+        // Allocate the result structures
+        cti_binaryList_t *result = (cti_binaryList_t*)malloc(sizeof(cti_binaryList_t));
+        result->binaries = (char**)malloc(sizeof(char*) * (binaryRankMap.size() + 1));
+        result->rankMap  = (int*)malloc(sizeof(int) * (numPEs + 1));
+
+        // Teminate the lists
+        result->binaries[binaryRankMap.size()] = nullptr;
+        result->rankMap[numPEs] = -1;
+
+        { size_t i = 0;
+            for (auto&& [binary, ranks] : binaryRankMap) {
+                // Copy binary path
+                result->binaries[i] = strdup(binary.c_str());
+
+                // Set each result rank in rankIndices to the binary path index
+                for (auto&& rank : ranks) {
+                    result->rankMap[rank] = i;
+                }
+
+                i++;
+            }
+        }
+
+        return result;
+    }, (cti_binaryList_t*)nullptr);
+}
+
+void
+cti_destroyBinaryList(cti_binaryList_t *binary_list) {
+    if (binary_list == nullptr) {
+        return;
+    }
+
+    if (binary_list->binaries) {
+        for (char **binary_ptr = binary_list->binaries; *binary_ptr != nullptr; binary_ptr++) {
+            free(*binary_ptr);
+        }
+        free(binary_list->binaries);
+        binary_list->binaries = nullptr;
+    }
+
+    if (binary_list->rankMap) {
+        free(binary_list->rankMap);
+        binary_list->rankMap = nullptr;
+    }
+
+    free(binary_list);
+}
+
 char*
 cti_getHostname() {
     return FE_iface::runSafely(__func__, [&](){
@@ -285,6 +340,55 @@ cti_getLauncherHostName(cti_app_id_t appId) {
         return strdup(sp->getLauncherHostname().c_str());
     }, (char*)nullptr);
 }
+
+// ALPS WLM extensions
+
+static cti_app_id_t
+_cti_alps_registerApid(uint64_t apid) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<ALPSFrontend>();
+        auto wp = fe.registerJob(1, apid);
+        return fe.Iface().trackApp(wp);
+    }, APP_ERROR);
+}
+
+static uint64_t
+_cti_alps_getApid(pid_t aprunPid) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<ALPSFrontend>();
+        return fe.getApid(aprunPid);
+    }, uint64_t{0});
+}
+
+static cti_aprunProc_t*
+_cti_alps_getAprunInfo(cti_app_id_t appId) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        auto ap = downcastApp<ALPSApp>(fe.Iface().getApp(appId));
+        if (auto result = (cti_aprunProc_t*)malloc(sizeof(cti_aprunProc_t))) {
+            *result = ap->get_cti_aprunProc_t();
+            return result;
+        } else {
+            throw std::runtime_error("malloc failed.");
+        }
+    }, (cti_aprunProc_t*)nullptr);
+}
+
+static int
+_cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        auto ap = downcastApp<ALPSApp>(fe.Iface().getApp(appId));
+        return ap->getAlpsOverlapOrdinal();
+    }, int{-1});
+}
+
+static cti_alps_ops_t _cti_alps_ops = {
+    .registerApid          = _cti_alps_registerApid,
+    .getApid               = _cti_alps_getApid,
+    .getAprunInfo          = _cti_alps_getAprunInfo,
+    .getAlpsOverlapOrdinal = _cti_alps_getAlpsOverlapOrdinal
+};
 
 // SLURM WLM extensions
 
@@ -330,6 +434,30 @@ static cti_slurm_ops_t _cti_slurm_ops = {
     .getSrunInfo        = _cti_slurm_getSrunInfo
 };
 
+// PALS WLM extensions
+
+static char*
+_cti_pals_getApid(pid_t craycliPid) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<PALSFrontend>();
+        return strdup(fe.getApid(craycliPid).c_str());
+    }, (char*)nullptr);
+}
+
+static cti_app_id_t
+_cti_pals_registerApid(char const* apid) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<PALSFrontend>();
+        auto wp = fe.registerJob(1, apid);
+        return fe.Iface().trackApp(wp);
+    }, APP_ERROR);
+}
+
+static cti_pals_ops_t _cti_pals_ops = {
+    .getApid      = _cti_pals_getApid,
+    .registerApid = _cti_pals_registerApid
+};
+
 // SSH WLM extensions
 
 static cti_app_id_t
@@ -356,8 +484,14 @@ cti_open_ops(void **ops) {
         auto&& fe = Frontend::inst();
         auto wlm_type = fe.getWLMType();
         switch (wlm_type) {
+            case CTI_WLM_ALPS:
+                *ops = reinterpret_cast<void *>(&_cti_alps_ops);
+                break;
             case CTI_WLM_SLURM:
                 *ops = reinterpret_cast<void *>(&_cti_slurm_ops);
+                break;
+            case CTI_WLM_PALS:
+                *ops = reinterpret_cast<void *>(&_cti_pals_ops);
                 break;
             case CTI_WLM_SSH:
                 *ops = reinterpret_cast<void *>(&_cti_ssh_ops);
@@ -377,7 +511,26 @@ int
 cti_appIsValid(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
         auto&& fe = Frontend::inst();
-        return fe.Iface().validApp(appId);
+
+        // Check if app registered
+        if (!fe.Iface().validApp(appId)) {
+            return false;
+        }
+
+        // Get app instance
+        auto sp = fe.Iface().getApp(appId);
+
+        // Check if app running
+        if (!sp->isRunning()) {
+            // Remove the app if not running anymore
+            fe.removeApp(sp);
+            fe.Iface().removeApp(appId);
+
+            return false;
+        }
+
+        // App is valid and running
+        return true;
     }, false);
 }
 
@@ -393,53 +546,140 @@ cti_deregisterApp(cti_app_id_t appId) {
     }, false);
 }
 
+namespace
+{
+    enum class LaunchBarrierMode
+        { Disabled = 0
+        , Enabled  = 1
+    };
+}
+
+static cti_app_id_t
+launchAppImplementation(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    const char *input_file, const char *chdir_path, const char * const env_list[],
+    LaunchBarrierMode const launchBarrierMode)
+{
+    auto&& fe = Frontend::inst();
+
+    // If stdout or stderr FDs are provided, ensure that they are writable
+    if ((stdout_fd > 0) && !cti::canWriteFd(stdout_fd)) {
+        throw std::runtime_error("Invalid stdoutFd argument. No write access.");
+    }
+    if ((stderr_fd > 0) && !cti::canWriteFd(stderr_fd)) {
+        throw std::runtime_error("Invalid stderr_fd argument. No write access.");
+    }
+
+    // If an input file is provided, ensure that it is readable
+    if ((input_file != nullptr) && !cti::fileHasPerms(input_file, R_OK)) {
+        throw std::runtime_error("Invalid inputFile argument. No read access.");
+    }
+    // If a working directory is provided, ensure that is a readable / writable / executable directory
+    if ((chdir_path != nullptr) && !cti::dirHasPerms(chdir_path, R_OK | W_OK | X_OK)) {
+        throw std::runtime_error("Invalid chdirPath argument. No RWX access.");
+    }
+
+    // If LD_PRELOAD was set globally, ensure that the global value gets added to the job environment
+    auto fixedEnvVars = cti::ManagedArgv{};
+    auto const globalLdPreload = fe.getGlobalLdPreload();
+    if (!globalLdPreload.empty()) {
+
+        // If LD_PRELOAD is set in the job environment, the global LD_PRELOAD will be prepended
+        if (env_list != nullptr) {
+            auto ldPreloadAdded = false;
+            for (int i=0; env_list[i] != nullptr; ++i) {
+
+                if (strcmp(env_list[i], "LD_PRELOAD") == 0) {
+                    // Find separator '='
+                    const char * sub_ptr = strrchr(env_list[i], '=');
+                    if (sub_ptr == nullptr) {
+                        throw std::runtime_error("Invalid environment variable set: '" +
+                            std::string{env_list[i]} + "'");
+                    }
+
+                    // Advance past '='
+                    ++sub_ptr;
+
+                    // Remove beginning / trailing quotation marks
+
+                    // Conditionally advance past beginning quotation mark
+                    if (*sub_ptr == '"') {
+                        ++sub_ptr;
+                    }
+
+                    // Determine if trailing quote is present
+                    auto trailingQuotePresent = false;
+                    for (char const* cursor = sub_ptr; *cursor != '\0'; cursor++) {
+                        if (cursor[0] == '"') {
+
+                            // Ensure that the quote is trailing
+                            if (cursor[1] != '\0') {
+                                throw std::runtime_error("Invalid environment variable set: '" +
+                                    std::string{env_list[i]} + "'");
+                            }
+
+                            trailingQuotePresent = true;
+                        }
+                    }
+
+                    // Prepend global LD_PRELOAD value to job environment LD_PRELOAD
+                    fixedEnvVars.add(std::string{"LD_PRELOAD=\""}
+                        + globalLdPreload + ":" + sub_ptr
+                        + (trailingQuotePresent ? "" : "\""));
+
+                    ldPreloadAdded = true;
+
+                } else {
+                    // Environment variable is not LD_PRELOAD, add unchanged to job environment
+                    fixedEnvVars.add(env_list[i]);
+                }
+            }
+
+            // If LD_PRELOAD was not set in the job environment, add the global LD_PRELOAD value
+            if (!ldPreloadAdded) {
+                fixedEnvVars.add(std::string{"LD_PRELOAD=\""} + globalLdPreload + "\"");
+            }
+
+        } else {
+            // No job-specific environment provided
+            fixedEnvVars.add(std::string{"LD_PRELOAD=\""} + globalLdPreload + "\"");
+        }
+
+        // Set job environment list to the fixed list containing the global LD_PRELOAD value
+        env_list = (const char * const *)fixedEnvVars.get();
+    }
+
+    // If using barrier mode, call the barrier launch implementation
+    auto wp = (launchBarrierMode == LaunchBarrierMode::Disabled)
+        ? fe.launch(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list)
+        : fe.launchBarrier(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list);
+
+    // Assign a CTI application ID to the newly launched application
+    return fe.Iface().trackApp(wp);
+}
+
 cti_app_id_t
 cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-    const char *inputFile, const char *chdirPath, const char * const env_list[])
+    const char *input_file, const char *chdir_path, const char * const env_list[])
 {
     return FE_iface::runSafely(__func__, [&](){
-        // delegate app launch and registration to launchAppBarrier
-        auto const appId = cti_launchAppBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, env_list);
 
-        // release barrier
-        auto&& fe = Frontend::inst();
-        auto sp = fe.Iface().getApp(appId);
-        sp->releaseBarrier();
+        // Delegate to common launch implementation
+        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list,
+            LaunchBarrierMode::Disabled);
 
-        return appId;
     }, APP_ERROR);
 }
 
 cti_app_id_t
-cti_launchAppBarrier(const char * const launcher_argv[], int stdoutFd, int stderrFd,
-    const char *inputFile, const char *chdirPath, const char * const env_list[])
+cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    const char *input_file, const char *chdir_path, const char * const env_list[])
 {
     return FE_iface::runSafely(__func__, [&](){
-        // verify that FDs are writable, input file path is readable, and chdir path is
-        // read/write/executable. if not, throw an exception with the corresponding error message
 
-        // ensure stdout, stderr can be written to (fd is -1, then ignore)
-        if ((stdoutFd > 0) && !cti::canWriteFd(stdoutFd)) {
-            throw std::runtime_error("Invalid stdoutFd argument. No write access.");
-        }
-        if ((stderrFd > 0) && !cti::canWriteFd(stderrFd)) {
-            throw std::runtime_error("Invalid stderr_fd argument. No write access.");
-        }
+        // Delegate to common launch implementation
+        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list,
+            LaunchBarrierMode::Enabled);
 
-        // verify inputFile is a file that can be read
-        if ((inputFile != nullptr) && !cti::fileHasPerms(inputFile, R_OK)) {
-            throw std::runtime_error("Invalid inputFile argument. No read access.");
-        }
-        // verify chdirPath is a directory that can be read, written, and executed
-        if ((chdirPath != nullptr) && !cti::dirHasPerms(chdirPath, R_OK | W_OK | X_OK)) {
-            throw std::runtime_error("Invalid chdirPath argument. No RWX access.");
-        }
-
-        // register new app instance held at barrier
-        auto&& fe = Frontend::inst();
-        auto wp = fe.launchBarrier(launcher_argv, stdoutFd, stderrFd, inputFile, chdirPath, env_list);
-
-        return fe.Iface().trackApp(wp);
     }, APP_ERROR);
 }
 

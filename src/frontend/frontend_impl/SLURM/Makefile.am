@@ -1,7 +1,7 @@
 #
 # Makefile.am for the Slurm frontend implementation.
 #
-# Copyright 2019 Cray Inc. All Rights Reserved.
+# Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             	= @COMMONTOOL_DIR@/src

@@ -1,13 +1,7 @@
 /******************************************************************************\
  * cti_useful_unit_test.cpp - /Useful unit tests for CTI
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -54,6 +48,7 @@ using ::testing::Return;
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::WithoutArgs;
+using ::testing::EndsWith;
 
 CTIUsefulUnitTest::CTIUsefulUnitTest()
 {
@@ -68,16 +63,16 @@ CTIUsefulUnitTest::~CTIUsefulUnitTest()
 ******************************************/
 
 TEST_F(CTIUsefulUnitTest, cti_argv)
-{ 
-    
+{
+
     // Begin ManagedArgv tests
     cti::ManagedArgv argv1;
-   
+
     // test that an argv with no data is of size 0
     ASSERT_EQ(argv1.size(), 1);
     char** argv_data = nullptr;
 
-    // test that an argv with no data has a nullptr for its data 
+    // test that an argv with no data has a nullptr for its data
     argv_data = argv1.get();
     ASSERT_EQ(argv_data[0], nullptr);
 
@@ -95,7 +90,7 @@ TEST_F(CTIUsefulUnitTest, cti_argv)
     arg1[4] = '\0';
     argv1.add(arg1);
     ASSERT_EQ(argv1.size(), 3);
- 
+
     // test that this data can be retrieved
     argv_data = argv1.get();
     ASSERT_STREQ(argv_data[1], "arg1");
@@ -104,17 +99,22 @@ TEST_F(CTIUsefulUnitTest, cti_argv)
     std::initializer_list<std::string const> strlist {"0","1","2","3","4"};
     cti::ManagedArgv argv2(strlist);
     ASSERT_EQ(argv2.size(), 6);
-    
+
     // test that all data is present
     char** argv_data2 = argv2.get();
     for(int i = 0; i < 5; i++) {
        ASSERT_STREQ(argv_data2[i], std::to_string(i).c_str());
     }
+
+    // test that adding a NULL pointer throws
+    cti::ManagedArgv argv3;
+    ASSERT_NO_THROW(argv3.add(""));
+    ASSERT_THROW(argv3.add(NULL), std::logic_error);
 }
     /**********************************************************************************/
     // test additional argv classes
 
-TEST_F(CTIUsefulUnitTest, cti_argv_OutgoingArgv) 
+TEST_F(CTIUsefulUnitTest, cti_argv_OutgoingArgv)
 {
     cti::OutgoingArgv<cti::Argv> test_OA("./unit_tests");
 
@@ -153,19 +153,20 @@ TEST_F(CTIUsefulUnitTest, cti_argv_OutgoingArgv)
     ASSERT_EQ(check_empty, nullptr);
 }
 
-TEST_F(CTIUsefulUnitTest, cti_argv_IncomingArgv) 
+TEST_F(CTIUsefulUnitTest, cti_argv_IncomingArgv)
 {
     // setup test argv for IncomingArgv
     // DaemonArgv used as only Argv with long_options which is required by IncomingArgv
-    cti::OutgoingArgv<DaemonArgv> test_OA("CTI_BE_DAEMON_BINARY");
+    cti::OutgoingArgv<DaemonArgv> test_OA(CTI_BE_DAEMON_BINARY);
     test_OA.add(DaemonArgv::ApID, "1");
     test_OA.add(DaemonArgv::ToolPath, "./unit_tests");
 
     // create IncomingArgv
     cti::IncomingArgv<CTIFEDaemonArgv> test_IA(3, test_OA.get());
     char* const* check = test_IA.get_rest();
-    EXPECT_STREQ(check[0], "--apid=1");
-    EXPECT_STREQ(check[1], "--path=./unit_tests");
+    EXPECT_STREQ(check[0], CTI_BE_DAEMON_BINARY);
+    EXPECT_STREQ(check[1], "--apid=1");
+    EXPECT_STREQ(check[2], "--path=./unit_tests");
 }
 
 /******************************************
@@ -173,9 +174,9 @@ TEST_F(CTIUsefulUnitTest, cti_argv_IncomingArgv)
 ******************************************/
 
 TEST_F(CTIUsefulUnitTest, cti_execvp_fdbuf)
-{ 
+{
     // test fdbuf class
-    
+
     // test that fdbuf recognizes invalid file descriptors
     ASSERT_THROW({
         try {
@@ -194,7 +195,7 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_fdbuf)
 
 TEST_F(CTIUsefulUnitTest, cti_execvp_FdPair)
 {
-    
+
     // test FdPair class
 
     // test creation of a fdpair
@@ -245,7 +246,7 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_pipe)
         }
         ASSERT_EQ(ex,1);
     }
-    
+
     // test that closeWrite fails when end already closed
     {
         bool ex = 0;
@@ -255,7 +256,7 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_pipe)
             ex = 1;
         }
         ASSERT_EQ(ex,1);
-     }    
+     }
 }
 
 TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_failure)
@@ -272,7 +273,7 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_failure)
 
 TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_success)
 {
-    // test that cti::Execvp works as expected    
+    // test that cti::Execvp works as expected
     std::initializer_list<std::string const> strlist {"-n", "T"};
     cti::ManagedArgv argv(strlist);
     cti::Execvp test("/bin/echo", argv.get());
@@ -295,18 +296,18 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_success)
 ******************************************/
 
 TEST_F(CTIUsefulUnitTest, cti_log_cti_log_failure)
-{ 
+{
     // test that logs aren't created when no filename is given
     cti_log_t* log_fail = _cti_create_log(NULL, NULL, 0);
     ASSERT_EQ(log_fail, nullptr);
 }
 
-TEST_F(CTIUsefulUnitTest, cti_log_cti_log_normal) 
+TEST_F(CTIUsefulUnitTest, cti_log_cti_log_normal)
 {
-    // test that a log is created when proper params are given and works as expected  
+    // test that a log is created when proper params are given and works as expected
     cti_log_t* log_succ = _cti_create_log("./", "test_log", 0);
     EXPECT_NE(log_succ, nullptr);
-        
+
     // test that a log can be written to and closed
     EXPECT_EQ(_cti_write_log(log_succ, "TEST"), 0);
     EXPECT_EQ(_cti_close_log(log_succ), 0);
@@ -319,17 +320,17 @@ TEST_F(CTIUsefulUnitTest, cti_log_cti_log_normal)
 
     // test that data is correct
     std::string res;
-    check >> res;
+    getline(check, res);
     check.close();
-    EXPECT_STREQ(res.c_str(), "TEST");
 
+    ASSERT_THAT(res.c_str(), EndsWith("TEST"));
     // remove log file
     remove("./dbglog_test_log.0.log");
 }
 
 TEST_F(CTIUsefulUnitTest, cti_log_cti_log_hookstdoe)
 {
-    // test the logs hookstdoe function   
+    // test the logs hookstdoe function
 
     // duplicate the stdout and stderr file descriptors so they can be reset later
     int fout, ferr;
@@ -350,7 +351,7 @@ TEST_F(CTIUsefulUnitTest, cti_log_cti_log_hookstdoe)
     check.open("./dbglog_test_log.1.log", std::ifstream::in);
     if(!check.is_open())
         FAIL() << "Log file created but somehow not openable...";
-        
+
     // test that data was written correctly
     std::string res;
     check >> res;
@@ -370,7 +371,7 @@ TEST_F(CTIUsefulUnitTest, cti_log_cti_log_hookstdoe)
 ******************************************/
 
 TEST_F(CTIUsefulUnitTest, cti_path_Find)
-{ 
+{
     // test _cti_pathFind with local and non-local paths
     ASSERT_STREQ(_cti_pathFind("./unit_tests", nullptr), "./unit_tests");
     ASSERT_STREQ(_cti_pathFind("/bin/echo", nullptr), "/bin/echo");
@@ -378,7 +379,7 @@ TEST_F(CTIUsefulUnitTest, cti_path_Find)
     ASSERT_EQ(_cti_pathFind("./DNE", nullptr), nullptr);
     ASSERT_NE(_cti_pathFind("echo", nullptr), nullptr);
     ASSERT_EQ(_cti_pathFind("DOESNOTEXISTATALL", nullptr), nullptr);
-    
+
 }
 
 TEST_F(CTIUsefulUnitTest, cti_path_adjustPaths)
@@ -393,10 +394,10 @@ TEST_F(CTIUsefulUnitTest, cti_path_pathToName)
     // test pathToName to ensure it works properly
     ASSERT_STREQ(_cti_pathToName("/a/b/c/d/e/f"), "f");
     ASSERT_EQ(_cti_pathToName(""), nullptr);
-} 
- 
+}
+
 TEST_F(CTIUsefulUnitTest, cti_path_pathToDir)
-{  
+{
     // test pathToDir
     ASSERT_STREQ(_cti_pathToDir("a/b/c/d/e"), "a/b/c/d");
     ASSERT_EQ(_cti_pathToDir(""), nullptr);
@@ -408,12 +409,12 @@ TEST_F(CTIUsefulUnitTest, cti_path_pathToDir)
 ******************************************/
 
 TEST_F(CTIUsefulUnitTest, cti_split)
-{ 
+{
     // basic test string with whitespace
     std::string test = "      Test         ";
     test = cti::split::removeLeadingWhitespace(test, " ");
     ASSERT_STREQ(test.c_str(), "Test");
-    
+
     // test with a slighty more complex "whitespace"
     test = "thequickbrownfoxjumpedoverthelazydog";
     test = cti::split::removeLeadingWhitespace(test, "theQUICKbrownfoxjumpedoverthelazydog");
@@ -602,7 +603,7 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_findPath)
     ASSERT_THROW({
         try {
             cti::findPath("../unit").c_str();
-        } catch(std::exception& ex) {  
+        } catch(std::exception& ex) {
             ASSERT_STREQ("../unit: Could not locate in PATH.", ex.what());
             throw;
         }
@@ -611,7 +612,7 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_findPath)
     ASSERT_THROW({
         try {
             cti::findPath("./DNE").c_str();
-        } catch(std::exception& ex) {  
+        } catch(std::exception& ex) {
             ASSERT_STREQ("./DNE: Could not locate in PATH.", ex.what());
             throw;
         }
@@ -622,7 +623,7 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_findPath)
     ASSERT_THROW({
         try {
             cti::findPath("DOESNOTEXISTATALL").c_str();
-        } catch(std::exception& ex) {  
+        } catch(std::exception& ex) {
             ASSERT_STREQ("DOESNOTEXISTATALL: Could not locate in PATH.", ex.what());
             throw;
         }
@@ -639,7 +640,7 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_fd_handle_fail)
             ASSERT_STREQ("File descriptor creation failed.", ex.what());
             throw;
         }
-    }, std::runtime_error);    
+    }, std::runtime_error);
 }
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_fd_handle)
@@ -665,20 +666,20 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_fd_handle)
 TEST_F(CTIUsefulUnitTest, cti_wrappers_cstr)
 {
     ASSERT_NO_THROW(cti::cstr::gethostname());
-    
+
     ASSERT_STREQ(cti::cstr::asprintf("./test/%s/testing", "test").c_str(), "./test/test/testing");
-    
+
     std::string dir = "";
     ASSERT_NO_THROW(dir = cti::cstr::mkdtemp("/tmp/cti-test-XXXXXX"));
     rmdir(dir.c_str());
-    
+
 }
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_file)
 {
     ASSERT_NO_THROW(auto fp = cti::file::open("./wrapper_file_test.txt", "w+"));
     remove("./wrapper_file_test.txt");
-    
+
     FILE* fw = fopen("./wrapper_file_test2.txt", "w+");
     cti::file::writeT<char>(fw, 'w');
     fclose(fw);

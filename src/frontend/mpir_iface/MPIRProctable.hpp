@@ -1,13 +1,7 @@
 /******************************************************************************\
  * MPIRProctable.hpp
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -36,10 +30,13 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 struct MPIRProctableElem {
     pid_t pid;
     std::string hostname;
+    std::string executable;
 };
 
 using MPIRProctable = std::vector<MPIRProctableElem>;
+using BinaryRankMap = std::map<std::string, std::vector<int>>;

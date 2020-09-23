@@ -1,13 +1,7 @@
 /******************************************************************************\
  * Frontend.hpp - A mock frontend implementation
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -44,12 +38,17 @@ class MockFrontend : public Frontend
 public: // types
     using Nice = ::testing::NiceMock<MockFrontend>;
 
+    enum class LaunchBarrierMode { Disabled, Enabled };
+
 public: // mock constructor
     MockFrontend();
     virtual ~MockFrontend() = default;
 
 public: // inherited interface
     MOCK_CONST_METHOD0(getWLMType, cti_wlm_type_t());
+
+    MOCK_METHOD6(launch, std::weak_ptr<App>(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list));
 
     MOCK_METHOD6(launchBarrier, std::weak_ptr<App>(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list));
@@ -76,7 +75,7 @@ private: // variables
 
 public: // constructor / destructor interface
     // register case
-    MockApp(MockFrontend& fe, pid_t launcherPid);
+    MockApp(MockFrontend& fe, pid_t launcherPid, MockFrontend::LaunchBarrierMode const launchBarrierMode);
     virtual ~MockApp() = default;
 
 public: // inherited interface
@@ -87,10 +86,12 @@ public: // inherited interface
 
     MOCK_CONST_METHOD0(getExtraFiles, std::vector<std::string>(void));
 
+    bool isRunning() const { return true; }
     MOCK_CONST_METHOD0(getNumPEs,   size_t(void));
     MOCK_CONST_METHOD0(getNumHosts, size_t(void));
     MOCK_CONST_METHOD0(getHostnameList,   std::vector<std::string>(void));
     MOCK_CONST_METHOD0(getHostsPlacement, std::vector<CTIHost>(void));
+    MOCK_CONST_METHOD0(getBinaryRankMap,  std::map<std::string, std::vector<int>>(void));
 
     MOCK_METHOD0(releaseBarrier, void(void));
     MOCK_METHOD1(kill, void(int));

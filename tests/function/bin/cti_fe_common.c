@@ -1,13 +1,7 @@
 /******************************************************************************\
  * cti_fe_common.c - A test routine that exercises all of the FE API calls.
  *
- * Copyright 2015-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2015-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -99,7 +93,7 @@ cti_test_fe(cti_app_id_t appId)
     switch (mywlm) {
         case CTI_WLM_SLURM:
         {
-            cti_slurm_ops_t * slurm_ops;
+            cti_slurm_ops_t * slurm_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);
@@ -119,9 +113,44 @@ cti_test_fe(cti_app_id_t appId)
         }
             break;
 
+        case CTI_WLM_ALPS:
+        {
+            cti_alps_ops_t * alps_ops = NULL;
+            cti_wlm_type_t ret = cti_open_ops((void **)&alps_ops);
+            assert(ret == mywlm);
+            assert(alps_ops != NULL);
+            /*
+             * getAprunInfo - Obtain information about the aprun process
+             */
+            cti_aprunProc_t *myapruninfo = alps_ops->getAprunInfo(appId);
+            if (myapruninfo == NULL) {
+                fprintf(stderr, "Error: getAprunInfo failed!\n");
+                fprintf(stderr, "CTI error: %s\n", cti_error_str());
+            }
+            assert(myapruninfo != NULL);
+            printf("apid of application:                 %llu\n", (long long unsigned int)myapruninfo->apid);
+            printf("aprun pid of application:            %ld\n", (long)myapruninfo->aprunPid);
+            free(myapruninfo);
+            myapruninfo = NULL;
+            /*
+             * getAlpsOverlapOrdinal - Get overlap ordinal for MAMU
+             */
+            int res = alps_ops->getAlpsOverlapOrdinal(appId);
+            if (res < 0) {
+                fprintf(stderr, "Error: getAlpsOverlapOrdinal failed!\n");
+                fprintf(stderr, "CTI error: %s\n", cti_error_str());
+            }
+            assert(res >= 0);
+            printf("alps overlap ordinal of application: %d\n", res);
+        }
+            break;
 
         case CTI_WLM_SSH:
             printf("pid of application %lu\n", appId);
+            break;
+
+        case CTI_WLM_PALS:
+            printf("PALS application %lu: %d PEs and %d nodes\n", appId, cti_getNumAppPEs(appId), cti_getNumAppNodes(appId));
             break;
 
         default:
@@ -210,18 +239,4 @@ cti_test_fe(cti_app_id_t appId)
     }
     cti_destroyHostsList(myhostplacement);
     myhostplacement = NULL;
-
-    /*
-     * cti_killApp - Send signal = 0, using the appropriate launcher kill
-     * mechanism to an application launcher.  According to the man page for
-     * kill(2), "If sig is 0, then no signal is sent, but error checking is
-     * still performed; this can be used to check for the existence of a
-     * process ID or process group ID."
-     */
-    j = cti_killApp(appId, 0);
-    if (j) {
-        fprintf(stderr, "Error: cti_killApp failed!\n");
-        fprintf(stderr, "CTI error: %s\n", cti_error_str());
-    }
-    assert(j == 0);
 }

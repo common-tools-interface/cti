@@ -3,13 +3,7 @@
  *                     the common tools interface. Frontend refers to the
  *                     location where applications are launched.
  *
- * Copyright 2011-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -76,6 +70,12 @@ typedef struct
     cti_host_t *   hosts;
 } cti_hostsList_t;
 
+typedef struct
+{
+    char **  binaries;
+    int *    rankMap;
+} cti_binaryList_t;
+
 typedef int64_t cti_app_id_t;
 typedef int64_t cti_session_id_t;
 typedef int64_t cti_manifest_id_t;
@@ -99,7 +99,9 @@ typedef int64_t cti_manifest_id_t;
  *      None.
  *
  * Returns
- *      A string containing the current frontend library version.
+ *      A string containing the current frontend library version in the form
+ *      major.minor.revision.   For a libtool current:revison:age format
+ *      major = current - age and minor = age.
  *
  */
 const char * cti_version(void);
@@ -292,7 +294,7 @@ const char * cti_getAttribute(cti_attr_type_t attrib);
  * Detail
  *      This function is used to test if a cti_app_id_t is valid. An app_id
  *      becomes invalid for future use upon calling the cti_deregisterApp
- *      function.
+ *      function, or upon job completion.
  *
  * Arguments
  *      app_id - The cti_app_id_t of the previously registered application.
@@ -459,6 +461,53 @@ cti_hostsList_t * cti_getAppHostsPlacement(cti_app_id_t app_id);
  *
  */
 void cti_destroyHostsList(cti_hostsList_t *placement_list);
+
+/*
+ * cti_getAppBinaryList - Returns a structure containing the following:
+ *      * array of strings containing the paths to the binaries for the
+ *        application associated with the app_id. The array is NULL-terminated
+ *      * array of ints, where index N refers to the binary path for rank N.
+ *        The total number of elements is equal to the number of ranks,
+ *        obtained from cti_getNumAppPEs.
+ *
+ * Detail
+ *      This function returns a list of binary paths associated with the
+ *      given app_id. For non-MPMD applications, the structure will contain
+ *      one binary path. For MPMD applications, the structure contains multiple
+ *      binary paths. The rank-binary map portion of the structure maps a rank N
+ *      at index N to an index in the binary path list.
+ *
+ * Arguments
+ *      app_id -  The cti_app_id_t of the registered application.
+ *
+ * Returns
+ *      A completed cti_binaryList_t object as described above, or else a null
+ *      pointer on error. The resulting object should be freed with
+ *      cti_destroyBinaryList.
+ *
+ */
+cti_binaryList_t* cti_getAppBinaryList(cti_app_id_t app_id);
+
+
+/*
+ * cti_destroyBinariesList - Used to destroy the memory allocated for a
+    *                        cti_binaryList_t struct.
+ *
+ * Detail
+ *      This function frees a cti_binaryList struct. This is used to
+ *      safely destroy the data structure returned by a call to the
+ *      cti_getAppBinaryList function when the caller is done with the data
+ *      that was allocated during its creation. Performs no operation when
+ *      provided a NULL pointer.
+ *
+ * Arguments
+ *      binary_list - A pointer to the cti_binaryList_t to free.
+ *
+ * Returns
+ *      Void. This function behaves similarly to free().
+ *
+ */
+void cti_destroyBinaryList(cti_binaryList_t *binary_list);
 
 
 /*******************************************************************************
@@ -633,6 +682,83 @@ int cti_killApp(cti_app_id_t app_id, int signum);
 cti_wlm_type_t cti_open_ops(void **ops);
 
 /*-----------------------------------------------------------------------------
+ * cti_alps_ops extensions - Extensions for the ALPS WLM
+ *-----------------------------------------------------------------------------
+ * registerApid - Assists in registering the application ID of an already
+ *                running aprun application for use with the common tools
+ *                interface.
+ *
+ * Detail
+ *      This function is used for registering a valid aprun application that was
+ *      previously launched through external means for use with the tool
+ *      interface. It is recommended to use the built-in functions to launch
+ *      applications, however sometimes this is impossible (such is the case for
+ *      a debug attach scenario). In order to use any of the functions defined
+ *      in this interface, the apid of the aprun application must be
+ *      registered. This is done automatically when using the built-in functions
+ *      to launch applications. The apid can be obtained from apstat.
+ *
+ * Arguments
+ *      apid - The application ID of the aprun application to register.
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ *-----------------------------------------------------------------------------
+ * getApid - Obtain application ID of aprun process
+ *
+ * Detail
+ *      This function is used to obtain the apid of an existing aprun
+ *      application.
+ *
+ * Arguments
+ *      aprunPid - The PID of the aprun application to query.
+ *
+ * Returns
+ *      An ALPS application ID. 0 is returned on error.
+ *-----------------------------------------------------------------------------
+ * getAprunInfo - Obtain information about the aprun process
+ *
+ * Detail
+ *      This function is used to obtain the apid / launcher PID of an aprun
+ *      application based on the registered app_id. It is the caller's
+ *      responsibility to free the allocated storage with free() when it is no
+ *      longer needed.
+ *
+ * Arguments
+ *      appId -  The cti_app_id_t of the registered application.
+ *
+ * Returns
+ *      A cti_aprunProc_t pointer that contains the apid / launcher PID of aprun.
+ *      NULL is returned on error. The caller should free() the returned pointer
+ *      when finished using it.
+ *-----------------------------------------------------------------------------
+ * getAlpsOverlapOrdinal -
+ *
+ * Detail
+ *
+ * Arguments
+ *      appId -  The cti_app_id_t of the registered application.
+ *
+ * Returns
+ *      -1 is returned on error.
+ *-----------------------------------------------------------------------------
+ */
+
+typedef struct
+{
+    uint64_t apid;
+    pid_t    aprunPid;
+} cti_aprunProc_t;
+
+typedef struct {
+    cti_app_id_t     (*registerApid)(uint64_t apid);
+    uint64_t         (*getApid)(pid_t aprunPid);
+    cti_aprunProc_t* (*getAprunInfo)(cti_app_id_t appId);
+    int              (*getAlpsOverlapOrdinal)(cti_app_id_t appId);
+} cti_alps_ops_t;
+
+/*-----------------------------------------------------------------------------
  * cti_slurm_ops extensions - Extensions for the SLURM WLM
  *-----------------------------------------------------------------------------
  * getJobInfo - Obtain information about the srun process from its pid.
@@ -700,6 +826,50 @@ typedef struct {
     cti_app_id_t    (*registerJobStep)(uint32_t job_id,uint32_t step_id);
     cti_srunProc_t* (*getSrunInfo)(cti_app_id_t appId);
 } cti_slurm_ops_t;
+
+/*-----------------------------------------------------------------------------
+ * cti_pals_ops extensions - Extensions for the PALS WLM
+ *-----------------------------------------------------------------------------
+ * getApid - Obtain PALS application ID running in craycli process
+ *
+ * Detail
+ *      This function is used to obtain the apid of an existing PALS
+ *      application from the craycli process that launched it.
+ *
+ * Arguments
+ *      craycliPid - The PID of the craycli process to query.
+ *
+ * Returns
+ *      A PALS application ID string to be freed by user.
+ *      NULL is returned on error.
+ *-----------------------------------------------------------------------------
+ * registerApid - Register the application ID of an already
+ *                running PALS application for use with the Common Tools
+ *                Interface.
+ *
+ * Detail
+ *      This function is used for registering a PALS application that was
+ *      previously launched for use with the Common Tools Interface.
+ *      It is recommended to use the built-in functions to launch
+ *      applications, however sometimes this is impossible (such is the case for
+ *      a debug attach scenario). In order to use any of the functions defined
+ *      in this interface, the application ID must be registered. This is done
+ *      automatically when using the built-in CTI functions to launch
+ *      applications.
+ *
+ * Arguments
+ *      apid - The application ID of the PALS application to register.
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ *-----------------------------------------------------------------------------
+ */
+
+typedef struct {
+    char*            (*getApid)(pid_t craycliPid);
+    cti_app_id_t     (*registerApid)(char const* apid);
+} cti_pals_ops_t;
 
 /*-----------------------------------------------------------------------------
  * cti_ssh_ops extensions - Extensions for the Generic SSH based WLM

@@ -1,13 +1,7 @@
 /******************************************************************************\
  * Archive.hpp
  *
- * Copyright 2013-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2013-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -46,8 +40,11 @@
 
 class Archive {
 private: // variables
+    static constexpr size_t CTI_BLOCK_SIZE = 65536;
+
     std::unique_ptr<struct archive,       decltype(&archive_write_free)> m_archPtr;
     std::unique_ptr<struct archive_entry, decltype(&archive_entry_free)> m_entryScratchpad;
+    std::unique_ptr<char[]> m_readBuf;
     std::string const m_archivePath;
 
 private: // functions
@@ -63,6 +60,7 @@ public: // interface
     const std::string& finalize() {
         m_archPtr.reset();
         m_entryScratchpad.reset();
+        m_readBuf.reset();
         return m_archivePath;
     }
     // create archive directory entry

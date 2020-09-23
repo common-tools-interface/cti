@@ -2,13 +2,7 @@
  * cti_wrappers.hpp - A header file for utility wrappers. This is for helper
  *                    wrappers to C-style allocation and error handling routines.
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -46,6 +40,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <pwd.h>
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -110,6 +105,35 @@ namespace cstr {
             throw std::runtime_error("gethostname failed");
         }
         return std::string{buf};
+    }
+
+    // lifted readlink
+    static inline std::string readlink(std::string const& path) {
+        char buf[PATH_MAX + 1];
+        if (::readlink(path.c_str(), buf, PATH_MAX) < 0) {
+            throw std::runtime_error("readlink failed");
+        }
+        return std::string{buf};
+    }
+
+    // lifted basename
+    static inline std::string basename(std::string const& path) {
+        auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
+        if (auto const baseName = ::basename(rawPath.get())) {
+            return std::string(baseName);
+        } else {
+            throw std::runtime_error("basename failed on " + path);
+        }
+    }
+
+    // lifted getcwd
+    static inline std::string getcwd() {
+        char buf[PATH_MAX + 1];
+        if (auto const cwd = ::getcwd(buf, PATH_MAX)) {
+            return std::string{cwd};
+        }
+
+        throw std::runtime_error("getcwd failed: " + std::string{strerror(errno)});
     }
 } /* namespace cti::cstr */
 
@@ -228,6 +252,43 @@ public:
     }
     // getter
     int fd() { return m_fd; }
+};
+
+struct dir_handle {
+    static constexpr auto mode755 = int{S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH};
+
+    std::string m_path;
+    dir_handle(std::string const& path, int mode = mode755)
+        : m_path{path}
+    {
+        if (::mkdir(m_path.c_str(), mode)) {
+            throw std::runtime_error("mkdir " + m_path + " failed: " + strerror(errno));
+        }
+    }
+
+    ~dir_handle()
+    {
+        if (::rmdir(m_path.c_str())) {
+            fprintf(stderr, "warning: rmdir %s failed: %s\n", m_path.c_str(), strerror(errno));
+        }
+    }
+};
+
+struct softlink_handle {
+    std::string m_linkPath;
+    softlink_handle(std::string const& fromPath, std::string const& toPath)
+        : m_linkPath{toPath}
+    {
+        if (::symlink(fromPath.c_str(), toPath.c_str())) {
+            throw std::runtime_error("link " + fromPath + " -> " + toPath + " failed: " + strerror(errno));
+        }
+    }
+    ~softlink_handle()
+    {
+        if (::unlink(m_linkPath.c_str())) {
+            fprintf(stderr, "unlink %s failed: %s\n", m_linkPath.c_str(), strerror(errno));
+        }
+    }
 };
 
 template <typename T>
@@ -377,5 +438,39 @@ public:
 
     char const* get() const { return m_path.get(); }
 };
+
+// Read passwd file and resize buffer as needed
+static inline auto
+getpwuid(uid_t const uid)
+{
+    auto pwd = passwd{};
+    auto pwd_buf = std::vector<char>{};
+
+    size_t buf_len = 4096;
+    long rl = sysconf(_SC_GETPW_R_SIZE_MAX);
+    if (rl != -1) {
+        buf_len = static_cast<size_t>(rl);
+    }
+
+    // Resize the vector
+    pwd_buf.resize(buf_len);
+
+    // Get the password file
+    struct passwd *result = nullptr;
+    if (getpwuid_r(uid,
+                   &pwd,
+                   pwd_buf.data(),
+                   pwd_buf.size(),
+                   &result)) {
+        throw std::runtime_error("getpwuid_r failed: " + std::string{strerror(errno)});
+    }
+
+    // Ensure we obtained a result
+    if (result == nullptr) {
+        throw std::runtime_error("password file entry not found for uid " + std::to_string(uid));
+    }
+
+    return std::make_pair(std::move(pwd), std::move(pwd_buf));
+}
 
 } /* namespace cti */

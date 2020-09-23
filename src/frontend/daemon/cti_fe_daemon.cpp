@@ -2,13 +2,7 @@
  * cti_fe_daemon.cpp - cti fe_daemon process used to ensure child
  *                     processes will be cleaned up on unexpected exit.
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -59,6 +53,8 @@
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
+#include "useful/cti_wrappers.hpp"
+#include "useful/cti_split.hpp"
 
 #include "frontend/mpir_iface/MPIRInstance.hpp"
 #include "cti_fe_daemon_iface.hpp"
@@ -69,12 +65,37 @@ using ReqType  = FE_daemon::ReqType;
 using RespType = FE_daemon::RespType;
 using OKResp   = FE_daemon::OKResp;
 using IDResp   = FE_daemon::IDResp;
+using StringResp = FE_daemon::StringResp;
 using MPIRResp = FE_daemon::MPIRResp;
+
+cti::Logger&
+getLogger(void)
+{
+    static auto _cti_logger = []() {
+        // Check if logging is enabled in environment
+        if (getenv(CTI_DBG_ENV_VAR)) {
+            // Get logging setting / directory from environment
+            if (auto const cti_log_dir = getenv(CTI_LOG_DIR_ENV_VAR)) {
+                // Check directory permissions
+                if (cti::dirHasPerms(cti_log_dir, R_OK | W_OK | X_OK)) {
+                    return cti::Logger
+                        { true // enabled
+                        , std::string{cti_log_dir}
+                        , "cti_fe_daemon"
+                        , getpid()
+                    };
+                }
+            }
+        }
+        // Logging disabled
+        return cti::Logger{false, "", "", 0};
+    }();
+    return _cti_logger;
+}
 
 static void
 tryTerm(pid_t const pid)
 {
-    fprintf(stderr, "tryterm %d\n", pid);
     if (::kill(pid, SIGTERM)) {
         return;
     }
@@ -140,10 +161,11 @@ auto pidIdMap = std::unordered_map<pid_t, DAppId>{};
 auto idPidMap = std::unordered_map<pid_t, DAppId>{};
 
 // running apps / utils
-auto appList = ProcSet{};
+auto appCleanupList = ProcSet{};
 auto utilMap = std::unordered_map<DAppId, ProcSet>{};
 
-auto mpirMap = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
+auto mpirMap     = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
+auto mpirShimMap = std::unordered_map<DAppId, pid_t>{};
 
 // communication
 int reqFd  = -1; // incoming request pipe
@@ -185,11 +207,11 @@ shutdown_and_exit(int const rc)
     sigset_t block_set;
     memset(&block_set, 0, sizeof(block_set));
     if (sigfillset(&block_set)) {
-        perror("sigfillset");
+        fprintf(stderr, "sigfillset: %s\n", strerror(errno));
         exit(1);
     }
     if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
-        perror("sigprocmask");
+        fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
         exit(1);
     }
 
@@ -197,7 +219,7 @@ shutdown_and_exit(int const rc)
     auto utilTermFuture = std::async(std::launch::async, [&](){ utilMap.clear(); });
 
     // terminate all running apps
-    auto appTermFuture = std::async(std::launch::async, [&](){ appList.clear(); });
+    auto appTermFuture = std::async(std::launch::async, [&](){ appCleanupList.clear(); });
 
     // wait for all threads
     utilTermFuture.wait();
@@ -217,9 +239,9 @@ static void
 sigchld_handler(pid_t const exitedPid)
 {
     // regular app termination
-    if (appList.contains(exitedPid)) {
+    if (appCleanupList.contains(exitedPid)) {
         // app already terminated
-        appList.erase(exitedPid);
+        appCleanupList.erase(exitedPid);
     }
 
     // find ID associated with exited PID
@@ -253,10 +275,7 @@ cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 
 static DAppId registerAppPID(pid_t const app_pid)
 {
-    if ((app_pid > 0) && !appList.contains(app_pid)) {
-        // register app pid
-        appList.insert(app_pid);
-
+    if ((app_pid > 0) && (pidIdMap.find(app_pid) == pidIdMap.end())) {
         // create new app ID for pid
         auto const appId = newId();
         pidIdMap[app_pid] = appId;
@@ -282,7 +301,6 @@ static void registerUtilPID(DAppId const app_id, pid_t const util_pid)
     }
 }
 
-
 static void deregisterAppID(DAppId const app_id)
 {
     auto const idPidPair = idPidMap.find(app_id);
@@ -298,14 +316,46 @@ static void deregisterAppID(DAppId const app_id)
             [&](){ utilMap.erase(app_id); });
 
         // ensure app is terminated
-        if (appList.contains(app_pid)) {
+        if (appCleanupList.contains(app_pid)) {
             auto appTermFuture = std::async(std::launch::async, [&](){ tryTerm(app_pid); });
-            appList.erase(app_pid);
+            appCleanupList.erase(app_pid);
             appTermFuture.wait();
         }
 
         // finish util termination
         utilTermFuture.wait();
+    } else {
+        throw std::runtime_error("invalid app id: " + std::to_string(app_id));
+    }
+}
+
+static bool checkAppID(DAppId const app_id)
+{
+    auto const idPidPair = idPidMap.find(app_id);
+    if (idPidPair != idPidMap.end()) {
+        auto const app_pid = idPidPair->second;
+
+        // Check if app's PID is still valid
+        getLogger().write("check pid %d\n", app_pid);
+        if (::kill(app_pid, 0) == 0) {
+            // Check if zombie
+            auto const statusFilePath = "/proc/" + std::to_string(app_pid) + "/status";
+            char const* grepArgv[] = { "grep", "Z (zombie)", statusFilePath.c_str(), nullptr };
+            auto grepOutput = cti::Execvp{"grep", (char* const*)grepArgv};
+            auto const grepExitStatus = grepOutput.getExitStatus();
+            auto const pidZombie = (grepExitStatus == 0);
+
+            static int count = 0;
+            getLogger().write("%05d %s: %s\n", count++, statusFilePath.c_str(),
+                pidZombie ? "zombie" : "no zombie");
+
+            return !pidZombie;
+        } else {
+            getLogger().write("kill %d sig 0 failed\n", app_pid);
+
+            // PID no longer valid
+            return false;
+        }
     } else {
         throw std::runtime_error("invalid app id: " + std::to_string(app_id));
     }
@@ -318,6 +368,12 @@ struct LaunchData {
     std::string filepath;
     std::vector<std::string> argvList;
     std::vector<std::string> envList;
+};
+
+struct ShimData {
+    std::string shimBinaryPath;
+    std::string temporaryShimBinDir;
+    std::string shimmedLauncherPath;
 };
 
 // read stdin/out/err fds, filepath, argv, environment map appended to an app / util / mpir launch request
@@ -374,19 +430,23 @@ static LaunchData readLaunchData(int const reqFd)
     std::istream reqStream{&reqBuf};
 
     // read filepath
-    fprintf(stderr, "recv filename\n");
+    getLogger().write("recv filename\n");
     result.filepath = receiveString(reqStream);
-    fprintf(stderr, "got file: %s\n", result.filepath.c_str());
+    getLogger().write("got file: %s\n", result.filepath.c_str());
 
     // read arguments
-    while (true) {
-        auto const arg = receiveString(reqStream);
-        if (arg.empty()) {
-            break;
-        } else {
-            fprintf(stderr, "got arg: %s\n", arg.c_str());
-            result.argvList.emplace_back(std::move(arg));
+    { std::stringstream argvLog;
+        while (true) {
+            auto const arg = receiveString(reqStream);
+            if (arg.empty()) {
+                break;
+            } else {
+                argvLog << arg << " ";
+                result.argvList.emplace_back(std::move(arg));
+            }
         }
+        auto const argvString = argvLog.str();
+        getLogger().write("%s\n", argvString.c_str());
     }
 
     // read env
@@ -395,7 +455,7 @@ static LaunchData readLaunchData(int const reqFd)
         if (envVarVal.empty()) {
             break;
         } else {
-            fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
+            getLogger().write("got envvar: %s\n", envVarVal.c_str());
             result.envList.emplace_back(std::move(envVarVal));
         }
     }
@@ -409,16 +469,16 @@ static void tryWriteOKResp(int const respFd, Func&& func)
 {
     try {
         // run the function
-        func();
+        auto const success = func();
 
         // send OK response
         rawWriteLoop(respFd, OKResp
             { .type = RespType::OK
-            , .success = true
+            , .success = success
         });
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "%s\n", ex.what());
+        getLogger().write("%s\n", ex.what());
 
         // send failure response
         rawWriteLoop(respFd, OKResp
@@ -443,12 +503,38 @@ static void tryWriteIDResp(int const respFd, Func&& func)
         });
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "%s\n", ex.what());
+        getLogger().write("%s\n", ex.what());
 
         // send failure response
         rawWriteLoop(respFd, IDResp
             { .type = RespType::ID
-            , .id  = DAppId{-1}
+            , .id  = DAppId{0}
+        });
+    }
+}
+
+// if running the function succeeds, write a string response to pipe
+template <typename Func>
+static void tryWriteStringResp(int const respFd, Func&& func)
+{
+    try {
+        // run the string-producing function
+        auto const stringData = func();
+
+        // send the string data
+        rawWriteLoop(respFd, StringResp
+            { .type     = RespType::String
+            , .success  = true
+        });
+        writeLoop(respFd, stringData.c_str(), stringData.length() + 1);
+
+    } catch (std::exception const& ex) {
+        getLogger().write("%s\n", ex.what());
+
+        // send failure response
+        rawWriteLoop(respFd, StringResp
+            { .type     = RespType::String
+            , .success  = false
         });
     }
 }
@@ -466,22 +552,21 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
             { .type     = RespType::MPIR
             , .mpir_id  = mpirData.mpir_id
             , .launcher_pid = mpirData.launcher_pid
-            , .job_id   = mpirData.job_id
-            , .step_id  = mpirData.step_id
             , .num_pids = static_cast<int>(mpirData.proctable.size())
         });
         for (auto&& elem : mpirData.proctable) {
             rawWriteLoop(respFd, elem.pid);
             writeLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
+            writeLoop(respFd, elem.executable.c_str(), elem.executable.length() + 1);
         }
 
     } catch (std::exception const& ex) {
-        fprintf(stderr, "%s\n", ex.what());
+        getLogger().write("%s\n", ex.what());
 
         // send failure response
         rawWriteLoop(respFd, MPIRResp
             { .type     = RespType::MPIR
-            , .mpir_id  = DAppId{-1}
+            , .mpir_id  = DAppId{0}
         });
     }
 }
@@ -503,10 +588,13 @@ static pid_t forkExec(LaunchData const& launchData)
         if (equalsAt == std::string::npos) {
             throw std::runtime_error("failed to parse env var: " + envVarVal);
         } else {
-            fprintf(stderr, "got envvar: %s\n", envVarVal.c_str());
+            getLogger().write("got envvar: %s\n", envVarVal.c_str());
             envMap.emplace(envVarVal.substr(0, equalsAt), envVarVal.substr(equalsAt + 1));
         }
     }
+
+    getLogger().write("remap stdin %d stdout %d stderr %d\n",
+        launchData.stdin_fd, launchData.stdout_fd, launchData.stderr_fd);
 
     // fork exec
     if (auto const forkedPid = fork()) {
@@ -525,8 +613,6 @@ static pid_t forkExec(LaunchData const& launchData)
         close(respFd);
 
         // dup2 all stdin/out/err to provided FDs
-        // TODO: this should instead open the path /proc/target_pid/fd/fileno as FDs
-        //       would not necessarily have been inherited during daemon setup
         dup2(launchData.stdin_fd,  STDIN_FILENO);
         dup2(launchData.stdout_fd, STDOUT_FILENO);
         dup2(launchData.stderr_fd, STDERR_FILENO);
@@ -542,21 +628,16 @@ static pid_t forkExec(LaunchData const& launchData)
 
         // exec srun
         execvp(launchData.filepath.c_str(), argv.get());
-        perror("execvp");
-        exit(1);
+        fprintf(stderr, "execvp: %s", strerror(errno));
+        _exit(1);
     }
 }
 
 static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& mpirInst)
 {
-    // extract job/step ID
-    auto const rawJobId  = mpirInst->readStringAt("totalview_jobid");
-    auto const rawStepId = mpirInst->readStringAt("totalview_stepid");
-
     // create new app ID
     auto const launcherPid = mpirInst->getLauncherPid();
     auto const mpirId = registerAppPID(launcherPid);
-    fprintf(stderr, "new mpir id %d\n", mpirId);
 
     // extract proctable
     auto const proctable = mpirInst->getProctable();
@@ -567,25 +648,63 @@ static FE_daemon::MPIRResult extractMPIRResult(std::unique_ptr<MPIRInstance>&& m
     return FE_daemon::MPIRResult
         { mpirId // mpir_id
         , launcherPid // launcher_pid
-        , static_cast<uint32_t>(std::stoul(rawJobId)) // job_id
-        , rawStepId.empty() ? 0 : static_cast<uint32_t>(std::stoul(rawStepId)) // step_id
         , proctable // proctable
     };
 }
 
 static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 {
-    // TODO: this should instead open the path /proc/target_pid/fd/fileno as FDs
-    //       would not necessarily have been inherited during daemon setup
+
     std::map<int, int> const remapFds
         { { launchData.stdin_fd,  STDIN_FILENO  }
         , { launchData.stdout_fd, STDOUT_FILENO }
         , { launchData.stderr_fd, STDERR_FILENO }
     };
 
-    return extractMPIRResult(std::make_unique<MPIRInstance>(
-        launchData.filepath, launchData.argvList, launchData.envList, std::map<int, int>{}
+    // Restores environment even in exception case
+    struct env_var_restore {
+        std::string var, val;
+        bool clear;
+        env_var_restore(std::string const& var_, std::string const& val_)
+            : var{var_}, val{val_}, clear{false} {}
+        env_var_restore(std::string const& var_)
+            : var{var_}, val{}, clear{true} {}
+        ~env_var_restore() {
+            if (!var.empty()) {
+                if (clear) {
+                    ::unsetenv(var.c_str());
+                } else {
+                    ::setenv(var.c_str(), val.c_str(), true);
+                }
+            }
+        }
+        env_var_restore(env_var_restore&& moved) = default;
+    };
+
+    // Store environment variables that are going to be overwritten
+    auto overwrittenEnv = std::vector<env_var_restore>{};
+    for (auto&& envVarVal : launchData.envList) {
+        // Get variable name and value to set
+        auto const [var, val] = cti::split::string<2>(envVarVal, '=');
+        // If variable is set in current environment, set it to restore on scope exit
+        if (auto const oldVal = ::getenv(var.c_str())) {
+            overwrittenEnv.emplace_back(var, oldVal);
+        // If not set in environment, clear it on scope exit
+        } else {
+            overwrittenEnv.emplace_back(var);
+        }
+        // Set environment variable to inherit in MPIR instance
+        ::setenv(var.c_str(), val.c_str(), true);
+    }
+
+    auto mpirResult = extractMPIRResult(std::make_unique<MPIRInstance>(
+        launchData.filepath, launchData.argvList, std::vector<std::string>{}, remapFds
     ));
+
+    // Terminate launched application on daemon exit
+    appCleanupList.insert(mpirResult.launcher_pid);
+
+    return mpirResult;
 }
 
 static FE_daemon::MPIRResult attachMPIR(std::string const& launcherPath, pid_t const launcherPid)
@@ -599,9 +718,41 @@ static void releaseMPIR(DAppId const mpir_id)
 {
     auto const idInstPair = mpirMap.find(mpir_id);
     if (idInstPair != mpirMap.end()) {
+
+        // Release from MPIR breakpoint
         mpirMap.erase(idInstPair);
     } else {
-        throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+        auto const idShimPidPair = mpirShimMap.find(mpir_id);
+        if (idShimPidPair != mpirShimMap.end()) {
+
+            // Release MPIR shim breakpoint
+            auto const shimPid = idShimPidPair->second;
+
+            if (::kill(shimPid, SIGCONT)) {
+                throw std::runtime_error("failed to continue MPIR shim PID " + std::to_string(shimPid) + ": " + std::string{strerror(errno)});
+            }
+
+            // Wait for exit
+            ::waitpid(shimPid, nullptr, 0);
+
+            // Remove from active shim map
+            mpirShimMap.erase(idShimPidPair);
+
+        } else {
+            throw std::runtime_error("release mpir id not found: " + std::to_string(mpir_id));
+        }
+    }
+
+    getLogger().write("successfully released mpir id %d\n", mpir_id);
+}
+
+static std::string readStringMPIR(DAppId const mpir_id, std::string const& variable)
+{
+    auto const idInstPair = mpirMap.find(mpir_id);
+    if (idInstPair != mpirMap.end()) {
+        return idInstPair->second->readStringAt(variable);
+    } else {
+        throw std::runtime_error("read string mpir id not found: " + std::to_string(mpir_id));
     }
 }
 
@@ -612,8 +763,92 @@ static void terminateMPIR(DAppId const mpir_id)
         idInstPair->second->terminate();
         mpirMap.erase(idInstPair);
     } else {
-        throw std::runtime_error("mpir id not found: " + std::to_string(mpir_id));
+        throw std::runtime_error("terminate mpir id not found: " + std::to_string(mpir_id));
     }
+
+    getLogger().write("successfully terminated mpir id %d\n", mpir_id);
+}
+
+
+static auto readShimMPIRResult(int const shimOutputFd)
+{
+    // read MPIR shim PID
+    auto const shimPid = rawReadLoop<pid_t>(shimOutputFd);
+
+    // read basic table information
+    auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(shimOutputFd);
+    if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.launcher_pid == 0)) {
+        throw std::runtime_error("failed to read proctable response");
+    }
+
+    auto const mpirId = registerAppPID(mpirResp.launcher_pid);
+
+    // fill in MPIR data excluding proctable
+    FE_daemon::MPIRResult result
+        { mpirId
+        , mpirResp.launcher_pid
+        , {} // proctable
+    };
+    result.proctable.reserve(mpirResp.num_pids);
+
+    // set up pipe stream
+    cti::FdBuf shimOutputBuf{dup(shimOutputFd)};
+    std::istream shimOutputStream{&shimOutputBuf};
+
+    // fill in pid and hostname of proctable elements
+    for (int i = 0; i < mpirResp.num_pids; i++) {
+        MPIRProctableElem elem;
+        // read pid
+        elem.pid = rawReadLoop<pid_t>(shimOutputFd);
+        // read hostname
+        if (!std::getline(shimOutputStream, elem.hostname, '\0')) {
+            throw std::runtime_error("failed to read hostname");
+        }
+        // read executable
+        if (!std::getline(shimOutputStream, elem.executable, '\0')) {
+            throw std::runtime_error("failed to read executable");
+        }
+        result.proctable.emplace_back(std::move(elem));
+    }
+
+    return std::make_tuple(shimPid, result);
+}
+
+static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData const& launchData)
+{
+    int shimPipe[2];
+    ::pipe(shimPipe);
+
+    auto modifiedLaunchData = launchData;
+
+    auto const shimmedLauncherName = cti::cstr::basename(shimData.shimmedLauncherPath);
+    auto const shimBinDir = cti::dir_handle{shimData.temporaryShimBinDir};
+    auto const shimBinLink = cti::softlink_handle{shimData.shimBinaryPath,
+        shimBinDir.m_path + "/" + shimmedLauncherName};
+
+    // Modify PATH in launchData
+    auto const rawPath = ::getenv("PATH");
+    auto const originalPath = (rawPath != nullptr)
+        ? std::string{rawPath}
+        : "";
+    modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.m_path + (originalPath.empty() ? "" : (":" + originalPath)));
+
+    // Communicate output pipe and real launcher path to shim
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_INPUT_FD="  + std::to_string(shimPipe[0]));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_OUTPUT_FD=" + std::to_string(shimPipe[1]));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_LAUNCHER_PATH="  + shimData.shimmedLauncherPath);
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_ORIGINAL_PATH="  + originalPath);
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDIN_FD="       + std::to_string(launchData.stdin_fd));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDOUT_FD="      + std::to_string(launchData.stdout_fd));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDERR_FD="      + std::to_string(launchData.stderr_fd));
+
+    auto const scriptPid = forkExec(modifiedLaunchData);
+    close(shimPipe[1]);
+
+    auto const [shimPid, mpirResult] = readShimMPIRResult(shimPipe[0]);
+    mpirShimMap.emplace(mpirResult.mpir_id, shimPid);
+
+    return mpirResult;
 }
 
 /* handler implementations */
@@ -641,8 +876,23 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
         auto const utilPid = forkExec(launchData);
 
         registerUtilPID(appId, utilPid);
+
+        // If synchronous, wait for return code
         if (runMode == FE_daemon::Synchronous) {
-            ::waitpid(utilPid, nullptr, 0);
+            int status;
+            if (::waitpid(utilPid, &status, 0) < 0) {
+                return false;
+            }
+
+            if (WIFEXITED(status)) {
+                getLogger().write("exited with code %d\n", WEXITSTATUS(status));
+            }
+
+            return bool{WIFEXITED(status) && (WEXITSTATUS(status) == 0)};
+
+        // Otherwise, report successful
+        } else {
+            return true;
         }
     });
 }
@@ -684,6 +934,55 @@ static void handle_ReleaseMPIR(int const reqFd, int const respFd)
         auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
         releaseMPIR(mpirId);
+
+        return true;
+    });
+}
+
+static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
+{
+    tryWriteMPIRResp(respFd, [&]() {
+        // set up pipe stream
+        cti::FdBuf reqBuf{dup(reqFd)};
+        std::istream reqStream{&reqBuf};
+
+        // Read shim setup data
+        ShimData shimData;
+        if (!std::getline(reqStream, shimData.shimBinaryPath, '\0')) {
+            throw std::runtime_error("failed to read shim binary path");
+        }
+        if (!std::getline(reqStream, shimData.temporaryShimBinDir, '\0')) {
+            throw std::runtime_error("failed to read temporary shim directory");
+        }
+        if (!std::getline(reqStream, shimData.shimmedLauncherPath, '\0')) {
+            throw std::runtime_error("failed to read shimmed launcher path");
+        }
+
+        // Read MPIR launch data
+        auto const launchData = readLaunchData(reqFd);
+
+        auto const mpirData = launchMPIRShim(shimData, launchData);
+
+        return mpirData;
+    });
+}
+
+static void handle_ReadStringMPIR(int const reqFd, int const respFd)
+{
+    tryWriteStringResp(respFd, [&]() {
+        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+
+        // set up pipe stream
+        cti::FdBuf reqBuf{dup(reqFd)};
+        std::istream reqStream{&reqBuf};
+
+        std::string variable;
+        if (!std::getline(reqStream, variable, '\0')) {
+            throw std::runtime_error("failed to read variable name");
+        }
+        getLogger().write("read string '%s' from mpir id %d\n", variable.c_str(), mpirId);
+
+        return readStringMPIR(mpirId, variable);
     });
 }
 
@@ -692,7 +991,10 @@ static void handle_TerminateMPIR(int const reqFd, int const respFd)
     tryWriteOKResp(respFd, [&]() {
         auto const mpirId = rawReadLoop<DAppId>(reqFd);
 
+        getLogger().write("terminating mpir id %d\n", mpirId);
         terminateMPIR(mpirId);
+
+        return true;
     });
 }
 
@@ -714,6 +1016,8 @@ static void handle_RegisterUtil(int const reqFd, int const respFd)
         auto const utilPid = rawReadLoop<pid_t>(reqFd);
 
         registerUtilPID(appId, utilPid);
+
+        return true;
     });
 }
 
@@ -723,27 +1027,70 @@ static void handle_DeregisterApp(int const reqFd, int const respFd)
         auto const appId = rawReadLoop<DAppId>(reqFd);
 
         deregisterAppID(appId);
+
+        return true;
+    });
+}
+
+static void handle_CheckApp(int const reqFd, int const respFd)
+{
+    tryWriteOKResp(respFd, [&]() {
+        auto const appId = rawReadLoop<DAppId>(reqFd);
+
+        return checkAppID(appId);
     });
 }
 
 static void handle_Shutdown(int const reqFd, int const respFd)
 {
-    tryWriteOKResp(respFd, [&]() {
-        // send OK response
-        rawWriteLoop(respFd, OKResp
-            { .type = RespType::OK
-            , .success = true
-        });
-
-        shutdown_and_exit(0);
+    // send OK response
+    rawWriteLoop(respFd, OKResp
+        { .type = RespType::OK
+        , .success = true
     });
+
+    shutdown_and_exit(0);
 }
 
+// Return string value of request type for logging
+static auto reqTypeString(ReqType const reqType)
+{
+    switch (reqType) {
+        case ReqType::ForkExecvpApp:  return "ForkExecvpApp";
+        case ReqType::ForkExecvpUtil: return "ForkExecvpUtil";
+        case ReqType::LaunchMPIR:     return "LaunchMPIR";
+        case ReqType::AttachMPIR:     return "AttachMPIR";
+        case ReqType::ReleaseMPIR:    return "ReleaseMPIR";
+        case ReqType::ReadStringMPIR: return "ReadStringMPIR";
+        case ReqType::TerminateMPIR:  return "TerminateMPIR";
+        case ReqType::LaunchMPIRShim: return "LaunchMPIRShim";
+        case ReqType::RegisterApp:    return "RegisterApp";
+        case ReqType::RegisterUtil:   return "RegisterUtil";
+        case ReqType::DeregisterApp:  return "DeregisterApp";
+        case ReqType::CheckApp:       return "CheckApp";
+        case ReqType::Shutdown:       return "Shutdown";
+        default: return "(unknown)";
+    }
+}
 
+static void log_terminate()
+{
+    if (auto eptr = std::current_exception()) {
+        try {
+            std::rethrow_exception(eptr);
+        } catch(const std::exception& e) {
+            getLogger().write(e.what());
+        }
+    }
+
+    std::abort();
+}
 
 int
 main(int argc, char *argv[])
 {
+    std::set_terminate(log_terminate);
+
     // parse incoming argv for request and response FDs
     { auto incomingArgv = cti::IncomingArgv<CTIFEDaemonArgv>{argc, argv};
         int c; std::string optarg;
@@ -782,48 +1129,54 @@ main(int argc, char *argv[])
         exit(1);
     }
 
-    // block all signals except SIGTERM, SIGCHLD, SIGPIPE, SIGTRAP, SIGHUP
+    // block all signals except noted
+    auto const handledSignals = std::vector<int>
+        { SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+        , SIGTRAP // used for Dyninst breakpoint events
+        , SIGTTIN // used for mpiexec job control
+
+        // mpiexec sends SIGSEGV if a job process segfaults, ignore it
+        , SIGSEGV
+    };
+
     sigset_t block_set;
     memset(&block_set, 0, sizeof(block_set));
     if (sigfillset(&block_set)) {
-        perror("sigfillset");
+        fprintf(stderr, "sigfillset: %s\n", strerror(errno));
         return 1;
     }
-    if (sigdelset(&block_set, SIGTERM) ||
-        sigdelset(&block_set, SIGCHLD) ||
-        sigdelset(&block_set, SIGPIPE) ||
-        sigdelset(&block_set, SIGTRAP) ||
-        sigdelset(&block_set, SIGHUP)) {
-        perror("sigdelset");
-        return 1;
+
+    for (auto&& signum : handledSignals) {
+        if (sigdelset(&block_set, signum)) {
+            fprintf(stderr, "sigdelset: %s\n", strerror(errno));
+            return 1;
+        }
     }
     if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
-        perror("sigprocmask");
+        fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
         return 1;
     }
 
-
-    // set handler for SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
-    // SIGTRAP is used by Dyninst for breakpoint events
+    // set handler for signals
     struct sigaction sig_action;
+    memset(&sig_action, 0, sizeof(sig_action));
     sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
     sig_action.sa_sigaction = cti_fe_daemon_handler;
-    if (sigaction(SIGTERM, &sig_action, nullptr) ||
-        sigaction(SIGCHLD, &sig_action, nullptr) ||
-        sigaction(SIGPIPE, &sig_action, nullptr) ||
-        sigaction(SIGHUP,  &sig_action, nullptr)) {
-        perror("sigaction");
-        return 1;
+    for (auto&& signum : handledSignals) {
+        if (sigaction(signum, &sig_action, nullptr)) {
+            fprintf(stderr, "sigaction %d: %s\n", signum, strerror(errno));
+            return 1;
+        }
     }
 
     // write our PID to signal to the parent we are all set up
-    fprintf(stderr, "%d sending initial ok\n", getpid());
+    getLogger().write("%d sending initial ok\n", getpid());
     rawWriteLoop(respFd, getpid());
 
     // wait for pipe commands
     while (true) {
         auto const reqType = rawReadLoop<ReqType>(reqFd);
-        fprintf(stderr, "req type %ld\n", reqType);
+        getLogger().write("Received request type %ld: %s\n", reqType, reqTypeString(reqType));
 
         switch (reqType) {
 
@@ -847,8 +1200,16 @@ main(int argc, char *argv[])
                 handle_ReleaseMPIR(reqFd, respFd);
                 break;
 
+            case ReqType::ReadStringMPIR:
+                handle_ReadStringMPIR(reqFd, respFd);
+                break;
+
             case ReqType::TerminateMPIR:
                 handle_TerminateMPIR(reqFd, respFd);
+                break;
+
+            case ReqType::LaunchMPIRShim:
+                handle_LaunchMPIRShim(reqFd, respFd);
                 break;
 
             case ReqType::RegisterApp:
@@ -863,12 +1224,16 @@ main(int argc, char *argv[])
                 handle_DeregisterApp(reqFd, respFd);
                 break;
 
+            case ReqType::CheckApp:
+                handle_CheckApp(reqFd, respFd);
+                break;
+
             case ReqType::Shutdown:
                 handle_Shutdown(reqFd, respFd);
                 break;
 
             default:
-                fprintf(stderr, "unknown req type %ld\n", reqType);
+                getLogger().write("unknown req type %ld\n", reqType);
                 break;
 
         }

@@ -3,13 +3,7 @@
  *          tools interface which will gather information from the WLM about a
  *          previously launched job.
  *
- * Copyright 2012-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2012-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -45,8 +39,6 @@
 #include <assert.h>
 
 #include "common_tools_fe.h"
-#include "cti_fe_common.h"
-#include "src/cti_defs.h"
 
 void
 usage(char *name)
@@ -75,14 +67,16 @@ main(int argc, char **argv)
     // Print out the wlm type using the defined text for each WLM type.
     switch (mywlm) {
         case CTI_WLM_SLURM:
-        {
-            fprintf(stdout, "%s WLM type.\n", SLURM_WLM_TYPE_IMPL);
-        }
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_SLURM_STR);
+            break;
+        case CTI_WLM_ALPS:
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_ALPS_STR);
             break;
         case CTI_WLM_SSH:
-        {
-            fprintf(stdout, "%s WLM type.\n", SSH_WLM_TYPE_IMPL);
-        }
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_SSH_STR);
+            break;
+        case CTI_WLM_PALS:
+            fprintf(stdout, "%s WLM type.\n", CTI_WLM_TYPE_PALS_STR);
             break;
         case CTI_WLM_MOCK:
         case CTI_WLM_NONE:

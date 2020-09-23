@@ -1,13 +1,7 @@
 /******************************************************************************\
  * Frontend.cpp - SLURM specific frontend library functions.
  *
- * Copyright 2014-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -53,9 +47,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <sys/socket.h>
-#include <netdb.h>
-
 // Pull in manifest to properly define all the forward declarations
 #include "transfer/Manifest.hpp"
 
@@ -64,6 +55,7 @@
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
 #include "useful/cti_split.hpp"
+#include "useful/cti_hostname.hpp"
 #include "useful/cti_wrappers.hpp"
 
 /* constructors / destructors */
@@ -71,8 +63,9 @@
 SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     : App(fe)
     , m_daemonAppId     { mpirData.mpir_id }
-    , m_jobId           { mpirData.job_id }
-    , m_stepId          { mpirData.step_id }
+    , m_jobId           { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_jobid")) }
+    , m_stepId          { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_stepid")) }
+    , m_binaryRankMap   { std::move(mpirData.binaryRankMap) }
     , m_stepLayout      { fe.fetchStepLayout(m_jobId, m_stepId) }
     , m_beDaemonSent    { false }
 
@@ -87,17 +80,19 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
         throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
     }
 
-    // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
-    if (m_daemonAppId) {
-        // FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
-        // call can be removed. Right now the pmi_attribs file is created in the pmi
-        // ctor, which is called after the slurm startup barrier, meaning it will not
-        // yet be created when launching. So we need to send over a file containing
-        // the information to the compute nodes.
-        m_extraFiles.push_back(fe.createPIDListFile(mpirData.proctable, m_stagePath));
-    } else {
+    // Ensure application has been registered with daemon
+    if (!m_daemonAppId) {
         throw std::runtime_error("tried to create app with invalid daemon id: " + std::to_string(m_daemonAppId));
     }
+
+    // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
+
+    // FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
+    // call can be removed. Right now the pmi_attribs file is created in the pmi
+    // ctor, which is called after the slurm startup barrier, meaning it will not
+    // yet be created when launching. So we need to send over a file containing
+    // the information to the compute nodes.
+    m_extraFiles.push_back(fe.createPIDListFile(mpirData.proctable, m_stagePath));
 }
 
 SLURMApp::~SLURMApp()
@@ -107,10 +102,8 @@ SLURMApp::~SLURMApp()
         _cti_removeDirectory(m_stagePath.c_str());
     }
 
-    if (m_daemonAppId > 0) {
-        // Inform the FE daemon that this App is going away
-        m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
-    }
+    // Inform the FE daemon that this App is going away
+    m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
 }
 
 /* app instance creation */
@@ -127,8 +120,6 @@ static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t jobId, uint
             // request an MPIR session to extract proctable
             auto const mpirResult = fe.Daemon().request_LaunchMPIR(
                 sattachPath.get(), sattachArgv.get(), -1, -1, -1, nullptr);
-            // have the proctable, terminate SATTACh
-            fe.Daemon().request_TerminateMPIR(mpirResult.mpir_id);
 
             return mpirResult;
 
@@ -140,18 +131,6 @@ static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t jobId, uint
         throw std::runtime_error("Failed to find SATTACH in path");
     }
 }
-
-SLURMApp::SLURMApp(SLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
-    : SLURMApp
-        { fe
-        , sattachMPIR(fe, jobId, stepId)
-        }
-{ }
-
-SLURMApp::SLURMApp(SLURMFrontend& fe, const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-    const char *inputFile, const char *chdirPath, const char * const env_list[])
-    : SLURMApp{ fe, fe.launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list) }
-{ }
 
 /* running app info accessors */
 
@@ -168,6 +147,12 @@ std::string
 SLURMApp::getLauncherHostname() const
 {
     throw std::runtime_error("not supported for WLM: getLauncherHostname");
+}
+
+bool
+SLURMApp::isRunning() const
+{
+    return m_frontend.Daemon().request_CheckApp(m_daemonAppId);
 }
 
 std::vector<std::string>
@@ -192,14 +177,15 @@ SLURMApp::getHostsPlacement() const
     return result;
 }
 
+std::map<std::string, std::vector<int>>
+SLURMApp::getBinaryRankMap() const
+{
+    return m_binaryRankMap;
+}
+
 /* running app interaction interface */
 
 void SLURMApp::releaseBarrier() {
-    // check MPIR barrier
-    if (!m_daemonAppId) {
-        throw std::runtime_error("app not under MPIR control");
-    }
-
     // release MPIR barrier
     m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
 }
@@ -282,8 +268,36 @@ void SLURMApp::startDaemon(const char* const args[]) {
         throw std::runtime_error("args array is null!");
     }
 
+    // Send daemon if not already shipped
+    if (!m_beDaemonSent) {
+        // Get the location of the backend daemon
+        if (m_frontend.getBEDaemonPath().empty()) {
+            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
+        }
+
+        // Copy the BE binary to its unique storage name
+        auto const sourcePath = m_frontend.getBEDaemonPath();
+        auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
+
+        // Create the args for link
+        auto linkArgv = cti::ManagedArgv {
+            "ln", "-s", sourcePath.c_str(), destinationPath.c_str()
+        };
+
+        // Run link command
+        m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "ln", linkArgv.get(),
+            -1, -1, -1,
+            nullptr);
+
+        // Ship the unique backend daemon
+        shipPackage(destinationPath);
+        // set transfer to true
+        m_beDaemonSent = true;
+    }
+
     // use existing daemon binary on compute node
-    std::string const remoteBEDaemonPath{m_toolPath + "/" + CTI_BE_DAEMON_BINARY};
+    std::string const remoteBEDaemonPath{m_toolPath + "/" + getBEDaemonName()};
 
     // Start adding the args to the launchder argv array
     //
@@ -437,28 +451,76 @@ SLURMFrontend::SLURMFrontend()
 bool
 SLURMFrontend::isSupported()
 {
-    // FIXME: This is a hack. This should be addressed by PE-25088
+    // Check that the srun version starts with "slurm "
+    { auto srunArgv = cti::ManagedArgv{"srun", "--version"};
+        auto srunOutput = cti::Execvp{"srun", srunArgv.get()};
 
-    // Check that the slurm package is installed
-    auto rpmArgv = cti::ManagedArgv { "rpm", "-q", "slurm" };
-    if (cti::Execvp{"rpm", rpmArgv.get()}.getExitStatus() != 0) {
-        return false;
+        // Read output line
+        auto versionLine = std::string{};
+        if (std::getline(srunOutput.stream(), versionLine)) {
+            if (versionLine.substr(0, 6) != "slurm ") {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        // Ensure exited properly
+        if (srunOutput.getExitStatus()) {
+            return false;
+        }
+    }
+
+    // Check that srun is a binary and not a script
+    { auto binaryTestArgv = cti::ManagedArgv{"bash", "-c",
+        "file --mime `which srun` | grep application/x-executable"};
+        if (cti::Execvp{"bash", binaryTestArgv.get()}.getExitStatus()) {
+            throw std::runtime_error("srun was detected on the system, but it is not a binary file. \
+Tool launch requires direct access to the srun binary. \
+Ensure that the srun command is not wrapped by a script");
+        }
+    }
+
+    // Check that the srun binary contains MPIR symbols
+    { auto symbolTestArgv = cti::ManagedArgv{"bash", "-c",
+        "nm `which srun` | grep MPIR_Breakpoint$"};
+        if (cti::Execvp{"bash", symbolTestArgv.get()}.getExitStatus()) {
+            throw std::runtime_error("srun was detected on the system, but it does not contain debug symbols. \
+Tool launch is coordinated through reading information at these symbols");
+        }
     }
 
     return true;
 }
 
 std::weak_ptr<App>
+SLURMFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+    CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    // Slurm calls the launch barrier correctly even when the program is not an MPI application.
+    // Delegating to barrier implementation works properly even for serial applications.
+    auto appPtr = std::make_shared<SLURMApp>(*this,
+        launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list));
+
+    // Release barrier and continue launch
+    appPtr->releaseBarrier();
+
+    // Register with frontend application set
+    auto resultInsertedPair = m_apps.emplace(std::move(appPtr));
+    if (!resultInsertedPair.second) {
+        throw std::runtime_error("Failed to insert new App object.");
+    }
+
+    return *resultInsertedPair.first;
+}
+
+std::weak_ptr<App>
 SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(   *this,
-                                                                launcher_argv,
-                                                                stdout_fd,
-                                                                stderr_fd,
-                                                                inputFile,
-                                                                chdirPath,
-                                                                env_list));
+    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this,
+        launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list)));
+
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -468,103 +530,8 @@ SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_
 std::string
 SLURMFrontend::getHostname() const
 {
-    // Extract the NID from the provided cti::file pointer and format into hostname
-    auto parseNidFile = [](auto&& nidFile) {
-        // We expect this file to have a numeric value giving our current Node ID.
-        char buf[BUFSIZ + 1];
-        if (fgets(buf, BUFSIZ, nidFile.get()) == nullptr) {
-            throw std::runtime_error("fgets failed.");
-        }
-        buf[BUFSIZ] = '\0';
-        return std::stoi(std::string{buf});
-    };
-
-    auto make_addrinfo = [](std::string const& hostname) {
-        // Get hostname information
-        struct addrinfo hints;
-        memset(&hints, 0, sizeof(hints));
-        hints.ai_family = AF_INET;
-        struct addrinfo *info_ptr = nullptr;
-        if (auto const rc = getaddrinfo(hostname.c_str(), nullptr, &hints, &info_ptr)) {
-            throw std::runtime_error("getaddrinfo failed: " + std::string{gai_strerror(rc)});
-        }
-        if ( info_ptr == nullptr ) {
-            throw std::runtime_error("failed to resolve hostname " + hostname);
-        }
-        return cti::take_pointer_ownership(std::move(info_ptr), freeaddrinfo);
-    };
-
-    // Resolve a hostname to IPv4 address
-    // FIXME: PE-26874 change this once DNS support is added
-    auto resolveHostname = [](const struct addrinfo& addr_info) {
-        constexpr auto MAXADDRLEN = 15;
-        // Extract IP address string
-        char ip_addr[MAXADDRLEN + 1];
-        if (auto const rc = getnameinfo(addr_info.ai_addr, addr_info.ai_addrlen, ip_addr, MAXADDRLEN, NULL, 0, NI_NUMERICHOST)) {
-            throw std::runtime_error("getnameinfo failed: " + std::string{gai_strerror(rc)});
-        }
-        ip_addr[MAXADDRLEN] = '\0';
-        return std::string{ip_addr};
-    };
-
-    // Get the hostname of the interface that is accessible from compute nodes
-    // Behavior changes based on XC / Shasta UAI+UAN
-    auto detectAddress = [&parseNidFile, &make_addrinfo, &resolveHostname]() {
-        // Try the nid file first. This is the preferred mechanism since it corresponds
-        // to the HSN.
-        // XT / XC NID file
-        if (auto nidFile = cti::file::try_open(CRAY_XT_NID_FILE, "r")) {
-            // Use the NID to create the XT hostname format.
-            auto nidXTHostname = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, parseNidFile(nidFile));
-            try {
-                // Ensure we can resolve the hostname
-                make_addrinfo(nidXTHostname);
-                // Hostname checks out so return it
-                return nidXTHostname;
-            }
-            catch (std::exception const& ex) {
-                // continue processing
-            }
-        }
-        // Shasta compute node NID file
-        else if (auto nidFile = cti::file::try_open(CRAY_SHASTA_NID_FILE, "r")) {
-            // Use the NID to create the Shasta hostname format.
-            auto nidShastaHostname = cti::cstr::asprintf(CRAY_SHASTA_HOSTNAME_FMT, parseNidFile(nidFile));
-            try {
-                // Ensure we can resolve the hostname
-                make_addrinfo(nidShastaHostname);
-                // Hostname checks out so return it
-                return nidShastaHostname;
-            }
-            catch (std::exception const& ex) {
-                // continue processing
-            }
-        }
-        // On Shasta, look up and return IPv4 address instead of hostname
-        // UAS hostnames cannot be resolved on compute node
-        // FIXME: PE-26874 change this once DNS support is added
-        auto const hostname = cti::cstr::gethostname();
-        try {
-            // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
-            // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
-            // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
-            auto const macVlanHostname = hostname + "-nmn";
-            auto info = make_addrinfo(macVlanHostname);
-            // FIXME: Remove this when PE-26874 is fixed
-            auto macVlanIPAddress = resolveHostname(*info);
-            return macVlanIPAddress;
-        }
-        catch (std::exception const& ex) {
-            // continue processing
-        }
-        // Try using normal hostname
-        auto info = make_addrinfo(hostname);
-        return hostname;
-    };
-
-    // Cache the hostname result.
-    static auto hostname = detectAddress();
-    return hostname;
+    // Delegate to shared implementation supporting both XC and Shasta
+    return cti::detectFrontendHostname();
 }
 
 /* SLURM static implementations */
@@ -583,7 +550,7 @@ SLURMFrontend::registerJob(size_t numIds, ...) {
 
     va_end(idArgs);
 
-    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this, jobId, stepId));
+    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this, sattachMPIR(*this, jobId, stepId)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -618,12 +585,6 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     cti::Execvp sattachOutput(SATTACH, sattachArgv.get());
     auto& sattachStream = sattachOutput.stream();
     std::string sattachLine;
-
-    // wait for sattach to complete
-    auto const sattachCode = sattachOutput.getExitStatus();
-    if (sattachCode > 0) {
-        throw std::runtime_error("invalid job id " + std::to_string(job_id));
-    }
 
     // start parsing sattach output
 
@@ -674,6 +635,12 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
             , std::stoul(numPEs)
             , std::stoul(pe_0)
         });
+    }
+
+    // wait for sattach to complete
+    auto const sattachCode = sattachOutput.getExitStatus();
+    if (sattachCode > 0) {
+        throw std::runtime_error("invalid job id " + std::to_string(job_id));
     }
 
     return layout;
@@ -795,9 +762,52 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
     if (auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
         // tell overwatch to extract information using MPIR attach
         auto const mpirData = Daemon().request_AttachMPIR(launcherPath.get(), srunPid);
+
+        // Get job and step ID via memory read
+        auto const jobId  = (uint32_t)std::stoi(Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_jobid"));
+        auto const stepId = (uint32_t)std::stoi(Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_stepid"));
+
+        // Release MPIR control
         Daemon().request_ReleaseMPIR(mpirData.mpir_id);
-        return SrunInfo { mpirData.job_id, mpirData.step_id };
+
+        return SrunInfo { jobId, stepId };
     } else {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }
+}
+
+// Apollo SLURM specializations
+
+// Running on an Apollo machine if the `cminfo` cluster info query program is
+// installed, and it reports running on login / admin node.
+bool ApolloSLURMFrontend::isSupported() {
+    try {
+        char const* cminfoArgv[] = { "cminfo", "--name", nullptr };
+
+        // Start cminfo
+        auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv};
+        if (cminfoOutput.getExitStatus() != 0) {
+            return false;
+        }
+
+        // Detect if running on admin node
+        auto& cminfoStream = cminfoOutput.stream();
+        std::string cmName;
+        if (std::getline(cminfoStream, cmName)) {
+            return !cmName.compare("admin");
+        } else {
+            return false;
+        }
+
+    } catch(...) {
+        // cminfo not installed
+        return false;
+    }
+}
+
+// /etc/hosts file for cluster is generated by SGI Tempo.
+// Login / admin node is accessible via hostname `admin`.
+// See initialization script at /etc/opt/sgi/conf.d/20-hosts
+std::string ApolloSLURMFrontend::getHostname() const {
+    return "admin";
 }

@@ -2,13 +2,7 @@
  * common_tools_shared.h - Shared type definitions shared between the FE and
  *                         BE API.
  *
- * Copyright 2011-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -87,6 +81,8 @@
  *      corresponding string for each of the cti_wlm_type_t defined below:
  *          CTI_WLM_SLURM set to "slurm"
  *          CTI_WLM_SSH set to "generic"
+ *          CTI_WLM_ALPS set to "alps"
+ *          CTI_WLM_PALS set to "pals"
  *
  */
 #define CTI_BASE_DIR_ENV_VAR        "CTI_INSTALL_DIR"
@@ -95,6 +91,14 @@
 #define CTI_CFG_DIR_ENV_VAR         "CTI_CFG_DIR"
 #define CTI_LAUNCHER_NAME_ENV_VAR   "CTI_LAUNCHER_NAME"
 #define CTI_WLM_IMPL_ENV_VAR        "CTI_WLM_IMPL"
+// CTI_WLM_TYPE_<type>_STR recognized by CTI_WLM_IMPL_ENV_VAR and corresponds
+// to values in the cti_wlm_type_t enum.
+// Note: users should not manualy set CTI_WLM_IMPL environment variable to
+// "none" or "mock" as these workload manager types are for internal use only.
+#define CTI_WLM_TYPE_SLURM_STR     	"slurm"
+#define CTI_WLM_TYPE_ALPS_STR       "alps"
+#define CTI_WLM_TYPE_SSH_STR   		"generic"
+#define CTI_WLM_TYPE_PALS_STR       "pals"
 
 #ifdef __cplusplus
 extern "C" {
@@ -108,7 +112,9 @@ typedef enum
     CTI_WLM_NONE,   // error/unitialized state
     CTI_WLM_MOCK,   // Used for unit testing
     CTI_WLM_SLURM,  // SLURM implementation
-    CTI_WLM_SSH     // Direct SSH implementation
+    CTI_WLM_SSH,    // Direct SSH implementation
+    CTI_WLM_ALPS,   // ALPS implementation
+    CTI_WLM_PALS    // PALS implementation
 } cti_wlm_type_t;
 
 #ifdef __cplusplus

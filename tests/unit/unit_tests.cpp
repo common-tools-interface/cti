@@ -1,13 +1,7 @@
 /******************************************************************************\
  * unit_tests.cpp - Unit test driver
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -52,8 +46,12 @@
 class CTI_Environment : public ::testing::Environment
 {
 public:
-    // Ensure we override the install env var to our prefix
-    void SetUp() { setenv(CTI_BASE_DIR_ENV_VAR, INSTALL_PATH, 1); }
+    void SetUp() {
+        // Ensure we override the install env var to our prefix
+        setenv(CTI_BASE_DIR_ENV_VAR, INSTALL_PATH, 1);
+        // Set a dummy LD_PRELOAD to ensure frontend removes it
+        setenv("LD_PRELOAD", "/dev/null", 1);
+    }
 };
 
 int main(int argc, char **argv) {

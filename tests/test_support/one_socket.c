@@ -1,12 +1,6 @@
 /******************************************************************************\
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -46,11 +40,11 @@
 #include "message_one/message.h"
 
 int main(int argc, char* argv[]) {
-
     if (argc != 3) {
         fprintf(stderr, "Invalid parameters\nExpected: SocketIP, SocketPort\n");
         return 1;
     }
+
     //avoid race conditions in the least elegant way...
     sleep(1);
 
@@ -68,6 +62,7 @@ int main(int argc, char* argv[]) {
     int rc;
     struct addrinfo *node;
     struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_NUMERICSERV;
@@ -94,7 +89,13 @@ int main(int argc, char* argv[]) {
     }
     fprintf(stderr, "CONNECTED\n");
     //Send predictable data over socket
-    send(c_socket, get_message(), 1, 0);
+    fprintf(stderr, "Sending: %s\n", get_message());
+    if (send(c_socket, get_message(), 1, 0) == -1) {
+        fprintf(stderr, "An error occurred in send().\n");
+    }
+
+    sleep(10); // fix for PE-32354
     close(c_socket);
+
     return 0;
 }

@@ -1,13 +1,7 @@
 /******************************************************************************\
  * Archive.cpp
  *
- * Copyright 2013-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2013-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -120,24 +114,23 @@ struct FdHandle {
 void Archive::addFile(const std::string& entryPath, const std::string& filePath) {
     // copy data from file to archive
     if (auto fdHandle = FdHandle(filePath)) {
-        const size_t CTI_BLOCK_SIZE = (1 << 8);
-
-        char readBuf[CTI_BLOCK_SIZE];
         while (true) {
-            size_t readLen = read(fdHandle.fd, readBuf, CTI_BLOCK_SIZE);
+            ssize_t readLen = read(fdHandle.fd, m_readBuf.get(), CTI_BLOCK_SIZE);
             if (readLen < 0) {
                 throw std::runtime_error(filePath + " failed read call");
             } else if (readLen == 0) {
                 break;
             }
 
-            size_t writeLen = archive_write_data(m_archPtr.get(), readBuf, readLen);
-            if (writeLen < 0) {
-                throw std::runtime_error(filePath + " failed archive_write_data: " +
-                    archive_error_string(m_archPtr.get()));
-            } else if (writeLen != readLen) {
-                throw std::runtime_error(filePath +
-                    " had archive_write_data length mismatch.");
+            ssize_t writeLen = 0;
+            while (writeLen < readLen) {
+                ssize_t bytesWritten = archive_write_data(m_archPtr.get(),
+                    m_readBuf.get() + writeLen, readLen);
+                if (bytesWritten < 0) {
+                    throw std::runtime_error(filePath + " failed archive_write_data to " + m_archivePath + ": " +
+                        archive_error_string(m_archPtr.get()) + " - " + strerror(errno));
+                }
+                writeLen += bytesWritten;
             }
         }
     }
@@ -171,6 +164,7 @@ void Archive::addPath(const std::string& entryPath, const std::string& path) {
 Archive::Archive(const std::string& archivePath)
     : m_archPtr{archive_write_new(), archive_write_free}
     , m_entryScratchpad{archive_entry_new(), archive_entry_free}
+    , m_readBuf{new char[CTI_BLOCK_SIZE]}
     , m_archivePath{archivePath} {
 
     if (m_archPtr == nullptr) {

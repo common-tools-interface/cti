@@ -1,13 +1,7 @@
 /*********************************************************************************\
  * cti_argv.hpp: Interface for handling argv.
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -36,6 +30,7 @@
 
 #include <vector>
 #include <string>
+#include <stdexcept>
 
 #include <getopt.h>
 #include <string.h>
@@ -49,7 +44,7 @@ private:
 public:
     /* constructor creates NULL-terminator. */
     ManagedArgv() {
-        argv.push_back(NULL);
+        argv.push_back(nullptr);
     }
 
     ManagedArgv(std::initializer_list<std::string const> str_list) {
@@ -57,7 +52,7 @@ public:
         for (auto&& str : str_list) {
             argv.push_back(strdup(str.c_str()));
         }
-        argv.push_back(NULL);
+        argv.push_back(nullptr);
     }
 
     /* destructor frees the strdup'ed memory */
@@ -80,7 +75,12 @@ public:
     size_t size() const { return argv.size(); }
     char** get() { return argv.data(); }
     void add(std::string const& str) { argv.insert(argv.end() - 1, strdup(str.c_str())); }
-    void add(const char* str) { argv.insert(argv.end() - 1, strdup(str)); }
+    void add(const char* str) {
+        if (str == nullptr) {
+            throw std::logic_error("attempted to add nullptr pointer to managed argument array");
+        }
+        argv.insert(argv.end() - 1, strdup(str));
+    }
 };
 
 struct Argv {
@@ -140,23 +140,33 @@ public:
 template <class ArgvDef>
 class IncomingArgv : public ArgvDef {
 private:
-    std::string flagSpec;
-    const int argc;
-    char* const* argv;
+    const int m_argc;
+    char* const* m_argv;
+    std::string m_flagSpec;
+    int m_optind;
 
 public:
-    IncomingArgv(int argc_, char* const* argv_) : argc(argc_), argv(argv_) {
+    IncomingArgv(int argc, char* const* argv)
+        : m_argc(argc)
+        , m_argv(argv)
+        , m_flagSpec{"+"} // Follow POSIX behavior, do not reorder
+        , m_optind{0}
+    {
         for (const Argv::GNUOption* opt_ptr = ArgvDef::long_options;
             opt_ptr->val != 0; opt_ptr++) {
-            flagSpec.push_back((char)(opt_ptr->val));
+            m_flagSpec.push_back((char)(opt_ptr->val));
             if (opt_ptr->has_arg != no_argument) {
-                flagSpec.push_back(':');
+                m_flagSpec.push_back(':');
             }
         }
     }
 
     std::pair<int, std::string> get_next() {
-        int c = getopt_long(argc, argv, flagSpec.c_str(), ArgvDef::long_options, nullptr);
+        auto const old_optind = optind;
+        optind = m_optind;
+        int c = getopt_long(m_argc, m_argv, m_flagSpec.c_str(), ArgvDef::long_options, nullptr);
+        m_optind = optind;
+        optind = old_optind;
         if ((c < 0) || (optarg == nullptr)) {
             return std::make_pair(c, "");
         }
@@ -164,7 +174,7 @@ public:
     }
 
     char* const* get_rest() {
-        return argv + optind;
+        return m_argv + m_optind;
     }
 };
 

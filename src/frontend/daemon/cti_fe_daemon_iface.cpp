@@ -1,13 +1,7 @@
 /******************************************************************************\
  * cti_fe_daemon_iface.cpp - command interface for frontend daemon
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -125,12 +119,21 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
     rawWriteLoop(reqFd, '\0');
 }
 
+// return boolean response from pipe
+static bool readOKResp(int const reqFd)
+{
+    auto const okResp = rawReadLoop<FE_daemon::OKResp>(reqFd);
+    if (okResp.type != FE_daemon::RespType::OK) {
+        throw std::runtime_error("daemon did not send expected OK response type");
+    }
+    return okResp.success;
+}
+
 // throw if boolean response is not true, indicating failure
 static void verifyOKResp(int const reqFd)
 {
-    auto const okResp = rawReadLoop<FE_daemon::OKResp>(reqFd);
-    if ((okResp.type != FE_daemon::RespType::OK) || !okResp.success) {
-        throw std::runtime_error("failed to verify OK response");
+    if (readOKResp(reqFd) == false) {
+        throw std::runtime_error("daemon response indicated failure");
     }
 }
 
@@ -144,22 +147,47 @@ static DaemonAppId readIDResp(int const reqFd)
     return idResp.id;
 }
 
+// return string data, throw if failure indicated
+static std::string readStringResp(int const reqFd)
+{
+    // read basic response information
+    auto const stringResp = rawReadLoop<FE_daemon::StringResp>(reqFd);
+    if (stringResp.type != FE_daemon::RespType::String) {
+        throw std::runtime_error("daemon did not send expected String response type");
+    } else if (stringResp.success == false) {
+        throw std::runtime_error("daemon failed to read string from memory");
+    }
+
+    // set up pipe stream
+    cti::FdBuf respBuf{dup(reqFd)};
+    std::istream respStream{&respBuf};
+
+    // read value
+    std::string result;
+    if (!std::getline(respStream, result, '\0')) {
+        throw std::runtime_error("failed to read string");
+    }
+
+    return result;
+}
+
 // return MPIR launch / attach data, throw if MPIR ID < 0, indicating failure
 static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
 {
     // read basic table information
     auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(reqFd);
-    if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.mpir_id < 0)) {
-        throw std::runtime_error("failed to read proctable response");
+    if (mpirResp.type != FE_daemon::RespType::MPIR) {
+        throw std::runtime_error("daemon did not send expected MPIR response type");
+    } else if (mpirResp.mpir_id == 0) {
+        throw std::runtime_error("daemon failed to perform MPIR launch");
     }
 
     // fill in MPIR data excluding proctable
     FE_daemon::MPIRResult result
-        { mpirResp.mpir_id
-        , mpirResp.launcher_pid
-        , mpirResp.job_id
-        , mpirResp.step_id
-        , {} // proctable
+        { .mpir_id = mpirResp.mpir_id
+        , .launcher_pid = mpirResp.launcher_pid
+        , .proctable = {}
+        , .binaryRankMap = {}
     };
     result.proctable.reserve(mpirResp.num_pids);
 
@@ -167,7 +195,7 @@ static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
     cti::FdBuf respBuf{dup(reqFd)};
     std::istream respStream{&respBuf};
 
-    // fill in pid and hostname of proctable elements
+    // fill in pid and hostname of proctable elements, generate executable path to rank ID map
     for (int i = 0; i < mpirResp.num_pids; i++) {
         MPIRProctableElem elem;
         // read pid
@@ -176,6 +204,14 @@ static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
         if (!std::getline(respStream, elem.hostname, '\0')) {
             throw std::runtime_error("failed to read string");
         }
+        // read executable name
+        if (!std::getline(respStream, elem.executable, '\0')) {
+            throw std::runtime_error("failed to read string");
+        }
+
+        // fill in binary rank map
+        result.binaryRankMap[elem.executable].push_back(i);
+
         result.proctable.emplace_back(std::move(elem));
     }
 
@@ -189,9 +225,18 @@ FE_daemon::~FE_daemon()
     // Send shutdown request if we have initialized the daemon
     if (m_init) {
         m_init = false;
-        // This should be the only way to call ReqType::Shutdown
-        rawWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
-        verifyOKResp(m_resp_sock.getReadFd());
+
+        // Send daemon a shutdown request if we are the "main" PID
+        if (getpid() == m_mainPid) {
+
+            // This should be the only way to call ReqType::Shutdown
+            rawWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
+            try {
+                verifyOKResp(m_resp_sock.getReadFd());
+            } catch (...) {
+                fprintf(stderr, "warning: daemon shutdown failed\n");
+            }
+        }
     }
     // FIXME: Shouldn't this do a waitpid???
 }
@@ -208,10 +253,16 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
     if (auto const forkedPid = fork()) {
         // parent case
 
+        // Set this PID as the one responsible for cleaning up the daemon
+        m_mainPid = getpid();
+
         // set child in own process gorup
         if (setpgid(forkedPid, forkedPid) < 0) {
             perror("setpgid");
-            exit(1);
+
+            // All exit calls indicating fatal CTI initalization error should be _exit
+            // (exit will run global destructors, but initalization hasn't completed yet)
+            _exit(1);
         }
 
         // set up fe_daemon req / resp pipe
@@ -229,7 +280,7 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
         // set in own process gorup
         if (setpgid(0, 0) < 0) {
             perror("setpgid");
-            exit(1);
+            _exit(1);
         }
 
         // set up death signal
@@ -266,7 +317,7 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
 
         // exec
         execvp(fe_daemon_bin.c_str(), fe_daemonArgv.get());
-        throw std::runtime_error("returned from execvp: " + std::string{strerror(errno)});
+        _exit(-1);
     }
     // Setup in parent was sucessful
     m_init = true;
@@ -319,12 +370,35 @@ FE_daemon::request_ReleaseMPIR(DaemonAppId mpir_id)
     verifyOKResp(m_resp_sock.getReadFd());
 }
 
+std::string
+FE_daemon::request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable)
+{
+    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ReadStringMPIR);
+    rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+    writeLoop(m_req_sock.getWriteFd(), variable, strlen(variable) + 1);
+    return readStringResp(m_resp_sock.getReadFd());
+}
+
 void
 FE_daemon::request_TerminateMPIR(DaemonAppId mpir_id)
 {
     rawWriteLoop(m_req_sock.getWriteFd(), ReqType::TerminateMPIR);
     rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
     verifyOKResp(m_resp_sock.getReadFd());
+}
+
+FE_daemon::MPIRResult
+FE_daemon::request_LaunchMPIRShim(
+    char const* shimBinaryPath, char const* temporaryShimBinDir, char const* shimmedLauncherPath,
+    char const* scriptPath, char const* const argv[],
+    int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
+{
+    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::LaunchMPIRShim);
+    writeLoop(m_req_sock.getWriteFd(), shimBinaryPath,      strlen(shimBinaryPath)      + 1);
+    writeLoop(m_req_sock.getWriteFd(), temporaryShimBinDir, strlen(temporaryShimBinDir) + 1);
+    writeLoop(m_req_sock.getWriteFd(), shimmedLauncherPath, strlen(shimmedLauncherPath) + 1);
+    writeLaunchData(m_req_sock.getWriteFd(), scriptPath, argv, stdin_fd, stdout_fd, stderr_fd, env);
+    return readMPIRResp(m_resp_sock.getReadFd());
 }
 
 DaemonAppId
@@ -350,4 +424,12 @@ FE_daemon::request_DeregisterApp(DaemonAppId app_id)
     rawWriteLoop(m_req_sock.getWriteFd(), ReqType::DeregisterApp);
     rawWriteLoop(m_req_sock.getWriteFd(), app_id);
     verifyOKResp(m_resp_sock.getReadFd());
+}
+
+bool
+FE_daemon::request_CheckApp(DaemonAppId app_id)
+{
+    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::CheckApp);
+    rawWriteLoop(m_req_sock.getWriteFd(), app_id);
+    return readOKResp(m_resp_sock.getReadFd());
 }

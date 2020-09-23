@@ -1,13 +1,7 @@
 /******************************************************************************\
  * cti_log.c - Functions used to create log files.
  *
- * Copyright 2011-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -39,6 +33,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include <linux/limits.h>
 
@@ -92,6 +88,24 @@ _cti_write_log(cti_log_t* log_file, const char *fmt, ...)
     FILE* fp = (FILE*)log_file;
     if (fp != NULL) {
         va_list vargs;
+
+        struct timeval tv;
+        int rc = gettimeofday(&tv, NULL);
+
+        if (rc == -1) {
+            fprintf(fp, "0000-00-00 00:00:00.%06ld: ", 0ul);
+        } else {
+            struct tm *tmptr = localtime(&(tv.tv_sec));
+            if (tmptr == NULL) {
+                fprintf(fp, "%ld.%06ld: ", tv.tv_sec, tv.tv_usec);
+            } else {
+                size_t buflen = 32;
+                char buf[buflen];
+                strftime(buf, buflen, "%Y-%m-%d %H:%M:%S", tmptr);
+                fprintf(fp, "%s.%06ld: ", buf, tv.tv_usec);
+            }
+        }
+
         va_start(vargs, fmt);
         vfprintf(fp, fmt, vargs);
         va_end(vargs);

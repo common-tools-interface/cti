@@ -1,13 +1,7 @@
 /*********************************************************************************\
  * Frontend.cpp - define workload manager frontend interface and common base class
  *
- * Copyright 2014-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -53,11 +47,13 @@
 // utility includes
 #include "useful/cti_log.h"
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_dlopen.hpp"
 #include "checksum/checksums.h"
 
 // Static data objects
 std::atomic<Frontend*>              Frontend::m_instance{nullptr};
 std::mutex                          Frontend::m_mutex;
+std::unique_ptr<cti::Logger>        Frontend::m_logger;  // must be destroyed after m_cleanup
 std::unique_ptr<Frontend_cleanup>   Frontend::m_cleanup{nullptr};
 
 // This ensures the singleton gets deleted
@@ -92,10 +88,12 @@ FE_prng::FE_prng()
     seed = (tv.tv_sec ^ tv.tv_nsec) + pval;
 
     // init the state
-    initstate(seed, (char *)m_r_state, sizeof(m_r_state));
+    memset((char*)&m_r_data, 0, sizeof(m_r_data));
+    memset(m_r_state, 0, sizeof(m_r_state));
+    initstate_r(seed, (char *)m_r_state, sizeof(m_r_state), &m_r_data);
 
     // set the PRNG state
-    if (setstate((char *)m_r_state) == NULL) {
+    if (setstate_r((char *)m_r_state, &m_r_data)) {
         throw std::runtime_error("setstate failed.");
     }
 }
@@ -114,17 +112,28 @@ char FE_prng::genChar()
 
     // Generate a random offset into the array. This is random() modded
     // with the number of elements in the array.
-    unsigned int oset = random() % (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
-    // assing this char
+    int32_t oset;
+    random_r(&m_r_data, &oset);
+    oset %= (sizeof(_cti_valid_char)/sizeof(_cti_valid_char[0]));
+    // assign this char
     return _cti_valid_char[oset];
 }
 
-// Logger object that must be created after frontend instantiation
+// initialized helper for getLogger.
+Frontend::LoggerInit::LoggerInit() {
+    Frontend::m_logger.reset(new cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()});
+}
+
+cti::Logger& Frontend::LoggerInit::get() { return *Frontend::m_logger; }
+
+// Logger object that must be created after frontend instantiation, but also must be destroyed after
+// frontend instantiation, hence the extra LoggerInit logic. Do not call inside Frontend
+// instantiation, as it depends on Frontend::inst() state and will deadlock.
 cti::Logger&
 Frontend::getLogger(void)
 {
-    static auto _cti_logger = cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()};
-    return _cti_logger;
+    static auto _cti_init = LoggerInit{};
+    return _cti_init.get();
 }
 
 std::string
@@ -373,8 +382,12 @@ Frontend::detect_Frontend()
     if (const char* wlm_name_env = getenv(CTI_WLM_IMPL_ENV_VAR)) {
         auto const wlmName = toLower(wlm_name_env);
         // parse the env string
-        if (wlmName == toLower(SLURMFrontend::getName())) {
+        if (wlmName == toLower(ALPSFrontend::getName())) {
+            return CTI_WLM_ALPS;
+        } else if (wlmName == toLower(SLURMFrontend::getName())) {
             return CTI_WLM_SLURM;
+        } else if (wlmName == toLower(PALSFrontend::getName())) {
+            return CTI_WLM_PALS;
         } else if (wlmName == toLower(GenericSSHFrontend::getName())) {
             return CTI_WLM_SSH;
         }
@@ -382,14 +395,51 @@ Frontend::detect_Frontend()
             throw std::runtime_error("Invalid workload manager argument '" + wlmName + "' provided in " + CTI_WLM_IMPL_ENV_VAR);
         }
     }
-    else {
-        // Query supported workload managers
-        if (SLURMFrontend::isSupported()) {
-            return CTI_WLM_SLURM;
-        } else if (GenericSSHFrontend::isSupported()) {
-            return CTI_WLM_SSH;
+
+    // Try to load and use wlm_detect, if available
+    try {
+        // Define libwlm_detect function types
+        using WlmDetectGetActiveType = char*(void);
+        using WlmDetectGetDefaultType = char*(void);
+
+        // Try to load libwlm_detect functions
+        auto libWlmDetectHandle = cti::Dlopen::Handle{WLM_DETECT_LIB_NAME};
+        auto wlm_detect_get_active = libWlmDetectHandle.load<WlmDetectGetActiveType>("wlm_detect_get_active");
+        auto wlm_detect_get_default = libWlmDetectHandle.load<WlmDetectGetDefaultType>("wlm_detect_get_default");
+
+        // Call libwlm_detect functions to determine WLM
+        auto wlmName = std::string{};
+        if (auto activeWlmName = cti::take_pointer_ownership(wlm_detect_get_active(), ::free)) {
+            wlmName = activeWlmName.get();
+        } else if (auto defaultWlmName = cti::take_pointer_ownership(wlm_detect_get_default(), ::free)) {
+            wlmName = defaultWlmName.get();
+        } else {
+            throw std::runtime_error("no active or default WLM detected");
         }
+
+        // Compare WLM name to determine Slurm or ALPS
+        if (wlmName == "ALPS") {
+            return CTI_WLM_ALPS;
+        } else if (wlmName == "SLURM") {
+            return CTI_WLM_SLURM;
+        }
+
+    } catch (...) {
+        // Ignore wlm_detect errors and continue with heuristics. Logger cannot be called
+        // during construction, as it depends on Frontend state and will deadlock.
     }
+
+    // Query supported workload managers
+    if (ALPSFrontend::isSupported()) {
+        return CTI_WLM_ALPS;
+    } else if (SLURMFrontend::isSupported()) {
+        return CTI_WLM_SLURM;
+    } else if (PALSFrontend::isSupported()) {
+        return CTI_WLM_PALS;
+    } else if (GenericSSHFrontend::isSupported()) {
+        return CTI_WLM_SSH;
+    }
+
     // Unknown WLM
     throw std::runtime_error("Unable to determine wlm in use. Manually set " + std::string{CTI_WLM_IMPL_ENV_VAR} + " env var.");
 }
@@ -409,8 +459,18 @@ Frontend::inst() {
             m_cleanup = std::make_unique<Frontend_cleanup>();
             // Determine which wlm to instantiate
             switch(detect_Frontend()) {
+                case CTI_WLM_ALPS:
+                    inst = new ALPSFrontend{};
+                    break;
                 case CTI_WLM_SLURM:
-                    inst = new SLURMFrontend{};
+                    if (ApolloSLURMFrontend::isSupported()) {
+                        inst = new ApolloSLURMFrontend{};
+                    } else {
+                        inst = new SLURMFrontend{};
+                    }
+                    break;
+                case CTI_WLM_PALS:
+                    inst = new PALSFrontend{};
                     break;
                 case CTI_WLM_SSH:
                     inst = new GenericSSHFrontend{};
@@ -434,7 +494,11 @@ Frontend::destroy() {
 
         // clean up all App/Sessions before destructors are run
         for (auto&& app : instance->m_apps) {
-            app->finalize();
+            try {
+                app->finalize();
+            } catch (std::exception const& ex) {
+                // Ignore cleanup exceptions
+            }
         }
 
         delete instance;
@@ -458,15 +522,15 @@ Frontend::getDefaultEnvVars() {
 }
 
 Frontend::Frontend()
-: m_stage_deps{true}
+: m_ld_preload{}
+, m_stage_deps{true}
 , m_log_dir{}
 , m_debug{false}
 , m_pmi_fopen_timeout{PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT}
 , m_extra_sleep{0}
 {
     // Read initial environment variable overrides for default attrib values
-    const char* env_var = nullptr;
-    if ((env_var = getenv(CTI_LOG_DIR_ENV_VAR)) != nullptr) {
+    if (const char* env_var = getenv(CTI_LOG_DIR_ENV_VAR)) {
         if (!cti::dirHasPerms(env_var, R_OK | W_OK | X_OK)) {
             throw std::runtime_error(std::string{"Bad directory specified by environment variable "} + CTI_LOG_DIR_ENV_VAR);
         }
@@ -475,25 +539,16 @@ Frontend::Frontend()
     if (getenv(CTI_DBG_ENV_VAR)) {
         m_debug = true;
     }
+    // Unload any LD_PRELOAD values, this may muck up CTI daemons.
+    // Make sure to save this to pass to the environment of any application
+    // that gets launched.
+    if (const char* env_var = getenv("LD_PRELOAD")) {
+        m_ld_preload = std::string{env_var};
+        unsetenv("LD_PRELOAD");
+    }
     // Setup the password file entry. Other utilites need to use this
-    size_t buf_len = 4096;
-    long rl = sysconf(_SC_GETPW_R_SIZE_MAX);
-    if (rl != -1) buf_len = static_cast<size_t>(rl);
-    // resize the vector
-    m_pwd_buf.resize(buf_len);
-    // Get the password file
-    struct passwd *result = nullptr;
-    if (getpwuid_r( geteuid(),
-                    &m_pwd,
-                    m_pwd_buf.data(),
-                    m_pwd_buf.size(),
-                    &result)) {
-        throw std::runtime_error("getpwuid_r failed: " + std::string{strerror(errno)});
-    }
-    // Ensure we obtained a result
-    if (result == nullptr) {
-        throw std::runtime_error("password file entry not found for euid " + std::to_string(geteuid()));
-    }
+    std::tie(m_pwd, m_pwd_buf) = cti::getpwuid(geteuid());
+
     // Setup the directories. We break these out into private static methods
     // to avoid pollution in the constructor.
     m_cfg_dir = findCfgDir();
