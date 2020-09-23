@@ -1,13 +1,7 @@
 /******************************************************************************\
  * Frontend.cpp - A mock frontend implementation
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -67,10 +61,20 @@ MockFrontend::MockFrontend()
         throw std::runtime_error("Constructed MockFrontend singleton twice!");
     }
 
+    // describe behavior of mock launch
+    ON_CALL(*this, launch(_, _, _, _, _, _))
+        .WillByDefault(WithoutArgs(Invoke([&]() {
+            auto ret = m_apps.emplace(std::make_shared<MockApp::Nice>(*this, getpid(), LaunchBarrierMode::Disabled));
+            if (!ret.second) {
+                throw std::runtime_error("Failed to create new App object.");
+            }
+            return *ret.first;
+        })));
+
     // describe behavior of mock launchBarrier
     ON_CALL(*this, launchBarrier(_, _, _, _, _, _))
         .WillByDefault(WithoutArgs(Invoke([&]() {
-            auto ret = m_apps.emplace(std::make_shared<MockApp::Nice>(*this, getpid()));
+            auto ret = m_apps.emplace(std::make_shared<MockApp::Nice>(*this, getpid(), LaunchBarrierMode::Enabled));
             if (!ret.second) {
                 throw std::runtime_error("Failed to create new App object.");
             }
@@ -80,7 +84,7 @@ MockFrontend::MockFrontend()
     // describe behavior of mock_registerJob
     ON_CALL(*this, mock_registerJob())
         .WillByDefault(WithoutArgs(Invoke([&]() {
-            auto ret = m_apps.emplace(std::make_shared<MockApp::Nice>(*this, getpid()));
+            auto ret = m_apps.emplace(std::make_shared<MockApp::Nice>(*this, getpid(), LaunchBarrierMode::Disabled));
             if (!ret.second) {
                 throw std::runtime_error("Failed to create new App object.");
             }
@@ -92,11 +96,11 @@ MockFrontend::MockFrontend()
 
 static size_t appCount = 0;
 
-MockApp::MockApp(MockFrontend& fe, pid_t launcherPid)
+MockApp::MockApp(MockFrontend& fe, pid_t launcherPid, MockFrontend::LaunchBarrierMode const launchBarrierMode)
     : App{fe}
     , m_launcherPid{launcherPid}
     , m_jobId{std::to_string(m_launcherPid) + std::to_string(appCount++)}
-    , m_atBarrier{true}
+    , m_atBarrier{launchBarrierMode == MockFrontend::LaunchBarrierMode::Enabled}
 {
     // describe behavior of mock releaseBarrier
     ON_CALL(*this, releaseBarrier())

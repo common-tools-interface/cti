@@ -1,13 +1,7 @@
 /*********************************************************************************\
  * cti_fe_iface.hpp - External C interface for the cti frontend.
  *
- * Copyright 2014-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -142,7 +136,8 @@ public:
         try {
             return std::forward<FuncType>(func)();
         } catch (std::exception const& ex) {
-            set_error_str(caller + ": " + ex.what());
+            auto const message = std::string{ex.what() ? ex.what() : "(null error string)"};
+            set_error_str(caller + ": " + message);
             return onError;
         }
     }

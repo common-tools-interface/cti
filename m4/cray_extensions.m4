@@ -1,13 +1,7 @@
 #
 # cray_extensions.m4 Cray configure extensions.
 #
-# Copyright 2012-2019 Cray Inc. All Rights Reserved.
-#
-# This software is available to you under a choice of one of two
-# licenses.  You may choose to be licensed under the terms of the GNU
-# General Public License (GPL) Version 2, available from the file
-# COPYING in the main directory of this source tree, or the
-# BSD license below:
+# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 #     Redistribution and use in source and binary forms, with or
 #     without modification, are permitted provided that the following
@@ -46,18 +40,33 @@ AC_DEFUN([cray_INIT],
 
 	m4_define([COMMONTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
 	m4_define([COMMONTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
+    m4_define([COMMONTOOL_BE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_revision])])
+	m4_define([COMMONTOOL_BE_MAJOR], [m4_eval( COMMONTOOL_BE_CURRENT - COMMONTOOL_BE_AGE)])
 
 	m4_define([COMMONTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
 	m4_define([COMMONTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
+    m4_define([COMMONTOOL_FE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_revision])])
+	m4_define([COMMONTOOL_FE_MAJOR], [m4_eval( COMMONTOOL_FE_CURRENT - COMMONTOOL_FE_AGE)])
 
-	AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION])
-	AC_SUBST([COMMONTOOL_BE_VERSION], [COMMONTOOL_BE_CURRENT:COMMONTOOL_REVISION:COMMONTOOL_BE_AGE])
-	AC_SUBST([COMMONTOOL_FE_VERSION], [COMMONTOOL_FE_CURRENT:COMMONTOOL_REVISION:COMMONTOOL_FE_AGE])
+	AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION])
+	AC_SUBST([COMMONTOOL_BE_VERSION], [COMMONTOOL_BE_CURRENT:COMMONTOOL_BE_REVISION:COMMONTOOL_BE_AGE])
+	AC_SUBST([COMMONTOOL_FE_VERSION], [COMMONTOOL_FE_CURRENT:COMMONTOOL_FE_REVISION:COMMONTOOL_FE_AGE])
 
     AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"])
 
-	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["COMMONTOOL_BE_CURRENT.COMMONTOOL_REVISION.COMMONTOOL_BE_AGE"], [Version number of CTI backend.])
-	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["COMMONTOOL_FE_CURRENT.COMMONTOOL_REVISION.COMMONTOOL_FE_AGE"], [Version number of CTI frontend.])
+	AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"], [Version number of CTI package.])
+	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["COMMONTOOL_BE_MAJOR.COMMONTOOL_BE_AGE.COMMONTOOL_REVISION"], [Version number of CTI backend.])
+	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["COMMONTOOL_FE_MAJOR.COMMONTOOL_FE_AGE.COMMONTOOL_REVISION"], [Version number of CTI frontend.])
+
+	AC_DEFINE([CTI_PACKAGE_MAJOR], [COMMONTOOL_MAJOR], [Package major version])
+	AC_DEFINE([CTI_PACKAGE_MINOR], [COMMONTOOL_MINOR], [Package minor version])
+	AC_DEFINE([CTI_PACKAGE_REVISION], [COMMONTOOL_REVISION], [Package revision])
+	AC_DEFINE([CTI_BE_CURRENT], [COMMONTOOL_BE_CURRENT], [Backend current version])
+	AC_DEFINE([CTI_BE_AGE], [COMMONTOOL_BE_AGE], [Backend age])
+	AC_DEFINE([CTI_BE_REVISION], [COMMONTOOL_REVISION], [Backend revision])
+	AC_DEFINE([CTI_FE_CURRENT], [COMMONTOOL_FE_CURRENT], [Frontend current version])
+	AC_DEFINE([CTI_FE_AGE], [COMMONTOOL_FE_AGE], [Frontend age])
+	AC_DEFINE([CTI_FE_REVISION], [COMMONTOOL_REVISION], [Frontend revision])
 
 	AC_SUBST([COMMONTOOL_EXTERNAL], [${COMMONTOOL_DIR}/external])
 	AC_SUBST([COMMONTOOL_EXTERNAL_INSTALL], [${COMMONTOOL_DIR}/external/install])

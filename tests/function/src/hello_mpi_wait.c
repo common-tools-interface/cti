@@ -1,13 +1,7 @@
-/*********************************************************************************\
- * cti_fe_common.h - Header file for the common FE API tests.
+/*
+ * Very simple hello-world using C and MPI
  *
- * Copyright 2015-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -31,13 +25,41 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  *
- ******************************************************************************/
+*/
 
-#ifndef _CTI_FE_COMMON_H
-#define _CTI_FE_COMMON_H
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include "mpi.h"
 
-#include "common_tools_fe.h"
+int main(int argc, char* argv[]) {
+    int myRank, numProcs;
+    int source, dest=0, tag=0;
+    char message[100];
+    MPI_Status status;
 
-void    cti_test_fe(cti_app_id_t);
+    MPI_Init(&argc,&argv);
 
-#endif /* _CTI_FE_COMMON_H */
+    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+    MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+
+    if (myRank != 0) {
+        sprintf(message,"Hello World! from process %d", myRank);
+        MPI_Send(message, strlen(message)+1, MPI_CHAR, dest, tag, MPI_COMM_WORLD);
+    } else {
+        printf("Hello World! from process %d\n", myRank);
+        for(source=1; source<numProcs; source++) {
+            MPI_Recv(message, 100, MPI_CHAR, source, tag, MPI_COMM_WORLD, &status);
+            printf("%s\n", message);
+        }
+    }
+
+    sleep(15);
+
+    MPI_Finalize();
+
+    return 0;
+}

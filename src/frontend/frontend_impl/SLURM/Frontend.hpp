@@ -1,13 +1,7 @@
 /******************************************************************************\
  * Frontend.hpp - A header file for the SLURM specific frontend interface.
  *
- * Copyright 2014-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -56,14 +50,16 @@ struct SrunInfo : public cti_srunProc_t {
     }
 };
 
-class SLURMFrontend final : public Frontend
+class SLURMFrontend : public Frontend
 {
 public: // inherited interface
-    static char const* getName()        { return SLURM_WLM_TYPE_IMPL; }
-    static char const* getDescription() { return SLURM_WLM_TYPE_STRING; }
+    static char const* getName()        { return CTI_WLM_TYPE_SLURM_STR; }
     static bool isSupported();
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SLURM; }
+
+    std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
@@ -132,9 +128,10 @@ public: // constructor / destructor interface
 class SLURMApp final : public App
 {
 private: // variables
-    FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
+    FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     uint32_t m_jobId;
     uint32_t m_stepId;
+    std::map<std::string, std::vector<int>> m_binaryRankMap; // Binary to rank ID map
     SLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
     int      m_queuedOutFd; // Where to redirect stdout after barrier release
     int      m_queuedErrFd; // Where to redirect stderr after barrier release
@@ -156,10 +153,12 @@ public: // app interaction interface
 
     std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 
+    bool   isRunning()       const override;
     size_t getNumPEs()       const override { return m_stepLayout.numPEs;       }
     size_t getNumHosts()     const override { return m_stepLayout.nodes.size(); }
     std::vector<std::string> getHostnameList()   const override;
     std::vector<CTIHost>     getHostsPlacement() const override;
+    std::map<std::string, std::vector<int>> getBinaryRankMap() const override;
 
     void releaseBarrier() override;
     void kill(int signal) override;
@@ -170,17 +169,17 @@ public: // slurm specific interface
     uint64_t getApid() const { return SLURM_APID(m_jobId, m_stepId); }
     SrunInfo getSrunInfo() const { return SrunInfo { m_jobId, m_stepId }; }
 
-private: // delegated constructor
-    SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);
 public: // constructor / destructor interface
-    // attach case
-    SLURMApp(SLURMFrontend& fe, uint32_t jobid, uint32_t stepid);
-    // launch case
-    SLURMApp(SLURMFrontend& fe, const char * const launcher_argv[], int stdout_fd,
-        int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+    SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);
     ~SLURMApp();
     SLURMApp(const SLURMApp&) = delete;
     SLURMApp& operator=(const SLURMApp&) = delete;
     SLURMApp(SLURMApp&&) = delete;
     SLURMApp& operator=(SLURMApp&&) = delete;
+};
+
+class ApolloSLURMFrontend : public SLURMFrontend {
+public: // interface
+    static bool isSupported();
+    std::string getHostname() const override;
 };

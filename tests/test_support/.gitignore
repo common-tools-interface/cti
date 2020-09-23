@@ -4,3 +4,5 @@ message_two/message.o
 message_two/libmessage.so
 one_socket
 two_socket
+one_print
+

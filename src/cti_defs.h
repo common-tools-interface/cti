@@ -5,13 +5,7 @@
  *       placed inside this file to make modifications due to WLM changes
  *       easier.
  *
- * Copyright 2013-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2013-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -68,6 +62,7 @@ extern "C" {
 /*******************************************************************************
 ** Frontend defines relating to the login node
 *******************************************************************************/
+#define WLM_DETECT_LIB_NAME "libwlm_detect.so" // wlm_detect library
 #define LD_AUDIT_LIB_NAME       "libaudit.so"                       // ld audit library
 
 /*******************************************************************************
@@ -86,6 +81,7 @@ extern "C" {
 #define CRAY_XT_HOSTNAME_FMT     "nid%05d"                          // NID based hostname format string
 #define CRAY_SHASTA_NID_FILE     "/etc/cray/nid"                    // file where nid info is located on Shasta systems
 #define CRAY_SHASTA_HOSTNAME_FMT "nid%06d"                          // NID based hostname format string
+#define CRAY_SHASTA_UAN_XNAME_FILE "/etc/cray/xname"                // file where NMN hostname is located on Shasta UANs
 
 /*******************************************************************************
 ** SLURM specific information
@@ -126,8 +122,6 @@ typedef struct
 #define SLURM_STAGE_DIR         "slurmXXXXXX"                       // directory name for staging slurm specific files to transfer
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
 #define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
-#define SLURM_WLM_TYPE_STRING   "SLURM based workload manager"      // name returned by wlm_type_toString
-#define SLURM_WLM_TYPE_IMPL     "slurm"                             // name recognized by CTI_WLM_IMPL_ENV_VAR
 
 /*******************************************************************************
 ** SSH specific information
@@ -143,8 +137,35 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_LAYOUT_FILE     SLURM_LAYOUT_FILE
 #define SSH_PID_FILE        SLURM_PID_FILE
 #define SSH_TOOL_DIR        SLURM_TOOL_DIR
-#define SSH_WLM_TYPE_STRING "MPIR/SSH based workload manager"
-#define SSH_WLM_TYPE_IMPL   "generic"
+
+/*******************************************************************************
+** ALPS specific information
+*******************************************************************************/
+
+#define APRUN						"aprun"												// name of the ALPS job launcher binary
+#define OLD_APRUN_LOCATION		"/usr/bin/aprun"									// default legacy location of the aprun binary
+#define OBS_APRUN_LOCATION		"/opt/cray/alps/default/bin/aprun"				// default new location of the aprun binary
+#define APKILL						"apkill"											// name of the ALPS job kill binary
+#define ALPS_XT_NID				"/proc/cray_xt/nid"								// file where nid info is located
+#define ALPS_XT_HOSTNAME_FMT		"nid%05d"											// hostname format string
+#define ALPS_OBS_LOC				"/opt/cray/alps"									// used to test if the system is using the OBS format
+#define ALPS_FE_LIB_NAME			"libalps.so"										// name of the alps library used on the frontend
+#define ALPS_BE_LIB_NAME			"libalpsutil.so"									// name of the alps library used on the backend
+#define OLD_TOOLHELPER_DIR		"/var/spool/alps/%llu/toolhelper%llu"			// old alps toolhelper path format on compute node
+#define OBS_TOOLHELPER_DIR		"/var/opt/cray/alps/spool/%llu/toolhelper%llu"// new alps toolhelper path format on compute node
+#define OLD_ATTRIBS_DIR			"/var/spool/alps/%llu"							// old pmi_attribs path format on compute node
+#define OBS_ATTRIBS_DIR			"/var/opt/cray/alps/spool/%llu"					// new pmi_attribs path format on compute node
+#define SHELL_ENV_VAR							"SHELL"									// The environment variable to set shell info
+#define SHELL_PATH							"/bin/sh"								// The location of the shell to set SHELL to
+#define USER_DEF_APRUN_LOC_ENV_VAR "CTI_APRUN_PATH"
+
+/*
+** PALS specific information
+*/
+
+#define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
+#define PALS_DEBUG "CTI_PALS_DEBUG" // Manually enables PALS frontend and uses localhost as API server without authentication
+
 
 /*******************************************************************************
 ** Environment variables that are set/maintained by this library

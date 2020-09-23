@@ -3,13 +3,7 @@
  *                     the common tools interface. Backend refers to the
  *                     location where applications are run.
  *
- * Copyright 2011-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -74,8 +68,9 @@ typedef struct
  *      None.
  *
  * Returns
- *      A string containing the current backend library version.
- *
+ *      A string containing the current backend library version in the form
+ *      major.minor.revision.   For a libtool current:revison:age format
+ *      major = current - age and minor = age.
  */
 const char * cti_be_version(void);
 

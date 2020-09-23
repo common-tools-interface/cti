@@ -1,7 +1,7 @@
 #
 # Makefile.am for the frontend components of the common tools interface.
 #
-# Copyright 2014-2019 Cray Inc. All Rights Reserved.
+# Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             = @COMMONTOOL_DIR@/src

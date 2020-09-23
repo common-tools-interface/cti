@@ -1,7 +1,7 @@
 #
 # Makefile.am for the frontend components of the common tools interface
 #
-# Copyright 2014-2019 Cray Inc. All Rights Reserved.
+# Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
 #
 
 SUBDIRS				= checksum transfer frontend_impl mpir_iface daemon
@@ -28,7 +28,7 @@ libcommontools_fe_la_LIBADD		= $(SRC)/useful/libuseful.la \
 								$(CODE_COVERAGE_LIBS)
 libcommontools_fe_la_LDFLAGS	= -shared -Wl,--no-undefined -Wl,--as-needed \
 								-version-info $(COMMONTOOL_FE_VERSION) \
-								$(CDST_SUP_LIBS) $(AM_LDFLAGS)
+								$(CDST_SUP_LIBS) $(AM_LDFLAGS) -lssl -lcrypto
 noinst_HEADERS					= cti_fe_iface.hpp Frontend.hpp
 
 if CODE_COVERAGE_ENABLED

@@ -5,13 +5,7 @@
  *           and allows users to specify environment variable settings
  *           that a tool daemon should inherit.
  *
- * Copyright 2011-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -89,6 +83,8 @@ struct cti_pids
 };
 
 /* wlm specific proto objects defined elsewhere */
+extern cti_wlm_proto_t	_cti_alps_wlmProto;
+extern cti_wlm_proto_t	_cti_pals_wlmProto;
 extern cti_wlm_proto_t  _cti_slurm_wlmProto;
 extern cti_wlm_proto_t  _cti_generic_ssh_wlmProto;
 
@@ -471,6 +467,14 @@ main(int argc, char **argv)
     // log if asked to. We will error check below.
     switch (wlm_arg)
     {
+        case CTI_WLM_ALPS:
+            _cti_wlmProto = &_cti_alps_wlmProto;
+            break;
+
+        case CTI_WLM_PALS:
+            _cti_wlmProto = &_cti_pals_wlmProto;
+            break;
+
         case CTI_WLM_SLURM:
             _cti_wlmProto = &_cti_slurm_wlmProto;
             break;
@@ -565,13 +569,15 @@ main(int argc, char **argv)
     {
         for (i=0; i < argc; ++i)
         {
-            fprintf(stderr, "%s: argv[%d] = \"%s\"\n", CTI_BE_DAEMON_BINARY, i, argv[i]);
+            _cti_write_log(log, "%s: argv[%d] = \"%s\"\n", CTI_BE_DAEMON_BINARY, i, argv[i]);
         }
     }
 
     // Now ensure the user provided a valid wlm argument.
     switch (wlm_arg)
     {
+        case CTI_WLM_ALPS:
+        case CTI_WLM_PALS:
         case CTI_WLM_SLURM:
         case CTI_WLM_SSH:
             // These wlm are valid
@@ -656,7 +662,7 @@ main(int argc, char **argv)
     // cd to the tool_path and relax the permissions
     if (debug_flag)
     {
-        fprintf(stderr, "%s: inst %d: Toolhelper path: %s\n", CTI_BE_DAEMON_BINARY, inst, tool_path);
+        _cti_write_log(log, "%s: inst %d: Toolhelper path: %s\n", CTI_BE_DAEMON_BINARY, inst, tool_path);
     }
 
     if (stat(tool_path, &statbuf) == -1)
@@ -747,7 +753,7 @@ main(int argc, char **argv)
     {
         if (debug_flag)
         {
-            fprintf(stderr, "%s: inst %d: Manifest provided: %s\n", CTI_BE_DAEMON_BINARY, inst, manifest);
+            _cti_write_log(log, "%s: inst %d: Manifest provided: %s\n", CTI_BE_DAEMON_BINARY, inst, manifest);
         }
 
         // create the manifest path string
@@ -837,7 +843,7 @@ main(int argc, char **argv)
     {
         if (debug_flag)
         {
-            fprintf(stderr, "%s: inst %d: Directory provided: %s\n", CTI_BE_DAEMON_BINARY, inst, directory);
+            _cti_write_log(log, "%s: inst %d: Directory provided: %s\n", CTI_BE_DAEMON_BINARY, inst, directory);
         }
 
         // create the manifest path string
@@ -1170,7 +1176,7 @@ main(int argc, char **argv)
 
     if (debug_flag)
     {
-        fprintf(stderr, "%s: inst %d: Binary path: %s\n", CTI_BE_DAEMON_BINARY, inst, binary_path);
+        _cti_write_log(log, "%s: inst %d: Binary path: %s\n", CTI_BE_DAEMON_BINARY, inst, binary_path);
     }
 
     // At this point we need to wait on any other previous tool daemons that may
@@ -1201,7 +1207,7 @@ main(int argc, char **argv)
             {
                 if (sCnt++%100 == 0)
                 {
-                    fprintf(stderr, "%s: inst %d: Lock file %s not found. Sleeping...\n", CTI_BE_DAEMON_BINARY, inst, lock_path);
+                    _cti_write_log(log, "%s: inst %d: Lock file %s not found. Sleeping...\n", CTI_BE_DAEMON_BINARY, inst, lock_path);
                 }
             }
 
@@ -1212,7 +1218,7 @@ main(int argc, char **argv)
 
     if (debug_flag)
     {
-        fprintf(stderr, "%s: inst %d: All dependency locks acquired. Ready to exec.\n", CTI_BE_DAEMON_BINARY, inst);
+        _cti_write_log(log, "%s: inst %d: All dependency locks acquired. Ready to exec.\n", CTI_BE_DAEMON_BINARY, inst);
     }
 
     // At this point it is safe to assume we have all our dependencies.

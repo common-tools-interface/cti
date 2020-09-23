@@ -1,13 +1,7 @@
 /******************************************************************************\
  * cti_argv_defs.h - A header file to define the strong argv interface
  *
- * Copyright 2018-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2018-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -119,3 +113,32 @@ struct CTIFEDaemonArgv : public cti::Argv {
     };
 };
 
+struct PALSLauncherArgv : public cti::Argv {
+    using Option    = cti::Argv::Option;
+    using Parameter = cti::Argv::Parameter;
+
+    static constexpr Parameter NRanks   { "nranks",    'n' };
+    static constexpr Parameter PPN      { "ppn",       'N' };
+    static constexpr Parameter Depth    { "depth",     'd' };
+    static constexpr Parameter NodeList { "nodelist",  'L' };
+    static constexpr Parameter UMask    { "umask",     'u' };
+    static constexpr Parameter EnvAlias { "envalias",  'e' };
+    static constexpr Parameter Fanout   { "fanout",    'f' };
+    static constexpr Parameter CpuBind  { "cpubind",   'c' };
+    static constexpr Parameter MemBind  { "membind",   'm' };
+    static constexpr Parameter Pmi      { "pmi",       'p' };
+
+    static constexpr Parameter Exclusive      { "exclusive",        'F' };
+    static constexpr Parameter LineBuffered   { "line-buffered",    'l' };
+    static constexpr Parameter AbortOnFailure { "abort-on-failure", 'a' };
+
+    static constexpr Parameter Rlimits  { "rlimits",   'r' };
+
+    static constexpr Parameter RawRequest { "raw-request", 'R' };
+
+    static constexpr GNUOption long_options[] = {
+        NRanks, PPN, Depth, NodeList, UMask, EnvAlias, Fanout, CpuBind, MemBind,
+        Pmi, Exclusive, LineBuffered, AbortOnFailure, Rlimits, RawRequest,
+        long_options_done
+    };
+};

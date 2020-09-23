@@ -1,13 +1,7 @@
 /******************************************************************************\
  * Inferior.hpp
  *
- * Copyright 2018-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2018-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -47,38 +41,10 @@
 // dyninst processcontrol
 #include <PCProcess.h>
 #include <Event.h>
+#include <PlatFeatures.h>
 
 // #define DEBUG(str, x) do { str << x; } while (0)
 #define DEBUG(str, x)
-
-/* RAII for signal blocking */
-class SignalGuard {
-    const int IGNORED_SIGNALS[13] {
-        64, 63, 39, 33, 32, SIGUSR1, SIGUSR2, SIGCONT, SIGTSTP,
-        SIGCHLD, SIGPROF, SIGALRM, SIGVTALRM
-    };
-
-public:
-    SignalGuard() {
-        struct sigaction ignore_action { SIG_IGN };
-
-        for (auto sig : IGNORED_SIGNALS) {
-            if (sigaction(sig, &ignore_action, NULL) == -1) {
-                DEBUG(std::cerr, "failed to block signal " << sig << std::endl);
-            }
-        }
-    }
-
-    ~SignalGuard() {
-        struct sigaction default_action { SIG_DFL };
-
-        for (auto sig : IGNORED_SIGNALS) {
-            if (sigaction(sig, &default_action, NULL) == -1) {
-                DEBUG(std::cerr, "failed to unblock signal " << sig << std::endl);
-            }
-        }
-    }
-};
 
 /* inferior: manages dyninst process info, symbols, breakpoints */
 
@@ -92,14 +58,13 @@ private: // types
     using Process    = Dyninst::ProcControlAPI::Process;
     using Breakpoint = Dyninst::ProcControlAPI::Breakpoint;
     using Symtab     = Dyninst::SymtabAPI::Symtab;
+    using FollowFork = Dyninst::ProcControlAPI::FollowFork;
 
     using SymbolMap = std::map<std::string, Symbol*>;
 
 private: // variables
-    /* block signals during MPIR control of process */
-    SignalGuard m_signalGuard;
-
     /* dyninst symbol / proc members */
+    FollowFork::follow_t m_followForkMode;
     std::unique_ptr<Symtab, decltype(&Symtab::closeSymtab)> m_symtab;
     SymbolMap m_symbols;
     Process::ptr m_proc;

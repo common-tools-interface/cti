@@ -1,13 +1,7 @@
 /*********************************************************************************\
  * Frontend.hpp - define workload manager frontend interface and common base class
  *
- * Copyright 2014-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -43,6 +37,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_set>
+#include <map>
 #include <vector>
 
 #include <pwd.h>
@@ -63,6 +58,7 @@ using CArgArray = const char* const[];
 
 // pseudorandom character generator for unique filenames / directories
 class FE_prng {
+    struct random_data m_r_data;
     char m_r_state[256];
 
 public:
@@ -100,9 +96,6 @@ public: // impl.-specific interface that derived type must implement
     // static char const* getName()
     //   return the short name for the WLM that can be set by CTI_WLM_IMPL_ENV_VAR
 
-    // static char const* getDescription()
-    //   return the long description for the WLM used on call to cti_wlm_type_toString
-
     // static bool isSupported()
     //   determines in an implementation-specific manner if the Frontend is supported
     //   on the current system.
@@ -113,6 +106,11 @@ public: // impl.-specific interface that derived type must implement
     // wlm type
     virtual cti_wlm_type_t
     getWLMType() const = 0;
+
+    // launch application
+    virtual std::weak_ptr<App>
+    launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) = 0;
 
     // launch application with barrier
     virtual std::weak_ptr<App>
@@ -133,6 +131,7 @@ protected: // Protected and Private static data members that are accessed only v
     static std::atomic<Frontend*>               m_instance;
 private:
     static std::mutex                           m_mutex;
+    static std::unique_ptr<cti::Logger>         m_logger;
     static std::unique_ptr<Frontend_cleanup>    m_cleanup;
 
 private: // Private data members usable only by the base Frontend
@@ -147,6 +146,8 @@ private: // Private data members usable only by the base Frontend
     std::string         m_be_daemon_path;
     // Cleanup files
     std::vector<std::string>    m_cleanup_files;
+    // Saved env vars
+    std::string         m_ld_preload;
 
 protected: // Protected data members that belong to any frontend
     struct passwd       m_pwd;
@@ -164,6 +165,7 @@ public: // Values set by cti_setAttribute
 private: // Private static utility methods used by the generic frontend
     // get the logger associated with the frontend - can only construct logger
     // after fe instantiation!
+    struct LoggerInit { LoggerInit(); cti::Logger& get(); };
     static cti::Logger& getLogger();
     // get the frontend type for this system
     static cti_wlm_type_t detect_Frontend();
@@ -207,6 +209,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     // Get a list of default env vars to forward to BE daemon
     std::vector<std::string> getDefaultEnvVars();
     // Accessors
+    std::string getGlobalLdPreload() { return m_ld_preload; }
     std::string getCfgDir() { return m_cfg_dir; }
     std::string getBaseDir() { return m_base_dir; }
     std::string getLdAuditPath() { return m_ld_audit_path; }
@@ -265,6 +268,9 @@ public: // impl.-specific interface that derived type must implement
 
     /* running app information accessors */
 
+    // return if launched app is still running
+    virtual bool isRunning() const = 0;
+
     // retrieve number of PEs in app
     virtual size_t getNumPEs() const = 0;
 
@@ -276,6 +282,9 @@ public: // impl.-specific interface that derived type must implement
 
     // get PE rank/host placement for app
     virtual std::vector<CTIHost> getHostsPlacement() const = 0;
+
+    // get binary / rank map for app
+    virtual std::map<std::string, std::vector<int>> getBinaryRankMap() const = 0;
 
     /* running app interaction interface */
 
@@ -297,6 +306,8 @@ protected: // Protected data members that belong to any App
 private:
     // Apps have direct ownership of all Session objects underneath it
     std::unordered_set<std::shared_ptr<Session>> m_sessions;
+    // Each app will have its own uniquely named BE daemon to prevent collisions
+    std::string m_uniqueBEDaemonName;
 
 public:
     // App specific logger
@@ -318,10 +329,20 @@ public: // Public interface to generic WLM-agnostic capabilities
     // tell all Sessions to initialize cleanup
     void finalize();
 
+    // Return the unique BE daemon name
+    std::string getBEDaemonName() const { return m_uniqueBEDaemonName; }
+
 public: // Constructor/destructors
     App(Frontend& fe)
-    : m_frontend{fe}, m_sessions{}
-    { }
+        : m_frontend{fe}
+        , m_sessions{}
+        , m_uniqueBEDaemonName{CTI_BE_DAEMON_BINARY}
+    {
+        // Generate the unique BE daemon name
+        for (size_t i = 0; i < 6; i++) {
+            m_uniqueBEDaemonName.push_back(m_frontend.Prng().genChar());
+        }
+    }
     virtual ~App() = default;
     App(const App&) = delete;
     App& operator=(const App&) = delete;

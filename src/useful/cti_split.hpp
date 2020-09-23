@@ -1,13 +1,7 @@
 /******************************************************************************\
  * cti_split.hpp - Header file for splitting strings.
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -47,7 +41,7 @@ namespace cti {
 */
 namespace split {
 
-    std::string removeLeadingWhitespace(const std::string& str, const std::string& whitespace = " \t") {
+    static inline std::string removeLeadingWhitespace(const std::string& str, const std::string& whitespace = " \t") {
         const auto startPos = str.find_first_not_of(whitespace);
         if (startPos == std::string::npos) return "";
         const auto endPos = str.find_last_not_of(whitespace);
@@ -96,7 +90,7 @@ namespace split {
     using NStringTuple = typename repeat<std::string, N, std::tuple>::type;
 
     template <std::size_t N>
-    NStringTuple<N> string(std::string const& line, char delim = ' ') {
+    static inline NStringTuple<N> string(std::string const& line, char delim = ' ') {
         NStringTuple<N> tup;
 
         std::stringstream linestream(line);

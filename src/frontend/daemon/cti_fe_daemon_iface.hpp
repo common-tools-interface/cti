@@ -1,13 +1,7 @@
 /******************************************************************************\
  * cti_fe_daemon_iface.hpp - command interface for frontend daemon
  *
- * Copyright 2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -112,26 +106,28 @@ public: // type definitions
     {
         DaemonAppId mpir_id;
         pid_t launcher_pid;
-        uint32_t job_id;
-        uint32_t step_id;
         MPIRProctable proctable;
+        BinaryRankMap binaryRankMap;
     };
 
     /* request types */
 
     // sent before a request to indicate the type of request data that will follow
-    enum ReqType : long {
+    enum class ReqType : long {
         ForkExecvpApp,
         ForkExecvpUtil,
 
         LaunchMPIR,
+        LaunchMPIRShim,
         AttachMPIR,
+        ReadStringMPIR,
         ReleaseMPIR,
         TerminateMPIR,
 
         RegisterApp,
         RegisterUtil,
         DeregisterApp,
+        CheckApp,
 
         Shutdown
     };
@@ -180,9 +176,21 @@ public: // type definitions
         send PID of target utility
     */
 
+    // ReadStringMPIR
+    /*
+        send ID of target application
+        send string name of variable to read from memory
+    */
+
     // ReleaseMPIR
     /*
         send ID provided by LaunchMPIR request
+    */
+
+    // LaunchMPIRShim
+    /*
+        send path to shim binary, temporary shim link directory, launcher path to shim
+        send launch parameters as in LaunchMPIR
     */
 
     // Shutdown
@@ -191,13 +199,16 @@ public: // type definitions
     // Response types
 
     enum RespType : long {
-        // Shutdown, RegisterApp, RegisterUtil, ReleaseMPIR
+        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR
         OK,
 
         // ForkExecvpApp, ForkExecvpUtil
         ID,
 
-        // LaunchMPIR
+        // ReadStringMPIR
+        String,
+
+        // LaunchMPIR, LaunchMPIRShim
         MPIR,
     };
 
@@ -213,26 +224,33 @@ public: // type definitions
         DaemonAppId id;
     };
 
+    struct StringResp
+    {
+        RespType type;
+        bool success;
+        // after sending this struct, send a null-terminated string value if successful
+    };
+
     struct MPIRResp
     {
         RespType type;
         DaemonAppId mpir_id;
         pid_t launcher_pid;
-        uint32_t job_id;
-        uint32_t step_id;
         int num_pids;
         // after sending this struct, send `num_pids` elements of:
-        // - pid followed by null-terminated hostname
+        // - pid, null-terminated hostname, null-terminated executable name
     };
 
 private: // Internal data
     bool                m_init;
+    pid_t               m_mainPid; // Main CTI PID that is responsible for daemon cleanup
     cti::SocketPair     m_req_sock;
     cti::SocketPair     m_resp_sock;
 
 public:
     FE_daemon()
     : m_init{false}
+    , m_mainPid{-1} // Set during daemon fork/exec
     , m_req_sock{AF_UNIX, SOCK_STREAM, 0}
     , m_resp_sock{AF_UNIX, SOCK_STREAM, 0}
     { }
@@ -313,9 +331,22 @@ public:
     // Write an mpir release request to pipe, verify response
     void request_ReleaseMPIR(DaemonAppId mpir_id);
 
+    // fe_daemon will read the value of a variable from memory under MPIR control.
+    // Write an mpir string read request to pipe, return value
+    std::string request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable);
+
     // fe_daemon will terminate a binary under mpir control.
     // Write an mpir release request to pipe, verify response
     void request_TerminateMPIR(DaemonAppId mpir_id);
+
+    // fe_daemon will launch the provided wrapper script, masquerading the MPIR shim utility
+    // as the provided launcher name in path. the launch is completed under MPIR control
+    // and proctable is extraced. Provide path to mpir_shim binary and the temporary link location.
+    // Write an mpir launch request and parameters to pipe, return MPIR data including proctable
+    MPIRResult request_LaunchMPIRShim(
+        char const* shimBinaryPath, char const* temporaryShimBinDir, char const* shimmedLauncherPath,
+        char const* scriptPath, char const* const argv[],
+        int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
     // fe_daemon will register an already-forked process as an app. make sure this is paired with a
     // _cti_deregisterApp for timely cleanup.
@@ -329,4 +360,7 @@ public:
     // fe_daemon will terminate all utilities belonging to app_pid and deregister app_pid.
     // Write an app deregister request to pipe, verify response
     void request_DeregisterApp(DaemonAppId app_id);
+
+    // Write an app run check request to pipe, return response
+    bool request_CheckApp(DaemonAppId app_id);
 };

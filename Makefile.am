@@ -1,21 +1,26 @@
 #
 # Top level Makefile.am for the common tools interface.
 #
-# Copyright 2011-2019 Cray Inc. All Rights Reserved.
+# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src tests
+SUBDIRS = src tests/test_support tests/mock tests/unit
 
 EXTRA_DIST = pkgconfig \
-             release_versioning
+			 release_versioning
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = pkgconfig/common_tools_be.pc \
-                 pkgconfig/common_tools_fe.pc
+				 pkgconfig/common_tools_fe.pc
 
 
 include_HEADERS = include/common_tools_be.h include/common_tools_fe.h \
-				  include/common_tools_shared.h
+		 include/common_tools_shared.h include/common_tools_version.h
+
+install-data-hook:
+	export PKG_CONFIG_PATH=$(libdir)/pkgconfig:$(PKG_CONFIG_PATH); \
+	cd ./tests && autoreconf -ifv && ./configure
+	make -C ./tests/function/bin

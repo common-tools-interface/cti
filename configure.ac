@@ -1,7 +1,7 @@
 #
 # configure.ac script for the common tools interface.
 #
-# Copyright 2011-2019 Cray Inc. All Rights Reserved
+# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
 AC_PREREQ([2.63])
@@ -9,12 +9,21 @@ AC_PREREQ([2.63])
 dnl We need to use the m4_esyscmd here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT. This is not portable...
 AC_INIT([common_tool_interface], m4_esyscmd([source $PWD/release_versioning; echo $common_tool_major.$common_tool_minor | tr -d '\n']), [andrewg@cray.com])
-AC_COPYRIGHT([Copyright 2011-2019 Cray Inc. All Rights Reserved.])
+AC_COPYRIGHT([Copyright 2011-2020 Hewlett Packard Enterprise Development LP.])
 
 AC_CONFIG_SRCDIR([src/cti_defs.h])
 AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_HEADERS([config.h include/common_tools_version.h])
+
+AC_ARG_ENABLE([CODE_COVERAGE_ENABLED],
+[  --enable-code-coverage    Turn on code coverage],
+[case "${enableval}" in
+  yes) CODE_COVERAGE_ENABLED=true ;;
+  no)  CODE_COVERAGE_ENABLED=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-code-coverage]) ;;
+esac],[debug=false])
+AM_CONDITIONAL([CODE_COVERAGE_ENABLED], [test x$CODE_COVERAGE_ENABLED = xtrue])
 
 dnl Turn on Posix extensions
 AC_USE_SYSTEM_EXTENSIONS
@@ -22,6 +31,7 @@ AC_USE_SYSTEM_EXTENSIONS
 AM_INIT_AUTOMAKE([foreign -Wall])
 
 AC_SUBST([COMMONTOOL_DIR], ["$(cd $srcdir && pwd)"])
+AC_SUBST([TESTS_DIR_NAME], ["tests"])
 
 dnl Pull in Cray specific m4 extensions
 cray_INIT
@@ -49,8 +59,17 @@ AX_CXX_COMPILE_STDCXX_17([noext])
 
 LT_INIT
 
-dnl This marco runs check for --enable-code-coverage
+dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENABLED, CODE_COVERAGE_CFLAGS, etc.
 AX_CODE_COVERAGE
+
+dnl Set external directory for libALPS headers (library will be dlopened at runtime)
+AC_SUBST([LIBALPS_HEADERS], [$COMMONTOOL_DIR/external/libalps_headers])
+SAVE_CPPFLAGS=$CPPFLAGS
+CPPFLAGS="-I$LIBALPS_HEADERS $CPPFLAGS"
+AC_CHECK_HEADERS([$LIBALPS_HEADERS/alps/apInfo.h],
+[],
+[AC_MSG_ERROR([Couldn't find libALPS headers])],
+[#include "alps/apInfo.h"])
 
 PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
 
@@ -201,6 +220,8 @@ AC_SUBST([COMMONTOOL_BE_DAEMON_BINARY], ["cti_be_daemon$COMMONTOOL_RELEASE_VERSI
 AC_DEFINE_UNQUOTED([CTI_BE_DAEMON_BINARY], ["$COMMONTOOL_BE_DAEMON_BINARY"], [Name of CTI backend daemon binary.])
 AC_SUBST([COMMONTOOL_FE_DAEMON_BINARY], ["cti_fe_daemon$COMMONTOOL_RELEASE_VERSION"])
 AC_DEFINE_UNQUOTED([CTI_FE_DAEMON_BINARY], ["$COMMONTOOL_FE_DAEMON_BINARY"], [Name of CTI frontend daemon binary.])
+AC_SUBST([COMMONTOOL_MPIR_SHIM_BINARY], ["mpir_shim$COMMONTOOL_RELEASE_VERSION"])
+AC_DEFINE_UNQUOTED([CTI_MPIR_SHIM_BINARY], ["$COMMONTOOL_MPIR_SHIM_BINARY"], [Name of CTI MPIR shim binary.])
 
 ################
 ### Finalize ###
@@ -217,16 +238,17 @@ AC_CONFIG_FILES([
     src/frontend/daemon/Makefile
     src/frontend/transfer/Makefile
     src/frontend/frontend_impl/Makefile
+    src/frontend/frontend_impl/ALPS/Makefile
     src/frontend/frontend_impl/SLURM/Makefile
+    src/frontend/frontend_impl/PALS/Makefile
     src/frontend/frontend_impl/GenericSSH/Makefile
     src/frontend/mpir_iface/Makefile
     src/useful/Makefile
     src/useful/ld_val/Makefile
-    tests/Makefile
     tests/test_support/Makefile
     tests/mock/Makefile
     tests/unit/Makefile
-    tests/examples/Makefile
+    tests/function/bin/Makefile
 ])
 
 cray_INIT_CHECKSUM([src/frontend/checksum])

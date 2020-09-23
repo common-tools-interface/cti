@@ -1,13 +1,7 @@
 /*********************************************************************************\
  * cti_execvp.hpp - fork / execvp a program and read its output as an istream
  *
- * Copyright 2014-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -178,12 +172,6 @@ public:
 // be extended in the future to accept different types of constructors.
 class Execvp {
 private:
-    class Line : std::string {
-        friend std::istream& operator>>(std::istream& is, Line& line) {
-            return std::getline(is, line);
-        }
-    };
-
     Pipe p;
     FdBuf pipeInBuf;
     std::istream pipein;
@@ -205,7 +193,7 @@ public:
             p.closeWrite();
 
             execvp(binaryName, argv);
-            throw std::runtime_error(std::string("execvp() on ") + binaryName + " failed!");
+            _exit(-1);
         }
 
         /* create istream from output pipe */

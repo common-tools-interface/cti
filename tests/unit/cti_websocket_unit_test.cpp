@@ -1,14 +1,7 @@
 /******************************************************************************\
- * cti_linking_test.c - An example program that tests linking in both FE and BE
- *                      libraries at the same time
+ * cti_websocket_unit_test.cpp - CTI HTTP and WebSocket tests
  *
- * Copyright 2014-2019 Cray Inc. All Rights Reserved.
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * BSD license below:
+ * Copyright 2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -34,33 +27,32 @@
  *
  ******************************************************************************/
 
-#include <stdio.h>
+#include "cti_defs.h"
+#include "cti_argv_defs.hpp"
 
-#include "common_tools_fe.h"
-#include "common_tools_be.h"
+#include "cti_useful_unit_test.hpp"
 
-int
-main(int argc, char **argv)
+#include "useful/cti_websocket.hpp"
+
+using ::testing::Return;
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::WithoutArgs;
+using ::testing::EndsWith;
+
+CTIUsefulUnitTest::CTIUsefulUnitTest()
 {
-    cti_wlm_type_t  mywlm;
-    cti_wlm_type_t  mybewlm;
-
-    /*
-     * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
-     *                   system.
-     */
-    mywlm = cti_current_wlm();
-
-    printf("Current fe workload manager: %s\n", cti_wlm_type_toString(mywlm));
-
-    /*
-     * cti_be_current_wlm - Obtain the current workload manager (WLM) in use on
-     *                      the system.
-     */
-    mybewlm = cti_be_current_wlm();
-
-    printf("Current be workload manager: %s\n", cti_be_wlm_type_toString(mybewlm));
-
-    return 0;
 }
 
+CTIUsefulUnitTest::~CTIUsefulUnitTest()
+{
+}
+
+TEST_F(CTIUsefulUnitTest, WebSocketTask)
+{
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
