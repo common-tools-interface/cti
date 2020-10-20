@@ -60,6 +60,8 @@
 
 #include "ALPS/Frontend.hpp"
 
+#include <boost/algorithm/string/replace.hpp>
+
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
 #include "useful/cti_split.hpp"
@@ -469,7 +471,13 @@ ALPSApp::startDaemon(const char* const args[])
     // Add daemon arguments
     if (args != nullptr) {
         for (const char* const* arg = args; *arg != nullptr; arg++) {
-            commandStream << " " << *arg;
+            // Escape spaces
+            auto str = std::string{*arg};
+            boost::replace_all(str, " ", "\\ ");
+            boost::replace_all(str, "&", "\\&");
+            boost::replace_all(str, ";", "\\;");
+
+            commandStream << " " << str;
         }
     }
     auto const command = commandStream.str();
