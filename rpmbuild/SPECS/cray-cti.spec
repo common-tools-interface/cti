@@ -297,6 +297,7 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
 %{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/src/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
 %{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/include/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
+%{__cp} -a %{tests_source_dir}/build.sh ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/build.sh
 
 # Touch the cray dynamic file list which will be populated/updated post-install
 touch ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
@@ -548,6 +549,7 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/libmessage.so
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.h
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/build.sh
 
 %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
 %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
