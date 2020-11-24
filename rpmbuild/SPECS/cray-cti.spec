@@ -10,10 +10,10 @@
 %global product cti
 %global cray_product %{product}
 %global cray_name %{cray_product_prefix}%{cray_product}
-%global set_as_default_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_product}_%{pkgversion}
-%global set_as_default_devel_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_product}_%{pkgversion}-devel
+%global set_as_default_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_name}_%{pkgversion}
+%global set_as_default_devel_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_name}_%{pkgversion}-devel
 %global set_as_default_false echo Not setting as default.
-
+devel_modulefile_name
 # Path definitions
 %global cray_prefix /opt/cray/pe
 %global test_prefix /opt/cray/tests
@@ -333,7 +333,7 @@ then
     %{__sed} -i "s|^\(export CRAY_inst_dir=\).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
 else
     # Only call set_default if we are not relocating the rpm and there's not already a default set unless someone passes in CRAY_INSTALL_DEFAULT=1
-    if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f ${RPM_INSTALL_PREFIX}/modulefiles/%{cray_product}/.version ]
+    if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f ${RPM_INSTALL_PREFIX}/modulefiles/%{cray_name}/.version ]
     then
         # Set default - TCL
         ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
@@ -377,8 +377,12 @@ then
     # dependency resolver
     %{__sed} -i "s|^\(set install_root \).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 else
-    # set default
-    ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
+    # Only call set_default if we are not relocating the rpm and there's not already a default set unless someone passes in CRAY_INSTALL_DEFAULT=1
+    if [ ${CRAY_INSTALL_DEFAULT:-0} -eq 1 ] || [ ! -f ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}/.version ]
+    then
+        # set default
+        ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
+    fi
 fi
 
 %preun
