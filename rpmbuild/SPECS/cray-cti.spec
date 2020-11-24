@@ -11,6 +11,7 @@
 %global cray_product %{product}
 %global cray_name %{cray_product_prefix}%{cray_product}
 %global set_as_default_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_product}_%{pkgversion}
+%global set_as_default_devel_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_product}_%{pkgversion}-devel
 %global set_as_default_false echo Not setting as default.
 
 # Path definitions
@@ -234,7 +235,7 @@ Test files for Cray Common Tools Interface
 # yaml file - cray-cti-devel
 %{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # yaml file - cray-cti-devel set as default file
-%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<SET_AS_DEFAULT>|%{set_as_default_true}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.set_as_default.rpm.yaml
+%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<SET_AS_DEFAULT>|%{set_as_default_devel_true}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.set_as_default.rpm.yaml
 # yaml file - cray-cti-tests
 %global start_rmLine %(sed -n /section-3/= %{SOURCE9})
 %global end_rmLine %(sed -n /SET_AS_DEFAULT/= %{SOURCE9} | tail -1)
