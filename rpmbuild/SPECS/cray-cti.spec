@@ -10,10 +10,7 @@
 %global product cti
 %global cray_product %{product}
 %global cray_name %{cray_product_prefix}%{cray_product}
-%global set_as_default_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_name}_%{pkgversion}
-%global set_as_default_devel_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_name}_%{pkgversion}-devel
-%global set_as_default_false echo Not setting as default.
-devel_modulefile_name
+
 # Path definitions
 %global cray_prefix /opt/cray/pe
 %global test_prefix /opt/cray/tests
@@ -33,6 +30,10 @@ devel_modulefile_name
 %global set_default_command set_default
 %global set_default_template_name %{set_default_command}.template
 %global set_default_path admin-pe/set_default_files
+
+%global set_as_default_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_name}_%{pkgversion}
+%global set_as_default_devel_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{devel_modulefile_name}_%{pkgversion}
+%global set_as_default_false echo Not setting as default.
 
 # This file is sourced by craype to resolve dependencies for products without
 # loading modules.
