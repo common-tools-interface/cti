@@ -1,5 +1,12 @@
 # Copyright 2020 Hewlett Packard Enterprise Development LP.
 
+EXECS = hello_mpi hello_mpi_wait mpi_wrapper
+
+all: $(EXECS)
+
+clean:
+	rm -f $(EXECS)
+
 CFLAGS = -Wall -g -O0
 
 hello_mpi : hello_mpi.c

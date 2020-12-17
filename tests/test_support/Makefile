@@ -1,19 +1,20 @@
 # Copyright 2020 Hewlett Packard Enterprise Development LP.
 
-ARTIFACTS = libgtest.so libmock.so message_one/libmessage.so message_two/libmessage.so one_socket two_socket remote_filecheck
+ARTIFACTS = libgtest.so libgmock.so message_one/libmessage.so message_two/libmessage.so one_socket two_socket remote_filecheck
 
 GTEST = googletest/googletest
-GMOCK = gootletest/googlemock
+GMOCK = googletest/googlemock
 
 all: $(ARTIFACTS)
 
-clean: rm -f $(ARTIFACTS)
+clean:
+	rm -f $(ARTIFACTS)
 
 libgtest.so : googletest/googletest/src/gtest-all.cc
 	CC -pthread -I$(GTEST)/include -I$(GTEST) -shared $^ -o $@
 
-libmock.so : googletest/googlemock/src/gmock-all.cc
-	CC -pthread -I$(GMOCK)/include -I$(GMOCK) -shared $^ -o $@
+libgmock.so : googletest/googlemock/src/gmock-all.cc
+	CC -pthread -I$(GTEST)/include -I$(GMOCK)/include -I$(GMOCK) -shared $^ -o $@
 
 
 message_one/libmessage.so : message_one/message.c message_one/message.h
