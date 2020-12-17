@@ -243,8 +243,7 @@ Test files for Cray Common Tools Interface
 %{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-tests|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;'/SET_AS_DEFAULT'/d' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # Test files
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
-%{__cp} -a %{tests_source_dir}/configure.ac             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/configure.ac
-%{__cp} -a %{tests_source_dir}/Makefile.am              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile.am
+%{__cp} -a %{tests_source_dir}/Makefile             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile
 %{__cp} -a %{tests_source_dir}/test_tool_starter.py     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_starter.py
 %{__cp} -a %{tests_source_dir}/test_tool_config.yaml    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_config.yaml
 %{__cp} -a %{tests_source_dir}/README.md                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
@@ -252,7 +251,7 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function
 %{__cp} -a %{tests_source_dir}/function/avocado_config.yaml      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_config.yaml
 %{__cp} -a %{tests_source_dir}/function/tests.py                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/tests.py
-%{__cp} -a %{tests_source_dir}/function/Makefile.am              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile.am
+%{__cp} -a %{tests_source_dir}/function/Makefile              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile
 %{__cp} -a %{tests_source_dir}/function/README.md                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/README.md
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin
@@ -266,10 +265,10 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/bin/cti_mpmd               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_mpmd
 %{__cp} -a %{tests_source_dir}/function/bin/cti_wlm                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_wlm
 %{__cp} -a %{tests_source_dir}/function/bin/function_tests         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/function_tests
-%{__cp} -a %{tests_source_dir}/function/bin/Makefile.am.dummy      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile.am
+%{__cp} -a %{tests_source_dir}/function/bin/Makefile      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src
-%{__cp} -a %{tests_source_dir}/function/src/Makefile.am              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/Makefile.am
+%{__cp} -a %{tests_source_dir}/function/src/Makefile              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/Makefile
 %{__cp} -a %{tests_source_dir}/function/src/hello_mpi.c              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi.c
 %{__cp} -a %{tests_source_dir}/function/src/hello_mpi_wait.c         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi_wait.c
 %{__cp} -a %{tests_source_dir}/function/src/mpi_wrapper.c            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/mpi_wrapper.c
@@ -278,7 +277,7 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/src/inputFileData.txt        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/inputFileData.txt
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
-%{__cp} -a %{tests_source_dir}/test_support/Makefile.am        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile.am
+%{__cp} -a %{tests_source_dir}/test_support/Makefile       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile
 %{__cp} -a %{tests_source_dir}/test_support/one_print.c        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print.c
 %{__cp} -a %{tests_source_dir}/test_support/one_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_socket.c
 %{__cp} -a %{tests_source_dir}/test_support/two_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/two_socket.c
@@ -514,8 +513,7 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/configure.ac
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile.am
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_starter.py
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_config.yaml
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
@@ -523,7 +521,7 @@ fi
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/function
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_config.yaml
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/tests.py
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile.am
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/README.md
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin
@@ -537,10 +535,10 @@ fi
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_mpmd
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_wlm
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/function_tests
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile.am
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/Makefile.am
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/Makefile
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi_wait.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/mpi_wrapper.c
@@ -549,7 +547,7 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/inputFileData.txt
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile.am
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_socket.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/two_socket.c
