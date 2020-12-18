@@ -7,3 +7,6 @@ all:
 clean:
 	make -C test_support clean
 	make -C function clean
+
+install:
+

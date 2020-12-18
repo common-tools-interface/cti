@@ -265,7 +265,7 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/bin/cti_mpmd               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_mpmd
 %{__cp} -a %{tests_source_dir}/function/bin/cti_wlm                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_wlm
 %{__cp} -a %{tests_source_dir}/function/bin/function_tests         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/function_tests
-%{__cp} -a %{tests_source_dir}/function/bin/Makefile      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile
+%{__cp} -a %{tests_source_dir}/function/bin/Makefile.fun      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src
 %{__cp} -a %{tests_source_dir}/function/src/Makefile              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/Makefile
@@ -277,19 +277,17 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/src/inputFileData.txt        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/inputFileData.txt
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
-%{__cp} -a %{tests_source_dir}/test_support/Makefile       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile
+%{__cp} -a %{tests_source_dir}/test_support/Makefile.fun       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile
 %{__cp} -a %{tests_source_dir}/test_support/one_print.c        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print.c
 %{__cp} -a %{tests_source_dir}/test_support/one_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_socket.c
 %{__cp} -a %{tests_source_dir}/test_support/two_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/two_socket.c
 %{__cp} -a %{tests_source_dir}/test_support/remote_filecheck.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/remote_filecheck.c
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one
-%{__cp} -a %{tests_source_dir}/test_support/message_one/libmessage.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/libmessage.so
 %{__cp} -a %{tests_source_dir}/test_support/message_one/message.c     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/message.c
 %{__cp} -a %{tests_source_dir}/test_support/message_one/message.h     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/message.h
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two
-%{__cp} -a %{tests_source_dir}/test_support/message_two/libmessage.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/libmessage.so
 %{__cp} -a %{tests_source_dir}/test_support/message_two/message.c     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.c
 %{__cp} -a %{tests_source_dir}/test_support/message_two/message.h     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.h
 
@@ -554,12 +552,10 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/remote_filecheck.c
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/libmessage.so
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/message.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/message.h
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/libmessage.so
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.h
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/build.sh

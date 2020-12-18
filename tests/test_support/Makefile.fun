@@ -1,5 +1,10 @@
 # Copyright 2020 Hewlett Packard Enterprise Development LP.
 
+# test_support is used by both the unit tests and the functional tests.   For the
+# functional tests we - I think - want a version of these files compiled on the
+# target machine.   Since autotools is not necessarily available, we include a
+# vanilla Makefile set-up to build it there.
+
 ARTIFACTS = libgtest.so libgmock.so message_one/libmessage.so message_two/libmessage.so one_socket two_socket remote_filecheck
 
 GTEST = googletest/googletest
