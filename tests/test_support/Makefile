@@ -1,6 +1,6 @@
 # Copyright 2020 Hewlett Packard Enterprise Development LP.
 
-ARTIFACTS = libgtest.so libgmock.so message_one/libmessage.so message_two/libmessage.so one_socket two_socket remote_filecheck
+ARTIFACTS = libgtest.so libgmock.so message_one/libmessage.so message_two/libmessage.so one_socket two_socket remote_filecheck libgtest.so libgmock.so
 
 GTEST = googletest/googletest
 GMOCK = googletest/googlemock
