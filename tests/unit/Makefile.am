@@ -34,12 +34,13 @@ unit_tests_CXXFLAGS	=	$(AM_CXXFLAGS) $(unit_tests_CFLAGS) \
 						$(CODE_COVERAGE_CXXFLAGS)
 unit_tests_LDADD	=	$(SRC)/frontend/libcommontools_fe.la \
 						$(SRC)/backend/libcommontools_be.la \
-						$(SUPPORT)/libgtest.la \
-						$(SUPPORT)/libgmock.la \
+						$(SUPPORT)/libgtest.so \
+						$(SUPPORT)/libgmock.so \
 						$(MOCK)/libmock.la \
 						$(ARCHIVE_LIBS) \
 						-ldl -lrt -lstdc++ \
-        				$(CODE_COVERAGE_LIBS)
+                                                $(CODE_COVERAGE_LIBS)
+
 unit_tests_LDFLAGS	=	-pthread -Wl,-rpath,$(prefix)/lib \
 						-Wl,--enable-new-dtags -Wl,--no-undefined \
 						-Wl,--as-needed $(CDST_SUP_LIBS)
@@ -60,7 +61,7 @@ websocket_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(EXTERNAL) \
 websocket_tests_CXXFLAGS = $(AM_CXXFLAGS) $(unit_tests_CFLAGS) \
 	$(CODE_COVERAGE_CXXFLAGS)
 
-websocket_tests_LDADD = $(SUPPORT)/libgtest.la $(SUPPORT)/libgmock.la \
+websocket_tests_LDADD = $(SUPPORT)/libgtest.so $(SUPPORT)/libgmock.so \
 	$(MOCK)/libmock.la $(ARCHIVE_LIBS) \
 	-ldl -lrt -lstdc++ -lcrypto -lssl \
         $(CODE_COVERAGE_LIBS)
