@@ -96,6 +96,7 @@
 %global privlibs %{privlibs}|libelf
 %global privlibs %{privlibs}|libssh2
 %global privlibs %{privlibs}|libtbb.*
+%global privlibs %{privlibs}|libgtest
 %global __requires_exclude ^(%{privlibs})\\.so*
 
 # Dist tags for SuSE need to be manually set
