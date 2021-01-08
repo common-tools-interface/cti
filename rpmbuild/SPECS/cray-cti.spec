@@ -1,7 +1,7 @@
 # Packaging definitions
 %global pkgversion %(%{_sourcedir}/get_package_data --crayversion)
 %global pkgversion_separator -
-%global copyright Copyright 2010-2020 Hewlett Packard Enterprise Development LP
+%global copyright Copyright 2010-2021 Hewlett Packard Enterprise Development LP
 
 # RPM build time
 %global release_date %(date +%%B\\ %%Y)
@@ -110,6 +110,11 @@
 %global dist .sles15sp1
 %global OS_HW_TAG 7.0,7.1
 %global OS_WB_TAG sles15sp1
+%endif
+%if 0%{?sle_version} == 150200
+%global dist .sles15sp2
+%global OS_HW_TAG 7.2
+%global OS_WB_TAG sles15sp2
 %endif
 %endif
 
