@@ -25,7 +25,7 @@ Purpose:
 Product and OS Dependencies:
 -----------------------------
   The Cray CTI <VERSION> release is supported on the following Cray systems:
-    - Cray XC systems with CLE release 7.0 or later
+    - Cray XC systems with CLE 7.0 or later
     - Cray CS systems with CentOS/RH 8.0 or later
 
   Product Dependencies:
@@ -49,5 +49,5 @@ Installation instructions:
       /opt/cray/admin-pe/set_default_files/set_default_cray-cti-<VERSION>
 
 
- Certain components, files or programs contained within this package or
- product are Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
+ Certain components, files or programs contained within this package or product are
+ <COPYRIGHT>
