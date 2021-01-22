@@ -16,21 +16,22 @@ Product Description:
 
 Purpose:
 ---------
-  This is a feature release.
+  This is a bugfix release.
+  CAST-24230 after installing 4 versions of CDT and setting 19.11 to the default, some of the modules are set to have the 20.10 version as the default.
 
-  - Initial support for Cray XC/CS platforms
-  - Various bugfixes/stability improvements
-  - CAST-21152: Add Intel MPI support to CTI for CCDB
 
 Product and OS Dependencies:
 -----------------------------
   The Cray CTI <VERSION> release is supported on the following Cray systems:
-    - Cray XC systems with CLE 7.0 or later
-    - Cray CS systems with CentOS/RH 8.0 or later
+    - HPE/Cray XC systems with CLE 7.0 or later
+    - HPE/Cray CS systems with CentOS/RH 8.0 or later
+    - HPE/Cray Shasta systems with SLES 15 service pack 1 or later
+    - HPE Apollo systems with Slurm and RH 8.0 or later
+    - Baymax systems with RH 8.0 or later
 
   Product Dependencies:
     - GCC 8.1.0 associated runtime libraries are required on all systems.
-    - Cray cdst-support rpm installed
+    - Cray cray-cdst-support rpm installed
 
 Documentation:
 ---------------
@@ -49,5 +50,5 @@ Installation instructions:
       /opt/cray/admin-pe/set_default_files/set_default_cray-cti-<VERSION>
 
 
- Certain components, files or programs contained within this package or product are
- <COPYRIGHT>
+ Certain components, files or programs contained within this package or
+ product are <COPYRIGHT>
