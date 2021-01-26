@@ -367,7 +367,7 @@ void SLURMApp::startDaemon(const char* const args[]) {
 static std::string getSlurmVersion()
 {
     char const* const srunVersionArgv[] = {"srun", "--version", nullptr};
-    auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv};
+    auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv, cti::Execvp::stderr::Ignore};
 
     auto slurmVersion = std::string{};
     if (!std::getline(srunVersionOutput.stream(), slurmVersion, '\n')) {
@@ -453,7 +453,7 @@ SLURMFrontend::isSupported()
 {
     // Check that the srun version starts with "slurm "
     { auto srunArgv = cti::ManagedArgv{"srun", "--version"};
-        auto srunOutput = cti::Execvp{"srun", srunArgv.get()};
+        auto srunOutput = cti::Execvp{"srun", srunArgv.get(), cti::Execvp::stderr::Ignore};
 
         // Read output line
         auto versionLine = std::string{};
@@ -474,7 +474,7 @@ SLURMFrontend::isSupported()
     // Check that srun is a binary and not a script
     { auto binaryTestArgv = cti::ManagedArgv{"bash", "-c",
         "file --mime `which srun` | grep application/x-executable"};
-        if (cti::Execvp{"bash", binaryTestArgv.get()}.getExitStatus()) {
+        if (cti::Execvp::runExitStatus("bash", binaryTestArgv.get())) {
             throw std::runtime_error("srun was detected on the system, but it is not a binary file. \
 Tool launch requires direct access to the srun binary. \
 Ensure that the srun command is not wrapped by a script");
@@ -484,7 +484,7 @@ Ensure that the srun command is not wrapped by a script");
     // Check that the srun binary contains MPIR symbols
     { auto symbolTestArgv = cti::ManagedArgv{"bash", "-c",
         "nm `which srun` | grep MPIR_Breakpoint$"};
-        if (cti::Execvp{"bash", symbolTestArgv.get()}.getExitStatus()) {
+        if (cti::Execvp::runExitStatus("bash", symbolTestArgv.get())) {
             throw std::runtime_error("srun was detected on the system, but it does not contain debug symbols. \
 Tool launch is coordinated through reading information at these symbols");
         }
@@ -582,7 +582,7 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     sattachArgv.add(SattachArgv::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
 
     // create sattach output capture object
-    cti::Execvp sattachOutput(SATTACH, sattachArgv.get());
+    cti::Execvp sattachOutput(SATTACH, sattachArgv.get(), cti::Execvp::stderr::Ignore);
     auto& sattachStream = sattachOutput.stream();
     std::string sattachLine;
 
@@ -785,10 +785,7 @@ bool ApolloSLURMFrontend::isSupported() {
         char const* cminfoArgv[] = { "cminfo", "--name", nullptr };
 
         // Start cminfo
-        auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv};
-        if (cminfoOutput.getExitStatus() != 0) {
-            return false;
-        }
+        auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
 
         // Detect if running on admin node
         auto& cminfoStream = cminfoOutput.stream();
@@ -798,6 +795,12 @@ bool ApolloSLURMFrontend::isSupported() {
         } else {
             return false;
         }
+
+        // Check return code
+        if (cminfoOutput.getExitStatus() != 0) {
+            return false;
+        }
+
 
     } catch(...) {
         // cminfo not installed

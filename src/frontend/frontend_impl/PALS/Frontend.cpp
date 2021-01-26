@@ -455,20 +455,20 @@ PALSFrontend::isSupported()
     // Check that PBS is installed (required for PALS)
     auto rpmClientArgv    = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
     auto rpmExecutionArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-execution" };
-    if ((cti::Execvp{"rpm", rpmClientArgv.get()}.getExitStatus() != 0)
-     && (cti::Execvp{"rpm", rpmExecutionArgv.get()}.getExitStatus() != 0)) {
+    if (cti::Execvp::runExitStatus("rpm", rpmClientArgv.get())
+     && cti::Execvp::runExitStatus("rpm", rpmExecutionArgv.get())) {
         return false;
     }
 
     // Check that craycli tool is available (Shasta system)
     auto crayArgv = cti::ManagedArgv { "cray", "--version" };
-    if (cti::Execvp{"cray", crayArgv.get()}.getExitStatus() != 0) {
+    if (cti::Execvp::runExitStatus("cray", crayArgv.get())) {
         return false;
     }
 
     // Check that the craycli tool is properly authenticated, as we will be using its token
     auto craycliArgv = cti::ManagedArgv { "cray", "uas", "list" };
-    if (cti::Execvp{"cray", craycliArgv.get()}.getExitStatus() != 0) {
+    if (cti::Execvp::runExitStatus("cray", craycliArgv.get())) {
         fprintf(stderr, "craycli check failed. You may need to authenticate using `cray auth login`.\n");
         return false;
     }
