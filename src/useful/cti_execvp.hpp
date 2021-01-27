@@ -171,25 +171,34 @@ public:
 // Right now the only constructor is to read output as an istream, but this could
 // be extended in the future to accept different types of constructors.
 class Execvp {
+public:
+   enum class stderr : int
+       { Ignore = 0
+       , Pipe = 1
+   };
+
 private:
     Pipe p;
     FdBuf pipeInBuf;
     std::istream pipein;
     pid_t child;
+
 public:
-    Execvp(const char *binaryName, char* const* argv)
+    Execvp(const char *binaryName, char* const* argv, stderr stderr_behavior)
         : pipeInBuf(p.getReadFd())
         , pipein(&pipeInBuf)
         , child(fork())
     {
-
         if (child < 0) {
             throw std::runtime_error(std::string("fork() for ") + binaryName + " failed!");
         } else if (child == 0) { // child side of fork
             /* prepare the output pipe */
             p.closeRead();
             dup2(p.getWriteFd(), Pipe::stdout);
-            dup2(p.getWriteFd(), Pipe::stderr);
+            auto const stderr_fd = (stderr_behavior == stderr::Ignore)
+                ? open("/dev/null", O_WRONLY)
+                : p.getWriteFd();
+            dup2(stderr_fd, Pipe::stderr);
             p.closeWrite();
 
             execvp(binaryName, argv);
@@ -210,6 +219,28 @@ public:
     }
 
     std::istream& stream() { return pipein; }
+
+    static int runExitStatus(const char *binaryName, char* const* argv) {
+        auto const child = fork();
+
+        if (child < 0) {
+            throw std::runtime_error(std::string("fork() for ") + binaryName + " failed!");
+        } else if (child == 0) { // child side of fork
+            dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
+            dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
+            dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+
+            execvp(binaryName, argv);
+            _exit(-1);
+        }
+
+        int status = 0;
+        if ((waitpid(child, &status, 0) < 0) && (errno != ECHILD)) {
+            throw std::runtime_error(
+                std::string("waitpid() on ") + std::to_string(child) + " failed!");
+        }
+        return WEXITSTATUS(status);
+    }
 };
 
 } /* namespace cti */

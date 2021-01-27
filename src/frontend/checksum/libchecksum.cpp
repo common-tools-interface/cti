@@ -42,7 +42,7 @@
 static std::string hash_path(std::string const& path)
 {
 	char const* const sumArgv[] = { CHECKSUM_BINARY, path.c_str(), nullptr };
-	auto sumOutput = cti::Execvp{CHECKSUM_BINARY, (char* const*)sumArgv};
+	auto sumOutput = cti::Execvp{CHECKSUM_BINARY, (char* const*)sumArgv, cti::Execvp::stderr::Ignore};
 
 	auto& sumStream = sumOutput.stream();
 	std::string sumPathLine;
