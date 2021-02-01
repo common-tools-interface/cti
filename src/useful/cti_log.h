@@ -88,6 +88,17 @@ public: // interface
             _cti_write_log(logFile.get(), fmt, std::forward<Args>(args)...);
         }
     }
+
+    void hook()
+    {
+        if (!logFile) {
+            return;
+        }
+
+        if (_cti_hook_stdoe(logFile.get())) {
+            throw std::runtime_error("failed to hook standard out / err");
+        }
+    }
 };
 
 } /* namespace cti */
