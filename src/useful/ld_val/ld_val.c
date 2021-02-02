@@ -359,7 +359,7 @@ _cti_ld_val(const char *executable, const char *ld_audit_path)
     pos = 0;
 
     // Try to read libraries while the pipe is open
-    do {
+    while (true) {
         // read up to READ_BUF_LEN, offset based on pos since we might have
         // leftovers
         num_read = read(_cti_fds[0], &_cti_read_buf[pos], READ_BUF_LEN-pos);
@@ -374,20 +374,8 @@ _cti_ld_val(const char *executable, const char *ld_audit_path)
             return NULL;
         } else if (num_read == 0)
         {
-            // if we get an EOF with pos set, we have a partial string without
-            // the rest, this is an error
-            if (pos != 0)
-            {
-                // Something went very wrong here, we got an eof in the middle of
-                // a valid sequence
-                fprintf(stderr, "CTI error: EOF detected in valid sequence.\n");
-                // prevent zombie
-                kill(pid, SIGKILL);
-                waitpid(pid, &status, 0);
-                return NULL;
-            }
             // we are done if we get an EOF
-            continue;
+            break;
         }
 
         // init start, end, and rem
@@ -465,7 +453,7 @@ save_str:
             // reset pos for next run since there was no remainder this time
             pos = 0;
         }
-    } while (num_read != 0);
+    }
 
     // All done, make the return array
     rtn = _cti_make_rtn_array();
@@ -474,6 +462,7 @@ save_str:
     close(_cti_fds[0]);
 
     // prevent zombie
+    kill(pid, SIGKILL);
     waitpid(pid, &status, 0);
 
     return rtn;
