@@ -725,17 +725,21 @@ GenericSSHFrontend::fetchStepLayout(MPIRProctable const& procTable)
     // For each new host we see, add a host entry to the end of the layout's host list
     // and hash each hostname to its index into the host list
     for (auto&& proc : procTable) {
+
+        // Truncate hostname at first '.' in case the launcher has used FQDNs for hostnames
+        auto const base_hostname = proc.hostname.substr(0, proc.hostname.find("."));
+
         size_t nid;
-        auto const hostNidPair = hostNidMap.find(proc.hostname);
+        auto const hostNidPair = hostNidMap.find(base_hostname);
         if (hostNidPair == hostNidMap.end()) {
             // New host, extend nodes array, and fill in host entry information
             nid = nodeCount++;
             layout.nodes.push_back(NodeLayout
-                { .hostname = proc.hostname
+                { .hostname = base_hostname
                 , .pids = {}
                 , .firstPE = peCount
             });
-            hostNidMap[proc.hostname] = nid;
+            hostNidMap[base_hostname] = nid;
         } else {
             nid = hostNidPair->second;
         }
@@ -765,10 +769,7 @@ GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& s
         layout_entry.PEsHere = node.pids.size();
         layout_entry.firstPE = node.firstPE;
 
-        // Truncate hostname at first '.' if the launcher has used FQDNs for hostnames
-        auto const base_hostname = node.hostname.substr(0, node.hostname.find("."));
-
-        memcpy(layout_entry.host, base_hostname.c_str(), base_hostname.length());
+        memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
 
         return layout_entry;
     };
