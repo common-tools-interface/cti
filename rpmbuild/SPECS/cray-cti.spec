@@ -1,5 +1,6 @@
 # Packaging definitions
 %global pkgversion %(%{_sourcedir}/get_package_data --crayversion)
+%global minorVersion %(echo %{pkgversion} | cut -d. -f2)
 %global pkgversion_separator -
 %global copyright Copyright 2010-2021 Hewlett Packard Enterprise Development LP
 
@@ -9,7 +10,7 @@
 %global cray_product_prefix cray-
 %global product cti
 %global cray_product %{product}
-%global cray_name %{cray_product_prefix}%{cray_product}
+%global cray_name    %{cray_product_prefix}%{cray_product}
 
 # Path definitions
 %global cray_prefix /opt/cray/pe
@@ -17,23 +18,19 @@
 
 #FIXME: This should be relocatable
 %global external_build_dir %{cray_prefix}/%{cray_product}/%{pkgversion}
-%global tests_source_dir %{_topdir}/../tests
+%global tests_source_dir   %{_topdir}/../tests
 
 # modulefile definitions
-%global modulefile_name %{cray_name}
+%global modulefile_name       %{cray_name}
 %global devel_modulefile_name %{cray_name}%{pkgversion_separator}devel
 
-%global module_template_name %{modulefile_name}.module.template
+%global module_template_name       %{modulefile_name}.module.template
 %global devel_module_template_name %{devel_modulefile_name}.module.template
 
 # set_default modulefile definitions
-%global set_default_command set_default
-%global set_default_template_name %{set_default_command}.template
-%global set_default_path admin-pe/set_default_files
-
-%global set_as_default_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{cray_name}_%{pkgversion}
-%global set_as_default_devel_true /opt/cray/pe/admin-pe/set_default_files/set_default_%{devel_modulefile_name}_%{pkgversion}
-%global set_as_default_false echo Not setting as default.
+%global set_default_command       set_default
+%global set_default_template      set_default_template
+%global set_default_path          admin-pe/set_default_files
 
 # This file is sourced by craype to resolve dependencies for products without
 # loading modules.
@@ -144,7 +141,6 @@ Provides:   %{cray_name} = %{pkgversion}
 Requires:   set_default_2, cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < %{cdst_support_pkgversion_max}
 Source0:    %{module_template_name}
 Source1:    %{devel_module_template_name}
-Source2:    %{set_default_template_name}
 Source3:    %{cray_dependency_resolver_template_name}
 Source4:    %{release_info_template_name}
 Source5:    %{copyright_name}
@@ -222,9 +218,10 @@ Test files for Cray Common Tools Interface
 %{__sed} 's|<PREFIX>|%{external_build_dir}|g;s|<CRAY_NAME>|%{devel_modulefile_name}|g;s|<CRAY_BASE_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g' %{SOURCE1} > ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
 # Cray PE dependency resolver
 %{__sed} 's|<CRAY_PREFIX>|%{cray_prefix}|g;s|<PKG_VERSION>|%{pkgversion}|g;s|<PE_PRODUCT>|%{cray_product}|g' %{SOURCE3} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
-# set_default scripts
-%{__sed} 's|<PREFIX>|%{prefix}|g;s|<CRAY_PRODUCT>|%{cray_product}|g;s|<VERSION>|%{pkgversion}|g;s|<MODULEFILE_NAME>|%{modulefile_name}|g' %{SOURCE2} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
-%{__sed} 's|<PREFIX>|%{prefix}|g;s|<CRAY_PRODUCT>|%{cray_product}|g;s|<VERSION>|%{pkgversion}|g;s|<MODULEFILE_NAME>|%{devel_modulefile_name}|g' %{SOURCE2} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
+# set_default template
+%{__sed} 's|\[product_name\]|%{cray_product}|g;s|\[version_string\]|%{pkgversion}|g;s|\[install_dir\]|%{prefix}|g;s|\[module_dir\]|%{prefix}/modulefiles|g;s|\[module_name_list\]|%{modulefile_name}|g;s|\[lmod_dir_list\]|%{prefix}/lmod/modulefiles/core|g;s|\[lmod_name_list\]|%{modulefile_name}|g' %{_sourcedir}/set_default/%{set_default_template} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
+# set_default template - devel
+%{__sed} 's|\[product_name\]|%{cray_product}|g;s|\[version_string\]|%{pkgversion}|g;s|\[install_dir\]|%{prefix}|g;s|\[module_dir\]|%{prefix}/modulefiles|g;s|\[module_name_list\]|%{devel_modulefile_name}|g;s|\[lmod_dir_list\]|%{prefix}/lmod/modulefiles/core|g;s|\[lmod_name_list\]|%{devel_modulefile_name}|g' %{_sourcedir}/set_default/%{set_default_template} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
 # set_default into admin-pe
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}
 %{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
@@ -235,21 +232,26 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}
 %{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
 %{__mkdir} -p %{_rpmdir}/%{_arch}
-# yaml file - cray-cti
-%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
-# yaml file - cray-cti set as default file
-%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<SET_AS_DEFAULT>|%{set_as_default_true}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.set_as_default.rpm.yaml
-# yaml file - cray-cti-devel
-%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
-# yaml file - cray-cti-devel set as default file
-%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<SET_AS_DEFAULT>|%{set_as_default_devel_true}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.set_as_default.rpm.yaml
-# yaml file - cray-cti-tests
+# yaml files
 %global start_rmLine %(sed -n /section-3/= %{SOURCE9})
 %global end_rmLine %(sed -n /SET_AS_DEFAULT/= %{SOURCE9} | tail -1)
+%if %{minorVersion} == 9999
+# yaml file - cray-cti
+%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+# yaml file - cray-cti-devel
+%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-devel|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%else
+# yaml file - cray-cti
+%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+# yaml file - cray-cti-devel
+%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%endif
+# yaml file - cray-cti-tests (no modulefile provided)
 %{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-tests|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;'/SET_AS_DEFAULT'/d' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+
 # Test files
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
-%{__cp} -a %{tests_source_dir}/Makefile             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile
+%{__cp} -a %{tests_source_dir}/Makefile                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile
 %{__cp} -a %{tests_source_dir}/test_tool_starter.py     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_starter.py
 %{__cp} -a %{tests_source_dir}/test_tool_config.yaml    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_config.yaml
 %{__cp} -a %{tests_source_dir}/README.md                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
@@ -257,7 +259,7 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function
 %{__cp} -a %{tests_source_dir}/function/avocado_config.yaml      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_config.yaml
 %{__cp} -a %{tests_source_dir}/function/tests.py                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/tests.py
-%{__cp} -a %{tests_source_dir}/function/Makefile              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile
+%{__cp} -a %{tests_source_dir}/function/Makefile                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile
 %{__cp} -a %{tests_source_dir}/function/README.md                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/README.md
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin
@@ -271,10 +273,10 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/bin/cti_mpmd               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_mpmd
 %{__cp} -a %{tests_source_dir}/function/bin/cti_wlm                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_wlm
 %{__cp} -a %{tests_source_dir}/function/bin/function_tests         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/function_tests
-%{__cp} -a %{tests_source_dir}/function/bin/Makefile.fun      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile
+%{__cp} -a %{tests_source_dir}/function/bin/Makefile.fun           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src
-%{__cp} -a %{tests_source_dir}/function/src/Makefile              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/Makefile
+%{__cp} -a %{tests_source_dir}/function/src/Makefile                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/Makefile
 %{__cp} -a %{tests_source_dir}/function/src/hello_mpi.c              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi.c
 %{__cp} -a %{tests_source_dir}/function/src/hello_mpi_wait.c         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi_wait.c
 %{__cp} -a %{tests_source_dir}/function/src/mpi_wrapper.c            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/mpi_wrapper.c
