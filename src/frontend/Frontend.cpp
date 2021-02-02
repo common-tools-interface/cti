@@ -473,7 +473,11 @@ Frontend::inst() {
                     inst = new PALSFrontend{};
                     break;
                 case CTI_WLM_SSH:
-                    inst = new GenericSSHFrontend{};
+                    if (ApolloPALSFrontend::isSupported()) {
+                        inst = new ApolloPALSFrontend{};
+                    } else {
+                        inst = new GenericSSHFrontend{};
+                    }
                     break;
                 case CTI_WLM_NONE:
                 case CTI_WLM_MOCK:
