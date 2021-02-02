@@ -29,7 +29,7 @@
 
 # set_default modulefile definitions
 %global set_default_command       set_default
-%global set_default_template_name set_default_template
+%global set_default_template      set_default_template
 %global set_default_path          admin-pe/set_default_files
 
 # This file is sourced by craype to resolve dependencies for products without
@@ -141,7 +141,6 @@ Provides:   %{cray_name} = %{pkgversion}
 Requires:   set_default_2, cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < %{cdst_support_pkgversion_max}
 Source0:    %{module_template_name}
 Source1:    %{devel_module_template_name}
-Source2:    %{set_default_template_name}
 Source3:    %{cray_dependency_resolver_template_name}
 Source4:    %{release_info_template_name}
 Source5:    %{copyright_name}
