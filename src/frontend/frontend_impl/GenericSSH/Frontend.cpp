@@ -764,7 +764,11 @@ GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& s
         auto layout_entry    = cti_layoutFile_t{};
         layout_entry.PEsHere = node.pids.size();
         layout_entry.firstPE = node.firstPE;
-        memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
+
+        // Truncate hostname at first '.' if the launcher has used FQDNs for hostnames
+        auto const base_hostname = node.hostname.substr(0, node.hostname.find("."));
+
+        memcpy(layout_entry.host, base_hostname.c_str(), base_hostname.length());
 
         return layout_entry;
     };
