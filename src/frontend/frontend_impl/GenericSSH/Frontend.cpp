@@ -928,9 +928,9 @@ bool ApolloPALSFrontend::isSupported() {
         auto const launcherName = getLauncherName();
 
         // Check that mpiexec is a binary and not a script
-        { auto binaryTestArgv = cti::ManagedArgv{"bash", "-c",
-            "file --mime `which " + launcherName + "` | grep application/x-executable"};
-            if (cti::Execvp::runExitStatus("bash", binaryTestArgv.get())) {
+        { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
+            "file --mime `command -v " + launcherName + "` | grep application/x-executable"};
+            if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
                 throw std::runtime_error("The PALS launcher " + launcherName + " was detected on the system, but it is not a binary file. \
 Tool launch requires direct access to the launcher binary. \
 Ensure that " + launcherName + " is not wrapped by a script");
@@ -938,9 +938,9 @@ Ensure that " + launcherName + " is not wrapped by a script");
         }
 
         // Check that the mpiexec binary contains MPIR symbols
-        { auto symbolTestArgv = cti::ManagedArgv{"bash", "-c",
-            "nm `which " + launcherName + "` | grep MPIR_Breakpoint$"};
-            if (cti::Execvp::runExitStatus("bash", symbolTestArgv.get())) {
+        { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
+            "nm `command -v " + launcherName + "` | grep MPIR_Breakpoint$"};
+            if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
                 throw std::runtime_error("The PALS launcher " + launcherName + " was detected on the system, but it does not contain debug symbols. \
 Tool launch is coordinated through reading information at these symbols. \
 Please contact your system administrator to update the system's PALS package");
