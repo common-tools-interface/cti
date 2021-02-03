@@ -138,7 +138,7 @@ License:    Dual BSD or GPLv2
 Vendor:     Hewlett Packard Enterprise Development LP
 Group:      Development/System
 Provides:   %{cray_name} = %{pkgversion}
-Requires:   set_default_2, cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < %{cdst_support_pkgversion_max}
+Requires:   set_default_3, cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < %{cdst_support_pkgversion_max}
 Source0:    %{module_template_name}
 Source1:    %{devel_module_template_name}
 Source3:    %{cray_dependency_resolver_template_name}
@@ -156,7 +156,7 @@ Certain components, files or programs contained within this package or product a
 Summary:    Cray Common Tools Interface development files
 Group:      Development
 Provides:   %{cray_name}-devel = %{pkgversion}
-Requires:   set_default_2, cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
+Requires:   set_default_3, cray-gcc-8.1.0, %{cray_name} = %{pkgversion}
 Source8:    %{lmod_template_cti_devel}
 %description -n %{cray_name}-devel-%{pkgversion}
 Development files for Cray Common Tools Interface
