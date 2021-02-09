@@ -21,10 +21,10 @@ fi
 arch=$(uname -m)
 target_pm=$(get_pm)
 if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
-  zypper --non-interactive install $PWD/rpmbuild/RPMS/$arch/*.rpm
+  zypper --non-interactive --no-gpg-checks install $PWD/rpmbuild/RPMS/$arch/*.rpm
   check_exit_status
 elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
-  yum --assumeyes install $PWD/rpmbuild/RPMS/$arch/*.rpm
+  yum --assumeyes  --nogpgcheck install $PWD/rpmbuild/RPMS/$arch/*.rpm
   check_exit_status
 fi
 
