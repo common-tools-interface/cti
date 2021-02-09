@@ -16,8 +16,8 @@ Product Description:
 
 Purpose:
 ---------
-  This is a bugfix release.
-  CAST-24230 after installing 4 versions of CDT and setting 19.11 to the default, some of the modules are set to have the 20.10 version as the default.
+  This release supports the Apollo and Everest HPCM systems configured with
+  the PALS workload manager.
 
 
 Product and OS Dependencies:

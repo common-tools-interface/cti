@@ -1089,6 +1089,8 @@ static void log_terminate()
 int
 main(int argc, char *argv[])
 {
+    // Set up logging
+    getLogger().hook();
     std::set_terminate(log_terminate);
 
     // parse incoming argv for request and response FDs

@@ -36,7 +36,27 @@
 
 #include "MPIRInstance.hpp"
 
+#include "useful/cti_wrappers.hpp"
+
 using Symbol  = Inferior::Symbol;
+
+static inline bool debug_enabled()
+{
+    static const auto _enabled = []() {
+        return bool{::getenv("CTI_DEBUG")};
+    }();
+    return _enabled;
+}
+
+static inline void log(const char* format, ...)
+{
+    if (debug_enabled()) {
+        va_list argptr;
+        va_start(argptr, format);
+        vfprintf(stderr, format, argptr);
+        va_end(argptr);
+    }
+}
 
 /* create new process instance */
 MPIRInstance::MPIRInstance(std::string const& launcher,
@@ -87,12 +107,9 @@ void MPIRInstance::setupMPIRStandard() {
 /* instance implementations */
 
 void MPIRInstance::runToMPIRBreakpoint() {
-    DEBUG(std::cerr, "running inferior til MPIR_Breakpoint" << std::endl);
-    MPIRDebugState debugState = MPIRDebugState::Unknown;
+    log("running inferior til MPIR_Breakpoint\n");
 
-    do {
-        DEBUG(std::cerr, "MPIR_debug_state: " << debugState << std::endl);
-        DEBUG(std::cerr, "MPIR_being_debugged: " << m_inferior.readVariable<int>("MPIR_being_debugged") << std::endl);
+    while (true) {
         m_inferior.continueRun();
 
         if (m_inferior.isTerminated()) {
@@ -100,8 +117,17 @@ void MPIRInstance::runToMPIRBreakpoint() {
         }
 
         /* inferior now in stopped state. read MPIR_debug_state */
-        debugState = m_inferior.readVariable<MPIRDebugState>("MPIR_debug_state");
-    } while (debugState != MPIRDebugState::DebugSpawned);
+        auto const debugState = m_inferior.readVariable<MPIRDebugState>("MPIR_debug_state");
+        auto const proctable_size = m_inferior.readVariable<int>("MPIR_proctable_size");
+
+        log("MPIR_debug_state: %d MPIR_proctable_size: %d\n", debugState, proctable_size);
+
+        if ((debugState == MPIRDebugState::DebugSpawned) && (proctable_size > 0)) {
+            break;
+        }
+    };
+
+    log("MPIR_debug_state: exited loop\n");
 }
 
 template <typename T>
@@ -134,7 +160,11 @@ std::string MPIRInstance::readStringAt(std::string const& symName) {
 
 MPIRProctable MPIRInstance::getProctable() {
     auto num_pids = m_inferior.readVariable<int>("MPIR_proctable_size");
-    DEBUG(std::cerr, "procTable has size " << std::to_string(num_pids) << std::endl);
+    log("procTable has size %d\n", num_pids);
+
+    if (num_pids == 0) {
+        throw std::runtime_error("launcher MPIR_proctable_size is 0");
+    }
 
     MPIRProctable proctable;
 
@@ -146,7 +176,7 @@ MPIRProctable MPIRInstance::getProctable() {
         auto hostname = readStringAt(procDesc.host_name);
         auto executable = readStringAt(procDesc.executable_name);
 
-        DEBUG(std::cerr, "procTable[" << i << "]: " << procDesc.pid << ", " << hostname << ", " << executable << std::endl);
+        log("procTable[%d]: %d, %s, %s\n", i, procDesc.pid, hostname.c_str(), executable.c_str());
 
         proctable.emplace_back(MPIRProctableElem{procDesc.pid, std::move(hostname), std::move(executable)});
     }

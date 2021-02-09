@@ -706,8 +706,8 @@ GenericSSHFrontend::getLauncherName()
         return defaultValue;
     };
 
-    // Cache the launcher name result. Assume slurm srun launcher by default.
-    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, SRUN)};
+    // Cache the launcher name result. Assume mpiexec by default.
+    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "mpiexec")};
     return launcherName;
 }
 
@@ -725,17 +725,21 @@ GenericSSHFrontend::fetchStepLayout(MPIRProctable const& procTable)
     // For each new host we see, add a host entry to the end of the layout's host list
     // and hash each hostname to its index into the host list
     for (auto&& proc : procTable) {
+
+        // Truncate hostname at first '.' in case the launcher has used FQDNs for hostnames
+        auto const base_hostname = proc.hostname.substr(0, proc.hostname.find("."));
+
         size_t nid;
-        auto const hostNidPair = hostNidMap.find(proc.hostname);
+        auto const hostNidPair = hostNidMap.find(base_hostname);
         if (hostNidPair == hostNidMap.end()) {
             // New host, extend nodes array, and fill in host entry information
             nid = nodeCount++;
             layout.nodes.push_back(NodeLayout
-                { .hostname = proc.hostname
+                { .hostname = base_hostname
                 , .pids = {}
                 , .firstPE = peCount
             });
-            hostNidMap[proc.hostname] = nid;
+            hostNidMap[base_hostname] = nid;
         } else {
             nid = hostNidPair->second;
         }
@@ -764,6 +768,7 @@ GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& s
         auto layout_entry    = cti_layoutFile_t{};
         layout_entry.PEsHere = node.pids.size();
         layout_entry.firstPE = node.firstPE;
+
         memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
 
         return layout_entry;
@@ -827,6 +832,11 @@ GenericSSHFrontend::isSupported()
         }
     }
 
+    // Check if running Apollo with PALS
+    if (ApolloPALSFrontend::isSupported()) {
+        return true;
+    }
+
     return false;
 }
 
@@ -887,5 +897,60 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
 
     } else {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
+    }
+}
+
+// Apollo PALS specializations
+
+// Running on an Apollo PALS if utility `palsig` is present
+bool ApolloPALSFrontend::isSupported()
+{
+    try {
+        // Check that the pals software module is loaded
+        auto palsigArgv = cti::ManagedArgv{"palsig", "--version"};
+        auto palsigOutput = cti::Execvp{"palsig", palsigArgv.get(), cti::Execvp::stderr::Ignore};
+
+        // Read output line
+        auto versionLine = std::string{};
+        if (std::getline(palsigOutput.stream(), versionLine)) {
+            if (versionLine.substr(0, 7) != "palsig ") {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        // Ensure exited properly
+        if (palsigOutput.getExitStatus()) {
+            return false;
+        }
+
+        return true;
+
+    } catch (...) {
+        return false;
+    }
+
+    // Get launcher name (by default mpiexec)
+    auto const launcherName = getLauncherName();
+
+    // Check that mpiexec is a binary and not a script
+    { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
+        "file --mime `command -v " + launcherName + "` | grep application/x-executable"};
+        if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
+            throw std::runtime_error("The PALS launcher " + launcherName + " was detected on the system, but it is not a binary file. \
+Tool launch requires direct access to the launcher binary. \
+Ensure that " + launcherName + " is not wrapped by a script");
+        }
+    }
+
+    // Check that the mpiexec binary contains MPIR symbols
+    { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
+        "nm `command -v " + launcherName + "` | grep MPIR_Breakpoint$"};
+        if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
+            throw std::runtime_error("The PALS launcher " + launcherName + " was detected on the system, but it does not contain debug symbols. \
+Tool launch is coordinated through reading information at these symbols. \
+Please contact your system administrator to update the system's PALS package");
+        }
     }
 }

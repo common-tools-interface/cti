@@ -43,9 +43,6 @@
 #include <Event.h>
 #include <PlatFeatures.h>
 
-// #define DEBUG(str, x) do { str << x; } while (0)
-#define DEBUG(str, x)
-
 /* inferior: manages dyninst process info, symbols, breakpoints */
 
 class Inferior {
@@ -68,6 +65,7 @@ private: // variables
     std::unique_ptr<Symtab, decltype(&Symtab::closeSymtab)> m_symtab;
     SymbolMap m_symbols;
     Process::ptr m_proc;
+    Address m_module_base;
 
     void writeFromBuf(std::string const& destName, const char* buf, size_t len);
     void writeFromBuf(Address destAddr,            const char* buf, size_t len);

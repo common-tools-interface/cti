@@ -37,7 +37,7 @@
 
 #include "frontend/Frontend.hpp"
 
-class GenericSSHFrontend final : public Frontend
+class GenericSSHFrontend : public Frontend
 {
 private: // Global state
     struct passwd       m_pwd;
@@ -144,4 +144,9 @@ public: // constructor / destructor interface
     GenericSSHApp& operator=(const GenericSSHApp&) = delete;
     GenericSSHApp(GenericSSHApp&&) = delete;
     GenericSSHApp& operator=(GenericSSHApp&&) = delete;
+};
+
+class ApolloPALSFrontend : public GenericSSHFrontend {
+public: // interface
+    static bool isSupported();
 };
