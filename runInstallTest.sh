@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# runInstallTest.sh - Build Install Test step for the CDST support library
+# runInstallTest.sh - Install Test step for the CTI
 #
 # Copyright 2007-2021 Hewlett Packard Enterprise Development LP
 #
