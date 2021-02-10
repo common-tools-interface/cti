@@ -2,7 +2,7 @@
 #
 # runInstallTest.sh - Install Test step for the CTI
 #
-# Copyright 2007-2021 Hewlett Packard Enterprise Development LP
+# Copyright 2021 Hewlett Packard Enterprise Development LP
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
