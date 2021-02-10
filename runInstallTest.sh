@@ -11,11 +11,17 @@
 # used, reproduced or disclosed in any form.
 #
 
+top_level=$PWD
+
 source ./external/cdst_build_library/build_lib
 
+source $top_level/release_versioning
+cti_version="$common_tool_major.$common_tool_minor.$revision"
+install_dir="/opt/cray/pe/cti/$cti_version"
+
 # Remove build dir
-if [ -d /opt/cray/pe/cti ]; then
-  rm -rf /opt/cray/pe/cti
+if [ -d ${install_dir} ]; then
+   mv ${install_dir} ${install_dir}_orig
 fi
 
 arch=$(uname -m)
