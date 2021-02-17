@@ -149,4 +149,6 @@ public: // constructor / destructor interface
 class ApolloPALSFrontend : public GenericSSHFrontend {
 public: // interface
     static bool isSupported();
+
+    std::weak_ptr<App> registerJob(size_t numIds, ...) override;
 };
