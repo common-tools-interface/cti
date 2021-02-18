@@ -83,6 +83,85 @@ static void delete_ssh2_channel(LIBSSH2_CHANNEL *pChannel)
     libssh2_channel_free(pChannel);
 }
 
+// SSH channel data read / write
+namespace remote
+{
+
+// Read data of a specified length into the provided buffer
+static inline void readLoop(LIBSSH2_CHANNEL* channel, char* buf, int capacity)
+{
+    int offset = 0;
+    while (offset < capacity) {
+        if (auto const bytes_read = libssh2_channel_read(channel, buf + offset, capacity - offset)) {
+            if (bytes_read < 0) {
+                if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
+                    continue;
+                }
+                throw std::runtime_error("read failed: " + std::string{std::strerror(bytes_read)});
+            }
+            offset += bytes_read;
+        }
+    }
+}
+
+// Read and return a known data type
+template <typename T>
+static inline T rawReadLoop(LIBSSH2_CHANNEL* channel)
+{
+    static_assert(std::is_trivially_copyable<T>::value);
+    T result;
+    readLoop(channel, reinterpret_cast<char*>(&result), sizeof(T));
+    return result;
+}
+
+// Write data of a specified length from the provided buffer
+static inline void writeLoop(LIBSSH2_CHANNEL* channel, char const* buf, int capacity)
+{
+    int offset = 0;
+    while (offset < capacity) {
+        if (auto const bytes_written = libssh2_channel_write(channel, buf + offset, capacity - offset)) {
+            if (bytes_written < 0) {
+                if (bytes_written == LIBSSH2_ERROR_EAGAIN) {
+                    continue;
+                }
+                throw std::runtime_error("write failed: " + std::string{std::strerror(bytes_written)});
+            }
+            offset += bytes_written;
+        }
+    }
+}
+
+// Write a trivially-copyable object
+template <typename T>
+static inline void rawWriteLoop(LIBSSH2_CHANNEL* channel, T const& obj)
+{
+    static_assert(std::is_trivially_copyable<T>::value);
+    writeLoop(channel, reinterpret_cast<char const*>(&obj), sizeof(T));
+}
+
+// Relay data received over SSH to a provided file descriptor
+static void relay_task(LIBSSH2_CHANNEL* channel, int fd)
+{
+    char buf[4096];
+    auto const capacity = sizeof(buf);
+    while (true) {
+        if (auto const bytes_read = libssh2_channel_read(channel, buf, capacity)) {
+            if (bytes_read < 0) {
+                if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
+                    continue;
+                } else {
+                    return;
+                }
+            }
+            if (::write(fd, buf, bytes_read) < 0) {
+                return;
+            }
+        }
+    }
+}
+
+} // remote
+
 class SSHSession {
 private: // Internal objects
 class SSHAgent {
@@ -935,6 +1014,66 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
     }
 }
 
+std::weak_ptr<App>
+GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
+{
+    // Construct FE remote daemon arguments
+    auto daemonArgv = cti::OutgoingArgv<CTIFEDaemonArgv>{Frontend::inst().getFEDaemonPath()};
+    daemonArgv.add(CTIFEDaemonArgv::ReadFD,  std::to_string(STDIN_FILENO));
+    daemonArgv.add(CTIFEDaemonArgv::WriteFD, std::to_string(STDOUT_FILENO));
+
+    // Launch FE daemon remotely to collect MPIR information
+    auto session = SSHSession{hostname, Frontend::inst().getPwd()};
+    auto channel = session.startRemoteCommand(daemonArgv.get());
+
+    // Relay MPIR data from SSH channel to pipe
+    auto stdoutPipe = cti::Pipe{};
+    auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
+    relayTask.detach();
+
+    // Read FE daemon initialization message
+    auto const remote_pid = rawReadLoop<pid_t>(stdoutPipe.getReadFd());
+    Frontend::inst().writeLog("FE daemon running on '%s' pid: %d\n", hostname, remote_pid);
+
+    // Determine path to launcher
+    auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free);
+    if (!launcherPath) {
+        throw std::runtime_error("failed to find launcher in path: " + getLauncherName());
+    }
+
+    // Write MPIR attach request to channel
+    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::AttachMPIR);
+    remote::writeLoop(channel.get(), launcherPath.get(), strlen(launcherPath.get()) + 1);
+    remote::rawWriteLoop(channel.get(), launcher_pid);
+
+    // Read MPIR attach request from relay pipe
+    auto mpirResult = FE_daemon::readMPIRResp(stdoutPipe.getReadFd());
+    Frontend::inst().writeLog("Received %zu proctable entries from remote daemon\n", mpirResult.proctable.size());
+
+    // Shut down remote daemon
+    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::Shutdown);
+    auto const okResp = rawReadLoop<FE_daemon::OKResp>(stdoutPipe.getReadFd());
+    if (okResp.type != FE_daemon::RespType::OK) {
+        fprintf(stderr, "warning: daemon shutdown failed\n");
+    }
+
+    // Close relay pipe and SSH channel
+    stdoutPipe.closeRead();
+    stdoutPipe.closeWrite();
+    channel.reset();
+
+    // Register application with local FE daemon and insert into received MPIR response
+    auto const mpir_id = Frontend::inst().Daemon().request_RegisterApp(::getpid());
+    mpirResult.mpir_id = mpir_id;
+
+    // Create and return new application object using MPIR response
+    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(*this, std::move(mpirResult)));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
+}
+
 // Apollo PALS specializations
 
 // Running on an Apollo PALS if utility `palsig` is present
@@ -989,189 +1128,4 @@ Tool launch is coordinated through reading information at these symbols. \
 Please contact your system administrator to update the system's PALS package");
         }
     }
-}
-
-namespace remote
-{
-
-static inline void readLoop(LIBSSH2_CHANNEL* channel, char* buf, int capacity)
-{
-    int offset = 0;
-    while (offset < capacity) {
-        if (auto const bytes_read = libssh2_channel_read(channel, buf + offset, capacity - offset)) {
-            if (bytes_read < 0) {
-                if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
-                    continue;
-                }
-                throw std::runtime_error("read failed: " + std::string{std::strerror(bytes_read)});
-            }
-            offset += bytes_read;
-        }
-    }
-}
-
-template <typename T>
-static inline T rawReadLoop(LIBSSH2_CHANNEL* channel)
-{
-    static_assert(std::is_trivially_copyable<T>::value);
-    T result;
-    readLoop(channel, reinterpret_cast<char*>(&result), sizeof(T));
-    return result;
-}
-
-static inline void writeLoop(LIBSSH2_CHANNEL* channel, char const* buf, int capacity)
-{
-    int offset = 0;
-    while (offset < capacity) {
-        if (auto const bytes_written = libssh2_channel_write(channel, buf + offset, capacity - offset)) {
-            if (bytes_written < 0) {
-                if (bytes_written == LIBSSH2_ERROR_EAGAIN) {
-                    continue;
-                }
-                throw std::runtime_error("write failed: " + std::string{std::strerror(bytes_written)});
-            }
-            offset += bytes_written;
-        }
-    }
-}
-
-template <typename T>
-static inline void rawWriteLoop(LIBSSH2_CHANNEL* channel, T const& obj)
-{
-    static_assert(std::is_trivially_copyable<T>::value);
-    writeLoop(channel, reinterpret_cast<char const*>(&obj), sizeof(T));
-}
-
-static void relay_task(LIBSSH2_CHANNEL* channel, int fd)
-{
-    char buf[4096];
-    auto const capacity = sizeof(buf);
-    while (true) {
-        if (auto const bytes_read = libssh2_channel_read(channel, buf, capacity)) {
-            if (bytes_read < 0) {
-                if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
-                    continue;
-                } else {
-                    return;
-                }
-            }
-            for (int i = 0 ; i < bytes_read; i++) {
-                if (::isprint(buf[i])) {
-                    fprintf(stderr, "%c", buf[i]);
-                } else {
-                    fprintf(stderr, " %02x ", buf[i]);
-                }
-            }
-            fprintf(stderr, "\n");
-            if (::write(fd, buf, bytes_read) < 0) {
-                return;
-            }
-        }
-    }
-}
-
-} // remote
-
-static FE_daemon::MPIRResult readMPIRResp(FE_daemon::DaemonAppId mpir_id, int const reqFd)
-{
-    // read basic table information
-    auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(reqFd);
-    if (mpirResp.type != FE_daemon::RespType::MPIR) {
-        throw std::runtime_error("daemon did not send expected MPIR response type");
-    } else if (mpirResp.mpir_id == 0) {
-        throw std::runtime_error("daemon failed to perform MPIR launch");
-    }
-
-    // fill in MPIR data excluding proctable
-    FE_daemon::MPIRResult result
-        { .mpir_id = mpir_id
-        , .launcher_pid = mpirResp.launcher_pid
-        , .proctable = {}
-        , .binaryRankMap = {}
-    };
-    result.proctable.reserve(mpirResp.num_pids);
-
-    // set up pipe stream
-    cti::FdBuf respBuf{dup(reqFd)};
-    std::istream respStream{&respBuf};
-
-    // fill in pid and hostname of proctable elements, generate executable path to rank ID map
-    for (int i = 0; i < mpirResp.num_pids; i++) {
-        MPIRProctableElem elem;
-        // read pid
-        elem.pid = rawReadLoop<pid_t>(reqFd);
-        // read hostname
-        if (!std::getline(respStream, elem.hostname, '\0')) {
-            throw std::runtime_error("failed to read string");
-        }
-        // read executable name
-        if (!std::getline(respStream, elem.executable, '\0')) {
-            throw std::runtime_error("failed to read string");
-        }
-
-        fprintf(stderr, "%d: %d %s %s\n", i, elem.pid, elem.hostname.c_str(), elem.executable.c_str());
-
-        // fill in binary rank map
-        result.binaryRankMap[elem.executable].push_back(i);
-
-        result.proctable.emplace_back(std::move(elem));
-    }
-
-    return result;
-}
-
-std::weak_ptr<App>
-ApolloPALSFrontend::registerJob(size_t numIds, ...)
-{
-    if (numIds != 1) {
-        throw std::logic_error("expecting job ID argument to register app");
-    }
-
-    va_list idArgs;
-    va_start(idArgs, numIds);
-
-    pid_t launcher_pid = va_arg(idArgs, pid_t);
-
-    va_end(idArgs);
-
-    auto const mpir_id = Frontend::inst().Daemon().request_RegisterApp(::getpid());
-
-    auto daemonArgv = cti::OutgoingArgv<CTIFEDaemonArgv>{Frontend::inst().getFEDaemonPath()};
-    daemonArgv.add(CTIFEDaemonArgv::ReadFD,  std::to_string(STDIN_FILENO));
-    daemonArgv.add(CTIFEDaemonArgv::WriteFD, std::to_string(STDOUT_FILENO));
-
-    auto session = SSHSession{"n001", Frontend::inst().getPwd()};
-    auto channel = session.startRemoteCommand(daemonArgv.get());
-
-    auto stdoutPipe = cti::Pipe{};
-    auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
-    relayTask.detach();
-
-    auto const remote_pid = rawReadLoop<pid_t>(stdoutPipe.getReadFd());
-    fprintf(stderr, "remote pid: %d\n", remote_pid);
-
-    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::AttachMPIR);
-    auto const launcher_path = "/opt/cray/pe/pals/1.0.4/bin/mpiexec";
-    remote::writeLoop(channel.get(), launcher_path, strlen(launcher_path) + 1);
-    remote::rawWriteLoop(channel.get(), launcher_pid);
-    auto mpirResult = readMPIRResp(mpir_id, stdoutPipe.getReadFd());
-
-    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::Shutdown);
-    auto const okResp = rawReadLoop<FE_daemon::OKResp>(stdoutPipe.getReadFd());
-    if (okResp.type != FE_daemon::RespType::OK) {
-        fprintf(stderr, "warning: daemon shutdown failed\n");
-    }
-
-    stdoutPipe.closeRead();
-    stdoutPipe.closeWrite();
-
-    fprintf(stderr, "proctable has len %zu\n", mpirResult.proctable.size());
-
-    channel.reset();
-
-    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(*this, std::move(mpirResult)));
-    if (!ret.second) {
-        throw std::runtime_error("Failed to create new App object.");
-    }
-    return *ret.first;
 }

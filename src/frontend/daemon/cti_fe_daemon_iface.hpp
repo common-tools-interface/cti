@@ -112,6 +112,9 @@ public: // type definitions
         BinaryRankMap binaryRankMap;
     };
 
+    // Read and return an MPIRResult from the provided request pipe
+    static MPIRResult readMPIRResp(int const reqFd);
+
     /* request types */
 
     // sent before a request to indicate the type of request data that will follow

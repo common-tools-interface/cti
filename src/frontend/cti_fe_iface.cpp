@@ -463,19 +463,24 @@ static cti_pals_ops_t _cti_pals_ops = {
 static cti_app_id_t
 _cti_ssh_registerJob(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<ApolloPALSFrontend*>(&Frontend::inst())) {
-            auto wp = fe->registerJob(1, launcher_pid);
-            return fe->Iface().trackApp(wp);
-        }
-
         auto&& fe = downcastFE<GenericSSHFrontend>();
         auto wp = fe.registerJob(1, launcher_pid);
         return fe.Iface().trackApp(wp);
     }, APP_ERROR);
 }
 
+static cti_app_id_t
+_cti_ssh_registerRemoteJob(char const* hostname, pid_t launcher_pid) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<GenericSSHFrontend>();
+        auto wp = fe.registerRemoteJob(hostname, launcher_pid);
+        return fe.Iface().trackApp(wp);
+    }, APP_ERROR);
+}
+
 static cti_ssh_ops_t _cti_ssh_ops = {
-    .registerJob    = _cti_ssh_registerJob
+    .registerJob       = _cti_ssh_registerJob,
+    .registerRemoteJob = _cti_ssh_registerRemoteJob
 };
 
 // WLM specific extension ops accessor
