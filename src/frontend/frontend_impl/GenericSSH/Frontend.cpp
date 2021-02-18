@@ -65,6 +65,7 @@
 #include "useful/cti_dlopen.hpp"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_split.hpp"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -144,20 +145,20 @@ static void relay_task(LIBSSH2_CHANNEL* channel, int fd)
 {
     char buf[4096];
     auto const capacity = sizeof(buf);
-    while (true) {
-        if (auto const bytes_read = libssh2_channel_read(channel, buf, capacity)) {
-            if (bytes_read < 0) {
-                if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
-                    continue;
-                } else {
-                    return;
-                }
-            }
-            if (::write(fd, buf, bytes_read) < 0) {
-                return;
+    while (auto const bytes_read = libssh2_channel_read(channel, buf, capacity)) {
+        if (bytes_read < 0) {
+            if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
+                continue;
+            } else {
+                break;
             }
         }
+        if (::write(fd, buf, bytes_read) < 0) {
+            break;
+        }
     }
+
+    ::close(fd);
 }
 
 } // remote
@@ -1087,7 +1088,6 @@ bool ApolloPALSFrontend::isSupported()
         // Read output line
         auto versionLine = std::string{};
         if (std::getline(palsigOutput.stream(), versionLine)) {
-            fprintf(stderr, "versionLine: '%s' '%s'\n", versionLine.c_str(), versionLine.substr(0, 7).c_str());
             if (versionLine.substr(0, 7) != "palsig ") {
                 return false;
             }
@@ -1128,4 +1128,112 @@ Tool launch is coordinated through reading information at these symbols. \
 Please contact your system administrator to update the system's PALS package");
         }
     }
+}
+
+static auto find_job_host_session_id(std::string const& jobId)
+{
+    // Run qstat with machine-parseable format
+    char const* qstat_argv[] = {"qstat", "-f", jobId.c_str(), nullptr};
+    auto qstatOutput = cti::Execvp{"qstat", (char* const*)qstat_argv, cti::Execvp::stderr::Ignore};
+
+    // Start parsing qstat output
+    auto& qstatStream = qstatOutput.stream();
+    auto qstatLine = std::string{};
+
+    // Find `exec_host` and `session_id`
+    auto execHost = std::string{};
+    auto sessionId = std::string{};
+
+    // Each line is in the format `    Var = Val`
+    while (std::getline(qstatStream, qstatLine)) {
+
+        // Still need to consume qstat output as not to block the output pipe
+        if (execHost.empty() || sessionId.empty()) {
+
+            // Split line on ' = '
+            auto const var_end = qstatLine.find(" = ");
+            if (var_end == std::string::npos) {
+                continue;
+            }
+            auto const var = cti::split::removeLeadingWhitespace(qstatLine.substr(0, var_end));
+            auto const val = qstatLine.substr(var_end + 3);
+            if (var == "exec_host") {
+                execHost = cti::split::removeLeadingWhitespace(std::move(val));
+            } else if (var == "session_id") {
+                sessionId = cti::split::removeLeadingWhitespace(std::move(val));
+            }
+        }
+    }
+
+    // Reached end of qstat output without finding `exec_host` or 'session_id`
+    if (execHost.empty() || sessionId.empty()) {
+        throw std::runtime_error("invalid job id " + jobId);
+    }
+
+    // Wait for completion and check exit status
+    if (auto const qstat_rc = qstatOutput.getExitStatus()) {
+        throw std::runtime_error("`qstat -f " + jobId + "` failed with code " + std::to_string(qstat_rc));
+    }
+
+    // Extract main hostname from exec_host
+    /* qstat manpage:
+        The exec_host string has the format:
+           <host1>/<T1>*<P1>[+<host2>/<T2>*<P2>+...]
+    */
+    auto const hostname_end = execHost.find("/");
+    if (hostname_end != std::string::npos) {
+        return std::make_tuple(execHost.substr(0, hostname_end), sessionId);
+    }
+
+    throw std::runtime_error("failed to parse qstat exec_host: " + execHost);
+}
+
+static pid_t find_launcher_pid(char const* launcher_name, char const* hostname, char const* session_id)
+{
+    // Find potential launcher PIDs running on remote host
+    auto launcherPids = std::vector<pid_t>{};
+
+    // Launch pgrep remotely to find PIDs
+    { char const* pgrep_argv[] = {"pgrep", "-u", Frontend::inst().getPwd().pw_name, launcher_name, nullptr};
+        auto session = SSHSession{hostname, Frontend::inst().getPwd()};
+        auto channel = session.startRemoteCommand(pgrep_argv);
+
+        // Relay PID data from SSH channel to pipe
+        auto stdoutPipe = cti::Pipe{};
+        auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
+        relayTask.detach();
+
+        // Parse pgrep lines
+        auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
+        auto stdoutStream = std::istream{&stdoutBuf};
+        auto stdoutLine = std::string{};
+        while (std::getline(stdoutStream, stdoutLine)) {
+            launcherPids.emplace_back(std::stoi(stdoutLine));
+        }
+
+        // Close relay pipe and SSH channel
+        stdoutPipe.closeRead();
+        stdoutPipe.closeWrite();
+        channel.reset();
+    }
+
+    if (launcherPids.empty()) {
+        throw std::runtime_error("no instances of " + std::string{launcher_name} + " found on " + hostname);
+    }
+
+    // If there was only one result, it's the one to attach to
+    if (launcherPids.size() == 1) {
+        return launcherPids[0];
+    }
+
+    throw std::runtime_error("not implemented");
+}
+
+std::weak_ptr<App>
+ApolloPALSFrontend::registerRemoteJob(char const* job_id)
+{
+    auto const [hostname, sessionId] = find_job_host_session_id(job_id);
+    auto const launcherName = getLauncherName();
+    auto const launcher_pid = find_launcher_pid(launcherName.c_str(), hostname.c_str(), sessionId.c_str());
+    return GenericSSHFrontend::registerRemoteJob(hostname.c_str(), launcher_pid);
 }

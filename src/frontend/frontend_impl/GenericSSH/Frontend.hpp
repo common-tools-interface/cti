@@ -152,4 +152,7 @@ public: // constructor / destructor interface
 class ApolloPALSFrontend : public GenericSSHFrontend {
 public: // interface
     static bool isSupported();
+
+    // Detect and attach to job running on either this or remote machine (e.g. compute node)
+    std::weak_ptr<App> registerRemoteJob(char const* job_id);
 };
