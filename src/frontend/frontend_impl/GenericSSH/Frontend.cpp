@@ -1130,7 +1130,7 @@ Please contact your system administrator to update the system's PALS package");
     }
 }
 
-static auto find_job_host_session_id(std::string const& jobId)
+static auto find_job_host(std::string const& jobId)
 {
     // Run qstat with machine-parseable format
     char const* qstat_argv[] = {"qstat", "-f", jobId.c_str(), nullptr};
@@ -1140,33 +1140,27 @@ static auto find_job_host_session_id(std::string const& jobId)
     auto& qstatStream = qstatOutput.stream();
     auto qstatLine = std::string{};
 
-    // Find `exec_host` and `session_id`
-    auto execHost = std::string{};
-    auto sessionId = std::string{};
-
     // Each line is in the format `    Var = Val`
+    auto execHost = std::string{};
     while (std::getline(qstatStream, qstatLine)) {
 
-        // Still need to consume qstat output as not to block the output pipe
-        if (execHost.empty() || sessionId.empty()) {
-
-            // Split line on ' = '
-            auto const var_end = qstatLine.find(" = ");
-            if (var_end == std::string::npos) {
-                continue;
-            }
-            auto const var = cti::split::removeLeadingWhitespace(qstatLine.substr(0, var_end));
-            auto const val = qstatLine.substr(var_end + 3);
-            if (var == "exec_host") {
-                execHost = cti::split::removeLeadingWhitespace(std::move(val));
-            } else if (var == "session_id") {
-                sessionId = cti::split::removeLeadingWhitespace(std::move(val));
-            }
+        // Split line on ' = '
+        auto const var_end = qstatLine.find(" = ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(qstatLine.substr(0, var_end));
+        auto const val = qstatLine.substr(var_end + 3);
+        if (var == "exec_host") {
+            execHost = cti::split::removeLeadingWhitespace(std::move(val));
         }
     }
 
-    // Reached end of qstat output without finding `exec_host` or 'session_id`
-    if (execHost.empty() || sessionId.empty()) {
+    // Consume rest of stream output
+    while (std::getline(qstatStream, qstatLine)) {}
+
+    // Reached end of qstat output without finding `exec_host`
+    if (execHost.empty()) {
         throw std::runtime_error("invalid job id " + jobId);
     }
 
@@ -1182,13 +1176,13 @@ static auto find_job_host_session_id(std::string const& jobId)
     */
     auto const hostname_end = execHost.find("/");
     if (hostname_end != std::string::npos) {
-        return std::make_tuple(execHost.substr(0, hostname_end), sessionId);
+        return execHost.substr(0, hostname_end);
     }
 
     throw std::runtime_error("failed to parse qstat exec_host: " + execHost);
 }
 
-static pid_t find_launcher_pid(char const* launcher_name, char const* hostname, char const* session_id)
+static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
 {
     // Find potential launcher PIDs running on remote host
     auto launcherPids = std::vector<pid_t>{};
@@ -1221,59 +1215,22 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname, 
         throw std::runtime_error("no instances of " + std::string{launcher_name} + " found on " + hostname);
     }
 
-    // If there was only one result, it's the one to attach to
-    if (launcherPids.size() == 1) {
-        return launcherPids[0];
+    // If there were multiple results, attach to first launcher instance.
+    // `session_id`, PID of PBS host process, will be the grandparent PID for all launcher instances
+    // running on a given node. Cannot use its value to differentiate running instances
+    if (launcherPids.size() > 1) {
+        fprintf(stderr, "warning: found %zu %s launcher instances running on %s. Attaching to PID %d\n",
+            launcherPids.size(), launcher_name, hostname, launcherPids[0]);
     }
 
-    // Otherwise, the target launcher instance will have the `session_id` as its grandparent PID
-    // Launch shell remotely to find PIDs
-    auto filteredLauncherPids = std::vector<pid_t>{};
-    { auto commandStream = std::stringstream{};
-        commandStream << "for pid in ";
-        for (auto&& launcher_pid : launcherPids) {
-            commandStream << "\"" << launcher_pid << "\" ";
-        }
-        commandStream << "; do if [ \"" << session_id
-            << "\" -eq \"$(/bin/ps -o ppid= $(/bin/ps -o ppid= $pid))\" ]; then echo $pid; fi; done";
-        auto const commandString = commandStream.str();
-        char const* shell_argv[] = {"/bin/sh", "-c", commandString.c_str(), nullptr};
-
-        auto session = SSHSession{hostname, Frontend::inst().getPwd()};
-        auto channel = session.startRemoteCommand(shell_argv);
-
-        // Relay PID data from SSH channel to pipe
-        auto stdoutPipe = cti::Pipe{};
-        auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
-        relayTask.detach();
-
-        // Parse PID lines
-        auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
-        auto stdoutStream = std::istream{&stdoutBuf};
-        auto stdoutLine = std::string{};
-        while (std::getline(stdoutStream, stdoutLine)) {
-            filteredLauncherPids.emplace_back(std::stoi(stdoutLine));
-        }
-
-        // Close relay pipe and SSH channel
-        stdoutPipe.closeRead();
-        stdoutPipe.closeWrite();
-        channel.reset();
-    }
-
-    // If there was only one result, it's the one to attach to
-    if (filteredLauncherPids.size() == 1) {
-        return filteredLauncherPids[0];
-    }
-
-    throw std::runtime_error("not implemented");
+    return launcherPids[0];
 }
 
 std::weak_ptr<App>
 ApolloPALSFrontend::registerRemoteJob(char const* job_id)
 {
-    auto const [hostname, sessionId] = find_job_host_session_id(job_id);
+    auto const hostname = find_job_host(job_id);
     auto const launcherName = getLauncherName();
-    auto const launcher_pid = find_launcher_pid(launcherName.c_str(), hostname.c_str(), sessionId.c_str());
+    auto const launcher_pid = find_launcher_pid(launcherName.c_str(), hostname.c_str());
     return GenericSSHFrontend::registerRemoteJob(hostname.c_str(), launcher_pid);
 }
