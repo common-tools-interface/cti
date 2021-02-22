@@ -1226,6 +1226,46 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname, 
         return launcherPids[0];
     }
 
+    // Otherwise, the target launcher instance will have the `session_id` as its grandparent PID
+    // Launch shell remotely to find PIDs
+    auto filteredLauncherPids = std::vector<pid_t>{};
+    { auto commandStream = std::stringstream{};
+        commandStream << "for pid in ";
+        for (auto&& launcher_pid : launcherPids) {
+            commandStream << "\"" << launcher_pid << "\" ";
+        }
+        commandStream << "; do if [ \"" << session_id
+            << "\" -eq \"$(/bin/ps -o ppid= $(/bin/ps -o ppid= $pid))\" ]; then echo $pid; fi; done";
+        auto const commandString = commandStream.str();
+        char const* shell_argv[] = {"/bin/sh", "-c", commandString.c_str(), nullptr};
+
+        auto session = SSHSession{hostname, Frontend::inst().getPwd()};
+        auto channel = session.startRemoteCommand(shell_argv);
+
+        // Relay PID data from SSH channel to pipe
+        auto stdoutPipe = cti::Pipe{};
+        auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
+        relayTask.detach();
+
+        // Parse PID lines
+        auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
+        auto stdoutStream = std::istream{&stdoutBuf};
+        auto stdoutLine = std::string{};
+        while (std::getline(stdoutStream, stdoutLine)) {
+            filteredLauncherPids.emplace_back(std::stoi(stdoutLine));
+        }
+
+        // Close relay pipe and SSH channel
+        stdoutPipe.closeRead();
+        stdoutPipe.closeWrite();
+        channel.reset();
+    }
+
+    // If there was only one result, it's the one to attach to
+    if (filteredLauncherPids.size() == 1) {
+        return filteredLauncherPids[0];
+    }
+
     throw std::runtime_error("not implemented");
 }
 
