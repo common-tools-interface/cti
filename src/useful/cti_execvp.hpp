@@ -134,30 +134,30 @@ public:
 
     const int getReadFd() { return fds[ReadEnd]; }
     const int getWriteFd() { return fds[WriteEnd]; }
-};
 
-/* Pipe - create and track closed ends of pipe */
-class Pipe : public FdPair
-{
-public:
-    Pipe(int flags = 0)
+    /* Pipe - create and track closed ends of pipe */
+    void pipe(int flags = 0)
     {
-        if (pipe2(fds, flags)) {
+        if (readOpened || writeOpened) {
+            throw std::runtime_error("read or write pipe already opened");
+        }
+
+        if (::pipe2(fds, flags)) {
             throw std::runtime_error("Pipe error");
         }
 
         readOpened = true;
         writeOpened = true;
     }
-};
 
-/* SocketPair - create and track socket pair */
-class SocketPair : public FdPair
-{
-public:
-    SocketPair(int domain, int type, int protocol)
+    /* SocketPair - create and track socket pair */
+    void socketpair(int domain, int type, int protocol)
     {
-        if (socketpair(domain, type, protocol, fds)) {
+        if (readOpened || writeOpened) {
+            throw std::runtime_error("read or write pipe already opened");
+        }
+
+        if (::socketpair(domain, type, protocol, fds)) {
             throw std::runtime_error("socketpair error");
         }
 
@@ -166,6 +166,14 @@ public:
     }
 };
 
+struct Pipe : public FdPair
+{
+    Pipe(int flags = 0)
+        : FdPair{}
+    {
+        pipe(flags);
+    }
+};
 
 /* Execvp - fork / execvp a program and read its output as an istream */
 // Right now the only constructor is to read output as an istream, but this could

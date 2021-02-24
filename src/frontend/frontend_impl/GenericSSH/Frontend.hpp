@@ -88,6 +88,9 @@ public: // ssh specific interface
     FE_daemon::MPIRResult launchApp(const char * const launcher_argv[],
         int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 
+    // Attach to a job with launcher running on a different machine (e.g. compute node)
+    std::weak_ptr<App> registerRemoteJob(char const* hostname, pid_t launcher_pid);
+
 public: // constructor / destructor interface
     GenericSSHFrontend();
     ~GenericSSHFrontend();
@@ -149,4 +152,7 @@ public: // constructor / destructor interface
 class ApolloPALSFrontend : public GenericSSHFrontend {
 public: // interface
     static bool isSupported();
+
+    // Detect and attach to job running on either this or remote machine (e.g. compute node)
+    std::weak_ptr<App> registerRemoteJob(char const* job_id);
 };
