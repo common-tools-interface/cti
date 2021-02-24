@@ -109,7 +109,7 @@ static inline void readLoop(LIBSSH2_CHANNEL* channel, char* buf, int capacity)
 template <typename T>
 static inline T rawReadLoop(LIBSSH2_CHANNEL* channel)
 {
-    static_assert(std::is_trivially_copyable<T>::value);
+    static_assert(std::is_trivial<T>::value);
     T result;
     readLoop(channel, reinterpret_cast<char*>(&result), sizeof(T));
     return result;
@@ -1153,20 +1153,21 @@ static auto find_job_host(std::string const& jobId)
         auto const val = qstatLine.substr(var_end + 3);
         if (var == "exec_host") {
             execHost = cti::split::removeLeadingWhitespace(std::move(val));
+            break;
         }
     }
 
     // Consume rest of stream output
     while (std::getline(qstatStream, qstatLine)) {}
 
-    // Reached end of qstat output without finding `exec_host`
-    if (execHost.empty()) {
-        throw std::runtime_error("invalid job id " + jobId);
-    }
-
     // Wait for completion and check exit status
     if (auto const qstat_rc = qstatOutput.getExitStatus()) {
         throw std::runtime_error("`qstat -f " + jobId + "` failed with code " + std::to_string(qstat_rc));
+    }
+
+    // Reached end of qstat output without finding `exec_host`
+    if (execHost.empty()) {
+        throw std::runtime_error("invalid job id " + jobId);
     }
 
     // Extract main hostname from exec_host
@@ -1229,8 +1230,19 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
 std::weak_ptr<App>
 ApolloPALSFrontend::registerRemoteJob(char const* job_id)
 {
-    auto const hostname = find_job_host(job_id);
+    // Job ID is either in format <job_id> or <job_id>.<launcher_pid>
+    auto const [jobId, launcherPidString] = cti::split::string<2>(job_id, '.');
+    fprintf(stderr, "'%s' job id '%s' launcher pid '%s'\n", job_id, jobId.c_str(), launcherPidString.c_str());
+
+    // Find head node hostname for given job ID
+    auto const hostname = find_job_host(jobId);
+
+    // If launcher PID was not provided, find first launcher PID instance on head node
     auto const launcherName = getLauncherName();
-    auto const launcher_pid = find_launcher_pid(launcherName.c_str(), hostname.c_str());
+    auto const launcher_pid = (launcherPidString.empty())
+        ? find_launcher_pid(launcherName.c_str(), hostname.c_str())
+        : std::stoi(launcherPidString);
+
+    // Attach to launcher PID running on head node and extract MPIR data for attach
     return GenericSSHFrontend::registerRemoteJob(hostname.c_str(), launcher_pid);
 }

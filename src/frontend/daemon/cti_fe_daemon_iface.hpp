@@ -91,7 +91,7 @@ static inline void writeLoop(int const fd, char const* buf, int num_bytes)
 template <typename T>
 static inline void rawWriteLoop(int const fd, T const& obj)
 {
-    static_assert(std::is_trivially_copyable<T>::value);
+    static_assert(std::is_trivial<T>::value);
     writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
 }
 
