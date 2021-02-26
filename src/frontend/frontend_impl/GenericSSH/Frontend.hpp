@@ -150,7 +150,15 @@ public: // constructor / destructor interface
 };
 
 class ApolloPALSFrontend : public GenericSSHFrontend {
-public: // interface
+public: // inherited interface
+
+    std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
+    std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
+public: // PALS-specific interface
     static bool isSupported();
 
     // Detect and attach to job running on either this or remote machine (e.g. compute node)

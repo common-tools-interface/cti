@@ -1246,3 +1246,48 @@ ApolloPALSFrontend::registerRemoteJob(char const* job_id)
     // Attach to launcher PID running on head node and extract MPIR data for attach
     return GenericSSHFrontend::registerRemoteJob(hostname.c_str(), launcher_pid);
 }
+
+// Add the launcher's timeout disable environment variable to provided environment list
+static inline auto disableTimeoutEnvironment(std::string const& launcherName, CArgArray env_list)
+{
+    // Determine the timeout disable environment variable for PALS `mpiexec` or PALS `aprun` command
+    // https://connect.us.cray.com/jira/browse/PE-34329
+    auto const timeout_disable_env = (launcherName == "aprun")
+        ? "APRUN_RPC_TIMEOUT=0"
+        : "PALS_RPC_TIMEOUT=0";
+
+    // Add the launcher's timeout disable environment variable to a new environment list
+    auto fixedEnvVars = cti::ManagedArgv{};
+
+    // Copy provided environment list
+    if (env_list != nullptr) {
+        for (auto env = env_list; *env != nullptr; env++) {
+            fixedEnvVars.add(*env);
+        }
+    }
+
+    // Append timeout disable environment variable
+    fixedEnvVars.add(timeout_disable_env);
+
+    return fixedEnvVars;
+}
+
+std::weak_ptr<App>
+ApolloPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+    CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    auto fixedEnvVars = disableTimeoutEnvironment(getLauncherName(), env_list);
+
+    return GenericSSHFrontend::launch(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath,
+            fixedEnvVars.get());
+}
+
+std::weak_ptr<App>
+ApolloPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    auto fixedEnvVars = disableTimeoutEnvironment(getLauncherName(), env_list);
+
+    return GenericSSHFrontend::launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath,
+            fixedEnvVars.get());
+}
