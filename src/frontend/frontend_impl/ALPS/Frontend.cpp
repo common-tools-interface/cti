@@ -771,9 +771,9 @@ ALPSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
 
             // construct argv array & instance
             cti::ManagedArgv launcherArgv{ launcher_path.get() };
-            for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-                launcherArgv.add(*arg);
-            }
+
+            // Copy provided launcher arguments
+            launcherArgv.add(launcher_argv);
 
             // chdir if directed
             if ((chdirPath != nullptr) && (::chdir(chdirPath) < 0)) {
@@ -894,9 +894,9 @@ ALPSFrontend::launchAppBarrier(const char * const launcher_argv[], int stdout_fd
                 , "-P", std::to_string(aprunToCtiPipe[WriteEnd]) + "," +
                     std::to_string(ctiToAprunPipe[ReadEnd])
             };
-            for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-                launcherArgv.add(*arg);
-            }
+
+            // Copy provided launcher arguments
+            launcherArgv.add(launcher_argv);
 
             // chdir if directed
             if ((chdirPath != nullptr) && (::chdir(chdirPath) < 0)) {

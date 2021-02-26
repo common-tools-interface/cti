@@ -109,7 +109,8 @@ TEST_F(CTIUsefulUnitTest, cti_argv)
     // test that adding a NULL pointer throws
     cti::ManagedArgv argv3;
     ASSERT_NO_THROW(argv3.add(""));
-    ASSERT_THROW(argv3.add(NULL), std::logic_error);
+    ASSERT_THROW(argv3.add((char const*)NULL), std::logic_error);
+    ASSERT_THROW(argv3.add((char const**)NULL), std::logic_error);
 }
     /**********************************************************************************/
     // test additional argv classes
