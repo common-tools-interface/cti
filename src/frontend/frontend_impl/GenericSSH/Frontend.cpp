@@ -716,9 +716,9 @@ GenericSSHApp::startDaemon(const char* const args[])
 
     // Prepare the launcher arguments
     cti::ManagedArgv launcherArgv { launcherPath };
-    for (const char* const* arg = args; *arg != nullptr; arg++) {
-        launcherArgv.add(*arg);
-    }
+
+    // Copy provided launcher arguments
+    launcherArgv.add(args);
 
     // Execute the launcher on each of the hosts using SSH
     for (auto&& node : m_stepLayout.nodes) {
@@ -980,9 +980,9 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
         cti::ManagedArgv launcherArgv
             { launcher_path.get()
         };
-        for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-            launcherArgv.add(*arg);
-        }
+
+        // Copy provided launcher arguments
+        launcherArgv.add(launcher_argv);
 
         // Use MPIR shim if detected to be necessary
         auto const shimmedLauncherName = getShimmedLauncherName(launcher_path.get());
@@ -1247,27 +1247,26 @@ ApolloPALSFrontend::registerRemoteJob(char const* job_id)
     return GenericSSHFrontend::registerRemoteJob(hostname.c_str(), launcher_pid);
 }
 
-// Add the launcher's timeout disable environment variable to provided environment list
-static inline auto disableTimeoutEnvironment(std::string const& launcherName, CArgArray env_list)
+// Add the launcher's timeout environment variable to provided environment list
+// Set timeout to five minutes
+static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgArray env_list)
 {
-    // Determine the timeout disable environment variable for PALS `mpiexec` or PALS `aprun` command
+    // Determine the timeout environment variable for PALS `mpiexec` or PALS `aprun` command
     // https://connect.us.cray.com/jira/browse/PE-34329
-    auto const timeout_disable_env = (launcherName == "aprun")
-        ? "APRUN_RPC_TIMEOUT=0"
-        : "PALS_RPC_TIMEOUT=0";
+    auto const timeout_env = (launcherName == "aprun")
+        ? "APRUN_RPC_TIMEOUT=300"
+        : "PALS_RPC_TIMEOUT=300";
 
     // Add the launcher's timeout disable environment variable to a new environment list
     auto fixedEnvVars = cti::ManagedArgv{};
 
     // Copy provided environment list
     if (env_list != nullptr) {
-        for (auto env = env_list; *env != nullptr; env++) {
-            fixedEnvVars.add(*env);
-        }
+        fixedEnvVars.add(env_list);
     }
 
     // Append timeout disable environment variable
-    fixedEnvVars.add(timeout_disable_env);
+    fixedEnvVars.add(timeout_env);
 
     return fixedEnvVars;
 }
@@ -1276,7 +1275,7 @@ std::weak_ptr<App>
 ApolloPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto fixedEnvVars = disableTimeoutEnvironment(getLauncherName(), env_list);
+    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
 
     return GenericSSHFrontend::launch(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath,
             fixedEnvVars.get());
@@ -1286,7 +1285,7 @@ std::weak_ptr<App>
 ApolloPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto fixedEnvVars = disableTimeoutEnvironment(getLauncherName(), env_list);
+    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
 
     return GenericSSHFrontend::launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath,
             fixedEnvVars.get());
