@@ -933,28 +933,6 @@ GenericSSHFrontend::createPIDListFile(MPIRProctable const& procTable, std::strin
     }
 }
 
-bool
-GenericSSHFrontend::isSupported()
-{
-    // Check if this is a cluster system.
-    // FIXME: This is a hack. This is not a reliable check for all environments.
-    // For example, whiteboxes should support direct SSH, but this file will not be present.
-    // In this case, no WLM will be detected, and the user will be instructed to set the
-    // CTI_WLM_IMPL_ENV_VAR environment variable.
-    { struct stat sb;
-        if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
-            return true;
-        }
-    }
-
-    // Check if running Apollo with PALS
-    if (ApolloPALSFrontend::isSupported()) {
-        return true;
-    }
-
-    return false;
-}
-
 static std::string
 getShimmedLauncherName(std::string const& launcherPath)
 {
@@ -1076,59 +1054,6 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
 }
 
 // Apollo PALS specializations
-
-// Running on an Apollo PALS if utility `palsig` is present
-bool ApolloPALSFrontend::isSupported()
-{
-    try {
-        // Check that the pals software module is loaded
-        auto palsigArgv = cti::ManagedArgv{"palsig", "--version"};
-        auto palsigOutput = cti::Execvp{"palsig", palsigArgv.get(), cti::Execvp::stderr::Ignore};
-
-        // Read output line
-        auto versionLine = std::string{};
-        if (std::getline(palsigOutput.stream(), versionLine)) {
-            if (versionLine.substr(0, 7) != "palsig ") {
-                return false;
-            }
-        } else {
-            return false;
-        }
-
-        // Ensure exited properly
-        if (palsigOutput.getExitStatus()) {
-            return false;
-        }
-
-        return true;
-
-    } catch (...) {
-        return false;
-    }
-
-    // Get launcher name (by default mpiexec)
-    auto const launcherName = getLauncherName();
-
-    // Check that mpiexec is a binary and not a script
-    { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
-        "file --mime `command -v " + launcherName + "` | grep application/x-executable"};
-        if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
-            throw std::runtime_error("The PALS launcher " + launcherName + " was detected on the system, but it is not a binary file. \
-Tool launch requires direct access to the launcher binary. \
-Ensure that " + launcherName + " is not wrapped by a script");
-        }
-    }
-
-    // Check that the mpiexec binary contains MPIR symbols
-    { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
-        "nm `command -v " + launcherName + "` | grep MPIR_Breakpoint$"};
-        if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
-            throw std::runtime_error("The PALS launcher " + launcherName + " was detected on the system, but it does not contain debug symbols. \
-Tool launch is coordinated through reading information at these symbols. \
-Please contact your system administrator to update the system's PALS package");
-        }
-    }
-}
 
 static auto find_job_host(std::string const& jobId)
 {

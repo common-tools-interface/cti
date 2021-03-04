@@ -43,7 +43,6 @@ class PALSFrontend final : public Frontend
 {
 public: // inherited interface
     static char const* getName()        { return CTI_WLM_TYPE_PALS_STR; }
-    static bool isSupported();
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_PALS; }
 

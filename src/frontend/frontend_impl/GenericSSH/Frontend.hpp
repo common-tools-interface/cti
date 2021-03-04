@@ -159,7 +159,6 @@ public: // inherited interface
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
 public: // PALS-specific interface
-    static bool isSupported();
 
     // Detect and attach to job running on either this or remote machine (e.g. compute node)
     std::weak_ptr<App> registerRemoteJob(char const* job_id);
