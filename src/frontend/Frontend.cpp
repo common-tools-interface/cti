@@ -612,9 +612,21 @@ Ensure that the " + launcherName + " binary not wrapped by a script \
         }
     }
 
-    // Check that the launcher binary contains MPIR symbols
+    // Check that the launcher binary supports MPIR launch
     { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
         "nm " + launcherPath + " | grep MPIR_Breakpoint$"};
+        if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
+            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not appear to support MPIR launch \
+(function MPIR_Breakpoint was not found). Tool launch is \
+coordinated through setting a breakpoint at this function. \
+Please contact your system administrator with a bug report \
+(tried " + format_System_WLM(system, wlm) + ")");
+        }
+    }
+
+    // Check that the launcher binary contains MPIR symbols
+    { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
+        "nm " + launcherPath + " | grep MPIR_being_debugged$"};
         if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
             throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not contain debug symbols. \
 Tool launch is coordinated through reading information at these symbols. \
