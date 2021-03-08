@@ -245,6 +245,7 @@ AC_CONFIG_FILES([
     src/frontend/mpir_iface/Makefile
     src/useful/Makefile
     src/useful/ld_val/Makefile
+    src/utilities/Makefile
     tests/mock/Makefile
     tests/unit/Makefile
 ])
