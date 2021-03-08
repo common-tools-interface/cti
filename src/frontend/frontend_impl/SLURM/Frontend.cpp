@@ -124,8 +124,8 @@ static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t jobId, uint
             return mpirResult;
 
         } catch (std::exception const& ex) {
-            throw std::runtime_error("Failed to attach to job " +
-                std::to_string(jobId) + " " + std::to_string(stepId));
+            throw std::runtime_error("Failed to attach to job using SATTACH. Try running `\
+" SATTACH " -Q " + std::to_string(jobId) + "." + std::to_string(stepId) + "`");
         }
     } else {
         throw std::runtime_error("Failed to find SATTACH in path");
@@ -272,7 +272,9 @@ void SLURMApp::startDaemon(const char* const args[]) {
     if (!m_beDaemonSent) {
         // Get the location of the backend daemon
         if (m_frontend.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
+            throw std::runtime_error("Unable to locate backend daemon binary. Load the \
+system default CTI module with `module load cray-cti`, or set the \
+environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
         }
 
         // Copy the BE binary to its unique storage name
@@ -371,7 +373,8 @@ static std::string getSlurmVersion()
 
     auto slurmVersion = std::string{};
     if (!std::getline(srunVersionOutput.stream(), slurmVersion, '\n')) {
-        throw std::runtime_error("failed to get SRUN version number output");
+        throw std::runtime_error("Failed to get SRUN version number output. Try running \
+`srun --version`");
     }
     // slurm major.minor.patch
 
@@ -415,7 +418,8 @@ SLURMFrontend::SLURMFrontend()
             }
         );
     } else {
-        throw std::runtime_error("unknown SLURM version: " + slurmVersion);
+        throw std::runtime_error("unknown SLURM version: " + std::to_string(slurmVersion) + ". Try running \
+`srun --version`");
     }
 
     // Add / override SRUN arguments from environment variables
@@ -477,7 +481,7 @@ SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_
         launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list)));
 
     if (!ret.second) {
-        throw std::runtime_error("Failed to create new App object.");
+        throw std::runtime_error("Failed to insert new SLURMApp.");
     }
     return *ret.first;
 }
@@ -507,7 +511,7 @@ SLURMFrontend::registerJob(size_t numIds, ...) {
 
     auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this, sattachMPIR(*this, jobId, stepId)));
     if (!ret.second) {
-        throw std::runtime_error("Failed to create new App object.");
+        throw std::runtime_error("Failed to insert new SLURMApp.");
     }
     return *ret.first;
 }
@@ -546,10 +550,12 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     // "Job step layout:"
     if (std::getline(sattachStream, sattachLine)) {
         if (sattachLine.compare("Job step layout:")) {
-            throw std::runtime_error(std::string("sattach layout: wrong format: ") + sattachLine);
+            throw std::runtime_error("Unexpected layout output from SATTACH: '" + sattachLine + "'\
+Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
         }
     } else {
-        throw std::runtime_error("sattach layout: wrong format: expected header");
+        throw std::runtime_error("Unexpected layout output from SATTACH (expected header)\
+Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
     }
 
     StepLayout layout;
@@ -567,7 +573,8 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
         numNodes = std::stoi(rawNumNodes);
         layout.nodes.reserve(numNodes);
     } else {
-        throw std::runtime_error("sattach layout: wrong format: expected summary");
+        throw std::runtime_error("Unexpected layout output from SATTACH (expected summary)\
+Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
     }
 
     // seperator line
@@ -576,7 +583,8 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     // "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
     for (auto i = int{0}; std::getline(sattachStream, sattachLine); i++) {
         if (i >= numNodes) {
-            throw std::runtime_error("malformed sattach output: too many nodes!");
+            throw std::runtime_error("Target job has " + std::to_string(numNodes) + " nodes, but received extra layout information from SATTACH.\
+Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
         }
 
         // split the summary line
