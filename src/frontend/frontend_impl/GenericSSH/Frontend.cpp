@@ -328,37 +328,42 @@ public: // Constructor/destructor
         }
 
         // Check the remote hostkey against the knownhosts
-        int keymask = (type == LIBSSH2_HOSTKEY_TYPE_RSA) ? LIBSSH2_KNOWNHOST_KEY_SSHRSA:LIBSSH2_KNOWNHOST_KEY_SSHDSS;
-        struct libssh2_knownhost *kh;
-        int check = libssh2_knownhost_checkp(   known_host_ptr.get(),
-                                                hostname.c_str(), 22,
-                                                fingerprint, len,
-                                                LIBSSH2_KNOWNHOST_TYPE_PLAIN |
-                                                LIBSSH2_KNOWNHOST_KEYENC_BASE64 |
-                                                keymask,
-                                                &kh);
-        switch (check) {
-            case LIBSSH2_KNOWNHOST_CHECK_MATCH:
-                // Do nothing
-                break;
-            case LIBSSH2_KNOWNHOST_CHECK_NOTFOUND:
-                // Add the host to the host file and continue
-                if (libssh2_knownhost_addc( known_host_ptr.get(),
-                                            hostname.c_str(), nullptr,
-                                            fingerprint, len,
-                                            nullptr, 0,
-                                            LIBSSH2_KNOWNHOST_TYPE_PLAIN |
-                                            LIBSSH2_KNOWNHOST_KEYENC_BASE64 |
-                                            keymask,
-                                            nullptr)) {
-                    throw std::runtime_error("Failed to add remote host to knownhosts");
-                }
-                break;
-            case LIBSSH2_KNOWNHOST_CHECK_MISMATCH:
-                throw std::runtime_error("Remote hostkey mismatch with knownhosts file! Remote the host from knownhosts to resolve: " + hostname);
-            case LIBSSH2_KNOWNHOST_CHECK_FAILURE:
-            default:
-                throw std::runtime_error("Failure with libssh2 knownhost check");
+        { int keymask = (type == LIBSSH2_HOSTKEY_TYPE_RSA) ? LIBSSH2_KNOWNHOST_KEY_SSHRSA:LIBSSH2_KNOWNHOST_KEY_SSHDSS;
+            struct libssh2_knownhost *kh;
+            int check = libssh2_knownhost_checkp(   known_host_ptr.get(),
+                                                    hostname.c_str(), 22,
+                                                    fingerprint, len,
+                                                    LIBSSH2_KNOWNHOST_TYPE_PLAIN |
+                                                    LIBSSH2_KNOWNHOST_KEYENC_BASE64 |
+                                                    keymask,
+                                                    &kh);
+            switch (check) {
+                case LIBSSH2_KNOWNHOST_CHECK_MATCH:
+                    // Do nothing
+                    break;
+                case LIBSSH2_KNOWNHOST_CHECK_NOTFOUND:
+                    // Don't store empty fingerprint in host file
+                    if ((len > 0) && (fingerprint[0] != '\0')) {
+
+                        // Add the host to the host file and continue
+                        if (libssh2_knownhost_addc( known_host_ptr.get(),
+                                                    hostname.c_str(), nullptr,
+                                                    fingerprint, len,
+                                                    nullptr, 0,
+                                                    LIBSSH2_KNOWNHOST_TYPE_PLAIN |
+                                                    LIBSSH2_KNOWNHOST_KEYENC_BASE64 |
+                                                    keymask,
+                                                    nullptr)) {
+                            throw std::runtime_error("Failed to add remote host to knownhosts");
+                        }
+                    }
+                    break;
+                case LIBSSH2_KNOWNHOST_CHECK_MISMATCH:
+                    throw std::runtime_error("Remote hostkey mismatch with knownhosts file! Remove the host from knownhosts to resolve: " + hostname);
+                case LIBSSH2_KNOWNHOST_CHECK_FAILURE:
+                default:
+                    throw std::runtime_error("Failure with libssh2 knownhost check");
+            }
         }
 
         // FIXME: How to ensure sane pwd?
