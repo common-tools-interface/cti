@@ -1,7 +1,7 @@
 #
 # Makefile.am for user-facing CTI utilities
 #
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2021 Hewlett Packard Enterprise Development LP.
 #
 
 SRC = @COMMONTOOL_DIR@/src

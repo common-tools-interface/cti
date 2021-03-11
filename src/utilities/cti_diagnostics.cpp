@@ -1,5 +1,6 @@
 /******************************************************************************\
- * cti_diagnostics.cpp - Diagnose CTI launch process
+ * cti_diagnostics.cpp - Diagnose CTI launch process. Launches test backend
+ *     and returns any backend errors that may be detected.
  *
  * Copyright 2021 Hewlett Packard Enterprise Development LP.
  *
@@ -99,7 +100,7 @@ static auto bind_any(std::string const& address)
 
 	struct addrinfo *raw_listener = nullptr;
 	if (auto const rc = getaddrinfo(address.c_str(), "0", &hints, &raw_listener)) {
-		throw std::runtime_error(gai_strerror(rc));
+		throw std::runtime_error("getaddrinfo failed for address " + address + ": " + gai_strerror(rc));
 	}
 	auto listener = std::unique_ptr<struct addrinfo, decltype(&freeaddrinfo)>(std::move(raw_listener), freeaddrinfo);
 	raw_listener = nullptr;
@@ -107,12 +108,12 @@ static auto bind_any(std::string const& address)
 	// Create the socket
 	auto const socket_fd = socket(listener->ai_family, listener->ai_socktype, listener->ai_protocol);
 	if (socket_fd < 0) {
-		throw std::runtime_error(strerror(errno));
+		throw std::runtime_error("socket failed on address " + address + ": " + strerror(errno));
 	}
 
 	// Bind the socket
 	if (bind(socket_fd, listener->ai_addr, listener->ai_addrlen) < 0) {
-		throw std::runtime_error(strerror(errno));
+		throw std::runtime_error("bind failed on address " + address + ": " + strerror(errno));
 	}
 
 	return socket_fd;
@@ -126,7 +127,7 @@ static auto launch_diagnostics_backend(cti_session_id_t session_id)
 
 	// Listen on socket
 	if (auto const listen_rc = listen(socket, 1)) {
-		throw std::runtime_error(strerror(listen_rc));
+		throw std::runtime_error(std::string{"failed to listen on socket: "} + strerror(listen_rc));
 	}
 
 	// Get socket connection information
@@ -135,7 +136,7 @@ static auto launch_diagnostics_backend(cti_session_id_t session_id)
 		auto sa_len = socklen_t{sizeof(sa)};
 		memset(&sa, 0, sizeof(sa));
 		if (auto const getsockname_rc = getsockname(socket, (struct sockaddr*)&sa, &sa_len)) {
-			throw std::runtime_error(strerror(getsockname_rc));
+			throw std::runtime_error(std::string{"getsockname failed: "} + strerror(getsockname_rc));
 		}
 
 		// Extract socket port
@@ -185,6 +186,13 @@ int main(int argc, char **argv)
 	auto session_id = cti_session_id_t{0};
 	auto socket_fd = int{-1};
 	auto backend_fd = int{-1};
+
+	// Check arguments
+	if (argc != 1) {
+		fprintf(stderr, "usage: %s\nRun launch and backend diagnostics for the Common \
+Tools Interface (CTI) launch library\n", argv[0]);
+		exit(-1);
+	}
 
 	// Build path to test application
 	auto application_path = std::string{};

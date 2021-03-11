@@ -329,7 +329,7 @@ public: // Constructor/destructor
 
         // Check the remote hostkey against the knownhosts
         { int keymask = (type == LIBSSH2_HOSTKEY_TYPE_RSA) ? LIBSSH2_KNOWNHOST_KEY_SSHRSA:LIBSSH2_KNOWNHOST_KEY_SSHDSS;
-            struct libssh2_knownhost *kh;
+            struct libssh2_knownhost *kh = nullptr;
             int check = libssh2_knownhost_checkp(   known_host_ptr.get(),
                                                     hostname.c_str(), 22,
                                                     fingerprint, len,
