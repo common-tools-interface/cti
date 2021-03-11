@@ -90,34 +90,6 @@ getSvcNid()
 
 /* ALPSFrontend implementation */
 
-bool
-ALPSFrontend::isSupported()
-{
-    // Check that aprun version returns expected content
-    { auto aprunTestArgv = cti::ManagedArgv{"aprun", "--version"};
-        auto aprunOutput = cti::Execvp{"aprun", aprunTestArgv.get(), cti::Execvp::stderr::Ignore};
-
-        // Read first line, ensure it is in format "aprun (ALPS) <version>"
-        auto& aprunStream = aprunOutput.stream();
-        auto versionLine = std::string{};
-        if (std::getline(aprunStream, versionLine)) {
-
-            // Split line into each word
-            auto const [aprun, alps, version] = cti::split::string<3>(versionLine, ' ');
-            if ((aprun == "aprun") && (alps == "(ALPS)")) {
-                return true;
-            }
-        }
-
-        // Wait for aprun to complete
-        if (aprunOutput.getExitStatus()) {
-            return false;
-        }
-
-        return false;
-    }
-}
-
 std::weak_ptr<App>
 ALPSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)

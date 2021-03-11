@@ -47,6 +47,7 @@
 // utility includes
 #include "useful/cti_log.h"
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_split.hpp"
 #include "useful/cti_dlopen.hpp"
 #include "checksum/checksums.h"
 
@@ -357,46 +358,386 @@ Frontend::doFileCleanup()
     }
 }
 
-/*
-* This routine automatically determines the active Workload Manager. The
-* user can force SSH as the "WLM" by setting the environment variable CTI_WLM_IMPL_ENV_VAR.
-*/
-cti_wlm_type_t
-Frontend::detect_Frontend()
+namespace
 {
-    // We do not want to call init if we are running on the backend inside of
-    // a tool daemon! It is possible for BE libraries to link against both the
-    // CTI fe and be libs (e.g. MRNet) and we do not want to call the FE init
-    // in that case.
-    if (isRunningOnBackend()) {
-        throw std::runtime_error("Unable to instantiate Frontend from compute node!");
+
+enum class System : int
+    { Unknown
+    , Linux
+    , HPCM
+    , Shasta
+    , XC
+    , CS
+};
+
+static std::string System_to_string(System const& system)
+{
+    switch (system) {
+        case System::Unknown: return "";
+        case System::Linux:   return "Generic Linux";
+        case System::HPCM:    return "HPCM";
+        case System::Shasta:  return "Cray Shasta";
+        case System::XC:      return "Cray XC";
+        case System::CS:      return "Cray CS";
+        default: assert(false);
+    }
+}
+
+enum class WLM : int
+    { Unknown
+    , PALS
+    , Slurm
+    , ALPS
+    , SSH
+};
+
+static std::string WLM_to_string(WLM const& wlm)
+{
+    switch (wlm) {
+        case WLM::Unknown: return "Unknown WLM";
+        case WLM::PALS:    return "PALS";
+        case WLM::Slurm:   return "Slurm";
+        case WLM::ALPS:    return "ALPS";
+        case WLM::SSH:     return "SSH";
+        default: assert(false);
+    }
+}
+
+static auto format_System_WLM(System const& system, WLM const& wlm)
+{
+    if (system != System::Unknown) {
+        return System_to_string(system) + " / " + WLM_to_string(wlm);
+    } else {
+        return WLM_to_string(wlm);
+    }
+}
+
+// Running on an HPCM machine if the `cminfo` cluster info query program is
+// installed, and it reports the current node type.
+static bool detect_HPCM()
+{
+    try {
+        char const* cminfoArgv[] = { "cminfo", "--name", nullptr };
+
+        // Start cminfo
+        auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
+
+        // Detect if running on HPCM login or compute node
+        auto& cminfoStream = cminfoOutput.stream();
+        std::string cmName;
+        if (std::getline(cminfoStream, cmName)) {
+            auto const hpcm_login_node = cmName == "admin";
+            auto const hpcm_compute_node = cmName.substr(0, 7) == "service";
+            return hpcm_login_node || hpcm_compute_node;
+        } else {
+            return false;
+        }
+
+        // Check return code
+        if (cminfoOutput.getExitStatus() != 0) {
+            return false;
+        }
+
+    } catch(...) {
+        // cminfo not installed
+        return false;
+    }
+}
+
+// Check if this is a CS cluster system
+static bool detect_CS()
+{
+    // CS cluster file will be present on all CS systems
+    { struct stat sb;
+        if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
+            return true;
+        }
     }
 
-    auto toLower = [](std::string str) -> std::string {
-        std::transform(str.begin(), str.end(), str.begin(),
-            [](unsigned char c){ return std::tolower(c); });
-        return str;
-    };
+    return false;
+}
 
-    // Use the workload manager in the environment variable if it is set
-    if (const char* wlm_name_env = getenv(CTI_WLM_IMPL_ENV_VAR)) {
-        auto const wlmName = toLower(wlm_name_env);
-        // parse the env string
-        if (wlmName == toLower(ALPSFrontend::getName())) {
-            return CTI_WLM_ALPS;
-        } else if (wlmName == toLower(SLURMFrontend::getName())) {
-            return CTI_WLM_SLURM;
-        } else if (wlmName == toLower(PALSFrontend::getName())) {
-            return CTI_WLM_PALS;
-        } else if (wlmName == toLower(GenericSSHFrontend::getName())) {
-            return CTI_WLM_SSH;
+// Running on an Apollo PALS if utility `palsig` is present
+bool detect_HPCM_PALS(std::string const& /* unused */ = "")
+{
+    try {
+
+        // Check that the pals software module is loaded
+        auto palsigArgv = cti::ManagedArgv{"palsig", "--version"};
+        auto palsigOutput = cti::Execvp{"palsig", palsigArgv.get(), cti::Execvp::stderr::Ignore};
+
+        // Read output line
+        auto versionLine = std::string{};
+        if (std::getline(palsigOutput.stream(), versionLine)) {
+            if (versionLine.substr(0, 7) != "palsig ") {
+                return false;
+            }
+        } else {
+            return false;
         }
-        else {
-            throw std::runtime_error("Invalid workload manager argument '" + wlmName + "' provided in " + CTI_WLM_IMPL_ENV_VAR);
+
+        // Ensure exited properly
+        if (palsigOutput.getExitStatus()) {
+            return false;
+        }
+
+        return true;
+
+    } catch (...) {
+        return false;
+    }
+}
+
+static bool detect_Shasta_PALS(std::string const& /* unused */)
+{
+    // Check manual PALS debug mode flag
+    if (::getenv(PALS_DEBUG)) {
+        return true;
+    }
+
+    try {
+
+        // Check that PBS is installed (required for PALS)
+        auto rpmClientArgv    = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
+        auto rpmExecutionArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-execution" };
+        if (cti::Execvp::runExitStatus("rpm", rpmClientArgv.get())
+         && cti::Execvp::runExitStatus("rpm", rpmExecutionArgv.get())) {
+            return false;
+        }
+
+        // Check that craycli tool is available (Shasta system)
+        auto crayArgv = cti::ManagedArgv { "cray", "--version" };
+        if (cti::Execvp::runExitStatus("cray", crayArgv.get())) {
+            return false;
+        }
+
+    } catch(...) {
+        // craycli not installed
+        return false;
+    }
+
+    return true;
+}
+
+static bool detect_Slurm(std::string const& launcherName)
+{
+    auto const launcher_name = !launcherName.empty() ? launcherName.c_str() : "srun";
+
+    try {
+
+        // Check that the srun version starts with "slurm "
+        auto srunArgv = cti::ManagedArgv{launcher_name, "--version"};
+        auto srunOutput = cti::Execvp{launcher_name, srunArgv.get(), cti::Execvp::stderr::Ignore};
+
+        // Read output line
+        auto versionLine = std::string{};
+        if (std::getline(srunOutput.stream(), versionLine)) {
+            if (versionLine.substr(0, 6) != "slurm ") {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        // Ensure exited properly
+        if (srunOutput.getExitStatus()) {
+            return false;
+        }
+
+    } catch(...) {
+        // slurm not installed
+        return false;
+    }
+
+    return false;
+}
+
+static bool detect_XC_ALPS(std::string const& launcherName)
+{
+    auto const launcher_name = !launcherName.empty() ? launcherName.c_str() : "aprun";
+
+    try {
+
+        // Check that aprun version returns expected content
+        auto aprunTestArgv = cti::ManagedArgv{launcher_name, "--version"};
+        auto aprunOutput = cti::Execvp{launcher_name, aprunTestArgv.get(), cti::Execvp::stderr::Ignore};
+
+        // Read first line, ensure it is in format "aprun (ALPS) <version>"
+        auto& aprunStream = aprunOutput.stream();
+        auto versionLine = std::string{};
+        if (std::getline(aprunStream, versionLine)) {
+
+            // Split line into each word
+            auto const [aprun, alps, version] = cti::split::string<3>(versionLine, ' ');
+            if ((aprun == "aprun") && (alps == "(ALPS)")) {
+                return true;
+            }
+        }
+
+        // Wait for aprun to complete
+        if (aprunOutput.getExitStatus()) {
+            return false;
+        }
+
+    } catch(...) {
+        // alps not installed
+        return false;
+    }
+
+    return false;
+}
+
+// Verify that the provided launcher is a binary and contains MPIR symbols
+static bool verify_MPIR_symbols(System const& system, WLM const& wlm, std::string const& launcherName)
+{
+    assert(!launcherName.empty());
+
+    // Check that the launcher is present in PATH
+    auto launcherPath = std::string{};
+    try {
+        launcherPath = cti::findPath(launcherName);
+    } catch (...) {
+        throw std::runtime_error(launcherName + " was not found in PATH. \
+(tried " + format_System_WLM(system, wlm) + ")");
+    }
+
+    // Check that the launcher is a binary and not a script
+    { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
+        "file --mime " + launcherPath + " | grep -E 'application/x-(executable|sharedlib)'"};
+        if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
+            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it is not a binary file. \
+Tool launch requires direct access to the " + launcherName + " binary. \
+Ensure that the " + launcherName + " binary not wrapped by a script \
+(tried " + format_System_WLM(system, wlm) + ")");
         }
     }
 
-    // Try to load and use wlm_detect, if available
+    // Check that the launcher binary supports MPIR launch
+    { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
+        "nm " + launcherPath + " | grep MPIR_Breakpoint$"};
+        if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
+            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not appear to support MPIR launch \
+(function MPIR_Breakpoint was not found). Tool launch is \
+coordinated through setting a breakpoint at this function. \
+Please contact your system administrator with a bug report \
+(tried " + format_System_WLM(system, wlm) + ")");
+        }
+    }
+
+    // Check that the launcher binary contains MPIR symbols
+    { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
+        "nm " + launcherPath + " | grep MPIR_being_debugged$"};
+        if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
+            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not contain debug symbols. \
+Tool launch is coordinated through reading information at these symbols. \
+Please contact your system administrator with a bug report \
+(tried " + format_System_WLM(system, wlm) + ")");
+        }
+    }
+
+    return true;
+}
+
+static bool verify_HPCM_PALS_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+{
+    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "mpiexec");
+
+    return true;
+}
+
+static bool verify_Shasta_PALS_configured(System const& system, WLM const& wlm, std::string const& /* unused */)
+{
+    // Check that the craycli tool is properly authenticated, as we will be using its token
+    auto craycliArgv = cti::ManagedArgv { "cray", "uas", "list" };
+    if (cti::Execvp::runExitStatus("cray", craycliArgv.get())) {
+        throw std::runtime_error("craycli check failed. You may need to authenticate using `cray auth login` \
+(tried " + format_System_WLM(system, wlm) + ")");
+    }
+
+    return true;
+}
+
+static bool verify_XC_ALPS_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+{
+    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "aprun");
+
+    return true;
+}
+
+static bool verify_Slurm_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+{
+    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "srun");
+
+    return true;
+}
+
+static bool verify_SSH_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+{
+    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "mpiexec");
+
+    // Passwordless SSH must also be configured, but there is no way to verify this
+    // before extracting MPIR information and attempting to launch a command on a
+    // compute node associated with the job.
+
+    // If it is not configured correctly, then an error will be reported upon
+    // attempting to launch or attach to a job on the node. This is the earliest
+    // that a misconfiguration can be reported.
+
+    return true;
+}
+
+} // anonymous namespace
+
+static auto detect_System(std::string const& systemSetting)
+{
+    // Check environment system setting, if provided
+    if (!systemSetting.empty()) {
+        if (systemSetting == "linux") {
+            return System::Linux;
+        } else if (systemSetting == "hpcm") {
+            return System::HPCM;
+        } else if (systemSetting == "shasta") {
+            return System::Shasta;
+        } else if (systemSetting == "xc") {
+            return System::XC;
+        } else if (systemSetting == "cs") {
+            return System::CS;
+        } else {
+            throw std::runtime_error("invalid system setting for " CTI_WLM_IMPL_ENV_VAR ": '"
+                + systemSetting + "'");
+        }
+    }
+
+    // Run available system detection heuristics
+    if (detect_HPCM()) {
+        return System::HPCM;
+    } else if (detect_CS()) {
+        return System::CS;
+    }
+
+    // Other systems have combination system and WLM detection heuristics
+    return System::Unknown;
+}
+
+static auto detect_WLM(System const& system, std::string const& wlmSetting, std::string const& launcherName)
+{
+    // Check environment WLM setting, if provided
+    if (!wlmSetting.empty()) {
+        if ((wlmSetting == "ssh") || (wlmSetting == "generic")) {
+            return WLM::SSH;
+        } else if (wlmSetting == "alps") {
+            return WLM::ALPS;
+        } else if (wlmSetting == "slurm") {
+            return WLM::Slurm;
+        } else if (wlmSetting == "pals") {
+            return WLM::PALS;
+        } else {
+            throw std::runtime_error("invalid WLM setting for " CTI_WLM_IMPL_ENV_VAR ": '"
+                + wlmSetting + "'");
+        }
+    }
+
+    // Run wlm_detect, if available
     try {
         // Define libwlm_detect function types
         using WlmDetectGetActiveType = char*(void);
@@ -419,9 +760,9 @@ Frontend::detect_Frontend()
 
         // Compare WLM name to determine Slurm or ALPS
         if (wlmName == "ALPS") {
-            return CTI_WLM_ALPS;
+            return WLM::ALPS;
         } else if (wlmName == "SLURM") {
-            return CTI_WLM_SLURM;
+            return WLM::Slurm;
         }
 
     } catch (...) {
@@ -429,63 +770,183 @@ Frontend::detect_Frontend()
         // during construction, as it depends on Frontend state and will deadlock.
     }
 
-    // Query supported workload managers
-    if (ALPSFrontend::isSupported()) {
-        return CTI_WLM_ALPS;
-    } else if (SLURMFrontend::isSupported()) {
-        return CTI_WLM_SLURM;
-    } else if (PALSFrontend::isSupported()) {
-        return CTI_WLM_PALS;
-    } else if (GenericSSHFrontend::isSupported()) {
-        return CTI_WLM_SSH;
+    // Run WLM detection heuristics that may depend on system type
+    switch (system) {
+
+    case System::Linux:
+        return WLM::SSH;
+
+    case System::HPCM:
+        if (detect_Slurm(launcherName)) {
+            return WLM::Slurm;
+        } else if (detect_HPCM_PALS(launcherName)) {
+            return WLM::PALS;
+        } else {
+            return WLM::Unknown;
+        }
+
+    case System::Shasta:
+        if (detect_Slurm(launcherName)) {
+            return WLM::Slurm;
+        } else if (detect_Shasta_PALS(launcherName)) {
+            return WLM::PALS;
+        } else {
+            return WLM::Unknown;
+        }
+
+    case System::XC:
+        if (detect_Slurm(launcherName)) {
+            return WLM::Slurm;
+        } else if (detect_XC_ALPS(launcherName)) {
+            return WLM::ALPS;
+        } else {
+            return WLM::Unknown;
+        }
+
+    case System::CS:
+        return WLM::SSH;
+
+    default:
+        break;
     }
 
-    // Unknown WLM
-    throw std::runtime_error("Unable to determine wlm in use. Manually set " + std::string{CTI_WLM_IMPL_ENV_VAR} + " env var.");
+    // Run WLM detection heuristics that do not depend on system type
+    if (detect_Slurm(launcherName)) {
+        return WLM::Slurm;
+    }
+
+    return WLM::Unknown;
+}
+
+static void verify_System_WLM_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+{
+    switch (wlm) {
+
+    case WLM::PALS:
+        if (system == System::HPCM) {
+            verify_HPCM_PALS_configured(system, wlm, launcherName);
+        } else if (system == System::Shasta) {
+            verify_Shasta_PALS_configured(system, wlm, launcherName);
+        } else {
+            throw std::runtime_error("WLM was set to PALS, but system was not detected as either an HPCM or Shasta system \
+(tried " + format_System_WLM(system, wlm) + ")");
+        }
+        break;
+
+    case WLM::Slurm:
+        verify_Slurm_configured(system, wlm, launcherName);
+        break;
+
+    case WLM::ALPS:
+        // XC systems have no detection heuristic, so will detect as Unknown
+        if ((system == System::Unknown) || (system == System::XC)) {
+            verify_XC_ALPS_configured(system, wlm, launcherName);
+        } else {
+            throw std::runtime_error("WLM was set to ALPS, but system was not detected as a Cray XC system \
+(tried " + format_System_WLM(system, wlm) + ")");
+        }
+        break;
+
+    case WLM::SSH:
+        verify_SSH_configured(system, wlm, launcherName);
+        break;
+
+    default:
+        // TODO: write instructions on how to use the CTI diagnostic utility
+        throw std::runtime_error("Could not detect either a PALS, Slurm, ALPS, or generic MPIR-compliant WLM. Manually set " CTI_WLM_IMPL_ENV_VAR" env var \
+(tried " + format_System_WLM(system, wlm) + ")");
+    }
+}
+
+// Use combination of set / detected system and WLM to instantiate the proper
+// Frontend variant
+static Frontend* make_Frontend(System const& system, WLM const& wlm)
+{
+    // All invalid system / WLM combinations are caught and reported to the user
+    // by verify_System_WLM_configured, so assert on invalid combinations.
+
+    if (wlm == WLM::Slurm) {
+        if (system == System::HPCM) {
+            return new ApolloSLURMFrontend{};
+        } else {
+            return new SLURMFrontend{};
+        }
+
+    } else if (wlm == WLM::ALPS) {
+        return new ALPSFrontend{};
+
+    } else if (wlm == WLM::PALS) {
+        if (system == System::HPCM) {
+            return new ApolloPALSFrontend{};
+        } else if (system == System::Shasta) {
+            return new PALSFrontend{};
+        } else {
+            assert(false);
+        }
+
+    } else if (wlm == WLM::SSH) {
+        return new GenericSSHFrontend{};
+
+    } else {
+        assert(false);
+    }
 }
 
 Frontend&
-Frontend::inst() {
+Frontend::inst()
+{
     // Check if the singleton has been initialized
     auto inst = m_instance.load(std::memory_order_acquire);
     if (!inst) {
-        // grab the lock
+        // Grab the lock and double check the condition
         std::lock_guard<std::mutex> lock{m_mutex};
-        // Double check the condition
         inst = m_instance.load(std::memory_order_relaxed);
+
         if (!inst) {
-            // We were the first one here
-            // Setup the cleanup object
+            // We were the first one here, create the cleanup handle
             m_cleanup = std::make_unique<Frontend_cleanup>();
-            // Determine which wlm to instantiate
-            switch(detect_Frontend()) {
-                case CTI_WLM_ALPS:
-                    inst = new ALPSFrontend{};
-                    break;
-                case CTI_WLM_SLURM:
-                    if (ApolloSLURMFrontend::isSupported()) {
-                        inst = new ApolloSLURMFrontend{};
-                    } else {
-                        inst = new SLURMFrontend{};
-                    }
-                    break;
-                case CTI_WLM_PALS:
-                    inst = new PALSFrontend{};
-                    break;
-                case CTI_WLM_SSH:
-                    if (ApolloPALSFrontend::isSupported()) {
-                        inst = new ApolloPALSFrontend{};
-                    } else {
-                        inst = new GenericSSHFrontend{};
-                    }
-                    break;
-                case CTI_WLM_NONE:
-                case CTI_WLM_MOCK:
-                    throw std::runtime_error("Unable to determine wlm in use. Manually set " + std::string{CTI_WLM_IMPL_ENV_VAR} + " env var.");
+
+            // Read launcher name setting
+            auto launcherName = std::string{};
+            if (auto const launcher_name = ::getenv(CTI_LAUNCHER_NAME_ENV_VAR)) {
+                launcherName = std::string{launcher_name};
             }
-            // Only store after fully constructing FE object. Otherwise we could run into
-            // partial construction ordering issues.
-            m_instance.store(inst,std::memory_order_release);
+
+            // Determine which wlm to instantiate
+            auto system = System::Unknown;
+            auto wlm = WLM::Unknown;
+
+            { auto systemSetting = std::string{};
+              auto wlmSetting = std::string{};
+
+                // Read and parse environment setting
+                if (auto const system_wlm_setting = ::getenv(CTI_WLM_IMPL_ENV_VAR)) {
+
+                    auto [firstSetting, secondSetting] = cti::split::string<2>(system_wlm_setting, '/');
+
+                    // If only one of system / WLM provided, assume WLM
+                    if (secondSetting.empty()) {
+                        wlmSetting = std::move(firstSetting);
+
+                    } else {
+                        systemSetting = std::move(firstSetting);
+                        wlmSetting = std::move(secondSetting);
+                    }
+                }
+
+                // Run system and WLM detection
+                system = detect_System(systemSetting);
+                wlm = detect_WLM(system, wlmSetting, launcherName);
+            }
+
+            // Verify that detected / set system and WLM are configured correctly
+            verify_System_WLM_configured(system, wlm, launcherName);
+
+            // Instantiate frontend implementation
+            inst = make_Frontend(system, wlm);
+
+            // Store successfully constructed instance in class variable
+            m_instance.store(inst, std::memory_order_release);
         }
     }
     return *inst;
