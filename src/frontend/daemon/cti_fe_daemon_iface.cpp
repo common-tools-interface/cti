@@ -172,7 +172,7 @@ static std::string readStringResp(int const reqFd)
 }
 
 // return MPIR launch / attach data, throw if MPIR ID < 0, indicating failure
-static FE_daemon::MPIRResult readMPIRResp(int const reqFd)
+FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
 {
     // read basic table information
     auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(reqFd);

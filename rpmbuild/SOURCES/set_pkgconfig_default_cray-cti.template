@@ -1,0 +1,7 @@
+# Tcl file sourced by craype module
+
+set install_root <CRAY_PREFIX>
+set CTI_LEVEL <PKG_VERSION>
+set PE_PRODUCT_DIR ${install_root}/<PE_PRODUCT>/${CTI_LEVEL}
+
+prepend-path PE_PKG_CONFIG_PATH $PE_PRODUCT_DIR/lib/pkgconfig

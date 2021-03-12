@@ -1,0 +1,67 @@
+#!/bin/bash
+#
+# runBuild.sh - Build steps for CTI
+#
+# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+#
+# Unpublished Proprietary Information.
+# This unpublished work is protected to trade secret, copyright and other laws.
+# Except as permitted by contract or express written permission of Hewlett
+# Packard Enterprise Development LP., no part of this work or its content may be
+# used, reproduced or disclosed in any form.
+#
+
+echo "############################################"
+echo "#            Setup environment.            #"
+echo "############################################"
+
+source ./external/cdst_build_library/build_lib
+
+setup_modules
+
+module load cray-cdst-support
+check_exit_status
+
+echo "############################################"
+echo "#      Generating configure files          #"
+echo "############################################"
+# Create autotools generated files for this build environment
+autoreconf -ifv
+check_exit_status
+
+echo "############################################"
+echo "#            Calling Configure             #"
+echo "############################################"
+# Create the make files
+./configure
+check_exit_status
+
+# Dump config.log if configure fails
+get_exit_status
+if [[ $? -ne 0 ]]; then
+    if [[ -f config.log ]]; then
+        # We want to capture the config.log in the jenkins output on error.
+        echo "############################################"
+        echo "#          Dumping config.log              #"
+        echo "############################################"
+        cat config.log
+    fi
+fi
+
+echo "############################################"
+echo "#               Running make               #"
+echo "############################################"
+make $cdst_j_flags
+check_exit_status
+
+echo "############################################"
+echo "#          Running make install            #"
+echo "############################################"
+make $cdst_j_flags install
+check_exit_status
+
+echo "############################################"
+echo "#              Done with build             #"
+echo "############################################"
+
+exit_with_status

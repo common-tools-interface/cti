@@ -124,8 +124,8 @@ static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t jobId, uint
             return mpirResult;
 
         } catch (std::exception const& ex) {
-            throw std::runtime_error("Failed to attach to job " +
-                std::to_string(jobId) + " " + std::to_string(stepId));
+            throw std::runtime_error("Failed to attach to job using SATTACH. Try running `\
+" SATTACH " -Q " + std::to_string(jobId) + "." + std::to_string(stepId) + "`");
         }
     } else {
         throw std::runtime_error("Failed to find SATTACH in path");
@@ -272,7 +272,9 @@ void SLURMApp::startDaemon(const char* const args[]) {
     if (!m_beDaemonSent) {
         // Get the location of the backend daemon
         if (m_frontend.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
+            throw std::runtime_error("Unable to locate backend daemon binary. Load the \
+system default CTI module with `module load cray-cti`, or set the \
+environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
         }
 
         // Copy the BE binary to its unique storage name
@@ -367,11 +369,12 @@ void SLURMApp::startDaemon(const char* const args[]) {
 static std::string getSlurmVersion()
 {
     char const* const srunVersionArgv[] = {"srun", "--version", nullptr};
-    auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv};
+    auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv, cti::Execvp::stderr::Ignore};
 
     auto slurmVersion = std::string{};
     if (!std::getline(srunVersionOutput.stream(), slurmVersion, '\n')) {
-        throw std::runtime_error("failed to get SRUN version number output");
+        throw std::runtime_error("Failed to get SRUN version number output. Try running \
+`srun --version`");
     }
     // slurm major.minor.patch
 
@@ -415,7 +418,8 @@ SLURMFrontend::SLURMFrontend()
             }
         );
     } else {
-        throw std::runtime_error("unknown SLURM version: " + slurmVersion);
+        throw std::runtime_error("unknown SLURM version: " + std::to_string(slurmVersion) + ". Try running \
+`srun --version`");
     }
 
     // Add / override SRUN arguments from environment variables
@@ -448,51 +452,6 @@ SLURMFrontend::SLURMFrontend()
     }
 }
 
-bool
-SLURMFrontend::isSupported()
-{
-    // Check that the srun version starts with "slurm "
-    { auto srunArgv = cti::ManagedArgv{"srun", "--version"};
-        auto srunOutput = cti::Execvp{"srun", srunArgv.get()};
-
-        // Read output line
-        auto versionLine = std::string{};
-        if (std::getline(srunOutput.stream(), versionLine)) {
-            if (versionLine.substr(0, 6) != "slurm ") {
-                return false;
-            }
-        } else {
-            return false;
-        }
-
-        // Ensure exited properly
-        if (srunOutput.getExitStatus()) {
-            return false;
-        }
-    }
-
-    // Check that srun is a binary and not a script
-    { auto binaryTestArgv = cti::ManagedArgv{"bash", "-c",
-        "file --mime `which srun` | grep application/x-executable"};
-        if (cti::Execvp{"bash", binaryTestArgv.get()}.getExitStatus()) {
-            throw std::runtime_error("srun was detected on the system, but it is not a binary file. \
-Tool launch requires direct access to the srun binary. \
-Ensure that the srun command is not wrapped by a script");
-        }
-    }
-
-    // Check that the srun binary contains MPIR symbols
-    { auto symbolTestArgv = cti::ManagedArgv{"bash", "-c",
-        "nm `which srun` | grep MPIR_Breakpoint$"};
-        if (cti::Execvp{"bash", symbolTestArgv.get()}.getExitStatus()) {
-            throw std::runtime_error("srun was detected on the system, but it does not contain debug symbols. \
-Tool launch is coordinated through reading information at these symbols");
-        }
-    }
-
-    return true;
-}
-
 std::weak_ptr<App>
 SLURMFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
@@ -522,7 +481,7 @@ SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_
         launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list)));
 
     if (!ret.second) {
-        throw std::runtime_error("Failed to create new App object.");
+        throw std::runtime_error("Failed to insert new SLURMApp.");
     }
     return *ret.first;
 }
@@ -552,7 +511,7 @@ SLURMFrontend::registerJob(size_t numIds, ...) {
 
     auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this, sattachMPIR(*this, jobId, stepId)));
     if (!ret.second) {
-        throw std::runtime_error("Failed to create new App object.");
+        throw std::runtime_error("Failed to insert new SLURMApp.");
     }
     return *ret.first;
 }
@@ -582,7 +541,7 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     sattachArgv.add(SattachArgv::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
 
     // create sattach output capture object
-    cti::Execvp sattachOutput(SATTACH, sattachArgv.get());
+    cti::Execvp sattachOutput(SATTACH, sattachArgv.get(), cti::Execvp::stderr::Ignore);
     auto& sattachStream = sattachOutput.stream();
     std::string sattachLine;
 
@@ -591,10 +550,12 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     // "Job step layout:"
     if (std::getline(sattachStream, sattachLine)) {
         if (sattachLine.compare("Job step layout:")) {
-            throw std::runtime_error(std::string("sattach layout: wrong format: ") + sattachLine);
+            throw std::runtime_error("Unexpected layout output from SATTACH: '" + sattachLine + "'\
+Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
         }
     } else {
-        throw std::runtime_error("sattach layout: wrong format: expected header");
+        throw std::runtime_error("Unexpected layout output from SATTACH (expected header)\
+Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
     }
 
     StepLayout layout;
@@ -612,7 +573,8 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
         numNodes = std::stoi(rawNumNodes);
         layout.nodes.reserve(numNodes);
     } else {
-        throw std::runtime_error("sattach layout: wrong format: expected summary");
+        throw std::runtime_error("Unexpected layout output from SATTACH (expected summary)\
+Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
     }
 
     // seperator line
@@ -621,7 +583,8 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     // "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
     for (auto i = int{0}; std::getline(sattachStream, sattachLine); i++) {
         if (i >= numNodes) {
-            throw std::runtime_error("malformed sattach output: too many nodes!");
+            throw std::runtime_error("Target job has " + std::to_string(numNodes) + " nodes, but received extra layout information from SATTACH.\
+Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
         }
 
         // split the summary line
@@ -777,33 +740,6 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
 }
 
 // Apollo SLURM specializations
-
-// Running on an Apollo machine if the `cminfo` cluster info query program is
-// installed, and it reports running on login / admin node.
-bool ApolloSLURMFrontend::isSupported() {
-    try {
-        char const* cminfoArgv[] = { "cminfo", "--name", nullptr };
-
-        // Start cminfo
-        auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv};
-        if (cminfoOutput.getExitStatus() != 0) {
-            return false;
-        }
-
-        // Detect if running on admin node
-        auto& cminfoStream = cminfoOutput.stream();
-        std::string cmName;
-        if (std::getline(cminfoStream, cmName)) {
-            return !cmName.compare("admin");
-        } else {
-            return false;
-        }
-
-    } catch(...) {
-        // cminfo not installed
-        return false;
-    }
-}
 
 // /etc/hosts file for cluster is generated by SGI Tempo.
 // Login / admin node is accessible via hostname `admin`.

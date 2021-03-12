@@ -341,7 +341,7 @@ static bool checkAppID(DAppId const app_id)
             // Check if zombie
             auto const statusFilePath = "/proc/" + std::to_string(app_pid) + "/status";
             char const* grepArgv[] = { "grep", "Z (zombie)", statusFilePath.c_str(), nullptr };
-            auto grepOutput = cti::Execvp{"grep", (char* const*)grepArgv};
+            auto grepOutput = cti::Execvp{"grep", (char* const*)grepArgv, cti::Execvp::stderr::Ignore};
             auto const grepExitStatus = grepOutput.getExitStatus();
             auto const pidZombie = (grepExitStatus == 0);
 
@@ -1089,6 +1089,8 @@ static void log_terminate()
 int
 main(int argc, char *argv[])
 {
+    // Set up logging
+    getLogger().hook();
     std::set_terminate(log_terminate);
 
     // parse incoming argv for request and response FDs

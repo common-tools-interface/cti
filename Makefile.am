@@ -7,7 +7,7 @@
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src tests/test_support tests/mock tests/unit
+SUBDIRS = src tests/mock tests/unit
 
 EXTRA_DIST = pkgconfig \
 			 release_versioning
@@ -22,5 +22,6 @@ include_HEADERS = include/common_tools_be.h include/common_tools_fe.h \
 
 install-data-hook:
 	export PKG_CONFIG_PATH=$(libdir)/pkgconfig:$(PKG_CONFIG_PATH); \
-	cd ./tests && autoreconf -ifv && ./configure
-	make -C ./tests/function/bin
+        export CTI_INSTALL_DIR=$(prefix); \
+        $(MAKE) -C ./tests/test_support all; \
+	$(MAKE) -C ./tests/function/bin all

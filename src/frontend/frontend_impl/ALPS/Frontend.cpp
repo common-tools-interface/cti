@@ -60,6 +60,8 @@
 
 #include "ALPS/Frontend.hpp"
 
+#include <boost/algorithm/string/replace.hpp>
+
 #include "useful/cti_argv.hpp"
 #include "useful/cti_execvp.hpp"
 #include "useful/cti_split.hpp"
@@ -87,34 +89,6 @@ getSvcNid()
 }
 
 /* ALPSFrontend implementation */
-
-bool
-ALPSFrontend::isSupported()
-{
-    // Check that aprun version returns expected content
-    { auto aprunTestArgv = cti::ManagedArgv{"aprun", "--version"};
-        auto aprunOutput = cti::Execvp{"aprun", aprunTestArgv.get()};
-
-        // Wait for aprun to complete
-        if (aprunOutput.getExitStatus()) {
-            return false;
-        }
-
-        // Read first line, ensure it is in format "aprun (ALPS) <version>"
-        auto& aprunStream = aprunOutput.stream();
-        auto versionLine = std::string{};
-        if (std::getline(aprunStream, versionLine)) {
-
-            // Split line into each word
-            auto const [aprun, alps, version] = cti::split::string<3>(versionLine, ' ');
-            if ((aprun == "aprun") && (alps == "(ALPS)")) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-}
 
 std::weak_ptr<App>
 ALPSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
@@ -469,7 +443,13 @@ ALPSApp::startDaemon(const char* const args[])
     // Add daemon arguments
     if (args != nullptr) {
         for (const char* const* arg = args; *arg != nullptr; arg++) {
-            commandStream << " " << *arg;
+            // Escape spaces
+            auto str = std::string{*arg};
+            boost::replace_all(str, " ", "\\ ");
+            boost::replace_all(str, "&", "\\&");
+            boost::replace_all(str, ";", "\\;");
+
+            commandStream << " " << str;
         }
     }
     auto const command = commandStream.str();
@@ -763,9 +743,9 @@ ALPSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
 
             // construct argv array & instance
             cti::ManagedArgv launcherArgv{ launcher_path.get() };
-            for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-                launcherArgv.add(*arg);
-            }
+
+            // Copy provided launcher arguments
+            launcherArgv.add(launcher_argv);
 
             // chdir if directed
             if ((chdirPath != nullptr) && (::chdir(chdirPath) < 0)) {
@@ -886,9 +866,9 @@ ALPSFrontend::launchAppBarrier(const char * const launcher_argv[], int stdout_fd
                 , "-P", std::to_string(aprunToCtiPipe[WriteEnd]) + "," +
                     std::to_string(ctiToAprunPipe[ReadEnd])
             };
-            for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-                launcherArgv.add(*arg);
-            }
+
+            // Copy provided launcher arguments
+            launcherArgv.add(launcher_argv);
 
             // chdir if directed
             if ((chdirPath != nullptr) && (::chdir(chdirPath) < 0)) {

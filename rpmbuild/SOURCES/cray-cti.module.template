@@ -1,0 +1,48 @@
+#%Module######################################################################
+ #
+ #       Module <CRAY_NAME>
+ #       Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
+ #       UNPUBLISHED PROPRIETARY INFORMATION.
+ #       ALL RIGHTS RESERVED.
+ #
+ conflict <CRAY_NAME>
+
+ set CTI_LEVEL     <VERSION>
+ set CTI_BASEDIR   <PREFIX>
+
+ setenv CTI_VERSION         $CTI_LEVEL
+ setenv CTI_INSTALL_DIR     $CTI_BASEDIR
+ setenv PE_CTI_MODULE_NAME  <CRAY_NAME>
+
+ # If the default version of CTI is loaded, don't set LD_LIBRARY_PATH.
+ if { [ catch { source /opt/cray/pe/modulefiles/cray-cti/.version } ] } {
+       prepend-path CRAY_LD_LIBRARY_PATH   $CTI_BASEDIR/lib
+    } else {
+       if { [ string equal $ModulesVersion $CTI_LEVEL ] } {
+             prepend-path CRAY_LD_LIBRARY_PATH   $CTI_BASEDIR/lib
+          } else {
+             prepend-path LD_LIBRARY_PATH   $CTI_BASEDIR/lib
+          }
+    }
+
+ if { [ file exists ${CTI_BASEDIR}/release_info ] } {
+       set REL_INFO [ exec cat ${CTI_BASEDIR}/release_info ]
+    } else {
+       set REL_INFO ""
+    }
+
+ proc ModulesHelp { } {
+    global CTI_BASEDIR
+    global CTI_LEVEL
+    global REL_INFO
+    puts stderr "The modulefile defines the system paths and"
+    puts stderr "variables for the product <CRAY_NAME>."
+    puts stderr "$REL_INFO"
+    puts stderr "============================================="
+    puts stderr "To re-display <CRAY_NAME>/$CTI_LEVEL release information,"
+    puts stderr "type:    less $CTI_BASEDIR/release_info"
+    puts stderr "==============================================\n"
+    puts stderr ""
+ }
+
+module-whatis   "Loads the Cray Common Tools Interface."

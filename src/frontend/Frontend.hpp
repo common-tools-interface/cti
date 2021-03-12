@@ -93,9 +93,6 @@ public: // impl.-specific interface that derived type must implement
 
     // Frontend implementations must implement the following static functions:
 
-    // static char const* getName()
-    //   return the short name for the WLM that can be set by CTI_WLM_IMPL_ENV_VAR
-
     // static bool isSupported()
     //   determines in an implementation-specific manner if the Frontend is supported
     //   on the current system.
@@ -167,8 +164,6 @@ private: // Private static utility methods used by the generic frontend
     // after fe instantiation!
     struct LoggerInit { LoggerInit(); cti::Logger& get(); };
     static cti::Logger& getLogger();
-    // get the frontend type for this system
-    static cti_wlm_type_t detect_Frontend();
 
 public: // Public static utility methods - Try to keep these to a minimum
     // Get the singleton instance to the Frontend
@@ -213,6 +208,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     std::string getCfgDir() { return m_cfg_dir; }
     std::string getBaseDir() { return m_base_dir; }
     std::string getLdAuditPath() { return m_ld_audit_path; }
+    std::string getFEDaemonPath() { return m_fe_daemon_path; }
     std::string getBEDaemonPath() { return m_be_daemon_path; }
     const struct passwd& getPwd() { return m_pwd; }
 

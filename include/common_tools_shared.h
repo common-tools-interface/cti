@@ -77,12 +77,16 @@
  *
  *      Used to override internal detection logic of the workload manager in
  *      use on the system. This can be used to force CTI to instantiate a
- *      specific workload manager. Set this environment variable to the
- *      corresponding string for each of the cti_wlm_type_t defined below:
- *          CTI_WLM_SLURM set to "slurm"
- *          CTI_WLM_SSH set to "generic"
- *          CTI_WLM_ALPS set to "alps"
- *          CTI_WLM_PALS set to "pals"
+ *      specific workload manager.
+ *          Supported SLURM configurations:
+ *          - Shasta / Slurm: "shasta/slurm"
+ *          - Shasta / PALS:  "shasta/pals"
+ *          - HPCM / Slurm:   "hpcm/slurm"
+ *          - HPCM / PALS:    "hpcm/pals"
+ *          - XC / Slurm:     "xc/slurm"
+ *          - XC / ALPS:      "xc/alps"
+ *          - CS / mpiexec:   "cs/mpiexec"
+ *          - SSH with MPIR-compliant launcher: "linux/ssh"
  *
  */
 #define CTI_BASE_DIR_ENV_VAR        "CTI_INSTALL_DIR"

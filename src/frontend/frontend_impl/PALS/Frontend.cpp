@@ -443,39 +443,6 @@ struct PALSFrontend::CtiWSSImpl
     {}
 };
 
-
-bool
-PALSFrontend::isSupported()
-{
-    // Check manual PALS debug mode flag
-    if (::getenv(PALS_DEBUG)) {
-        return true;
-    }
-
-    // Check that PBS is installed (required for PALS)
-    auto rpmClientArgv    = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
-    auto rpmExecutionArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-execution" };
-    if ((cti::Execvp{"rpm", rpmClientArgv.get()}.getExitStatus() != 0)
-     && (cti::Execvp{"rpm", rpmExecutionArgv.get()}.getExitStatus() != 0)) {
-        return false;
-    }
-
-    // Check that craycli tool is available (Shasta system)
-    auto crayArgv = cti::ManagedArgv { "cray", "--version" };
-    if (cti::Execvp{"cray", crayArgv.get()}.getExitStatus() != 0) {
-        return false;
-    }
-
-    // Check that the craycli tool is properly authenticated, as we will be using its token
-    auto craycliArgv = cti::ManagedArgv { "cray", "uas", "list" };
-    if (cti::Execvp{"cray", craycliArgv.get()}.getExitStatus() != 0) {
-        fprintf(stderr, "craycli check failed. You may need to authenticate using `cray auth login`.\n");
-        return false;
-    }
-
-    return true;
-}
-
 std::weak_ptr<App>
 PALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)

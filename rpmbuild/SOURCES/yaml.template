@@ -1,0 +1,89 @@
+---
+#----------------------------------------------------------------------------
+# IMPORTANT: do not rename sections! The installer uses section names
+# to detect changes made to sections, using the MD5 algorithm.
+#----------------------------------------------------------------------------
+section-1:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL 
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE:
+        ALL_EXCEPT:
+            - SEASTAR
+    OPERATION             : INSTALL
+    OS_VERSION            : <OS_HW_TAG>
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : <SYS_HW_TAG>
+
+section-2:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : INSTALL
+    OS_VERSION            : <OS_WB_TAG>
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : <SYS_WB_TAG>
+
+section-3:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE:
+        ALL_EXCEPT:
+            - SEASTAR
+    OPERATION             : UPDATE
+    OS_VERSION            : <OS_HW_TAG>
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : <SYS_HW_TAG>
+    COMMANDS: |
+            <SET_AS_DEFAULT>
+
+section-4:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : NONE
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : UPDATE
+    OS_VERSION            : <OS_WB_TAG>
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : <SYS_WB_TAG>
+    COMMANDS: |
+            <SET_AS_DEFAULT>
+
+section-5:
+    ACCELERATOR           : NONE
+    EFFECTIVE_DATE        : <REMOVAL_DATE>
+    EMAILS                : karen.glaser@hpe.com
+    EMAIL_BUILDER         : NO
+    HOSTS                 : ALL
+    INSTALL_DEFAULT_HOSTS : NONE
+    NETWORK_TYPE          : NONE
+    OPERATION             : REMOVE
+    OS_VERSION            : <OS_HW_TAG>,<OS_WB_TAG>
+    RPM_LIST              : NONE
+    SYSTEM_TYPE           : <SYS_HW_TAG>,<SYS_WB_TAG>
+    COMMANDS: |
+        rpm -e <PRODUCT>-<VERSION>-<BUILD_METADATA>-<RELEASE>.<ARCH>
+
+--- |
+#Remove previous versions of this rpm
+for package in  $(rpm -qa | grep ^<PRODUCT>-<VERSION>-)
+do
+  rpm -e $package
+done
+
+rpm -ivh --oldpackage <PRODUCT>-<VERSION>-<BUILD_METADATA>-<RELEASE>.<ARCH>.rpm
+
