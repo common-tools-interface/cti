@@ -29,6 +29,7 @@
 
 // This pulls in config.h
 #include "cti_defs.h"
+#include "cti_argv_defs.hpp"
 
 #include <assert.h>
 #include <errno.h>
@@ -51,16 +52,20 @@
 #include <netdb.h>
 
 #include <unordered_map>
+#include <thread>
 
 // Pull in manifest to properly define all the forward declarations
 #include "transfer/Manifest.hpp"
 
 #include "GenericSSH/Frontend.hpp"
 
+#include "daemon/cti_fe_daemon_iface.hpp"
+
 #include "useful/cti_useful.h"
 #include "useful/cti_dlopen.hpp"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_split.hpp"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -78,6 +83,85 @@ static void delete_ssh2_channel(LIBSSH2_CHANNEL *pChannel)
     libssh2_channel_close(pChannel);
     libssh2_channel_free(pChannel);
 }
+
+// SSH channel data read / write
+namespace remote
+{
+
+// Read data of a specified length into the provided buffer
+static inline void readLoop(LIBSSH2_CHANNEL* channel, char* buf, int capacity)
+{
+    int offset = 0;
+    while (offset < capacity) {
+        if (auto const bytes_read = libssh2_channel_read(channel, buf + offset, capacity - offset)) {
+            if (bytes_read < 0) {
+                if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
+                    continue;
+                }
+                throw std::runtime_error("read failed: " + std::string{std::strerror(bytes_read)});
+            }
+            offset += bytes_read;
+        }
+    }
+}
+
+// Read and return a known data type
+template <typename T>
+static inline T rawReadLoop(LIBSSH2_CHANNEL* channel)
+{
+    static_assert(std::is_trivial<T>::value);
+    T result;
+    readLoop(channel, reinterpret_cast<char*>(&result), sizeof(T));
+    return result;
+}
+
+// Write data of a specified length from the provided buffer
+static inline void writeLoop(LIBSSH2_CHANNEL* channel, char const* buf, int capacity)
+{
+    int offset = 0;
+    while (offset < capacity) {
+        if (auto const bytes_written = libssh2_channel_write(channel, buf + offset, capacity - offset)) {
+            if (bytes_written < 0) {
+                if (bytes_written == LIBSSH2_ERROR_EAGAIN) {
+                    continue;
+                }
+                throw std::runtime_error("write failed: " + std::string{std::strerror(bytes_written)});
+            }
+            offset += bytes_written;
+        }
+    }
+}
+
+// Write a trivially-copyable object
+template <typename T>
+static inline void rawWriteLoop(LIBSSH2_CHANNEL* channel, T const& obj)
+{
+    static_assert(std::is_trivially_copyable<T>::value);
+    writeLoop(channel, reinterpret_cast<char const*>(&obj), sizeof(T));
+}
+
+// Relay data received over SSH to a provided file descriptor
+static void relay_task(LIBSSH2_CHANNEL* channel, int fd)
+{
+    char buf[4096];
+    auto const capacity = sizeof(buf);
+    while (auto const bytes_read = libssh2_channel_read(channel, buf, capacity)) {
+        if (bytes_read < 0) {
+            if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
+                continue;
+            } else {
+                break;
+            }
+        }
+        if (::write(fd, buf, bytes_read) < 0) {
+            break;
+        }
+    }
+
+    ::close(fd);
+}
+
+} // remote
 
 class SSHSession {
 private: // Internal objects
@@ -244,37 +328,42 @@ public: // Constructor/destructor
         }
 
         // Check the remote hostkey against the knownhosts
-        int keymask = (type == LIBSSH2_HOSTKEY_TYPE_RSA) ? LIBSSH2_KNOWNHOST_KEY_SSHRSA:LIBSSH2_KNOWNHOST_KEY_SSHDSS;
-        struct libssh2_knownhost *kh;
-        int check = libssh2_knownhost_checkp(   known_host_ptr.get(),
-                                                hostname.c_str(), 22,
-                                                fingerprint, len,
-                                                LIBSSH2_KNOWNHOST_TYPE_PLAIN |
-                                                LIBSSH2_KNOWNHOST_KEYENC_BASE64 |
-                                                keymask,
-                                                &kh);
-        switch (check) {
-            case LIBSSH2_KNOWNHOST_CHECK_MATCH:
-                // Do nothing
-                break;
-            case LIBSSH2_KNOWNHOST_CHECK_NOTFOUND:
-                // Add the host to the host file and continue
-                if (libssh2_knownhost_addc( known_host_ptr.get(),
-                                            hostname.c_str(), nullptr,
-                                            fingerprint, len,
-                                            nullptr, 0,
-                                            LIBSSH2_KNOWNHOST_TYPE_PLAIN |
-                                            LIBSSH2_KNOWNHOST_KEYENC_BASE64 |
-                                            keymask,
-                                            nullptr)) {
-                    throw std::runtime_error("Failed to add remote host to knownhosts");
-                }
-                break;
-            case LIBSSH2_KNOWNHOST_CHECK_MISMATCH:
-                throw std::runtime_error("Remote hostkey mismatch with knownhosts file! Remote the host from knownhosts to resolve: " + hostname);
-            case LIBSSH2_KNOWNHOST_CHECK_FAILURE:
-            default:
-                throw std::runtime_error("Failure with libssh2 knownhost check");
+        { int keymask = (type == LIBSSH2_HOSTKEY_TYPE_RSA) ? LIBSSH2_KNOWNHOST_KEY_SSHRSA:LIBSSH2_KNOWNHOST_KEY_SSHDSS;
+            struct libssh2_knownhost *kh = nullptr;
+            int check = libssh2_knownhost_checkp(   known_host_ptr.get(),
+                                                    hostname.c_str(), 22,
+                                                    fingerprint, len,
+                                                    LIBSSH2_KNOWNHOST_TYPE_PLAIN |
+                                                    LIBSSH2_KNOWNHOST_KEYENC_BASE64 |
+                                                    keymask,
+                                                    &kh);
+            switch (check) {
+                case LIBSSH2_KNOWNHOST_CHECK_MATCH:
+                    // Do nothing
+                    break;
+                case LIBSSH2_KNOWNHOST_CHECK_NOTFOUND:
+                    // Don't store empty fingerprint in host file
+                    if ((len > 0) && (fingerprint[0] != '\0')) {
+
+                        // Add the host to the host file and continue
+                        if (libssh2_knownhost_addc( known_host_ptr.get(),
+                                                    hostname.c_str(), nullptr,
+                                                    fingerprint, len,
+                                                    nullptr, 0,
+                                                    LIBSSH2_KNOWNHOST_TYPE_PLAIN |
+                                                    LIBSSH2_KNOWNHOST_KEYENC_BASE64 |
+                                                    keymask,
+                                                    nullptr)) {
+                            throw std::runtime_error("Failed to add remote host to knownhosts");
+                        }
+                    }
+                    break;
+                case LIBSSH2_KNOWNHOST_CHECK_MISMATCH:
+                    throw std::runtime_error("Remote hostkey mismatch with knownhosts file! Remove the host from knownhosts to resolve: " + hostname);
+                case LIBSSH2_KNOWNHOST_CHECK_FAILURE:
+                default:
+                    throw std::runtime_error("Failure with libssh2 knownhost check");
+            }
         }
 
         // FIXME: How to ensure sane pwd?
@@ -375,6 +464,37 @@ public: // Constructor/destructor
         if ((rc < 0) && (rc != LIBSSH2_ERROR_EAGAIN)) {
             throw std::runtime_error("Execution of ssh command failed: " + std::to_string(rc));
         }
+    }
+
+    auto startRemoteCommand(const char* const argv[])
+    {
+        // sanity
+        assert(argv != nullptr);
+        assert(argv[0] != nullptr);
+
+        // Create a new ssh channel
+        auto channel_ptr = cti::take_pointer_ownership( libssh2_channel_open_session(m_session_ptr.get()),
+                                                        delete_ssh2_channel);
+        if (channel_ptr == nullptr) {
+            throw std::runtime_error("Failure opening SSH channel on session");
+        }
+
+        // Create the command string
+        auto const ldLibraryPath = std::string{::getenv("LD_LIBRARY_PATH")};
+        //std::string argvString {"LD_LIBRARY_PATH=" + ldLibraryPath + " CTI_DEBUG=1 CTI_LOG_DIR=/home/users/adangelo/log"};
+        auto argvString = std::string{"LD_LIBRARY_PATH="} + ldLibraryPath;
+        for (auto arg = argv; *arg != nullptr; arg++) {
+            argvString.push_back(' ');
+            argvString += std::string(*arg);
+        }
+
+        // Request execution of the command on the remote host
+        int rc = libssh2_channel_exec(channel_ptr.get(), argvString.c_str());
+        if ((rc < 0) && (rc != LIBSSH2_ERROR_EAGAIN)) {
+            throw std::runtime_error("Execution of ssh command failed: " + std::to_string(rc));
+        }
+
+        return std::move(channel_ptr);
     }
 
     /*
@@ -601,9 +721,9 @@ GenericSSHApp::startDaemon(const char* const args[])
 
     // Prepare the launcher arguments
     cti::ManagedArgv launcherArgv { launcherPath };
-    for (const char* const* arg = args; *arg != nullptr; arg++) {
-        launcherArgv.add(*arg);
-    }
+
+    // Copy provided launcher arguments
+    launcherArgv.add(args);
 
     // Execute the launcher on each of the hosts using SSH
     for (auto&& node : m_stepLayout.nodes) {
@@ -706,8 +826,8 @@ GenericSSHFrontend::getLauncherName()
         return defaultValue;
     };
 
-    // Cache the launcher name result. Assume slurm srun launcher by default.
-    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, SRUN)};
+    // Cache the launcher name result. Assume mpiexec by default.
+    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "mpiexec")};
     return launcherName;
 }
 
@@ -725,17 +845,21 @@ GenericSSHFrontend::fetchStepLayout(MPIRProctable const& procTable)
     // For each new host we see, add a host entry to the end of the layout's host list
     // and hash each hostname to its index into the host list
     for (auto&& proc : procTable) {
+
+        // Truncate hostname at first '.' in case the launcher has used FQDNs for hostnames
+        auto const base_hostname = proc.hostname.substr(0, proc.hostname.find("."));
+
         size_t nid;
-        auto const hostNidPair = hostNidMap.find(proc.hostname);
+        auto const hostNidPair = hostNidMap.find(base_hostname);
         if (hostNidPair == hostNidMap.end()) {
             // New host, extend nodes array, and fill in host entry information
             nid = nodeCount++;
             layout.nodes.push_back(NodeLayout
-                { .hostname = proc.hostname
+                { .hostname = base_hostname
                 , .pids = {}
                 , .firstPE = peCount
             });
-            hostNidMap[proc.hostname] = nid;
+            hostNidMap[base_hostname] = nid;
         } else {
             nid = hostNidPair->second;
         }
@@ -764,6 +888,7 @@ GenericSSHFrontend::createNodeLayoutFile(GenericSSHFrontend::StepLayout const& s
         auto layout_entry    = cti_layoutFile_t{};
         layout_entry.PEsHere = node.pids.size();
         layout_entry.firstPE = node.firstPE;
+
         memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
 
         return layout_entry;
@@ -813,23 +938,6 @@ GenericSSHFrontend::createPIDListFile(MPIRProctable const& procTable, std::strin
     }
 }
 
-bool
-GenericSSHFrontend::isSupported()
-{
-    // Check if this is a cluster system.
-    // FIXME: This is a hack. This is not a reliable check for all environments.
-    // For example, whiteboxes should support direct SSH, but this file will not be present.
-    // In this case, no WLM will be detected, and the user will be instructed to set the
-    // CTI_WLM_IMPL_ENV_VAR environment variable.
-    { struct stat sb;
-        if (stat(CLUSTER_FILE_TEST, &sb) == 0) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 static std::string
 getShimmedLauncherName(std::string const& launcherPath)
 {
@@ -855,9 +963,9 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
         cti::ManagedArgv launcherArgv
             { launcher_path.get()
         };
-        for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-            launcherArgv.add(*arg);
-        }
+
+        // Copy provided launcher arguments
+        launcherArgv.add(launcher_argv);
 
         // Use MPIR shim if detected to be necessary
         auto const shimmedLauncherName = getShimmedLauncherName(launcher_path.get());
@@ -888,4 +996,227 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
     } else {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }
+}
+
+std::weak_ptr<App>
+GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
+{
+    // Construct FE remote daemon arguments
+    auto daemonArgv = cti::OutgoingArgv<CTIFEDaemonArgv>{Frontend::inst().getFEDaemonPath()};
+    daemonArgv.add(CTIFEDaemonArgv::ReadFD,  std::to_string(STDIN_FILENO));
+    daemonArgv.add(CTIFEDaemonArgv::WriteFD, std::to_string(STDOUT_FILENO));
+
+    // Launch FE daemon remotely to collect MPIR information
+    auto session = SSHSession{hostname, Frontend::inst().getPwd()};
+    auto channel = session.startRemoteCommand(daemonArgv.get());
+
+    // Relay MPIR data from SSH channel to pipe
+    auto stdoutPipe = cti::Pipe{};
+    auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
+    relayTask.detach();
+
+    // Read FE daemon initialization message
+    auto const remote_pid = rawReadLoop<pid_t>(stdoutPipe.getReadFd());
+    Frontend::inst().writeLog("FE daemon running on '%s' pid: %d\n", hostname, remote_pid);
+
+    // Determine path to launcher
+    auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free);
+    if (!launcherPath) {
+        throw std::runtime_error("failed to find launcher in path: " + getLauncherName());
+    }
+
+    // Write MPIR attach request to channel
+    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::AttachMPIR);
+    remote::writeLoop(channel.get(), launcherPath.get(), strlen(launcherPath.get()) + 1);
+    remote::rawWriteLoop(channel.get(), launcher_pid);
+
+    // Read MPIR attach request from relay pipe
+    auto mpirResult = FE_daemon::readMPIRResp(stdoutPipe.getReadFd());
+    Frontend::inst().writeLog("Received %zu proctable entries from remote daemon\n", mpirResult.proctable.size());
+
+    // Shut down remote daemon
+    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::Shutdown);
+    auto const okResp = rawReadLoop<FE_daemon::OKResp>(stdoutPipe.getReadFd());
+    if (okResp.type != FE_daemon::RespType::OK) {
+        fprintf(stderr, "warning: daemon shutdown failed\n");
+    }
+
+    // Close relay pipe and SSH channel
+    stdoutPipe.closeRead();
+    stdoutPipe.closeWrite();
+    channel.reset();
+
+    // Register application with local FE daemon and insert into received MPIR response
+    auto const mpir_id = Frontend::inst().Daemon().request_RegisterApp(::getpid());
+    mpirResult.mpir_id = mpir_id;
+
+    // Create and return new application object using MPIR response
+    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(*this, std::move(mpirResult)));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
+}
+
+// Apollo PALS specializations
+
+static auto find_job_host(std::string const& jobId)
+{
+    // Run qstat with machine-parseable format
+    char const* qstat_argv[] = {"qstat", "-f", jobId.c_str(), nullptr};
+    auto qstatOutput = cti::Execvp{"qstat", (char* const*)qstat_argv, cti::Execvp::stderr::Ignore};
+
+    // Start parsing qstat output
+    auto& qstatStream = qstatOutput.stream();
+    auto qstatLine = std::string{};
+
+    // Each line is in the format `    Var = Val`
+    auto execHost = std::string{};
+    while (std::getline(qstatStream, qstatLine)) {
+
+        // Split line on ' = '
+        auto const var_end = qstatLine.find(" = ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(qstatLine.substr(0, var_end));
+        auto const val = qstatLine.substr(var_end + 3);
+        if (var == "exec_host") {
+            execHost = cti::split::removeLeadingWhitespace(std::move(val));
+            break;
+        }
+    }
+
+    // Consume rest of stream output
+    while (std::getline(qstatStream, qstatLine)) {}
+
+    // Wait for completion and check exit status
+    if (auto const qstat_rc = qstatOutput.getExitStatus()) {
+        throw std::runtime_error("`qstat -f " + jobId + "` failed with code " + std::to_string(qstat_rc));
+    }
+
+    // Reached end of qstat output without finding `exec_host`
+    if (execHost.empty()) {
+        throw std::runtime_error("invalid job id " + jobId);
+    }
+
+    // Extract main hostname from exec_host
+    /* qstat manpage:
+        The exec_host string has the format:
+           <host1>/<T1>*<P1>[+<host2>/<T2>*<P2>+...]
+    */
+    auto const hostname_end = execHost.find("/");
+    if (hostname_end != std::string::npos) {
+        return execHost.substr(0, hostname_end);
+    }
+
+    throw std::runtime_error("failed to parse qstat exec_host: " + execHost);
+}
+
+static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
+{
+    // Find potential launcher PIDs running on remote host
+    auto launcherPids = std::vector<pid_t>{};
+
+    // Launch pgrep remotely to find PIDs
+    { char const* pgrep_argv[] = {"pgrep", "-u", Frontend::inst().getPwd().pw_name, launcher_name, nullptr};
+        auto session = SSHSession{hostname, Frontend::inst().getPwd()};
+        auto channel = session.startRemoteCommand(pgrep_argv);
+
+        // Relay PID data from SSH channel to pipe
+        auto stdoutPipe = cti::Pipe{};
+        auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
+        relayTask.detach();
+
+        // Parse pgrep lines
+        auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
+        auto stdoutStream = std::istream{&stdoutBuf};
+        auto stdoutLine = std::string{};
+        while (std::getline(stdoutStream, stdoutLine)) {
+            launcherPids.emplace_back(std::stoi(stdoutLine));
+        }
+
+        // Close relay pipe and SSH channel
+        stdoutPipe.closeRead();
+        stdoutPipe.closeWrite();
+        channel.reset();
+    }
+
+    if (launcherPids.empty()) {
+        throw std::runtime_error("no instances of " + std::string{launcher_name} + " found on " + hostname);
+    }
+
+    // If there were multiple results, attach to first launcher instance.
+    // `session_id`, PID of PBS host process, will be the grandparent PID for all launcher instances
+    // running on a given node. Cannot use its value to differentiate running instances
+    if (launcherPids.size() > 1) {
+        fprintf(stderr, "warning: found %zu %s launcher instances running on %s. Attaching to PID %d\n",
+            launcherPids.size(), launcher_name, hostname, launcherPids[0]);
+    }
+
+    return launcherPids[0];
+}
+
+std::weak_ptr<App>
+ApolloPALSFrontend::registerRemoteJob(char const* job_id)
+{
+    // Job ID is either in format <job_id> or <job_id>.<launcher_pid>
+    auto const [jobId, launcherPidString] = cti::split::string<2>(job_id, '.');
+    fprintf(stderr, "'%s' job id '%s' launcher pid '%s'\n", job_id, jobId.c_str(), launcherPidString.c_str());
+
+    // Find head node hostname for given job ID
+    auto const hostname = find_job_host(jobId);
+
+    // If launcher PID was not provided, find first launcher PID instance on head node
+    auto const launcherName = getLauncherName();
+    auto const launcher_pid = (launcherPidString.empty())
+        ? find_launcher_pid(launcherName.c_str(), hostname.c_str())
+        : std::stoi(launcherPidString);
+
+    // Attach to launcher PID running on head node and extract MPIR data for attach
+    return GenericSSHFrontend::registerRemoteJob(hostname.c_str(), launcher_pid);
+}
+
+// Add the launcher's timeout environment variable to provided environment list
+// Set timeout to five minutes
+static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgArray env_list)
+{
+    // Determine the timeout environment variable for PALS `mpiexec` or PALS `aprun` command
+    // https://connect.us.cray.com/jira/browse/PE-34329
+    auto const timeout_env = (launcherName == "aprun")
+        ? "APRUN_RPC_TIMEOUT=300"
+        : "PALS_RPC_TIMEOUT=300";
+
+    // Add the launcher's timeout disable environment variable to a new environment list
+    auto fixedEnvVars = cti::ManagedArgv{};
+
+    // Copy provided environment list
+    if (env_list != nullptr) {
+        fixedEnvVars.add(env_list);
+    }
+
+    // Append timeout disable environment variable
+    fixedEnvVars.add(timeout_env);
+
+    return fixedEnvVars;
+}
+
+std::weak_ptr<App>
+ApolloPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+    CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
+
+    return GenericSSHFrontend::launch(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath,
+            fixedEnvVars.get());
+}
+
+std::weak_ptr<App>
+ApolloPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
+
+    return GenericSSHFrontend::launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath,
+            fixedEnvVars.get());
 }

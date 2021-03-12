@@ -109,7 +109,8 @@ TEST_F(CTIUsefulUnitTest, cti_argv)
     // test that adding a NULL pointer throws
     cti::ManagedArgv argv3;
     ASSERT_NO_THROW(argv3.add(""));
-    ASSERT_THROW(argv3.add(NULL), std::logic_error);
+    ASSERT_THROW(argv3.add((char const*)NULL), std::logic_error);
+    ASSERT_THROW(argv3.add((char const**)NULL), std::logic_error);
 }
     /**********************************************************************************/
     // test additional argv classes
@@ -266,9 +267,11 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_failure)
     cti::ManagedArgv argv(strlist);
 
     // give bogus binary path and check that exit status indicates failure
-    cti::Execvp test_fail("/this/will/fail", argv.get());
+    cti::Execvp test_fail("/this/will/fail", argv.get(), cti::Execvp::stderr::Ignore);
     EXPECT_NE(test_fail.getExitStatus(), 0);
 
+    auto const failing_exit_status = cti::Execvp::runExitStatus("/this/will/fail", argv.get());
+    EXPECT_NE(failing_exit_status, 0);
 }
 
 TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_success)
@@ -276,7 +279,7 @@ TEST_F(CTIUsefulUnitTest, cti_execvp_execvp_success)
     // test that cti::Execvp works as expected
     std::initializer_list<std::string const> strlist {"-n", "T"};
     cti::ManagedArgv argv(strlist);
-    cti::Execvp test("/bin/echo", argv.get());
+    cti::Execvp test("/bin/echo", argv.get(), cti::Execvp::stderr::Ignore);
 
     // test that output is what is expected
     std::istream& out = test.stream();

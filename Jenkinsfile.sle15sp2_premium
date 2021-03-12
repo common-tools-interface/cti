@@ -1,0 +1,21 @@
+/******************************************************************************\
+ * Jenkinsfile.sle15sp2_premium - DST Jenkins pipeline for Sles 15 SP2 Shasta
+ *
+ * Copyright 2021 Hewlett Packard Enterprise Development LP
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Hewlett
+ * Packard Enterprise Development LP., no part of this work or its content may be
+ * used, reproduced or disclosed in any form.
+ *
+ ******************************************************************************/
+
+@Library("dst-shared@master") _
+
+sle15sp2PE {
+    timeout = 30
+    product = "pe-base"
+    receiveEvent = ["cdst_support-sles15sp2-complete"]
+    sendEvents = ["cti-sles15sp2-complete"]
+}

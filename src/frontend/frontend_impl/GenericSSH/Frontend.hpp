@@ -37,7 +37,7 @@
 
 #include "frontend/Frontend.hpp"
 
-class GenericSSHFrontend final : public Frontend
+class GenericSSHFrontend : public Frontend
 {
 private: // Global state
     struct passwd       m_pwd;
@@ -87,6 +87,9 @@ public: // ssh specific interface
     // Launch an app under MPIR control and hold at barrier.
     FE_daemon::MPIRResult launchApp(const char * const launcher_argv[],
         int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+
+    // Attach to a job with launcher running on a different machine (e.g. compute node)
+    std::weak_ptr<App> registerRemoteJob(char const* hostname, pid_t launcher_pid);
 
 public: // constructor / destructor interface
     GenericSSHFrontend();
@@ -144,4 +147,19 @@ public: // constructor / destructor interface
     GenericSSHApp& operator=(const GenericSSHApp&) = delete;
     GenericSSHApp(GenericSSHApp&&) = delete;
     GenericSSHApp& operator=(GenericSSHApp&&) = delete;
+};
+
+class ApolloPALSFrontend : public GenericSSHFrontend {
+public: // inherited interface
+
+    std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
+    std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
+public: // PALS-specific interface
+
+    // Detect and attach to job running on either this or remote machine (e.g. compute node)
+    std::weak_ptr<App> registerRemoteJob(char const* job_id);
 };

@@ -42,9 +42,10 @@
 // read num_bytes from fd into buf
 static inline void readLoop(char* buf, int const fd, int num_bytes)
 {
-    while (num_bytes > 0) {
+    int offset = 0;
+    while (offset < num_bytes) {
         errno = 0;
-        int bytes_read = read(fd, buf, num_bytes);
+        int bytes_read = read(fd, buf + offset, num_bytes - offset);
         if (bytes_read < 0) {
             if (errno == EINTR) {
                 continue;
@@ -52,7 +53,7 @@ static inline void readLoop(char* buf, int const fd, int num_bytes)
                 throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
             }
         } else {
-            num_bytes -= bytes_read;
+            offset += bytes_read;
         }
     }
 }
@@ -68,11 +69,12 @@ static inline T rawReadLoop(int const fd)
 }
 
 // write num_bytes from buf to fd
-static void writeLoop(int const fd, char const* buf, int num_bytes)
+static inline void writeLoop(int const fd, char const* buf, int num_bytes)
 {
-    while (num_bytes > 0) {
+    int offset = 0;
+    while (offset < num_bytes) {
         errno = 0;
-        int written = write(fd, buf, num_bytes);
+        int written = write(fd, buf + offset, num_bytes - offset);
         if (written < 0) {
             if (errno == EINTR) {
                 continue;
@@ -80,16 +82,16 @@ static void writeLoop(int const fd, char const* buf, int num_bytes)
                 throw std::runtime_error("write failed: " + std::string{std::strerror(errno)});
             }
         } else {
-            num_bytes -= written;
+            offset += written;
         }
     }
 }
 
 // write an object T to fd (useful for writing message structs to pipes)
 template <typename T>
-static void rawWriteLoop(int const fd, T const& obj)
+static inline void rawWriteLoop(int const fd, T const& obj)
 {
-    static_assert(std::is_trivially_copyable<T>::value);
+    static_assert(std::is_trivial<T>::value);
     writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
 }
 
@@ -109,6 +111,9 @@ public: // type definitions
         MPIRProctable proctable;
         BinaryRankMap binaryRankMap;
     };
+
+    // Read and return an MPIRResult from the provided request pipe
+    static MPIRResult readMPIRResp(int const reqFd);
 
     /* request types */
 
@@ -240,20 +245,23 @@ public: // type definitions
         // after sending this struct, send `num_pids` elements of:
         // - pid, null-terminated hostname, null-terminated executable name
     };
-
 private: // Internal data
-    bool                m_init;
-    pid_t               m_mainPid; // Main CTI PID that is responsible for daemon cleanup
-    cti::SocketPair     m_req_sock;
-    cti::SocketPair     m_resp_sock;
+    bool      m_init;
+    pid_t     m_mainPid; // Main CTI PID that is responsible for daemon cleanup
+    cti::FdPair m_req_sock;
+    cti::FdPair m_resp_sock;
 
 public:
     FE_daemon()
     : m_init{false}
     , m_mainPid{-1} // Set during daemon fork/exec
-    , m_req_sock{AF_UNIX, SOCK_STREAM, 0}
-    , m_resp_sock{AF_UNIX, SOCK_STREAM, 0}
-    { }
+    , m_req_sock{}
+    , m_resp_sock{}
+    {
+        // Set up communication through Unix domain sockets
+        m_req_sock.socketpair(AF_UNIX, SOCK_STREAM, 0);
+        m_resp_sock.socketpair(AF_UNIX, SOCK_STREAM, 0);
+    }
     ~FE_daemon();
 
     // This must only be called once. It is to workaround an issue in Frontend
