@@ -16,9 +16,12 @@ Product Description:
 
 Purpose:
 ---------
-  This release supports the Apollo and Everest HPCM systems configured with
-  the PALS workload manager.
-
+  This release improves support for HPCM systems running the PALS launcher:
+    - Complete job launch support for GDB4hpc and other debug tools
+    - Enables attaching to running HPCM job from system login node
+  Additionally, the system and WLM detection process has been improved
+  with more informative diagnostic messages. Users can now manually set
+  the system and WLM type at runtime (previously, WLM only).
 
 Product and OS Dependencies:
 -----------------------------
