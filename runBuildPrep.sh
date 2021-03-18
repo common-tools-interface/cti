@@ -64,7 +64,7 @@ fi
 install_common_pe
 
 # Install cdst_support
-#install_cdst_support
+install_cdst_support
 
 capture_jenkins_build
 check_exit_status
