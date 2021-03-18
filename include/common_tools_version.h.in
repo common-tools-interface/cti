@@ -37,7 +37,7 @@
 
 /*
  * Version of the common tools interface package in form
- * "major.minor.patch"
+ * "major.minor.patch.build_number"
  */
 #undef CTI_PACKAGE_VERSION
 
@@ -52,9 +52,14 @@
 #undef CTI_PACKAGE_MINOR
 
 /*
- * Patch revision of the common tools interface package.
+ * Revision of the common tools interface package.
  */
 #undef CTI_PACKAGE_REVISION
+
+/*
+ * build_number of the common tools inteface package.
+ */
+#undef CTI_PACKAGE_BUILD_NUMBER
 
 /*
  * Version of the backend interface as a string.

@@ -1,6 +1,6 @@
 # Packaging definitions
 %global pkgversion %(%{_sourcedir}/get_package_data --crayversion)
-%global minorVersion %(echo %{pkgversion} | cut -d. -f2)
+%global branch %(%{_sourcedir}/get_package_data --branch)
 %global pkgversion_separator -
 %global copyright Copyright 2010-2021 Hewlett Packard Enterprise Development LP
 
@@ -100,13 +100,13 @@
 %if 0%{?suse_version}
 %if 0%{?sle_version} == 150000
 %global dist .sles15
-%global OS_HW_TAG 7.0,7.1
+%global OS_HW_TAG 7.0,7.1,7.2
 %global OS_WB_TAG sles15
 %endif
 %if 0%{?sle_version} == 150100
 %global dist .sles15sp1
-%global OS_HW_TAG 7.0,7.1
-%global OS_WB_TAG sles15sp1
+%global OS_HW_TAG 7.0,7.1,7.2
+%global OS_WB_TAG sles15
 %endif
 %if 0%{?sle_version} == 150200
 %global dist .sles15sp2
@@ -132,7 +132,11 @@ Summary:    Cray Common Tools Interface
 Name:       %{cray_name}%{pkgversion_separator}%{pkgversion}
 # BUILD_METADATA is set by Jenkins
 Version:    %(echo ${BUILD_METADATA})
+%if %{branch} == release
+Release:    %(echo ${BUILD_NUMBER})%{dist}
+%else
 Release:    1%{dist}
+%endif
 Prefix:     %{cray_prefix}
 License:    Dual BSD or GPLv2
 Vendor:     Hewlett Packard Enterprise Development LP
@@ -234,17 +238,17 @@ Test files for Cray Common Tools Interface
 %{__mkdir} -p %{_rpmdir}/%{_arch}
 # yaml files
 %global start_rmLine %(sed -n /section-3/= %{SOURCE9})
-%global end_rmLine %(sed -n /SET_AS_DEFAULT/= %{SOURCE9} | tail -1)
-%if %{minorVersion} == 9999
+%global end_rmLine %(sed -n /admin-pe/= %{SOURCE9} | tail -1)
+%if %{branch} != release
 # yaml file - cray-cti
-%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # yaml file - cray-cti-devel
-%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-devel|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-devel|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 %else
 # yaml file - cray-cti
-%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 # yaml file - cray-cti-devel
-%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<SET_AS_DEFAULT>|%{set_as_default_false}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 %endif
 # yaml file - cray-cti-tests (no modulefile provided)
 %{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-tests|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;'/SET_AS_DEFAULT'/d' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
@@ -326,8 +330,6 @@ if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
     echo "%{prefix}/%{product}/" > /etc/%{prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf
     echo "%{prefix}/modulefiles/%{modulefile_name}" > /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{modulefile_name}.conf
     echo "%{prefix}/lmod/modulefiles/core/%{cray_name}" >> /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{modulefile_name}.conf
-
-    echo -e '#%Modulefile\r\nset  ModulesVersion "%{pkgversion}"' > %{prefix}/lmod/modulefiles/core/%{cray_name}/.version
 fi
 
 # Process relocations
@@ -366,8 +368,6 @@ if [ "${RPM_INSTALL_PREFIX}" = "%{prefix}" ]; then
     %{__mkdir} -p /etc/%{prefix}/admin-pe/modulepaths.conf.d/
     echo "%{prefix}/modulefiles/%{devel_modulefile_name}" > /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
     echo "%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}" >> /etc/%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
-
-    echo -e '#%Modulefile\r\nset  ModulesVersion "%{pkgversion}"' > %{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/.version
 fi
 
 # Process relocations

@@ -16,7 +16,14 @@ top_level=$PWD
 source ./external/cdst_build_library/build_lib
 
 source $top_level/release_versioning
-cti_version="$common_tool_major.$common_tool_minor.$revision"
+cti_version=
+branch_name=$(get_branch_info)
+branch_type=$(echo "$branch_name" | cut -d'/' -f1)
+if [ "$branch_type" != "release" ]; then
+  cti_version="$common_tool_major.$common_tool_minor.$revision.$build_number"
+else
+  cti_version="$common_tool_major.$common_tool_minor.$revision"
+fi
 install_dir="/opt/cray/pe/cti/$cti_version"
 
 # Remove build dir
