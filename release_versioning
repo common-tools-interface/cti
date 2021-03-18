@@ -105,4 +105,4 @@ fe_revision="8"
 revision="1"
 
 # Jenkins will override this
-build_number="6"
+build_number=
