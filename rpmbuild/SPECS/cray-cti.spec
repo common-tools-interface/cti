@@ -423,7 +423,7 @@ then
     fi
 fi
 
-# If the install dir exists
+# If the install dir is empty
 if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{cray_product}` ]]; then
   %{__rm} -rf ${RPM_INSTALL_PREFIX}/%{cray_product}
   if [ -f /etc%{prefix}/admin-pe/bindmount.conf.d/%{cray_name}.conf ]; then
@@ -446,15 +446,17 @@ then
   exit 0
 fi
 
-# If the install dir exists
-if [ -f /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf ]; then
-  %{__rm} -rf /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
-fi
-if [ -d ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name} ]; then
-  %{__rm} -rf ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name}
-fi
-if [ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name} ]; then
-  %{__rm} -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}
+# If the install dir is empty
+if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{cray_product} ]]; then
+  if [ -f /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf ]; then
+    %{__rm} -rf /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
+  fi
+  if [ -d ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name} ]; then
+    %{__rm} -rf ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name}
+  fi
+  if [ -d ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name} ]; then
+    %{__rm} -rf ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}
+  fi
 fi
 
 %postun -n %{cray_name}-tests-%{pkgversion}
