@@ -32,36 +32,46 @@ dnl This is not portable due to source...
 dnl
 AC_DEFUN([cray_INIT],
 [
-	dnl Pull in the revision information from the $PWD/release_versioning file
-	m4_define([COMMONTOOL_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo "$revision"])])
+    dnl Pull in the revision information from the $PWD/release_versioning file
+    m4_define([COMMONTOOL_BUILD_NUMBER], [m4_esyscmd_s([source $PWD/release_versioning; echo "$build_number"])])
+    m4_define([COMMONTOOL_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo "$revision"])])
 
-	m4_define([COMMONTOOL_MAJOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_major"])])
-	m4_define([COMMONTOOL_MINOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_minor"])])
+    m4_define([COMMONTOOL_MAJOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_major"])])
+    m4_define([COMMONTOOL_MINOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_minor"])])
 
-	m4_define([COMMONTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
-	m4_define([COMMONTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
+    m4_define([COMMONTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
+    m4_define([COMMONTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
     m4_define([COMMONTOOL_BE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_revision])])
-	m4_define([COMMONTOOL_BE_MAJOR], [m4_eval( COMMONTOOL_BE_CURRENT - COMMONTOOL_BE_AGE)])
+    m4_define([COMMONTOOL_BE_MAJOR], [m4_eval( COMMONTOOL_BE_CURRENT - COMMONTOOL_BE_AGE)])
 
-	m4_define([COMMONTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
-	m4_define([COMMONTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
+    m4_define([COMMONTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
+    m4_define([COMMONTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
     m4_define([COMMONTOOL_FE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_revision])])
-	m4_define([COMMONTOOL_FE_MAJOR], [m4_eval( COMMONTOOL_FE_CURRENT - COMMONTOOL_FE_AGE)])
+    m4_define([COMMONTOOL_FE_MAJOR], [m4_eval( COMMONTOOL_FE_CURRENT - COMMONTOOL_FE_AGE)])
 
-	AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION])
+    if test -z [COMMONTOOL_BUILD_NUMBER]; then
+        dnl Build number is empty - Building from release branch
+        AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION])
+        AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"])
+        AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"], [Version number of CTI package.])	
+    else
+        dnl Build number found - Building from other than release branch
+        AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION].[COMMONTOOL_BUILD_NUMBER])
+        AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION.COMMONTOOL_BUILD_NUMBER"])
+        AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION.COMMONTOOL_BUILD_NUMBER"], [Version number of CTI package.])
+    fi
+
 	AC_SUBST([COMMONTOOL_BE_VERSION], [COMMONTOOL_BE_CURRENT:COMMONTOOL_BE_REVISION:COMMONTOOL_BE_AGE])
 	AC_SUBST([COMMONTOOL_FE_VERSION], [COMMONTOOL_FE_CURRENT:COMMONTOOL_FE_REVISION:COMMONTOOL_FE_AGE])
-
-    AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"])
-
-	AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"], [Version number of CTI package.])
-	AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["COMMONTOOL_BE_MAJOR.COMMONTOOL_BE_AGE.COMMONTOOL_REVISION"], [Version number of CTI backend.])
+        
+        AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["COMMONTOOL_BE_MAJOR.COMMONTOOL_BE_AGE.COMMONTOOL_REVISION"], [Version number of CTI backend.])
 	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["COMMONTOOL_FE_MAJOR.COMMONTOOL_FE_AGE.COMMONTOOL_REVISION"], [Version number of CTI frontend.])
 
 	AC_DEFINE([CTI_PACKAGE_MAJOR], [COMMONTOOL_MAJOR], [Package major version])
 	AC_DEFINE([CTI_PACKAGE_MINOR], [COMMONTOOL_MINOR], [Package minor version])
 	AC_DEFINE([CTI_PACKAGE_REVISION], [COMMONTOOL_REVISION], [Package revision])
-	AC_DEFINE([CTI_BE_CURRENT], [COMMONTOOL_BE_CURRENT], [Backend current version])
+	AC_DEFINE([CTI_PACKAGE_BUILD_NUMBER], [COMMONTOOL_BUILD_NUMBER], [Package build number])
+        AC_DEFINE([CTI_BE_CURRENT], [COMMONTOOL_BE_CURRENT], [Backend current version])
 	AC_DEFINE([CTI_BE_AGE], [COMMONTOOL_BE_AGE], [Backend age])
 	AC_DEFINE([CTI_BE_REVISION], [COMMONTOOL_REVISION], [Backend revision])
 	AC_DEFINE([CTI_FE_CURRENT], [COMMONTOOL_FE_CURRENT], [Frontend current version])
