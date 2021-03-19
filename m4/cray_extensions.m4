@@ -49,13 +49,15 @@ AC_DEFUN([cray_INIT],
     m4_define([COMMONTOOL_FE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_revision])])
     m4_define([COMMONTOOL_FE_MAJOR], [m4_eval( COMMONTOOL_FE_CURRENT - COMMONTOOL_FE_AGE)])
 
-    if test -z [COMMONTOOL_BUILD_NUMBER]; then
-        dnl Build number is empty - Building from release branch
+    AC_ARG_VAR([BUILD_NUMBER],[Build Number])
+    AC_SUBST([BUILD_NUMBER],[COMMONTOOL_BUILD_NUMBER])
+    if test -z "$BUILD_NUMBER" || -n "$BUILD_NUMBER" ; then
+        AC_MSG_NOTICE([checking for build status - Building from release branch])
         AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION])
         AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"])
         AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"], [Version number of CTI package.])	
     else
-        dnl Build number found - Building from other than release branch
+        AC_MSG_NOTICE([checking for build status - Building from other than release branch])
         AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION].[COMMONTOOL_BUILD_NUMBER])
         AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION.COMMONTOOL_BUILD_NUMBER"])
         AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION.COMMONTOOL_BUILD_NUMBER"], [Version number of CTI package.])
