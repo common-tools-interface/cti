@@ -33,7 +33,7 @@ dnl
 AC_DEFUN([cray_INIT],
 [
     dnl Pull in the revision information from the $PWD/release_versioning file
-    m4_define([COMMONTOOL_BUILD_NUMBER], [m4_esyscmd_s([source $PWD/release_versioning; echo "$build_number"])])
+    m4_define([COMMONTOOL_BUILD_NUMBER], [m4_esyscmd_s([source $PWD/release_versioning; echo "$build_number"])])dnl 
     m4_define([COMMONTOOL_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo "$revision"])])
 
     m4_define([COMMONTOOL_MAJOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_major"])])
@@ -51,45 +51,44 @@ AC_DEFUN([cray_INIT],
 
     AC_ARG_VAR([BUILD_NUMBER],[Build Number])
     AC_SUBST([BUILD_NUMBER],[COMMONTOOL_BUILD_NUMBER])
-    if test -z "$BUILD_NUMBER" || -n "$BUILD_NUMBER" ; then
-        AC_MSG_NOTICE([checking for build status - Building from release branch])
+    if test -z "$BUILD_NUMBER" || -n "$BUILD_NUMBER" ; then 
+        dnl Build number is empty - Building from release branch
+        AC_MSG_NOTICE([checking for build status - Building from release branch**************************************************])
         AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION])
-        AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"])
         AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"], [Version number of CTI package.])	
     else
-        AC_MSG_NOTICE([checking for build status - Building from other than release branch])
+        AC_MSG_NOTICE([checking for build status - Building from other than release branch***********************])
         AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION].[COMMONTOOL_BUILD_NUMBER])
-        AC_PREFIX_DEFAULT(["/opt/cray/pe/cti/COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION.COMMONTOOL_BUILD_NUMBER"])
         AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION.COMMONTOOL_BUILD_NUMBER"], [Version number of CTI package.])
     fi
 
-	AC_SUBST([COMMONTOOL_BE_VERSION], [COMMONTOOL_BE_CURRENT:COMMONTOOL_BE_REVISION:COMMONTOOL_BE_AGE])
-	AC_SUBST([COMMONTOOL_FE_VERSION], [COMMONTOOL_FE_CURRENT:COMMONTOOL_FE_REVISION:COMMONTOOL_FE_AGE])
+    AC_SUBST([COMMONTOOL_BE_VERSION], [COMMONTOOL_BE_CURRENT:COMMONTOOL_BE_REVISION:COMMONTOOL_BE_AGE])
+    AC_SUBST([COMMONTOOL_FE_VERSION], [COMMONTOOL_FE_CURRENT:COMMONTOOL_FE_REVISION:COMMONTOOL_FE_AGE])
         
-        AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["COMMONTOOL_BE_MAJOR.COMMONTOOL_BE_AGE.COMMONTOOL_REVISION"], [Version number of CTI backend.])
-	AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["COMMONTOOL_FE_MAJOR.COMMONTOOL_FE_AGE.COMMONTOOL_REVISION"], [Version number of CTI frontend.])
+    AC_DEFINE_UNQUOTED([CTI_BE_VERSION], ["COMMONTOOL_BE_MAJOR.COMMONTOOL_BE_AGE.COMMONTOOL_REVISION"], [Version number of CTI backend.])
+    AC_DEFINE_UNQUOTED([CTI_FE_VERSION], ["COMMONTOOL_FE_MAJOR.COMMONTOOL_FE_AGE.COMMONTOOL_REVISION"], [Version number of CTI frontend.])
 
-	AC_DEFINE([CTI_PACKAGE_MAJOR], [COMMONTOOL_MAJOR], [Package major version])
-	AC_DEFINE([CTI_PACKAGE_MINOR], [COMMONTOOL_MINOR], [Package minor version])
-	AC_DEFINE([CTI_PACKAGE_REVISION], [COMMONTOOL_REVISION], [Package revision])
-	AC_DEFINE([CTI_PACKAGE_BUILD_NUMBER], [COMMONTOOL_BUILD_NUMBER], [Package build number])
-        AC_DEFINE([CTI_BE_CURRENT], [COMMONTOOL_BE_CURRENT], [Backend current version])
-	AC_DEFINE([CTI_BE_AGE], [COMMONTOOL_BE_AGE], [Backend age])
-	AC_DEFINE([CTI_BE_REVISION], [COMMONTOOL_REVISION], [Backend revision])
-	AC_DEFINE([CTI_FE_CURRENT], [COMMONTOOL_FE_CURRENT], [Frontend current version])
-	AC_DEFINE([CTI_FE_AGE], [COMMONTOOL_FE_AGE], [Frontend age])
-	AC_DEFINE([CTI_FE_REVISION], [COMMONTOOL_REVISION], [Frontend revision])
+    AC_DEFINE([CTI_PACKAGE_MAJOR], [COMMONTOOL_MAJOR], [Package major version])
+    AC_DEFINE([CTI_PACKAGE_MINOR], [COMMONTOOL_MINOR], [Package minor version])
+    AC_DEFINE([CTI_PACKAGE_REVISION], [COMMONTOOL_REVISION], [Package revision])
+    AC_DEFINE([CTI_PACKAGE_BUILD_NUMBER], [COMMONTOOL_BUILD_NUMBER], [Package build number])
+    AC_DEFINE([CTI_BE_CURRENT], [COMMONTOOL_BE_CURRENT], [Backend current version])
+    AC_DEFINE([CTI_BE_AGE], [COMMONTOOL_BE_AGE], [Backend age])
+    AC_DEFINE([CTI_BE_REVISION], [COMMONTOOL_REVISION], [Backend revision])
+    AC_DEFINE([CTI_FE_CURRENT], [COMMONTOOL_FE_CURRENT], [Frontend current version])
+    AC_DEFINE([CTI_FE_AGE], [COMMONTOOL_FE_AGE], [Frontend age])
+    AC_DEFINE([CTI_FE_REVISION], [COMMONTOOL_REVISION], [Frontend revision])
 
-	AC_SUBST([COMMONTOOL_EXTERNAL], [${COMMONTOOL_DIR}/external])
-	AC_SUBST([COMMONTOOL_EXTERNAL_INSTALL], [${COMMONTOOL_DIR}/external/install])
+    AC_SUBST([COMMONTOOL_EXTERNAL], [${COMMONTOOL_DIR}/external])
+    AC_SUBST([COMMONTOOL_EXTERNAL_INSTALL], [${COMMONTOOL_DIR}/external/install])
 
-	if test ! -d "${COMMONTOOL_EXTERNAL_INSTALL}"; then
-		AS_MKDIR_P([${COMMONTOOL_EXTERNAL_INSTALL}])
-	fi
+    if test ! -d "${COMMONTOOL_EXTERNAL_INSTALL}"; then
+	AS_MKDIR_P([${COMMONTOOL_EXTERNAL_INSTALL}])
+    fi
 
-	if [[ -z "${NUM_JOBS}" ]]; then
-		NUM_JOBS=32
-	fi
+    if [[ -z "${NUM_JOBS}" ]]; then
+	NUM_JOBS=32
+    fi
 ])
 
 dnl support checksumming of critical files. generated header will be placed in
