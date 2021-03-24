@@ -7,11 +7,11 @@ crayyversion=
 branch=
 if [ ! -z ${build_number} ]; then
  # This version was built from a non-release branch
-  crayversion="${common_tool_major:-0}.${common_tool_minor:-0}.${revision}.${build_number}"
+  crayversion="${common_tool_major:-0}.${common_tool_minor:-0}.${revision:-0}.${build_number}"
   branch="master"
 else
   # This version was built from a release branch
-  crayversion="${common_tool_major:-0}.${common_tool_minor:-0}.${revision}"
+  crayversion="${common_tool_major:-0}.${common_tool_minor:-0}.${revision:-0}"
   branch="release"
 fi
 
