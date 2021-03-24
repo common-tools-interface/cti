@@ -1,7 +1,7 @@
 #
 # cray_extensions.m4 Cray configure extensions.
 #
-# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2011-2021 Hewlett Packard Enterprise Development LP.
 #
 #     Redistribution and use in source and binary forms, with or
 #     without modification, are permitted provided that the following
@@ -33,7 +33,7 @@ dnl
 AC_DEFUN([cray_INIT],
 [
     dnl Pull in the revision information from the $PWD/release_versioning file
-    m4_define([COMMONTOOL_BUILD_NUMBER], [m4_esyscmd_s([source $PWD/release_versioning; echo "$build_number"])])dnl 
+    m4_define([COMMONTOOL_BUILD_NUMBER], [m4_esyscmd_s([source $PWD/release_versioning; echo "$build_number"])])
     m4_define([COMMONTOOL_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo "$revision"])])
 
     m4_define([COMMONTOOL_MAJOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_major"])])
@@ -87,7 +87,7 @@ AC_DEFUN([cray_INIT],
     fi
 
     if [[ -z "${NUM_JOBS}" ]]; then
-	NUM_JOBS=32
+	  NUM_JOBS=32
     fi
 ])
 
