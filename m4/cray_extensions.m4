@@ -83,7 +83,7 @@ AC_DEFUN([cray_INIT],
     AC_SUBST([COMMONTOOL_EXTERNAL_INSTALL], [${COMMONTOOL_DIR}/external/install])
 
     if test ! -d "${COMMONTOOL_EXTERNAL_INSTALL}"; then
-	AS_MKDIR_P([${COMMONTOOL_EXTERNAL_INSTALL}])
+	  AS_MKDIR_P([${COMMONTOOL_EXTERNAL_INSTALL}])
     fi
 
     if [[ -z "${NUM_JOBS}" ]]; then
