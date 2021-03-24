@@ -8,7 +8,3 @@
 [submodule "rpmbuild/SOURCES/set_default"]
 	path = rpmbuild/SOURCES/set_default
 	url = ssh://git@stash.us.cray.com:7999/pe-cenv/set_default.git
-[submodule "external/cdst_build_library"]
-	path = external/cdst_build_library
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/cdst_build_library.git
-	branch = bugfix/PE-34858
