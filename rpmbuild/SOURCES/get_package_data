@@ -3,7 +3,7 @@ basedir=$(dirname $0)
 
 . ${basedir}/../../release_versioning
 
-crayyversion=
+crayversion=
 branch=
 if [ ! -z ${build_number} ]; then
  # This version was built from a non-release branch
