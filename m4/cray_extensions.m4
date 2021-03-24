@@ -53,11 +53,12 @@ AC_DEFUN([cray_INIT],
     AC_SUBST([BUILD_NUMBER],[COMMONTOOL_BUILD_NUMBER])
     if test -z "$BUILD_NUMBER" || -n "$BUILD_NUMBER" ; then 
         dnl Build number is empty - Building from release branch
-        AC_MSG_NOTICE([checking for build status - Building from release branch**************************************************])
+        AC_MSG_NOTICE([checking for build status - Building from release branch])
         AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION])
         AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION"], [Version number of CTI package.])	
     else
-        AC_MSG_NOTICE([checking for build status - Building from other than release branch***********************])
+        dnl Build number is not empty - Building from other than release branch
+        AC_MSG_NOTICE([checking for build status - Building from other than release branch])
         AC_SUBST([COMMONTOOL_RELEASE_VERSION], [COMMONTOOL_MAJOR].[COMMONTOOL_MINOR].[COMMONTOOL_REVISION].[COMMONTOOL_BUILD_NUMBER])
         AC_DEFINE_UNQUOTED([CTI_PACKAGE_VERSION], ["COMMONTOOL_MAJOR.COMMONTOOL_MINOR.COMMONTOOL_REVISION.COMMONTOOL_BUILD_NUMBER"], [Version number of CTI package.])
     fi
