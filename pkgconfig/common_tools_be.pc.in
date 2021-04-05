@@ -34,5 +34,5 @@ URL: http://www.cray.com
 Description: The backend component of the common tools interface (CTI). Exposes a useful API to tool programs.
 Version: @VERSION@
 Requires:
-Libs: -L${libdir} -lcommontools_be
+Libs: -L/opt/cray/pe/lib64 -Wl,--enable-new-dtags -Wl,-rpath,/opt/cray/pe/lib64 -Wl,-rpath,/opt/cray/pe/cti/default/lib -lcommontools_be
 Cflags: -I${includedir}
