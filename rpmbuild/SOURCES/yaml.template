@@ -10,9 +10,7 @@ section-1:
     EMAIL_BUILDER         : NO
     HOSTS                 : ALL 
     INSTALL_DEFAULT_HOSTS : NONE
-    NETWORK_TYPE:
-        ALL_EXCEPT:
-            - SEASTAR
+    NETWORK_TYPE          : NONE
     OPERATION             : INSTALL
     OS_VERSION            : <OS_HW_TAG>
     RPM_LIST              : NONE
@@ -38,15 +36,13 @@ section-3:
     EMAIL_BUILDER         : NO
     HOSTS                 : ALL
     INSTALL_DEFAULT_HOSTS : NONE
-    NETWORK_TYPE:
-        ALL_EXCEPT:
-            - SEASTAR
+    NETWORK_TYPE          : NONE
     OPERATION             : UPDATE
     OS_VERSION            : <OS_HW_TAG>
     RPM_LIST              : NONE
     SYSTEM_TYPE           : <SYS_HW_TAG>
     COMMANDS: |
-            <SET_AS_DEFAULT>
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
 
 section-4:
     ACCELERATOR           : NONE
@@ -61,7 +57,7 @@ section-4:
     RPM_LIST              : NONE
     SYSTEM_TYPE           : <SYS_WB_TAG>
     COMMANDS: |
-            <SET_AS_DEFAULT>
+            /opt/cray/pe/admin-pe/set_default_files/set_default_<PRODUCT>_<VERSION>
 
 section-5:
     ACCELERATOR           : NONE
