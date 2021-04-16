@@ -1226,11 +1226,6 @@ std::string
 ApolloPALSFrontend::getHostname() const
 {
     static auto const nodeAddress = []() {
-        // Use user setting if provided
-        if (auto const hpcm_head_node = ::getenv(HPCM_HEAD_NODE)) {
-            return std::string{hpcm_head_node};
-        }
-
         // Query IP address from `cminfo`
         auto const getCminfoAddress = [](std::string const& ipOption) {
             char const* cminfoArgv[] = { "cminfo", ipOption.c_str(), nullptr };
@@ -1266,7 +1261,7 @@ ApolloPALSFrontend::getHostname() const
 
         throw std::runtime_error("Failed to detect the address for this HPCM PALS node \
 using `cminfo --head_ip` or `cminfo --gbe_ip`. Set the environment variable \
-" HPCM_HEAD_NODE " to an address for this node accessible from the system's compute nodes");
+" CTI_HOST_ADDRESS_ENV_VAR " to an address for this node accessible from the system's compute nodes");
     }();
 
     return nodeAddress;
