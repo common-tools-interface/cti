@@ -327,6 +327,11 @@ cti_destroyBinaryList(cti_binaryList_t *binary_list) {
 char*
 cti_getHostname() {
     return FE_iface::runSafely(__func__, [&](){
+        // Use user setting if provided
+        if (auto const host_address = ::getenv(CTI_HOST_ADDRESS_ENV_VAR)) {
+            return strdup(host_address);
+        }
+
         auto&& fe = Frontend::inst();
         return strdup(fe.getHostname().c_str());
     }, (char*)nullptr);
