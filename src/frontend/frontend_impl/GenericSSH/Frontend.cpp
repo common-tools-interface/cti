@@ -1220,3 +1220,54 @@ ApolloPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int st
     return GenericSSHFrontend::launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath,
             fixedEnvVars.get());
 }
+
+// Current address can now be obtained using the `cminfo` tool.
+std::string
+ApolloPALSFrontend::getHostname() const
+{
+    static auto const nodeAddress = []() {
+        // Use user setting if provided
+        if (auto const hpcm_head_node = ::getenv(HPCM_HEAD_NODE)) {
+            return std::string{hpcm_head_node};
+        }
+
+        // Query IP address from `cminfo`
+        auto const getCminfoAddress = [](std::string const& ipOption) {
+            char const* cminfoArgv[] = { "cminfo", ipOption.c_str(), nullptr };
+
+            // Start cminfo
+            try {
+                auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
+
+                // Detect if running on HPCM login or compute node
+                auto& cminfoStream = cminfoOutput.stream();
+                std::string headAddress;
+                if (std::getline(cminfoStream, headAddress)) {
+                    return headAddress;
+                }
+            } catch (...) {
+                return std::string{};
+            }
+
+            return std::string{};
+        };
+
+        // Query head IP address
+        auto const headAddress = getCminfoAddress("head_ip");
+        if (!headAddress.empty()) {
+            return headAddress;
+        }
+
+        // Query GBE IP address
+        auto const gbeAddress = getCminfoAddress("gbe_ip");
+        if (!gbeAddress.empty()) {
+            return gbeAddress;
+        }
+
+        throw std::runtime_error("Failed to detect the address for this HPCM PALS node \
+using `cminfo --head_ip` or `cminfo --gbe_ip`. Set the environment variable \
+" HPCM_HEAD_NODE " to an address for this node accessible from the system's compute nodes");
+    }();
+
+    return nodeAddress;
+}
