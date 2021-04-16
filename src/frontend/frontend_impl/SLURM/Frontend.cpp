@@ -748,8 +748,8 @@ ApolloSLURMFrontend::getHostname() const
 {
     static auto const nodeAddress = []() {
         // Query IP address from `cminfo`
-        auto const getCminfoAddress = [](std::string const& ipOption) {
-            char const* cminfoArgv[] = { "cminfo", ipOption.c_str(), nullptr };
+        auto const getCminfoAddress = [](char const* ip_option) {
+            char const* cminfoArgv[] = { "cminfo", ip_option, nullptr };
 
             // Start cminfo
             try {
