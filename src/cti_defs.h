@@ -166,6 +166,11 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
 #define PALS_DEBUG "CTI_PALS_DEBUG" // Manually enables PALS frontend and uses localhost as API server without authentication
 
+/*
+** HPCM specific information
+*/
+
+#define HPCM_HEAD_NODE "CTI_HPCM_HEAD_NODE" // Override detection of host IP from `cminfo`
 
 /*******************************************************************************
 ** Environment variables that are set/maintained by this library
