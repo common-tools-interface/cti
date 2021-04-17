@@ -158,6 +158,8 @@ public: // inherited interface
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
+    std::string getHostname() const override;
+
 public: // PALS-specific interface
 
     // Detect and attach to job running on either this or remote machine (e.g. compute node)
