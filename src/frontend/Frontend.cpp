@@ -438,6 +438,9 @@ static bool detect_HPCM()
             return false;
         }
 
+        // All HPCM checks passed
+        return true;
+
     } catch(...) {
         // cminfo not installed
         return false;
@@ -481,9 +484,11 @@ bool detect_HPCM_PALS(std::string const& /* unused */ = "")
             return false;
         }
 
+        // All HPCM / PALS checks passed
         return true;
 
     } catch (...) {
+        // PALS not installed
         return false;
     }
 }
@@ -544,12 +549,13 @@ static bool detect_Slurm(std::string const& launcherName)
             return false;
         }
 
+        // All Slurm checks passed
+        return true;
+
     } catch(...) {
-        // slurm not installed
+        // Slurm not installed
         return false;
     }
-
-    return false;
 }
 
 static bool detect_XC_ALPS(std::string const& launcherName)
@@ -579,12 +585,13 @@ static bool detect_XC_ALPS(std::string const& launcherName)
             return false;
         }
 
+        // All ALPS checks passed
+        return true;
+
     } catch(...) {
-        // alps not installed
+        // ALPS not installed
         return false;
     }
-
-    return false;
 }
 
 // Verify that the provided launcher is a binary and contains MPIR symbols
