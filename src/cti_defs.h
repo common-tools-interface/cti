@@ -63,7 +63,7 @@ extern "C" {
 ** Frontend defines relating to the login node
 *******************************************************************************/
 #define WLM_DETECT_LIB_NAME "libwlm_detect.so" // wlm_detect library
-#define LD_AUDIT_LIB_NAME       "libaudit.so"                       // ld audit library
+#define LD_AUDIT_LIB_NAME       "libctiaudit.so"                       // ld audit library
 
 /*******************************************************************************
 ** Backend defines relating to the compute node

@@ -194,7 +194,7 @@ Test files for Cray Common Tools Interface
 %{__cp} -a ${RPM_BUILD_DIR}/%{attributions_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
 # Libraries
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
-%{__cp} -a %{external_build_dir}/lib/libaudit.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
+%{__cp} -a %{external_build_dir}/lib/libctiaudit.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_be.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_fe.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 # Libraries static
@@ -490,7 +490,7 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libaudit.so
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libctiaudit.so
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_be.so*
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_fe.so*
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_be_daemon%{pkgversion}
