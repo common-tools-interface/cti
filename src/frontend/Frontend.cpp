@@ -811,7 +811,11 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
         }
 
     case System::CS:
-        return WLM::SSH;
+        if (detect_Slurm(launcherName)) {
+            return WLM::Slurm;
+        } else {
+            return WLM::SSH;
+        }
 
     default:
         break;

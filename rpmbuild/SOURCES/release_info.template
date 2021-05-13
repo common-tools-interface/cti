@@ -16,12 +16,11 @@ Product Description:
 
 Purpose:
 ---------
-  This release improves support for HPCM systems running the PALS launcher:
-    - Complete job launch support for GDB4hpc and other debug tools
-    - Enables attaching to running HPCM job from system login node
-  Additionally, the system and WLM detection process has been improved
-  with more informative diagnostic messages. Users can now manually set
-  the system and WLM type at runtime (previously, WLM only).
+  This bugfix release resolves the following issues:
+    - Resolve a library name conflict if the shared library libaudit.so is
+      already installed on the system.
+    - Add a new function `registerLauncherPid` to the SSH-specific WLM
+      functions, to resolve a launch problem with ATP on HPCM PALS systems.
 
 Product and OS Dependencies:
 -----------------------------

@@ -1158,11 +1158,16 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
 }
 
 std::weak_ptr<App>
+ApolloPALSFrontend::registerLauncherPid(pid_t launcher_pid)
+{
+    return GenericSSHFrontend::registerJob(1, launcher_pid);
+}
+
+std::weak_ptr<App>
 ApolloPALSFrontend::registerRemoteJob(char const* job_id)
 {
     // Job ID is either in format <job_id> or <job_id>.<launcher_pid>
     auto const [jobId, launcherPidString] = cti::split::string<2>(job_id, '.');
-    fprintf(stderr, "'%s' job id '%s' launcher pid '%s'\n", job_id, jobId.c_str(), launcherPidString.c_str());
 
     // Find head node hostname for given job ID
     auto const hostname = find_job_host(jobId);

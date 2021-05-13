@@ -896,6 +896,7 @@ typedef struct {
 typedef struct {
     cti_app_id_t    (*registerJob)(pid_t launcher_pid);
     cti_app_id_t    (*registerRemoteJob)(char const* hostname, pid_t launcher_pid);
+    cti_app_id_t    (*registerLauncherPid)(pid_t launcher_pid);
 } cti_ssh_ops_t;
 
 /*******************************************************************************
