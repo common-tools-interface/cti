@@ -242,6 +242,7 @@ AC_CONFIG_FILES([
     src/frontend/frontend_impl/SLURM/Makefile
     src/frontend/frontend_impl/PALS/Makefile
     src/frontend/frontend_impl/GenericSSH/Makefile
+    src/frontend/frontend_impl/Flux/Makefile
     src/frontend/mpir_iface/Makefile
     src/useful/Makefile
     src/useful/ld_val/Makefile

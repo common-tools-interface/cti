@@ -33,3 +33,4 @@
 #include "SLURM/Frontend.hpp"
 #include "PALS/Frontend.hpp"
 #include "GenericSSH/Frontend.hpp"
+#include "Flux/Frontend.hpp"

@@ -370,6 +370,17 @@ fileHasPerms(char const* filePath, int const perms)
         && !access(filePath, perms); // check that the file has the desired permissions
 }
 
+// Test if a socket has the specified permissions
+static inline bool
+socketHasPerms(char const* socketPath, int const perms)
+{
+    struct stat st;
+    return socketPath != nullptr
+        && !stat(socketPath, &st) // make sure this path exists
+        && S_ISSOCK(st.st_mode)  // make sure it is a socet
+        && !access(socketPath, perms); // check that the file has the desired permissions
+}
+
 // Test if a file exists
 static inline bool
 pathExists(char const* filePath)
