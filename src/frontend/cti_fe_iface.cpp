@@ -187,7 +187,11 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
         case CTI_WLM_SSH:
             return GenericSSHFrontend::getName();
         case CTI_WLM_FLUX:
+#if HAVE_FLUX
             return FluxFrontend::getName();
+#else
+            return "Flux support was not configured for this build of CTI.";
+#endif
 
         // Internal / testing types
         case CTI_WLM_MOCK:
@@ -515,9 +519,14 @@ static cti_ssh_ops_t _cti_ssh_ops = {
 static cti_app_id_t
 _cti_flux_registerJob(char const* job_id) {
     return FE_iface::runSafely(__func__, [&](){
+#if HAVE_FLUX
         auto&& fe = downcastFE<FluxFrontend>();
         auto wp = fe.registerJob(1, job_id);
         return fe.Iface().trackApp(wp);
+#else
+        throw std::runtime_error("Flux support was not compiled into this version of CTI");
+        return APP_ERROR;
+#endif
     }, APP_ERROR);
 }
 

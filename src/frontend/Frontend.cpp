@@ -986,7 +986,13 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
         return new GenericSSHFrontend{};
 
     } else if (wlm == WLM::Flux) {
+#if HAVE_FLUX
         return new FluxFrontend{};
+#else
+        throw std::runtime_error("Flux support was not configured for this build of CTI \
+(tried " + format_System_WLM(system, wlm) + ")");
+
+#endif
 
     } else {
         assert(false);

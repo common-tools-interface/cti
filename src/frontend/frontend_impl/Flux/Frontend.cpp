@@ -42,6 +42,8 @@
 
 #include "Flux/Frontend.hpp"
 
+#include <flux/core.h>
+
 #include "useful/cti_websocket.hpp"
 #include "useful/cti_hostname.hpp"
 #include "useful/cti_split.hpp"
@@ -108,6 +110,12 @@ FluxFrontend::getLauncherName() const
 
 FluxFrontend::FluxFrontend()
 {
+    // Look for Flux socket information in environment
+    auto const flux_uri = ::getenv("FLUX_URI");
+    assert(flux_uri);
+
+    flux_open(flux_uri, 0);
+
     throw std::runtime_error{"not implemented: " + std::string{__func__}};
 }
 

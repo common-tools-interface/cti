@@ -73,6 +73,21 @@ AC_CHECK_HEADERS([$LIBALPS_HEADERS/alps/apInfo.h],
 
 PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
 
+dnl Enable Flux support
+AC_ARG_ENABLE([flux],
+  [AS_HELP_STRING([--enable-flux], [Enable support for the Flux WLM. Must have Flux pkg-config scripts in path.])],,
+  [enable_flux=no])
+enable_flux=`echo $enable_flux`
+case $enable_flux in
+  yes | no) ;;
+  *) AC_MSG_ERROR([Unknown option '$enable_flux' for --enable-flux, expected 'yes' or 'no']) ;;
+esac
+AM_CONDITIONAL([ENABLE_FLUX], [test x$enable_flux = xyes])
+AM_COND_IF([ENABLE_FLUX], [
+  PKG_CHECK_MODULES([FLUX_CORE], [flux-core])
+  AC_DEFINE([HAVE_FLUX], [1], [Define to 1 if configured with Flux support.])
+])
+
 ############################
 ### Check for libraries. ###
 ############################
@@ -183,6 +198,16 @@ AC_CHECK_HEADER([libssh2.h],
 dnl restore flags
 CFLAGS="$save_CFLAGS"
 
+dnl Check for Flux header
+save_CFLAGS="$CFLAGS"
+AM_COND_IF([ENABLE_FLUX], [
+  CFLAGS="$CFLAGS $FLUX_CORE_CFLAGS"
+  AC_CHECK_HEADER([flux/core.h], [], [
+    AC_MSG_FAILURE([flux/core.h not found.])
+  ])
+])
+CFLAGS="$save_CFLAGS"
+
 #####################################################################
 ### Check for typedefs, structures, and compiler characteristics. ###
 #####################################################################
@@ -242,13 +267,16 @@ AC_CONFIG_FILES([
     src/frontend/frontend_impl/SLURM/Makefile
     src/frontend/frontend_impl/PALS/Makefile
     src/frontend/frontend_impl/GenericSSH/Makefile
-    src/frontend/frontend_impl/Flux/Makefile
     src/frontend/mpir_iface/Makefile
     src/useful/Makefile
     src/useful/ld_val/Makefile
     src/utilities/Makefile
     tests/mock/Makefile
     tests/unit/Makefile
+])
+
+AM_COND_IF([ENABLE_FLUX], [
+    AC_CONFIG_FILES([src/frontend/frontend_impl/Flux/Makefile])
 ])
 
 cray_INIT_CHECKSUM([src/frontend/checksum])
