@@ -166,6 +166,14 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
 #define PALS_DEBUG "CTI_PALS_DEBUG" // Manually enables PALS frontend and uses localhost as API server without authentication
 
+/*******************************************************************************
+** Flux specific information
+*******************************************************************************/
+
+#define FLUX_URI "FLUX_URI"
+#define LIBFLUX_PATH_ENV_VAR "LIBFLUX_PATH"
+#define LIBFLUX_NAME "libflux-core.so.2"
+
 /*
 ** HPCM specific information
 */

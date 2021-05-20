@@ -45,6 +45,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <libgen.h>
 
 #include "useful/cti_useful.h"
 #include "ld_val/ld_val.h"
@@ -123,6 +124,16 @@ namespace cstr {
             return std::string(baseName);
         } else {
             throw std::runtime_error("basename failed on " + path);
+        }
+    }
+
+    // lifted dirname
+    static inline std::string dirname(std::string const& path) {
+        auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
+        if (auto const dirName = ::dirname(rawPath.get())) {
+            return std::string(dirName);
+        } else {
+            throw std::runtime_error("dirname failed on " + path);
         }
     }
 

@@ -38,6 +38,14 @@
 #include "frontend/Frontend.hpp"
 
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_dlopen.hpp"
+
+// Forward declare Flux types
+#ifndef _FLUX_CORE_H
+struct flux_t;
+struct flux_msg_t;
+struct flux_match;
+#endif
 
 class FluxFrontend final : public Frontend
 {
@@ -57,12 +65,43 @@ public: // inherited interface
     std::string getHostname() const override;
 
 public: // flux specific types
+    struct LibFlux
+    {
+        using FluxOpen = flux_t*(char const*, int);
+        using FluxClose = void(flux_t*);
+        using FluxFatality = bool(flux_t*);
+        using FluxSend = int(flux_t*, flux_msg_t const *, int);
+        using FluxMsgCreate = flux_msg_t*(int);
+        using FluxMsgDestroy = void(flux_msg_t*);
+
+        cti::Dlopen::Handle libFluxHandle;
+        std::function<FluxOpen> flux_open;
+        std::function<FluxClose> flux_close;
+        std::function<FluxFatality> flux_fatality;
+        std::function<FluxSend> flux_send;
+        std::function<FluxMsgCreate> flux_msg_create;
+        std::function<FluxMsgDestroy> flux_msg_destroy;
+
+        LibFlux(std::string const& libFluxName);
+
+        flux_msg_t* flux_recv(flux_t* flux_handle, flux_match* match, int flags);
+    };
 
 private: // flux specific members
+    std::string const m_libFluxPath;
+    LibFlux m_libFlux;
+    friend class FluxApp;
+
+    std::unique_ptr<flux_t, std::function<LibFlux::FluxClose>> m_fluxHandle;
 
 public: // flux specific interface
+
     // Get the default launcher binary name, or, if provided, from the environment.
     std::string getLauncherName() const;
+
+    // Use environment variable or flux launcher location to find libflux path
+    static std::string findLibFluxPath(std::string const& launcherName);
+
 
 public: // constructor / destructor interface
     FluxFrontend();

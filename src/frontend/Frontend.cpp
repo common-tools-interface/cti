@@ -611,7 +611,7 @@ static bool detect_Flux(std::string const& launcherName)
         }
 
         // Look for Flux socket information in environment
-        if (auto const flux_uri = ::getenv("FLUX_URI")) {
+        if (auto const flux_uri = ::getenv(FLUX_URI)) {
             return true;
 
         } else {
@@ -723,12 +723,16 @@ static bool verify_SSH_configured(System const& system, WLM const& wlm, std::str
 
 static bool verify_Flux_configured(System const& system, WLM const& wlm, std::string const& launcherName)
 {
+#if HAVE_FLUX
+
+    auto const launcher_name = !launcherName.empty() ? launcherName : "flux";
+
     // Look for Flux socket information in environment
-    if (auto const flux_uri = ::getenv("FLUX_URI")) {
+    if (auto const flux_uri = ::getenv(FLUX_URI)) {
 
         auto fluxSocketPath = std::string{flux_uri};
 
-        // Ensure socket is local and not remote (currently unsupported)
+        // Ensure socket is readable if local
         { auto const sep = fluxSocketPath.find("://");
 
             if (sep == std::string::npos) {
@@ -738,21 +742,17 @@ FLUX_URI contained '" + fluxSocketPath + "' \
             }
 
             auto const protocol = fluxSocketPath.substr(0, sep);
-
-            if (protocol != "local") {
-                throw std::runtime_error("Currently, only local Flux connections are supported. \
-FLUX_URI contained '" + fluxSocketPath + "', and the protocol is '" + protocol + "' \
-(tried " + format_System_WLM(system, wlm) + ")");
-            }
-
             fluxSocketPath = fluxSocketPath.substr(sep + 3);
-        }
 
-        // Ensure socket exists and is readable
-        if (!cti::socketHasPerms(fluxSocketPath.c_str(), R_OK | W_OK)) {
-                throw std::runtime_error("The Flux API socket at " + fluxSocketPath + " is \
+            if (protocol == "local") {
+
+                // Ensure socket exists and is readable
+                if (!cti::socketHasPerms(fluxSocketPath.c_str(), R_OK | W_OK)) {
+                    throw std::runtime_error("The Flux API socket at " + fluxSocketPath + " is \
 inaccessible, or lacks permissions for reading and writing by the current user \
 (tried " + format_System_WLM(system, wlm) + ")");
+                }
+            }
         }
 
     } else {
@@ -762,7 +762,26 @@ initiated inside the Flux session. \
 (tried " + format_System_WLM(system, wlm) + ")");
     }
 
+    // Find path to libflux
+    auto const libFluxPath = FluxFrontend::findLibFluxPath(launcher_name);
+    if (libFluxPath.empty()) {
+        throw std::runtime_error("Could not find Flux launcher in PATH. Ensure the \
+Flux launcher is accessible and executable \
+(tried " + format_System_WLM(system, wlm) + ")");
+    }
+
+    // Verify libflux is accessible
+    if (!cti::fileHasPerms(libFluxPath.c_str(), R_OK)) {
+        throw std::runtime_error("Could not access libflux at '" + libFluxPath + "'. Ensure that the path \
+is accessible, or try setting the environment variable " LIBFLUX_PATH_ENV_VAR " to the libflux library path \
+(tried " + format_System_WLM(system, wlm) + ")");
+    }
+
     return true;
+
+#else
+    return false;
+#endif
 }
 
 } // anonymous namespace

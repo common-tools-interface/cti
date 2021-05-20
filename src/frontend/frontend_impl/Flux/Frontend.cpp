@@ -40,6 +40,8 @@
 
 #include "transfer/Manifest.hpp"
 
+#include <flux/core.h>
+
 #include "Flux/Frontend.hpp"
 
 #include <flux/core.h>
@@ -51,6 +53,23 @@
 /* helper functions */
 
 /* FluxFrontend implementation */
+
+FluxFrontend::LibFlux::LibFlux(std::string const& libFluxName)
+    : libFluxHandle{libFluxName}
+    , flux_open{libFluxHandle.load<FluxOpen>("flux_open")}
+    , flux_close{libFluxHandle.load<FluxClose>("flux_close")}
+    , flux_fatality{libFluxHandle.load<FluxFatality>("flux_fatality")}
+    , flux_send{libFluxHandle.load<FluxSend>("flux_send")}
+    , flux_msg_create{libFluxHandle.load<FluxMsgCreate>("flux_msg_create")}
+    , flux_msg_destroy{libFluxHandle.load<FluxMsgDestroy>("flux_msg_destroy")}
+{}
+
+flux_msg_t* FluxFrontend::LibFlux::flux_recv(flux_t* flux_handle, flux_match* match, int flags)
+{
+    using FluxRecv = flux_msg_t*(flux_t*, flux_match, int);
+    auto static const flux_recv_non_forwarded = libFluxHandle.load<FluxRecv>("flux_recv");
+    return flux_recv_non_forwarded(flux_handle, *match, flags);
+}
 
 std::weak_ptr<App>
 FluxFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
@@ -105,16 +124,47 @@ FluxFrontend::getHostname() const
 std::string
 FluxFrontend::getLauncherName() const
 {
-    throw std::runtime_error{"not supported for Flux: " + std::string{__func__}};
+    auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
+        if (char const* envValue = getenv(envVar)) {
+            return envValue;
+        }
+        return defaultValue;
+    };
+
+    // Cache the launcher name result.
+    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "flux")};
+    return launcherName;
+}
+
+std::string
+FluxFrontend::findLibFluxPath(std::string const& launcherName)
+{
+    // Use setting if supplied
+    if (auto const libflux_path = ::getenv(LIBFLUX_PATH_ENV_VAR)) {
+       return std::string{libflux_path};
+    }
+
+    // Find libflux from launcher path
+    auto libFluxPath = std::string{};
+    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(launcherName.c_str(), nullptr), ::free)) {
+
+        auto const fluxPath = cti::cstr::dirname(cti::getRealPath(launcher_path.get()));
+        return fluxPath + "/../lib/" + LIBFLUX_NAME;
+
+    } else {
+        return "";
+    }
 }
 
 FluxFrontend::FluxFrontend()
+    : m_libFluxPath{findLibFluxPath((::getenv(CTI_LAUNCHER_NAME_ENV_VAR)) ? ::getenv(CTI_LAUNCHER_NAME_ENV_VAR) : "flux")}
+    , m_libFlux{m_libFluxPath}
+    // Flux will read socket information in environment
+    , m_fluxHandle{m_libFlux.flux_open(nullptr, 0), m_libFlux.flux_close}
 {
-    // Look for Flux socket information in environment
-    auto const flux_uri = ::getenv("FLUX_URI");
-    assert(flux_uri);
-
-    flux_open(flux_uri, 0);
+    if (m_fluxHandle == nullptr) {
+        throw std::runtime_error{"Flux initialization failed: " + std::string{strerror(errno)}};
+    }
 
     throw std::runtime_error{"not implemented: " + std::string{__func__}};
 }
