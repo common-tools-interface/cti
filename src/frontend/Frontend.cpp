@@ -764,11 +764,6 @@ initiated inside the Flux session. \
 
     // Find path to libflux
     auto const libFluxPath = FluxFrontend::findLibFluxPath(launcher_name);
-    if (libFluxPath.empty()) {
-        throw std::runtime_error("Could not find Flux launcher in PATH. Ensure the \
-Flux launcher is accessible and executable \
-(tried " + format_System_WLM(system, wlm) + ")");
-    }
 
     // Verify libflux is accessible
     if (!cti::fileHasPerms(libFluxPath.c_str(), R_OK)) {

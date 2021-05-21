@@ -46,7 +46,7 @@
 
 #include <flux/core.h>
 
-#include "useful/cti_websocket.hpp"
+#include "useful/cti_execvp.hpp"
 #include "useful/cti_hostname.hpp"
 #include "useful/cti_split.hpp"
 
@@ -144,15 +144,28 @@ FluxFrontend::findLibFluxPath(std::string const& launcherName)
        return std::string{libflux_path};
     }
 
-    // Find libflux from launcher path
+    // Find libflux from launcher dependencies
     auto libFluxPath = std::string{};
     if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(launcherName.c_str(), nullptr), ::free)) {
 
-        auto const fluxPath = cti::cstr::dirname(cti::getRealPath(launcher_path.get()));
-        return fluxPath + "/../lib/" + LIBFLUX_NAME;
+        char const* ldd_argv[] = { "ldd", launcher_path.get(), nullptr };
+        auto lddOutput = cti::Execvp{"ldd", (char* const*)ldd_argv, cti::Execvp::stderr::Ignore};
+
+        auto& lddStream = lddOutput.stream();
+        auto libraryPathMap = std::string{};
+        while (std::getline(lddStream, libraryPathMap)) {
+            auto const [library, sep, path, address] = cti::split::string<4>(libraryPathMap, ' ');
+            if (library.find(LIBFLUX_NAME) != std::string::npos) {
+                return path;
+            }
+        }
+
+        throw std::runtime_error("Could not find the path to " LIBFLUX_NAME " in the launcher's \
+dependencies. Try setting " LIBFLUX_PATH_ENV_VAR " to the path to the Flux runtime library");
 
     } else {
-        return "";
+        throw std::runtime_error("Could not find Flux launcher '" + launcherName + "' in PATH. \
+Ensure the Flux launcher is accessible and executable");
     }
 }
 
