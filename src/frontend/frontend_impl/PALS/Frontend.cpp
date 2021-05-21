@@ -62,6 +62,64 @@
 #include "useful/cti_split.hpp"
 #include "frontend/mpir_iface/Inferior.hpp"
 
+namespace args
+{
+
+struct MpiexecArgv : public cti::Argv
+{
+    using Opt = cti::Argv::Option;
+    using Par = cti::Argv::Parameter;
+
+    static constexpr Opt Envall           { "envall",              256 };
+    static constexpr Opt Envnone          { "env-none",            257 };
+    static constexpr Opt Transfer         { "transfer",            258 };
+    static constexpr Opt NoTransfer       { "no-transfer",         259 };
+    static constexpr Opt Label            { "label",               'l' };
+    static constexpr Opt NoLabel          { "no-label",            261 };
+    static constexpr Opt Exclusive        { "exclusive",           262 };
+    static constexpr Opt Shared           { "shared",              263 };
+    static constexpr Opt LineBuffer       { "line-buffer",         264 };
+    static constexpr Opt NoLineBuffer     { "no-line-buffer",      265 };
+    static constexpr Opt AbortOnFailure   { "abort-on-failure",    266 };
+    static constexpr Opt NoAbortOnFailure { "no-abort-on-failure", 267 };
+
+    static constexpr Par Np           { "np",            'n' };
+    static constexpr Par Ppn          { "ppn",           269 };
+    static constexpr Par Soft         { "soft",          270 };
+    static constexpr Par Host         { "host",          271 };
+    static constexpr Par Hosts        { "hosts",         272 };
+    static constexpr Par Hostlist     { "hostlist",      273 };
+    static constexpr Par Hostfile     { "Hostfile",      274 };
+    static constexpr Par Arch         { "arch",          275 };
+    static constexpr Par Wdir         { "wdir",          276 };
+    static constexpr Par Path         { "path",          277 };
+    static constexpr Par File         { "file",          278 };
+    static constexpr Par Configfile   { "configfile",    'f' };
+    static constexpr Par Umask        { "umask",         280 };
+    static constexpr Par Env          { "env",           281 };
+    static constexpr Par Envlist      { "envlist",       282 };
+    static constexpr Par CpuBind      { "cpu-bind",      283 };
+    static constexpr Par MemBind      { "mem-bind",      284 };
+    static constexpr Par Depth        { "depth",         'd' };
+    static constexpr Par IncludeTasks { "include-tasks", 286 };
+    static constexpr Par ExcludeTasks { "exclude-tasks", 287 };
+    static constexpr Par Pmi          { "pmi",           288 };
+    static constexpr Par Rlimits      { "rlimits",       289 };
+
+    static constexpr GNUOption long_options[] =
+        { Envall, Envnone, Transfer, NoTransfer, Label, Nolabel, Exclusive
+        , Shared, lineBuffer, NoLineBuffer, AbortOnFailure, NoAbortOnFailure
+
+        , Ppn, Soft, Host, Hosts, Hostlist, Hostfile, Arch, Wdir, Path
+        , File, Configfile, Umask, Env, Envlist, CpuBind, MemBind, Depth
+        , IncludeTasks, ExcludeTasks, Pmi, Rlimits
+
+        , long_options_done
+    };
+};
+
+} // args
+
 /* helper functions */
 
 template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
