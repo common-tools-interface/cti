@@ -137,6 +137,11 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_LAYOUT_FILE     SLURM_LAYOUT_FILE
 #define SSH_PID_FILE        SLURM_PID_FILE
 #define SSH_TOOL_DIR        SLURM_TOOL_DIR
+#define SSH_DIR_ENV_VAR     "CTI_SSH_DIR"
+#define SSH_KNOWNHOSTS_PATH_ENV_VAR     "CTI_SSH_KNOWNHOSTS_PATH"
+#define SSH_PASSPHRASE_ENV_VAR      "CTI_SSH_PASSPHRASE"
+#define SSH_PRIKEY_PATH_ENV_VAR     "CTI_SSH_PRIKEY_PATH"
+#define SSH_PUBKEY_PATH_ENV_VAR     "CTI_SSH_PUBKEY_PATH"
 
 /*******************************************************************************
 ** ALPS specific information
