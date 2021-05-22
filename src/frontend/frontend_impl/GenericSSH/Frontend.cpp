@@ -1398,9 +1398,8 @@ ApolloPALSFrontend::getHostname() const
             return gbeAddress;
         }
 
-        throw std::runtime_error("Failed to detect the address for this HPCM PALS node \
-using `cminfo --head_ip` or `cminfo --gbe_ip`. Set the environment variable \
-" CTI_HOST_ADDRESS_ENV_VAR " to an address for this node accessible from the system's compute nodes");
+        // Fall back to `gethostname`
+        return cti::cstr::gethostname();
     }();
 
     return nodeAddress;
