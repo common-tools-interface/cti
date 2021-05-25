@@ -171,6 +171,12 @@ cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
         case CTI_WLM_SSH:
             return CTI_WLM_TYPE_SSH_STR;
 
+        case CTI_WLM_PALS:
+            return CTI_WLM_TYPE_PALS_STR;
+
+        case CTI_WLM_FLUX:
+            return CTI_WLM_TYPE_FLUX_STR;
+
         case CTI_WLM_NONE:
         case CTI_WLM_MOCK:
             return "No WLM detected";

@@ -519,15 +519,8 @@ SLURMFrontend::registerJob(size_t numIds, ...) {
 std::string
 SLURMFrontend::getLauncherName()
 {
-    auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
-        if (char const* envValue = getenv(envVar)) {
-            return envValue;
-        }
-        return defaultValue;
-    };
-
     // Cache the launcher name result.
-    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, SRUN)};
+    auto static launcherName = std::string{cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, SRUN)};
     return launcherName;
 }
 

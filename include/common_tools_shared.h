@@ -78,11 +78,12 @@
  *      Used to override internal detection logic of the workload manager in
  *      use on the system. This can be used to force CTI to instantiate a
  *      specific workload manager.
- *          Supported SLURM configurations:
+ *          Supported WLM configurations:
  *          - Shasta / Slurm: "shasta/slurm"
  *          - Shasta / PALS:  "shasta/pals"
  *          - HPCM / Slurm:   "hpcm/slurm"
  *          - HPCM / PALS:    "hpcm/pals"
+ *          - HPCM / Flux:    "hpcm/flux"
  *          - XC / Slurm:     "xc/slurm"
  *          - XC / ALPS:      "xc/alps"
  *          - CS / mpiexec:   "cs/mpiexec"
@@ -103,6 +104,7 @@
 #define CTI_WLM_TYPE_ALPS_STR       "alps"
 #define CTI_WLM_TYPE_SSH_STR   		"generic"
 #define CTI_WLM_TYPE_PALS_STR       "pals"
+#define CTI_WLM_TYPE_FLUX_STR       "flux"
 
 #ifdef __cplusplus
 extern "C" {
@@ -118,7 +120,8 @@ typedef enum
     CTI_WLM_SLURM,  // SLURM implementation
     CTI_WLM_SSH,    // Direct SSH implementation
     CTI_WLM_ALPS,   // ALPS implementation
-    CTI_WLM_PALS    // PALS implementation
+    CTI_WLM_PALS,   // PALS implementation
+    CTI_WLM_FLUX    // Flux implementation
 } cti_wlm_type_t;
 
 #ifdef __cplusplus
