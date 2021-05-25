@@ -1,7 +1,7 @@
 #
 # Makefile.am for the Flux frontend implementation.
 #
-# Copyright 2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2021 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             	= @COMMONTOOL_DIR@/src

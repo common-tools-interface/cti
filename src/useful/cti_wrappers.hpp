@@ -76,6 +76,15 @@ take_pointer_ownership(T*&& expiring, Destr&& destructor) -> std::unique_ptr<T, 
     };
 }
 
+// Return value of environment variable, or default string if unset
+inline static auto getenvOrDefault(char const* env_var, char const* default_value)
+{
+    if (char const* env_value = ::getenv(env_var)) {
+        return env_value;
+    }
+    return default_value;
+};
+
 /* cstring wrappers */
 namespace cstr {
     // lifted asprintf

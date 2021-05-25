@@ -819,15 +819,8 @@ GenericSSHFrontend::getHostname() const
 std::string
 GenericSSHFrontend::getLauncherName()
 {
-    auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
-        if (char const* envValue = getenv(envVar)) {
-            return envValue;
-        }
-        return defaultValue;
-    };
-
     // Cache the launcher name result. Assume mpiexec by default.
-    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "mpiexec")};
+    auto static launcherName = std::string{cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "mpiexec")};
     return launcherName;
 }
 

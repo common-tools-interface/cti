@@ -78,7 +78,7 @@
  *      Used to override internal detection logic of the workload manager in
  *      use on the system. This can be used to force CTI to instantiate a
  *      specific workload manager.
- *          Supported SLURM configurations:
+ *          Supported WLM configurations:
  *          - Shasta / Slurm: "shasta/slurm"
  *          - Shasta / PALS:  "shasta/pals"
  *          - HPCM / Slurm:   "hpcm/slurm"

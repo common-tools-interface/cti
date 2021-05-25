@@ -737,7 +737,7 @@ static bool verify_Flux_configured(System const& system, WLM const& wlm, std::st
 
             if (sep == std::string::npos) {
                 throw std::runtime_error("Could not parse Flux API socket information. \
-FLUX_URI contained '" + fluxSocketPath + "' \
+FLUX_URI contained '" + fluxSocketPath + "', expected format 'protocol://socket_path' \
 (tried " + format_System_WLM(system, wlm) + ")");
             }
 

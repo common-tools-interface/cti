@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * flux_be.c - flux specific backend library functions.
  *
- * Copyright 2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2021 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following

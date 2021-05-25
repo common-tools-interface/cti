@@ -1,7 +1,7 @@
 /******************************************************************************\
  * Frontend.cpp - Flux specific frontend library functions.
  *
- * Copyright 2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2021 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -51,6 +51,11 @@
 #include "useful/cti_split.hpp"
 
 /* helper functions */
+
+[[ noreturn ]] static void unimplemented(std::string const& functionName)
+{
+	throw std::runtime_error("unimplemented: " + functionName);
+}
 
 /* FluxFrontend implementation */
 
@@ -124,15 +129,8 @@ FluxFrontend::getHostname() const
 std::string
 FluxFrontend::getLauncherName() const
 {
-    auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
-        if (char const* envValue = getenv(envVar)) {
-            return envValue;
-        }
-        return defaultValue;
-    };
-
     // Cache the launcher name result.
-    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "flux")};
+    auto static launcherName = std::string{cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "flux")};
     return launcherName;
 }
 
@@ -146,31 +144,36 @@ FluxFrontend::findLibFluxPath(std::string const& launcherName)
 
     // Find libflux from launcher dependencies
     auto libFluxPath = std::string{};
-    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(launcherName.c_str(), nullptr), ::free)) {
+    auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(launcherName.c_str(), nullptr), ::free);
 
-        char const* ldd_argv[] = { "ldd", launcher_path.get(), nullptr };
-        auto lddOutput = cti::Execvp{"ldd", (char* const*)ldd_argv, cti::Execvp::stderr::Ignore};
-
-        auto& lddStream = lddOutput.stream();
-        auto libraryPathMap = std::string{};
-        while (std::getline(lddStream, libraryPathMap)) {
-            auto const [library, sep, path, address] = cti::split::string<4>(libraryPathMap, ' ');
-            if (library.find(LIBFLUX_NAME) != std::string::npos) {
-                return path;
-            }
-        }
-
-        throw std::runtime_error("Could not find the path to " LIBFLUX_NAME " in the launcher's \
-dependencies. Try setting " LIBFLUX_PATH_ENV_VAR " to the path to the Flux runtime library");
-
-    } else {
+    // Ensure launcher was found in path
+    if (launcher_path == nullptr) {
         throw std::runtime_error("Could not find Flux launcher '" + launcherName + "' in PATH. \
 Ensure the Flux launcher is accessible and executable");
     }
+
+    // LDD launcher binary to find path to libflux library
+    char const* ldd_argv[] = { "ldd", launcher_path.get(), nullptr };
+    auto lddOutput = cti::Execvp{"ldd", (char* const*)ldd_argv, cti::Execvp::stderr::Ignore};
+
+    // Capture LDD output
+    auto& lddStream = lddOutput.stream();
+    auto libraryPathMap = std::string{};
+    while (std::getline(lddStream, libraryPathMap)) {
+        auto const [library, sep, path, address] = cti::split::string<4>(libraryPathMap, ' ');
+
+        // Accept library if it begins with LIBFLUX_NAME prefix
+        if (cti::split::removeLeadingWhitespace(library).rfind(LIBFLUX_NAME, 0) == 0) {
+            return path;
+        }
+    }
+
+    throw std::runtime_error("Could not find the path to " LIBFLUX_NAME " in the launcher's \
+dependencies. Try setting " LIBFLUX_PATH_ENV_VAR " to the path to the Flux runtime library");
 }
 
 FluxFrontend::FluxFrontend()
-    : m_libFluxPath{findLibFluxPath((::getenv(CTI_LAUNCHER_NAME_ENV_VAR)) ? ::getenv(CTI_LAUNCHER_NAME_ENV_VAR) : "flux")}
+    : m_libFluxPath{findLibFluxPath(cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "flux"))}
     , m_libFlux{m_libFluxPath}
     // Flux will read socket information in environment
     , m_fluxHandle{m_libFlux.flux_open(nullptr, 0), m_libFlux.flux_close}
@@ -179,7 +182,7 @@ FluxFrontend::FluxFrontend()
         throw std::runtime_error{"Flux initialization failed: " + std::string{strerror(errno)}};
     }
 
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    unimplemented(__func__);
 }
 
 /* FluxApp implementation */
@@ -193,19 +196,19 @@ FluxApp::getJobId() const
 std::string
 FluxApp::getLauncherHostname() const
 {
-    throw std::runtime_error{"not supported for Flux: " + std::string{__func__}};
+    unimplemented(__func__);
 }
 
 bool
 FluxApp::isRunning() const
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    unimplemented(__func__);
 }
 
 std::vector<std::string>
 FluxApp::getHostnameList() const
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    unimplemented(__func__);
 }
 
 std::map<std::string, std::vector<int>>
@@ -221,7 +224,7 @@ FluxApp::releaseBarrier()
         throw std::runtime_error("application is not at startup barrier");
     }
 
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    unimplemented(__func__);
 
     m_atBarrier = false;
 }
@@ -229,13 +232,13 @@ FluxApp::releaseBarrier()
 void
 FluxApp::kill(int signal)
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    unimplemented(__func__);
 }
 
 void
 FluxApp::shipPackage(std::string const& tarPath) const
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    unimplemented(__func__);
 }
 
 void
@@ -258,7 +261,7 @@ FluxApp::startDaemon(const char* const args[])
         m_beDaemonSent = true;
     }
 
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    unimplemented(__func__);
 }
 
 FluxApp::FluxApp(FluxFrontend& fe)
@@ -277,7 +280,7 @@ FluxApp::FluxApp(FluxFrontend& fe)
 
     , m_atBarrier{}
 {
-    throw std::runtime_error{"not implemented: " + std::string{__func__}};
+    unimplemented(__func__);
 }
 
 FluxApp::~FluxApp()

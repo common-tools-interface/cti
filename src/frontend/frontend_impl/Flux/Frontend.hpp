@@ -60,6 +60,7 @@ public: // inherited interface
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
+    // Register application via job ID. Expecting one char const* parameter
     std::weak_ptr<App> registerJob(size_t numIds, ...) override;
 
     std::string getHostname() const override;
@@ -84,6 +85,10 @@ public: // flux specific types
 
         LibFlux(std::string const& libFluxName);
 
+        // flux_recv must be defined via this wrapper to avoid making the entire Flux API available
+        // in the header for FluxFrontend. flux_recv takes a flux_match struct, whereas this
+        // version takes a pointer to flux_match, allowing forward declaration in the FluxFrontend
+        // header.
         flux_msg_t* flux_recv(flux_t* flux_handle, flux_match* match, int flags);
     };
 
