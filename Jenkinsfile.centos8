@@ -16,6 +16,6 @@
 centos8PE {
     timeout = 30
     product = "pe-base"
-    receiveEvent = ["cdst_support-centos8-master"]
-    sendEvents = ["cti-centos8-master"]
+    receiveEvent = ["cdst_support-centos8-complete-master"]
+    sendEvents = ["cti-centos8-complete-master"]
 }
