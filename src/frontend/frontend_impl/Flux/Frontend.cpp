@@ -51,6 +51,8 @@
 #include "useful/cti_hostname.hpp"
 #include "useful/cti_split.hpp"
 
+#include "LibFlux.hpp"
+
 /* helper functions */
 
 [[ noreturn ]] static void unimplemented(std::string const& functionName)
@@ -95,101 +97,6 @@ arguments: \n" + result);
 }
 
 /* FluxFrontend implementation */
-
-struct FluxFrontend::LibFlux
-{
-    using FluxOpen = flux_t*(char const*, int);
-    using FluxClose = void(flux_t*);
-    using FluxFatality = bool(flux_t*);
-
-    using FluxSend = int(flux_t*, flux_msg_t const *, int);
-    using FluxRecv = flux_msg_t*(flux_t*, flux_match, int);
-    using FluxMsgCreate = flux_msg_t*(int);
-    using FluxMsgDestroy = void(flux_msg_t*);
-
-    using FluxFutureErrorString = char const*(flux_future_t*);
-
-    using FluxJobSubmit = flux_future_t*(flux_t*, const char*, int, int);
-    using FluxJobSubmitGetId = int(flux_future_t*, flux_jobid_t*);
-    using FluxJobIdParse = int(const char*, flux_jobid_t*);
-    using FluxJobIdEncode = int(flux_jobid_t, const char*, char*, size_t);
-
-    using FluxReactorCreate = flux_reactor_t*(int);
-    using FluxReactorDestroy = void(flux_reactor_t*);
-
-    using FluxWatcherStart = void(flux_watcher_t*);
-    using FluxWatcherStop = void(flux_watcher_t*);
-    using FluxWatcherDestroy = void(flux_watcher_t*);
-    using FluxHandleWatcherCreate = flux_watcher_t*(flux_reactor_t*, flux_t*, int, flux_watcher_f, void*);
-    using FluxFdWatcherCreate = flux_watcher_t*(flux_reactor_t*, int, int, flux_watcher_f, void*);
-    using FluxBufferReadWatcherCreate = flux_watcher_t*(flux_reactor_t*, int, int, flux_watcher_f, int, void*);
-    using FluxBufferWriteWatcherCreate = flux_watcher_t*(flux_reactor_t*, int, int, flux_watcher_f, int, void*);
-    using FluxBufferWriteWatcherClose = int(flux_watcher_t*);
-
-    using FluxBufferReadWatcherGetBuffer = flux_buffer_t*(flux_watcher_t*);
-    using FluxBufferWriteWatcherGetBuffer = flux_buffer_t*(flux_watcher_t*);
-
-    cti::Dlopen::Handle libFluxHandle;
-
-    std::function<FluxOpen> flux_open;
-    std::function<FluxClose> flux_close;
-    std::function<FluxFatality> flux_fatality;
-
-    std::function<FluxSend> flux_send;
-    std::function<FluxRecv> flux_recv;
-
-    std::function<FluxMsgCreate> flux_msg_create;
-    std::function<FluxMsgDestroy> flux_msg_destroy;
-
-    std::function<FluxFutureErrorString> flux_future_error_string;
-
-    std::function<FluxJobSubmit> flux_job_submit;
-    std::function<FluxJobSubmitGetId> flux_job_submit_get_id;
-    std::function<FluxJobIdParse> flux_job_id_parse;
-    std::function<FluxJobIdEncode> flux_job_id_encode;
-
-    std::function<FluxReactorCreate> flux_reactor_create;
-    std::function<FluxReactorDestroy> flux_reactor_destroy;
-
-    std::function<FluxWatcherStart> flux_watcher_start;
-    std::function<FluxWatcherStop> flux_watcher_stop;
-    std::function<FluxWatcherDestroy> flux_watcher_destroy;
-    std::function<FluxHandleWatcherCreate> flux_handle_watcher_create;
-    std::function<FluxFdWatcherCreate> flux_fd_watcher_create;
-    std::function<FluxBufferReadWatcherCreate> flux_buffer_read_watcher_create;
-    std::function<FluxBufferWriteWatcherCreate> flux_buffer_write_watcher_create;
-    std::function<FluxBufferWriteWatcherClose> flux_buffer_write_watcher_close;
-    std::function<FluxBufferReadWatcherGetBuffer> flux_buffer_read_watcher_get_buffer;
-    std::function<FluxBufferWriteWatcherGetBuffer> flux_buffer_write_watcher_get_buffer;
-
-    LibFlux(std::string const& libFluxName);
-};
-
-FluxFrontend::LibFlux::LibFlux(std::string const& libFluxName)
-    : libFluxHandle{libFluxName}
-    , flux_open{libFluxHandle.load<FluxOpen>("flux_open")}
-    , flux_close{libFluxHandle.load<FluxClose>("flux_close")}
-    , flux_fatality{libFluxHandle.load<FluxFatality>("flux_fatality")}
-    , flux_send{libFluxHandle.load<FluxSend>("flux_send")}
-    , flux_recv{libFluxHandle.load<FluxRecv>("flux_recv")}
-    , flux_msg_create{libFluxHandle.load<FluxMsgCreate>("flux_msg_create")}
-    , flux_msg_destroy{libFluxHandle.load<FluxMsgDestroy>("flux_msg_destroy")}
-    , flux_job_submit{libFluxHandle.load<FluxJobSubmit>("flux_job_submit")}
-    , flux_job_submit_get_id{libFluxHandle.load<FluxJobSubmitGetId>("flux_job_submit_get_id")}
-    , flux_job_id_parse{libFluxHandle.load<FluxJobIdParse>("flux_job_id_parse")}
-    , flux_job_id_encode{libFluxHandle.load<FluxJobIdEncode>("flux_job_id_encode")}
-    , flux_reactor_create{libFluxHandle.load<FluxReactorCreate>("flux_reactor_create")}
-    , flux_watcher_start{libFluxHandle.load<FluxWatcherStart>("flux_watcher_start")}
-    , flux_watcher_stop{libFluxHandle.load<FluxWatcherStop>("flux_watcher_stop")}
-    , flux_watcher_destroy{libFluxHandle.load<FluxWatcherDestroy>("flux_watcher_destroy")}
-    , flux_handle_watcher_create{libFluxHandle.load<FluxHandleWatcherCreate>("flux_handle_watcher_create")}
-    , flux_fd_watcher_create{libFluxHandle.load<FluxFdWatcherCreate>("flux_fd_watcher_create")}
-    , flux_buffer_read_watcher_create{libFluxHandle.load<FluxBufferReadWatcherCreate>("flux_buffer_read_watcher_create")}
-    , flux_buffer_write_watcher_create{libFluxHandle.load<FluxBufferWriteWatcherCreate>("flux_buffer_write_watcher_create")}
-    , flux_buffer_write_watcher_close{libFluxHandle.load<FluxBufferWriteWatcherClose>("flux_buffer_write_watcher_close")}
-    , flux_buffer_read_watcher_get_buffer{libFluxHandle.load<FluxBufferReadWatcherGetBuffer>("flux_buffer_read_watcher_get_buffer")}
-    , flux_buffer_write_watcher_get_buffer{libFluxHandle.load<FluxBufferWriteWatcherGetBuffer>("flux_buffer_write_watcher_get_buffer")}
-{}
 
 std::weak_ptr<App>
 FluxFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
