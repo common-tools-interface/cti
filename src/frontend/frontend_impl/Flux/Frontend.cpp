@@ -34,6 +34,7 @@
 #include <memory>
 #include <thread>
 #include <variant>
+#include <type_traits>
 
 #include <sstream>
 #include <fstream>
@@ -50,37 +51,63 @@
 #include "useful/cti_hostname.hpp"
 #include "useful/cti_split.hpp"
 
+#include "LibFlux.hpp"
+
 /* helper functions */
 
 [[ noreturn ]] static void unimplemented(std::string const& functionName)
 {
-	throw std::runtime_error("unimplemented: " + functionName);
+    throw std::runtime_error("unimplemented: " + functionName);
+}
+
+// Leverage Flux's dry-run mode to generate jobspec for API
+static std::string make_jobspec(char const* launcher_name, char const* const launcher_args[],
+    char const* const env_list[])
+{
+    // Build Flux dry run arguments
+    auto fluxArgv = cti::ManagedArgv { launcher_name, "mini", "run", "--dry-run" };
+
+    // Add environment arguments, if provided
+    if (env_list != nullptr) {
+        for (int i = 0; env_list[i] != nullptr; i++) {
+
+            // --env=VAR=VAL will set VAR to VAL in the job environment
+            fluxArgv.add("--env=" + std::string{env_list[i]});
+        }
+    }
+
+    // Add launcher arguments
+    if (launcher_args != nullptr) {
+        for (int i = 0; launcher_args[i] != nullptr; i++) {
+            fluxArgv.add(launcher_args[i]);
+        }
+    }
+
+    // Run jobspec generator
+    auto fluxOutput = cti::Execvp{launcher_name, (char* const*)fluxArgv.get(), cti::Execvp::stderr::Pipe};
+    auto result = std::string{std::istreambuf_iterator<char>(fluxOutput.stream()), {}};
+
+    // Check output code
+    if (fluxOutput.getExitStatus() != 0) {
+        throw std::runtime_error("The Flux launcher failed to validate the provided launcher \
+arguments: \n" + result);
+    }
+
+    return result;
 }
 
 /* FluxFrontend implementation */
-
-FluxFrontend::LibFlux::LibFlux(std::string const& libFluxName)
-    : libFluxHandle{libFluxName}
-    , flux_open{libFluxHandle.load<FluxOpen>("flux_open")}
-    , flux_close{libFluxHandle.load<FluxClose>("flux_close")}
-    , flux_fatality{libFluxHandle.load<FluxFatality>("flux_fatality")}
-    , flux_send{libFluxHandle.load<FluxSend>("flux_send")}
-    , flux_msg_create{libFluxHandle.load<FluxMsgCreate>("flux_msg_create")}
-    , flux_msg_destroy{libFluxHandle.load<FluxMsgDestroy>("flux_msg_destroy")}
-{}
-
-flux_msg_t* FluxFrontend::LibFlux::flux_recv(flux_t* flux_handle, flux_match* match, int flags)
-{
-    using FluxRecv = flux_msg_t*(flux_t*, flux_match, int);
-    auto static const flux_recv_non_forwarded = libFluxHandle.load<FluxRecv>("flux_recv");
-    return flux_recv_non_forwarded(flux_handle, *match, flags);
-}
 
 std::weak_ptr<App>
 FluxFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this));
+    // Launch application using API
+    auto const job_id = launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd,
+        chdirPath, env_list);
+
+    // Create and track new application object
+    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this, job_id));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -91,11 +118,7 @@ std::weak_ptr<App>
 FluxFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this));
-    if (!ret.second) {
-        throw std::runtime_error("Failed to create new App object.");
-    }
-    return *ret.first;
+    unimplemented(__func__);
 }
 
 std::weak_ptr<App>
@@ -108,11 +131,18 @@ FluxFrontend::registerJob(size_t numIds, ...)
     va_list idArgs;
     va_start(idArgs, numIds);
 
-    char const* job_id = va_arg(idArgs, char const*);
+    char const* f58_job_id = va_arg(idArgs, char const*);
 
     va_end(idArgs);
 
-    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this));
+    // Convert F58-formatted job ID to internal job ID
+    auto job_id = flux_jobid_t{};
+    if (m_libFlux->flux_job_id_parse(f58_job_id, &job_id) < 0) {
+        throw std::runtime_error("failed to parse Flux job ID: " + std::string{f58_job_id});
+    }
+
+    // Create new application instance with job ID
+    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this, job_id));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -172,17 +202,59 @@ Ensure the Flux launcher is accessible and executable");
 dependencies. Try setting " LIBFLUX_PATH_ENV_VAR " to the path to the Flux runtime library");
 }
 
+// Normal cti::take_pointer_ownership cannot deal with std::function types,
+// this wrapper enables capture of std::function destructors
+template <typename T, typename Destr>
+static auto make_unique_del(T*&& expiring, Destr&& destr)
+{
+    auto bound_destr = [&destr](T* ptr) {
+        std::invoke(destr, ptr);
+    };
+    return std::unique_ptr<T, decltype(bound_destr)>{std::move(expiring), bound_destr};
+}
+
+uint64_t FluxFrontend::launchApp(const char* const launcher_args[],
+    const char* input_file, int stdout_fd, int stderr_fd, const char *chdir_path,
+    const char * const env_list[])
+{
+    if ((input_file != nullptr) || (stdout_fd >= 0) || (stderr_fd >= 0)
+     || (chdir_path != nullptr)) {
+        unimplemented(__func__);
+    }
+
+    // Generate jobspec string
+    auto const jobspec = make_jobspec(getLauncherName().c_str(), launcher_args, env_list);
+
+    // Submit jobspec to API
+    auto job_future = m_libFlux->flux_job_submit(m_fluxHandle, jobspec.c_str(), 16, 0);
+
+    // Wait for job to launch and receive job ID
+    auto job_id = flux_jobid_t{};
+    if (m_libFlux->flux_job_submit_get_id(job_future, &job_id)) {
+        auto const flux_error = m_libFlux->flux_future_error_string(job_future);
+        throw std::runtime_error("Flux job launch failed: " + std::string{(flux_error)
+            ? flux_error
+            : "(no error provided)"});
+    }
+
+    return job_id;
+}
+
 FluxFrontend::FluxFrontend()
     : m_libFluxPath{findLibFluxPath(cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "flux"))}
-    , m_libFlux{m_libFluxPath}
+    , m_libFlux{std::make_unique<LibFlux>(m_libFluxPath)}
     // Flux will read socket information in environment
-    , m_fluxHandle{m_libFlux.flux_open(nullptr, 0), m_libFlux.flux_close}
+    , m_fluxHandle{m_libFlux->flux_open(nullptr, 0)}
 {
     if (m_fluxHandle == nullptr) {
         throw std::runtime_error{"Flux initialization failed: " + std::string{strerror(errno)}};
     }
+}
 
-    unimplemented(__func__);
+FluxFrontend::~FluxFrontend()
+{
+    m_libFlux->flux_close(m_fluxHandle);
+    m_fluxHandle = nullptr;
 }
 
 /* FluxApp implementation */
@@ -190,7 +262,14 @@ FluxFrontend::FluxFrontend()
 std::string
 FluxApp::getJobId() const
 {
-    return m_jobId;
+    // Convert numerical job ID to compact F58 encoding
+    char buf[64];
+    if (m_libFluxRef.flux_job_id_encode(m_jobId, "f58", buf, sizeof(buf) - 1) < 0) {
+        throw std::runtime_error("failed to encode Flux job id: " + std::string{strerror(errno)});
+    }
+    buf[sizeof(buf) - 1] = '\0';
+
+    return std::string{buf};
 }
 
 std::string
@@ -264,9 +343,10 @@ FluxApp::startDaemon(const char* const args[])
     unimplemented(__func__);
 }
 
-FluxApp::FluxApp(FluxFrontend& fe)
+FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
     : App{fe}
-    , m_jobId{}
+    , m_libFluxRef{*fe.m_libFlux}
+    , m_jobId{job_id}
     , m_beDaemonSent{}
     , m_numPEs{}
     , m_hostsPlacement{}

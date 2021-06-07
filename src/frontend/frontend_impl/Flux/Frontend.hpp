@@ -40,13 +40,6 @@
 #include "useful/cti_wrappers.hpp"
 #include "useful/cti_dlopen.hpp"
 
-// Forward declare Flux types
-#ifndef _FLUX_CORE_H
-struct flux_t;
-struct flux_msg_t;
-struct flux_match;
-#endif
-
 class FluxFrontend final : public Frontend
 {
 public: // inherited interface
@@ -66,38 +59,19 @@ public: // inherited interface
     std::string getHostname() const override;
 
 public: // flux specific types
-    struct LibFlux
-    {
-        using FluxOpen = flux_t*(char const*, int);
-        using FluxClose = void(flux_t*);
-        using FluxFatality = bool(flux_t*);
-        using FluxSend = int(flux_t*, flux_msg_t const *, int);
-        using FluxMsgCreate = flux_msg_t*(int);
-        using FluxMsgDestroy = void(flux_msg_t*);
 
-        cti::Dlopen::Handle libFluxHandle;
-        std::function<FluxOpen> flux_open;
-        std::function<FluxClose> flux_close;
-        std::function<FluxFatality> flux_fatality;
-        std::function<FluxSend> flux_send;
-        std::function<FluxMsgCreate> flux_msg_create;
-        std::function<FluxMsgDestroy> flux_msg_destroy;
-
-        LibFlux(std::string const& libFluxName);
-
-        // flux_recv must be defined via this wrapper to avoid making the entire Flux API available
-        // in the header for FluxFrontend. flux_recv takes a flux_match struct, whereas this
-        // version takes a pointer to flux_match, allowing forward declaration in the FluxFrontend
-        // header.
-        flux_msg_t* flux_recv(flux_t* flux_handle, flux_match* match, int flags);
-    };
+    // Forward declare libflux handle
+    struct flux_t;
+    struct LibFlux;
 
 private: // flux specific members
     std::string const m_libFluxPath;
-    LibFlux m_libFlux;
+    std::unique_ptr<LibFlux> m_libFlux;
     friend class FluxApp;
 
-    std::unique_ptr<flux_t, std::function<LibFlux::FluxClose>> m_fluxHandle;
+    // Implemented as pointer instead of unique_ptr to avoid requiring the definition
+    // of the custom LibFlux destructor
+    flux_t *m_fluxHandle;
 
 public: // flux specific interface
 
@@ -107,10 +81,14 @@ public: // flux specific interface
     // Use environment variable or flux launcher location to find libflux path
     static std::string findLibFluxPath(std::string const& launcherName);
 
+    // Submit job launch to Flux API, get job ID
+    uint64_t launchApp(const char* const launcher_argv[],
+        const char* input_file, int stdout_fd, int stderr_fd, const char* chdir_path,
+        const char* const env_list[]);
 
 public: // constructor / destructor interface
     FluxFrontend();
-    ~FluxFrontend() = default;
+    ~FluxFrontend();
     FluxFrontend(const FluxFrontend&) = delete;
     FluxFrontend& operator=(const FluxFrontend&) = delete;
     FluxFrontend(FluxFrontend&&) = delete;
@@ -120,7 +98,8 @@ public: // constructor / destructor interface
 class FluxApp final : public App
 {
 private: // variables
-    std::string m_jobId;
+    FluxFrontend::LibFlux& m_libFluxRef;
+    uint64_t m_jobId;
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
     size_t m_numPEs;
     std::vector<CTIHost> m_hostsPlacement;
@@ -156,7 +135,7 @@ public: // app interaction interface
 public: // flux specific interface
 
 public: // constructor / destructor interface
-    FluxApp(FluxFrontend& fe);
+    FluxApp(FluxFrontend& fe, uint64_t job_id);
     ~FluxApp();
     FluxApp(const FluxApp&) = delete;
     FluxApp& operator=(const FluxApp&) = delete;

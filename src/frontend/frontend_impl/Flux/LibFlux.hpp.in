@@ -1,0 +1,28 @@
+FluxFrontend
+LibFlux
+libFluxName
+libFluxHandle
+flux_open flux_t*(char const*, int)
+flux_close void(flux_t*)
+flux_fatality bool(flux_t*)
+flux_send int(flux_t*, flux_msg_t const *, int)
+flux_recv flux_msg_t*(flux_t*, flux_match, int)
+flux_msg_create flux_msg_t*(int)
+flux_msg_destroy void(flux_msg_t*)
+flux_future_error_string char const*(flux_future_t*)
+flux_job_submit flux_future_t*(flux_t*, const char*, int, int)
+flux_job_submit_get_id int(flux_future_t*, flux_jobid_t*)
+flux_job_id_parse int(const char*, flux_jobid_t*)
+flux_job_id_encode int(flux_jobid_t, const char*, char*, size_t)
+flux_reactor_create flux_reactor_t*(int)
+flux_reactor_destroy void(flux_reactor_t*)
+flux_watcher_start void(flux_watcher_t*)
+flux_watcher_stop void(flux_watcher_t*)
+flux_watcher_destroy void(flux_watcher_t*)
+flux_handle_watcher_create flux_watcher_t*(flux_reactor_t*, flux_t*, int, flux_watcher_f, void*)
+flux_fd_watcher_create flux_watcher_t*(flux_reactor_t*, int, int, flux_watcher_f, void*)
+flux_buffer_read_watcher_create flux_watcher_t*(flux_reactor_t*, int, int, flux_watcher_f, int, void*)
+flux_buffer_write_watcher_create flux_watcher_t*(flux_reactor_t*, int, int, flux_watcher_f, int, void*)
+flux_buffer_write_watcher_close int(flux_watcher_t*)
+flux_buffer_read_watcher_get_buffer flux_buffer_t*(flux_watcher_t*)
+flux_buffer_write_watcher_get_buffer flux_buffer_t*(flux_watcher_t*)
