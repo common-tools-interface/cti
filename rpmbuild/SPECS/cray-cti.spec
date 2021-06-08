@@ -98,20 +98,20 @@
 
 # Dist tags for SuSE need to be manually set
 %if 0%{?suse_version}
-%if 0%{?sle_version} == 150000
-%global dist .sles15
-%global OS_HW_TAG 7.0,7.1,7.2
-%global OS_WB_TAG sles15
-%endif
 %if 0%{?sle_version} == 150100
 %global dist .sles15sp1
-%global OS_HW_TAG 7.0,7.1,7.2
-%global OS_WB_TAG sles15
+%global OS_HW_TAG 7.0
+%global OS_WB_TAG sles15sp1
 %endif
 %if 0%{?sle_version} == 150200
 %global dist .sles15sp2
-%global OS_HW_TAG 7.2
+%global OS_HW_TAG 7.0
 %global OS_WB_TAG sles15sp2
+%endif
+%if 0%{?sle_version} == 150300
+%global dist .sles15sp3
+%global OS_HW_TAG 7.0
+%global OS_WB_TAG sles15sp3
 %endif
 %endif
 

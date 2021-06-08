@@ -29,6 +29,7 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
         m4 \
         make \
         make-lang \
+        mksh \
         libtool \
         rpm-build \
         zlib-devel
