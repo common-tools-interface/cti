@@ -89,7 +89,7 @@ struct MpiexecArgv : public cti::Argv
     static constexpr Par Host         { "host",          271 };
     static constexpr Par Hosts        { "hosts",         272 };
     static constexpr Par Hostlist     { "hostlist",      273 };
-    static constexpr Par Hostfile     { "Hostfile",      274 };
+    static constexpr Par Hostfile     { "hostfile",      274 };
     static constexpr Par Arch         { "arch",          275 };
     static constexpr Par Wdir         { "wdir",          276 };
     static constexpr Par Path         { "path",          277 };
@@ -107,8 +107,8 @@ struct MpiexecArgv : public cti::Argv
     static constexpr Par Rlimits      { "rlimits",       289 };
 
     static constexpr GNUOption long_options[] =
-        { Envall, Envnone, Transfer, NoTransfer, Label, Nolabel, Exclusive
-        , Shared, lineBuffer, NoLineBuffer, AbortOnFailure, NoAbortOnFailure
+        { Envall, Envnone, Transfer, NoTransfer, Label, NoLabel, Exclusive
+        , Shared, LineBuffer, NoLineBuffer, AbortOnFailure, NoAbortOnFailure
 
         , Ppn, Soft, Host, Hosts, Hostlist, Hostfile, Arch, Wdir, Path
         , File, Configfile, Umask, Env, Envlist, CpuBind, MemBind, Depth
@@ -117,6 +117,407 @@ struct MpiexecArgv : public cti::Argv
         , long_options_done
     };
 };
+
+struct AprunArgv : public cti::Argv
+{
+    using Opt = cti::Argv::Option;
+    using Par = cti::Argv::Parameter;
+
+    static constexpr Opt BypassAppTransfer       { "bypass-app-transfer",       'b' };
+    static constexpr Opt AbortOnFailure          { "abort-on-failure",          256 };
+    static constexpr Opt NoAbortOnFailure        { "no-abort-on-failure",       257 };
+    static constexpr Opt StrictMemoryContainment { "strict-memory-containment", 258 };
+    static constexpr Opt Ss                      { "ss",                        259 };
+    static constexpr Opt SyncOutput              { "sync-output",               'T' };
+    static constexpr Opt BatchArgs               { "batch-args",                'B' };
+    static constexpr Opt Reconnect               { "reconnect",                 'C' };
+    static constexpr Opt Relaunch                { "relaunch",                  'R' };
+    static constexpr Opt ZoneSort                { "zone-sort",                 'z' };
+
+    static constexpr Par Pes                 { "pes",                    'n' };
+    static constexpr Par PesPerNode          { "pes-per-node",           'N' };
+    static constexpr Par CpusPerPe           { "cpus-per-pe",            267 };
+    static constexpr Par Wdir                { "wdir",                   268 };
+    static constexpr Par CpuBinding          { "cpu-binding",            269 };
+    static constexpr Par Cc                  { "cc",                     270 };
+    static constexpr Par CpuBindingFile      { "cpu-binding-file",       271 };
+    static constexpr Par Cp                  { "cp",                     272 };
+    static constexpr Par AccessMode          { "access-mode",            'F' };
+    static constexpr Par NodeList            { "node-list",              'L' };
+    static constexpr Par NodeListFile        { "node-list-file",         275 };
+    static constexpr Par ExcludeNodeList     { "exclude-node-list",      'E' };
+    static constexpr Par ExcludeNodeListFile { "exclude-node-list-file", 277 };
+    static constexpr Par EnvironmentOverride { "environment-override",   'e' };
+    static constexpr Par MemoryPerPe         { "memory-per-pe",          'm' };
+    static constexpr Par Pmi                 { "pmi",                    280 };
+    static constexpr Par ProcinfoFile        { "procinfo-file",          281 };
+    static constexpr Par Debug               { "debug",                  'D' };
+    static constexpr Par Architecture        { "architecture",           'a' };
+    static constexpr Par CpusPerCu           { "cpus-per-cu",            'j' };
+    static constexpr Par MpmdEnv             { "mpmd-env",               285 };
+    static constexpr Par PesPerNumaNode      { "pes-per-numa-node",      'S' };
+    static constexpr Par ProtectionDomain    { "protection-domain",      'p' };
+    static constexpr Par PGovernor           { "p-governor",             288 };
+    static constexpr Par PState              { "p-state",                289 };
+    static constexpr Par SpecializedCpus     { "specialized-cpus",       'r' };
+    static constexpr Par ZoneSortSecs        { "zone-sort-secs",         'Z' };
+
+    static constexpr Par Depth { "depth", 'd' };
+    static constexpr Par Umask { "umask",  293 };
+
+    static constexpr GNUOption long_options[] =
+        { BypassAppTransfer, AbortOnFailure, NoAbortOnFailure, Ss, SyncOutput, BatchArgs
+        , Reconnect, Relaunch, ZoneSort
+        , Pes, PesPerNode, CpusPerPe, Wdir, CpuBinding, Cc, CpuBindingFile, Cp, AccessMode
+        , NodeList, NodeListFile, ExcludeNodeList, ExcludeNodeListFile, EnvironmentOverride
+        , MemoryPerPe, Pmi, ProcinfoFile, Debug, Architecture, CpusPerCu, MpmdEnv
+        , PesPerNumaNode, ProtectionDomain, PGovernor, PState, SpecializedCpus, ZoneSortSecs
+        , long_options_done
+    };
+};
+
+struct PalsCmdOpts
+{
+    std::string wdir;
+    int umask, np, depth, argc;
+    std::vector<std::string> argv;
+};
+
+struct PalsLaunchArgs
+{
+    int np, ppn;
+    std::string jobid, soft, hostlist, hostfile, arch, wdir, path, file, configfile;
+    int umask;
+    std::vector<std::string> env;
+    int nenv, envlen;
+    std::string envlist;
+    bool envall, transfer;
+    std::string cpuBind, memBind;
+    int depth;
+    bool label;
+    std::string includeTasks, excludeTasks;
+    bool exclusive, line_buffer, abort_on_failure;
+    std::string pmi, rlimits;
+    int fanout, rpc_timeout;
+    std::vector<PalsCmdOpts> cmds;
+    std::vector<std::string> hosts;
+    int mem_per_pe;
+    bool strict_memory_containment;
+    std::string nodeList, nodeListFile, excludeNodeList, excludeNodeListFile, envAliases, procinfoFile, nidFormat;
+};
+
+static void apply_mpiexec_env(PalsLaunchArgs& opts)
+{
+
+}
+
+static void apply_aprun_env(PalsLaunchArgs& opts)
+{
+
+}
+
+static auto parse_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher_args)
+{
+    // Count number of arguments
+    auto launcher_argc = int{0};
+    while (launcher_args[launcher_argc] != nullptr) { launcher_argc++; }
+
+    // Make new argv array with an argv[0] for getopt
+    launcher_argc++;
+    char const* launcher_argv[launcher_argc + 1];
+    launcher_argv[0] = "pals-launch";
+    for (int i = 0; i < launcher_argc; i++) {
+        launcher_argv[i + 1] = launcher_args[i];
+    }
+    launcher_argv[launcher_argc] = nullptr;
+
+    // Fill in command array by default, even in non-MPMD mode
+    auto cmd_idx = int{0};
+
+    auto incomingArgv = cti::IncomingArgv<args::MpiexecArgv>{launcher_argc, (char* const*)launcher_argv};
+    auto binary_argv = launcher_args;
+    while (true) {
+        auto const [c, optarg] = incomingArgv.get_next();
+        if (c < 0) {
+            break;
+        }
+
+        // When launcher arguments are done, the remaining argv elements are binary arguments
+        binary_argv++;
+
+        switch (c) {
+
+        case args::MpiexecArgv::Envall.val:
+            opts.envall = true;
+            break;
+        case args::MpiexecArgv::Envnone.val:
+            opts.envall = false;
+            break;
+        case args::MpiexecArgv::Transfer.val:
+            opts.transfer = true;
+            break;
+        case args::MpiexecArgv::NoTransfer.val:
+            opts.transfer = false;
+            break;
+        case args::MpiexecArgv::Label.val:
+            opts.label = true;
+            break;
+        case args::MpiexecArgv::NoLabel.val:
+            opts.label = false;
+            break;
+        case args::MpiexecArgv::Exclusive.val:
+            opts.exclusive = true;
+            break;
+        case args::MpiexecArgv::Shared.val:
+            opts.exclusive = false;
+            break;
+        case args::MpiexecArgv::LineBuffer.val:
+            opts.line_buffer = true;
+            break;
+        case args::MpiexecArgv::NoLineBuffer.val:
+            opts.line_buffer = false;
+            break;
+        case args::MpiexecArgv::AbortOnFailure.val:
+            opts.abort_on_failure = true;
+            break;
+        case args::MpiexecArgv::NoAbortOnFailure.val:
+            opts.abort_on_failure = false;
+            break;
+
+        case args::MpiexecArgv::Np.val:
+            opts.cmds[cmd_idx].np = std::stoi(optarg);
+            break;
+        case args::MpiexecArgv::Ppn.val:
+            opts.ppn = std::stoi(optarg);
+            break;
+        case args::MpiexecArgv::Soft.val:
+            opts.soft = optarg;
+            break;
+        case args::MpiexecArgv::Host.val:
+        case args::MpiexecArgv::Hosts.val:
+        case args::MpiexecArgv::Hostlist.val:
+            opts.hostlist = optarg;
+            break;
+        case args::MpiexecArgv::Hostfile.val:
+            opts.hostfile = optarg;
+            break;
+        case args::MpiexecArgv::Arch.val:
+            opts.arch = optarg;
+            break;
+        case args::MpiexecArgv::Wdir.val:
+            opts.cmds[cmd_idx].wdir = optarg;
+            break;
+        case args::MpiexecArgv::Path.val:
+            opts.path = optarg;
+            break;
+        case args::MpiexecArgv::File.val:
+            opts.file = optarg;
+            break;
+        case args::MpiexecArgv::Configfile.val:
+            opts.configfile = optarg;
+            break;
+        case args::MpiexecArgv::Umask.val:
+            opts.cmds[cmd_idx].umask = std::stoi(optarg);
+            break;
+        case args::MpiexecArgv::Env.val:
+            opts.env.emplace_back(optarg);
+            break;
+        case args::MpiexecArgv::Envlist.val:
+            opts.envlist = optarg;
+            break;
+        case args::MpiexecArgv::CpuBind.val:
+            opts.cpuBind = optarg;
+            break;
+        case args::MpiexecArgv::MemBind.val:
+            opts.memBind = optarg;
+            break;
+        case args::MpiexecArgv::Depth.val:
+            opts.cmds[cmd_idx].depth = std::stoi(optarg);
+            break;
+        case args::MpiexecArgv::IncludeTasks.val:
+            opts.includeTasks = optarg;
+            break;
+        case args::MpiexecArgv::ExcludeTasks.val:
+            opts.excludeTasks = optarg;
+            break;
+        case args::MpiexecArgv::Pmi.val:
+            opts.pmi = optarg;
+            break;
+        case args::MpiexecArgv::Rlimits.val:
+            opts.rlimits = optarg;
+            break;
+
+        case '?':
+        default:
+            throw std::runtime_error("invalid launcher argument: " + std::string{(char)c});
+
+        }
+    }
+
+    return binary_argv;
+}
+
+static auto parse_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_args)
+{
+    // Count number of arguments
+    auto launcher_argc = int{0};
+    while (launcher_args[launcher_argc] != nullptr) { launcher_argc++; }
+
+    // Make new argv array with an argv[0] for getopt
+    launcher_argc++;
+    char const* launcher_argv[launcher_argc + 1];
+    launcher_argv[0] = "pals-launch";
+    for (int i = 0; i < launcher_argc; i++) {
+        launcher_argv[i + 1] = launcher_args[i];
+    }
+    launcher_argv[launcher_argc] = nullptr;
+
+    // Fill in command array by default, even in non-MPMD mode
+    auto cmd_idx = int{0};
+
+    auto incomingArgv = cti::IncomingArgv<args::AprunArgv>{launcher_argc, (char* const*)launcher_argv};
+    auto binary_argv = launcher_args;
+    while (true) {
+        auto const [c, optarg] = incomingArgv.get_next();
+        if (c < 0) {
+            break;
+        }
+
+        // When launcher arguments are done, the remaining argv elements are binary arguments
+        binary_argv++;
+
+        switch (c) {
+
+        // Options
+
+        case args::AprunArgv::BypassAppTransfer.val:
+            opts.transfer = false;
+            break;
+        case args::AprunArgv::AbortOnFailure.val:
+            opts.abort_on_failure = true;
+            break;
+        case args::AprunArgv::NoAbortOnFailure.val:
+            opts.abort_on_failure = false;
+            break;
+        case args::AprunArgv::StrictMemoryContainment.val:
+        case args::AprunArgv::Ss.val:
+            opts.strict_memory_containment = true;
+            break;
+        case args::AprunArgv::SyncOutput.val:
+            opts.line_buffer = true;
+            break;
+
+        // Ignored by mpiexec
+        case args::AprunArgv::BatchArgs.val:
+        case args::AprunArgv::Reconnect.val:
+        case args::AprunArgv::Relaunch.val:
+        case args::AprunArgv::ZoneSort.val:
+            break;
+
+        // Parameters
+
+        case args::AprunArgv::Pes.val:
+            opts.cmds[cmd_idx].np = std::stoi(optarg);
+            break;
+        case args::AprunArgv::PesPerNode.val:
+            opts.ppn = std::stoi(optarg);
+            break;
+        case args::AprunArgv::CpusPerPe.val:
+            opts.cmds[cmd_idx].depth = std::stoi(optarg);
+            break;
+        case args::AprunArgv::Wdir.val:
+            opts.cmds[cmd_idx].wdir = optarg;
+            break;
+        case args::AprunArgv::CpuBinding.val:
+        case args::AprunArgv::Cc.val:
+            opts.cpuBind = args::getCpuBind(optarg);
+            break;
+        case args::AprunArgv::CpuBindingFile.val:
+        case args::AprunArgv::Cp.val:
+            // Ignored by mpiexec
+            break;
+        case args::AprunArgv::AccessMode.val:
+            opts.exclusive = args::getExclusive(optarg);
+            break;
+        case args::AprunArgv::NodeList.val:
+            opts.nodeList = optarg;
+            break;
+        case args::AprunArgv::NodeListFile.val:
+            opts.nodeListFile = optarg;
+            break;
+        case args::AprunArgv::ExcludeNodeList.val:
+            opts.excludeNodeList = optarg;
+            break;
+        case args::AprunArgv::ExcludeNodeListFile.val:
+            opts.excludeNodeListFile = optarg;
+            break;
+        case args::AprunArgv::EnvironmentOverride.val:
+            opts.env.emplace_back(optarg);
+            break;
+        case args::AprunArgv::MemoryPerPe.val:
+            opts.mem_per_pe = std::stoi(optarg);
+            break;
+        case args::AprunArgv::Pmi.val:
+            opts.pmi = optarg;
+            break;
+        case args::AprunArgv::ProcinfoFile.val:
+            opts.procinfoFile = optarg;
+            break;
+
+        case args::AprunArgv::Depth.val:
+            opts.cmds[cmd_idx].depth = std::stoi(optarg);
+            break;
+        case args::AprunArgv::Umask.val:
+            opts.cmds[cmd_idx].umask = std::stoi(optarg);
+            break;
+
+        // Ignored by mpiexec
+        case args::AprunArgv::Architecture.val:
+        case args::AprunArgv::CpusPerCu.val:
+        case args::AprunArgv::Debug.val:
+        case args::AprunArgv::MpmdEnv.val:
+        case args::AprunArgv::PesPerNumaNode.val:
+        case args::AprunArgv::ProtectionDomain.val:
+        case args::AprunArgv::PGovernor.val:
+        case args::AprunArgv::PState.val:
+        case args::AprunArgv::SpecializedCpus.val:
+        case args::AprunArgv::ZoneSortSecs.val:
+            break;
+
+        case '?':
+        default:
+            throw std::runtime_error("invalid launcher argument: " + std::string{(char)c});
+
+        }
+    }
+
+    return binary_argv;
+}
+
+// Parse a yes/no option as boolean
+static auto parse_yes_no(std::string const& str)
+{
+    if (str == "yes") { return true;  }
+    if (str == "no")  { return false; }
+    throw std::runtime_error("invalid argument: '" + str + "' (enter 'yes' or 'no')");
+}
+
+// Split string on delimiter into vector
+static auto split_on(std::string const& str, char delim)
+{
+auto result = std::vector<std::string>{};
+    if (str.empty()) {
+        return result;
+    }
+
+    auto ss = std::stringstream{str};
+    auto tok = std::string{};
+    while (std::getline(ss, tok, delim)) {
+        result.emplace_back(std::move(tok));
+    }
+
+    return result;
+}
 
 } // args
 
@@ -586,160 +987,62 @@ PALSFrontend::getPalsLaunchInfo(std::string const& apId)
     };
 }
 
-struct PalsLaunchArgs
-{
-    boost::optional<int> nranks, ppn, depth;
-    std::vector<std::string> nodeList;
-    boost::optional<std::string> umask;
-    std::vector<std::pair<std::string, std::string>> envAlias;
-    boost::optional<int> fanout;
-    boost::optional<std::string> cpuBind, memBind, pmi;
-    std::optional<bool> exclusive, lineBuffered, abortOnFailure;
-    std::vector<std::tuple<std::string, int, int>> rlimits;
-};
-
-static auto parse_args(char const* const* launcher_args)
-{
-    // Parse a yes/no option as boolean
-    auto parse_yes_no = [](std::string const& str) {
-        if (str == "yes") { return true;  }
-        if (str == "no")  { return false; }
-        throw std::runtime_error("invalid argument: '" + str + "' (enter 'yes' or 'no')");
-    };
-
-    // Split string on delimiter into vector
-    auto split_on = [](std::string const& str, char delim) {
-        auto result = std::vector<std::string>{};
-        if (str.empty()) {
-            return result;
-        }
-
-        auto ss = std::stringstream{str};
-        auto tok = std::string{};
-        while (std::getline(ss, tok, delim)) {
-            result.emplace_back(std::move(tok));
-        }
-
-        return result;
-    };
-
-    auto result = PalsLaunchArgs{};
-    auto rawRequest = std::string{};
-
-    // Count number of arguments
-    auto launcher_argc = int{0};
-    while (launcher_args[launcher_argc] != nullptr) { launcher_argc++; }
-
-    // Make new argv array with an argv[0] for getopt
-    launcher_argc++;
-    char const* launcher_argv[launcher_argc + 1];
-    launcher_argv[0] = "pals-launch";
-    for (int i = 0; i < launcher_argc; i++) {
-        launcher_argv[i + 1] = launcher_args[i];
-    }
-    launcher_argv[launcher_argc] = nullptr;
-
-    auto incomingArgv = cti::IncomingArgv<PALSLauncherArgv>{launcher_argc, (char* const*)launcher_argv};
-    auto binaryArgv = launcher_args;
-    while (true) {
-        auto const [c, optarg] = incomingArgv.get_next();
-        if (c < 0) {
-            break;
-        }
-
-        // When launcher arguments are done, the remaining argv elements are binary arguments
-        binaryArgv++;
-
-        switch (c) {
-
-        case PALSLauncherArgv::NRanks.val:
-            result.nranks = std::stoi(optarg);
-            break;
-
-        case PALSLauncherArgv::PPN.val:
-            result.ppn = std::stoi(optarg);
-            break;
-
-        case PALSLauncherArgv::Depth.val:
-            result.depth = std::stoi(optarg);
-            break;
-
-        case PALSLauncherArgv::NodeList.val:
-            result.nodeList = split_on(optarg, ',');
-            break;
-
-        case PALSLauncherArgv::UMask.val:
-            result.umask = optarg;
-            break;
-
-        case PALSLauncherArgv::EnvAlias.val:
-            { auto varValPairs = split_on(optarg, ',');
-                for (auto&& varValPair : varValPairs) {
-                    auto [var, val] = cti::split::string<2>(std::move(varValPair), '=');
-                    result.envAlias.emplace_back(std::move(var), std::move(val));
-                }
-            }
-            break;
-
-        case PALSLauncherArgv::Fanout.val:
-            result.fanout = std::stoi(optarg);
-            break;
-
-        case PALSLauncherArgv::CpuBind.val:
-            result.cpuBind = optarg;
-            break;
-
-        case PALSLauncherArgv::MemBind.val:
-            result.memBind = optarg;
-            break;
-
-        case PALSLauncherArgv::Pmi.val:
-            result.pmi = optarg;
-            break;
-
-        case PALSLauncherArgv::Exclusive.val:
-            result.exclusive = parse_yes_no(optarg);
-            break;
-
-        case PALSLauncherArgv::LineBuffered.val:
-            result.lineBuffered = parse_yes_no(optarg);
-            break;
-
-        case PALSLauncherArgv::AbortOnFailure.val:
-            result.abortOnFailure = parse_yes_no(optarg);
-            break;
-
-        case PALSLauncherArgv::Rlimits.val:
-            { auto [rlimit, lowHigh] = cti::split::string<2>(std::move(optarg), '=');
-                auto [lowStr, highStr] = cti::split::string<2>(std::move(lowHigh), ',');
-               result.rlimits.emplace_back(std::move(rlimit), std::stoi(lowStr), std::stoi(highStr));
-            }
-            break;
-
-        case PALSLauncherArgv::RawRequest.val:
-            rawRequest = std::move(optarg);
-            break;
-
-        case '?':
-        default:
-            throw std::runtime_error("invalid launcher argument: " + std::string{(char)c});
-
-        }
-    }
-
-    return std::make_tuple(result, binaryArgv, rawRequest);
-}
-
 static auto make_launch_json(const char * const launcher_args[], const char *chdirPath,
     const char * const env_list[], PALSFrontend::LaunchBarrierMode const launchBarrierMode)
 {
-    // Parse launcher_argv (does not include argv[0])
-    auto const [palsLaunchArgs, binaryArgv, rawRequest] = parse_args(launcher_args);
-
     // If the raw launcher request JSON was supplied as an argument, use that
-    if (!rawRequest.empty()) {
+    if (strcmp(launcher_args[0], "--json-file") == 0) {
+
+        if (launcher_args[1] == nullptr) {
+            throw std::runtime_error("expected launcher arguments in form `--json-file <path>`, but got only `--json-file`");
+        }
+
+        auto jsonFileStream = std::ifstream(launcher_args[1]);
+        auto rawRequest = std::string{};
+
+        // Seek to end of file and reserve string space
+        jsonFileStream.seekg(0, std::ios::end);
+        rawRequest.reserve(jsonFileStream.tellg());
+        jsonFileStream.seekg(0, std::ios::beg);
+
+        // Read file into string
+        rawRequest.assign((std::istreambuf_iterator<char>(jsonFileStream)),
+            std::istreambuf_iterator<char>());
+
         return rawRequest;
     }
+
+    // Parse launcher_argv (does not include argv[0])
+    auto const [palsLaunchArgs, binary_argv] = [launcher_args]() {
+
+        auto palsLaunchArgs = args::PalsLaunchArgs{};
+        char const* const* binary_argv = nullptr;
+
+        // Tool may have specified how arguments are to be interpreted
+        if (strcmp(launcher_args[0], "--aprun") == 0) {
+
+            // Parse aprun-compatible environment variables
+            args::apply_aprun_env(palsLaunchArgs);
+
+            // Skip --aprun flag in parsing
+            binary_argv = args::parse_aprun_args(palsLaunchArgs, launcher_args + 1);
+
+        } else if (strcmp(launcher_args[0], "--mpiexec") == 0) {
+
+            // Parse mpiexec-compatible environment variables
+            args::apply_mpiexec_env(palsLaunchArgs);
+
+            // Skip --mpiexec flag in parsing
+            binary_argv = args::parse_mpiexec_args(palsLaunchArgs, launcher_args + 1);
+
+        // Parse mpiexec-style by default
+        } else {
+            args::apply_mpiexec_env(palsLaunchArgs);
+            binary_argv = args::parse_mpiexec_args(palsLaunchArgs, launcher_args);
+        }
+
+        return std::make_tuple(palsLaunchArgs, binary_argv);
+    }();
 
     // Create launch JSON command
     namespace pt = boost::property_tree;
@@ -757,7 +1060,7 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
     };
 
     { auto argvPtree = pt::ptree{};
-        for (char const* const* arg = binaryArgv; *arg != nullptr; arg++) {
+        for (char const* const* arg = binary_argv; *arg != nullptr; arg++) {
             argvPtree.push_back(make_array_elem(*arg));
         }
         launchPtree.add_child("argv", std::move(argvPtree));
@@ -767,16 +1070,16 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
     launchPtree.put("wdir", chdirPath ? chdirPath : cti::cstr::getcwd());
 
     // Add launcher arguments to request
-    if (palsLaunchArgs.nranks) {
-        integerReplacements["%%nranks"] = *palsLaunchArgs.nranks;
+    if (palsLaunchArgs.np) {
+        integerReplacements["%%nranks"] = palsLaunchArgs.np;
         launchPtree.put("nranks", "%%nranks");
     }
     if (palsLaunchArgs.ppn) {
-        integerReplacements["%%ppn"] = *palsLaunchArgs.ppn;
+        integerReplacements["%%ppn"] = palsLaunchArgs.ppn;
         launchPtree.put("ppn", "%%ppn");
     }
     if (palsLaunchArgs.depth) {
-        integerReplacements["%%depth"] = *palsLaunchArgs.depth;
+        integerReplacements["%%depth"] = palsLaunchArgs.depth;
         launchPtree.put("depth", "%%depth");
     }
 
