@@ -111,7 +111,7 @@ struct MpiexecArgv : public cti::Argv
         { Envall, Envnone, Transfer, NoTransfer, Label, NoLabel, Exclusive
         , Shared, LineBuffer, NoLineBuffer, AbortOnFailure, NoAbortOnFailure
 
-        , Ppn, Soft, Host, Hosts, Hostlist, Hostfile, Arch, Wdir, Path
+        , Np, Ppn, Soft, Host, Hosts, Hostlist, Hostfile, Arch, Wdir, Path
         , File, Configfile, Umask, Env, Envlist, CpuBind, MemBind, Depth
         , IncludeTasks, ExcludeTasks, Pmi, Rlimits
 
@@ -167,12 +167,29 @@ struct AprunArgv : public cti::Argv
     static constexpr Par Umask { "umask",  293 };
 
     static constexpr GNUOption long_options[] =
-        { BypassAppTransfer, AbortOnFailure, NoAbortOnFailure, Ss, SyncOutput, BatchArgs
+        { BypassAppTransfer, AbortOnFailure, NoAbortOnFailure, StrictMemoryContainment, Ss, SyncOutput, BatchArgs
         , Reconnect, Relaunch, ZoneSort
         , Pes, PesPerNode, CpusPerPe, Wdir, CpuBinding, Cc, CpuBindingFile, Cp, AccessMode
         , NodeList, NodeListFile, ExcludeNodeList, ExcludeNodeListFile, EnvironmentOverride
         , MemoryPerPe, Pmi, ProcinfoFile, Debug, Architecture, CpusPerCu, MpmdEnv
         , PesPerNumaNode, ProtectionDomain, PGovernor, PState, SpecializedCpus, ZoneSortSecs
+        , long_options_done
+    };
+};
+
+// Restricted argument set for subsequent MPMD commands
+struct AprunMpmdArgv : public cti::Argv
+{
+    using Opt = cti::Argv::Option;
+    using Par = cti::Argv::Parameter;
+
+    static constexpr Par Pes   { "pes",   'n' };
+    static constexpr Par Depth { "depth", 'd' };
+    static constexpr Par Umask { "umask", 257 };
+    static constexpr Par Wdir  { "wdir",  258 };
+
+    static constexpr GNUOption long_options[] =
+        { Pes, Depth, Umask, Wdir
         , long_options_done
     };
 };
@@ -301,9 +318,9 @@ static void add_rangelist_file_to_ids(std::set<int>& ids, std::string const& ran
     }
 }
 
-// Intersect node list and exclude node list to produce a final
-// node list for submission
-static auto generate_hostlist(
+// Intersect node list and exclude node list, use node format
+// string to produce a final node list for submission
+static auto generate_aprun_hostlist(
     std::string const& nodeList, std::string const nodeListFile,
     std::string const& excludeNodeList, std::string const excludeNodeListFile,
     std::string const& nidFormat)
@@ -342,6 +359,34 @@ static auto generate_hostlist(
     // Use node IDs to produce hostname list
     for (auto&& id : ids) {
         result.emplace_back(cti::cstr::asprintf(nidFormat.c_str(), id));
+    }
+
+    return result;
+}
+
+// Split node list string or read node list file to generate
+// node list
+static auto generate_mpiexec_hostlist(
+    std::string const& hostList, std::string const hostListFile)
+{
+    auto result = std::vector<std::string>{};
+
+    // Use host list argument if provided
+    if (!hostList.empty()) {
+        auto const nodes = split_on(hostList, ',');
+        result.insert(result.end(), nodes.begin(), nodes.end());
+    }
+
+    // Add hosts from file if provided
+    if (!hostListFile.empty()) {
+
+        auto fileStream = std::ifstream{hostListFile};
+        auto line = std::string{};
+
+        // Insert into hostname list
+        while (std::getline(fileStream, line)) {
+            result.emplace_back(std::move(line));
+        }
     }
 
     return result;
@@ -526,7 +571,7 @@ static void apply_aprun_env(PalsLaunchArgs& opts)
     opts.nidFormat = getenv_default("APRUN_NID_FORMAT", "n%03d");
 }
 
-static auto parse_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher_args)
+static void apply_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher_args)
 {
     // Count number of arguments
     auto launcher_argc = int{0};
@@ -535,14 +580,15 @@ static auto parse_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher
     // Make new argv array with an argv[0] for getopt
     launcher_argc++;
     char const* launcher_argv[launcher_argc + 1];
-    launcher_argv[0] = "pals-launch";
+    launcher_argv[0] = "mpiexec";
     for (int i = 0; i < launcher_argc; i++) {
         launcher_argv[i + 1] = launcher_args[i];
     }
     launcher_argv[launcher_argc] = nullptr;
 
-    // Fill in command array by default, even in non-MPMD mode
-    auto cmd_idx = int{0};
+    // mpiexec does not support MPMD mode, all arguments are filled into first command slot
+    auto const cmd_idx = int{0};
+    opts.cmds.emplace_back(PalsCmdOpts{});
 
     auto incomingArgv = cti::IncomingArgv<args::MpiexecArgv>{launcher_argc, (char* const*)launcher_argv};
     auto binary_argv = launcher_args;
@@ -664,10 +710,13 @@ static auto parse_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher
         }
     }
 
-    return binary_argv;
+    // Copy rest of binary arguments into first command slot
+    for (auto arg = binary_argv; *arg != nullptr; arg++) {
+        opts.cmds[cmd_idx].argv.emplace_back(*arg);
+    }
 }
 
-static auto parse_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_args)
+static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_args)
 {
     // Count number of arguments
     auto launcher_argc = int{0};
@@ -676,7 +725,7 @@ static auto parse_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
     // Make new argv array with an argv[0] for getopt
     launcher_argc++;
     char const* launcher_argv[launcher_argc + 1];
-    launcher_argv[0] = "pals-launch";
+    launcher_argv[0] = "aprun";
     for (int i = 0; i < launcher_argc; i++) {
         launcher_argv[i + 1] = launcher_args[i];
     }
@@ -684,9 +733,11 @@ static auto parse_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
 
     // Fill in command array by default, even in non-MPMD mode
     auto cmd_idx = int{0};
+    opts.cmds.emplace_back(PalsCmdOpts{});
 
     auto incomingArgv = cti::IncomingArgv<args::AprunArgv>{launcher_argc, (char* const*)launcher_argv};
     auto binary_argv = launcher_args;
+    auto binary_argc = launcher_argc;
     while (true) {
         auto const [c, optarg] = incomingArgv.get_next();
         if (c < 0) {
@@ -695,6 +746,7 @@ static auto parse_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
 
         // When launcher arguments are done, the remaining argv elements are binary arguments
         binary_argv++;
+        binary_argc--;
 
         switch (c) {
 
@@ -801,7 +853,68 @@ static auto parse_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
         }
     }
 
-    return binary_argv;
+    // Add binary arguments, loop on MPMD parsing
+    while (true) {
+
+        // Stop on end of binary arguments
+        if (*binary_argv == nullptr) {
+            break;
+        }
+
+        // Copy argument if not an MPMD separator
+        if (strcmp(*binary_argv, ":") != 0) {
+            opts.cmds[cmd_idx].argv.emplace_back(*binary_argv);
+
+            binary_argv++;
+            binary_argc--;
+
+        // Otherwise, begin MPMD parsing
+        } else {
+
+            // Exit if trailing :
+            if (*(binary_argv + 1) == nullptr) {
+                break;
+            }
+
+            // Increment MPMD command index
+            cmd_idx++;
+            opts.cmds.emplace_back(PalsCmdOpts{});
+
+            // Parse limited MPMD flags
+            auto mpmdArgv = cti::IncomingArgv<args::AprunMpmdArgv>{binary_argc, (char* const*)binary_argv};
+
+            while (true) {
+                auto const [c, optarg] = mpmdArgv.get_next();
+                if (c < 0) {
+                    break;
+                }
+
+                binary_argv++;
+                binary_argc--;
+
+                switch (c) {
+
+                case args::AprunMpmdArgv::Pes.val:
+                    opts.cmds[cmd_idx].np = std::stoi(optarg);
+                    break;
+                case args::AprunMpmdArgv::Wdir.val:
+                    opts.cmds[cmd_idx].wdir = optarg;
+                    break;
+                case args::AprunArgv::Depth.val:
+                    opts.cmds[cmd_idx].depth = std::stoi(optarg);
+                    break;
+                case args::AprunArgv::Umask.val:
+                    opts.cmds[cmd_idx].umask = std::stoi(optarg);
+                    break;
+
+                case '?':
+                default:
+                    throw std::runtime_error("invalid launcher MPMD argument: " + std::string{(char)c});
+
+                }
+            }
+        }
+    }
 }
 
 // Select proper argument-parsing function and build PalsLauncherArgs struct
@@ -816,9 +929,7 @@ static auto parse_launcher_args(char const* const* launcher_args)
         args::apply_aprun_env(palsLaunchArgs);
 
         // Skip --aprun flag in parsing
-        auto const binary_argv = args::parse_aprun_args(palsLaunchArgs, launcher_args + 1);
-
-        // TODO: recursively add colon-delimited binary_argv to cmds
+        args::apply_aprun_args(palsLaunchArgs, launcher_args + 1);
 
     } else if (strcmp(launcher_args[0], "--mpiexec") == 0) {
 
@@ -826,16 +937,12 @@ static auto parse_launcher_args(char const* const* launcher_args)
         args::apply_mpiexec_env(palsLaunchArgs);
 
         // Skip --mpiexec flag in parsing
-        auto const binary_argv = args::parse_mpiexec_args(palsLaunchArgs, launcher_args + 1);
-
-        // TODO: add binary_argv to cmds[0]
+        args::apply_mpiexec_args(palsLaunchArgs, launcher_args + 1);
 
     // Parse mpiexec-style by default
     } else {
         args::apply_mpiexec_env(palsLaunchArgs);
-        auto const binary_argv = args::parse_mpiexec_args(palsLaunchArgs, launcher_args);
-
-        // TODO: add binary_argv to cmds[0]
+        args::apply_mpiexec_args(palsLaunchArgs, launcher_args);
     }
 
     return palsLaunchArgs;
@@ -1349,10 +1456,21 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
     }
 
     // Process string arguments to fill in more request data
-    opts.hosts = args::generate_hostlist(
-        opts.nodeList, opts.nodeListFile,
-        opts.excludeNodeList, opts.excludeNodeListFile,
-        opts.nidFormat);
+
+    // aprun-style hostlist generation
+    if ((!opts.nodeList.empty() || !opts.nodeListFile.empty())
+     && !opts.nidFormat.empty()) {
+        opts.hosts = args::generate_aprun_hostlist(
+            opts.nodeList, opts.nodeListFile,
+            opts.excludeNodeList, opts.excludeNodeListFile,
+            opts.nidFormat);
+
+    // mpiexec-style hostlist generation
+    } else if (!opts.hostlist.empty() || !opts.hostfile.empty()) {
+        opts.hosts = args::generate_mpiexec_hostlist(
+            opts.hostlist, opts.hostfile);
+    }
+
     opts.memBind = args::get_memBind(
         opts.strict_memory_containment);
     opts.rlimits = args::get_rlimits(opts.mem_per_pe);
@@ -1360,6 +1478,12 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
         opts.env = args::split_on(opts.envlist, ',');
     }
     opts.envAliasMap = args::get_envAliasMap(opts.envAliases);
+    if (chdirPath != nullptr) {
+        opts.wdir = chdirPath;
+        for (auto&& cmd : opts.cmds) {
+            cmd.wdir = chdirPath;
+        }
+    }
 
     // Create launch JSON command
     namespace pt = boost::property_tree;
@@ -1377,30 +1501,18 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
     };
 
     // Read list of hostnames for PALS
-    { auto hostsPtree = pt::ptree{};
+    if (!opts.hosts.empty()) {
+        auto hostsPtree = pt::ptree{};
 
-        // Use user-supplied node list
-        if (!opts.hosts.empty()) {
-            for (auto&& node : opts.hosts) {
-                hostsPtree.push_back(make_array_elem(node));
-            }
-
-        // Read each node name from node file
-        } else if (auto const nodeFilePath = ::getenv("PBS_NODEFILE")) {
-            auto fileStream = std::ifstream{nodeFilePath};
-            auto line = std::string{};
-
-            // Insert into hostname list
-            while (std::getline(fileStream, line)) {
-                hostsPtree.push_back(make_array_elem(line));
-            }
-
-        } else {
-            throw std::runtime_error("no node list provided");
+        for (auto&& node : opts.hosts) {
+            hostsPtree.push_back(make_array_elem(node));
         }
 
         // Insert hosts node into request
         launchPtree.add_child("hosts", std::move(hostsPtree));
+
+    } else {
+        throw std::runtime_error("no node list provided");
     }
 
     // Add launcher rank information
@@ -1470,7 +1582,7 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
         launchPtree.put("cpubind", opts.cpuBind);
     }
     if (!opts.memBind.empty()) {
-        launchPtree.put("cpubind", opts.memBind);
+        launchPtree.put("membind", opts.memBind);
     }
     if (!opts.pmi.empty()) {
         launchPtree.put("pmi", opts.pmi);
