@@ -34,6 +34,7 @@
 #include <memory>
 #include <thread>
 #include <variant>
+#include <algorithm>
 
 #include <sstream>
 #include <fstream>
@@ -204,16 +205,325 @@ struct PalsLaunchArgs
     int mem_per_pe;
     bool strict_memory_containment;
     std::string nodeList, nodeListFile, excludeNodeList, excludeNodeListFile, envAliases, procinfoFile, nidFormat;
+    std::map<std::string, std::string> envAliasMap;
 };
+
+static std::string getenv_default(char const* env_var, std::string const& default_)
+{
+    if (auto const env_val = ::getenv(env_var)) {
+        return std::string{env_val};
+    }
+
+    return default_;
+}
+
+static auto getenv_int(char const* env_var, int default_)
+{
+    if (auto const env_val = ::getenv(env_var)) {
+        return std::stoi(env_var);
+    }
+
+    return default_;
+}
+
+static auto getenv_bool(char const* env_var, bool default_)
+{
+    if (auto const env_val = ::getenv(env_var)) {
+        return (bool)std::stoi(env_var);
+    }
+
+    return default_;
+}
+
+
+// Parse a yes/no option as boolean
+static auto parse_yes_no(std::string const& str)
+{
+    if (str == "yes") { return true;  }
+    if (str == "no")  { return false; }
+    throw std::runtime_error("invalid argument: '" + str + "' (enter 'yes' or 'no')");
+}
+
+// Split string on delimiter into vector
+static auto split_on(std::string const& str, char delim)
+{
+auto result = std::vector<std::string>{};
+    if (str.empty()) {
+        return result;
+    }
+
+    auto ss = std::stringstream{str};
+    auto tok = std::string{};
+    while (std::getline(ss, tok, delim)) {
+        result.emplace_back(std::move(tok));
+    }
+
+    return result;
+}
+
+// Parse numeric list in form #,#-# and add into set of IDs
+static void add_rangelist_to_ids(std::set<int>& ids, std::string const& rangeList)
+{
+    try {
+        // Split list on commas
+        auto const ranges = split_on(rangeList, ',');
+        for (auto&& range : ranges) {
+
+            // Split range on hyphen
+            auto const hyphen = range.find("-");
+
+            // No hyphen, add ID
+            if (hyphen == std::string::npos) {
+                ids.insert(std::stoi(range));
+            } else {
+
+                // Add every ID in range to set
+                auto const begin_id = std::stoi(range.substr(0, hyphen));
+                auto const end_id = std::stoi(range.substr(hyphen + 1));
+                for (int i = begin_id; i <= end_id; i++) {
+                    ids.insert(i);
+                }
+            }
+        }
+    } catch (...) {
+        throw std::runtime_error("invalid range list: " + rangeList);
+    }
+}
+
+// Read file contents and add to ID set
+static void add_rangelist_file_to_ids(std::set<int>& ids, std::string const& rangeListFile)
+{
+    // Read in rangelist file
+    auto fileStream = std::ifstream{rangeListFile};
+    auto line = std::string{};
+    while (std::getline(fileStream, line)) {
+        add_rangelist_to_ids(ids, line);
+    }
+}
+
+// Intersect node list and exclude node list to produce a final
+// node list for submission
+static auto generate_hostlist(
+    std::string const& nodeList, std::string const nodeListFile,
+    std::string const& excludeNodeList, std::string const excludeNodeListFile,
+    std::string const& nidFormat)
+{
+    if (nidFormat.empty()) {
+        throw std::runtime_error("invalid nid format string: " + nidFormat);
+    }
+
+    auto result = std::vector<std::string>{};
+
+    // Generate included node set
+    auto includedNodes = std::set<int>{};
+    if (!nodeList.empty()) {
+        add_rangelist_to_ids(includedNodes, nodeList);
+    }
+    if (!nodeListFile.empty()) {
+        add_rangelist_file_to_ids(includedNodes, nodeListFile);
+    }
+
+    // Generate excluded node set
+    auto excludedNodes = std::set<int>{};
+    if (!excludeNodeList.empty()) {
+        add_rangelist_to_ids(excludedNodes, excludeNodeList);
+    }
+    if (!excludeNodeListFile.empty()) {
+        add_rangelist_file_to_ids(excludedNodes, excludeNodeListFile);
+    }
+
+    // Generate node ID list
+    auto ids = std::set<int>{};
+    std::set_difference(
+        includedNodes.begin(), includedNodes.end(),
+        excludedNodes.begin(), excludedNodes.end(),
+        std::inserter(ids, ids.end()));
+
+    // Use node IDs to produce hostname list
+    for (auto&& id : ids) {
+        result.emplace_back(cti::cstr::asprintf(nidFormat.c_str(), id));
+    }
+
+    return result;
+}
+
+static auto get_umask()
+{
+    auto result = mode_t{};
+    ::umask(result);
+    return result;
+}
+
+static std::string get_cpuBind(std::string const& cpuBind)
+{
+    if (cpuBind.empty() || (cpuBind == "cpu")) {
+        return "thread";
+    } else if (cpuBind == "depth") {
+        return "depth";
+    } else if (cpuBind == "numa_node") {
+        return "numa";
+    } else if (cpuBind == "none") {
+        return "none";
+    } else if (cpuBind == "core") {
+        return "core";
+    } else {
+        char *cpu_binding = nullptr;
+        if (::asprintf(&cpu_binding, "list:%s", cpuBind.c_str()) > 0) {
+            auto const result = cti::take_pointer_ownership(std::move(cpu_binding), std::free);
+            return std::string{result.get()};
+        }
+    }
+
+    return "";
+}
+
+static std::string get_memBind(bool strict_memory_containment)
+{
+    if (strict_memory_containment) {
+        return "local";
+    }
+
+    return "none";
+}
+
+static std::string get_rlimits(int mem_per_pe)
+{
+    auto result = std::string{"CORE,CPU"};
+
+    auto send_limits = getenv_int("APRUN_XFER_LIMITS", 0);
+    auto stack_limit = getenv_int("APRUN_XFER_STACK_LIMIT", 0);
+
+    if (send_limits) {
+        result += ",RSS,STACK,FSIZE,DATA,NPROC,NOFILE,"
+        "MEMLOCK,AS,LOCKS,SIGPENDING,MSGQUEUE,NICE,RTPRIO";
+    } else {
+        if (mem_per_pe) {
+            result += ",RSS";
+        }
+        if (stack_limit) {
+            result += ",STACK";
+        }
+    }
+
+    return result;
+}
+
+// Split comma-delimited envalias settings into map
+static auto get_envAliasMap(std::string const& envAliases)
+{
+    auto result = std::map<std::string, std::string>{};
+
+    auto const aliases = split_on(envAliases, ',');
+    for (auto&& alias : aliases) {
+        auto [var, val] = cti::split::string<2>(alias, ':');
+        result.emplace(std::move(var), std::move(val));
+    }
+
+    return result;
+}
+
+static bool get_exclusive(std::string const& accessMode)
+{
+    if (accessMode.empty()) {
+        throw std::runtime_error("empty access mode");
+    } else if (accessMode.at(0) == 'e') {
+        return true;
+    } else if (accessMode.at(0) == 's') {
+        return false;
+    }
+
+    throw std::runtime_error("invalid access mode: " + accessMode);
+}
 
 static void apply_mpiexec_env(PalsLaunchArgs& opts)
 {
-
+    opts.np = getenv_int("PALS_NRANKS", 1);
+    opts.ppn = getenv_int("PALS_PPN", 0);
+    opts.jobid = getenv_default("PBS_JOBID", "");
+    opts.soft = getenv_default("PALS_SOFT", "");
+    opts.hostlist = getenv_default("PALS_HOSTLIST", "");
+    opts.hostfile = getenv_default("PBS_NODEFILE", "");
+    if (opts.hostfile.empty()) {
+        opts.hostfile = getenv_default("PALS_HOSTFILE", "");
+    }
+    opts.arch = "";
+    opts.wdir = getenv_default("PALS_WDIR", cti::cstr::getcwd());
+    opts.path = "";
+    opts.file = "";
+    opts.configfile = getenv_default("PALS_CONFIGFILE", "");
+    opts.umask = getenv_int("PALS_UMASK", get_umask());
+    umask(opts.umask);
+    opts.env = {};
+    opts.nenv = 0;
+    opts.envlen = 0;
+    opts.envall = getenv_bool("PALS_ENVALL", true);
+    opts.transfer = getenv_bool("PALS_TRANSFER", true);
+    opts.cpuBind = getenv_default("PALS_CPU_BIND", "");
+    opts.memBind = getenv_default("PALS_MEM_BIND", "");
+    opts.depth = getenv_int("PALS_DEPTH", 1);
+    opts.label = getenv_bool("PALS_LABEL", false);
+    opts.includeTasks = getenv_default("PALS_INCLUDE_TASKS", "");
+    opts.excludeTasks = getenv_default("PALS_EXCLUDE_TASKS", "");
+    opts.exclusive = getenv_bool("PALS_EXCLUSIVE", false);
+    opts.line_buffer = getenv_bool("PALS_LINE_BUFFER", false);
+    opts.abort_on_failure = getenv_bool("PALS_ABORT_ON_FAILURE", true);
+    opts.pmi = getenv_default("PALS_PMI", "cray");
+    opts.rlimits = getenv_default("PALS_RLIMITS", "CORE,CPU");
+    opts.fanout = getenv_int("PALS_FANOUT", 0);
+    opts.rpc_timeout = getenv_int("PALS_RPC_TIMEOUT", -1);
 }
 
 static void apply_aprun_env(PalsLaunchArgs& opts)
 {
-
+    opts.np = getenv_int("APRUN_PES", 1);
+    opts.ppn = getenv_int("APRUN_PPN", 0);
+    opts.jobid = getenv_default("PBS_JOBID", "");
+    opts.soft = "";
+    opts.hostlist = "";
+    opts.hostfile = getenv_default("PBS_NODEFILE", "");
+    if (opts.hostfile.empty()) {
+        opts.hostfile = getenv_default("APRUN_HOSTFILE", "");
+    }
+    opts.arch = "";
+    opts.wdir = getenv_default("APRUN_WDIR", cti::cstr::getcwd());
+    opts.path = "";
+    opts.file = "";
+    opts.configfile = "";
+    opts.umask = getenv_int("APRUN_UMASK", get_umask());
+    opts.env = {};
+    opts.nenv = 0;
+    opts.envlen = 0;
+    opts.envlist = "";
+    opts.envall = getenv_bool("APRUN_ENVALL", true);
+    opts.transfer = getenv_bool("APRUN_TRANSFER", true);
+    opts.cpuBind = getenv_default("APRUN_CPU_BIND", "");
+    opts.memBind = getenv_default("APRUN_MEM_BIND", "");
+    opts.depth = getenv_int("APRUN_DEPTH", 1);
+    opts.label = getenv_bool("APRUN_LABEL", false);
+    opts.includeTasks = getenv_default("APRUN_INCLUDE_TASKS", "");
+    opts.excludeTasks = getenv_default("APRUN_EXCLUDE_TASKS", "");
+    opts.exclusive = getenv_bool("APRUN_EXCLUSIVE", false);
+    opts.line_buffer = getenv_bool("APRUN_SYNC_TTY", false);
+    opts.abort_on_failure = getenv_bool("APRUN_ABORT_ON_FAILURE", true);
+    opts.pmi = getenv_default("APRUN_PMI", "cray");
+    opts.rlimits = getenv_default("APRUN_RLIMITS", "CORE,CPU");
+    opts.fanout = getenv_int("APRUN_FANOUT", 0);
+    opts.rpc_timeout = getenv_int("APRUN_RPC_TIMEOUT", -1);
+    opts.cmds = {};
+    opts.hosts = {};
+    opts.mem_per_pe = getenv_int("APRUN_DEFAULT_MEMORY", 0);
+    opts.strict_memory_containment = getenv_bool("APRUN_STRICTMEM",
+            false);
+    opts.nodeList = getenv_default("APRUN_NODELIST", "");
+    opts.nodeListFile = getenv_default("APRUN_NODELIST_FILE", "");
+    opts.excludeNodeList = getenv_default("APRUN_EXCLUDE_NODELIST", "");
+    opts.excludeNodeListFile = getenv_default("APRUN_EXCLUDE_NODELIST_FILE", "");
+    opts.envAliases = getenv_default("APRUN_ENV_ALIAS",
+        "ALPS_APP_DEPTH:PALS_DEPTH,"
+        "ALPS_APP_ID:PALS_APID,"
+        "ALPS_APP_PE:PALS_RANKID");
+    opts.procinfoFile = getenv_default("APRUN_PROCINFO_FILE", "");
+    opts.nidFormat = getenv_default("APRUN_NID_FORMAT", "n%03d");
 }
 
 static auto parse_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher_args)
@@ -430,14 +740,14 @@ static auto parse_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
             break;
         case args::AprunArgv::CpuBinding.val:
         case args::AprunArgv::Cc.val:
-            opts.cpuBind = args::getCpuBind(optarg);
+            opts.cpuBind = args::get_cpuBind(optarg);
             break;
         case args::AprunArgv::CpuBindingFile.val:
         case args::AprunArgv::Cp.val:
             // Ignored by mpiexec
             break;
         case args::AprunArgv::AccessMode.val:
-            opts.exclusive = args::getExclusive(optarg);
+            opts.exclusive = args::get_exclusive(optarg);
             break;
         case args::AprunArgv::NodeList.val:
             opts.nodeList = optarg;
@@ -494,29 +804,41 @@ static auto parse_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
     return binary_argv;
 }
 
-// Parse a yes/no option as boolean
-static auto parse_yes_no(std::string const& str)
+// Select proper argument-parsing function and build PalsLauncherArgs struct
+static auto parse_launcher_args(char const* const* launcher_args)
 {
-    if (str == "yes") { return true;  }
-    if (str == "no")  { return false; }
-    throw std::runtime_error("invalid argument: '" + str + "' (enter 'yes' or 'no')");
-}
+    auto palsLaunchArgs = args::PalsLaunchArgs{};
 
-// Split string on delimiter into vector
-static auto split_on(std::string const& str, char delim)
-{
-auto result = std::vector<std::string>{};
-    if (str.empty()) {
-        return result;
+    // Tool may have specified how arguments are to be interpreted
+    if (strcmp(launcher_args[0], "--aprun") == 0) {
+
+        // Parse aprun-compatible environment variables
+        args::apply_aprun_env(palsLaunchArgs);
+
+        // Skip --aprun flag in parsing
+        auto const binary_argv = args::parse_aprun_args(palsLaunchArgs, launcher_args + 1);
+
+        // TODO: recursively add colon-delimited binary_argv to cmds
+
+    } else if (strcmp(launcher_args[0], "--mpiexec") == 0) {
+
+        // Parse mpiexec-compatible environment variables
+        args::apply_mpiexec_env(palsLaunchArgs);
+
+        // Skip --mpiexec flag in parsing
+        auto const binary_argv = args::parse_mpiexec_args(palsLaunchArgs, launcher_args + 1);
+
+        // TODO: add binary_argv to cmds[0]
+
+    // Parse mpiexec-style by default
+    } else {
+        args::apply_mpiexec_env(palsLaunchArgs);
+        auto const binary_argv = args::parse_mpiexec_args(palsLaunchArgs, launcher_args);
+
+        // TODO: add binary_argv to cmds[0]
     }
 
-    auto ss = std::stringstream{str};
-    auto tok = std::string{};
-    while (std::getline(ss, tok, delim)) {
-        result.emplace_back(std::move(tok));
-    }
-
-    return result;
+    return palsLaunchArgs;
 }
 
 } // args
@@ -1012,37 +1334,32 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
         return rawRequest;
     }
 
+    // Disable argument reordering
+    auto const posixly_correct = (::getenv("POSIXLY_CORRECT") != nullptr);
+    if (!posixly_correct) {
+        ::setenv("POSIXLY_CORRECT", "1", 0);
+    }
+
     // Parse launcher_argv (does not include argv[0])
-    auto const [palsLaunchArgs, binary_argv] = [launcher_args]() {
+    auto opts = args::parse_launcher_args(launcher_args);
 
-        auto palsLaunchArgs = args::PalsLaunchArgs{};
-        char const* const* binary_argv = nullptr;
+    // Restore argument reordering
+    if (!posixly_correct) {
+        ::unsetenv("POSIXLY_CORRECT");
+    }
 
-        // Tool may have specified how arguments are to be interpreted
-        if (strcmp(launcher_args[0], "--aprun") == 0) {
-
-            // Parse aprun-compatible environment variables
-            args::apply_aprun_env(palsLaunchArgs);
-
-            // Skip --aprun flag in parsing
-            binary_argv = args::parse_aprun_args(palsLaunchArgs, launcher_args + 1);
-
-        } else if (strcmp(launcher_args[0], "--mpiexec") == 0) {
-
-            // Parse mpiexec-compatible environment variables
-            args::apply_mpiexec_env(palsLaunchArgs);
-
-            // Skip --mpiexec flag in parsing
-            binary_argv = args::parse_mpiexec_args(palsLaunchArgs, launcher_args + 1);
-
-        // Parse mpiexec-style by default
-        } else {
-            args::apply_mpiexec_env(palsLaunchArgs);
-            binary_argv = args::parse_mpiexec_args(palsLaunchArgs, launcher_args);
-        }
-
-        return std::make_tuple(palsLaunchArgs, binary_argv);
-    }();
+    // Process string arguments to fill in more request data
+    opts.hosts = args::generate_hostlist(
+        opts.nodeList, opts.nodeListFile,
+        opts.excludeNodeList, opts.excludeNodeListFile,
+        opts.nidFormat);
+    opts.memBind = args::get_memBind(
+        opts.strict_memory_containment);
+    opts.rlimits = args::get_rlimits(opts.mem_per_pe);
+    if (!opts.envlist.empty()) {
+        opts.env = args::split_on(opts.envlist, ',');
+    }
+    opts.envAliasMap = args::get_envAliasMap(opts.envAliases);
 
     // Create launch JSON command
     namespace pt = boost::property_tree;
@@ -1059,36 +1376,12 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
         return std::make_pair("", node);
     };
 
-    { auto argvPtree = pt::ptree{};
-        for (char const* const* arg = binary_argv; *arg != nullptr; arg++) {
-            argvPtree.push_back(make_array_elem(*arg));
-        }
-        launchPtree.add_child("argv", std::move(argvPtree));
-    }
-
-    // If no chdirPath specified, use CWD
-    launchPtree.put("wdir", chdirPath ? chdirPath : cti::cstr::getcwd());
-
-    // Add launcher arguments to request
-    if (palsLaunchArgs.np) {
-        integerReplacements["%%nranks"] = palsLaunchArgs.np;
-        launchPtree.put("nranks", "%%nranks");
-    }
-    if (palsLaunchArgs.ppn) {
-        integerReplacements["%%ppn"] = palsLaunchArgs.ppn;
-        launchPtree.put("ppn", "%%ppn");
-    }
-    if (palsLaunchArgs.depth) {
-        integerReplacements["%%depth"] = palsLaunchArgs.depth;
-        launchPtree.put("depth", "%%depth");
-    }
-
     // Read list of hostnames for PALS
     { auto hostsPtree = pt::ptree{};
 
         // Use user-supplied node list
-        if (!palsLaunchArgs.nodeList.empty()) {
-            for (auto&& node : palsLaunchArgs.nodeList) {
+        if (!opts.hosts.empty()) {
+            for (auto&& node : opts.hosts) {
                 hostsPtree.push_back(make_array_elem(node));
             }
 
@@ -1110,6 +1403,16 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
         launchPtree.add_child("hosts", std::move(hostsPtree));
     }
 
+    // Add launcher rank information
+    if (opts.np > 0) {
+        integerReplacements["%%nranks"] = opts.np;
+        launchPtree.put("nranks", "%%nranks");
+    }
+    if (opts.ppn > 0) {
+        integerReplacements["%%ppn"] = opts.ppn;
+        launchPtree.put("ppn", "%%ppn");
+    }
+
     // Add necessary environment variables
     { auto environmentPtree = pt::ptree{};
 
@@ -1125,6 +1428,11 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
             environmentPtree.push_back(make_array_elem("PALS_STARTUP_BARRIER=1"));
         }
 
+        // Add environment variables from options
+        for (auto&& envVar : opts.env) {
+            environmentPtree.push_back(make_array_elem(envVar));
+        }
+
         // Add user-supplied environment variables
         if (env_list != nullptr) {
             for (char const* const* env_val = env_list; *env_val != nullptr; env_val++) {
@@ -1135,8 +1443,10 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
         launchPtree.add_child("environment", std::move(environmentPtree));
     }
 
-    if (palsLaunchArgs.umask) {
-        launchPtree.put("umask", *palsLaunchArgs.umask);
+    // Add user information
+    if (opts.umask > 0) {
+        integerReplacements["%%umask"] = opts.umask;
+        launchPtree.put("umask", "%%umask");
     }
 
     // Add environment aliases
@@ -1144,47 +1454,77 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
         // Default environment alias
         envaliasPtree.put("APRUN_APP_ID", "PALS_APID");
 
-        for (auto&& [var, val] : palsLaunchArgs.envAlias) {
+        for (auto&& [var, val] : opts.envAliasMap) {
             envaliasPtree.put(var, val);
         }
 
         launchPtree.add_child("envalias", std::move(envaliasPtree));
     }
 
-    if (palsLaunchArgs.fanout) {
-        integerReplacements["%%fanout"] = *palsLaunchArgs.fanout;
+    // Add fanout and CPU bind information
+    if (opts.fanout > 0) {
+        integerReplacements["%%fanout"] = opts.fanout;
         launchPtree.put("fanout", "%%fanout");
     }
-    if (palsLaunchArgs.cpuBind) {
-        launchPtree.put("cpubind", *palsLaunchArgs.cpuBind);
+    if (!opts.cpuBind.empty()) {
+        launchPtree.put("cpubind", opts.cpuBind);
     }
-    if (palsLaunchArgs.memBind) {
-        launchPtree.put("membind", *palsLaunchArgs.memBind);
+    if (!opts.memBind.empty()) {
+        launchPtree.put("cpubind", opts.memBind);
     }
-    if (palsLaunchArgs.pmi) {
-        launchPtree.put("pmi", *palsLaunchArgs.pmi);
+    if (!opts.pmi.empty()) {
+        launchPtree.put("pmi", opts.pmi);
     }
-    if (palsLaunchArgs.exclusive) {
-        booleanReplacements["%%exclusive"] = *palsLaunchArgs.exclusive;
-        launchPtree.put("exclusive", "%%exclusive");
-    }
-    if (palsLaunchArgs.lineBuffered) {
-        booleanReplacements["%%line_buffered"] = *palsLaunchArgs.lineBuffered;
-        launchPtree.put("line_buffered", "%%line_buffered");
-    }
-    if (palsLaunchArgs.abortOnFailure) {
-        booleanReplacements["%%abort_on_failure"] = *palsLaunchArgs.abortOnFailure;
-        launchPtree.put("abort_on_failure", "%%abort_on_failure");
+
+    // Add job exclusivity and buffering settings
+    booleanReplacements["%%exclusive"] = opts.exclusive;
+    launchPtree.put("exclusive", "%%exclusive");
+    booleanReplacements["%%line_buffered"] = opts.line_buffer;
+    launchPtree.put("line_buffered", "%%line_buffered");
+    booleanReplacements["%%abort_on_failure"] = opts.abort_on_failure;
+    launchPtree.put("abort_on_failure", "%%abort_on_failure");
+
+    // Add command arguments
+    { auto cmdsPtree = pt::ptree{};
+
+        // Add command for each index
+        int cmd_idx = 0;
+        for (auto&& cmd : opts.cmds) {
+
+            auto cmdPtree = pt::ptree{};
+
+            // Add argument array
+            { auto argvPtree = pt::ptree{};
+                for (auto&& arg : cmd.argv) {
+                    argvPtree.push_back(make_array_elem(arg));
+                }
+
+                cmdPtree.add_child("argv", std::move(argvPtree));
+            }
+
+            // Add working directory
+            cmdPtree.put("wdir", cmd.wdir);
+
+            // Add umask, nranks, depth
+            auto const replacementPrefix = "%%cmd" + std::to_string(cmd_idx);
+            integerReplacements[replacementPrefix + "umask"] = cmd.umask;
+            cmdPtree.put("umask", replacementPrefix + "umask");
+            integerReplacements[replacementPrefix + "nranks"] = cmd.np;
+            cmdPtree.put("nranks", replacementPrefix + "nranks");
+            integerReplacements[replacementPrefix + "depth"] = cmd.depth;
+            cmdPtree.put("depth", replacementPrefix + "depth");
+
+            // Add to cmd list
+            cmdsPtree.push_back(std::make_pair("", std::move(cmdPtree)));
+
+            cmd_idx++;
+        }
+
+        launchPtree.add_child("cmds", std::move(cmdsPtree));
     }
 
     // Add resource limits
-    { auto rlimitsPtree = pt::ptree{};
-        for (auto&& [rlimit, low, high] : palsLaunchArgs.rlimits) {
-            rlimitsPtree.put(rlimit, std::to_string(low) + " " + std::to_string(high));
-        }
-
-        launchPtree.add_child("rlimits", std::move(rlimitsPtree));
-    }
+    launchPtree.put("rlimits", opts.rlimits);
 
     // Encode as json string
     auto launchJsonStream = std::stringstream{};
