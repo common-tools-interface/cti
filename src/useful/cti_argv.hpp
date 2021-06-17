@@ -191,6 +191,10 @@ public:
     char* const* get_rest() {
         return m_argv + m_optind;
     }
+
+    int get_rest_argc() {
+        return m_argc - m_optind;
+    }
 };
 
 } /* namespace cti */

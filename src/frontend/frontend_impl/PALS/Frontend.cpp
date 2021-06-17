@@ -591,15 +591,11 @@ static void apply_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher
     opts.cmds.emplace_back(PalsCmdOpts{});
 
     auto incomingArgv = cti::IncomingArgv<args::MpiexecArgv>{launcher_argc, (char* const*)launcher_argv};
-    auto binary_argv = launcher_args;
     while (true) {
         auto const [c, optarg] = incomingArgv.get_next();
         if (c < 0) {
             break;
         }
-
-        // When launcher arguments are done, the remaining argv elements are binary arguments
-        binary_argv++;
 
         switch (c) {
 
@@ -711,6 +707,7 @@ static void apply_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher
     }
 
     // Copy rest of binary arguments into first command slot
+    auto const binary_argv = incomingArgv.get_rest();
     for (auto arg = binary_argv; *arg != nullptr; arg++) {
         opts.cmds[cmd_idx].argv.emplace_back(*arg);
     }
@@ -736,17 +733,11 @@ static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
     opts.cmds.emplace_back(PalsCmdOpts{});
 
     auto incomingArgv = cti::IncomingArgv<args::AprunArgv>{launcher_argc, (char* const*)launcher_argv};
-    auto binary_argv = launcher_args;
-    auto binary_argc = launcher_argc;
     while (true) {
         auto const [c, optarg] = incomingArgv.get_next();
         if (c < 0) {
             break;
         }
-
-        // When launcher arguments are done, the remaining argv elements are binary arguments
-        binary_argv++;
-        binary_argc--;
 
         switch (c) {
 
@@ -854,6 +845,8 @@ static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
     }
 
     // Add binary arguments, loop on MPMD parsing
+    auto binary_argv = incomingArgv.get_rest();
+    auto binary_argc = incomingArgv.get_rest_argc();
     while (true) {
 
         // Stop on end of binary arguments
@@ -889,9 +882,6 @@ static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
                     break;
                 }
 
-                binary_argv++;
-                binary_argc--;
-
                 switch (c) {
 
                 case args::AprunMpmdArgv::Pes.val:
@@ -913,6 +903,10 @@ static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
 
                 }
             }
+
+            // Advance binary_argv to next
+            binary_argv = mpmdArgv.get_rest();
+            binary_argc = mpmdArgv.get_rest_argc();
         }
     }
 }
@@ -1478,10 +1472,20 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
         opts.env = args::split_on(opts.envlist, ',');
     }
     opts.envAliasMap = args::get_envAliasMap(opts.envAliases);
+
+    // Apply job wdir / umask options to unset cmd options
     if (chdirPath != nullptr) {
         opts.wdir = chdirPath;
-        for (auto&& cmd : opts.cmds) {
-            cmd.wdir = chdirPath;
+    }
+    for (auto&& cmd : opts.cmds) {
+        if (cmd.wdir.empty()) {
+            cmd.wdir = opts.wdir;
+        }
+        if (cmd.umask == 0) {
+            cmd.umask = opts.umask;
+        }
+        if (cmd.depth == 0) {
+            cmd.depth = opts.depth;
         }
     }
 
@@ -1527,6 +1531,13 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
 
     // Add necessary environment variables
     { auto environmentPtree = pt::ptree{};
+
+        // If inheriting environment is enabled, add all environment variables
+        if (opts.envall) {
+            for (auto env_var = environ; *env_var != nullptr; env_var++) {
+                environmentPtree.push_back(make_array_elem(*env_var));
+            }
+        }
 
         // Add required inherited environment variables
         for (auto&& envVar : {"PATH", "USER", "LD_LIBRARY_PATH"}) {
@@ -1911,11 +1922,18 @@ static constexpr auto signalJsonPattern = "{\"signum\": %d}";
 void
 PALSApp::kill(int signal)
 {
-    cti::httpPostJsonReq(
+    try {
+
+        cti::httpPostJsonReq(
             m_palsApiInfo.hostname,
             m_palsApiInfo.endpointBase + "v1/apps/" + m_apId + "/signal",
             m_palsApiInfo.accessToken,
             cti::cstr::asprintf(signalJsonPattern, signal));
+
+    } catch (std::runtime_error const& ex) {
+        // Ignore exception if application has already exited
+        writeLog("warning: failed to kill application %s: %s\n", m_apId.c_str(), ex.what());
+    }
 }
 
 void
@@ -2058,7 +2076,7 @@ PALSApp::~PALSApp()
             m_palsApiInfo.endpointBase + "v1/apps/" + m_apId,
             m_palsApiInfo.accessToken);
     } catch (std::exception const& ex) {
-        fprintf(stderr, "warning: PALS delete failed: %s\n", ex.what());
+        writeLog("warning: PALS delete %s failed: %s\n", m_apId.c_str(), ex.what());
     }
 
     // Check stdio task results
