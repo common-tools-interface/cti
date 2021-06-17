@@ -2055,7 +2055,7 @@ PALSApp::~PALSApp()
     try {
         cti::httpDeleteReq(
             m_palsApiInfo.hostname,
-            m_palsApiInfo.endpointBase + "v1/apps" + m_apId,
+            m_palsApiInfo.endpointBase + "v1/apps/" + m_apId,
             m_palsApiInfo.accessToken);
     } catch (std::exception const& ex) {
         fprintf(stderr, "warning: PALS delete failed: %s\n", ex.what());
