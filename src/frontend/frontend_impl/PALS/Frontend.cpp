@@ -72,7 +72,7 @@ struct MpiexecArgv : public cti::Argv
     using Par = cti::Argv::Parameter;
 
     static constexpr Opt Envall           { "envall",              256 };
-    static constexpr Opt Envnone          { "env-none",            257 };
+    static constexpr Opt Envnone          { "envnone",             257 };
     static constexpr Opt Transfer         { "transfer",            258 };
     static constexpr Opt NoTransfer       { "no-transfer",         259 };
     static constexpr Opt Label            { "label",               'l' };
@@ -911,32 +911,33 @@ static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
     }
 }
 
+enum class ParseStyle
+    {   Mpiexec
+    ,   Aprun
+};
+
 // Select proper argument-parsing function and build PalsLauncherArgs struct
-static auto parse_launcher_args(char const* const* launcher_args)
+static auto parse_launcher_args(ParseStyle const& parseStyle, char const* const* launcher_args)
 {
     auto palsLaunchArgs = args::PalsLaunchArgs{};
 
     // Tool may have specified how arguments are to be interpreted
-    if (strcmp(launcher_args[0], "--aprun") == 0) {
+    if (parseStyle == ParseStyle::Aprun) {
 
         // Parse aprun-compatible environment variables
         args::apply_aprun_env(palsLaunchArgs);
 
         // Skip --aprun flag in parsing
-        args::apply_aprun_args(palsLaunchArgs, launcher_args + 1);
+        args::apply_aprun_args(palsLaunchArgs, launcher_args);
 
-    } else if (strcmp(launcher_args[0], "--mpiexec") == 0) {
+    } else if (parseStyle == ParseStyle::Mpiexec) {
 
         // Parse mpiexec-compatible environment variables
         args::apply_mpiexec_env(palsLaunchArgs);
 
         // Skip --mpiexec flag in parsing
-        args::apply_mpiexec_args(palsLaunchArgs, launcher_args + 1);
-
-    // Parse mpiexec-style by default
-    } else {
-        args::apply_mpiexec_env(palsLaunchArgs);
         args::apply_mpiexec_args(palsLaunchArgs, launcher_args);
+
     }
 
     return palsLaunchArgs;
@@ -1410,7 +1411,8 @@ PALSFrontend::getPalsLaunchInfo(std::string const& apId)
     };
 }
 
-static auto make_launch_json(const char * const launcher_args[], const char *chdirPath,
+static auto make_launch_json(args::ParseStyle const& parseStyle,
+    const char * const launcher_args[], const char *chdirPath,
     const char * const env_list[], PALSFrontend::LaunchBarrierMode const launchBarrierMode)
 {
     // If the raw launcher request JSON was supplied as an argument, use that
@@ -1442,7 +1444,7 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
     }
 
     // Parse launcher_argv (does not include argv[0])
-    auto opts = args::parse_launcher_args(launcher_args);
+    auto opts = args::parse_launcher_args(parseStyle, launcher_args);
 
     // Restore argument reordering
     if (!posixly_correct) {
@@ -1616,6 +1618,9 @@ static auto make_launch_json(const char * const launcher_args[], const char *chd
 
             auto cmdPtree = pt::ptree{};
 
+            // Verify that binary exists
+            (void)cti::findPath(cmd.argv[0]);
+
             // Add argument array
             { auto argvPtree = pt::ptree{};
                 for (auto&& arg : cmd.argv) {
@@ -1672,8 +1677,17 @@ PALSFrontend::launchApp(const char * const launcher_argv[], int stdout_fd,
         int stderr_fd, const char *inputFile, const char *chdirPath, const char * const env_list[],
         LaunchBarrierMode const launchBarrierMode)
 {
+    // TODO: create variants of launchApp with different argument parsing styles.
+    // For now, parse arguments as set by CTI_LAUNCHER_NAME, with default being mpiexec-style
+    auto parseStyle = args::ParseStyle::Mpiexec;
+    if (auto const launcher_name = ::getenv(CTI_LAUNCHER_NAME_ENV_VAR)) {
+        if (strcmp(launcher_name, "aprun") == 0) {
+            parseStyle = args::ParseStyle::Aprun;
+        }
+    }
+
     // Create launch JSON from launch arguments
-    auto const launchJson = make_launch_json(launcher_argv, chdirPath, env_list, launchBarrierMode);
+    auto const launchJson = make_launch_json(parseStyle, launcher_argv, chdirPath, env_list, launchBarrierMode);
     writeLog("launch json: '%s'\n", launchJson.c_str());
 
     // Send launch JSON command
