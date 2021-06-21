@@ -225,40 +225,34 @@ struct PalsLaunchArgs
     std::map<std::string, std::string> envAliasMap;
 };
 
-static std::string getenv_default(char const* env_var, std::string const& default_)
+static std::string getenv_string(char const* env_var, std::string const& default_value)
 {
     if (auto const env_val = ::getenv(env_var)) {
         return std::string{env_val};
     }
 
-    return default_;
+    return default_value;
 }
 
-static auto getenv_int(char const* env_var, int default_)
+static int getenv_int(char const* env_var, int default_value)
 {
     if (auto const env_val = ::getenv(env_var)) {
-        return std::stoi(env_var);
+        if (env_val[0] != '\0') {
+            try {
+                return std::stoi(env_var);
+            } catch (...) {
+                throw std::invalid_argument("failed to parse numerical environment variable: "
+                    + std::string{env_var} + " set to " + std::string{env_val});
+            }
+        }
     }
 
-    return default_;
+    return default_value;
 }
 
-static auto getenv_bool(char const* env_var, bool default_)
+static bool getenv_bool(char const* env_var, bool default_value)
 {
-    if (auto const env_val = ::getenv(env_var)) {
-        return (bool)std::stoi(env_var);
-    }
-
-    return default_;
-}
-
-
-// Parse a yes/no option as boolean
-static auto parse_yes_no(std::string const& str)
-{
-    if (str == "yes") { return true;  }
-    if (str == "no")  { return false; }
-    throw std::runtime_error("invalid argument: '" + str + "' (enter 'yes' or 'no')");
+    return static_cast<bool>(getenv_int(env_var, (default_value) ? 1 : 0));
 }
 
 // Split string on delimiter into vector
@@ -321,12 +315,12 @@ static void add_rangelist_file_to_ids(std::set<int>& ids, std::string const& ran
 // Intersect node list and exclude node list, use node format
 // string to produce a final node list for submission
 static auto generate_aprun_hostlist(
-    std::string const& nodeList, std::string const nodeListFile,
-    std::string const& excludeNodeList, std::string const excludeNodeListFile,
+    std::string const& nodeList, std::string const& nodeListFile,
+    std::string const& excludeNodeList, std::string const& excludeNodeListFile,
     std::string const& nidFormat)
 {
     if (nidFormat.empty()) {
-        throw std::runtime_error("invalid nid format string: " + nidFormat);
+        throw std::invalid_argument("invalid nid format string: " + nidFormat);
     }
 
     auto result = std::vector<std::string>{};
@@ -367,7 +361,7 @@ static auto generate_aprun_hostlist(
 // Split node list string or read node list file to generate
 // node list
 static auto generate_mpiexec_hostlist(
-    std::string const& hostList, std::string const hostListFile)
+    std::string const& hostList, std::string const& hostListFile)
 {
     auto result = std::vector<std::string>{};
 
@@ -484,18 +478,18 @@ static void apply_mpiexec_env(PalsLaunchArgs& opts)
 {
     opts.np = getenv_int("PALS_NRANKS", 1);
     opts.ppn = getenv_int("PALS_PPN", 0);
-    opts.jobid = getenv_default("PBS_JOBID", "");
-    opts.soft = getenv_default("PALS_SOFT", "");
-    opts.hostlist = getenv_default("PALS_HOSTLIST", "");
-    opts.hostfile = getenv_default("PBS_NODEFILE", "");
+    opts.jobid = getenv_string("PBS_JOBID", "");
+    opts.soft = getenv_string("PALS_SOFT", "");
+    opts.hostlist = getenv_string("PALS_HOSTLIST", "");
+    opts.hostfile = getenv_string("PBS_NODEFILE", "");
     if (opts.hostfile.empty()) {
-        opts.hostfile = getenv_default("PALS_HOSTFILE", "");
+        opts.hostfile = getenv_string("PALS_HOSTFILE", "");
     }
     opts.arch = "";
-    opts.wdir = getenv_default("PALS_WDIR", cti::cstr::getcwd());
+    opts.wdir = getenv_string("PALS_WDIR", cti::cstr::getcwd());
     opts.path = "";
     opts.file = "";
-    opts.configfile = getenv_default("PALS_CONFIGFILE", "");
+    opts.configfile = getenv_string("PALS_CONFIGFILE", "");
     opts.umask = getenv_int("PALS_UMASK", get_umask());
     umask(opts.umask);
     opts.env = {};
@@ -503,17 +497,17 @@ static void apply_mpiexec_env(PalsLaunchArgs& opts)
     opts.envlen = 0;
     opts.envall = getenv_bool("PALS_ENVALL", true);
     opts.transfer = getenv_bool("PALS_TRANSFER", true);
-    opts.cpuBind = getenv_default("PALS_CPU_BIND", "");
-    opts.memBind = getenv_default("PALS_MEM_BIND", "");
+    opts.cpuBind = getenv_string("PALS_CPU_BIND", "");
+    opts.memBind = getenv_string("PALS_MEM_BIND", "");
     opts.depth = getenv_int("PALS_DEPTH", 1);
     opts.label = getenv_bool("PALS_LABEL", false);
-    opts.includeTasks = getenv_default("PALS_INCLUDE_TASKS", "");
-    opts.excludeTasks = getenv_default("PALS_EXCLUDE_TASKS", "");
+    opts.includeTasks = getenv_string("PALS_INCLUDE_TASKS", "");
+    opts.excludeTasks = getenv_string("PALS_EXCLUDE_TASKS", "");
     opts.exclusive = getenv_bool("PALS_EXCLUSIVE", false);
     opts.line_buffer = getenv_bool("PALS_LINE_BUFFER", false);
     opts.abort_on_failure = getenv_bool("PALS_ABORT_ON_FAILURE", true);
-    opts.pmi = getenv_default("PALS_PMI", "cray");
-    opts.rlimits = getenv_default("PALS_RLIMITS", "CORE,CPU");
+    opts.pmi = getenv_string("PALS_PMI", "cray");
+    opts.rlimits = getenv_string("PALS_RLIMITS", "CORE,CPU");
     opts.fanout = getenv_int("PALS_FANOUT", 0);
     opts.rpc_timeout = getenv_int("PALS_RPC_TIMEOUT", -1);
 }
@@ -522,15 +516,15 @@ static void apply_aprun_env(PalsLaunchArgs& opts)
 {
     opts.np = getenv_int("APRUN_PES", 1);
     opts.ppn = getenv_int("APRUN_PPN", 0);
-    opts.jobid = getenv_default("PBS_JOBID", "");
+    opts.jobid = getenv_string("PBS_JOBID", "");
     opts.soft = "";
     opts.hostlist = "";
-    opts.hostfile = getenv_default("PBS_NODEFILE", "");
+    opts.hostfile = getenv_string("PBS_NODEFILE", "");
     if (opts.hostfile.empty()) {
-        opts.hostfile = getenv_default("APRUN_HOSTFILE", "");
+        opts.hostfile = getenv_string("APRUN_HOSTFILE", "");
     }
     opts.arch = "";
-    opts.wdir = getenv_default("APRUN_WDIR", cti::cstr::getcwd());
+    opts.wdir = getenv_string("APRUN_WDIR", cti::cstr::getcwd());
     opts.path = "";
     opts.file = "";
     opts.configfile = "";
@@ -541,17 +535,17 @@ static void apply_aprun_env(PalsLaunchArgs& opts)
     opts.envlist = "";
     opts.envall = getenv_bool("APRUN_ENVALL", true);
     opts.transfer = getenv_bool("APRUN_TRANSFER", true);
-    opts.cpuBind = getenv_default("APRUN_CPU_BIND", "");
-    opts.memBind = getenv_default("APRUN_MEM_BIND", "");
+    opts.cpuBind = getenv_string("APRUN_CPU_BIND", "");
+    opts.memBind = getenv_string("APRUN_MEM_BIND", "");
     opts.depth = getenv_int("APRUN_DEPTH", 1);
     opts.label = getenv_bool("APRUN_LABEL", false);
-    opts.includeTasks = getenv_default("APRUN_INCLUDE_TASKS", "");
-    opts.excludeTasks = getenv_default("APRUN_EXCLUDE_TASKS", "");
+    opts.includeTasks = getenv_string("APRUN_INCLUDE_TASKS", "");
+    opts.excludeTasks = getenv_string("APRUN_EXCLUDE_TASKS", "");
     opts.exclusive = getenv_bool("APRUN_EXCLUSIVE", false);
     opts.line_buffer = getenv_bool("APRUN_SYNC_TTY", false);
     opts.abort_on_failure = getenv_bool("APRUN_ABORT_ON_FAILURE", true);
-    opts.pmi = getenv_default("APRUN_PMI", "cray");
-    opts.rlimits = getenv_default("APRUN_RLIMITS", "CORE,CPU");
+    opts.pmi = getenv_string("APRUN_PMI", "cray");
+    opts.rlimits = getenv_string("APRUN_RLIMITS", "CORE,CPU");
     opts.fanout = getenv_int("APRUN_FANOUT", 0);
     opts.rpc_timeout = getenv_int("APRUN_RPC_TIMEOUT", -1);
     opts.cmds = {};
@@ -559,33 +553,30 @@ static void apply_aprun_env(PalsLaunchArgs& opts)
     opts.mem_per_pe = getenv_int("APRUN_DEFAULT_MEMORY", 0);
     opts.strict_memory_containment = getenv_bool("APRUN_STRICTMEM",
             false);
-    opts.nodeList = getenv_default("APRUN_NODELIST", "");
-    opts.nodeListFile = getenv_default("APRUN_NODELIST_FILE", "");
-    opts.excludeNodeList = getenv_default("APRUN_EXCLUDE_NODELIST", "");
-    opts.excludeNodeListFile = getenv_default("APRUN_EXCLUDE_NODELIST_FILE", "");
-    opts.envAliases = getenv_default("APRUN_ENV_ALIAS",
+    opts.nodeList = getenv_string("APRUN_NODELIST", "");
+    opts.nodeListFile = getenv_string("APRUN_NODELIST_FILE", "");
+    opts.excludeNodeList = getenv_string("APRUN_EXCLUDE_NODELIST", "");
+    opts.excludeNodeListFile = getenv_string("APRUN_EXCLUDE_NODELIST_FILE", "");
+    opts.envAliases = getenv_string("APRUN_ENV_ALIAS",
         "ALPS_APP_DEPTH:PALS_DEPTH,"
         "ALPS_APP_ID:PALS_APID,"
         "ALPS_APP_PE:PALS_RANKID");
-    opts.procinfoFile = getenv_default("APRUN_PROCINFO_FILE", "");
-    opts.nidFormat = getenv_default("APRUN_NID_FORMAT", "n%03d");
+    opts.procinfoFile = getenv_string("APRUN_PROCINFO_FILE", "");
+    opts.nidFormat = getenv_string("APRUN_NID_FORMAT", "n%03d");
 }
 
-static void apply_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher_args)
+// Call std::stoi, but give a better error message when processing parameters
+static int parameter_stoi(std::string const& str)
 {
-    // Count number of arguments
-    auto launcher_argc = int{0};
-    while (launcher_args[launcher_argc] != nullptr) { launcher_argc++; }
-
-    // Make new argv array with an argv[0] for getopt
-    launcher_argc++;
-    char const* launcher_argv[launcher_argc + 1];
-    launcher_argv[0] = "mpiexec";
-    for (int i = 0; i < launcher_argc; i++) {
-        launcher_argv[i + 1] = launcher_args[i];
+    try {
+        return std::stoi(str);
+    } catch (...) {
+        throw std::invalid_argument("expected numeric argument for parameter, got '" + str + "'");
     }
-    launcher_argv[launcher_argc] = nullptr;
+}
 
+static void apply_mpiexec_args(PalsLaunchArgs& opts, int launcher_argc, char const* const* launcher_argv)
+{
     // mpiexec does not support MPMD mode, all arguments are filled into first command slot
     auto const cmd_idx = int{0};
     opts.cmds.emplace_back(PalsCmdOpts{});
@@ -637,10 +628,10 @@ static void apply_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher
             break;
 
         case args::MpiexecArgv::Np.val:
-            opts.cmds[cmd_idx].np = std::stoi(optarg);
+            opts.cmds[cmd_idx].np = parameter_stoi(optarg);
             break;
         case args::MpiexecArgv::Ppn.val:
-            opts.ppn = std::stoi(optarg);
+            opts.ppn = parameter_stoi(optarg);
             break;
         case args::MpiexecArgv::Soft.val:
             opts.soft = optarg;
@@ -669,7 +660,7 @@ static void apply_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher
             opts.configfile = optarg;
             break;
         case args::MpiexecArgv::Umask.val:
-            opts.cmds[cmd_idx].umask = std::stoi(optarg);
+            opts.cmds[cmd_idx].umask = parameter_stoi(optarg);
             break;
         case args::MpiexecArgv::Env.val:
             opts.env.emplace_back(optarg);
@@ -684,7 +675,7 @@ static void apply_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher
             opts.memBind = optarg;
             break;
         case args::MpiexecArgv::Depth.val:
-            opts.cmds[cmd_idx].depth = std::stoi(optarg);
+            opts.cmds[cmd_idx].depth = parameter_stoi(optarg);
             break;
         case args::MpiexecArgv::IncludeTasks.val:
             opts.includeTasks = optarg;
@@ -713,21 +704,8 @@ static void apply_mpiexec_args(PalsLaunchArgs& opts, char const* const* launcher
     }
 }
 
-static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_args)
+static void apply_aprun_args(PalsLaunchArgs& opts, int launcher_argc, char const* const* launcher_argv)
 {
-    // Count number of arguments
-    auto launcher_argc = int{0};
-    while (launcher_args[launcher_argc] != nullptr) { launcher_argc++; }
-
-    // Make new argv array with an argv[0] for getopt
-    launcher_argc++;
-    char const* launcher_argv[launcher_argc + 1];
-    launcher_argv[0] = "aprun";
-    for (int i = 0; i < launcher_argc; i++) {
-        launcher_argv[i + 1] = launcher_args[i];
-    }
-    launcher_argv[launcher_argc] = nullptr;
-
     // Fill in command array by default, even in non-MPMD mode
     auto cmd_idx = int{0};
     opts.cmds.emplace_back(PalsCmdOpts{});
@@ -770,13 +748,13 @@ static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
         // Parameters
 
         case args::AprunArgv::Pes.val:
-            opts.cmds[cmd_idx].np = std::stoi(optarg);
+            opts.cmds[cmd_idx].np = parameter_stoi(optarg);
             break;
         case args::AprunArgv::PesPerNode.val:
-            opts.ppn = std::stoi(optarg);
+            opts.ppn = parameter_stoi(optarg);
             break;
         case args::AprunArgv::CpusPerPe.val:
-            opts.cmds[cmd_idx].depth = std::stoi(optarg);
+            opts.cmds[cmd_idx].depth = parameter_stoi(optarg);
             break;
         case args::AprunArgv::Wdir.val:
             opts.cmds[cmd_idx].wdir = optarg;
@@ -808,7 +786,7 @@ static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
             opts.env.emplace_back(optarg);
             break;
         case args::AprunArgv::MemoryPerPe.val:
-            opts.mem_per_pe = std::stoi(optarg);
+            opts.mem_per_pe = parameter_stoi(optarg);
             break;
         case args::AprunArgv::Pmi.val:
             opts.pmi = optarg;
@@ -818,10 +796,10 @@ static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
             break;
 
         case args::AprunArgv::Depth.val:
-            opts.cmds[cmd_idx].depth = std::stoi(optarg);
+            opts.cmds[cmd_idx].depth = parameter_stoi(optarg);
             break;
         case args::AprunArgv::Umask.val:
-            opts.cmds[cmd_idx].umask = std::stoi(optarg);
+            opts.cmds[cmd_idx].umask = parameter_stoi(optarg);
             break;
 
         // Ignored by mpiexec
@@ -885,16 +863,16 @@ static void apply_aprun_args(PalsLaunchArgs& opts, char const* const* launcher_a
                 switch (c) {
 
                 case args::AprunMpmdArgv::Pes.val:
-                    opts.cmds[cmd_idx].np = std::stoi(optarg);
+                    opts.cmds[cmd_idx].np = parameter_stoi(optarg);
                     break;
                 case args::AprunMpmdArgv::Wdir.val:
                     opts.cmds[cmd_idx].wdir = optarg;
                     break;
                 case args::AprunArgv::Depth.val:
-                    opts.cmds[cmd_idx].depth = std::stoi(optarg);
+                    opts.cmds[cmd_idx].depth = parameter_stoi(optarg);
                     break;
                 case args::AprunArgv::Umask.val:
-                    opts.cmds[cmd_idx].umask = std::stoi(optarg);
+                    opts.cmds[cmd_idx].umask = parameter_stoi(optarg);
                     break;
 
                 case '?':
@@ -921,22 +899,41 @@ static auto parse_launcher_args(ParseStyle const& parseStyle, char const* const*
 {
     auto palsLaunchArgs = args::PalsLaunchArgs{};
 
+    // Count number of arguments
+    auto launcher_argc = int{0};
+    while (launcher_args[launcher_argc] != nullptr) { launcher_argc++; }
+
+    // Make new argv array with an argv[0] for getopt
+    launcher_argc++;
+    char const* launcher_argv[launcher_argc + 1];
+    launcher_argv[0] = "launcher";
+    for (int i = 0; i < launcher_argc; i++) {
+        launcher_argv[i + 1] = launcher_args[i];
+    }
+    launcher_argv[launcher_argc] = nullptr;
+
     // Tool may have specified how arguments are to be interpreted
     if (parseStyle == ParseStyle::Aprun) {
+
+        // Set name of launcher style
+        launcher_argv[0] = "aprun";
 
         // Parse aprun-compatible environment variables
         args::apply_aprun_env(palsLaunchArgs);
 
         // Skip --aprun flag in parsing
-        args::apply_aprun_args(palsLaunchArgs, launcher_args);
+        args::apply_aprun_args(palsLaunchArgs, launcher_argc, launcher_argv);
 
     } else if (parseStyle == ParseStyle::Mpiexec) {
+
+        // Set name of launcher style
+        launcher_argv[0] = "mpiexec";
 
         // Parse mpiexec-compatible environment variables
         args::apply_mpiexec_env(palsLaunchArgs);
 
         // Skip --mpiexec flag in parsing
-        args::apply_mpiexec_args(palsLaunchArgs, launcher_args);
+        args::apply_mpiexec_args(palsLaunchArgs, launcher_argc, launcher_argv);
 
     }
 
