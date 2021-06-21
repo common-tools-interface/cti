@@ -449,6 +449,39 @@ static bool detect_HPCM()
     }
 }
 
+// Both Shasta / Slurm and Shasta / PALS have the craycli tool installed
+static bool detect_Shasta()
+{
+    try {
+        char const* craycliArgv[] = { "cray", "--version", nullptr };
+
+        // Start craycli
+        auto craycliOutput = cti::Execvp{"cray", (char* const*)craycliArgv, cti::Execvp::stderr::Ignore};
+
+        // Ensure proper version output
+        auto& craycliStream = craycliOutput.stream();
+        std::string line;
+        if (std::getline(craycliStream, line)) {
+            auto const name_correct = (line.substr(0, 4) == "cray");
+            return name_correct;
+        } else {
+            return false;
+        }
+
+        // Check return code
+        if (craycliOutput.getExitStatus() != 0) {
+            return false;
+        }
+
+        // All Shasta checks passed
+        return true;
+
+    } catch(...) {
+        // craycli not installed
+        return false;
+    }
+}
+
 // Check if this is a CS cluster system
 static bool detect_CS()
 {
@@ -804,6 +837,8 @@ static auto detect_System(std::string const& systemSetting)
     // Run available system detection heuristics
     if (detect_HPCM()) {
         return System::HPCM;
+    } else if (detect_Shasta()) {
+        return System::Shasta;
     } else if (detect_CS()) {
         return System::CS;
     }
