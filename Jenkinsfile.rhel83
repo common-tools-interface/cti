@@ -18,5 +18,5 @@ rhel8_3PE {
     agent = 'dst-big-build'
     product = "pe-base"
     receiveEvent = ["cdst_support-rhel8_3-complete-master"]
-    sendEvents = ["cti-centos8-rhel8_3-master"]
+    sendEvents = ["cti-rhel8_3-complete-master"]
 }
