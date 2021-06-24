@@ -35,30 +35,13 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
         rpm-build \
         zlib-devel
     check_exit_status
-elif [[ "$target_pm" == "$cdst_pm_yum" && "$target_os" == "$cdst_os_centos8" ]]; then
+elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
+    if [[ "$target_os" == "$cdst_os_centos8" ]]; then
+      # Note the following will be different on build VMs vs DST. Errors are okay.
+      yum config-manager --set-enabled PowerTools
+      yum config-manager --set-enabled dst-remote-centos8-PowerTools
+    fi
     # Install yum based components
-    # Note the following will be different on build VMs vs DST. Errors are okay.
-    yum config-manager --set-enabled PowerTools
-    yum config-manager --set-enabled dst-remote-centos8-PowerTools
-    yum --assumeyes install \
-        autoconf \
-        autoconf-archive \
-        automake \
-        binutils \
-        binutils-devel \
-        environment-modules \
-        glibc-devel \
-        m4 \
-        make \
-        libtool \
-        rpm-build \
-        zlib-devel \
-        tcl \
-        wget
-    check_exit_status
-elif [[ "$target_pm" == "$cdst_pm_yum" && "$target_os" == "$cdst_os_rhel83" ]]; then
-    # Install yum based components
-    # Note the following will be different on build VMs vs DST. Errors are okay.
     yum --assumeyes install \
         autoconf \
         autoconf-archive \
