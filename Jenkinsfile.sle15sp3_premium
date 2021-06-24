@@ -1,7 +1,7 @@
 /******************************************************************************\
- * Jenkinsfile.sle15sp1_premium - DST Jenkins pipeline for Sles 15 SP1 Shasta
+ * Jenkinsfile.sle15sp3_premium - DST Jenkins pipeline for Sles 15 SP3 Shasta
  *
- * Copyright 2020 Hewlett Packard Enterprise Development LP
+ * Copyright 2021 Hewlett Packard Enterprise Development LP
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -13,9 +13,9 @@
 
 @Library("dst-shared@master") _
 
-sle15sp1PE {
+sle15sp3PE {
     timeout = 30
     product = "pe-base"
-    receiveEvent = ["cdst_support-sles15sp1-complete-master"]
-    sendEvents = ["cti-sles15sp1-complete-master"]
+    receiveEvent = ["cdst_support-sles15sp3-complete-master"]
+    sendEvents = ["cti-sles15sp3-complete-master"]
 }

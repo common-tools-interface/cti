@@ -45,6 +45,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <libgen.h>
 
 #include "useful/cti_useful.h"
 #include "ld_val/ld_val.h"
@@ -74,6 +75,15 @@ take_pointer_ownership(T*&& expiring, Destr&& destructor) -> std::unique_ptr<T, 
     , destructor          // and merely capture a reference to the destructor
     };
 }
+
+// Return value of environment variable, or default string if unset
+inline static auto getenvOrDefault(char const* env_var, char const* default_value)
+{
+    if (char const* env_value = ::getenv(env_var)) {
+        return env_value;
+    }
+    return default_value;
+};
 
 /* cstring wrappers */
 namespace cstr {
@@ -123,6 +133,16 @@ namespace cstr {
             return std::string(baseName);
         } else {
             throw std::runtime_error("basename failed on " + path);
+        }
+    }
+
+    // lifted dirname
+    static inline std::string dirname(std::string const& path) {
+        auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
+        if (auto const dirName = ::dirname(rawPath.get())) {
+            return std::string(dirName);
+        } else {
+            throw std::runtime_error("dirname failed on " + path);
         }
     }
 
@@ -368,6 +388,17 @@ fileHasPerms(char const* filePath, int const perms)
         && !stat(filePath, &st) // make sure this directory exists
         && S_ISREG(st.st_mode)  // make sure it is a regular file
         && !access(filePath, perms); // check that the file has the desired permissions
+}
+
+// Test if a socket has the specified permissions
+static inline bool
+socketHasPerms(char const* socketPath, int const perms)
+{
+    struct stat st;
+    return socketPath != nullptr
+        && !stat(socketPath, &st) // make sure this path exists
+        && S_ISSOCK(st.st_mode)  // make sure it is a socet
+        && !access(socketPath, perms); // check that the file has the desired permissions
 }
 
 // Test if a file exists

@@ -1,21 +1,22 @@
 /******************************************************************************\
- * Jenkinsfile.sle15_premium - DST Jenkins pipeline for Sles 15 Shasta premium
+ * Jenkinsfile.rhel83 - DST Jenkins pipeline for RHEL 8.3
  *
- * Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+ * Copyright 2007-2021 Hewlett Packard Enterprise Development LP
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Hewlett
- * Packard Enterprise Development LP., no part of this work or its content may be
+ * Packard Enterprise Development LP., no part of this work or its content may be 
  * used, reproduced or disclosed in any form.
  *
  ******************************************************************************/
 
 @Library("dst-shared@master") _
 
-sle15PE {
-    timeout = 30
+rhel8_3PE {
+    timeout = 240
+    agent = 'dst-big-build'
     product = "pe-base"
-    receiveEvent = ["cdst_support-complete"]
-    sendEvents = ["cti-complete"]
+    receiveEvent = ["cdst_support-rhel8_3-complete-master"]
+    sendEvents = ["cti-rhel8_3-complete-master"]
 }

@@ -389,6 +389,7 @@ enum class WLM : int
     , Slurm
     , ALPS
     , SSH
+    , Flux
 };
 
 static std::string WLM_to_string(WLM const& wlm)
@@ -399,6 +400,7 @@ static std::string WLM_to_string(WLM const& wlm)
         case WLM::Slurm:   return "Slurm";
         case WLM::ALPS:    return "ALPS";
         case WLM::SSH:     return "SSH";
+        case WLM::Flux:    return "Flux";
         default: assert(false);
     }
 }
@@ -443,6 +445,39 @@ static bool detect_HPCM()
 
     } catch(...) {
         // cminfo not installed
+        return false;
+    }
+}
+
+// Both Shasta / Slurm and Shasta / PALS have the craycli tool installed
+static bool detect_Shasta()
+{
+    try {
+        char const* craycliArgv[] = { "cray", "--version", nullptr };
+
+        // Start craycli
+        auto craycliOutput = cti::Execvp{"cray", (char* const*)craycliArgv, cti::Execvp::stderr::Ignore};
+
+        // Ensure proper version output
+        auto& craycliStream = craycliOutput.stream();
+        std::string line;
+        if (std::getline(craycliStream, line)) {
+            auto const name_correct = (line.substr(0, 4) == "cray");
+            return name_correct;
+        } else {
+            return false;
+        }
+
+        // Check return code
+        if (craycliOutput.getExitStatus() != 0) {
+            return false;
+        }
+
+        // All Shasta checks passed
+        return true;
+
+    } catch(...) {
+        // craycli not installed
         return false;
     }
 }
@@ -594,6 +629,32 @@ static bool detect_XC_ALPS(std::string const& launcherName)
     }
 }
 
+static bool detect_Flux(std::string const& launcherName)
+{
+    auto const launcher_name = !launcherName.empty() ? launcherName.c_str() : "flux";
+
+    try {
+        // Check that flux version succeeds
+        auto fluxArgv = cti::ManagedArgv{launcher_name, "--version"};
+        auto fluxOutput = cti::Execvp{launcher_name, fluxArgv.get(), cti::Execvp::stderr::Ignore};
+
+        // Wait for flux to complete
+        if (fluxOutput.getExitStatus()) {
+            return false;
+        }
+
+        // Look for Flux socket information in environment
+        if (auto const flux_uri = ::getenv(FLUX_URI)) {
+            return true;
+
+        } else {
+            return false;
+        }
+    } catch (...) {
+        return false;
+    }
+}
+
 // Verify that the provided launcher is a binary and contains MPIR symbols
 static bool verify_MPIR_symbols(System const& system, WLM const& wlm, std::string const& launcherName)
 {
@@ -693,6 +754,64 @@ static bool verify_SSH_configured(System const& system, WLM const& wlm, std::str
     return true;
 }
 
+static bool verify_Flux_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+{
+#if HAVE_FLUX
+
+    auto const launcher_name = !launcherName.empty() ? launcherName : "flux";
+
+    // Look for Flux socket information in environment
+    if (auto const flux_uri = ::getenv(FLUX_URI)) {
+
+        auto fluxSocketPath = std::string{flux_uri};
+
+        // Ensure socket is readable if local
+        { auto const sep = fluxSocketPath.find("://");
+
+            if (sep == std::string::npos) {
+                throw std::runtime_error("Could not parse Flux API socket information. \
+FLUX_URI contained '" + fluxSocketPath + "', expected format 'protocol://socket_path' \
+(tried " + format_System_WLM(system, wlm) + ")");
+            }
+
+            auto const protocol = fluxSocketPath.substr(0, sep);
+            fluxSocketPath = fluxSocketPath.substr(sep + 3);
+
+            if (protocol == "local") {
+
+                // Ensure socket exists and is readable
+                if (!cti::socketHasPerms(fluxSocketPath.c_str(), R_OK | W_OK)) {
+                    throw std::runtime_error("The Flux API socket at " + fluxSocketPath + " is \
+inaccessible, or lacks permissions for reading and writing by the current user \
+(tried " + format_System_WLM(system, wlm) + ")");
+                }
+            }
+        }
+
+    } else {
+        throw std::runtime_error("No Flux API socket information was found in the environment \
+(FLUX_URI was empty). Ensure that a Flux session has been started, and that tool launch was \
+initiated inside the Flux session. \
+(tried " + format_System_WLM(system, wlm) + ")");
+    }
+
+    // Find path to libflux
+    auto const libFluxPath = FluxFrontend::findLibFluxPath(launcher_name);
+
+    // Verify libflux is accessible
+    if (!cti::fileHasPerms(libFluxPath.c_str(), R_OK)) {
+        throw std::runtime_error("Could not access libflux at '" + libFluxPath + "'. Ensure that the path \
+is accessible, or try setting the environment variable " LIBFLUX_PATH_ENV_VAR " to the libflux library path \
+(tried " + format_System_WLM(system, wlm) + ")");
+    }
+
+    return true;
+
+#else
+    return false;
+#endif
+}
+
 } // anonymous namespace
 
 static auto detect_System(std::string const& systemSetting)
@@ -718,6 +837,8 @@ static auto detect_System(std::string const& systemSetting)
     // Run available system detection heuristics
     if (detect_HPCM()) {
         return System::HPCM;
+    } else if (detect_Shasta()) {
+        return System::Shasta;
     } else if (detect_CS()) {
         return System::CS;
     }
@@ -738,6 +859,8 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
             return WLM::Slurm;
         } else if (wlmSetting == "pals") {
             return WLM::PALS;
+        } else if (wlmSetting == "flux") {
+            return WLM::Flux;
         } else {
             throw std::runtime_error("invalid WLM setting for " CTI_WLM_IMPL_ENV_VAR ": '"
                 + wlmSetting + "'");
@@ -780,14 +903,21 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
     // Run WLM detection heuristics that may depend on system type
     switch (system) {
 
+    case System::Unknown:
     case System::Linux:
-        return WLM::SSH;
+        if (detect_Flux(launcherName)) {
+            return WLM::Flux;
+        } else {
+            return WLM::SSH;
+        }
 
     case System::HPCM:
         if (detect_Slurm(launcherName)) {
             return WLM::Slurm;
         } else if (detect_HPCM_PALS(launcherName)) {
             return WLM::PALS;
+        } else if (detect_Flux(launcherName)) {
+            return WLM::Flux;
         } else {
             return WLM::Unknown;
         }
@@ -797,6 +927,8 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
             return WLM::Slurm;
         } else if (detect_Shasta_PALS(launcherName)) {
             return WLM::PALS;
+        } else if (detect_Flux(launcherName)) {
+            return WLM::Flux;
         } else {
             return WLM::Unknown;
         }
@@ -811,7 +943,11 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
         }
 
     case System::CS:
-        return WLM::SSH;
+        if (detect_Slurm(launcherName)) {
+            return WLM::Slurm;
+        } else {
+            return WLM::SSH;
+        }
 
     default:
         break;
@@ -858,9 +994,13 @@ static void verify_System_WLM_configured(System const& system, WLM const& wlm, s
         verify_SSH_configured(system, wlm, launcherName);
         break;
 
+    case WLM::Flux:
+        verify_Flux_configured(system, wlm, launcherName);
+        break;
+
     default:
         // TODO: write instructions on how to use the CTI diagnostic utility
-        throw std::runtime_error("Could not detect either a PALS, Slurm, ALPS, or generic MPIR-compliant WLM. Manually set " CTI_WLM_IMPL_ENV_VAR" env var \
+        throw std::runtime_error("Could not detect either a PALS, Slurm, ALPS, Flux, or generic MPIR-compliant WLM. Manually set " CTI_WLM_IMPL_ENV_VAR" env var \
 (tried " + format_System_WLM(system, wlm) + ")");
     }
 }
@@ -893,6 +1033,15 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 
     } else if (wlm == WLM::SSH) {
         return new GenericSSHFrontend{};
+
+    } else if (wlm == WLM::Flux) {
+#if HAVE_FLUX
+        return new FluxFrontend{};
+#else
+        throw std::runtime_error("Flux support was not configured for this build of CTI \
+(tried " + format_System_WLM(system, wlm) + ")");
+
+#endif
 
     } else {
         assert(false);

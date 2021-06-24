@@ -891,12 +891,39 @@ typedef struct {
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
- *
+ *-----------------------------------------------------------------------------
  */
 typedef struct {
     cti_app_id_t    (*registerJob)(pid_t launcher_pid);
     cti_app_id_t    (*registerRemoteJob)(char const* hostname, pid_t launcher_pid);
+    cti_app_id_t    (*registerLauncherPid)(pid_t launcher_pid);
 } cti_ssh_ops_t;
+
+/*-----------------------------------------------------------------------------
+ * cti_flux_ops extensions - Extensions for the Flux WLM
+ *-----------------------------------------------------------------------------
+ * registerJob - Registers an already running application for use with the
+ *               common tools interface.
+ *
+ * Detail
+ *      This function is used for registering a valid application that was
+ *      previously launched through external means for use with the tool
+ *      interface. It is recommended to use the built-in functions to launch
+ *      applications, however sometimes this is impossible (such is the case for
+ *      a debug attach scenario).
+ *
+ * Arguments
+ *      job_id - The ID string of the Flux job to which to attach
+ *
+ * Returns
+ *      A cti_app_id_t that contains the ID registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ *-----------------------------------------------------------------------------
+ */
+
+typedef struct {
+    cti_app_id_t    (*registerJob)(char const* job_id);
+} cti_flux_ops_t;
 
 /*******************************************************************************
  * Transfer functions - Functions related to shipping files, shared libraries,

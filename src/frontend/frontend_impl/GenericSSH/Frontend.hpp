@@ -162,6 +162,10 @@ public: // inherited interface
 
 public: // PALS-specific interface
 
+    // Register job by launcher PID, for tools such as ATP for HPCM PALS that need
+    // to start before the job ID is created, but attach after the job starts
+    std::weak_ptr<App> registerLauncherPid(pid_t launcher_pid);
+
     // Detect and attach to job running on either this or remote machine (e.g. compute node)
     std::weak_ptr<App> registerRemoteJob(char const* job_id);
 };

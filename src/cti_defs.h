@@ -63,7 +63,7 @@ extern "C" {
 ** Frontend defines relating to the login node
 *******************************************************************************/
 #define WLM_DETECT_LIB_NAME "libwlm_detect.so" // wlm_detect library
-#define LD_AUDIT_LIB_NAME       "libaudit.so"                       // ld audit library
+#define LD_AUDIT_LIB_NAME       "libctiaudit.so"                       // ld audit library
 
 /*******************************************************************************
 ** Backend defines relating to the compute node
@@ -137,6 +137,11 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_LAYOUT_FILE     SLURM_LAYOUT_FILE
 #define SSH_PID_FILE        SLURM_PID_FILE
 #define SSH_TOOL_DIR        SLURM_TOOL_DIR
+#define SSH_DIR_ENV_VAR     "CTI_SSH_DIR"
+#define SSH_KNOWNHOSTS_PATH_ENV_VAR     "CTI_SSH_KNOWNHOSTS_PATH"
+#define SSH_PASSPHRASE_ENV_VAR      "CTI_SSH_PASSPHRASE"
+#define SSH_PRIKEY_PATH_ENV_VAR     "CTI_SSH_PRIKEY_PATH"
+#define SSH_PUBKEY_PATH_ENV_VAR     "CTI_SSH_PUBKEY_PATH"
 
 /*******************************************************************************
 ** ALPS specific information
@@ -165,6 +170,14 @@ typedef slurmPidFile_t          cti_pidFile_t;
 
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
 #define PALS_DEBUG "CTI_PALS_DEBUG" // Manually enables PALS frontend and uses localhost as API server without authentication
+
+/*******************************************************************************
+** Flux specific information
+*******************************************************************************/
+
+#define FLUX_URI "FLUX_URI"
+#define LIBFLUX_PATH_ENV_VAR "LIBFLUX_PATH"
+#define LIBFLUX_NAME "libflux-core.so.2"
 
 /*
 ** HPCM specific information
