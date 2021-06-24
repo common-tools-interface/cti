@@ -98,20 +98,20 @@
 
 # Dist tags for SuSE need to be manually set
 %if 0%{?suse_version}
-%if 0%{?sle_version} == 150000
-%global dist .sles15
-%global OS_HW_TAG 7.0,7.1,7.2
-%global OS_WB_TAG sles15
-%endif
 %if 0%{?sle_version} == 150100
 %global dist .sles15sp1
-%global OS_HW_TAG 7.0,7.1,7.2
-%global OS_WB_TAG sles15
+%global OS_HW_TAG 7.0
+%global OS_WB_TAG sles15sp1
 %endif
 %if 0%{?sle_version} == 150200
 %global dist .sles15sp2
-%global OS_HW_TAG 7.2
+%global OS_HW_TAG 7.0
 %global OS_WB_TAG sles15sp2
+%endif
+%if 0%{?sle_version} == 150300
+%global dist .sles15sp3
+%global OS_HW_TAG 7.0
+%global OS_WB_TAG sles15sp3
 %endif
 %endif
 
@@ -194,7 +194,7 @@ Test files for Cray Common Tools Interface
 %{__cp} -a ${RPM_BUILD_DIR}/%{attributions_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
 # Libraries
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
-%{__cp} -a %{external_build_dir}/lib/libaudit.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
+%{__cp} -a %{external_build_dir}/lib/libctiaudit.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_be.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_fe.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 # Libraries static
@@ -490,7 +490,7 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libaudit.so
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libctiaudit.so
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_be.so*
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_fe.so*
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_be_daemon%{pkgversion}

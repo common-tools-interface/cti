@@ -312,11 +312,62 @@ public: // Constructor/destructor
             throw std::runtime_error("Failure initializing knownhost file");
         }
 
-        // read all hosts from here
-        std::string const known_hosts_path{std::string{m_pwd.pw_dir} + "/.ssh/known_hosts"};
-        rc = libssh2_knownhost_readfile(known_host_ptr.get(), known_hosts_path.c_str(), LIBSSH2_KNOWNHOST_FILE_OPENSSH);
+        // Detect usable SSH directory
+        auto sshDir = std::string{m_pwd.pw_dir} + "/.ssh/";
+
+        // Determine if default SSH directory should be overridden (default is ~/.ssh)
+        if (auto const ssh_dir = ::getenv(SSH_DIR_ENV_VAR)) {
+
+            if (!cti::dirHasPerms(ssh_dir, R_OK | X_OK)) {
+                throw std::runtime_error("Default SSH keyfile directory " + sshDir + " \
+was overridden by setting the environment variable " SSH_DIR_ENV_VAR " to " + ssh_dir + " \
+, but the directory was not readable / executable. Ensure the directory exists and has \
+permission code 700.");
+            }
+
+            sshDir = ssh_dir;
+        }
+
+        // Verify SSH directory permissions
+        if (!cti::dirHasPerms(sshDir.c_str(), R_OK | X_OK)) {
+            throw std::runtime_error("The SSH keyfile directory at " + sshDir + " \
+is not readable / executable. Ensure the directory exists and has permission code 700. \
+If your system is configured to use a non-default SSH directory, it can be overridden \
+by setting the environment variable " SSH_DIR_ENV_VAR " to the SSH directory path.");
+        }
+
+        // Detect usable knownhosts file
+        auto knownHostsPath = sshDir + "/known_hosts";
+
+        // Determine if knownhosts path should be overridden (default is <sshDir>/known_hosts
+        if (auto const known_hosts_path = ::getenv(SSH_KNOWNHOSTS_PATH_ENV_VAR)) {
+
+            if (!cti::fileHasPerms(known_hosts_path, R_OK)) {
+                throw std::runtime_error("Default SSH known hosts path \
+" + knownHostsPath + " was overridden by setting the environment variable \
+" SSH_DIR_ENV_VAR " to " + known_hosts_path + ", but the file was not readable. Ensure \
+the file exists and has permission code 600.");
+            }
+
+            knownHostsPath = known_hosts_path;
+        }
+
+        // Verify known_hosts permissions
+        if (!cti::fileHasPerms(knownHostsPath.c_str(), R_OK)) {
+            throw std::runtime_error("The SSH known hosts file at " + knownHostsPath + " \
+is not readable. Ensure the file exists and has permission code 600. If your system is \
+configured to use a non-default SSH known_hosts file, it can be overridden by setting \
+the environment variable " SSH_KNOWNHOSTS_PATH_ENV_VAR " to the known hosts file path.");
+        }
+
+        // Read known_hosts
+        rc = libssh2_knownhost_readfile(known_host_ptr.get(), knownHostsPath.c_str(), LIBSSH2_KNOWNHOST_FILE_OPENSSH);
         if (rc < 0) {
-            throw std::runtime_error("Failure reading knownhost file");
+            throw std::runtime_error("The SSH known hosts file at " + knownHostsPath + " \
+failed to parse correctly. Ensure the file exists and is formatted correctly. If your \
+system is configured to use a non-default SSH known_hosts file, it can be overridden \
+by setting the environment variable " SSH_KNOWNHOSTS_PATH_ENV_VAR " to the known hosts file \
+ path.");
         }
 
         // obtain the session hostkey fingerprint
@@ -385,37 +436,120 @@ public: // Constructor/destructor
             catch (std::exception const& ex) {
                 // ignore exceptions from SSHAgent - we fallback on other mechanisms
             }
-            auto keyFileAuth = [&](std::string const& pubKeyPath, std::string const& priKeyPath) {
-                if (cti::pathExists(pubKeyPath.c_str()) && cti::pathExists(priKeyPath.c_str())) {
-                    // Try authenticating with an empty passphrase
-                    int rc = LIBSSH2_ERROR_EAGAIN;
-                    while (rc == LIBSSH2_ERROR_EAGAIN) {
-                        rc = libssh2_userauth_publickey_fromfile(m_session_ptr.get(),
-                                                                 username.c_str(),
-                                                                 pubKeyPath.c_str(),
-                                                                 priKeyPath.c_str(),
-                                                                 nullptr);
+
+            // Detect usable public / private key file
+            auto tryAuthKeyfilePair = [](LIBSSH2_SESSION* session, std::string const& username, std::string const& defaultPublickeyPath, std::string const& defaultPrivatekeyPath) {
+
+                auto publickeyPath = defaultPublickeyPath;
+                auto privatekeyPath = defaultPrivatekeyPath;
+
+                // Determine if public keyfile path should be overridden
+                if (auto const pubkey_path = ::getenv(SSH_PUBKEY_PATH_ENV_VAR)) {
+
+                    if (!cti::fileHasPerms(pubkey_path, R_OK)) {
+                        throw std::runtime_error("Default SSH public key path \
+" + publickeyPath + " was overridden by setting the environment variable \
+" SSH_PUBKEY_PATH_ENV_VAR " to " + pubkey_path + ", but the file was not readable. \
+Ensure the file exists and has permission code 644.");
                     }
-                    return rc;
-                } else {
-                    return -1;
+
+                    publickeyPath = pubkey_path;
                 }
+
+                // Verify public key exists
+                if (!cti::pathExists(publickeyPath.c_str())) {
+                    return false;
+                }
+
+                // Verify public key permissions
+                if (!cti::fileHasPerms(publickeyPath.c_str(), R_OK)) {
+                    throw std::runtime_error("The SSH public key file at \
+" + publickeyPath + " is not readable. Ensure the file exists and has permission code \
+644. If your system is configured to use a non-default SSH public key file, it can be \
+overridden by setting the environment variable " SSH_PUBKEY_PATH_ENV_VAR " to the public \
+key file path.");
+                }
+
+                // Determine if private keyfile path should be overridden
+                if (auto const prikey_path = ::getenv(SSH_PRIKEY_PATH_ENV_VAR)) {
+
+                    if (!cti::fileHasPerms(prikey_path, R_OK)) {
+                        throw std::runtime_error("Default SSH private key path \
+" + privatekeyPath + " was overridden by setting the environment variable \
+" SSH_PRIKEY_PATH_ENV_VAR " to " + prikey_path + ", but the file was not readable. \
+Ensure the file exists and has permission code 600.");
+                    }
+
+                    privatekeyPath = prikey_path;
+                }
+
+                // Verify private key exists
+                if (!cti::pathExists(privatekeyPath.c_str())) {
+                    return false;
+                }
+
+                // Verify private key permissions
+                if (!cti::fileHasPerms(privatekeyPath.c_str(), R_OK)) {
+                    throw std::runtime_error("The SSH private key file at \
+" + privatekeyPath + " is not readable. Ensure the file exists and has permission code \
+600. If your system is configured to use a non-default SSH private key file, it can be \
+overridden by setting the environment variable " SSH_PRIKEY_PATH_ENV_VAR " to the private \
+key file path.");
+                }
+
+                // Read passphrase from environment. If unset, null pointer is interpreted
+                // as no passphrase by libssh2_userauth_publickey_fromfile
+                auto const ssh_passphrase = ::getenv(SSH_PASSPHRASE_ENV_VAR);
+
+                // Attempt to authenticate using public / private keys
+                int rc = LIBSSH2_ERROR_EAGAIN;
+                while (rc == LIBSSH2_ERROR_EAGAIN) {
+                    rc = libssh2_userauth_publickey_fromfile(session,
+                        username.c_str(), publickeyPath.c_str(), privatekeyPath.c_str(),
+                        ssh_passphrase);
+                }
+
+                // Check return code
+                if (rc < 0) {
+
+                    // Get libssh2 error information
+                    char *libssh2_error_ptr = nullptr;
+                    libssh2_session_last_error(session, &libssh2_error_ptr, nullptr, true);
+                    auto const libssh2ErrorStr = std::string{ (libssh2_error_ptr)
+                        ? libssh2_error_ptr
+                        : "no error information available"
+                    };
+
+                    throw std::runtime_error(" \
+Failed to authenticate using the username " + username + ", SSH public \
+key file at " + publickeyPath + " and private key file at " + privatekeyPath + " . \
+If these paths are not correct, they can be overridden by setting the environment \
+variables " SSH_PUBKEY_PATH_ENV_VAR " and " SSH_PRIKEY_PATH_ENV_VAR " . If a passhrase \
+is required to unlock the keys, it can be provided by setting the environment variable \
+" SSH_PASSPHRASE_ENV_VAR " (" + libssh2ErrorStr + ")");
+                }
+
+                // Authentication was successful
+                return true;
             };
-            int rc;
-            rc = keyFileAuth(std::string{m_pwd.pw_dir} + "/.ssh/id_rsa.pub",
-                std::string{m_pwd.pw_dir} + "/.ssh/id_rsa");
-            if (!rc) {
+
+            // Attempt authentication using RSA and DSA keys
+            if (tryAuthKeyfilePair(m_session_ptr.get(), username,
+                sshDir + "/id_rsa.pub", sshDir + "/id_rsa")) {
+                return;
+            } else if (tryAuthKeyfilePair(m_session_ptr.get(), username,
+                sshDir + "/id_dsa.pub", sshDir + "/id_dsa")) {
                 return;
             }
-            rc = keyFileAuth(std::string{m_pwd.pw_dir} + "/.ssh/id_dsa.pub",
-                std::string{m_pwd.pw_dir} + "/.ssh/id_dsa");
-            if (!rc) {
-                return;
-            }
+
+            throw std::runtime_error("Failed to detect SSH key files in \
+" + sshDir + " . These paths can be specified by setting the environment \
+variables " SSH_PUBKEY_PATH_ENV_VAR " and " SSH_PRIKEY_PATH_ENV_VAR " . If a passhrase \
+is required to unlock the keys, it can be provided by setting the environment variable \
+" SSH_PASSPHRASE_ENV_VAR " . CTI requires passwordless (public key) SSH authentication \
+to compute nodes. If passwordless SSH access to compute nodes is unavailable, \
+contact your system adminstrator.");
         }
-        // TODO: Any other valid authentication mechanisms? We don't want to use keyboard interactive
-        //       from a library.
-        throw std::runtime_error("No supported ssh authentication mechanism found. CTI requires passwordless (public key) SSH authentication to the compute nodes. Contact your system adminstrator.");
     }
 
     ~SSHSession() = default;
@@ -819,15 +953,8 @@ GenericSSHFrontend::getHostname() const
 std::string
 GenericSSHFrontend::getLauncherName()
 {
-    auto getenvOrDefault = [](char const* envVar, char const* defaultValue) {
-        if (char const* envValue = getenv(envVar)) {
-            return envValue;
-        }
-        return defaultValue;
-    };
-
     // Cache the launcher name result. Assume mpiexec by default.
-    auto static launcherName = std::string{getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "mpiexec")};
+    auto static launcherName = std::string{cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "mpiexec")};
     return launcherName;
 }
 
@@ -1158,11 +1285,16 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
 }
 
 std::weak_ptr<App>
+ApolloPALSFrontend::registerLauncherPid(pid_t launcher_pid)
+{
+    return GenericSSHFrontend::registerJob(1, launcher_pid);
+}
+
+std::weak_ptr<App>
 ApolloPALSFrontend::registerRemoteJob(char const* job_id)
 {
     // Job ID is either in format <job_id> or <job_id>.<launcher_pid>
     auto const [jobId, launcherPidString] = cti::split::string<2>(job_id, '.');
-    fprintf(stderr, "'%s' job id '%s' launcher pid '%s'\n", job_id, jobId.c_str(), launcherPidString.c_str());
 
     // Find head node hostname for given job ID
     auto const hostname = find_job_host(jobId);
@@ -1259,9 +1391,8 @@ ApolloPALSFrontend::getHostname() const
             return gbeAddress;
         }
 
-        throw std::runtime_error("Failed to detect the address for this HPCM PALS node \
-using `cminfo --head_ip` or `cminfo --gbe_ip`. Set the environment variable \
-" CTI_HOST_ADDRESS_ENV_VAR " to an address for this node accessible from the system's compute nodes");
+        // Fall back to `gethostname`
+        return cti::cstr::gethostname();
     }();
 
     return nodeAddress;

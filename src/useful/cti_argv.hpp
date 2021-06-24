@@ -101,12 +101,12 @@ struct Argv {
     static constexpr GNUOption long_options_done { nullptr, 0, nullptr, 0 };
 
     struct Option : public GNUOption {
-        explicit constexpr Option(const char* longFlag, char shortFlag) :
+        explicit constexpr Option(const char* longFlag, int shortFlag) :
             GNUOption { longFlag, no_argument, nullptr, shortFlag } {}
     };
 
     struct Parameter : public GNUOption {
-        explicit constexpr Parameter(const char* longFlag, char shortFlag) :
+        explicit constexpr Parameter(const char* longFlag, int shortFlag) :
             GNUOption { longFlag, required_argument, nullptr, shortFlag } {}
     };
 
@@ -167,9 +167,11 @@ public:
     {
         for (const Argv::GNUOption* opt_ptr = ArgvDef::long_options;
             opt_ptr->val != 0; opt_ptr++) {
-            m_flagSpec.push_back((char)(opt_ptr->val));
-            if (opt_ptr->has_arg != no_argument) {
-                m_flagSpec.push_back(':');
+            if (::isalpha(opt_ptr->val)) {
+                m_flagSpec.push_back((char)(opt_ptr->val));
+                if (opt_ptr->has_arg != no_argument) {
+                    m_flagSpec.push_back(':');
+                }
             }
         }
     }
@@ -188,6 +190,10 @@ public:
 
     char* const* get_rest() {
         return m_argv + m_optind;
+    }
+
+    int get_rest_argc() {
+        return m_argc - m_optind;
     }
 };
 

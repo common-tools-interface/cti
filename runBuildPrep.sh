@@ -17,6 +17,7 @@ echo "############################################"
 echo "#             Installing deps              #"
 echo "############################################"
 target_pm=$(get_pm)
+target_os=$(get_os)
 if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
     # Install zypper based dependencies
     zypper --non-interactive install \
@@ -29,11 +30,12 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
         m4 \
         make \
         make-lang \
+        mksh \
         libtool \
         rpm-build \
         zlib-devel
     check_exit_status
-elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
+elif [[ "$target_pm" == "$cdst_pm_yum" && "$target_os" == "$cdst_os_centos8" ]]; then
     # Install yum based components
     # Note the following will be different on build VMs vs DST. Errors are okay.
     yum config-manager --set-enabled PowerTools
@@ -41,6 +43,25 @@ elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
     yum --assumeyes install \
         autoconf \
         autoconf-archive \
+        automake \
+        binutils \
+        binutils-devel \
+        environment-modules \
+        glibc-devel \
+        m4 \
+        make \
+        libtool \
+        rpm-build \
+        zlib-devel \
+        tcl \
+        wget
+    check_exit_status
+elif [[ "$target_pm" == "$cdst_pm_yum" && "$target_os" == "$cdst_os_rhel83" ]]; then
+    # Install yum based components
+    # Note the following will be different on build VMs vs DST. Errors are okay.
+    yum subscription-manager repos --enable codeready-builder-for-rhel-8-x86_64-rpms
+    yum --assumeyes install \
+        autoconf \
         automake \
         binutils \
         binutils-devel \

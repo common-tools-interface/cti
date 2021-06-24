@@ -29,7 +29,12 @@
 
 #pragma once
 
+#include <config.h>
+
 #include "ALPS/Frontend.hpp"
 #include "SLURM/Frontend.hpp"
 #include "PALS/Frontend.hpp"
 #include "GenericSSH/Frontend.hpp"
+#if HAVE_FLUX
+#include "Flux/Frontend.hpp"
+#endif
