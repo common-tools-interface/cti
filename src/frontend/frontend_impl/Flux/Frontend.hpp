@@ -98,8 +98,13 @@ public: // constructor / destructor interface
 class FluxApp final : public App
 {
 private: // variables
+    FluxFrontend::flux_t* m_fluxHandle;
     FluxFrontend::LibFlux& m_libFluxRef;
     uint64_t m_jobId;
+
+    int m_leaderRank;
+    std::string m_rpcService;
+
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
     size_t m_numPEs;
     std::vector<CTIHost> m_hostsPlacement;
