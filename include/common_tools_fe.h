@@ -581,6 +581,41 @@ cti_app_id_t cti_launchApp( const char * const  launcher_argv[],
                             const char * const  env_list[]);
 
 /*
+ * cti_launchApp_fd - Same as cti_launchApp, but taking a file descriptor
+ *                    input parameter instead of an input file path.
+ *
+ * Arguments
+ *      launcher_argv -  A null terminated list of arguments to pass directly to
+ *                       the launcher. This differs from a traditional argv in
+ *                       the sense that launcher_argv[0] is the start of the
+ *                       actual arguments passed to the launcher and not the
+ *                       name of launcher itself.
+ *      stdout_fd -      The file descriptor opened for writing to redirect
+ *                       stdout to or -1 if no redirection should take place.
+ *      stderr_fd -      The file descriptor opened for writing to redirect
+ *                       stderr to or -1 if no redirection should take place.
+ *      stdin_fd  -      The file descriptor from which to redirect stdin or
+ *                       -1 if no redirection should take place. If -1,
+ *                       /dev/null will be used for stdin.
+ *      chdirPath -      The path to change the current working directory to or
+ *                       NULL if no cd should take place.
+ *      env_list -       A null terminated list of strings of the form
+ *                       "name=value". The name in the environment will be set
+ *                       to value.
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ *
+ */
+cti_app_id_t cti_launchApp_fd( const char * const  launcher_argv[],
+                              int                 stdout_fd,
+                              int                 stderr_fd,
+                              int                 stdin_fd,
+                              const char *        chdirPath,
+                              const char * const  env_list[]);
+
+/*
  * cti_launchAppBarrier - Start an application using the application launcher
  *                        and have the launcher hold the application at its
  *                        startup barrier for MPI/SHMEM/UPC/CAF applications.
@@ -614,6 +649,25 @@ cti_app_id_t cti_launchAppBarrier(  const char * const  launcher_argv[],
                                     const char *        inputFile,
                                     const char *        chdirPath,
                                     const char * const  env_list[]);
+
+/*
+ * cti_launchAppBarrier_fd - Same as cti_launchAppBarrier, but taking a
+ *                           file descriptor input parameter instead of
+ *                           an input file path.
+ * Arguments
+ *      See the cti_launchApp_fd description for more information.
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ *
+ */
+cti_app_id_t cti_launchAppBarrier_fd(   const char * const  launcher_argv[],
+                                        int                 stdout_fd,
+                                        int                 stderr_fd,
+                                        int                 stdin_fd,
+                                        const char *        chdirPath,
+                                        const char * const  env_list[]);
 
 /*
  * cti_releaseAppBarrier - Release the application launcher launched with the
