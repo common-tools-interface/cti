@@ -224,7 +224,7 @@ static auto make_hostsPlacement(pt::ptree const& root)
        Finally, nodes 1 through 3 will have 1 PE each, and node 8 will have 2
     */
 
-    auto hostPECount = std::unordered_map<std::string, size_t>{};
+    auto hostPECount = std::map<std::string, size_t>{};
 
     // { "hosts": { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] } }
     for (auto&& prefixListArrayPair : root.get_child("hosts")) {
@@ -403,8 +403,8 @@ uint64_t FluxFrontend::launchApp(const char* const launcher_args[],
     auto const outputPath = (stdout_fd >= 0)
         ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stdout_fd)
         : std::string{};
-    auto const errorPath = (stdout_fd >= 0)
-        ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stdout_fd)
+    auto const errorPath = (stderr_fd >= 0)
+        ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stderr_fd)
         : std::string{};
 
     // Generate jobspec string
