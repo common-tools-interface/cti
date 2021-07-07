@@ -47,11 +47,22 @@
 
 #include <flux/core.h>
 
+// Boost JSON
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/algorithm/string/replace.hpp>
+
+// Boost array stream
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/stream.hpp>
+
 #include "useful/cti_execvp.hpp"
 #include "useful/cti_hostname.hpp"
 #include "useful/cti_split.hpp"
 
 #include "LibFlux.hpp"
+
+namespace pt = boost::property_tree;
 
 /* helper functions */
 
@@ -62,10 +73,27 @@
 
 // Leverage Flux's dry-run mode to generate jobspec for API
 static std::string make_jobspec(char const* launcher_name, char const* const launcher_args[],
-    char const* const env_list[])
+    std::string const& inputPath, std::string const& outputPath, std::string const& errorPath,
+    std::string const& chdirPath, char const* const env_list[])
 {
     // Build Flux dry run arguments
     auto fluxArgv = cti::ManagedArgv { launcher_name, "mini", "run", "--dry-run" };
+
+    // Add input / output / error files, if provided
+    if (!inputPath.empty()) {
+        fluxArgv.add("--input=" + inputPath);
+    }
+    if (!outputPath.empty()) {
+        fluxArgv.add("--output=" + outputPath);
+    }
+    if (!errorPath.empty()) {
+        fluxArgv.add("--error=" + errorPath);
+    }
+
+    // Add cwd attribute for working directory, if provided
+    if (!chdirPath.empty()) {
+        fluxArgv.add("--setattr=system.cwd=" + chdirPath);
+    }
 
     // Add environment arguments, if provided
     if (env_list != nullptr) {
@@ -91,6 +119,162 @@ static std::string make_jobspec(char const* launcher_name, char const* const lau
     if (fluxOutput.getExitStatus() != 0) {
         throw std::runtime_error("The Flux launcher failed to validate the provided launcher \
 arguments: \n" + result);
+    }
+
+    return result;
+}
+
+static auto parseJson(std::string const& json)
+{
+    // Create stream from string source
+    auto jsonSource = boost::iostreams::array_source{json.c_str(), json.length()};
+    auto jsonStream = boost::iostreams::stream<boost::iostreams::array_source>{jsonSource};
+
+    auto root = pt::ptree{};
+    try {
+        pt::read_json(jsonStream, root);
+    } catch (pt::json_parser::json_parser_error const& parse_ex) {
+        throw std::runtime_error("failed to parse JSON response: " + json);
+    }
+
+    return root;
+}
+
+struct Empty {};
+struct Range
+    { int64_t start, end;
+};
+struct RLE
+    { int64_t value, count;
+};
+using RangeList = std::variant<Empty, Range, RLE>;
+
+// Read next rangelist object and return new Range / RLE state
+static auto parseRangeList(pt::ptree const& root, int64_t base)
+{
+    // Single element will be interpreted as a range of size 1
+    if (!root.data().empty()) {
+        return RangeList { RLE
+            { .value = root.get_value<int64_t>()
+            , .count = 1
+        } };
+    }
+
+    // Multiple elements must be size 2 for range
+    if (root.size() != 2) {
+        throw std::runtime_error("Flux API rangelist must have size 2");
+    }
+
+    auto cursor = root.begin();
+
+    // Add base offset to range start / RLE value
+    auto const first = base + (cursor++)->second.get_value<int>();
+    auto const second = (cursor++)->second.get_value<int>();
+
+    // Negative first element indicates empty range
+    if (first < 0) {
+        return RangeList { Empty{} };
+    }
+
+    // Negative second element indicates run length encoding
+    if (second < 0) {
+        return RangeList { RLE
+            { .value = first
+            , .count = -second + 1
+        } };
+
+    // Otherwise, traditional range
+    } else {
+        return RangeList { Range
+            { .start = first
+            , .end = first + second
+        } };
+    }
+}
+
+static auto make_hostsPlacement(pt::ptree const& root)
+{
+    auto result = std::vector<CTIHost>{};
+
+    /* Flux proctable format:
+      prefix_rangelist: [ prefix_string, [ rangelist, ... ] ]
+      "hosts": [ prefix_rangelist, ... ]
+      "executables": [ prefix_rangelist, ... ]
+      "ids": [ rangelist, ... ]
+      "pids": [ rangelist, ... ]
+
+      Example: running 2 ranks of a.out on node15, with PIDs 7991 and 7992
+        { "hosts": [[ "node", [[15,-1]] ]]
+        , "executables": [[ "/path/to/a.out", [[-1,-1]] ]]
+        , "ids": [[0,1]]
+        , "pids": [[7991,1]]
+        }
+    */
+
+    /* "hosts" contains a prefix rangelist that expands to one instance of each
+       hostname for every PE on that host.
+       The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
+       - Range of ints 1 to 3 inclusive
+       - RLE with value 3 + 5 = 8 of length -(-1) + 1 = 2
+       - Values 1, 2, 3, 8, 8
+       The prefix rangelist data [ "node", [ [1,3], [5,-1] ] ] will then be
+       computed as node1, node2, node3, node8, node8.
+       Finally, nodes 1 through 3 will have 1 PE each, and node 8 will have 2
+    */
+
+    auto hostPECount = std::map<std::string, size_t>{};
+
+    // { "hosts": { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] } }
+    for (auto&& prefixListArrayPair : root.get_child("hosts")) {
+
+        // Next rangelist object's starting value is based on the ending value
+        // of the previous range
+        auto base = int64_t{};
+
+        // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
+        auto cursor = prefixListArrayPair.second.begin();
+        auto const prefix = (cursor++)->second.get_value<std::string>();
+        auto const rangeListObjectArray = (cursor++)->second;
+
+        // { "": [ rangelist, ... ], ... }
+        for (auto&& rangeListObjectPair : rangeListObjectArray) {
+
+            // Parse inner rangelist object as either range or RLE
+            auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
+
+            // Empty: there is a single hostname consisting solely of the prefix
+            if (std::holds_alternative<Empty>(rangeList)) {
+                hostPECount[prefix]++;
+
+            // Range: increment PE count for every hostname constructed with prefix
+            } else if (std::holds_alternative<Range>(rangeList)) {
+
+                auto const [start, end] = std::get<Range>(rangeList);
+                for (auto i = start; i <= end; i++) {
+                     auto const hostname = prefix + std::to_string(i);
+                     hostPECount[hostname]++;
+                }
+
+                base = end;
+
+            // RLE: add run length to host's PE count
+            } else if (std::holds_alternative<RLE>(rangeList)) {
+
+                auto const [value, count] = std::get<RLE>(rangeList);
+                auto const hostname = prefix + std::to_string(value);
+                hostPECount[hostname] += count;
+
+                base = value;
+            }
+        }
+    }
+
+    // Construct placement vector from count map
+    for (auto&& [hostname, pe_count] : hostPECount) {
+        result.emplace_back(CTIHost
+            { .hostname = hostname
+            , .numPEs =  pe_count
+        });
     }
 
     return result;
@@ -217,13 +401,20 @@ uint64_t FluxFrontend::launchApp(const char* const launcher_args[],
     const char* input_file, int stdout_fd, int stderr_fd, const char *chdir_path,
     const char * const env_list[])
 {
-    if ((input_file != nullptr) || (stdout_fd >= 0) || (stderr_fd >= 0)
-     || (chdir_path != nullptr)) {
-        unimplemented(__func__);
-    }
+    // Get output, and error files from file descriptors
+    auto const outputPath = (stdout_fd >= 0)
+        ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stdout_fd)
+        : std::string{};
+    auto const errorPath = (stderr_fd >= 0)
+        ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stderr_fd)
+        : std::string{};
 
     // Generate jobspec string
-    auto const jobspec = make_jobspec(getLauncherName().c_str(), launcher_args, env_list);
+    auto const jobspec = make_jobspec(getLauncherName().c_str(), launcher_args,
+        (input_file != nullptr) ? input_file : "",
+        outputPath, errorPath,
+        (chdir_path != nullptr) ? chdir_path : "",
+        env_list);
 
     // Submit jobspec to API
     auto job_future = m_libFlux->flux_job_submit(m_fluxHandle, jobspec.c_str(), 16, 0);
@@ -345,8 +536,13 @@ FluxApp::startDaemon(const char* const args[])
 
 FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
     : App{fe}
+    , m_fluxHandle{fe.m_fluxHandle}
     , m_libFluxRef{*fe.m_libFlux}
     , m_jobId{job_id}
+
+    , m_leaderRank{}
+    , m_rpcService{}
+
     , m_beDaemonSent{}
     , m_numPEs{}
     , m_hostsPlacement{}
@@ -360,6 +556,73 @@ FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
 
     , m_atBarrier{}
 {
+    // Query event log for job leader rank and service key for RPC
+    auto eventlog_future = make_unique_del(
+        m_libFluxRef.flux_job_event_watch(m_fluxHandle, m_jobId, "guest.exec.eventlog", 0),
+        m_libFluxRef.flux_future_destroy);
+    if (eventlog_future == nullptr) {
+        throw std::runtime_error("Flux job event query failed");
+    }
+
+    // Read event log responses
+    while (true) {
+        char const *eventlog_result = nullptr;
+        auto const eventlog_rc = m_libFluxRef.flux_job_event_watch_get(eventlog_future.get(), &eventlog_result);
+        if (eventlog_rc == ENODATA) {
+            break;
+        } else if (eventlog_rc) {
+            auto const flux_error = m_libFluxRef.flux_future_error_string(eventlog_future.get());
+            throw std::runtime_error("Flux job event query failed: " + std::string{(flux_error)
+                ? flux_error
+                : "(no error provided)"});
+        }
+
+        // Received a new event log result, parse it as JSON
+        writeLog("eventlog: %s\n", eventlog_result);
+        auto root = parseJson(eventlog_result);
+
+        // Looking for shell.init event, will contain leader rank and service key
+        if (root.get<std::string>("name") != "shell.init") {
+
+            // Reset and wait for next event log result
+            m_libFluxRef.flux_future_reset(eventlog_future.get());
+            continue;
+        }
+
+        // Got shell.init, extract the job information
+        auto context = root.get_child("context");
+        m_leaderRank = context.get<int>("leader-rank");
+        m_rpcService = context.get<std::string>("service");
+
+        writeLog("extracted job info: leader rank %d, service key %s\n", m_leaderRank, m_rpcService.c_str());
+
+        break;
+    }
+
+    // Start new proctable query
+    { auto topic = m_rpcService + ".proctable";
+        auto proctable_future = make_unique_del(
+            m_libFluxRef.flux_rpc_raw(m_fluxHandle, topic.c_str(), "{}", 2, m_leaderRank, 0),
+            m_libFluxRef.flux_future_destroy);
+        if (proctable_future == nullptr) {
+            throw std::runtime_error("Flux proctable query failed");
+        }
+
+        // Block and read until RPC returns proctable response
+        char const *proctable_result = nullptr;
+        auto const proctable_rc = m_libFluxRef.flux_rpc_get(proctable_future.get(), &proctable_result);
+        if (proctable_rc) {
+            auto const flux_error = m_libFluxRef.flux_future_error_string(proctable_future.get());
+            throw std::runtime_error("Flux proctable query failed: " + std::string{(flux_error)
+                ? flux_error
+                : "(no error provided)"});
+        }
+
+        // Received proctable, parse response
+        writeLog("proctable: %s\n", proctable_result);
+        m_hostsPlacement = make_hostsPlacement(parseJson(proctable_result));
+    }
+
     unimplemented(__func__);
 }
 
