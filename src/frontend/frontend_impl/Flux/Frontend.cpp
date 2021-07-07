@@ -140,13 +140,14 @@ static auto parseJson(std::string const& json)
     return root;
 }
 
+struct Empty {};
 struct Range
     { int64_t start, end;
 };
 struct RLE
     { int64_t value, count;
 };
-using RangeList = std::variant<Range, RLE>;
+using RangeList = std::variant<Empty, Range, RLE>;
 
 // Read next rangelist object and return new Range / RLE state
 static auto parseRangeList(pt::ptree const& root, int64_t base)
@@ -172,10 +173,7 @@ static auto parseRangeList(pt::ptree const& root, int64_t base)
 
     // Negative first element indicates empty range
     if (first < 0) {
-        return RangeList { RLE
-            { .value = -1
-            , .count = 0
-        } };
+        return RangeList { Empty{} };
     }
 
     // Negative second element indicates run length encoding
@@ -244,8 +242,12 @@ static auto make_hostsPlacement(pt::ptree const& root)
             // Parse inner rangelist object as either range or RLE
             auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
 
+            // Empty: there is a single hostname consisting solely of the prefix
+            if (std::holds_alternative<Empty>(rangeList)) {
+                hostPECount[prefix]++;
+
             // Range: increment PE count for every hostname constructed with prefix
-            if (std::holds_alternative<Range>(rangeList)) {
+            } else if (std::holds_alternative<Range>(rangeList)) {
 
                 auto const [start, end] = std::get<Range>(rangeList);
                 for (auto i = start; i <= end; i++) {
