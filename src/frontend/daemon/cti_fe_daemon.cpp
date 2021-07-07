@@ -553,6 +553,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
             , .mpir_id  = mpirData.mpir_id
             , .launcher_pid = mpirData.launcher_pid
             , .num_pids = static_cast<int>(mpirData.proctable.size())
+            , .error_msg_len = 0
         });
         for (auto&& elem : mpirData.proctable) {
             rawWriteLoop(respFd, elem.pid);
@@ -563,11 +564,19 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
     } catch (std::exception const& ex) {
         getLogger().write("%s\n", ex.what());
 
+        auto const error_msg_len = ::strlen(ex.what()) + 1;
+
         // send failure response
         rawWriteLoop(respFd, MPIRResp
             { .type     = RespType::MPIR
             , .mpir_id  = DAppId{0}
+            , .launcher_pid = {}
+            , .num_pids = {}
+            , .error_msg_len = error_msg_len
         });
+
+        // Send failure message
+        writeLoop(respFd, ex.what(), error_msg_len);
     }
 }
 
@@ -697,9 +706,32 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
         ::setenv(var.c_str(), val.c_str(), true);
     }
 
-    auto mpirResult = extractMPIRResult(std::make_unique<MPIRInstance>(
-        launchData.filepath, launchData.argvList, std::vector<std::string>{}, remapFds
-    ));
+    // Start launcher under MPIR control and run to breakpoint
+    // If there are any problems with launcher arguments, they will occur at this point.
+    // Then, an error message that the user can interpret will be sent back to the
+    // main CTI process.
+    auto mpirInstance = [](LaunchData const& launchData, std::map<int, int> const& remapFds) {
+        try {
+            return std::make_unique<MPIRInstance>(launchData.filepath,
+                launchData.argvList, std::vector<std::string>{}, remapFds);
+        } catch (...) {
+            auto errorMsg = std::stringstream{};
+
+            // Create error message from launcher arguments with possible diagnostic
+            errorMsg << "Failed to start the launcher at '"
+                     << launchData.filepath << "' with the provided arguments: \n  ";
+            for (auto&& arg : launchData.argvList) {
+                errorMsg << " " << arg;
+            }
+            errorMsg << "\nEnsure that the launcher file exists at this path and \
+that all launcher arguments (such as job constraints or project accounts) required \
+by your system are provided to the tool's launch command.";
+
+            throw std::runtime_error{errorMsg.str()};
+        }
+    }(launchData, remapFds);
+
+    auto mpirResult = extractMPIRResult(std::move(mpirInstance));
 
     // Terminate launched application on daemon exit
     appCleanupList.insert(mpirResult.launcher_pid);
@@ -709,9 +741,24 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 
 static FE_daemon::MPIRResult attachMPIR(std::string const& launcherPath, pid_t const launcherPid)
 {
-    return extractMPIRResult(std::make_unique<MPIRInstance>(
-        launcherPath.c_str(), launcherPid
-    ));
+    // Attach to launcher and attempt to extract MPIR data
+    auto mpirInstance = [](std::string const& launcherPath, pid_t const launcherPid) {
+        try {
+            return std::make_unique<MPIRInstance>(launcherPath, launcherPid);
+        } catch (...) {
+            auto errorMsg = std::stringstream{};
+
+            // Create error message from launcher arguments with possible diagnostic
+            errorMsg << "Failed to attach to the launcher at '"
+                     << launcherPath << "' under PID "
+                     << launcherPid << ". Ensure that the launcher file exists at this path \
+and that the provided PID is present on your local system.";
+
+            throw std::runtime_error{errorMsg.str()};
+        }
+    }(launcherPath, launcherPid);
+
+    return extractMPIRResult(std::move(mpirInstance));
 }
 
 static void releaseMPIR(DAppId const mpir_id)
