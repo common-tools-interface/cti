@@ -17,10 +17,10 @@ Product Description:
 Purpose:
 ---------
   This bugfix release resolves the following issues:
-    - Resolve a library name conflict if the shared library libaudit.so is
-      already installed on the system.
-    - Add a new function `registerLauncherPid` to the SSH-specific WLM
-      functions, to resolve a launch problem with ATP on HPCM PALS systems.
+    - Update Shasta PALS workload manager detection and support
+    - Add launch function variants `cti_launchApp_fd` and
+      `cti_launchAppBarrier_fd` taking input file descriptors instead
+      of input files
 
 Product and OS Dependencies:
 -----------------------------
