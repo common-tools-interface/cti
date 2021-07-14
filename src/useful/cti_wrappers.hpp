@@ -386,7 +386,7 @@ fileHasPerms(char const* filePath, int const perms)
     struct stat st;
     return filePath != nullptr
         && !stat(filePath, &st) // make sure this directory exists
-        && S_ISREG(st.st_mode)  // make sure it is a regular file
+        && !S_ISDIR(st.st_mode) // make sure it is not a directory
         && !access(filePath, perms); // check that the file has the desired permissions
 }
 
