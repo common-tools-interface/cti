@@ -714,18 +714,17 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
         try {
             return std::make_unique<MPIRInstance>(launchData.filepath,
                 launchData.argvList, std::vector<std::string>{}, remapFds);
-        } catch (...) {
+        } catch (std::exception const& ex) {
             auto errorMsg = std::stringstream{};
 
             // Create error message from launcher arguments with possible diagnostic
-            errorMsg << "Failed to start the launcher at '"
-                     << launchData.filepath << "' with the provided arguments: \n  ";
+            errorMsg << "Failed to start launcher with the provided arguments: \n  ";
             for (auto&& arg : launchData.argvList) {
                 errorMsg << " " << arg;
             }
-            errorMsg << "\nEnsure that the launcher file exists at this path and \
-that all launcher arguments (such as job constraints or project accounts) required \
-by your system are provided to the tool's launch command.";
+            errorMsg << "\nEnsure that the launcher binary exists and \
+that all arguments (such as job constraints or project accounts) required \
+by your system are provided to the tool's launch command (" << ex.what() << ")";
 
             throw std::runtime_error{errorMsg.str()};
         }
@@ -745,14 +744,14 @@ static FE_daemon::MPIRResult attachMPIR(std::string const& launcherPath, pid_t c
     auto mpirInstance = [](std::string const& launcherPath, pid_t const launcherPid) {
         try {
             return std::make_unique<MPIRInstance>(launcherPath, launcherPid);
-        } catch (...) {
+        } catch (std::exception const& ex) {
             auto errorMsg = std::stringstream{};
 
             // Create error message from launcher arguments with possible diagnostic
             errorMsg << "Failed to attach to the launcher at '"
                      << launcherPath << "' under PID "
                      << launcherPid << ". Ensure that the launcher file exists at this path \
-and that the provided PID is present on your local system.";
+and that the provided PID is present on your local system (" << ex.what() << ")";
 
             throw std::runtime_error{errorMsg.str()};
         }

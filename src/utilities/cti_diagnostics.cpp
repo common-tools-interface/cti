@@ -198,10 +198,7 @@ a CTI module is loaded. Try `module load cray-cti` to load the system default CT
 	}
 
 	// Create launcher arguments
-        auto launcherArgs = std::vector<char const*>{};
-        for (int i = 1; i < argc; i++) {
-             launcherArgs.push_back(argv[i]);
-        }
+        auto launcherArgs = std::vector<char const*>{argv + 1, argv + argc};
         launcherArgs.push_back(application_path.c_str());
         launcherArgs.push_back(nullptr);
 
