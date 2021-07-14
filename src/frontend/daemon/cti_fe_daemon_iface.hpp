@@ -244,7 +244,13 @@ public: // type definitions
         int num_pids;
         // after sending this struct, send `num_pids` elements of:
         // - pid, null-terminated hostname, null-terminated executable name
+
+        // or, if an error occured:
+        // - set `mpir_id` to 0
+        // - set `error_msg_len` to the null-terminated length of the error message to follow
+        size_t error_msg_len;
     };
+
 private: // Internal data
     bool      m_init;
     pid_t     m_mainPid; // Main CTI PID that is responsible for daemon cleanup

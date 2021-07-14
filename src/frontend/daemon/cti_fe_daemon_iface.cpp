@@ -75,6 +75,7 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
         int fd_data[N_FDS];
         struct cmsghdr cmd_hdr;
     } buffer;
+    ::memset(&buffer, 0, sizeof(buffer));
 
     // create message buffer for one character
     struct iovec empty_iovec;
@@ -178,8 +179,33 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
     auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(reqFd);
     if (mpirResp.type != FE_daemon::RespType::MPIR) {
         throw std::runtime_error("daemon did not send expected MPIR response type");
+
+    // Error handling
     } else if (mpirResp.mpir_id == 0) {
-        throw std::runtime_error("daemon failed to perform MPIR launch");
+
+        if (mpirResp.error_msg_len > 0) {
+
+            char buf[mpirResp.error_msg_len];
+            auto error_msg_provided = false;
+
+            // Read null-terminated error message
+            try {
+                readLoop(buf, reqFd, mpirResp.error_msg_len);
+                // (Should already be null-terminated)
+                buf[mpirResp.error_msg_len - 1] = '\0';
+
+                error_msg_provided = true;
+            } catch (...) {
+                // Fall through to generic failure message
+            }
+
+            // Throw full error message if provided
+            if (error_msg_provided) {
+                throw std::runtime_error(buf);
+            }
+        }
+
+        throw std::runtime_error("failed to perform MPIR launch");
     }
 
     // fill in MPIR data excluding proctable

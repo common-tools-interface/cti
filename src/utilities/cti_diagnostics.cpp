@@ -40,6 +40,7 @@
 #include <net/if.h>
 #include <netdb.h>
 
+#include <vector>
 #include <string>
 #include <memory>
 
@@ -187,13 +188,6 @@ int main(int argc, char **argv)
 	auto socket_fd = int{-1};
 	auto backend_fd = int{-1};
 
-	// Check arguments
-	if (argc != 1) {
-		fprintf(stderr, "usage: %s\nRun launch and backend diagnostics for the Common \
-Tools Interface (CTI) launch library\n", argv[0]);
-		exit(-1);
-	}
-
 	// Build path to test application
 	auto application_path = std::string{};
 	if (auto const cti_install_dir = getenv(CTI_BASE_DIR_ENV_VAR)) {
@@ -204,10 +198,12 @@ a CTI module is loaded. Try `module load cray-cti` to load the system default CT
 	}
 
 	// Create launcher arguments
-	char const* launcher_args[] = {application_path.c_str(), nullptr};
+        auto launcherArgs = std::vector<char const*>{argv + 1, argv + argc};
+        launcherArgs.push_back(application_path.c_str());
+        launcherArgs.push_back(nullptr);
 
 	// Launch test application
-	app_id = cti_launchApp(launcher_args, -1, -1, nullptr, nullptr, nullptr);
+	app_id = cti_launchApp(launcherArgs.data(), -1, -1, nullptr, nullptr, nullptr);
 	if (app_id == 0) {
 		throw std::runtime_error("failed to launch diagnostic target at " + application_path + ": " + std::string{cti_error_str()});
 	}

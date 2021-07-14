@@ -615,7 +615,6 @@ contact your system adminstrator.");
 
         // Create the command string
         auto const ldLibraryPath = std::string{::getenv("LD_LIBRARY_PATH")};
-        //std::string argvString {"LD_LIBRARY_PATH=" + ldLibraryPath + " CTI_DEBUG=1 CTI_LOG_DIR=/home/users/adangelo/log"};
         auto argvString = std::string{"LD_LIBRARY_PATH="} + ldLibraryPath;
         for (auto arg = argv; *arg != nullptr; arg++) {
             argvString.push_back(' ');
