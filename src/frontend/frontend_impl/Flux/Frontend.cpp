@@ -35,6 +35,7 @@
 #include <thread>
 #include <variant>
 #include <type_traits>
+#include <numeric>
 
 #include <sstream>
 #include <fstream>
@@ -42,10 +43,9 @@
 #include "transfer/Manifest.hpp"
 
 #include <flux/core.h>
+#include <flux/shell.h>
 
 #include "Flux/Frontend.hpp"
-
-#include <flux/core.h>
 
 // Boost JSON
 #include <boost/property_tree/ptree.hpp>
@@ -140,6 +140,19 @@ static auto parseJson(std::string const& json)
     return root;
 }
 
+// Convert numerical job ID to compact F58 encoding
+static auto encode_job_id(FluxFrontend::LibFlux& libFluxRef, uint64_t job_id)
+{
+    // Job IDs are a maximum of 14 characters (12 characters, 1 f suffix, 1 terminator)
+    char buf[64];
+    if (libFluxRef.flux_job_id_encode(job_id, "f58", buf, sizeof(buf) - 1) < 0) {
+        throw std::runtime_error("failed to encode Flux job id: " + std::string{strerror(errno)});
+    }
+    buf[sizeof(buf) - 1] = '\0';
+
+    return std::string{buf};
+}
+
 struct Empty {};
 struct Range
     { int64_t start, end;
@@ -150,12 +163,14 @@ struct RLE
 using RangeList = std::variant<Empty, Range, RLE>;
 
 // Read next rangelist object and return new Range / RLE state
-static auto parseRangeList(pt::ptree const& root, int64_t base)
+// Updates `base` state by reference
+static auto parseRangeList(pt::ptree const& root, int64_t& base)
 {
     // Single element will be interpreted as a range of size 1
     if (!root.data().empty()) {
+        base = root.get_value<int64_t>();
         return RangeList { RLE
-            { .value = root.get_value<int64_t>()
+            { .value = base
             , .count = 1
         } };
     }
@@ -178,16 +193,18 @@ static auto parseRangeList(pt::ptree const& root, int64_t base)
 
     // Negative second element indicates run length encoding
     if (second < 0) {
+        base = first;
         return RangeList { RLE
-            { .value = first
+            { .value = base
             , .count = -second + 1
         } };
 
     // Otherwise, traditional range
     } else {
+        base = first + second;
         return RangeList { Range
             { .start = first
-            , .end = first + second
+            , .end = base
         } };
     }
 }
@@ -240,6 +257,7 @@ static auto make_hostsPlacement(pt::ptree const& root)
         for (auto&& rangeListObjectPair : rangeListObjectArray) {
 
             // Parse inner rangelist object as either range or RLE
+            // `base` is updated by `parseRangeList`
             auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
 
             // Empty: there is a single hostname consisting solely of the prefix
@@ -255,16 +273,12 @@ static auto make_hostsPlacement(pt::ptree const& root)
                      hostPECount[hostname]++;
                 }
 
-                base = end;
-
             // RLE: add run length to host's PE count
             } else if (std::holds_alternative<RLE>(rangeList)) {
 
                 auto const [value, count] = std::get<RLE>(rangeList);
                 auto const hostname = prefix + std::to_string(value);
                 hostPECount[hostname] += count;
-
-                base = value;
             }
         }
     }
@@ -275,6 +289,71 @@ static auto make_hostsPlacement(pt::ptree const& root)
             { .hostname = hostname
             , .numPEs =  pe_count
         });
+    }
+
+    return result;
+}
+
+// Parse executables rangelist into vector of strings
+static auto make_binaryList(pt::ptree const& root)
+{
+    auto result = std::vector<std::string>{};
+
+    /* Flux proctable format:
+      prefix_rangelist: [ prefix_string, [ rangelist, ... ] ]
+      "hosts": [ prefix_rangelist, ... ]
+      "executables": [ prefix_rangelist, ... ]
+      "ids": [ rangelist, ... ]
+      "pids": [ rangelist, ... ]
+
+      Example: running 2 ranks of a.out on node15, with PIDs 7991 and 7992
+        { "hosts": [[ "node", [[15,-1]] ]]
+        , "executables": [[ "/path/to/a.out", [[-1,-1]] ]]
+        , "ids": [[0,1]]
+        , "pids": [[7991,1]]
+        }
+    */
+
+    // { "executables": { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] } }
+    for (auto&& prefixListArrayPair : root.get_child("executables")) {
+
+        // Next rangelist object's starting value is based on the ending value
+        // of the previous range
+        auto base = int64_t{};
+
+        // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
+        auto cursor = prefixListArrayPair.second.begin();
+        auto const prefix = (cursor++)->second.get_value<std::string>();
+        auto const rangeListObjectArray = (cursor++)->second;
+
+        // { "": [ rangelist, ... ], ... }
+        for (auto&& rangeListObjectPair : rangeListObjectArray) {
+
+            // Parse inner rangelist object as either range or RLE
+            // `base` is updated by `parseRangeList`
+            auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
+
+            // Empty: there is a single executable consisting solely of the prefix
+            if (std::holds_alternative<Empty>(rangeList)) {
+                 result.emplace_back(prefix);
+
+            // Range: add executable name for every name constructed with prefix
+            } else if (std::holds_alternative<Range>(rangeList)) {
+
+                auto const [start, end] = std::get<Range>(rangeList);
+                for (auto i = start; i <= end; i++) {
+                     result.emplace_back(prefix + std::to_string(i));
+                }
+
+            // RLE: add run length value to form executable
+            } else if (std::holds_alternative<RLE>(rangeList)) {
+
+                auto const [value, count] = std::get<RLE>(rangeList);
+                for (int64_t i = 0; i < count; i++) {
+                    result.emplace_back(prefix + std::to_string(value));
+                }
+            }
+        }
     }
 
     return result;
@@ -453,14 +532,8 @@ FluxFrontend::~FluxFrontend()
 std::string
 FluxApp::getJobId() const
 {
-    // Convert numerical job ID to compact F58 encoding
-    char buf[64];
-    if (m_libFluxRef.flux_job_id_encode(m_jobId, "f58", buf, sizeof(buf) - 1) < 0) {
-        throw std::runtime_error("failed to encode Flux job id: " + std::string{strerror(errno)});
-    }
-    buf[sizeof(buf) - 1] = '\0';
-
-    return std::string{buf};
+    static const auto jobIdF58 = encode_job_id(m_libFluxRef, m_jobId);
+    return jobIdF58;
 }
 
 std::string
@@ -484,7 +557,23 @@ FluxApp::getHostnameList() const
 std::map<std::string, std::vector<int>>
 FluxApp::getBinaryRankMap() const
 {
-    return m_binaryRankMap;
+    // As Flux does not support MPMD, the binary / rank map can be generated with the single
+    // binary name and number of PEs
+    static const auto binaryRankMap = [this]() {
+        auto result = std::map<std::string, std::vector<int>>{};
+
+        auto allRanks = std::vector<int>{};
+        allRanks.reserve(m_numPEs);
+        for (size_t i = 0; i < m_numPEs; i++) {
+            allRanks.push_back(i);
+        }
+
+        result[m_binaryName] = std::move(allRanks);
+
+        return result;
+    }();
+
+    return binaryRankMap;
 }
 
 void
@@ -543,15 +632,14 @@ FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
     , m_leaderRank{}
     , m_rpcService{}
 
-    , m_beDaemonSent{}
+    , m_beDaemonSent{false}
     , m_numPEs{}
     , m_hostsPlacement{}
-    , m_binaryRankMap{}
+    , m_binaryName{}
 
-    , m_apinfoPath{}
     , m_toolPath{}
     , m_attribsPath{} // BE daemon looks for <m_attribsPath>/pmi_attribs
-    , m_stagePath{}
+    , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/fluxXXXXXX"})}
     , m_extraFiles{}
 
     , m_atBarrier{}
@@ -620,7 +708,39 @@ FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
 
         // Received proctable, parse response
         writeLog("proctable: %s\n", proctable_result);
-        m_hostsPlacement = make_hostsPlacement(parseJson(proctable_result));
+        auto const proctable = parseJson(proctable_result);
+
+        // Fill in hosts placement, PEs per node
+        m_hostsPlacement = make_hostsPlacement(proctable);
+
+        // Sum up number of PEs
+        m_numPEs = std::accumulate(
+            m_hostsPlacement.begin(), m_hostsPlacement.end(), size_t{},
+            [](size_t total, CTIHost const& ctiHost) { return total + ctiHost.numPEs; });
+
+        // Get list of binaries. As Flux does not support MPMD, this should only ever
+        // be a single binary.
+        auto binaryList = make_binaryList(proctable);
+        if (binaryList.size() != 1) {
+            throw std::runtime_error("expected a single binary launched with Flux. Got " + std::to_string(binaryList.size()));
+        }
+        m_binaryName = std::move(binaryList[0]);
+
+        writeLog("binary %s running with %zu ranks\n", m_binaryName.c_str(), m_numPEs);
+    }
+
+    // Flux generates job's tmpdir as <handle_rundir>/jobtmp-<shellrank>-<jobidf58>
+    { auto const rundir = m_libFluxRef.flux_attr_get(m_fluxHandle, "rundir");
+        if (rundir == nullptr) {
+            throw std::runtime_error("Flux getattr failed");
+        }
+
+        // Encode job ID and build toolpath
+        auto const jobIdF58 = encode_job_id(m_libFluxRef, m_jobId);
+        m_toolPath = std::string{rundir} + "/jobtmp-" + std::to_string(m_leaderRank) + "-" + jobIdF58;
+        writeLog("tmpdir: %s\n", m_toolPath.c_str());
+
+        // TODO: determine if Flux's PMI implementation provides pmi_attribs
     }
 
     unimplemented(__func__);

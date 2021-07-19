@@ -108,9 +108,8 @@ private: // variables
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
     size_t m_numPEs;
     std::vector<CTIHost> m_hostsPlacement;
-    std::map<std::string, std::vector<int>> m_binaryRankMap;
+    std::string m_binaryName; // Flux does not support MPMD, so only need to store a single binary
 
-    std::string m_apinfoPath;  // Backend path where the apinfo file is located
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE

@@ -41,6 +41,10 @@ function_initializers = []
 with open(sys.argv[1]) as file:
  for line in file:
   line = line.rstrip('\n')
+
+  if not line or line[0] == '#':
+    continue
+
   if not namespace_name:
     namespace_name = line
   elif not struct_name:
