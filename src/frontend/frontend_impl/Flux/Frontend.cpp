@@ -143,6 +143,7 @@ static auto parseJson(std::string const& json)
 // Convert numerical job ID to compact F58 encoding
 static auto encode_job_id(FluxFrontend::LibFlux& libFluxRef, uint64_t job_id)
 {
+    // Job IDs are a maximum of 14 characters (12 characters, 1 f suffix, 1 terminator)
     char buf[64];
     if (libFluxRef.flux_job_id_encode(job_id, "f58", buf, sizeof(buf) - 1) < 0) {
         throw std::runtime_error("failed to encode Flux job id: " + std::string{strerror(errno)});
@@ -162,12 +163,14 @@ struct RLE
 using RangeList = std::variant<Empty, Range, RLE>;
 
 // Read next rangelist object and return new Range / RLE state
-static auto parseRangeList(pt::ptree const& root, int64_t base)
+// Updates `base` state by reference
+static auto parseRangeList(pt::ptree const& root, int64_t& base)
 {
     // Single element will be interpreted as a range of size 1
     if (!root.data().empty()) {
+        base = root.get_value<int64_t>();
         return RangeList { RLE
-            { .value = root.get_value<int64_t>()
+            { .value = base
             , .count = 1
         } };
     }
@@ -190,16 +193,18 @@ static auto parseRangeList(pt::ptree const& root, int64_t base)
 
     // Negative second element indicates run length encoding
     if (second < 0) {
+        base = first;
         return RangeList { RLE
-            { .value = first
+            { .value = base
             , .count = -second + 1
         } };
 
     // Otherwise, traditional range
     } else {
+        base = first + second;
         return RangeList { Range
             { .start = first
-            , .end = first + second
+            , .end = base
         } };
     }
 }
@@ -252,6 +257,7 @@ static auto make_hostsPlacement(pt::ptree const& root)
         for (auto&& rangeListObjectPair : rangeListObjectArray) {
 
             // Parse inner rangelist object as either range or RLE
+            // `base` is updated by `parseRangeList`
             auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
 
             // Empty: there is a single hostname consisting solely of the prefix
@@ -267,16 +273,12 @@ static auto make_hostsPlacement(pt::ptree const& root)
                      hostPECount[hostname]++;
                 }
 
-                base = end;
-
             // RLE: add run length to host's PE count
             } else if (std::holds_alternative<RLE>(rangeList)) {
 
                 auto const [value, count] = std::get<RLE>(rangeList);
                 auto const hostname = prefix + std::to_string(value);
                 hostPECount[hostname] += count;
-
-                base = value;
             }
         }
     }
@@ -328,6 +330,7 @@ static auto make_binaryList(pt::ptree const& root)
         for (auto&& rangeListObjectPair : rangeListObjectArray) {
 
             // Parse inner rangelist object as either range or RLE
+            // `base` is updated by `parseRangeList`
             auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
 
             // Empty: there is a single executable consisting solely of the prefix
@@ -342,8 +345,6 @@ static auto make_binaryList(pt::ptree const& root)
                      result.emplace_back(prefix + std::to_string(i));
                 }
 
-                base = end;
-
             // RLE: add run length value to form executable
             } else if (std::holds_alternative<RLE>(rangeList)) {
 
@@ -351,8 +352,6 @@ static auto make_binaryList(pt::ptree const& root)
                 for (int64_t i = 0; i < count; i++) {
                     result.emplace_back(prefix + std::to_string(value));
                 }
-
-                base = value;
             }
         }
     }
