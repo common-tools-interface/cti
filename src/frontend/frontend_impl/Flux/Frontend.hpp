@@ -104,6 +104,7 @@ private: // variables
 
     int m_leaderRank;
     std::string m_rpcService;
+    std::string m_resourceSpec;
 
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
     size_t m_numPEs;
@@ -115,6 +116,8 @@ private: // variables
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
     bool m_atBarrier; // Flag that the application is at the startup barrier.
+
+    std::vector<uint64_t> m_daemonJobIds; // Daemon IDs to be cleaned up on exit
 
 public: // app interaction interface
     std::string getJobId()            const override;

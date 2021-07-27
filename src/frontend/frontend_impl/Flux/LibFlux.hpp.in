@@ -18,6 +18,7 @@ flux_msg_create flux_msg_t*(int)
 flux_msg_destroy void(flux_msg_t*)
 
 # Futures
+flux_future_wait_for int(flux_future_t*, int)
 flux_future_reset void(flux_future_t*)
 flux_future_destroy void(flux_future_t*)
 flux_future_error_string char const*(flux_future_t*)
@@ -32,6 +33,8 @@ flux_job_submit flux_future_t*(flux_t*, const char*, int, int)
 flux_job_submit_get_id int(flux_future_t*, flux_jobid_t*)
 flux_job_id_parse int(const char*, flux_jobid_t*)
 flux_job_id_encode int(flux_jobid_t, const char*, char*, size_t)
+flux_job_cancel flux_future_t*(flux_t*, flux_jobid_t, const char *)
+flux_job_kill flux_future_t*(flux_t*, flux_jobid_t, int)
 
 # Reactors and watchers
 flux_reactor_create flux_reactor_t*(int)

@@ -71,10 +71,22 @@ namespace pt = boost::property_tree;
     throw std::runtime_error("unimplemented: " + functionName);
 }
 
+// Normal cti::take_pointer_ownership cannot deal with std::function types,
+// this wrapper enables capture of std::function destructors
+template <typename T, typename Destr>
+static auto make_unique_del(T*&& expiring, Destr&& destr)
+{
+    auto bound_destr = [&destr](T* ptr) {
+        std::invoke(destr, ptr);
+    };
+    return std::unique_ptr<T, decltype(bound_destr)>{std::move(expiring), bound_destr};
+}
+
 // Leverage Flux's dry-run mode to generate jobspec for API
 static std::string make_jobspec(char const* launcher_name, char const* const launcher_args[],
     std::string const& inputPath, std::string const& outputPath, std::string const& errorPath,
-    std::string const& chdirPath, char const* const env_list[])
+    std::string const& chdirPath, char const* const env_list[],
+    std::map<std::string, std::string> const& jobAttributes)
 {
     // Build Flux dry run arguments
     auto fluxArgv = cti::ManagedArgv { launcher_name, "mini", "run", "--dry-run" };
@@ -109,6 +121,11 @@ static std::string make_jobspec(char const* launcher_name, char const* const lau
         for (int i = 0; launcher_args[i] != nullptr; i++) {
             fluxArgv.add(launcher_args[i]);
         }
+    }
+
+    // Add additional job attributes
+    for (auto&& [attr, setting] : jobAttributes) {
+        fluxArgv.add("--setattr=" + attr + "=" + setting);
     }
 
     // Run jobspec generator
@@ -182,6 +199,15 @@ static auto parseRangeList(pt::ptree const& root, int64_t& base)
 
     auto cursor = root.begin();
 
+    // If element is a non-list, it will be an integer value
+    if (!cursor->second.data().empty()) {
+        base = std::stoi(cursor->second.data());
+        return RangeList { RLE
+            { .value = base
+            , .count = 1
+        } };
+    }
+
     // Add base offset to range start / RLE value
     auto const first = base + (cursor++)->second.get_value<int>();
     auto const second = (cursor++)->second.get_value<int>();
@@ -220,6 +246,13 @@ static auto make_hostsPlacement(pt::ptree const& root)
       "ids": [ rangelist, ... ]
       "pids": [ rangelist, ... ]
 
+      Example: running 1 rank of a.out on node15
+        { "hosts": ["node15"]
+        , "executables": ["/path/to/a.out"]
+        , "ids": [0]
+        , "pids": [19797]
+        }
+
       Example: running 2 ranks of a.out on node15, with PIDs 7991 and 7992
         { "hosts": [[ "node", [[15,-1]] ]]
         , "executables": [[ "/path/to/a.out", [[-1,-1]] ]]
@@ -247,6 +280,12 @@ static auto make_hostsPlacement(pt::ptree const& root)
         // Next rangelist object's starting value is based on the ending value
         // of the previous range
         auto base = int64_t{};
+
+        // If element has data, it is a plain string instead of a prefix list
+        if (!prefixListArrayPair.second.data().empty()) {
+            hostPECount[prefixListArrayPair.second.data()]++;
+            continue;
+        }
 
         // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
         auto cursor = prefixListArrayPair.second.begin();
@@ -306,6 +345,13 @@ static auto make_binaryList(pt::ptree const& root)
       "ids": [ rangelist, ... ]
       "pids": [ rangelist, ... ]
 
+      Example: running 1 rank of a.out on node15
+        { "hosts": ["node15"]
+        , "executables": ["/path/to/a.out"]
+        , "ids": [0]
+        , "pids": [19797]
+        }
+
       Example: running 2 ranks of a.out on node15, with PIDs 7991 and 7992
         { "hosts": [[ "node", [[15,-1]] ]]
         , "executables": [[ "/path/to/a.out", [[-1,-1]] ]]
@@ -320,6 +366,12 @@ static auto make_binaryList(pt::ptree const& root)
         // Next rangelist object's starting value is based on the ending value
         // of the previous range
         auto base = int64_t{};
+
+        // If element has data, it is a plain string instead of a prefix list
+        if (!prefixListArrayPair.second.data().empty()) {
+            result.emplace_back(prefixListArrayPair.second.data());
+            continue;
+        }
 
         // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
         auto cursor = prefixListArrayPair.second.begin();
@@ -357,6 +409,46 @@ static auto make_binaryList(pt::ptree const& root)
     }
 
     return result;
+}
+
+static std::string make_rpc_request(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* fluxHandle,
+    int leader_rank, std::string const& topic, std::string const& content)
+{
+    // Create request future
+    auto future = make_unique_del(
+        libFlux.flux_rpc_raw(fluxHandle, topic.c_str(), content.c_str(), content.length() + 1, leader_rank, 0),
+        libFlux.flux_future_destroy);
+    if (future == nullptr) {
+        throw std::runtime_error("Flux query failed");
+    }
+
+    // Block and read until RPC returns response
+    char const *result = nullptr;
+    auto const rc = libFlux.flux_rpc_get(future.get(), &result);
+    if (rc) {
+        auto const flux_error = libFlux.flux_future_error_string(future.get());
+        throw std::runtime_error("Flux query with topic " + topic + " failed: " + std::string{(flux_error)
+            ? flux_error
+            : "(no error provided)"});
+    }
+
+    return std::string{(result) ? result : ""};
+}
+
+static int cancel_job(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* fluxHandle,
+    flux_jobid_t id, char const* reason)
+{
+    // Create cancel future
+    auto future = make_unique_del(
+        libFlux.flux_job_cancel(fluxHandle, id, reason),
+        libFlux.flux_future_destroy);
+    if (future == nullptr) {
+        return -1;
+    }
+
+    // Block and wait until canceled
+    // TODO: this waiting process can be chained for multiple cancellations
+    return libFlux.flux_future_wait_for(future.get(), 0);
 }
 
 /* FluxFrontend implementation */
@@ -465,17 +557,6 @@ Ensure the Flux launcher is accessible and executable");
 dependencies. Try setting " LIBFLUX_PATH_ENV_VAR " to the path to the Flux runtime library");
 }
 
-// Normal cti::take_pointer_ownership cannot deal with std::function types,
-// this wrapper enables capture of std::function destructors
-template <typename T, typename Destr>
-static auto make_unique_del(T*&& expiring, Destr&& destr)
-{
-    auto bound_destr = [&destr](T* ptr) {
-        std::invoke(destr, ptr);
-    };
-    return std::unique_ptr<T, decltype(bound_destr)>{std::move(expiring), bound_destr};
-}
-
 uint64_t FluxFrontend::launchApp(const char* const launcher_args[],
     const char* input_file, int stdout_fd, int stderr_fd, const char *chdir_path,
     const char * const env_list[])
@@ -493,7 +574,8 @@ uint64_t FluxFrontend::launchApp(const char* const launcher_args[],
         (input_file != nullptr) ? input_file : "",
         outputPath, errorPath,
         (chdir_path != nullptr) ? chdir_path : "",
-        env_list);
+        env_list,
+        {}); // No additional job attributes
 
     // Submit jobspec to API
     auto job_future = m_libFlux->flux_job_submit(m_fluxHandle, jobspec.c_str(), 16, 0);
@@ -518,6 +600,17 @@ FluxFrontend::FluxFrontend()
 {
     if (m_fluxHandle == nullptr) {
         throw std::runtime_error{"Flux initialization failed: " + std::string{strerror(errno)}};
+    }
+
+    // Remove any existing jobtap plugins
+    (void)make_rpc_request(*m_libFlux, m_fluxHandle, FLUX_NODEID_ANY,
+        "job-manager.jobtap", "{\"remove\": \"all\"}");
+
+    // Load alloc-bypass jobtap plugin to allow oversubscription
+    { auto const alloc_bypass = std::string{"/home/adangelo/flux-core/install/lib/flux/job-manager/plugins/alloc-bypass.so"};
+        // TODO: check and deal with missing alloc-bypass library
+        (void)make_rpc_request(*m_libFlux, m_fluxHandle, FLUX_NODEID_ANY,
+        "job-manager.jobtap", "{\"load\": \"" + alloc_bypass + "\"}");
     }
 }
 
@@ -620,7 +713,26 @@ FluxApp::startDaemon(const char* const args[])
         m_beDaemonSent = true;
     }
 
-    unimplemented(__func__);
+    // Generate daemon jobspec string
+    auto& fluxFrontend = dynamic_cast<FluxFrontend&>(m_frontend);
+    auto const jobspec = make_jobspec(fluxFrontend.getLauncherName().c_str(), nullptr,
+        "", "", "", "", {}, // No input, output, error, chdir, environment settings
+        { { "system.alloc-bypass.R", m_resourceSpec } });
+
+    // Submit jobspec to API
+    auto daemon_job_future = m_libFluxRef.flux_job_submit(m_fluxHandle, jobspec.c_str(), 16, 0);
+
+    // Wait for job to launch and receive job ID
+    auto daemon_job_id = flux_jobid_t{};
+    if (m_libFluxRef.flux_job_submit_get_id(daemon_job_future, &daemon_job_id)) {
+        auto const flux_error = m_libFluxRef.flux_future_error_string(daemon_job_future);
+        throw std::runtime_error("Flux daemon launch failed: " + std::string{(flux_error)
+            ? flux_error
+            : "(no error provided)"});
+    }
+
+    // Add job ID to daemon job IDs
+    m_daemonJobIds.push_back(daemon_job_id);
 }
 
 FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
@@ -631,6 +743,7 @@ FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
 
     , m_leaderRank{}
     , m_rpcService{}
+    , m_resourceSpec{}
 
     , m_beDaemonSent{false}
     , m_numPEs{}
@@ -643,6 +756,8 @@ FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
     , m_extraFiles{}
 
     , m_atBarrier{}
+
+    , m_daemonJobIds{}
 {
     // Query event log for job leader rank and service key for RPC
     auto eventlog_future = make_unique_del(
@@ -687,28 +802,24 @@ FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
         break;
     }
 
-    // Start new proctable query
-    { auto topic = m_rpcService + ".proctable";
-        auto proctable_future = make_unique_del(
-            m_libFluxRef.flux_rpc_raw(m_fluxHandle, topic.c_str(), "{}", 2, m_leaderRank, 0),
-            m_libFluxRef.flux_future_destroy);
-        if (proctable_future == nullptr) {
-            throw std::runtime_error("Flux proctable query failed");
-        }
+    // Start resource spec query
+    { auto lookupRequest = std::stringstream{};
+        lookupRequest
+            << "{ \"id\": " << m_jobId
+            << ", \"keys\": [\"R\"]"
+            << ", \"flags\": 0"
+        << "}";
+        m_resourceSpec = make_rpc_request(m_libFluxRef, m_fluxHandle, m_leaderRank,
+            "job-info.lookup", lookupRequest.str());
+    }
 
-        // Block and read until RPC returns proctable response
-        char const *proctable_result = nullptr;
-        auto const proctable_rc = m_libFluxRef.flux_rpc_get(proctable_future.get(), &proctable_result);
-        if (proctable_rc) {
-            auto const flux_error = m_libFluxRef.flux_future_error_string(proctable_future.get());
-            throw std::runtime_error("Flux proctable query failed: " + std::string{(flux_error)
-                ? flux_error
-                : "(no error provided)"});
-        }
+    // Start new proctable query
+    { auto const proctableResult = make_rpc_request(m_libFluxRef, m_fluxHandle, m_leaderRank,
+        m_rpcService + ".proctable", "{}");
 
         // Received proctable, parse response
-        writeLog("proctable: %s\n", proctable_result);
-        auto const proctable = parseJson(proctable_result);
+        writeLog("proctable: %s\n", proctableResult);
+        auto const proctable = parseJson(proctableResult);
 
         // Fill in hosts placement, PEs per node
         m_hostsPlacement = make_hostsPlacement(proctable);
@@ -742,9 +853,15 @@ FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
 
         // TODO: determine if Flux's PMI implementation provides pmi_attribs
     }
-
-    unimplemented(__func__);
 }
 
 FluxApp::~FluxApp()
-{}
+{
+    // Terminate daemon jobs
+    for (auto&& id : m_daemonJobIds) {
+        (void)cancel_job(m_libFluxRef, m_fluxHandle, id, "controlling application is terminating");
+    }
+
+    // Terminate applictaion jobs
+    (void)cancel_job(m_libFluxRef, m_fluxHandle, m_jobId, "CTI is terminating");
+}
