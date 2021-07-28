@@ -88,6 +88,9 @@ public: // flux specific interface
     // Get the default launcher binary name, or, if provided, from the environment.
     std::string getLauncherName() const;
 
+    // Use environment variable or flux launcher location to find Flux root directory
+    static std::string findFluxInstallDir(std::string const& launcherName);
+
     // Use environment variable or flux launcher location to find libflux path
     static std::string findLibFluxPath(std::string const& launcherName);
 

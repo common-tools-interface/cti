@@ -534,6 +534,28 @@ FluxFrontend::getLauncherName() const
 }
 
 std::string
+FluxFrontend::findFluxInstallDir(std::string const& launcherName)
+{
+    // Use setting if supplied
+    if (auto const flux_install_dir = ::getenv(FLUX_INSTALL_DIR_ENV_VAR)) {
+       return std::string{flux_install_dir};
+    }
+
+    // Find libflux from launcher location
+    auto fluxInstallDir = std::string{};
+    auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(launcherName.c_str(), nullptr), ::free);
+
+    // Ensure launcher was found in path
+    if (launcher_path == nullptr) {
+        throw std::runtime_error("Could not find Flux launcher '" + launcherName + "' in PATH. \
+Ensure the Flux launcher is accessible and executable");
+    }
+
+    // Flux root install dir will be parent directory of launcher root
+    return cti::cstr::realpath(cti::cstr::dirname(launcher_path.get()) + "/../");
+}
+
+std::string
 FluxFrontend::findLibFluxPath(std::string const& launcherName)
 {
     // Use setting if supplied
@@ -642,10 +664,15 @@ FluxFrontend::FluxFrontend()
         "job-manager.jobtap", "{\"remove\": \"all\"}");
 
     // Load alloc-bypass jobtap plugin to allow oversubscription
-    { auto const alloc_bypass = std::string{"/home/adangelo/flux-core/install/lib/flux/job-manager/plugins/alloc-bypass.so"};
-        // TODO: check and deal with missing alloc-bypass library
-        (void)make_rpc_request(*m_libFlux, m_fluxHandle, FLUX_NODEID_ANY,
-        "job-manager.jobtap", "{\"load\": \"" + alloc_bypass + "\"}");
+    { auto const alloc_bypass = findFluxInstallDir(getLauncherName()) + "/lib/flux/job-manager/plugins/alloc-bypass.so";
+        try {
+           (void)make_rpc_request(*m_libFlux, m_fluxHandle, FLUX_NODEID_ANY,
+               "job-manager.jobtap", "{\"load\": \"" + alloc_bypass + "\"}");
+        } catch (std::exception const& ex) {
+            throw std::runtime_error("failed to load Flux jobtap plugin from " + alloc_bypass + " \
+. Ensure the plugin is present at that path, or set " FLUX_INSTALL_DIR_ENV_VAR " to the root of \
+your Flux installation (" + ex.what() + ")");
+        }
     }
 }
 

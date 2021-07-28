@@ -155,6 +155,16 @@ namespace cstr {
 
         throw std::runtime_error("getcwd failed: " + std::string{strerror(errno)});
     }
+
+    // lifted realpath
+    static inline std::string
+    realpath(std::string const& filePath) {
+        if (auto realPath = take_pointer_ownership(::realpath(filePath.c_str(), nullptr), std::free)) {
+            return std::string{realPath.get()};
+        } else { // realpath failed with nullptr result
+            throw std::runtime_error("realpath failed.");
+        }
+    }
 } /* namespace cti::cstr */
 
 namespace file {
@@ -356,15 +366,6 @@ getNameFromPath(std::string const& filePath) {
         return std::string{realName.get()};
     } else { // _cti_pathToName failed with nullptr result
         throw std::runtime_error("Could not convert the fullname to realname.");
-    }
-}
-
-static inline std::string
-getRealPath(std::string const& filePath) {
-    if (auto realPath = take_pointer_ownership(realpath(filePath.c_str(), nullptr), std::free)) {
-        return std::string{realPath.get()};
-    } else { // realpath failed with nullptr result
-        throw std::runtime_error("realpath failed.");
     }
 }
 

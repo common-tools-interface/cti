@@ -345,7 +345,7 @@ Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) 
                 }
             } else {
                 // register new file as coming from Manifest's source
-                auto const realFilePath = cti::getRealPath(newPaths.at(fileName));
+                auto const realFilePath = cti::cstr::realpath(newPaths.at(fileName));
                 writeLog("mergeTransfered: registering new file %s\n", realFilePath.c_str());
                 m_sourcePaths[fileArchivePath] = realFilePath;
             }

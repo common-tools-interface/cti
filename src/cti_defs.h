@@ -176,6 +176,7 @@ typedef slurmPidFile_t          cti_pidFile_t;
 *******************************************************************************/
 
 #define FLUX_URI "FLUX_URI"
+#define FLUX_INSTALL_DIR_ENV_VAR "FLUX_INSTALL_DIR"
 #define LIBFLUX_PATH_ENV_VAR "LIBFLUX_PATH"
 #define LIBFLUX_NAME "libflux-core.so.2"
 

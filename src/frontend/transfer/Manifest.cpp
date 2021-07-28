@@ -58,7 +58,7 @@ Manifest::checkAndAdd(const std::string& folder, const std::string& filePath,
     auto sess = getOwningSession();
 
     // canonicalize path
-    auto const canonicalPath = cti::getRealPath(filePath);
+    auto const canonicalPath = cti::cstr::realpath(filePath);
 
     // check session for files shipped to the same subfolder
     auto const shippedSourcePath = sess->getSourcePath(folder, realName);
@@ -146,7 +146,7 @@ void
 Manifest::addLibDir(const std::string& rawPath) {
     enforceValid();
     // get real path and real name of directory
-    const std::string realPath(cti::getRealPath(rawPath));
+    const std::string realPath(cti::cstr::realpath(rawPath));
     const std::string realName(cti::getNameFromPath(realPath));
 
     checkAndAdd("lib", realPath, realName);
