@@ -64,6 +64,16 @@ public: // flux specific types
     struct flux_t;
     struct LibFlux;
 
+    enum class LaunchBarrierMode
+        { Disabled = 0
+        , Enabled  = 1
+    };
+
+    struct LaunchInfo {
+        uint64_t jobId;
+        bool atBarrier;
+    };
+
 private: // flux specific members
     std::string const m_libFluxPath;
     std::unique_ptr<LibFlux> m_libFlux;
@@ -81,10 +91,14 @@ public: // flux specific interface
     // Use environment variable or flux launcher location to find libflux path
     static std::string findLibFluxPath(std::string const& launcherName);
 
+    // Use Flux API to get application and node placement information
+    LaunchInfo getLaunchInfo(uint64_t job_id);
+
     // Submit job launch to Flux API, get job ID
-    uint64_t launchApp(const char* const launcher_argv[],
+    LaunchInfo launchApp(const char* const launcher_argv[],
         const char* input_file, int stdout_fd, int stderr_fd, const char* chdir_path,
-        const char* const env_list[]);
+        const char* const env_list[],
+        LaunchBarrierMode const launchBarrierMode);
 
 public: // constructor / destructor interface
     FluxFrontend();
@@ -142,7 +156,7 @@ public: // app interaction interface
 public: // flux specific interface
 
 public: // constructor / destructor interface
-    FluxApp(FluxFrontend& fe, uint64_t job_id);
+    FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo);
     ~FluxApp();
     FluxApp(const FluxApp&) = delete;
     FluxApp& operator=(const FluxApp&) = delete;

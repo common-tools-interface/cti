@@ -458,14 +458,15 @@ FluxFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     // Launch application using API
-    auto const job_id = launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd,
-        chdirPath, env_list);
+    auto launchInfo = launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd,
+        chdirPath, env_list, LaunchBarrierMode::Disabled);
 
     // Create and track new application object
-    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this, job_id));
+    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this, std::move(launchInfo)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
+
     return *ret.first;
 }
 
@@ -473,7 +474,17 @@ std::weak_ptr<App>
 FluxFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    unimplemented(__func__);
+    // Launch application with barrier using API
+    auto launchInfo = launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd,
+        chdirPath, env_list, LaunchBarrierMode::Enabled);
+
+    // Create and track new application object
+    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this, std::move(launchInfo)));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+
+    return *ret.first;
 }
 
 std::weak_ptr<App>
@@ -496,8 +507,11 @@ FluxFrontend::registerJob(size_t numIds, ...)
         throw std::runtime_error("failed to parse Flux job ID: " + std::string{f58_job_id});
     }
 
+    // Get attach information from Flux API
+    auto launchInfo = getLaunchInfo(job_id);
+
     // Create new application instance with job ID
-    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this, job_id));
+    auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this, std::move(launchInfo)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -557,9 +571,21 @@ Ensure the Flux launcher is accessible and executable");
 dependencies. Try setting " LIBFLUX_PATH_ENV_VAR " to the path to the Flux runtime library");
 }
 
-uint64_t FluxFrontend::launchApp(const char* const launcher_args[],
+FluxFrontend::LaunchInfo FluxFrontend::getLaunchInfo(uint64_t job_id)
+{
+    // TODO: move placement info into LaunchInfo instead of App constructor for attach
+
+    unimplemented(__func__);
+
+    return LaunchInfo
+        { .jobId = job_id
+        , .atBarrier = false
+    };
+}
+
+FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args[],
     const char* input_file, int stdout_fd, int stderr_fd, const char *chdir_path,
-    const char * const env_list[])
+    const char * const env_list[], FluxFrontend::LaunchBarrierMode const launchBarrierMode)
 {
     // Get output, and error files from file descriptors
     auto const outputPath = (stdout_fd >= 0)
@@ -568,6 +594,12 @@ uint64_t FluxFrontend::launchApp(const char* const launcher_args[],
     auto const errorPath = (stderr_fd >= 0)
         ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stderr_fd)
         : std::string{};
+
+    // Add barrier option if enabled
+    auto jobAttributes = std::map<std::string, std::string>{};
+    if (launchBarrierMode == LaunchBarrierMode::Enabled) {
+        jobAttributes["options"] = "{\"stop-tasks-in-exec\": 1}";
+    }
 
     // Generate jobspec string
     auto const jobspec = make_jobspec(getLauncherName().c_str(), launcher_args,
@@ -589,7 +621,10 @@ uint64_t FluxFrontend::launchApp(const char* const launcher_args[],
             : "(no error provided)"});
     }
 
-    return job_id;
+    return LaunchInfo
+        { .jobId = job_id
+        , .atBarrier = (launchBarrierMode == LaunchBarrierMode::Enabled)
+    };
 }
 
 FluxFrontend::FluxFrontend()
@@ -676,7 +711,8 @@ FluxApp::releaseBarrier()
         throw std::runtime_error("application is not at startup barrier");
     }
 
-    unimplemented(__func__);
+    // Send SIGCONT to job to release from barrier
+    kill(SIGCONT);
 
     m_atBarrier = false;
 }
@@ -684,7 +720,16 @@ FluxApp::releaseBarrier()
 void
 FluxApp::kill(int signal)
 {
-    unimplemented(__func__);
+    // Create signal future
+    auto future = make_unique_del(
+        m_libFluxRef.flux_job_kill(m_fluxHandle, m_jobId, signal),
+        m_libFluxRef.flux_future_destroy);
+    if (future == nullptr) {
+        return;
+    }
+
+    // Block and wait until signal sent
+    m_libFluxRef.flux_future_wait_for(future.get(), 0);
 }
 
 void
@@ -735,11 +780,11 @@ FluxApp::startDaemon(const char* const args[])
     m_daemonJobIds.push_back(daemon_job_id);
 }
 
-FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
+FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
     : App{fe}
     , m_fluxHandle{fe.m_fluxHandle}
     , m_libFluxRef{*fe.m_libFlux}
-    , m_jobId{job_id}
+    , m_jobId{launchInfo.jobId}
 
     , m_leaderRank{}
     , m_rpcService{}
@@ -755,7 +800,7 @@ FluxApp::FluxApp(FluxFrontend& fe, uint64_t job_id)
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/fluxXXXXXX"})}
     , m_extraFiles{}
 
-    , m_atBarrier{}
+    , m_atBarrier{launchInfo.atBarrier}
 
     , m_daemonJobIds{}
 {
