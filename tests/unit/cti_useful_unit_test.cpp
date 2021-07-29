@@ -576,11 +576,11 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_dirHasPerms)
     ASSERT_EQ(cti::dirHasPerms("./DNE/", R_OK), false); // invalid directory
 }
 
-TEST_F(CTIUsefulUnitTest, cti_wrappers_getRealPath)
+TEST_F(CTIUsefulUnitTest, cti_wrappers_cstr_realpath)
 {
-    // test that getRealpath works as expected
-    ASSERT_STREQ(cti::getRealPath("/dev/null").c_str(), "/dev/null");
-    ASSERT_STRNE(cti::getRealPath("./unit_tests").c_str(), "./unit_tests");
+    // test that cstr::realpath works as expected
+    ASSERT_STREQ(cti::cstr::realpath("/dev/null").c_str(), "/dev/null");
+    ASSERT_STRNE(cti::cstr::realpath("./unit_tests").c_str(), "./unit_tests");
 }
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_getNameFromPath)
