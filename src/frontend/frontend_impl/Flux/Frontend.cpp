@@ -116,16 +116,16 @@ static std::string make_jobspec(char const* launcher_name, char const* const lau
         }
     }
 
+    // Add additional job attributes
+    for (auto&& [attr, setting] : jobAttributes) {
+        fluxArgv.add("--setattr=" + attr + "=" + setting);
+    }
+
     // Add launcher arguments
     if (launcher_args != nullptr) {
         for (int i = 0; launcher_args[i] != nullptr; i++) {
             fluxArgv.add(launcher_args[i]);
         }
-    }
-
-    // Add additional job attributes
-    for (auto&& [attr, setting] : jobAttributes) {
-        fluxArgv.add("--setattr=" + attr + "=" + setting);
     }
 
     // Run jobspec generator
