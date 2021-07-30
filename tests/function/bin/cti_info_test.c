@@ -58,10 +58,10 @@ usage(char *name)
     fprintf(stdout, "Gather information about a previously launched application\n");
     fprintf(stdout, "using the common tools interface.\n\n");
 
-    fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
-    fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");
-    fprintf(stdout, "\t-a, --apid      alps apid - ALPS and PALS WLM only.\n");
-    fprintf(stdout, "\t-p, --pid       pid of launcher process - SSH WLM only.");
+    fprintf(stdout, "\t-j, --jobid     Job ID - Slurm & Flux WLM only. For Slurm, use with -s.\n");
+    fprintf(stdout, "\t-s, --stepid    Step ID - Slurm WLM only. Use with -j.\n");
+    fprintf(stdout, "\t-a, --apid      Apid - ALPS and PALS WLM only.\n");
+    fprintf(stdout, "\t-p, --pid       PID of launcher process - SSH WLM only.");
     fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
 
     return;

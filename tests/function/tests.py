@@ -92,6 +92,10 @@ def detectWLM(test = None):
             wlm = "slurm"
         elif line[:4] == "alps":
             wlm = "alps"
+        elif line[:4] == "pals":
+            wlm = "pals"
+        elif line[:4] == "flux":
+            wlm = "flux"
         elif line[:7] == "generic":
             wlm = "generic"
 
@@ -293,6 +297,10 @@ class CtiInfoTest(Test):
             self.infoTestSLURM()
         elif wlm == "alps":
             self.infoTestALPS()
+        elif wlm == "pals":
+            self.infoTestPALS()
+        elif wlm == "flux":
+            self.infoTestFlux()
         elif wlm == "generic":
             self.infoTestSSH()
         else:
@@ -372,6 +380,59 @@ class CtiInfoTest(Test):
             # run cti_info
             process.run("%s/cti_info --pid=%s" % (TESTS_BIN_PATH, proc_pid), shell = True)
 
+    def infoTestPALS(self):
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
+            "%s/hello_mpi" % TESTS_SRC_PATH],
+            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+        proc_pid = proc.pid
+        self.assertTrue(proc_pid is not None)
+        apid = None
+        for line in iter(proc.stdout.readline, b''):
+            print(line)
+            line = line.decode('utf-8').rstrip()
+            if line[:4] == 'apid':
+                apid = line.split()[-1]
+                print("apid:", apid)
+
+            if apid is not None:
+                print("running cti_info...")
+                # run cti_info
+                process.run("%s/cti_info --apid=%s" % (TESTS_BIN_PATH, apid), shell = True)
+                # release barrier
+                proc.stdin.write(b'\n')
+                proc.stdin.flush()
+                proc.stdin.close()
+                proc.wait()
+                break
+        self.assertTrue(apid is not None, "Couldn't determine apid")
+
+    def infoTestFlux(self):
+        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
+            "%s/hello_mpi" % TESTS_SRC_PATH],
+            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+        proc_pid = proc.pid
+        self.assertTrue(proc_pid is not None)
+        jobid = None
+        for line in iter(proc.stdout.readline, b''):
+            print(line)
+            line = line.decode('utf-8').rstrip()
+            if line[:5] == 'jobid':
+                jobid = line.split()[-1]
+                print("jobid:", jobid)
+
+            if jobid is not None:
+                print("running cti_info...")
+                # run cti_info
+                process.run("%s/cti_info --jobid=%s" % (TESTS_BIN_PATH, jobid), shell = True)
+                # release barrier
+                proc.stdin.write(b'\n')
+                proc.stdin.flush()
+                proc.stdin.close()
+                proc.wait()
+                break
+        self.assertTrue(jobid is not None, "Couldn't determine jobid")
+
+
 '''
     cti_mpmd is like cti_info, but it calls cti_getBinaryRankList to map binary
     names to rank IDs.
@@ -386,6 +447,10 @@ class CtiMPMDTest(Test):
             self.MPMDTestSLURM()
         elif wlm == "alps":
             self.MPMDTestALPS()
+        elif wlm == "pals":
+            self.MPMDTestPALS()
+        elif wlm == "flux":
+            self.error("Flux does not support MPMD")
         else:
             self.error("Unsupported WLM!")
 
@@ -454,6 +519,62 @@ class CtiMPMDTest(Test):
         self.assertTrue(stepid is not None, "Couldn't determine stepid")
 
     def MPMDTestALPS(self):
+        answers = {
+            "rank   0": " hello_mpi",
+            "rank   1": " hello_mpi",
+            "rank   2": " hello_mpi_wait",
+            "rank   3": " hello_mpi_wait",
+        }
+
+        proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
+            "-n2", "%s/hello_mpi" % TESTS_SRC_PATH, ":", "-n2", "%s/hello_mpi_wait" % TESTS_SRC_PATH],
+            stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.STDOUT)
+        proc_pid = proc_barrier.pid
+        self.assertTrue(proc_pid is not None, "Couldn't start cti_barrier.")
+        apid = None
+        for line in iter(proc_barrier.stdout.readline, b''):
+            line = line.decode('utf-8').rstrip()
+            print(line)
+            if line[:4] == 'apid':
+                apid = line.split()[-1]
+                print("apid:", apid)
+
+            if apid is not None:
+                print("running cti_mpmd...")
+
+                # test for exit code
+                process.run("%s/cti_mpmd --apid=%s" % (TESTS_BIN_PATH, apid), shell = True)
+
+                # test for correctness
+                proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_BIN_PATH,
+                    "--apid", apid],
+                    stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+
+                for line_ctimpmd in iter(proc_ctimpmd.stdout.readline, b''):
+                    line_ctimpmd = line_ctimpmd.decode("utf-8").rstrip()
+                    print(line_ctimpmd)
+                    if line_ctimpmd[:4] == "rank":
+                        split = line_ctimpmd.split(":")
+                        lhs = split[0]
+                        rhs = split[1]
+                        print("lhs:", lhs)
+                        print("rhs:", rhs)
+                        if lhs in answers:
+                            self.assertTrue(answers[lhs] == rhs, "Incorrect output: %s, should be %s" % (line_ctimpmd, answers[lhs]))
+                        else:
+                            self.error("Got an unexpected result from cti_mpmd.")
+
+                # release barrier
+                proc_barrier.stdin.write(b'\n')
+                proc_barrier.stdin.flush()
+                proc_barrier.stdin.close()
+                proc_barrier.wait()
+                proc_ctimpmd.wait()
+                break
+
+        self.assertTrue(apid is not None, "Couldn't determine apid")
+
+    def MPMDTestPALS(self):
         answers = {
             "rank   0": " hello_mpi",
             "rank   1": " hello_mpi",
