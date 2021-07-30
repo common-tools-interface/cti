@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
+#include <string.h>
 
 #include "common_tools_fe.h"
 #include "cti_fe_common.h"
@@ -72,13 +73,11 @@ main(int argc, char **argv)
     int                 opt_ind = 0;
     int                 c;
     char *              eptr;
-    int                 j_arg = 0;
-    int                 s_arg = 0;
-    int                 a_arg = 0;
-    int                 p_arg = 0;
-    uint64_t            job_id = 0;
-    uint64_t            step_id = 0;
-    uint64_t            apid = 0;
+    uint64_t            slurm_job_id = 0;
+    uint64_t            slurm_step_id = 0;
+    uint64_t            alps_apid = 0;
+    char *              pals_apid = NULL;
+    char *              flux_job_id = NULL;
     pid_t               launcher_pid = 0;
     // values returned by the tool_frontend library.
     cti_wlm_type_t      mywlm;
@@ -89,6 +88,12 @@ main(int argc, char **argv)
         assert(argc > 2);
         return 1;
     }
+
+    /*
+     * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
+     *                   system.
+     */
+    mywlm = cti_current_wlm();
 
     // process longopts
     while ((c = getopt_long(argc, argv, "j:s:a:p:h", long_opts, &opt_ind)) != -1) {
@@ -104,26 +109,37 @@ main(int argc, char **argv)
                     return 1;
                 }
 
-                // This is the job id
-                errno = 0;
-                job_id = (uint64_t)strtol(optarg, &eptr, 10);
+                if (mywlm == CTI_WLM_SLURM) {
 
-                // check for error
-                if ((errno == ERANGE && job_id == ULONG_MAX)
-                        || (errno != 0 && job_id == 0)) {
-                    perror("strtol");
+                    // This is the job id
+                    errno = 0;
+                    slurm_job_id = (uint64_t)strtol(optarg, &eptr, 10);
+
+                    // check for error
+                    if ((errno == ERANGE && slurm_job_id == ULONG_MAX)
+                            || (errno != 0 && slurm_job_id == 0)) {
+                        perror("strtol");
+                        assert(0);
+                        return 1;
+                    }
+
+                    // check for invalid input
+                    if (eptr == optarg || *eptr != '\0') {
+                        fprintf(stderr, "Invalid --jobid argument for Slurm WLM (expecting numeric).\n");
+                        assert(0);
+                        return 1;
+                    }
+
+                } else if (mywlm == CTI_WLM_FLUX) {
+
+                    // Job ID is character string
+                    flux_job_id = strdup(optarg);
+
+                } else {
+                    fprintf(stderr, "Invalid parameter --jobid for WLM %s\n", cti_wlm_type_toString(mywlm));
                     assert(0);
                     return 1;
                 }
-
-                // check for invalid input
-                if (eptr == optarg || *eptr != '\0') {
-                    fprintf(stderr, "Invalid --jobid argument.\n");
-                    assert(0);
-                    return 1;
-                }
-
-                j_arg = 1;
 
                 break;
 
@@ -134,26 +150,33 @@ main(int argc, char **argv)
                     return 1;
                 }
 
-                // This is the step id
-                errno = 0;
-                step_id = (uint64_t)strtol(optarg, &eptr, 10);
+                if (mywlm == CTI_WLM_SLURM) {
 
-                // check for error
-                if ((errno == ERANGE && step_id == ULONG_MAX)
-                        || (errno != 0 && step_id == 0)) {
-                    perror("strtol");
+                    // This is the step id
+                    errno = 0;
+                    slurm_step_id = (uint64_t)strtol(optarg, &eptr, 10);
+
+                    // check for error
+                    if ((errno == ERANGE && slurm_step_id == ULONG_MAX)
+                            || (errno != 0 && slurm_step_id == 0)) {
+                        perror("strtol");
+                        assert(0);
+                        return 1;
+                    }
+
+                    // check for invalid input
+                    if (eptr == optarg || *eptr != '\0') {
+                        fprintf(stderr, "Invalid --stepid argument.\n");
+                        assert(0);
+                        return 1;
+                    }
+
+                } else {
+                    fprintf(stderr, "Invalid parameter --stepid for WLM %s\n", cti_wlm_type_toString(mywlm));
                     assert(0);
                     return 1;
                 }
 
-                // check for invalid input
-                if (eptr == optarg || *eptr != '\0') {
-                    fprintf(stderr, "Invalid --stepid argument.\n");
-                    assert(0);
-                    return 1;
-                }
-
-                s_arg = 1;
 
                 break;
 
@@ -164,26 +187,36 @@ main(int argc, char **argv)
                     return 1;
                 }
 
-                // This is the apid
-                errno = 0;
-                apid = (uint64_t)strtoull(optarg, &eptr, 10);
+                if (mywlm == CTI_WLM_ALPS) {
 
-                // check for error
-                if ((errno == ERANGE && step_id == ULONG_MAX)
-                        || (errno != 0 && step_id == 0)) {
-                    perror("strtol");
+                    // This is the apid
+                    errno = 0;
+                    alps_apid = (uint64_t)strtoull(optarg, &eptr, 10);
+
+                    // check for error
+                    if ((errno == ERANGE && alps_apid == ULONG_MAX)
+                            || (errno != 0 && alps_apid == 0)) {
+                        perror("strtol");
+                        assert(0);
+                        return 1;
+                    }
+
+                    // check for invalid input
+                    if (eptr == optarg || *eptr != '\0') {
+                        fprintf(stderr, "Invalid --apid argument.\n");
+                        assert(0);
+                        return 1;
+                    }
+
+                } else if (mywlm == CTI_WLM_PALS) {
+
+                    pals_apid = strdup(optarg);
+
+                } else {
+                    fprintf(stderr, "Invalid parameter --jobid for WLM %s\n", cti_wlm_type_toString(mywlm));
                     assert(0);
                     return 1;
                 }
-
-                // check for invalid input
-                if (eptr == optarg || *eptr != '\0') {
-                    fprintf(stderr, "Invalid --apid argument.\n");
-                    assert(0);
-                    return 1;
-                }
-
-                a_arg = 1;
 
                 break;
 
@@ -199,8 +232,8 @@ main(int argc, char **argv)
                 launcher_pid = (pid_t)strtol(optarg, &eptr, 10);
 
                 // check for error
-                if ((errno == ERANGE && step_id == ULONG_MAX)
-                        || (errno != 0 && step_id == 0)) {
+                if ((errno == ERANGE && launcher_pid == ULONG_MAX)
+                        || (errno != 0 && launcher_pid == 0)) {
                     perror("strtol");
                     assert(0);
                     return 1;
@@ -212,8 +245,6 @@ main(int argc, char **argv)
                     assert(0);
                     return 1;
                 }
-
-                p_arg = 1;
 
                 break;
 
@@ -229,25 +260,18 @@ main(int argc, char **argv)
         }
     }
 
-    /*
-     * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
-     *                   system.
-     */
-    mywlm = cti_current_wlm();
-
-    // Check the args to make sure they are valid given the wlm in use
+    // Register application with CTI
     switch (mywlm) {
         case CTI_WLM_SLURM:
         {
-            if (j_arg == 0 || s_arg == 0) {
+            if (slurm_job_id == 0 || slurm_step_id == 0) {
                 fprintf(stderr, "Error: Missing --jobid and --stepid argument. This is required for the SLURM WLM.\n");
             }
-            assert(j_arg != 0 && s_arg != 0);
             cti_slurm_ops_t * slurm_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&slurm_ops);
             assert(ret == mywlm);
             assert(slurm_ops != NULL);
-            myapp = slurm_ops->registerJobStep(job_id, step_id);
+            myapp = slurm_ops->registerJobStep(slurm_job_id, slurm_step_id);
             if (myapp == 0) {
                 fprintf(stderr, "Error: registerJobStep failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -258,15 +282,14 @@ main(int argc, char **argv)
 
         case CTI_WLM_ALPS:
         {
-            if (a_arg == 0 ) {
+            if (alps_apid == 0) {
                 fprintf(stderr, "Error: Missing --apid argument. This is required for the ALPS WLM.\n");
             }
-            assert(a_arg != 0);
             cti_alps_ops_t * alps_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&alps_ops);
             assert(ret == mywlm);
             assert(alps_ops != NULL);
-            myapp = alps_ops->registerApid(apid);
+            myapp = alps_ops->registerApid(alps_apid);
             if (myapp == 0) {
                 fprintf(stderr, "Error: registerApid failed!\n");
                 fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -277,10 +300,9 @@ main(int argc, char **argv)
 
         case CTI_WLM_SSH:
         {
-            if (p_arg == 0) {
+            if (launcher_pid == 0) {
                 fprintf(stderr, "Error: Missing --pid argument. This is required for the generic WLM.\n");
             }
-            assert(p_arg != 0);
             cti_ssh_ops_t * ssh_ops = NULL;
             cti_wlm_type_t ret = cti_open_ops((void **)&ssh_ops);
             assert(ret == mywlm);
@@ -295,6 +317,41 @@ main(int argc, char **argv)
             break;
 
         case CTI_WLM_PALS:
+        {
+            if (pals_apid == NULL) {
+                fprintf(stderr, "Error: Missing --apid argument. This is required for the PALS WLM.\n");
+            }
+            cti_pals_ops_t * pals_ops = NULL;
+            cti_wlm_type_t ret = cti_open_ops((void **)&pals_ops);
+            assert(ret == mywlm);
+            assert(pals_ops != NULL);
+            myapp = pals_ops->registerApid(pals_apid);
+            if (myapp == 0) {
+                fprintf(stderr, "Error: registerApid failed!\n");
+                fprintf(stderr, "CTI error: %s\n", cti_error_str());
+            }
+            assert(myapp != 0);
+        }
+            break;
+
+        case CTI_WLM_FLUX:
+        {
+            if (flux_job_id == NULL) {
+                fprintf(stderr, "Error: Missing --jobid argument. This is required for the Flux WLM.\n");
+            }
+            cti_flux_ops_t * flux_ops = NULL;
+            cti_wlm_type_t ret = cti_open_ops((void **)&flux_ops);
+            assert(ret == mywlm);
+            assert(flux_ops != NULL);
+            myapp = flux_ops->registerJob(flux_job_id);
+            if (myapp == 0) {
+                fprintf(stderr, "Error: registerJob failed!\n");
+                fprintf(stderr, "CTI error: %s\n", cti_error_str());
+            }
+            assert(myapp != 0);
+        }
+            break;
+
         case CTI_WLM_MOCK:
         case CTI_WLM_NONE:
             fprintf(stderr, "Error: Unsupported WLM in use!\n");

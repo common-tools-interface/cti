@@ -311,6 +311,11 @@ main(int argc, char **argv)
         }
             break;
 
+        case CTI_WLM_FLUX:
+            fprintf(stderr, "Error: Flux WLM does not support MPMD\n");
+            assert(0);
+            return 1;
+
         case CTI_WLM_MOCK:
         case CTI_WLM_NONE:
             fprintf(stderr, "Error: Unsupported WLM in use!\n");
