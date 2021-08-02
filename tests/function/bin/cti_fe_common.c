@@ -153,6 +153,10 @@ cti_test_fe(cti_app_id_t appId)
             printf("PALS application %lu: %d PEs and %d nodes\n", appId, cti_getNumAppPEs(appId), cti_getNumAppNodes(appId));
             break;
 
+        case CTI_WLM_FLUX:
+            printf("Flux application %lu: %d PEs and %d nodes\n", appId, cti_getNumAppPEs(appId), cti_getNumAppNodes(appId));
+            break;
+
         default:
             // do nothing
             printf("Unsupported wlm!\n");

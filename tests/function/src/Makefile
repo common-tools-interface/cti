@@ -7,13 +7,13 @@ all: $(EXECS)
 clean:
 	rm -f $(EXECS)
 
-CFLAGS = -Wall -g -O0
+CFLAGS := $(CFLAGS) -Wall -g -O0
 
 hello_mpi : hello_mpi.c
-	cc $(CLAGS) $^ -o $@
+	cc $(CFLAGS) $^ -o $@
 
 hello_mpi_wait : hello_mpi_wait.c
-	cc $(CLAGS) $^ -o $@
+	cc $(CFLAGS) $^ -o $@
 
 mpi_wrapper : mpi_wrapper.c
-	cc $(CLAGS) $^ -o $@
+	cc $(CFLAGS) $^ -o $@
