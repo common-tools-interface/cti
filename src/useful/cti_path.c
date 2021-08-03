@@ -39,6 +39,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include <libgen.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -243,7 +244,7 @@ _cti_libFind(const char *file)
             }
 
             // check to see if the basename of the result matches our file
-            if ((base = _cti_pathToName(res)) != NULL)
+            if ((base = basename(res)) != NULL)
             {
                 if ((strlen(base) == strlen(file)) && (strcmp(base, file) == 0))
                 {
@@ -359,44 +360,6 @@ _cti_adjustPaths(const char *path, const char* libpath)
     free(ld_library_path);
 
     return 0;
-}
-
-/* "a/b/c" => "c" */
-char *
-_cti_pathToName(const char *path)
-{
-    char *  end;
-
-    // locate the last instance of '/' in the path
-    end = strrchr(path, '/');
-
-    // sanity check
-    if (end == NULL)
-        return NULL;
-
-    // increment end to point one char past the final '/'
-    // and strdup from that point to the null term
-    return strdup(++end);
-}
-
-/* "a/b/c" => "a/b" */
-char *
-_cti_pathToDir(const char *path)
-{
-    char *  end;
-    char * result = strdup(path);
-
-    // locate the last instance of '/' in the path
-    end = strrchr(path, '/');
-
-    // sanity check
-    if (end == NULL)
-        return NULL;
-
-    //End the string just before the final slash
-    result[end-path] = '\0';
-
-    return result;
 }
 
 // This will act as a rm -rf ...

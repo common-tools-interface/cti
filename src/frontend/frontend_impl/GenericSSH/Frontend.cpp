@@ -800,16 +800,13 @@ GenericSSHApp::kill(int signal)
 void
 GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
-    if (auto packageName = cti::take_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
-        auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
-        writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
+    auto packageName = cti::cstr::basename(tarPath);
+    auto const destination = std::string{SSH_TOOL_DIR} + "/" + packageName;
+    writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
-        // Send the package to each of the hosts using SCP
-        for (auto&& node : m_stepLayout.nodes) {
-            SSHSession(node.hostname, m_frontend.getPwd()).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-        }
-    } else {
-        throw std::runtime_error("_cti_pathToName failed");
+    // Send the package to each of the hosts using SCP
+    for (auto&& node : m_stepLayout.nodes) {
+        SSHSession(node.hostname, m_frontend.getPwd()).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
     }
 }
 

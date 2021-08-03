@@ -360,15 +360,6 @@ findLib(std::string const& fileName) {
     }
 }
 
-static inline std::string
-getNameFromPath(std::string const& filePath) {
-    if (auto realName = take_pointer_ownership(_cti_pathToName(filePath.c_str()), std::free)) {
-        return std::string{realName.get()};
-    } else { // _cti_pathToName failed with nullptr result
-        throw std::runtime_error("Could not convert the fullname to realname.");
-    }
-}
-
 // Test if a directory has the specified permissions
 static inline bool
 dirHasPerms(char const* dirPath, int const perms)

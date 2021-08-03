@@ -248,7 +248,7 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
         removeManifest(mani);
     }
     // get real name of daemon binary
-    const std::string binaryName(cti::getNameFromPath(cti::findPath(daemon)));
+    const std::string binaryName(cti::cstr::basename(cti::findPath(daemon)));
     // create DaemonArgv
     writeLog("execManifest: creating daemonArgv for %s\n", daemon);
     cti::OutgoingArgv<DaemonArgv> daemonArgv(CTI_BE_DAEMON_BINARY);

@@ -85,7 +85,7 @@ Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
     enforceValid();
     // get path and real name of file
     const std::string filePath(cti::findPath(rawName));
-    const std::string realName(cti::getNameFromPath(filePath));
+    const std::string realName(cti::cstr::basename(filePath));
 
     // check permissions
     if (!cti::fileHasPerms(filePath.c_str(), R_OK|X_OK)) {
@@ -107,7 +107,7 @@ Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
     enforceValid();
     // get path and real name of file
     const std::string filePath(cti::findLib(rawName));
-    const std::string realName(cti::getNameFromPath(filePath));
+    const std::string realName(cti::cstr::basename(filePath));
 
     auto sess = getOwningSession();
 
@@ -147,7 +147,7 @@ Manifest::addLibDir(const std::string& rawPath) {
     enforceValid();
     // get real path and real name of directory
     const std::string realPath(cti::cstr::realpath(rawPath));
-    const std::string realName(cti::getNameFromPath(realPath));
+    const std::string realName(cti::cstr::basename(realPath));
 
     checkAndAdd("lib", realPath, realName);
 }
@@ -157,7 +157,7 @@ Manifest::addFile(const std::string& rawName) {
     enforceValid();
     // get path and real name of file
     const std::string filePath(cti::findPath(rawName));
-    const std::string realName(cti::getNameFromPath(filePath));
+    const std::string realName(cti::cstr::basename(filePath));
 
     checkAndAdd("", filePath, realName);
 }
