@@ -128,6 +128,10 @@ namespace cstr {
 
     // lifted basename
     static inline std::string basename(std::string const& path) {
+        if (path.empty()) {
+            return {};
+        }
+
         auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
         if (auto const baseName = ::basename(rawPath.get())) {
             return std::string(baseName);
@@ -138,6 +142,10 @@ namespace cstr {
 
     // lifted dirname
     static inline std::string dirname(std::string const& path) {
+        if (path.empty()) {
+            return {};
+        }
+
         auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
         if (auto const dirName = ::dirname(rawPath.get())) {
             return std::string(dirName);
