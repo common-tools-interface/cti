@@ -242,11 +242,8 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
         , "--force"
     };
 
-    if (auto packageName = cti::take_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
-        sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName.get());
-    } else {
-        throw std::runtime_error("_cti_pathToName failed");
-    }
+    auto packageName = cti::cstr::basename(tarPath);
+    sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName);
 
     // now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
     m_frontend.Daemon().request_ForkExecvpUtil_Sync(

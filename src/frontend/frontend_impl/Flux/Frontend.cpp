@@ -62,6 +62,8 @@
 
 #include "LibFlux.hpp"
 
+#include "ssh.hpp"
+
 namespace pt = boost::property_tree;
 
 /* helper functions */
@@ -160,12 +162,27 @@ static auto parseJson(std::string const& json)
 // Convert numerical job ID to compact F58 encoding
 static auto encode_job_id(FluxFrontend::LibFlux& libFluxRef, uint64_t job_id)
 {
-    // Job IDs are a maximum of 14 characters (12 characters, 1 f suffix, 1 terminator)
+    static const char utf8_prefix[] = u8"\u0192";
+
+    // Job IDs are a maximum of 14 characters (12 characters, 2-byte f prefix, 1 terminator)
     char buf[64];
-    if (libFluxRef.flux_job_id_encode(job_id, "f58", buf, sizeof(buf) - 1) < 0) {
+
+    // flux_job_id_encode will always output in ASCII-only, so will need to overwrite the
+    // ASCII 'f' with UTF-8 prefix if not disabled
+    auto const utf8_enabled = (!getenv("FLUX_F58_FORCE_ASCII"));
+    auto const offset_len = (utf8_enabled)
+        ? strlen(utf8_prefix) - 1 // Last byte of UTF-8 prefix will overwrite ASCII prefix
+        : 0;
+
+    if (libFluxRef.flux_job_id_encode(job_id, "f58", buf + offset_len, sizeof(buf) - offset_len) < 0) {
         throw std::runtime_error("failed to encode Flux job id: " + std::string{strerror(errno)});
     }
     buf[sizeof(buf) - 1] = '\0';
+
+    // Replace ASCII 'f' with prefix
+    if (utf8_enabled) {
+        ::memcpy(buf, utf8_prefix, strlen(utf8_prefix));
+    }
 
     return std::string{buf};
 }
@@ -700,13 +717,40 @@ FluxApp::getLauncherHostname() const
 bool
 FluxApp::isRunning() const
 {
-    unimplemented(__func__);
+    // Create request future
+    auto future = make_unique_del(
+        m_libFluxRef.flux_job_list_id(m_fluxHandle, m_jobId, "[\"state\"]"),
+        m_libFluxRef.flux_future_destroy);
+    if (future == nullptr) {
+        throw std::runtime_error("Flux query failed: " + std::string{strerror(errno)});
+    }
+
+    // Block and read until API returns response
+    char const *result = nullptr;
+    auto const rc = m_libFluxRef.flux_rpc_get(future.get(), &result);
+    if (rc || (result == nullptr)) {
+        auto const flux_error = m_libFluxRef.flux_future_error_string(future.get());
+        throw std::runtime_error("Flux query failed: " + std::string{(flux_error)
+            ? flux_error
+            : "(no error provided)"});
+    }
+
+    // Parse JSON
+    auto root = parseJson(result);
+    auto const state = root.get<int>("job.state");
+
+    return (state == FLUX_JOB_STATE_RUN);
 }
 
 std::vector<std::string>
 FluxApp::getHostnameList() const
 {
-    unimplemented(__func__);
+    std::vector<std::string> result;
+
+    // extract hostnames from each CTIHost
+    std::transform(m_hostsPlacement.begin(), m_hostsPlacement.end(), std::back_inserter(result),
+        [](CTIHost const& ctiHost) { return ctiHost.hostname; });
+    return result;
 }
 
 std::map<std::string, std::vector<int>>
@@ -762,7 +806,14 @@ FluxApp::kill(int signal)
 void
 FluxApp::shipPackage(std::string const& tarPath) const
 {
-    unimplemented(__func__);
+    auto const packageName = cti::cstr::basename(tarPath);
+    auto const destination = m_toolPath + "/" + packageName;
+    writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
+
+    // Send the package to each of the hosts using SCP
+    for (auto&& ctiHost : m_hostsPlacement) {
+        SSHSession(ctiHost.hostname, m_frontend.getPwd()).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+    }
 }
 
 void
@@ -779,15 +830,25 @@ FluxApp::startDaemon(const char* const args[])
         }
 
         // Ship the BE binary to its unique storage name
-        shipPackage(getBEDaemonName());
+        shipPackage(m_frontend.getBEDaemonPath());
 
         // set transfer to true
         m_beDaemonSent = true;
     }
 
+    // Create daemon argument array
+    auto launcherArgv = cti::ManagedArgv{m_frontend.getBEDaemonPath()};
+
+    // Merge in the args array if there is one
+    if (args != nullptr) {
+        for (const char* const* arg = args; *arg != nullptr; arg++) {
+            launcherArgv.add(*arg);
+        }
+    }
+
     // Generate daemon jobspec string
     auto& fluxFrontend = dynamic_cast<FluxFrontend&>(m_frontend);
-    auto const jobspec = make_jobspec(fluxFrontend.getLauncherName().c_str(), nullptr,
+    auto const jobspec = make_jobspec(fluxFrontend.getLauncherName().c_str(), launcherArgv.get(),
         "", "", "", "", {}, // No input, output, error, chdir, environment settings
         { { "system.alloc-bypass.R", m_resourceSpec } });
 
@@ -881,8 +942,9 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
             << ", \"keys\": [\"R\"]"
             << ", \"flags\": 0"
         << "}";
-        m_resourceSpec = make_rpc_request(m_libFluxRef, m_fluxHandle, m_leaderRank,
-            "job-info.lookup", lookupRequest.str());
+        auto root = parseJson(make_rpc_request(m_libFluxRef, m_fluxHandle, m_leaderRank,
+            "job-info.lookup", lookupRequest.str()));
+        m_resourceSpec = root.get<std::string>("R");
     }
 
     // Start new proctable query

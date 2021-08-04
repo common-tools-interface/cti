@@ -128,6 +128,10 @@ namespace cstr {
 
     // lifted basename
     static inline std::string basename(std::string const& path) {
+        if (path.empty()) {
+            return {};
+        }
+
         auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
         if (auto const baseName = ::basename(rawPath.get())) {
             return std::string(baseName);
@@ -138,6 +142,10 @@ namespace cstr {
 
     // lifted dirname
     static inline std::string dirname(std::string const& path) {
+        if (path.empty()) {
+            return {};
+        }
+
         auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
         if (auto const dirName = ::dirname(rawPath.get())) {
             return std::string(dirName);
@@ -357,15 +365,6 @@ findLib(std::string const& fileName) {
         return std::string{fullPath.get()};
     } else { // _cti_libFind failed with nullptr result
         throw std::runtime_error(fileName + ": Could not locate in LD_LIBRARY_PATH or system location.");
-    }
-}
-
-static inline std::string
-getNameFromPath(std::string const& filePath) {
-    if (auto realName = take_pointer_ownership(_cti_pathToName(filePath.c_str()), std::free)) {
-        return std::string{realName.get()};
-    } else { // _cti_pathToName failed with nullptr result
-        throw std::runtime_error("Could not convert the fullname to realname.");
     }
 }
 
