@@ -836,6 +836,12 @@ FluxApp::startDaemon(const char* const args[])
         // Ship the BE binary to its unique storage name
         shipPackage(m_frontend.getBEDaemonPath());
 
+        // Generate and ship attribute archive
+        { auto archive = generateAttribsArchive();
+            auto const archivePath = archive.finalize();
+            shipPackage(archivePath);
+        }
+
         // set transfer to true
         m_beDaemonSent = true;
     }
@@ -990,9 +996,42 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         auto const jobIdF58 = encode_job_id(m_libFluxRef, m_jobId);
         m_toolPath = std::string{rundir} + "/jobtmp-" + std::to_string(m_leaderRank) + "-" + jobIdF58;
         writeLog("tmpdir: %s\n", m_toolPath.c_str());
-
-        // TODO: determine if Flux's PMI implementation provides pmi_attribs
     }
+}
+
+// Flux does not yet support cray-pmi, so backend information needs to be generated seperately
+Archive FluxApp::generateAttribsArchive()
+{
+    auto const cfgDir = m_frontend.getCfgDir();
+
+    auto archive = Archive{cfgDir + "/flux_attribs.tar"};
+
+    // Create attribs file for each hostname
+    for (auto&& placement : m_hostsPlacement) {
+        auto const attribsPath = cfgDir + "/attribs_" + placement.hostname;
+
+        { auto attribs_file = cti::take_pointer_ownership(::fopen(attribsPath.c_str(), "w"), ::fclose);
+            if (!attribs_file) {
+                throw std::runtime_error("failed to create file at " + attribsPath);
+            }
+
+            // Write attribs information to file
+            fprintf(attribs_file.get(), "%d\n%d\n%d\n%d\n",
+                1, // PMI version 1
+                0, // Node ID disabled
+                0, // Flux does not support MPMD
+                placement.numPEs); // Ranks on node
+
+            for (auto&& [rank, pid] : placement.rankPidPairs) {
+                fprintf(attribs_file.get(), "%d %d\n", rank, pid);
+            }
+        }
+
+        // Add PMI file to archive
+        archive.addPath("attribs_" + placement.hostname, attribsPath);
+    }
+
+    return std::move(archive);
 }
 
 FluxApp::~FluxApp()
@@ -1002,6 +1041,6 @@ FluxApp::~FluxApp()
         (void)cancel_job(m_libFluxRef, m_fluxHandle, id, "controlling application is terminating");
     }
 
-    // Terminate applictaion jobs
+    // Terminate application jobs
     (void)cancel_job(m_libFluxRef, m_fluxHandle, m_jobId, "CTI is terminating");
 }

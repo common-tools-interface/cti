@@ -36,6 +36,7 @@
 #include <future>
 
 #include "frontend/Frontend.hpp"
+#include "frontend/transfer/Archive.hpp"
 
 #include "useful/cti_wrappers.hpp"
 #include "useful/cti_dlopen.hpp"
@@ -142,6 +143,9 @@ private: // variables
     bool m_atBarrier; // Flag that the application is at the startup barrier.
 
     std::vector<uint64_t> m_daemonJobIds; // Daemon IDs to be cleaned up on exit
+
+private: // member helpers
+    Archive generateAttribsArchive();
 
 public: // app interaction interface
     std::string getJobId()            const override;
