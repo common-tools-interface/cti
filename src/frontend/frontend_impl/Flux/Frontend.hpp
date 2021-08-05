@@ -74,6 +74,13 @@ public: // flux specific types
         bool atBarrier;
     };
 
+    struct HostPlacement {
+        std::string hostname;
+        int node_id;
+        size_t numPEs;
+        std::vector<std::pair<int, pid_t>> rankPidPairs;
+    };
+
 private: // flux specific members
     std::string const m_libFluxPath;
     std::unique_ptr<LibFlux> m_libFlux;
@@ -125,7 +132,7 @@ private: // variables
 
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
     size_t m_numPEs;
-    std::vector<CTIHost> m_hostsPlacement;
+    std::vector<FluxFrontend::HostPlacement> m_hostsPlacement;
     std::string m_binaryName; // Flux does not support MPMD, so only need to store a single binary
 
     std::string m_toolPath;    // Backend path where files are unpacked
@@ -148,7 +155,7 @@ public: // app interaction interface
     size_t getNumPEs()       const override { return m_numPEs; }
     size_t getNumHosts()     const override { return m_hostsPlacement.size(); }
     std::vector<std::string> getHostnameList()   const override;
-    std::vector<CTIHost>     getHostsPlacement() const override { return  m_hostsPlacement; }
+    std::vector<CTIHost>     getHostsPlacement() const override;
     std::map<std::string, std::vector<int>> getBinaryRankMap() const override;
 
     void releaseBarrier() override;

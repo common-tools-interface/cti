@@ -348,7 +348,7 @@ static auto const flattenPrefixList(pt::ptree const& root)
 
 static auto make_hostsPlacement(pt::ptree const& root)
 {
-    auto result = std::vector<CTIHost>{};
+    auto result = std::vector<FluxFrontend::HostPlacement>{};
 
     /* Flux proctable format:
       prefix_rangelist: [ prefix_string, [ rangelist, ... ] ]
@@ -372,18 +372,47 @@ static auto make_hostsPlacement(pt::ptree const& root)
         }
     */
 
+    auto hostPlacementMap = std::map<std::string, FluxFrontend::HostPlacement>{};
+    auto hostname_count = size_t{0};
+
     // Add count for every hostname
-    auto hostPECount = std::map<std::string, size_t>{};
     for_each_prefixList(root.get_child("hosts"), [&](std::string const& hostname) {
-        hostPECount[hostname]++;
+        hostPlacementMap[hostname].hostname = hostname;
+        hostPlacementMap[hostname].numPEs++;
+        hostname_count++;
     });
 
-    // Construct placement vector from count map
-    for (auto&& [hostname, pe_count] : hostPECount) {
-        result.emplace_back(CTIHost
-            { .hostname = hostname
-            , .numPEs =  pe_count
-        });
+    // Get list of all ranks and PIDs
+    auto const ranks = flattenRangeList(root.get_child("ids"));
+    auto const pids = flattenRangeList(root.get_child("pids"));
+
+    // Each hostname occurrence corresponds to a single rank and PID
+    if (ranks.size() != hostname_count) {
+        throw std::runtime_error("mismatch between rank and hostname count from Flux API ("
+            + std::to_string(ranks.size()) + " ranks and " + std::to_string(hostname_count)
+            + " hostnames");
+    }
+    if (pids.size() != hostname_count) {
+        throw std::runtime_error("mismatch between PID and hostname count from Flux API ("
+            + std::to_string(pids.size()) + " PIDs and " + std::to_string(hostname_count)
+            + " hostnames");
+    }
+
+    // Host with N ranks will have the next N PIDs from rank list
+    auto rank_cursor = ranks.begin();
+    auto pid_cursor = pids.begin();
+    for (auto&& [hostname, placement] : hostPlacementMap) {
+        for (size_t i = 0; i < placement.numPEs; i++) {
+            placement.rankPidPairs.emplace_back(*rank_cursor, *pid_cursor);
+            rank_cursor++;
+            pid_cursor++;
+        }
+    }
+
+    // Construct placement vector from map
+    result.reserve(hostPlacementMap.size());
+    for (auto&& [hostname, placement] : hostPlacementMap) {
+        result.emplace_back(std::move(placement));
     }
 
     return result;
@@ -710,7 +739,21 @@ FluxApp::getHostnameList() const
 
     // extract hostnames from each CTIHost
     std::transform(m_hostsPlacement.begin(), m_hostsPlacement.end(), std::back_inserter(result),
-        [](CTIHost const& ctiHost) { return ctiHost.hostname; });
+        [](FluxFrontend::HostPlacement const& placement) { return placement.hostname; });
+    return result;
+}
+
+std::vector<CTIHost>
+FluxApp::getHostsPlacement() const
+{
+    std::vector<CTIHost> result;
+
+    // Extract hostnames and number of PEs from each CTIHost
+    std::transform(m_hostsPlacement.begin(), m_hostsPlacement.end(), std::back_inserter(result),
+        [](FluxFrontend::HostPlacement const& placement) {
+            return CTIHost { .hostname = placement.hostname, .numPEs = placement.numPEs };
+        } );
+
     return result;
 }
 
@@ -922,7 +965,9 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         // Sum up number of PEs
         m_numPEs = std::accumulate(
             m_hostsPlacement.begin(), m_hostsPlacement.end(), size_t{},
-            [](size_t total, CTIHost const& ctiHost) { return total + ctiHost.numPEs; });
+            [](size_t total, FluxFrontend::HostPlacement const& placement) {
+                return total + placement.numPEs;
+            });
 
         // Get list of binaries. As Flux does not support MPMD, this should only ever
         // be a single binary.
