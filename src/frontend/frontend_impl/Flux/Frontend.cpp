@@ -200,6 +200,15 @@ using RangeList = std::variant<Empty, Range, RLE>;
 // Updates `base` state by reference
 static auto parseRangeList(pt::ptree const& root, int64_t& base)
 {
+    /* The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
+       - Range of ints 1 to 3 inclusive
+       - RLE with value 3 + 5 = 8 of length -(-1) + 1 = 2
+       - Values 1, 2, 3, 8, 8
+       The prefix rangelist data [ "node", [ [1,3], [5,-1] ] ] will then be
+       computed as node1, node2, node3, node8, node8.
+       Finally, nodes 1 through 3 will have 1 PE each, and node 8 will have 2
+    */
+
     // Single element will be interpreted as a range of size 1
     if (!root.data().empty()) {
         base = root.get_value<int64_t>();
@@ -215,15 +224,6 @@ static auto parseRangeList(pt::ptree const& root, int64_t& base)
     }
 
     auto cursor = root.begin();
-
-    // If element is a non-list, it will be an integer value
-    if (!cursor->second.data().empty()) {
-        base = std::stoi(cursor->second.data());
-        return RangeList { RLE
-            { .value = base
-            , .count = 1
-        } };
-    }
 
     // Add base offset to range start / RLE value
     auto const first = base + (cursor++)->second.get_value<int>();
@@ -252,6 +252,100 @@ static auto parseRangeList(pt::ptree const& root, int64_t& base)
     }
 }
 
+static auto flattenRangeList(pt::ptree const& root)
+{
+    auto result = std::vector<int64_t>{};
+
+    auto base = int64_t{0};
+
+    // { "": [ rangelist, ... ], ... }
+    for (auto&& rangeListObjectPair : root) {
+
+        // Parse inner rangelist object as either range or RLE
+        // `base` is updated by `parseRangeList`
+        auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
+
+        // Empty: no element
+        if (std::holds_alternative<Empty>(rangeList)) {
+            continue;
+
+        // Range: add entire range to result
+        } else if (std::holds_alternative<Range>(rangeList)) {
+
+            auto const [start, end] = std::get<Range>(rangeList);
+            result.reserve(result.size() + (end - start));
+            for (auto i = start; i <= end; i++) {
+                result.push_back(i);
+            }
+
+        // RLE: add run length to result
+        } else if (std::holds_alternative<RLE>(rangeList)) {
+
+            auto const [value, count] = std::get<RLE>(rangeList);
+            result.reserve(result.size() + count);
+            for (int64_t i = 0; i < count; i++) {
+                result.push_back(value);
+            }
+        }
+    }
+
+    return result;
+}
+
+template <typename Func>
+static void for_each_prefixList(pt::ptree const& root, Func&& func)
+{
+    /* "hosts" contains a prefix rangelist that expands to one instance of each
+       hostname for every PE on that host.
+       The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
+       - Range of ints 1 to 3 inclusive
+       - RLE with value 3 + 5 = 8 of length -(-1) + 1 = 2
+       - Values 1, 2, 3, 8, 8
+       The prefix rangelist data [ "node", [ [1,3], [5,-1] ] ] will then be
+       computed as node1, node2, node3, node8, node8.
+       Finally, nodes 1 through 3 will have 1 PE each, and node 8 will have 2
+    */
+
+    // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
+    for (auto&& prefixListArrayPair : root) {
+
+        // If element has data, it is a plain string instead of a prefix list
+        if (!prefixListArrayPair.second.data().empty()) {
+            func(prefixListArrayPair.second.data());
+            continue;
+        }
+
+        // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
+        auto cursor = prefixListArrayPair.second.begin();
+        auto const prefix = (cursor++)->second.get_value<std::string>();
+        auto const rangeListObjectArray = (cursor++)->second;
+
+        auto hostnamePostfixes = flattenRangeList(rangeListObjectArray);
+
+        // Empty: there is a single string consisting solely of the prefix
+        if (hostnamePostfixes.empty()) {
+                func(prefix);
+
+        // Run function on every generated string
+        } else {
+            for (auto&& postfix : hostnamePostfixes) {
+                func(prefix + std::to_string(postfix));
+            }
+        }
+    }
+}
+
+static auto const flattenPrefixList(pt::ptree const& root)
+{
+    auto result = std::vector<std::string>{};
+
+    for_each_prefixList(root, [&](std::string hostname) {
+        result.emplace_back(std::move(hostname));
+    });
+
+    return result;
+}
+
 static auto make_hostsPlacement(pt::ptree const& root)
 {
     auto result = std::vector<CTIHost>{};
@@ -278,66 +372,11 @@ static auto make_hostsPlacement(pt::ptree const& root)
         }
     */
 
-    /* "hosts" contains a prefix rangelist that expands to one instance of each
-       hostname for every PE on that host.
-       The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
-       - Range of ints 1 to 3 inclusive
-       - RLE with value 3 + 5 = 8 of length -(-1) + 1 = 2
-       - Values 1, 2, 3, 8, 8
-       The prefix rangelist data [ "node", [ [1,3], [5,-1] ] ] will then be
-       computed as node1, node2, node3, node8, node8.
-       Finally, nodes 1 through 3 will have 1 PE each, and node 8 will have 2
-    */
-
+    // Add count for every hostname
     auto hostPECount = std::map<std::string, size_t>{};
-
-    // { "hosts": { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] } }
-    for (auto&& prefixListArrayPair : root.get_child("hosts")) {
-
-        // Next rangelist object's starting value is based on the ending value
-        // of the previous range
-        auto base = int64_t{};
-
-        // If element has data, it is a plain string instead of a prefix list
-        if (!prefixListArrayPair.second.data().empty()) {
-            hostPECount[prefixListArrayPair.second.data()]++;
-            continue;
-        }
-
-        // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
-        auto cursor = prefixListArrayPair.second.begin();
-        auto const prefix = (cursor++)->second.get_value<std::string>();
-        auto const rangeListObjectArray = (cursor++)->second;
-
-        // { "": [ rangelist, ... ], ... }
-        for (auto&& rangeListObjectPair : rangeListObjectArray) {
-
-            // Parse inner rangelist object as either range or RLE
-            // `base` is updated by `parseRangeList`
-            auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
-
-            // Empty: there is a single hostname consisting solely of the prefix
-            if (std::holds_alternative<Empty>(rangeList)) {
-                hostPECount[prefix]++;
-
-            // Range: increment PE count for every hostname constructed with prefix
-            } else if (std::holds_alternative<Range>(rangeList)) {
-
-                auto const [start, end] = std::get<Range>(rangeList);
-                for (auto i = start; i <= end; i++) {
-                     auto const hostname = prefix + std::to_string(i);
-                     hostPECount[hostname]++;
-                }
-
-            // RLE: add run length to host's PE count
-            } else if (std::holds_alternative<RLE>(rangeList)) {
-
-                auto const [value, count] = std::get<RLE>(rangeList);
-                auto const hostname = prefix + std::to_string(value);
-                hostPECount[hostname] += count;
-            }
-        }
-    }
+    for_each_prefixList(root.get_child("hosts"), [&](std::string const& hostname) {
+        hostPECount[hostname]++;
+    });
 
     // Construct placement vector from count map
     for (auto&& [hostname, pe_count] : hostPECount) {
@@ -345,84 +384,6 @@ static auto make_hostsPlacement(pt::ptree const& root)
             { .hostname = hostname
             , .numPEs =  pe_count
         });
-    }
-
-    return result;
-}
-
-// Parse executables rangelist into vector of strings
-static auto make_binaryList(pt::ptree const& root)
-{
-    auto result = std::vector<std::string>{};
-
-    /* Flux proctable format:
-      prefix_rangelist: [ prefix_string, [ rangelist, ... ] ]
-      "hosts": [ prefix_rangelist, ... ]
-      "executables": [ prefix_rangelist, ... ]
-      "ids": [ rangelist, ... ]
-      "pids": [ rangelist, ... ]
-
-      Example: running 1 rank of a.out on node15
-        { "hosts": ["node15"]
-        , "executables": ["/path/to/a.out"]
-        , "ids": [0]
-        , "pids": [19797]
-        }
-
-      Example: running 2 ranks of a.out on node15, with PIDs 7991 and 7992
-        { "hosts": [[ "node", [[15,-1]] ]]
-        , "executables": [[ "/path/to/a.out", [[-1,-1]] ]]
-        , "ids": [[0,1]]
-        , "pids": [[7991,1]]
-        }
-    */
-
-    // { "executables": { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] } }
-    for (auto&& prefixListArrayPair : root.get_child("executables")) {
-
-        // Next rangelist object's starting value is based on the ending value
-        // of the previous range
-        auto base = int64_t{};
-
-        // If element has data, it is a plain string instead of a prefix list
-        if (!prefixListArrayPair.second.data().empty()) {
-            result.emplace_back(prefixListArrayPair.second.data());
-            continue;
-        }
-
-        // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
-        auto cursor = prefixListArrayPair.second.begin();
-        auto const prefix = (cursor++)->second.get_value<std::string>();
-        auto const rangeListObjectArray = (cursor++)->second;
-
-        // { "": [ rangelist, ... ], ... }
-        for (auto&& rangeListObjectPair : rangeListObjectArray) {
-
-            // Parse inner rangelist object as either range or RLE
-            // `base` is updated by `parseRangeList`
-            auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
-
-            // Empty: there is a single executable consisting solely of the prefix
-            if (std::holds_alternative<Empty>(rangeList)) {
-                 result.emplace_back(prefix);
-
-            // Range: add executable name for every name constructed with prefix
-            } else if (std::holds_alternative<Range>(rangeList)) {
-
-                auto const [start, end] = std::get<Range>(rangeList);
-                for (auto i = start; i <= end; i++) {
-                     result.emplace_back(prefix + std::to_string(i));
-                }
-
-            // RLE: add run length value to form executable
-            } else if (std::holds_alternative<RLE>(rangeList)) {
-
-                auto const [value, count] = std::get<RLE>(rangeList);
-                for (int64_t i = 0; i < count; i++) {
-                    result.emplace_back(prefix + std::to_string(value));
-                }
-            }
-        }
     }
 
     return result;
@@ -952,7 +913,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         m_rpcService + ".proctable", "{}");
 
         // Received proctable, parse response
-        writeLog("proctable: %s\n", proctableResult);
+        writeLog("proctable: %s\n", proctableResult.c_str());
         auto const proctable = parseJson(proctableResult);
 
         // Fill in hosts placement, PEs per node
@@ -965,7 +926,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
 
         // Get list of binaries. As Flux does not support MPMD, this should only ever
         // be a single binary.
-        auto binaryList = make_binaryList(proctable);
+        auto binaryList = flattenPrefixList(proctable.get_child("executables"));
         if (binaryList.size() != 1) {
             throw std::runtime_error("expected a single binary launched with Flux. Got " + std::to_string(binaryList.size()));
         }
