@@ -145,7 +145,7 @@ private: // variables
     std::vector<uint64_t> m_daemonJobIds; // Daemon IDs to be cleaned up on exit
 
 private: // member helpers
-    Archive generateAttribsArchive();
+    std::vector<std::pair<std::string, std::string>> generateHostAttribs();
 
 public: // app interaction interface
     std::string getJobId()            const override;

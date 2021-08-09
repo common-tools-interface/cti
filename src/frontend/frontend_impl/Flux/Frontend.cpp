@@ -836,10 +836,14 @@ FluxApp::startDaemon(const char* const args[])
         // Ship the BE binary to its unique storage name
         shipPackage(m_frontend.getBEDaemonPath());
 
-        // Generate and ship attribute archive
-        { auto archive = generateAttribsArchive();
-            auto const archivePath = archive.finalize();
-            shipPackage(archivePath);
+        // Generate and ship attribute files
+        { auto const hostAttribs = generateHostAttribs();
+
+            // Ship and remove attribute files
+            for (auto&& [hostname, attribPath] : hostAttribs) {
+                SSHSession(hostname, m_frontend.getPwd()).sendRemoteFile(attribPath.c_str(), m_attribsPath.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+                ::unlink(attribPath.c_str());
+            }
         }
 
         // set transfer to true
@@ -996,18 +1000,22 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         auto const jobIdF58 = encode_job_id(m_libFluxRef, m_jobId);
         m_toolPath = std::string{rundir} + "/jobtmp-" + std::to_string(m_leaderRank) + "-" + jobIdF58;
         writeLog("tmpdir: %s\n", m_toolPath.c_str());
+
+        // Attribute files will be manually generated and shipped into toolpath
+        m_attribsPath = m_toolPath + "/pmi_attribs";
     }
 }
 
 // Flux does not yet support cray-pmi, so backend information needs to be generated seperately
-Archive FluxApp::generateAttribsArchive()
+std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
 {
-    auto const cfgDir = m_frontend.getCfgDir();
+    auto result = std::vector<std::pair<std::string, std::string>>{};
 
-    auto archive = Archive{cfgDir + "/flux_attribs.tar"};
+    auto const cfgDir = m_frontend.getCfgDir();
 
     // Create attribs file for each hostname
     for (auto&& placement : m_hostsPlacement) {
+
         auto const attribsPath = cfgDir + "/attribs_" + placement.hostname;
 
         { auto attribs_file = cti::take_pointer_ownership(::fopen(attribsPath.c_str(), "w"), ::fclose);
@@ -1027,11 +1035,11 @@ Archive FluxApp::generateAttribsArchive()
             }
         }
 
-        // Add PMI file to archive
-        archive.addPath("attribs_" + placement.hostname, attribsPath);
+        // Add PMI file to list
+        result.emplace_back(placement.hostname, attribsPath);
     }
 
-    return std::move(archive);
+    return result;
 }
 
 FluxApp::~FluxApp()
