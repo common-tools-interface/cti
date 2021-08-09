@@ -839,9 +839,11 @@ FluxApp::startDaemon(const char* const args[])
         // Generate and ship attribute files
         { auto const hostAttribs = generateHostAttribs();
 
+            auto const destination = m_attribsPath + "/pmi_attribs";
+
             // Ship and remove attribute files
             for (auto&& [hostname, attribPath] : hostAttribs) {
-                SSHSession(hostname, m_frontend.getPwd()).sendRemoteFile(attribPath.c_str(), m_attribsPath.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+                SSHSession(hostname, m_frontend.getPwd()).sendRemoteFile(attribPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
                 ::unlink(attribPath.c_str());
             }
         }
@@ -1002,7 +1004,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         writeLog("tmpdir: %s\n", m_toolPath.c_str());
 
         // Attribute files will be manually generated and shipped into toolpath
-        m_attribsPath = m_toolPath + "/pmi_attribs";
+        m_attribsPath = m_toolPath;
     }
 }
 
@@ -1024,7 +1026,7 @@ std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
             }
 
             // Write attribs information to file
-            fprintf(attribs_file.get(), "%d\n%d\n%d\n%d\n",
+            fprintf(attribs_file.get(), "%d\n%d\n%d\n%ld\n",
                 1, // PMI version 1
                 0, // Node ID disabled
                 0, // Flux does not support MPMD

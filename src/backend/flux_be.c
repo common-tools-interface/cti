@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 #include "cti_defs.h"
 #include "cti_be.h"
@@ -61,10 +62,16 @@ cti_be_wlm_proto_t _cti_be_flux_wlmProto =
 };
 
 // Global vars
+static pmi_attribs_t* g_cti_attrs = NULL;
+static int g_initialized = 0;
 
 static void
 _cti_cleanup_be_globals(void)
 {
+    if (g_cti_attrs != NULL) {
+        _cti_be_freePmiAttribs(g_cti_attrs);
+        g_cti_attrs = NULL;
+    }
 }
 
 /* Constructor/Destructor functions */
@@ -72,24 +79,35 @@ _cti_cleanup_be_globals(void)
 static int
 _cti_be_flux_init(void)
 {
-	int rc;
+    int rc = 0;
 
-	rc = 1;
+    if (g_initialized) {
+        goto cleanup__cti_be_flux_init;
+    }
+
+    // Read PMI attributes from file
+    g_cti_attrs = _cti_be_getPmiAttribsInfo();
+    if ((g_cti_attrs == NULL)
+     || (g_cti_attrs->app_rankPidPairs == NULL)) {
+        goto cleanup__cti_be_flux_init;
+    }
+
+    g_initialized = 1;
 
 cleanup__cti_be_flux_init:
-	if (rc) {
-		_cti_cleanup_be_globals();
-	}
+    if (rc) {
+        _cti_cleanup_be_globals();
+    }
 
-	return rc;
+    return rc;
 }
 
 static void
 _cti_be_flux_fini(void)
 {
-	_cti_cleanup_be_globals();
+    _cti_cleanup_be_globals();
 
-	return;
+    return;
 }
 
 /* API related calls start here */
@@ -97,58 +115,83 @@ _cti_be_flux_fini(void)
 static cti_pidList_t*
 _cti_be_flux_findAppPids()
 {
-	int failed = 1;
-	cti_pidList_t *result = NULL;
+    int failed = 1;
+    cti_pidList_t *result = NULL;
+
+    assert(g_cti_attrs != NULL);
+
+    // Allocate and fill in PID list
+    result = malloc(sizeof(cti_pidList_t));
+    result->numPids = g_cti_attrs->app_nodeNumRanks;
+    result->pids = malloc(result->numPids * sizeof(cti_rankPidPair_t));
+    for (int i = 0; i < result->numPids; i++) {
+        result->pids[i].pid = g_cti_attrs->app_rankPidPairs[i].pid;
+        result->pids[i].rank = g_cti_attrs->app_rankPidPairs[i].rank;
+    }
+
+    failed = 0;
 
 cleanup__cti_be_flux_findAppPids:
-	if (failed) {
-		if (result != NULL) {
-			free(result);
-			result = NULL;
-		}
-	}
+    if (failed) {
+        if (result != NULL) {
+            free(result);
+            result = NULL;
+        }
+    }
 
-	return result;
+    return result;
 }
 
 static char*
 _cti_be_flux_getNodeHostname()
 {
-	int failed = 1;
-	char *result = NULL;
+    int failed = 1;
+    char *result = NULL;
+
+    // Get the hostname
+    char hostname[HOST_NAME_MAX+1];
+
+    if (gethostname(hostname, HOST_NAME_MAX) < 0) {
+        goto cleanup__cti_be_flux_getNodeHostname;
+    }
+
+    result = strdup(hostname);
 
 cleanup__cti_be_flux_getNodeHostname:
-	if (failed) {
-		if (result != NULL) {
-			free(result);
-			result = NULL;
-		}
-	}
+    if (failed) {
+        if (result != NULL) {
+            free(result);
+            result = NULL;
+        }
+    }
 
-	return result;
+    return result;
 }
 
 static int
 _cti_be_flux_getNodeFirstPE()
 {
-	int result = -1;
+    int result = -1;
+
+    assert(g_cti_attrs != NULL);
+
+    result = g_cti_attrs->app_rankPidPairs[0].rank;
 
 cleanup__cti_be_flux_getNodeFirstPE:
-	return result;
+    return result;
 }
 
 static int
 _cti_be_flux_getNodePEs()
 {
-	int failed = 1;
-	int num_node_pes = 0;
+    int result = -1;
+
+    assert(g_cti_attrs != NULL);
+
+    result = g_cti_attrs->app_nodeNumRanks;
 
 cleanup__cti_be_flux_getNodePEs:
-	if (failed) {
-		return -1;
-	}
-
-	return num_node_pes;
+    return result;
 }
 
 

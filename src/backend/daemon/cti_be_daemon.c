@@ -87,6 +87,7 @@ extern cti_wlm_proto_t	_cti_alps_wlmProto;
 extern cti_wlm_proto_t	_cti_pals_wlmProto;
 extern cti_wlm_proto_t  _cti_slurm_wlmProto;
 extern cti_wlm_proto_t  _cti_generic_ssh_wlmProto;
+extern cti_wlm_proto_t  _cti_flux_wlmProto;
 
 /* noneness wlm proto object */
 static cti_wlm_proto_t  _cti_nonenessProto =
@@ -483,6 +484,10 @@ main(int argc, char **argv)
             _cti_wlmProto = &_cti_generic_ssh_wlmProto;
             break;
 
+        case CTI_WLM_FLUX:
+            _cti_wlmProto = &_cti_flux_wlmProto;
+            break;
+
         case CTI_WLM_NONE:
         default:
             // the wlmProto defaults to noneness, so break
@@ -580,6 +585,7 @@ main(int argc, char **argv)
         case CTI_WLM_PALS:
         case CTI_WLM_SLURM:
         case CTI_WLM_SSH:
+        case CTI_WLM_FLUX:
             // These wlm are valid
             break;
 
