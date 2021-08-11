@@ -152,18 +152,18 @@ _cti_libFind(const char *file)
 {
     struct stat     stat_buf;
     char            buf[PATH_MAX];
-    char *          path;
-    char *          tmp;
-    char *          p_entry;
-    char *          extraPath;
+    char *          path = NULL;
+    char *          tmp = NULL;
+    char *          p_entry = NULL;
+    char *          extraPath = NULL;
     char *          savePtr = NULL;
-    char *          cmd;
+    char *          cmd = NULL;
     char *          res = NULL;
-    size_t          res_len;
+    size_t          res_len = 0;
     int             len;
-    FILE *          fp;
-    char *          base;
-    char *          retval;
+    FILE *          fp = NULL;
+    char const *    base = NULL;
+    char *          retval = NULL;
 
     /* Check for possible relative or absolute path */
     if (file[0] == '.' || file[0] == '/')
@@ -257,21 +257,22 @@ _cti_libFind(const char *file)
                             // found the library
                             retval = strdup(res);
                             free(res);
-                            free(base);
                             pclose(fp);
                             return retval;
                         }
                     }
                 }
-                // This is not the library you are looking for.
-                free(base);
             }
-            free(res);
-            res = NULL;
+            // res buffer is reused and potentially reallocated by getline
         }
         pclose(fp);
     }
     free(cmd);
+    if (res != NULL) {
+        free(res);
+        res = NULL;
+        res_len = 0;
+    }
 
     /*
     * Search the additional path for the file
