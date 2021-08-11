@@ -200,6 +200,15 @@ using RangeList = std::variant<Empty, Range, RLE>;
 // Updates `base` state by reference
 static auto parseRangeList(pt::ptree const& root, int64_t& base)
 {
+    /* The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
+       - Range of ints 1 to 3 inclusive
+       - RLE with value 3 + 5 = 8 of length -(-1) + 1 = 2
+       - Values 1, 2, 3, 8, 8
+       The prefix rangelist data [ "node", [ [1,3], [5,-1] ] ] will then be
+       computed as node1, node2, node3, node8, node8.
+       Finally, nodes 1 through 3 will have 1 PE each, and node 8 will have 2
+    */
+
     // Single element will be interpreted as a range of size 1
     if (!root.data().empty()) {
         base = root.get_value<int64_t>();
@@ -215,15 +224,6 @@ static auto parseRangeList(pt::ptree const& root, int64_t& base)
     }
 
     auto cursor = root.begin();
-
-    // If element is a non-list, it will be an integer value
-    if (!cursor->second.data().empty()) {
-        base = std::stoi(cursor->second.data());
-        return RangeList { RLE
-            { .value = base
-            , .count = 1
-        } };
-    }
 
     // Add base offset to range start / RLE value
     auto const first = base + (cursor++)->second.get_value<int>();
@@ -252,32 +252,46 @@ static auto parseRangeList(pt::ptree const& root, int64_t& base)
     }
 }
 
-static auto make_hostsPlacement(pt::ptree const& root)
+static auto flattenRangeList(pt::ptree const& root)
 {
-    auto result = std::vector<CTIHost>{};
+    auto result = std::vector<int64_t>{};
 
-    /* Flux proctable format:
-      prefix_rangelist: [ prefix_string, [ rangelist, ... ] ]
-      "hosts": [ prefix_rangelist, ... ]
-      "executables": [ prefix_rangelist, ... ]
-      "ids": [ rangelist, ... ]
-      "pids": [ rangelist, ... ]
+    auto base = int64_t{0};
 
-      Example: running 1 rank of a.out on node15
-        { "hosts": ["node15"]
-        , "executables": ["/path/to/a.out"]
-        , "ids": [0]
-        , "pids": [19797]
+    // { "": [ rangelist, ... ], ... }
+    for (auto&& rangeListObjectPair : root) {
+
+        // Parse inner rangelist object as either range or RLE
+        // `base` is updated by `parseRangeList`
+        auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
+
+        // Empty: no element
+        if (std::holds_alternative<Empty>(rangeList)) {
+            continue;
+
+        // Range: add entire range to result
+        } else if (std::holds_alternative<Range>(rangeList)) {
+
+            auto const [start, end] = std::get<Range>(rangeList);
+            result.reserve(result.size() + (end - start));
+            for (auto i = start; i <= end; i++) {
+                result.push_back(i);
+            }
+
+        // RLE: add run length to result
+        } else if (std::holds_alternative<RLE>(rangeList)) {
+
+            auto const [value, count] = std::get<RLE>(rangeList);
+            std::fill_n(std::back_inserter(result), count, value);
         }
+    }
 
-      Example: running 2 ranks of a.out on node15, with PIDs 7991 and 7992
-        { "hosts": [[ "node", [[15,-1]] ]]
-        , "executables": [[ "/path/to/a.out", [[-1,-1]] ]]
-        , "ids": [[0,1]]
-        , "pids": [[7991,1]]
-        }
-    */
+    return result;
+}
 
+template <typename Func>
+static void for_each_prefixList(pt::ptree const& root, Func&& func)
+{
     /* "hosts" contains a prefix rangelist that expands to one instance of each
        hostname for every PE on that host.
        The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
@@ -289,18 +303,12 @@ static auto make_hostsPlacement(pt::ptree const& root)
        Finally, nodes 1 through 3 will have 1 PE each, and node 8 will have 2
     */
 
-    auto hostPECount = std::map<std::string, size_t>{};
-
-    // { "hosts": { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] } }
-    for (auto&& prefixListArrayPair : root.get_child("hosts")) {
-
-        // Next rangelist object's starting value is based on the ending value
-        // of the previous range
-        auto base = int64_t{};
+    // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
+    for (auto&& prefixListArrayPair : root) {
 
         // If element has data, it is a plain string instead of a prefix list
         if (!prefixListArrayPair.second.data().empty()) {
-            hostPECount[prefixListArrayPair.second.data()]++;
+            func(prefixListArrayPair.second.data());
             continue;
         }
 
@@ -309,51 +317,35 @@ static auto make_hostsPlacement(pt::ptree const& root)
         auto const prefix = (cursor++)->second.get_value<std::string>();
         auto const rangeListObjectArray = (cursor++)->second;
 
-        // { "": [ rangelist, ... ], ... }
-        for (auto&& rangeListObjectPair : rangeListObjectArray) {
+        auto hostnamePostfixes = flattenRangeList(rangeListObjectArray);
 
-            // Parse inner rangelist object as either range or RLE
-            // `base` is updated by `parseRangeList`
-            auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
+        // Empty: there is a single string consisting solely of the prefix
+        if (hostnamePostfixes.empty()) {
+                func(prefix);
 
-            // Empty: there is a single hostname consisting solely of the prefix
-            if (std::holds_alternative<Empty>(rangeList)) {
-                hostPECount[prefix]++;
-
-            // Range: increment PE count for every hostname constructed with prefix
-            } else if (std::holds_alternative<Range>(rangeList)) {
-
-                auto const [start, end] = std::get<Range>(rangeList);
-                for (auto i = start; i <= end; i++) {
-                     auto const hostname = prefix + std::to_string(i);
-                     hostPECount[hostname]++;
-                }
-
-            // RLE: add run length to host's PE count
-            } else if (std::holds_alternative<RLE>(rangeList)) {
-
-                auto const [value, count] = std::get<RLE>(rangeList);
-                auto const hostname = prefix + std::to_string(value);
-                hostPECount[hostname] += count;
+        // Run function on every generated string
+        } else {
+            for (auto&& postfix : hostnamePostfixes) {
+                func(prefix + std::to_string(postfix));
             }
         }
     }
+}
 
-    // Construct placement vector from count map
-    for (auto&& [hostname, pe_count] : hostPECount) {
-        result.emplace_back(CTIHost
-            { .hostname = hostname
-            , .numPEs =  pe_count
-        });
-    }
+static auto const flattenPrefixList(pt::ptree const& root)
+{
+    auto result = std::vector<std::string>{};
+
+    for_each_prefixList(root, [&](std::string hostname) {
+        result.emplace_back(std::move(hostname));
+    });
 
     return result;
 }
 
-// Parse executables rangelist into vector of strings
-static auto make_binaryList(pt::ptree const& root)
+static auto make_hostsPlacement(pt::ptree const& root)
 {
-    auto result = std::vector<std::string>{};
+    auto result = std::vector<FluxFrontend::HostPlacement>{};
 
     /* Flux proctable format:
       prefix_rangelist: [ prefix_string, [ rangelist, ... ] ]
@@ -377,52 +369,48 @@ static auto make_binaryList(pt::ptree const& root)
         }
     */
 
-    // { "executables": { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] } }
-    for (auto&& prefixListArrayPair : root.get_child("executables")) {
+    auto hostPlacementMap = std::map<std::string, FluxFrontend::HostPlacement>{};
+    auto hostname_entries = size_t{0};
 
-        // Next rangelist object's starting value is based on the ending value
-        // of the previous range
-        auto base = int64_t{};
+    // Add count for every hostname
+    for_each_prefixList(root.get_child("hosts"), [&](std::string const& hostname) {
+        auto& hostPECountPair = hostPlacementMap[hostname];
+        hostPECountPair.hostname = hostname;
+        hostPECountPair.numPEs++;
+        hostname_entries++;
+    });
 
-        // If element has data, it is a plain string instead of a prefix list
-        if (!prefixListArrayPair.second.data().empty()) {
-            result.emplace_back(prefixListArrayPair.second.data());
-            continue;
+    // Get list of all ranks and PIDs
+    auto const ranks = flattenRangeList(root.get_child("ids"));
+    auto const pids = flattenRangeList(root.get_child("pids"));
+
+    // Each hostname occurrence corresponds to a single rank and PID
+    if (ranks.size() != hostname_entries) {
+        throw std::runtime_error("mismatch between rank and hostname count from Flux API ("
+            + std::to_string(ranks.size()) + " ranks and " + std::to_string(hostname_entries)
+            + " hostname entries");
+    }
+    if (pids.size() != hostname_entries) {
+        throw std::runtime_error("mismatch between PID and hostname count from Flux API ("
+            + std::to_string(pids.size()) + " PIDs and " + std::to_string(hostname_entries)
+            + " hostname entries");
+    }
+
+    // Host with N ranks will have the next N PIDs from rank list
+    auto rank_cursor = ranks.begin();
+    auto pid_cursor = pids.begin();
+    for (auto&& [hostname, placement] : hostPlacementMap) {
+        for (size_t i = 0; i < placement.numPEs; i++) {
+            placement.rankPidPairs.emplace_back(*rank_cursor, *pid_cursor);
+            rank_cursor++;
+            pid_cursor++;
         }
+    }
 
-        // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
-        auto cursor = prefixListArrayPair.second.begin();
-        auto const prefix = (cursor++)->second.get_value<std::string>();
-        auto const rangeListObjectArray = (cursor++)->second;
-
-        // { "": [ rangelist, ... ], ... }
-        for (auto&& rangeListObjectPair : rangeListObjectArray) {
-
-            // Parse inner rangelist object as either range or RLE
-            // `base` is updated by `parseRangeList`
-            auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
-
-            // Empty: there is a single executable consisting solely of the prefix
-            if (std::holds_alternative<Empty>(rangeList)) {
-                 result.emplace_back(prefix);
-
-            // Range: add executable name for every name constructed with prefix
-            } else if (std::holds_alternative<Range>(rangeList)) {
-
-                auto const [start, end] = std::get<Range>(rangeList);
-                for (auto i = start; i <= end; i++) {
-                     result.emplace_back(prefix + std::to_string(i));
-                }
-
-            // RLE: add run length value to form executable
-            } else if (std::holds_alternative<RLE>(rangeList)) {
-
-                auto const [value, count] = std::get<RLE>(rangeList);
-                for (int64_t i = 0; i < count; i++) {
-                    result.emplace_back(prefix + std::to_string(value));
-                }
-            }
-        }
+    // Construct placement vector from map
+    result.reserve(hostPlacementMap.size());
+    for (auto&& [hostname, placement] : hostPlacementMap) {
+        result.emplace_back(std::move(placement));
     }
 
     return result;
@@ -749,7 +737,21 @@ FluxApp::getHostnameList() const
 
     // extract hostnames from each CTIHost
     std::transform(m_hostsPlacement.begin(), m_hostsPlacement.end(), std::back_inserter(result),
-        [](CTIHost const& ctiHost) { return ctiHost.hostname; });
+        [](FluxFrontend::HostPlacement const& placement) { return placement.hostname; });
+    return result;
+}
+
+std::vector<CTIHost>
+FluxApp::getHostsPlacement() const
+{
+    std::vector<CTIHost> result;
+
+    // Extract hostnames and number of PEs from each CTIHost
+    std::transform(m_hostsPlacement.begin(), m_hostsPlacement.end(), std::back_inserter(result),
+        [](FluxFrontend::HostPlacement const& placement) {
+            return CTIHost { .hostname = placement.hostname, .numPEs = placement.numPEs };
+        } );
+
     return result;
 }
 
@@ -831,6 +833,18 @@ FluxApp::startDaemon(const char* const args[])
 
         // Ship the BE binary to its unique storage name
         shipPackage(m_frontend.getBEDaemonPath());
+
+        // Generate and ship attribute files
+        { auto const hostAttribs = generateHostAttribs();
+
+            auto const destination = m_attribsPath + "/pmi_attribs";
+
+            // Ship and remove attribute files
+            for (auto&& [hostname, attribPath] : hostAttribs) {
+                SSHSession(hostname, m_frontend.getPwd()).sendRemoteFile(attribPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+                ::unlink(attribPath.c_str());
+            }
+        }
 
         // set transfer to true
         m_beDaemonSent = true;
@@ -952,7 +966,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         m_rpcService + ".proctable", "{}");
 
         // Received proctable, parse response
-        writeLog("proctable: %s\n", proctableResult);
+        writeLog("proctable: %s\n", proctableResult.c_str());
         auto const proctable = parseJson(proctableResult);
 
         // Fill in hosts placement, PEs per node
@@ -961,11 +975,13 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         // Sum up number of PEs
         m_numPEs = std::accumulate(
             m_hostsPlacement.begin(), m_hostsPlacement.end(), size_t{},
-            [](size_t total, CTIHost const& ctiHost) { return total + ctiHost.numPEs; });
+            [](size_t total, FluxFrontend::HostPlacement const& placement) {
+                return total + placement.numPEs;
+            });
 
         // Get list of binaries. As Flux does not support MPMD, this should only ever
         // be a single binary.
-        auto binaryList = make_binaryList(proctable);
+        auto binaryList = flattenPrefixList(proctable.get_child("executables"));
         if (binaryList.size() != 1) {
             throw std::runtime_error("expected a single binary launched with Flux. Got " + std::to_string(binaryList.size()));
         }
@@ -985,8 +1001,45 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         m_toolPath = std::string{rundir} + "/jobtmp-" + std::to_string(m_leaderRank) + "-" + jobIdF58;
         writeLog("tmpdir: %s\n", m_toolPath.c_str());
 
-        // TODO: determine if Flux's PMI implementation provides pmi_attribs
+        // Attribute files will be manually generated and shipped into toolpath
+        m_attribsPath = m_toolPath;
     }
+}
+
+// Flux does not yet support cray-pmi, so backend information needs to be generated separately
+std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
+{
+    auto result = std::vector<std::pair<std::string, std::string>>{};
+
+    auto const cfgDir = m_frontend.getCfgDir();
+
+    // Create attribs file for each hostname
+    for (auto&& placement : m_hostsPlacement) {
+
+        auto const attribsPath = cfgDir + "/attribs_" + placement.hostname;
+
+        // Open attribute file for writing
+        auto attribs_file = cti::take_pointer_ownership(::fopen(attribsPath.c_str(), "w"), ::fclose);
+        if (!attribs_file) {
+            throw std::runtime_error("failed to create file at " + attribsPath);
+        }
+
+        // Write attribs information to file
+        fprintf(attribs_file.get(), "%d\n%d\n%d\n%ld\n",
+            1, // PMI version 1
+            0, // Node ID disabled
+            0, // Flux does not support MPMD
+            placement.numPEs); // Ranks on node
+
+        for (auto&& [rank, pid] : placement.rankPidPairs) {
+            fprintf(attribs_file.get(), "%d %d\n", rank, pid);
+        }
+
+        // Add PMI file to list
+        result.emplace_back(placement.hostname, attribsPath);
+    }
+
+    return result;
 }
 
 FluxApp::~FluxApp()
@@ -996,6 +1049,6 @@ FluxApp::~FluxApp()
         (void)cancel_job(m_libFluxRef, m_fluxHandle, id, "controlling application is terminating");
     }
 
-    // Terminate applictaion jobs
+    // Terminate application jobs
     (void)cancel_job(m_libFluxRef, m_fluxHandle, m_jobId, "CTI is terminating");
 }
