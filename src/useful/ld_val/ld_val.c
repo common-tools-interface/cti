@@ -413,6 +413,7 @@ _cti_ld_val(const char *executable, const char *ld_audit_path)
                     // set found and free this string. Do not save it.
                     ++found;
                     free(libstr);
+                    libstr = NULL;
                 }
             } else
             {
