@@ -1354,19 +1354,20 @@ std::string
 ApolloPALSFrontend::getHostname() const
 {
     static auto const nodeAddress = []() {
-        // Query IP address from `cminfo`
-        auto const getCminfoAddress = [](char const* ip_option) {
-            char const* cminfoArgv[] = { "cminfo", ip_option, nullptr };
+
+        // Run cminfo query
+        auto const cminfo_query = [](char const* option) {
+            char const* cminfoArgv[] = { "cminfo", option, nullptr };
 
             // Start cminfo
             try {
                 auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
 
-                // Detect if running on HPCM login or compute node
+                // Return first line of query
                 auto& cminfoStream = cminfoOutput.stream();
-                std::string headAddress;
-                if (std::getline(cminfoStream, headAddress)) {
-                    return headAddress;
+                std::string line;
+                if (std::getline(cminfoStream, line)) {
+                    return line;
                 }
             } catch (...) {
                 return std::string{};
@@ -1375,16 +1376,16 @@ ApolloPALSFrontend::getHostname() const
             return std::string{};
         };
 
-        // Query head IP address
-        auto const headAddress = getCminfoAddress("head_ip");
-        if (!headAddress.empty()) {
-            return headAddress;
-        }
+        // Get name of management network
+        auto const managementNetwork = cminfo_query("--mgmt_net_name");
+        if (!managementNetwork.empty()) {
 
-        // Query GBE IP address
-        auto const gbeAddress = getCminfoAddress("gbe_ip");
-        if (!gbeAddress.empty()) {
-            return gbeAddress;
+            // Query management IP address
+            auto const addressOption = "--" + managementNetwork + "_ip";
+            auto const managementAddress = cminfo_query(addressOption.c_str());
+            if (!managementAddress.empty()) {
+                return managementAddress;
+            }
         }
 
         // Fall back to `gethostname`
