@@ -282,10 +282,7 @@ static auto flattenRangeList(pt::ptree const& root)
         } else if (std::holds_alternative<RLE>(rangeList)) {
 
             auto const [value, count] = std::get<RLE>(rangeList);
-            result.reserve(result.size() + count);
-            for (int64_t i = 0; i < count; i++) {
-                result.push_back(value);
-            }
+            std::fill_n(std::back_inserter(result), count, value);
         }
     }
 
@@ -373,13 +370,14 @@ static auto make_hostsPlacement(pt::ptree const& root)
     */
 
     auto hostPlacementMap = std::map<std::string, FluxFrontend::HostPlacement>{};
-    auto hostname_count = size_t{0};
+    auto hostname_entries = size_t{0};
 
     // Add count for every hostname
     for_each_prefixList(root.get_child("hosts"), [&](std::string const& hostname) {
-        hostPlacementMap[hostname].hostname = hostname;
-        hostPlacementMap[hostname].numPEs++;
-        hostname_count++;
+        auto& hostPECountPair = hostPlacementMap[hostname];
+        hostPECountPair.hostname = hostname;
+        hostPECountPair.numPEs++;
+        hostname_entries++;
     });
 
     // Get list of all ranks and PIDs
@@ -387,15 +385,15 @@ static auto make_hostsPlacement(pt::ptree const& root)
     auto const pids = flattenRangeList(root.get_child("pids"));
 
     // Each hostname occurrence corresponds to a single rank and PID
-    if (ranks.size() != hostname_count) {
+    if (ranks.size() != hostname_entries) {
         throw std::runtime_error("mismatch between rank and hostname count from Flux API ("
-            + std::to_string(ranks.size()) + " ranks and " + std::to_string(hostname_count)
-            + " hostnames");
+            + std::to_string(ranks.size()) + " ranks and " + std::to_string(hostname_entries)
+            + " hostname entries");
     }
-    if (pids.size() != hostname_count) {
+    if (pids.size() != hostname_entries) {
         throw std::runtime_error("mismatch between PID and hostname count from Flux API ("
-            + std::to_string(pids.size()) + " PIDs and " + std::to_string(hostname_count)
-            + " hostnames");
+            + std::to_string(pids.size()) + " PIDs and " + std::to_string(hostname_entries)
+            + " hostname entries");
     }
 
     // Host with N ranks will have the next N PIDs from rank list
@@ -1008,7 +1006,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
     }
 }
 
-// Flux does not yet support cray-pmi, so backend information needs to be generated seperately
+// Flux does not yet support cray-pmi, so backend information needs to be generated separately
 std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
 {
     auto result = std::vector<std::pair<std::string, std::string>>{};
@@ -1020,21 +1018,21 @@ std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
 
         auto const attribsPath = cfgDir + "/attribs_" + placement.hostname;
 
-        { auto attribs_file = cti::take_pointer_ownership(::fopen(attribsPath.c_str(), "w"), ::fclose);
-            if (!attribs_file) {
-                throw std::runtime_error("failed to create file at " + attribsPath);
-            }
+        // Open attribute file for writing
+        auto attribs_file = cti::take_pointer_ownership(::fopen(attribsPath.c_str(), "w"), ::fclose);
+        if (!attribs_file) {
+            throw std::runtime_error("failed to create file at " + attribsPath);
+        }
 
-            // Write attribs information to file
-            fprintf(attribs_file.get(), "%d\n%d\n%d\n%ld\n",
-                1, // PMI version 1
-                0, // Node ID disabled
-                0, // Flux does not support MPMD
-                placement.numPEs); // Ranks on node
+        // Write attribs information to file
+        fprintf(attribs_file.get(), "%d\n%d\n%d\n%ld\n",
+            1, // PMI version 1
+            0, // Node ID disabled
+            0, // Flux does not support MPMD
+            placement.numPEs); // Ranks on node
 
-            for (auto&& [rank, pid] : placement.rankPidPairs) {
-                fprintf(attribs_file.get(), "%d %d\n", rank, pid);
-            }
+        for (auto&& [rank, pid] : placement.rankPidPairs) {
+            fprintf(attribs_file.get(), "%d %d\n", rank, pid);
         }
 
         // Add PMI file to list

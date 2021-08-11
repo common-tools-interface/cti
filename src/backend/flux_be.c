@@ -89,6 +89,7 @@ _cti_be_flux_init(void)
     g_cti_attrs = _cti_be_getPmiAttribsInfo();
     if ((g_cti_attrs == NULL)
      || (g_cti_attrs->app_rankPidPairs == NULL)) {
+        rc = -1;
         goto cleanup__cti_be_flux_init;
     }
 
@@ -123,10 +124,13 @@ _cti_be_flux_findAppPids()
     // Allocate and fill in PID list
     result = malloc(sizeof(cti_pidList_t));
     result->numPids = g_cti_attrs->app_nodeNumRanks;
-    result->pids = malloc(result->numPids * sizeof(cti_rankPidPair_t));
-    for (int i = 0; i < result->numPids; i++) {
-        result->pids[i].pid = g_cti_attrs->app_rankPidPairs[i].pid;
-        result->pids[i].rank = g_cti_attrs->app_rankPidPairs[i].rank;
+
+    if (result->numPids > 0) {
+        result->pids = malloc(result->numPids * sizeof(cti_rankPidPair_t));
+        for (int i = 0; i < result->numPids; i++) {
+            result->pids[i].pid = g_cti_attrs->app_rankPidPairs[i].pid;
+            result->pids[i].rank = g_cti_attrs->app_rankPidPairs[i].rank;
+        }
     }
 
     failed = 0;
@@ -175,7 +179,9 @@ _cti_be_flux_getNodeFirstPE()
 
     assert(g_cti_attrs != NULL);
 
-    result = g_cti_attrs->app_rankPidPairs[0].rank;
+    if (g_cti_attrs->app_nodeNumRanks > 0) {
+        result = g_cti_attrs->app_rankPidPairs[0].rank;
+    }
 
 cleanup__cti_be_flux_getNodeFirstPE:
     return result;
