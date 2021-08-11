@@ -159,7 +159,7 @@ _cti_libFind(const char *file)
     char *          savePtr = NULL;
     char *          cmd;
     char *          res = NULL;
-    size_t          res_len;
+    size_t          res_len = 0;
     int             len;
     FILE *          fp;
     char *          base;
@@ -263,15 +263,17 @@ _cti_libFind(const char *file)
                         }
                     }
                 }
-                // This is not the library you are looking for.
-                free(base);
             }
-            free(res);
-            res = NULL;
+            // res buffer is reused and potentially reallocated by getline
         }
         pclose(fp);
     }
     free(cmd);
+    if (res != NULL) {
+        free(res);
+        res = NULL;
+        res_len = 0;
+    }
 
     /*
     * Search the additional path for the file
