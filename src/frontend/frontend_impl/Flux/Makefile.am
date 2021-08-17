@@ -12,7 +12,7 @@ AM_CXXFLAGS			= -Wall
 
 noinst_LTLIBRARIES = libflux.la
 
-libflux_la_SOURCES		= Frontend.cpp LibFlux.hpp
+libflux_la_SOURCES		= Frontend.cpp LibFlux.hpp ssh.hpp
 libflux_la_CXXFLAGS	= -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl -I$(INCLUDE) -fPIC \
 						$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(BOOST_CXXFLAGS) $(FLUX_CORE_CFLAGS) $(AM_CXXFLAGS)
 libflux_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(BOOST_CPPFLAGS) $(AM_CPPFLAGS)
