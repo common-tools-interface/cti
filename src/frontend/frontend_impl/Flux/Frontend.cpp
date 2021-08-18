@@ -674,7 +674,7 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
     // Add barrier option if enabled
     auto jobAttributes = std::map<std::string, std::string>{};
     if (launchBarrierMode == LaunchBarrierMode::Enabled) {
-        jobAttributes["options"] = "{\"stop-tasks-in-exec\": 1}";
+        jobAttributes["system.shell.options.stop-tasks-in-exec"] = "1";
     }
 
     // Generate jobspec string
@@ -683,7 +683,7 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
         outputPath, errorPath,
         (chdir_path != nullptr) ? chdir_path : "",
         env_list,
-        {}); // No additional job attributes
+        jobAttributes);
 
     // Submit jobspec to API
     auto job_future = m_libFlux->flux_job_submit(m_fluxHandle, jobspec.c_str(), 16, 0);
