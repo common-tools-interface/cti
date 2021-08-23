@@ -187,6 +187,14 @@ static auto encode_job_id(FluxFrontend::LibFlux& libFluxRef, uint64_t job_id)
     return std::string{buf};
 }
 
+static auto get_flux_future_error(FluxFrontend::LibFlux& libFluxRef, flux_future_t* future)
+{
+    auto const flux_error = libFluxRef.flux_future_error_string(future);
+    return std::string{(flux_error)
+        ? flux_error
+        : "(no error provided)"};
+}
+
 struct Empty {};
 struct Range
     { int64_t start, end;
@@ -434,10 +442,7 @@ static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t
         if (eventlog_rc == ENODATA) {
             continue;
         } else if (eventlog_rc) {
-            auto const flux_error = libFlux.flux_future_error_string(eventlog_future.get());
-            throw std::runtime_error("Flux job event query failed: " + std::string{(flux_error)
-                ? flux_error
-                : "(no error provided)"});
+            throw std::runtime_error("Flux job event query failed: " + get_flux_future_error(libFlux, eventlog_future.get()));
         }
 
         // Received a new event log result, parse it as JSON
@@ -478,10 +483,7 @@ static std::string make_rpc_request(FluxFrontend::LibFlux& libFlux, FluxFrontend
     char const *result = nullptr;
     auto const rc = libFlux.flux_rpc_get(future.get(), &result);
     if (rc) {
-        auto const flux_error = libFlux.flux_future_error_string(future.get());
-        throw std::runtime_error("Flux query with topic " + topic + " failed: " + std::string{(flux_error)
-            ? flux_error
-            : "(no error provided)"});
+        throw std::runtime_error("Flux query with topic " + topic + " failed: " + get_flux_future_error(libFlux, future.get()));
     }
 
     return std::string{(result) ? result : ""};
@@ -691,10 +693,7 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
     // Wait for job to launch and receive job ID
     auto job_id = flux_jobid_t{};
     if (m_libFlux->flux_job_submit_get_id(job_future, &job_id)) {
-        auto const flux_error = m_libFlux->flux_future_error_string(job_future);
-        throw std::runtime_error("Flux job launch failed: " + std::string{(flux_error)
-            ? flux_error
-            : "(no error provided)"});
+        throw std::runtime_error("Flux job launch failed: " + get_flux_future_error(*m_libFlux, job_future));
     }
 
     return LaunchInfo
@@ -766,10 +765,7 @@ FluxApp::isRunning() const
     char const *result = nullptr;
     auto const rc = m_libFluxRef.flux_rpc_get(future.get(), &result);
     if (rc || (result == nullptr)) {
-        auto const flux_error = m_libFluxRef.flux_future_error_string(future.get());
-        throw std::runtime_error("Flux query failed: " + std::string{(flux_error)
-            ? flux_error
-            : "(no error provided)"});
+        throw std::runtime_error("Flux query failed: " + get_flux_future_error(m_libFluxRef, future.get()));
     }
 
     // Parse JSON
@@ -921,10 +917,7 @@ FluxApp::startDaemon(const char* const args[])
     // Wait for job to launch and receive job ID
     auto daemon_job_id = flux_jobid_t{};
     if (m_libFluxRef.flux_job_submit_get_id(daemon_job_future, &daemon_job_id)) {
-        auto const flux_error = m_libFluxRef.flux_future_error_string(daemon_job_future);
-        throw std::runtime_error("Flux daemon launch failed: " + std::string{(flux_error)
-            ? flux_error
-            : "(no error provided)"});
+        throw std::runtime_error("Flux daemon launch failed: " + get_flux_future_error(m_libFluxRef, daemon_job_future));
     }
 
     // Add job ID to daemon job IDs
