@@ -161,6 +161,8 @@ _cti_be_flux_getNodeHostname()
 
     result = strdup(hostname);
 
+    failed = 0;
+
 cleanup__cti_be_flux_getNodeHostname:
     if (failed) {
         if (result != NULL) {

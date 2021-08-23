@@ -143,7 +143,7 @@ arguments: \n" + result);
     return result;
 }
 
-static auto parseJson(std::string const& json)
+static auto parse_json(std::string const& json)
 {
     // Create stream from string source
     auto jsonSource = boost::iostreams::array_source{json.c_str(), json.length()};
@@ -159,11 +159,11 @@ static auto parseJson(std::string const& json)
     return root;
 }
 
+static const char utf8_prefix[] = u8"\u0192";
+
 // Convert numerical job ID to compact F58 encoding
 static auto encode_job_id(FluxFrontend::LibFlux& libFluxRef, uint64_t job_id)
 {
-    static const char utf8_prefix[] = u8"\u0192";
-
     // Job IDs are a maximum of 14 characters (12 characters, 2-byte f prefix, 1 terminator)
     char buf[64];
 
@@ -187,6 +187,14 @@ static auto encode_job_id(FluxFrontend::LibFlux& libFluxRef, uint64_t job_id)
     return std::string{buf};
 }
 
+static auto get_flux_future_error(FluxFrontend::LibFlux& libFluxRef, flux_future_t* future)
+{
+    auto const flux_error = libFluxRef.flux_future_error_string(future);
+    return std::string{(flux_error)
+        ? flux_error
+        : "(no error provided)"};
+}
+
 struct Empty {};
 struct Range
     { int64_t start, end;
@@ -198,7 +206,7 @@ using RangeList = std::variant<Empty, Range, RLE>;
 
 // Read next rangelist object and return new Range / RLE state
 // Updates `base` state by reference
-static auto parseRangeList(pt::ptree const& root, int64_t& base)
+static auto parse_rangeList(pt::ptree const& root, int64_t& base)
 {
     /* The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
        - Range of ints 1 to 3 inclusive
@@ -252,7 +260,7 @@ static auto parseRangeList(pt::ptree const& root, int64_t& base)
     }
 }
 
-static auto flattenRangeList(pt::ptree const& root)
+static auto flatten_rangeList(pt::ptree const& root)
 {
     auto result = std::vector<int64_t>{};
 
@@ -262,8 +270,8 @@ static auto flattenRangeList(pt::ptree const& root)
     for (auto&& rangeListObjectPair : root) {
 
         // Parse inner rangelist object as either range or RLE
-        // `base` is updated by `parseRangeList`
-        auto const rangeList = parseRangeList(rangeListObjectPair.second, base);
+        // `base` is updated by `parse_rangeList`
+        auto const rangeList = parse_rangeList(rangeListObjectPair.second, base);
 
         // Empty: no element
         if (std::holds_alternative<Empty>(rangeList)) {
@@ -317,7 +325,7 @@ static void for_each_prefixList(pt::ptree const& root, Func&& func)
         auto const prefix = (cursor++)->second.get_value<std::string>();
         auto const rangeListObjectArray = (cursor++)->second;
 
-        auto hostnamePostfixes = flattenRangeList(rangeListObjectArray);
+        auto hostnamePostfixes = flatten_rangeList(rangeListObjectArray);
 
         // Empty: there is a single string consisting solely of the prefix
         if (hostnamePostfixes.empty()) {
@@ -332,7 +340,7 @@ static void for_each_prefixList(pt::ptree const& root, Func&& func)
     }
 }
 
-static auto const flattenPrefixList(pt::ptree const& root)
+static auto const flatten_prefixList(pt::ptree const& root)
 {
     auto result = std::vector<std::string>{};
 
@@ -381,8 +389,8 @@ static auto make_hostsPlacement(pt::ptree const& root)
     });
 
     // Get list of all ranks and PIDs
-    auto const ranks = flattenRangeList(root.get_child("ids"));
-    auto const pids = flattenRangeList(root.get_child("pids"));
+    auto const ranks = flatten_rangeList(root.get_child("ids"));
+    auto const pids = flatten_rangeList(root.get_child("pids"));
 
     // Each hostname occurrence corresponds to a single rank and PID
     if (ranks.size() != hostname_entries) {
@@ -416,6 +424,50 @@ static auto make_hostsPlacement(pt::ptree const& root)
     return result;
 }
 
+// Query event log for job leader rank and service key for RPC
+static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* fluxHandle,
+    uint64_t job_id)
+{
+    auto eventlog_future = make_unique_del(
+        libFlux.flux_job_event_watch(fluxHandle, job_id, "guest.exec.eventlog", 0),
+        libFlux.flux_future_destroy);
+    if (eventlog_future == nullptr) {
+        throw std::runtime_error("Flux job event query failed");
+    }
+
+    // Read event log responses
+    while (true) {
+        char const *eventlog_result = nullptr;
+        auto const eventlog_rc = libFlux.flux_job_event_watch_get(eventlog_future.get(), &eventlog_result);
+        if (eventlog_rc == ENODATA) {
+            continue;
+        } else if (eventlog_rc) {
+            throw std::runtime_error("Flux job event query failed: " + get_flux_future_error(libFlux, eventlog_future.get()));
+        }
+
+        // Received a new event log result, parse it as JSON
+        auto root = parse_json(eventlog_result);
+
+        // Looking for shell.init event, will contain leader rank and service key
+        if (root.get<std::string>("name") == "shell.init") {
+
+            // Got shell.init, extract the job information
+            auto context = root.get_child("context");
+            auto leaderRank = context.get<int>("leader-rank");
+            auto rpcService = context.get<std::string>("service");
+
+            if (rpcService.empty()) {
+                throw std::runtime_error("Flux API returned empty RPC service key");
+            }
+
+            return std::make_pair(leaderRank, std::move(rpcService));
+        }
+
+        // Reset and wait for next event log result
+        libFlux.flux_future_reset(eventlog_future.get());
+    }
+}
+
 static std::string make_rpc_request(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* fluxHandle,
     int leader_rank, std::string const& topic, std::string const& content)
 {
@@ -431,10 +483,7 @@ static std::string make_rpc_request(FluxFrontend::LibFlux& libFlux, FluxFrontend
     char const *result = nullptr;
     auto const rc = libFlux.flux_rpc_get(future.get(), &result);
     if (rc) {
-        auto const flux_error = libFlux.flux_future_error_string(future.get());
-        throw std::runtime_error("Flux query with topic " + topic + " failed: " + std::string{(flux_error)
-            ? flux_error
-            : "(no error provided)"});
+        throw std::runtime_error("Flux query with topic " + topic + " failed: " + get_flux_future_error(libFlux, future.get()));
     }
 
     return std::string{(result) ? result : ""};
@@ -502,18 +551,32 @@ FluxFrontend::registerJob(size_t numIds, ...)
     va_list idArgs;
     va_start(idArgs, numIds);
 
-    char const* f58_job_id = va_arg(idArgs, char const*);
+    char const* raw_job_id = va_arg(idArgs, char const*);
 
     va_end(idArgs);
 
-    // Convert F58-formatted job ID to internal job ID
+    // Determine if job ID is f58-formatted by checking for f58 prefix
+    auto const f58_formatted = (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0);
+
     auto job_id = flux_jobid_t{};
-    if (m_libFlux->flux_job_id_parse(f58_job_id, &job_id) < 0) {
-        throw std::runtime_error("failed to parse Flux job ID: " + std::string{f58_job_id});
+
+    // Convert F58-formatted job ID to internal job ID
+    if (f58_formatted) {
+
+        if (m_libFlux->flux_job_id_parse(raw_job_id, &job_id) < 0) {
+            throw std::runtime_error("failed to parse Flux job ID: " + std::string{raw_job_id});
+        }
+
+    // Job ID was provided in numeric format
+    } else {
+        job_id = std::stol(raw_job_id);
     }
 
     // Get attach information from Flux API
-    auto launchInfo = getLaunchInfo(job_id);
+    auto launchInfo = LaunchInfo
+        { .jobId = job_id
+        , .atBarrier = false
+    };
 
     // Create new application instance with job ID
     auto ret = m_apps.emplace(std::make_shared<FluxApp>(*this, std::move(launchInfo)));
@@ -598,18 +661,6 @@ Ensure the Flux launcher is accessible and executable");
 dependencies. Try setting " LIBFLUX_PATH_ENV_VAR " to the path to the Flux runtime library");
 }
 
-FluxFrontend::LaunchInfo FluxFrontend::getLaunchInfo(uint64_t job_id)
-{
-    // TODO: move placement info into LaunchInfo instead of App constructor for attach
-
-    unimplemented(__func__);
-
-    return LaunchInfo
-        { .jobId = job_id
-        , .atBarrier = false
-    };
-}
-
 FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args[],
     const char* input_file, int stdout_fd, int stderr_fd, const char *chdir_path,
     const char * const env_list[], FluxFrontend::LaunchBarrierMode const launchBarrierMode)
@@ -625,7 +676,7 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
     // Add barrier option if enabled
     auto jobAttributes = std::map<std::string, std::string>{};
     if (launchBarrierMode == LaunchBarrierMode::Enabled) {
-        jobAttributes["options"] = "{\"stop-tasks-in-exec\": 1}";
+        jobAttributes["system.shell.options.stop-tasks-in-exec"] = "1";
     }
 
     // Generate jobspec string
@@ -634,7 +685,7 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
         outputPath, errorPath,
         (chdir_path != nullptr) ? chdir_path : "",
         env_list,
-        {}); // No additional job attributes
+        jobAttributes);
 
     // Submit jobspec to API
     auto job_future = m_libFlux->flux_job_submit(m_fluxHandle, jobspec.c_str(), 16, 0);
@@ -642,10 +693,7 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
     // Wait for job to launch and receive job ID
     auto job_id = flux_jobid_t{};
     if (m_libFlux->flux_job_submit_get_id(job_future, &job_id)) {
-        auto const flux_error = m_libFlux->flux_future_error_string(job_future);
-        throw std::runtime_error("Flux job launch failed: " + std::string{(flux_error)
-            ? flux_error
-            : "(no error provided)"});
+        throw std::runtime_error("Flux job launch failed: " + get_flux_future_error(*m_libFlux, job_future));
     }
 
     return LaunchInfo
@@ -717,14 +765,11 @@ FluxApp::isRunning() const
     char const *result = nullptr;
     auto const rc = m_libFluxRef.flux_rpc_get(future.get(), &result);
     if (rc || (result == nullptr)) {
-        auto const flux_error = m_libFluxRef.flux_future_error_string(future.get());
-        throw std::runtime_error("Flux query failed: " + std::string{(flux_error)
-            ? flux_error
-            : "(no error provided)"});
+        throw std::runtime_error("Flux query failed: " + get_flux_future_error(m_libFluxRef, future.get()));
     }
 
     // Parse JSON
-    auto root = parseJson(result);
+    auto root = parse_json(result);
     auto const state = root.get<int>("job.state");
 
     return (state == FLUX_JOB_STATE_RUN);
@@ -872,10 +917,7 @@ FluxApp::startDaemon(const char* const args[])
     // Wait for job to launch and receive job ID
     auto daemon_job_id = flux_jobid_t{};
     if (m_libFluxRef.flux_job_submit_get_id(daemon_job_future, &daemon_job_id)) {
-        auto const flux_error = m_libFluxRef.flux_future_error_string(daemon_job_future);
-        throw std::runtime_error("Flux daemon launch failed: " + std::string{(flux_error)
-            ? flux_error
-            : "(no error provided)"});
+        throw std::runtime_error("Flux daemon launch failed: " + get_flux_future_error(m_libFluxRef, daemon_job_future));
     }
 
     // Add job ID to daemon job IDs
@@ -906,48 +948,9 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
 
     , m_daemonJobIds{}
 {
-    // Query event log for job leader rank and service key for RPC
-    auto eventlog_future = make_unique_del(
-        m_libFluxRef.flux_job_event_watch(m_fluxHandle, m_jobId, "guest.exec.eventlog", 0),
-        m_libFluxRef.flux_future_destroy);
-    if (eventlog_future == nullptr) {
-        throw std::runtime_error("Flux job event query failed");
-    }
-
-    // Read event log responses
-    while (true) {
-        char const *eventlog_result = nullptr;
-        auto const eventlog_rc = m_libFluxRef.flux_job_event_watch_get(eventlog_future.get(), &eventlog_result);
-        if (eventlog_rc == ENODATA) {
-            break;
-        } else if (eventlog_rc) {
-            auto const flux_error = m_libFluxRef.flux_future_error_string(eventlog_future.get());
-            throw std::runtime_error("Flux job event query failed: " + std::string{(flux_error)
-                ? flux_error
-                : "(no error provided)"});
-        }
-
-        // Received a new event log result, parse it as JSON
-        writeLog("eventlog: %s\n", eventlog_result);
-        auto root = parseJson(eventlog_result);
-
-        // Looking for shell.init event, will contain leader rank and service key
-        if (root.get<std::string>("name") != "shell.init") {
-
-            // Reset and wait for next event log result
-            m_libFluxRef.flux_future_reset(eventlog_future.get());
-            continue;
-        }
-
-        // Got shell.init, extract the job information
-        auto context = root.get_child("context");
-        m_leaderRank = context.get<int>("leader-rank");
-        m_rpcService = context.get<std::string>("service");
-
-        writeLog("extracted job info: leader rank %d, service key %s\n", m_leaderRank, m_rpcService.c_str());
-
-        break;
-    }
+    // Get API access information for this job
+    std::tie(m_leaderRank, m_rpcService) = get_rpc_service(m_libFluxRef, m_fluxHandle, m_jobId);
+    writeLog("extracted job info: leader rank %d, service key %s\n", m_leaderRank, m_rpcService.c_str());
 
     // Start resource spec query
     { auto lookupRequest = std::stringstream{};
@@ -956,7 +959,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
             << ", \"keys\": [\"R\"]"
             << ", \"flags\": 0"
         << "}";
-        auto root = parseJson(make_rpc_request(m_libFluxRef, m_fluxHandle, m_leaderRank,
+        auto root = parse_json(make_rpc_request(m_libFluxRef, m_fluxHandle, m_leaderRank,
             "job-info.lookup", lookupRequest.str()));
         m_resourceSpec = root.get<std::string>("R");
     }
@@ -967,7 +970,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
 
         // Received proctable, parse response
         writeLog("proctable: %s\n", proctableResult.c_str());
-        auto const proctable = parseJson(proctableResult);
+        auto const proctable = parse_json(proctableResult);
 
         // Fill in hosts placement, PEs per node
         m_hostsPlacement = make_hostsPlacement(proctable);
@@ -981,7 +984,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
 
         // Get list of binaries. As Flux does not support MPMD, this should only ever
         // be a single binary.
-        auto binaryList = flattenPrefixList(proctable.get_child("executables"));
+        auto binaryList = flatten_prefixList(proctable.get_child("executables"));
         if (binaryList.size() != 1) {
             throw std::runtime_error("expected a single binary launched with Flux. Got " + std::to_string(binaryList.size()));
         }
@@ -1048,7 +1051,4 @@ FluxApp::~FluxApp()
     for (auto&& id : m_daemonJobIds) {
         (void)cancel_job(m_libFluxRef, m_fluxHandle, id, "controlling application is terminating");
     }
-
-    // Terminate application jobs
-    (void)cancel_job(m_libFluxRef, m_fluxHandle, m_jobId, "CTI is terminating");
 }

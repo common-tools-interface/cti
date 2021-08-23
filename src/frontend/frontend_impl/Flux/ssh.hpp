@@ -625,7 +625,7 @@ contact your system adminstrator.");
                                                                             stbuf.st_size ),
                                                         delete_ssh2_channel);
         if (channel_ptr == nullptr) {
-            throw std::runtime_error("Failure to scp send on session: " + getError());
+            throw std::runtime_error("Failure to scp send to " + std::string{destination_path} + " on session: " + getError());
         }
         // Write the contents of the source file to the destination file in blocks
         size_t const BLOCK_SIZE = 1024;
