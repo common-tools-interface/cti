@@ -180,14 +180,7 @@ _cti_ld_verify(const char *executable)
 
         // parent case
         // wait for child to return
-        while (1) {
-            int rc = waitpid(pid, &status, 0);
-            if ((rc < 0) && (errno == EINTR)) {
-                continue;
-            } else {
-                break;
-            }
-        }
+        while ((waitpid(pid, &status, 0) < 0) && (errno == EINTR)) {}
         if (WIFEXITED(status))
         {
             // if we recieved an exit status of 0, the verify was successful
