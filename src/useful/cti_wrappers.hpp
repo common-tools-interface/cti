@@ -40,6 +40,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <pwd.h>
 
 #include <dirent.h>
@@ -502,6 +503,20 @@ getpwuid(uid_t const uid)
     }
 
     return std::make_pair(std::move(pwd), std::move(pwd_buf));
+}
+
+// Handle and retry if waitpid is interrupted
+static inline auto
+waitpid(pid_t pid, int* status, int options)
+{
+    while (true) {
+        auto const rc = ::waitpid(pid, status, options);
+        if ((rc < 0) && (errno == EINTR)) {
+            continue;
+        } else {
+            return rc;
+        }
+    }
 }
 
 } /* namespace cti */

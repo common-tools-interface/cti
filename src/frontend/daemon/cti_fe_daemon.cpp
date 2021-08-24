@@ -101,7 +101,7 @@ tryTerm(pid_t const pid)
     }
     ::sleep(3);
     ::kill(pid, SIGKILL);
-    ::waitpid(pid, nullptr, 0);
+    cti::waitpid(pid, nullptr, 0);
 }
 
 /* types */
@@ -779,7 +779,7 @@ static void releaseMPIR(DAppId const mpir_id)
             }
 
             // Wait for exit
-            ::waitpid(shimPid, nullptr, 0);
+            cti::waitpid(shimPid, nullptr, 0);
 
             // Remove from active shim map
             mpirShimMap.erase(idShimPidPair);
@@ -926,7 +926,7 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
         // If synchronous, wait for return code
         if (runMode == FE_daemon::Synchronous) {
             int status;
-            if (::waitpid(utilPid, &status, 0) < 0) {
+            if (cti::waitpid(utilPid, &status, 0) < 0) {
                 return false;
             }
 
