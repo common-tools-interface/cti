@@ -183,6 +183,42 @@ TEST(flatten_prefixList, SingleRLE)
     EXPECT_EQ(values, rhs);
 }
 
+TEST(make_hostsPlacement, SingleRank)
+{
+    auto const root = parse_json(
+        "{ \"hosts\": [\"node15\"]"
+        ", \"executables\": [\"/path/to/a.out\"]"
+        ", \"ids\": [0]"
+        ", \"pids\": [19797]"
+        "}");
+    auto const hostsPlacement = flux::make_hostsPlacement(root);
+    ASSERT_EQ(hostsPlacement.size(), 1);
+
+    EXPECT_EQ(hostsPlacement[0].hostname, "node15");
+    EXPECT_EQ(hostsPlacement[0].numPEs, 1);
+    { auto const rhs = decltype(hostsPlacement[0].rankPidPairs){{0, 19797}};
+        EXPECT_EQ(hostsPlacement[0].rankPidPairs, rhs);
+    }
+}
+
+TEST(make_hostsPlacement, MultiRank)
+{
+    auto const root = parse_json(
+        "{ \"hosts\": [[ \"node\", [[15,-1]] ]]"
+        ", \"executables\": [[ \"/path/to/a.out\", [[-1,-1]] ]]"
+        ", \"ids\": [[0,1]]"
+        ", \"pids\": [[7991,1]]"
+        "}");
+    auto const hostsPlacement = flux::make_hostsPlacement(root);
+    ASSERT_EQ(hostsPlacement.size(), 1);
+
+    EXPECT_EQ(hostsPlacement[0].hostname, "node15");
+    EXPECT_EQ(hostsPlacement[0].numPEs, 2);
+    { auto const rhs = decltype(hostsPlacement[0].rankPidPairs){{0, 7991}, {1, 7992}};
+        EXPECT_EQ(hostsPlacement[0].rankPidPairs, rhs);
+    }
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
