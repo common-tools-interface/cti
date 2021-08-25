@@ -42,8 +42,48 @@ using ::testing::Invoke;
 using ::testing::WithoutArgs;
 using ::testing::EndsWith;
 
-TEST(FluxApiParse, First)
+TEST(parse_rangeList, Empty)
 {
+    auto const root = parse_json("[-1, -1]");
+    auto base = int64_t{};
+    auto const rangeList = flux::parse_rangeList(root, base);
+    ASSERT_TRUE(std::holds_alternative<flux::Empty>(rangeList));
+}
+
+TEST(parse_rangeList, Single)
+{
+    auto const root = parse_json("3");
+    auto base = int64_t{};
+    auto const rangeList = flux::parse_rangeList(root, base);
+    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList));
+    auto const [value, count] = std::get<flux::RLE>(rangeList);
+    EXPECT_TRUE(value == 3);
+    EXPECT_TRUE(count == 1);
+    EXPECT_TRUE(base == 3);
+}
+
+TEST(parse_rangeList, Range)
+{
+    auto const root = parse_json("[2,3]");
+    auto base = int64_t{};
+    auto const rangeList = flux::parse_rangeList(root, base);
+    ASSERT_TRUE(std::holds_alternative<flux::Range>(rangeList));
+    auto const [start, end] = std::get<flux::Range>(rangeList);
+    EXPECT_TRUE(start == 2);
+    EXPECT_TRUE(end == 5);
+    EXPECT_TRUE(base == 5);
+}
+
+TEST(parse_rangeList, RLE)
+{
+    auto const root = parse_json("[2,-3]");
+    auto base = int64_t{};
+    auto const rangeList = flux::parse_rangeList(root, base);
+    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList));
+    auto const [value, count] = std::get<flux::RLE>(rangeList);
+    EXPECT_TRUE(value == 2);
+    EXPECT_TRUE(count == 4);
+    EXPECT_TRUE(base == 2);
 }
 
 int main(int argc, char **argv) {
