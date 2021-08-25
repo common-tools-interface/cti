@@ -16,8 +16,8 @@ AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
 
 # specify test binaries
-TESTS = unit_tests websocket_tests
-check_PROGRAMS = unit_tests websocket_tests
+TESTS = unit_tests websocket_tests flux_api_parse_tests
+check_PROGRAMS = unit_tests websocket_tests flux_api_parse_tests
 
 # unit test binary
 unit_tests_SOURCES	=	unit_tests.cpp cti_fe_unit_test.cpp cti_archive_unit_test.cpp \
@@ -58,7 +58,7 @@ websocket_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(EXTERNAL) \
 	-I$(MOCK) \
 	-DINSTALL_PATH=\"$(prefix)\"
 
-websocket_tests_CXXFLAGS = $(AM_CXXFLAGS) $(unit_tests_CFLAGS) \
+websocket_tests_CXXFLAGS = $(AM_CXXFLAGS) $(websocket_tests_CFLAGS) \
 	$(CODE_COVERAGE_CXXFLAGS)
 
 websocket_tests_LDADD = $(SUPPORT)/libgtest.so $(SUPPORT)/libgmock.so \
@@ -67,6 +67,27 @@ websocket_tests_LDADD = $(SUPPORT)/libgtest.so $(SUPPORT)/libgmock.so \
         $(CODE_COVERAGE_LIBS)
 
 websocket_tests_LDFLAGS	= -pthread -Wl,-rpath,$(prefix)/lib \
+	-Wl,--enable-new-dtags -Wl,--no-undefined \
+	-Wl,--as-needed $(CDST_SUP_LIBS)
+
+flux_api_parse_tests_SOURCES  = flux_api_parse_tests.cpp
+flux_api_parse_tests_CPPFLAGS = $(CODE_COVERAGE_CPPFLAGS)
+flux_api_parse_tests_CFLAGS   = $(AM_CFLAGS) -fPIC -I$(SRC) -I$(EXTERNAL) \
+	-I$(GTEST)/include -I$(GTEST) \
+	-I$(GMOCK)/include -I$(GMOCK) \
+	$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CFLAGS) \
+	-I$(MOCK) \
+	-DINSTALL_PATH=\"$(prefix)\"
+
+flux_api_parse_tests_CXXFLAGS = $(AM_CXXFLAGS) $(flux_api_parse_tests_CFLAGS) \
+	$(CODE_COVERAGE_CXXFLAGS)
+
+flux_api_parse_tests_LDADD = $(SUPPORT)/libgtest.so $(SUPPORT)/libgmock.so \
+	$(MOCK)/libmock.la $(ARCHIVE_LIBS) \
+	-ldl -lrt -lstdc++ \
+        $(CODE_COVERAGE_LIBS)
+
+flux_api_parse_tests_LDFLAGS	= -pthread -Wl,-rpath,$(prefix)/lib \
 	-Wl,--enable-new-dtags -Wl,--no-undefined \
 	-Wl,--as-needed $(CDST_SUP_LIBS)
 
