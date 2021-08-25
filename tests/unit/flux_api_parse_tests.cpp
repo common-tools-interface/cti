@@ -86,6 +86,31 @@ TEST(parse_rangeList, RLE)
     EXPECT_TRUE(base == 2);
 }
 
+TEST(flatten_rangeList, Empty)
+{
+    auto const root = parse_json("[[-1, -1]]");
+    auto const values = flux::flatten_rangeList(root);
+    EXPECT_EQ(values.size(), 0);
+}
+
+TEST(flatten_rangeList, Single)
+{
+    auto const root = parse_json("[[2, 3]]");
+    auto const values = flux::flatten_rangeList(root);
+    auto const rhs = decltype(values){2, 3, 4, 5};
+    EXPECT_EQ(values.size(), rhs.size());
+    EXPECT_EQ(values, rhs);
+}
+
+TEST(flatten_rangeList, Multi)
+{
+    auto const root = parse_json("[[2, 3], [2, -2]]");
+    auto const values = flux::flatten_rangeList(root);
+    auto const rhs = decltype(values){2, 3, 4, 5, 7, 7, 7};
+    EXPECT_EQ(values.size(), rhs.size());
+    EXPECT_EQ(values, rhs);
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
