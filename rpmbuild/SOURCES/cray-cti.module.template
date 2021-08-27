@@ -1,17 +1,21 @@
 #%Module######################################################################
  #
  #       Module <CRAY_NAME>
- #       Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
+ #       Copyright 2010-2021 Hewlett Packard Enterprise Development LP.
  #       UNPUBLISHED PROPRIETARY INFORMATION.
  #       ALL RIGHTS RESERVED.
  #
  conflict <CRAY_NAME>
 
- set CTI_LEVEL     <VERSION>
- set CTI_BASEDIR   <PREFIX>
-
+ set CTI_LEVEL        <VERSION>
+ set CTI_BASEDIR      <PREFIX>
+ 
  setenv CTI_VERSION         $CTI_LEVEL
+ setenv CRAY_CTI_VERSION    $CTI_LEVEL
+
  setenv CTI_INSTALL_DIR     $CTI_BASEDIR
+ setenv CRAY_CTI_PREFIX     $CTI_BASEDIR
+
  setenv PE_CTI_MODULE_NAME  <CRAY_NAME>
 
  # If the default version of CTI is loaded, don't set LD_LIBRARY_PATH.
