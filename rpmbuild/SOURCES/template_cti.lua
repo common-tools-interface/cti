@@ -2,7 +2,7 @@
 
     Module cray-cti
 
-    Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
+    Copyright 2010-2021 Hewlett Packard Enterprise Development LP.
     UNPUBLISHED PROPRIETARY INFORMATION.
     ALL RIGHTS RESERVED.
 
@@ -49,7 +49,10 @@ whatis("Loads the Cray Tools Interface.")
  -- environment modifications --
 
 setenv (           "CTI_VERSION",              MOD_LEVEL                     )
+setenv (           "CRAY_CTI_VERSION",         MOD_LEVEL                     )
 setenv (           "CTI_INSTALL_DIR",          PE_DIR                        )
+setenv (           "CRAY_CTI_PREFIX",          PE_DIR                        )
+
 setenv (           "PE_CTI_MODULE_NAME",       myModuleName()                )
 
 append_path   (    "PE_PRODUCT_LIST",          "CRAY-CTI"                    )
