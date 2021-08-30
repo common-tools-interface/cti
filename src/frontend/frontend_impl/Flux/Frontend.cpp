@@ -61,17 +61,13 @@
 #include "useful/cti_split.hpp"
 
 #include "LibFlux.hpp"
+#include "FluxAPI.hpp"
 
 #include "ssh.hpp"
 
 namespace pt = boost::property_tree;
 
 /* helper functions */
-
-[[ noreturn ]] static void unimplemented(std::string const& functionName)
-{
-    throw std::runtime_error("unimplemented: " + functionName);
-}
 
 // Normal cti::take_pointer_ownership cannot deal with std::function types,
 // this wrapper enables capture of std::function destructors
@@ -143,285 +139,12 @@ arguments: \n" + result);
     return result;
 }
 
-static auto parse_json(std::string const& json)
-{
-    // Create stream from string source
-    auto jsonSource = boost::iostreams::array_source{json.c_str(), json.length()};
-    auto jsonStream = boost::iostreams::stream<boost::iostreams::array_source>{jsonSource};
-
-    auto root = pt::ptree{};
-    try {
-        pt::read_json(jsonStream, root);
-    } catch (pt::json_parser::json_parser_error const& parse_ex) {
-        throw std::runtime_error("failed to parse JSON response: " + json);
-    }
-
-    return root;
-}
-
-static const char utf8_prefix[] = u8"\u0192";
-
-// Convert numerical job ID to compact F58 encoding
-static auto encode_job_id(FluxFrontend::LibFlux& libFluxRef, uint64_t job_id)
-{
-    // Job IDs are a maximum of 14 characters (12 characters, 2-byte f prefix, 1 terminator)
-    char buf[64];
-
-    // flux_job_id_encode will always output in ASCII-only, so will need to overwrite the
-    // ASCII 'f' with UTF-8 prefix if not disabled
-    auto const utf8_enabled = (!getenv("FLUX_F58_FORCE_ASCII"));
-    auto const offset_len = (utf8_enabled)
-        ? strlen(utf8_prefix) - 1 // Last byte of UTF-8 prefix will overwrite ASCII prefix
-        : 0;
-
-    if (libFluxRef.flux_job_id_encode(job_id, "f58", buf + offset_len, sizeof(buf) - offset_len) < 0) {
-        throw std::runtime_error("failed to encode Flux job id: " + std::string{strerror(errno)});
-    }
-    buf[sizeof(buf) - 1] = '\0';
-
-    // Replace ASCII 'f' with prefix
-    if (utf8_enabled) {
-        ::memcpy(buf, utf8_prefix, strlen(utf8_prefix));
-    }
-
-    return std::string{buf};
-}
-
 static auto get_flux_future_error(FluxFrontend::LibFlux& libFluxRef, flux_future_t* future)
 {
     auto const flux_error = libFluxRef.flux_future_error_string(future);
     return std::string{(flux_error)
         ? flux_error
         : "(no error provided)"};
-}
-
-struct Empty {};
-struct Range
-    { int64_t start, end;
-};
-struct RLE
-    { int64_t value, count;
-};
-using RangeList = std::variant<Empty, Range, RLE>;
-
-// Read next rangelist object and return new Range / RLE state
-// Updates `base` state by reference
-static auto parse_rangeList(pt::ptree const& root, int64_t& base)
-{
-    /* The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
-       - Range of ints 1 to 3 inclusive
-       - RLE with value 3 + 5 = 8 of length -(-1) + 1 = 2
-       - Values 1, 2, 3, 8, 8
-       The prefix rangelist data [ "node", [ [1,3], [5,-1] ] ] will then be
-       computed as node1, node2, node3, node8, node8.
-       Finally, nodes 1 through 3 will have 1 PE each, and node 8 will have 2
-    */
-
-    // Single element will be interpreted as a range of size 1
-    if (!root.data().empty()) {
-        base = root.get_value<int64_t>();
-        return RangeList { RLE
-            { .value = base
-            , .count = 1
-        } };
-    }
-
-    // Multiple elements must be size 2 for range
-    if (root.size() != 2) {
-        throw std::runtime_error("Flux API rangelist must have size 2");
-    }
-
-    auto cursor = root.begin();
-
-    // Add base offset to range start / RLE value
-    auto const first = base + (cursor++)->second.get_value<int>();
-    auto const second = (cursor++)->second.get_value<int>();
-
-    // Negative first element indicates empty range
-    if (first < 0) {
-        return RangeList { Empty{} };
-    }
-
-    // Negative second element indicates run length encoding
-    if (second < 0) {
-        base = first;
-        return RangeList { RLE
-            { .value = base
-            , .count = -second + 1
-        } };
-
-    // Otherwise, traditional range
-    } else {
-        base = first + second;
-        return RangeList { Range
-            { .start = first
-            , .end = base
-        } };
-    }
-}
-
-static auto flatten_rangeList(pt::ptree const& root)
-{
-    auto result = std::vector<int64_t>{};
-
-    auto base = int64_t{0};
-
-    // { "": [ rangelist, ... ], ... }
-    for (auto&& rangeListObjectPair : root) {
-
-        // Parse inner rangelist object as either range or RLE
-        // `base` is updated by `parse_rangeList`
-        auto const rangeList = parse_rangeList(rangeListObjectPair.second, base);
-
-        // Empty: no element
-        if (std::holds_alternative<Empty>(rangeList)) {
-            continue;
-
-        // Range: add entire range to result
-        } else if (std::holds_alternative<Range>(rangeList)) {
-
-            auto const [start, end] = std::get<Range>(rangeList);
-            result.reserve(result.size() + (end - start));
-            for (auto i = start; i <= end; i++) {
-                result.push_back(i);
-            }
-
-        // RLE: add run length to result
-        } else if (std::holds_alternative<RLE>(rangeList)) {
-
-            auto const [value, count] = std::get<RLE>(rangeList);
-            std::fill_n(std::back_inserter(result), count, value);
-        }
-    }
-
-    return result;
-}
-
-template <typename Func>
-static void for_each_prefixList(pt::ptree const& root, Func&& func)
-{
-    /* "hosts" contains a prefix rangelist that expands to one instance of each
-       hostname for every PE on that host.
-       The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
-       - Range of ints 1 to 3 inclusive
-       - RLE with value 3 + 5 = 8 of length -(-1) + 1 = 2
-       - Values 1, 2, 3, 8, 8
-       The prefix rangelist data [ "node", [ [1,3], [5,-1] ] ] will then be
-       computed as node1, node2, node3, node8, node8.
-       Finally, nodes 1 through 3 will have 1 PE each, and node 8 will have 2
-    */
-
-    // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
-    for (auto&& prefixListArrayPair : root) {
-
-        // If element has data, it is a plain string instead of a prefix list
-        if (!prefixListArrayPair.second.data().empty()) {
-            func(prefixListArrayPair.second.data());
-            continue;
-        }
-
-        // { "": [ prefix_string, { "": [ rangelist, ... ], ... } ] }
-        auto cursor = prefixListArrayPair.second.begin();
-        auto const prefix = (cursor++)->second.get_value<std::string>();
-        auto const rangeListObjectArray = (cursor++)->second;
-
-        auto hostnamePostfixes = flatten_rangeList(rangeListObjectArray);
-
-        // Empty: there is a single string consisting solely of the prefix
-        if (hostnamePostfixes.empty()) {
-                func(prefix);
-
-        // Run function on every generated string
-        } else {
-            for (auto&& postfix : hostnamePostfixes) {
-                func(prefix + std::to_string(postfix));
-            }
-        }
-    }
-}
-
-static auto const flatten_prefixList(pt::ptree const& root)
-{
-    auto result = std::vector<std::string>{};
-
-    for_each_prefixList(root, [&](std::string hostname) {
-        result.emplace_back(std::move(hostname));
-    });
-
-    return result;
-}
-
-static auto make_hostsPlacement(pt::ptree const& root)
-{
-    auto result = std::vector<FluxFrontend::HostPlacement>{};
-
-    /* Flux proctable format:
-      prefix_rangelist: [ prefix_string, [ rangelist, ... ] ]
-      "hosts": [ prefix_rangelist, ... ]
-      "executables": [ prefix_rangelist, ... ]
-      "ids": [ rangelist, ... ]
-      "pids": [ rangelist, ... ]
-
-      Example: running 1 rank of a.out on node15
-        { "hosts": ["node15"]
-        , "executables": ["/path/to/a.out"]
-        , "ids": [0]
-        , "pids": [19797]
-        }
-
-      Example: running 2 ranks of a.out on node15, with PIDs 7991 and 7992
-        { "hosts": [[ "node", [[15,-1]] ]]
-        , "executables": [[ "/path/to/a.out", [[-1,-1]] ]]
-        , "ids": [[0,1]]
-        , "pids": [[7991,1]]
-        }
-    */
-
-    auto hostPlacementMap = std::map<std::string, FluxFrontend::HostPlacement>{};
-    auto hostname_entries = size_t{0};
-
-    // Add count for every hostname
-    for_each_prefixList(root.get_child("hosts"), [&](std::string const& hostname) {
-        auto& hostPECountPair = hostPlacementMap[hostname];
-        hostPECountPair.hostname = hostname;
-        hostPECountPair.numPEs++;
-        hostname_entries++;
-    });
-
-    // Get list of all ranks and PIDs
-    auto const ranks = flatten_rangeList(root.get_child("ids"));
-    auto const pids = flatten_rangeList(root.get_child("pids"));
-
-    // Each hostname occurrence corresponds to a single rank and PID
-    if (ranks.size() != hostname_entries) {
-        throw std::runtime_error("mismatch between rank and hostname count from Flux API ("
-            + std::to_string(ranks.size()) + " ranks and " + std::to_string(hostname_entries)
-            + " hostname entries");
-    }
-    if (pids.size() != hostname_entries) {
-        throw std::runtime_error("mismatch between PID and hostname count from Flux API ("
-            + std::to_string(pids.size()) + " PIDs and " + std::to_string(hostname_entries)
-            + " hostname entries");
-    }
-
-    // Host with N ranks will have the next N PIDs from rank list
-    auto rank_cursor = ranks.begin();
-    auto pid_cursor = pids.begin();
-    for (auto&& [hostname, placement] : hostPlacementMap) {
-        for (size_t i = 0; i < placement.numPEs; i++) {
-            placement.rankPidPairs.emplace_back(*rank_cursor, *pid_cursor);
-            rank_cursor++;
-            pid_cursor++;
-        }
-    }
-
-    // Construct placement vector from map
-    result.reserve(hostPlacementMap.size());
-    for (auto&& [hostname, placement] : hostPlacementMap) {
-        result.emplace_back(std::move(placement));
-    }
-
-    return result;
 }
 
 // Query event log for job leader rank and service key for RPC
@@ -487,6 +210,56 @@ static std::string make_rpc_request(FluxFrontend::LibFlux& libFlux, FluxFrontend
     }
 
     return std::string{(result) ? result : ""};
+}
+
+static const char utf8_prefix[] = u8"\u0192";
+
+// Parse raw job ID string (f58 or otherwise) into numeric job ID
+static inline auto parse_job_id(FluxFrontend::LibFlux& libFluxRef, char const* raw_job_id)
+{
+    // Determine if job ID is f58-formatted by checking for f58 prefix
+    auto const f58_formatted = (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0);
+
+    // Convert F58-formatted job ID to internal job ID
+    auto job_id = flux_jobid_t{};
+    if (f58_formatted) {
+
+        if (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) < 0) {
+            throw std::runtime_error("failed to parse Flux job ID: " + std::string{raw_job_id});
+        }
+
+    // Job ID was provided in numeric format
+    } else {
+        job_id = std::stol(raw_job_id);
+    }
+
+    return job_id;
+}
+
+// Convert numerical job ID to compact F58 encoding
+static inline auto encode_job_id(FluxFrontend::LibFlux& libFluxRef, uint64_t job_id)
+{
+    // Job IDs are a maximum of 14 characters (12 characters, 2-byte f prefix, 1 terminator)
+    char buf[64];
+
+    // flux_job_id_encode will always output in ASCII-only, so will need to overwrite the
+    // ASCII 'f' with UTF-8 prefix if not disabled
+    auto const utf8_enabled = (!getenv("FLUX_F58_FORCE_ASCII"));
+    auto const offset_len = (utf8_enabled)
+        ? strlen(utf8_prefix) - 1 // Last byte of UTF-8 prefix will overwrite ASCII prefix
+        : 0;
+
+    if (libFluxRef.flux_job_id_encode(job_id, "f58", buf + offset_len, sizeof(buf) - offset_len) < 0) {
+        throw std::runtime_error("failed to encode Flux job id: " + std::string{strerror(errno)});
+    }
+    buf[sizeof(buf) - 1] = '\0';
+
+    // Replace ASCII 'f' with prefix
+    if (utf8_enabled) {
+        ::memcpy(buf, utf8_prefix, strlen(utf8_prefix));
+    }
+
+    return std::string{buf};
 }
 
 static int cancel_job(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* fluxHandle,
@@ -555,26 +328,9 @@ FluxFrontend::registerJob(size_t numIds, ...)
 
     va_end(idArgs);
 
-    // Determine if job ID is f58-formatted by checking for f58 prefix
-    auto const f58_formatted = (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0);
-
-    auto job_id = flux_jobid_t{};
-
-    // Convert F58-formatted job ID to internal job ID
-    if (f58_formatted) {
-
-        if (m_libFlux->flux_job_id_parse(raw_job_id, &job_id) < 0) {
-            throw std::runtime_error("failed to parse Flux job ID: " + std::string{raw_job_id});
-        }
-
-    // Job ID was provided in numeric format
-    } else {
-        job_id = std::stol(raw_job_id);
-    }
-
     // Get attach information from Flux API
     auto launchInfo = LaunchInfo
-        { .jobId = job_id
+        { .jobId = parse_job_id(*m_libFlux, raw_job_id)
         , .atBarrier = false
     };
 
@@ -747,7 +503,7 @@ FluxApp::getJobId() const
 std::string
 FluxApp::getLauncherHostname() const
 {
-    unimplemented(__func__);
+    throw std::runtime_error("not supported for WLM: getLauncherHostname");
 }
 
 bool
@@ -973,7 +729,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         auto const proctable = parse_json(proctableResult);
 
         // Fill in hosts placement, PEs per node
-        m_hostsPlacement = make_hostsPlacement(proctable);
+        m_hostsPlacement = flux::make_hostsPlacement(proctable);
 
         // Sum up number of PEs
         m_numPEs = std::accumulate(
@@ -984,7 +740,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
 
         // Get list of binaries. As Flux does not support MPMD, this should only ever
         // be a single binary.
-        auto binaryList = flatten_prefixList(proctable.get_child("executables"));
+        auto binaryList = flux::flatten_prefixList(proctable.get_child("executables"));
         if (binaryList.size() != 1) {
             throw std::runtime_error("expected a single binary launched with Flux. Got " + std::to_string(binaryList.size()));
         }
