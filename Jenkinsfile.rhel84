@@ -1,0 +1,22 @@
+/******************************************************************************\
+ * Jenkinsfile.rhel84 - DST Jenkins pipeline for RHEL 8.4
+ *
+ * Copyright 2007-2021 Hewlett Packard Enterprise Development LP
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Hewlett
+ * Packard Enterprise Development LP., no part of this work or its content may be 
+ * used, reproduced or disclosed in any form.
+ *
+ ******************************************************************************/
+
+@Library("dst-shared@master") _
+
+rhel8_4PE {
+    timeout = 240
+    agent = 'dst-big-build'
+    product = "pe-base"
+    receiveEvent = ["cdst_support-rhel8_4-complete-master"]
+    sendEvents = ["cti-rhel8_4-complete-master"]
+}
