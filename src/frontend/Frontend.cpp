@@ -671,7 +671,7 @@ static bool verify_MPIR_symbols(System const& system, WLM const& wlm, std::strin
 
     // Check that the launcher is a binary and not a script
     { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
-        "file --mime " + launcherPath + " | grep -E 'application/x-(executable|sharedlib)'"};
+        "file --mime -L " + launcherPath + " | grep -E 'application/x-(executable|sharedlib)'"};
         if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
             throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it is not a binary file. \
 Tool launch requires direct access to the " + launcherName + " binary. \

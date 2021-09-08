@@ -691,15 +691,23 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
             launcherArgv.add(*arg);
         }
 
-        // Launch program under MPIR control.
-        auto const mpirData = Daemon().request_LaunchMPIR(
-            launcher_path.get(), launcherArgv.get(),
-            // redirect stdin/out/err to /dev/null, use SRUN arguments for in/output instead
-            open("/dev/null", O_RDWR), open("/dev/null", O_RDWR), open("/dev/null", O_RDWR),
-            env_list);
+        if (getenv(CTI_USE_SHIM_ENV_VAR) == nullptr) {
+            // Launch program under MPIR control.
+            return Daemon().request_LaunchMPIR(
+                launcher_path.get(), launcherArgv.get(),
+                // redirect stdin/out/err to /dev/null, use SRUN arguments for in/output instead
+                open("/dev/null", O_RDWR), open("/dev/null", O_RDWR), open("/dev/null", O_RDWR),
+                env_list);
+        } else {
+            // Use MPIR shim to launch program
+            auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
+            auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
 
-        return mpirData;
-
+            return Daemon().request_LaunchMPIRShim(
+                shimBinaryPath.c_str(), temporaryShimBinDir.c_str(), launcher_path.get(),
+                launcher_path.get(), launcherArgv.get(), open("/dev/null", O_RDWR), open("/dev/null", O_RDWR), open("/dev/null", O_RDWR), env_list
+            );
+        }
     } else {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }

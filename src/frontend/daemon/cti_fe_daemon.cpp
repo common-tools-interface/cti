@@ -165,7 +165,6 @@ auto appCleanupList = ProcSet{};
 auto utilMap = std::unordered_map<DAppId, ProcSet>{};
 
 auto mpirMap     = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
-auto mpirShimMap = std::unordered_map<DAppId, pid_t>{};
 
 // communication
 int reqFd  = -1; // incoming request pipe
@@ -587,6 +586,7 @@ static pid_t forkExec(LaunchData const& launchData)
     // construct argv
     cti::ManagedArgv argv;
     for (auto&& arg : launchData.argvList) {
+        getLogger().write("%s\n", arg.c_str());
         argv.add(arg);
     }
 
@@ -768,25 +768,7 @@ static void releaseMPIR(DAppId const mpir_id)
         // Release from MPIR breakpoint
         mpirMap.erase(idInstPair);
     } else {
-        auto const idShimPidPair = mpirShimMap.find(mpir_id);
-        if (idShimPidPair != mpirShimMap.end()) {
-
-            // Release MPIR shim breakpoint
-            auto const shimPid = idShimPidPair->second;
-
-            if (::kill(shimPid, SIGCONT)) {
-                throw std::runtime_error("failed to continue MPIR shim PID " + std::to_string(shimPid) + ": " + std::string{strerror(errno)});
-            }
-
-            // Wait for exit
-            cti::waitpid(shimPid, nullptr, 0);
-
-            // Remove from active shim map
-            mpirShimMap.erase(idShimPidPair);
-
-        } else {
-            throw std::runtime_error("release mpir id not found: " + std::to_string(mpir_id));
-        }
+        throw std::runtime_error("release mpir id not found: " + std::to_string(mpir_id));
     }
 
     getLogger().write("successfully released mpir id %d\n", mpir_id);
@@ -815,51 +797,6 @@ static void terminateMPIR(DAppId const mpir_id)
     getLogger().write("successfully terminated mpir id %d\n", mpir_id);
 }
 
-
-static auto readShimMPIRResult(int const shimOutputFd)
-{
-    // read MPIR shim PID
-    auto const shimPid = rawReadLoop<pid_t>(shimOutputFd);
-
-    // read basic table information
-    auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(shimOutputFd);
-    if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.launcher_pid == 0)) {
-        throw std::runtime_error("failed to read proctable response");
-    }
-
-    auto const mpirId = registerAppPID(mpirResp.launcher_pid);
-
-    // fill in MPIR data excluding proctable
-    FE_daemon::MPIRResult result
-        { mpirId
-        , mpirResp.launcher_pid
-        , {} // proctable
-    };
-    result.proctable.reserve(mpirResp.num_pids);
-
-    // set up pipe stream
-    cti::FdBuf shimOutputBuf{dup(shimOutputFd)};
-    std::istream shimOutputStream{&shimOutputBuf};
-
-    // fill in pid and hostname of proctable elements
-    for (int i = 0; i < mpirResp.num_pids; i++) {
-        MPIRProctableElem elem;
-        // read pid
-        elem.pid = rawReadLoop<pid_t>(shimOutputFd);
-        // read hostname
-        if (!std::getline(shimOutputStream, elem.hostname, '\0')) {
-            throw std::runtime_error("failed to read hostname");
-        }
-        // read executable
-        if (!std::getline(shimOutputStream, elem.executable, '\0')) {
-            throw std::runtime_error("failed to read executable");
-        }
-        result.proctable.emplace_back(std::move(elem));
-    }
-
-    return std::make_tuple(shimPid, result);
-}
-
 static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData const& launchData)
 {
     int shimPipe[2];
@@ -871,6 +808,10 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     auto const shimBinDir = cti::dir_handle{shimData.temporaryShimBinDir};
     auto const shimBinLink = cti::softlink_handle{shimData.shimBinaryPath,
         shimBinDir.m_path + "/" + shimmedLauncherName};
+
+    // Shorten launcher path to basename so it is looked up in PATH
+    modifiedLaunchData.filepath = shimmedLauncherName;
+    modifiedLaunchData.argvList[0] = shimmedLauncherName;
 
     // Modify PATH in launchData
     auto const rawPath = ::getenv("PATH");
@@ -888,11 +829,44 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDOUT_FD="      + std::to_string(launchData.stdout_fd));
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDERR_FD="      + std::to_string(launchData.stderr_fd));
 
+    // TODO generate more unique token
+    modifiedLaunchData.argvList.emplace_back("cti_shim_token");
+
     auto const scriptPid = forkExec(modifiedLaunchData);
     close(shimPipe[1]);
+    getLogger().write("started shim, waiting for pid on pipe %d\n", shimPipe[0]);
 
-    auto const [shimPid, mpirResult] = readShimMPIRResult(shimPipe[0]);
-    mpirShimMap.emplace(mpirResult.mpir_id, shimPid);
+    auto const launcherPid = rawReadLoop<pid_t>(shimPipe[0]);
+    getLogger().write("got pid: %d, attaching\n", launcherPid);
+
+    // Attach and run to breakpoint
+    auto mpirInstance = [](const std::string &launcherName, const pid_t pid, const LaunchData &launchData) {
+        try {
+            return std::make_unique<MPIRInstance>(launcherName, pid);
+        } catch (std::exception const& ex) {
+            auto errorMsg = std::stringstream{};
+
+            // Create error message from launcher arguments with possible diagnostic
+            errorMsg << "Failed attach to launcher under MPIR shim\n";
+            for (auto&& arg : launchData.argvList) {
+                errorMsg << " " << arg;
+            }
+            errorMsg << "\nEnsure that the launcher binary exists and \
+that all arguments (such as job constraints or project accounts) required \
+by your system are provided to the tool's launch command (" << ex.what() << ")";
+
+            throw std::runtime_error{errorMsg.str()};
+        }
+    }(shimData.shimmedLauncherPath, launcherPid, modifiedLaunchData);
+
+    auto mpirResult = extractMPIRResult(std::move(mpirInstance));
+
+    // Terminate launched application on daemon exit
+    appCleanupList.insert(mpirResult.launcher_pid);
+
+    // Launcher will be waiting for final SIGCONT
+    // TODO move this to MPIR release
+    ::kill(launcherPid, SIGCONT);
 
     return mpirResult;
 }
