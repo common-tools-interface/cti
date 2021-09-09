@@ -37,6 +37,9 @@
 
 #include "useful/cti_execvp.hpp"
 
+// Token used by MPIR shim to activate
+#define CTI_SHIM_TOKEN "cti_shim_token"
+
 /* fd read / write helpers */
 
 // read num_bytes from fd into buf
@@ -52,6 +55,8 @@ static inline void readLoop(char* buf, int const fd, int num_bytes)
             } else {
                 throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
             }
+        } else if (bytes_read == 0) {
+            throw std::runtime_error("read failed: zero bytes read");
         } else {
             offset += bytes_read;
         }

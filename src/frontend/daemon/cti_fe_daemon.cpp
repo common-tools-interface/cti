@@ -809,10 +809,6 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     auto const shimBinLink = cti::softlink_handle{shimData.shimBinaryPath,
         shimBinDir.m_path + "/" + shimmedLauncherName};
 
-    // Shorten launcher path to basename so it is looked up in PATH
-    modifiedLaunchData.filepath = shimmedLauncherName;
-    modifiedLaunchData.argvList[0] = shimmedLauncherName;
-
     // Modify PATH in launchData
     auto const rawPath = ::getenv("PATH");
     auto const originalPath = (rawPath != nullptr)
@@ -829,43 +825,53 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDOUT_FD="      + std::to_string(launchData.stdout_fd));
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDERR_FD="      + std::to_string(launchData.stderr_fd));
 
-    // TODO generate more unique token
-    modifiedLaunchData.argvList.emplace_back("cti_shim_token");
+    // Some wrappers make their own calls to srun, and we
+    // only want the shim to activate on our call to srun that launches the app.
+    // The shim will look for a token at the end of the app arguments and activate
+    // when it sees it.
+    modifiedLaunchData.argvList.emplace_back(CTI_SHIM_TOKEN);
 
-    auto const scriptPid = forkExec(modifiedLaunchData);
+    forkExec(modifiedLaunchData);
     close(shimPipe[1]);
     getLogger().write("started shim, waiting for pid on pipe %d\n", shimPipe[0]);
 
-    auto const launcherPid = rawReadLoop<pid_t>(shimPipe[0]);
+    auto const launcherPid = [&](){
+        // If the shim fails to start for some reason, the other end of 
+        // the pipe will be closed and rawReadLoop will throw std::runtime_error.
+        try {
+            return rawReadLoop<pid_t>(shimPipe[0]);
+        } catch (std::runtime_error &e) {
+            // Catch the error only to throw another one with a better message
+            getLogger().write("MPIR shim failed to report pid.\n");
+            throw std::runtime_error("MPIR shim failed to start. Set the " CTI_DBG_ENV_VAR " environment variable to 1 to show shim/wrapper output.");
+        }
+    }();
+
     getLogger().write("got pid: %d, attaching\n", launcherPid);
 
     // Attach and run to breakpoint
-    auto mpirInstance = [](const std::string &launcherName, const pid_t pid, const LaunchData &launchData) {
+    auto mpirInstance = [](const std::string &launcherName, const pid_t pid) {
         try {
             return std::make_unique<MPIRInstance>(launcherName, pid);
         } catch (std::exception const& ex) {
+            getLogger().write("Failed to attach to %s, pid %d\n", launcherName.c_str(), pid);
+
             auto errorMsg = std::stringstream{};
-
             // Create error message from launcher arguments with possible diagnostic
-            errorMsg << "Failed attach to launcher under MPIR shim\n";
-            for (auto&& arg : launchData.argvList) {
-                errorMsg << " " << arg;
-            }
-            errorMsg << "\nEnsure that the launcher binary exists and \
-that all arguments (such as job constraints or project accounts) required \
-by your system are provided to the tool's launch command (" << ex.what() << ")";
-
+            errorMsg << "Failed attach to launcher under MPIR shim (" << ex.what() << ")";
             throw std::runtime_error{errorMsg.str()};
         }
-    }(shimData.shimmedLauncherPath, launcherPid, modifiedLaunchData);
+    }(shimData.shimmedLauncherPath, launcherPid);
 
     auto mpirResult = extractMPIRResult(std::move(mpirInstance));
 
     // Terminate launched application on daemon exit
     appCleanupList.insert(mpirResult.launcher_pid);
 
-    // Launcher will be waiting for final SIGCONT
-    // TODO move this to MPIR release
+    // MPIR shim stops the launcher with SIGSTOP. The launcher won't start 
+    // again, even after ProcControl detaches, unless a SIGCONT is sent at some 
+    // point. Sending it here doesn't release the launcher, it's still stopped 
+    // under ProcControl, but it enables it to start running again once ProcControl detaches.
     ::kill(launcherPid, SIGCONT);
 
     return mpirResult;

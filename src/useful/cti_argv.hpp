@@ -94,6 +94,20 @@ public:
             argv.insert(argv.end() - 1, strdup(*arg));
         }
     }
+
+    void add_front(std::string const& str) {
+        argv.insert(argv.begin(), strdup(str.c_str()));
+    }
+
+    // free string at argv[index] and replace with str.
+    void replace(std::size_t index, const std::string &str) {
+        if (index >= argv.size()) {
+            throw std::out_of_range("attempted to replace managed argument out of bounds");
+        }
+
+        if (argv[index]) free(argv[index]);
+        argv[index] = strdup(str.c_str());
+    }
 };
 
 struct Argv {

@@ -1,7 +1,7 @@
 /******************************************************************************\
  * mpir_shim.cpp - cti fe_daemon utility to extract MPIR proctable information
  *
- * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2021 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -41,14 +41,15 @@
 #include "frontend/mpir_iface/Inferior.hpp"
 #include "cti_fe_daemon_iface.hpp"
 
-// TODO rewrite this comment
+static const auto shimToken = std::string{CTI_SHIM_TOKEN};
 
 /*
- * Client scripts can read this data in until a newline is encountered. At
-   this point, this program will have raised SIGSTOP.
- * To continue the job launch from MPIR_Breakpoint (e.g. after the proper
-   backend files are created from the MPIR proctable), send a SIGCONT.
- * After continuing, the target program's output will be sent to standard out / standard error.
+ * MPIR shim is used by bootstrap/wrapper scripts that aren't MPIR compliant.
+ * CTI will insert the shim into PATH with the same name as the normal launcher,
+ * and the wrapper will launch the shim instead of the actual launcher. The shim
+ * then starts the real launcher in a stopped state, sends the pid to CTI, which
+ * then attaches and reads the MPIR info. The shim only activates if the
+ * CTI_SHIM_TOKEN is the last argument on the command line.
 */
 
 static auto parse_from_env(int argc, char const* argv[])
@@ -58,7 +59,7 @@ static auto parse_from_env(int argc, char const* argv[])
 	auto launcherPath = std::string{};
 	auto originalPath = std::string{};
 	std::vector<std::string> launcherArgv;
-	bool hasShimToken = false;
+	auto hasShimToken = false;
 
 	if (auto const rawInputFd      = ::getenv("CTI_MPIR_SHIM_INPUT_FD")) {
 		inputFd = std::stoi(rawInputFd);
@@ -84,13 +85,17 @@ static auto parse_from_env(int argc, char const* argv[])
 		::dup2(std::stoi(rawStderrFd), STDERR_FILENO);
 	}
 
+	// Check for the shim activation token; some wrappers make their own calls
+	// to srun and we should only activate the shim on the true job launch.
+	// The token will always be the last argument if it is present.
+	if (argv[argc - 1] == shimToken) {
+		hasShimToken = true;
+		argc--; // don't include the token in actual app launch
+	}
+
 	launcherArgv = {launcherPath};
 	for (int i = 1; i < argc; i++) {
-		if (!hasShimToken && (strcmp(argv[i], "cti_shim_token") == 0)) {
-			hasShimToken = true;
-		} else {
-			launcherArgv.push_back(argv[i]);
-		}
+		launcherArgv.push_back(argv[i]);
 	}
 
 	return std::make_tuple(inputFd, outputFd, launcherPath, originalPath, launcherArgv, hasShimToken);
