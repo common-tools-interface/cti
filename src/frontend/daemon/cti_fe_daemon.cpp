@@ -586,7 +586,6 @@ static pid_t forkExec(LaunchData const& launchData)
     // construct argv
     cti::ManagedArgv argv;
     for (auto&& arg : launchData.argvList) {
-        getLogger().write("%s\n", arg.c_str());
         argv.add(arg);
     }
 
