@@ -37,9 +37,6 @@
 
 #include "useful/cti_execvp.hpp"
 
-// Token used by MPIR shim to activate
-#define CTI_SHIM_TOKEN "cti_shim_token"
-
 /* fd read / write helpers */
 
 // read num_bytes from fd into buf

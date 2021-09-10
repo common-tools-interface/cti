@@ -56,6 +56,10 @@
 #include "useful/cti_wrappers.hpp"
 #include "useful/cti_split.hpp"
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/random_generator.hpp>
+
 #include "frontend/mpir_iface/MPIRInstance.hpp"
 #include "cti_fe_daemon_iface.hpp"
 
@@ -802,9 +806,15 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     ::pipe(shimPipe);
 
     auto modifiedLaunchData = launchData;
+    
+    // Some wrappers make their own calls to srun, and we only want the shim to 
+    // activate on our call to srun that launches the app.
+    // We insert a token as the last argument to the job launch, which the MPIR
+    // shim looks for.
+    const auto shimToken = boost::uuids::to_string(boost::uuids::random_generator()());
 
     auto const shimmedLauncherName = cti::cstr::basename(shimData.shimmedLauncherPath);
-    auto const shimBinDir = cti::dir_handle{shimData.temporaryShimBinDir};
+    auto const shimBinDir = cti::dir_handle{shimData.temporaryShimBinDir + shimToken};
     auto const shimBinLink = cti::softlink_handle{shimData.shimBinaryPath,
         shimBinDir.m_path + "/" + shimmedLauncherName};
 
@@ -823,12 +833,9 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDIN_FD="       + std::to_string(launchData.stdin_fd));
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDOUT_FD="      + std::to_string(launchData.stdout_fd));
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDERR_FD="      + std::to_string(launchData.stderr_fd));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_TOKEN=" + shimToken);
 
-    // Some wrappers make their own calls to srun, and we
-    // only want the shim to activate on our call to srun that launches the app.
-    // The shim will look for a token at the end of the app arguments and activate
-    // when it sees it.
-    modifiedLaunchData.argvList.emplace_back(CTI_SHIM_TOKEN);
+    modifiedLaunchData.argvList.emplace_back(shimToken);
 
     forkExec(modifiedLaunchData);
     close(shimPipe[1]);

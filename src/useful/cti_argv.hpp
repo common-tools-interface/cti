@@ -58,7 +58,7 @@ public:
     /* destructor frees the strdup'ed memory */
     ~ManagedArgv() {
         for (char* str : argv) {
-            if (str) { free(str); }
+            free(str);
         }
     }
 
@@ -101,11 +101,11 @@ public:
 
     // free string at argv[index] and replace with str.
     void replace(std::size_t index, const std::string &str) {
-        if (index >= argv.size()) {
+        if (index >= argv.size() - 1) {
             throw std::out_of_range("attempted to replace managed argument out of bounds");
         }
 
-        if (argv[index]) free(argv[index]);
+        free(argv[index]);
         argv[index] = strdup(str.c_str());
     }
 };

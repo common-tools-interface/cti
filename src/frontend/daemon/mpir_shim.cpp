@@ -42,17 +42,9 @@
 #include "frontend/mpir_iface/Inferior.hpp"
 #include "cti_fe_daemon_iface.hpp"
 
-static const auto shimToken = std::string{CTI_SHIM_TOKEN};
-
 static bool debug_enabled() {
-	static const auto _enabled = []() {
-		if (::getenv("CTI_DEBUG")) {
-			return true;
-		}
-
-		return false;
-	}();
-	return _enabled;
+	static const auto enabled = bool{::getenv("CTI_DEBUG")};
+	return enabled;
 }
 
 static void log(const char* format, ...)
@@ -82,6 +74,7 @@ static auto parse_from_env(int argc, char const* argv[])
 	auto launcherPath = std::string{};
 	auto originalPath = std::string{};
 	std::vector<std::string> launcherArgv;
+	auto shimToken = std::string{};
 	auto hasShimToken = false;
 
 	if (auto const rawInputFd      = ::getenv("CTI_MPIR_SHIM_INPUT_FD")) {
@@ -95,6 +88,9 @@ static auto parse_from_env(int argc, char const* argv[])
 	}
 	if (auto const rawOriginalPath = ::getenv("CTI_MPIR_ORIGINAL_PATH")) {
 		originalPath = std::string{rawOriginalPath};
+	}
+	if (auto const rawShimToken = ::getenv("CTI_MPIR_SHIM_TOKEN")) {
+		shimToken = std::string{rawShimToken};
 	}
 
 	// Remap stdin / out /err
