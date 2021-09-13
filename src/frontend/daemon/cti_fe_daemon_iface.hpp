@@ -52,6 +52,8 @@ static inline void readLoop(char* buf, int const fd, int num_bytes)
             } else {
                 throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
             }
+        } else if (bytes_read == 0) {
+            throw std::runtime_error("read failed: zero bytes read");
         } else {
             offset += bytes_read;
         }

@@ -691,15 +691,33 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
             launcherArgv.add(*arg);
         }
 
-        // Launch program under MPIR control.
-        auto const mpirData = Daemon().request_LaunchMPIR(
-            launcher_path.get(), launcherArgv.get(),
-            // redirect stdin/out/err to /dev/null, use SRUN arguments for in/output instead
-            open("/dev/null", O_RDWR), open("/dev/null", O_RDWR), open("/dev/null", O_RDWR),
-            env_list);
+        if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR); launcherWrapper == nullptr) {
+            // Launch program under MPIR control.
+            return Daemon().request_LaunchMPIR(
+                launcher_path.get(), launcherArgv.get(),
+                // redirect stdin/out/err to /dev/null, use SRUN arguments for in/output instead
+                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR),
+                env_list);
+        } else {
+            // Use MPIR shim to launch program
 
-        return mpirData;
+            launcherArgv.add_front(launcherWrapper);
 
+            // Change launcher path to basename so it is looked up in PATH by 
+            // the wrapper, launching the shim instead
+            launcherArgv.replace(1, ::basename(launcher_path.get()));
+
+            auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
+            auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
+
+            // If CTI_DEBUG is enabled, show wrapper output
+            auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
+
+            return Daemon().request_LaunchMPIRShim(
+                shimBinaryPath.c_str(), temporaryShimBinDir.c_str(), launcher_path.get(),
+                launcherWrapper, launcherArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
+            );
+        }
     } else {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }

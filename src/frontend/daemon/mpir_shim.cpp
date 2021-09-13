@@ -1,7 +1,7 @@
 /******************************************************************************\
  * mpir_shim.cpp - cti fe_daemon utility to extract MPIR proctable information
  *
- * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2021 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -29,6 +29,7 @@
 
 #include <unistd.h>
 #include <limits.h>
+#include <stdarg.h>
 
 #include <signal.h>
 
@@ -38,15 +39,32 @@
 #include <memory>
 #include <vector>
 
-#include "frontend/mpir_iface/MPIRInstance.hpp"
+#include "frontend/mpir_iface/Inferior.hpp"
 #include "cti_fe_daemon_iface.hpp"
 
+static bool debug_enabled() {
+	static const auto enabled = bool{::getenv("CTI_DEBUG")};
+	return enabled;
+}
+
+static void log(const char* format, ...)
+{
+	if (debug_enabled()) {
+		va_list argptr;
+		va_start(argptr, format);
+		vfprintf(stderr, format, argptr);
+		va_end(argptr);
+	}
+}
+
 /*
- * Client scripts can read this data in until a newline is encountered. At
-   this point, this program will have raised SIGSTOP.
- * To continue the job launch from MPIR_Breakpoint (e.g. after the proper
-   backend files are created from the MPIR proctable), send a SIGINT.
- * After continuing, the target program's output will be sent to standard out / standard error.
+ * MPIR shim is used by bootstrap/wrapper scripts that aren't MPIR compliant.
+ * CTI will insert the shim into PATH with the same name as the normal launcher,
+ * and the wrapper will launch the shim instead of the actual launcher. The shim
+ * then starts the real launcher in a stopped state, sends the pid to CTI, which
+ * then attaches and reads the MPIR info. The shim only activates if the
+ * CTI_SHIM_TOKEN is the last argument on the command line, and the token is not
+ * passed to the actual job launch.
 */
 
 static auto parse_from_env(int argc, char const* argv[])
@@ -56,6 +74,8 @@ static auto parse_from_env(int argc, char const* argv[])
 	auto launcherPath = std::string{};
 	auto originalPath = std::string{};
 	std::vector<std::string> launcherArgv;
+	auto shimToken = std::string{};
+	auto hasShimToken = false;
 
 	if (auto const rawInputFd      = ::getenv("CTI_MPIR_SHIM_INPUT_FD")) {
 		inputFd = std::stoi(rawInputFd);
@@ -69,6 +89,9 @@ static auto parse_from_env(int argc, char const* argv[])
 	if (auto const rawOriginalPath = ::getenv("CTI_MPIR_ORIGINAL_PATH")) {
 		originalPath = std::string{rawOriginalPath};
 	}
+	if (auto const rawShimToken = ::getenv("CTI_MPIR_SHIM_TOKEN")) {
+		shimToken = std::string{rawShimToken};
+	}
 
 	// Remap stdin / out /err
 	if (auto const rawStdinFd = ::getenv("CTI_MPIR_STDIN_FD")) {
@@ -81,64 +104,98 @@ static auto parse_from_env(int argc, char const* argv[])
 		::dup2(std::stoi(rawStderrFd), STDERR_FILENO);
 	}
 
+	// Check for the shim activation token; some wrappers make their own calls
+	// to the job launcher and we should only activate the shim on the true job launch.
+	// The token will always be the last argument if it is present.
+	if (argv[argc - 1] == shimToken) {
+		hasShimToken = true;
+		argc--; // don't include the token in actual app launch
+	}
+
 	launcherArgv = {launcherPath};
-	for (int i = 0; i < argc; i++) {
+	for (int i = 1; i < argc; i++) {
 		launcherArgv.push_back(argv[i]);
 	}
 
-	return std::make_tuple(inputFd, outputFd, launcherPath, originalPath, launcherArgv);
+	return std::make_tuple(inputFd, outputFd, launcherPath, originalPath, launcherArgv, hasShimToken);
 }
 
-int main(int argc, char const* argv[])
+int main(int argc, char const* argv[], char const* env[])
 {
 	// Parse and verify arguments
-	auto const [inputFd, outputFd, launcherPath, originalPath, launcherArgv] = parse_from_env(argc, argv);
+	auto const [inputFd, outputFd, launcherPath, originalPath, launcherArgv, hasShimToken] = parse_from_env(argc, argv);
 	if (launcherPath.empty() || launcherArgv.empty()) {
 		exit(1);
 	}
 
-	// Close unused pipe end
-	::close(inputFd);
+	if (hasShimToken) {
+		log("cti shim token detected\n");
 
-	// Restore original PATH
-	for (auto&& env_var :
-		{ "CTI_MPIR_SHIM_INPUT_FD"
-		, "CTI_MPIR_SHIM_OUTPUT_FD"
-		, "CTI_MPIR_LAUNCHER_PATH"
-		, "CTI_MPIR_ORIGINAL_PATH" }) {
-		::unsetenv(env_var);
-	}
-	if (::setenv("PATH", originalPath.c_str(), 1)) {
-		fprintf(stderr, "failed to restore PATH: %s\n", strerror(errno));
-		exit(-1);
-	}
+		// Close unused pipe end
+		::close(inputFd);
 
-	// Create MPIR launch instance based on arguments
-	auto mpirInstance = MPIRInstance{launcherPath, launcherArgv};
+		// Restore original PATH
+		for (auto&& env_var :
+			{ "CTI_MPIR_SHIM_INPUT_FD"
+			, "CTI_MPIR_SHIM_OUTPUT_FD"
+			, "CTI_MPIR_LAUNCHER_PATH"
+			, "CTI_MPIR_ORIGINAL_PATH" }) {
+			::unsetenv(env_var);
+		}
+		if (::setenv("PATH", originalPath.c_str(), 1)) {
+			log("failed to restore PATH: %s\n", strerror(errno));
+			exit(-1);
+		}
 
-	// send PID
-	rawWriteLoop(outputFd, getpid());
+		// Create MPIR launch instance based on arguments
+		log("launcher: %s\n", launcherPath.c_str());
+		log("argv:\n");
+		for (const auto arg : launcherArgv) {
+			log("\t%s\n", arg.c_str());
+		}
 
-	// send the MPIR data
-	auto const mpirProctable = mpirInstance.getProctable();
-	rawWriteLoop(outputFd, FE_daemon::MPIRResp
-		{ .type     = FE_daemon::RespType::MPIR
-		, .mpir_id  = 0
-		, .launcher_pid = mpirInstance.getLauncherPid()
-		, .num_pids = static_cast<int>(mpirProctable.size())
-	});
-	for (auto&& [pid, hostname, executable] : mpirProctable) {
+		// Start job launcher in stopped state and get the pid
+		auto pid = [](const std::string &launcherPath, const std::vector<std::string> &launcherArgv){
+			auto launcherProcess = Inferior{launcherPath, launcherArgv, {}, {}};
+
+			auto pid = launcherProcess.getPid();
+			log("launcher pid is %d\n", pid);
+
+			// Ensure inferior stays stopped on detach
+			::kill(pid, SIGSTOP);
+
+			// Inferior will detach on scope exit
+			return pid;
+		}(launcherPath, launcherArgv);
+
+		// Send PID to CTI
+		log("detached, sending pid\n");
 		rawWriteLoop(outputFd, pid);
-		writeLoop(outputFd, hostname.c_str(), hostname.length() + 1);
-		writeLoop(outputFd, executable.c_str(), executable.length() + 1);
+
+		// Close pipe
+		::close(outputFd);
+
+		// It is now the job of CTI to read MPIR data and send SIGCONT to the
+		// inferior launcher when it is done reading.
+
+		// Stay alive until launcher is done so wrapper scripts that monitor
+		// the lifetime of their "launcher" don't exit immediately
+		log("waiting for child\n");
+		waitpid(pid, nullptr, 0);
+		log("child exited\n");
+	} else {
+		log("no token, forwarding to %s\n", launcherPath.c_str());
+		argv[0] = launcherPath.c_str();
+
+		log("\t");
+		for (int i = 0; i < argc; i++) {
+			log("%s ", argv[i]);
+		}
+		log("\n");
+
+		execvpe(launcherPath.c_str(), const_cast<char* const*>(argv), const_cast<char* const*>(env));
+		return -1;
 	}
-
-	// Close pipe
-	::close(outputFd);
-
-	// STOP self, continue from MPIR_Breakpoint by sending SIGCONT
-	signal(SIGINT, SIG_IGN);
-	raise(SIGSTOP);
 
 	return 0;
 }
