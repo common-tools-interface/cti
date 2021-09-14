@@ -17,7 +17,7 @@ Product Description:
 Purpose:
 ---------
   This bugfix release resolves the following issues:
-    - Added CRAY_CTI_PREFIX and CRAY_CTI_VERSION to the modulefiles
+    - Added CRAY_CTI_PREFIX and CRAY_CTI_VERSION environment variables to the modulefiles.
 
 Product and OS Dependencies:
 -----------------------------
