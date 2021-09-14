@@ -16,6 +16,4 @@
 sle15sp3PE {
     timeout = 30
     product = "pe-base"
-    receiveEvent = ["cdst_support-sles15sp3-complete-master"]
-    sendEvents = ["cti-sles15sp3-complete-master"]
 }

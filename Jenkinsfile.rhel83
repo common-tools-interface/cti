@@ -17,6 +17,4 @@ rhel8_3PE {
     timeout = 240
     agent = 'dst-big-build'
     product = "pe-base"
-    receiveEvent = ["cdst_support-rhel8_3-complete-master"]
-    sendEvents = ["cti-rhel8_3-complete-master"]
 }
