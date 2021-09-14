@@ -17,7 +17,7 @@ Product Description:
 Purpose:
 ---------
   This bugfix release resolves the following issues:
-    - Segfault when launching an application with GDB4hpc
+    - Added CRAY_CTI_PREFIX and CRAY_CTI_VERSION environment variables to the modulefiles.
 
 Product and OS Dependencies:
 -----------------------------
