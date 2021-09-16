@@ -2,7 +2,7 @@
 #
 # runBuildPrep.sh - Preps the build environment
 #
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -38,8 +38,7 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
 elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
     if [[ "$target_os" == "$cdst_os_centos8" ]]; then
       # Note the following will be different on build VMs vs DST. Errors are okay.
-      yum config-manager --set-enabled PowerTools
-      yum config-manager --set-enabled dst-remote-centos8-PowerTools
+      yum config-manager --set-enabled powertools
     fi
     # Install yum based components
     yum --assumeyes install \
