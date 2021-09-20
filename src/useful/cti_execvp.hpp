@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <string.h>
 
 #include <sstream>
 #include <streambuf>
@@ -63,9 +64,19 @@ protected:
     virtual int underflow() {
         if (fd < 0) { throw std::runtime_error("File descriptor not set"); }
 
-        ssize_t numBytesRead = read(fd, &readCh, 1);
-        if (numBytesRead == 0) {
-            return EOF;
+        while (true) {
+            ssize_t numBytesRead = read(fd, &readCh, 1);
+            if (numBytesRead == 0) {
+                return EOF;
+            } else if (numBytesRead < 0) {
+                if (errno == EAGAIN) {
+                    continue;
+                } else {
+                    throw std::runtime_error("read failed: " + std::string{strerror(errno)});
+                }
+            } else {
+                break;
+            }
         }
 
         setg(&readCh, &readCh, &readCh + 1);

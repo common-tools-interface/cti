@@ -169,6 +169,10 @@ public: // slurm specific interface
     uint64_t getApid() const { return SLURM_APID(m_jobId, m_stepId); }
     SrunInfo getSrunInfo() const { return SrunInfo { m_jobId, m_stepId }; }
 
+    // Regenerate MPIR proctable where each job binary is running under the provided
+    // wrapper binary (e.g. running inside Singulary container)
+    MPIRProctable reparentProctable(MPIRProctable const& procTable, std::string const& wrapperBinary);
+
 public: // constructor / destructor interface
     SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);
     ~SLURMApp();

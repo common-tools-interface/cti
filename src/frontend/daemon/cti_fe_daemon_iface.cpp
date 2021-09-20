@@ -235,11 +235,11 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
             throw std::runtime_error("failed to read string");
         }
 
-        // fill in binary rank map
-        result.binaryRankMap[elem.executable].push_back(i);
-
         result.proctable.emplace_back(std::move(elem));
     }
+
+    // fill in binary rank map
+    result.binaryRankMap = generateBinaryRankMap(result.proctable);
 
     return result;
 }

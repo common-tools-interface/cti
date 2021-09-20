@@ -85,6 +85,9 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
         throw std::runtime_error("tried to create app with invalid daemon id: " + std::to_string(m_daemonAppId));
     }
 
+    mpirData.proctable = reparentProctable(mpirData.proctable, "singularity");
+    m_binaryRankMap = generateBinaryRankMap(mpirData.proctable);
+
     // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
 
     // FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
@@ -257,6 +260,136 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     // directory will only exist on nodes associated with this particular job step, and the
     // sbcast command will exit with error if the directory doesn't exist even if the transfer
     // worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
+}
+
+MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
+    std::string const& wrapperBinary)
+{
+    // Helper function to run bash command on given host allocated in job
+    auto runCommand = [this](std::string const& hostname, std::string const& bashCommand,
+        size_t expected_lines) {
+
+        // Start adding the args to the launcher argv array
+        auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
+        auto launcherArgv = cti::ManagedArgv {
+            slurmFrontend.getLauncherName()
+            , "--jobid=" + std::to_string(m_jobId)
+            , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
+            , "--nodelist=" + hostname
+        };
+
+        // Add daemon launch arguments, except for output redirection
+        for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
+            if (arg != "--output=none") {
+                launcherArgv.add(arg);
+            }
+        }
+
+        // Add bash command
+        launcherArgv.add("bash");
+        launcherArgv.add("-c");
+        launcherArgv.add(bashCommand);
+
+        // Build environment from blacklist
+        auto const envVarBlacklist = std::vector<std::string>{
+            "SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
+            "SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
+            "SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
+            "SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
+            "SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
+            "SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
+            "SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
+            "SLURM_WORKING_DIR"
+        };
+        cti::ManagedArgv launcherEnv;
+        for (auto&& envVar : envVarBlacklist) {
+            launcherEnv.add(envVar + "=");
+        }
+
+        // Capture lines of output from srun
+        auto outputPipe = cti::Pipe{};
+        auto outputPipeBuf = cti::FdBuf{outputPipe.getReadFd()};
+        auto outputStream = std::istream{&outputPipeBuf};
+
+        // Tell FE Daemon to launch srun
+        m_frontend.Daemon().request_ForkExecvpUtil_Async(
+            m_daemonAppId, dynamic_cast<SLURMFrontend&>(m_frontend).getLauncherName().c_str(),
+            launcherArgv.get(),
+            ::open("/dev/null", O_RDONLY), outputPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
+            launcherEnv.get() );
+
+        // Read and store output from srun (count lines to know when to stop reading
+        // output from async tool launch)
+        outputPipe.closeWrite();
+        auto result = std::vector<std::string>{};
+        auto line = std::string{};
+        while ((result.size() < expected_lines) && std::getline(outputStream, line)) {
+            result.emplace_back(std::move(line));
+        }
+        outputPipe.closeRead();
+
+        return result;
+    };
+
+    // Copy proctable, will be modifying entries containing the wrapped executable
+    auto result = MPIRProctable{procTable};
+
+    // Map hostname to wrapped PIDs on that host
+    auto hostSingularityMap = std::map<std::string, std::set<pid_t>>{};
+    for (auto&& [pid, hostname, executable] : procTable) {
+        if (executable == wrapperBinary) {
+            hostSingularityMap[hostname].insert(pid);
+        }
+    }
+
+    // Map wrapper executable instance to child PID / executable information
+    // Wrapper entries in the proctable will be replaced by its first child
+    using HostnamePidPair = std::pair<std::string, pid_t>;
+    using PidExecutablePair = std::pair<pid_t, std::string>;
+    auto singularityChildMap = std::map<HostnamePidPair, PidExecutablePair>{};
+
+    // Query wrappers' child information on each host
+    for (auto&& [hostname, pids] : hostSingularityMap) {
+        auto firstChildCommand = std::stringstream{};
+        firstChildCommand << "for pid in ";
+        for (auto&& pid : pids) {
+            firstChildCommand << pid << " ";
+        }
+
+        // Get PID and executable of first child of every wrapper binary instance
+        firstChildCommand << "; do child_pid=$(cut -d ' ' -f1 /proc/$pid/task/$pid/children); echo $child_pid; echo $(readlink /proc/$child_pid/exe); done";
+
+        // Each two lines of output will be child's PID followed by executable
+        auto pidLines = runCommand(hostname, firstChildCommand.str(), pids.size() * 2);
+        auto index = int{0};
+        for (auto&& pid : pids) {
+            if (!pidLines[index].empty()) {
+                auto& pidExePair = singularityChildMap[{hostname, pid}];
+                pidExePair.first = std::stoi(pidLines[index]);
+                pidExePair.second = std::move(pidLines[index + 1]);
+            }
+            index += 2;
+        }
+    }
+
+    // Replace proctable entries of wrapped binaries
+    for (auto&& [pid, hostname, executable] : result) {
+        writeLog("Processing line %d %s %s\n", pid, hostname.c_str(), executable.c_str());
+
+        // If child PID was found, replace wrapper with child
+        auto childPidExeIter = singularityChildMap.find({hostname, pid});
+        if (childPidExeIter != singularityChildMap.end()) {
+            auto& childPidExePair = childPidExeIter->second;
+            if (childPidExePair.first > 0) {
+                pid = childPidExePair.first;
+                executable = std::move(childPidExePair.second);
+            }
+
+            writeLog("Remap to %d %s %s\n", pid, hostname.c_str(), executable.c_str());
+        }
+    }
+
+    return result;
 }
 
 void SLURMApp::startDaemon(const char* const args[]) {
