@@ -89,6 +89,18 @@
  *          - CS / mpiexec:   "cs/mpiexec"
  *          - SSH with MPIR-compliant launcher: "linux/ssh"
  *
+ * CTI_BACKEND_WRAPPER_ENV_VAR (optional)
+ *
+ *     Job launches may be running underneath a wrapper binary on the
+ *     backend. For example, running each rank of a job inside a
+ *     Singularity container. By setting the CTI_BACKEND_WRAPPER
+ *     environment variable to the name of the wrapper binary
+ *     (such as `singularity` for Singularity containers), CTI will
+ *     treat the first child process of each wrapper instance as the
+ *     true process for that rank of the job. Job ranks not running as
+ *     the wrapper binary will not be changed.
+ *     Note: currently supported only for the Slurm WLM.
+ *
  */
 #define CTI_BASE_DIR_ENV_VAR        "CTI_INSTALL_DIR"
 #define CTI_LOG_DIR_ENV_VAR         "CTI_LOG_DIR"
@@ -96,6 +108,7 @@
 #define CTI_CFG_DIR_ENV_VAR         "CTI_CFG_DIR"
 #define CTI_LAUNCHER_NAME_ENV_VAR   "CTI_LAUNCHER_NAME"
 #define CTI_WLM_IMPL_ENV_VAR        "CTI_WLM_IMPL"
+#define CTI_BACKEND_WRAPPER_ENV_VAR "CTI_BACKEND_WRAPPER"
 // CTI_WLM_TYPE_<type>_STR recognized by CTI_WLM_IMPL_ENV_VAR and corresponds
 // to values in the cti_wlm_type_t enum.
 // Note: users should not manualy set CTI_WLM_IMPL environment variable to
