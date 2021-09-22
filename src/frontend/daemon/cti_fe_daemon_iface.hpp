@@ -32,6 +32,7 @@
 #include <sys/socket.h>
 
 #include <cstring>
+#include <functional>
 
 #include "frontend/mpir_iface/MPIRProctable.hpp"
 
@@ -39,9 +40,26 @@
 
 /* fd read / write helpers */
 
+template <typename Func>
+static inline ssize_t genericReadLoop(char* buf, ssize_t capacity, Func&& producer)
+{
+    auto offset = ssize_t{0};
+    while (offset < capacity) {
+        auto const bytes_read = producer(buf + offset, capacity - offset);
+        if (bytes_read == 0) {
+            break;
+        } else {
+            offset += bytes_read;
+        }
+    }
+
+    return offset;
+}
+
 // read num_bytes from fd into buf
 static inline void readLoop(char* buf, int const fd, int num_bytes)
 {
+#if 0
     int offset = 0;
     while (offset < num_bytes) {
         errno = 0;
@@ -58,6 +76,23 @@ static inline void readLoop(char* buf, int const fd, int num_bytes)
             offset += bytes_read;
         }
     }
+#else
+    genericReadLoop(buf, num_bytes, [fd](char* buf, ssize_t capacity) {
+        errno = 0;
+        while (true) {
+            int bytes_read = read(fd, buf, capacity);
+            if (bytes_read < 0) {
+                if (errno == EINTR) {
+                    continue;
+                } else {
+                    throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
+                }
+            }
+
+            return bytes_read;
+        }
+    });
+#endif
 }
 
 // read and return an object T from fd (useful for reading message structs from pipes)
@@ -70,9 +105,24 @@ static inline T rawReadLoop(int const fd)
     return result;
 }
 
-// write num_bytes from buf to fd
-static inline void writeLoop(int const fd, char const* buf, int num_bytes)
+template <typename Func>
+static inline void genericWriteLoop(char const* buf, ssize_t capacity, Func&& consumer)
 {
+    auto offset = ssize_t{0};
+    while (offset < capacity) {
+        auto const bytes_written = consumer(buf + offset, capacity - offset);
+        if (bytes_written == 0) {
+            break;
+        } else {
+            offset += bytes_written;
+        }
+    }
+}
+
+// write num_bytes from buf to fd
+static inline void writeLoop(int const fd, char const* buf, ssize_t capacity)
+{
+#if 0
     int offset = 0;
     while (offset < num_bytes) {
         errno = 0;
@@ -87,6 +137,23 @@ static inline void writeLoop(int const fd, char const* buf, int num_bytes)
             offset += written;
         }
     }
+#else
+    genericWriteLoop(buf, capacity, [fd](char const* buf, ssize_t capacity) {
+        errno = 0;
+        while (true) {
+            auto const bytes_written = write(fd, buf, capacity);
+            if (bytes_written < 0) {
+                if (errno == EINTR) {
+                    continue;
+                } else {
+                    throw std::runtime_error("write failed: " + std::string{std::strerror(errno)});
+                }
+            }
+
+            return bytes_written;
+        }
+    });
+#endif
 }
 
 // write an object T to fd (useful for writing message structs to pipes)
@@ -116,6 +183,10 @@ public: // type definitions
 
     // Read and return an MPIRResult from the provided request pipe
     static MPIRResult readMPIRResp(int const reqFd);
+
+    // Read and return an MPIRResult using the provided stream reader function
+    // Reader takes a char* result pointer and reads up to size_t bytes
+    static MPIRResult readMPIRResp(std::function<void(char*, size_t)> reader);
 
     /* request types */
 

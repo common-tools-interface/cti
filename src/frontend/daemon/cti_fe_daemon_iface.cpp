@@ -244,6 +244,11 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
     return result;
 }
 
+FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<void(char*, size_t)> reader)
+{
+    return MPIRResult{};
+}
+
 /* interface implementation */
 
 FE_daemon::~FE_daemon()

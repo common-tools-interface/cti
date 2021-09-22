@@ -80,7 +80,10 @@ static void delete_ssh2_session(LIBSSH2_SESSION *pSession)
 
 static void delete_ssh2_channel(LIBSSH2_CHANNEL *pChannel)
 {
+    libssh2_channel_send_eof(pChannel);
+    libssh2_channel_wait_eof(pChannel);
     libssh2_channel_close(pChannel);
+    libssh2_channel_wait_closed(pChannel);
     libssh2_channel_free(pChannel);
 }
 
@@ -1136,7 +1139,6 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     // Relay MPIR data from SSH channel to pipe
     auto stdoutPipe = cti::Pipe{};
     auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
-    relayTask.detach();
 
     // Read FE daemon initialization message
     auto const remote_pid = rawReadLoop<pid_t>(stdoutPipe.getReadFd());
@@ -1167,6 +1169,7 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     // Close relay pipe and SSH channel
     stdoutPipe.closeRead();
     stdoutPipe.closeWrite();
+    relayTask.join();
     channel.reset();
 
     // Register application with local FE daemon and insert into received MPIR response
@@ -1249,7 +1252,6 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
         // Relay PID data from SSH channel to pipe
         auto stdoutPipe = cti::Pipe{};
         auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
-        relayTask.detach();
 
         // Parse pgrep lines
         auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
@@ -1262,6 +1264,7 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
         // Close relay pipe and SSH channel
         stdoutPipe.closeRead();
         stdoutPipe.closeWrite();
+        relayTask.join();
         channel.reset();
     }
 
