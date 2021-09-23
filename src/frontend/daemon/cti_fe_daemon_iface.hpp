@@ -33,6 +33,7 @@
 
 #include <cstring>
 #include <functional>
+#include <type_traits>
 
 #include "frontend/mpir_iface/MPIRProctable.hpp"
 
@@ -41,7 +42,7 @@
 /* fd read / write helpers */
 
 template <typename Func>
-static inline ssize_t genericReadLoop(char* buf, ssize_t capacity, Func&& producer)
+static inline ssize_t readLoop(char* buf, ssize_t capacity, Func&& producer)
 {
     auto offset = ssize_t{0};
     while (offset < capacity) {
@@ -57,27 +58,9 @@ static inline ssize_t genericReadLoop(char* buf, ssize_t capacity, Func&& produc
 }
 
 // read num_bytes from fd into buf
-static inline void readLoop(char* buf, int const fd, int num_bytes)
+static inline void fdReadLoop(char* buf, ssize_t num_bytes, int const fd)
 {
-#if 0
-    int offset = 0;
-    while (offset < num_bytes) {
-        errno = 0;
-        int bytes_read = read(fd, buf + offset, num_bytes - offset);
-        if (bytes_read < 0) {
-            if (errno == EINTR) {
-                continue;
-            } else {
-                throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
-            }
-        } else if (bytes_read == 0) {
-            throw std::runtime_error("read failed: zero bytes read");
-        } else {
-            offset += bytes_read;
-        }
-    }
-#else
-    genericReadLoop(buf, num_bytes, [fd](char* buf, ssize_t capacity) {
+    readLoop(buf, num_bytes, [fd](char* buf, ssize_t capacity) {
         errno = 0;
         while (true) {
             int bytes_read = read(fd, buf, capacity);
@@ -92,34 +75,34 @@ static inline void readLoop(char* buf, int const fd, int num_bytes)
             return bytes_read;
         }
     });
-#endif
 }
 
 // read and return an object T from fd (useful for reading message structs from pipes)
 template <typename T>
-static inline T rawReadLoop(int const fd)
+static inline T fdReadLoop(int const fd)
 {
     static_assert(std::is_trivially_copyable<T>::value);
     T result;
-    readLoop(reinterpret_cast<char*>(&result), fd, sizeof(T));
+    fdReadLoop(reinterpret_cast<char*>(&result), sizeof(T), fd);
     return result;
 }
 
 template <typename T, typename Func>
-static inline T genericRawReadLoop(Func&& producer)
+static inline T readLoop(Func&& producer)
 {
     static_assert(std::is_trivially_copyable<T>::value);
     T result;
-    genericReadLoop(reinterpret_cast<char*>(&result), sizeof(T), std::forward<Func>(producer));
+    readLoop(reinterpret_cast<char*>(&result), sizeof(T), std::forward<Func>(producer));
     return result;
 }
 
+// write num_bytes from buf to consumer
 template <typename Func>
-static inline void genericWriteLoop(char const* buf, ssize_t capacity, Func&& consumer)
+static inline void writeLoop(Func&& consumer, char const* buf, ssize_t num_bytes)
 {
     auto offset = ssize_t{0};
-    while (offset < capacity) {
-        auto const bytes_written = consumer(buf + offset, capacity - offset);
+    while (offset < num_bytes) {
+        auto const bytes_written = consumer(buf + offset, num_bytes - offset);
         if (bytes_written == 0) {
             break;
         } else {
@@ -128,29 +111,21 @@ static inline void genericWriteLoop(char const* buf, ssize_t capacity, Func&& co
     }
 }
 
-// write num_bytes from buf to fd
-static inline void writeLoop(int const fd, char const* buf, ssize_t capacity)
+// write an object T to consumer (useful for writing message structs to pipes)
+template <typename T, typename Func>
+static inline void writeLoop(Func&& consumer, T const& obj)
 {
-#if 0
-    int offset = 0;
-    while (offset < num_bytes) {
-        errno = 0;
-        int written = write(fd, buf + offset, num_bytes - offset);
-        if (written < 0) {
-            if (errno == EINTR) {
-                continue;
-            } else {
-                throw std::runtime_error("write failed: " + std::string{std::strerror(errno)});
-            }
-        } else {
-            offset += written;
-        }
-    }
-#else
-    genericWriteLoop(buf, capacity, [fd](char const* buf, ssize_t capacity) {
+    static_assert(std::is_trivial<T>::value);
+    writeLoop(std::forward<Func>(consumer), reinterpret_cast<char const*>(&obj), sizeof(T));
+}
+
+// write num_bytes from buf to fd
+static inline void fdWriteLoop(int const fd, char const* buf, ssize_t num_bytes)
+{
+    writeLoop([fd](char const* buf, ssize_t num_bytes) {
         errno = 0;
         while (true) {
-            auto const bytes_written = write(fd, buf, capacity);
+            auto const bytes_written = write(fd, buf, num_bytes);
             if (bytes_written < 0) {
                 if (errno == EINTR) {
                     continue;
@@ -161,25 +136,16 @@ static inline void writeLoop(int const fd, char const* buf, ssize_t capacity)
 
             return bytes_written;
         }
-    });
-#endif
+    }, buf, num_bytes);
 }
 
 // write an object T to fd (useful for writing message structs to pipes)
 template <typename T>
-static inline void rawWriteLoop(int const fd, T const& obj)
+static inline void fdWriteLoop(int const fd, T const& obj)
 {
     static_assert(std::is_trivial<T>::value);
-    writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
+    fdWriteLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
 }
-
-template <typename T, typename Func>
-static inline void genericRawWriteLoop(T const& obj, Func&& consumer)
-{
-    static_assert(std::is_trivial<T>::value);
-    genericWriteLoop(reinterpret_cast<char const*>(&obj), sizeof(T), std::forward<Func>(consumer));
-}
-
 
 /* protocol helpers for cti_fe_iface
     the frontend implementation in cti_fe_iface.cpp will call these functions, using its internal

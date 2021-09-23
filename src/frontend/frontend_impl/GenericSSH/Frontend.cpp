@@ -106,50 +106,6 @@ static inline ssize_t channel_read(LIBSSH2_CHANNEL* channel, char* buf, ssize_t 
     }
 }
 
-// Read data of a specified length into the provided buffer
-static inline void readLoop(LIBSSH2_CHANNEL* channel, char* buf, int capacity)
-{
-    int offset = 0;
-    while (offset < capacity) {
-        if (auto const bytes_read = libssh2_channel_read(channel, buf + offset, capacity - offset)) {
-            if (bytes_read < 0) {
-                if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
-                    continue;
-                }
-                throw std::runtime_error("read failed: " + std::string{std::strerror(bytes_read)});
-            }
-            offset += bytes_read;
-        }
-    }
-}
-
-// Read and return a known data type
-template <typename T>
-static inline T rawReadLoop(LIBSSH2_CHANNEL* channel)
-{
-    static_assert(std::is_trivial<T>::value);
-    T result;
-    readLoop(channel, reinterpret_cast<char*>(&result), sizeof(T));
-    return result;
-}
-
-// Write data of a specified length from the provided buffer
-static inline void writeLoop(LIBSSH2_CHANNEL* channel, char const* buf, int capacity)
-{
-    int offset = 0;
-    while (offset < capacity) {
-        if (auto const bytes_written = libssh2_channel_write(channel, buf + offset, capacity - offset)) {
-            if (bytes_written < 0) {
-                if (bytes_written == LIBSSH2_ERROR_EAGAIN) {
-                    continue;
-                }
-                throw std::runtime_error("write failed: " + std::string{std::strerror(bytes_written)});
-            }
-            offset += bytes_written;
-        }
-    }
-}
-
 static inline ssize_t channel_write(LIBSSH2_CHANNEL* channel, char const* buf, ssize_t capacity)
 {
     while (true) {
@@ -162,14 +118,6 @@ static inline ssize_t channel_write(LIBSSH2_CHANNEL* channel, char const* buf, s
         }
         return bytes_written;
     }
-}
-
-// Write a trivially-copyable object
-template <typename T>
-static inline void rawWriteLoop(LIBSSH2_CHANNEL* channel, T const& obj)
-{
-    static_assert(std::is_trivially_copyable<T>::value);
-    writeLoop(channel, reinterpret_cast<char const*>(&obj), sizeof(T));
 }
 
 } // remote
@@ -1153,7 +1101,7 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     };
 
     // Read FE daemon initialization message
-    auto const remote_pid = genericRawReadLoop<pid_t>(channel_reader);
+    auto const remote_pid = readLoop<pid_t>(channel_reader);
     Frontend::inst().writeLog("FE daemon running on '%s' pid: %d\n", hostname, remote_pid);
 
     // Determine path to launcher
@@ -1163,17 +1111,17 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     }
 
     // Write MPIR attach request to channel
-    genericRawWriteLoop(FE_daemon::ReqType::AttachMPIR, channel_writer);
-    genericWriteLoop(launcherPath.get(), strlen(launcherPath.get()) + 1, channel_writer);
-    genericRawWriteLoop(launcher_pid, channel_writer);
+    writeLoop(channel_writer, FE_daemon::ReqType::AttachMPIR);
+    writeLoop(channel_writer, launcherPath.get(), strlen(launcherPath.get()) + 1);
+    writeLoop(channel_writer, launcher_pid);
 
     // Read MPIR attach request from relay pipe
     auto mpirResult = FE_daemon::readMPIRResp(channel_reader);
     Frontend::inst().writeLog("Received %zu proctable entries from remote daemon\n", mpirResult.proctable.size());
 
     // Shut down remote daemon
-    genericRawWriteLoop(FE_daemon::ReqType::Shutdown, channel_writer);
-    auto const okResp = genericRawReadLoop<FE_daemon::OKResp>(channel_reader);
+    writeLoop(channel_writer, FE_daemon::ReqType::Shutdown);
+    auto const okResp = readLoop<FE_daemon::OKResp>(channel_reader);
     if (okResp.type != FE_daemon::RespType::OK) {
         fprintf(stderr, "warning: daemon shutdown failed\n");
     }
@@ -1266,7 +1214,7 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
         // Read pgrep output
         char buf[4096];
         auto pgrepStream = std::stringstream{};
-        while (auto const bytes_read = genericReadLoop(buf, sizeof(buf), channel_reader)) { 
+        while (auto const bytes_read = readLoop(buf, sizeof(buf), channel_reader)) {
             pgrepStream.write(buf, bytes_read);
         }
 

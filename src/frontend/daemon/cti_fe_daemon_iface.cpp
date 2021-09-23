@@ -105,25 +105,25 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
     }
 
     // write filepath string
-    writeLoop(reqFd, file, strlen(file) + 1);
+    fdWriteLoop(reqFd, file, strlen(file) + 1);
     // write null-terminated argument array
     for (auto arg = argv; *arg != nullptr; arg++) {
-        writeLoop(reqFd, *arg, strlen(*arg) + 1);
+        fdWriteLoop(reqFd, *arg, strlen(*arg) + 1);
     }
-    rawWriteLoop(reqFd, '\0');
+    fdWriteLoop(reqFd, '\0');
     // write null-terminated environment array
     if (env) {
         for (auto var = env; *var != nullptr; var++) {
-            writeLoop(reqFd, *var, strlen(*var) + 1);
+            fdWriteLoop(reqFd, *var, strlen(*var) + 1);
         }
     }
-    rawWriteLoop(reqFd, '\0');
+    fdWriteLoop(reqFd, '\0');
 }
 
 // return boolean response from pipe
 static bool readOKResp(int const reqFd)
 {
-    auto const okResp = rawReadLoop<FE_daemon::OKResp>(reqFd);
+    auto const okResp = fdReadLoop<FE_daemon::OKResp>(reqFd);
     if (okResp.type != FE_daemon::RespType::OK) {
         throw std::runtime_error("daemon did not send expected OK response type");
     }
@@ -141,7 +141,7 @@ static void verifyOKResp(int const reqFd)
 // return ID response content, throw if id < 0, indicating failure
 static DaemonAppId readIDResp(int const reqFd)
 {
-    auto const idResp = rawReadLoop<FE_daemon::IDResp>(reqFd);
+    auto const idResp = fdReadLoop<FE_daemon::IDResp>(reqFd);
     if ((idResp.type != FE_daemon::RespType::ID) || (idResp.id < 0)) {
         throw std::runtime_error("failed to read DaemonAppID response");
     }
@@ -152,7 +152,7 @@ static DaemonAppId readIDResp(int const reqFd)
 static std::string readStringResp(int const reqFd)
 {
     // read basic response information
-    auto const stringResp = rawReadLoop<FE_daemon::StringResp>(reqFd);
+    auto const stringResp = fdReadLoop<FE_daemon::StringResp>(reqFd);
     if (stringResp.type != FE_daemon::RespType::String) {
         throw std::runtime_error("daemon did not send expected String response type");
     } else if (stringResp.success == false) {
@@ -176,7 +176,7 @@ static std::string readStringResp(int const reqFd)
 FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
 {
     // read basic table information
-    auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(reqFd);
+    auto const mpirResp = fdReadLoop<FE_daemon::MPIRResp>(reqFd);
     if (mpirResp.type != FE_daemon::RespType::MPIR) {
         throw std::runtime_error("daemon did not send expected MPIR response type");
 
@@ -190,7 +190,7 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
 
             // Read null-terminated error message
             try {
-                readLoop(buf, reqFd, mpirResp.error_msg_len);
+                fdReadLoop(buf, mpirResp.error_msg_len, reqFd);
                 // (Should already be null-terminated)
                 buf[mpirResp.error_msg_len - 1] = '\0';
 
@@ -225,7 +225,7 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
     for (int i = 0; i < mpirResp.num_pids; i++) {
         MPIRProctableElem elem;
         // read pid
-        elem.pid = rawReadLoop<pid_t>(reqFd);
+        elem.pid = fdReadLoop<pid_t>(reqFd);
         // read hostname
         if (!std::getline(respStream, elem.hostname, '\0')) {
             throw std::runtime_error("failed to read string");
@@ -247,7 +247,7 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
 FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<ssize_t(char*, size_t)> reader)
 {
     // read basic table information
-    auto const mpirResp = genericRawReadLoop<FE_daemon::MPIRResp>(reader);
+    auto const mpirResp = readLoop<FE_daemon::MPIRResp>(reader);
     if (mpirResp.type != FE_daemon::RespType::MPIR) {
         throw std::runtime_error("daemon did not send expected MPIR response type");
 
@@ -261,7 +261,7 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<ssize_t(char*, size_
 
             // Read null-terminated error message
             try {
-                genericReadLoop(buf, mpirResp.error_msg_len, reader);
+                readLoop(buf, mpirResp.error_msg_len, reader);
                 // (Should already be null-terminated)
                 buf[mpirResp.error_msg_len - 1] = '\0';
 
@@ -292,18 +292,18 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<ssize_t(char*, size_
     for (int i = 0; i < mpirResp.num_pids; i++) {
         MPIRProctableElem elem;
         // read pid
-        elem.pid = genericRawReadLoop<pid_t>(reader);
+        elem.pid = readLoop<pid_t>(reader);
 
         // Read hostname and executable name
         while (true) {
-            auto const c = genericRawReadLoop<char>(reader);
+            auto const c = readLoop<char>(reader);
             if (c == '\0') {
                 break;
             }
             elem.hostname.push_back(c);
         }
         while (true) {
-            auto const c = genericRawReadLoop<char>(reader);
+            auto const c = readLoop<char>(reader);
             if (c == '\0') {
                 break;
             }
@@ -331,7 +331,7 @@ FE_daemon::~FE_daemon()
         if (getpid() == m_mainPid) {
 
             // This should be the only way to call ReqType::Shutdown
-            rawWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
+            fdWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
             try {
                 verifyOKResp(m_resp_sock.getReadFd());
             } catch (...) {
@@ -371,7 +371,7 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
         m_resp_sock.closeWrite();
 
         // wait until fe_daemon set up
-        if (rawReadLoop<pid_t>(m_resp_sock.getReadFd()) != forkedPid) {
+        if (fdReadLoop<pid_t>(m_resp_sock.getReadFd()) != forkedPid) {
             throw std::runtime_error("fe_daemon launch failed");
         }
     }
@@ -428,7 +428,7 @@ DaemonAppId
 FE_daemon::request_ForkExecvpApp(char const* file,
     char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ForkExecvpApp);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::ForkExecvpApp);
     writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
     return readIDResp(m_resp_sock.getReadFd());
 }
@@ -438,9 +438,9 @@ FE_daemon::request_ForkExecvpUtil(DaemonAppId app_id, RunMode runMode,
     char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd,
     char const* const env[])
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ForkExecvpUtil);
-    rawWriteLoop(m_req_sock.getWriteFd(), app_id);
-    rawWriteLoop(m_req_sock.getWriteFd(), runMode);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::ForkExecvpUtil);
+    fdWriteLoop(m_req_sock.getWriteFd(), app_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), runMode);
     writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
     verifyOKResp(m_resp_sock.getReadFd());
 }
@@ -449,7 +449,7 @@ FE_daemon::MPIRResult
 FE_daemon::request_LaunchMPIR(char const* file,
     char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::LaunchMPIR);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::LaunchMPIR);
     writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
     return readMPIRResp(m_resp_sock.getReadFd());
 }
@@ -457,34 +457,34 @@ FE_daemon::request_LaunchMPIR(char const* file,
 FE_daemon::MPIRResult
 FE_daemon::request_AttachMPIR(char const* launcher_path, pid_t launcher_pid)
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::AttachMPIR);
-    writeLoop(m_req_sock.getWriteFd(), launcher_path, strlen(launcher_path) + 1);
-    rawWriteLoop(m_req_sock.getWriteFd(), launcher_pid);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::AttachMPIR);
+    fdWriteLoop(m_req_sock.getWriteFd(), launcher_path, strlen(launcher_path) + 1);
+    fdWriteLoop(m_req_sock.getWriteFd(), launcher_pid);
     return readMPIRResp(m_resp_sock.getReadFd());
 }
 
 void
 FE_daemon::request_ReleaseMPIR(DaemonAppId mpir_id)
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ReleaseMPIR);
-    rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::ReleaseMPIR);
+    fdWriteLoop(m_req_sock.getWriteFd(), mpir_id);
     verifyOKResp(m_resp_sock.getReadFd());
 }
 
 std::string
 FE_daemon::request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable)
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::ReadStringMPIR);
-    rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
-    writeLoop(m_req_sock.getWriteFd(), variable, strlen(variable) + 1);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::ReadStringMPIR);
+    fdWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), variable, strlen(variable) + 1);
     return readStringResp(m_resp_sock.getReadFd());
 }
 
 void
 FE_daemon::request_TerminateMPIR(DaemonAppId mpir_id)
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::TerminateMPIR);
-    rawWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::TerminateMPIR);
+    fdWriteLoop(m_req_sock.getWriteFd(), mpir_id);
     verifyOKResp(m_resp_sock.getReadFd());
 }
 
@@ -494,10 +494,10 @@ FE_daemon::request_LaunchMPIRShim(
     char const* scriptPath, char const* const argv[],
     int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[])
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::LaunchMPIRShim);
-    writeLoop(m_req_sock.getWriteFd(), shimBinaryPath,      strlen(shimBinaryPath)      + 1);
-    writeLoop(m_req_sock.getWriteFd(), temporaryShimBinDir, strlen(temporaryShimBinDir) + 1);
-    writeLoop(m_req_sock.getWriteFd(), shimmedLauncherPath, strlen(shimmedLauncherPath) + 1);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::LaunchMPIRShim);
+    fdWriteLoop(m_req_sock.getWriteFd(), shimBinaryPath,      strlen(shimBinaryPath)      + 1);
+    fdWriteLoop(m_req_sock.getWriteFd(), temporaryShimBinDir, strlen(temporaryShimBinDir) + 1);
+    fdWriteLoop(m_req_sock.getWriteFd(), shimmedLauncherPath, strlen(shimmedLauncherPath) + 1);
     writeLaunchData(m_req_sock.getWriteFd(), scriptPath, argv, stdin_fd, stdout_fd, stderr_fd, env);
     return readMPIRResp(m_resp_sock.getReadFd());
 }
@@ -505,32 +505,32 @@ FE_daemon::request_LaunchMPIRShim(
 DaemonAppId
 FE_daemon::request_RegisterApp(pid_t app_pid)
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterApp);
-    rawWriteLoop(m_req_sock.getWriteFd(), app_pid);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterApp);
+    fdWriteLoop(m_req_sock.getWriteFd(), app_pid);
     return readIDResp(m_resp_sock.getReadFd());
 }
 
 void
 FE_daemon::request_RegisterUtil(DaemonAppId app_id, pid_t util_pid)
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterUtil);
-    rawWriteLoop(m_req_sock.getWriteFd(), app_id);
-    rawWriteLoop(m_req_sock.getWriteFd(), util_pid);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterUtil);
+    fdWriteLoop(m_req_sock.getWriteFd(), app_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), util_pid);
     verifyOKResp(m_resp_sock.getReadFd());
 }
 
 void
 FE_daemon::request_DeregisterApp(DaemonAppId app_id)
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::DeregisterApp);
-    rawWriteLoop(m_req_sock.getWriteFd(), app_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::DeregisterApp);
+    fdWriteLoop(m_req_sock.getWriteFd(), app_id);
     verifyOKResp(m_resp_sock.getReadFd());
 }
 
 bool
 FE_daemon::request_CheckApp(DaemonAppId app_id)
 {
-    rawWriteLoop(m_req_sock.getWriteFd(), ReqType::CheckApp);
-    rawWriteLoop(m_req_sock.getWriteFd(), app_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::CheckApp);
+    fdWriteLoop(m_req_sock.getWriteFd(), app_id);
     return readOKResp(m_resp_sock.getReadFd());
 }

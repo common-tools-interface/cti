@@ -170,7 +170,7 @@ int main(int argc, char const* argv[], char const* env[])
 
 		// Send PID to CTI
 		log("detached, sending pid\n");
-		rawWriteLoop(outputFd, pid);
+		fdWriteLoop(outputFd, pid);
 
 		// Close pipe
 		::close(outputFd);
