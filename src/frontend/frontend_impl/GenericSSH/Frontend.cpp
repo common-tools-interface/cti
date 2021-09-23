@@ -91,6 +91,21 @@ static void delete_ssh2_channel(LIBSSH2_CHANNEL *pChannel)
 namespace remote
 {
 
+static inline ssize_t channel_read(LIBSSH2_CHANNEL* channel, char* buf, ssize_t capacity)
+{
+    while (true) {
+        auto const bytes_read = libssh2_channel_read(channel, buf, capacity);
+        if (bytes_read < 0) {
+            if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
+                continue;
+            }
+            throw std::runtime_error("read failed: " + std::string{std::strerror(bytes_read)});
+        }
+
+        return bytes_read;
+    }
+}
+
 // Read data of a specified length into the provided buffer
 static inline void readLoop(LIBSSH2_CHANNEL* channel, char* buf, int capacity)
 {
@@ -135,33 +150,26 @@ static inline void writeLoop(LIBSSH2_CHANNEL* channel, char const* buf, int capa
     }
 }
 
+static inline ssize_t channel_write(LIBSSH2_CHANNEL* channel, char const* buf, ssize_t capacity)
+{
+    while (true) {
+        auto const bytes_written = libssh2_channel_write(channel, buf, capacity);
+        if (bytes_written < 0) {
+            if (bytes_written == LIBSSH2_ERROR_EAGAIN) {
+                continue;
+            }
+            throw std::runtime_error("write failed: " + std::string{std::strerror(bytes_written)});
+        }
+        return bytes_written;
+    }
+}
+
 // Write a trivially-copyable object
 template <typename T>
 static inline void rawWriteLoop(LIBSSH2_CHANNEL* channel, T const& obj)
 {
     static_assert(std::is_trivially_copyable<T>::value);
     writeLoop(channel, reinterpret_cast<char const*>(&obj), sizeof(T));
-}
-
-// Relay data received over SSH to a provided file descriptor
-static void relay_task(LIBSSH2_CHANNEL* channel, int fd)
-{
-    char buf[4096];
-    auto const capacity = sizeof(buf);
-    while (auto const bytes_read = libssh2_channel_read(channel, buf, capacity)) {
-        if (bytes_read < 0) {
-            if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
-                continue;
-            } else {
-                break;
-            }
-        }
-        if (::write(fd, buf, bytes_read) < 0) {
-            break;
-        }
-    }
-
-    ::close(fd);
 }
 
 } // remote
@@ -1137,11 +1145,15 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     auto channel = session.startRemoteCommand(daemonArgv.get());
 
     // Relay MPIR data from SSH channel to pipe
-    auto stdoutPipe = cti::Pipe{};
-    auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
+    auto channel_reader = [&channel](char* buf, ssize_t capacity) {
+        return remote::channel_read(channel.get(), buf, capacity);
+    };
+    auto channel_writer = [&channel](char const* buf, ssize_t capacity) {
+        return remote::channel_write(channel.get(), buf, capacity);
+    };
 
     // Read FE daemon initialization message
-    auto const remote_pid = rawReadLoop<pid_t>(stdoutPipe.getReadFd());
+    auto const remote_pid = genericRawReadLoop<pid_t>(channel_reader);
     Frontend::inst().writeLog("FE daemon running on '%s' pid: %d\n", hostname, remote_pid);
 
     // Determine path to launcher
@@ -1151,25 +1163,22 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     }
 
     // Write MPIR attach request to channel
-    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::AttachMPIR);
-    remote::writeLoop(channel.get(), launcherPath.get(), strlen(launcherPath.get()) + 1);
-    remote::rawWriteLoop(channel.get(), launcher_pid);
+    genericRawWriteLoop(FE_daemon::ReqType::AttachMPIR, channel_writer);
+    genericWriteLoop(launcherPath.get(), strlen(launcherPath.get()) + 1, channel_writer);
+    genericRawWriteLoop(launcher_pid, channel_writer);
 
     // Read MPIR attach request from relay pipe
-    auto mpirResult = FE_daemon::readMPIRResp(stdoutPipe.getReadFd());
+    auto mpirResult = FE_daemon::readMPIRResp(channel_reader);
     Frontend::inst().writeLog("Received %zu proctable entries from remote daemon\n", mpirResult.proctable.size());
 
     // Shut down remote daemon
-    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::Shutdown);
-    auto const okResp = rawReadLoop<FE_daemon::OKResp>(stdoutPipe.getReadFd());
+    genericRawWriteLoop(FE_daemon::ReqType::Shutdown, channel_writer);
+    auto const okResp = genericRawReadLoop<FE_daemon::OKResp>(channel_reader);
     if (okResp.type != FE_daemon::RespType::OK) {
         fprintf(stderr, "warning: daemon shutdown failed\n");
     }
 
     // Close relay pipe and SSH channel
-    stdoutPipe.closeRead();
-    stdoutPipe.closeWrite();
-    relayTask.join();
     channel.reset();
 
     // Register application with local FE daemon and insert into received MPIR response
@@ -1250,21 +1259,24 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
         auto channel = session.startRemoteCommand(pgrep_argv);
 
         // Relay PID data from SSH channel to pipe
-        auto stdoutPipe = cti::Pipe{};
-        auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
+         auto channel_reader = [&channel](char* buf, ssize_t capacity) {
+            return remote::channel_read(channel.get(), buf, capacity);
+        };
+
+        // Read pgrep output
+        char buf[4096];
+        auto pgrepStream = std::stringstream{};
+        while (auto const bytes_read = genericReadLoop(buf, sizeof(buf), channel_reader)) { 
+            pgrepStream.write(buf, bytes_read);
+        }
 
         // Parse pgrep lines
-        auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
-        auto stdoutStream = std::istream{&stdoutBuf};
-        auto stdoutLine = std::string{};
-        while (std::getline(stdoutStream, stdoutLine)) {
-            launcherPids.emplace_back(std::stoi(stdoutLine));
+        auto line = std::string{};
+        while (std::getline(pgrepStream, line)) {
+            launcherPids.emplace_back(std::stoi(line));
         }
 
         // Close relay pipe and SSH channel
-        stdoutPipe.closeRead();
-        stdoutPipe.closeWrite();
-        relayTask.join();
         channel.reset();
     }
 

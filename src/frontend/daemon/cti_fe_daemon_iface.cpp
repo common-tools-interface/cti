@@ -244,9 +244,79 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
     return result;
 }
 
-FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<void(char*, size_t)> reader)
+FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<ssize_t(char*, size_t)> reader)
 {
-    return MPIRResult{};
+    // read basic table information
+    auto const mpirResp = genericRawReadLoop<FE_daemon::MPIRResp>(reader);
+    if (mpirResp.type != FE_daemon::RespType::MPIR) {
+        throw std::runtime_error("daemon did not send expected MPIR response type");
+
+    // Error handling
+    } else if (mpirResp.mpir_id == 0) {
+
+        if (mpirResp.error_msg_len > 0) {
+
+            char buf[mpirResp.error_msg_len];
+            auto error_msg_provided = false;
+
+            // Read null-terminated error message
+            try {
+                genericReadLoop(buf, mpirResp.error_msg_len, reader);
+                // (Should already be null-terminated)
+                buf[mpirResp.error_msg_len - 1] = '\0';
+
+                error_msg_provided = true;
+            } catch (...) {
+                // Fall through to generic failure message
+            }
+
+            // Throw full error message if provided
+            if (error_msg_provided) {
+                throw std::runtime_error(buf);
+            }
+        }
+
+        throw std::runtime_error("failed to perform MPIR launch");
+    }
+
+    // fill in MPIR data excluding proctable
+    FE_daemon::MPIRResult result
+        { .mpir_id = mpirResp.mpir_id
+        , .launcher_pid = mpirResp.launcher_pid
+        , .proctable = {}
+        , .binaryRankMap = {}
+    };
+    result.proctable.reserve(mpirResp.num_pids);
+
+    // fill in pid and hostname of proctable elements, generate executable path to rank ID map
+    for (int i = 0; i < mpirResp.num_pids; i++) {
+        MPIRProctableElem elem;
+        // read pid
+        elem.pid = genericRawReadLoop<pid_t>(reader);
+
+        // Read hostname and executable name
+        while (true) {
+            auto const c = genericRawReadLoop<char>(reader);
+            if (c == '\0') {
+                break;
+            }
+            elem.hostname.push_back(c);
+        }
+        while (true) {
+            auto const c = genericRawReadLoop<char>(reader);
+            if (c == '\0') {
+                break;
+            }
+            elem.executable.push_back(c);
+        }
+
+        // fill in binary rank map
+        result.binaryRankMap[elem.executable].push_back(i);
+
+        result.proctable.emplace_back(std::move(elem));
+    }
+
+    return result;
 }
 
 /* interface implementation */

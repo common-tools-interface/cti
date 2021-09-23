@@ -105,6 +105,15 @@ static inline T rawReadLoop(int const fd)
     return result;
 }
 
+template <typename T, typename Func>
+static inline T genericRawReadLoop(Func&& producer)
+{
+    static_assert(std::is_trivially_copyable<T>::value);
+    T result;
+    genericReadLoop(reinterpret_cast<char*>(&result), sizeof(T), std::forward<Func>(producer));
+    return result;
+}
+
 template <typename Func>
 static inline void genericWriteLoop(char const* buf, ssize_t capacity, Func&& consumer)
 {
@@ -164,6 +173,14 @@ static inline void rawWriteLoop(int const fd, T const& obj)
     writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
 }
 
+template <typename T, typename Func>
+static inline void genericRawWriteLoop(T const& obj, Func&& consumer)
+{
+    static_assert(std::is_trivial<T>::value);
+    genericWriteLoop(reinterpret_cast<char const*>(&obj), sizeof(T), std::forward<Func>(consumer));
+}
+
+
 /* protocol helpers for cti_fe_iface
     the frontend implementation in cti_fe_iface.cpp will call these functions, using its internal
     state to provide the file descriptors for the request and response domain sockets
@@ -186,7 +203,7 @@ public: // type definitions
 
     // Read and return an MPIRResult using the provided stream reader function
     // Reader takes a char* result pointer and reads up to size_t bytes
-    static MPIRResult readMPIRResp(std::function<void(char*, size_t)> reader);
+    static MPIRResult readMPIRResp(std::function<ssize_t(char*, size_t)> reader);
 
     /* request types */
 
