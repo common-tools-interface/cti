@@ -80,8 +80,12 @@ static void delete_ssh2_session(LIBSSH2_SESSION *pSession)
 
 static void delete_ssh2_channel(LIBSSH2_CHANNEL *pChannel)
 {
+    // SSH standard does not mandate sending EOF before closing connection,
+    // but some SSH servers will not respond properly to shutdown requests
+    // unless an EOF message is received
     libssh2_channel_send_eof(pChannel);
     libssh2_channel_wait_eof(pChannel);
+
     libssh2_channel_close(pChannel);
     libssh2_channel_wait_closed(pChannel);
     libssh2_channel_free(pChannel);
@@ -1215,6 +1219,9 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
         char buf[4096];
         auto pgrepStream = std::stringstream{};
         while (auto const bytes_read = readLoop(buf, sizeof(buf), channel_reader)) {
+            if (bytes_read <= 0) {
+                break;
+            }
             pgrepStream.write(buf, bytes_read);
         }
 
