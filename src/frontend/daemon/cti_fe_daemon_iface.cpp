@@ -175,73 +175,22 @@ static std::string readStringResp(int const reqFd)
 // return MPIR launch / attach data, throw if MPIR ID < 0, indicating failure
 FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
 {
-    // read basic table information
-    auto const mpirResp = fdReadLoop<FE_daemon::MPIRResp>(reqFd);
-    if (mpirResp.type != FE_daemon::RespType::MPIR) {
-        throw std::runtime_error("daemon did not send expected MPIR response type");
-
-    // Error handling
-    } else if (mpirResp.mpir_id == 0) {
-
-        if (mpirResp.error_msg_len > 0) {
-
-            char buf[mpirResp.error_msg_len];
-            auto error_msg_provided = false;
-
-            // Read null-terminated error message
-            try {
-                fdReadLoop(buf, mpirResp.error_msg_len, reqFd);
-                // (Should already be null-terminated)
-                buf[mpirResp.error_msg_len - 1] = '\0';
-
-                error_msg_provided = true;
-            } catch (...) {
-                // Fall through to generic failure message
+    // Delegate to general MPIR-reading function
+    return readMPIRResp([reqFd](char* buf, ssize_t capacity) {
+        errno = 0;
+        while (true) {
+            int bytes_read = ::read(reqFd, buf, capacity);
+            if (bytes_read < 0) {
+                if (errno == EINTR) {
+                    continue;
+                } else {
+                    throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
+                }
             }
 
-            // Throw full error message if provided
-            if (error_msg_provided) {
-                throw std::runtime_error(buf);
-            }
+            return bytes_read;
         }
-
-        throw std::runtime_error("failed to perform MPIR launch");
-    }
-
-    // fill in MPIR data excluding proctable
-    FE_daemon::MPIRResult result
-        { .mpir_id = mpirResp.mpir_id
-        , .launcher_pid = mpirResp.launcher_pid
-        , .proctable = {}
-        , .binaryRankMap = {}
-    };
-    result.proctable.reserve(mpirResp.num_pids);
-
-    // set up pipe stream
-    cti::FdBuf respBuf{dup(reqFd)};
-    std::istream respStream{&respBuf};
-
-    // fill in pid and hostname of proctable elements, generate executable path to rank ID map
-    for (int i = 0; i < mpirResp.num_pids; i++) {
-        MPIRProctableElem elem;
-        // read pid
-        elem.pid = fdReadLoop<pid_t>(reqFd);
-        // read hostname
-        if (!std::getline(respStream, elem.hostname, '\0')) {
-            throw std::runtime_error("failed to read string");
-        }
-        // read executable name
-        if (!std::getline(respStream, elem.executable, '\0')) {
-            throw std::runtime_error("failed to read string");
-        }
-
-        // fill in binary rank map
-        result.binaryRankMap[elem.executable].push_back(i);
-
-        result.proctable.emplace_back(std::move(elem));
-    }
-
-    return result;
+    });
 }
 
 FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<ssize_t(char*, size_t)> reader)
