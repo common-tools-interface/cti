@@ -1873,12 +1873,12 @@ static int stdioOutputTask(cti::WebSocketStream& webSocketStream, int stdoutFd, 
         return std::visit(overload
 
         { [stdoutFd](pals::response::StdoutData const& stdoutData) {
-                writeLoop(stdoutFd, stdoutData.content.c_str(), stdoutData.content.size() + 1);
+                fdWriteLoop(stdoutFd, stdoutData.content.c_str(), stdoutData.content.size() + 1);
                 return WebsocketContinue;
             }
 
         , [stderrFd](pals::response::StderrData const& stderrData) {
-                writeLoop(stderrFd, stderrData.content.c_str(), stderrData.content.size() + 1);
+                fdWriteLoop(stderrFd, stderrData.content.c_str(), stderrData.content.size() + 1);
                 return WebsocketContinue;
             }
 

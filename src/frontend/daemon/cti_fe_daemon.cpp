@@ -475,7 +475,7 @@ static void tryWriteOKResp(int const respFd, Func&& func)
         auto const success = func();
 
         // send OK response
-        rawWriteLoop(respFd, OKResp
+        fdWriteLoop(respFd, OKResp
             { .type = RespType::OK
             , .success = success
         });
@@ -484,7 +484,7 @@ static void tryWriteOKResp(int const respFd, Func&& func)
         getLogger().write("%s\n", ex.what());
 
         // send failure response
-        rawWriteLoop(respFd, OKResp
+        fdWriteLoop(respFd, OKResp
             { .type = RespType::OK
             , .success = false
         });
@@ -500,7 +500,7 @@ static void tryWriteIDResp(int const respFd, Func&& func)
         auto const id = func();
 
         // send ID response
-        rawWriteLoop(respFd, IDResp
+        fdWriteLoop(respFd, IDResp
             { .type = RespType::ID
             , .id  = id
         });
@@ -509,7 +509,7 @@ static void tryWriteIDResp(int const respFd, Func&& func)
         getLogger().write("%s\n", ex.what());
 
         // send failure response
-        rawWriteLoop(respFd, IDResp
+        fdWriteLoop(respFd, IDResp
             { .type = RespType::ID
             , .id  = DAppId{0}
         });
@@ -525,17 +525,17 @@ static void tryWriteStringResp(int const respFd, Func&& func)
         auto const stringData = func();
 
         // send the string data
-        rawWriteLoop(respFd, StringResp
+        fdWriteLoop(respFd, StringResp
             { .type     = RespType::String
             , .success  = true
         });
-        writeLoop(respFd, stringData.c_str(), stringData.length() + 1);
+        fdWriteLoop(respFd, stringData.c_str(), stringData.length() + 1);
 
     } catch (std::exception const& ex) {
         getLogger().write("%s\n", ex.what());
 
         // send failure response
-        rawWriteLoop(respFd, StringResp
+        fdWriteLoop(respFd, StringResp
             { .type     = RespType::String
             , .success  = false
         });
@@ -551,7 +551,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
         auto const mpirData = func();
 
         // send the MPIR data
-        rawWriteLoop(respFd, MPIRResp
+        fdWriteLoop(respFd, MPIRResp
             { .type     = RespType::MPIR
             , .mpir_id  = mpirData.mpir_id
             , .launcher_pid = mpirData.launcher_pid
@@ -559,9 +559,9 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
             , .error_msg_len = 0
         });
         for (auto&& elem : mpirData.proctable) {
-            rawWriteLoop(respFd, elem.pid);
-            writeLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
-            writeLoop(respFd, elem.executable.c_str(), elem.executable.length() + 1);
+            fdWriteLoop(respFd, elem.pid);
+            fdWriteLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
+            fdWriteLoop(respFd, elem.executable.c_str(), elem.executable.length() + 1);
         }
 
     } catch (std::exception const& ex) {
@@ -570,7 +570,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
         auto const error_msg_len = ::strlen(ex.what()) + 1;
 
         // send failure response
-        rawWriteLoop(respFd, MPIRResp
+        fdWriteLoop(respFd, MPIRResp
             { .type     = RespType::MPIR
             , .mpir_id  = DAppId{0}
             , .launcher_pid = {}
@@ -579,7 +579,7 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
         });
 
         // Send failure message
-        writeLoop(respFd, ex.what(), error_msg_len);
+        fdWriteLoop(respFd, ex.what(), error_msg_len);
     }
 }
 
@@ -843,9 +843,9 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
 
     auto const launcherPid = [&](){
         // If the shim fails to start for some reason, the other end of 
-        // the pipe will be closed and rawReadLoop will throw std::runtime_error.
+        // the pipe will be closed and fdReadLoop will throw std::runtime_error.
         try {
-            return rawReadLoop<pid_t>(shimPipe[0]);
+            return fdReadLoop<pid_t>(shimPipe[0]);
         } catch (std::runtime_error &e) {
             // Catch the error only to throw another one with a better message
             getLogger().write("MPIR shim failed to report pid.\n");
@@ -901,8 +901,8 @@ static void handle_ForkExecvpApp(int const reqFd, int const respFd)
 static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const appId  = rawReadLoop<DAppId>(reqFd);
-        auto const runMode = rawReadLoop<FE_daemon::RunMode>(reqFd);
+        auto const appId  = fdReadLoop<DAppId>(reqFd);
+        auto const runMode = fdReadLoop<FE_daemon::RunMode>(reqFd);
         auto const launchData = readLaunchData(reqFd);
 
         auto const utilPid = forkExec(launchData);
@@ -952,7 +952,7 @@ static void handle_AttachMPIR(int const reqFd, int const respFd)
         if (!std::getline(reqStream, launcherPath, '\0')) {
             throw std::runtime_error("failed to read launcher path");
         }
-        auto const launcherPid = rawReadLoop<pid_t>(reqFd);
+        auto const launcherPid = fdReadLoop<pid_t>(reqFd);
 
         auto const mpirData = attachMPIR(launcherPath, launcherPid);
 
@@ -963,7 +963,7 @@ static void handle_AttachMPIR(int const reqFd, int const respFd)
 static void handle_ReleaseMPIR(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+        auto const mpirId = fdReadLoop<DAppId>(reqFd);
 
         releaseMPIR(mpirId);
 
@@ -1002,7 +1002,7 @@ static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
 static void handle_ReadStringMPIR(int const reqFd, int const respFd)
 {
     tryWriteStringResp(respFd, [&]() {
-        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+        auto const mpirId = fdReadLoop<DAppId>(reqFd);
 
         // set up pipe stream
         cti::FdBuf reqBuf{dup(reqFd)};
@@ -1021,7 +1021,7 @@ static void handle_ReadStringMPIR(int const reqFd, int const respFd)
 static void handle_TerminateMPIR(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+        auto const mpirId = fdReadLoop<DAppId>(reqFd);
 
         getLogger().write("terminating mpir id %d\n", mpirId);
         terminateMPIR(mpirId);
@@ -1033,7 +1033,7 @@ static void handle_TerminateMPIR(int const reqFd, int const respFd)
 static void handle_RegisterApp(int const reqFd, int const respFd)
 {
     tryWriteIDResp(respFd, [&]() {
-        auto const appPid = rawReadLoop<pid_t>(reqFd);
+        auto const appPid = fdReadLoop<pid_t>(reqFd);
 
         auto const appId = registerAppPID(appPid);
 
@@ -1044,8 +1044,8 @@ static void handle_RegisterApp(int const reqFd, int const respFd)
 static void handle_RegisterUtil(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const appId   = rawReadLoop<DAppId>(reqFd);
-        auto const utilPid = rawReadLoop<pid_t>(reqFd);
+        auto const appId   = fdReadLoop<DAppId>(reqFd);
+        auto const utilPid = fdReadLoop<pid_t>(reqFd);
 
         registerUtilPID(appId, utilPid);
 
@@ -1056,7 +1056,7 @@ static void handle_RegisterUtil(int const reqFd, int const respFd)
 static void handle_DeregisterApp(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const appId = rawReadLoop<DAppId>(reqFd);
+        auto const appId = fdReadLoop<DAppId>(reqFd);
 
         deregisterAppID(appId);
 
@@ -1067,7 +1067,7 @@ static void handle_DeregisterApp(int const reqFd, int const respFd)
 static void handle_CheckApp(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const appId = rawReadLoop<DAppId>(reqFd);
+        auto const appId = fdReadLoop<DAppId>(reqFd);
 
         return checkAppID(appId);
     });
@@ -1076,7 +1076,7 @@ static void handle_CheckApp(int const reqFd, int const respFd)
 static void handle_Shutdown(int const reqFd, int const respFd)
 {
     // send OK response
-    rawWriteLoop(respFd, OKResp
+    fdWriteLoop(respFd, OKResp
         { .type = RespType::OK
         , .success = true
     });
@@ -1205,11 +1205,11 @@ main(int argc, char *argv[])
 
     // write our PID to signal to the parent we are all set up
     getLogger().write("%d sending initial ok\n", getpid());
-    rawWriteLoop(respFd, getpid());
+    fdWriteLoop(respFd, getpid());
 
     // wait for pipe commands
     while (true) {
-        auto const reqType = rawReadLoop<ReqType>(reqFd);
+        auto const reqType = fdReadLoop<ReqType>(reqFd);
         getLogger().write("Received request type %ld: %s\n", reqType, reqTypeString(reqType));
 
         switch (reqType) {
