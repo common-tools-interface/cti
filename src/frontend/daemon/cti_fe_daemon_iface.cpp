@@ -186,6 +186,8 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(int const reqFd)
                 } else {
                     throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
                 }
+            } else if (bytes_read == 0) {
+                throw std::runtime_error("read failed: zero bytes read");
             }
 
             return bytes_read;
@@ -243,19 +245,11 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<ssize_t(char*, size_
         // read pid
         elem.pid = readLoop<pid_t>(reader);
 
-        // Read hostname and executable name
-        while (true) {
-            auto const c = readLoop<char>(reader);
-            if (c == '\0') {
-                break;
-            }
+        // Read null-terminated hostname and executable name
+        while (auto const c = readLoop<char>(reader)) {
             elem.hostname.push_back(c);
         }
-        while (true) {
-            auto const c = readLoop<char>(reader);
-            if (c == '\0') {
-                break;
-            }
+        while (auto const c = readLoop<char>(reader)) {
             elem.executable.push_back(c);
         }
 

@@ -1092,7 +1092,7 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     auto session = SSHSession{hostname, Frontend::inst().getPwd()};
     auto channel = session.startRemoteCommand(daemonArgv.get());
 
-    // Relay MPIR data from SSH channel to pipe
+    // Reader / writer functions will read / write data from and to SSH channel
     auto channel_reader = [&channel](char* buf, ssize_t capacity) {
         return remote::channel_read(channel.get(), buf, capacity);
     };

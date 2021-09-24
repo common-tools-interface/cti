@@ -42,11 +42,11 @@
 /* fd read / write helpers */
 
 template <typename Func>
-static inline ssize_t readLoop(char* buf, ssize_t capacity, Func&& producer)
+static inline ssize_t readLoop(char* buf, ssize_t capacity, Func&& reader)
 {
     auto offset = ssize_t{0};
     while (offset < capacity) {
-        auto const bytes_read = producer(buf + offset, capacity - offset);
+        auto const bytes_read = reader(buf + offset, capacity - offset);
         if (bytes_read == 0) {
             break;
         } else {
@@ -63,13 +63,15 @@ static inline void fdReadLoop(char* buf, ssize_t num_bytes, int const fd)
     readLoop(buf, num_bytes, [fd](char* buf, ssize_t capacity) {
         errno = 0;
         while (true) {
-            int bytes_read = read(fd, buf, capacity);
+            int bytes_read = ::read(fd, buf, capacity);
             if (bytes_read < 0) {
                 if (errno == EINTR) {
                     continue;
                 } else {
                     throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
                 }
+            } else if (bytes_read == 0) {
+                throw std::runtime_error("read failed: zero bytes read");
             }
 
             return bytes_read;
@@ -88,21 +90,21 @@ static inline T fdReadLoop(int const fd)
 }
 
 template <typename T, typename Func>
-static inline T readLoop(Func&& producer)
+static inline T readLoop(Func&& reader)
 {
     static_assert(std::is_trivially_copyable<T>::value);
     T result;
-    readLoop(reinterpret_cast<char*>(&result), sizeof(T), std::forward<Func>(producer));
+    readLoop(reinterpret_cast<char*>(&result), sizeof(T), std::forward<Func>(reader));
     return result;
 }
 
-// write num_bytes from buf to consumer
+// write num_bytes from buf to writer function
 template <typename Func>
-static inline void writeLoop(Func&& consumer, char const* buf, ssize_t num_bytes)
+static inline void writeLoop(Func&& writer, char const* buf, ssize_t num_bytes)
 {
     auto offset = ssize_t{0};
     while (offset < num_bytes) {
-        auto const bytes_written = consumer(buf + offset, num_bytes - offset);
+        auto const bytes_written = writer(buf + offset, num_bytes - offset);
         if (bytes_written == 0) {
             break;
         } else {
@@ -111,12 +113,12 @@ static inline void writeLoop(Func&& consumer, char const* buf, ssize_t num_bytes
     }
 }
 
-// write an object T to consumer (useful for writing message structs to pipes)
+// write an object T to writer function (useful for writing message structs to pipes)
 template <typename T, typename Func>
-static inline void writeLoop(Func&& consumer, T const& obj)
+static inline void writeLoop(Func&& writer, T const& obj)
 {
     static_assert(std::is_trivial<T>::value);
-    writeLoop(std::forward<Func>(consumer), reinterpret_cast<char const*>(&obj), sizeof(T));
+    writeLoop(std::forward<Func>(writer), reinterpret_cast<char const*>(&obj), sizeof(T));
 }
 
 // write num_bytes from buf to fd
@@ -125,7 +127,7 @@ static inline void fdWriteLoop(int const fd, char const* buf, ssize_t num_bytes)
     writeLoop([fd](char const* buf, ssize_t num_bytes) {
         errno = 0;
         while (true) {
-            auto const bytes_written = write(fd, buf, num_bytes);
+            auto const bytes_written = ::write(fd, buf, num_bytes);
             if (bytes_written < 0) {
                 if (errno == EINTR) {
                     continue;
