@@ -42,12 +42,21 @@ int main(int argc, char* argv[])
 		char* child_pid_path = NULL;
 		FILE* child_pid_file = NULL;
 		char* child_exe_link = NULL;
+		char* child_exe_path = NULL;
+		ssize_t child_exe_path_len = 0;
+
+		// Allocate path to child's executable
+		child_exe_path = (char*)malloc(PATH_MAX);
+		if (child_exe_path == NULL) {
+			perror("malloc");
+			goto cleanup_iteration;
+		}
 
 		// Parse parent PID
 		errno = 0;
 		char *end = NULL;
 		long pid = strtol(argv[i], &end, 10);
-		if ((argv[i] == end) || (errno == ERANGE)) {
+		if ((argv[i] == end) || (*end != '\0') || (errno == ERANGE)) {
 			fprintf(stderr, "failed to parse: '%s'\n", argv[i]);
 			goto cleanup_iteration;
 		}
@@ -72,29 +81,37 @@ int main(int argc, char* argv[])
 			goto cleanup_iteration;
 		}
 
-		// Output parent and child PIDs for consumption
-		printf("%ld\n%ld\n", pid, child_pid);
-
 		// Create path to child's executable link
-		child_exe_link = NULL;
 		if (asprintf(&child_exe_link, "/proc/%ld/exe", child_pid) < 0) {
 			perror("asprintf");
-			printf("\n"); // Output empty value for child executable
-			goto cleanup_iteration;
-		}
+			// Proceed on to print a blank line for child executable
 
 		// Read path to child's executable
-		char child_exe_path[PATH_MAX];
-		ssize_t child_exe_path_len = readlink(child_exe_link, child_exe_path, sizeof(child_exe_path));
-		if (child_exe_path_len < 0) {
-			perror("readlink");
-			printf("\n"); // Output empty value for child executable
-			goto cleanup_iteration;
+		} else {
+			child_exe_path_len = readlink(child_exe_link, child_exe_path, PATH_MAX);
+			if (child_exe_path_len < 0) {
+				perror("readlink");
+				// Proceed on to print a blank line for child executable
+			}
 		}
 
-		printf("%.*s\n", (int)child_exe_path_len, child_exe_path);
+		// Output parent, child PIDs, and executable for consumption
+		printf("%ld\n%d\n", pid, child_pid);
+		if (child_exe_path != NULL) {
+			printf("%.*s\n", (int)child_exe_path_len, child_exe_path);
+
+		// Output empty value for child executable
+		} else {
+			printf("\n");
+		}
 
 cleanup_iteration:
+
+		if (child_exe_path != NULL) {
+			free(child_exe_path);
+			child_exe_path = NULL;
+		}
+
 		if (child_exe_link != NULL) {
 			free(child_exe_link);
 			child_exe_link = NULL;

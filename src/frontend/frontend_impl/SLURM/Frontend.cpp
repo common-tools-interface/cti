@@ -314,16 +314,27 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
 
         // Read and store output from remote tool launch
         auto result = std::vector<std::tuple<pid_t, pid_t, std::string>>{};
+        auto line = std::string{};
         while (true) {
-            auto line = std::string{};
 
             // Read PID and executable lines
-            if (!std::getline(outputStream, line) || (line.empty())) { break; }
-            auto pid = std::stoi(line);
-            if (!std::getline(outputStream, line)) { break; }
-            auto child_pid = std::stoi(line);
-            if (!std::getline(outputStream, line)) { break; }
-            result.emplace_back(pid, child_pid, std::move(line));
+            try {
+
+                // An empty PID line will terminate the loop
+                if (!std::getline(outputStream, line) || (line.empty())) { break; }
+                auto pid = std::stoi(line);
+
+                // Child and executable PIDs can be blank if they were not able to be detected
+                if (!std::getline(outputStream, line)) { break; }
+                auto child_pid = std::stoi(line);
+                if (!std::getline(outputStream, line)) { break; }
+                result.emplace_back(pid, child_pid, std::move(line));
+
+            } catch (std::exception const& ex) {
+                // Continue with reading output if there was a parse failure
+                writeLog("failed to parse reparenting utility output: %s\n", line.c_str());
+                continue;
+            }
         }
         outputPipe.closeRead();
 

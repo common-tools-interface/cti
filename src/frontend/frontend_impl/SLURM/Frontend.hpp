@@ -70,6 +70,8 @@ public: // inherited interface
 
 private: // slurm specific members
 
+    // These environment variables are blacklisted to ensure that tool daemon launches
+    // inherit the Slurm job settings from its associated job
     static const inline std::vector<std::string> srunEnvBlacklist = {
         "SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
         "SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
