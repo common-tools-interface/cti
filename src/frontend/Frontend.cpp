@@ -495,7 +495,7 @@ static bool detect_CS()
     return false;
 }
 
-// Running on an Apollo PALS if utility `palsig` is present
+// Running on an HPCM PALS if utility `palsig` is present
 bool detect_HPCM_PALS(std::string const& /* unused */ = "")
 {
     try {
@@ -1014,7 +1014,7 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 
     if (wlm == WLM::Slurm) {
         if (system == System::HPCM) {
-            return new ApolloSLURMFrontend{};
+            return new HPCMSLURMFrontend{};
         } else {
             return new SLURMFrontend{};
         }
@@ -1024,7 +1024,7 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 
     } else if (wlm == WLM::PALS) {
         if (system == System::HPCM) {
-            return new ApolloPALSFrontend{};
+            return new HPCMPALSFrontend{};
         } else if (system == System::Shasta) {
             return new PALSFrontend{};
         } else {

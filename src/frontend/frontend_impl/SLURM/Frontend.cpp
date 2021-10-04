@@ -747,12 +747,12 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
     }
 }
 
-// Apollo SLURM specializations
+// HPCM SLURM specializations
 
 
 // Current address can now be obtained using the `cminfo` tool.
 std::string
-ApolloSLURMFrontend::getHostname() const
+HPCMSLURMFrontend::getHostname() const
 {
     static auto const nodeAddress = []() {
 

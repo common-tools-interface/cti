@@ -1145,7 +1145,7 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     return *ret.first;
 }
 
-// Apollo PALS specializations
+// HPCM PALS specializations
 
 static auto find_job_host(std::string const& jobId)
 {
@@ -1251,13 +1251,13 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
 }
 
 std::weak_ptr<App>
-ApolloPALSFrontend::registerLauncherPid(pid_t launcher_pid)
+HPCMPALSFrontend::registerLauncherPid(pid_t launcher_pid)
 {
     return GenericSSHFrontend::registerJob(1, launcher_pid);
 }
 
 std::weak_ptr<App>
-ApolloPALSFrontend::registerRemoteJob(char const* job_id)
+HPCMPALSFrontend::registerRemoteJob(char const* job_id)
 {
     // Job ID is either in format <job_id> or <job_id>.<launcher_pid>
     auto const [jobId, launcherPidString] = cti::split::string<2>(job_id, '.');
@@ -1300,7 +1300,7 @@ static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgAr
 }
 
 std::weak_ptr<App>
-ApolloPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+HPCMPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
@@ -1310,7 +1310,7 @@ ApolloPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd
 }
 
 std::weak_ptr<App>
-ApolloPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+HPCMPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
@@ -1321,7 +1321,7 @@ ApolloPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int st
 
 // Current address can now be obtained using the `cminfo` tool.
 std::string
-ApolloPALSFrontend::getHostname() const
+HPCMPALSFrontend::getHostname() const
 {
     static auto const nodeAddress = []() {
 
