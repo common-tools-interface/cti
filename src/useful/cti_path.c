@@ -331,8 +331,13 @@ _cti_adjustPaths(const char *path, const char* libpath)
     if (chdir(path) != 0)
         return 1;
 
-    if (asprintf(&binpath, "%s/bin", path) <= 0)
-        return 1;
+    // Prepend to PATH if available
+    char const* path_env = getenv("PATH");
+    if (path_env == NULL) {
+        if (asprintf(&binpath, "%s/bin", path) <= 0) return 1;
+    } else {
+        if (asprintf(&binpath, "%s/bin:%s", path, path_env) <= 0) return 1;
+    }
 
     // set path to the PATH variable
     if (setenv("PATH", binpath, 1) != 0)

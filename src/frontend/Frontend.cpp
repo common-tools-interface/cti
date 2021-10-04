@@ -122,7 +122,7 @@ char FE_prng::genChar()
 
 // initialized helper for getLogger.
 Frontend::LoggerInit::LoggerInit() {
-    Frontend::m_logger.reset(new cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()});
+    Frontend::m_logger.reset(new cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, cti::cstr::gethostname(), getpid()});
 }
 
 cti::Logger& Frontend::LoggerInit::get() { return *Frontend::m_logger; }
