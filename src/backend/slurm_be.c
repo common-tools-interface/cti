@@ -944,6 +944,7 @@ _cti_be_slurm_getNodeHostname()
     }
     if (gethostname(hostname, HOST_NAME_MAX) < 0) {
         fprintf(stderr, "%s", "_cti_be_slurm_getNodeHostname: gethostname() failed!\n");
+        free(hostname);
         hostname = NULL;
         return NULL;
     }
@@ -951,12 +952,19 @@ _cti_be_slurm_getNodeHostname()
     // If job ID is available, query Slurm for current node
     char const *slurm_job_id = getenv("SLURM_JOB_ID");
     if (slurm_job_id != NULL) {
+
+        // Try to determine the Slurm node name for the provided hostname and job ID
         char *job_id = strdup(slurm_job_id);
-        hostname = _cti_be_slurm_getNodeName(job_id, hostname);
+        char* nodename = _cti_be_slurm_getNodeName(job_id, hostname);
         free(job_id);
         job_id = NULL;
-        if (hostname != NULL) {
-            return hostname;
+
+        // Store and return node name in cached hostname if successful
+        if (nodename != NULL) {
+            free(hostname);
+            hostname = nodename;
+
+            return strdup(hostname);
         }
     }
 
