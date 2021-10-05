@@ -474,7 +474,7 @@ static cti_pals_ops_t _cti_pals_ops = {
 static cti_app_id_t
 _cti_ssh_registerJob(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<ApolloPALSFrontend*>(&Frontend::inst())) {
+        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
             auto wp = fe->registerRemoteJob(std::to_string(launcher_pid).c_str());
             return fe->Iface().trackApp(wp);
         }
@@ -497,7 +497,7 @@ _cti_ssh_registerRemoteJob(char const* hostname, pid_t launcher_pid) {
 static cti_app_id_t
 _cti_ssh_registerLauncherPid(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<ApolloPALSFrontend*>(&Frontend::inst())) {
+        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
             auto wp = fe->registerLauncherPid(launcher_pid);
             return fe->Iface().trackApp(wp);
         }

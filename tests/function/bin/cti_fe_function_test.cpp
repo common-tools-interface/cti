@@ -431,6 +431,22 @@ TEST_F(CTIFEFunctionTest, Launch) {
     EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
 }
 
+// Test that an app can launch successfully with the MPIR shim
+// This is only supported on SLURM systems. The check for that is done by avocado.
+TEST_F(CTIFEFunctionTest, LaunchMPIRShim) {
+    auto const  argv = createSystemArgv({"sleep", "10"});
+
+    // Set env vars to use MPIR shim
+    ::setenv("CTI_LAUNCHER_WRAPPER", "wrapper_script.sh", 1);
+    auto oldPath = std::string{::getenv("PATH") ? ::getenv("PATH") : ""};
+    auto newPath = "../../test_support" + (oldPath != "" ? ":" + oldPath : "");
+    ::setenv("PATH", newPath.c_str(), 1);
+
+    auto const appId = watchApp(cti_launchApp(cstrVector(argv).data(), -1, -1, nullptr, nullptr, nullptr));
+    ASSERT_GT(appId, 0) << cti_error_str();
+    EXPECT_EQ(cti_appIsValid(appId), true) << cti_error_str();
+}
+
 // Test that an app can't be released twice
 TEST_F(CTIFEFunctionTest, DoubleRelease) {
     auto const  argv = createSystemArgv({"../src/hello_mpi"});

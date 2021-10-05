@@ -66,16 +66,16 @@ protected:
 
         while (true) {
             ssize_t numBytesRead = read(fd, &readCh, 1);
-            if (numBytesRead == 0) {
-                return EOF;
-            } else if (numBytesRead < 0) {
-                if (errno == EAGAIN) {
-                    continue;
-                } else {
-                    throw std::runtime_error("read failed: " + std::string{strerror(errno)});
-                }
-            } else {
+            if (numBytesRead > 0) {
                 break;
+            } else if (numBytesRead == 0) {
+                return EOF;
+
+            // numBytesRead is negative, indicating failure
+            } else if (errno == EAGAIN) {
+                continue;
+            } else {
+                throw std::runtime_error("read failed: " + std::string{strerror(errno)});
             }
         }
 

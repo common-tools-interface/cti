@@ -197,7 +197,7 @@ public: // constructor / destructor interface
     SLURMApp& operator=(SLURMApp&&) = delete;
 };
 
-class ApolloSLURMFrontend : public SLURMFrontend {
+class HPCMSLURMFrontend : public SLURMFrontend {
 public: // interface
     static bool isSupported();
     std::string getHostname() const override;

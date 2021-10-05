@@ -204,6 +204,16 @@ class GTestFunctionTest(Test):
         except process.CmdError:
             self.fail("Google test %s failed." % testname)
 
+    def test_LaunchMPIRShim(self):
+        if detectWLM() != "slurm":
+            self.cancel("MPIR Shim is only supported on Slurm systems.")
+
+        testname = "LaunchMPIRShim"
+        try:
+            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
+        except process.CmdError:
+            self.fail("Google test %s failed." % testname)
+
 '''
 cti_barrier launches a binary, holds it at the startup barrier until
 the user presses enter.
