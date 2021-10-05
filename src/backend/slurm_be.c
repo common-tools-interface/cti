@@ -36,6 +36,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <wait.h>
+#include <signal.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -269,7 +271,12 @@ _cti_be_slurm_getLayout(void)
     }
 
     // if we get here, we didn't find the host in the layout list!
-    fprintf(stderr, "Could not find layout entry for hostname %s\n", hostname);
+    fprintf(stderr, "Could not find layout entry for hostname %s (offset %d)\n", hostname, offset);
+
+    for (i=0; i < layout_hdr.numNodes; ++i) {
+        fprintf(stderr, "%2d: %s (offset %s)\n", i, layout[i].host, layout[i].host + offset);
+    }
+
     free(my_layout);
     free(layout);
     return 1;
@@ -550,6 +557,311 @@ use_pmi_attribs:
     return rtn;
 }
 
+// If lhs is NULL, allocate a new lhs, copy rhs to lhs, and update lhs_len accordingly
+// Otherwise, allocate a new lhs, append rhs to lhs, and update lhs_len accordingly
+// Note: lhs_len and rhs_len are the lengths of lhs and rhs excluding NULL-terminator
+static int
+realloc_append(char** lhs, size_t* lhs_len, char const* rhs, size_t rhs_len)
+{
+    int rc = -1;
+
+    // Calculate new lhs length
+    size_t new_lhs_len = *lhs_len + rhs_len + 1; // Include terminator
+
+    // Allocate new lhs
+    char* new_lhs = (char*)malloc(new_lhs_len);
+    if (new_lhs == NULL) {
+        perror("malloc");
+        goto cleanup_realloc_append;
+    }
+
+    // If existing lhs was provided, store it in new_lhs
+    if (*lhs != NULL) {
+        memcpy(new_lhs, *lhs, *lhs_len);
+        free(*lhs);
+    }
+
+    // Append rhs to new_lhs
+    memcpy(new_lhs + *lhs_len, rhs, rhs_len);
+    new_lhs[new_lhs_len - 1] = '\0';
+
+    // Update lhs with the new_lhs
+    *lhs = new_lhs;
+    new_lhs = NULL;
+    *lhs_len = new_lhs_len - 1; // Exclude terminator
+
+    rc = 0;
+
+cleanup_realloc_append:
+    return rc;
+}
+
+// Read the next line from provided file pointer
+static char*
+file_read_line(FILE* file)
+{
+    char* result = NULL;
+    size_t result_len = 0;
+
+    while (1) {
+
+        // Read next buf
+        char buf[4096];
+        errno = 0;
+        if (fgets(buf, sizeof(buf), file) == NULL) { // fgets NULL-terminated
+
+            // Retry if applicable
+            if (errno == EAGAIN) {
+                continue;
+
+            // Return result if EOF
+            } else if (errno == 0) {
+                break;
+
+            // Got some error from fgets
+            } else {
+                perror("fgets");
+                goto cleanup_file_read_line;
+            }
+        }
+
+        // Remove trailing newline from buffer
+        size_t buf_len = strlen(buf);
+
+        // Newline indicates completion
+        int line_completed = 0;
+        if (buf[buf_len - 1] == '\n') {
+            buf[buf_len - 1] = '\0';
+            buf_len--;
+            line_completed = 1;
+        }
+
+        // Append the latest buffer to the result string
+        realloc_append(&result, &result_len, buf, buf_len);
+
+        // Newline indicated completion
+        if (line_completed) {
+            break;
+        }
+    }
+
+cleanup_file_read_line:
+    return result;
+}
+
+/* Try to find the current hostname as reported by the system
+   on the list of Slurm nodes associated with the given job.
+   This is necessary on HPCM Slurm systems where the node ID
+   file is unavailable (present on Shasta / XC Slurm).
+   If the Slurm node name is different than the hostname,
+   the node name must be detected, so that the proper information
+   in the Slurm-generated PMI attributes file can be found.
+*/
+
+static char*
+_cti_be_slurm_getNodeName(char const* job_id, char const* hostname)
+{
+    if (job_id == NULL) {
+        return NULL;
+    }
+
+    char* result = NULL;
+    char* nodenames = NULL;
+
+    int squeue_pipe[2] = {-1, -1};
+    FILE* squeue_file = NULL;
+    pid_t squeue_pid = -1;
+
+    char* scontrol_line = NULL;
+    char* current_node_name = NULL;
+    char* current_host_name = NULL;
+    int scontrol_pipe[2] = {-1, -1};
+    FILE* scontrol_file = NULL;
+    pid_t scontrol_pid = -1;
+
+    // Set up squeue pipe
+    if (pipe(squeue_pipe) < 0) {
+        perror("pipe");
+        goto cleanup__cti_be_slurm_getNodeName;
+    }
+
+    // Fork squeue
+    squeue_pid = fork();
+    if (squeue_pid < 0) {
+        perror("fork");
+        goto cleanup__cti_be_slurm_getNodeName;
+
+    // Query node list for current job from squeue
+    } else if (squeue_pid == 0) {
+        char const* squeue_argv[] = {"squeue", "-h", "-o" "%N", "-j", job_id, NULL};
+
+        // Set up squeue output
+        close(squeue_pipe[0]);
+        squeue_pipe[0] = -1;
+        dup2(squeue_pipe[1], STDOUT_FILENO);
+
+        // Exec squeue
+        execvp("squeue", (char* const*)squeue_argv);
+        perror("execvp");
+        return NULL;
+    }
+
+    // Set up squeue input
+    close(squeue_pipe[1]);
+    squeue_pipe[1] = -1;
+    squeue_file = fdopen(squeue_pipe[0], "r");
+
+    // First line of squeue output is node names for job
+    nodenames = file_read_line(squeue_file);
+    if (nodenames == NULL) {
+        fprintf(stderr, "squeue failed to read node list for job ID %s\n", job_id);
+        goto cleanup__cti_be_slurm_getNodeName;
+    }
+
+    // Set up scontrol pipe
+    if (pipe(scontrol_pipe) < 0) {
+        perror("pipe");
+        goto cleanup__cti_be_slurm_getNodeName;
+    }
+
+    // Fork scontrol
+    scontrol_pid = fork();
+    if (scontrol_pid < 0) {
+        perror("fork");
+        goto cleanup__cti_be_slurm_getNodeName;
+
+    // Query node info for nodes associated with the current job
+    } else if (scontrol_pid == 0) {
+        char const* scontrol_argv[] = {"scontrol", "show", "node", nodenames, NULL};
+
+        // Set up scontrol output
+        close(scontrol_pipe[0]);
+        scontrol_pipe[0] = -1;
+        dup2(scontrol_pipe[1], STDOUT_FILENO);
+
+        // Exec scontrol
+        execvp("scontrol", (char* const*)scontrol_argv);
+        perror("execvp");
+        return NULL;
+    }
+
+    // Set up scontrol input
+    close(scontrol_pipe[1]);
+    scontrol_pipe[1] = -1;
+    scontrol_file = fdopen(scontrol_pipe[0], "r");
+
+    // Read each line of scontrol output
+    while (1) {
+        scontrol_line = file_read_line(scontrol_file);
+        if (scontrol_line == NULL) {
+            break;
+        }
+
+        // Parse NodeHostName entry in line
+        char const* node_host_name = strstr(scontrol_line, "NodeHostName");
+        if ((node_host_name != NULL)
+         && (sscanf(node_host_name, "NodeHostName=%m[^ ]%*c", &current_host_name) == 1)) {
+
+            // NodeName always appears in a line before NodeHostName in output
+            if (current_node_name == NULL) {
+                fprintf(stderr, "scontrol found node host name before node name\n");
+                goto cleanup__cti_be_slurm_getNodeName;
+            }
+
+            // If the provided hostname matches the Slurm node name, this was successful
+            if (strcmp(hostname, current_host_name) == 0) {
+                result = strdup(current_node_name);
+                break;
+            }
+
+            // This hostname does not match, clear the current node name
+            free(current_node_name);
+            current_node_name = NULL;
+
+        // Parse NodeName entry in line
+        } else if (sscanf(scontrol_line, "NodeName=%m[^ ]%*c", &current_node_name) == 1) {
+
+            // Clear the current host name, if set
+            if (current_host_name != NULL) {
+                free(current_host_name);
+                current_host_name = NULL;
+            }
+        }
+
+        // Clear the scontrol output
+        free(scontrol_line);
+        scontrol_line = NULL;
+    }
+
+    if (result == NULL) {
+        fprintf(stderr, "Could not find the Slurm node name for hostname %s\n", hostname);
+    }
+
+cleanup__cti_be_slurm_getNodeName:
+
+    // Clean up scontrol subprocess
+    if (scontrol_pid > 0) {
+        kill(scontrol_pid, SIGKILL);
+        waitpid(scontrol_pid, NULL, 0);
+        scontrol_pid = -1;
+    }
+
+    // Clean up scontrol pipe
+    if (scontrol_file != NULL) {
+        fclose(scontrol_file);
+        scontrol_file = NULL;
+    }
+    if (scontrol_pipe[0] >= 0) {
+        close(scontrol_pipe[0]);
+        scontrol_pipe[0] = -1;
+    }
+    if (scontrol_pipe[1] >= 0) {
+        close(scontrol_pipe[1]);
+        scontrol_pipe[1] = -1;
+    }
+
+    // Clean up squeue subprocess
+    if (squeue_pid > 0) {
+        kill(squeue_pid, SIGKILL);
+        waitpid(squeue_pid, NULL, 0);
+        squeue_pid = -1;
+    }
+
+    if (scontrol_line != NULL) {
+        free(scontrol_line);
+        scontrol_line = NULL;
+    }
+    if (current_node_name != NULL) {
+        free(current_node_name);
+        current_node_name = NULL;
+    }
+    if (current_host_name != NULL) {
+        free(current_host_name);
+        current_host_name = NULL;
+    }
+
+    // Clean up squeue pipe
+    if (squeue_file != NULL) {
+        fclose(squeue_file);
+        squeue_file = NULL;
+    }
+    if (squeue_pipe[0] >= 0) {
+        close(squeue_pipe[0]);
+        squeue_pipe[0] = -1;
+    }
+    if (squeue_pipe[1] >= 0) {
+        close(squeue_pipe[1]);
+        squeue_pipe[1] = -1;
+    }
+
+    if (nodenames != NULL) {
+        free(nodenames);
+        nodenames = NULL;
+    }
+
+    return result;
+}
+
 /*
    I return a pointer to the hostname of the node I am running
    on. On Cray nodes this can be done with very little overhead
@@ -625,24 +937,31 @@ _cti_be_slurm_getNodeHostname()
         }
     }
 
-    else // Fallback to standard hostname
-    {
-        // allocate memory for the hostname
-        if ((hostname = malloc(HOST_NAME_MAX)) == NULL)
-        {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname: malloc failed.\n");
-            return NULL;
-        }
+    // Allocate and get hostname
+    if ((hostname = malloc(HOST_NAME_MAX)) == NULL) {
+        fprintf(stderr, "_cti_be_slurm_getNodeHostname: malloc failed.\n");
+        return NULL;
+    }
+    if (gethostname(hostname, HOST_NAME_MAX) < 0) {
+        fprintf(stderr, "%s", "_cti_be_slurm_getNodeHostname: gethostname() failed!\n");
+        hostname = NULL;
+        return NULL;
+    }
 
-        if (gethostname(hostname, HOST_NAME_MAX) < 0)
-        {
-            fprintf(stderr, "%s", "_cti_be_slurm_getNodeHostname: gethostname() failed!\n");
-            hostname = NULL;
-            return NULL;
+    // If job ID is available, query Slurm for current node
+    char const *slurm_job_id = getenv("SLURM_JOB_ID");
+    if (slurm_job_id != NULL) {
+        char *job_id = strdup(slurm_job_id);
+        hostname = _cti_be_slurm_getNodeName(job_id, hostname);
+        free(job_id);
+        job_id = NULL;
+        if (hostname != NULL) {
+            return hostname;
         }
     }
 
-    return strdup(hostname); // One way or the other
+    // Fallback to standard hostname
+    return strdup(hostname);
 }
 
 
