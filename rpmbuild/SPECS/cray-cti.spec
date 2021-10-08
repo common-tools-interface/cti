@@ -216,6 +216,7 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{external_build_dir}/libexec/cti_diagnostics ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_diagnostics_backend ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_diagnostics_target ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
+%{__cp} -a %{external_build_dir}/libexec/cti_first_subprocess%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 # Binaries
 # Share
 # modulefile
@@ -504,6 +505,7 @@ fi
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_diagnostics
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_diagnostics_backend
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_diagnostics_target
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_first_subprocess%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
 %attr(755, root, root) %{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
 %attr(755, root, root) %{prefix}/modulefiles/%{modulefile_name}/%{pkgversion}

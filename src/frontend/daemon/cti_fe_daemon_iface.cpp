@@ -253,11 +253,11 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<ssize_t(char*, size_
             elem.executable.push_back(c);
         }
 
-        // fill in binary rank map
-        result.binaryRankMap[elem.executable].push_back(i);
-
         result.proctable.emplace_back(std::move(elem));
     }
+
+    // fill in binary rank map
+    result.binaryRankMap = generateBinaryRankMap(result.proctable);
 
     return result;
 }

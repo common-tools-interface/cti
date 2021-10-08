@@ -85,6 +85,12 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
         throw std::runtime_error("tried to create app with invalid daemon id: " + std::to_string(m_daemonAppId));
     }
 
+    // Remap proctable if backend wrapper binary was specified in the environment
+    if (auto const wrapper_binary = ::getenv(CTI_BACKEND_WRAPPER_ENV_VAR)) {
+        mpirData.proctable = reparentProctable(mpirData.proctable, wrapper_binary);
+        m_binaryRankMap = generateBinaryRankMap(mpirData.proctable);
+    }
+
     // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
 
     // FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
@@ -259,6 +265,126 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     // worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
 }
 
+MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
+    std::string const& wrapperBinary)
+{
+    // Run first child utility on each supplied PID on remote host
+    auto getFirstChildInformation = [this](std::string const& hostname, std::set<pid_t> const& pids) {
+
+        // Start adding the args to the launcher argv array
+        auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
+        auto launcherArgv = cti::ManagedArgv {
+            slurmFrontend.getLauncherName()
+            , "--jobid=" + std::to_string(m_jobId)
+            , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
+            , "--nodelist=" + hostname
+        };
+
+        // Add daemon launch arguments, except for output redirection
+        for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
+            if (arg != "--output=none") {
+                launcherArgv.add(arg);
+            }
+        }
+
+        // Add utility command and each PID
+        launcherArgv.add(m_frontend.getBaseDir() + "/libexec/" CTI_FIRST_SUBPROCESS_BINARY);
+        for (auto&& pid : pids) {
+            launcherArgv.add(std::to_string(pid));
+        }
+
+        // Build environment from blacklist
+        cti::ManagedArgv launcherEnv;
+        for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
+            launcherEnv.add(envVar + "=");
+        }
+
+        // Capture lines of output from srun
+        auto outputPipe = cti::Pipe{};
+        auto outputPipeBuf = cti::FdBuf{outputPipe.getReadFd()};
+        auto outputStream = std::istream{&outputPipeBuf};
+
+        // Tell FE Daemon to launch srun
+        m_frontend.Daemon().request_ForkExecvpUtil_Async(
+            m_daemonAppId, dynamic_cast<SLURMFrontend&>(m_frontend).getLauncherName().c_str(),
+            launcherArgv.get(),
+            ::open("/dev/null", O_RDONLY), outputPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
+            launcherEnv.get() );
+        outputPipe.closeWrite();
+
+        // Read and store output from remote tool launch
+        auto result = std::vector<std::tuple<pid_t, pid_t, std::string>>{};
+        auto line = std::string{};
+        while (true) {
+
+            // Read PID and executable lines
+            try {
+
+                // An empty PID line will terminate the loop
+                if (!std::getline(outputStream, line) || (line.empty())) { break; }
+                auto pid = std::stoi(line);
+
+                // Child and executable PIDs can be blank if they were not able to be detected
+                if (!std::getline(outputStream, line)) { break; }
+                auto child_pid = std::stoi(line);
+                if (!std::getline(outputStream, line)) { break; }
+                result.emplace_back(pid, child_pid, std::move(line));
+
+            } catch (std::exception const& ex) {
+                // Continue with reading output if there was a parse failure
+                writeLog("failed to parse reparenting utility output: %s\n", line.c_str());
+                continue;
+            }
+        }
+        outputPipe.closeRead();
+
+        return result;
+    };
+
+    // Copy proctable, will be modifying entries containing the wrapped executable
+    auto result = MPIRProctable{procTable};
+
+    // Map hostname to wrapped PIDs on that host
+    auto hostSingularityMap = std::map<std::string, std::set<pid_t>>{};
+    for (auto&& [pid, hostname, executable] : procTable) {
+        if (executable == wrapperBinary) {
+            hostSingularityMap[hostname].insert(pid);
+        }
+    }
+    for (auto&& [hostname, pids] : hostSingularityMap) {
+        writeLog("%s has %lu wrapped pids\n", hostname.c_str(), pids.size());
+    }
+
+    // Map wrapper executable instance to child PID / executable information
+    // Wrapper entries in the proctable will be replaced by its first child
+    using HostnamePidPair = std::pair<std::string, pid_t>;
+    using PidExecutablePair = std::pair<pid_t, std::string>;
+    auto singularityChildMap = std::map<HostnamePidPair, PidExecutablePair>{};
+
+    // Query wrappers' child information on each host
+    for (auto&& [hostname, pids] : hostSingularityMap) {
+        writeLog("Querying %lu PIDs on %s\n", pids.size(), hostname.c_str());
+
+        auto pidExeMappings = getFirstChildInformation(hostname, pids);
+        for (auto&& [pid, child_pid, executable] : pidExeMappings) {
+            singularityChildMap[{hostname, pid}] = {child_pid, std::move(executable)};
+        }
+    }
+
+    // Replace proctable entries of wrapped binaries
+    for (auto&& [pid, hostname, executable] : result) {
+        writeLog("Processing line %d %s %s\n", pid, hostname.c_str(), executable.c_str());
+
+        // If child PID was found, replace wrapper with child
+        auto pidExeIter = singularityChildMap.find({hostname, pid});
+        if (pidExeIter != singularityChildMap.end()) {
+            std::tie(pid, executable) = std::move(pidExeIter->second);
+        }
+    }
+
+    return result;
+}
+
 void SLURMApp::startDaemon(const char* const args[]) {
     // sanity check
     if (args == nullptr) {
@@ -312,6 +438,7 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
         slurmFrontend.getLauncherName()
         , "--jobid=" + std::to_string(m_jobId)
         , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
+        , "--output=none" // Suppress tool output
     };
     for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
         launcherArgv.add(arg);
@@ -337,18 +464,8 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
     }
 
     // build environment from blacklist
-    auto const envVarBlacklist = std::vector<std::string>{
-        "SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
-        "SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
-        "SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
-        "SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
-        "SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
-        "SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
-        "SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
-        "SLURM_WORKING_DIR"
-    };
     cti::ManagedArgv launcherEnv;
-    for (auto&& envVar : envVarBlacklist) {
+    for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
         launcherEnv.add(envVar + "=");
     }
 
@@ -393,7 +510,6 @@ SLURMFrontend::SLURMFrontend()
         , "--disable-status"
         , "--quiet"
         , "--mpi=none"
-        , "--output=none"
         , "--error=none"
         }
     {
