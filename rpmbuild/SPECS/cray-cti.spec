@@ -169,7 +169,7 @@ Development files for Cray Common Tools Interface
 Summary:    Cray Common Tools Interface test binariess
 Group:      Development
 Provides:   %{cray_name}-tests = %{pkgversion}
-Requires:   cray-gcc-8.1.0, cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst-support-devel < %{cdst_support_pkgversion_max}, %{cray_name} = %{pkgversion}, %{cray_name}-devel = %{pkgversion}
+Requires:   cray-gcc-10.3.0, cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst-support-devel < %{cdst_support_pkgversion_max}, %{cray_name} = %{pkgversion}, %{cray_name}-devel = %{pkgversion}
 %description -n %{cray_name}-tests-%{pkgversion}
 Test files for Cray Common Tools Interface
 

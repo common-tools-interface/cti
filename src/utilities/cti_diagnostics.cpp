@@ -43,6 +43,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <stdexcept>
 
 #include "common_tools_fe.h"
 

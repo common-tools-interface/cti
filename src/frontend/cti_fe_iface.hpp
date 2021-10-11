@@ -36,6 +36,7 @@
 
 #include <memory>
 #include <string>
+#include <stdexcept>
 #include <unordered_map>
 
 // Forward declarations

@@ -57,6 +57,7 @@ int _cti_hook_stdoe(cti_log_t* log_file);
 
 #include <string>
 #include <memory>
+#include <stdexcept>
 
 namespace cti {
 
