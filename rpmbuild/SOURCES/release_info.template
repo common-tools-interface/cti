@@ -17,7 +17,10 @@ Product Description:
 Purpose:
 ---------
   This bugfix release resolves the following issues:
-    - Added CRAY_CTI_PREFIX and CRAY_CTI_VERSION environment variables to the modulefiles.
+    - Fix potential deadlock during job launch / attach for HPCM PALS systems,
+      as well as the generic SSH interface
+    - Fix Slurm job attach when running on compute node where hostname does
+      not match the Slurm nade name
 
 Product and OS Dependencies:
 -----------------------------
