@@ -88,6 +88,25 @@
  *          - XC / ALPS:      "xc/alps"
  *          - CS / mpiexec:   "cs/mpiexec"
  *          - SSH with MPIR-compliant launcher: "linux/ssh"
+ * 
+ * CTI_LAUNCHER_WRAPPER_ENV_VAR (optional)
+ * 
+ *     If set, CTI app launches under slurm will be launched wrapped in the
+ *     specified program. The wrapper must eventually make its own call to srun,
+ *     forwarding its passed arguments to the actual launcher.
+ *     
+ *     Arguments can be passed to the wrapper by including them in the
+ *     environment variable string. To pass an argument that includes spaces,
+ *     surround the argument in quotes. To pass an argument that includes
+ *     quotes, escape the quotes with \.
+ * 
+ *     .e.g CTI_LAUNCHER_WRAPPER='spindle --pull'
+ *          cti_launchApp({"hostname"}, ...)
+ *          -> 'spindle', '--pull', 'srun', 'hostname'
+ *     
+ *     .e.g CTI_LAUNCHER_WRAPPER='logger "\"quotes\" and spaces"'
+ *          cti_launchApp({"hostname"}, ...)
+ *         -> 'logger', '"quotes" and spaces', 'srun', 'hostname' (argc = 4)
  *
  * CTI_BACKEND_WRAPPER_ENV_VAR (optional)
  *
@@ -102,13 +121,14 @@
  *     Note: currently supported only for the Slurm WLM.
  *
  */
-#define CTI_BASE_DIR_ENV_VAR        "CTI_INSTALL_DIR"
-#define CTI_LOG_DIR_ENV_VAR         "CTI_LOG_DIR"
-#define CTI_DBG_ENV_VAR             "CTI_DEBUG"
-#define CTI_CFG_DIR_ENV_VAR         "CTI_CFG_DIR"
-#define CTI_LAUNCHER_NAME_ENV_VAR   "CTI_LAUNCHER_NAME"
-#define CTI_WLM_IMPL_ENV_VAR        "CTI_WLM_IMPL"
-#define CTI_BACKEND_WRAPPER_ENV_VAR "CTI_BACKEND_WRAPPER"
+#define CTI_BASE_DIR_ENV_VAR         "CTI_INSTALL_DIR"
+#define CTI_LOG_DIR_ENV_VAR          "CTI_LOG_DIR"
+#define CTI_DBG_ENV_VAR              "CTI_DEBUG"
+#define CTI_CFG_DIR_ENV_VAR          "CTI_CFG_DIR"
+#define CTI_LAUNCHER_NAME_ENV_VAR    "CTI_LAUNCHER_NAME"
+#define CTI_WLM_IMPL_ENV_VAR         "CTI_WLM_IMPL"
+#define CTI_LAUNCHER_WRAPPER_ENV_VAR "CTI_LAUNCHER_WRAPPER"
+#define CTI_BACKEND_WRAPPER_ENV_VAR  "CTI_BACKEND_WRAPPER"
 // CTI_WLM_TYPE_<type>_STR recognized by CTI_WLM_IMPL_ENV_VAR and corresponds
 // to values in the cti_wlm_type_t enum.
 // Note: users should not manualy set CTI_WLM_IMPL environment variable to

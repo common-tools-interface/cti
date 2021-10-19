@@ -196,7 +196,6 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SRUN_OVERRIDE_ARGS_ENV_VAR   "CTI_SRUN_OVERRIDE"    // Frontend: replace variable SRUN arguments with these given arguments (read)
 #define SRUN_APPEND_ARGS_ENV_VAR     "CTI_SRUN_APPEND"      // Frontend: append these arguments to the variable list of SRUN arguments (read)
 #define CTI_HOST_ADDRESS_ENV_VAR     "CTI_HOST_ADDRESS"     // Frontend: override detection of host IP address
-#define CTI_LAUNCHER_WRAPPER_ENV_VAR "CTI_LAUNCHER_WRAPPER" // Frontend: wrap CTI SLURM launches with this binary (read)
 
 // Backend related env vars
 #define BE_GUARD_ENV_VAR    "CTI_IAMBACKEND"        //Backend: Set by the daemon launcher to ensure proper setup
