@@ -101,12 +101,12 @@
  *     quotes, escape the quotes with \.
  * 
  *     .e.g CTI_LAUNCHER_WRAPPER='spindle --pull'
- *          cti_launchApp({"hostname"}, ...)
- *          -> 'spindle', '--pull', 'srun', 'hostname'
+ *          cti_launchApp({"a.out"}, ...)
+ *          -> 'spindle', '--pull', 'srun', 'a.out'
  *     
  *     .e.g CTI_LAUNCHER_WRAPPER='logger "\"quotes\" and spaces"'
- *          cti_launchApp({"hostname"}, ...)
- *         -> 'logger', '"quotes" and spaces', 'srun', 'hostname' (argc = 4)
+ *          cti_launchApp({"a.out"}, ...)
+ *         -> 'logger', '"quotes" and spaces', 'srun', 'a.out' (argc = 4)
  *
  * CTI_BACKEND_WRAPPER_ENV_VAR (optional)
  *

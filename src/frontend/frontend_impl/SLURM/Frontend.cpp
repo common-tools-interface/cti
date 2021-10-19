@@ -835,7 +835,7 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
                     if (std::isspace(view[i]) && !inQuote && !pending.empty()) {
                         ret.add(pending);
                         pending.clear();
-                    } else if (view[i] == '\\') {
+                    } else if (view[i] == '\\' && i < view.size() - 1) {
                         if (view[++i] == '"') {
                             pending += '"';
                         } else {
