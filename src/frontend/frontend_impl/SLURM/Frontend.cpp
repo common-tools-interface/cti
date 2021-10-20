@@ -504,8 +504,7 @@ static std::string getSlurmVersion()
 SLURMFrontend::SLURMFrontend()
     : m_srunAppArgs {}
     , m_srunDaemonArgs
-        { "--gres=none"
-        , "--mem-per-cpu=0"
+        { "--mem-per-cpu=0"
         , "--ntasks-per-node=1"
         , "--disable-status"
         , "--quiet"
@@ -533,6 +532,19 @@ SLURMFrontend::SLURMFrontend()
     } else {
         throw std::runtime_error("unknown SLURM version: " + std::to_string(slurmVersion) + ". Try running \
 `srun --version`");
+    }
+
+    // Slurm bug https://bugs.schedmd.com/show_bug.cgi?id=12642
+    // breaks gres=none setting
+    // Allow user to specify or this argument via environment variable
+    if (auto const slurm_gres = ::getenv(SLURM_DAEMON_GRES_ENV_VAR)) {
+        if (slurm_gres[0] != '\0') {
+            m_srunDaemonArgs.emplace_back("--gres=" + std::string{slurm_gres});
+        }
+
+    // If GRES argument is not specified, use gres=none
+    } else {
+        m_srunDaemonArgs.emplace_back("--gres=none");
     }
 
     // Add / override SRUN arguments from environment variables
