@@ -122,6 +122,7 @@ typedef struct
 #define SLURM_STAGE_DIR         "slurmXXXXXX"                       // directory name for staging slurm specific files to transfer
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
 #define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
+#define SLURM_DAEMON_GRES_ENV_VAR "CTI_SLURM_DAEMON_GRES"           // Set to specify `--gres` argument for tool daemon launches (or leave blank to disable)
 
 /*******************************************************************************
 ** SSH specific information

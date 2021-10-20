@@ -480,7 +480,7 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
 
 /* SLURM frontend implementation */
 
-static auto getSlurmVersion()
+static std::string getSlurmVersion()
 {
     char const* const srunVersionArgv[] = {"srun", "--version", nullptr};
     auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv, cti::Execvp::stderr::Ignore};
@@ -490,15 +490,15 @@ static auto getSlurmVersion()
         throw std::runtime_error("Failed to get SRUN version number output. Try running \
 `srun --version`");
     }
-
     // slurm major.minor.patch
-    // A parse failure will result in a major version of 0 and can be checked by the caller
-    auto major = int{};
-    auto minor = int{};
-    auto patch = int{};
-    ::sscanf(slurmVersion.c_str(), "slurm %d.%d.%d\n", &major, &minor, &patch);
 
-    return std::make_tuple(major, minor, patch);
+    slurmVersion = slurmVersion.substr(slurmVersion.find(" ") + 1);
+    // major.minor.patch
+
+    slurmVersion = slurmVersion.substr(0, slurmVersion.find("."));
+    // major
+
+    return slurmVersion;
 }
 
 SLURMFrontend::SLURMFrontend()
@@ -514,34 +514,37 @@ SLURMFrontend::SLURMFrontend()
     {
 
     // Detect SLURM version and set SRUN arguments accordingly
-    auto const [major, minor, patch] = getSlurmVersion();
-
-    // Parse failure will return a major version of 0
-    if (major == 0) {
-        throw std::runtime_error("failed to parse Slurm version, try running `srun --version`");
-    }
-
-    // mem_bind and cpu_bind changed formats between versions 18 and 19
-    if (major <= 18) {
+    auto const slurmVersion = std::stoi(getSlurmVersion());
+    if (slurmVersion <= 18) {
         m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
             { "--mem_bind=no"
             , "--cpu_bind=no"
             , "--share"
             }
         );
-    } else if (major >= 19) {
+    } else if (slurmVersion >= 19) {
         m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
             { "--mem-bind=no"
             , "--cpu-bind=no"
             , "--oversubscribe"
             }
         );
+    } else {
+        throw std::runtime_error("unknown SLURM version: " + std::to_string(slurmVersion) + ". Try running \
+`srun --version`");
     }
 
     // Slurm bug https://bugs.schedmd.com/show_bug.cgi?id=12642
-    // breaks gres=none setting for Slurm versions 21.08 - 22.05
-    auto const exclude_gres_none = ((major == 21) && (minor >= 8)) || ((major == 22) && minor <= 5);
-    if (!exclude_gres_none) {
+    // breaks gres=none setting
+    // Allow user to specify or this argument via environment variable
+    if (auto const slurm_gres = ::getenv(SLURM_DAEMON_GRES_ENV_VAR)) {
+        if (slurm_gres[0] != '\0') {
+            auto const gresArg = "--gres=" + std::string{slurm_gres};
+            m_srunDaemonArgs.insert(m_srunDaemonArgs.end(), { gresArg });
+        }
+
+    // If GRES argument is not specified, use gres=none
+    } else {
         m_srunDaemonArgs.insert(m_srunDaemonArgs.end(), { "--gres=none" });
     }
 
