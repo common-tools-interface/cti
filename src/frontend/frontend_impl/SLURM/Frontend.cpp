@@ -539,13 +539,12 @@ SLURMFrontend::SLURMFrontend()
     // Allow user to specify or this argument via environment variable
     if (auto const slurm_gres = ::getenv(SLURM_DAEMON_GRES_ENV_VAR)) {
         if (slurm_gres[0] != '\0') {
-            auto const gresArg = "--gres=" + std::string{slurm_gres};
-            m_srunDaemonArgs.insert(m_srunDaemonArgs.end(), { gresArg });
+            m_srunDaemonArgs.emplace_back("--gres=" + std::string{slurm_gres});
         }
 
     // If GRES argument is not specified, use gres=none
     } else {
-        m_srunDaemonArgs.insert(m_srunDaemonArgs.end(), { "--gres=none" });
+        m_srunDaemonArgs.emplace_back("--gres=none");
     }
 
     // Add / override SRUN arguments from environment variables
