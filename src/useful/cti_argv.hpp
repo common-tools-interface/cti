@@ -30,6 +30,7 @@
 
 #include <vector>
 #include <string>
+#include <sstream>
 #include <stdexcept>
 
 #include <getopt.h>
@@ -95,6 +96,12 @@ public:
         }
     }
 
+    void add(const ManagedArgv &other) {
+        for (size_t i = 0; i < other.size() - 1; i++) {
+            add(other.argv[i]);
+        }
+    }
+
     void add_front(std::string const& str) {
         argv.insert(argv.begin(), strdup(str.c_str()));
     }
@@ -107,6 +114,16 @@ public:
 
         free(argv[index]);
         argv[index] = strdup(str.c_str());
+    }
+
+    std::string string() const {
+        std::ostringstream r;
+        std::string delim = "";
+        for (size_t i = 0; i < argv.size() - 1; i++) {
+            r << delim << '\'' << argv[i] << '\'';
+            delim = " ";
+        }
+        return r.str();
     }
 };
 

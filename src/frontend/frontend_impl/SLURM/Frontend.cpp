@@ -829,11 +829,48 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
         } else {
             // Use MPIR shim to launch program
 
-            launcherArgv.add_front(launcherWrapper);
-
             // Change launcher path to basename so it is looked up in PATH by 
             // the wrapper, launching the shim instead
-            launcherArgv.replace(1, ::basename(launcher_path.get()));
+            launcherArgv.replace(0, ::basename(launcher_path.get()));
+            
+            // Parse launcher wrapper string into arguments
+            cti::ManagedArgv wrapperArgv = [&](){
+                cti::ManagedArgv ret;
+                const auto view = std::string_view{launcherWrapper};
+
+                // The only escaping/special character handling we do is double
+                // quotes. We want to get the arguments to the wrapper just like
+                // bash would, so we don't do any fancy escaping of \n etc. here.
+                bool inQuote = false;
+                std::string pending;
+                for (size_t i = 0; i < view.size(); i++) {
+                    if (std::isspace(view[i]) && !inQuote && !pending.empty()) {
+                        ret.add(pending);
+                        pending.clear();
+                    } else if (view[i] == '\\' && i < view.size() - 1) {
+                        if (view[++i] == '"') {
+                            pending += '"';
+                        } else {
+                            pending += '\\';
+                            pending += view[i];
+                        }
+                    } else if (view[i] == '"') {
+                        inQuote = !inQuote;
+                    } else if (inQuote || !std::isspace(view[i])) {
+                        pending += view[i];
+                    }
+                }
+
+                if (inQuote) {
+                    throw std::runtime_error("Unclosed quote in " CTI_LAUNCHER_WRAPPER_ENV_VAR " environment variable.");
+                }
+
+                if (!pending.empty()) ret.add(pending);
+
+                return ret;
+            }();
+
+            wrapperArgv.add(launcherArgv);
 
             auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
             auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
@@ -843,7 +880,7 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
 
             return Daemon().request_LaunchMPIRShim(
                 shimBinaryPath.c_str(), temporaryShimBinDir.c_str(), launcher_path.get(),
-                launcherWrapper, launcherArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
+                wrapperArgv.get()[0], wrapperArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
             );
         }
     } else {
