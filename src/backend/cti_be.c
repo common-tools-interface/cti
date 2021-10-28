@@ -46,6 +46,10 @@ extern cti_be_wlm_proto_t   _cti_be_pals_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_slurm_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_generic_ssh_wlmProto;
 
+#ifdef HAVE_FLUX
+extern cti_be_wlm_proto_t   _cti_be_flux_wlmProto;
+#endif
+
 // Global vars
 /* noneness wlm proto object */
 static cti_be_wlm_proto_t   _cti_be_nonenessProto =
@@ -104,6 +108,13 @@ _cti_be_init(void)
         case CTI_WLM_SSH:
             _cti_be_wlmProto = &_cti_be_generic_ssh_wlmProto;
             break;
+
+        case CTI_WLM_FLUX:
+
+#ifdef HAVE_FLUX
+            _cti_be_wlmProto = &_cti_be_flux_wlmProto;
+            break;
+#endif
 
         case CTI_WLM_NONE:
         case CTI_WLM_MOCK:

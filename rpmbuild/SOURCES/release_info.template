@@ -17,10 +17,14 @@ Product Description:
 Purpose:
 ---------
   This bugfix release resolves the following issues:
-    - Resolve a library name conflict if the shared library libaudit.so is
-      already installed on the system.
-    - Add a new function `registerLauncherPid` to the SSH-specific WLM
-      functions, to resolve a launch problem with ATP on HPCM PALS systems.
+    - Fix potential deadlock during job launch / attach for HPCM PALS systems,
+      as well as the generic SSH interface
+    - Fix Slurm job attach when running on compute node where hostname does
+      not match the Slurm node name
+    - Add environment variable CTI_SLURM_DAEMON_GRES to set the --gres
+      for Slurm daemon launches. For Slurm versions 21.08 and newer, this
+      should be set to an empty string (see SchedMD bug)
+      https://bugs.schedmd.com/show_bug.cgi?id=12642
 
 Product and OS Dependencies:
 -----------------------------

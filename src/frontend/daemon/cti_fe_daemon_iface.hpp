@@ -32,6 +32,8 @@
 #include <sys/socket.h>
 
 #include <cstring>
+#include <functional>
+#include <type_traits>
 
 #include "frontend/mpir_iface/MPIRProctable.hpp"
 
@@ -39,60 +41,112 @@
 
 /* fd read / write helpers */
 
-// read num_bytes from fd into buf
-static inline void readLoop(char* buf, int const fd, int num_bytes)
+template <typename Func>
+static inline ssize_t readLoop(char* buf, ssize_t capacity, Func&& reader)
 {
-    int offset = 0;
-    while (offset < num_bytes) {
-        errno = 0;
-        int bytes_read = read(fd, buf + offset, num_bytes - offset);
-        if (bytes_read < 0) {
-            if (errno == EINTR) {
-                continue;
-            } else {
-                throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
-            }
+    auto offset = ssize_t{0};
+    while (offset < capacity) {
+        auto const bytes_read = reader(buf + offset, capacity - offset);
+        if (bytes_read == 0) {
+            break;
         } else {
             offset += bytes_read;
         }
     }
+
+    return offset;
+}
+
+// read num_bytes from fd into buf
+static inline void fdReadLoop(char* buf, ssize_t num_bytes, int const fd)
+{
+    readLoop(buf, num_bytes, [fd](char* buf, ssize_t capacity) {
+        errno = 0;
+        while (true) {
+            int bytes_read = ::read(fd, buf, capacity);
+            if (bytes_read < 0) {
+                if (errno == EINTR) {
+                    continue;
+                } else {
+                    throw std::runtime_error("read failed: " + std::string{std::strerror(errno)});
+                }
+            } else if (bytes_read == 0) {
+                throw std::runtime_error("read failed: zero bytes read");
+            }
+
+            return bytes_read;
+        }
+    });
 }
 
 // read and return an object T from fd (useful for reading message structs from pipes)
 template <typename T>
-static inline T rawReadLoop(int const fd)
+static inline T fdReadLoop(int const fd)
 {
     static_assert(std::is_trivially_copyable<T>::value);
     T result;
-    readLoop(reinterpret_cast<char*>(&result), fd, sizeof(T));
+    fdReadLoop(reinterpret_cast<char*>(&result), sizeof(T), fd);
     return result;
 }
 
-// write num_bytes from buf to fd
-static inline void writeLoop(int const fd, char const* buf, int num_bytes)
+template <typename T, typename Func>
+static inline T readLoop(Func&& reader)
 {
-    int offset = 0;
+    static_assert(std::is_trivially_copyable<T>::value);
+    T result;
+    readLoop(reinterpret_cast<char*>(&result), sizeof(T), std::forward<Func>(reader));
+    return result;
+}
+
+// write num_bytes from buf to writer function
+template <typename Func>
+static inline void writeLoop(Func&& writer, char const* buf, ssize_t num_bytes)
+{
+    auto offset = ssize_t{0};
     while (offset < num_bytes) {
-        errno = 0;
-        int written = write(fd, buf + offset, num_bytes - offset);
-        if (written < 0) {
-            if (errno == EINTR) {
-                continue;
-            } else {
-                throw std::runtime_error("write failed: " + std::string{std::strerror(errno)});
-            }
+        auto const bytes_written = writer(buf + offset, num_bytes - offset);
+        if (bytes_written == 0) {
+            break;
         } else {
-            offset += written;
+            offset += bytes_written;
         }
     }
 }
 
-// write an object T to fd (useful for writing message structs to pipes)
-template <typename T>
-static inline void rawWriteLoop(int const fd, T const& obj)
+// write an object T to writer function (useful for writing message structs to pipes)
+template <typename T, typename Func>
+static inline void writeLoop(Func&& writer, T const& obj)
 {
     static_assert(std::is_trivial<T>::value);
-    writeLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
+    writeLoop(std::forward<Func>(writer), reinterpret_cast<char const*>(&obj), sizeof(T));
+}
+
+// write num_bytes from buf to fd
+static inline void fdWriteLoop(int const fd, char const* buf, ssize_t num_bytes)
+{
+    writeLoop([fd](char const* buf, ssize_t num_bytes) {
+        errno = 0;
+        while (true) {
+            auto const bytes_written = ::write(fd, buf, num_bytes);
+            if (bytes_written < 0) {
+                if (errno == EINTR) {
+                    continue;
+                } else {
+                    throw std::runtime_error("write failed: " + std::string{std::strerror(errno)});
+                }
+            }
+
+            return bytes_written;
+        }
+    }, buf, num_bytes);
+}
+
+// write an object T to fd (useful for writing message structs to pipes)
+template <typename T>
+static inline void fdWriteLoop(int const fd, T const& obj)
+{
+    static_assert(std::is_trivial<T>::value);
+    fdWriteLoop(fd, reinterpret_cast<char const*>(&obj), sizeof(T));
 }
 
 /* protocol helpers for cti_fe_iface
@@ -114,6 +168,10 @@ public: // type definitions
 
     // Read and return an MPIRResult from the provided request pipe
     static MPIRResult readMPIRResp(int const reqFd);
+
+    // Read and return an MPIRResult using the provided stream reader function
+    // Reader takes a char* result pointer and reads up to size_t bytes
+    static MPIRResult readMPIRResp(std::function<ssize_t(char*, size_t)> reader);
 
     /* request types */
 
@@ -244,7 +302,13 @@ public: // type definitions
         int num_pids;
         // after sending this struct, send `num_pids` elements of:
         // - pid, null-terminated hostname, null-terminated executable name
+
+        // or, if an error occured:
+        // - set `mpir_id` to 0
+        // - set `error_msg_len` to the null-terminated length of the error message to follow
+        size_t error_msg_len;
     };
+
 private: // Internal data
     bool      m_init;
     pid_t     m_mainPid; // Main CTI PID that is responsible for daemon cleanup

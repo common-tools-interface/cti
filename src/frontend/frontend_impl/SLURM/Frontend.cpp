@@ -85,6 +85,12 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
         throw std::runtime_error("tried to create app with invalid daemon id: " + std::to_string(m_daemonAppId));
     }
 
+    // Remap proctable if backend wrapper binary was specified in the environment
+    if (auto const wrapper_binary = ::getenv(CTI_BACKEND_WRAPPER_ENV_VAR)) {
+        mpirData.proctable = reparentProctable(mpirData.proctable, wrapper_binary);
+        m_binaryRankMap = generateBinaryRankMap(mpirData.proctable);
+    }
+
     // If an active MPIR session was provided, extract the MPIR ProcTable and write the PID List File.
 
     // FIXME: When/if pmi_attribs get fixed for the slurm startup barrier, this
@@ -242,11 +248,8 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
         , "--force"
     };
 
-    if (auto packageName = cti::take_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
-        sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName.get());
-    } else {
-        throw std::runtime_error("_cti_pathToName failed");
-    }
+    auto packageName = cti::cstr::basename(tarPath);
+    sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName);
 
     // now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
     m_frontend.Daemon().request_ForkExecvpUtil_Sync(
@@ -260,6 +263,126 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     // directory will only exist on nodes associated with this particular job step, and the
     // sbcast command will exit with error if the directory doesn't exist even if the transfer
     // worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
+}
+
+MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
+    std::string const& wrapperBinary)
+{
+    // Run first child utility on each supplied PID on remote host
+    auto getFirstChildInformation = [this](std::string const& hostname, std::set<pid_t> const& pids) {
+
+        // Start adding the args to the launcher argv array
+        auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
+        auto launcherArgv = cti::ManagedArgv {
+            slurmFrontend.getLauncherName()
+            , "--jobid=" + std::to_string(m_jobId)
+            , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
+            , "--nodelist=" + hostname
+        };
+
+        // Add daemon launch arguments, except for output redirection
+        for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
+            if (arg != "--output=none") {
+                launcherArgv.add(arg);
+            }
+        }
+
+        // Add utility command and each PID
+        launcherArgv.add(m_frontend.getBaseDir() + "/libexec/" CTI_FIRST_SUBPROCESS_BINARY);
+        for (auto&& pid : pids) {
+            launcherArgv.add(std::to_string(pid));
+        }
+
+        // Build environment from blacklist
+        cti::ManagedArgv launcherEnv;
+        for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
+            launcherEnv.add(envVar + "=");
+        }
+
+        // Capture lines of output from srun
+        auto outputPipe = cti::Pipe{};
+        auto outputPipeBuf = cti::FdBuf{outputPipe.getReadFd()};
+        auto outputStream = std::istream{&outputPipeBuf};
+
+        // Tell FE Daemon to launch srun
+        m_frontend.Daemon().request_ForkExecvpUtil_Async(
+            m_daemonAppId, dynamic_cast<SLURMFrontend&>(m_frontend).getLauncherName().c_str(),
+            launcherArgv.get(),
+            ::open("/dev/null", O_RDONLY), outputPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
+            launcherEnv.get() );
+        outputPipe.closeWrite();
+
+        // Read and store output from remote tool launch
+        auto result = std::vector<std::tuple<pid_t, pid_t, std::string>>{};
+        auto line = std::string{};
+        while (true) {
+
+            // Read PID and executable lines
+            try {
+
+                // An empty PID line will terminate the loop
+                if (!std::getline(outputStream, line) || (line.empty())) { break; }
+                auto pid = std::stoi(line);
+
+                // Child and executable PIDs can be blank if they were not able to be detected
+                if (!std::getline(outputStream, line)) { break; }
+                auto child_pid = std::stoi(line);
+                if (!std::getline(outputStream, line)) { break; }
+                result.emplace_back(pid, child_pid, std::move(line));
+
+            } catch (std::exception const& ex) {
+                // Continue with reading output if there was a parse failure
+                writeLog("failed to parse reparenting utility output: %s\n", line.c_str());
+                continue;
+            }
+        }
+        outputPipe.closeRead();
+
+        return result;
+    };
+
+    // Copy proctable, will be modifying entries containing the wrapped executable
+    auto result = MPIRProctable{procTable};
+
+    // Map hostname to wrapped PIDs on that host
+    auto hostSingularityMap = std::map<std::string, std::set<pid_t>>{};
+    for (auto&& [pid, hostname, executable] : procTable) {
+        if (executable == wrapperBinary) {
+            hostSingularityMap[hostname].insert(pid);
+        }
+    }
+    for (auto&& [hostname, pids] : hostSingularityMap) {
+        writeLog("%s has %lu wrapped pids\n", hostname.c_str(), pids.size());
+    }
+
+    // Map wrapper executable instance to child PID / executable information
+    // Wrapper entries in the proctable will be replaced by its first child
+    using HostnamePidPair = std::pair<std::string, pid_t>;
+    using PidExecutablePair = std::pair<pid_t, std::string>;
+    auto singularityChildMap = std::map<HostnamePidPair, PidExecutablePair>{};
+
+    // Query wrappers' child information on each host
+    for (auto&& [hostname, pids] : hostSingularityMap) {
+        writeLog("Querying %lu PIDs on %s\n", pids.size(), hostname.c_str());
+
+        auto pidExeMappings = getFirstChildInformation(hostname, pids);
+        for (auto&& [pid, child_pid, executable] : pidExeMappings) {
+            singularityChildMap[{hostname, pid}] = {child_pid, std::move(executable)};
+        }
+    }
+
+    // Replace proctable entries of wrapped binaries
+    for (auto&& [pid, hostname, executable] : result) {
+        writeLog("Processing line %d %s %s\n", pid, hostname.c_str(), executable.c_str());
+
+        // If child PID was found, replace wrapper with child
+        auto pidExeIter = singularityChildMap.find({hostname, pid});
+        if (pidExeIter != singularityChildMap.end()) {
+            std::tie(pid, executable) = std::move(pidExeIter->second);
+        }
+    }
+
+    return result;
 }
 
 void SLURMApp::startDaemon(const char* const args[]) {
@@ -315,6 +438,7 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
         slurmFrontend.getLauncherName()
         , "--jobid=" + std::to_string(m_jobId)
         , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
+        , "--output=none" // Suppress tool output
     };
     for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
         launcherArgv.add(arg);
@@ -340,18 +464,8 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
     }
 
     // build environment from blacklist
-    auto const envVarBlacklist = std::vector<std::string>{
-        "SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
-        "SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
-        "SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
-        "SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
-        "SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
-        "SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
-        "SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
-        "SLURM_WORKING_DIR"
-    };
     cti::ManagedArgv launcherEnv;
-    for (auto&& envVar : envVarBlacklist) {
+    for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
         launcherEnv.add(envVar + "=");
     }
 
@@ -390,13 +504,11 @@ static std::string getSlurmVersion()
 SLURMFrontend::SLURMFrontend()
     : m_srunAppArgs {}
     , m_srunDaemonArgs
-        { "--gres=none"
-        , "--mem-per-cpu=0"
+        { "--mem-per-cpu=0"
         , "--ntasks-per-node=1"
         , "--disable-status"
         , "--quiet"
         , "--mpi=none"
-        , "--output=none"
         , "--error=none"
         }
     {
@@ -420,6 +532,19 @@ SLURMFrontend::SLURMFrontend()
     } else {
         throw std::runtime_error("unknown SLURM version: " + std::to_string(slurmVersion) + ". Try running \
 `srun --version`");
+    }
+
+    // Slurm bug https://bugs.schedmd.com/show_bug.cgi?id=12642
+    // breaks gres=none setting
+    // Allow user to specify or this argument via environment variable
+    if (auto const slurm_gres = ::getenv(SLURM_DAEMON_GRES_ENV_VAR)) {
+        if (slurm_gres[0] != '\0') {
+            m_srunDaemonArgs.emplace_back("--gres=" + std::string{slurm_gres});
+        }
+
+    // If GRES argument is not specified, use gres=none
+    } else {
+        m_srunDaemonArgs.emplace_back("--gres=none");
     }
 
     // Add / override SRUN arguments from environment variables
@@ -694,15 +819,70 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
             launcherArgv.add(*arg);
         }
 
-        // Launch program under MPIR control.
-        auto const mpirData = Daemon().request_LaunchMPIR(
-            launcher_path.get(), launcherArgv.get(),
-            // redirect stdin/out/err to /dev/null, use SRUN arguments for in/output instead
-            open("/dev/null", O_RDWR), open("/dev/null", O_RDWR), open("/dev/null", O_RDWR),
-            env_list);
+        if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR); launcherWrapper == nullptr) {
+            // Launch program under MPIR control.
+            return Daemon().request_LaunchMPIR(
+                launcher_path.get(), launcherArgv.get(),
+                // redirect stdin/out/err to /dev/null, use SRUN arguments for in/output instead
+                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR),
+                env_list);
+        } else {
+            // Use MPIR shim to launch program
 
-        return mpirData;
+            // Change launcher path to basename so it is looked up in PATH by 
+            // the wrapper, launching the shim instead
+            launcherArgv.replace(0, ::basename(launcher_path.get()));
+            
+            // Parse launcher wrapper string into arguments
+            cti::ManagedArgv wrapperArgv = [&](){
+                cti::ManagedArgv ret;
+                const auto view = std::string_view{launcherWrapper};
 
+                // The only escaping/special character handling we do is double
+                // quotes. We want to get the arguments to the wrapper just like
+                // bash would, so we don't do any fancy escaping of \n etc. here.
+                bool inQuote = false;
+                std::string pending;
+                for (size_t i = 0; i < view.size(); i++) {
+                    if (std::isspace(view[i]) && !inQuote && !pending.empty()) {
+                        ret.add(pending);
+                        pending.clear();
+                    } else if (view[i] == '\\' && i < view.size() - 1) {
+                        if (view[++i] == '"') {
+                            pending += '"';
+                        } else {
+                            pending += '\\';
+                            pending += view[i];
+                        }
+                    } else if (view[i] == '"') {
+                        inQuote = !inQuote;
+                    } else if (inQuote || !std::isspace(view[i])) {
+                        pending += view[i];
+                    }
+                }
+
+                if (inQuote) {
+                    throw std::runtime_error("Unclosed quote in " CTI_LAUNCHER_WRAPPER_ENV_VAR " environment variable.");
+                }
+
+                if (!pending.empty()) ret.add(pending);
+
+                return ret;
+            }();
+
+            wrapperArgv.add(launcherArgv);
+
+            auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
+            auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
+
+            // If CTI_DEBUG is enabled, show wrapper output
+            auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
+
+            return Daemon().request_LaunchMPIRShim(
+                shimBinaryPath.c_str(), temporaryShimBinDir.c_str(), launcher_path.get(),
+                wrapperArgv.get()[0], wrapperArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
+            );
+        }
     } else {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }
@@ -732,27 +912,28 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
     }
 }
 
-// Apollo SLURM specializations
+// HPCM SLURM specializations
 
 
 // Current address can now be obtained using the `cminfo` tool.
 std::string
-ApolloSLURMFrontend::getHostname() const
+HPCMSLURMFrontend::getHostname() const
 {
     static auto const nodeAddress = []() {
-        // Query IP address from `cminfo`
-        auto const getCminfoAddress = [](char const* ip_option) {
-            char const* cminfoArgv[] = { "cminfo", ip_option, nullptr };
+
+        // Run cminfo query
+        auto const cminfo_query = [](char const* option) {
+            char const* cminfoArgv[] = { "cminfo", option, nullptr };
 
             // Start cminfo
             try {
                 auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
 
-                // Detect if running on HPCM login or compute node
+                // Return first line of query
                 auto& cminfoStream = cminfoOutput.stream();
-                std::string headAddress;
-                if (std::getline(cminfoStream, headAddress)) {
-                    return headAddress;
+                std::string line;
+                if (std::getline(cminfoStream, line)) {
+                    return line;
                 }
             } catch (...) {
                 return std::string{};
@@ -761,21 +942,20 @@ ApolloSLURMFrontend::getHostname() const
             return std::string{};
         };
 
-        // Query head IP address
-        auto const headAddress = getCminfoAddress("head_ip");
-        if (!headAddress.empty()) {
-            return headAddress;
+        // Get name of management network
+        auto const managementNetwork = cminfo_query("--mgmt_net_name");
+        if (!managementNetwork.empty()) {
+
+            // Query management IP address
+            auto const addressOption = "--" + managementNetwork + "_ip";
+            auto const managementAddress = cminfo_query(addressOption.c_str());
+            if (!managementAddress.empty()) {
+                return managementAddress;
+            }
         }
 
-        // Query GBE IP address
-        auto const gbeAddress = getCminfoAddress("gbe_ip");
-        if (!gbeAddress.empty()) {
-            return gbeAddress;
-        }
-
-        throw std::runtime_error("Failed to detect the address for this HPCM Slurm node \
-using `cminfo --head_ip` or `cminfo --gbe_ip`. Set the environment variable \
-" CTI_HOST_ADDRESS_ENV_VAR " to an address for this node accessible from the system's compute nodes");
+        // Fall back to `gethostname`
+        return cti::cstr::gethostname();
     }();
 
     return nodeAddress;

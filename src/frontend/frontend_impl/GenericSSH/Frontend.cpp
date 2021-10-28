@@ -80,7 +80,14 @@ static void delete_ssh2_session(LIBSSH2_SESSION *pSession)
 
 static void delete_ssh2_channel(LIBSSH2_CHANNEL *pChannel)
 {
+    // SSH standard does not mandate sending EOF before closing connection,
+    // but some SSH servers will not respond properly to shutdown requests
+    // unless an EOF message is received
+    libssh2_channel_send_eof(pChannel);
+    libssh2_channel_wait_eof(pChannel);
+
     libssh2_channel_close(pChannel);
+    libssh2_channel_wait_closed(pChannel);
     libssh2_channel_free(pChannel);
 }
 
@@ -88,77 +95,33 @@ static void delete_ssh2_channel(LIBSSH2_CHANNEL *pChannel)
 namespace remote
 {
 
-// Read data of a specified length into the provided buffer
-static inline void readLoop(LIBSSH2_CHANNEL* channel, char* buf, int capacity)
+static inline ssize_t channel_read(LIBSSH2_CHANNEL* channel, char* buf, ssize_t capacity)
 {
-    int offset = 0;
-    while (offset < capacity) {
-        if (auto const bytes_read = libssh2_channel_read(channel, buf + offset, capacity - offset)) {
-            if (bytes_read < 0) {
-                if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
-                    continue;
-                }
-                throw std::runtime_error("read failed: " + std::string{std::strerror(bytes_read)});
-            }
-            offset += bytes_read;
-        }
-    }
-}
-
-// Read and return a known data type
-template <typename T>
-static inline T rawReadLoop(LIBSSH2_CHANNEL* channel)
-{
-    static_assert(std::is_trivial<T>::value);
-    T result;
-    readLoop(channel, reinterpret_cast<char*>(&result), sizeof(T));
-    return result;
-}
-
-// Write data of a specified length from the provided buffer
-static inline void writeLoop(LIBSSH2_CHANNEL* channel, char const* buf, int capacity)
-{
-    int offset = 0;
-    while (offset < capacity) {
-        if (auto const bytes_written = libssh2_channel_write(channel, buf + offset, capacity - offset)) {
-            if (bytes_written < 0) {
-                if (bytes_written == LIBSSH2_ERROR_EAGAIN) {
-                    continue;
-                }
-                throw std::runtime_error("write failed: " + std::string{std::strerror(bytes_written)});
-            }
-            offset += bytes_written;
-        }
-    }
-}
-
-// Write a trivially-copyable object
-template <typename T>
-static inline void rawWriteLoop(LIBSSH2_CHANNEL* channel, T const& obj)
-{
-    static_assert(std::is_trivially_copyable<T>::value);
-    writeLoop(channel, reinterpret_cast<char const*>(&obj), sizeof(T));
-}
-
-// Relay data received over SSH to a provided file descriptor
-static void relay_task(LIBSSH2_CHANNEL* channel, int fd)
-{
-    char buf[4096];
-    auto const capacity = sizeof(buf);
-    while (auto const bytes_read = libssh2_channel_read(channel, buf, capacity)) {
+    while (true) {
+        auto const bytes_read = libssh2_channel_read(channel, buf, capacity);
         if (bytes_read < 0) {
             if (bytes_read == LIBSSH2_ERROR_EAGAIN) {
                 continue;
-            } else {
-                break;
             }
+            throw std::runtime_error("read failed: " + std::string{std::strerror(bytes_read)});
         }
-        if (::write(fd, buf, bytes_read) < 0) {
-            break;
-        }
-    }
 
-    ::close(fd);
+        return bytes_read;
+    }
+}
+
+static inline ssize_t channel_write(LIBSSH2_CHANNEL* channel, char const* buf, ssize_t capacity)
+{
+    while (true) {
+        auto const bytes_written = libssh2_channel_write(channel, buf, capacity);
+        if (bytes_written < 0) {
+            if (bytes_written == LIBSSH2_ERROR_EAGAIN) {
+                continue;
+            }
+            throw std::runtime_error("write failed: " + std::string{std::strerror(bytes_written)});
+        }
+        return bytes_written;
+    }
 }
 
 } // remote
@@ -615,7 +578,6 @@ contact your system adminstrator.");
 
         // Create the command string
         auto const ldLibraryPath = std::string{::getenv("LD_LIBRARY_PATH")};
-        //std::string argvString {"LD_LIBRARY_PATH=" + ldLibraryPath + " CTI_DEBUG=1 CTI_LOG_DIR=/home/users/adangelo/log"};
         auto argvString = std::string{"LD_LIBRARY_PATH="} + ldLibraryPath;
         for (auto arg = argv; *arg != nullptr; arg++) {
             argvString.push_back(' ');
@@ -801,16 +763,13 @@ GenericSSHApp::kill(int signal)
 void
 GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
-    if (auto packageName = cti::take_pointer_ownership(_cti_pathToName(tarPath.c_str()), std::free)) {
-        auto const destination = std::string{std::string{SSH_TOOL_DIR} + "/" + packageName.get()};
-        writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
+    auto packageName = cti::cstr::basename(tarPath);
+    auto const destination = std::string{SSH_TOOL_DIR} + "/" + packageName;
+    writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
-        // Send the package to each of the hosts using SCP
-        for (auto&& node : m_stepLayout.nodes) {
-            SSHSession(node.hostname, m_frontend.getPwd()).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-        }
-    } else {
-        throw std::runtime_error("_cti_pathToName failed");
+    // Send the package to each of the hosts using SCP
+    for (auto&& node : m_stepLayout.nodes) {
+        SSHSession(node.hostname, m_frontend.getPwd()).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
     }
 }
 
@@ -1137,13 +1096,16 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     auto session = SSHSession{hostname, Frontend::inst().getPwd()};
     auto channel = session.startRemoteCommand(daemonArgv.get());
 
-    // Relay MPIR data from SSH channel to pipe
-    auto stdoutPipe = cti::Pipe{};
-    auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
-    relayTask.detach();
+    // Reader / writer functions will read / write data from and to SSH channel
+    auto channel_reader = [&channel](char* buf, ssize_t capacity) {
+        return remote::channel_read(channel.get(), buf, capacity);
+    };
+    auto channel_writer = [&channel](char const* buf, ssize_t capacity) {
+        return remote::channel_write(channel.get(), buf, capacity);
+    };
 
     // Read FE daemon initialization message
-    auto const remote_pid = rawReadLoop<pid_t>(stdoutPipe.getReadFd());
+    auto const remote_pid = readLoop<pid_t>(channel_reader);
     Frontend::inst().writeLog("FE daemon running on '%s' pid: %d\n", hostname, remote_pid);
 
     // Determine path to launcher
@@ -1153,24 +1115,22 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     }
 
     // Write MPIR attach request to channel
-    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::AttachMPIR);
-    remote::writeLoop(channel.get(), launcherPath.get(), strlen(launcherPath.get()) + 1);
-    remote::rawWriteLoop(channel.get(), launcher_pid);
+    writeLoop(channel_writer, FE_daemon::ReqType::AttachMPIR);
+    writeLoop(channel_writer, launcherPath.get(), strlen(launcherPath.get()) + 1);
+    writeLoop(channel_writer, launcher_pid);
 
     // Read MPIR attach request from relay pipe
-    auto mpirResult = FE_daemon::readMPIRResp(stdoutPipe.getReadFd());
+    auto mpirResult = FE_daemon::readMPIRResp(channel_reader);
     Frontend::inst().writeLog("Received %zu proctable entries from remote daemon\n", mpirResult.proctable.size());
 
     // Shut down remote daemon
-    remote::rawWriteLoop(channel.get(), FE_daemon::ReqType::Shutdown);
-    auto const okResp = rawReadLoop<FE_daemon::OKResp>(stdoutPipe.getReadFd());
+    writeLoop(channel_writer, FE_daemon::ReqType::Shutdown);
+    auto const okResp = readLoop<FE_daemon::OKResp>(channel_reader);
     if (okResp.type != FE_daemon::RespType::OK) {
         fprintf(stderr, "warning: daemon shutdown failed\n");
     }
 
     // Close relay pipe and SSH channel
-    stdoutPipe.closeRead();
-    stdoutPipe.closeWrite();
     channel.reset();
 
     // Register application with local FE daemon and insert into received MPIR response
@@ -1185,7 +1145,7 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
     return *ret.first;
 }
 
-// Apollo PALS specializations
+// HPCM PALS specializations
 
 static auto find_job_host(std::string const& jobId)
 {
@@ -1251,21 +1211,27 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
         auto channel = session.startRemoteCommand(pgrep_argv);
 
         // Relay PID data from SSH channel to pipe
-        auto stdoutPipe = cti::Pipe{};
-        auto relayTask = std::thread(remote::relay_task, channel.get(), stdoutPipe.getWriteFd());
-        relayTask.detach();
+         auto channel_reader = [&channel](char* buf, ssize_t capacity) {
+            return remote::channel_read(channel.get(), buf, capacity);
+        };
+
+        // Read pgrep output
+        char buf[4096];
+        auto pgrepStream = std::stringstream{};
+        while (auto const bytes_read = readLoop(buf, sizeof(buf), channel_reader)) {
+            if (bytes_read <= 0) {
+                break;
+            }
+            pgrepStream.write(buf, bytes_read);
+        }
 
         // Parse pgrep lines
-        auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
-        auto stdoutStream = std::istream{&stdoutBuf};
-        auto stdoutLine = std::string{};
-        while (std::getline(stdoutStream, stdoutLine)) {
-            launcherPids.emplace_back(std::stoi(stdoutLine));
+        auto line = std::string{};
+        while (std::getline(pgrepStream, line)) {
+            launcherPids.emplace_back(std::stoi(line));
         }
 
         // Close relay pipe and SSH channel
-        stdoutPipe.closeRead();
-        stdoutPipe.closeWrite();
         channel.reset();
     }
 
@@ -1285,13 +1251,13 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
 }
 
 std::weak_ptr<App>
-ApolloPALSFrontend::registerLauncherPid(pid_t launcher_pid)
+HPCMPALSFrontend::registerLauncherPid(pid_t launcher_pid)
 {
     return GenericSSHFrontend::registerJob(1, launcher_pid);
 }
 
 std::weak_ptr<App>
-ApolloPALSFrontend::registerRemoteJob(char const* job_id)
+HPCMPALSFrontend::registerRemoteJob(char const* job_id)
 {
     // Job ID is either in format <job_id> or <job_id>.<launcher_pid>
     auto const [jobId, launcherPidString] = cti::split::string<2>(job_id, '.');
@@ -1334,7 +1300,7 @@ static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgAr
 }
 
 std::weak_ptr<App>
-ApolloPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+HPCMPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
@@ -1344,7 +1310,7 @@ ApolloPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd
 }
 
 std::weak_ptr<App>
-ApolloPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+HPCMPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
@@ -1355,22 +1321,23 @@ ApolloPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int st
 
 // Current address can now be obtained using the `cminfo` tool.
 std::string
-ApolloPALSFrontend::getHostname() const
+HPCMPALSFrontend::getHostname() const
 {
     static auto const nodeAddress = []() {
-        // Query IP address from `cminfo`
-        auto const getCminfoAddress = [](char const* ip_option) {
-            char const* cminfoArgv[] = { "cminfo", ip_option, nullptr };
+
+        // Run cminfo query
+        auto const cminfo_query = [](char const* option) {
+            char const* cminfoArgv[] = { "cminfo", option, nullptr };
 
             // Start cminfo
             try {
                 auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
 
-                // Detect if running on HPCM login or compute node
+                // Return first line of query
                 auto& cminfoStream = cminfoOutput.stream();
-                std::string headAddress;
-                if (std::getline(cminfoStream, headAddress)) {
-                    return headAddress;
+                std::string line;
+                if (std::getline(cminfoStream, line)) {
+                    return line;
                 }
             } catch (...) {
                 return std::string{};
@@ -1379,16 +1346,16 @@ ApolloPALSFrontend::getHostname() const
             return std::string{};
         };
 
-        // Query head IP address
-        auto const headAddress = getCminfoAddress("head_ip");
-        if (!headAddress.empty()) {
-            return headAddress;
-        }
+        // Get name of management network
+        auto const managementNetwork = cminfo_query("--mgmt_net_name");
+        if (!managementNetwork.empty()) {
 
-        // Query GBE IP address
-        auto const gbeAddress = getCminfoAddress("gbe_ip");
-        if (!gbeAddress.empty()) {
-            return gbeAddress;
+            // Query management IP address
+            auto const addressOption = "--" + managementNetwork + "_ip";
+            auto const managementAddress = cminfo_query(addressOption.c_str());
+            if (!managementAddress.empty()) {
+                return managementAddress;
+            }
         }
 
         // Fall back to `gethostname`

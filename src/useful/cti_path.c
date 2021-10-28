@@ -39,6 +39,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include <libgen.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -151,18 +152,18 @@ _cti_libFind(const char *file)
 {
     struct stat     stat_buf;
     char            buf[PATH_MAX];
-    char *          path;
-    char *          tmp;
-    char *          p_entry;
-    char *          extraPath;
+    char *          path = NULL;
+    char *          tmp = NULL;
+    char *          p_entry = NULL;
+    char *          extraPath = NULL;
     char *          savePtr = NULL;
-    char *          cmd;
+    char *          cmd = NULL;
     char *          res = NULL;
-    size_t          res_len;
+    size_t          res_len = 0;
     int             len;
-    FILE *          fp;
-    char *          base;
-    char *          retval;
+    FILE *          fp = NULL;
+    char const *    base = NULL;
+    char *          retval = NULL;
 
     /* Check for possible relative or absolute path */
     if (file[0] == '.' || file[0] == '/')
@@ -243,7 +244,7 @@ _cti_libFind(const char *file)
             }
 
             // check to see if the basename of the result matches our file
-            if ((base = _cti_pathToName(res)) != NULL)
+            if ((base = basename(res)) != NULL)
             {
                 if ((strlen(base) == strlen(file)) && (strcmp(base, file) == 0))
                 {
@@ -256,21 +257,22 @@ _cti_libFind(const char *file)
                             // found the library
                             retval = strdup(res);
                             free(res);
-                            free(base);
                             pclose(fp);
                             return retval;
                         }
                     }
                 }
-                // This is not the library you are looking for.
-                free(base);
             }
-            free(res);
-            res = NULL;
+            // res buffer is reused and potentially reallocated by getline
         }
         pclose(fp);
     }
     free(cmd);
+    if (res != NULL) {
+        free(res);
+        res = NULL;
+        res_len = 0;
+    }
 
     /*
     * Search the additional path for the file
@@ -329,8 +331,13 @@ _cti_adjustPaths(const char *path, const char* libpath)
     if (chdir(path) != 0)
         return 1;
 
-    if (asprintf(&binpath, "%s/bin", path) <= 0)
-        return 1;
+    // Prepend to PATH if available
+    char const* path_env = getenv("PATH");
+    if (path_env == NULL) {
+        if (asprintf(&binpath, "%s/bin", path) <= 0) return 1;
+    } else {
+        if (asprintf(&binpath, "%s/bin:%s", path, path_env) <= 0) return 1;
+    }
 
     // set path to the PATH variable
     if (setenv("PATH", binpath, 1) != 0)
@@ -359,44 +366,6 @@ _cti_adjustPaths(const char *path, const char* libpath)
     free(ld_library_path);
 
     return 0;
-}
-
-/* "a/b/c" => "c" */
-char *
-_cti_pathToName(const char *path)
-{
-    char *  end;
-
-    // locate the last instance of '/' in the path
-    end = strrchr(path, '/');
-
-    // sanity check
-    if (end == NULL)
-        return NULL;
-
-    // increment end to point one char past the final '/'
-    // and strdup from that point to the null term
-    return strdup(++end);
-}
-
-/* "a/b/c" => "a/b" */
-char *
-_cti_pathToDir(const char *path)
-{
-    char *  end;
-    char * result = strdup(path);
-
-    // locate the last instance of '/' in the path
-    end = strrchr(path, '/');
-
-    // sanity check
-    if (end == NULL)
-        return NULL;
-
-    //End the string just before the final slash
-    result[end-path] = '\0';
-
-    return result;
 }
 
 // This will act as a rm -rf ...

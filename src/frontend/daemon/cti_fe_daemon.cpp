@@ -56,6 +56,10 @@
 #include "useful/cti_wrappers.hpp"
 #include "useful/cti_split.hpp"
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/random_generator.hpp>
+
 #include "frontend/mpir_iface/MPIRInstance.hpp"
 #include "cti_fe_daemon_iface.hpp"
 
@@ -101,7 +105,7 @@ tryTerm(pid_t const pid)
     }
     ::sleep(3);
     ::kill(pid, SIGKILL);
-    ::waitpid(pid, nullptr, 0);
+    cti::waitpid(pid, nullptr, 0);
 }
 
 /* types */
@@ -165,7 +169,6 @@ auto appCleanupList = ProcSet{};
 auto utilMap = std::unordered_map<DAppId, ProcSet>{};
 
 auto mpirMap     = std::unordered_map<DAppId, std::unique_ptr<MPIRInstance>>{};
-auto mpirShimMap = std::unordered_map<DAppId, pid_t>{};
 
 // communication
 int reqFd  = -1; // incoming request pipe
@@ -472,7 +475,7 @@ static void tryWriteOKResp(int const respFd, Func&& func)
         auto const success = func();
 
         // send OK response
-        rawWriteLoop(respFd, OKResp
+        fdWriteLoop(respFd, OKResp
             { .type = RespType::OK
             , .success = success
         });
@@ -481,7 +484,7 @@ static void tryWriteOKResp(int const respFd, Func&& func)
         getLogger().write("%s\n", ex.what());
 
         // send failure response
-        rawWriteLoop(respFd, OKResp
+        fdWriteLoop(respFd, OKResp
             { .type = RespType::OK
             , .success = false
         });
@@ -497,7 +500,7 @@ static void tryWriteIDResp(int const respFd, Func&& func)
         auto const id = func();
 
         // send ID response
-        rawWriteLoop(respFd, IDResp
+        fdWriteLoop(respFd, IDResp
             { .type = RespType::ID
             , .id  = id
         });
@@ -506,7 +509,7 @@ static void tryWriteIDResp(int const respFd, Func&& func)
         getLogger().write("%s\n", ex.what());
 
         // send failure response
-        rawWriteLoop(respFd, IDResp
+        fdWriteLoop(respFd, IDResp
             { .type = RespType::ID
             , .id  = DAppId{0}
         });
@@ -522,17 +525,17 @@ static void tryWriteStringResp(int const respFd, Func&& func)
         auto const stringData = func();
 
         // send the string data
-        rawWriteLoop(respFd, StringResp
+        fdWriteLoop(respFd, StringResp
             { .type     = RespType::String
             , .success  = true
         });
-        writeLoop(respFd, stringData.c_str(), stringData.length() + 1);
+        fdWriteLoop(respFd, stringData.c_str(), stringData.length() + 1);
 
     } catch (std::exception const& ex) {
         getLogger().write("%s\n", ex.what());
 
         // send failure response
-        rawWriteLoop(respFd, StringResp
+        fdWriteLoop(respFd, StringResp
             { .type     = RespType::String
             , .success  = false
         });
@@ -548,26 +551,35 @@ static void tryWriteMPIRResp(int const respFd, Func&& func)
         auto const mpirData = func();
 
         // send the MPIR data
-        rawWriteLoop(respFd, MPIRResp
+        fdWriteLoop(respFd, MPIRResp
             { .type     = RespType::MPIR
             , .mpir_id  = mpirData.mpir_id
             , .launcher_pid = mpirData.launcher_pid
             , .num_pids = static_cast<int>(mpirData.proctable.size())
+            , .error_msg_len = 0
         });
         for (auto&& elem : mpirData.proctable) {
-            rawWriteLoop(respFd, elem.pid);
-            writeLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
-            writeLoop(respFd, elem.executable.c_str(), elem.executable.length() + 1);
+            fdWriteLoop(respFd, elem.pid);
+            fdWriteLoop(respFd, elem.hostname.c_str(), elem.hostname.length() + 1);
+            fdWriteLoop(respFd, elem.executable.c_str(), elem.executable.length() + 1);
         }
 
     } catch (std::exception const& ex) {
         getLogger().write("%s\n", ex.what());
 
+        auto const error_msg_len = ::strlen(ex.what()) + 1;
+
         // send failure response
-        rawWriteLoop(respFd, MPIRResp
+        fdWriteLoop(respFd, MPIRResp
             { .type     = RespType::MPIR
             , .mpir_id  = DAppId{0}
+            , .launcher_pid = {}
+            , .num_pids = {}
+            , .error_msg_len = error_msg_len
         });
+
+        // Send failure message
+        fdWriteLoop(respFd, ex.what(), error_msg_len);
     }
 }
 
@@ -697,9 +709,31 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
         ::setenv(var.c_str(), val.c_str(), true);
     }
 
-    auto mpirResult = extractMPIRResult(std::make_unique<MPIRInstance>(
-        launchData.filepath, launchData.argvList, std::vector<std::string>{}, remapFds
-    ));
+    // Start launcher under MPIR control and run to breakpoint
+    // If there are any problems with launcher arguments, they will occur at this point.
+    // Then, an error message that the user can interpret will be sent back to the
+    // main CTI process.
+    auto mpirInstance = [](LaunchData const& launchData, std::map<int, int> const& remapFds) {
+        try {
+            return std::make_unique<MPIRInstance>(launchData.filepath,
+                launchData.argvList, std::vector<std::string>{}, remapFds);
+        } catch (std::exception const& ex) {
+            auto errorMsg = std::stringstream{};
+
+            // Create error message from launcher arguments with possible diagnostic
+            errorMsg << "Failed to start launcher with the provided arguments: \n  ";
+            for (auto&& arg : launchData.argvList) {
+                errorMsg << " " << arg;
+            }
+            errorMsg << "\nEnsure that the launcher binary exists and \
+that all arguments (such as job constraints or project accounts) required \
+by your system are provided to the tool's launch command (" << ex.what() << ")";
+
+            throw std::runtime_error{errorMsg.str()};
+        }
+    }(launchData, remapFds);
+
+    auto mpirResult = extractMPIRResult(std::move(mpirInstance));
 
     // Terminate launched application on daemon exit
     appCleanupList.insert(mpirResult.launcher_pid);
@@ -709,9 +743,24 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
 
 static FE_daemon::MPIRResult attachMPIR(std::string const& launcherPath, pid_t const launcherPid)
 {
-    return extractMPIRResult(std::make_unique<MPIRInstance>(
-        launcherPath.c_str(), launcherPid
-    ));
+    // Attach to launcher and attempt to extract MPIR data
+    auto mpirInstance = [](std::string const& launcherPath, pid_t const launcherPid) {
+        try {
+            return std::make_unique<MPIRInstance>(launcherPath, launcherPid);
+        } catch (std::exception const& ex) {
+            auto errorMsg = std::stringstream{};
+
+            // Create error message from launcher arguments with possible diagnostic
+            errorMsg << "Failed to attach to the launcher at '"
+                     << launcherPath << "' under PID "
+                     << launcherPid << ". Ensure that the launcher file exists at this path \
+and that the provided PID is present on your local system (" << ex.what() << ")";
+
+            throw std::runtime_error{errorMsg.str()};
+        }
+    }(launcherPath, launcherPid);
+
+    return extractMPIRResult(std::move(mpirInstance));
 }
 
 static void releaseMPIR(DAppId const mpir_id)
@@ -722,25 +771,7 @@ static void releaseMPIR(DAppId const mpir_id)
         // Release from MPIR breakpoint
         mpirMap.erase(idInstPair);
     } else {
-        auto const idShimPidPair = mpirShimMap.find(mpir_id);
-        if (idShimPidPair != mpirShimMap.end()) {
-
-            // Release MPIR shim breakpoint
-            auto const shimPid = idShimPidPair->second;
-
-            if (::kill(shimPid, SIGCONT)) {
-                throw std::runtime_error("failed to continue MPIR shim PID " + std::to_string(shimPid) + ": " + std::string{strerror(errno)});
-            }
-
-            // Wait for exit
-            ::waitpid(shimPid, nullptr, 0);
-
-            // Remove from active shim map
-            mpirShimMap.erase(idShimPidPair);
-
-        } else {
-            throw std::runtime_error("release mpir id not found: " + std::to_string(mpir_id));
-        }
+        throw std::runtime_error("release mpir id not found: " + std::to_string(mpir_id));
     }
 
     getLogger().write("successfully released mpir id %d\n", mpir_id);
@@ -769,60 +800,21 @@ static void terminateMPIR(DAppId const mpir_id)
     getLogger().write("successfully terminated mpir id %d\n", mpir_id);
 }
 
-
-static auto readShimMPIRResult(int const shimOutputFd)
-{
-    // read MPIR shim PID
-    auto const shimPid = rawReadLoop<pid_t>(shimOutputFd);
-
-    // read basic table information
-    auto const mpirResp = rawReadLoop<FE_daemon::MPIRResp>(shimOutputFd);
-    if ((mpirResp.type != FE_daemon::RespType::MPIR) || (mpirResp.launcher_pid == 0)) {
-        throw std::runtime_error("failed to read proctable response");
-    }
-
-    auto const mpirId = registerAppPID(mpirResp.launcher_pid);
-
-    // fill in MPIR data excluding proctable
-    FE_daemon::MPIRResult result
-        { mpirId
-        , mpirResp.launcher_pid
-        , {} // proctable
-    };
-    result.proctable.reserve(mpirResp.num_pids);
-
-    // set up pipe stream
-    cti::FdBuf shimOutputBuf{dup(shimOutputFd)};
-    std::istream shimOutputStream{&shimOutputBuf};
-
-    // fill in pid and hostname of proctable elements
-    for (int i = 0; i < mpirResp.num_pids; i++) {
-        MPIRProctableElem elem;
-        // read pid
-        elem.pid = rawReadLoop<pid_t>(shimOutputFd);
-        // read hostname
-        if (!std::getline(shimOutputStream, elem.hostname, '\0')) {
-            throw std::runtime_error("failed to read hostname");
-        }
-        // read executable
-        if (!std::getline(shimOutputStream, elem.executable, '\0')) {
-            throw std::runtime_error("failed to read executable");
-        }
-        result.proctable.emplace_back(std::move(elem));
-    }
-
-    return std::make_tuple(shimPid, result);
-}
-
 static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData const& launchData)
 {
     int shimPipe[2];
     ::pipe(shimPipe);
 
     auto modifiedLaunchData = launchData;
+    
+    // Some wrappers make their own calls to srun, and we only want the shim to 
+    // activate on our call to srun that launches the app.
+    // We insert a token as the last argument to the job launch, which the MPIR
+    // shim looks for.
+    const auto shimToken = boost::uuids::to_string(boost::uuids::random_generator()());
 
     auto const shimmedLauncherName = cti::cstr::basename(shimData.shimmedLauncherPath);
-    auto const shimBinDir = cti::dir_handle{shimData.temporaryShimBinDir};
+    auto const shimBinDir = cti::dir_handle{shimData.temporaryShimBinDir + shimToken};
     auto const shimBinLink = cti::softlink_handle{shimData.shimBinaryPath,
         shimBinDir.m_path + "/" + shimmedLauncherName};
 
@@ -841,12 +833,52 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDIN_FD="       + std::to_string(launchData.stdin_fd));
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDOUT_FD="      + std::to_string(launchData.stdout_fd));
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_STDERR_FD="      + std::to_string(launchData.stderr_fd));
+    modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_TOKEN=" + shimToken);
 
-    auto const scriptPid = forkExec(modifiedLaunchData);
+    modifiedLaunchData.argvList.emplace_back(shimToken);
+
+    forkExec(modifiedLaunchData);
     close(shimPipe[1]);
+    getLogger().write("started shim, waiting for pid on pipe %d\n", shimPipe[0]);
 
-    auto const [shimPid, mpirResult] = readShimMPIRResult(shimPipe[0]);
-    mpirShimMap.emplace(mpirResult.mpir_id, shimPid);
+    auto const launcherPid = [&](){
+        // If the shim fails to start for some reason, the other end of 
+        // the pipe will be closed and fdReadLoop will throw std::runtime_error.
+        try {
+            return fdReadLoop<pid_t>(shimPipe[0]);
+        } catch (std::runtime_error &e) {
+            // Catch the error only to throw another one with a better message
+            getLogger().write("MPIR shim failed to report pid.\n");
+            throw std::runtime_error("MPIR shim failed to start. Set the " CTI_DBG_ENV_VAR " environment variable to 1 to show shim/wrapper output.");
+        }
+    }();
+
+    getLogger().write("got pid: %d, attaching\n", launcherPid);
+
+    // Attach and run to breakpoint
+    auto mpirInstance = [](const std::string &launcherName, const pid_t pid) {
+        try {
+            return std::make_unique<MPIRInstance>(launcherName, pid);
+        } catch (std::exception const& ex) {
+            getLogger().write("Failed to attach to %s, pid %d\n", launcherName.c_str(), pid);
+
+            auto errorMsg = std::stringstream{};
+            // Create error message from launcher arguments with possible diagnostic
+            errorMsg << "Failed attach to launcher under MPIR shim (" << ex.what() << ")";
+            throw std::runtime_error{errorMsg.str()};
+        }
+    }(shimData.shimmedLauncherPath, launcherPid);
+
+    auto mpirResult = extractMPIRResult(std::move(mpirInstance));
+
+    // Terminate launched application on daemon exit
+    appCleanupList.insert(mpirResult.launcher_pid);
+
+    // MPIR shim stops the launcher with SIGSTOP. The launcher won't start 
+    // again, even after ProcControl detaches, unless a SIGCONT is sent at some 
+    // point. Sending it here doesn't release the launcher, it's still stopped 
+    // under ProcControl, but it enables it to start running again once ProcControl detaches.
+    ::kill(launcherPid, SIGCONT);
 
     return mpirResult;
 }
@@ -869,8 +901,8 @@ static void handle_ForkExecvpApp(int const reqFd, int const respFd)
 static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const appId  = rawReadLoop<DAppId>(reqFd);
-        auto const runMode = rawReadLoop<FE_daemon::RunMode>(reqFd);
+        auto const appId  = fdReadLoop<DAppId>(reqFd);
+        auto const runMode = fdReadLoop<FE_daemon::RunMode>(reqFd);
         auto const launchData = readLaunchData(reqFd);
 
         auto const utilPid = forkExec(launchData);
@@ -880,7 +912,7 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
         // If synchronous, wait for return code
         if (runMode == FE_daemon::Synchronous) {
             int status;
-            if (::waitpid(utilPid, &status, 0) < 0) {
+            if (cti::waitpid(utilPid, &status, 0) < 0) {
                 return false;
             }
 
@@ -920,7 +952,7 @@ static void handle_AttachMPIR(int const reqFd, int const respFd)
         if (!std::getline(reqStream, launcherPath, '\0')) {
             throw std::runtime_error("failed to read launcher path");
         }
-        auto const launcherPid = rawReadLoop<pid_t>(reqFd);
+        auto const launcherPid = fdReadLoop<pid_t>(reqFd);
 
         auto const mpirData = attachMPIR(launcherPath, launcherPid);
 
@@ -931,7 +963,7 @@ static void handle_AttachMPIR(int const reqFd, int const respFd)
 static void handle_ReleaseMPIR(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+        auto const mpirId = fdReadLoop<DAppId>(reqFd);
 
         releaseMPIR(mpirId);
 
@@ -970,7 +1002,7 @@ static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
 static void handle_ReadStringMPIR(int const reqFd, int const respFd)
 {
     tryWriteStringResp(respFd, [&]() {
-        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+        auto const mpirId = fdReadLoop<DAppId>(reqFd);
 
         // set up pipe stream
         cti::FdBuf reqBuf{dup(reqFd)};
@@ -989,7 +1021,7 @@ static void handle_ReadStringMPIR(int const reqFd, int const respFd)
 static void handle_TerminateMPIR(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const mpirId = rawReadLoop<DAppId>(reqFd);
+        auto const mpirId = fdReadLoop<DAppId>(reqFd);
 
         getLogger().write("terminating mpir id %d\n", mpirId);
         terminateMPIR(mpirId);
@@ -1001,7 +1033,7 @@ static void handle_TerminateMPIR(int const reqFd, int const respFd)
 static void handle_RegisterApp(int const reqFd, int const respFd)
 {
     tryWriteIDResp(respFd, [&]() {
-        auto const appPid = rawReadLoop<pid_t>(reqFd);
+        auto const appPid = fdReadLoop<pid_t>(reqFd);
 
         auto const appId = registerAppPID(appPid);
 
@@ -1012,8 +1044,8 @@ static void handle_RegisterApp(int const reqFd, int const respFd)
 static void handle_RegisterUtil(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const appId   = rawReadLoop<DAppId>(reqFd);
-        auto const utilPid = rawReadLoop<pid_t>(reqFd);
+        auto const appId   = fdReadLoop<DAppId>(reqFd);
+        auto const utilPid = fdReadLoop<pid_t>(reqFd);
 
         registerUtilPID(appId, utilPid);
 
@@ -1024,7 +1056,7 @@ static void handle_RegisterUtil(int const reqFd, int const respFd)
 static void handle_DeregisterApp(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const appId = rawReadLoop<DAppId>(reqFd);
+        auto const appId = fdReadLoop<DAppId>(reqFd);
 
         deregisterAppID(appId);
 
@@ -1035,7 +1067,7 @@ static void handle_DeregisterApp(int const reqFd, int const respFd)
 static void handle_CheckApp(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
-        auto const appId = rawReadLoop<DAppId>(reqFd);
+        auto const appId = fdReadLoop<DAppId>(reqFd);
 
         return checkAppID(appId);
     });
@@ -1044,7 +1076,7 @@ static void handle_CheckApp(int const reqFd, int const respFd)
 static void handle_Shutdown(int const reqFd, int const respFd)
 {
     // send OK response
-    rawWriteLoop(respFd, OKResp
+    fdWriteLoop(respFd, OKResp
         { .type = RespType::OK
         , .success = true
     });
@@ -1173,11 +1205,11 @@ main(int argc, char *argv[])
 
     // write our PID to signal to the parent we are all set up
     getLogger().write("%d sending initial ok\n", getpid());
-    rawWriteLoop(respFd, getpid());
+    fdWriteLoop(respFd, getpid());
 
     // wait for pipe commands
     while (true) {
-        auto const reqType = rawReadLoop<ReqType>(reqFd);
+        auto const reqType = fdReadLoop<ReqType>(reqFd);
         getLogger().write("Received request type %ld: %s\n", reqType, reqTypeString(reqType));
 
         switch (reqType) {

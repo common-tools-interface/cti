@@ -58,7 +58,7 @@ Manifest::checkAndAdd(const std::string& folder, const std::string& filePath,
     auto sess = getOwningSession();
 
     // canonicalize path
-    auto const canonicalPath = cti::getRealPath(filePath);
+    auto const canonicalPath = cti::cstr::realpath(filePath);
 
     // check session for files shipped to the same subfolder
     auto const shippedSourcePath = sess->getSourcePath(folder, realName);
@@ -85,7 +85,7 @@ Manifest::addBinary(const std::string& rawName, DepsPolicy depsPolicy) {
     enforceValid();
     // get path and real name of file
     const std::string filePath(cti::findPath(rawName));
-    const std::string realName(cti::getNameFromPath(filePath));
+    const std::string realName(cti::cstr::basename(filePath));
 
     // check permissions
     if (!cti::fileHasPerms(filePath.c_str(), R_OK|X_OK)) {
@@ -107,7 +107,7 @@ Manifest::addLibrary(const std::string& rawName, DepsPolicy depsPolicy) {
     enforceValid();
     // get path and real name of file
     const std::string filePath(cti::findLib(rawName));
-    const std::string realName(cti::getNameFromPath(filePath));
+    const std::string realName(cti::cstr::basename(filePath));
 
     auto sess = getOwningSession();
 
@@ -146,8 +146,8 @@ void
 Manifest::addLibDir(const std::string& rawPath) {
     enforceValid();
     // get real path and real name of directory
-    const std::string realPath(cti::getRealPath(rawPath));
-    const std::string realName(cti::getNameFromPath(realPath));
+    const std::string realPath(cti::cstr::realpath(rawPath));
+    const std::string realName(cti::cstr::basename(realPath));
 
     checkAndAdd("lib", realPath, realName);
 }
@@ -157,7 +157,7 @@ Manifest::addFile(const std::string& rawName) {
     enforceValid();
     // get path and real name of file
     const std::string filePath(cti::findPath(rawName));
-    const std::string realName(cti::getNameFromPath(filePath));
+    const std::string realName(cti::cstr::basename(filePath));
 
     checkAndAdd("", filePath, realName);
 }

@@ -52,10 +52,10 @@ usage(char *name)
 {
     fprintf(stdout, "USAGE: %s [OPTIONS]...\n", name);
 
-    fprintf(stdout, "\t-j, --jobid     slurm job id - SLURM WLM only. Use with -s.\n");
-    fprintf(stdout, "\t-s, --stepid    slurm step id - SLURM WLM only. Use with -j.\n");
-    fprintf(stdout, "\t-a, --apid      alps apid - ALPS and PALS WLM only.\n");
-    fprintf(stdout, "\t-p, --pid       pid of launcher process - SSH WLM only.");
+    fprintf(stdout, "\t-j, --jobid     Job id - SLURM WLM only (Flux does not support MPMD). Use with -s.\n");
+    fprintf(stdout, "\t-s, --stepid    Step id - SLURM WLM only. Use with -j.\n");
+    fprintf(stdout, "\t-a, --apid      Apid - ALPS and PALS WLM only.\n");
+    fprintf(stdout, "\t-p, --pid       PID of launcher process - SSH WLM only.");
     fprintf(stdout, "\t-h, --help      Display this text and exit\n\n");
 
     return;
@@ -310,6 +310,11 @@ main(int argc, char **argv)
             assert(myapp != 0);
         }
             break;
+
+        case CTI_WLM_FLUX:
+            fprintf(stderr, "Error: Flux WLM does not support MPMD\n");
+            assert(0);
+            return 1;
 
         case CTI_WLM_MOCK:
         case CTI_WLM_NONE:

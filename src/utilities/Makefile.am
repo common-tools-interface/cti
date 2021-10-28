@@ -10,7 +10,7 @@ INCLUDE	= @COMMONTOOL_DIR@/include
 AM_LIBTOOLFLAGS = --quiet
 AM_CXXFLAGS		= -Wall
 
-libexec_PROGRAMS = cti_diagnostics cti_diagnostics_backend cti_diagnostics_target
+libexec_PROGRAMS = cti_diagnostics cti_diagnostics_backend cti_diagnostics_target cti_first_subprocess@COMMONTOOL_RELEASE_VERSION@
 
 cti_diagnostics_SOURCES = cti_diagnostics.cpp
 cti_diagnostics_CXXFLAGS = -I$(SRC) -I. -I$(INCLUDE) $(CDST_SUP_CFLAGS) $(AM_CXXFLAGS)
@@ -23,3 +23,5 @@ cti_diagnostics_backend_LDFLAGS	= -Wl,--no-undefined -Wl,--as-needed -pthread
 cti_diagnostics_backend_LDADD = $(SRC)/backend/libcommontools_be.la
 
 cti_diagnostics_target_SOURCES = cti_diagnostics_target.c
+
+cti_first_subprocess@COMMONTOOL_RELEASE_VERSION@_SOURCES = cti_first_subprocess.c

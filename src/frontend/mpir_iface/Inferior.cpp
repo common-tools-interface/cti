@@ -229,7 +229,7 @@ void Inferior::terminate() {
         auto const pid = m_proc->getPid();
         m_proc->detach();
         ::kill(pid, SIGTERM);
-        ::waitpid(pid, nullptr, 0);
+        cti::waitpid(pid, nullptr, 0);
     }
 }
 

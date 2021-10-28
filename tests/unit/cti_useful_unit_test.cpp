@@ -392,21 +392,6 @@ TEST_F(CTIUsefulUnitTest, cti_path_adjustPaths)
     ASSERT_EQ(_cti_adjustPaths("/DOESNOTEXIST", nullptr), 1);
 }
 
-TEST_F(CTIUsefulUnitTest, cti_path_pathToName)
-{
-    // test pathToName to ensure it works properly
-    ASSERT_STREQ(_cti_pathToName("/a/b/c/d/e/f"), "f");
-    ASSERT_EQ(_cti_pathToName(""), nullptr);
-}
-
-TEST_F(CTIUsefulUnitTest, cti_path_pathToDir)
-{
-    // test pathToDir
-    ASSERT_STREQ(_cti_pathToDir("a/b/c/d/e"), "a/b/c/d");
-    ASSERT_EQ(_cti_pathToDir(""), nullptr);
-}
-
-
 /******************************************
 *             CTI_SPLIT TESTS             *
 ******************************************/
@@ -576,27 +561,18 @@ TEST_F(CTIUsefulUnitTest, cti_wrappers_dirHasPerms)
     ASSERT_EQ(cti::dirHasPerms("./DNE/", R_OK), false); // invalid directory
 }
 
-TEST_F(CTIUsefulUnitTest, cti_wrappers_getRealPath)
+TEST_F(CTIUsefulUnitTest, cti_wrappers_cstr_realpath)
 {
-    // test that getRealpath works as expected
-    ASSERT_STREQ(cti::getRealPath("/dev/null").c_str(), "/dev/null");
-    ASSERT_STRNE(cti::getRealPath("./unit_tests").c_str(), "./unit_tests");
+    // test that cstr::realpath works as expected
+    ASSERT_STREQ(cti::cstr::realpath("/dev/null").c_str(), "/dev/null");
+    ASSERT_STRNE(cti::cstr::realpath("./unit_tests").c_str(), "./unit_tests");
 }
 
-TEST_F(CTIUsefulUnitTest, cti_wrappers_getNameFromPath)
+TEST_F(CTIUsefulUnitTest, cti_wrappers_cstr_basename)
 {
-    // test that getNameFromPath works as expected
-    ASSERT_STREQ(cti::getNameFromPath("../unit/unit_tests").c_str(), "unit_tests");
-
-    // test that getNameFromPath fails when no path provided
-    ASSERT_THROW({
-        try {
-            cti::getNameFromPath("");
-        } catch (const std::exception& ex) {
-            ASSERT_STREQ("Could not convert the fullname to realname.", ex.what());
-            throw;
-        }
-    }, std::runtime_error);
+    // test that cstr::basename works as expected
+    ASSERT_STREQ(cti::cstr::basename("../unit/unit_tests").c_str(), "unit_tests");
+    ASSERT_STREQ(cti::cstr::basename("").c_str(), "");
 }
 
 TEST_F(CTIUsefulUnitTest, cti_wrappers_findPath)

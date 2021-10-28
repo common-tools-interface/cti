@@ -170,8 +170,8 @@ TEST_F(CTIManifestUnitTest, addFile) {
     });
 
     // test that the file data was actually added to memory
-    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("./" + file_names[0]))],
-               cti::getRealPath("./" + file_names[0]));
+    ASSERT_EQ(fileSources[cti::cstr::basename(cti::findPath("./" + file_names[0]))],
+               cti::cstr::realpath("./" + file_names[0]));
 
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
@@ -179,7 +179,7 @@ TEST_F(CTIManifestUnitTest, addFile) {
     // test that file was added to relevant folder
 
     // test that file folder data is actually in memory
-    ASSERT_EQ(*(manifestFolders[""].begin()), cti::getNameFromPath(cti::findPath("./" + file_names[0])));
+    ASSERT_EQ(*(manifestFolders[""].begin()), cti::cstr::basename(cti::findPath("./" + file_names[0])));
 
     // test that there was no excess folder data in memory
     ASSERT_EQ(manifestFolders.size(), 1);
@@ -245,13 +245,13 @@ TEST_F(CTIManifestUnitTest, addBinary) {
     ASSERT_NO_THROW(manifestPtr -> addBinary("../test_support/one_socket", Manifest::DepsPolicy::Ignore));
 
     // test that the binary was actually added to memory
-    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findPath("../test_support/one_socket"))], cti::getRealPath("../test_support/one_socket"));
+    ASSERT_EQ(fileSources[cti::cstr::basename(cti::findPath("../test_support/one_socket"))], cti::cstr::realpath("../test_support/one_socket"));
 
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
 
     // test that folder data is actually in memory
-    ASSERT_EQ(*(manifestFolders["bin"].begin()), cti::getNameFromPath(cti::findPath("../test_support/one_socket")));
+    ASSERT_EQ(*(manifestFolders["bin"].begin()), cti::cstr::basename(cti::findPath("../test_support/one_socket")));
 
     // test that there was no excess folder data in memory
     ASSERT_EQ(manifestFolders["bin"].size(), 1);
@@ -352,13 +352,13 @@ TEST_F(CTIManifestUnitTest, addLibrary) {
     ASSERT_NO_THROW(manifestPtr -> addLibrary(std::string("./" + file_names[0]).c_str(), Manifest::DepsPolicy::Ignore));
 
     // test that the library data was actually added to memory
-    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::findLib("./" + file_names[0]))], cti::getRealPath("./" + file_names[0]));
+    ASSERT_EQ(fileSources[cti::cstr::basename(cti::findLib("./" + file_names[0]))], cti::cstr::realpath("./" + file_names[0]));
 
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
 
     // test that file folder data is actually in memory
-    ASSERT_EQ(*(manifestFolders["lib"].begin()), cti::getNameFromPath(cti::findLib("./" + file_names[0])));
+    ASSERT_EQ(*(manifestFolders["lib"].begin()), cti::cstr::basename(cti::findLib("./" + file_names[0])));
 
     // test that there was no excess folder data in memory
     ASSERT_EQ(manifestFolders.size(), 1);
@@ -440,13 +440,13 @@ TEST_F(CTIManifestUnitTest, addLibDir) {
     ASSERT_NO_THROW(manifestPtr -> addLibDir(tdir));
 
     // test that the file data was actually added to memory
-    ASSERT_EQ(fileSources[cti::getNameFromPath(cti::getRealPath(tdir))], cti::getRealPath(tdir));
+    ASSERT_EQ(fileSources[cti::cstr::basename(cti::cstr::realpath(tdir))], cti::cstr::realpath(tdir));
 
     // test that there is only one data file in memory
     ASSERT_EQ(fileSources.size(), 1);
 
     // test that file folder data is actually in memory
-    ASSERT_EQ(*(manifestFolders["lib"].begin()), cti::getNameFromPath(cti::getRealPath(tdir)));
+    ASSERT_EQ(*(manifestFolders["lib"].begin()), cti::cstr::basename(cti::cstr::realpath(tdir)));
 
     // test that there was no excess folder data in memory
     ASSERT_EQ(manifestFolders.size(), 1);

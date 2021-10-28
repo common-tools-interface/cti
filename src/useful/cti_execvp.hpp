@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <string.h>
 
 #include <sstream>
 #include <streambuf>
@@ -63,9 +64,19 @@ protected:
     virtual int underflow() {
         if (fd < 0) { throw std::runtime_error("File descriptor not set"); }
 
-        ssize_t numBytesRead = read(fd, &readCh, 1);
-        if (numBytesRead == 0) {
-            return EOF;
+        while (true) {
+            ssize_t numBytesRead = read(fd, &readCh, 1);
+            if (numBytesRead > 0) {
+                break;
+            } else if (numBytesRead == 0) {
+                return EOF;
+
+            // numBytesRead is negative, indicating failure
+            } else if (errno == EAGAIN) {
+                continue;
+            } else {
+                throw std::runtime_error("read failed: " + std::string{strerror(errno)});
+            }
         }
 
         setg(&readCh, &readCh, &readCh + 1);
@@ -219,11 +230,18 @@ public:
 
     int getExitStatus() {
         int status = 0;
-        if ((waitpid(child, &status, 0) < 0) && (errno != ECHILD)) {
-            throw std::runtime_error(
-                std::string("waitpid() on ") + std::to_string(child) + " failed!");
+        while (true) {
+            auto const rc = ::waitpid(child, &status, 0);
+            if (rc < 0) {
+                if (errno == EINTR) {
+                    continue;
+                } else {
+                    throw std::runtime_error("waitpid() on " + std::to_string(child) + " failed!");
+                }
+            } else {
+                return WEXITSTATUS(status);
+            }
         }
-        return WEXITSTATUS(status);
     }
 
     std::istream& stream() { return pipein; }

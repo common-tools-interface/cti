@@ -121,7 +121,7 @@ _cti_be_getPmiAttribsInfo(void)
             }
             if (tcount%4 == 0)
             {
-                fprintf(stderr, "Could not open pmi_attribs file after %d seconds.\n", tcount/4);
+                fprintf(stderr, "Could not open pmi_attribs file at %s after %d seconds.\n", fileName, tcount/4);
             }
         } else
         {

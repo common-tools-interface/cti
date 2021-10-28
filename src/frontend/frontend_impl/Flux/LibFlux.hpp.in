@@ -2,18 +2,42 @@ FluxFrontend
 LibFlux
 libFluxName
 libFluxHandle
+
+# Instance management
 flux_open flux_t*(char const*, int)
 flux_close void(flux_t*)
 flux_fatality bool(flux_t*)
+
+# Attributes
+flux_attr_get char const*(flux_t*, char const*)
+
+# Messaging
 flux_send int(flux_t*, flux_msg_t const *, int)
 flux_recv flux_msg_t*(flux_t*, flux_match, int)
 flux_msg_create flux_msg_t*(int)
 flux_msg_destroy void(flux_msg_t*)
+
+# Futures
+flux_future_wait_for int(flux_future_t*, int)
+flux_future_reset void(flux_future_t*)
+flux_future_destroy void(flux_future_t*)
 flux_future_error_string char const*(flux_future_t*)
+
+# RPC
+flux_rpc flux_future_t*(flux_t *, const char *, const char *, uint32_t, int)
+flux_rpc_raw flux_future_t*(flux_t *, const char *, const void *, int, uint32_t, int)
+flux_rpc_get int(flux_future_t *, const char **)
+
+# Jobs
 flux_job_submit flux_future_t*(flux_t*, const char*, int, int)
 flux_job_submit_get_id int(flux_future_t*, flux_jobid_t*)
 flux_job_id_parse int(const char*, flux_jobid_t*)
 flux_job_id_encode int(flux_jobid_t, const char*, char*, size_t)
+flux_job_cancel flux_future_t*(flux_t*, flux_jobid_t, const char *)
+flux_job_kill flux_future_t*(flux_t*, flux_jobid_t, int)
+flux_job_list_id flux_future_t*(flux_t*, flux_jobid_t, const char *)
+
+# Reactors and watchers
 flux_reactor_create flux_reactor_t*(int)
 flux_reactor_destroy void(flux_reactor_t*)
 flux_watcher_start void(flux_watcher_t*)
@@ -26,3 +50,5 @@ flux_buffer_write_watcher_create flux_watcher_t*(flux_reactor_t*, int, int, flux
 flux_buffer_write_watcher_close int(flux_watcher_t*)
 flux_buffer_read_watcher_get_buffer flux_buffer_t*(flux_watcher_t*)
 flux_buffer_write_watcher_get_buffer flux_buffer_t*(flux_watcher_t*)
+flux_job_event_watch flux_future_t*(flux_t*, uint64_t, const char*, int)
+flux_job_event_watch_get int(flux_future_t*, char const**)

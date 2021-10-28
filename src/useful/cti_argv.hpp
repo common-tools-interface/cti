@@ -30,6 +30,7 @@
 
 #include <vector>
 #include <string>
+#include <sstream>
 #include <stdexcept>
 
 #include <getopt.h>
@@ -58,7 +59,7 @@ public:
     /* destructor frees the strdup'ed memory */
     ~ManagedArgv() {
         for (char* str : argv) {
-            if (str) { free(str); }
+            free(str);
         }
     }
 
@@ -93,6 +94,36 @@ public:
         for (auto arg = args; *arg != nullptr; arg++) {
             argv.insert(argv.end() - 1, strdup(*arg));
         }
+    }
+
+    void add(const ManagedArgv &other) {
+        for (size_t i = 0; i < other.size() - 1; i++) {
+            add(other.argv[i]);
+        }
+    }
+
+    void add_front(std::string const& str) {
+        argv.insert(argv.begin(), strdup(str.c_str()));
+    }
+
+    // free string at argv[index] and replace with str.
+    void replace(std::size_t index, const std::string &str) {
+        if (index >= argv.size() - 1) {
+            throw std::out_of_range("attempted to replace managed argument out of bounds");
+        }
+
+        free(argv[index]);
+        argv[index] = strdup(str.c_str());
+    }
+
+    std::string string() const {
+        std::ostringstream r;
+        std::string delim = "";
+        for (size_t i = 0; i < argv.size() - 1; i++) {
+            r << delim << '\'' << argv[i] << '\'';
+            delim = " ";
+        }
+        return r.str();
     }
 };
 

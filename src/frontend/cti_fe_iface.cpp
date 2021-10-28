@@ -474,7 +474,7 @@ static cti_pals_ops_t _cti_pals_ops = {
 static cti_app_id_t
 _cti_ssh_registerJob(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<ApolloPALSFrontend*>(&Frontend::inst())) {
+        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
             auto wp = fe->registerRemoteJob(std::to_string(launcher_pid).c_str());
             return fe->Iface().trackApp(wp);
         }
@@ -497,7 +497,7 @@ _cti_ssh_registerRemoteJob(char const* hostname, pid_t launcher_pid) {
 static cti_app_id_t
 _cti_ssh_registerLauncherPid(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<ApolloPALSFrontend*>(&Frontend::inst())) {
+        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
             auto wp = fe->registerLauncherPid(launcher_pid);
             return fe->Iface().trackApp(wp);
         }
@@ -735,6 +735,27 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
 }
 
 cti_app_id_t
+cti_launchApp_fd(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    int stdin_fd, const char *chdir_path, const char * const env_list[])
+{
+    return FE_iface::runSafely(__func__, [&](){
+
+        // Build path to file descriptor, if provided
+        auto inputFile = std::string{};
+        if (stdin_fd >= 0) {
+            inputFile = "/proc/self/fd/" + std::to_string(stdin_fd);
+        }
+
+        // Delegate to common launch implementation
+        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd,
+            (!inputFile.empty()) ? inputFile.c_str() : nullptr,
+            chdir_path, env_list,
+            LaunchBarrierMode::Disabled);
+
+    }, APP_ERROR);
+}
+
+cti_app_id_t
 cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
     const char *input_file, const char *chdir_path, const char * const env_list[])
 {
@@ -742,6 +763,27 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stde
 
         // Delegate to common launch implementation
         return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list,
+            LaunchBarrierMode::Enabled);
+
+    }, APP_ERROR);
+}
+
+cti_app_id_t
+cti_launchAppBarrier_fd(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    int stdin_fd, const char *chdir_path, const char * const env_list[])
+{
+    return FE_iface::runSafely(__func__, [&](){
+
+        // Build path to file descriptor, if provided
+        auto inputFile = std::string{};
+        if (stdin_fd >= 0) {
+            inputFile = "/proc/self/fd/" + std::to_string(stdin_fd);
+        }
+
+        // Delegate to common launch implementation
+        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd,
+            (!inputFile.empty()) ? inputFile.c_str() : nullptr,
+            chdir_path, env_list,
             LaunchBarrierMode::Enabled);
 
     }, APP_ERROR);

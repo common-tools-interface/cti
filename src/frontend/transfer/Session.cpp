@@ -248,7 +248,7 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
         removeManifest(mani);
     }
     // get real name of daemon binary
-    const std::string binaryName(cti::getNameFromPath(cti::findPath(daemon)));
+    const std::string binaryName(cti::cstr::basename(cti::findPath(daemon)));
     // create DaemonArgv
     writeLog("execManifest: creating daemonArgv for %s\n", daemon);
     cti::OutgoingArgv<DaemonArgv> daemonArgv(CTI_BE_DAEMON_BINARY);
@@ -345,7 +345,7 @@ Session::mergeTransfered(const FoldersMap& newFolders, const PathMap& newPaths) 
                 }
             } else {
                 // register new file as coming from Manifest's source
-                auto const realFilePath = cti::getRealPath(newPaths.at(fileName));
+                auto const realFilePath = cti::cstr::realpath(newPaths.at(fileName));
                 writeLog("mergeTransfered: registering new file %s\n", realFilePath.c_str());
                 m_sourcePaths[fileArchivePath] = realFilePath;
             }

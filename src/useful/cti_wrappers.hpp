@@ -40,6 +40,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <pwd.h>
 
 #include <dirent.h>
@@ -128,6 +129,10 @@ namespace cstr {
 
     // lifted basename
     static inline std::string basename(std::string const& path) {
+        if (path.empty()) {
+            return {};
+        }
+
         auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
         if (auto const baseName = ::basename(rawPath.get())) {
             return std::string(baseName);
@@ -138,6 +143,10 @@ namespace cstr {
 
     // lifted dirname
     static inline std::string dirname(std::string const& path) {
+        if (path.empty()) {
+            return {};
+        }
+
         auto rawPath = take_pointer_ownership(strdup(path.c_str()), std::free);
         if (auto const dirName = ::dirname(rawPath.get())) {
             return std::string(dirName);
@@ -154,6 +163,16 @@ namespace cstr {
         }
 
         throw std::runtime_error("getcwd failed: " + std::string{strerror(errno)});
+    }
+
+    // lifted realpath
+    static inline std::string
+    realpath(std::string const& filePath) {
+        if (auto realPath = take_pointer_ownership(::realpath(filePath.c_str(), nullptr), std::free)) {
+            return std::string{realPath.get()};
+        } else { // realpath failed with nullptr result
+            throw std::runtime_error("realpath failed.");
+        }
     }
 } /* namespace cti::cstr */
 
@@ -350,24 +369,6 @@ findLib(std::string const& fileName) {
     }
 }
 
-static inline std::string
-getNameFromPath(std::string const& filePath) {
-    if (auto realName = take_pointer_ownership(_cti_pathToName(filePath.c_str()), std::free)) {
-        return std::string{realName.get()};
-    } else { // _cti_pathToName failed with nullptr result
-        throw std::runtime_error("Could not convert the fullname to realname.");
-    }
-}
-
-static inline std::string
-getRealPath(std::string const& filePath) {
-    if (auto realPath = take_pointer_ownership(realpath(filePath.c_str(), nullptr), std::free)) {
-        return std::string{realPath.get()};
-    } else { // realpath failed with nullptr result
-        throw std::runtime_error("realpath failed.");
-    }
-}
-
 // Test if a directory has the specified permissions
 static inline bool
 dirHasPerms(char const* dirPath, int const perms)
@@ -386,7 +387,7 @@ fileHasPerms(char const* filePath, int const perms)
     struct stat st;
     return filePath != nullptr
         && !stat(filePath, &st) // make sure this directory exists
-        && S_ISREG(st.st_mode)  // make sure it is a regular file
+        && !S_ISDIR(st.st_mode) // make sure it is not a directory
         && !access(filePath, perms); // check that the file has the desired permissions
 }
 
@@ -502,6 +503,20 @@ getpwuid(uid_t const uid)
     }
 
     return std::make_pair(std::move(pwd), std::move(pwd_buf));
+}
+
+// Handle and retry if waitpid is interrupted
+static inline auto
+waitpid(pid_t pid, int* status, int options)
+{
+    while (true) {
+        auto const rc = ::waitpid(pid, status, options);
+        if ((rc < 0) && (errno == EINTR)) {
+            continue;
+        } else {
+            return rc;
+        }
+    }
 }
 
 } /* namespace cti */

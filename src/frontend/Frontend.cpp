@@ -122,7 +122,7 @@ char FE_prng::genChar()
 
 // initialized helper for getLogger.
 Frontend::LoggerInit::LoggerInit() {
-    Frontend::m_logger.reset(new cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, Frontend::inst().getHostname(), getpid()});
+    Frontend::m_logger.reset(new cti::Logger{Frontend::inst().m_debug, Frontend::inst().m_log_dir, cti::cstr::gethostname(), getpid()});
 }
 
 cti::Logger& Frontend::LoggerInit::get() { return *Frontend::m_logger; }
@@ -495,7 +495,7 @@ static bool detect_CS()
     return false;
 }
 
-// Running on an Apollo PALS if utility `palsig` is present
+// Running on an HPCM PALS if utility `palsig` is present
 bool detect_HPCM_PALS(std::string const& /* unused */ = "")
 {
     try {
@@ -671,7 +671,7 @@ static bool verify_MPIR_symbols(System const& system, WLM const& wlm, std::strin
 
     // Check that the launcher is a binary and not a script
     { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
-        "file --mime " + launcherPath + " | grep -E 'application/x-(executable|sharedlib)'"};
+        "file --mime -L " + launcherPath + " | grep -E 'application/x-(executable|sharedlib)'"};
         if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
             throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it is not a binary file. \
 Tool launch requires direct access to the " + launcherName + " binary. \
@@ -1014,7 +1014,7 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 
     if (wlm == WLM::Slurm) {
         if (system == System::HPCM) {
-            return new ApolloSLURMFrontend{};
+            return new HPCMSLURMFrontend{};
         } else {
             return new SLURMFrontend{};
         }
@@ -1024,7 +1024,7 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 
     } else if (wlm == WLM::PALS) {
         if (system == System::HPCM) {
-            return new ApolloPALSFrontend{};
+            return new HPCMPALSFrontend{};
         } else if (system == System::Shasta) {
             return new PALSFrontend{};
         } else {

@@ -149,7 +149,7 @@ public: // constructor / destructor interface
     GenericSSHApp& operator=(GenericSSHApp&&) = delete;
 };
 
-class ApolloPALSFrontend : public GenericSSHFrontend {
+class HPCMPALSFrontend : public GenericSSHFrontend {
 public: // inherited interface
 
     std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
