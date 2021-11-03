@@ -114,7 +114,7 @@ private:
             : old_action_valid{false}
             , old_action{}
         {
-            struct sigaction sa;
+            struct sigaction sa{};
             sigemptyset(&sa.sa_mask);
             sa.sa_flags = 0;
             sa.sa_handler = sig_handler;
