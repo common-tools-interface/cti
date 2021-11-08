@@ -3,7 +3,7 @@
  *                     the common tools interface. Frontend refers to the
  *                     location where applications are launched.
  *
- * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2021 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -182,18 +182,20 @@ cti_wlm_type_t cti_current_wlm(void);
 const char * cti_wlm_type_toString(cti_wlm_type_t wlm_type);
 
 /*
- * cti_getHostname - Returns the hostname of the current login node.
+ * cti_getHostname - Returns an externally-accessible address for
+ * the current node.
  *
  * Detail
- *      This function determines the hostname of the current login node. This
- *      hostname can be used by tool daemons to create socket connections to
- *      the frontend.
+ *      This function determines an externally-accessible hostname
+ *      or IP address for the current node. This address can be used
+ *      by tool daemons running on other systems to create socket
+ *      connections to the node.
  *
  * Arguments
  *      None.
  *
  * Returns
- *      A string containing the hostname, or else a null string on error.
+ *      A string containing the address, or else a null string on error.
  *
  */
 char * cti_getHostname();
@@ -220,15 +222,15 @@ char * cti_getHostname();
  *              Define a path to write log files to. This location must be
  *              cross mounted and accessible by the compute nodes in order
  *              to receive debug logs from tool daemons. The value set here
- *              overrides the CTI_LOG_DIR_ENV_VAR environment variable.
+ *              overrides the CTI_LOG_DIR environment variable.
  *
  *              Default: "/tmp"
  *
  *          CTI_DEBUG
  *              Used to turn on debug logging and rediction of tool daemon
  *              stdout/stderr to a log file. This should be used in conjuction
- *              with the CTI_LOG_DIR_ENV_VAR environment variable or CTI_LOG_DIR
- *              attrib. The value set here overrides the CTI_DBG_ENV_VAR
+ *              with the CTI_LOG_DIR environment variable or CTI_LOG_DIR
+ *              attrib. The value set here overrides the CTI_DEBUG
  *              environment variable. Set to "0" or "1" to disable or enable
  *              respectively.
  *
@@ -1229,9 +1231,9 @@ int cti_addManifestFile(cti_manifest_id_t mid, const char *fstr);
  *      by a tool daemon after the tool daemon has launched. The provided
  *      manifest will become invalid for future use upon calling this function.
  *
- *      If the environment variable CTI_DBG_ENV_VAR is defined, the environment
- *      variable defined by CTI_DBG_LOG_DIR_ENV_VAR will be read and log files
- *      will be created in this location. If CTI_DBG_LOG_DIR_ENV_VAR is not
+ *      If the environment variable CTI_DEBUG is defined, the environment
+ *      variable defined by CTI_LOG_DIR will be read and log files
+ *      will be created in this location. If CTI_LOG_DIR is not
  *      defined, log files will be created in the /tmp directory on the compute
  *      nodes. This log will contain all output during shipment of the manifest
  *      and can be used to locate problems with file shipment.
@@ -1276,12 +1278,12 @@ int cti_sendManifest(cti_manifest_id_t mid);
  *      In this case, the args[0] is the beginning of actual tool daemon
  *      arguments and not the name of the tool daemon binary.
  *
- *      If the environment variable CTI_DBG_ENV_VAR is defined, the environment
- *      variable defined by CTI_DBG_LOG_DIR_ENV_VAR will be read and log files
- *      will be created in this location. If CTI_DBG_LOG_DIR_ENV_VAR is not
+ *      If the environment variable CTI_DEBUG is defined, the environment
+ *      variable defined by CTI_LOG_DIR will be read and log files
+ *      will be created in this location. If CTI_LOG_DIR is not
  *      defined, log files will be created in the /tmp directory on the compute
  *      nodes. These log files will contain any output written to stdout/stderr
- *      of the tool daemons. If CTI_DBG_ENV_VAR is not defined, tool daemon
+ *      of the tool daemons. If CTI_DEBUG is not defined, tool daemon
  *      stdout/stderr will be redirected to /dev/null. The cti_setAttribute
  *      interface can also be used to define the debug and log directory
  *      settings.
