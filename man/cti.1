@@ -19,10 +19,10 @@ ATP, STAT, and Valgrind4hpc. Some systems may require environment
 configuration for CTI to enable these applications to launch and function
 correctly.
 
-If you are seeing CTI-related error messages when attempting
-to launch or attach to your application when using PE debug tools, you can
-reference this manual to read explanations behind various environment
-settings in CTI.
+This man page is intended to help users of CTI based tools
+understand CTI's error messages and to find environment
+settings that may be necessary for their specific system
+when running PE debugger tools.
 
 Note that there are both general environment variables, as well as specific
 environment variables for different system workload managers.
@@ -39,8 +39,12 @@ value is not set, try loading your system's default `cray-cti` module.
 
 .IP "\(bu" 3
 \fICTI_WLM_IMPL\fP: The system type and workload manager pair is automatically
-detcted by CTI. However, if there is a detection problem in your environment,
+detected by CTI. However, if there is a detection problem in your environment,
 you can manually set this variable to specify the system / WLM pair.
+
+Systems using HPCM management software include HPE Apollo and Everest systems.
+If your system runs PBSPro as its scheduler, it should also be running
+the PALS workload manager. For PBSPro, specify the \fBpals\fP option.
 
 Supported system and WLM configurations:
 
@@ -67,8 +71,10 @@ SSH with MPIR-compliant launcher: "linux/ssh"
 .RE
 
 .IP "\(bu" 3
-\fICTI_LAUNCHER_NAME\fP: The default launcher name is determined by the
-workload manager type, but can be overridden here.
+\fICTI_LAUNCHER_NAME\fP: The launcher name (such as \fBsrun\fP
+for Slurm systems and \fBqsub\fP for PBSPro / PALS systems) is by
+default determined from the workload manager type, but can be
+overridden here.
 
 .IP "\(bu" 3
 \fICTI_DEBUG\fP: If enabled, CTI will produce debug logs of its startup
@@ -79,7 +85,9 @@ running remotely. When setting this variable, it is recommended to also set
 .IP "\(bu" 3
 \fICTI_LOG_DIR\fP: If \fICTI_DEBUG\fP is enabled, set this variable
 to a cross-mounted directory (such as inside a home or shared storage
-directory) to produce debug logs.
+directory) to produce debug logs. Multiple log files will be created,
+from both the processes running on the local system, as well as remote
+tool processes running on compute nodes.
 
 .IP "\(bu" 3
 \fICTI_HOST_ADDRESS\fP: Debug tools will use CTI to determine an externally-

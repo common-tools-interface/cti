@@ -211,7 +211,7 @@ char * cti_getHostname();
  *      attrib - The cti_attr_type_t as defined below.
  *
  *          CTI_ATTR_STAGE_DEPENDENCIES
- *              Define whether bindary and library dso dependencies should be
+ *              Define whether binary and library dso dependencies should be
  *              automatically staged by cti_addManifestBinary and
  *              cti_addManifestLibrary. Set to "0" or "1" to disable or enable
  *              respectively.
@@ -227,7 +227,7 @@ char * cti_getHostname();
  *              Default: "/tmp"
  *
  *          CTI_DEBUG
- *              Used to turn on debug logging and rediction of tool daemon
+ *              Used to turn on debug logging and redirection of tool daemon
  *              stdout/stderr to a log file. This should be used in conjuction
  *              with the CTI_LOG_DIR environment variable or CTI_LOG_DIR
  *              attrib. The value set here overrides the CTI_DEBUG
@@ -1274,7 +1274,7 @@ int cti_sendManifest(cti_manifest_id_t mid);
  *      access. A null terminated list of environment variables can be provided
  *      to set in the environment of the tool daemon. Each entry in this list
  *      should have a "envVar=val" format. Any arguments that need to be passed
- *      to the tool daemon can be provided by a null termianted list of args.
+ *      to the tool daemon can be provided by a null terminaed list of args.
  *      In this case, the args[0] is the beginning of actual tool daemon
  *      arguments and not the name of the tool daemon binary.
  *

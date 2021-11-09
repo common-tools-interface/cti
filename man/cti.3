@@ -55,8 +55,8 @@ H.1. Function listing
 .PP
 This document is organized as follows.
 Section B provides a synopsis of the Common Tools Interface (CTI) which
-is an API designed by Cray to facilitate bootstrapping of tool launch
-alongside applications.
+is an API designed by Cray to facilitate bootstrapping a tool launch
+alongside an application.
 Section C provides an overview of the library layout and associated
 header files.
 Sections D through G describe functionality available on the tool
@@ -69,12 +69,17 @@ CTI is available on github at the following link:
 .PP
 The Common Tools Interface (CTI) is an infrastructure framework to
 enable tool developers to launch, interact with, and run tool daemons
-alongside applications on HPC systems.
-CTI provides a collection of interfaces and supporting utilities to
+alongside applications on HPC systems. It provides:
+
+.IP "\(bu" 3
+A collection of external interfaces and supporting utilities to
 export services for use by tools.
-CTI enables vendors to provide workload manager-specific implementations
+
+.IP "\(bu" 3
+An internal interface for vendors' workload manager-specific implementations
 to rapidly enable support for existing tools that use CTI.
 .PP
+
 CTI abstracts the process of application launch and lifecycle management
 by providing an API that allows underlying implementations to
 transparently handle workload manager-specific details.
@@ -162,7 +167,7 @@ Several functions exist for setting configuration with the CTI frontend,
 querying error information, or other information about the login node
 that doesn\[cq]t require knowledge about an application.
 .PP
-The functions listed in section Function listing are available for use
+The functions listed in section "Function listing" are available for use
 at any time.
 .SS Function listing
 .IP
@@ -188,7 +193,8 @@ When a CTI frontend function returns in error, the
 \f[C]cti_error_str\f[R] function can be used to obtain a verbose error
 string.
 It returns a string containing the human parsable error message, or else
-\[dq]Unknown CTI error\[dq].
+\[dq]Unknown CTI error\[dq]. The function is non-reentrant, and the
+provided error string is valid until the next CTI interface call.
 .RE
 .IP
 .nf
@@ -207,7 +213,8 @@ int cti_error_str_r(char *buf, size_t buf_len)
 It allows a user specified buffer to be passed in versus using a static
 global buffer.
 If the error string is longer than the provided buffer, the string is
-truncated and null-terminated.
+truncated and null-terminated. If the buffer length provided is zero,
+ERANGE is returned.
 .RE
 .IP
 .nf
@@ -222,7 +229,8 @@ CTI has built in heuristics to detect which WLM is in use on the system.
 Users can explicitly override automatic WLM detection at runtime by
 setting the \f[C]CTI_WLM_IMPL\f[R] environment variable defined by the
 macro \f[C]CTI_WLM_IMPL_ENV_VAR\f[R].
-See \f[C]common_tools_fe.h\f[R] for more information.
+See the environment variable reference section of \fBcti\fP(1), or the
+header file \f[C]common_tools_fe.h\f[R] for more information.
 .RE
 .IP
 .nf
@@ -364,8 +372,8 @@ On error, 0 is returned.
 .SS Application launch with barrier
 .PP
 A tool may require attaching onto an application before it begins
-execution, as is the case of a debugger, or bootstrapping itself early
-on.
+execution (such as attaching with a debugger), or otherwise bootstrapping
+itself before the job continues to launch.
 CTI supports an application launch variant
 \f[C]cti_launchAppBarrier\f[R] where the target application is held at a
 startup barrier before main.
@@ -403,7 +411,7 @@ For that reason, CTI uses a WLM specific identifier when possible.
 For example, registering an application with a Slurm based WLM requires
 two identifiers, \f[C]jobid\f[R] and \f[C]stepid\f[R].
 .PP
-Because there is no one universal way to register existing applications
+Because there is no one universal way to register running applications
 with CTI, the different mechanisms are implemented as WLM-specific
 extensions.
 These are documented in the section WLM-specific Extensions.
@@ -542,6 +550,10 @@ after the session/application exit.
 .PP
 Depending on tool need, multiple tool daemons can share the same
 session, or be isolated into different sessions.
+When deploying multiple tool daemons, the developer can choose to either
+reduce file transmission by sharing a session, or increase isolation by
+creating a new session for each tool.
+.PP
 A session is always associated with an application via a
 \f[C]cti_app_id_t\f[R].
 This is because a session must be associated with a file system location
@@ -669,7 +681,7 @@ dependencies will be found in \f[C]LD_LIBRARY_PATH\f[R] of the
 environment of a tool daemon process.
 .PP
 If a shared library dependency is not available on the compute node and
-needs to be collocated, CTI is able to handle naming collisions across
+needs to be co-loocated, CTI is able to handle naming collisions across
 library names.
 CTI does this automatically via use of unique directories created under
 the session\[cq]s \f[C]/lib\f[R] along with setting an appropriate
