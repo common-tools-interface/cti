@@ -7,7 +7,7 @@
 ACLOCAL_AMFLAGS = -I m4
 AM_LIBTOOLFLAGS = --quiet
 
-SUBDIRS = src tests/mock tests/unit
+SUBDIRS = src tests/mock tests/unit man
 
 EXTRA_DIST = pkgconfig \
 			 release_versioning
