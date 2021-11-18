@@ -25,6 +25,7 @@ Purpose:
       in a future release.
     - Flux, Shasta PALS, and ALPS support can be disabled at
       compile-time if development headers are not available.
+    - Updated gen compilers to cray-gcc-10.3.0
 
 Product and OS Dependencies:
 -----------------------------
@@ -36,7 +37,6 @@ Product and OS Dependencies:
     - Baymax systems with RH 8.0 or later
 
   Product Dependencies:
-    - GCC 8.1.0 associated runtime libraries are required on all systems.
     - Cray cray-cdst-support rpm installed
 
 Documentation:
