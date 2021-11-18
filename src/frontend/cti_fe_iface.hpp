@@ -180,13 +180,21 @@ public:
 
     // Safely run code that can throw and use it to set cti error instead.
     // A C api should never allow an exception to escape the runtime.
-    template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
+    template <typename FuncType, typename ReturnType>
     static ReturnType
     runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
         auto sigchldBlocker = SigchldBlocker{};
 
         try {
-            return std::forward<FuncType>(func)();
+            using FuncReturnType = decltype(std::declval<FuncType>()());
+            if constexpr (std::is_void<FuncReturnType>::value) {
+                // If the WLM interface is disabled, all WLM-specific
+                // functions will throw and be detected as returing void
+                std::forward<FuncType>(func)();
+                throw std::runtime_error("Called a disabled WLM function that did not throw");
+            } else {
+                return std::forward<FuncType>(func)();
+            }
         } catch (std::exception const& ex) {
             auto const message = std::string{ex.what() ? ex.what() : "(null error string)"};
             set_error_str(caller + ": " + message);

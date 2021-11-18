@@ -54,7 +54,6 @@ AC_LIBTOOL_DLOPEN
 AC_PROG_LIBTOOL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
-
 AX_CXX_COMPILE_STDCXX_17([noext])
 
 LT_INIT
@@ -62,30 +61,75 @@ LT_INIT
 dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENABLED, CODE_COVERAGE_CFLAGS, etc.
 AX_CODE_COVERAGE
 
-dnl Set external directory for libALPS headers (library will be dlopened at runtime)
-AC_SUBST([LIBALPS_HEADERS], [$COMMONTOOL_DIR/external/libalps_headers])
-SAVE_CPPFLAGS=$CPPFLAGS
-CPPFLAGS="-I$LIBALPS_HEADERS $CPPFLAGS"
-AC_CHECK_HEADERS([$LIBALPS_HEADERS/alps/apInfo.h],
-[],
-[AC_MSG_ERROR([Couldn't find libALPS headers])],
-[#include "alps/apInfo.h"])
-
 PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
+
+dnl Enable ALPS support
+AC_ARG_ENABLE([alps],
+  [AS_HELP_STRING([--enable-alps], [Enable support for the ALPS WLM. Must have ALPS headers available.])],,
+  [enable_alps=yes])
+enable_alps=`echo $enable_alps`
+case $enable_alps in
+  yes | no) ;;
+  *) AC_MSG_ERROR([Unknown option '$enable_alps' for --enable-alps, expected 'yes' or 'no']) ;;
+esac
+AM_CONDITIONAL([ENABLE_ALPS], [test x$enable_alps = xyes])
+
+dnl Set external directory for libalps headers (library will be dlopened at runtime)
+AM_COND_IF([ENABLE_ALPS], [
+  LIBALPS_CPPFLAGS="-I$COMMONTOOL_DIR/external/libalps_headers"
+  AC_SUBST([LIBALPS_CPPFLAGS], [$LIBALPS_CPPFLAGS])
+  SAVE_CPPFLAGS=$CPPFLAGS
+  CPPFLAGS="$LIBALPS_CPPFLAGS $CPPFLAGS"
+  AC_CHECK_HEADERS([alps/alps.h],
+  [AC_DEFINE([HAVE_ALPS], [1], [CTI configured with ALPS support])],
+  [AC_MSG_ERROR([Couldn't find libalps headers in external/libalps_headers. Try configuring with --enable-alps=no])],
+  [AC_INCLUDES_DEFAULT])
+])
+
+dnl Enable PALS support
+AC_ARG_ENABLE([pals],
+  [AS_HELP_STRING([--enable-pals], [Enable support for the PALS WLM. Must have PALS headers available.])],,
+  [enable_pals=yes])
+enable_pals=`echo $enable_pals`
+case $enable_pals in
+  yes | no) ;;
+  *) AC_MSG_ERROR([Unknown option '$enable_pals' for --enable-pals, expected 'yes' or 'no']) ;;
+esac
+AM_CONDITIONAL([ENABLE_PALS], [test x$enable_pals = xyes])
+
+dnl Set external directory for libpals headers (library will be dlopened at runtime)
+AM_COND_IF([ENABLE_PALS], [
+  LIBPALS_CPPFLAGS="-I$COMMONTOOL_DIR/external/libalps_headers"
+  AC_SUBST([LIBPALS_CPPFLAGS], [$LIBPALS_CPPFLAGS])
+  SAVE_CPPFLAGS=$CPPFLAGS
+  CPPFLAGS="$LIBPALS_CPPFLAGS $CPPFLAGS"
+  AC_CHECK_HEADERS([pals.h],
+  [AC_DEFINE([HAVE_PALS], [1], [CTI configured with PALS support])],
+  [AC_MSG_ERROR([Couldn't find libpals headers in external/libalps_headers. Try configuring with --enable-pals=no])],
+  [AC_INCLUDES_DEFAULT])
+])
 
 dnl Enable Flux support
 AC_ARG_ENABLE([flux],
-  [AS_HELP_STRING([--enable-flux], [Enable support for the Flux WLM. Must have Flux pkg-config scripts in path.])],,
-  [enable_flux=no])
+  [AS_HELP_STRING([--enable-flux], [Enable support for the Flux WLM. Must have Flux headers available.])],,
+  [enable_flux=yes])
 enable_flux=`echo $enable_flux`
 case $enable_flux in
   yes | no) ;;
   *) AC_MSG_ERROR([Unknown option '$enable_flux' for --enable-flux, expected 'yes' or 'no']) ;;
 esac
 AM_CONDITIONAL([ENABLE_FLUX], [test x$enable_flux = xyes])
+
+dnl Set external directory for libflux headers (library will be dlopened at runtime)
 AM_COND_IF([ENABLE_FLUX], [
-  PKG_CHECK_MODULES([FLUX_CORE], [flux-core])
-  AC_DEFINE([HAVE_FLUX], [1], [Define to 1 if configured with Flux support.])
+  LIBFLUX_CPPFLAGS="-I$COMMONTOOL_DIR/external/libalps_headers"
+  AC_SUBST([LIBFLUX_CPPFLAGS], [$LIBFLUX_CPPFLAGS])
+  SAVE_CPPFLAGS=$CPPFLAGS
+  CPPFLAGS="$LIBFLUX_CPPFLAGS $CPPFLAGS"
+  AC_CHECK_HEADERS([flux/core.h],
+  [AC_DEFINE([HAVE_FLUX], [1], [CTI configured with Flux support])],
+  [AC_MSG_ERROR([Couldn't find libflux headers in external/libalps_headers. Try configuring with --enable-flux=no])],
+  [AC_INCLUDES_DEFAULT])
 ])
 
 ############################
@@ -198,16 +242,6 @@ AC_CHECK_HEADER([libssh2.h],
 dnl restore flags
 CFLAGS="$save_CFLAGS"
 
-dnl Check for Flux header
-save_CFLAGS="$CFLAGS"
-AM_COND_IF([ENABLE_FLUX], [
-  CFLAGS="$CFLAGS $FLUX_CORE_CFLAGS"
-  AC_CHECK_HEADER([flux/core.h], [], [
-    AC_MSG_FAILURE([flux/core.h not found.])
-  ])
-])
-CFLAGS="$save_CFLAGS"
-
 #####################################################################
 ### Check for typedefs, structures, and compiler characteristics. ###
 #####################################################################
@@ -267,9 +301,7 @@ AC_CONFIG_FILES([
     src/frontend/daemon/Makefile
     src/frontend/transfer/Makefile
     src/frontend/frontend_impl/Makefile
-    src/frontend/frontend_impl/ALPS/Makefile
     src/frontend/frontend_impl/SLURM/Makefile
-    src/frontend/frontend_impl/PALS/Makefile
     src/frontend/frontend_impl/GenericSSH/Makefile
     src/frontend/mpir_iface/Makefile
     src/useful/Makefile
@@ -280,6 +312,12 @@ AC_CONFIG_FILES([
     man/Makefile
 ])
 
+AM_COND_IF([ENABLE_PALS], [
+    AC_CONFIG_FILES([src/frontend/frontend_impl/PALS/Makefile])
+])
+AM_COND_IF([ENABLE_ALPS], [
+    AC_CONFIG_FILES([src/frontend/frontend_impl/ALPS/Makefile])
+])
 AM_COND_IF([ENABLE_FLUX], [
     AC_CONFIG_FILES([src/frontend/frontend_impl/Flux/Makefile])
 ])

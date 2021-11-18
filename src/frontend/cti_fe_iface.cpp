@@ -179,11 +179,19 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
     switch (wlm_type) {
         // WLM Frontend implementations
         case CTI_WLM_ALPS:
+#if HAVE_ALPS
             return ALPSFrontend::getName();
+#else
+            return "ALPS support was not configured for this build of CTI.";
+#endif
         case CTI_WLM_SLURM:
             return SLURMFrontend::getName();
         case CTI_WLM_PALS:
+#if HAVE_PALS
             return PALSFrontend::getName();
+#else
+            return "Shasta PALS support was not configured for this build of CTI.";
+#endif
         case CTI_WLM_SSH:
             return GenericSSHFrontend::getName();
         case CTI_WLM_FLUX:
@@ -354,26 +362,38 @@ cti_getLauncherHostName(cti_app_id_t appId) {
 
 // ALPS WLM extensions
 
+#if HAVE_ALPS
+#define CHECK_ALPS(...) __VA_ARGS__
+#else
+#define CHECK_ALPS(...) \
+    throw std::runtime_error("ALPS support was not compiled into this version of CTI");
+#endif
+
 static cti_app_id_t
 _cti_alps_registerApid(uint64_t apid) {
     return FE_iface::runSafely(__func__, [&](){
+        CHECK_ALPS(
         auto&& fe = downcastFE<ALPSFrontend>();
         auto wp = fe.registerJob(1, apid);
         return fe.Iface().trackApp(wp);
+        )
     }, APP_ERROR);
 }
 
 static uint64_t
 _cti_alps_getApid(pid_t aprunPid) {
     return FE_iface::runSafely(__func__, [&](){
+        CHECK_ALPS(
         auto&& fe = downcastFE<ALPSFrontend>();
         return fe.getApid(aprunPid);
+        )
     }, uint64_t{0});
 }
 
 static cti_aprunProc_t*
 _cti_alps_getAprunInfo(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
+        CHECK_ALPS(
         auto&& fe = Frontend::inst();
         auto ap = downcastApp<ALPSApp>(fe.Iface().getApp(appId));
         if (auto result = (cti_aprunProc_t*)malloc(sizeof(cti_aprunProc_t))) {
@@ -382,15 +402,18 @@ _cti_alps_getAprunInfo(cti_app_id_t appId) {
         } else {
             throw std::runtime_error("malloc failed.");
         }
+        )
     }, (cti_aprunProc_t*)nullptr);
 }
 
 static int
 _cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId) {
     return FE_iface::runSafely(__func__, [&](){
+        CHECK_ALPS(
         auto&& fe = Frontend::inst();
         auto ap = downcastApp<ALPSApp>(fe.Iface().getApp(appId));
         return ap->getAlpsOverlapOrdinal();
+        )
     }, int{-1});
 }
 
@@ -447,20 +470,31 @@ static cti_slurm_ops_t _cti_slurm_ops = {
 
 // PALS WLM extensions
 
+#if HAVE_PALS
+#define CHECK_PALS(...) __VA_ARGS__
+#else
+#define CHECK_PALS(...) \
+    throw std::runtime_error("Shasta PALS support was not compiled into this version of CTI");
+#endif
+
 static char*
 _cti_pals_getApid(pid_t craycliPid) {
     return FE_iface::runSafely(__func__, [&](){
+        CHECK_PALS(
         auto&& fe = downcastFE<PALSFrontend>();
         return strdup(fe.getApid(craycliPid).c_str());
+        )
     }, (char*)nullptr);
 }
 
 static cti_app_id_t
 _cti_pals_registerApid(char const* apid) {
     return FE_iface::runSafely(__func__, [&](){
+        CHECK_PALS(
         auto&& fe = downcastFE<PALSFrontend>();
         auto wp = fe.registerJob(1, apid);
         return fe.Iface().trackApp(wp);
+        )
     }, APP_ERROR);
 }
 
@@ -516,17 +550,21 @@ static cti_ssh_ops_t _cti_ssh_ops = {
 
 // Flux WLM extensions
 
+#if HAVE_FLUX
+#define CHECK_FLUX(...) __VA_ARGS__
+#else
+#define CHECK_FLUX(...) \
+    throw std::runtime_error("Flux support was not compiled into this version of CTI");
+#endif
+
 static cti_app_id_t
 _cti_flux_registerJob(char const* job_id) {
     return FE_iface::runSafely(__func__, [&](){
-#if HAVE_FLUX
+        CHECK_FLUX(
         auto&& fe = downcastFE<FluxFrontend>();
         auto wp = fe.registerJob(1, job_id);
         return fe.Iface().trackApp(wp);
-#else
-        throw std::runtime_error("Flux support was not compiled into this version of CTI");
-        return APP_ERROR;
-#endif
+        )
     }, APP_ERROR);
 }
 

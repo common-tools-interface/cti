@@ -42,6 +42,7 @@
 
 #include "transfer/Manifest.hpp"
 
+#define FLUX_SHELL_PLUGIN_NAME cti
 #include <flux/core.h>
 #include <flux/shell.h>
 

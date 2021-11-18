@@ -14,8 +14,14 @@ AM_LIBTOOLFLAGS = --quiet
 
 lib_LTLIBRARIES = libcommontools_be.la
 
-libcommontools_be_la_SOURCES	= cti_be.c alps_be.c pals_be.c slurm_be.c pmi_attribs_parser.c generic_ssh_be.c \
+libcommontools_be_la_SOURCES	= cti_be.c slurm_be.c pmi_attribs_parser.c generic_ssh_be.c \
 								pmi_attribs_parser.h
+if ENABLE_ALPS
+libcommontools_be_la_SOURCES += alps_be.c
+endif
+if ENABLE_PALS
+libcommontools_be_la_SOURCES += pals_be.c
+endif
 if ENABLE_FLUX
 libcommontools_be_la_SOURCES += flux_be.c
 endif
