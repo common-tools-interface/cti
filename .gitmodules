@@ -5,6 +5,7 @@
 [submodule "external/libalps_headers"]
 	path = external/libalps_headers
 	url = ssh://stash.us.cray.com:7999/pe-cdst/libalps_headers.git
+	branch = master
 [submodule "rpmbuild/SOURCES/set_default"]
 	path = rpmbuild/SOURCES/set_default
 	url = ssh://git@stash.us.cray.com:7999/pe-cenv/set_default.git

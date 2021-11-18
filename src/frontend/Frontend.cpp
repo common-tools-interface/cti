@@ -1020,13 +1020,23 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
         }
 
     } else if (wlm == WLM::ALPS) {
+#if HAVE_ALPS
         return new ALPSFrontend{};
+#else
+        throw std::runtime_error("ALPS support was not configured for this build of CTI \
+(tried " + format_System_WLM(system, wlm) + ")");
+#endif
 
     } else if (wlm == WLM::PALS) {
         if (system == System::HPCM) {
             return new HPCMPALSFrontend{};
         } else if (system == System::Shasta) {
+#if HAVE_PALS
             return new PALSFrontend{};
+#else
+            throw std::runtime_error("Shasta PALS support was not configured for this build of CTI \
+(tried " + format_System_WLM(system, wlm) + ")");
+#endif
         } else {
             assert(false);
         }

@@ -31,9 +31,13 @@
 
 #include <config.h>
 
+#if HAVE_ALPS
 #include "ALPS/Frontend.hpp"
+#endif
 #include "SLURM/Frontend.hpp"
+#if HAVE_PALS
 #include "PALS/Frontend.hpp"
+#endif
 #include "GenericSSH/Frontend.hpp"
 #if HAVE_FLUX
 #include "Flux/Frontend.hpp"

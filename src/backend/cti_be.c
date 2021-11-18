@@ -41,10 +41,16 @@
 #include "cti_be.h"
 
 /* wlm specific proto objects defined elsewhere */
-extern cti_be_wlm_proto_t   _cti_be_alps_wlmProto;
-extern cti_be_wlm_proto_t   _cti_be_pals_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_slurm_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_generic_ssh_wlmProto;
+
+#ifdef HAVE_PALS
+extern cti_be_wlm_proto_t   _cti_be_pals_wlmProto;
+#endif
+
+#ifdef HAVE_ALPS
+extern cti_be_wlm_proto_t   _cti_be_alps_wlmProto;
+#endif
 
 #ifdef HAVE_FLUX
 extern cti_be_wlm_proto_t   _cti_be_flux_wlmProto;
@@ -93,13 +99,17 @@ _cti_be_init(void)
     // verify that the wlm string is valid
     switch (atoi(wlm_str))
     {
+#ifdef HAVE_ALPS
         case CTI_WLM_ALPS:
             _cti_be_wlmProto = &_cti_be_alps_wlmProto;
             break;
+#endif
 
+#ifdef HAVE_PALS
         case CTI_WLM_PALS:
             _cti_be_wlmProto = &_cti_be_pals_wlmProto;
             break;
+#endif
 
         case CTI_WLM_SLURM:
             _cti_be_wlmProto = &_cti_be_slurm_wlmProto;
@@ -109,9 +119,8 @@ _cti_be_init(void)
             _cti_be_wlmProto = &_cti_be_generic_ssh_wlmProto;
             break;
 
-        case CTI_WLM_FLUX:
-
 #ifdef HAVE_FLUX
+        case CTI_WLM_FLUX:
             _cti_be_wlmProto = &_cti_be_flux_wlmProto;
             break;
 #endif

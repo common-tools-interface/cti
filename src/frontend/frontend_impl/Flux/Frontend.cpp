@@ -42,6 +42,8 @@
 
 #include "transfer/Manifest.hpp"
 
+#define FLUX_SHELL_PLUGIN_NAME cti
+
 #include <flux/core.h>
 #include <flux/shell.h>
 
@@ -466,6 +468,36 @@ FluxFrontend::FluxFrontend()
 {
     if (m_fluxHandle == nullptr) {
         throw std::runtime_error{"Flux initialization failed: " + std::string{strerror(errno)}};
+    }
+
+    // Check that flux runtime version matches header version (check can be removed after
+    // libflux-core interface stabilizes in Flux 1.0 release)
+    // Can be bypassed by setting environment variable
+    if (::getenv(CTI_FLUX_DEBUG_ENV_VAR) == nullptr) {
+        auto fluxArgv = cti::ManagedArgv{getLauncherName(), "--version"};
+        auto fluxOutput = cti::Execvp{getLauncherName().c_str(), fluxArgv.get(), cti::Execvp::stderr::Ignore};
+
+        // Read libflux-core version line
+        auto& fluxStream = fluxOutput.stream();
+        auto versionLine = std::string{};
+        while (std::getline(fluxStream, versionLine)) {
+
+            // Split line into each word
+            auto const [key, value] = cti::split::string<2>(versionLine, ':');
+            if (key == "libflux-core") {
+                auto const runtime_version = cti::split::removeLeadingWhitespace(value);
+                auto const [version, hash] = cti::split::string<2>(FLUX_CORE_VERSION_STRING, '-');
+
+                if (runtime_version == version) {
+                    break;
+                } else {
+                    throw std::runtime_error("Mismatch between system's libflux-core version (" +
+runtime_version + ") and CTI's built version (" + version + "). libflux-core is still in \
+development, and its interface is subject to change. To attempt to continue, set the environment \
+variable " CTI_FLUX_DEBUG_ENV_VAR " and relaunch this application.");
+                }
+            }
+        }
     }
 
     // Remove any existing jobtap plugins

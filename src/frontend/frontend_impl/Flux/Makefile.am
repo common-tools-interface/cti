@@ -4,6 +4,7 @@
 # Copyright 2021 Hewlett Packard Enterprise Development LP.
 #
 
+BUILT_SOURCES = LibFlux.hpp
 SRC             	= @COMMONTOOL_DIR@/src
 INCLUDE				= @COMMONTOOL_DIR@/include
 
