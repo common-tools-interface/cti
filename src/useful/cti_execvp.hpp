@@ -72,7 +72,7 @@ protected:
                 return EOF;
 
             // numBytesRead is negative, indicating failure
-            } else if (errno == EAGAIN) {
+            } else if ((errno == EAGAIN) || (errno == EINTR)) {
                 continue;
             } else {
                 throw std::runtime_error("read failed: " + std::string{strerror(errno)});
