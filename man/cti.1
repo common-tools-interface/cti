@@ -178,6 +178,11 @@ To override this, set this variable to the Flux installation directory.
 \fILIBFLUX_PATH\fP: The location of the \fBlibflux\fP library is
 automatically detected from the dependency list of the Flux launcher.
 To override this, set this variable to the \fBlibflux\fP library path.
+.IP "\(bu" 3
+\fICTI_FLUX_DEBUG\fP: The \fBlibflux\fP library is currently in active
+development and its interface is subject to change. CTI will verify
+at runtime if your system is running a different version of Flux; this
+check can be bypassed by setting \fICTI_FLUX_DEBUG=1\fP.
 
 .SS "ALPS-specific variables"
 .PP

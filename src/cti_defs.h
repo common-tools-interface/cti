@@ -180,6 +180,7 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define FLUX_INSTALL_DIR_ENV_VAR "FLUX_INSTALL_DIR"
 #define LIBFLUX_PATH_ENV_VAR "LIBFLUX_PATH"
 #define LIBFLUX_NAME "libflux-core.so.2"
+#define CTI_FLUX_DEBUG_ENV_VAR "CTI_FLUX_DEBUG" // Bypass version mismatch errors
 
 /*
 ** HPCM specific information
