@@ -20,6 +20,7 @@ target_pm=$(get_pm)
 target_os=$(get_os)
 if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
     # Install zypper based dependencies
+    zypper refresh -f
     zypper --non-interactive install \
         autoconf \
         autoconf-archive \
