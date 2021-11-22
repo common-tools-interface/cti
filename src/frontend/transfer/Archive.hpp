@@ -37,6 +37,7 @@
 
 #include <memory>
 #include <functional>
+#include <string>
 
 class Archive {
 private: // variables
@@ -46,6 +47,7 @@ private: // variables
     std::unique_ptr<struct archive_entry, decltype(&archive_entry_free)> m_entryScratchpad;
     std::unique_ptr<char[]> m_readBuf;
     std::string m_archivePath;
+
 
 private: // functions
     // refresh the entry scratchpad without reallocating

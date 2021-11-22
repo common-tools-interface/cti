@@ -16,15 +16,16 @@ Product Description:
 
 Purpose:
 ---------
-  This bugfix release resolves the following issues:
-    - Fix potential deadlock during job launch / attach for HPCM PALS systems,
-      as well as the generic SSH interface
-    - Fix Slurm job attach when running on compute node where hostname does
-      not match the Slurm node name
-    - Add environment variable CTI_SLURM_DAEMON_GRES to set the --gres
-      for Slurm daemon launches. For Slurm versions 21.08 and newer, this
-      should be set to an empty string (see SchedMD bug)
-      https://bugs.schedmd.com/show_bug.cgi?id=12642
+  This release adds the following features:
+    - Added user documentation manpage cti(1), and developer
+      documentation manpage cti(3).
+    - Preliminary support for the Flux workload manager.
+      Note that passwordless SSH access to compute nodes must be
+      configured for Flux support. This limitation will be removed
+      in a future release.
+    - Flux, Shasta PALS, and ALPS support can be disabled at
+      compile-time if development headers are not available.
+    - Updated gen compilers to cray-gcc-10.3.0
 
 Product and OS Dependencies:
 -----------------------------
@@ -36,7 +37,6 @@ Product and OS Dependencies:
     - Baymax systems with RH 8.0 or later
 
   Product Dependencies:
-    - GCC 8.1.0 associated runtime libraries are required on all systems.
     - Cray cray-cdst-support rpm installed
 
 Documentation:

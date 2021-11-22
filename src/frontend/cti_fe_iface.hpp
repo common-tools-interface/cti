@@ -31,11 +31,14 @@
 
 #include "cti_defs.h"
 
+#include <signal.h>
+
 // Need to include external interface definitions
 #include "common_tools_fe.h"
 
 #include <memory>
 #include <string>
+#include <stdexcept>
 #include <unordered_map>
 
 // Forward declarations
@@ -97,6 +100,53 @@ private:
             return newId;
         }
     };
+
+    struct SigchldBlocker
+    {
+        bool old_action_valid;
+        struct sigaction old_action;
+
+        static void sig_handler(int signo)
+        {
+            // Ignore signal while still allowing waitpid to function
+        }
+
+        SigchldBlocker()
+            : old_action_valid{false}
+            , old_action{}
+        {
+            struct sigaction sa{};
+            sigemptyset(&sa.sa_mask);
+            sa.sa_flags = 0;
+            sa.sa_handler = sig_handler;
+
+            // Ignore invalid sigaction and let processing continue
+            if (sigaction(SIGCHLD, &sa, &old_action) < 0) {
+                perror("sigaction");
+            } else {
+                old_action_valid = true;
+            }
+        }
+
+        SigchldBlocker(SigchldBlocker&& expiring)
+            : old_action_valid{expiring.old_action_valid}
+            , old_action{expiring.old_action}
+        {
+            expiring.old_action_valid = false;
+        }
+
+        ~SigchldBlocker()
+        {
+            if (old_action_valid) {
+                if (sigaction(SIGCHLD, &old_action, nullptr) < 0) {
+                    perror("sigaction");
+                }
+                old_action_valid = false;
+            }
+        }
+    };
+
+
 private: // Static internal data
     // Error string we export to callers - we want this to leak!
     static char *       _cti_err_str;
@@ -130,11 +180,21 @@ public:
 
     // Safely run code that can throw and use it to set cti error instead.
     // A C api should never allow an exception to escape the runtime.
-    template <typename FuncType, typename ReturnType = decltype(std::declval<FuncType>()())>
+    template <typename FuncType, typename ReturnType>
     static ReturnType
     runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
+        auto sigchldBlocker = SigchldBlocker{};
+
         try {
-            return std::forward<FuncType>(func)();
+            using FuncReturnType = decltype(std::declval<FuncType>()());
+            if constexpr (std::is_void<FuncReturnType>::value) {
+                // If the WLM interface is disabled, all WLM-specific
+                // functions will throw and be detected as returing void
+                std::forward<FuncType>(func)();
+                throw std::runtime_error("Called a disabled WLM function that did not throw");
+            } else {
+                return std::forward<FuncType>(func)();
+            }
         } catch (std::exception const& ex) {
             auto const message = std::string{ex.what() ? ex.what() : "(null error string)"};
             set_error_str(caller + ": " + message);

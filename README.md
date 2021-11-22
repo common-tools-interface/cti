@@ -176,11 +176,11 @@ Function listing
 
     char * cti_getHostname(void)
 
-> `cti_getHostname` is used to obtain the hostname of the current login
-> node. This is the hostname of the network interface that can open
-> socket connections between the login node and compute node. This is
-> useful on systems where multiple network interfaces make a standard
-> `gethostname(2)` call from `glibc` ambiguous.
+> `cti_getHostname` is used to determine an externally-accessible hostname
+> or IP address for the current node. This is the hostname of the network
+> interface that can open socket connections between the login node and
+> compute node. This is useful on systems where multiple network
+> interfaces make a standard `gethostname(2)` call from `glibc` ambiguous.
 
     int cti_setAttribute(cti_attr_type_t attrib, const char *value)
 
@@ -614,7 +614,7 @@ CTI will conduct setup of the tool daemon environment before calling
 
 By default, tool daemon processes will have their `stdout`/`stderr`
 redirected to `/dev/null`. This can be overridden by use of the
-`CTI_DBG_ENV_VAR` and `CTI_DBG_LOG_DIR_ENV_VAR` (see
+`CTI_DEBUG` and `CTI_LOG_DIR` (see
 `common_tools_shared.h` for more information). This allows a tool daemon
 to write debug logs to a known location in a parallel file system. There
 will be one file per compute node with names correlating to each compute

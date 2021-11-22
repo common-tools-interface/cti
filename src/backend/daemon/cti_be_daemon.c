@@ -83,10 +83,16 @@ struct cti_pids
 };
 
 /* wlm specific proto objects defined elsewhere */
-extern cti_wlm_proto_t	_cti_alps_wlmProto;
-extern cti_wlm_proto_t	_cti_pals_wlmProto;
 extern cti_wlm_proto_t  _cti_slurm_wlmProto;
 extern cti_wlm_proto_t  _cti_generic_ssh_wlmProto;
+
+#ifdef HAVE_ALPS
+extern cti_wlm_proto_t	_cti_alps_wlmProto;
+#endif
+
+#ifdef HAVE_PALS
+extern cti_wlm_proto_t	_cti_pals_wlmProto;
+#endif
 
 #ifdef HAVE_FLUX
 extern cti_wlm_proto_t  _cti_flux_wlmProto;
@@ -471,13 +477,17 @@ main(int argc, char **argv)
     // log if asked to. We will error check below.
     switch (wlm_arg)
     {
+#ifdef HAVE_ALPS
         case CTI_WLM_ALPS:
             _cti_wlmProto = &_cti_alps_wlmProto;
             break;
+#endif
 
+#ifdef HAVE_PALS
         case CTI_WLM_PALS:
             _cti_wlmProto = &_cti_pals_wlmProto;
             break;
+#endif
 
         case CTI_WLM_SLURM:
             _cti_wlmProto = &_cti_slurm_wlmProto;
@@ -487,9 +497,8 @@ main(int argc, char **argv)
             _cti_wlmProto = &_cti_generic_ssh_wlmProto;
             break;
 
-        case CTI_WLM_FLUX:
-
 #ifdef HAVE_FLUX
+        case CTI_WLM_FLUX:
             _cti_wlmProto = &_cti_flux_wlmProto;
             break;
 #endif

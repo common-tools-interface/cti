@@ -35,6 +35,8 @@ setup_modules
 module load cray-cdst-support
 check_exit_status
 
+module list
+
 echo "############################################"
 echo "#      Generating configure files          #"
 echo "############################################"

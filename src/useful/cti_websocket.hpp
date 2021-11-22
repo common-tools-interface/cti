@@ -328,14 +328,19 @@ static inline void webSocketInputTask(WebSocketStream& webSocketStream, Func&& d
         auto const completed = dataSource(message);
 
         // Perform websocket write
-        webSocketStream.write(boost::asio::buffer(message), ec);
+        auto buffer = boost::asio::buffer(message);
+        auto written = size_t{0};
+        while (written < buffer.size()) {
+            written += webSocketStream.write(buffer + written, ec);
 
-        // Check for websocket error
-        if (ec) {
-            throw std::runtime_error(ec.message());
+            // Check for websocket error
+            if (ec && (ec != boost::asio::error::interrupted)) {
+                throw std::runtime_error(ec.message());
+            }
+        }
 
         // If callback requested exit, end loop
-        } else if (completed) {
+        if (completed) {
             return;
         }
     }
@@ -352,6 +357,7 @@ static inline void webSocketOutputTask(WebSocketStream& webSocketStream, Func&& 
 
     // Read loop
     while (true) {
+
         // Perform websocket read
         auto const bytes_read = webSocketStream.read(buffer, ec);
 
@@ -377,7 +383,7 @@ static inline void webSocketOutputTask(WebSocketStream& webSocketStream, Func&& 
             return;
 
         // Check for websocket error
-        } else if (ec) {
+        } else if (ec && (ec != boost::asio::error::interrupted)) {
             throw std::runtime_error(ec.message());
         }
     }

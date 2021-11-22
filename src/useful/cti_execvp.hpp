@@ -72,7 +72,7 @@ protected:
                 return EOF;
 
             // numBytesRead is negative, indicating failure
-            } else if (errno == EAGAIN) {
+            } else if ((errno == EAGAIN) || (errno == EINTR)) {
                 continue;
             } else {
                 throw std::runtime_error("read failed: " + std::string{strerror(errno)});
@@ -236,7 +236,7 @@ public:
                 if (errno == EINTR) {
                     continue;
                 } else {
-                    throw std::runtime_error("waitpid() on " + std::to_string(child) + " failed!");
+                    throw std::runtime_error("waitpid() on " + std::to_string(child) + " failed: " + std::string{strerror(errno)});
                 }
             } else {
                 return WEXITSTATUS(status);
@@ -261,11 +261,18 @@ public:
         }
 
         int status = 0;
-        if ((waitpid(child, &status, 0) < 0) && (errno != ECHILD)) {
-            throw std::runtime_error(
-                std::string("waitpid() on ") + std::to_string(child) + " failed!");
+        while (true) {
+            auto const rc = ::waitpid(child, &status, 0);
+            if (rc < 0) {
+                if (errno == EINTR) {
+                    continue;
+                } else if (errno != ECHILD) {
+                    throw std::runtime_error("waitpid() on " + std::to_string(child) + " failed: " + std::string{strerror(errno)});
+                }
+            } else {
+                return WEXITSTATUS(status);
+            }
         }
-        return WEXITSTATUS(status);
     }
 };
 

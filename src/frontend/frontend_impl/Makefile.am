@@ -4,7 +4,13 @@
 # Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
 #
 
-SUBDIRS				= ALPS SLURM PALS GenericSSH
+SUBDIRS				= SLURM GenericSSH
+if ENABLE_ALPS
+SUBDIRS += ALPS
+endif
+if ENABLE_PALS
+SUBDIRS += PALS
+endif
 if ENABLE_FLUX
 SUBDIRS += Flux
 endif
@@ -14,10 +20,17 @@ AM_LIBTOOLFLAGS 	= --quiet
 noinst_LTLIBRARIES	= libfrontend_impl.la
 
 libfrontend_impl_la_SOURCES		=
-libfrontend_impl_la_LIBADD		= ALPS/libalps.la SLURM/libslurm.la PALS/libpals.la GenericSSH/libgenericssh.la
+libfrontend_impl_la_LIBADD		= SLURM/libslurm.la GenericSSH/libgenericssh.la
+if ENABLE_ALPS
+libfrontend_impl_la_LIBADD += ALPS/libalps.la
+endif
+if ENABLE_PALS
+libfrontend_impl_la_LIBADD += PALS/libpals.la
+endif
 if ENABLE_FLUX
 libfrontend_impl_la_LIBADD += Flux/libflux.la
 endif
+
 libfrontend_impl_la_LIBADD += $(CODE_COVERAGE_LIBS)
 libfrontend_impl_la_LDFLAGS		= -Wl,--no-undefined $(AM_LDFLAGS)
 libfrontend_impl_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
