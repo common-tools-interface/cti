@@ -1,7 +1,7 @@
 #
 # Makefile.am for the CTI unit tests
 #
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             = @COMMONTOOL_DIR@/src
@@ -9,8 +9,8 @@ SUPPORT         = @COMMONTOOL_DIR@/tests/test_support
 MOCK            = @COMMONTOOL_DIR@/tests/mock
 EXTERNAL		= @COMMONTOOL_DIR@/include
 
-GTEST           = $(SUPPORT)/googletest/googletest
-GMOCK           = $(SUPPORT)/googletest/googlemock
+GTEST           = $(SUPPORT)/hpc-pe-cdst-googletest/googletest
+GMOCK           = $(SUPPORT)/hpc-pe-cdst-googletest/googlemock
 
 AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects

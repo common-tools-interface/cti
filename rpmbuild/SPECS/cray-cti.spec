@@ -227,9 +227,9 @@ Test files for Cray Common Tools Interface
 # Cray PE dependency resolver
 %{__sed} 's|<CRAY_PREFIX>|%{cray_prefix}|g;s|<PKG_VERSION>|%{pkgversion}|g;s|<PE_PRODUCT>|%{cray_product}|g' %{SOURCE3} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 # set_default template
-%{__sed} 's|\[product_name\]|%{cray_product}|g;s|\[version_string\]|%{pkgversion}|g;s|\[install_dir\]|%{prefix}|g;s|\[module_dir\]|%{prefix}/modulefiles|g;s|\[module_name_list\]|%{modulefile_name}|g;s|\[lmod_dir_list\]|%{prefix}/lmod/modulefiles/core|g;s|\[lmod_name_list\]|%{modulefile_name}|g' %{_sourcedir}/set_default/%{set_default_template} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
+%{__sed} 's|\[product_name\]|%{cray_product}|g;s|\[version_string\]|%{pkgversion}|g;s|\[install_dir\]|%{prefix}|g;s|\[module_dir\]|%{prefix}/modulefiles|g;s|\[module_name_list\]|%{modulefile_name}|g;s|\[lmod_dir_list\]|%{prefix}/lmod/modulefiles/core|g;s|\[lmod_name_list\]|%{modulefile_name}|g' %{_sourcedir}/hpc-pe-cenv-set_default/%{set_default_template} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
 # set_default template - devel
-%{__sed} 's|\[product_name\]|%{cray_product}|g;s|\[version_string\]|%{pkgversion}|g;s|\[install_dir\]|%{prefix}|g;s|\[module_dir\]|%{prefix}/modulefiles|g;s|\[module_name_list\]|%{devel_modulefile_name}|g;s|\[lmod_dir_list\]|%{prefix}/lmod/modulefiles/core|g;s|\[lmod_name_list\]|%{devel_modulefile_name}|g' %{_sourcedir}/set_default/%{set_default_template} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
+%{__sed} 's|\[product_name\]|%{cray_product}|g;s|\[version_string\]|%{pkgversion}|g;s|\[install_dir\]|%{prefix}|g;s|\[module_dir\]|%{prefix}/modulefiles|g;s|\[module_name_list\]|%{devel_modulefile_name}|g;s|\[lmod_dir_list\]|%{prefix}/lmod/modulefiles/core|g;s|\[lmod_name_list\]|%{devel_modulefile_name}|g' %{_sourcedir}/hpc-pe-cenv-set_default/%{set_default_template} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
 # set_default into admin-pe
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}
 %{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
@@ -308,17 +308,17 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/test_support/message_two/message.c     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.c
 %{__cp} -a %{tests_source_dir}/test_support/message_two/message.h     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.h
 
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googletest/src/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googletest/include/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/src/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/include/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googletest
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googletest/src
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googletest/include
+%{__cp} -a %{tests_source_dir}/test_support/hpc-pe-cdst-googletest/googletest/src/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googletest/src
+%{__cp} -a %{tests_source_dir}/test_support/hpc-pe-cdst-googletest/googletest/include/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googletest/include
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googlemock
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googlemock/src
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googlemock/include
+%{__cp} -a %{tests_source_dir}/test_support/hpc-pe-cdst-googletest/googlemock/src/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googlemock/src
+%{__cp} -a %{tests_source_dir}/test_support/hpc-pe-cdst-googletest/googlemock/include/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googlemock/include
 %{__cp} -a %{tests_source_dir}/build.sh ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/build.sh
 
 # Touch the cray dynamic file list which will be populated/updated post-install
@@ -471,14 +471,14 @@ then
 fi
 
 # If the install dir exists
-if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest/googlemock ]; then
-  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest/googlemock
+if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/hpc-pe-cdst-googletest/googlemock ]; then
+  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/hpc-pe-cdst-googletest/googlemock
 fi
-if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest/googletest ]; then
-  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest/googletest
+if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/hpc-pe-cdst-googletest/googletest ]; then
+  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/hpc-pe-cdst-googletest/googletest
 fi
-if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest ]; then
-  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/googletest
+if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/hpc-pe-cdst-googletest ]; then
+  %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support/hpc-pe-cdst-googletest
 fi
 if [ -d %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support ]; then
   %{__rm} -rf %{prefix}/%{cray_product}/%{pkgversion}/tests/test-support
@@ -581,8 +581,8 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.h
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/build.sh
 
-%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
-%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
-%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
-%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
+%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googletest/src
+%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googletest/include
+%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googlemock/src
+%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/hpc-pe-cdst-googletest/googlemock/include
 

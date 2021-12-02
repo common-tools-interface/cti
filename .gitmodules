@@ -1,14 +1,27 @@
-[submodule "tests/test_support/googletest"]
-	path = tests/test_support/googletest
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/googletest.git
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[submodule "external/hpc-pe-cdst-cdst_build_library"]
+	path = external/hpc-pe-cdst-cdst_build_library
+	url = git@github.hpe.com:hpe/hpc-pe-cdst-cdst_build_library.git
+[submodule "external/hpc-pe-cdst-libalps_headers"]
+	path = external/hpc-pe-cdst-libalps_headers
+	url = git@github.hpe.com:hpe/hpc-pe-cdst-libalps_headers.git
+[submodule "rpmbuild/SOURCES/hpc-pe-cenv-set_default"]
+	path = rpmbuild/SOURCES/hpc-pe-cenv-set_default
+	url = git@github.hpe.com:hpe/hpc-pe-cenv-set_default.git
+[submodule "tests/test_support/hpc-pe-cdst-googletest"]
+	path = tests/test_support/hpc-pe-cdst-googletest
+	url = git@github.hpe.com:hpe/hpc-pe-cdst-googletest.git
 	branch = cdst_external
-[submodule "external/libalps_headers"]
-	path = external/libalps_headers
-	url = ssh://stash.us.cray.com:7999/pe-cdst/libalps_headers.git
-	branch = master
-[submodule "rpmbuild/SOURCES/set_default"]
-	path = rpmbuild/SOURCES/set_default
-	url = ssh://git@stash.us.cray.com:7999/pe-cenv/set_default.git
-[submodule "external/cdst_build_library"]
-	path = external/cdst_build_library
-	url = ssh://git@stash.us.cray.com:7999/pe-cdst/cdst_build_library.git
