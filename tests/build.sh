@@ -5,7 +5,7 @@
 # the test process sooner or later (or autotools will become universally
 # available)
 
-#  Copyright 2020 Hewlett Packard Enterprise Development LP.
+#  Copyright 2021 Hewlett Packard Enterprise Development LP.
   
 cd test_support
 
@@ -18,7 +18,7 @@ gcc -g -O0 -L./message_one -lmessage -Wl,-rpath,${PWD}/message_one -o one_socket
 gcc -g -O0 -L./message_two -lmessage -Wl,-rpath,${PWD}/message_two -o two_socket two_socket.c
 gcc remote_filecheck.c -o remote_filecheck
 
-cd googletest
+cd hpc-pe-cdst-googletest
 
 CC -fPIC googlemock/src/gmock-all.cc -Igooglemock/include -Igooglemock -Igoogletest/include  --shared -o googlemock/src/libgmock.so
 

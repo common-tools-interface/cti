@@ -1,15 +1,15 @@
 #
 # Makefile.am for the frontend components of the common tools interface.
 #
-# Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2014-2021 Hewlett Packard Enterprise Development LP.
 #
 
 SRC             = @COMMONTOOL_DIR@/src
 INCLUDE			= @COMMONTOOL_DIR@/include
 SUPPORT         = @COMMONTOOL_DIR@/tests/test_support
 
-GTEST           = $(SUPPORT)/googletest/googletest
-GMOCK           = $(SUPPORT)/googletest/googlemock
+GTEST           = $(SUPPORT)/hpc-pe-cdst-googletest/googletest
+GMOCK           = $(SUPPORT)/hpc-pe-cdst-googletest/googlemock
 
 AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
