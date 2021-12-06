@@ -1,17 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 [submodule "external/hpc-pe-cdst-cdst_build_library"]
 	path = external/hpc-pe-cdst-cdst_build_library
 	url = git@github.hpe.com:hpe/hpc-pe-cdst-cdst_build_library.git
