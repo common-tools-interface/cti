@@ -103,7 +103,7 @@ public: // constructor / destructor interface
 
 /* Types used here */
 
-class GenericSSHApp final : public App
+class GenericSSHApp : public App
 {
 private: // variables
     FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
@@ -168,4 +168,47 @@ public: // PALS-specific interface
 
     // Detect and attach to job running on either this or remote machine (e.g. compute node)
     std::weak_ptr<App> registerRemoteJob(char const* job_id);
+};
+
+class HPCMPALSApp : public GenericSSHApp
+{
+    FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
+    std::string m_apId;
+    bool m_beDaemonSent;
+    MPIRProctable m_procTable;
+    BinaryRankMap m_binaryRankMap;
+
+    std::string m_apinfoPath;  // Backend path where the libpals apinfo file is located
+    std::string m_toolPath;    // Backend path where files are unpacked
+    std::string m_attribsPath; // Backend Cray-specific directory
+    std::string m_stagePath;   // Local directory where files are staged before transfer to BE
+    std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
+
+
+public:
+    HPCMPALSApp(HPCMPALSFrontend& fe, FE_daemon::MPIRResult&& mpirData);
+    ~HPCMPALSApp();
+    HPCMPALSApp(const HPCMPALSApp&) = delete;
+    HPCMPALSApp& operator=(const HPCMPALSApp&) = delete;
+    HPCMPALSApp(HPCMPALSApp&&) = delete;
+    HPCMPALSApp& operator=(HPCMPALSApp&&) = delete;
+
+    std::string getJobId()            const override { return m_apId; }
+    std::string getLauncherHostname() const override;
+    std::string getToolPath()         const override { return m_toolPath;    }
+    std::string getAttribsPath()      const override { return m_attribsPath; }
+
+    std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
+
+    bool   isRunning()       const override;
+    size_t getNumPEs()       const override;
+    size_t getNumHosts()     const override;
+    std::vector<std::string> getHostnameList()   const override;
+    std::vector<CTIHost>     getHostsPlacement() const override;
+    std::map<std::string, std::vector<int>> getBinaryRankMap() const override;
+
+    void releaseBarrier() override;
+    void kill(int signal) override;
+    void shipPackage(std::string const& tarPath) const override;
+    void startDaemon(const char* const args[]) override;
 };
