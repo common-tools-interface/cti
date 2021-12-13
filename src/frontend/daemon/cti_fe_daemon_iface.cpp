@@ -376,7 +376,7 @@ FE_daemon::request_ForkExecvpApp(char const* file,
     return readIDResp(m_resp_sock.getReadFd());
 }
 
-void
+bool
 FE_daemon::request_ForkExecvpUtil(DaemonAppId app_id, RunMode runMode,
     char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd,
     char const* const env[])
@@ -385,7 +385,16 @@ FE_daemon::request_ForkExecvpUtil(DaemonAppId app_id, RunMode runMode,
     fdWriteLoop(m_req_sock.getWriteFd(), app_id);
     fdWriteLoop(m_req_sock.getWriteFd(), runMode);
     writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
-    verifyOKResp(m_resp_sock.getReadFd());
+
+    // Expect successful async launch
+    if (runMode == RunMode::Asynchronous) {
+        verifyOKResp(m_resp_sock.getReadFd());
+        return true;
+
+    // Return whether launching the synchronous application was successful
+    } else {
+        return readOKResp(m_resp_sock.getReadFd());
+    }
 }
 
 FE_daemon::MPIRResult
@@ -418,6 +427,15 @@ std::string
 FE_daemon::request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable)
 {
     fdWriteLoop(m_req_sock.getWriteFd(), ReqType::ReadStringMPIR);
+    fdWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), variable, strlen(variable) + 1);
+    return readStringResp(m_resp_sock.getReadFd());
+}
+
+std::string
+FE_daemon::request_ReadCharArrayMPIR(DaemonAppId mpir_id, char const* variable)
+{
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::ReadCharArrayMPIR);
     fdWriteLoop(m_req_sock.getWriteFd(), mpir_id);
     fdWriteLoop(m_req_sock.getWriteFd(), variable, strlen(variable) + 1);
     return readStringResp(m_resp_sock.getReadFd());

@@ -184,6 +184,7 @@ public: // type definitions
         LaunchMPIRShim,
         AttachMPIR,
         ReadStringMPIR,
+        ReadCharArrayMPIR,
         ReleaseMPIR,
         TerminateMPIR,
 
@@ -262,10 +263,10 @@ public: // type definitions
     // Response types
 
     enum RespType : long {
-        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR
+        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR, ForkExecvpUtil
         OK,
 
-        // ForkExecvpApp, ForkExecvpUtil
+        // ForkExecvpApp
         ID,
 
         // ReadStringMPIR
@@ -356,7 +357,7 @@ private:
     // This can either be synchronous or asynchronous depending on runMode. Synchronous means wait
     // for utility to complete before returning from this call.
     // Write a utility launch request and parameters to pipe, return launched util id
-    void request_ForkExecvpUtil(DaemonAppId app_id,
+    bool request_ForkExecvpUtil(DaemonAppId app_id,
                                 RunMode runMode,
                                 char const* file,
                                 char const* const argv[],
@@ -370,20 +371,20 @@ public:
                                       int stdin_fd, int stdout_fd, int stderr_fd,
                                       char const* const env[] )
     {
-        request_ForkExecvpUtil(app_id,
+        (void)request_ForkExecvpUtil(app_id,
                                RunMode::Asynchronous,
                                file, argv,
                                stdin_fd, stdout_fd, stderr_fd,
                                env);
     }
 
-    void request_ForkExecvpUtil_Sync(DaemonAppId app_id,
+    bool request_ForkExecvpUtil_Sync(DaemonAppId app_id,
                                      char const* file,
                                      char const* const argv[],
                                      int stdin_fd, int stdout_fd, int stderr_fd,
                                      char const* const env[] )
     {
-        request_ForkExecvpUtil(app_id,
+        return request_ForkExecvpUtil(app_id,
                                RunMode::Synchronous,
                                file, argv,
                                stdin_fd, stdout_fd, stderr_fd,
@@ -406,6 +407,10 @@ public:
     // fe_daemon will read the value of a variable from memory under MPIR control.
     // Write an mpir string read request to pipe, return value
     std::string request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable);
+
+    // fe_daemon will read a null-terminated char array from memory.
+    // Write an mpir string read request to pipe, return value
+    std::string request_ReadCharArrayMPIR(DaemonAppId mpir_id, char const* variable);
 
     // fe_daemon will terminate a binary under mpir control.
     // Write an mpir release request to pipe, verify response

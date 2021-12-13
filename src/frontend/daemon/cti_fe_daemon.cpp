@@ -787,6 +787,16 @@ static std::string readStringMPIR(DAppId const mpir_id, std::string const& varia
     }
 }
 
+static std::string readCharArrayMPIR(DAppId const mpir_id, std::string const& variable)
+{
+    auto const idInstPair = mpirMap.find(mpir_id);
+    if (idInstPair != mpirMap.end()) {
+        return idInstPair->second->readCharArrayAt(variable);
+    } else {
+        throw std::runtime_error("read char array mpir id not found: " + std::to_string(mpir_id));
+    }
+}
+
 static void terminateMPIR(DAppId const mpir_id)
 {
     auto const idInstPair = mpirMap.find(mpir_id);
@@ -1018,6 +1028,25 @@ static void handle_ReadStringMPIR(int const reqFd, int const respFd)
     });
 }
 
+static void handle_ReadCharArrayMPIR(int const reqFd, int const respFd)
+{
+    tryWriteStringResp(respFd, [&]() {
+        auto const mpirId = fdReadLoop<DAppId>(reqFd);
+
+        // set up pipe stream
+        cti::FdBuf reqBuf{dup(reqFd)};
+        std::istream reqStream{&reqBuf};
+
+        std::string variable;
+        if (!std::getline(reqStream, variable, '\0')) {
+            throw std::runtime_error("failed to read variable name");
+        }
+        getLogger().write("read string '%s' from mpir id %d\n", variable.c_str(), mpirId);
+
+        return readCharArrayMPIR(mpirId, variable);
+    });
+}
+
 static void handle_TerminateMPIR(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [&]() {
@@ -1236,6 +1265,10 @@ main(int argc, char *argv[])
 
             case ReqType::ReadStringMPIR:
                 handle_ReadStringMPIR(reqFd, respFd);
+                break;
+
+            case ReqType::ReadCharArrayMPIR:
+                handle_ReadCharArrayMPIR(reqFd, respFd);
                 break;
 
             case ReqType::TerminateMPIR:
