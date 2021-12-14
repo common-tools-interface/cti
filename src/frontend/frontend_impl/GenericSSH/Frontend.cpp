@@ -647,6 +647,55 @@ contact your system adminstrator.");
             }
         }
     }
+
+    FE_daemon::MPIRResult getMPIRResult(std::string const& launcherName, pid_t launcher_pid)
+    {
+        // Construct FE remote daemon arguments
+        auto daemonArgv = cti::OutgoingArgv<CTIFEDaemonArgv>{Frontend::inst().getFEDaemonPath()};
+        daemonArgv.add(CTIFEDaemonArgv::ReadFD,  std::to_string(STDIN_FILENO));
+        daemonArgv.add(CTIFEDaemonArgv::WriteFD, std::to_string(STDOUT_FILENO));
+
+        // Launch FE daemon remotely to collect MPIR information
+        auto channel = startRemoteCommand(daemonArgv.get());
+
+        // Reader / writer functions will read / write data from and to SSH channel
+        auto channel_reader = [&channel](char* buf, ssize_t capacity) {
+            return remote::channel_read(channel.get(), buf, capacity);
+        };
+        auto channel_writer = [&channel](char const* buf, ssize_t capacity) {
+            return remote::channel_write(channel.get(), buf, capacity);
+        };
+
+        // Read FE daemon initialization message
+        auto const remote_pid = readLoop<pid_t>(channel_reader);
+
+        // Determine path to launcher
+        auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(launcherName.c_str(), nullptr), std::free);
+        if (!launcherPath) {
+            throw std::runtime_error("failed to find launcher in path: " + launcherName);
+        }
+
+        // Write MPIR attach request to channel
+        writeLoop(channel_writer, FE_daemon::ReqType::AttachMPIR);
+        writeLoop(channel_writer, launcherPath.get(), strlen(launcherPath.get()) + 1);
+        writeLoop(channel_writer, launcher_pid);
+
+        // Read MPIR attach request from relay pipe
+        auto mpirResult = FE_daemon::readMPIRResp(channel_reader);
+        Frontend::inst().writeLog("Received %zu proctable entries from remote daemon\n", mpirResult.proctable.size());
+
+        // Shut down remote daemon
+        writeLoop(channel_writer, FE_daemon::ReqType::Shutdown);
+        auto const okResp = readLoop<FE_daemon::OKResp>(channel_reader);
+        if (okResp.type != FE_daemon::RespType::OK) {
+            fprintf(stderr, "warning: daemon shutdown failed\n");
+        }
+
+        // Close relay pipe and SSH channel
+        channel.reset();
+
+        return mpirResult;
+    }
 };
 
 GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpirData)
@@ -1089,51 +1138,7 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
 std::weak_ptr<App>
 GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
 {
-    // Construct FE remote daemon arguments
-    auto daemonArgv = cti::OutgoingArgv<CTIFEDaemonArgv>{Frontend::inst().getFEDaemonPath()};
-    daemonArgv.add(CTIFEDaemonArgv::ReadFD,  std::to_string(STDIN_FILENO));
-    daemonArgv.add(CTIFEDaemonArgv::WriteFD, std::to_string(STDOUT_FILENO));
-
-    // Launch FE daemon remotely to collect MPIR information
-    auto session = SSHSession{hostname, Frontend::inst().getPwd()};
-    auto channel = session.startRemoteCommand(daemonArgv.get());
-
-    // Reader / writer functions will read / write data from and to SSH channel
-    auto channel_reader = [&channel](char* buf, ssize_t capacity) {
-        return remote::channel_read(channel.get(), buf, capacity);
-    };
-    auto channel_writer = [&channel](char const* buf, ssize_t capacity) {
-        return remote::channel_write(channel.get(), buf, capacity);
-    };
-
-    // Read FE daemon initialization message
-    auto const remote_pid = readLoop<pid_t>(channel_reader);
-    Frontend::inst().writeLog("FE daemon running on '%s' pid: %d\n", hostname, remote_pid);
-
-    // Determine path to launcher
-    auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free);
-    if (!launcherPath) {
-        throw std::runtime_error("failed to find launcher in path: " + getLauncherName());
-    }
-
-    // Write MPIR attach request to channel
-    writeLoop(channel_writer, FE_daemon::ReqType::AttachMPIR);
-    writeLoop(channel_writer, launcherPath.get(), strlen(launcherPath.get()) + 1);
-    writeLoop(channel_writer, launcher_pid);
-
-    // Read MPIR attach request from relay pipe
-    auto mpirResult = FE_daemon::readMPIRResp(channel_reader);
-    Frontend::inst().writeLog("Received %zu proctable entries from remote daemon\n", mpirResult.proctable.size());
-
-    // Shut down remote daemon
-    writeLoop(channel_writer, FE_daemon::ReqType::Shutdown);
-    auto const okResp = readLoop<FE_daemon::OKResp>(channel_reader);
-    if (okResp.type != FE_daemon::RespType::OK) {
-        fprintf(stderr, "warning: daemon shutdown failed\n");
-    }
-
-    // Close relay pipe and SSH channel
-    channel.reset();
+    auto mpirResult = SSHSession{hostname, Frontend::inst().getPwd()}.getMPIRResult(getLauncherName(), launcher_pid);
 
     // Register application with local FE daemon and insert into received MPIR response
     auto const mpir_id = Frontend::inst().Daemon().request_RegisterApp(::getpid());
@@ -1255,7 +1260,37 @@ static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
 std::weak_ptr<App>
 HPCMPALSFrontend::registerLauncherPid(pid_t launcher_pid)
 {
-    return GenericSSHFrontend::registerJob(1, launcher_pid);
+    return registerJob(1, launcher_pid);
+}
+
+FE_daemon::MPIRResult
+HPCMPALSFrontend::launchApp(const char * const launcher_argv[],
+        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[])
+{
+    // Get the launcher path from CTI environment variable / default.
+    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
+        // set up arguments and FDs
+        if (inputFile == nullptr) { inputFile = "/dev/null"; }
+        if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
+        if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
+
+        // construct argv array & instance
+        cti::ManagedArgv launcherArgv
+            { launcher_path.get()
+        };
+
+        // Copy provided launcher arguments
+        launcherArgv.add(launcher_argv);
+
+        // Launch program under MPIR control.
+        return Daemon().request_LaunchMPIR(
+            launcher_path.get(), launcherArgv.get(),
+            ::open(inputFile, O_RDONLY), stdoutFd, stderrFd,
+            env_list);
+
+    } else {
+        throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
+    }
 }
 
 std::weak_ptr<App>
@@ -1274,7 +1309,18 @@ HPCMPALSFrontend::registerRemoteJob(char const* job_id)
         : std::stoi(launcherPidString);
 
     // Attach to launcher PID running on head node and extract MPIR data for attach
-    return GenericSSHFrontend::registerRemoteJob(hostname.c_str(), launcher_pid);
+    auto mpirResult = SSHSession{hostname, Frontend::inst().getPwd()}.getMPIRResult(getLauncherName(), launcher_pid);
+
+    // Register application with local FE daemon and insert into received MPIR response
+    auto const mpir_id = Frontend::inst().Daemon().request_RegisterApp(::getpid());
+    mpirResult.mpir_id = mpir_id;
+
+    // Create and return new application object using MPIR response
+    auto ret = m_apps.emplace(std::make_shared<HPCMPALSApp>(*this, std::move(mpirResult)));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
 }
 
 // Add the launcher's timeout environment variable to provided environment list
@@ -1328,8 +1374,37 @@ HPCMPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stde
 {
     auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
 
-    auto ret = m_apps.emplace(std::make_shared<GenericSSHApp>(*this,
+    auto ret = m_apps.emplace(std::make_shared<HPCMPALSApp>(*this,
         launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
+}
+
+std::weak_ptr<App>
+HPCMPALSFrontend::registerJob(size_t numIds, ...)
+{
+    if (numIds != 1) {
+        throw std::logic_error("expecting single pid argument to register app");
+    }
+
+    va_list idArgs;
+    va_start(idArgs, numIds);
+
+    pid_t launcherPid = va_arg(idArgs, pid_t);
+
+    va_end(idArgs);
+
+    auto ret = m_apps.emplace(std::make_shared<HPCMPALSApp>(*this,
+        // MPIR attach to launcher
+        Daemon().request_AttachMPIR(
+            // Get path to launcher binary
+            cti::take_pointer_ownership(
+                _cti_pathFind(getLauncherName().c_str(), nullptr),
+                std::free).get(),
+            // Attach to existing launcherPid
+            launcherPid)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
@@ -1382,8 +1457,16 @@ HPCMPALSFrontend::getHostname() const
     return nodeAddress;
 }
 
+std::string
+HPCMPALSFrontend::getLauncherName()
+{
+    // Cache the launcher name result. Assume mpiexec by default.
+    auto static launcherName = std::string{cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "mpiexec")};
+    return launcherName;
+}
+
 HPCMPALSApp::HPCMPALSApp(HPCMPALSFrontend& fe, FE_daemon::MPIRResult&& mpirData)
-    : GenericSSHApp{fe, std::move(mpirData)}
+    : App{fe}
     , m_daemonAppId{mpirData.mpir_id}
 
     // TODO: change this back to request_ReadStringMPIR when
@@ -1396,14 +1479,137 @@ HPCMPALSApp::HPCMPALSApp(HPCMPALSFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     , m_binaryRankMap{std::move(mpirData.binaryRankMap)}
 
     , m_apinfoPath{"/var/run/palsd/" + m_apId + "/apinfo"}
-    , m_toolPath{"/var/run/palsd/" + m_apId + "/files"}
+    , m_toolPath{"/tmp/cti-" + m_apId}
     , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
     , m_extraFiles{}
-{}
+{
+    auto stepLayout = [](MPIRProctable const& procTable) {
+        GenericSSHFrontend::StepLayout layout;
+        layout.numPEs = procTable.size();
+
+        size_t nodeCount = 0;
+        size_t peCount   = 0;
+
+        std::unordered_map<std::string, size_t> hostNidMap;
+
+        // For each new host we see, add a host entry to the end of the layout's host list
+        // and hash each hostname to its index into the host list
+        for (auto&& proc : procTable) {
+
+            // Truncate hostname at first '.' in case the launcher has used FQDNs for hostnames
+            auto const base_hostname = proc.hostname.substr(0, proc.hostname.find("."));
+
+            size_t nid;
+            auto const hostNidPair = hostNidMap.find(base_hostname);
+            if (hostNidPair == hostNidMap.end()) {
+                // New host, extend nodes array, and fill in host entry information
+                nid = nodeCount++;
+                layout.nodes.push_back(GenericSSHFrontend::NodeLayout
+                    { .hostname = base_hostname
+                    , .pids = {}
+                    , .firstPE = peCount
+                });
+                hostNidMap[base_hostname] = nid;
+            } else {
+                nid = hostNidPair->second;
+            }
+
+            // add new pe to end of host's list
+            layout.nodes[nid].pids.push_back(proc.pid);
+
+            peCount++;
+        }
+
+        return layout;
+    }(m_procTable);
+
+    auto layoutFile = [](GenericSSHFrontend::StepLayout const& stepLayout,
+        std::string const& stagePath) {
+        auto make_layoutFileEntry = [](GenericSSHFrontend::NodeLayout const& node) {
+            // Ensure we have good hostname information.
+            auto const hostname_len = node.hostname.size() + 1;
+            if (hostname_len > sizeof(cti_layoutFile_t::host)) {
+                throw std::runtime_error("hostname too large for layout buffer");
+            }
+
+            // Extract PE and node information from Node Layout.
+            auto layout_entry    = cti_layoutFile_t{};
+            layout_entry.PEsHere = node.pids.size();
+            layout_entry.firstPE = node.firstPE;
+
+            memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
+
+            return layout_entry;
+        };
+
+        // Create the file path, write the file using the Step Layout
+        auto const layoutPath = std::string{stagePath + "/" + SSH_LAYOUT_FILE};
+        if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
+
+            // Write the Layout header.
+            cti::file::writeT(layoutFile.get(), cti_layoutFileHeader_t
+                { .numNodes = (int)stepLayout.nodes.size()
+            });
+
+            // Write a Layout entry using node information from each SSH Node Layout entry.
+            for (auto const& node : stepLayout.nodes) {
+                cti::file::writeT(layoutFile.get(), make_layoutFileEntry(node));
+            }
+
+            return layoutPath;
+        } else {
+            throw std::runtime_error("failed to open layout file path " + layoutPath);
+        }
+    }(stepLayout, m_stagePath);
+
+    auto pidFile = [](MPIRProctable const& procTable, std::string const& stagePath) {
+        auto const pidPath = std::string{stagePath + "/" + SSH_PID_FILE};
+        if (auto const pidFile = cti::file::open(pidPath, "wb")) {
+
+            // Write the PID List header.
+            cti::file::writeT(pidFile.get(), cti_pidFileheader_t
+                { .numPids = (int)procTable.size()
+            });
+
+            // Write a PID entry using information from each MPIR ProcTable entry.
+            for (auto&& elem : procTable) {
+                cti::file::writeT(pidFile.get(), cti_pidFile_t
+                    { .pid = elem.pid
+                });
+            }
+
+            return pidPath;
+        } else {
+            throw std::runtime_error("failed to open PID file path " + pidPath);
+        }
+    }(m_procTable, m_stagePath);
+
+    m_extraFiles.emplace_back(std::move(pidFile));
+    m_extraFiles.emplace_back(std::move(layoutFile));
+
+    // Get set of hosts for application
+    for (auto&& [pid, hostname, executable] : m_procTable) {
+        m_hosts.emplace(hostname);
+    }
+
+    // Create remote toolpath directory
+    auto mkdirArgv = cti::ManagedArgv{"mkdir", "-p", m_toolPath};
+    for (auto&& hostname : m_hosts) {
+        SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(mkdirArgv.get());
+    }
+    fprintf(stderr, "created toolpath %s\n", m_toolPath.c_str());
+}
 
 HPCMPALSApp::~HPCMPALSApp()
-{}
+{
+    // Remove remote toolpath directory
+    auto rmArgv = cti::ManagedArgv{"rm", "-rf", m_toolPath};
+    for (auto&& hostname : m_hosts) {
+        SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(rmArgv.get());
+    }
+    fprintf(stderr, "removed toolpath %s\n", m_toolPath.c_str());
+}
 
 std::string
 HPCMPALSApp::getLauncherHostname() const
@@ -1430,29 +1636,17 @@ HPCMPALSApp::getNumPEs() const
 size_t
 HPCMPALSApp::getNumHosts() const
 {
-    // Create list of unique hostnames
-    auto uniqueHostnames = std::set<std::string>{};
-    for (auto&& [pid, hostname, executable] : m_procTable) {
-        uniqueHostnames.emplace(hostname);
-    }
-
-    return uniqueHostnames.size();
+    return m_hosts.size();
 }
 
 std::vector<std::string>
 HPCMPALSApp::getHostnameList() const
 {
-    // Create list of unique hostnames
-    auto uniqueHostnames = std::set<std::string>{};
-    for (auto&& [pid, hostname, executable] : m_procTable) {
-        uniqueHostnames.emplace(hostname);
-    }
-
     // Make vector from set
     auto result = std::vector<std::string>{};
-    result.reserve(uniqueHostnames.size());
-    for (auto it = uniqueHostnames.begin(); it != uniqueHostnames.end(); ) {
-        result.push_back(std::move(uniqueHostnames.extract(it++).value()));
+    result.reserve(m_hosts.size());
+    for (auto&& hostname : m_hosts) {
+        result.emplace_back(hostname);
     }
 
     return result;
@@ -1500,6 +1694,13 @@ HPCMPALSApp::shipPackage(std::string const& tarPath) const
         -1, -1, -1,
         nullptr)) {
         throw std::runtime_error("failed to ship " + tarPath + " using palscp");
+    }
+
+    // Move shipped file from noexec filesystem to toolpath directory
+    auto const palscpDestination = "/var/run/palsd/" + m_apId + "/files/" + destinationName;
+    auto mvArgv = cti::ManagedArgv{"mv", palscpDestination, m_toolPath};
+    for (auto&& hostname : m_hosts) {
+        SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(mvArgv.get());
     }
 }
 
@@ -1551,7 +1752,7 @@ HPCMPALSApp::startDaemon(const char* const args[])
     launcherArgv.add(args);
 
     // Execute the launcher on each of the hosts using SSH
-    for (auto&& [pid, hostname, executable] : m_procTable) {
+    for (auto&& hostname : m_hosts) {
         SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(launcherArgv.get());
     }
 }

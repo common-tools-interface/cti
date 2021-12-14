@@ -45,6 +45,7 @@
 // types used here
 typedef struct {
 	void *handle;
+	const char * (*pals_errmsg)(pals_state_t *state);
 	pals_rc_t (*pals_init)(pals_state_t *state);
 	pals_rc_t (*pals_fini)(pals_state_t *state);
 
@@ -159,6 +160,15 @@ _cti_be_pals_init(void)
 
 	// Load functions from libpals
 
+	// pals_errmsg
+	dlerror(); // Clear any existing error
+	_cti_libpals_funcs->pals_errmsg = dlsym(_cti_libpals_funcs->handle, "pals_errmsg");
+	dl_err = dlerror();
+	if (dl_err != NULL) {
+		fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " dlsym: %s\n", dl_err);
+		goto cleanup__cti_be_pals_init;
+	}
+
 	// pals_init
 	dlerror(); // Clear any existing error
 	_cti_libpals_funcs->pals_init = dlsym(_cti_libpals_funcs->handle, "pals_init");
@@ -212,7 +222,7 @@ _cti_be_pals_init(void)
 	}
 	// Initialize global libpals state
 	if (_cti_libpals_funcs->pals_init(_cti_pals_state) != PALS_OK) {
-		fprintf(stderr, "libpals initialization failed\n");
+		fprintf(stderr, "libpals initialization failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
 		goto cleanup__cti_be_pals_init;
 	}
 
@@ -307,7 +317,7 @@ _cti_get_nodes_info()
 
 	// Call libpals accessor
 	if (_cti_libpals_funcs->pals_get_nodes(_cti_pals_state, &_cti_pals_nodes, &_cti_pals_num_nodes) != PALS_OK) {
-		fprintf(stderr, "pals_be libpals pals_get_nodes failed: %s\n", _cti_pals_state->errbuf);
+		fprintf(stderr, "pals_be libpals pals_get_nodes failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
 		goto cleanup__cti_get_nodes_info;
 	}
 
@@ -330,7 +340,7 @@ _cti_get_node_idx()
 
 	// Call libpals accessor
 	if (_cti_libpals_funcs->pals_get_nodeidx(_cti_pals_state, &_cti_node_idx) != PALS_OK) {
-		fprintf(stderr, "pals_be libpals pals_get_nodeidx failed: %s\n", _cti_pals_state->errbuf);
+		fprintf(stderr, "pals_be libpals pals_get_nodeidx failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
 		goto cleanup__cti_get_node_idx;
 	}
 
@@ -397,7 +407,7 @@ _cti_get_pes_info()
 
 	// Call libpals accessor
 	if (_cti_libpals_funcs->pals_get_pes(_cti_pals_state, &_cti_pals_pes, &_cti_pals_num_pes) != PALS_OK) {
-		fprintf(stderr, "pals_be libpals pals_get_pes failed: %s\n", _cti_pals_state->errbuf);
+		fprintf(stderr, "pals_be libpals pals_get_pes failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
 		goto cleanup__cti_get_pes_info;
 	}
 

@@ -149,8 +149,9 @@ public: // constructor / destructor interface
     GenericSSHApp& operator=(GenericSSHApp&&) = delete;
 };
 
-class HPCMPALSFrontend : public GenericSSHFrontend {
+class HPCMPALSFrontend : public Frontend {
 public: // inherited interface
+    cti_wlm_type_t getWLMType() const override { return CTI_WLM_SSH; }
 
     std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
@@ -158,25 +159,34 @@ public: // inherited interface
     std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
+    std::weak_ptr<App> registerJob(size_t numIds, ...) override;
+
     std::string getHostname() const override;
 
 public: // PALS-specific interface
+    // Get the default launcher binary name, or, if provided, from the environment.
+    static std::string getLauncherName();
 
     // Register job by launcher PID, for tools such as ATP for HPCM PALS that need
     // to start before the job ID is created, but attach after the job starts
     std::weak_ptr<App> registerLauncherPid(pid_t launcher_pid);
 
+    // Launch an app under MPIR control and hold at barrier.
+    FE_daemon::MPIRResult launchApp(const char * const launcher_argv[],
+        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+
     // Detect and attach to job running on either this or remote machine (e.g. compute node)
     std::weak_ptr<App> registerRemoteJob(char const* job_id);
 };
 
-class HPCMPALSApp : public GenericSSHApp
+class HPCMPALSApp : public App
 {
     FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     std::string m_apId;
     bool m_beDaemonSent;
     MPIRProctable m_procTable;
     BinaryRankMap m_binaryRankMap;
+    std::set<std::string> m_hosts;
 
     std::string m_apinfoPath;  // Backend path where the libpals apinfo file is located
     std::string m_toolPath;    // Backend path where files are unpacked
