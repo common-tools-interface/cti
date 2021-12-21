@@ -8,8 +8,8 @@ SRC             = @COMMONTOOL_DIR@/src
 INCLUDE			= @COMMONTOOL_DIR@/include
 SUPPORT         = @COMMONTOOL_DIR@/tests/test_support
 
-GTEST           = $(SUPPORT)/hpc-pe-cdst-googletest/googletest
-GMOCK           = $(SUPPORT)/hpc-pe-cdst-googletest/googlemock
+GTEST           = $(SUPPORT)/googletest/googletest
+GMOCK           = $(SUPPORT)/googletest/googlemock
 
 AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects
