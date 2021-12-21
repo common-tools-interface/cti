@@ -10,9 +10,7 @@
 # Packard Enterprise Development LP., no part of this work or its content may be
 # used, reproduced or disclosed in any form.
 #
-githubName=hpc-pe-cdst
-
-source ./external/${githubName}-cdst_build_library/build_lib
+source ./external/cdst_build_library/build_lib
 
 setup_modules
 

@@ -5,7 +5,7 @@ CTI = ${CTI_INSTALL_DIR}
 TESTS = ../..
 SUPPORT = $(TESTS)/test_support
 EXTERNAL = $(TESTS)/include
-GTEST = $(SUPPORT)/hpc-pe-cdst-googletest/googletest
+GTEST = $(SUPPORT)/googletest/googletest
 
 CRAY_CTI_FE_LIBS = -L$(CTI)/lib -lcommontools_fe
 CRAY_CTI_BE_LIBS = -lcommontools_be

@@ -76,13 +76,13 @@ AM_CONDITIONAL([ENABLE_ALPS], [test x$enable_alps = xyes])
 
 dnl Set external directory for libalps headers (library will be dlopened at runtime)
 AM_COND_IF([ENABLE_ALPS], [
-  LIBALPS_CPPFLAGS="-I$COMMONTOOL_DIR/external/hpc-pe-cdst-libalps_headers"
+  LIBALPS_CPPFLAGS="-I$COMMONTOOL_DIR/external/libalps_headers"
   AC_SUBST([LIBALPS_CPPFLAGS], [$LIBALPS_CPPFLAGS])
   SAVE_CPPFLAGS=$CPPFLAGS
   CPPFLAGS="$LIBALPS_CPPFLAGS $CPPFLAGS"
   AC_CHECK_HEADERS([alps/alps.h],
   [AC_DEFINE([HAVE_ALPS], [1], [CTI configured with ALPS support])],
-  [AC_MSG_ERROR([Couldn't find libalps headers in external/hpc-pe-cdst-libalps_headers. Try configuring with --enable-alps=no])],
+  [AC_MSG_ERROR([Couldn't find libalps headers in external/libalps_headers. Try configuring with --enable-alps=no])],
   [AC_INCLUDES_DEFAULT])
 ])
 
@@ -99,13 +99,13 @@ AM_CONDITIONAL([ENABLE_PALS], [test x$enable_pals = xyes])
 
 dnl Set external directory for libpals headers (library will be dlopened at runtime)
 AM_COND_IF([ENABLE_PALS], [
-  LIBPALS_CPPFLAGS="-I$COMMONTOOL_DIR/external/hpc-pe-cdst-libalps_headers"
+  LIBPALS_CPPFLAGS="-I$COMMONTOOL_DIR/external/libalps_headers"
   AC_SUBST([LIBPALS_CPPFLAGS], [$LIBPALS_CPPFLAGS])
   SAVE_CPPFLAGS=$CPPFLAGS
   CPPFLAGS="$LIBPALS_CPPFLAGS $CPPFLAGS"
   AC_CHECK_HEADERS([pals.h],
   [AC_DEFINE([HAVE_PALS], [1], [CTI configured with PALS support])],
-  [AC_MSG_ERROR([Couldn't find libpals headers in external/hpc-pe-cdst-libalps_headers. Try configuring with --enable-pals=no])],
+  [AC_MSG_ERROR([Couldn't find libpals headers in external/libalps_headers. Try configuring with --enable-pals=no])],
   [AC_INCLUDES_DEFAULT])
 ])
 
@@ -122,13 +122,13 @@ AM_CONDITIONAL([ENABLE_FLUX], [test x$enable_flux = xyes])
 
 dnl Set external directory for libflux headers (library will be dlopened at runtime)
 AM_COND_IF([ENABLE_FLUX], [
-  LIBFLUX_CPPFLAGS="-I$COMMONTOOL_DIR/external/hpc-pe-cdst-libalps_headers"
+  LIBFLUX_CPPFLAGS="-I$COMMONTOOL_DIR/external/libalps_headers"
   AC_SUBST([LIBFLUX_CPPFLAGS], [$LIBFLUX_CPPFLAGS])
   SAVE_CPPFLAGS=$CPPFLAGS
   CPPFLAGS="$LIBFLUX_CPPFLAGS $CPPFLAGS"
   AC_CHECK_HEADERS([flux/core.h],
   [AC_DEFINE([HAVE_FLUX], [1], [CTI configured with Flux support])],
-  [AC_MSG_ERROR([Couldn't find libflux headers in external/hpc-pe-cdst-libalps_headers. Try configuring with --enable-flux=no])],
+  [AC_MSG_ERROR([Couldn't find libflux headers in external/libalps_headers. Try configuring with --enable-flux=no])],
   [AC_INCLUDES_DEFAULT])
 ])
 

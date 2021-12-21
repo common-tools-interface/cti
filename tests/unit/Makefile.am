@@ -9,8 +9,8 @@ SUPPORT         = @COMMONTOOL_DIR@/tests/test_support
 MOCK            = @COMMONTOOL_DIR@/tests/mock
 EXTERNAL		= @COMMONTOOL_DIR@/include
 
-GTEST           = $(SUPPORT)/hpc-pe-cdst-googletest/googletest
-GMOCK           = $(SUPPORT)/hpc-pe-cdst-googletest/googlemock
+GTEST           = $(SUPPORT)/googletest/googletest
+GMOCK           = $(SUPPORT)/googletest/googlemock
 
 AM_LIBTOOLFLAGS = --quiet
 AUTOMAKE_OPTIONS = subdir-objects

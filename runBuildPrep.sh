@@ -11,8 +11,7 @@
 # used, reproduced or disclosed in any form.
 #
 
-githubName=hpc-pe-cdst
-source ./external/${githubName}-cdst_build_library/build_lib
+source ./external/cdst_build_library/build_lib
 
 echo "############################################"
 echo "#             Installing deps              #"
