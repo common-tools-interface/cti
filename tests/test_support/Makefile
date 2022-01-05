@@ -1,6 +1,6 @@
 # Copyright 2021 Hewlett Packard Enterprise Development LP.
 
-ARTIFACTS = libgtest.so libgmock.so message_one/libmessage.so message_two/libmessage.so one_socket two_socket remote_filecheck libgtest.so libgmock.so
+ARTIFACTS = libgtest.so libgmock.so message_one/libmessage.so message_two/libmessage.so one_socket libgtest.so libgmock.so
 
 GTEST = googletest/googletest
 GMOCK = googletest/googlemock
@@ -25,10 +25,4 @@ message_two/libmessage.so : message_two/message.c message_two/message.h
 
 one_socket : one_socket.c message_one/libmessage.so
 	gcc one_socket.c -L./message_one -lmessage -Wl,-rpath,${CURDIR}/message_one -o one_socket
-
-two_socket : two_socket.c message_two/libmessage.so 
-	gcc two_socket.c -L./message_two -lmessage -Wl,-rpath,${CURDIR}/message_two -o two_socket
-
-remote_filecheck : remote_filecheck.c
-	gcc $^ -o $@
 

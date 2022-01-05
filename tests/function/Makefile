@@ -1,9 +1,5 @@
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
-
 all:
-	make -C src all
-	make -C bin all
+	PWD=${PWD}/src make -C src all
 
 clean:
 	make -C src clean
-	make -C bin clean

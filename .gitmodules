@@ -11,3 +11,6 @@
 [submodule "external/libalps_headers"]
 	path = external/libalps_headers
 	url = git@github.hpe.com:hpe/hpc-pe-cdst-libalps_headers.git
+[submodule "tests/function/cdst-test"]
+	path = tests/function/cdst-test
+	url = git@github.hpe.com:hpe/hpc-pe-cdst-cdst-test.git

@@ -33,14 +33,13 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-#include "message_two/message.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-int main(int argc, char* argv[]) {
+#include "message_one/message.h"
 
+int main(int argc, char* argv[]) {
     if (argc != 3) {
         fprintf(stderr, "Invalid parameters\nExpected: SocketIP, SocketPort\n");
         return 1;
@@ -58,7 +57,6 @@ int main(int argc, char* argv[]) {
     sscanf(argv[2], "%d", &port);
 
     //Create socket
-    struct sockaddr_in s_address;
     int c_socket;
     int rc;
     struct addrinfo *node;
