@@ -64,6 +64,9 @@
 # Disable debug package
 %global debug_package %{nil}
 
+# Disable /usr/lib/.build-id files
+%global _build_id_links none
+
 # Disable stripping of binaries
 # Particularly, backend daemon's hash is hardcoded into frontend library, don't want RPM to strip
 # or modify the binary
