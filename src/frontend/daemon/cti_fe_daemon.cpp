@@ -1041,7 +1041,7 @@ static void handle_ReadCharArrayMPIR(int const reqFd, int const respFd)
         if (!std::getline(reqStream, variable, '\0')) {
             throw std::runtime_error("failed to read variable name");
         }
-        getLogger().write("read string '%s' from mpir id %d\n", variable.c_str(), mpirId);
+        getLogger().write("read char array '%s' from mpir id %d\n", variable.c_str(), mpirId);
 
         return readCharArrayMPIR(mpirId, variable);
     });
@@ -1122,6 +1122,7 @@ static auto reqTypeString(ReqType const reqType)
         case ReqType::LaunchMPIR:     return "LaunchMPIR";
         case ReqType::AttachMPIR:     return "AttachMPIR";
         case ReqType::ReleaseMPIR:    return "ReleaseMPIR";
+        case ReqType::ReadCharArrayMPIR: return "ReadCharArrayMPIR";
         case ReqType::ReadStringMPIR: return "ReadStringMPIR";
         case ReqType::TerminateMPIR:  return "TerminateMPIR";
         case ReqType::LaunchMPIRShim: return "LaunchMPIRShim";

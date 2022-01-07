@@ -1379,6 +1379,7 @@ HPCMPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stde
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
+
     return *ret.first;
 }
 
@@ -1598,7 +1599,6 @@ HPCMPALSApp::HPCMPALSApp(HPCMPALSFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     for (auto&& hostname : m_hosts) {
         SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(mkdirArgv.get());
     }
-    fprintf(stderr, "created toolpath %s\n", m_toolPath.c_str());
 }
 
 HPCMPALSApp::~HPCMPALSApp()
@@ -1608,7 +1608,6 @@ HPCMPALSApp::~HPCMPALSApp()
     for (auto&& hostname : m_hosts) {
         SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(rmArgv.get());
     }
-    fprintf(stderr, "removed toolpath %s\n", m_toolPath.c_str());
 }
 
 std::string
@@ -1742,18 +1741,22 @@ HPCMPALSApp::startDaemon(const char* const args[])
         m_beDaemonSent = true;
     }
 
-    // Use location of existing launcher binary on compute node
-    std::string const launcherPath{m_toolPath + "/" + getBEDaemonName()};
+    // Create the arguments for palscmd
+    auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId };
 
-    // Prepare the launcher arguments
-    cti::ManagedArgv launcherArgv { launcherPath };
+    // Use location of existing launcher binary on compute node
+    auto const launcherPath = m_toolPath + "/" + getBEDaemonName();
+    palscmdArgv.add(launcherPath);
 
     // Copy provided launcher arguments
-    launcherArgv.add(args);
+    palscmdArgv.add(args);
 
-    // Execute the launcher on each of the hosts using SSH
-    for (auto&& hostname : m_hosts) {
-        SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(launcherArgv.get());
+    // tell frontend daemon to launch palscmd, wait for it to finish
+    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        m_daemonAppId, "palscmd", palscmdArgv.get(),
+        -1, -1, -1,
+        nullptr)) {
+        throw std::runtime_error("failed to launch tool daemon for apid " + m_apId);
     }
 }
 
@@ -1763,7 +1766,7 @@ void HPCMPALSApp::kill(int signum)
     auto palsigArgv = cti::ManagedArgv { "palsig", "-s", std::to_string(signum),
         m_apId };
 
-    // tell frontend daemon to launch scancel, wait for it to finish
+    // tell frontend daemon to launch palsig, wait for it to finish
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, "palsig", palsigArgv.get(),
         -1, -1, -1,
