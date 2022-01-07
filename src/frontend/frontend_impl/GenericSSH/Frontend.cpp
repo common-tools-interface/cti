@@ -1485,128 +1485,35 @@ HPCMPALSApp::HPCMPALSApp(HPCMPALSFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
     , m_extraFiles{}
 {
-    auto stepLayout = [](MPIRProctable const& procTable) {
-        GenericSSHFrontend::StepLayout layout;
-        layout.numPEs = procTable.size();
-
-        size_t nodeCount = 0;
-        size_t peCount   = 0;
-
-        std::unordered_map<std::string, size_t> hostNidMap;
-
-        // For each new host we see, add a host entry to the end of the layout's host list
-        // and hash each hostname to its index into the host list
-        for (auto&& proc : procTable) {
-
-            // Truncate hostname at first '.' in case the launcher has used FQDNs for hostnames
-            auto const base_hostname = proc.hostname.substr(0, proc.hostname.find("."));
-
-            size_t nid;
-            auto const hostNidPair = hostNidMap.find(base_hostname);
-            if (hostNidPair == hostNidMap.end()) {
-                // New host, extend nodes array, and fill in host entry information
-                nid = nodeCount++;
-                layout.nodes.push_back(GenericSSHFrontend::NodeLayout
-                    { .hostname = base_hostname
-                    , .pids = {}
-                    , .firstPE = peCount
-                });
-                hostNidMap[base_hostname] = nid;
-            } else {
-                nid = hostNidPair->second;
-            }
-
-            // add new pe to end of host's list
-            layout.nodes[nid].pids.push_back(proc.pid);
-
-            peCount++;
-        }
-
-        return layout;
-    }(m_procTable);
-
-    auto layoutFile = [](GenericSSHFrontend::StepLayout const& stepLayout,
-        std::string const& stagePath) {
-        auto make_layoutFileEntry = [](GenericSSHFrontend::NodeLayout const& node) {
-            // Ensure we have good hostname information.
-            auto const hostname_len = node.hostname.size() + 1;
-            if (hostname_len > sizeof(cti_layoutFile_t::host)) {
-                throw std::runtime_error("hostname too large for layout buffer");
-            }
-
-            // Extract PE and node information from Node Layout.
-            auto layout_entry    = cti_layoutFile_t{};
-            layout_entry.PEsHere = node.pids.size();
-            layout_entry.firstPE = node.firstPE;
-
-            memcpy(layout_entry.host, node.hostname.c_str(), hostname_len);
-
-            return layout_entry;
-        };
-
-        // Create the file path, write the file using the Step Layout
-        auto const layoutPath = std::string{stagePath + "/" + SSH_LAYOUT_FILE};
-        if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
-
-            // Write the Layout header.
-            cti::file::writeT(layoutFile.get(), cti_layoutFileHeader_t
-                { .numNodes = (int)stepLayout.nodes.size()
-            });
-
-            // Write a Layout entry using node information from each SSH Node Layout entry.
-            for (auto const& node : stepLayout.nodes) {
-                cti::file::writeT(layoutFile.get(), make_layoutFileEntry(node));
-            }
-
-            return layoutPath;
-        } else {
-            throw std::runtime_error("failed to open layout file path " + layoutPath);
-        }
-    }(stepLayout, m_stagePath);
-
-    auto pidFile = [](MPIRProctable const& procTable, std::string const& stagePath) {
-        auto const pidPath = std::string{stagePath + "/" + SSH_PID_FILE};
-        if (auto const pidFile = cti::file::open(pidPath, "wb")) {
-
-            // Write the PID List header.
-            cti::file::writeT(pidFile.get(), cti_pidFileheader_t
-                { .numPids = (int)procTable.size()
-            });
-
-            // Write a PID entry using information from each MPIR ProcTable entry.
-            for (auto&& elem : procTable) {
-                cti::file::writeT(pidFile.get(), cti_pidFile_t
-                    { .pid = elem.pid
-                });
-            }
-
-            return pidPath;
-        } else {
-            throw std::runtime_error("failed to open PID file path " + pidPath);
-        }
-    }(m_procTable, m_stagePath);
-
-    m_extraFiles.emplace_back(std::move(pidFile));
-    m_extraFiles.emplace_back(std::move(layoutFile));
-
     // Get set of hosts for application
     for (auto&& [pid, hostname, executable] : m_procTable) {
         m_hosts.emplace(hostname);
     }
 
     // Create remote toolpath directory
-    auto mkdirArgv = cti::ManagedArgv{"mkdir", "-p", m_toolPath};
-    for (auto&& hostname : m_hosts) {
-        SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(mkdirArgv.get());
+    { auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
+            "mkdir", "-p", m_toolPath };
+
+        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "palscmd", palscmdArgv.get(),
+            -1, -1, -1,
+            nullptr)) {
+            throw std::runtime_error("failed to create remote toolpath directory for apid " + m_apId);
+        }
     }
 }
 
 HPCMPALSApp::~HPCMPALSApp()
 {
     // Remove remote toolpath directory
-    auto rmArgv = cti::ManagedArgv{"rm", "-rf", m_toolPath};
-    for (auto&& hostname : m_hosts) {
-        SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(rmArgv.get());
+    { auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
+            "rm", "-rf", m_toolPath };
+
+        // Ignore failures in destructor
+        m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "palscmd", palscmdArgv.get(),
+            -1, -1, -1,
+            nullptr);
     }
 }
 
@@ -1697,9 +1604,14 @@ HPCMPALSApp::shipPackage(std::string const& tarPath) const
 
     // Move shipped file from noexec filesystem to toolpath directory
     auto const palscpDestination = "/var/run/palsd/" + m_apId + "/files/" + destinationName;
-    auto mvArgv = cti::ManagedArgv{"mv", palscpDestination, m_toolPath};
-    for (auto&& hostname : m_hosts) {
-        SSHSession{hostname, m_frontend.getPwd()}.executeRemoteCommand(mvArgv.get());
+    auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
+            "mv", palscpDestination, m_toolPath };
+
+    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        m_daemonAppId, "palscmd", palscmdArgv.get(),
+        -1, -1, -1,
+        nullptr)) {
+        throw std::runtime_error("failed to move shipped package for apid " + m_apId);
     }
 }
 

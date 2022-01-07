@@ -151,7 +151,7 @@ public: // constructor / destructor interface
 
 class HPCMPALSFrontend : public Frontend {
 public: // inherited interface
-    cti_wlm_type_t getWLMType() const override { return CTI_WLM_SSH; }
+    cti_wlm_type_t getWLMType() const override { return CTI_WLM_PALS; }
 
     std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
