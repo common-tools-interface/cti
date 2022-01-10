@@ -2102,3 +2102,413 @@ PALSApp::~PALSApp()
     m_stdioStream->websocket.close(boost::beast::websocket::close_code::normal);
     m_stdioStream.reset();
 }
+
+
+// HPCM PALS specializations
+
+std::weak_ptr<App>
+HPCMPALSFrontend::registerLauncherPid(pid_t launcher_pid)
+{
+    return registerJob(1, launcher_pid);
+}
+
+FE_daemon::MPIRResult
+HPCMPALSFrontend::launchApp(const char * const launcher_argv[],
+        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[])
+{
+    // Get the launcher path from CTI environment variable / default.
+    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
+        // set up arguments and FDs
+        if (inputFile == nullptr) { inputFile = "/dev/null"; }
+        if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
+        if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
+
+        // construct argv array & instance
+        cti::ManagedArgv launcherArgv
+            { launcher_path.get()
+        };
+
+        // Copy provided launcher arguments
+        launcherArgv.add(launcher_argv);
+
+        // Launch program under MPIR control.
+        return Daemon().request_LaunchMPIR(
+            launcher_path.get(), launcherArgv.get(),
+            ::open(inputFile, O_RDONLY), stdoutFd, stderrFd,
+            env_list);
+
+    } else {
+        throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
+    }
+}
+
+std::weak_ptr<App>
+HPCMPALSFrontend::registerRemoteJob(char const* job_id)
+{
+    // TODO: use `palstat` to attach using job ID
+    throw std::runtime_error("not implemented: HPCMPALSFrontend::registerRemoteJob");
+}
+
+// Add the launcher's timeout environment variable to provided environment list
+// Set timeout to five minutes
+static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgArray env_list)
+{
+    // Determine the timeout environment variable for PALS `mpiexec` or PALS `aprun` command
+    // https://connect.us.cray.com/jira/browse/PE-34329
+    auto const timeout_env = (launcherName == "aprun")
+        ? "APRUN_RPC_TIMEOUT=300"
+        : "PALS_RPC_TIMEOUT=300";
+
+    // Add the launcher's timeout disable environment variable to a new environment list
+    auto fixedEnvVars = cti::ManagedArgv{};
+
+    // Copy provided environment list
+    if (env_list != nullptr) {
+        fixedEnvVars.add(env_list);
+    }
+
+    // Append timeout disable environment variable
+    fixedEnvVars.add(timeout_env);
+
+    return fixedEnvVars;
+}
+
+std::weak_ptr<App>
+HPCMPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+    CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
+
+    auto appPtr = std::make_shared<HPCMPALSApp>(*this,
+        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get()));
+
+    // Release barrier and continue launch
+    appPtr->releaseBarrier();
+
+    // Register with frontend application set
+    auto resultInsertedPair = m_apps.emplace(std::move(appPtr));
+    if (!resultInsertedPair.second) {
+        throw std::runtime_error("Failed to insert new App object.");
+    }
+
+    return *resultInsertedPair.first;
+}
+
+std::weak_ptr<App>
+HPCMPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
+
+    auto ret = m_apps.emplace(std::make_shared<HPCMPALSApp>(*this,
+        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+
+    return *ret.first;
+}
+
+std::weak_ptr<App>
+HPCMPALSFrontend::registerJob(size_t numIds, ...)
+{
+    if (numIds != 1) {
+        throw std::logic_error("expecting single pid argument to register app");
+    }
+
+    va_list idArgs;
+    va_start(idArgs, numIds);
+
+    pid_t launcherPid = va_arg(idArgs, pid_t);
+
+    va_end(idArgs);
+
+    auto ret = m_apps.emplace(std::make_shared<HPCMPALSApp>(*this,
+        // MPIR attach to launcher
+        Daemon().request_AttachMPIR(
+            // Get path to launcher binary
+            cti::take_pointer_ownership(
+                _cti_pathFind(getLauncherName().c_str(), nullptr),
+                std::free).get(),
+            // Attach to existing launcherPid
+            launcherPid)));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+    return *ret.first;
+}
+
+// Current address can now be obtained using the `cminfo` tool.
+std::string
+HPCMPALSFrontend::getHostname() const
+{
+    static auto const nodeAddress = []() {
+
+        // Run cminfo query
+        auto const cminfo_query = [](char const* option) {
+            char const* cminfoArgv[] = { "cminfo", option, nullptr };
+
+            // Start cminfo
+            try {
+                auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
+
+                // Return first line of query
+                auto& cminfoStream = cminfoOutput.stream();
+                std::string line;
+                if (std::getline(cminfoStream, line)) {
+                    return line;
+                }
+            } catch (...) {
+                return std::string{};
+            }
+
+            return std::string{};
+        };
+
+        // Get name of management network
+        auto const managementNetwork = cminfo_query("--mgmt_net_name");
+        if (!managementNetwork.empty()) {
+
+            // Query management IP address
+            auto const addressOption = "--" + managementNetwork + "_ip";
+            auto const managementAddress = cminfo_query(addressOption.c_str());
+            if (!managementAddress.empty()) {
+                return managementAddress;
+            }
+        }
+
+        // Fall back to `gethostname`
+        return cti::cstr::gethostname();
+    }();
+
+    return nodeAddress;
+}
+
+std::string
+HPCMPALSFrontend::getLauncherName()
+{
+    // Cache the launcher name result. Assume mpiexec by default.
+    auto static launcherName = std::string{cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "mpiexec")};
+    return launcherName;
+}
+
+HPCMPALSApp::HPCMPALSApp(HPCMPALSFrontend& fe, FE_daemon::MPIRResult&& mpirData)
+    : App{fe}
+    , m_daemonAppId{mpirData.mpir_id}
+
+    // TODO: change this back to request_ReadStringMPIR when
+    // the PALS launcher stores its apid in `char *totalview_jobid`
+    // instead of a string array starting at `apid`
+    , m_apId{m_frontend.Daemon().request_ReadCharArrayMPIR(m_daemonAppId, "apid")}
+
+    , m_beDaemonSent{false}
+    , m_procTable{std::move(mpirData.proctable)}
+    , m_binaryRankMap{std::move(mpirData.binaryRankMap)}
+
+    , m_apinfoPath{"/var/run/palsd/" + m_apId + "/apinfo"}
+    , m_toolPath{"/tmp/cti-" + m_apId}
+    , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
+    , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
+    , m_extraFiles{}
+{
+    // Get set of hosts for application
+    for (auto&& [pid, hostname, executable] : m_procTable) {
+        m_hosts.emplace(hostname);
+    }
+
+    // Create remote toolpath directory
+    { auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
+            "mkdir", "-p", m_toolPath };
+
+        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "palscmd", palscmdArgv.get(),
+            -1, -1, -1,
+            nullptr)) {
+            throw std::runtime_error("failed to create remote toolpath directory for apid " + m_apId);
+        }
+    }
+}
+
+HPCMPALSApp::~HPCMPALSApp()
+{
+    // Remove remote toolpath directory
+    { auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
+            "rm", "-rf", m_toolPath };
+
+        // Ignore failures in destructor
+        m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "palscmd", palscmdArgv.get(),
+            -1, -1, -1,
+            nullptr);
+    }
+}
+
+std::string
+HPCMPALSApp::getLauncherHostname() const
+{
+    throw std::runtime_error{"not supported for PALS: " + std::string{__func__}};
+}
+
+bool
+HPCMPALSApp::isRunning() const
+{
+    auto palstatArgv = cti::ManagedArgv{"palstat", m_apId};
+    return m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        m_daemonAppId, "palstat", palstatArgv.get(),
+        -1, -1, -1,
+        nullptr);
+}
+
+size_t
+HPCMPALSApp::getNumPEs() const
+{
+    return m_procTable.size();
+}
+
+size_t
+HPCMPALSApp::getNumHosts() const
+{
+    return m_hosts.size();
+}
+
+std::vector<std::string>
+HPCMPALSApp::getHostnameList() const
+{
+    // Make vector from set
+    auto result = std::vector<std::string>{};
+    result.reserve(m_hosts.size());
+    for (auto&& hostname : m_hosts) {
+        result.emplace_back(hostname);
+    }
+
+    return result;
+}
+
+std::vector<CTIHost>
+HPCMPALSApp::getHostsPlacement() const
+{
+    // Count PEs for each host
+    auto hostnameCountMap = std::map<std::string, size_t>{};
+    for (auto&& [pid, hostname, executable] : m_procTable) {
+        hostnameCountMap[hostname]++;
+    }
+
+    // Make vector from map
+    auto result = std::vector<CTIHost>{};
+    for (auto&& [hostname, count] : hostnameCountMap) {
+        result.emplace_back(CTIHost{std::move(hostname), count});
+    }
+
+    return result;
+}
+
+std::map<std::string, std::vector<int>>
+HPCMPALSApp::getBinaryRankMap() const
+{
+    return m_binaryRankMap;
+}
+
+void
+HPCMPALSApp::releaseBarrier()
+{
+    m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
+}
+
+void
+HPCMPALSApp::shipPackage(std::string const& tarPath) const
+{
+    auto const destinationName = cti::cstr::basename(tarPath);
+
+    auto palscpArgv = cti::ManagedArgv{"palscp", "-f", tarPath, "-d", destinationName, m_apId};
+
+    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        m_daemonAppId, "palscp", palscpArgv.get(),
+        -1, -1, -1,
+        nullptr)) {
+        throw std::runtime_error("failed to ship " + tarPath + " using palscp");
+    }
+
+    // Move shipped file from noexec filesystem to toolpath directory
+    auto const palscpDestination = "/var/run/palsd/" + m_apId + "/files/" + destinationName;
+    auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
+            "mv", palscpDestination, m_toolPath };
+
+    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        m_daemonAppId, "palscmd", palscmdArgv.get(),
+        -1, -1, -1,
+        nullptr)) {
+        throw std::runtime_error("failed to move shipped package for apid " + m_apId);
+    }
+}
+
+void
+HPCMPALSApp::startDaemon(const char* const args[])
+{
+    // sanity check
+    if (args == nullptr) {
+        throw std::runtime_error("args array is empty!");
+    }
+
+    // Send daemon if not already shipped
+    if (!m_beDaemonSent) {
+        // Get the location of the backend daemon
+        if (m_frontend.getBEDaemonPath().empty()) {
+            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment variable to the install location of CTI.");
+        }
+
+        // Copy the BE binary to its unique storage name
+        auto const sourcePath = m_frontend.getBEDaemonPath();
+        auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
+
+        // Create the args for copy
+        auto copyArgv = cti::ManagedArgv {
+            "cp", sourcePath.c_str(), destinationPath.c_str()
+        };
+
+        // Run copy command
+        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "cp", copyArgv.get(),
+            -1, -1, -1,
+            nullptr)) {
+            throw std::runtime_error("failed to copy " + sourcePath + " to " + destinationPath);
+        }
+
+        // Ship the unique backend daemon
+        shipPackage(destinationPath);
+        // set transfer to true
+        m_beDaemonSent = true;
+    }
+
+    // Create the arguments for palscmd
+    auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId };
+
+    // Use location of existing launcher binary on compute node
+    auto const launcherPath = m_toolPath + "/" + getBEDaemonName();
+    palscmdArgv.add(launcherPath);
+
+    // Copy provided launcher arguments
+    palscmdArgv.add(args);
+
+    // tell frontend daemon to launch palscmd, wait for it to finish
+    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        m_daemonAppId, "palscmd", palscmdArgv.get(),
+        -1, -1, -1,
+        nullptr)) {
+        throw std::runtime_error("failed to launch tool daemon for apid " + m_apId);
+    }
+}
+
+void HPCMPALSApp::kill(int signum)
+{
+    // create the args for palsig
+    auto palsigArgv = cti::ManagedArgv { "palsig", "-s", std::to_string(signum),
+        m_apId };
+
+    // tell frontend daemon to launch palsig, wait for it to finish
+    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        m_daemonAppId, "palsig", palsigArgv.get(),
+        -1, -1, -1,
+        nullptr)) {
+        throw std::runtime_error("failed to send signal to apid " + m_apId);
+    }
+}
