@@ -174,7 +174,18 @@ public: // constructor / destructor interface
 };
 
 
-class HPCMPALSFrontend : public Frontend {
+class HPCMPALSFrontend : public Frontend
+{
+public: // types
+    struct PalsLaunchInfo
+    {
+        FE_daemon::DaemonAppId daemonAppId;
+        std::string apId;
+        MPIRProctable procTable;
+        BinaryRankMap binaryRankMap;
+        bool atBarrier;
+    };
+
 public: // inherited interface
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_PALS; }
 
@@ -192,16 +203,15 @@ public: // PALS-specific interface
     // Get the default launcher binary name, or, if provided, from the environment.
     static std::string getLauncherName();
 
-    // Register job by launcher PID, for tools such as ATP for HPCM PALS that need
-    // to start before the job ID is created, but attach after the job starts
-    std::weak_ptr<App> registerLauncherPid(pid_t launcher_pid);
+    // Extract apid string from launcher process
+    std::string getApid(pid_t launcher_pid);
+
+    // Use PALS API to get application and node placement information
+    PalsLaunchInfo getPalsLaunchInfo(std::string const& apId);
 
     // Launch an app under MPIR control and hold at barrier.
-    FE_daemon::MPIRResult launchApp(const char * const launcher_argv[],
+    PalsLaunchInfo launchApp(const char * const launcher_argv[],
         int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
-
-    // Detect and attach to job running on either this or remote machine (e.g. compute node)
-    std::weak_ptr<App> registerRemoteJob(char const* job_id);
 };
 
 class HPCMPALSApp : public App
@@ -219,9 +229,11 @@ class HPCMPALSApp : public App
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
 
+    bool m_atBarrier; // At startup barrier or not
+
 
 public:
-    HPCMPALSApp(HPCMPALSFrontend& fe, FE_daemon::MPIRResult&& mpirData);
+    HPCMPALSApp(HPCMPALSFrontend& fe, HPCMPALSFrontend::PalsLaunchInfo&& palsLaunchInfo);
     ~HPCMPALSApp();
     HPCMPALSApp(const HPCMPALSApp&) = delete;
     HPCMPALSApp& operator=(const HPCMPALSApp&) = delete;

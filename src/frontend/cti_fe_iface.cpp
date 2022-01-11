@@ -478,11 +478,15 @@ static cti_slurm_ops_t _cti_slurm_ops = {
 #endif
 
 static char*
-_cti_pals_getApid(pid_t craycliPid) {
+_cti_pals_getApid(pid_t launcherPid) {
     return FE_iface::runSafely(__func__, [&](){
+        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
+            return strdup(fe->getApid(launcherPid).c_str());
+        }
+
         CHECK_PALS(
         auto&& fe = downcastFE<PALSFrontend>();
-        return strdup(fe.getApid(craycliPid).c_str());
+        return strdup(fe.getApid(launcherPid).c_str());
         )
     }, (char*)nullptr);
 }
@@ -490,6 +494,11 @@ _cti_pals_getApid(pid_t craycliPid) {
 static cti_app_id_t
 _cti_pals_registerApid(char const* apid) {
     return FE_iface::runSafely(__func__, [&](){
+        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
+            auto wp = fe->registerJob(1, apid);
+            return fe->Iface().trackApp(wp);
+        }
+
         CHECK_PALS(
         auto&& fe = downcastFE<PALSFrontend>();
         auto wp = fe.registerJob(1, apid);
@@ -508,11 +517,6 @@ static cti_pals_ops_t _cti_pals_ops = {
 static cti_app_id_t
 _cti_ssh_registerJob(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
-            auto wp = fe->registerRemoteJob(std::to_string(launcher_pid).c_str());
-            return fe->Iface().trackApp(wp);
-        }
-
         auto&& fe = downcastFE<GenericSSHFrontend>();
         auto wp = fe.registerJob(1, launcher_pid);
         return fe.Iface().trackApp(wp);
@@ -531,11 +535,6 @@ _cti_ssh_registerRemoteJob(char const* hostname, pid_t launcher_pid) {
 static cti_app_id_t
 _cti_ssh_registerLauncherPid(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
-            auto wp = fe->registerLauncherPid(launcher_pid);
-            return fe->Iface().trackApp(wp);
-        }
-
         auto&& fe = downcastFE<GenericSSHFrontend>();
         auto wp = fe.registerJob(1, launcher_pid);
         return fe.Iface().trackApp(wp);

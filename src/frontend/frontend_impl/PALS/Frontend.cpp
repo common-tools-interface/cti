@@ -2106,13 +2106,34 @@ PALSApp::~PALSApp()
 
 // HPCM PALS specializations
 
-std::weak_ptr<App>
-HPCMPALSFrontend::registerLauncherPid(pid_t launcher_pid)
+std::string
+HPCMPALSFrontend::getApid(pid_t launcher_pid)
 {
-    return registerJob(1, launcher_pid);
+    // MPIR attach to launcher
+    auto const mpirData = Daemon().request_AttachMPIR(
+        // Get path to launcher binary
+        cti::take_pointer_ownership(
+            _cti_pathFind(getLauncherName().c_str(), nullptr),
+            std::free).get(),
+        // Attach to existing launcher PID
+        launcher_pid);
+
+    // Extract apid string from launcher
+    auto result = Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_jobid");
+
+    // Release MPIR control
+    Daemon().request_ReleaseMPIR(mpirData.mpir_id);
+
+    return result;
 }
 
-FE_daemon::MPIRResult
+HPCMPALSFrontend::PalsLaunchInfo
+HPCMPALSFrontend::getPalsLaunchInfo(std::string const& apId)
+{
+    throw std::runtime_error("not implemented: HPCMPALSFrontend::getPalsLaunchInfo");
+}
+
+HPCMPALSFrontend::PalsLaunchInfo
 HPCMPALSFrontend::launchApp(const char * const launcher_argv[],
         int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
@@ -2132,21 +2153,27 @@ HPCMPALSFrontend::launchApp(const char * const launcher_argv[],
         launcherArgv.add(launcher_argv);
 
         // Launch program under MPIR control.
-        return Daemon().request_LaunchMPIR(
+        auto mpirData = Daemon().request_LaunchMPIR(
             launcher_path.get(), launcherArgv.get(),
             ::open(inputFile, O_RDONLY), stdoutFd, stderrFd,
             env_list);
 
+        // Get application ID from launcher
+        auto apid = Daemon().request_ReadStringMPIR(mpirData.mpir_id,
+            "totalview_jobid");
+
+        // Construct launch info struct
+        return PalsLaunchInfo
+            { .daemonAppId = mpirData.mpir_id
+            , .apId = std::move(apid)
+            , .procTable = std::move(mpirData.proctable)
+            , .binaryRankMap = std::move(mpirData.binaryRankMap)
+            , .atBarrier = true
+        };
+
     } else {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }
-}
-
-std::weak_ptr<App>
-HPCMPALSFrontend::registerRemoteJob(char const* job_id)
-{
-    // TODO: use `palstat` to attach using job ID
-    throw std::runtime_error("not implemented: HPCMPALSFrontend::registerRemoteJob");
 }
 
 // Add the launcher's timeout environment variable to provided environment list
@@ -2213,28 +2240,24 @@ std::weak_ptr<App>
 HPCMPALSFrontend::registerJob(size_t numIds, ...)
 {
     if (numIds != 1) {
-        throw std::logic_error("expecting single pid argument to register app");
+        throw std::logic_error("expecting single apid argument to register app");
     }
 
     va_list idArgs;
     va_start(idArgs, numIds);
 
-    pid_t launcherPid = va_arg(idArgs, pid_t);
+    char const* apid = va_arg(idArgs, char const*);
 
     va_end(idArgs);
 
+    auto palsLaunchInfo = getPalsLaunchInfo(apid);
+
     auto ret = m_apps.emplace(std::make_shared<HPCMPALSApp>(*this,
-        // MPIR attach to launcher
-        Daemon().request_AttachMPIR(
-            // Get path to launcher binary
-            cti::take_pointer_ownership(
-                _cti_pathFind(getLauncherName().c_str(), nullptr),
-                std::free).get(),
-            // Attach to existing launcherPid
-            launcherPid)));
+        std::move(palsLaunchInfo)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
+
     return *ret.first;
 }
 
@@ -2292,24 +2315,22 @@ HPCMPALSFrontend::getLauncherName()
     return launcherName;
 }
 
-HPCMPALSApp::HPCMPALSApp(HPCMPALSFrontend& fe, FE_daemon::MPIRResult&& mpirData)
+HPCMPALSApp::HPCMPALSApp(HPCMPALSFrontend& fe, HPCMPALSFrontend::PalsLaunchInfo&& palsLaunchInfo)
     : App{fe}
-    , m_daemonAppId{mpirData.mpir_id}
-
-    // TODO: change this back to request_ReadStringMPIR when
-    // the PALS launcher stores its apid in `char *totalview_jobid`
-    // instead of a string array starting at `apid`
-    , m_apId{m_frontend.Daemon().request_ReadCharArrayMPIR(m_daemonAppId, "apid")}
+    , m_daemonAppId{palsLaunchInfo.daemonAppId}
+    , m_apId{std::move(palsLaunchInfo.apId)}
 
     , m_beDaemonSent{false}
-    , m_procTable{std::move(mpirData.proctable)}
-    , m_binaryRankMap{std::move(mpirData.binaryRankMap)}
+    , m_procTable{std::move(palsLaunchInfo.procTable)}
+    , m_binaryRankMap{std::move(palsLaunchInfo.binaryRankMap)}
 
     , m_apinfoPath{"/var/run/palsd/" + m_apId + "/apinfo"}
     , m_toolPath{"/tmp/cti-" + m_apId}
     , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
     , m_extraFiles{}
+
+    , m_atBarrier{palsLaunchInfo.atBarrier}
 {
     // Get set of hosts for application
     for (auto&& [pid, hostname, executable] : m_procTable) {
@@ -2411,7 +2432,12 @@ HPCMPALSApp::getBinaryRankMap() const
 void
 HPCMPALSApp::releaseBarrier()
 {
+    if (!m_atBarrier) {
+        throw std::runtime_error("application is not at startup barrier");
+    }
+
     m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
+    m_atBarrier = false;
 }
 
 void
