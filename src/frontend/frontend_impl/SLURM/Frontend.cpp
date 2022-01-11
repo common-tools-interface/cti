@@ -480,25 +480,32 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
 
 /* SLURM frontend implementation */
 
-static std::string getSlurmVersion()
+static auto getSlurmVersion()
 {
     char const* const srunVersionArgv[] = {"srun", "--version", nullptr};
     auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv, cti::Execvp::stderr::Ignore};
 
+    // slurm major.minor.patch
     auto slurmVersion = std::string{};
     if (!std::getline(srunVersionOutput.stream(), slurmVersion, '\n')) {
         throw std::runtime_error("Failed to get SRUN version number output. Try running \
 `srun --version`");
     }
-    // slurm major.minor.patch
 
-    slurmVersion = slurmVersion.substr(slurmVersion.find(" ") + 1);
     // major.minor.patch
+    slurmVersion = slurmVersion.substr(slurmVersion.find(" ") + 1);
+    auto const [major, minor, patch] = cti::split::string<3>(slurmVersion, ' ');
 
-    slurmVersion = slurmVersion.substr(0, slurmVersion.find("."));
-    // major
+    if (major.empty()) {
+        throw std::runtime_error("Failed to parse SRUN version '"
+            + slurmVersion +"'. Try running `srun --version`");
+    }
 
-    return slurmVersion;
+    return std::make_tuple(
+        std::stoi(major),
+        (minor.empty()) ? 0 : std::stoi(minor),
+        (patch.empty()) ? 0 : std::stoi(patch)
+    );
 }
 
 SLURMFrontend::SLURMFrontend()
@@ -514,24 +521,29 @@ SLURMFrontend::SLURMFrontend()
     {
 
     // Detect SLURM version and set SRUN arguments accordingly
-    auto const slurmVersion = std::stoi(getSlurmVersion());
-    if (slurmVersion <= 18) {
-        m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
-            { "--mem_bind=no"
-            , "--cpu_bind=no"
-            , "--share"
-            }
-        );
-    } else if (slurmVersion >= 19) {
-        m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
-            { "--mem-bind=no"
-            , "--cpu-bind=no"
-            , "--oversubscribe"
-            }
-        );
-    } else {
-        throw std::runtime_error("unknown SLURM version: " + std::to_string(slurmVersion) + ". Try running \
-`srun --version`");
+    { auto const [major, minor, patch] = getSlurmVersion();
+
+        if (major <= 18) {
+            m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
+                { "--mem_bind=no"
+                , "--cpu_bind=no"
+                , "--share"
+            });
+        } else if (major >= 19) {
+            m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
+                { "--mem-bind=no"
+                , "--cpu-bind=no"
+                , "--oversubscribe"
+            });
+        }
+
+        // Starting in 20.11, --exclusive is default and must be
+        // reversed with --overlap
+        if (((major == 20) && (minor >= 11)) || (major > 20)) {
+            m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
+                { "--overlap"
+            });
+        }
     }
 
     // Slurm bug https://bugs.schedmd.com/show_bug.cgi?id=12642
