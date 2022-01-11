@@ -184,7 +184,6 @@ public: // type definitions
         LaunchMPIRShim,
         AttachMPIR,
         ReadStringMPIR,
-        ReadCharArrayMPIR,
         ReleaseMPIR,
         TerminateMPIR,
 
@@ -407,10 +406,6 @@ public:
     // fe_daemon will read the value of a variable from memory under MPIR control.
     // Write an mpir string read request to pipe, return value
     std::string request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable);
-
-    // fe_daemon will read a null-terminated char array from memory.
-    // Write an mpir string read request to pipe, return value
-    std::string request_ReadCharArrayMPIR(DaemonAppId mpir_id, char const* variable);
 
     // fe_daemon will terminate a binary under mpir control.
     // Write an mpir release request to pipe, verify response
