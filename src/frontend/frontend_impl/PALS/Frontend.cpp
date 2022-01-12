@@ -1518,11 +1518,9 @@ static auto make_launch_json(args::ParseStyle const& parseStyle,
         throw std::runtime_error("no node list provided");
     }
 
-    // Add launcher rank information
-    if (opts.np > 0) {
-        integerReplacements["%%nranks"] = opts.np;
-        launchPtree.put("nranks", "%%nranks");
-    }
+    // Add launcher rank information. Default to one rank per node
+    integerReplacements["%%nranks"] = (opts.np > 0) ? opts.np : 1;
+    launchPtree.put("nranks", "%%nranks");
     if (opts.ppn > 0) {
         integerReplacements["%%ppn"] = opts.ppn;
         launchPtree.put("ppn", "%%ppn");
