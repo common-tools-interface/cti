@@ -27,7 +27,7 @@ Product and OS Dependencies:
   The Cray CTI <VERSION> release is supported on the following Cray systems:
     - HPE/Cray XC systems with CLE 7.0 or later
     - HPE/Cray CS systems with CentOS/RH 8.0 or later
-    - HPE/Cray Shasta systems with SLES 15 service pack 1 or later
+    - HPE/Cray Shasta systems with SLES 15 service pack 2 or later
     - HPE Apollo systems with Slurm and RH 8.0 or later
     - Baymax systems with RH 8.0 or later
 
