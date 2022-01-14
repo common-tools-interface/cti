@@ -16,15 +16,10 @@ Product Description:
 
 Purpose:
 ---------
-  This release adds the following features:
-    - Added user documentation manpage cti(1), and developer
-      documentation manpage cti(3).
-    - Preliminary support for the Flux workload manager.
-      Note that passwordless SSH access to compute nodes must be
-      configured for Flux support. This limitation will be removed
-      in a future release.
-    - Flux, Shasta PALS, and ALPS support can be disabled at
-      compile-time if development headers are not available.
+  This release is a bugfix release:
+    - Default Shasta PALS node count in job launches to 1
+    - Include `--overlap` in Slurm tool daemon launches for Slurm versions
+      20.11 and above
     - Updated gen compilers to cray-gcc-10.3.0
 
 Product and OS Dependencies:
