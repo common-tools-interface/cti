@@ -9,10 +9,10 @@ Release Date:
 Product Description:
 --------------------
   Cray Common Tools Interface (CTI) is a library that abstracts debugger
-  tool support to a common interface regardless of the underlying
-  work load manager. It facilitates the staging of files and
-  the launch of tool daemons on the compute nodes associated
-  with a parallel job.
+  tool support to a common interface regardless of the underlying work
+  load manager. It facilitates the staging of files and the launch of
+  tool daemons on the compute nodes associated with a parallel job.
+  Options and interfaces can be found in the cti(1) and cti(3) manpages.
 
 Purpose:
 ---------
