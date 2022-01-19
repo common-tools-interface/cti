@@ -72,12 +72,20 @@ section-5:
     RPM_LIST              : <RPM_LST>
     SYSTEM_TYPE           : <SYS_HW_TAG>,<SYS_WB_TAG>
     COMMANDS: |
-        rpm -e --nodeps <RPM_RM_1>
-        rpm -e --nodeps <RPM_RM_2> 
+        rpm -e --nodeps <RPM_RM_2>
+        rpm -e --nodeps <RPM_RM_1> 
         rpm -e --nodeps <PRODUCT>-<VERSION>-<BUILD_METADATA>-<RELEASE>.<ARCH>
 
 --- |
 #Remove previous versions of this rpm
+for package in  $(rpm -qa | grep <RPM_RM_2>)
+do
+  rpm -e --nodeps $package
+done
+for package in  $(rpm -qa | grep <RPM_RM_1>)
+do
+  rpm -e --nodeps $package
+done
 for package in  $(rpm -qa | grep ^<PRODUCT>-<VERSION>-)
 do
   rpm -e --nodeps $package
