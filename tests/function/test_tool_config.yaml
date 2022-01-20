@@ -37,6 +37,11 @@ cfa6k:
     args:
       slurm: "-n4 --ntasks-per-node=2 --mpi=cray_shasta"
 
+pea2k:
+  launch:
+    environment:
+      CTI_SLURM_DAEMON_GRES: ""
+
 horizon:
   build:
     targets:
