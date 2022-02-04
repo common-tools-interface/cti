@@ -187,11 +187,7 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
         case CTI_WLM_SLURM:
             return SLURMFrontend::getName();
         case CTI_WLM_PALS:
-#if HAVE_PALS
-            return PALSFrontend::getName();
-#else
-            return "Shasta PALS support was not configured for this build of CTI.";
-#endif
+            return HPCMPALSFrontend::getName();
         case CTI_WLM_SSH:
             return GenericSSHFrontend::getName();
         case CTI_WLM_FLUX:
@@ -470,40 +466,20 @@ static cti_slurm_ops_t _cti_slurm_ops = {
 
 // PALS WLM extensions
 
-#if HAVE_PALS
-#define CHECK_PALS(...) __VA_ARGS__
-#else
-#define CHECK_PALS(...) \
-    throw std::runtime_error("Shasta PALS support was not compiled into this version of CTI");
-#endif
-
 static char*
 _cti_pals_getApid(pid_t launcherPid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
-            return strdup(fe->getApid(launcherPid).c_str());
-        }
-
-        CHECK_PALS(
-        auto&& fe = downcastFE<PALSFrontend>();
-        return strdup(fe.getApid(launcherPid).c_str());
-        )
+        auto&& fe = downcastFE<HPCMPALSFrontend>();
+        strdup(fe.getApid(launcherPid).c_str());
     }, (char*)nullptr);
 }
 
 static cti_app_id_t
 _cti_pals_registerApid(char const* apid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
-            auto wp = fe->registerJob(1, apid);
-            return fe->Iface().trackApp(wp);
-        }
-
-        CHECK_PALS(
-        auto&& fe = downcastFE<PALSFrontend>();
+        auto&& fe = downcastFE<HPCMPALSFrontend>();
         auto wp = fe.registerJob(1, apid);
         return fe.Iface().trackApp(wp);
-        )
     }, APP_ERROR);
 }
 
