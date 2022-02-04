@@ -2300,8 +2300,8 @@ HPCMPALSFrontend::getHostname() const
             }
         }
 
-        // Fall back to `gethostname`
-        return cti::cstr::gethostname();
+        // Delegate to shared implementation supporting both XC and Shasta
+        return cti::detectFrontendHostname();
     }();
 
     return nodeAddress;

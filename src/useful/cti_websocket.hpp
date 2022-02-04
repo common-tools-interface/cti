@@ -266,7 +266,7 @@ static inline std::string httpPostFileReq(std::string const& hostname, std::stri
 
     // Check HTTP response code
     if (resp.base().result_int() != 200) {
-        throw std::runtime_error("GET " + endpoint + " failed: " + std::to_string(resp.base().result_int()));
+        throw std::runtime_error("POST " + endpoint + " failed: " + std::to_string(resp.base().result_int()));
     }
 
     // Extract result and shut down stream
