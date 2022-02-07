@@ -241,6 +241,12 @@ shutdown_and_exit(int const rc)
 static void
 sigchld_handler(pid_t const exitedPid)
 {
+    // Reap zombie
+    { auto const saved_errno = errno;
+        while (::waitpid(exitedPid, 0, WNOHANG) > 0) {}
+        errno = saved_errno;
+    }
+
     // regular app termination
     if (appCleanupList.contains(exitedPid)) {
         // app already terminated
@@ -278,14 +284,20 @@ cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
 
 static DAppId registerAppPID(pid_t const app_pid)
 {
-    if ((app_pid > 0) && (pidIdMap.find(app_pid) == pidIdMap.end())) {
-        // create new app ID for pid
+    // Create new app ID without PID
+    if (app_pid == 0) {
+        auto const appId = newId();
+        idPidMap[appId] = 0;
+        return appId;
+
+    // Create new app ID for pid
+    } else if (pidIdMap.find(app_pid) == pidIdMap.end()) {
         auto const appId = newId();
         pidIdMap[app_pid] = appId;
         idPidMap[appId] = app_pid;
         return appId;
     } else {
-        throw std::runtime_error("invalid app pid: " + std::to_string(app_pid));
+        throw std::runtime_error("duplicate app pid: " + std::to_string(app_pid));
     }
 }
 
@@ -312,7 +324,9 @@ static void deregisterAppID(DAppId const app_id)
 
         // remove from ID list
         idPidMap.erase(idPidPair);
-        pidIdMap.erase(app_pid);
+        if (app_pid > 0) {
+            pidIdMap.erase(app_pid);
+        }
 
         // terminate all of app's utilities
         auto utilTermFuture = std::async(std::launch::async,
@@ -337,6 +351,11 @@ static bool checkAppID(DAppId const app_id)
     auto const idPidPair = idPidMap.find(app_id);
     if (idPidPair != idPidMap.end()) {
         auto const app_pid = idPidPair->second;
+
+        // Assume remote PID is still valid
+        if (app_pid == 0) {
+            return true;
+        }
 
         // Check if app's PID is still valid
         getLogger().write("check pid %d\n", app_pid);
@@ -784,16 +803,6 @@ static std::string readStringMPIR(DAppId const mpir_id, std::string const& varia
         return idInstPair->second->readStringAt(variable);
     } else {
         throw std::runtime_error("read string mpir id not found: " + std::to_string(mpir_id));
-    }
-}
-
-static std::string readCharArrayMPIR(DAppId const mpir_id, std::string const& variable)
-{
-    auto const idInstPair = mpirMap.find(mpir_id);
-    if (idInstPair != mpirMap.end()) {
-        return idInstPair->second->readCharArrayAt(variable);
-    } else {
-        throw std::runtime_error("read char array mpir id not found: " + std::to_string(mpir_id));
     }
 }
 

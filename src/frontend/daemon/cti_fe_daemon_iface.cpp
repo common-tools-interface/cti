@@ -455,6 +455,14 @@ FE_daemon::request_LaunchMPIRShim(
 }
 
 DaemonAppId
+FE_daemon::request_RegisterApp()
+{
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterApp);
+    fdWriteLoop(m_req_sock.getWriteFd(), 0);
+    return readIDResp(m_resp_sock.getReadFd());
+}
+
+DaemonAppId
 FE_daemon::request_RegisterApp(pid_t app_pid)
 {
     fdWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterApp);

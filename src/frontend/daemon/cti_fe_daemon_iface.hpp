@@ -420,6 +420,10 @@ public:
         char const* scriptPath, char const* const argv[],
         int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
 
+    // fe_daemon will create a new daemon app ID without a corresponding local process.
+    // This can be used for remote attach to an application.
+    DaemonAppId request_RegisterApp();
+
     // fe_daemon will register an already-forked process as an app. make sure this is paired with a
     // _cti_deregisterApp for timely cleanup.
     // Write an app register request to pipe, verify response, return new app id

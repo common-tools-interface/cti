@@ -72,8 +72,8 @@ public: // PALS-specific interface
     // Extract apid string from launcher process
     std::string getApid(pid_t launcher_pid);
 
-    // Use PALS API to get application and node placement information
-    PalsLaunchInfo getPalsLaunchInfo(std::string const& apId);
+    // Use PALS API to get application and node placement information and create new application
+    PalsLaunchInfo attachApp(std::string const& apId);
 
     // Launch an app under MPIR control and hold at barrier.
     PalsLaunchInfo launchApp(const char * const launcher_argv[],

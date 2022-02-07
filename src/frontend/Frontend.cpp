@@ -473,10 +473,16 @@ static bool detect_PALS(std::string const& /* unused */)
     try {
 
         // Check that PBS is installed (required for PALS)
-        auto rpmClientArgv    = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
-        auto rpmExecutionArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-execution" };
-        if (cti::Execvp::runExitStatus("rpm", rpmClientArgv.get())
-         && cti::Execvp::runExitStatus("rpm", rpmExecutionArgv.get())) {
+        char const* rpm_argv[] =
+            { "rpm", "-q"
+            , "pbspro-server", "pbspro-client", "pbspro-execution"
+            , nullptr
+        };
+
+        // PBS is configured if at least one of these packages exists
+        // Return code of 3 means query of all 3 packages failed (not installed)
+        auto const failed_packages = cti::Execvp::runExitStatus("rpm", (char* const*)rpm_argv);
+        if (failed_packages == 3) {
             return false;
         }
 

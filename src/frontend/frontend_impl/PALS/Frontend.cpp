@@ -69,9 +69,52 @@ HPCMPALSFrontend::getApid(pid_t launcher_pid)
 }
 
 HPCMPALSFrontend::PalsLaunchInfo
-HPCMPALSFrontend::getPalsLaunchInfo(std::string const& apId)
+HPCMPALSFrontend::attachApp(std::string const& apId)
 {
-    throw std::runtime_error("not implemented: HPCMPALSFrontend::getPalsLaunchInfo");
+    // Create daemon ID for new application
+    auto result = PalsLaunchInfo
+        { .daemonAppId = Daemon().request_RegisterApp()
+        , .apId = apId
+        , .procTable = {}
+        , .binaryRankMap = {}
+        , .atBarrier = false
+    };
+
+    // Launch palstat MPIR query
+    char const* palstat_argv[] = { "palstat", "-p", apId.c_str(), nullptr };
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstat_argv, cti::Execvp::stderr::Ignore};
+
+    // Parse MPIR output from palstat
+    auto& palstatStream = palstatOutput.stream();
+    auto line = std::string{};
+
+    // Ignore header
+    std::getline(palstatStream, line);
+
+    writeLog("palstat MPIR entries:\n");
+
+    // An empty line will terminate the loop
+    while (std::getline(palstatStream, line)) {
+
+        // <HOST> <EXECUTABLE> <PID>
+        auto elem = MPIRProctableElem{};
+        { auto ss = std::stringstream{line};
+            auto rawPid = std::string{};
+            ss >> std::skipws >> elem.hostname >> elem.executable >> rawPid;
+            elem.pid = std::stoi(rawPid);
+        }
+
+        writeLog("%d %s %s\n", elem.pid, elem.hostname.c_str(), elem.executable.c_str());
+        result.procTable.push_back(std::move(elem));
+    }
+
+    // Build binary-rank map
+    auto rank = size_t{0};
+    for (auto&& [pid, host, executable] : result.procTable) {
+        result.binaryRankMap[executable].push_back(rank++);
+    }
+
+    return result;
 }
 
 HPCMPALSFrontend::PalsLaunchInfo
@@ -191,10 +234,8 @@ HPCMPALSFrontend::registerJob(size_t numIds, ...)
 
     va_end(idArgs);
 
-    auto palsLaunchInfo = getPalsLaunchInfo(apid);
-
     auto ret = m_apps.emplace(std::make_shared<HPCMPALSApp>(*this,
-        std::move(palsLaunchInfo)));
+        attachApp(apid)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
