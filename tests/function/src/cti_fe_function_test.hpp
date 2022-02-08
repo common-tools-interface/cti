@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2021 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -26,7 +26,22 @@
 
 #pragma once
 
-#include "gtest/gtest.h"
+#include <string>
+#include <sstream>
+#include <iostream>
+#include <iterator>
+#include <memory>
+#include <vector>
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <netdb.h>
+
+#include <string.h>
+#include <unistd.h>
 
 #include "common_tools_fe.h"
 
@@ -34,6 +49,8 @@ static constexpr auto SUCCESS = int{0};
 static constexpr auto FAILURE = int{1};
 
 static constexpr auto APP_ERROR = cti_app_id_t{0};
+
+static constexpr auto SIGKILL = int{9};
 
 // generate a temporary file and remove it on destruction
 class temp_file_handle
@@ -70,12 +87,12 @@ public:
 };
 
 // The fixture for testing C interface function
-class CTIFEFunctionTest : public ::testing::Test
+class CTIFEFunctionTest
 {
 private:
     cti_app_id_t runningApp;
 
-protected:
+public:
     CTIFEFunctionTest()
         : runningApp{APP_ERROR}
     {}
@@ -94,7 +111,7 @@ protected:
         }
     }
 
-    ~CTIFEFunctionTest() override
+    ~CTIFEFunctionTest()
     {
         stopApp();
     }
@@ -117,3 +134,20 @@ protected:
     }
 
 };
+
+void assert_true(bool condition, std::string error);
+
+// take a vector of strings and prepend the system specific arguements to it
+std::vector<std::string> createSystemArgv(int argc, char* mainArgv[], const std::vector<std::string>& appArgv);
+
+// take a vector of strings, copy their c_str() pointers to a new vector,
+// and add a nullptr at the end. the return value can then be used in
+// ctiLaunchApp and similar via "return_value.data()"
+std::vector<const char*> cstrVector(const std::vector<std::string> &v);
+
+// Find my external IP
+std::string getExternalAddress();
+
+int bindAny(std::string const& address);
+
+void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector<char const*> extra_argv, std::string const& expecting, int times=1);

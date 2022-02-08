@@ -2,7 +2,7 @@
 #
 # runBuild.sh - Build steps for CTI
 #
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -16,7 +16,6 @@ echo "#            Setup environment.            #"
 echo "############################################"
 
 top_level=$PWD
-
 source ./external/cdst_build_library/build_lib
 
 source $top_level/release_versioning

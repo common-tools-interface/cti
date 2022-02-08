@@ -2,7 +2,7 @@
 #
 # runBuildPackage.sh - Package steps for CTI
 #
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -10,7 +10,6 @@
 # Packard Enterprise Development LP., no part of this work or its content may be
 # used, reproduced or disclosed in any form.
 #
-
 source ./external/cdst_build_library/build_lib
 
 setup_modules

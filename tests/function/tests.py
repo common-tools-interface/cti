@@ -36,9 +36,9 @@ def readVariablesFromEnv(test):
     global DAEMON_VER
     global LAUNCHER_ARGS
 
-    TESTS_BIN_PATH  = "%s/bin" % os.path.dirname(os.path.realpath(__file__))
-    TESTS_SRC_PATH  = "%s/src" % os.path.dirname(os.path.realpath(__file__))
-    SUPPORT_PATH   = "%s/../test_support"  % os.path.dirname(os.path.realpath(__file__))
+    TESTS_BIN_PATH  = "%s/src" % os.path.dirname(os.path.realpath(__file__))
+    TESTS_SRC_PATH  = "%s/src/support" % os.path.dirname(os.path.realpath(__file__))
+    SUPPORT_PATH   = "%s/src/support" % os.path.dirname(os.path.realpath(__file__))
 
     try:
         CTI_INST_DIR = os.environ['CTI_INSTALL_DIR']
@@ -111,110 +111,6 @@ def detectWLM(test = None):
 #       @avocado.skip("<optional comment here>")
 
 '''
-function_tests runs all of the Googletest-instrumented functional tests
-'''
-class GTestFunctionTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        # chdir needed for relative paths in the function test binary to be correct.
-        # avocado runs each test in its own process so we don't need to change back.
-        os.chdir("%s" % TESTS_BIN_PATH)
-
-    def test_DaemonLibDir(self):
-        testname = "DaemonLibDir"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_HaveValidFrontend(self):
-        testname = "HaveValidFrontend"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_LdPreloadSet(self):
-        testname = "LdPreloadSet"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_Launch(self):
-        testname = "Launch"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_DoubleRelease(self):
-        testname = "DoubleRelease"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_StdoutPipe(self):
-        testname = "StdoutPipe"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_InputFile(self):
-        testname = "InputFile"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_EnvVars(self):
-        testname = "EnvVars"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_CreateSession(self):
-        testname = "CreateSession"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_CreateManifest(self):
-        testname = "CreateManifest"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_ExecToolDaemon(self):
-        testname = "ExecToolDaemon"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_Transfer(self):
-        testname = "Transfer"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-    def test_LaunchMPIRShim(self):
-        if detectWLM() != "slurm":
-            self.cancel("MPIR Shim is only supported on Slurm systems.")
-
-        testname = "LaunchMPIRShim"
-        try:
-            process.run("%s/function_tests \"%s\" --gtest_filter=CTIFEFunctionTest.%s" % (TESTS_BIN_PATH, LAUNCHER_ARGS, testname))
-        except process.CmdError:
-            self.fail("Google test %s failed." % testname)
-
-'''
 cti_barrier launches a binary, holds it at the startup barrier until
 the user presses enter.
 to automate: pipe from `yes`
@@ -225,29 +121,6 @@ class CtiBarrierTest(Test):
 
     def test(self):
         process.run("yes | %s/cti_barrier %s %s/hello_mpi"
-            % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
-
-
-'''
-cti_launch launches a binary and prints out various information about the job.
-'''
-class CtiLaunchTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test(self):
-        process.run("%s/cti_launch %s %s/hello_mpi_wait"
-            % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
-
-'''
-cti_kill launches a binary and then immediately sends a SIGTERM to it.
-'''
-class CtiKillTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test(self):
-        process.run("%s/cti_kill %s %s/hello_mpi_wait"
             % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
 
 '''
@@ -264,31 +137,50 @@ class CtiCallbackTest(Test):
         process.run("yes | PATH=%s:$PATH %s/cti_callback %s %s/hello_mpi"
             % (TESTS_BIN_PATH, TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
 
-'''
-cti_link tests that programs can be linked against the FE/BE libraries.
-'''
-class CtiLinkTest(Test):
+class CtiDoubleDeamonTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
+        os.chdir("./src")
 
-    def test(self):
-        if "LD_LIBRARY_PATH" in os.environ:
-            print("LD_LIBRARY_PATH from os.environ %s" % os.path.expandvars('$LD_LIBRARY_PATH'))
-        else:
-            print("LD_LIBRARY_PATH not defined!")
-        process.run("%s/cti_link"
-            % (TESTS_BIN_PATH), shell = True)
+    def test_DoubleDeamon(self):
+        p = subprocess.run(["./cti_double_daemon", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_double_daemon failed")
 
-
-'''
-cti_wlm fetches the work load manager type about a running job.
-'''
-class CtiWLMTest(Test):
+class CtiEnvironmentTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
+        os.chdir("./src")
 
-    def test(self):
-        detectWLM(self)
+    def test_Environment(self):
+        p = subprocess.run(["./cti_environment", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_environment failed")
+
+class CtiFdInTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_FdIn(self):
+        p = subprocess.run(["./cti_fd_in", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_fd_in failed")
+
+class CtiFileInTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_FileIn(self):
+        p = subprocess.run(["./cti_file_in", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_file_in failed")
+
+class CtiFileTransferTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_Transfer(self):
+        p = subprocess.run(["./cti_file_transfer", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_file_transfer failed")
 
 '''
     cti_info fetches information about a running job. There are two versions
@@ -442,6 +334,73 @@ class CtiInfoTest(Test):
                 break
         self.assertTrue(jobid is not None, "Couldn't determine jobid")
 
+'''
+cti_kill launches a binary and then immediately sends a SIGTERM to it.
+'''
+class CtiKillTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+
+    def test(self):
+        process.run("%s/cti_kill %s %s/hello_mpi_wait"
+            % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
+
+'''
+cti_launch launches a binary and prints out various information about the job.
+'''
+class CtiLaunchTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+
+    def test(self):
+        process.run("%s/cti_launch %s %s/hello_mpi_wait"
+            % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
+
+class CtiLdPreloadTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_LdPreload(self):
+        p = subprocess.run(["./cti_ld_preload", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_ld_preload failed")
+
+'''
+cti_link tests that programs can be linked against the FE/BE libraries.
+'''
+class CtiLinkTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+
+    def test(self):
+        if "LD_LIBRARY_PATH" in os.environ:
+            print("LD_LIBRARY_PATH from os.environ %s" % os.path.expandvars('$LD_LIBRARY_PATH'))
+        else:
+            print("LD_LIBRARY_PATH not defined!")
+        process.run("%s/cti_link"
+            % (TESTS_BIN_PATH), shell = True)
+
+class CtiManifestTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_Manifest(self):
+        p = subprocess.run(["./cti_manifest", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_manifest failed")
+
+class CtiMPIRShimTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_MPIRShim(self):
+        # Only supported on slurm
+        if detectWLM(self) != "slurm":
+            self.cancel("MPIR Shim only supported on slurm")
+
+        p = subprocess.run(["./cti_mpir_shim", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_mpir_shim failed")
 
 '''
     cti_mpmd is like cti_info, but it calls cti_getBinaryRankList to map binary
@@ -477,7 +436,7 @@ class CtiMPMDTest(Test):
         }
 
         proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
-            "-n8", "-l", "--multi-prog", "./src/mpmd.conf"],
+            "-n8", "-l", "--multi-prog", "./src/static/mpmd.conf"],
             stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.STDOUT)
         proc_pid = proc_barrier.pid
         self.assertTrue(proc_pid is not None, "Couldn't start cti_barrier.")
@@ -639,6 +598,52 @@ class CtiMPMDTest(Test):
                 break
 
         self.assertTrue(apid is not None, "Couldn't determine apid")
+
+class CtiRedirectTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_Redirect(self):
+        p = subprocess.run(["./cti_redirect", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_redirect failed")
+
+class CtiReleaseTwiceTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_ReleaseTwice(self):
+        p = subprocess.run(["./cti_release_twice", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_release_twice failed")
+
+class CtiSessionTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_Session(self):
+        p = subprocess.run(["./cti_session", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_session failed")
+
+class CtiToolDaemonTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+        os.chdir("./src")
+
+    def test_ToolDaemon(self):
+        p = subprocess.run(["./cti_tool_daemon", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertTrue(p.returncode == 0, "cti_tool_daemon failed")
+
+'''
+cti_wlm fetches the work load manager type about a running job.
+'''
+class CtiWLMTest(Test):
+    def setUp(self):
+        readVariablesFromEnv(self)
+
+    def test(self):
+        detectWLM(self)
 
 class CTIEmptyLaunchTests(Test):
     def setUp(self):
