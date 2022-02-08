@@ -186,8 +186,12 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
 #endif
         case CTI_WLM_SLURM:
             return SLURMFrontend::getName();
+#if HAVE_PALS
         case CTI_WLM_PALS:
             return PALSFrontend::getName();
+#else
+            return "PALS support was not configured for this build of CTI.";
+#endif
         case CTI_WLM_SSH:
             return GenericSSHFrontend::getName();
         case CTI_WLM_FLUX:
@@ -466,20 +470,31 @@ static cti_slurm_ops_t _cti_slurm_ops = {
 
 // PALS WLM extensions
 
+#if HAVE_PALS
+#define CHECK_PALS(...) __VA_ARGS__
+#else
+#define CHECK_PALS(...) \
+    throw std::runtime_error("PALS support was not compiled into this version of CTI");
+#endif
+
 static char*
 _cti_pals_getApid(pid_t launcherPid) {
     return FE_iface::runSafely(__func__, [&](){
+        CHECK_PALS(
         auto&& fe = downcastFE<PALSFrontend>();
         strdup(fe.getApid(launcherPid).c_str());
+        )
     }, (char*)nullptr);
 }
 
 static cti_app_id_t
 _cti_pals_registerApid(char const* apid) {
     return FE_iface::runSafely(__func__, [&](){
+        CHECK_PALS(
         auto&& fe = downcastFE<PALSFrontend>();
         auto wp = fe.registerJob(1, apid);
         return fe.Iface().trackApp(wp);
+        )
     }, APP_ERROR);
 }
 
