@@ -175,6 +175,9 @@ public: // type definitions
 
     /* request types */
 
+    static constexpr auto StdFd   = int{-1}; // Map request FD to stdin / stdout / stderr
+    static constexpr auto CloseFd = int{-2}; // Close request FD
+
     // sent before a request to indicate the type of request data that will follow
     enum class ReqType : long {
         ForkExecvpApp,

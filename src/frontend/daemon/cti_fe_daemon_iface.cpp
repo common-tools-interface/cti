@@ -64,13 +64,29 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
         }
     }
 
-    // share stdin/out/err fds
+    // Share standard in / out / err if set to StdFd, closed if CloseFd, or provided FD
     auto const N_FDS = 3;
-    int const stdfds[] =
-        { (stdin_fd  >= 0) ? stdin_fd  : STDIN_FILENO
-        , (stdout_fd >= 0) ? stdout_fd : STDOUT_FILENO
-        , (stderr_fd >= 0) ? stderr_fd : STDERR_FILENO
+    int fds_source[N_FDS] =
+
+        { (stdin_fd == FE_daemon::StdFd)
+            ? STDIN_FILENO
+            : (stdin_fd == FE_daemon::CloseFd)
+                ? ::open("/dev/null", O_RDONLY)
+                : stdin_fd
+
+        , (stdout_fd == FE_daemon::StdFd)
+            ? STDOUT_FILENO
+            : (stdout_fd == FE_daemon::CloseFd)
+                ? ::open("/dev/null", O_WRONLY)
+                : stdout_fd
+
+        , (stderr_fd == FE_daemon::StdFd)
+            ? STDERR_FILENO
+            : (stderr_fd == FE_daemon::CloseFd)
+                ? ::open("/dev/null", O_WRONLY)
+                : stderr_fd
     };
+
     struct {
         int fd_data[N_FDS];
         struct cmsghdr cmd_hdr;
@@ -96,7 +112,7 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
     cmsg->cmsg_level = SOL_SOCKET;
     cmsg->cmsg_type  = SCM_RIGHTS;
     for(int i = 0; i < N_FDS; i++) {
-        ((int *)CMSG_DATA(cmsg))[i] = stdfds[i];
+        ((int *)CMSG_DATA(cmsg))[i] = fds_source[i];
     }
 
     // send remap FD message

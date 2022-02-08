@@ -325,7 +325,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
 
         if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
             m_daemonAppId, "palscmd", palscmdArgv.get(),
-            -1, -1, -1,
+            FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
             nullptr)) {
             throw std::runtime_error("failed to create remote toolpath directory for apid " + m_apId);
         }
@@ -341,7 +341,7 @@ PALSApp::~PALSApp()
         // Ignore failures in destructor
         m_frontend.Daemon().request_ForkExecvpUtil_Sync(
             m_daemonAppId, "palscmd", palscmdArgv.get(),
-            -1, -1, -1,
+            FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
             nullptr);
     }
 }
@@ -358,7 +358,7 @@ PALSApp::isRunning() const
     auto palstatArgv = cti::ManagedArgv{"palstat", m_apId};
     return m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, "palstat", palstatArgv.get(),
-        -1, -1, -1,
+        FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
         nullptr);
 }
 
@@ -431,7 +431,7 @@ PALSApp::shipPackage(std::string const& tarPath) const
 
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, "palscp", palscpArgv.get(),
-        -1, -1, -1,
+        FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
         nullptr)) {
         throw std::runtime_error("failed to ship " + tarPath + " using palscp");
     }
@@ -443,7 +443,7 @@ PALSApp::shipPackage(std::string const& tarPath) const
 
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, "palscmd", palscmdArgv.get(),
-        -1, -1, -1,
+        FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
         nullptr)) {
         throw std::runtime_error("failed to move shipped package for apid " + m_apId);
     }
@@ -476,7 +476,7 @@ PALSApp::startDaemon(const char* const args[])
         // Run copy command
         if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
             m_daemonAppId, "cp", copyArgv.get(),
-            -1, -1, -1,
+            FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
             nullptr)) {
             throw std::runtime_error("failed to copy " + sourcePath + " to " + destinationPath);
         }
@@ -500,7 +500,7 @@ PALSApp::startDaemon(const char* const args[])
     // tell frontend daemon to launch palscmd, wait for it to finish
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, "palscmd", palscmdArgv.get(),
-        -1, -1, -1,
+        FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
         nullptr)) {
         throw std::runtime_error("failed to launch tool daemon for apid " + m_apId);
     }
@@ -515,7 +515,7 @@ void PALSApp::kill(int signum)
     // tell frontend daemon to launch palsig, wait for it to finish
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, "palsig", palsigArgv.get(),
-        -1, -1, -1,
+        FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
         nullptr)) {
         throw std::runtime_error("failed to send signal to apid " + m_apId);
     }
