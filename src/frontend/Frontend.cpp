@@ -974,7 +974,7 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 #endif
 
     } else if (wlm == WLM::PALS) {
-        return new HPCMPALSFrontend{};
+        return new PALSFrontend{};
 
     } else if (wlm == WLM::SSH) {
         return new GenericSSHFrontend{};

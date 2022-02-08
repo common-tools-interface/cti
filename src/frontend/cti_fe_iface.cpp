@@ -187,7 +187,7 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
         case CTI_WLM_SLURM:
             return SLURMFrontend::getName();
         case CTI_WLM_PALS:
-            return HPCMPALSFrontend::getName();
+            return PALSFrontend::getName();
         case CTI_WLM_SSH:
             return GenericSSHFrontend::getName();
         case CTI_WLM_FLUX:
@@ -469,7 +469,7 @@ static cti_slurm_ops_t _cti_slurm_ops = {
 static char*
 _cti_pals_getApid(pid_t launcherPid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto&& fe = downcastFE<HPCMPALSFrontend>();
+        auto&& fe = downcastFE<PALSFrontend>();
         strdup(fe.getApid(launcherPid).c_str());
     }, (char*)nullptr);
 }
@@ -477,7 +477,7 @@ _cti_pals_getApid(pid_t launcherPid) {
 static cti_app_id_t
 _cti_pals_registerApid(char const* apid) {
     return FE_iface::runSafely(__func__, [&](){
-        auto&& fe = downcastFE<HPCMPALSFrontend>();
+        auto&& fe = downcastFE<PALSFrontend>();
         auto wp = fe.registerJob(1, apid);
         return fe.Iface().trackApp(wp);
     }, APP_ERROR);

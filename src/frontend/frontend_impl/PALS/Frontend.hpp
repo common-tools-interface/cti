@@ -38,7 +38,7 @@
 
 #include "useful/cti_wrappers.hpp"
 
-class HPCMPALSFrontend : public Frontend
+class PALSFrontend : public Frontend
 {
 public: // types
     struct PalsLaunchInfo
@@ -80,7 +80,7 @@ public: // PALS-specific interface
         int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
 };
 
-class HPCMPALSApp : public App
+class PALSApp : public App
 {
     FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     std::string m_apId;
@@ -99,12 +99,12 @@ class HPCMPALSApp : public App
 
 
 public:
-    HPCMPALSApp(HPCMPALSFrontend& fe, HPCMPALSFrontend::PalsLaunchInfo&& palsLaunchInfo);
-    ~HPCMPALSApp();
-    HPCMPALSApp(const HPCMPALSApp&) = delete;
-    HPCMPALSApp& operator=(const HPCMPALSApp&) = delete;
-    HPCMPALSApp(HPCMPALSApp&&) = delete;
-    HPCMPALSApp& operator=(HPCMPALSApp&&) = delete;
+    PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo);
+    ~PALSApp();
+    PALSApp(const PALSApp&) = delete;
+    PALSApp& operator=(const PALSApp&) = delete;
+    PALSApp(PALSApp&&) = delete;
+    PALSApp& operator=(PALSApp&&) = delete;
 
     std::string getJobId()            const override { return m_apId; }
     std::string getLauncherHostname() const override;

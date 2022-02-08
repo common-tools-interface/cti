@@ -48,7 +48,7 @@
 #include "frontend/mpir_iface/Inferior.hpp"
 
 std::string
-HPCMPALSFrontend::getApid(pid_t launcher_pid)
+PALSFrontend::getApid(pid_t launcher_pid)
 {
     // MPIR attach to launcher
     auto const mpirData = Daemon().request_AttachMPIR(
@@ -68,8 +68,8 @@ HPCMPALSFrontend::getApid(pid_t launcher_pid)
     return result;
 }
 
-HPCMPALSFrontend::PalsLaunchInfo
-HPCMPALSFrontend::attachApp(std::string const& apId)
+PALSFrontend::PalsLaunchInfo
+PALSFrontend::attachApp(std::string const& apId)
 {
     // Create daemon ID for new application
     auto result = PalsLaunchInfo
@@ -117,8 +117,8 @@ HPCMPALSFrontend::attachApp(std::string const& apId)
     return result;
 }
 
-HPCMPALSFrontend::PalsLaunchInfo
-HPCMPALSFrontend::launchApp(const char * const launcher_argv[],
+PALSFrontend::PalsLaunchInfo
+PALSFrontend::launchApp(const char * const launcher_argv[],
         int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
     // Get the launcher path from CTI environment variable / default.
@@ -185,12 +185,12 @@ static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgAr
 }
 
 std::weak_ptr<App>
-HPCMPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+PALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
 
-    auto appPtr = std::make_shared<HPCMPALSApp>(*this,
+    auto appPtr = std::make_shared<PALSApp>(*this,
         launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get()));
 
     // Release barrier and continue launch
@@ -206,12 +206,12 @@ HPCMPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 }
 
 std::weak_ptr<App>
-HPCMPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+PALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
 
-    auto ret = m_apps.emplace(std::make_shared<HPCMPALSApp>(*this,
+    auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
         launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
@@ -221,7 +221,7 @@ HPCMPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stde
 }
 
 std::weak_ptr<App>
-HPCMPALSFrontend::registerJob(size_t numIds, ...)
+PALSFrontend::registerJob(size_t numIds, ...)
 {
     if (numIds != 1) {
         throw std::logic_error("expecting single apid argument to register app");
@@ -234,7 +234,7 @@ HPCMPALSFrontend::registerJob(size_t numIds, ...)
 
     va_end(idArgs);
 
-    auto ret = m_apps.emplace(std::make_shared<HPCMPALSApp>(*this,
+    auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
         attachApp(apid)));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
@@ -245,7 +245,7 @@ HPCMPALSFrontend::registerJob(size_t numIds, ...)
 
 // Current address can now be obtained using the `cminfo` tool.
 std::string
-HPCMPALSFrontend::getHostname() const
+PALSFrontend::getHostname() const
 {
     static auto const nodeAddress = []() {
 
@@ -290,14 +290,14 @@ HPCMPALSFrontend::getHostname() const
 }
 
 std::string
-HPCMPALSFrontend::getLauncherName()
+PALSFrontend::getLauncherName()
 {
     // Cache the launcher name result. Assume mpiexec by default.
     auto static launcherName = std::string{cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "mpiexec")};
     return launcherName;
 }
 
-HPCMPALSApp::HPCMPALSApp(HPCMPALSFrontend& fe, HPCMPALSFrontend::PalsLaunchInfo&& palsLaunchInfo)
+PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo)
     : App{fe}
     , m_daemonAppId{palsLaunchInfo.daemonAppId}
     , m_apId{std::move(palsLaunchInfo.apId)}
@@ -332,7 +332,7 @@ HPCMPALSApp::HPCMPALSApp(HPCMPALSFrontend& fe, HPCMPALSFrontend::PalsLaunchInfo&
     }
 }
 
-HPCMPALSApp::~HPCMPALSApp()
+PALSApp::~PALSApp()
 {
     // Remove remote toolpath directory
     { auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
@@ -347,13 +347,13 @@ HPCMPALSApp::~HPCMPALSApp()
 }
 
 std::string
-HPCMPALSApp::getLauncherHostname() const
+PALSApp::getLauncherHostname() const
 {
     throw std::runtime_error{"not supported for PALS: " + std::string{__func__}};
 }
 
 bool
-HPCMPALSApp::isRunning() const
+PALSApp::isRunning() const
 {
     auto palstatArgv = cti::ManagedArgv{"palstat", m_apId};
     return m_frontend.Daemon().request_ForkExecvpUtil_Sync(
@@ -363,19 +363,19 @@ HPCMPALSApp::isRunning() const
 }
 
 size_t
-HPCMPALSApp::getNumPEs() const
+PALSApp::getNumPEs() const
 {
     return m_procTable.size();
 }
 
 size_t
-HPCMPALSApp::getNumHosts() const
+PALSApp::getNumHosts() const
 {
     return m_hosts.size();
 }
 
 std::vector<std::string>
-HPCMPALSApp::getHostnameList() const
+PALSApp::getHostnameList() const
 {
     // Make vector from set
     auto result = std::vector<std::string>{};
@@ -388,7 +388,7 @@ HPCMPALSApp::getHostnameList() const
 }
 
 std::vector<CTIHost>
-HPCMPALSApp::getHostsPlacement() const
+PALSApp::getHostsPlacement() const
 {
     // Count PEs for each host
     auto hostnameCountMap = std::map<std::string, size_t>{};
@@ -406,13 +406,13 @@ HPCMPALSApp::getHostsPlacement() const
 }
 
 std::map<std::string, std::vector<int>>
-HPCMPALSApp::getBinaryRankMap() const
+PALSApp::getBinaryRankMap() const
 {
     return m_binaryRankMap;
 }
 
 void
-HPCMPALSApp::releaseBarrier()
+PALSApp::releaseBarrier()
 {
     if (!m_atBarrier) {
         throw std::runtime_error("application is not at startup barrier");
@@ -423,7 +423,7 @@ HPCMPALSApp::releaseBarrier()
 }
 
 void
-HPCMPALSApp::shipPackage(std::string const& tarPath) const
+PALSApp::shipPackage(std::string const& tarPath) const
 {
     auto const destinationName = cti::cstr::basename(tarPath);
 
@@ -450,7 +450,7 @@ HPCMPALSApp::shipPackage(std::string const& tarPath) const
 }
 
 void
-HPCMPALSApp::startDaemon(const char* const args[])
+PALSApp::startDaemon(const char* const args[])
 {
     // sanity check
     if (args == nullptr) {
@@ -506,7 +506,7 @@ HPCMPALSApp::startDaemon(const char* const args[])
     }
 }
 
-void HPCMPALSApp::kill(int signum)
+void PALSApp::kill(int signum)
 {
     // create the args for palsig
     auto palsigArgv = cti::ManagedArgv { "palsig", "-s", std::to_string(signum),
