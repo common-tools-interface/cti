@@ -334,15 +334,19 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
 
 PALSApp::~PALSApp()
 {
-    // Remove remote toolpath directory
-    { auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
+    // Ignore failures in destructor
+    try {
+
+        // Remove remote toolpath directory
+        auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
             "rm", "-rf", m_toolPath };
 
-        // Ignore failures in destructor
         m_frontend.Daemon().request_ForkExecvpUtil_Sync(
             m_daemonAppId, "palscmd", palscmdArgv.get(),
             FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
             nullptr);
+    } catch (std::exception const& ex) {
+        writeLog("~PALSApp: %s\n", ex.what());
     }
 }
 
