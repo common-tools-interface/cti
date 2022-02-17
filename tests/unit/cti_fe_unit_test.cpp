@@ -586,8 +586,10 @@ TEST_F(CTIAppUnitTest, AddManifestBinary)
         , tarRoot + "lib/libmessage.so"
     };
 
-    for (auto&& path : mockApp->getShippedFilePaths()) {
-        EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end()) << "Could not find " << path;
+    auto const shippedPaths = mockApp->getShippedFilePaths();
+    for (auto&& path : expectedPaths) {
+        EXPECT_TRUE(std::find(shippedPaths.begin(), shippedPaths.end(), path)
+            != shippedPaths.end()) << "Could not find " << path;
     }
 
     // cleanup
@@ -618,8 +620,11 @@ TEST_F(CTIAppUnitTest, AddManifestLibrary)
         { tarRoot + "lib/libmessage.so"
     };
 
-    for (auto&& path : mockApp->getShippedFilePaths()) {
-        EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end()) << "Could not find " << path;
+
+    auto const shippedPaths = mockApp->getShippedFilePaths();
+    for (auto&& path : expectedPaths) {
+        EXPECT_TRUE(std::find(shippedPaths.begin(), shippedPaths.end(), path)
+            != shippedPaths.end()) << "Could not find " << path;
     }
 
     // cleanup
@@ -720,8 +725,10 @@ TEST_F(CTIAppUnitTest, ExecToolDaemon)
         , tarRoot + "lib/libmessage.so"
     };
 
-    for (auto&& path : mockApp->getShippedFilePaths()) {
-        EXPECT_TRUE(expectedPaths.find(path) != expectedPaths.end()) << "Could not find " << path;
+    auto const shippedPaths = mockApp->getShippedFilePaths();
+    for (auto&& path : expectedPaths) {
+        EXPECT_TRUE(std::find(shippedPaths.begin(), shippedPaths.end(), path)
+            != shippedPaths.end()) << "Could not find " << path;
     }
 
     // cleanup
