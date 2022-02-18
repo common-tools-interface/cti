@@ -125,7 +125,7 @@ _cti_be_generic_ssh_getLayout(void)
     FILE *                  my_file;
     cti_layoutFileHeader_t  layout_hdr;
     cti_layoutFile_t *      layout;
-    int                     i, offset;
+    int                     i;
 
     // sanity
     if (_cti_layout != NULL)
@@ -203,14 +203,11 @@ _cti_be_generic_ssh_getLayout(void)
     free(layoutPath);
     fclose(my_file);
 
-    // find the entry for this nid, we need to offset into the host name based on
-    // this nid
-    offset = strlen(layout[0].host) - strlen(hostname);
-
+    // find the entry for this nid
     for (i=0; i < layout_hdr.numNodes; ++i)
     {
         // check if this entry corresponds to our nid
-        if (strncmp(layout[i].host + offset, hostname, strlen(hostname)) == 0)
+        if (strncmp(layout[i].host, hostname, strlen(hostname)) == 0)
         {
             // found it
             my_layout->PEsHere = layout[i].PEsHere;
@@ -229,6 +226,11 @@ _cti_be_generic_ssh_getLayout(void)
 
     // if we get here, we didn't find the host in the layout list!
     fprintf(stderr, "Could not find layout entry for hostname %s\n", hostname);
+
+    for (i=0; i < layout_hdr.numNodes; ++i) {
+        fprintf(stderr, "%2d: %s\n", i, layout[i].host);
+    }
+
     free(my_layout);
     free(layout);
     return 1;
