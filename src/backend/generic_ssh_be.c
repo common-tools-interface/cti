@@ -467,76 +467,22 @@ _cti_be_generic_ssh_getNodeHostname()
     static char *hostname = NULL; // Cache the result
 
     // Determined the answer previously?
-    if (hostname)
+    if (hostname) {
         return strdup(hostname);    // return cached value
-
-    // Try the Cray /proc extension short cut
-    FILE *nid_fp;             // NID file stream
-        if (((nid_fp = fopen(CRAY_XT_NID_FILE, "r"))     != NULL) ||
-            ((nid_fp = fopen(CRAY_SHASTA_NID_FILE, "r")) != NULL))
-        {
-            // Set hostname format based on XC or Shasta
-            char const* hostname_fmt = (access(CRAY_XT_NID_FILE, F_OK) != -1)
-                ? CRAY_XT_HOSTNAME_FMT
-                : CRAY_SHASTA_HOSTNAME_FMT;
-
-        // we expect this file to have a numeric value giving our current nid
-        char file_buf[BUFSIZ];   // file read buffer
-        if (fgets(file_buf, BUFSIZ, nid_fp) == NULL)
-        {
-            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname fgets failed.\n");
-            fclose(nid_fp);
-            return NULL;
-        }
-
-        // close the file stream
-        fclose(nid_fp);
-
-        // convert this to an integer value
-        errno = 0;
-        char *  eptr;
-        int nid = (int)strtol(file_buf, &eptr, 10);
-
-        // check for error
-        if ((errno == ERANGE && nid == INT_MAX)
-                || (errno != 0 && nid == 0))
-        {
-            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname: strtol failed.\n");
-            return NULL;
-        }
-
-        // check for invalid input
-        if (eptr == file_buf)
-        {
-            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname: Bad data in %s\n", CRAY_XT_NID_FILE);
-            return NULL;
-        }
-
-        // create the nid hostname string
-        if (asprintf(&hostname, hostname_fmt, nid) <= 0)
-        {
-            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname asprintf failed.\n");
-            free(hostname);
-            hostname = NULL;
-            return NULL;
-        }
     }
 
-    else // Fallback to standard hostname
+    // allocate memory for the hostname
+    if ((hostname = malloc(HOST_NAME_MAX)) == NULL)
     {
-        // allocate memory for the hostname
-        if ((hostname = malloc(HOST_NAME_MAX)) == NULL)
-        {
-            fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname: malloc failed.\n");
-            return NULL;
-        }
+        fprintf(stderr, "_cti_be_generic_ssh_getNodeHostname: malloc failed.\n");
+        return NULL;
+    }
 
-        if (gethostname(hostname, HOST_NAME_MAX) < 0)
-        {
-            fprintf(stderr, "%s", "_cti_be_generic_ssh_getNodeHostname: gethostname() failed!\n");
-            hostname = NULL;
-            return NULL;
-        }
+    if (gethostname(hostname, HOST_NAME_MAX) < 0)
+    {
+        fprintf(stderr, "%s", "_cti_be_generic_ssh_getNodeHostname: gethostname() failed!\n");
+        hostname = NULL;
+        return NULL;
     }
 
     return strdup(hostname); // One way or the other
