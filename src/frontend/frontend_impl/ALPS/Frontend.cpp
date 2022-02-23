@@ -355,17 +355,20 @@ void
 ALPSApp::kill(int signal)
 {
     // create the args for apkill
+    auto const apid = std::to_string(m_alpsAppInfo->apid);
     auto apkillArgv = cti::ManagedArgv {
         APKILL // first argument should be "apkill"
         , "-" + std::to_string(signal) // second argument is -signal
-        , std::to_string(m_alpsAppInfo->apid) // third argument is apid
+        , apid // third argument is apid
     };
 
     // tell frontend daemon to launch scancel, wait for it to finish
-    m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, APKILL, apkillArgv.get(),
         -1, -1, -1,
-        nullptr);
+        nullptr)) {
+        throw std::runtime_error("failed to send signal to apid " + apid);
+    }
 }
 
 static constexpr auto LAUNCH_TOOL_RETRY = 5;
@@ -425,10 +428,12 @@ ALPSApp::startDaemon(const char* const args[])
         };
 
         // Run link command
-        m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
             m_daemonAppId, "ln", linkArgv.get(),
             -1, -1, -1,
-            nullptr);
+            nullptr)) {
+            throw std::runtime_error("failed to link " + sourcePath + " to " + destinationPath);
+        }
 
         commandStream << destinationPath;
     }

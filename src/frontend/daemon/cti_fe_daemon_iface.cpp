@@ -64,13 +64,29 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
         }
     }
 
-    // share stdin/out/err fds
+    // Share standard in / out / err if set to StdFd, closed if CloseFd, or provided FD
     auto const N_FDS = 3;
-    int const stdfds[] =
-        { (stdin_fd  >= 0) ? stdin_fd  : STDIN_FILENO
-        , (stdout_fd >= 0) ? stdout_fd : STDOUT_FILENO
-        , (stderr_fd >= 0) ? stderr_fd : STDERR_FILENO
+    int fds_source[N_FDS] =
+
+        { (stdin_fd == FE_daemon::StdFd)
+            ? STDIN_FILENO
+            : (stdin_fd == FE_daemon::CloseFd)
+                ? ::open("/dev/null", O_RDONLY)
+                : stdin_fd
+
+        , (stdout_fd == FE_daemon::StdFd)
+            ? STDOUT_FILENO
+            : (stdout_fd == FE_daemon::CloseFd)
+                ? ::open("/dev/null", O_WRONLY)
+                : stdout_fd
+
+        , (stderr_fd == FE_daemon::StdFd)
+            ? STDERR_FILENO
+            : (stderr_fd == FE_daemon::CloseFd)
+                ? ::open("/dev/null", O_WRONLY)
+                : stderr_fd
     };
+
     struct {
         int fd_data[N_FDS];
         struct cmsghdr cmd_hdr;
@@ -96,7 +112,7 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
     cmsg->cmsg_level = SOL_SOCKET;
     cmsg->cmsg_type  = SCM_RIGHTS;
     for(int i = 0; i < N_FDS; i++) {
-        ((int *)CMSG_DATA(cmsg))[i] = stdfds[i];
+        ((int *)CMSG_DATA(cmsg))[i] = fds_source[i];
     }
 
     // send remap FD message
@@ -376,7 +392,7 @@ FE_daemon::request_ForkExecvpApp(char const* file,
     return readIDResp(m_resp_sock.getReadFd());
 }
 
-void
+bool
 FE_daemon::request_ForkExecvpUtil(DaemonAppId app_id, RunMode runMode,
     char const* file, char const* const argv[], int stdin_fd, int stdout_fd, int stderr_fd,
     char const* const env[])
@@ -385,7 +401,16 @@ FE_daemon::request_ForkExecvpUtil(DaemonAppId app_id, RunMode runMode,
     fdWriteLoop(m_req_sock.getWriteFd(), app_id);
     fdWriteLoop(m_req_sock.getWriteFd(), runMode);
     writeLaunchData(m_req_sock.getWriteFd(), file, argv, stdin_fd, stdout_fd, stderr_fd, env);
-    verifyOKResp(m_resp_sock.getReadFd());
+
+    // Expect successful async launch
+    if (runMode == RunMode::Asynchronous) {
+        verifyOKResp(m_resp_sock.getReadFd());
+        return true;
+
+    // Return whether launching the synchronous application was successful
+    } else {
+        return readOKResp(m_resp_sock.getReadFd());
+    }
 }
 
 FE_daemon::MPIRResult
@@ -443,6 +468,14 @@ FE_daemon::request_LaunchMPIRShim(
     fdWriteLoop(m_req_sock.getWriteFd(), shimmedLauncherPath, strlen(shimmedLauncherPath) + 1);
     writeLaunchData(m_req_sock.getWriteFd(), scriptPath, argv, stdin_fd, stdout_fd, stderr_fd, env);
     return readMPIRResp(m_resp_sock.getReadFd());
+}
+
+DaemonAppId
+FE_daemon::request_RegisterApp()
+{
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterApp);
+    fdWriteLoop(m_req_sock.getWriteFd(), 0);
+    return readIDResp(m_resp_sock.getReadFd());
 }
 
 DaemonAppId

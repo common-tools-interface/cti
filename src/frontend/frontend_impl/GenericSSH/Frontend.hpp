@@ -45,7 +45,6 @@ private: // Global state
 
 public: // inherited interface
     static char const* getName()        { return CTI_WLM_TYPE_SSH_STR; }
-    static bool isSupported();
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SSH; }
 
@@ -103,7 +102,7 @@ public: // constructor / destructor interface
 
 /* Types used here */
 
-class GenericSSHApp final : public App
+class GenericSSHApp : public App
 {
 private: // variables
     FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
@@ -147,25 +146,4 @@ public: // constructor / destructor interface
     GenericSSHApp& operator=(const GenericSSHApp&) = delete;
     GenericSSHApp(GenericSSHApp&&) = delete;
     GenericSSHApp& operator=(GenericSSHApp&&) = delete;
-};
-
-class HPCMPALSFrontend : public GenericSSHFrontend {
-public: // inherited interface
-
-    std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
-
-    std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
-
-    std::string getHostname() const override;
-
-public: // PALS-specific interface
-
-    // Register job by launcher PID, for tools such as ATP for HPCM PALS that need
-    // to start before the job ID is created, but attach after the job starts
-    std::weak_ptr<App> registerLauncherPid(pid_t launcher_pid);
-
-    // Detect and attach to job running on either this or remote machine (e.g. compute node)
-    std::weak_ptr<App> registerRemoteJob(char const* job_id);
 };

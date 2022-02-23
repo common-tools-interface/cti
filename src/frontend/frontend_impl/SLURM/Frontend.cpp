@@ -232,10 +232,12 @@ void SLURMApp::kill(int signum)
     };
 
     // tell frontend daemon to launch scancel, wait for it to finish
-    m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, SCANCEL, scancelArgv.get(),
         -1, -1, -1,
-        nullptr);
+        nullptr)) {
+        throw std::runtime_error("failed to send signal to job ID " + getJobId());
+    }
 }
 
 void SLURMApp::shipPackage(std::string const& tarPath) const {
@@ -252,7 +254,7 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName);
 
     // now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
-    m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+    (void)m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, SBCAST, sbcastArgv.get(),
         -1, -1, -1,
         nullptr);
@@ -410,10 +412,12 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
         };
 
         // Run link command
-        m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
             m_daemonAppId, "ln", linkArgv.get(),
             -1, -1, -1,
-            nullptr);
+            nullptr)) {
+            throw std::runtime_error("failed to link " + sourcePath + " to " + destinationPath);
+        }
 
         // Ship the unique backend daemon
         shipPackage(destinationPath);
