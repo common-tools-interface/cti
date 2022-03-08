@@ -16,6 +16,15 @@ Product Description:
 
 Purpose:
 ---------
+  22.04 This release adds the following features:
+      - Update Shasta PALS implementation to use PALS utilities and deprecate
+        the previous Shasta PALS API
+      - Update the HPCM PALS implementations to use PALS utilities
+    This release fixes the following bugs:
+      - Fix the usage of the `aprun` launcher with HPCM PALS instead of
+        the default `mpiexec` launcher
+      - Fix HPCM PALS backend startup when node hostnames are in xname format
+
   22.02 This release is a bugfix release:
       - Default Shasta PALS node count in job launches to 1
       - Include `--overlap` in Slurm tool daemon launches for Slurm versions
