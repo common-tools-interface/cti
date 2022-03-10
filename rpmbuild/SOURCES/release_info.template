@@ -16,6 +16,16 @@ Product Description:
 
 Purpose:
 ---------
+  22.04 This release adds the following features:
+      - Update Shasta PALS implementation to use PALS utilities and deprecate
+        the previous Shasta PALS API
+      - Update the HPCM PALS implementations to use PALS utilities
+
+      This release fixes the following bugs:
+      - Fix the usage of the `aprun` launcher with HPCM PALS instead of
+        the default `mpiexec` launcher
+      - Fix HPCM PALS backend startup when node hostnames are in xname format
+
   22.02 This release is a bugfix release:
       - Default Shasta PALS node count in job launches to 1
       - Include `--overlap` in Slurm tool daemon launches for Slurm versions
@@ -50,10 +60,10 @@ Product and OS Dependencies:
 -----------------------------
   The Cray CTI <VERSION> release is supported on the following Cray systems:
     - HPE/Cray XC systems with CLE 7.0 or later
-    - HPE/Cray CS systems with CentOS/RH 8.0 or later
+    - HPE/Cray CS systems with CentOS/RH 8.4 or later
     - HPE/Cray Shasta systems with SLES 15 service pack 2 or later
-    - HPE Apollo systems with Slurm and RH 8.0 or later
-    - Baymax systems with RH 8.0 or later
+    - HPE Apollo systems with Slurm and RH 8.4 or later
+    - Baymax systems with RH 8.4 or later
 
   Product Dependencies:
     - Cray cray-cdst-support rpm installed
