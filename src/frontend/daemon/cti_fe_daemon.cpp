@@ -175,6 +175,7 @@ int reqFd  = -1; // incoming request pipe
 int respFd = -1; // outgoing response pipe
 
 // threading helpers
+auto main_loop_running = false;
 std::vector<std::future<void>> runningThreads;
 template <typename Func>
 static void start_thread(Func&& func) {
@@ -204,36 +205,13 @@ usage(char *name)
 }
 
 static void
-shutdown_and_exit(int const rc)
+terminate_main_loop()
 {
-    // block all signals
-    sigset_t block_set;
-    memset(&block_set, 0, sizeof(block_set));
-    if (sigfillset(&block_set)) {
-        fprintf(stderr, "sigfillset: %s\n", strerror(errno));
-        exit(1);
-    }
-    if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
-        fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
-        exit(1);
-    }
-
-    // terminate all running utilities
-    auto utilTermFuture = std::async(std::launch::async, [&](){ utilMap.clear(); });
-
-    // terminate all running apps
-    auto appTermFuture = std::async(std::launch::async, [&](){ appCleanupList.clear(); });
-
-    // wait for all threads
-    utilTermFuture.wait();
-    appTermFuture.wait();
-    finish_threads();
-
-    // close pipes
+    // Main loop is blocking on a frontend request from reqFd
+    // If the daemon got a SIGHUP, the frontend terminated
+    // without sending a shutdown request. Closing reqFd
+    // will cause the main loop to stop waiting and exit
     close(reqFd);
-    close(respFd);
-
-    exit(rc);
 }
 
 /* signal handlers */
@@ -245,6 +223,11 @@ sigchld_handler(pid_t const exitedPid)
     { auto const saved_errno = errno;
         while (::waitpid(exitedPid, 0, WNOHANG) > 0) {}
         errno = saved_errno;
+    }
+
+    // If main loop is not running, allow main thread to clean up instead
+    if (!main_loop_running) {
+        return;
     }
 
     // regular app termination
@@ -274,7 +257,7 @@ cti_fe_daemon_handler(int sig, siginfo_t *sig_info, void *secret)
             sigchld_handler(sig_info->si_pid);
         }
     } else if ((sig == SIGTERM) || (sig == SIGHUP)) {
-        shutdown_and_exit(0);
+        terminate_main_loop();
     } else {
         // TODO: determine which signals should be relayed to child
     }
@@ -1099,8 +1082,6 @@ static void handle_Shutdown(int const reqFd, int const respFd)
         { .type = RespType::OK
         , .success = true
     });
-
-    shutdown_and_exit(0);
 }
 
 // Return string value of request type for logging
@@ -1183,42 +1164,42 @@ main(int argc, char *argv[])
     }
 
     // block all signals except noted
-    auto const handledSignals = std::vector<int>
-        { SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
-        , SIGTRAP // used for Dyninst breakpoint events
-        , SIGTTIN // used for mpiexec job control
-
-        // mpiexec sends SIGSEGV if a job process segfaults, ignore it
-        , SIGSEGV
-    };
-
-    sigset_t block_set;
-    memset(&block_set, 0, sizeof(block_set));
-    if (sigfillset(&block_set)) {
-        fprintf(stderr, "sigfillset: %s\n", strerror(errno));
-        return 1;
-    }
-
-    for (auto&& signum : handledSignals) {
-        if (sigdelset(&block_set, signum)) {
-            fprintf(stderr, "sigdelset: %s\n", strerror(errno));
+    { sigset_t block_set;
+        memset(&block_set, 0, sizeof(block_set));
+        if (sigfillset(&block_set)) {
+            fprintf(stderr, "sigfillset: %s\n", strerror(errno));
             return 1;
         }
-    }
-    if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
-        fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
-        return 1;
-    }
+        auto const handledSignals = std::vector<int>
+            { SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
+            , SIGTRAP // used for Dyninst breakpoint events
+            , SIGTTIN // used for mpiexec job control
 
-    // set handler for signals
-    struct sigaction sig_action;
-    memset(&sig_action, 0, sizeof(sig_action));
-    sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
-    sig_action.sa_sigaction = cti_fe_daemon_handler;
-    for (auto&& signum : handledSignals) {
-        if (sigaction(signum, &sig_action, nullptr)) {
-            fprintf(stderr, "sigaction %d: %s\n", signum, strerror(errno));
+            // mpiexec sends SIGSEGV if a job process segfaults, ignore it
+            , SIGSEGV
+        };
+
+        for (auto&& signum : handledSignals) {
+            if (sigdelset(&block_set, signum)) {
+                fprintf(stderr, "sigdelset: %s\n", strerror(errno));
+                return 1;
+            }
+        }
+        if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
+            fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
             return 1;
+        }
+
+        // set handler for signals
+        struct sigaction sig_action;
+        memset(&sig_action, 0, sizeof(sig_action));
+        sig_action.sa_flags = SA_RESTART | SA_SIGINFO;
+        sig_action.sa_sigaction = cti_fe_daemon_handler;
+        for (auto&& signum : handledSignals) {
+            if (sigaction(signum, &sig_action, nullptr)) {
+                fprintf(stderr, "sigaction %d: %s\n", signum, strerror(errno));
+                return 1;
+            }
         }
     }
 
@@ -1227,8 +1208,21 @@ main(int argc, char *argv[])
     fdWriteLoop(respFd, getpid());
 
     // wait for pipe commands
-    while (true) {
-        auto const reqType = fdReadLoop<ReqType>(reqFd);
+    main_loop_running = true;
+    while (main_loop_running) {
+        auto reqType = ReqType{};
+
+        // Signal handlers that cause a shutdown outside of normal shutdown requests
+        // will close request file descriptor to end main loop
+        try {
+            reqType = fdReadLoop<ReqType>(reqFd);
+        } catch (std::exception const& ex) {
+            main_loop_running = false;
+            getLogger().write("Main read loop terminated: %s\n", ex.what());
+            break;
+        }
+
+        // Request read was successful
         getLogger().write("Received request type %ld: %s\n", reqType, reqTypeString(reqType));
 
         switch (reqType) {
@@ -1283,6 +1277,7 @@ main(int argc, char *argv[])
 
             case ReqType::Shutdown:
                 handle_Shutdown(reqFd, respFd);
+                main_loop_running = false;
                 break;
 
             default:
@@ -1292,6 +1287,36 @@ main(int argc, char *argv[])
         }
     }
 
-    // we should not get here
-    shutdown_and_exit(1);
+    // Close pipes
+    close(reqFd);
+    close(respFd);
+
+    // Block all signals for cleanup
+    { sigset_t block_set;
+        memset(&block_set, 0, sizeof(block_set));
+        if (sigfillset(&block_set)) {
+            fprintf(stderr, "sigfillset: %s\n", strerror(errno));
+            exit(1);
+        }
+        if (sigprocmask(SIG_SETMASK, &block_set, nullptr)) {
+            fprintf(stderr, "sigprocmask: %s\n", strerror(errno));
+            exit(1);
+        }
+    }
+
+    // Terminate all running utilities
+    auto utilTermFuture = std::async(std::launch::async, [&](){
+        utilMap.clear();
+    });
+
+    // Terminate all running apps
+    auto appTermFuture = std::async(std::launch::async, [&](){ appCleanupList.clear(); });
+
+    // Wait for all threads
+    utilTermFuture.wait();
+    appTermFuture.wait();
+    finish_threads();
+
+
+    exit(0);
 }
