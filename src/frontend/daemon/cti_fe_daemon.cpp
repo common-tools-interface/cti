@@ -243,7 +243,7 @@ sigchld_handler(pid_t const exitedPid)
 
         // terminate all of app's utilities
         if (utilMap.find(exitedId) != utilMap.end()) {
-            start_thread([&](){ utilMap.erase(exitedId); });
+            start_thread([exitedId](){ utilMap.erase(exitedId); });
         }
     }
 }
@@ -313,11 +313,13 @@ static void deregisterAppID(DAppId const app_id)
 
         // terminate all of app's utilities
         auto utilTermFuture = std::async(std::launch::async,
-            [&](){ utilMap.erase(app_id); });
+            [app_id](){ utilMap.erase(app_id); });
 
         // ensure app is terminated
         if (appCleanupList.contains(app_pid)) {
-            auto appTermFuture = std::async(std::launch::async, [&](){ tryTerm(app_pid); });
+            auto appTermFuture = std::async(std::launch::async, [app_pid](){
+                tryTerm(app_pid);
+            });
             appCleanupList.erase(app_pid);
             appTermFuture.wait();
         }
@@ -843,7 +845,7 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     close(shimPipe[1]);
     getLogger().write("started shim, waiting for pid on pipe %d\n", shimPipe[0]);
 
-    auto const launcherPid = [&](){
+    auto const launcherPid = [shimPipe](){
         // If the shim fails to start for some reason, the other end of 
         // the pipe will be closed and fdReadLoop will throw std::runtime_error.
         try {
@@ -889,7 +891,7 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
 
 static void handle_ForkExecvpApp(int const reqFd, int const respFd)
 {
-    tryWriteIDResp(respFd, [&]() {
+    tryWriteIDResp(respFd, [reqFd, respFd]() {
         auto const launchData = readLaunchData(reqFd);
 
         auto const appPid = forkExec(launchData);
@@ -902,7 +904,7 @@ static void handle_ForkExecvpApp(int const reqFd, int const respFd)
 
 static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
 {
-    tryWriteOKResp(respFd, [&]() {
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
         auto const appId  = fdReadLoop<DAppId>(reqFd);
         auto const runMode = fdReadLoop<FE_daemon::RunMode>(reqFd);
         auto const launchData = readLaunchData(reqFd);
@@ -933,7 +935,7 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
 
 static void handle_LaunchMPIR(int const reqFd, int const respFd)
 {
-    tryWriteMPIRResp(respFd, [&]() {
+    tryWriteMPIRResp(respFd, [reqFd, respFd]() {
         auto const launchData = readLaunchData(reqFd);
 
         auto const mpirData = launchMPIR(launchData);
@@ -944,7 +946,7 @@ static void handle_LaunchMPIR(int const reqFd, int const respFd)
 
 static void handle_AttachMPIR(int const reqFd, int const respFd)
 {
-    tryWriteMPIRResp(respFd, [&]() {
+    tryWriteMPIRResp(respFd, [reqFd, respFd]() {
         // set up pipe stream
         cti::FdBuf reqBuf{dup(reqFd)};
         std::istream reqStream{&reqBuf};
@@ -964,7 +966,7 @@ static void handle_AttachMPIR(int const reqFd, int const respFd)
 
 static void handle_ReleaseMPIR(int const reqFd, int const respFd)
 {
-    tryWriteOKResp(respFd, [&]() {
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
         auto const mpirId = fdReadLoop<DAppId>(reqFd);
 
         releaseMPIR(mpirId);
@@ -975,7 +977,7 @@ static void handle_ReleaseMPIR(int const reqFd, int const respFd)
 
 static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
 {
-    tryWriteMPIRResp(respFd, [&]() {
+    tryWriteMPIRResp(respFd, [reqFd, respFd]() {
         // set up pipe stream
         cti::FdBuf reqBuf{dup(reqFd)};
         std::istream reqStream{&reqBuf};
@@ -1003,7 +1005,7 @@ static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
 
 static void handle_ReadStringMPIR(int const reqFd, int const respFd)
 {
-    tryWriteStringResp(respFd, [&]() {
+    tryWriteStringResp(respFd, [reqFd, respFd]() {
         auto const mpirId = fdReadLoop<DAppId>(reqFd);
 
         // set up pipe stream
@@ -1022,7 +1024,7 @@ static void handle_ReadStringMPIR(int const reqFd, int const respFd)
 
 static void handle_TerminateMPIR(int const reqFd, int const respFd)
 {
-    tryWriteOKResp(respFd, [&]() {
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
         auto const mpirId = fdReadLoop<DAppId>(reqFd);
 
         getLogger().write("terminating mpir id %d\n", mpirId);
@@ -1034,7 +1036,7 @@ static void handle_TerminateMPIR(int const reqFd, int const respFd)
 
 static void handle_RegisterApp(int const reqFd, int const respFd)
 {
-    tryWriteIDResp(respFd, [&]() {
+    tryWriteIDResp(respFd, [reqFd, respFd]() {
         auto const appPid = fdReadLoop<pid_t>(reqFd);
 
         auto const appId = registerAppPID(appPid);
@@ -1045,7 +1047,7 @@ static void handle_RegisterApp(int const reqFd, int const respFd)
 
 static void handle_RegisterUtil(int const reqFd, int const respFd)
 {
-    tryWriteOKResp(respFd, [&]() {
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
         auto const appId   = fdReadLoop<DAppId>(reqFd);
         auto const utilPid = fdReadLoop<pid_t>(reqFd);
 
@@ -1057,7 +1059,7 @@ static void handle_RegisterUtil(int const reqFd, int const respFd)
 
 static void handle_DeregisterApp(int const reqFd, int const respFd)
 {
-    tryWriteOKResp(respFd, [&]() {
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
         auto const appId = fdReadLoop<DAppId>(reqFd);
 
         deregisterAppID(appId);
@@ -1068,7 +1070,7 @@ static void handle_DeregisterApp(int const reqFd, int const respFd)
 
 static void handle_CheckApp(int const reqFd, int const respFd)
 {
-    tryWriteOKResp(respFd, [&]() {
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
         auto const appId = fdReadLoop<DAppId>(reqFd);
 
         return checkAppID(appId);
@@ -1165,12 +1167,11 @@ main(int argc, char *argv[])
 
     // block all signals except noted
     { sigset_t block_set;
-        memset(&block_set, 0, sizeof(block_set));
         if (sigfillset(&block_set)) {
             fprintf(stderr, "sigfillset: %s\n", strerror(errno));
             return 1;
         }
-        auto const handledSignals = std::vector<int>
+        auto const handledSignals =
             { SIGTERM, SIGCHLD, SIGPIPE, SIGHUP
             , SIGTRAP // used for Dyninst breakpoint events
             , SIGTTIN // used for mpiexec job control
@@ -1293,7 +1294,6 @@ main(int argc, char *argv[])
 
     // Block all signals for cleanup
     { sigset_t block_set;
-        memset(&block_set, 0, sizeof(block_set));
         if (sigfillset(&block_set)) {
             fprintf(stderr, "sigfillset: %s\n", strerror(errno));
             exit(1);
@@ -1305,12 +1305,14 @@ main(int argc, char *argv[])
     }
 
     // Terminate all running utilities
-    auto utilTermFuture = std::async(std::launch::async, [&](){
+    auto utilTermFuture = std::async(std::launch::async, [](){
         utilMap.clear();
     });
 
     // Terminate all running apps
-    auto appTermFuture = std::async(std::launch::async, [&](){ appCleanupList.clear(); });
+    auto appTermFuture = std::async(std::launch::async, [](){
+        appCleanupList.clear();
+    });
 
     // Wait for all threads
     utilTermFuture.wait();
