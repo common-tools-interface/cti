@@ -78,9 +78,7 @@ extern "C" {
 ** Cray System information
 *******************************************************************************/
 #define CRAY_XT_NID_FILE         "/proc/cray_xt/nid"                // file where nid info is located on XT/XC systems
-#define CRAY_XT_HOSTNAME_FMT     "nid%05d"                          // NID based hostname format string
 #define CRAY_SHASTA_NID_FILE     "/etc/cray/nid"                    // file where nid info is located on Shasta systems
-#define CRAY_SHASTA_HOSTNAME_FMT "nid%06d"                          // NID based hostname format string
 #define CRAY_SHASTA_UAN_XNAME_FILE "/etc/cray/xname"                // file where NMN hostname is located on Shasta UANs
 
 /*******************************************************************************
@@ -170,6 +168,7 @@ typedef slurmPidFile_t          cti_pidFile_t;
 */
 
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
+#define PALS_BE_LIB_DEFAULT_PATH "/opt/cray/pe/pals/default/lib" // Location of default PALS library
 #define PALS_DEBUG "CTI_PALS_DEBUG" // Manually enables PALS frontend and uses localhost as API server without authentication
 
 /*******************************************************************************

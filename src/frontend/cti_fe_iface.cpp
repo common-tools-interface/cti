@@ -186,11 +186,11 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
 #endif
         case CTI_WLM_SLURM:
             return SLURMFrontend::getName();
-        case CTI_WLM_PALS:
 #if HAVE_PALS
+        case CTI_WLM_PALS:
             return PALSFrontend::getName();
 #else
-            return "Shasta PALS support was not configured for this build of CTI.";
+            return "PALS support was not configured for this build of CTI.";
 #endif
         case CTI_WLM_SSH:
             return GenericSSHFrontend::getName();
@@ -474,15 +474,15 @@ static cti_slurm_ops_t _cti_slurm_ops = {
 #define CHECK_PALS(...) __VA_ARGS__
 #else
 #define CHECK_PALS(...) \
-    throw std::runtime_error("Shasta PALS support was not compiled into this version of CTI");
+    throw std::runtime_error("PALS support was not compiled into this version of CTI");
 #endif
 
 static char*
-_cti_pals_getApid(pid_t craycliPid) {
+_cti_pals_getApid(pid_t launcherPid) {
     return FE_iface::runSafely(__func__, [&](){
         CHECK_PALS(
         auto&& fe = downcastFE<PALSFrontend>();
-        return strdup(fe.getApid(craycliPid).c_str());
+        strdup(fe.getApid(launcherPid).c_str());
         )
     }, (char*)nullptr);
 }
@@ -508,11 +508,6 @@ static cti_pals_ops_t _cti_pals_ops = {
 static cti_app_id_t
 _cti_ssh_registerJob(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
-            auto wp = fe->registerRemoteJob(std::to_string(launcher_pid).c_str());
-            return fe->Iface().trackApp(wp);
-        }
-
         auto&& fe = downcastFE<GenericSSHFrontend>();
         auto wp = fe.registerJob(1, launcher_pid);
         return fe.Iface().trackApp(wp);
@@ -531,11 +526,6 @@ _cti_ssh_registerRemoteJob(char const* hostname, pid_t launcher_pid) {
 static cti_app_id_t
 _cti_ssh_registerLauncherPid(pid_t launcher_pid) {
     return FE_iface::runSafely(__func__, [&](){
-        if (auto fe = dynamic_cast<HPCMPALSFrontend*>(&Frontend::inst())) {
-            auto wp = fe->registerLauncherPid(launcher_pid);
-            return fe->Iface().trackApp(wp);
-        }
-
         auto&& fe = downcastFE<GenericSSHFrontend>();
         auto wp = fe.registerJob(1, launcher_pid);
         return fe.Iface().trackApp(wp);

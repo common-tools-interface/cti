@@ -10,14 +10,13 @@ build:
       directory: .
 
 test:
+  parallel-jobs: 4
   modules:
     - cray-cti
   env-vars-present:
     - CTI_INSTALL_DIR
   prepend-env-vars:
     LD_LIBRARY_PATH: ${CTI_INSTALL_DIR}/lib
-  path:
-    ./function/tests.py
 
 launch:
   args:
@@ -25,8 +24,25 @@ launch:
     alps: "-n4 -N2"
     ssh: "-n4 --ntasks-per-node=2"
 
+meta:
+  keep:
+  - Makefile
+  avocado-version: latest
+
 # system specific overides
 cfa6k:
   launch:
+    modules:
+    - cray-pals
     args:
       slurm: "-n4 --ntasks-per-node=2 --mpi=cray_shasta"
+
+horizon:
+  build:
+    targets:
+      all:
+        j: 8
+    environment:
+      CRAY_CPU_TARGET: x86-64
+  test:
+    parallel-jobs: 32

@@ -1,7 +1,6 @@
 /******************************************************************************\
- * cti_websocket_unit_test.cpp - CTI HTTP and WebSocket tests
  *
- * Copyright 2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -27,32 +26,5 @@
  *
  ******************************************************************************/
 
-#include "cti_defs.h"
-#include "cti_argv_defs.hpp"
-
-#include "cti_useful_unit_test.hpp"
-
-#include "useful/cti_websocket.hpp"
-
-using ::testing::Return;
-using ::testing::_;
-using ::testing::Invoke;
-using ::testing::WithoutArgs;
-using ::testing::EndsWith;
-
-CTIUsefulUnitTest::CTIUsefulUnitTest()
-{
-}
-
-CTIUsefulUnitTest::~CTIUsefulUnitTest()
-{
-}
-
-TEST_F(CTIUsefulUnitTest, WebSocketTask)
-{
-}
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+#include "message.h"
+char const* get_message() { return "2"; }

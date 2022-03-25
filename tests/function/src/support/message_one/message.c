@@ -1,4 +1,5 @@
-/*
+/******************************************************************************\
+ *
  * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
@@ -22,22 +23,8 @@
  * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- */
+ *
+ ******************************************************************************/
 
-#include "cti_fe_function_test.hpp"
-#include <string>
-
-// defined in cti_fe_function_test.cpp
-extern void setSysArguments(const std::string &argv);
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-
-    if (argc < 2) {
-        setSysArguments("");
-    } else {
-        setSysArguments(argv[1]);
-    }
-
-    return RUN_ALL_TESTS();
-}
+#include "message.h"
+char const* get_message() { return "1"; }

@@ -157,6 +157,17 @@ std::string MPIRInstance::readStringAt(std::string const& symName) {
     return readStringAt(strAddress);
 }
 
+std::string MPIRInstance::readCharArrayAt(std::string const& symName)
+{
+    auto result = std::string{};
+
+    auto arrayAddress = m_inferior.getAddress(symName);
+    while (char c = m_inferior.readMemory<char>(arrayAddress++)) {
+        result.push_back(c);
+    }
+
+    return result;
+}
 
 MPIRProctable MPIRInstance::getProctable() {
     auto num_pids = m_inferior.readVariable<int>("MPIR_proctable_size");

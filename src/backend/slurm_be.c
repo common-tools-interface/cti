@@ -163,7 +163,7 @@ _cti_be_slurm_getLayout(void)
     FILE *                  my_file;
     slurmLayoutFileHeader_t layout_hdr;
     slurmLayoutFile_t *     layout;
-    int                     i, offset;
+    int                     i;
 
     // sanity
     if (_cti_layout != NULL)
@@ -246,14 +246,11 @@ _cti_be_slurm_getLayout(void)
     free(layoutPath);
     fclose(my_file);
 
-    // find the entry for this nid, we need to offset into the host name based on
-    // this nid
-    offset = strlen(layout[0].host) - strlen(hostname);
-
+    // find the entry for this nid
     for (i=0; i < layout_hdr.numNodes; ++i)
     {
         // check if this entry corresponds to our nid
-        if (strncmp(layout[i].host + offset, hostname, strlen(hostname)) == 0)
+        if (strncmp(layout[i].host, hostname, strlen(hostname)) == 0)
         {
             // found it
             my_layout->PEsHere = layout[i].PEsHere;
@@ -271,10 +268,10 @@ _cti_be_slurm_getLayout(void)
     }
 
     // if we get here, we didn't find the host in the layout list!
-    fprintf(stderr, "Could not find layout entry for hostname %s (offset %d)\n", hostname, offset);
+    fprintf(stderr, "Could not find layout entry for hostname %s\n", hostname);
 
     for (i=0; i < layout_hdr.numNodes; ++i) {
-        fprintf(stderr, "%2d: %s (offset %s)\n", i, layout[i].host, layout[i].host + offset);
+        fprintf(stderr, "%2d: %s\n", i, layout[i].host);
     }
 
     free(my_layout);
@@ -882,59 +879,8 @@ _cti_be_slurm_getNodeHostname()
     static char *hostname = NULL; // Cache the result
 
     // Determined the answer previously?
-    if (hostname)
+    if (hostname) {
         return strdup(hostname);    // return cached value
-
-    // Try the Cray /proc extension short cut
-    FILE *nid_fp;             // NID file stream
-        if (((nid_fp = fopen(CRAY_XT_NID_FILE, "r"))     != NULL) ||
-            ((nid_fp = fopen(CRAY_SHASTA_NID_FILE, "r")) != NULL))
-        {
-            // Set hostname format based on XC or Shasta
-            char const* hostname_fmt = (access(CRAY_XT_NID_FILE, F_OK) != -1)
-                ? CRAY_XT_HOSTNAME_FMT
-                : CRAY_SHASTA_HOSTNAME_FMT;
-
-        // we expect this file to have a numeric value giving our current nid
-        char file_buf[BUFSIZ];   // file read buffer
-        if (fgets(file_buf, BUFSIZ, nid_fp) == NULL)
-        {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname fgets failed.\n");
-            fclose(nid_fp);
-            return NULL;
-        }
-
-        // close the file stream
-        fclose(nid_fp);
-
-        // convert this to an integer value
-        errno = 0;
-        char *  eptr;
-        int nid = (int)strtol(file_buf, &eptr, 10);
-
-        // check for error
-        if ((errno == ERANGE && nid == INT_MAX)
-                || (errno != 0 && nid == 0))
-        {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname: strtol failed.\n");
-            return NULL;
-        }
-
-        // check for invalid input
-        if (eptr == file_buf)
-        {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname: Bad data in %s\n", CRAY_XT_NID_FILE);
-            return NULL;
-        }
-
-        // create the nid hostname string
-        if (asprintf(&hostname, hostname_fmt, nid) <= 0)
-        {
-            fprintf(stderr, "_cti_be_slurm_getNodeHostname asprintf failed.\n");
-            free(hostname);
-            hostname = NULL;
-            return NULL;
-        }
     }
 
     // Allocate and get hostname

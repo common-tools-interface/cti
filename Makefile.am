@@ -24,4 +24,4 @@ install-data-hook:
 	export PKG_CONFIG_PATH=$(libdir)/pkgconfig:$(PKG_CONFIG_PATH); \
         export CTI_INSTALL_DIR=$(prefix); \
         $(MAKE) -C ./tests/test_support all; \
-	$(MAKE) -C ./tests/function/bin all
+	$(MAKE) -C ./tests/function/src tests

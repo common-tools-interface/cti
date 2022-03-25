@@ -9,32 +9,61 @@ Release Date:
 Product Description:
 --------------------
   Cray Common Tools Interface (CTI) is a library that abstracts debugger
-  tool support to a common interface regardless of the underlying
-  work load manager. It facilitates the staging of files and
-  the launch of tool daemons on the compute nodes associated
-  with a parallel job.
+  tool support to a common interface regardless of the underlying work
+  load manager. It facilitates the staging of files and the launch of
+  tool daemons on the compute nodes associated with a parallel job.
+  Options and interfaces can be found in the cti(1) and cti(3) manpages.
 
 Purpose:
 ---------
-  This release adds the following features:
-    - Added user documentation manpage cti(1), and developer
-      documentation manpage cti(3).
-    - Preliminary support for the Flux workload manager.
-      Note that passwordless SSH access to compute nodes must be
-      configured for Flux support. This limitation will be removed
-      in a future release.
-    - Flux, Shasta PALS, and ALPS support can be disabled at
-      compile-time if development headers are not available.
-    - Updated gen compilers to cray-gcc-10.3.0
+  22.04 This release adds the following features:
+      - Update Shasta PALS implementation to use PALS utilities and deprecate
+        the previous Shasta PALS API
+      - Update the HPCM PALS implementations to use PALS utilities
+
+      This release fixes the following bugs:
+      - Fix the usage of the `aprun` launcher with HPCM PALS instead of
+        the default `mpiexec` launcher
+      - Fix HPCM PALS backend startup when node hostnames are in xname format
+
+  22.02 This release is a bugfix release:
+      - Default Shasta PALS node count in job launches to 1
+      - Include `--overlap` in Slurm tool daemon launches for Slurm versions
+        20.11 and above
+
+  21.12 This release adds the following features:
+      - Added user documentation manpage cti(1), and developer
+        documentation manpage cti(3).
+      - Preliminary support for the Flux workload manager.
+        Note that passwordless SSH access to compute nodes must be
+        configured for Flux support. This limitation will be
+        removed in a future release.
+      - Flux, Shasta PALS, and ALPS support can be disabled at
+        compile-time if development headers are not available.
+      - Updated gen compilers to cray-gcc-10.3.0
+
+  21.11 This bugfix release resolves the following issues:
+      - Fix potential deadlock during job launch / attach for HPCM PALS systems,
+        as well as the generic SSH interface
+      - Fix Slurm job attach when running on compute node where hostname does
+        not match the Slurm node name
+      - Add environment variable CTI_SLURM_DAEMON_GRES to set the --gres
+        for Slurm daemon launches. For Slurm versions 21.08 and newer, this
+        should be set to an empty string (see SchedMD bug)
+        https://bugs.schedmd.com/show_bug.cgi?id=12642
+
+  21.10 This bugfix release resolves the following issues:
+      - Added CRAY_CTI_PREFIX and CRAY_CTI_VERSION environment variables to the
+        modulefiles.
 
 Product and OS Dependencies:
 -----------------------------
   The Cray CTI <VERSION> release is supported on the following Cray systems:
     - HPE/Cray XC systems with CLE 7.0 or later
-    - HPE/Cray CS systems with CentOS/RH 8.0 or later
-    - HPE/Cray Shasta systems with SLES 15 service pack 1 or later
-    - HPE Apollo systems with Slurm and RH 8.0 or later
-    - Baymax systems with RH 8.0 or later
+    - HPE/Cray CS systems with CentOS/RH 8.4 or later
+    - HPE/Cray Shasta systems with SLES 15 service pack 2 or later
+    - HPE Apollo systems with Slurm and RH 8.4 or later
+    - Baymax systems with RH 8.4 or later
 
   Product Dependencies:
     - Cray cray-cdst-support rpm installed
