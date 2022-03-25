@@ -290,11 +290,11 @@ FE_daemon::~FE_daemon()
         if (getpid() == m_mainPid) {
 
             // This should be the only way to call ReqType::Shutdown
-            fdWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
             try {
+                fdWriteLoop(m_req_sock.getWriteFd(), ReqType::Shutdown);
                 verifyOKResp(m_resp_sock.getReadFd());
-            } catch (...) {
-                fprintf(stderr, "warning: daemon shutdown failed\n");
+            } catch (std::exception const& ex) {
+                fprintf(stderr, "warning: %s\n", ex.what());
             }
         }
     }
