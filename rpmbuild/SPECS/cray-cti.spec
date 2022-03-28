@@ -227,7 +227,13 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{external_build_dir}/libexec/cti_diagnostics_target ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_first_subprocess%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 # Binaries
+
 # Share
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share/man/man1
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share/man/man3
+%{__cp} -a %{external_build_dir}/share/man/man1/cti.1 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share/man/man1
+%{__cp} -a %{external_build_dir}/share/man/man3/cti.3 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share/man/man3
 
 # modulefile
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{modulefile_name}
@@ -588,6 +594,9 @@ fi
 %attr(644, root, root) %{prefix}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 %attr(644, root, root) %verify(not md5 size mtime) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
+
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/share/man/man1/cti.1
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/share/man/man3/cti.3
 
 %files -n %{cray_name}-devel-%{pkgversion}
 %dir %{prefix}/%{cray_product}/%{pkgversion}/include
