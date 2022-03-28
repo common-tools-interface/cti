@@ -82,4 +82,7 @@ public: // interface
 
     // read c-string pointed to by symbol
     std::string readStringAt(std::string const& symName);
+
+    // read c-string starting at symbol
+    std::string readCharArrayAt(std::string const& symName);
 };

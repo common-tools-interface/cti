@@ -449,39 +449,6 @@ static bool detect_HPCM()
     }
 }
 
-// Both Shasta / Slurm and Shasta / PALS have the craycli tool installed
-static bool detect_Shasta()
-{
-    try {
-        char const* craycliArgv[] = { "cray", "--version", nullptr };
-
-        // Start craycli
-        auto craycliOutput = cti::Execvp{"cray", (char* const*)craycliArgv, cti::Execvp::stderr::Ignore};
-
-        // Ensure proper version output
-        auto& craycliStream = craycliOutput.stream();
-        std::string line;
-        if (std::getline(craycliStream, line)) {
-            auto const name_correct = (line.substr(0, 4) == "cray");
-            return name_correct;
-        } else {
-            return false;
-        }
-
-        // Check return code
-        if (craycliOutput.getExitStatus() != 0) {
-            return false;
-        }
-
-        // All Shasta checks passed
-        return true;
-
-    } catch(...) {
-        // craycli not installed
-        return false;
-    }
-}
-
 // Check if this is a CS cluster system
 static bool detect_CS()
 {
@@ -495,40 +462,8 @@ static bool detect_CS()
     return false;
 }
 
-// Running on an HPCM PALS if utility `palsig` is present
-bool detect_HPCM_PALS(std::string const& /* unused */ = "")
-{
-    try {
-
-        // Check that the pals software module is loaded
-        auto palsigArgv = cti::ManagedArgv{"palsig", "--version"};
-        auto palsigOutput = cti::Execvp{"palsig", palsigArgv.get(), cti::Execvp::stderr::Ignore};
-
-        // Read output line
-        auto versionLine = std::string{};
-        if (std::getline(palsigOutput.stream(), versionLine)) {
-            if (versionLine.substr(0, 7) != "palsig ") {
-                return false;
-            }
-        } else {
-            return false;
-        }
-
-        // Ensure exited properly
-        if (palsigOutput.getExitStatus()) {
-            return false;
-        }
-
-        // All HPCM / PALS checks passed
-        return true;
-
-    } catch (...) {
-        // PALS not installed
-        return false;
-    }
-}
-
-static bool detect_Shasta_PALS(std::string const& /* unused */)
+// HPCM / Shasta
+static bool detect_PALS(std::string const& /* unused */)
 {
     // Check manual PALS debug mode flag
     if (::getenv(PALS_DEBUG)) {
@@ -538,16 +473,16 @@ static bool detect_Shasta_PALS(std::string const& /* unused */)
     try {
 
         // Check that PBS is installed (required for PALS)
-        auto rpmClientArgv    = cti::ManagedArgv { "rpm", "-q", "pbspro-client" };
-        auto rpmExecutionArgv = cti::ManagedArgv { "rpm", "-q", "pbspro-execution" };
-        if (cti::Execvp::runExitStatus("rpm", rpmClientArgv.get())
-         && cti::Execvp::runExitStatus("rpm", rpmExecutionArgv.get())) {
-            return false;
-        }
+        char const* rpm_argv[] =
+            { "rpm", "-q"
+            , "pbspro-server", "pbspro-client", "pbspro-execution"
+            , nullptr
+        };
 
-        // Check that craycli tool is available (Shasta system)
-        auto crayArgv = cti::ManagedArgv { "cray", "--version" };
-        if (cti::Execvp::runExitStatus("cray", crayArgv.get())) {
+        // PBS is configured if at least one of these packages exists
+        // Return code of 3 means query of all 3 packages failed (not installed)
+        auto const failed_packages = cti::Execvp::runExitStatus("rpm", (char* const*)rpm_argv);
+        if (failed_packages == 3) {
             return false;
         }
 
@@ -706,20 +641,36 @@ Please contact your system administrator with a bug report \
     return true;
 }
 
-static bool verify_HPCM_PALS_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+static bool verify_PALS_configured(System const& system, WLM const& wlm, std::string const& launcherName)
 {
+    // Check for MPIR symbols in launcher
     verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "mpiexec");
 
-    return true;
-}
+    // Check that the cray-pals software module is loaded
+    try {
+        auto palstatArgv = cti::ManagedArgv{"palstat", "--version"};
+        auto palstatOutput = cti::Execvp{"palstat", palstatArgv.get(), cti::Execvp::stderr::Ignore};
 
-static bool verify_Shasta_PALS_configured(System const& system, WLM const& wlm, std::string const& /* unused */)
-{
-    // Check that the craycli tool is properly authenticated, as we will be using its token
-    auto craycliArgv = cti::ManagedArgv { "cray", "uas", "list" };
-    if (cti::Execvp::runExitStatus("cray", craycliArgv.get())) {
-        throw std::runtime_error("craycli check failed. You may need to authenticate using `cray auth login` \
-(tried " + format_System_WLM(system, wlm) + ")");
+        // Read output line
+        auto versionLine = std::string{};
+
+        // Ensure exited properly
+        if (!std::getline(palstatOutput.stream(), versionLine) || palstatOutput.getExitStatus()) {
+            throw std::runtime_error("`palstat --version` failed");
+        }
+
+        // Check version output
+        if (versionLine.substr(0, 8) != "palstat ") {
+            throw std::runtime_error("`palstat --version` returned " + versionLine);
+        }
+
+    } catch (std::exception const& ex) {
+        auto const detail = (ex.what())
+            ? " (" + std::string{ex.what()} + ")"
+            : std::string{};
+        throw std::runtime_error("The system was detected as "
+            + format_System_WLM(system, wlm) + ", but checking the PALS utilities failed. \
+You may need to run `module load cray-pals`" + detail);
     }
 
     return true;
@@ -837,8 +788,6 @@ static auto detect_System(std::string const& systemSetting)
     // Run available system detection heuristics
     if (detect_HPCM()) {
         return System::HPCM;
-    } else if (detect_Shasta()) {
-        return System::Shasta;
     } else if (detect_CS()) {
         return System::CS;
     }
@@ -905,17 +854,19 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
 
     case System::Unknown:
     case System::Linux:
-        if (detect_Flux(launcherName)) {
+        if (detect_PALS(launcherName)) {
+            return WLM::PALS;
+        } else if (detect_Flux(launcherName)) {
             return WLM::Flux;
         } else {
             return WLM::SSH;
         }
 
     case System::HPCM:
-        if (detect_Slurm(launcherName)) {
-            return WLM::Slurm;
-        } else if (detect_HPCM_PALS(launcherName)) {
+        if (detect_PALS(launcherName)) {
             return WLM::PALS;
+        } else if (detect_Slurm(launcherName)) {
+            return WLM::Slurm;
         } else if (detect_Flux(launcherName)) {
             return WLM::Flux;
         } else {
@@ -923,10 +874,10 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
         }
 
     case System::Shasta:
-        if (detect_Slurm(launcherName)) {
-            return WLM::Slurm;
-        } else if (detect_Shasta_PALS(launcherName)) {
+        if (detect_PALS(launcherName)) {
             return WLM::PALS;
+        } else if (detect_Slurm(launcherName)) {
+            return WLM::Slurm;
         } else if (detect_Flux(launcherName)) {
             return WLM::Flux;
         } else {
@@ -954,7 +905,9 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
     }
 
     // Run WLM detection heuristics that do not depend on system type
-    if (detect_Slurm(launcherName)) {
+    if (detect_PALS(launcherName)) {
+        return WLM::PALS;
+    } else if (detect_Slurm(launcherName)) {
         return WLM::Slurm;
     }
 
@@ -966,14 +919,7 @@ static void verify_System_WLM_configured(System const& system, WLM const& wlm, s
     switch (wlm) {
 
     case WLM::PALS:
-        if (system == System::HPCM) {
-            verify_HPCM_PALS_configured(system, wlm, launcherName);
-        } else if (system == System::Shasta) {
-            verify_Shasta_PALS_configured(system, wlm, launcherName);
-        } else {
-            throw std::runtime_error("WLM was set to PALS, but system was not detected as either an HPCM or Shasta system \
-(tried " + format_System_WLM(system, wlm) + ")");
-        }
+        verify_PALS_configured(system, wlm, launcherName);
         break;
 
     case WLM::Slurm:
@@ -1028,18 +974,7 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 #endif
 
     } else if (wlm == WLM::PALS) {
-        if (system == System::HPCM) {
-            return new HPCMPALSFrontend{};
-        } else if (system == System::Shasta) {
-#if HAVE_PALS
-            return new PALSFrontend{};
-#else
-            throw std::runtime_error("Shasta PALS support was not configured for this build of CTI \
-(tried " + format_System_WLM(system, wlm) + ")");
-#endif
-        } else {
-            assert(false);
-        }
+        return new PALSFrontend{};
 
     } else if (wlm == WLM::SSH) {
         return new GenericSSHFrontend{};

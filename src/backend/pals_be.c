@@ -35,6 +35,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
+#include <unistd.h>
+#include <errno.h>
+#include <wait.h>
 
 #include "cti_defs.h"
 #include "cti_be.h"
@@ -45,6 +49,7 @@
 // types used here
 typedef struct {
 	void *handle;
+	const char * (*pals_errmsg)(pals_state_t *state); // Returns static string, do not free
 	pals_rc_t (*pals_init)(pals_state_t *state);
 	pals_rc_t (*pals_fini)(pals_state_t *state);
 
@@ -127,6 +132,180 @@ _cti_cleanup_be_globals(void)
 	}
 }
 
+// Use pkg-config to detect the location of the libpals library,
+// or use the system default directory upon failure.
+static int
+_cti_be_pals_detect_libpals(char* path, size_t path_cap)
+{
+	if (path == NULL) {
+		return 1;
+	}
+
+	char const* detected_path = NULL;
+
+	int pkgconfig_pipe[2];
+	pid_t pkgconfig_pid = -1;
+	int read_cursor = 0;
+	char libpals_libdir[PATH_MAX];
+
+	// Set up pkgconfig pipe
+	if (pipe(pkgconfig_pipe) < 0) {
+		perror("pipe");
+		goto cleanup__cti_be_pals_detect_libpals;
+	}
+
+	// Fork pkgconfig
+	pkgconfig_pid = fork();
+	if (pkgconfig_pid < 0) {
+		perror("fork");
+		goto cleanup__cti_be_pals_detect_libpals;
+
+	// Query pkgconfig for libpals' libdir
+	} else if (pkgconfig_pid == 0) {
+		char const* pkgconfig_argv[] = {"pkg-config", "--variable=libdir", "libpals", NULL};
+
+		// Set up pkgconfig output
+		close(pkgconfig_pipe[0]);
+		pkgconfig_pipe[0] = -1;
+		dup2(pkgconfig_pipe[1], STDOUT_FILENO);
+
+		// Exec pkgconfig
+		execvp("pkg-config", (char* const*)pkgconfig_argv);
+		perror("execvp");
+		return -1;
+	}
+
+	// Set up pkgconfig input
+	close(pkgconfig_pipe[1]);
+	pkgconfig_pipe[1] = -1;
+
+	// Read pkgconfig output
+	read_cursor = 0;
+	while (1) {
+		errno = 0;
+		int read_rc = read(pkgconfig_pipe[0], libpals_libdir + read_cursor,
+			sizeof(libpals_libdir) - read_cursor - 1);
+
+		if (read_rc < 0) {
+
+			// Retry if applicable
+			if (errno == EINTR) {
+				continue;
+
+			} else {
+				perror("read");
+				goto cleanup__cti_be_pals_detect_libpals;
+			}
+
+		// Return result if EOF
+		} else if (read_rc == 0) {
+
+			// No data was read
+			if (read_cursor == 0) {
+				fprintf(stderr, "pkg-config: no output\n");
+				break;
+			}
+
+			// Remove trailing newline
+			libpals_libdir[read_cursor - 1] = '\0';
+
+			detected_path = libpals_libdir;
+			fprintf(stderr, "pkg-config: %s\n", detected_path);
+			break;
+
+		// Update cursor with number of bytes read
+		} else {
+			read_cursor += read_rc;
+
+			// pkgconfig output is larger than maximum path size
+			if (read_cursor >= (sizeof(libpals_libdir) - 1)) {
+				fprintf(stderr, "pkg-config: output larger than PATH_MAX\n");
+				goto cleanup__cti_be_pals_detect_libpals;
+			}
+		}
+	}
+
+cleanup__cti_be_pals_detect_libpals:
+
+	close(pkgconfig_pipe[0]);
+	pkgconfig_pipe[0] = -1;
+
+	// Wait and check for pkgconfig return code
+	if (pkgconfig_pid > 0) {
+
+		// Reset SIGCHLD to default
+		int old_action_valid = 0;
+		struct sigaction old_action;
+
+		// Back up old signal disposition
+		struct sigaction sa;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = 0;
+		sa.sa_handler = SIG_DFL;
+
+		// Ignore invalid sigaction and let processing continue
+		if (sigaction(SIGCHLD, &sa, &old_action) < 0) {
+			perror("sigaction");
+		} else {
+			old_action_valid = 1;
+		}
+
+		// Wait for pkgconfig to exit
+		while (1) {
+			int status;
+
+			// Get exit code
+			errno = 0;
+			if (waitpid(pkgconfig_pid, &status, 0) < 0) {
+
+				// Retry wait if applicable
+				if (errno == EAGAIN) {
+					continue;
+
+				// pkgconfig failed, use system default
+				} else if (errno != ECHILD) {
+					perror("waitpid");
+					detected_path = NULL;
+					break;
+
+				} else {
+					break;
+				}
+			}
+
+			// Check exit code
+			if (WEXITSTATUS(status)) {
+				fprintf(stderr, "pkg-config failed with status %d\n", WEXITSTATUS(status));
+				detected_path = NULL;
+				break;
+			}
+		}
+
+		// Restore old SIGCHLD disposition
+		if (old_action_valid) {
+			if (sigaction(SIGCHLD, &old_action, NULL) < 0) {
+				perror("sigaction");
+			}
+			old_action_valid = 0;
+		}
+	}
+
+	// If failed, use system default library path
+	if (detected_path == NULL) {
+		detected_path = PALS_BE_LIB_DEFAULT_PATH;
+	}
+
+	// Format detected path with libpals library
+	int snprintf_rc = snprintf(path, path_cap,
+		"%s/%s", detected_path, PALS_BE_LIB_NAME);
+	if ((snprintf_rc < 0) || (snprintf_rc >= path_cap)) {
+		perror("snprintf");
+		return 1;
+	}
+
+	return 0;
+}
+
 /* Constructor/Destructor functions */
 
 static int
@@ -149,8 +328,17 @@ _cti_be_pals_init(void)
 
 	char const* dl_err = NULL;
 
+	// Detect location of libpals
+	char libpals_path[PATH_MAX];
+	if (_cti_be_pals_detect_libpals(libpals_path, sizeof(libpals_path))) {
+		fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " failed to detect libpals path\n");
+		goto cleanup__cti_be_pals_init;
+	} else {
+		fprintf(stderr, "Using detected libpals at: %s\n", libpals_path);
+	}
+
 	// dlopen libpals
-	_cti_libpals_funcs->handle = dlopen(PALS_BE_LIB_NAME, RTLD_LAZY);
+	_cti_libpals_funcs->handle = dlopen(libpals_path, RTLD_LAZY);
 	dl_err = dlerror();
 	if (_cti_libpals_funcs == NULL) {
 		fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " dlopen: %s\n", dl_err);
@@ -158,6 +346,15 @@ _cti_be_pals_init(void)
 	}
 
 	// Load functions from libpals
+
+	// pals_errmsg
+	dlerror(); // Clear any existing error
+	_cti_libpals_funcs->pals_errmsg = dlsym(_cti_libpals_funcs->handle, "pals_errmsg");
+	dl_err = dlerror();
+	if (dl_err != NULL) {
+		fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " dlsym: %s\n", dl_err);
+		goto cleanup__cti_be_pals_init;
+	}
 
 	// pals_init
 	dlerror(); // Clear any existing error
@@ -212,7 +409,7 @@ _cti_be_pals_init(void)
 	}
 	// Initialize global libpals state
 	if (_cti_libpals_funcs->pals_init(_cti_pals_state) != PALS_OK) {
-		fprintf(stderr, "libpals initialization failed\n");
+		fprintf(stderr, "libpals initialization failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
 		goto cleanup__cti_be_pals_init;
 	}
 
@@ -307,7 +504,7 @@ _cti_get_nodes_info()
 
 	// Call libpals accessor
 	if (_cti_libpals_funcs->pals_get_nodes(_cti_pals_state, &_cti_pals_nodes, &_cti_pals_num_nodes) != PALS_OK) {
-		fprintf(stderr, "pals_be libpals pals_get_nodes failed: %s\n", _cti_pals_state->errbuf);
+		fprintf(stderr, "pals_be libpals pals_get_nodes failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
 		goto cleanup__cti_get_nodes_info;
 	}
 
@@ -330,7 +527,7 @@ _cti_get_node_idx()
 
 	// Call libpals accessor
 	if (_cti_libpals_funcs->pals_get_nodeidx(_cti_pals_state, &_cti_node_idx) != PALS_OK) {
-		fprintf(stderr, "pals_be libpals pals_get_nodeidx failed: %s\n", _cti_pals_state->errbuf);
+		fprintf(stderr, "pals_be libpals pals_get_nodeidx failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
 		goto cleanup__cti_get_node_idx;
 	}
 
@@ -397,7 +594,7 @@ _cti_get_pes_info()
 
 	// Call libpals accessor
 	if (_cti_libpals_funcs->pals_get_pes(_cti_pals_state, &_cti_pals_pes, &_cti_pals_num_pes) != PALS_OK) {
-		fprintf(stderr, "pals_be libpals pals_get_pes failed: %s\n", _cti_pals_state->errbuf);
+		fprintf(stderr, "pals_be libpals pals_get_pes failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
 		goto cleanup__cti_get_pes_info;
 	}
 

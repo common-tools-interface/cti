@@ -175,6 +175,9 @@ public: // type definitions
 
     /* request types */
 
+    static constexpr auto StdFd   = int{-1}; // Map request FD to stdin / stdout / stderr
+    static constexpr auto CloseFd = int{-2}; // Close request FD
+
     // sent before a request to indicate the type of request data that will follow
     enum class ReqType : long {
         ForkExecvpApp,
@@ -262,10 +265,10 @@ public: // type definitions
     // Response types
 
     enum RespType : long {
-        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR
+        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR, ForkExecvpUtil
         OK,
 
-        // ForkExecvpApp, ForkExecvpUtil
+        // ForkExecvpApp
         ID,
 
         // ReadStringMPIR
@@ -356,7 +359,7 @@ private:
     // This can either be synchronous or asynchronous depending on runMode. Synchronous means wait
     // for utility to complete before returning from this call.
     // Write a utility launch request and parameters to pipe, return launched util id
-    void request_ForkExecvpUtil(DaemonAppId app_id,
+    bool request_ForkExecvpUtil(DaemonAppId app_id,
                                 RunMode runMode,
                                 char const* file,
                                 char const* const argv[],
@@ -370,20 +373,20 @@ public:
                                       int stdin_fd, int stdout_fd, int stderr_fd,
                                       char const* const env[] )
     {
-        request_ForkExecvpUtil(app_id,
+        (void)request_ForkExecvpUtil(app_id,
                                RunMode::Asynchronous,
                                file, argv,
                                stdin_fd, stdout_fd, stderr_fd,
                                env);
     }
 
-    void request_ForkExecvpUtil_Sync(DaemonAppId app_id,
+    bool request_ForkExecvpUtil_Sync(DaemonAppId app_id,
                                      char const* file,
                                      char const* const argv[],
                                      int stdin_fd, int stdout_fd, int stderr_fd,
                                      char const* const env[] )
     {
-        request_ForkExecvpUtil(app_id,
+        return request_ForkExecvpUtil(app_id,
                                RunMode::Synchronous,
                                file, argv,
                                stdin_fd, stdout_fd, stderr_fd,
@@ -419,6 +422,10 @@ public:
         char const* shimBinaryPath, char const* temporaryShimBinDir, char const* shimmedLauncherPath,
         char const* scriptPath, char const* const argv[],
         int stdin_fd, int stdout_fd, int stderr_fd, char const* const env[]);
+
+    // fe_daemon will create a new daemon app ID without a corresponding local process.
+    // This can be used for remote attach to an application.
+    DaemonAppId request_RegisterApp();
 
     // fe_daemon will register an already-forked process as an app. make sure this is paired with a
     // _cti_deregisterApp for timely cleanup.

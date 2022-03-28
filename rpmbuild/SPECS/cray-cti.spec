@@ -2,7 +2,8 @@
 %global pkgversion %(%{_sourcedir}/get_package_data --crayversion)
 %global branch %(%{_sourcedir}/get_package_data --branch)
 %global pkgversion_separator -
-%global copyright Copyright 2010-2021 Hewlett Packard Enterprise Development LP
+%global copyright_date %(date +%%Y)
+%global copyright Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.
 
 # RPM build time
 %global release_date %(date +%%B\\ %%Y)
@@ -64,6 +65,9 @@
 # Disable debug package
 %global debug_package %{nil}
 
+# Disable /usr/lib/.build-id files
+%global _build_id_links none
+
 # Disable stripping of binaries
 # Particularly, backend daemon's hash is hardcoded into frontend library, don't want RPM to strip
 # or modify the binary
@@ -93,6 +97,7 @@
 %global privlibs %{privlibs}|libssh2
 %global privlibs %{privlibs}|libtbb.*
 %global privlibs %{privlibs}|libgtest
+%global privlibs %{privlibs}|libstdc++.*
 %global __requires_exclude ^(%{privlibs})\\.so*
 
 # Dist tags for SuSE need to be manually set
@@ -187,26 +192,31 @@ Test files for Cray Common Tools Interface
 #
 # Cray PE package root
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}
+
 # Information files
 %{__cp} -a ${RPM_BUILD_DIR}/%{release_info_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
 %{__cp} -a ${RPM_BUILD_DIR}/%{copyright_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
 %{__cp} -a ${RPM_BUILD_DIR}/%{attributions_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
+
 # Libraries
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libctiaudit.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_be.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_fe.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
+
 # Libraries static
 # pkg-config
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
 %{__cp} -a %{external_build_dir}/lib/pkgconfig/common_tools_be.pc ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
 %{__cp} -a %{external_build_dir}/lib/pkgconfig/common_tools_fe.pc ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
+
 # Headers
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
 %{__cp} -a %{external_build_dir}/include/common_tools_be.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
 %{__cp} -a %{external_build_dir}/include/common_tools_fe.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
 %{__cp} -a %{external_build_dir}/include/common_tools_shared.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
 %{__cp} -a %{external_build_dir}/include/common_tools_version.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
+
 # libexec binaries
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_be_daemon%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
@@ -218,108 +228,175 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{external_build_dir}/libexec/cti_first_subprocess%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 # Binaries
 # Share
+
 # modulefile
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{modulefile_name}
 %{__sed} 's|<PREFIX>|%{external_build_dir}|g;s|<CRAY_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g' %{SOURCE0} > ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{modulefile_name}/%{pkgversion}
+
 # devel modulefile
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{devel_modulefile_name}
 %{__sed} 's|<PREFIX>|%{external_build_dir}|g;s|<CRAY_NAME>|%{devel_modulefile_name}|g;s|<CRAY_BASE_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g' %{SOURCE1} > ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
+
 # Cray PE dependency resolver
 %{__sed} 's|<CRAY_PREFIX>|%{cray_prefix}|g;s|<PKG_VERSION>|%{pkgversion}|g;s|<PE_PRODUCT>|%{cray_product}|g' %{SOURCE3} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
+
 # set_default template
 %{__sed} 's|\[product_name\]|%{cray_product}|g;s|\[version_string\]|%{pkgversion}|g;s|\[install_dir\]|%{prefix}|g;s|\[module_dir\]|%{prefix}/modulefiles|g;s|\[module_name_list\]|%{modulefile_name}|g;s|\[lmod_dir_list\]|%{prefix}/lmod/modulefiles/core|g;s|\[lmod_name_list\]|%{modulefile_name}|g' %{_sourcedir}/set_default/%{set_default_template} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
+
 # set_default template - devel
 %{__sed} 's|\[product_name\]|%{cray_product}|g;s|\[version_string\]|%{pkgversion}|g;s|\[install_dir\]|%{prefix}|g;s|\[module_dir\]|%{prefix}/modulefiles|g;s|\[module_name_list\]|%{devel_modulefile_name}|g;s|\[lmod_dir_list\]|%{prefix}/lmod/modulefiles/core|g;s|\[lmod_name_list\]|%{devel_modulefile_name}|g' %{_sourcedir}/set_default/%{set_default_template} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
+
 # set_default into admin-pe
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}
 %{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{cray_name}_%{pkgversion}
 %{__install} -D ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{set_default_path}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
+
 # lmod modulefile
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{cray_name}
 %{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE7} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}
 %{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
+
 %{__mkdir} -p %{_rpmdir}/%{_arch}
 # yaml files
 %global start_rmLine %(sed -n /section-3/= %{SOURCE9})
 %global end_rmLine %(sed -n /admin-pe/= %{SOURCE9} | tail -1)
+%global devel_pkg_name %{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm
+%global tests_pkg_name %{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm
+%global devel_rm_name %{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}
+%global tests_rm_name %{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}
+%global rpm_list %{devel_pkg_name},%{tests_pkg_name}
 %if %{branch} == "release"
 # yaml file - cray-cti
-%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
-# yaml file - cray-cti-devel
-%{__sed} 's|<PRODUCT>|%{cray_name}-devel|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;s|<RPM_LST>|%{rpm_list}|g;s|<RPM_1>|%{devel_pkg_name}|g;s|<RPM_2>|%{tests_pkg_name}|g;s|<RPM_RM_2>|%{tests_rm_name}|g;s|<RPM_RM_1>|%{devel_rm_name}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 %else
-# yaml file - cray-cti
-%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
-# yaml file - cray-cti-devel
-%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-devel|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;s|<RPM_LST>|%{rpm_list}|g;s|<RPM_1>|%{devel_pkg_name}|g;s|<RPM_2>|%{tests_pkg_name}|g;s|<RPM_RM_2>|%{tests_rm_name}|g;s|<RPM_RM_1>|%{devel_rm_name}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 %endif
-# yaml file - cray-cti-tests (no modulefile provided)
-%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}-tests|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 
 # Test files
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests
-%{__cp} -a %{tests_source_dir}/Makefile                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile
-%{__cp} -a %{tests_source_dir}/test_tool_starter.py     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_starter.py
-%{__cp} -a %{tests_source_dir}/test_tool_config.yaml    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_config.yaml
-%{__cp} -a %{tests_source_dir}/README.md                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
+%{__cp} -a %{tests_source_dir}/function/Makefile                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile
+%{__cp} -a %{tests_source_dir}/function/cdst-test/test_tool.py   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool.py
+%{__cp} -a %{tests_source_dir}/function/test_tool_config.yaml    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_config.yaml
+%{__cp} -a %{tests_source_dir}/function/README.md                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
+%{__cp} -a %{tests_source_dir}/function/avocado_config.yaml      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/avocado_config.yaml
+%{__cp} -a %{tests_source_dir}/function/tests.py                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/tests.py
 
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function
-%{__cp} -a %{tests_source_dir}/function/avocado_config.yaml      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_config.yaml
-%{__cp} -a %{tests_source_dir}/function/tests.py                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/tests.py
-%{__cp} -a %{tests_source_dir}/function/Makefile                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile
-%{__cp} -a %{tests_source_dir}/function/README.md                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/README.md
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/README.md                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README.md
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/README_config.md            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README_config.md
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/README_textcheck.md         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README_textcheck.md
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/__init__.py                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/__init__.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/artifactory.py              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/artifactory.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/config.py                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/config_default.py           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config_default.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/config_nodes.py             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config_nodes.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/env.py                      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/env.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/files.py                    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/files.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/job_environment.py          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/job_environment.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/log.py                      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/log.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/modules.py                  ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/modules.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/remote_test_tool_startup.py ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/remote_test_tool_startup.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/remote_test_tool_ui.py      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/remote_test_tool_ui.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/ssh.py                      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/ssh.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/test_server.py              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/test_server.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/test_server_commands.py     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/test_server_commands.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/test_server_proto.py        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/test_server_proto.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/textcheck.py                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/textcheck.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/useful.py                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/useful.py
 
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin
-%{__cp} -a %{tests_source_dir}/function/bin/cti_barrier            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_barrier
-%{__cp} -a %{tests_source_dir}/function/bin/cti_callback_daemon    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_callback_daemon
-%{__cp} -a %{tests_source_dir}/function/bin/cti_callback           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_callback
-%{__cp} -a %{tests_source_dir}/function/bin/cti_info               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_info
-%{__cp} -a %{tests_source_dir}/function/bin/cti_kill               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_kill
-%{__cp} -a %{tests_source_dir}/function/bin/cti_launch             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_launch
-%{__cp} -a %{tests_source_dir}/function/bin/cti_link               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_link
-%{__cp} -a %{tests_source_dir}/function/bin/cti_mpmd               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_mpmd
-%{__cp} -a %{tests_source_dir}/function/bin/cti_wlm                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_wlm
-%{__cp} -a %{tests_source_dir}/function/bin/function_tests         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/function_tests
-%{__cp} -a %{tests_source_dir}/function/bin/Makefile.fun           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/data
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/data/hosts.yaml    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/data/hosts.yaml
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/data/products.yaml ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/data/products.yaml
 
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src
-%{__cp} -a %{tests_source_dir}/function/src/Makefile                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/Makefile
-%{__cp} -a %{tests_source_dir}/function/src/hello_mpi.c              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi.c
-%{__cp} -a %{tests_source_dir}/function/src/hello_mpi_wait.c         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi_wait.c
-%{__cp} -a %{tests_source_dir}/function/src/mpi_wrapper.c            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/mpi_wrapper.c
-%{__cp} -a %{tests_source_dir}/function/src/mpmd.conf                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/mpmd.conf
-%{__cp} -a %{tests_source_dir}/function/src/testing.info             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/testing.info
-%{__cp} -a %{tests_source_dir}/function/src/inputFileData.txt        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/inputFileData.txt
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/avo_config.py        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/avo_config.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/passwordedscp.expect ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/passwordedscp.expect
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/passwordedssh.expect ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/passwordedssh.expect
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/sshcopyid.expect     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/sshcopyid.expect
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/uai.expect           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/uai.expect
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/validate_ssh.sh      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/validate_ssh.sh
 
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
-%{__cp} -a %{tests_source_dir}/test_support/Makefile.fun       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile
-%{__cp} -a %{tests_source_dir}/test_support/one_print.c        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print.c
-%{__cp} -a %{tests_source_dir}/test_support/one_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_socket.c
-%{__cp} -a %{tests_source_dir}/test_support/two_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/two_socket.c
-%{__cp} -a %{tests_source_dir}/test_support/remote_filecheck.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/remote_filecheck.c
-%{__cp} -a %{tests_source_dir}/test_support/wrapper_script.sh  ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/wrapper_script.sh
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/src/Makefile    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src/Makefile
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/src/hello_mpi.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src/hello_mpi.c
 
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one
-%{__cp} -a %{tests_source_dir}/test_support/message_one/message.c     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/message.c
-%{__cp} -a %{tests_source_dir}/test_support/message_one/message.h     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/message.h
+# we package pre-built binaries along with their source code so that a user doesn't
+# need cray-cti-devel to run tests
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src
+%{__cp} -a %{tests_source_dir}/function/src/Makefile                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/Makefile
+%{__cp} -a %{tests_source_dir}/function/src/cti_barrier                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_barrier
+%{__cp} -a %{tests_source_dir}/function/src/cti_barrier_test.c         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_barrier_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_callback               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback
+%{__cp} -a %{tests_source_dir}/function/src/cti_callback_daemon        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback_daemon
+%{__cp} -a %{tests_source_dir}/function/src/cti_callback_daemon.c      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback_daemon.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_callback_test.c        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_callback_test.h        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback_test.h
+%{__cp} -a %{tests_source_dir}/function/src/cti_double_daemon          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_double_daemon
+%{__cp} -a %{tests_source_dir}/function/src/cti_double_daemon_test.cpp ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_double_daemon_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_environment            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_environment
+%{__cp} -a %{tests_source_dir}/function/src/cti_environment_test.cpp   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_environment_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_fd_in                  ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fd_in
+%{__cp} -a %{tests_source_dir}/function/src/cti_fd_in_test.cpp         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fd_in_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_fe_common.c            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fe_common.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_fe_common.h            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fe_common.h
+%{__cp} -a %{tests_source_dir}/function/src/cti_fe_function_test.cpp   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fe_function_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_fe_function_test.hpp   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fe_function_test.hpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_file_in                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_file_in
+%{__cp} -a %{tests_source_dir}/function/src/cti_file_in_test.cpp       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_file_in_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_file_transfer          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_file_transfer
+%{__cp} -a %{tests_source_dir}/function/src/cti_file_transfer_test.cpp ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_file_transfer_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_info                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_info
+%{__cp} -a %{tests_source_dir}/function/src/cti_info_test.c            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_info_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_kill                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill
+%{__cp} -a %{tests_source_dir}/function/src/cti_kill_test.c            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_launch                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_launch
+%{__cp} -a %{tests_source_dir}/function/src/cti_launch_test.c          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_launch_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_ld_preload             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ld_preload
+%{__cp} -a %{tests_source_dir}/function/src/cti_ld_preload_test.cpp    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ld_preload_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_link                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_link
+%{__cp} -a %{tests_source_dir}/function/src/cti_linking_test.c         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_linking_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_manifest               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_manifest
+%{__cp} -a %{tests_source_dir}/function/src/cti_manifest_test.cpp      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_manifest_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_mpir_shim              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpir_shim
+%{__cp} -a %{tests_source_dir}/function/src/cti_mpir_shim_test.cpp     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpir_shim_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_mpmd                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd
+%{__cp} -a %{tests_source_dir}/function/src/cti_mpmd_test.c            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_redirect               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect
+%{__cp} -a %{tests_source_dir}/function/src/cti_redirect_test.cpp      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_release_twice          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_release_twice
+%{__cp} -a %{tests_source_dir}/function/src/cti_release_twice_test.cpp ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_release_twice_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_session                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_session
+%{__cp} -a %{tests_source_dir}/function/src/cti_session_test.cpp       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_session_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_tool_daemon            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_tool_daemon
+%{__cp} -a %{tests_source_dir}/function/src/cti_tool_daemon_test.cpp   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_tool_daemon_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_wlm                    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm
+%{__cp} -a %{tests_source_dir}/function/src/cti_wlm_test.c             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm_test.c
 
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two
-%{__cp} -a %{tests_source_dir}/test_support/message_two/message.c     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.c
-%{__cp} -a %{tests_source_dir}/test_support/message_two/message.h     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.h
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static
+%{__cp} -a %{tests_source_dir}/function/src/static/inputFileData.txt ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/inputFileData.txt
+%{__cp} -a %{tests_source_dir}/function/src/static/mpmd.conf         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/mpmd.conf
+%{__cp} -a %{tests_source_dir}/function/src/static/testing.info      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/testing.info
 
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googletest/src/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googletest/include/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
-%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/src/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
-%{__cp} -a %{tests_source_dir}/test_support/googletest/googlemock/include/* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
-%{__cp} -a %{tests_source_dir}/build.sh ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/build.sh
+# support files must be built on the test machine, so we only provide the source
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support
+%{__cp} -a %{tests_source_dir}/function/src/support/Makefile           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/Makefile
+%{__cp} -a %{tests_source_dir}/function/src/support/hello_mpi.c        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/hello_mpi.c
+%{__cp} -a %{tests_source_dir}/function/src/support/hello_mpi_wait.c   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/hello_mpi_wait.c
+%{__cp} -a %{tests_source_dir}/function/src/support/mpi_wrapper.c      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/mpi_wrapper.c
+%{__cp} -a %{tests_source_dir}/function/src/support/one_print.c        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/one_print.c
+%{__cp} -a %{tests_source_dir}/function/src/support/one_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/one_socket.c
+%{__cp} -a %{tests_source_dir}/function/src/support/remote_filecheck.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/remote_filecheck.c
+%{__cp} -a %{tests_source_dir}/function/src/support/two_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/two_socket.c
+%{__cp} -a %{tests_source_dir}/function/src/support/wrapper_script.sh  ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/wrapper_script.sh
+
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one
+%{__cp} -a %{tests_source_dir}/function/src/support/message_one/message.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one/message.c
+%{__cp} -a %{tests_source_dir}/function/src/support/message_one/message.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one/message.h
+
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two
+%{__cp} -a %{tests_source_dir}/function/src/support/message_two/message.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.c
+%{__cp} -a %{tests_source_dir}/function/src/support/message_two/message.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.h
 
 # Touch the cray dynamic file list which will be populated/updated post-install
 touch ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
@@ -532,57 +609,124 @@ fi
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/Makefile
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_starter.py
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_config.yaml
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_tool_config.yaml
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/README.md
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/avocado_config.yaml
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/tests.py
 
-%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/function
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/avocado_config.yaml
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/tests.py
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/Makefile
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/README.md
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README.md
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README_config.md
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README_textcheck.md
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/__init__.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/artifactory.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config_default.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config_nodes.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/env.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/files.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/job_environment.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/log.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/modules.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/remote_test_tool_startup.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/remote_test_tool_ui.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/ssh.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/test_server.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/test_server_commands.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/test_server_proto.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/textcheck.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/useful.py
 
-%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_barrier
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_callback_daemon
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_callback
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_info
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_kill
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_launch
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_link
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_mpmd
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/cti_wlm
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/function_tests
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/bin/Makefile
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/data
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/data/hosts.yaml
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/data/products.yaml
 
-%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/Makefile
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi.c
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/hello_mpi_wait.c
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/mpi_wrapper.c
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/mpmd.conf
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/testing.info
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/function/src/inputFileData.txt
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/avo_config.py
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/passwordedscp.expect
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/passwordedssh.expect
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/sshcopyid.expect
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/uai.expect
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/validate_ssh.sh
 
-%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/Makefile
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_print.c
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/one_socket.c
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/two_socket.c
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/remote_filecheck.c
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/wrapper_script.sh
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src/Makefile
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src/hello_mpi.c
 
-%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/message.c
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_one/message.h
+# we package pre-built binaries along with their source code so that a user doesn't
+# need cray-cti-devel to run tests
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/Makefile
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_barrier
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_barrier_test.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback_daemon
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback_daemon.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback_test.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_callback_test.h
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_double_daemon
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_double_daemon_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_environment
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_environment_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fd_in
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fd_in_test.cpp
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fe_common.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fe_common.h
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fe_function_test.cpp
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_fe_function_test.hpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_file_in
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_file_in_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_file_transfer
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_file_transfer_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_info
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_info_test.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill_test.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_launch
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_launch_test.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ld_preload
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ld_preload_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_link
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_linking_test.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_manifest
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_manifest_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpir_shim
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpir_shim_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_test.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_release_twice
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_release_twice_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_session
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_session_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_tool_daemon
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_tool_daemon_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm_test.c
 
-%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.c
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/message_two/message.h
-%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/build.sh
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/inputFileData.txt
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/mpmd.conf
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/testing.info
 
-%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/src
-%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googletest/include
-%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/src
-%{prefix}/%{cray_product}/%{pkgversion}/tests/test_support/googletest/googlemock/include
+# support files must be built on the test machine, so we only provide the source
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/Makefile
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/hello_mpi.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/hello_mpi_wait.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/mpi_wrapper.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/one_print.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/one_socket.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/remote_filecheck.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/two_socket.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/wrapper_script.sh
 
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one/message.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one/message.h
+
+%dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.h

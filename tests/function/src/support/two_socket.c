@@ -29,20 +29,25 @@
 #include <unistd.h>
 
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
+
+#include "message_two/message.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 int main(int argc, char* argv[]) {
-    if (argc != 4) {
-        fprintf(stderr, "Invalid parameters\nExpected: SocketIP, SocketPort, Filepath\n");
+
+    if (argc != 3) {
+        fprintf(stderr, "Invalid parameters\nExpected: SocketIP, SocketPort\n");
         return 1;
     }
+
+    //avoid race conditions in the least elegant way...
+    sleep(1);
 
     //Declare variables to store socket IP and port
     char* ip;
@@ -53,7 +58,6 @@ int main(int argc, char* argv[]) {
     sscanf(argv[2], "%d", &port);
 
     //Create socket
-    struct sockaddr_in s_address;
     int c_socket;
     int rc;
     struct addrinfo *node;
@@ -84,19 +88,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     fprintf(stderr, "CONNECTED\n");
-    fprintf(stderr, "Checking for %s...\n", argv[3]);
-
-    struct stat buf;
-    int r = stat(argv[3], &buf);
-
-    if (r == 0) {
-        // file found
-        send(c_socket, "1", 1, 0);
-    } else {
-        // file not found
-        send(c_socket, "0", 1, 0);
+    //Send predictable data over socket
+    fprintf(stderr, "Sending: %s\n", get_message());
+    if (send(c_socket, get_message(), 1, 0) == -1) {
+        fprintf(stderr, "An error occurred in send().\n");
     }
 
+    sleep(10); // fix for PE-32354
     close(c_socket);
 
     return 0;

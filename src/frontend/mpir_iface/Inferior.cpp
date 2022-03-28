@@ -79,43 +79,31 @@ static Dyninst::SymtabAPI::Symtab* make_Symtab(std::string const& binary) {
     return symtab_ptr;
 }
 
-static auto find_module_base(std::string const& launcher, pid_t pid)
+static auto find_module_base(Dyninst::ProcControlAPI::Process const& proc)
 {
-    // Determine if the launcher loads in at a fixed address
-    { auto bashReadelfArgv = cti::ManagedArgv{"bash", "-c",
-        "readelf -l --wide " + launcher + " | grep 'LOAD' | grep 'R E' | tr -s ' ' | cut -d ' ' -f5"};
-        auto bashReadelfOutput = cti::Execvp{"bash", bashReadelfArgv.get(), cti::Execvp::stderr::Ignore};
-
-        auto rawModuleBase = std::string{};
-        if (!std::getline(bashReadelfOutput.stream(), rawModuleBase, '\n')) {
-            log("readelf failed, returning 0x0 (%s)\n", bashReadelfArgv.get()[2]);
-            return Inferior::Address{0x0};
-        }
-        log("LOAD module base: %s\n", rawModuleBase.c_str());
-
-        // If module base is explicitly specified, Dyninst can correctly determine addresses
-        if (auto const module_base = std::stoul(rawModuleBase, nullptr, 16)) {
-            log("module base specified, returning 0x0\n");
-            return Inferior::Address{0x0};
+    // Use Dyninst's library list to find the LOAD address of the launcher binary.
+    // * Assume that the first executable is the target launcher.
+    // * Can't rely on the executable name, as launchers may parse arguments in one
+    //   binary, then exec another.
+    // * When the base address is not explicitly provided by the binary, Dyninst
+    //   does not adjust its symbol table for this base address and it must be
+    //   determined at runtime.
+    // * Previously used `readelf` to determine if the launcher binary provided
+    //   an explicit base address, and if not, to read the process' memory map.
+    // * However, Dyninst provides a function `getLoadAddress` to get the binary
+    //   load address. This can be used when looking up a symbol name to adjust
+    //   to the proper address.
+    // * In the case where the base address is provided explicitly, `getLoadAddress`
+    //   returns address 0x0. As the symbol table has already been fixed using the
+    //   proper base address in this case, a 0x0 base address is correct.
+    for (auto&& lib : proc.libraries()) {
+        if (!lib->isSharedLib()) {
+            return lib->getLoadAddress();
         }
     }
 
-    // If module base is not specified, have to read the process memory map information to
-    // determine where the loader placed the launcher binary
-    { auto const launcherBasename = cti::cstr::basename(launcher);
-        auto bashMapArgv = cti::ManagedArgv{"bash", "-c",
-            "cat /proc/" + std::to_string(pid) + "/maps | grep '/" + launcherBasename + "' | grep 'r-xp' | cut -d '-' -f1"};
-        auto bashMapOutput = cti::Execvp{"bash", bashMapArgv.get(), cti::Execvp::stderr::Ignore};
-
-        auto rawModuleBase = std::string{};
-        if (!std::getline(bashMapOutput.stream(), rawModuleBase, '\n')) {
-            throw std::runtime_error("failed to parse maps: " + std::string{bashMapArgv.get()[2]});
-        }
-
-        log("map module base: %p\n", rawModuleBase.c_str());
-
-        return Inferior::Address{std::stoul(rawModuleBase, nullptr, 16)};
-    }
+    // No executable found in process
+    return Dyninst::Address{0x0};
 }
 
 /* breakpoint helpers */
@@ -135,7 +123,7 @@ Inferior::Inferior(std::string const& launcher,
     , m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
     , m_symbols{}
     , m_proc{Process::createProcess(launcher, launcherArgv, envVars, remapFds)}
-    , m_module_base{find_module_base(launcher, m_proc->getPid())}
+    , m_module_base{find_module_base(*m_proc)}
 {
     if (m_followForkMode != FollowFork::DisableBreakpointsDetach) {
         throw std::runtime_error("failed to disable ProcessControl follow-fork mode");
@@ -171,7 +159,7 @@ Inferior::Inferior(std::string const& launcher, pid_t pid)
     , m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
     , m_symbols{}
     , m_proc(Process::attachProcess(pid, {}))
-    , m_module_base{find_module_base(launcher, pid)}
+    , m_module_base{find_module_base(*m_proc)}
 {
     if (m_followForkMode != FollowFork::DisableBreakpointsDetach) {
         throw std::runtime_error("failed to disable ProcessControl follow-fork mode");

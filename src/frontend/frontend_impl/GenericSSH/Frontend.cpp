@@ -62,10 +62,8 @@
 #include "daemon/cti_fe_daemon_iface.hpp"
 
 #include "useful/cti_useful.h"
-#include "useful/cti_dlopen.hpp"
 #include "useful/cti_argv.hpp"
 #include "useful/cti_wrappers.hpp"
-#include "useful/cti_split.hpp"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -647,6 +645,55 @@ contact your system adminstrator.");
             }
         }
     }
+
+    FE_daemon::MPIRResult getMPIRResult(std::string const& launcherName, pid_t launcher_pid)
+    {
+        // Construct FE remote daemon arguments
+        auto daemonArgv = cti::OutgoingArgv<CTIFEDaemonArgv>{Frontend::inst().getFEDaemonPath()};
+        daemonArgv.add(CTIFEDaemonArgv::ReadFD,  std::to_string(STDIN_FILENO));
+        daemonArgv.add(CTIFEDaemonArgv::WriteFD, std::to_string(STDOUT_FILENO));
+
+        // Launch FE daemon remotely to collect MPIR information
+        auto channel = startRemoteCommand(daemonArgv.get());
+
+        // Reader / writer functions will read / write data from and to SSH channel
+        auto channel_reader = [&channel](char* buf, ssize_t capacity) {
+            return remote::channel_read(channel.get(), buf, capacity);
+        };
+        auto channel_writer = [&channel](char const* buf, ssize_t capacity) {
+            return remote::channel_write(channel.get(), buf, capacity);
+        };
+
+        // Read FE daemon initialization message
+        auto const remote_pid = readLoop<pid_t>(channel_reader);
+
+        // Determine path to launcher
+        auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(launcherName.c_str(), nullptr), std::free);
+        if (!launcherPath) {
+            throw std::runtime_error("failed to find launcher in path: " + launcherName);
+        }
+
+        // Write MPIR attach request to channel
+        writeLoop(channel_writer, FE_daemon::ReqType::AttachMPIR);
+        writeLoop(channel_writer, launcherPath.get(), strlen(launcherPath.get()) + 1);
+        writeLoop(channel_writer, launcher_pid);
+
+        // Read MPIR attach request from relay pipe
+        auto mpirResult = FE_daemon::readMPIRResp(channel_reader);
+        Frontend::inst().writeLog("Received %zu proctable entries from remote daemon\n", mpirResult.proctable.size());
+
+        // Shut down remote daemon
+        writeLoop(channel_writer, FE_daemon::ReqType::Shutdown);
+        auto const okResp = readLoop<FE_daemon::OKResp>(channel_reader);
+        if (okResp.type != FE_daemon::RespType::OK) {
+            fprintf(stderr, "warning: daemon shutdown failed\n");
+        }
+
+        // Close relay pipe and SSH channel
+        channel.reset();
+
+        return mpirResult;
+    }
 };
 
 GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpirData)
@@ -785,23 +832,25 @@ GenericSSHApp::startDaemon(const char* const args[])
     if (!m_beDaemonSent) {
         // Get the location of the backend daemon
         if (m_frontend.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
+            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment variable to the install location of CTI.");
         }
 
         // Copy the BE binary to its unique storage name
         auto const sourcePath = m_frontend.getBEDaemonPath();
         auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
 
-        // Create the args for copy
-        auto copyArgv = cti::ManagedArgv {
-            "cp", sourcePath.c_str(), destinationPath.c_str()
+        // Create the args for link
+        auto linkArgv = cti::ManagedArgv {
+            "ln", "-s", sourcePath.c_str(), destinationPath.c_str()
         };
 
-        // Run copy command
-        m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-            m_daemonAppId, "cp", copyArgv.get(),
+        // Run link command
+        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, "ln", linkArgv.get(),
             -1, -1, -1,
-            nullptr);
+            nullptr)) {
+            throw std::runtime_error("failed to link " + sourcePath + " to " + destinationPath);
+        }
 
         // Ship the unique backend daemon
         shipPackage(destinationPath);
@@ -1087,51 +1136,7 @@ GenericSSHFrontend::launchApp(const char * const launcher_argv[],
 std::weak_ptr<App>
 GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
 {
-    // Construct FE remote daemon arguments
-    auto daemonArgv = cti::OutgoingArgv<CTIFEDaemonArgv>{Frontend::inst().getFEDaemonPath()};
-    daemonArgv.add(CTIFEDaemonArgv::ReadFD,  std::to_string(STDIN_FILENO));
-    daemonArgv.add(CTIFEDaemonArgv::WriteFD, std::to_string(STDOUT_FILENO));
-
-    // Launch FE daemon remotely to collect MPIR information
-    auto session = SSHSession{hostname, Frontend::inst().getPwd()};
-    auto channel = session.startRemoteCommand(daemonArgv.get());
-
-    // Reader / writer functions will read / write data from and to SSH channel
-    auto channel_reader = [&channel](char* buf, ssize_t capacity) {
-        return remote::channel_read(channel.get(), buf, capacity);
-    };
-    auto channel_writer = [&channel](char const* buf, ssize_t capacity) {
-        return remote::channel_write(channel.get(), buf, capacity);
-    };
-
-    // Read FE daemon initialization message
-    auto const remote_pid = readLoop<pid_t>(channel_reader);
-    Frontend::inst().writeLog("FE daemon running on '%s' pid: %d\n", hostname, remote_pid);
-
-    // Determine path to launcher
-    auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free);
-    if (!launcherPath) {
-        throw std::runtime_error("failed to find launcher in path: " + getLauncherName());
-    }
-
-    // Write MPIR attach request to channel
-    writeLoop(channel_writer, FE_daemon::ReqType::AttachMPIR);
-    writeLoop(channel_writer, launcherPath.get(), strlen(launcherPath.get()) + 1);
-    writeLoop(channel_writer, launcher_pid);
-
-    // Read MPIR attach request from relay pipe
-    auto mpirResult = FE_daemon::readMPIRResp(channel_reader);
-    Frontend::inst().writeLog("Received %zu proctable entries from remote daemon\n", mpirResult.proctable.size());
-
-    // Shut down remote daemon
-    writeLoop(channel_writer, FE_daemon::ReqType::Shutdown);
-    auto const okResp = readLoop<FE_daemon::OKResp>(channel_reader);
-    if (okResp.type != FE_daemon::RespType::OK) {
-        fprintf(stderr, "warning: daemon shutdown failed\n");
-    }
-
-    // Close relay pipe and SSH channel
-    channel.reset();
+    auto mpirResult = SSHSession{hostname, Frontend::inst().getPwd()}.getMPIRResult(getLauncherName(), launcher_pid);
 
     // Register application with local FE daemon and insert into received MPIR response
     auto const mpir_id = Frontend::inst().Daemon().request_RegisterApp(::getpid());
@@ -1143,224 +1148,4 @@ GenericSSHFrontend::registerRemoteJob(char const* hostname, pid_t launcher_pid)
         throw std::runtime_error("Failed to create new App object.");
     }
     return *ret.first;
-}
-
-// HPCM PALS specializations
-
-static auto find_job_host(std::string const& jobId)
-{
-    // Run qstat with machine-parseable format
-    char const* qstat_argv[] = {"qstat", "-f", jobId.c_str(), nullptr};
-    auto qstatOutput = cti::Execvp{"qstat", (char* const*)qstat_argv, cti::Execvp::stderr::Ignore};
-
-    // Start parsing qstat output
-    auto& qstatStream = qstatOutput.stream();
-    auto qstatLine = std::string{};
-
-    // Each line is in the format `    Var = Val`
-    auto execHost = std::string{};
-    while (std::getline(qstatStream, qstatLine)) {
-
-        // Split line on ' = '
-        auto const var_end = qstatLine.find(" = ");
-        if (var_end == std::string::npos) {
-            continue;
-        }
-        auto const var = cti::split::removeLeadingWhitespace(qstatLine.substr(0, var_end));
-        auto const val = qstatLine.substr(var_end + 3);
-        if (var == "exec_host") {
-            execHost = cti::split::removeLeadingWhitespace(std::move(val));
-            break;
-        }
-    }
-
-    // Consume rest of stream output
-    while (std::getline(qstatStream, qstatLine)) {}
-
-    // Wait for completion and check exit status
-    if (auto const qstat_rc = qstatOutput.getExitStatus()) {
-        throw std::runtime_error("`qstat -f " + jobId + "` failed with code " + std::to_string(qstat_rc));
-    }
-
-    // Reached end of qstat output without finding `exec_host`
-    if (execHost.empty()) {
-        throw std::runtime_error("invalid job id " + jobId);
-    }
-
-    // Extract main hostname from exec_host
-    /* qstat manpage:
-        The exec_host string has the format:
-           <host1>/<T1>*<P1>[+<host2>/<T2>*<P2>+...]
-    */
-    auto const hostname_end = execHost.find("/");
-    if (hostname_end != std::string::npos) {
-        return execHost.substr(0, hostname_end);
-    }
-
-    throw std::runtime_error("failed to parse qstat exec_host: " + execHost);
-}
-
-static pid_t find_launcher_pid(char const* launcher_name, char const* hostname)
-{
-    // Find potential launcher PIDs running on remote host
-    auto launcherPids = std::vector<pid_t>{};
-
-    // Launch pgrep remotely to find PIDs
-    { char const* pgrep_argv[] = {"pgrep", "-u", Frontend::inst().getPwd().pw_name, launcher_name, nullptr};
-        auto session = SSHSession{hostname, Frontend::inst().getPwd()};
-        auto channel = session.startRemoteCommand(pgrep_argv);
-
-        // Relay PID data from SSH channel to pipe
-         auto channel_reader = [&channel](char* buf, ssize_t capacity) {
-            return remote::channel_read(channel.get(), buf, capacity);
-        };
-
-        // Read pgrep output
-        char buf[4096];
-        auto pgrepStream = std::stringstream{};
-        while (auto const bytes_read = readLoop(buf, sizeof(buf), channel_reader)) {
-            if (bytes_read <= 0) {
-                break;
-            }
-            pgrepStream.write(buf, bytes_read);
-        }
-
-        // Parse pgrep lines
-        auto line = std::string{};
-        while (std::getline(pgrepStream, line)) {
-            launcherPids.emplace_back(std::stoi(line));
-        }
-
-        // Close relay pipe and SSH channel
-        channel.reset();
-    }
-
-    if (launcherPids.empty()) {
-        throw std::runtime_error("no instances of " + std::string{launcher_name} + " found on " + hostname);
-    }
-
-    // If there were multiple results, attach to first launcher instance.
-    // `session_id`, PID of PBS host process, will be the grandparent PID for all launcher instances
-    // running on a given node. Cannot use its value to differentiate running instances
-    if (launcherPids.size() > 1) {
-        fprintf(stderr, "warning: found %zu %s launcher instances running on %s. Attaching to PID %d\n",
-            launcherPids.size(), launcher_name, hostname, launcherPids[0]);
-    }
-
-    return launcherPids[0];
-}
-
-std::weak_ptr<App>
-HPCMPALSFrontend::registerLauncherPid(pid_t launcher_pid)
-{
-    return GenericSSHFrontend::registerJob(1, launcher_pid);
-}
-
-std::weak_ptr<App>
-HPCMPALSFrontend::registerRemoteJob(char const* job_id)
-{
-    // Job ID is either in format <job_id> or <job_id>.<launcher_pid>
-    auto const [jobId, launcherPidString] = cti::split::string<2>(job_id, '.');
-
-    // Find head node hostname for given job ID
-    auto const hostname = find_job_host(jobId);
-
-    // If launcher PID was not provided, find first launcher PID instance on head node
-    auto const launcherName = getLauncherName();
-    auto const launcher_pid = (launcherPidString.empty())
-        ? find_launcher_pid(launcherName.c_str(), hostname.c_str())
-        : std::stoi(launcherPidString);
-
-    // Attach to launcher PID running on head node and extract MPIR data for attach
-    return GenericSSHFrontend::registerRemoteJob(hostname.c_str(), launcher_pid);
-}
-
-// Add the launcher's timeout environment variable to provided environment list
-// Set timeout to five minutes
-static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgArray env_list)
-{
-    // Determine the timeout environment variable for PALS `mpiexec` or PALS `aprun` command
-    // https://connect.us.cray.com/jira/browse/PE-34329
-    auto const timeout_env = (launcherName == "aprun")
-        ? "APRUN_RPC_TIMEOUT=300"
-        : "PALS_RPC_TIMEOUT=300";
-
-    // Add the launcher's timeout disable environment variable to a new environment list
-    auto fixedEnvVars = cti::ManagedArgv{};
-
-    // Copy provided environment list
-    if (env_list != nullptr) {
-        fixedEnvVars.add(env_list);
-    }
-
-    // Append timeout disable environment variable
-    fixedEnvVars.add(timeout_env);
-
-    return fixedEnvVars;
-}
-
-std::weak_ptr<App>
-HPCMPALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-    CStr inputFile, CStr chdirPath, CArgArray env_list)
-{
-    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
-
-    return GenericSSHFrontend::launch(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath,
-            fixedEnvVars.get());
-}
-
-std::weak_ptr<App>
-HPCMPALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
-        CStr inputFile, CStr chdirPath, CArgArray env_list)
-{
-    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
-
-    return GenericSSHFrontend::launchBarrier(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath,
-            fixedEnvVars.get());
-}
-
-// Current address can now be obtained using the `cminfo` tool.
-std::string
-HPCMPALSFrontend::getHostname() const
-{
-    static auto const nodeAddress = []() {
-
-        // Run cminfo query
-        auto const cminfo_query = [](char const* option) {
-            char const* cminfoArgv[] = { "cminfo", option, nullptr };
-
-            // Start cminfo
-            try {
-                auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
-
-                // Return first line of query
-                auto& cminfoStream = cminfoOutput.stream();
-                std::string line;
-                if (std::getline(cminfoStream, line)) {
-                    return line;
-                }
-            } catch (...) {
-                return std::string{};
-            }
-
-            return std::string{};
-        };
-
-        // Get name of management network
-        auto const managementNetwork = cminfo_query("--mgmt_net_name");
-        if (!managementNetwork.empty()) {
-
-            // Query management IP address
-            auto const addressOption = "--" + managementNetwork + "_ip";
-            auto const managementAddress = cminfo_query(addressOption.c_str());
-            if (!managementAddress.empty()) {
-                return managementAddress;
-            }
-        }
-
-        // Fall back to `gethostname`
-        return cti::cstr::gethostname();
-    }();
-
-    return nodeAddress;
 }

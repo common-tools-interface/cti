@@ -76,25 +76,6 @@ detectFrontendHostname()
     // Get the hostname of the interface that is accessible from compute nodes
     // Behavior changes based on XC / Shasta UAI+UAN
     auto detectAddress = [&make_addrinfo, &resolveHostname]() {
-        // Try the nid file first. This is the preferred mechanism since it corresponds to the HSN.
-        // XT / XC NID file
-        try {
-            // Use the NID to create the XT hostname format.
-            // We expect this file to have a numeric value giving our current Node ID.
-            std::string nidString;
-            if (!std::getline(std::ifstream{CRAY_XT_NID_FILE}, nidString)) {
-                throw std::runtime_error("failed to parse NID file");
-            }
-            auto const nid = std::stoi(nidString);
-            auto nidXTHostname = cti::cstr::asprintf(CRAY_XT_HOSTNAME_FMT, nid);
-            // Ensure we can resolve the hostname
-            make_addrinfo(nidXTHostname);
-            // Hostname checks out so return it
-            return nidXTHostname;
-        } catch (std::exception const& ex) {
-            // continue processing
-        }
-
         // Shasta UAN xname file
         try {
             // Try to extract the hostname from the xname file path
