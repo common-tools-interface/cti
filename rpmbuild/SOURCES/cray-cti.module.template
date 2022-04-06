@@ -18,6 +18,8 @@
 
  setenv PE_CTI_MODULE_NAME  <CRAY_NAME>
 
+ prepend-path MANPATH       $CTI_BASEDIR/share/man
+
  # If the default version of CTI is loaded, don't set LD_LIBRARY_PATH.
  if { [ catch { source /opt/cray/pe/modulefiles/cray-cti/.version } ] } {
        prepend-path CRAY_LD_LIBRARY_PATH   $CTI_BASEDIR/lib
