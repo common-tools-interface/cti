@@ -1,0 +1,19 @@
+/******************************************************************************\
+ * Jenkinsfile.sle15sp1_aarch64- DST Jenkins pipeline for Sles 15 SP1 aarch64
+ *
+ * Copyright 2007-2022 Hewlett Packard Enterprise Development LP
+ *
+ * Unpublished Proprietary Information.
+ * This unpublished work is protected to trade secret, copyright and other laws.
+ * Except as permitted by contract or express written permission of Hewlett
+ * Packard Enterprise Development LP., no part of this work or its content may be
+ * used, reproduced or disclosed in any form.
+ *
+ ******************************************************************************/
+
+@Library("dst-shared@master") _
+
+sle15sp1PEaarch64 {
+    timeout = 240
+    product = "pe-base"
+}
