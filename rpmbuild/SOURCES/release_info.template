@@ -16,6 +16,16 @@ Product Description:
 
 Purpose:
 ---------
+  22.05 This release adds the following content:
+      - cti(1) user documentation and cti(3) C API documentation
+      - Dyninst has been updated to v12.1.0
+
+      This release fixes the following bugs:
+      - PALS' cti_pals_getApid function would not complete properly
+      - CTI Frontend daemon would sometimes encounter a double-free
+        upon normal exit. Does not affect running applications or
+        debugger tools.
+
   22.04 This release adds the following features:
       - Update Shasta PALS implementation to use PALS utilities and deprecate
         the previous Shasta PALS API
