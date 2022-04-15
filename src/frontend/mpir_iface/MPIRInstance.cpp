@@ -66,8 +66,6 @@ MPIRInstance::MPIRInstance(std::string const& launcher,
 
     /* read symbols, set breakpoints, etc. */
     setupMPIRStandard();
-    /* wait until MPIR data is ready and object can handle its data */
-    runToMPIRBreakpoint();
 }
 
 /* attach to process given pid */
@@ -125,6 +123,9 @@ void MPIRInstance::runToMPIRBreakpoint() {
         if ((debugState == MPIRDebugState::DebugSpawned) && (proctable_size > 0)) {
             break;
         }
+
+        // Allow launcher to run for a bit before checking conditions
+        ::sleep(1);
     };
 
     log("MPIR_debug_state: exited loop\n");
