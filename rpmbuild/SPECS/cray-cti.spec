@@ -1,9 +1,9 @@
 # Packaging definitions
-%global pkgversion %(%{_sourcedir}/get_package_data --crayversion)
-%global branch %(%{_sourcedir}/get_package_data --branch)
+%global pkgversion           %(%{_sourcedir}/get_package_data --crayversion)
+%global branch               %(%{_sourcedir}/get_package_data --branch)
 %global pkgversion_separator -
-%global copyright_date %(date +%%Y)
-%global copyright Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.
+%global copyright_date       %(date +%%Y)
+%global copyright            Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.
 
 # RPM build time
 %global release_date %(date +%%B\\ %%Y)

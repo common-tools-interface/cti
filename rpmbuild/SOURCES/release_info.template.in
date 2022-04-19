@@ -14,9 +14,14 @@ Product Description:
   tool daemons on the compute nodes associated with a parallel job.
   Options and interfaces can be found in the cti(1) and cti(3) manpages.
 
-Purpose:
+Changelog:
 ---------
-  22.05 This release adds the following content:
+[ MANUAL_RELEASE_HISTORY ]
+[ AUTO_RELEASE_HISTORY ]
+
+=======================================================================
+## [2.15.11] - 2022-04-15 (22.05)
+=======================================================================
       - cti(1) user documentation and cti(3) C API documentation
       - Dyninst has been updated to v12.1.0
 
@@ -26,7 +31,9 @@ Purpose:
         upon normal exit. Does not affect running applications or
         debugger tools.
 
-  22.04 This release adds the following features:
+=======================================================================
+## [2.15.10] - 2022-03-21   22.04
+=======================================================================
       - Update Shasta PALS implementation to use PALS utilities and deprecate
         the previous Shasta PALS API
       - Update the HPCM PALS implementations to use PALS utilities
@@ -36,12 +43,16 @@ Purpose:
         the default `mpiexec` launcher
       - Fix HPCM PALS backend startup when node hostnames are in xname format
 
-  22.02 This release is a bugfix release:
+=======================================================================
+## [2.15.9] - 2022-01-21   22.02
+=======================================================================
       - Default Shasta PALS node count in job launches to 1
       - Include `--overlap` in Slurm tool daemon launches for Slurm versions
         20.11 and above
 
-  21.12 This release adds the following features:
+=======================================================================
+## [2.15.8] - 2021-12-01   21.12
+=======================================================================
       - Added user documentation manpage cti(1), and developer
         documentation manpage cti(3).
       - Preliminary support for the Flux workload manager.
@@ -52,7 +63,9 @@ Purpose:
         compile-time if development headers are not available.
       - Updated gen compilers to cray-gcc-10.3.0
 
-  21.11 This bugfix release resolves the following issues:
+=======================================================================
+## [2.15.7] - 2021-10-21   21.11
+=======================================================================
       - Fix potential deadlock during job launch / attach for HPCM PALS systems,
         as well as the generic SSH interface
       - Fix Slurm job attach when running on compute node where hostname does
@@ -62,9 +75,6 @@ Purpose:
         should be set to an empty string (see SchedMD bug)
         https://bugs.schedmd.com/show_bug.cgi?id=12642
 
-  21.10 This bugfix release resolves the following issues:
-      - Added CRAY_CTI_PREFIX and CRAY_CTI_VERSION environment variables to the
-        modulefiles.
 
 Product and OS Dependencies:
 -----------------------------
