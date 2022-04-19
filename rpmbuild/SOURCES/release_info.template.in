@@ -22,46 +22,50 @@ Changelog:
 =======================================================================
 ## [2.15.10] - 2022-03-21   (22.04)
 =======================================================================
-      - Update Shasta PALS implementation to use PALS utilities and deprecate
-        the previous Shasta PALS API
-      - Update the HPCM PALS implementations to use PALS utilities
 
-      This release fixes the following bugs:
-      - Fix the usage of the `aprun` launcher with HPCM PALS instead of
-        the default `mpiexec` launcher
-      - Fix HPCM PALS backend startup when node hostnames are in xname format
+* Update Shasta PALS implementation to use PALS utilities and deprecate
+  the previous Shasta PALS API
+* Update the HPCM PALS implementations to use PALS utilities
+
+  This release fixes the following bugs:
+* Fix the usage of the `aprun` launcher with HPCM PALS instead of
+  the default `mpiexec` launcher
+* Fix HPCM PALS backend startup when node hostnames are in xname format
 
 =======================================================================
 ## [2.15.9] - 2022-01-21   (22.02)
 =======================================================================
-      - Default Shasta PALS node count in job launches to 1
-      - Include `--overlap` in Slurm tool daemon launches for Slurm versions
-        20.11 and above
+
+* Default Shasta PALS node count in job launches to 1
+* Include `--overlap` in Slurm tool daemon launches for Slurm versions
+  20.11 and above
 
 =======================================================================
 ## [2.15.8] - 2021-12-01   (21.12)
 =======================================================================
-      - Added user documentation manpage cti(1), and developer
-        documentation manpage cti(3).
-      - Preliminary support for the Flux workload manager.
-        Note that passwordless SSH access to compute nodes must be
-        configured for Flux support. This limitation will be
-        removed in a future release.
-      - Flux, Shasta PALS, and ALPS support can be disabled at
-        compile-time if development headers are not available.
-      - Updated gen compilers to cray-gcc-10.3.0
+
+* Added user documentation manpage cti(1), and developer
+  documentation manpage cti(3).
+* Preliminary support for the Flux workload manager.
+  Note that passwordless SSH access to compute nodes must be
+  configured for Flux support. This limitation will be
+  removed in a future release.
+* Flux, Shasta PALS, and ALPS support can be disabled at
+  compile-time if development headers are not available.
+* Updated gen compilers to cray-gcc-10.3.0
 
 =======================================================================
 ## [2.15.7] - 2021-10-21   (21.11)
 =======================================================================
-      - Fix potential deadlock during job launch / attach for HPCM PALS systems,
-        as well as the generic SSH interface
-      - Fix Slurm job attach when running on compute node where hostname does
-        not match the Slurm node name
-      - Add environment variable CTI_SLURM_DAEMON_GRES to set the --gres
-        for Slurm daemon launches. For Slurm versions 21.08 and newer, this
-        should be set to an empty string (see SchedMD bug)
-        https://bugs.schedmd.com/show_bug.cgi?id=12642
+
+* Fix potential deadlock during job launch / attach for HPCM PALS systems,
+  as well as the generic SSH interface
+* Fix Slurm job attach when running on compute node where hostname does
+  not match the Slurm node name
+* Add environment variable CTI_SLURM_DAEMON_GRES to set the --gres
+  for Slurm daemon launches. For Slurm versions 21.08 and newer, this
+  should be set to an empty string (see SchedMD bug)
+  https://bugs.schedmd.com/show_bug.cgi?id=12642
 
 
 Product and OS Dependencies:
