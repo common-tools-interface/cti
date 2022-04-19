@@ -20,7 +20,7 @@ Changelog:
 [ AUTO_RELEASE_HISTORY ]
 
 =======================================================================
-## [2.15.10] - 2022-03-21   22.04
+## [2.15.10] - 2022-03-21   (22.04)
 =======================================================================
       - Update Shasta PALS implementation to use PALS utilities and deprecate
         the previous Shasta PALS API
@@ -32,14 +32,14 @@ Changelog:
       - Fix HPCM PALS backend startup when node hostnames are in xname format
 
 =======================================================================
-## [2.15.9] - 2022-01-21   22.02
+## [2.15.9] - 2022-01-21   (22.02)
 =======================================================================
       - Default Shasta PALS node count in job launches to 1
       - Include `--overlap` in Slurm tool daemon launches for Slurm versions
         20.11 and above
 
 =======================================================================
-## [2.15.8] - 2021-12-01   21.12
+## [2.15.8] - 2021-12-01   (21.12)
 =======================================================================
       - Added user documentation manpage cti(1), and developer
         documentation manpage cti(3).
@@ -52,7 +52,7 @@ Changelog:
       - Updated gen compilers to cray-gcc-10.3.0
 
 =======================================================================
-## [2.15.7] - 2021-10-21   21.11
+## [2.15.7] - 2021-10-21   (21.11)
 =======================================================================
       - Fix potential deadlock during job launch / attach for HPCM PALS systems,
         as well as the generic SSH interface
