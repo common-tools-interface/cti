@@ -89,7 +89,7 @@ directory.
 Installation instructions:
 --------------------------
 
-   Installation instructions for <ARCH>:
+   Installation instructions for <DIST>:
    =============================================
       rpm -ivh cray-cti-<VERSION>-<RELEASE>.<ARCH>.rpm
 
