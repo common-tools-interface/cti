@@ -20,18 +20,6 @@ Changelog:
 [ AUTO_RELEASE_HISTORY ]
 
 =======================================================================
-## [2.15.11] - 2022-04-15 (22.05)
-=======================================================================
-      - cti(1) user documentation and cti(3) C API documentation
-      - Dyninst has been updated to v12.1.0
-
-      This release fixes the following bugs:
-      - PALS' cti_pals_getApid function would not complete properly
-      - CTI Frontend daemon would sometimes encounter a double-free
-        upon normal exit. Does not affect running applications or
-        debugger tools.
-
-=======================================================================
 ## [2.15.10] - 2022-03-21   22.04
 =======================================================================
       - Update Shasta PALS implementation to use PALS utilities and deprecate
