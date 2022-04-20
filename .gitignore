@@ -57,3 +57,5 @@ scripts/tmp
 *.gcov
 *.gcda
 *.gcno
+
+rpmbuild/SOURCES/release_info.template

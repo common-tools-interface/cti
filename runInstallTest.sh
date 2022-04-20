@@ -41,5 +41,11 @@ elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
   check_exit_status
 fi
 
+if [ -f $install_dir/release_info ]; then
+  cat $install_dir/release_info
+else
+  echo "$install_dir/release_info was not generated."
+fi
+
 check_exit_status
 

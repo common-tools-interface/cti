@@ -2,7 +2,7 @@
 #
 # runBuildPackage.sh - Package steps for CTI
 #
-# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2022 Hewlett Packard Enterprise Development LP
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -17,6 +17,10 @@ setup_modules
 module load cray-cdst-support
 check_exit_status
 
+# Update the changelog & release notes
+source ./external/changelog/manage_release_notes.sh -c -r
+check_exit_status
+
 echo "############################################"
 echo "#             Creating rpm                 #"
 echo "############################################"
@@ -25,6 +29,13 @@ cd ${rpmbuilddir}
 check_exit_status
 rpmbuild -bb -D "_topdir ${rpmbuilddir}" SPECS/cray-cti.spec
 check_exit_status
+
+if [ -f $PWD/rpmbuild/BUILD/release_info ]; then
+  echo
+  echo
+  echo "Release Info in rpmbuild/BUILD:"
+  cat $PWD/BUILD/release_info
+fi
 
 echo "############################################"
 echo "#          Done with packaging             #"
