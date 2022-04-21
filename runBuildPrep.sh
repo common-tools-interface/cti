@@ -18,6 +18,7 @@ echo "#             Installing deps              #"
 echo "############################################"
 target_pm=$(get_pm)
 target_os=$(get_os)
+target_arch=$(get_arch)
 if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
     # Install zypper based dependencies
     zypper refresh -f
@@ -37,14 +38,13 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
         zlib-devel
     check_exit_status
 elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
-    if [[ "$target_os" == "$cdst_os_centos8" ]]; then
+    if [[ "$target_os" == "$cdst_os_centos8" ]]; then 
       # Note the following will be different on build VMs vs DST. Errors are okay.
       yum config-manager --set-enabled powertools
     fi
     # Install yum based components
     yum --assumeyes install \
         autoconf \
-        autoconf-archive \
         automake \
         binutils \
         binutils-devel \
@@ -57,6 +57,14 @@ elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
         zlib-devel \
         tcl \
         wget
+    check_exit_status
+
+    if [[ "$target_arch" == "$cdst_arch_aarch64" && "$target_os" == "$cdst_os_rhel84" ]]; then
+      yum --assumeyes install \
+      https://arti.dev.cray.com/artifactory/hpe-rhel-remote/EL8/Update4/GA/CRB/os/Packages/autoconf-archive-2018.03.13-1.el8.noarch.rpm
+    else
+      yum --assumeyes install autoconf-archive
+    fi
     check_exit_status
 else
     # Unknown OS! Exit with error.
