@@ -20,8 +20,10 @@ target_pm=$(get_pm)
 target_os=$(get_os)
 target_arch=$(get_arch)
 if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
+    if [[ "$target_arch" == "$cdst_arch_x86_64" ]]; then
+      sudo zypper refresh -f
+    fi
     # Install zypper based dependencies
-    zypper refresh -f
     zypper --non-interactive install \
         autoconf \
         autoconf-archive \
