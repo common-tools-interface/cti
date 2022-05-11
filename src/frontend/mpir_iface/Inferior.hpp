@@ -37,7 +37,10 @@
 #include <signal.h>
 
 // dyninst symtab
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
 #include <Symtab.h>
+#pragma GCC diagnostic pop
 // dyninst processcontrol
 #include <PCProcess.h>
 #include <Event.h>

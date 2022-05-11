@@ -29,6 +29,7 @@
  ******************************************************************************/
 
 // This pulls in config.h
+#define _GNU_SOURCE
 #include "cti_defs.h"
 
 #include <stdbool.h>
