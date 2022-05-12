@@ -1,7 +1,7 @@
 /******************************************************************************\
  * Frontend.cpp -  Frontend library functions for SSH based workload manager.
  *
- * Copyright 2017-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2017-2022 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
