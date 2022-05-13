@@ -5,7 +5,7 @@
  *           and allows users to specify environment variable settings
  *           that a tool daemon should inherit.
  *
- * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
