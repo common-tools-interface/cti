@@ -1,7 +1,7 @@
 #==============================================================================
 # Release and shared library version control for the common tools interface.
 #
-# Copyright 2011-2021 Hewlett Packard Enterprise Development LP.
+# Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
 #
 #     Redistribution and use in source and binary forms, with or
 #     without modification, are permitted provided that the following
@@ -102,7 +102,7 @@ fe_current="3"
 fe_age="1"
 fe_revision="0"
 
-revision="12"
+revision="13"
 
 # Jenkins will override this
 build_number=""
