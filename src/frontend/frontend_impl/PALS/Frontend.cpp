@@ -270,16 +270,23 @@ PALSFrontend::getHostname() const
             return std::string{};
         };
 
-        // Get name of management network
-        auto const managementNetwork = cminfo_query("--mgmt_net_name");
-        if (!managementNetwork.empty()) {
+        // Get names of high speed networks
+        auto hsnNames = cminfo_query("--data_net_names");
+
+        // Check all reported names
+        while (!hsnNames.empty()) {
+
+            // Extract first HSN name in comma-separated list
+            auto [hsnName, rest] = cti::split::string<2>(std::move(hsnNames), ',');
 
             // Query management IP address
-            auto const addressOption = "--" + managementNetwork + "_ip";
-            auto const managementAddress = cminfo_query(addressOption.c_str());
-            if (!managementAddress.empty()) {
-                return managementAddress;
+            auto const addressOption = "--" + hsnName + "_ip";
+            if (auto hsnAddress = cminfo_query(addressOption.c_str()); !hsnAddress.empty()) {
+                return hsnAddress;
             }
+
+            // Retry with next name
+            hsnNames = std::move(rest);
         }
 
         // Delegate to shared implementation supporting both XC and Shasta

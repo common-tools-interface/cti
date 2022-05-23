@@ -189,6 +189,16 @@ int main(int argc, char **argv)
 	auto socket_fd = int{-1};
 	auto backend_fd = int{-1};
 
+	// Run network detection
+	auto const address = find_external_address();
+	if (auto const cti_hostname = std::unique_ptr<char, decltype(&::free)>{cti_getHostname(), ::free}) {
+		fprintf(stderr, "External address: %s (CTI returned %s)\n",
+			address.c_str(), cti_hostname.get());
+	} else {
+		fprintf(stderr, "External address: %s (CTI failed: %s)\n",
+			address.c_str(), cti_error_str());
+	}
+
 	// Build path to test application
 	auto application_path = std::string{};
 	if (auto const cti_install_dir = getenv(CTI_BASE_DIR_ENV_VAR)) {
