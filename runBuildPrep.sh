@@ -76,9 +76,11 @@ fi
 
 # Install the common PE components
 install_common_pe
+check_exit_status
 
 # Install cdst_support
 install_cdst_support
+check_exit_status
 
 capture_jenkins_build
 check_exit_status
