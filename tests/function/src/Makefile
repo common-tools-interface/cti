@@ -64,7 +64,7 @@ cti_callback : cti_callback_test.c
 
 cti_callback_daemon : cti_callback_daemon.c
 	$(CC) -Wall -g -O0 -I$(CTI)/include  $^ -o $@ \
-	      -Wl,-rpath,$(CTI)/lib -fPIC -L$(CTI)/lib $(CRAY_CTI_BE_LIBS)
+      -Wl,-rpath,$(CTI)/lib -fPIC -L$(CTI)/lib $(CRAY_CTI_BE_LIBS)
 
 cti_file_transfer : cti_file_transfer_test.cpp
 	$(CXX) $^ -o $@ cti_fe_function_test.cpp $(CFLAGS)
