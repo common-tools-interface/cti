@@ -683,9 +683,66 @@ static bool verify_XC_ALPS_configured(System const& system, WLM const& wlm, std:
     return true;
 }
 
+static bool detect_Slurm_multicluster()
+{
+    try {
+        char const* sacctmgrArgv[] = { SACCTMGR, "-P", "-n", "show", "clusters", nullptr };
+
+        // Start sacctmgr
+        auto sacctmgrOutput = cti::Execvp{SACCTMGR, (char* const*)sacctmgrArgv, cti::Execvp::stderr::Ignore};
+
+        // Count number of clusters
+        auto num_clusters = int{0};
+        auto& sacctmgrStream = sacctmgrOutput.stream();
+        auto clusterLine = std::string{};
+        while (std::getline(sacctmgrStream, clusterLine)) {
+            num_clusters++;
+        }
+
+        // Check return code
+        if (sacctmgrOutput.getExitStatus() != 0) {
+            return false;
+        }
+
+        return (num_clusters > 1);
+
+    } catch(...) {
+        return false;
+    }
+}
+
+static bool detect_Slurm_allocation()
+{
+    // Interactive allocations have job name of "interactive"
+    // Additionally, when launched outside of an allocation,
+    // this environment variable is not set in the environment.
+    if (auto slurm_job_name = ::getenv(SLURM_JOB_NAME)) {
+        return strcmp(slurm_job_name, "interactive") == 0;
+    }
+
+    return false;
+}
+
 static bool verify_Slurm_configured(System const& system, WLM const& wlm, std::string const& launcherName)
 {
     verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "srun");
+
+    // Check for multi-cluster system and allocation
+    if (::getenv(SLURM_OVERRIDE_MC_ENV_VAR) == nullptr) {
+
+        if (detect_Slurm_multicluster()) {
+
+            if (!detect_Slurm_allocation()) {
+                throw std::runtime_error(
+                    "CTI uses several Slurm utilities to set up job launches. "
+                    "Your system was detected to be a multi-cluster system; some of "
+                    "these Slurm utilities do not support multi-cluster systems.\n"
+                    "To continue with launch, please run your job inside a Slurm allocation. "
+                    "To bypass this check, set the environment variable "
+                    SLURM_OVERRIDE_MC_ENV_VAR);
+            }
+        }
+    }
 
     return true;
 }
