@@ -247,51 +247,7 @@ PALSFrontend::registerJob(size_t numIds, ...)
 std::string
 PALSFrontend::getHostname() const
 {
-    static auto const nodeAddress = []() {
-
-        // Run cminfo query
-        auto const cminfo_query = [](char const* option) {
-            char const* cminfoArgv[] = { "cminfo", option, nullptr };
-
-            // Start cminfo
-            try {
-                auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
-
-                // Return first line of query
-                auto& cminfoStream = cminfoOutput.stream();
-                std::string line;
-                if (std::getline(cminfoStream, line)) {
-                    return line;
-                }
-            } catch (...) {
-                return std::string{};
-            }
-
-            return std::string{};
-        };
-
-        // Get names of high speed networks
-        auto hsnNames = cminfo_query("--data_net_names");
-
-        // Check all reported names
-        while (!hsnNames.empty()) {
-
-            // Extract first HSN name in comma-separated list
-            auto [hsnName, rest] = cti::split::string<2>(std::move(hsnNames), ',');
-
-            // Query management IP address
-            auto const addressOption = "--" + hsnName + "_ip";
-            if (auto hsnAddress = cminfo_query(addressOption.c_str()); !hsnAddress.empty()) {
-                return hsnAddress;
-            }
-
-            // Retry with next name
-            hsnNames = std::move(rest);
-        }
-
-        // Delegate to shared implementation supporting both XC and Shasta
-        return cti::detectFrontendHostname();
-    }();
+    static auto const nodeAddress = cti::detectHpcmAddress();
 
     return nodeAddress;
 }

@@ -935,44 +935,7 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
 std::string
 HPCMSLURMFrontend::getHostname() const
 {
-    static auto const nodeAddress = []() {
-
-        // Run cminfo query
-        auto const cminfo_query = [](char const* option) {
-            char const* cminfoArgv[] = { "cminfo", option, nullptr };
-
-            // Start cminfo
-            try {
-                auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
-
-                // Return first line of query
-                auto& cminfoStream = cminfoOutput.stream();
-                std::string line;
-                if (std::getline(cminfoStream, line)) {
-                    return line;
-                }
-            } catch (...) {
-                return std::string{};
-            }
-
-            return std::string{};
-        };
-
-        // Get name of management network
-        auto const managementNetwork = cminfo_query("--mgmt_net_name");
-        if (!managementNetwork.empty()) {
-
-            // Query management IP address
-            auto const addressOption = "--" + managementNetwork + "_ip";
-            auto const managementAddress = cminfo_query(addressOption.c_str());
-            if (!managementAddress.empty()) {
-                return managementAddress;
-            }
-        }
-
-        // Fall back to `gethostname`
-        return cti::cstr::gethostname();
-    }();
+    static auto const nodeAddress = cti::detectHpcmAddress();
 
     return nodeAddress;
 }
