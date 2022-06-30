@@ -79,16 +79,131 @@ cti_be_wlm_proto_t _cti_be_pals_wlmProto =
 };
 
 // Global vars
+
+// Initialized in _cti_be_pals_init
 static cti_libpals_funcs_t* _cti_libpals_funcs = NULL; // libpals wrappers
 static pals_state_t *_cti_pals_state = NULL; // libpals state
-static pmi_attribs_t *_cti_pmi_attrs = NULL; // node pmi_attribs information
 
-static int _cti_node_idx = -1; // node index for PALS accessors
-static pals_node_t *_cti_pals_nodes = NULL; // list of job nodes
-static int _cti_pals_num_nodes = -1; // number of job nodes
+// node pmi_attribs information
+static pmi_attribs_t *_cti_pmi_attrs = NULL;
+static pmi_attribs_t* _cti_get_pmi_attrs()
+{
+	// If _cti_be_getPmiAttribsInfo fails once due to missing
+	// pmi_attribs, don't repeatedly try it on subsequent calls
+	static int initialized = 0;
 
-static pals_pe_t *_cti_pals_pes = NULL; // list of PEs
-static int _cti_pals_num_pes = -1; // number of PEs
+	if (!initialized) {
+		initialized = 1;
+
+		_cti_pmi_attrs = _cti_be_getPmiAttribsInfo();
+		if (_cti_pmi_attrs == NULL) {
+			fprintf(stderr, "_cti_be_getPmiAttribsInfo failed\n");
+			goto cleanup__cti_get_pmi_attrs;
+		}
+
+		// Ensure the _cti_attrs object has a app_rankPidPairs array
+		if (_cti_pmi_attrs->app_rankPidPairs == NULL) {
+			fprintf(stderr, "_cti_be_getPmiAttribsInfo failed: no rank information returned\n");
+			free(_cti_pmi_attrs);
+			_cti_pmi_attrs = NULL;
+			goto cleanup__cti_get_pmi_attrs;
+		}
+	}
+
+cleanup__cti_get_pmi_attrs:
+	return _cti_pmi_attrs;
+}
+
+// node index for PALS accessors
+static int _cti_node_idx = -1;
+static int _cti_get_node_idx()
+{
+	static int initialized = 0;
+
+	if (!initialized) {
+		initialized = 1;
+
+		// Check libpals functions
+		if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_nodeidx == NULL)) {
+			goto cleanup__cti_get_node_idx;
+		}
+
+		// Call libpals accessor
+		if (_cti_libpals_funcs->pals_get_nodeidx(_cti_pals_state, &_cti_node_idx) != PALS_OK) {
+			fprintf(stderr, "pals_be libpals pals_get_nodeidx failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
+			goto cleanup__cti_get_node_idx;
+		}
+	}
+
+cleanup__cti_get_node_idx:
+	return _cti_node_idx;
+}
+
+// number / list of job nodes
+static pals_node_t *_cti_pals_nodes = NULL;
+static int _cti_pals_num_nodes = -1;
+static int _cti_get_pals_nodes(pals_node_t** pals_nodes, int* num_nodes)
+{
+	static int initialized = 0;
+
+	int rc = -1;
+
+	if (!initialized) {
+		initialized = 1;
+
+		// Check libpals functions
+		if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_nodes == NULL)) {
+			goto cleanup__cti_get_pals_nodes;
+		}
+
+		// Call libpals accessor
+		if (_cti_libpals_funcs->pals_get_nodes(_cti_pals_state, &_cti_pals_nodes, &_cti_pals_num_nodes) != PALS_OK) {
+			fprintf(stderr, "pals_be libpals pals_get_nodes failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
+			goto cleanup__cti_get_pals_nodes;
+		}
+	}
+
+	// Successfully retrieved node information
+	*pals_nodes = _cti_pals_nodes;
+	*num_nodes = _cti_pals_num_nodes;
+	rc = 0;
+
+cleanup__cti_get_pals_nodes:
+	return rc;
+}
+
+// list of PEs
+static pals_pe_t *_cti_pals_pes = NULL;
+static int _cti_pals_num_pes = -1;
+static int _cti_get_pals_pes(pals_pe_t** pals_pes, int* num_pes)
+{
+	static int initialized = 0;
+
+	int rc = -1;
+
+	if (!initialized) {
+		initialized = 1;
+
+		// Check libpals functions
+		if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_pes == NULL)) {
+			goto cleanup__cti_get_pals_pes;
+		}
+
+		// Call libpals accessor
+		if (_cti_libpals_funcs->pals_get_pes(_cti_pals_state, &_cti_pals_pes, &_cti_pals_num_pes) != PALS_OK) {
+			fprintf(stderr, "pals_be libpals pals_get_pes failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
+			goto cleanup__cti_get_pals_pes;
+		}
+	}
+
+	// Successfully retrieved node information
+	*pals_pes = _cti_pals_pes;
+	*num_pes = _cti_pals_num_pes;
+	rc = 0;
+
+cleanup__cti_get_pals_pes:
+	return rc;
+}
 
 static void
 _cti_cleanup_be_globals(void)
@@ -441,17 +556,8 @@ _cti_be_pals_findAppPids()
 	cti_pidList_t *result = NULL;
 
 	// Get PMI attribs from system file
-	if (_cti_pmi_attrs == NULL) {
-		_cti_pmi_attrs = _cti_be_getPmiAttribsInfo();
-		if (_cti_pmi_attrs == NULL) {
-			fprintf(stderr, "_cti_be_getPmiAttribsInfo failed\n");
-			goto cleanup__cti_be_pals_findAppPids;
-		}
-	}
-
-	// Ensure the _cti_attrs object has a app_rankPidPairs array
-	if (_cti_pmi_attrs->app_rankPidPairs == NULL) {
-		fprintf(stderr, "_cti_be_getPmiAttribsInfo failed: no rank information returned\n");
+	pmi_attribs_t *cti_pmi_attrs = _cti_get_pmi_attrs();
+	if (cti_pmi_attrs == NULL) {
 		goto cleanup__cti_be_pals_findAppPids;
 	}
 
@@ -465,7 +571,7 @@ _cti_be_pals_findAppPids()
 	// Fil in result struct
 
 	// Allocate the PID / rank pair array
-	result->numPids = _cti_pmi_attrs->app_nodeNumRanks;
+	result->numPids = cti_pmi_attrs->app_nodeNumRanks;
 	result->pids = (cti_rankPidPair_t*)malloc(result->numPids * sizeof(cti_rankPidPair_t));
 	if (result->pids == NULL) {
 		fprintf(stderr, "malloc failed\n");
@@ -474,8 +580,8 @@ _cti_be_pals_findAppPids()
 
 	// Copy all PID / rank pairs to result array
 	for (int i = 0; i < result->numPids; i++) {
-		result->pids[i].pid  = _cti_pmi_attrs->app_rankPidPairs[i].pid;
-		result->pids[i].rank = _cti_pmi_attrs->app_rankPidPairs[i].rank;
+		result->pids[i].pid  = cti_pmi_attrs->app_rankPidPairs[i].pid;
+		result->pids[i].rank = cti_pmi_attrs->app_rankPidPairs[i].rank;
 	}
 
 	// Successfully created result array
@@ -492,81 +598,35 @@ cleanup__cti_be_pals_findAppPids:
 	return result;
 }
 
-static int
-_cti_get_nodes_info()
-{
-	int rc = -1;
-
-	// Check libpals functions
-	if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_nodes == NULL)) {
-		goto cleanup__cti_get_nodes_info;
-	}
-
-	// Call libpals accessor
-	if (_cti_libpals_funcs->pals_get_nodes(_cti_pals_state, &_cti_pals_nodes, &_cti_pals_num_nodes) != PALS_OK) {
-		fprintf(stderr, "pals_be libpals pals_get_nodes failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
-		goto cleanup__cti_get_nodes_info;
-	}
-
-	// Successfully retrieved node information
-	rc = 0;
-
-cleanup__cti_get_nodes_info:
-	return rc;
-}
-
-static int
-_cti_get_node_idx()
-{
-	int rc = -1;
-
-	// Check libpals functions
-	if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_nodeidx == NULL)) {
-		goto cleanup__cti_get_node_idx;
-	}
-
-	// Call libpals accessor
-	if (_cti_libpals_funcs->pals_get_nodeidx(_cti_pals_state, &_cti_node_idx) != PALS_OK) {
-		fprintf(stderr, "pals_be libpals pals_get_nodeidx failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
-		goto cleanup__cti_get_node_idx;
-	}
-
-	// Successfully retrieved node index
-	rc = 0;
-
-cleanup__cti_get_node_idx:
-	return rc;
-}
-
 static char*
 _cti_be_pals_getNodeHostname()
 {
 	int failed = 1;
 	char *result = NULL;
 
-	// Ensure nodes array and current node index is filled in
-	if (_cti_pals_nodes == NULL) {
-		if (_cti_get_nodes_info() || (_cti_pals_nodes == NULL)) {
-			fprintf(stderr, "_cti_get_nodes_info failed\n");
-			goto cleanup__cti_be_pals_getNodeHostname;
-		}
+	// Get and check nodes information
+	pals_node_t *pals_nodes = NULL;
+	int num_nodes = -1;
+	if ((_cti_get_pals_nodes(&pals_nodes, &num_nodes) < 0)
+	 || (pals_nodes == NULL) || (num_nodes < 0)) {
+		goto cleanup__cti_be_pals_getNodeHostname;
 	}
-	if (_cti_node_idx < 0) {
-		if (_cti_get_node_idx() || (_cti_node_idx < 0)) {
-			fprintf(stderr, "pals_get_nodeidx failed\n");
-			goto cleanup__cti_be_pals_getNodeHostname;
-		}
+
+	// Get and check node index
+	int cti_node_idx = _cti_get_node_idx();
+	if (cti_node_idx < 0) {
+		goto cleanup__cti_be_pals_getNodeHostname;
 	}
 
 	// Ensure information for current node is available
-	if (_cti_pals_num_nodes <= _cti_node_idx) {
+	if (num_nodes <= cti_node_idx) {
 		fprintf(stderr, "libpals reported current node index %d, but only have %d entries\n",
-			_cti_node_idx, _cti_pals_num_nodes);
+			cti_node_idx, num_nodes);
 		goto cleanup__cti_be_pals_getNodeHostname;
 	}
 
 	// Get hostname of node
-	result = strdup(_cti_pals_nodes[_cti_node_idx].hostname);
+	result = strdup(pals_nodes[cti_node_idx].hostname);
 
 	// Successfully obtained hostname
 	failed = 0;
@@ -583,44 +643,27 @@ cleanup__cti_be_pals_getNodeHostname:
 }
 
 static int
-_cti_get_pes_info()
-{
-	int rc = -1;
-
-	// Check libpals functions
-	if ((_cti_libpals_funcs == NULL) || (_cti_libpals_funcs->pals_get_pes == NULL)) {
-		goto cleanup__cti_get_pes_info;
-	}
-
-	// Call libpals accessor
-	if (_cti_libpals_funcs->pals_get_pes(_cti_pals_state, &_cti_pals_pes, &_cti_pals_num_pes) != PALS_OK) {
-		fprintf(stderr, "pals_be libpals pals_get_pes failed: %s\n", _cti_libpals_funcs->pals_errmsg(_cti_pals_state));
-		goto cleanup__cti_get_pes_info;
-	}
-
-	// Successfully retrieved PE information
-	rc = 0;
-
-cleanup__cti_get_pes_info:
-	return rc;
-}
-
-static int
 _cti_be_pals_getNodeFirstPE()
 {
 	int result = -1;
 
-	// Ensure PEs array is filled in
-	if (_cti_pals_pes == NULL) {
-		if (_cti_get_pes_info() || (_cti_pals_pes == NULL)) {
-			fprintf(stderr, "_cti_get_pes_info failed\n");
-			goto cleanup__cti_be_pals_getNodeFirstPE;
-		}
+	// Get and check PEs information
+	pals_pe_t *pals_pes = NULL;
+	int num_pes = -1;
+	if ((_cti_get_pals_pes(&pals_pes, &num_pes) < 0)
+	 || (pals_pes == NULL) || (num_pes < 0)) {
+		goto cleanup__cti_be_pals_getNodeFirstPE;
+	}
+
+	// Get and check node index
+	int cti_node_idx = _cti_get_node_idx();
+	if (cti_node_idx < 0) {
+		goto cleanup__cti_be_pals_getNodeFirstPE;
 	}
 
 	// Find first PE index that is running on this node
-	for (int i = 0; i < _cti_pals_num_pes; i++) {
-		if (_cti_pals_pes[i].nodeidx == _cti_node_idx) {
+	for (int i = 0; i < num_pes; i++) {
+		if (pals_pes[i].nodeidx == cti_node_idx) {
 			result = i;
 			break;
 		}
@@ -636,17 +679,23 @@ _cti_be_pals_getNodePEs()
 	int failed = 1;
 	int num_node_pes = 0;
 
-	// Ensure PEs array is filled in
-	if (_cti_pals_pes == NULL) {
-		if (_cti_get_pes_info() || (_cti_pals_pes == NULL)) {
-			fprintf(stderr, "_cti_get_pes_info failed\n");
-			goto cleanup__cti_be_pals_getNodePEs;
-		}
+	// Get and check PEs information
+	pals_pe_t *pals_pes = NULL;
+	int num_pes = -1;
+	if ((_cti_get_pals_pes(&pals_pes, &num_pes) < 0)
+	 || (pals_pes == NULL) || (num_pes < 0)) {
+		goto cleanup__cti_be_pals_getNodePEs;
+	}
+
+	// Get and check node index
+	int cti_node_idx = _cti_get_node_idx();
+	if (cti_node_idx < 0) {
+		goto cleanup__cti_be_pals_getNodePEs;
 	}
 
 	// Count all PEs running on this node
-	for (int i = 0; i < _cti_pals_num_pes; i++) {
-		if (_cti_pals_pes[i].nodeidx == _cti_node_idx) {
+	for (int i = 0; i < num_pes; i++) {
+		if (pals_pes[i].nodeidx == cti_node_idx) {
 			num_node_pes++;
 		}
 	}

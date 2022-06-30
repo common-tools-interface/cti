@@ -2,7 +2,7 @@
 #
 # runBuild.sh - Build steps for CTI
 #
-# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2022 Hewlett Packard Enterprise Development LP
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -28,6 +28,11 @@ else
   cti_version="$common_tool_major.$common_tool_minor.$revision"
 fi
 install_dir="/opt/cray/pe/cti/$cti_version"
+
+if [[ ! -z $BRANCH_NAME ]]; then
+  echo "cleaning build env"
+  rm -rf /opt/cray/pe/cti
+fi
 
 setup_modules
 

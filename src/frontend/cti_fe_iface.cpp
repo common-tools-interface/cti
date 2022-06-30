@@ -363,37 +363,36 @@ cti_getLauncherHostName(cti_app_id_t appId) {
 // ALPS WLM extensions
 
 #if HAVE_ALPS
-#define CHECK_ALPS(...) __VA_ARGS__
+#define CHECK_ALPS_RUN_SAFELY(error_return, ...) \
+    return FE_iface::runSafely(__func__, [&](){ \
+        __VA_ARGS__ \
+    }, error_return);
 #else
-#define CHECK_ALPS(...) \
-    throw std::runtime_error("ALPS support was not compiled into this version of CTI");
+#define CHECK_ALPS_RUN_SAFELY(error_return, ...) \
+    throw std::runtime_error("ALPS support was not compiled into this version of CTI"); \
+    return error_return;
 #endif
 
 static cti_app_id_t
 _cti_alps_registerApid(uint64_t apid) {
-    return FE_iface::runSafely(__func__, [&](){
-        CHECK_ALPS(
+    CHECK_ALPS_RUN_SAFELY(APP_ERROR,
         auto&& fe = downcastFE<ALPSFrontend>();
         auto wp = fe.registerJob(1, apid);
         return fe.Iface().trackApp(wp);
-        )
-    }, APP_ERROR);
+    )
 }
 
 static uint64_t
 _cti_alps_getApid(pid_t aprunPid) {
-    return FE_iface::runSafely(__func__, [&](){
-        CHECK_ALPS(
+    CHECK_ALPS_RUN_SAFELY(uint64_t{0},
         auto&& fe = downcastFE<ALPSFrontend>();
         return fe.getApid(aprunPid);
-        )
-    }, uint64_t{0});
+    )
 }
 
 static cti_aprunProc_t*
 _cti_alps_getAprunInfo(cti_app_id_t appId) {
-    return FE_iface::runSafely(__func__, [&](){
-        CHECK_ALPS(
+    CHECK_ALPS_RUN_SAFELY((cti_aprunProc_t*)nullptr,
         auto&& fe = Frontend::inst();
         auto ap = downcastApp<ALPSApp>(fe.Iface().getApp(appId));
         if (auto result = (cti_aprunProc_t*)malloc(sizeof(cti_aprunProc_t))) {
@@ -402,19 +401,16 @@ _cti_alps_getAprunInfo(cti_app_id_t appId) {
         } else {
             throw std::runtime_error("malloc failed.");
         }
-        )
-    }, (cti_aprunProc_t*)nullptr);
+    )
 }
 
 static int
 _cti_alps_getAlpsOverlapOrdinal(cti_app_id_t appId) {
-    return FE_iface::runSafely(__func__, [&](){
-        CHECK_ALPS(
+    CHECK_ALPS_RUN_SAFELY(int{-1},
         auto&& fe = Frontend::inst();
         auto ap = downcastApp<ALPSApp>(fe.Iface().getApp(appId));
         return ap->getAlpsOverlapOrdinal();
-        )
-    }, int{-1});
+    )
 }
 
 static cti_alps_ops_t _cti_alps_ops = {
@@ -471,31 +467,31 @@ static cti_slurm_ops_t _cti_slurm_ops = {
 // PALS WLM extensions
 
 #if HAVE_PALS
-#define CHECK_PALS(...) __VA_ARGS__
+#define CHECK_PALS_RUN_SAFELY(error_return, ...) \
+    return FE_iface::runSafely(__func__, [&](){ \
+        __VA_ARGS__ \
+    }, error_return);
 #else
-#define CHECK_PALS(...) \
-    throw std::runtime_error("PALS support was not compiled into this version of CTI");
+#define CHECK_PALS_RUN_SAFELY(error_return, ...) \
+    throw std::runtime_error("PALS support was not compiled into this version of CTI"); \
+    return error_return;
 #endif
 
 static char*
 _cti_pals_getApid(pid_t launcherPid) {
-    return FE_iface::runSafely(__func__, [&](){
-        CHECK_PALS(
+    CHECK_PALS_RUN_SAFELY((char*)nullptr,
         auto&& fe = downcastFE<PALSFrontend>();
-        strdup(fe.getApid(launcherPid).c_str());
-        )
-    }, (char*)nullptr);
+        return strdup(fe.getApid(launcherPid).c_str());
+    )
 }
 
 static cti_app_id_t
 _cti_pals_registerApid(char const* apid) {
-    return FE_iface::runSafely(__func__, [&](){
-        CHECK_PALS(
+    CHECK_PALS_RUN_SAFELY(APP_ERROR,
         auto&& fe = downcastFE<PALSFrontend>();
         auto wp = fe.registerJob(1, apid);
         return fe.Iface().trackApp(wp);
-        )
-    }, APP_ERROR);
+    )
 }
 
 static cti_pals_ops_t _cti_pals_ops = {
@@ -541,21 +537,23 @@ static cti_ssh_ops_t _cti_ssh_ops = {
 // Flux WLM extensions
 
 #if HAVE_FLUX
-#define CHECK_FLUX(...) __VA_ARGS__
+#define CHECK_FLUX_RUN_SAFELY(error_return, ...) \
+    return FE_iface::runSafely(__func__, [&](){ \
+        __VA_ARGS__ \
+    }, error_return);
 #else
-#define CHECK_FLUX(...) \
-    throw std::runtime_error("Flux support was not compiled into this version of CTI");
+#define CHECK_FLUX_RUN_SAFELY(error_return, ...) \
+    throw std::runtime_error("Flux support was not compiled into this version of CTI"); \
+    return error_return;
 #endif
 
 static cti_app_id_t
 _cti_flux_registerJob(char const* job_id) {
-    return FE_iface::runSafely(__func__, [&](){
-        CHECK_FLUX(
+    CHECK_FLUX_RUN_SAFELY(APP_ERROR,
         auto&& fe = downcastFE<FluxFrontend>();
         auto wp = fe.registerJob(1, job_id);
         return fe.Iface().trackApp(wp);
-        )
-    }, APP_ERROR);
+    )
 }
 
 static cti_flux_ops_t _cti_flux_ops = {

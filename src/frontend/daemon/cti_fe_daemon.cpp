@@ -176,16 +176,8 @@ int respFd = -1; // outgoing response pipe
 
 // threading helpers
 auto main_loop_running = false;
-std::vector<std::future<void>> runningThreads;
-template <typename Func>
-static void start_thread(Func&& func) {
-    runningThreads.emplace_back(std::async(std::launch::async, func));
-}
-static void finish_threads() {
-    for (auto&& future : runningThreads) {
-        future.wait();
-    }
-}
+std::vector<std::future<void>> sigchldThreads;
+std::unique_ptr<MPIRInstance> launchingInstance;
 
 /* runtime helpers */
 
@@ -207,11 +199,21 @@ usage(char *name)
 static void
 terminate_main_loop()
 {
+    getLogger().write("Terminating main loop\n");
+
     // Main loop is blocking on a frontend request from reqFd
     // If the daemon got a SIGHUP, the frontend terminated
     // without sending a shutdown request. Closing reqFd
     // will cause the main loop to stop waiting and exit
     close(reqFd);
+
+    // If in the process of an MPIR launch, the main thread
+    // is blocking waiting for MPIR Breakpoint. This will interrupt
+    // the wait by ending the launcher.
+    if (launchingInstance) {
+        getLogger().write("MPIR launch in progress, terminating PID %d\n", launchingInstance->getLauncherPid());
+        launchingInstance->terminate();
+    }
 }
 
 /* signal handlers */
@@ -243,7 +245,8 @@ sigchld_handler(pid_t const exitedPid)
 
         // terminate all of app's utilities
         if (utilMap.find(exitedId) != utilMap.end()) {
-            start_thread([exitedId](){ utilMap.erase(exitedId); });
+            sigchldThreads.emplace_back(std::async(std::launch::async,
+                [exitedId](){ utilMap.erase(exitedId); }));
         }
     }
 }
@@ -717,7 +720,7 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
     // If there are any problems with launcher arguments, they will occur at this point.
     // Then, an error message that the user can interpret will be sent back to the
     // main CTI process.
-    auto mpirInstance = [](LaunchData const& launchData, std::map<int, int> const& remapFds) {
+    launchingInstance = [](LaunchData const& launchData, std::map<int, int> const& remapFds) {
         try {
             return std::make_unique<MPIRInstance>(launchData.filepath,
                 launchData.argvList, std::vector<std::string>{}, remapFds);
@@ -737,7 +740,12 @@ by your system are provided to the tool's launch command (" << ex.what() << ")";
         }
     }(launchData, remapFds);
 
-    auto mpirResult = extractMPIRResult(std::move(mpirInstance));
+    // Blocking wait until launcher has reached MPIR Breakpoint
+    launchingInstance->runToMPIRBreakpoint();
+
+    // Global MPIR launching instance will be reset here upon passing
+    // to extraction function.
+    auto mpirResult = extractMPIRResult(std::move(launchingInstance));
 
     // Terminate launched application on daemon exit
     appCleanupList.insert(mpirResult.launcher_pid);
@@ -1317,8 +1325,9 @@ main(int argc, char *argv[])
     // Wait for all threads
     utilTermFuture.wait();
     appTermFuture.wait();
-    finish_threads();
-
+    for (auto&& future : sigchldThreads) {
+        future.wait();
+    }
 
     exit(0);
 }

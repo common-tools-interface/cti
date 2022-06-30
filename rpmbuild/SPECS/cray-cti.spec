@@ -1,9 +1,9 @@
 # Packaging definitions
-%global pkgversion %(%{_sourcedir}/get_package_data --crayversion)
-%global branch %(%{_sourcedir}/get_package_data --branch)
+%global pkgversion           %(%{_sourcedir}/get_package_data --crayversion)
+%global branch               %(%{_sourcedir}/get_package_data --branch)
 %global pkgversion_separator -
-%global copyright_date %(date +%%Y)
-%global copyright Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.
+%global copyright_date       %(date +%%Y)
+%global copyright            Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.
 
 # RPM build time
 %global release_date %(date +%%B\\ %%Y)
@@ -105,17 +105,22 @@
 %if 0%{?sle_version} == 150100
 %global dist .sles15sp1
 %global OS_HW_TAG 7.0
-%global OS_WB_TAG sles15sp1
+%global OS_WB_TAG sles15
 %endif
 %if 0%{?sle_version} == 150200
 %global dist .sles15sp2
 %global OS_HW_TAG 7.0
-%global OS_WB_TAG sles15sp2
+%global OS_WB_TAG sles15
 %endif
 %if 0%{?sle_version} == 150300
 %global dist .sles15sp3
 %global OS_HW_TAG 7.0
-%global OS_WB_TAG sles15sp3
+%global OS_WB_TAG sles15
+%endif
+%if 0%{?sle_version} == 150400
+%global dist .sles15sp4
+%global OS_HW_TAG 7.0
+%global OS_WB_TAG sles15
 %endif
 %endif
 
@@ -183,7 +188,7 @@ Test files for Cray Common Tools Interface
 %setup -q -n %{name} -c -T
 %build
 # external build
-%{__sed} 's|<RELEASE_DATE>|%{release_date}|g;s|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{release}|g;s|<date>\.<REVISION>|%{version}|g;s|<COPYRIGHT>|%{copyright}|g;s|<CRAY_NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<ARCH>|%{_target_cpu}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_info_name}
+%{__sed} 's|<RELEASE_DATE>|%{release_date}|g;s|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{release}|g;s|<date>\.<REVISION>|%{version}|g;s|<COPYRIGHT>|%{copyright}|g;s|<CRAY_NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<DIST>|%{dist}.%{_target_cpu}|g;s|<ARCH>|%{_target_cpu}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_info_name}
 %{__cp} -a %{SOURCE5} ${RPM_BUILD_DIR}/%{copyright_name}
 %{__cp} -a %{SOURCE6} ${RPM_BUILD_DIR}/%{attributions_name}
 
@@ -227,7 +232,13 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{external_build_dir}/libexec/cti_diagnostics_target ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_first_subprocess%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 # Binaries
+
 # Share
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share/man/man1
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share/man/man3
+%{__cp} -a %{external_build_dir}/share/man/man1/cti.1 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share/man/man1
+%{__cp} -a %{external_build_dir}/share/man/man3/cti.3 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share/man/man3
 
 # modulefile
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{modulefile_name}
@@ -588,6 +599,9 @@ fi
 %attr(644, root, root) %{prefix}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 %attr(644, root, root) %verify(not md5 size mtime) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
+
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/share/man/man1/cti.1
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/share/man/man3/cti.3
 
 %files -n %{cray_name}-devel-%{pkgversion}
 %dir %{prefix}/%{cray_product}/%{pkgversion}/include

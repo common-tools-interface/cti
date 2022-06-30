@@ -186,15 +186,7 @@ public:
         auto sigchldBlocker = SigchldBlocker{};
 
         try {
-            using FuncReturnType = decltype(std::declval<FuncType>()());
-            if constexpr (std::is_void<FuncReturnType>::value) {
-                // If the WLM interface is disabled, all WLM-specific
-                // functions will throw and be detected as returing void
-                std::forward<FuncType>(func)();
-                throw std::runtime_error("Called a disabled WLM function that did not throw");
-            } else {
-                return std::forward<FuncType>(func)();
-            }
+            return std::forward<FuncType>(func)();
         } catch (std::exception const& ex) {
             auto const message = std::string{ex.what() ? ex.what() : "(null error string)"};
             set_error_str(caller + ": " + message);
