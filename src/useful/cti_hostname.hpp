@@ -37,7 +37,9 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#include "useful/cti_execvp.hpp"
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_split.hpp"
 
 namespace cti
 {
@@ -112,6 +114,75 @@ detectFrontendHostname()
     // Cache the hostname result.
     static auto hostname = detectAddress();
     return hostname;
+}
+
+static inline std::string
+detectHpcmAddress()
+{
+    // Run cminfo query
+    auto const cminfo_query = [](char const* option) {
+         char const* cminfoArgv[] = { "cminfo", option, nullptr };
+
+        // Start cminfo
+        try {
+            auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
+
+            // Return last line of query
+            auto& cminfoStream = cminfoOutput.stream();
+            std::string line;
+            while (std::getline(cminfoStream, line)) {
+                // Read line
+            }
+            return line;
+
+        } catch (...) {
+            return std::string{};
+        }
+
+        return std::string{};
+    };
+
+    // Get names of high speed networks
+    auto networkNames = cminfo_query("--data_net_names");
+
+    // Default to `hsn` as network name if it is listed
+    auto has_hsn = false;
+    auto nonHsnNetworkNames = std::vector<std::string>{};
+
+    // Check all reported names
+    while (!networkNames.empty()) {
+
+        // Extract first HSN name in comma-separated list
+        auto [networkName, rest] = cti::split::string<2>(std::move(networkNames), ',');
+
+        // Store non-HSN network names for next query
+        if (networkName == "hsn") {
+            has_hsn = true;
+        } else {
+            nonHsnNetworkNames.emplace_back(std::move(networkName));
+        }
+
+        // Retry with next name
+        networkNames = std::move(rest);
+    }
+
+    // Check HSN first
+    if (has_hsn) {
+        if (auto address = cminfo_query("--hsn_ip"); !address.empty()) {
+            return address;
+        }
+    }
+
+    // Query other network addresses
+    for (auto&& networkName : nonHsnNetworkNames) {
+        auto const addressOption = "--" + networkName + "_ip";
+        if (auto address = cminfo_query(addressOption.c_str()); !address.empty()) {
+            return address;
+        }
+    }
+
+    // Delegate to shared implementation supporting both XC and Shasta
+    return cti::detectFrontendHostname();
 }
 
 } // namespace cti

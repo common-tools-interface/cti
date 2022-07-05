@@ -114,6 +114,8 @@ typedef struct
 #define SATTACH                 "sattach"                           // name of slurm io redirect binary
 #define SCANCEL                 "scancel"                           // name of slurm job signal binary
 #define SBCAST                  "sbcast"                            // name of slurm transfer binary
+#define SACCTMGR                "sacctmgr"                          // name of slurm configuration binary
+#define SLURM_JOB_NAME          "SLURM_JOB_NAME"                    // Environment variable for Slurm job name
 #define SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid) // formula for creating Cray apid from SLURM jobid.stepid
 #define SLURM_TOOL_DIR          "/tmp"                              // SLURM staging path on compute node
 #define SLURM_CRAY_DIR          "/var/opt/cray/alps/spool/%llu"     // Location of cray specific directory on compute node
@@ -121,6 +123,7 @@ typedef struct
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
 #define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
 #define SLURM_DAEMON_GRES_ENV_VAR "CTI_SLURM_DAEMON_GRES"           // Set to specify `--gres` argument for tool daemon launches (or leave blank to disable)
+#define SLURM_OVERRIDE_MC_ENV_VAR "CTI_SLURM_OVERRIDE_MC"                 // Set to disable Slurm multi-cluster check
 
 /*******************************************************************************
 ** SSH specific information
