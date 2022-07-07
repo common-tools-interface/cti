@@ -33,20 +33,20 @@ dnl
 AC_DEFUN([cray_INIT],
 [
     dnl Pull in the revision information from the $PWD/release_versioning file
-    m4_define([COMMONTOOL_BUILD_NUMBER], [m4_esyscmd_s([source $PWD/release_versioning; echo "$build_number"])])
-    m4_define([COMMONTOOL_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo "$revision"])])
+    m4_define([COMMONTOOL_BUILD_NUMBER], [m4_esyscmd_s([. $PWD/release_versioning; echo "$build_number"])])
+    m4_define([COMMONTOOL_REVISION], [m4_esyscmd_s([. $PWD/release_versioning; echo "$revision"])])
 
-    m4_define([COMMONTOOL_MAJOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_major"])])
-    m4_define([COMMONTOOL_MINOR], [m4_esyscmd_s([source $PWD/release_versioning; echo "$common_tool_minor"])])
+    m4_define([COMMONTOOL_MAJOR], [m4_esyscmd_s([. $PWD/release_versioning; echo "$common_tool_major"])])
+    m4_define([COMMONTOOL_MINOR], [m4_esyscmd_s([. $PWD/release_versioning; echo "$common_tool_minor"])])
 
-    m4_define([COMMONTOOL_BE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_current])])
-    m4_define([COMMONTOOL_BE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_age])])
-    m4_define([COMMONTOOL_BE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $be_revision])])
+    m4_define([COMMONTOOL_BE_CURRENT], [m4_esyscmd_s([. $PWD/release_versioning; echo $be_current])])
+    m4_define([COMMONTOOL_BE_AGE], [m4_esyscmd_s([. $PWD/release_versioning; echo $be_age])])
+    m4_define([COMMONTOOL_BE_REVISION], [m4_esyscmd_s([. $PWD/release_versioning; echo $be_revision])])
     m4_define([COMMONTOOL_BE_MAJOR], [m4_eval( COMMONTOOL_BE_CURRENT - COMMONTOOL_BE_AGE)])
 
-    m4_define([COMMONTOOL_FE_CURRENT], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_current])])
-    m4_define([COMMONTOOL_FE_AGE], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_age])])
-    m4_define([COMMONTOOL_FE_REVISION], [m4_esyscmd_s([source $PWD/release_versioning; echo $fe_revision])])
+    m4_define([COMMONTOOL_FE_CURRENT], [m4_esyscmd_s([. $PWD/release_versioning; echo $fe_current])])
+    m4_define([COMMONTOOL_FE_AGE], [m4_esyscmd_s([. $PWD/release_versioning; echo $fe_age])])
+    m4_define([COMMONTOOL_FE_REVISION], [m4_esyscmd_s([. $PWD/release_versioning; echo $fe_revision])])
     m4_define([COMMONTOOL_FE_MAJOR], [m4_eval( COMMONTOOL_FE_CURRENT - COMMONTOOL_FE_AGE)])
 
     AC_ARG_VAR([BUILD_NUMBER],[Build Number])
