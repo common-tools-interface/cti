@@ -807,6 +807,51 @@ SLURMFrontend::createPIDListFile(MPIRProctable const& procTable, std::string con
     }
 }
 
+// Read string from file descriptor, break if timeout is hit during read wait
+static auto read_timeout(int fd, int64_t usec)
+{
+    auto result = std::string{};
+
+    // File descriptor select set
+    auto select_set = fd_set{};
+    FD_ZERO(&select_set);
+    FD_SET(fd, &select_set);
+
+    // Set up timeout
+    auto timeout = timeval
+        { .tv_sec = 0
+        , .tv_usec = usec
+    };
+
+    // Select loop
+    while (auto select_rc = ::select(fd + 1, &select_set, nullptr, nullptr, &timeout)) {
+        if (select_rc < 0) {
+            break;
+        }
+
+        // Read string into buffer
+        char buf[1024];
+        if (auto read_rc = ::read(fd, buf, sizeof(buf) - 1)) {
+
+            // Retry if interrupted
+            if ((read_rc < 0) && (errno == EINTR)) {
+                continue;
+
+            // Bytes read, add to result
+            } else if (read_rc > 0) {
+                buf[read_rc] = '\0';
+                result += buf;
+
+            // Otherwise exit loop
+            } else {
+                break;
+            }
+        }
+    }
+
+    return result;
+}
+
 FE_daemon::MPIRResult
 SLURMFrontend::launchApp(const char * const launcher_argv[],
         const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
@@ -836,12 +881,36 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
         }
 
         if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR); launcherWrapper == nullptr) {
-            // Launch program under MPIR control.
-            return Daemon().request_LaunchMPIR(
-                launcher_path.get(), launcherArgv.get(),
-                // redirect stdin/out/err to /dev/null, use SRUN arguments for in/output instead
-                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR),
-                env_list);
+
+            auto result = FE_daemon::MPIRResult{};
+
+            // Capture srun error output
+            auto srunPipe = cti::Pipe{};
+
+            try {
+
+                // Launch program under MPIR control.
+                result = Daemon().request_LaunchMPIR(
+                    launcher_path.get(), launcherArgv.get(),
+                    // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
+                    // Capture stderr output in case launch fails
+                    ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
+                    env_list);
+
+            } catch (std::exception const& ex) {
+
+                // Get stderr output from srun and add to error message
+                auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
+                throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
+            }
+
+            // Re-ignore srun stderr output after successful launch to avoid blockages
+            if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
+                fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
+            }
+
+            return result;
+
         } else {
             // Use MPIR shim to launch program
 
