@@ -406,17 +406,17 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
         auto const sourcePath = m_frontend.getBEDaemonPath();
         auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
 
-        // Create the args for link
-        auto linkArgv = cti::ManagedArgv {
-            "ln", "-s", sourcePath.c_str(), destinationPath.c_str()
+        // Create the args for copy
+        auto copyArgv = cti::ManagedArgv {
+            "cp", sourcePath.c_str(), destinationPath.c_str()
         };
 
-        // Run link command
+        // Run copy command
         if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-            m_daemonAppId, "ln", linkArgv.get(),
+            m_daemonAppId, "cp", copyArgv.get(),
             -1, -1, -1,
             nullptr)) {
-            throw std::runtime_error("failed to link " + sourcePath + " to " + destinationPath);
+            throw std::runtime_error("failed to copy " + sourcePath + " to " + destinationPath);
         }
 
         // Ship the unique backend daemon

@@ -101,7 +101,6 @@ void MPIRInstance::setupMPIRStandard() {
     m_inferior.writeVariable("MPIR_being_debugged", 1);
 }
 
-
 /* instance implementations */
 
 void MPIRInstance::runToMPIRBreakpoint() {

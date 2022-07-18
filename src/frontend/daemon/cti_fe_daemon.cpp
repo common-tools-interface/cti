@@ -221,12 +221,6 @@ terminate_main_loop()
 static void
 sigchld_handler(pid_t const exitedPid)
 {
-    // Reap zombie
-    { auto const saved_errno = errno;
-        while (::waitpid(exitedPid, 0, WNOHANG) > 0) {}
-        errno = saved_errno;
-    }
-
     // If main loop is not running, allow main thread to clean up instead
     if (!main_loop_running) {
         return;
@@ -234,6 +228,13 @@ sigchld_handler(pid_t const exitedPid)
 
     // regular app termination
     if (appCleanupList.contains(exitedPid)) {
+
+        // Reap zombie if available
+        { auto const saved_errno = errno;
+            ::waitpid(exitedPid, 0, WNOHANG);
+            errno = saved_errno;
+        }
+
         // app already terminated
         appCleanupList.erase(exitedPid);
     }
