@@ -279,9 +279,9 @@ Test files for Cray Common Tools Interface
 %global rpm_list %{devel_pkg_name},%{tests_pkg_name}
 %if %{branch} == "release"
 # yaml file - cray-cti
-%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;s|<RPM_LST>|%{rpm_list}|g;s|<RPM_1>|%{devel_pkg_name}|g;s|<RPM_2>|%{tests_pkg_name}|g;s|<RPM_RM_2>|%{tests_rm_name}|g;s|<RPM_RM_1>|%{devel_rm_name}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;s|<RPM_LST>|%{rpm_list}|g;s|<RPM_1>|%{devel_pkg_name}|g;s|<RPM_2>|%{tests_pkg_name}|g;s|<RPM_RM_2>|%{tests_rm_name}|g;s|<RPM_RM_1>|%{devel_rm_name}|g;s|<SET_DEFAULT_VALUE>|1|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 %else
-%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;s|<RPM_LST>|%{rpm_list}|g;s|<RPM_1>|%{devel_pkg_name}|g;s|<RPM_2>|%{tests_pkg_name}|g;s|<RPM_RM_2>|%{tests_rm_name}|g;s|<RPM_RM_1>|%{devel_rm_name}|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;s|<RPM_LST>|%{rpm_list}|g;s|<RPM_1>|%{devel_pkg_name}|g;s|<RPM_2>|%{tests_pkg_name}|g;s|<RPM_RM_2>|%{tests_rm_name}|g;s|<RPM_RM_1>|%{devel_rm_name}|g;s|<SET_DEFAULT_VALUE>|0|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 %endif
 
 # Test files
@@ -540,7 +540,7 @@ then
 fi
 
 # If the install dir is empty
-if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{cray_product} ]]; then
+if [[ -z `ls ${RPM_INSTALL_PREFIX}/%{cray_product}` ]]; then
   if [ -f /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf ]; then
     %{__rm} -rf /etc%{prefix}/admin-pe/modulepaths.conf.d/%{devel_modulefile_name}.conf
   fi
@@ -580,6 +580,10 @@ fi
 %dir %{prefix}/%{cray_product}/%{pkgversion}
 %dir %{prefix}/%{cray_product}/%{pkgversion}/lib
 %dir %{prefix}/%{cray_product}/%{pkgversion}/libexec
+%dir %{prefix}/%{cray_product}/%{pkgversion}/share
+%dir %{prefix}/%{cray_product}/%{pkgversion}/share/man
+%dir %{prefix}/%{cray_product}/%{pkgversion}/share/man/man1
+%dir %{prefix}/%{cray_product}/%{pkgversion}/share/man/man3
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}

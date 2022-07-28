@@ -91,6 +91,7 @@ do
   rpm -e --nodeps $package
 done
 
+CRAY_INSTALL_DEFAULT=<SET_DEFAULT_VALUE>
 rpm -ivh --oldpackage <PRODUCT>-<VERSION>-<BUILD_METADATA>-<RELEASE>.<ARCH>.rpm
 rpm -ivh --oldpackage <RPM_1>
 rpm -ivh --oldpackage <RPM_2>
