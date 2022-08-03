@@ -31,20 +31,56 @@ if [ -d ${install_dir} ]; then
    mv ${install_dir} ${install_dir}_orig
 fi
 
+# Install the package(s)
+echo "############################################"
+echo "#          Installing Packages             #"
+echo "############################################"
 arch=$(uname -m)
 target_pm=$(get_pm)
 if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
-  zypper --non-interactive --no-gpg-checks install $PWD/rpmbuild/RPMS/$arch/*.rpm
-  check_exit_status
+  sudo zypper --non-interactive --no-gpg-checks install $PWD/rpmbuild/RPMS/$arch/*.rpm
+  check_exit_status 
 elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
-  yum --assumeyes  --nogpgcheck install $PWD/rpmbuild/RPMS/$arch/*.rpm
+  sudo yum --assumeyes --nogpgcheck install $PWD/rpmbuild/RPMS/$arch/*.rpm
   check_exit_status
 fi
 
+echo "############################################"
+echo "#               Release Info               #"
+echo "############################################"
+# Print release info file to stdout
 if [ -f $install_dir/release_info ]; then
   cat $install_dir/release_info
 else
   echo "$install_dir/release_info was not generated."
+  exit 1
+fi
+
+# Test Uninstall in Jenkins only
+if [[ ! -z $BRANCH_NAME ]]; then
+  echo "############################################"
+  echo "#         Uninstalling Packages            #"
+  echo "############################################"
+  # Uninstall the package(s)
+  if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
+    sudo zypper --non-interactive remove cray-cti
+    check_exit_status
+  elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
+    sudo yum --assumeyes remove cray-cti
+    check_exit_status
+  fi
+
+  echo "############################################"
+  echo "#     Check Uninstall was Successful       #"
+  echo "############################################"
+  # Check the uninstall was successful
+  if [[ -d $install_dir ]]; then
+    echo "There is an uninstall issue:"
+    ls -R $install_dir
+    exit 1
+  else
+    echo  "$install_dir was successfully cleaned."
+  fi
 fi
 
 check_exit_status
