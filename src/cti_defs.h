@@ -172,7 +172,7 @@ typedef slurmPidFile_t          cti_pidFile_t;
 
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
 #define PALS_BE_LIB_DEFAULT_PATH "/opt/cray/pe/pals/default/lib" // Location of default PALS library
-#define PALS_DEBUG "CTI_PALS_DEBUG" // Manually enables PALS frontend and uses localhost as API server without authentication
+#define PALS_EXEC_HOST "CTI_PALS_EXEC_HOST" // To use PALS application ID for attaching outside of job's PBS allocation
 
 /*******************************************************************************
 ** Flux specific information

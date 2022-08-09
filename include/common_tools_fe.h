@@ -914,17 +914,43 @@ typedef struct {
  *      applications.
  *
  * Arguments
- *      apid - The application ID of the PALS application to register.
+ *      job_or_apid - The PBS job ID or PALS application ID of the job to
+ *                    register. PBS job ID can be used on any node of the
+ *                    system. PALS application ID can only be used when
+ *                    the tool has been launched in the same allocation as
+ *                    the target job. Alternatively, CTI_PALS_EXEC_HOST can
+ *                    be set to the execution host for the target PALS job
+ *                    to use a PALS application ID outside of the allocation.
  *
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
  *-----------------------------------------------------------------------------
+ * submitJobScript - Submit PALS job script to launch and attach to new job
+ *
+ * Detail
+ *      Use this function to submit an existing PBS job script using `qsub`.
+ *      The job script must launch the target application using the
+ *      PALS launcher for successful registration to complete.
+ *      Job will be started in a stopped state and should be continued after
+ *      attach using cti_killApp(app_id, SIGCONT);
+ *
+ * Arguments
+ *      script_path - The PBS job script path
+ *      launcher_args - Additional arguments to add to `qsub`
+ *      env_list - Additional environment options to add to the job launch
+ *
+ * Returns
+ *      A string that contains the PBS job ID for use with registerApid
+ *      to be freed by the caller. NULL is returned on error.
+ *-----------------------------------------------------------------------------
  */
 
 typedef struct {
     char*            (*getApid)(pid_t craycliPid);
-    cti_app_id_t     (*registerApid)(char const* apid);
+    cti_app_id_t     (*registerApid)(char const* job_or_apid);
+    char*            (*submitJobScript)(char const* script_path,
+        char const* const* launcher_args, char const* const* env_list);
 } cti_pals_ops_t;
 
 /*-----------------------------------------------------------------------------

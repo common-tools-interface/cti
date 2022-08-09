@@ -35,6 +35,8 @@
 #include <thread>
 #include <variant>
 #include <algorithm>
+#include <regex>
+#include <iomanip>
 
 #include <sstream>
 #include <fstream>
@@ -68,20 +70,337 @@ PALSFrontend::getApid(pid_t launcher_pid)
     return result;
 }
 
-PALSFrontend::PalsLaunchInfo
-PALSFrontend::attachApp(std::string const& apId)
+// Use PBS_NODEFILE to find job execution host
+static auto find_job_host_in_allocation()
 {
+    // If inside allocation, get first line of PBS_NODEFILE
+    if (auto pbs_nodefile = ::getenv("PBS_NODEFILE")) {
+        Frontend::inst().writeLog("Trying PBS nodefile %s\n", pbs_nodefile);
+
+        // Open nodefile
+        auto nodefileStream = std::ifstream{pbs_nodefile};
+
+        // Read first line
+        auto line = std::string{};
+        if (std::getline(nodefileStream, line)) {
+            Frontend::inst().writeLog("Found host %s\n", line.c_str());
+            return line;
+        }
+
+        throw std::runtime_error("failed to parse PBS_NODEFILE at "
+                + std::string{pbs_nodefile});
+    } else {
+        throw std::runtime_error("PBS_NODEFILE was not set in allocation environment");
+    }
+}
+
+// Use PBS job ID and qstat to find job execution host
+static auto find_job_host_outside_allocation(std::string const& jobId)
+{
+    Frontend::inst().writeLog("Looking for job host for %s\n", jobId.c_str());
+
+    // Run qstat with machine-parseable format
+    char const* qstat_argv[] = {"qstat", "-f", jobId.c_str(), nullptr};
+    auto qstatOutput = cti::Execvp{"qstat", (char* const*)qstat_argv, cti::Execvp::stderr::Ignore};
+
+    // Start parsing qstat output
+    auto& qstatStream = qstatOutput.stream();
+    auto qstatLine = std::string{};
+
+    // Each line is in the format `    Var = Val`
+    auto execHost = std::string{};
+    while (std::getline(qstatStream, qstatLine)) {
+
+        // Split line on ' = '
+        auto const var_end = qstatLine.find(" = ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(qstatLine.substr(0, var_end));
+        auto const val = qstatLine.substr(var_end + 3);
+        if (var == "exec_host") {
+            execHost = cti::split::removeLeadingWhitespace(std::move(val));
+            break;
+        }
+    }
+
+    Frontend::inst().writeLog("Full exec_host spec: %s\n", execHost.c_str());
+
+    // Consume rest of stream output
+    while (std::getline(qstatStream, qstatLine)) {}
+
+    // Wait for completion and check exit status
+    if (auto const qstat_rc = qstatOutput.getExitStatus()) {
+        throw std::runtime_error("`qstat -f " + jobId + "` failed with code " + std::to_string(qstat_rc));
+    }
+
+    // Reached end of qstat output without finding `exec_host`
+    if (execHost.empty()) {
+        throw std::runtime_error("invalid job id " + jobId);
+    }
+
+    // Extract main hostname from exec_host
+    /* qstat manpage:
+        The exec_host string has the format:
+           <host1>/<T1>*<P1>[+<host2>/<T2>*<P2>+...]
+    */
+    auto const hostname_end = execHost.find("/");
+    if (hostname_end != std::string::npos) {
+        auto firstHost = execHost.substr(0, hostname_end);
+        Frontend::inst().writeLog("First host from qstat: %s\n", firstHost.c_str());
+        return firstHost;
+    }
+
+    throw std::runtime_error("failed to parse qstat exec_host: " + execHost);
+}
+
+static auto find_apid_from_jobid(std::string const& execHost, std::string const& pbsJobId)
+{
+    Frontend::inst().writeLog("Looking for PBS job %s on exec host %s\n",
+        pbsJobId.c_str(), execHost.c_str());
+
+    // Run palstat to query jobs on node
+    char const* palstat_argv[] = {"palstat", "--node", execHost.c_str(), nullptr};
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstat_argv, cti::Execvp::stderr::Ignore};
+
+    // Start parsing palstat output
+    auto& palstatStream = palstatOutput.stream();
+    auto palstatLine = std::string{};
+
+    // APID / JobID lines are in the format `Var: Val`
+    // APID appears before JobID
+    auto foundApid = false;
+    auto parsedApid = std::string{};
+    while (std::getline(palstatStream, palstatLine)) {
+
+        // Split line on ': '
+        auto const var_end = palstatLine.find(": ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
+        auto const val = palstatLine.substr(var_end + 2);
+        if (var == "APID") {
+            parsedApid = cti::split::removeLeadingWhitespace(std::move(val));
+        } else if (var == "JobID") {
+
+            // Check against provided job ID (may be prefix of PBS's version of job ID)
+            auto fullJobId = cti::split::removeLeadingWhitespace(std::move(val));
+            if (fullJobId.rfind(pbsJobId, 0) == 0) {
+                foundApid = true;
+                break;
+            }
+        }
+    }
+
+    Frontend::inst().writeLog("Found app ID %s\n", parsedApid.c_str());
+
+    // Consume rest of stream output
+    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for completion and check exit status
+    if (auto const palstat_rc = palstatOutput.getExitStatus()) {
+        throw std::runtime_error("`palstat --node " + execHost + "` failed with code " + std::to_string(palstat_rc));
+    }
+
+    // Reached end of palstat output without finding the right apid
+    if (!foundApid || (parsedApid.empty())) {
+        throw std::runtime_error("invalid PBS job id " + pbsJobId + " for host " + execHost
+            + ". Check for this job by running `palstat --node " + execHost + "`");
+    }
+
+    return parsedApid;
+}
+
+std::string
+PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* launcher_args,
+    char const* const* env_list)
+{
+    Frontend::inst().writeLog("Submitting PBS job script %s\n", scriptPath.c_str());
+
+    // Build qsub arguments
+    auto qsubArgv = cti::ManagedArgv{"qsub"};
+    if (launcher_args != nullptr) {
+        for (auto arg = launcher_args; *arg != nullptr; arg++) {
+            qsubArgv.add(*arg);
+        }
+    }
+
+    // Add custom environment arguments
+    auto jobEnvArg = std::stringstream{};
+    if (env_list != nullptr) {
+        for (auto env_setting = env_list; *env_setting != nullptr; env_setting++) {
+            // Escape commas in setting
+            jobEnvArg << std::quoted(*env_setting, ',') << ',';
+        }
+    }
+
+    // Add startup barrier environment setting
+    jobEnvArg << "PALS_STARTUP_BARRIER=1";
+    qsubArgv.add("-v");
+    qsubArgv.add(jobEnvArg.str());
+
+    // Add script argument
+    qsubArgv.add(scriptPath);
+
+    // Submit batch file to PBS
+    auto qsubOutput = cti::Execvp{"qsub", (char* const*)qsubArgv.get(), cti::Execvp::stderr::Ignore};
+
+    // Read qsub output
+    auto& qsubStream = qsubOutput.stream();
+    auto pbsJobId = std::string{};
+    auto getline_failed = false;
+    if (!std::getline(qsubStream, pbsJobId)) {
+        getline_failed = true;
+    }
+    qsubStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for completion and check exit status
+    if ((qsubOutput.getExitStatus() != 0) || getline_failed) {
+        throw std::runtime_error("failed to submit PBS job using command\n"
+            + qsubArgv.string());
+    }
+
+    // Wait until PALS application has started
+    int retry = 0;
+    int max_retry = 3;
+    while (retry < max_retry) {
+        Frontend::inst().writeLog("PBS job %s submitted, waiting for PALS application "
+            "to launch (attempt %d/%d)\n", pbsJobId.c_str(), retry + 1,
+            max_retry);
+        ::sleep(3);
+
+        // Get exec host for PBS job
+        auto execHost = find_job_host_outside_allocation(pbsJobId);
+
+        try {
+
+            // Check for PALS application ID
+            auto palsApid = find_apid_from_jobid(execHost, pbsJobId);
+            Frontend::inst().writeLog("Successfully launched PALS application %s\n",
+                palsApid.c_str());
+
+            return pbsJobId;
+
+        } catch (...) {
+
+            // PALS application not started yet
+            retry++;
+        }
+    }
+
+    throw std::runtime_error("Timed out waiting for PALS "
+        "application to launch");
+}
+
+// Determine if apid is a valid PALS application ID
+static bool is_pals_apid(std::string const& apid)
+{
+    // PALS application IDs are UUIDs in form 8-4-4-4-12
+    static const auto uuidRegex = std::regex{
+        R"(^[[:alnum:]]{8}\b-[[:alnum:]]{4}\b-[[:alnum:]]{4}\b-[[:alnum:]]{4}\b-[[:alnum:]]{12}$)"};
+
+    auto match = std::smatch{};
+
+    return std::regex_match(apid, match, uuidRegex);
+}
+
+// Determine if running inside PBS allocation
+static bool in_pbs_allocation()
+{
+    // Check for PBS environment variables that PALS utilities require
+    if ((::getenv("PBS_NODEFILE") == nullptr)
+     || (::getenv("PBS_JOBID") == nullptr)) {
+        return false;
+    }
+
+    return true;
+}
+
+// Determine if running inside PBS allocation that contains the provided
+// PALS application
+static bool in_matching_pbs_allocation(std::string const& apid)
+{
+    Frontend::inst().writeLog("Looking for PBS job %s in current allocation\n",
+        apid.c_str());
+
+    // Run palstat to query jobs on node
+    char const* palstat_argv[] = {"palstat", apid.c_str(), nullptr};
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstat_argv, cti::Execvp::stderr::Ignore};
+
+    // Consume palstat output
+    auto& palstatStream = palstatOutput.stream();
+    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for completion and check exit status
+    return palstatOutput.getExitStatus() == 0;
+}
+
+PALSFrontend::PalsLaunchInfo
+PALSFrontend::attachApp(std::string const& jobOrApId)
+{
+    // Execution host will be read from environment
+    // if ID is a PALS application ID and running in PBS allocation
+    // PALS ID and execution host will be determined from PBS
+    // utilities and does not need to be running in PBS allocation
+    auto execHost = std::string{};
+    auto apId = std::string{};
+
+    // Determine if ID is PBS job ID or PALS job ID
+    if (is_pals_apid(jobOrApId)) {
+
+        // If execution host was manually supplied, can attach outside
+        // of job's allocation
+        if (auto pals_exec_host = ::getenv(PALS_EXEC_HOST)) {
+            execHost = pals_exec_host;
+
+        // No execution host supplied, detect from allocation
+        } else {
+
+            // Ensure running inside allocation
+            if (!in_pbs_allocation()) {
+                throw std::runtime_error("Provided PALS application ID "
+                    + jobOrApId + ", but this tool was not launched inside "
+                    "the application's PBS allocation");
+            }
+
+            // Ensure running inside matching allocation
+            if (!in_matching_pbs_allocation(jobOrApId)) {
+                throw std::runtime_error("This tool was launched in a PBS "
+                    "allocation, but could not find the provided PALS "
+                    "application " + jobOrApId + ". Ensure that the tool "
+                    "was started inside the same PBS allocation as the "
+                    "PALS application");
+            }
+
+            execHost = find_job_host_in_allocation();
+        }
+
+        apId = jobOrApId;
+
+    // Provided PBS job ID
+    } else {
+
+        // Find exec host from PBS ID
+        execHost = find_job_host_outside_allocation(jobOrApId);
+
+        // Find PALS app ID from PBS job ID and exec host
+        apId = find_apid_from_jobid(execHost, jobOrApId);
+    }
+
     // Create daemon ID for new application
     auto result = PalsLaunchInfo
         { .daemonAppId = Daemon().request_RegisterApp()
-        , .apId = apId
+        , .execHost = std::move(execHost)
+        , .apId = std::move(apId)
         , .procTable = {}
         , .binaryRankMap = {}
         , .atBarrier = false
     };
 
     // Launch palstat MPIR query
-    char const* palstat_argv[] = { "palstat", "-p", apId.c_str(), nullptr };
+    char const* palstat_argv[] = { "palstat", "-n", result.execHost.c_str(),
+        "-p", result.apId.c_str(), nullptr };
     auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstat_argv, cti::Execvp::stderr::Ignore};
 
     // Parse MPIR output from palstat
@@ -108,6 +427,13 @@ PALSFrontend::attachApp(std::string const& apId)
         result.procTable.push_back(std::move(elem));
     }
 
+    // Check proctable result
+    if (result.procTable.empty()) {
+        throw std::runtime_error("Failed to get job layout for job ID "
+            + jobOrApId + ". Check with `palstat -n " + result.execHost
+            + " --proctable " + result.apId + "`");
+    }
+
     // Build binary-rank map
     auto rank = size_t{0};
     for (auto&& [pid, host, executable] : result.procTable) {
@@ -121,6 +447,20 @@ PALSFrontend::PalsLaunchInfo
 PALSFrontend::launchApp(const char * const launcher_argv[],
         int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[])
 {
+    // Inside allocation, get first line of PBS_NODEFILE
+    auto execHost = std::string{};
+    if (auto pbs_nodefile = ::getenv("PBS_NODEFILE")) {
+
+        // Open nodefile
+        auto nodefileStream = std::ifstream{pbs_nodefile};
+
+        // Read first line
+        if (!std::getline(nodefileStream, execHost)) {
+            throw std::runtime_error("Failed to parse PBS_NODEFILE at "
+                + std::string{pbs_nodefile});
+        }
+    }
+
     // Get the launcher path from CTI environment variable / default.
     if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
         // set up arguments and FDs
@@ -149,6 +489,7 @@ PALSFrontend::launchApp(const char * const launcher_argv[],
         // Construct launch info struct
         return PalsLaunchInfo
             { .daemonAppId = mpirData.mpir_id
+            , .execHost = std::move(execHost)
             , .apId = std::move(apid)
             , .procTable = std::move(mpirData.proctable)
             , .binaryRankMap = std::move(mpirData.binaryRankMap)
@@ -263,6 +604,7 @@ PALSFrontend::getLauncherName()
 PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo)
     : App{fe}
     , m_daemonAppId{palsLaunchInfo.daemonAppId}
+    , m_execHost{std::move(palsLaunchInfo.execHost)}
     , m_apId{std::move(palsLaunchInfo.apId)}
 
     , m_beDaemonSent{false}
@@ -283,7 +625,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     }
 
     // Create remote toolpath directory
-    { auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
+    { auto palscmdArgv = cti::ManagedArgv { "palscmd", "-n", m_execHost, m_apId,
             "mkdir", "-p", m_toolPath };
 
         if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
@@ -301,8 +643,8 @@ PALSApp::~PALSApp()
     try {
 
         // Remove remote toolpath directory
-        auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
-            "rm", "-rf", m_toolPath };
+        auto palscmdArgv = cti::ManagedArgv{"palscmd", "-n", m_execHost, m_apId,
+            "rm", "-rf", m_toolPath};
 
         m_frontend.Daemon().request_ForkExecvpUtil_Sync(
             m_daemonAppId, "palscmd", palscmdArgv.get(),
@@ -322,7 +664,7 @@ PALSApp::getLauncherHostname() const
 bool
 PALSApp::isRunning() const
 {
-    auto palstatArgv = cti::ManagedArgv{"palstat", m_apId};
+    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", m_execHost, m_apId};
     return m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, "palstat", palstatArgv.get(),
         FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
@@ -394,7 +736,8 @@ PALSApp::shipPackage(std::string const& tarPath) const
 {
     auto const destinationName = cti::cstr::basename(tarPath);
 
-    auto palscpArgv = cti::ManagedArgv{"palscp", "-f", tarPath, "-d", destinationName, m_apId};
+    auto palscpArgv = cti::ManagedArgv{"palscp", "-L", m_execHost,
+        "-f", tarPath, "-d", destinationName, m_apId};
 
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, "palscp", palscpArgv.get(),
@@ -405,7 +748,7 @@ PALSApp::shipPackage(std::string const& tarPath) const
 
     // Move shipped file from noexec filesystem to toolpath directory
     auto const palscpDestination = "/var/run/palsd/" + m_apId + "/files/" + destinationName;
-    auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId,
+    auto palscmdArgv = cti::ManagedArgv { "palscmd", "-n", m_execHost, m_apId,
             "mv", palscpDestination, m_toolPath };
 
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
@@ -455,7 +798,7 @@ PALSApp::startDaemon(const char* const args[])
     }
 
     // Create the arguments for palscmd
-    auto palscmdArgv = cti::ManagedArgv { "palscmd", m_apId };
+    auto palscmdArgv = cti::ManagedArgv{"palscmd", "-n", m_execHost, m_apId};
 
     // Use location of existing launcher binary on compute node
     auto const launcherPath = m_toolPath + "/" + getBEDaemonName();
@@ -476,8 +819,8 @@ PALSApp::startDaemon(const char* const args[])
 void PALSApp::kill(int signum)
 {
     // create the args for palsig
-    auto palsigArgv = cti::ManagedArgv { "palsig", "-s", std::to_string(signum),
-        m_apId };
+    auto palsigArgv = cti::ManagedArgv{"palsig", "-n", m_execHost,
+        "-s", std::to_string(signum), m_apId};
 
     // tell frontend daemon to launch palsig, wait for it to finish
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(

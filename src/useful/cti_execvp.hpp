@@ -220,6 +220,12 @@ public:
             dup2(stderr_fd, Pipe::stderr);
             p.closeWrite();
 
+           // Close inherited file descriptors
+            auto open_fdlimit = (int)sysconf(_SC_OPEN_MAX);
+            for (int i = Pipe::stderr + 1; i < open_fdlimit; i++) {
+                close(i);
+            }
+
             execvp(binaryName, argv);
             _exit(-1);
         }

@@ -486,17 +486,27 @@ _cti_pals_getApid(pid_t launcherPid) {
 }
 
 static cti_app_id_t
-_cti_pals_registerApid(char const* apid) {
+_cti_pals_registerApid(char const* job_or_apid) {
     CHECK_PALS_RUN_SAFELY(APP_ERROR,
         auto&& fe = downcastFE<PALSFrontend>();
-        auto wp = fe.registerJob(1, apid);
+        auto wp = fe.registerJob(1, job_or_apid);
         return fe.Iface().trackApp(wp);
+    )
+}
+
+static char*
+_cti_pals_submitJobScript(char const* script_path, char const* const* launcher_args,
+    char const* const* env_list) {
+    CHECK_PALS_RUN_SAFELY((char*)nullptr,
+        auto&& fe = downcastFE<PALSFrontend>();
+        return strdup(fe.submitJobScript(script_path, launcher_args, env_list).c_str());
     )
 }
 
 static cti_pals_ops_t _cti_pals_ops = {
     .getApid      = _cti_pals_getApid,
-    .registerApid = _cti_pals_registerApid
+    .registerApid = _cti_pals_registerApid,
+    .submitJobScript = _cti_pals_submitJobScript
 };
 
 // SSH WLM extensions

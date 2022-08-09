@@ -190,3 +190,12 @@ check can be bypassed by setting \fICTI_FLUX_DEBUG=1\fP.
 \fICTI_APRUN_PATH\fP: By default, the \fBaprun\fP launcher is used
 from the current \fBPATH\fP value. To override this, set this variable
 to the direct path to the desired \fBaprun\fP binary.
+
+.SS "PALS-specific variables"
+.PP
+.IP "\(bu" 3
+\fICTI_PALS_EXEC_HOST\fP: To use a PALS application ID instead of a
+PBS job ID for attaching to running jobs, set this variable to the
+execution host (usually the hostname) of the node hosting the PBS job.
+This can be found in the "Nodes" field when running `palstat` inside
+the PBS reservation, or the "exec_host" field when running `qstat -f`.

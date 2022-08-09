@@ -44,6 +44,7 @@ public: // types
     struct PalsLaunchInfo
     {
         FE_daemon::DaemonAppId daemonAppId;
+        std::string execHost;
         std::string apId;
         MPIRProctable procTable;
         BinaryRankMap binaryRankMap;
@@ -72,8 +73,13 @@ public: // PALS-specific interface
     // Extract apid string from launcher process
     std::string getApid(pid_t launcher_pid);
 
+    // Submit a PBS job script with additional launcher arguments
+    // Return the PBS job ID for the launched script to use for job registration
+    std::string submitJobScript(std::string const& scriptPath,
+        char const* const* launcher_args, char const* const* env_list);
+
     // Use PALS API to get application and node placement information and create new application
-    PalsLaunchInfo attachApp(std::string const& apId);
+    PalsLaunchInfo attachApp(std::string const& jobOrApId);
 
     // Launch an app under MPIR control and hold at barrier.
     PalsLaunchInfo launchApp(const char * const launcher_argv[],
@@ -83,6 +89,7 @@ public: // PALS-specific interface
 class PALSApp : public App
 {
     FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
+    std::string m_execHost;
     std::string m_apId;
     bool m_beDaemonSent;
     MPIRProctable m_procTable;

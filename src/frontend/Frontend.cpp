@@ -465,11 +465,6 @@ static bool detect_CS()
 // HPCM / Shasta
 static bool detect_PALS(std::string const& /* unused */)
 {
-    // Check manual PALS debug mode flag
-    if (::getenv(PALS_DEBUG)) {
-        return true;
-    }
-
     try {
 
         // Check that PBS is installed (required for PALS)
