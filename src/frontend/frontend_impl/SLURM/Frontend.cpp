@@ -32,6 +32,7 @@
 #include "cti_argv_defs.hpp"
 
 #include <algorithm>
+#include <iomanip>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -995,6 +996,167 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
     } else {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
     }
+}
+
+// Use squeue to check if job is running
+static bool
+job_running(std::string const& jobId)
+{
+    auto squeueArgv = cti::ManagedArgv{"squeue"};
+
+    // Print job status only
+    squeueArgv.add("-o");
+    squeueArgv.add("%t");
+
+    // Add job ID
+    squeueArgv.add("-j");
+    squeueArgv.add(jobId);
+
+    // Run squeue
+    auto squeueOutput = cti::Execvp{"squeue", (char* const*)squeueArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Read squeue output
+    auto& squeueStream = squeueOutput.stream();
+    auto squeueLine = std::string{};
+    auto getline_failed = false;
+
+    // First line should be "ST" header
+    if (!std::getline(squeueStream, squeueLine)) {
+        getline_failed = true;
+    }
+    if (getline_failed || squeueLine != "ST") {
+        throw std::runtime_error("failed to parse squeue output");
+    }
+
+    // Next line is job status
+    if (!std::getline(squeueStream, squeueLine)) {
+        throw std::runtime_error("failed to read squeue output: " + squeueLine);
+    }
+
+    // Consume rest of squeue output and check output status
+    squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
+    if (squeueOutput.getExitStatus() != 0) {
+        throw std::runtime_error("squeue failed using command\n"
+            + squeueArgv.string());
+    }
+
+    // Job status of "R" indicates job is running
+    return squeueLine == "R";
+}
+
+SrunInfo
+SLURMFrontend::submitBatchScript(std::string const& scriptPath,
+    char const* const* sbatch_args, char const* const* env_list)
+{
+    // Check for existing Slurm task prolog
+    if (auto slurm_task_prolog = ::getenv("SLURM_TASK_PROLOG")) {
+        throw std::runtime_error("CTI uses a task prolog to hold the launched job at "
+            "startup. Slurm user task prologs are not supported with sbatch submission "
+            "(SLURM_TASK_PROLOG was set to " + std::string{slurm_task_prolog} + " in "
+            "the launch environment)");
+    }
+
+    Frontend::inst().writeLog("Submitting Slurm job script %s\n", scriptPath.c_str());
+
+    // Build sbatch arguments
+    auto sbatchArgv = cti::ManagedArgv{"sbatch"};
+    if (sbatch_args != nullptr) {
+        for (auto arg = sbatch_args; *arg != nullptr; arg++) {
+            sbatchArgv.add(*arg);
+        }
+    }
+
+    // Sbatch will output <jobid>; <cluster name>
+    sbatchArgv.add("--parsable");
+
+    // Add custom environment arguments
+    auto jobEnvArg = std::stringstream{};
+
+    // Add startup barrier environment setting
+    auto ctiSlurmStopBinary = Frontend::inst().getBaseDir() + "/libexec/"
+        + CTI_SLURM_STOP_BINARY;
+
+    // Inherit current environment and ensure CTI_INSTALL_DIR is avaliable to stop job
+    jobEnvArg << "ALL,CTI_INSTALL_DIR=" << Frontend::inst().getBaseDir() << ","
+        << "SLURM_TASK_PROLOG=" << ctiSlurmStopBinary << ",";
+    if (env_list != nullptr) {
+        for (auto env_setting = env_list; *env_setting != nullptr; env_setting++) {
+            // Escape commas in setting
+            jobEnvArg << std::quoted(*env_setting, ',') << ',';
+        }
+    }
+    sbatchArgv.add("--export");
+    sbatchArgv.add(jobEnvArg.str());
+
+    // Add script argument
+    sbatchArgv.add(scriptPath);
+
+    // Submit batch file to Slurm
+    auto sbatchOutput = cti::Execvp{"sbatch", (char* const*)sbatchArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Read sbatch output
+    auto& sbatchStream = sbatchOutput.stream();
+    auto sbatchLine = std::string{};
+    auto getline_failed = false;
+    if (!std::getline(sbatchStream, sbatchLine)) {
+        getline_failed = true;
+    }
+    sbatchStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for completion and check exit status
+    if ((sbatchOutput.getExitStatus() != 0) || getline_failed) {
+        throw std::runtime_error("failed to submit Slurm job using command\n"
+            + sbatchArgv.string());
+    }
+
+    // Split job ID from sbatch output
+    auto [jobId, clusterName] = cti::split::string<2>(sbatchLine, ';');
+    if (jobId.empty()) {
+        throw std::runtime_error("Failed to extract job ID from sbatch output: "
+            + sbatchLine);
+    }
+
+    // Parse job ID
+    auto result = SrunInfo{ .jobid = 1, .stepid = {} };
+    try {
+        result = SrunInfo { .jobid = (uint32_t)std::stoul(jobId), .stepid = 0 };
+    } catch (std::exception const&) {
+        throw std::runtime_error("Failed to parse job ID from sbatch output: "
+            + jobId);
+    }
+
+    // Wait until Slurm application has started
+    int retry = 0;
+    int max_retry = 3;
+    while (retry < max_retry) {
+        Frontend::inst().writeLog("Slurm job %s submitted, waiting for Slurm application "
+            "to launch (attempt %d/%d)\n", jobId.c_str(), retry + 1,
+            max_retry);
+        ::sleep(3);
+
+        try {
+
+            // Check if Slurm job has launched
+            if (job_running(jobId)) {
+                Frontend::inst().writeLog("Successfully launched Slurm application %s\n",
+                    jobId.c_str());
+
+                return result;
+            }
+
+            // PALS application not started yet
+            retry++;
+
+        } catch (...) {
+            retry++;
+        }
+    }
+
+    throw std::runtime_error("Timed out waiting for Slurm application to launch. "
+        "Application may still be waiting for job resources (check using `squeue "
+        + jobId + "`). Once launched, job can be attached using its job ID");
 }
 
 // HPCM SLURM specializations

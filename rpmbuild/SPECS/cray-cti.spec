@@ -206,6 +206,7 @@ Test files for Cray Common Tools Interface
 # Libraries
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libctiaudit.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
+%{__cp} -a %{external_build_dir}/lib/libctistop.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_be.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_fe.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 
@@ -227,6 +228,7 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{external_build_dir}/libexec/cti_be_daemon%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_fe_daemon%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/mpir_shim%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
+%{__cp} -a %{external_build_dir}/libexec/cti_slurm_stop%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_diagnostics ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_diagnostics_backend ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 %{__cp} -a %{external_build_dir}/libexec/cti_diagnostics_target ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
@@ -588,11 +590,13 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libctiaudit.so
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libctistop.so
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_be.so*
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_fe.so*
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_be_daemon%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_fe_daemon%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/mpir_shim%{pkgversion}
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_slurm_stop%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_diagnostics
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_diagnostics_backend
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_diagnostics_target

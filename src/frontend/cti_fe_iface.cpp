@@ -458,10 +458,25 @@ _cti_slurm_getSrunInfo(cti_app_id_t appId) {
     }, (cti_srunProc_t*)nullptr);
 }
 
+static cti_srunProc_t*
+_cti_slurm_submitBatchScript(char const* script_path, char const* const* launcher_args,
+    char const* const* env_list) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<SLURMFrontend>();
+        if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
+            *result = fe.submitBatchScript(script_path, launcher_args, env_list);
+            return result;
+        } else {
+            throw std::runtime_error("malloc failed.");
+        }
+    }, (cti_srunProc_t*)nullptr);
+}
+
 static cti_slurm_ops_t _cti_slurm_ops = {
     .getJobInfo         = _cti_slurm_getJobInfo,
     .registerJobStep    = _cti_slurm_registerJobStep,
-    .getSrunInfo        = _cti_slurm_getSrunInfo
+    .getSrunInfo        = _cti_slurm_getSrunInfo,
+    .submitBatchScript  = _cti_slurm_submitBatchScript
 };
 
 // PALS WLM extensions

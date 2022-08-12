@@ -869,6 +869,25 @@ typedef struct {
  *      NULL is returned on error. The caller should free() the returned pointer
  *      when finished using it.
  *-----------------------------------------------------------------------------
+ * submitBatchScript - Submit Slurm batch script to launch and attach to new job
+ *
+ * Detail
+ *      Use this function to submit an existing Slurm job script using `sbatch`.
+ *      The job script must launch the target application using the
+ *      Slurm launcher for successful registration to complete.
+ *      Job will be started in a stopped state and should be continued after
+ *      attach using cti_releaseAppBarrier(app_id)
+ *
+ * Arguments
+ *      script_path - The Slurm job script path
+ *      sbatch_args - Additional arguments to add to `sbatch`
+ *      env_list - Additional environment options to add to the job launch
+ *
+ * Returns
+ *      A cti_srunProc_t pointer that contains the jobid and stepid.
+ *      NULL is returned on error. The caller should free() the returned pointer
+ *      when finished using it.
+ *-----------------------------------------------------------------------------
  */
 
 typedef struct
@@ -881,6 +900,8 @@ typedef struct {
     cti_srunProc_t* (*getJobInfo)(pid_t srunPid);
     cti_app_id_t    (*registerJobStep)(uint32_t job_id,uint32_t step_id);
     cti_srunProc_t* (*getSrunInfo)(cti_app_id_t appId);
+    cti_srunProc_t* (*submitBatchScript)(char const* script_path,
+        char const* const* sbatch_args, char const* const* env_list);
 } cti_slurm_ops_t;
 
 /*-----------------------------------------------------------------------------
