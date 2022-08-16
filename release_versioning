@@ -89,6 +89,9 @@
 #     increment common_tool_minor, be_current, be_age, fe_current and fe_age
 # else:
 #     leave the versions alone
+# 
+# NOTE: If you bump the manor number then reset the minor and revision to 0
+#       If you bump the minor number then reset the revision to 0
 #==============================================================================
 
 common_tool_major="2"
