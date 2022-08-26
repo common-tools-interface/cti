@@ -718,8 +718,7 @@ contact your system adminstrator.");
 };
 
 GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpirData)
-    : App(fe)
-    , m_daemonAppId { mpirData.mpir_id }
+    : App(fe, mpirData.mpir_id)
     , m_launcherPid { mpirData.launcher_pid }
     , m_binaryRankMap { std::move(mpirData.binaryRankMap) }
     , m_stepLayout  { fe.fetchStepLayout(mpirData.proctable) }
@@ -745,13 +744,17 @@ GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpi
 
 GenericSSHApp::~GenericSSHApp()
 {
-    // Delete the staging directory if it exists.
-    if (!m_stagePath.empty()) {
-        _cti_removeDirectory(m_stagePath.c_str());
-    }
+    try {
+        // Delete the staging directory if it exists.
+        if (!m_stagePath.empty()) {
+            _cti_removeDirectory(m_stagePath.c_str());
+        }
 
-    // Inform the FE daemon that this App is going away
-    m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
+        // Inform the FE daemon that this App is going away
+        m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
+    } catch (std::exception const& ex) {
+        writeLog("~GenericSSHApp: %s\n", ex.what());
+    }
 }
 
 /* running app info accessors */

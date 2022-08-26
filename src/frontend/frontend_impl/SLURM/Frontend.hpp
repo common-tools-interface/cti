@@ -146,7 +146,6 @@ public: // constructor / destructor interface
 class SLURMApp final : public App
 {
 private: // variables
-    FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     uint32_t m_jobId;
     uint32_t m_stepId;
     std::map<std::string, std::vector<int>> m_binaryRankMap; // Binary to rank ID map

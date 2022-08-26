@@ -153,6 +153,11 @@ struct ProcSet
     void insert(pid_t const pid)   { m_pids.insert(pid); }
     void erase(pid_t const pid)    { m_pids.erase(pid);  }
     bool contains(pid_t const pid) { return (m_pids.find(pid) != m_pids.end()); }
+
+    // Remove PID from list without ending child process
+    void release(pid_t const pid) {
+        m_pids.erase(pid);
+    }
 };
 
 /* global variables */
@@ -330,6 +335,28 @@ static void deregisterAppID(DAppId const app_id)
 
         // finish util termination
         utilTermFuture.wait();
+    } else {
+        throw std::runtime_error("invalid app id: " + std::to_string(app_id));
+    }
+}
+
+static void releaseAppID(DAppId const app_id)
+{
+    auto const idPidPair = idPidMap.find(app_id);
+    if (idPidPair != idPidMap.end()) {
+        auto const app_pid = idPidPair->second;
+
+        // remove from ID list
+        idPidMap.erase(idPidPair);
+        if (app_pid > 0) {
+            pidIdMap.erase(app_pid);
+        }
+
+        // Application child process will reparent on CTI exit,
+        // utilities launched by CTI for application will be terminated
+        appCleanupList.release(app_pid);
+        utilMap.erase(app_id);
+
     } else {
         throw std::runtime_error("invalid app id: " + std::to_string(app_id));
     }
@@ -1077,6 +1104,17 @@ static void handle_DeregisterApp(int const reqFd, int const respFd)
     });
 }
 
+static void handle_ReleaseApp(int const reqFd, int const respFd)
+{
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
+        auto const appId = fdReadLoop<DAppId>(reqFd);
+
+        releaseAppID(appId);
+
+        return true;
+    });
+}
+
 static void handle_CheckApp(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [reqFd, respFd]() {
@@ -1108,6 +1146,7 @@ static auto reqTypeString(ReqType const reqType)
         case ReqType::TerminateMPIR:  return "TerminateMPIR";
         case ReqType::LaunchMPIRShim: return "LaunchMPIRShim";
         case ReqType::RegisterApp:    return "RegisterApp";
+        case ReqType::ReleaseApp:     return "ReleaseApp";
         case ReqType::RegisterUtil:   return "RegisterUtil";
         case ReqType::DeregisterApp:  return "DeregisterApp";
         case ReqType::CheckApp:       return "CheckApp";
@@ -1279,6 +1318,10 @@ main(int argc, char *argv[])
 
             case ReqType::DeregisterApp:
                 handle_DeregisterApp(reqFd, respFd);
+                break;
+
+            case ReqType::ReleaseApp:
+                handle_ReleaseApp(reqFd, respFd);
                 break;
 
             case ReqType::CheckApp:

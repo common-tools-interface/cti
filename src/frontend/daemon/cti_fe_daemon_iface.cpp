@@ -506,6 +506,14 @@ FE_daemon::request_DeregisterApp(DaemonAppId app_id)
     verifyOKResp(m_resp_sock.getReadFd());
 }
 
+void
+FE_daemon::request_ReleaseApp(DaemonAppId app_id)
+{
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::ReleaseApp);
+    fdWriteLoop(m_req_sock.getWriteFd(), app_id);
+    verifyOKResp(m_resp_sock.getReadFd());
+}
+
 bool
 FE_daemon::request_CheckApp(DaemonAppId app_id)
 {

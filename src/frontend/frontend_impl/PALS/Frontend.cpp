@@ -602,8 +602,7 @@ PALSFrontend::getLauncherName()
 }
 
 PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo)
-    : App{fe}
-    , m_daemonAppId{palsLaunchInfo.daemonAppId}
+    : App{fe, palsLaunchInfo.daemonAppId}
     , m_execHost{std::move(palsLaunchInfo.execHost)}
     , m_apId{std::move(palsLaunchInfo.apId)}
 

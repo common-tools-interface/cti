@@ -193,6 +193,7 @@ public: // type definitions
         RegisterApp,
         RegisterUtil,
         DeregisterApp,
+        ReleaseApp,
         CheckApp,
 
         Shutdown
@@ -266,6 +267,7 @@ public: // type definitions
 
     enum RespType : long {
         // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR, ForkExecvpUtil
+        // ReleaseApp
         OK,
 
         // ForkExecvpApp
@@ -275,7 +277,7 @@ public: // type definitions
         String,
 
         // LaunchMPIR, LaunchMPIRShim
-        MPIR,
+        MPIR
     };
 
     struct OKResp
@@ -431,6 +433,9 @@ public:
     // _cti_deregisterApp for timely cleanup.
     // Write an app register request to pipe, verify response, return new app id
     DaemonAppId request_RegisterApp(pid_t app_pid);
+
+    // Write an application release request to pipe, return response
+    void request_ReleaseApp(DaemonAppId app_id);
 
     // fe_daemon will register an already-forked process as a utility belonging to app_pid.
     // Write utility register request to pipe, verify response

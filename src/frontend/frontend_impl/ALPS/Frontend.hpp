@@ -139,7 +139,6 @@ private: // variables
 
     ALPSFrontend::LibAlps& m_libAlpsRef;
 
-    FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
     std::unique_ptr<appInfo_t> m_alpsAppInfo;
     std::vector<cmdDetail_t> m_alpsCmdDetail;
     std::vector<placeNodeList_t> m_alpsPlaceNodeList;

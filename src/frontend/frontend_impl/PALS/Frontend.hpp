@@ -88,7 +88,7 @@ public: // PALS-specific interface
 
 class PALSApp : public App
 {
-    FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
+    bool m_released; // Disable cleanup if released before App destructs
     std::string m_execHost;
     std::string m_apId;
     bool m_beDaemonSent;

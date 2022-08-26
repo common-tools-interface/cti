@@ -661,6 +661,18 @@ cti_deregisterApp(cti_app_id_t appId) {
     }, false);
 }
 
+int
+cti_releaseApp(cti_app_id_t appId) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+
+        // Release and remove the app
+        fe.Daemon().request_ReleaseApp(appId);
+        fe.Iface().removeApp(appId);
+        return 0;
+    }, 1);
+}
+
 namespace
 {
     enum class LaunchBarrierMode

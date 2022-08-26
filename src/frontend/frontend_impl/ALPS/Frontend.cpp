@@ -496,13 +496,12 @@ ALPSApp::getAlpsOverlapOrdinal() const
 }
 
 ALPSApp::ALPSApp(ALPSFrontend& fe, ALPSFrontend::AprunLaunchInfo&& aprunInfo)
-    : App{fe}
+    : App{fe, aprunInfo.daemonAppId}
 
     , m_beDaemonSent{false}
 
     , m_libAlpsRef{fe.m_libAlps}
 
-    , m_daemonAppId{aprunInfo.daemonAppId}
     , m_alpsAppInfo{std::move(aprunInfo.alpsAppInfo)}
     , m_alpsCmdDetail{std::move(aprunInfo.alpsCmdDetail)}
     , m_alpsPlaceNodeList{std::move(aprunInfo.alpsPlaceNodeList)}

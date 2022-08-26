@@ -150,4 +150,10 @@ std::string getExternalAddress();
 
 int bindAny(std::string const& address);
 
-void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector<char const*> extra_argv, std::string const& expecting, int times=1);
+std::tuple<cti_app_id_t, int> launchSocketApp(char const* appPath,
+    std::vector<char const*> extra_argv);
+void testSocketApp(cti_app_id_t app_id, int test_socket,
+    std::string const& expecting, int times);
+
+void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath,
+    std::vector<char const*> extra_argv, std::string const& expecting, int times=1);

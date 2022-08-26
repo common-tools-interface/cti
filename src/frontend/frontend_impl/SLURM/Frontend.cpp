@@ -62,8 +62,7 @@
 /* constructors / destructors */
 
 SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
-    : App(fe)
-    , m_daemonAppId     { mpirData.mpir_id }
+    : App{fe, mpirData.mpir_id}
     , m_jobId           { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_jobid")) }
     , m_stepId          { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_stepid")) }
     , m_binaryRankMap   { std::move(mpirData.binaryRankMap) }
@@ -104,13 +103,17 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
 
 SLURMApp::~SLURMApp()
 {
-    // Delete the staging directory if it exists.
-    if (!m_stagePath.empty()) {
-        _cti_removeDirectory(m_stagePath.c_str());
-    }
+    try {
+        // Delete the staging directory if it exists.
+        if (!m_stagePath.empty()) {
+            _cti_removeDirectory(m_stagePath.c_str());
+        }
 
-    // Inform the FE daemon that this App is going away
-    m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
+        // Inform the FE daemon that this App is going away
+        m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
+    } catch (std::exception const& ex) {
+        writeLog("~SLURMApp: %s\n", ex.what());
+    }
 }
 
 /* app instance creation */
@@ -192,7 +195,8 @@ SLURMApp::getBinaryRankMap() const
 
 /* running app interaction interface */
 
-void SLURMApp::releaseBarrier() {
+void SLURMApp::releaseBarrier()
+{
     // release MPIR barrier
     m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
 }
@@ -1155,7 +1159,7 @@ SLURMFrontend::submitBatchScript(std::string const& scriptPath,
     }
 
     throw std::runtime_error("Timed out waiting for Slurm application to launch. "
-        "Application may still be waiting for job resources (check using `squeue "
+        "Application may still be waiting for job resources (check using `squeue -j "
         + jobId + "`). Once launched, job can be attached using its job ID");
 }
 

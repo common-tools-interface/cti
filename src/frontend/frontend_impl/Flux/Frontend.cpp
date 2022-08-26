@@ -835,8 +835,13 @@ std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
 
 FluxApp::~FluxApp()
 {
-    // Terminate daemon jobs
-    for (auto&& id : m_daemonJobIds) {
-        (void)cancel_job(m_libFluxRef, m_fluxHandle, id, "controlling application is terminating");
+    try {
+        // Terminate utilities launched by CTI
+        for (auto&& id : m_daemonJobIds) {
+            (void)cancel_job(m_libFluxRef, m_fluxHandle, id, "controlling application is terminating");
+        }
+
+    } catch (std::exception const& ex) {
+        writeLog("~FluxApp: %s\n", ex.what());
     }
 }

@@ -187,23 +187,27 @@ public: // Public interface to generic WLM-agnostic capabilities
     {
         getLogger().write(fmt, std::forward<Args>(args)...);
     }
-    // Remove an app object
-    void removeApp(std::shared_ptr<App> app)
-    {
-        // drop the shared_ptr
-        m_apps.erase(app);
-    }
+
     // Interface accessor - guarantees access via singleton object
     FE_iface& Iface() { return m_iface; }
     // Daemon accessor - guarantees access via singleton object
     FE_daemon& Daemon() { return m_daemon; }
     // PRNG accessor
     FE_prng& Prng() { return m_prng; }
+
+    // Remove an app object
+    void removeApp(std::shared_ptr<App> app);
+
     // Register a cleanup file
     void addFileCleanup(std::string const& file);
+
+    // tell all Apps to finalize their transfer Sessions
+    void finalize();
+
+    // Accessors
+
     // Get a list of default env vars to forward to BE daemon
     std::vector<std::string> getDefaultEnvVars();
-    // Accessors
     std::string getGlobalLdPreload() { return m_ld_preload; }
     std::string getCfgDir() { return m_cfg_dir; }
     std::string getBaseDir() { return m_base_dir; }
@@ -211,9 +215,6 @@ public: // Public interface to generic WLM-agnostic capabilities
     std::string getFEDaemonPath() { return m_fe_daemon_path; }
     std::string getBEDaemonPath() { return m_be_daemon_path; }
     const struct passwd& getPwd() { return m_pwd; }
-
-    // tell all Apps to finalize their transfer Sessions
-    void finalize();
 
 protected: // Constructor/destructors
     Frontend();
@@ -299,6 +300,10 @@ public: // impl.-specific interface that derived type must implement
 protected: // Protected data members that belong to any App
     // Reference to Frontend associated with App
     Frontend& m_frontend;
+
+    // Utilitiy registry and MPIR release if applicable
+    FE_daemon::DaemonAppId m_daemonAppId;
+
 private:
     // Apps have direct ownership of all Session objects underneath it
     std::unordered_set<std::shared_ptr<Session>> m_sessions;
@@ -329,16 +334,11 @@ public: // Public interface to generic WLM-agnostic capabilities
     std::string getBEDaemonName() const { return m_uniqueBEDaemonName; }
 
 public: // Constructor/destructors
-    App(Frontend& fe)
-        : m_frontend{fe}
-        , m_sessions{}
-        , m_uniqueBEDaemonName{CTI_BE_DAEMON_BINARY}
-    {
-        // Generate the unique BE daemon name
-        for (size_t i = 0; i < 6; i++) {
-            m_uniqueBEDaemonName.push_back(m_frontend.Prng().genChar());
-        }
-    }
+    App(Frontend& fe, FE_daemon::DaemonAppId daemonAppId);
+
+    // Forwarding constructor for WLM implementations that do not use MPIR
+    App(Frontend& fe);
+
     virtual ~App() = default;
     App(const App&) = delete;
     App& operator=(const App&) = delete;

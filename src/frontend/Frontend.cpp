@@ -282,6 +282,13 @@ Frontend::findBaseDir(void)
     return baseDir;
 }
 
+void
+Frontend::removeApp(std::shared_ptr<App> app)
+{
+    // drop the shared_ptr
+    m_apps.erase(app);
+}
+
 // BUG 819725:
 // create the hidden name for the cleanup file. This will be checked by future
 // runs to try assisting in cleanup if we get killed unexpectedly. This is cludge
@@ -1187,6 +1194,25 @@ Frontend::~Frontend()
     for (auto&& file : m_cleanup_files) {
         unlink(file.c_str());
     }
+}
+
+App::App(Frontend& fe, FE_daemon::DaemonAppId daemonAppId)
+    : m_frontend{fe}
+    , m_daemonAppId{daemonAppId}
+    , m_sessions{}
+    , m_uniqueBEDaemonName{CTI_BE_DAEMON_BINARY}
+{
+    // Generate the unique BE daemon name
+    for (size_t i = 0; i < 6; i++) {
+        m_uniqueBEDaemonName.push_back(m_frontend.Prng().genChar());
+    }
+}
+
+App::App(Frontend& fe)
+    : App{fe, -1}
+{
+    // Create new daemon app ID
+    m_daemonAppId = Frontend::inst().Daemon().request_RegisterApp();
 }
 
 std::weak_ptr<Session>

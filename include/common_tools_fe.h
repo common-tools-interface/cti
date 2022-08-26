@@ -318,16 +318,6 @@ int cti_appIsValid(cti_app_id_t app_id);
  *      with the app_id of the registered application. The app_id will no longer
  *      be valid for future use.
  *
- *      If the cti_launchApp or cti_launchAppBarrier functions were used to
- *      start the application, the caller must call cti_deregisterApp before
- *      exiting. Failing to do so will cause the application process to be
- *      force killed with SIGKILL.
- *
- *      Any tool daemons started on the compute nodes will continue executing
- *      after calling this function. If the tool daemons need to be killed,
- *      the cti_destroySession function needs to be called before calling this
- *      function.
- *
  * Arguments
  *      app_id - The cti_app_id_t of the previously registered application.
  *
@@ -336,6 +326,25 @@ int cti_appIsValid(cti_app_id_t app_id);
  *
  */
 void cti_deregisterApp(cti_app_id_t app_id);
+
+/*
+ * cti_releaseApp - Release the launched application from CTI control.
+ *                  Application will no longer be terminated once tool ends.
+ *
+ * Detail
+ *      If the cti_launchApp or cti_launchAppBarrier functions were used to
+ *      start the application, the caller must call cti_releaseApp before
+ *      exiting. Failing to do so will cause the application process to be
+ *      force killed with SIGKILL.
+ *
+ * Arguments
+ *      app_id - The cti_app_id_t of the previously registered application.
+ *
+ * Returns
+ *      Returns 0 upon success, 1 if failed to release application.
+ *
+ */
+int cti_releaseApp(cti_app_id_t app_id);
 
 /*
  * cti_getLauncherHostName - Returns the hostname of the login node where the
