@@ -602,8 +602,12 @@ static bool verify_MPIR_symbols(System const& system, WLM const& wlm, std::strin
     try {
         launcherPath = cti::findPath(launcherName);
     } catch (...) {
-        throw std::runtime_error(launcherName + " was not found in PATH. \
-(tried " + format_System_WLM(system, wlm) + ")");
+        throw std::runtime_error(launcherName + " was not found in PATH. "
+            "(tried " + format_System_WLM(system, wlm) + "). If your system is "
+            "not configured with this workload manager, try setting the environment "
+            "variable " CTI_WLM_IMPL_ENV_VAR " to one of 'slurm', 'pals', 'flux', or "
+            "'alps'. For more information, run `man cti` and review "
+            CTI_WLM_IMPL_ENV_VAR ".");
     }
 
     // Check that the launcher is a binary and not a script
@@ -908,42 +912,8 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
         // during construction, as it depends on Frontend state and will deadlock.
     }
 
-    // Run WLM detection heuristics that may depend on system type
-    switch (system) {
-
-    case System::Unknown:
-    case System::Linux:
-        if (detect_PALS(launcherName)) {
-            return WLM::PALS;
-        } else if (detect_Flux(launcherName)) {
-            return WLM::Flux;
-        } else {
-            return WLM::SSH;
-        }
-
-    case System::HPCM:
-        if (detect_PALS(launcherName)) {
-            return WLM::PALS;
-        } else if (detect_Slurm(launcherName)) {
-            return WLM::Slurm;
-        } else if (detect_Flux(launcherName)) {
-            return WLM::Flux;
-        } else {
-            return WLM::Unknown;
-        }
-
-    case System::Shasta:
-        if (detect_PALS(launcherName)) {
-            return WLM::PALS;
-        } else if (detect_Slurm(launcherName)) {
-            return WLM::Slurm;
-        } else if (detect_Flux(launcherName)) {
-            return WLM::Flux;
-        } else {
-            return WLM::Unknown;
-        }
-
-    case System::XC:
+    // Run XC WLM detection heuristics if detected XC
+    if (system == System::XC) {
         if (detect_Slurm(launcherName)) {
             return WLM::Slurm;
         } else if (detect_XC_ALPS(launcherName)) {
@@ -951,26 +921,22 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
         } else {
             return WLM::Unknown;
         }
-
-    case System::CS:
-        if (detect_Slurm(launcherName)) {
-            return WLM::Slurm;
-        } else {
-            return WLM::SSH;
-        }
-
-    default:
-        break;
     }
 
-    // Run WLM detection heuristics that do not depend on system type
-    if (detect_PALS(launcherName)) {
-        return WLM::PALS;
-    } else if (detect_Slurm(launcherName)) {
+    // Run general WLM detection heuristics
+    if (detect_Slurm(launcherName)) {
         return WLM::Slurm;
+
+    } else if (detect_PALS(launcherName)) {
+        return WLM::PALS;
+
+    } else if (detect_Flux(launcherName)) {
+        return WLM::Flux;
+
     }
 
-    return WLM::Unknown;
+    // Could not detect WLM, try SSH
+    return WLM::SSH;
 }
 
 static void verify_System_WLM_configured(System const& system, WLM const& wlm, std::string const& launcherName)
@@ -1112,6 +1078,7 @@ Frontend::inst()
     return *inst;
 }
 
+
 void
 Frontend::destroy() {
     // Use sequential consistency here
@@ -1125,7 +1092,6 @@ Frontend::destroy() {
                 // Ignore cleanup exceptions
             }
         }
-
         delete instance;
     }
 }
