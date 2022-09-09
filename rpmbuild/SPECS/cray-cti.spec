@@ -107,11 +107,6 @@
 %global OS_HW_TAG 7.0
 %global OS_WB_TAG sles15
 %endif
-%if 0%{?sle_version} == 150200
-%global dist .sles15sp2
-%global OS_HW_TAG 7.0
-%global OS_WB_TAG sles15
-%endif
 %if 0%{?sle_version} == 150300
 %global dist .sles15sp3
 %global OS_HW_TAG 7.0

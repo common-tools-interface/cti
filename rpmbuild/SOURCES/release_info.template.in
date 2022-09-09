@@ -74,7 +74,7 @@ Product and OS Dependencies:
     - HPE/Cray XC systems with CLE 7.0 or later
     - HPE/Cray CS systems with CentOS/RH 8.4 or later
     - HPE/Cray Shasta systems with SLES 15 service pack 2 or later
-    - HPE Apollo systems with Slurm and RH 8.4 or later
+    - HPE Apollo systems with Slurm and RH 8.6 or later
     - Baymax systems with RH 8.4 or later
 
   Product Dependencies:
