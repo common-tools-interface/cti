@@ -342,7 +342,11 @@ class CtiKillTest(Test):
         readVariablesFromEnv(self)
 
     def test(self):
-        process.run("%s/cti_kill %s %s/hello_mpi_wait"
+        # test with SIGTERM
+        process.run("%s/cti_kill %s %s/hello_mpi_wait 15"
+            % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
+        # test with SIGKILL
+        process.run("%s/cti_kill %s %s/hello_mpi_wait 9"
             % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
 
 '''

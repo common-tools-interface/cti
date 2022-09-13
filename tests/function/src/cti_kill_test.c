@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #include "common_tools_fe.h"
 #include "cti_fe_common.h"
@@ -39,7 +40,7 @@
 void
 usage(char *name)
 {
-    fprintf(stdout, "USAGE: %s [LAUNCHER STRING]\n", name);
+    fprintf(stdout, "USAGE: %s [LAUNCHER STRING] [SIGNAL]\n", name);
     fprintf(stdout, "Launch and then kill an application using the cti library\n");
     fprintf(stdout, "and print out information.\n");
     return;
@@ -72,7 +73,10 @@ main(int argc, char **argv)
     // call the common FE tests
     cti_test_fe(myapp);
 
-    r = cti_killApp(myapp, SIGTERM);
+    int signal = SIGTERM;
+    signal = atoi(argv[argc-1]);
+
+    r = cti_killApp(myapp, signal);
     if (r) {
         fprintf(stderr, "Error: cti_killApp failed!\n");
         fprintf(stderr, "CTI error: %s\n", cti_error_str());

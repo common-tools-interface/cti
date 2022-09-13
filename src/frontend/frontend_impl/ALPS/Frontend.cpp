@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <functional>
 #include <numeric>
+#include <filesystem>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -55,7 +56,7 @@
 
 #include "alps/apInfo.h"
 
-// Pull in manifest to properly define all the forward declarations
+#include "transfer/Session.hpp"
 #include "transfer/Manifest.hpp"
 
 #include "ALPS/Frontend.hpp"
@@ -354,21 +355,80 @@ struct OutputSupressor {
 void
 ALPSApp::kill(int signal)
 {
-    // create the args for apkill
-    auto const apid = std::to_string(m_alpsAppInfo->apid);
-    auto apkillArgv = cti::ManagedArgv {
-        APKILL // first argument should be "apkill"
-        , "-" + std::to_string(signal) // second argument is -signal
-        , apid // third argument is apid
-    };
+    // apkill will only deliver certain signals. If the requested signal is
+    // not supported, we have to launch /utilities/cti_send_signal_backend
+    // on the compute nodes.
+    //
+    // cti_send_signal_backend relies on the pmi_attribs file to find the pids
+    // it wants to send signals to. this file is never generated for non-mpi apps,
+    // so non-mpi apps can't receive non-apkill-supported signals.
+    // in that case, cti_send_signal_backend will just silently die.
 
-    // tell frontend daemon to launch scancel, wait for it to finish
-    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-        m_daemonAppId, APKILL, apkillArgv.get(),
-        -1, -1, -1,
-        nullptr)) {
-        throw std::runtime_error("failed to send signal to apid " + apid);
-    }
+    switch (signal) {
+        // signals supported by apkill, according to its man page
+        case SIGHUP:
+        case SIGINT:
+        case SIGQUIT:
+        case SIGTERM:
+        case SIGABRT:
+        case SIGUSR1:
+        case SIGUSR2:
+        case SIGURG:
+        case SIGWINCH: {
+            // create the args for apkill
+            auto const apid = std::to_string(m_alpsAppInfo->apid);
+            auto apkillArgv = cti::ManagedArgv {
+                APKILL // first argument should be "apkill"
+                , "-" + std::to_string(signal) // second argument is -signal
+                , apid // third argument is apid
+            };
+
+            // tell frontend daemon to launch scancel, wait for it to finish
+            if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+                m_daemonAppId, APKILL, apkillArgv.get(),
+                -1, -1, -1,
+                nullptr)) {
+                throw std::runtime_error("failed to send signal to apid " + apid);
+            }
+
+            break;
+        }
+
+        default: {
+            // use cti_send_signal_backend
+            if (signal <= 0 || signal > 64) {
+                throw std::runtime_error("Invalid signal");
+            }
+
+            // grab internal session
+            auto session = m_internalSession.lock();
+            if (!session) {
+                m_internalSession = createSession();
+                session = m_internalSession.lock();
+                if (!session) {
+                    throw std::runtime_error("Could not create internal session");
+                }
+            }
+
+            // find signal tool
+            auto tool_path = m_frontend.getBaseDir() + "/libexec/cti_send_signal_backend";
+
+            // add signal tool to session
+            auto manif = session->createManifest().lock();
+            if (!manif) {
+                throw std::runtime_error("Could not create manifest");
+            }
+
+            // execute signal tool on nodes
+            auto signal_string = std::to_string(signal);
+            const char* argv[] = {signal_string.c_str(), nullptr};
+
+            // cleans up manif
+            manif->execManifest(tool_path.c_str(), argv, nullptr);
+
+            break;
+        }
+    };
 }
 
 static constexpr auto LAUNCH_TOOL_RETRY = 5;
