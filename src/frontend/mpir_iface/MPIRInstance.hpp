@@ -77,6 +77,9 @@ public: // interface
 
     /* memory access */
 
+    // read bytes starting at symbol
+    void readAt(std::string const& symName, char* buf, size_t len);
+
     // read c-string at address
     std::string readStringAt(Address strAddress);
 

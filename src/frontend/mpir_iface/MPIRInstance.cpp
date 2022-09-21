@@ -139,6 +139,11 @@ static T readArrayElem(Inferior& inf, std::string const& symName, size_t idx) {
     return inf.readMemory<T>(elem_addr);
 }
 
+void MPIRInstance::readAt(std::string const& symName, char* buf, size_t len)
+{
+    m_inferior.readToBuf(buf, symName, len);
+}
+
 std::string MPIRInstance::readStringAt(MPIRInstance::Address strAddress) {
     /* read string */
     std::string result;

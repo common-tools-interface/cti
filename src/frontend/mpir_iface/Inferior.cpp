@@ -97,6 +97,12 @@ static auto find_module_base(Dyninst::ProcControlAPI::Process const& proc)
     //   returns address 0x0. As the symbol table has already been fixed using the
     //   proper base address in this case, a 0x0 base address is correct.
     for (auto&& lib : proc.libraries()) {
+        if (lib == nullptr) {
+            log("Dyninst returned a null library pointer\n");
+            continue;
+        }
+
+        log("Reading library %p\n", lib);
         if (!lib->isSharedLib()) {
             return lib->getLoadAddress();
         }
@@ -122,18 +128,23 @@ Inferior::Inferior(std::string const& launcher,
     : m_followForkMode{disableGlobalFollowFork()}
     , m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
     , m_symbols{}
-    , m_proc{Process::createProcess(launcher, launcherArgv, envVars, remapFds)}
-    , m_module_base{find_module_base(*m_proc)}
+    , m_proc{}
+    , m_module_base{}
 {
+    log("Starting %s\n", launcher.c_str());
+    m_proc = Process::createProcess(launcher, launcherArgv, envVars, remapFds);
+    if (!m_proc) {
+        throw std::runtime_error("failed to start launcher");
+    }
+
+    m_module_base = find_module_base(*m_proc);
+
     if (m_followForkMode != FollowFork::DisableBreakpointsDetach) {
         throw std::runtime_error("failed to disable ProcessControl follow-fork mode");
     }
 
-    if (!m_proc) {
-        throw std::runtime_error("failed to launch " + launcher);
-    }
-
     /* prepare breakpoint callback */
+    log("Setting event breakpoint handler\n");
     Process::registerEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 }
 
@@ -158,18 +169,23 @@ Inferior::Inferior(std::string const& launcher, pid_t pid)
     : m_followForkMode{disableGlobalFollowFork()}
     , m_symtab{make_Symtab(launcher), Symtab::closeSymtab}
     , m_symbols{}
-    , m_proc(Process::attachProcess(pid, {}))
-    , m_module_base{find_module_base(*m_proc)}
+    , m_proc{}
+    , m_module_base{}
 {
+    log("Attaching to pid %d\n", pid);
+    m_proc = Process::attachProcess(pid, {});
+    if (!m_proc) {
+        throw std::runtime_error("Failed to attach to PID " + std::to_string(pid));
+    }
+
+    m_module_base = find_module_base(*m_proc);
+
     if (m_followForkMode != FollowFork::DisableBreakpointsDetach) {
         throw std::runtime_error("failed to disable ProcessControl follow-fork mode");
     }
 
-    if (!m_proc) {
-        throw std::runtime_error("failed to attach to PID " + std::to_string(pid));
-    }
-
     /* prepare breakpoint callback */
+    log("Setting event breakpoint handler\n");
     Process::registerEventCallback(Dyninst::ProcControlAPI::EventType::Breakpoint, stop_on_breakpoint);
 }
 
@@ -183,24 +199,6 @@ Inferior::~Inferior() {
 
 pid_t Inferior::getPid() {
     return m_proc->getPid();
-}
-
-/* memory read / write base implementations */
-void Inferior::writeFromBuf(Address destAddr, const char* buf, size_t len) {
-    Dyninst::ProcControlAPI::clearLastError();
-    if (!m_proc->writeMemory(destAddr, buf, len)) {
-        throw std::runtime_error("write of " + std::to_string(len) + " bytes failed: "
-            + std::to_string(Dyninst::ProcControlAPI::getLastError()));
-    }
-}
-void Inferior::writeFromBuf(std::string const& destName, const char* buf, size_t len) {
-    writeFromBuf(getAddress(destName), buf, len);
-}
-void Inferior::readToBuf(char* buf, Address sourceAddr, size_t len) {
-    m_proc->readMemory(buf, sourceAddr, len);
-}
-void Inferior::readToBuf(char* buf, std::string const& sourceName, size_t len) {
-    readToBuf(buf, getAddress(sourceName), len);
 }
 
 /* symbol / breakpoint manipulation */
@@ -219,6 +217,24 @@ void Inferior::terminate() {
         ::kill(pid, SIGTERM);
         cti::waitpid(pid, nullptr, 0);
     }
+}
+
+/* memory read / write base implementations */
+void Inferior::writeFromBuf(Address destAddr, const char* buf, size_t len) {
+    Dyninst::ProcControlAPI::clearLastError();
+    if (!m_proc->writeMemory(destAddr, buf, len)) {
+        throw std::runtime_error("write of " + std::to_string(len) + " bytes failed: "
+            + std::to_string(Dyninst::ProcControlAPI::getLastError()));
+    }
+}
+void Inferior::writeFromBuf(std::string const& destName, const char* buf, size_t len) {
+    writeFromBuf(getAddress(destName), buf, len);
+}
+void Inferior::readToBuf(char* buf, Address sourceAddr, size_t len) {
+    m_proc->readMemory(buf, sourceAddr, len);
+}
+void Inferior::readToBuf(char* buf, std::string const& sourceName, size_t len) {
+    readToBuf(buf, getAddress(sourceName), len);
 }
 
 void Inferior::addSymbol(std::string const& symName) {
