@@ -663,11 +663,48 @@ PALSApp::getLauncherHostname() const
 bool
 PALSApp::isRunning() const
 {
+    // Run palstat to query job with apid
     auto palstatArgv = cti::ManagedArgv{"palstat", "-n", m_execHost, m_apId};
-    return m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-        m_daemonAppId, "palstat", palstatArgv.get(),
-        FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
-        nullptr);
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Start parsing palstat output
+    auto& palstatStream = palstatOutput.stream();
+    auto palstatLine = std::string{};
+
+    // APID / JobID lines are in the format `Var: Val`
+    // APID appears before JobID
+    auto running = false;
+    while (std::getline(palstatStream, palstatLine)) {
+
+        // Split line on ': '
+        auto const var_end = palstatLine.find(": ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
+        auto const val = palstatLine.substr(var_end + 2);
+        if (var == "State") {
+            auto appState = cti::split::removeLeadingWhitespace(std::move(val));
+
+            // Running / launched states
+            if ((appState == "pending") || (appState == "startup")
+             || (appState == "running")) {
+                running = true;
+                break;
+            }
+        }
+    }
+
+    // Consume rest of stream output
+    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for completion and check exit status
+    if (auto const palstat_rc = palstatOutput.getExitStatus()) {
+        running = false;
+    }
+
+    return running;
 }
 
 size_t
