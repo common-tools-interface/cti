@@ -173,6 +173,15 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
 #define PALS_BE_LIB_DEFAULT_PATH "/opt/cray/pe/pals/default/lib" // Location of default PALS library
 #define PALS_EXEC_HOST "CTI_PALS_EXEC_HOST" // To use PALS application ID for attaching outside of job's PBS allocation
+// In PALS 1.2.3, there is a race condition between the tool launcher
+// releasing a job from the startup barrier and the job actually getting to the
+// startup barrier. This can result in the job receiving the startup barrier
+// release signal before it actually arrives there, resulting in the job getting
+// stuck in the barrier. As a workaround, this environment variable can be set
+// to add a delay between job startup and barrier release. If set to a positve
+// integer n, CTI will wait n seconds between starting a job and releasing it
+// from the barrier on PALS. A delay as small as one second can work.
+#define PALS_BARRIER_RELEASE_DELAY "CTI_PALS_BARRIER_RELEASE_DELAY"
 
 /*******************************************************************************
 ** Flux specific information

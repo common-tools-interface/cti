@@ -763,6 +763,20 @@ PALSApp::releaseBarrier()
         throw std::runtime_error("application is not at startup barrier");
     }
 
+    // XXX: Workaround for PE-43365. In PALS 1.2.3, there is a race condition
+    // bug in mpiexec/pals where the launched app can get a SIGCONT before it
+    // actually reaches the startup barrier. This results in the app getting
+    // stuck in the barrier forever.
+    if (auto* releaseDelay = ::getenv(PALS_BARRIER_RELEASE_DELAY)) {
+        if (auto seconds = strtol(releaseDelay, nullptr, 10); seconds > 0) {
+            Frontend::inst().writeLog(
+                PALS_BARRIER_RELEASE_DELAY
+                " detected, waiting %d seconds before release.\n",
+                seconds);
+            sleep(seconds);
+        }
+    }
+
     m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
     m_atBarrier = false;
 }

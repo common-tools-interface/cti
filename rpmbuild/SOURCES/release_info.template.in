@@ -17,6 +17,18 @@ Product Description:
 Changelog:
 ---------
 [ MANUAL_RELEASE_HISTORY ]
+NOTE:
+Race condition workaround for PALS 1.2.3 in CTI 2.17.0 (22.11)
+
+In PALS 1.2.3, there is a race condition between the tool launcher releasing a
+job from the startup barrier and the job actually getting to the startup
+barrier. This can result in the job receiving the startup barrier release
+signal before it actually arrives there, resulting in the job getting stuck
+in the barrier. As a workaround, the environment variable CTI_PALS_BARRIER_RELEASE_DELAY
+can be set to add a delay between job startup and barrier release. If set to a
+positve integer n, CTI will wait n seconds between starting a job and releasing
+it from the barrier on PALS. A delay as small as one second works in most cases.
+
 [ AUTO_RELEASE_HISTORY ]
 
 =======================================================================
