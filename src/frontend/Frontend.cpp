@@ -1162,6 +1162,71 @@ Frontend::~Frontend()
     }
 }
 
+cti_symbol_result_t Frontend::containsSymbols(std::string const& binaryPath,
+    std::unordered_set<std::string> const& symbols, cti_symbol_query_t query) const
+{
+    // Check file exists
+    struct stat buf = {};
+    if (::stat(binaryPath.c_str(), &buf) < 0) {
+        throw std::runtime_error("no file found at " + binaryPath);
+    }
+
+    // Check file executable
+    if (!(buf.st_mode & S_IXUSR)) {
+        throw std::runtime_error(binaryPath + " is not executable");
+    }
+
+    // Use nm to list symbols
+    auto result = CTI_SYMBOLS_NO;
+    char const* nm_argv[] = {"nm", binaryPath.c_str(), nullptr};
+    auto nmOutput = cti::Execvp{"nm", (char* const*)nm_argv, cti::Execvp::stderr::Ignore};
+    auto& nmStream = nmOutput.stream();
+    auto nmLine = std::string{};
+
+    if (query == CTI_SYMBOLS_ANY) {
+
+        // Determine if any symbols match provided
+        while (std::getline(nmStream, nmLine)) {
+            nmLine = cti::split::removeLeadingWhitespace(std::move(nmLine));
+            auto [addr, label, symbol] = cti::split::string<3>(nmLine, ' ');
+
+            // Undefined symbols won't have an address
+            if (symbol.empty()) {
+                symbol = label;
+            }
+
+            if (symbols.count(symbol) > 0) {
+                result = CTI_SYMBOLS_YES;
+                break;
+            }
+        }
+
+    } else if (query == CTI_SYMBOLS_ALL) {
+        auto remainingSymbols = symbols;
+
+        // Determine if all symbols match provided
+        while (std::getline(nmStream, nmLine)) {
+            auto [addr, label, symbol] = cti::split::string<3>(nmLine, ' ');
+            auto symbolIter = remainingSymbols.find(symbol);
+            if (symbolIter != remainingSymbols.end()) {
+                remainingSymbols.erase(symbolIter);
+            }
+
+            // Exit if found all
+            if (remainingSymbols.empty()) {
+                result = CTI_SYMBOLS_YES;
+                break;
+            }
+        }
+    }
+
+    // Wait for nm exit
+    nmStream.ignore(std::numeric_limits<std::streamsize>::max());
+    (void)nmOutput.getExitStatus();
+
+    return result;
+}
+
 App::App(Frontend& fe, FE_daemon::DaemonAppId daemonAppId)
     : m_frontend{fe}
     , m_daemonAppId{daemonAppId}

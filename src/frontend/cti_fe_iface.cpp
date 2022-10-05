@@ -1141,3 +1141,17 @@ cti_getAttribute(cti_attr_type_t attrib)
         return (const char *)nullptr;
     }, (const char*)nullptr);
 }
+
+cti_symbol_result_t
+cti_containsSymbols(char const* binary_path, char const* const* symbols,
+    cti_symbol_query_t query)
+{
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        auto symbolsSet = std::unordered_set<std::string>{};
+        for (auto symbol = symbols; *symbol != nullptr; symbol++) {
+            symbolsSet.emplace(*symbol);
+        }
+        return fe.containsSymbols(binary_path, symbolsSet, query);
+    }, CTI_SYMBOLS_ERROR);
+}

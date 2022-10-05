@@ -206,6 +206,27 @@ requested attribute.
 See **common_tools_fe.h** for a full accounting of available
 attribute options.
 
+**cti_symbol_result_t cti_containsSymbols(char const* binary_path, char const* const* symbols, cti_symbol_query_t query)**
+
+- **binary_path**: Path to the target binary
+- **symbols**: NULL-terminated list of symbols to search
+- **query**: Select whether to search all or any of the provided symbols
+
+Some workload managers such as PALS rely on MPI_Init for proper barrier
+function. This function can be used to check for the presence of MPI_init
+in the target binary if barrier support is required.
+
+**cti_symbol_result_t** is an enum with the following values:
+
+- **CTI_SYMBOLS_YES**: Binary symbol search succeeded
+- **CTI_SYMBOLS_NO**: Binary symbol search failed
+- **CTI_SYMBOLS_ERROR**: Error finding binary symbols, error is available in cti_error_str()
+
+**cti_symbol_query_t** is an enum with the following values:
+
+- **CTI_SYMBOLS_ALL**: Succeed if all of the provided symbols are found
+- **CTI_SYMBOLS_ANY**: Succeed if any of the provided symbols are found
+
 # Applications
 
 To use the majority of CTI functionality, a tool developer must first

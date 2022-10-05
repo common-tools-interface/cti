@@ -255,6 +255,38 @@ current value.
 requested attribute.
 See \f[B]common_tools_fe.h\f[R] for a full accounting of available
 attribute options.
+.PP
+\f[B]cti_symbol_result_t cti_containsSymbols(char const* binary_path,
+char const* const* symbols, cti_symbol_query_t query)\f[R]
+.IP \[bu] 2
+\f[B]binary_path\f[R]: Path to the target binary
+.IP \[bu] 2
+\f[B]symbols\f[R]: NULL-terminated list of symbols to search
+.IP \[bu] 2
+\f[B]query\f[R]: Select whether to search all or any of the provided
+symbols
+.PP
+Some workload managers such as PALS rely on MPI_Init for proper barrier
+function.
+This function can be used to check for the presence of MPI_init in the
+target binary if barrier support is required.
+.PP
+\f[B]cti_symbol_result_t\f[R] is an enum with the following values:
+.IP \[bu] 2
+\f[B]CTI_SYMBOLS_YES\f[R]: Binary symbol search succeeded
+.IP \[bu] 2
+\f[B]CTI_SYMBOLS_NO\f[R]: Binary symbol search failed
+.IP \[bu] 2
+\f[B]CTI_SYMBOLS_ERROR\f[R]: Error finding binary symbols, error is
+available in cti_error_str()
+.PP
+\f[B]cti_symbol_query_t\f[R] is an enum with the following values:
+.IP \[bu] 2
+\f[B]CTI_SYMBOLS_ALL\f[R]: Succeed if all of the provided symbols are
+found
+.IP \[bu] 2
+\f[B]CTI_SYMBOLS_ANY\f[R]: Succeed if any of the provided symbols are
+found
 .SH Applications
 .PP
 To use the majority of CTI functionality, a tool developer must first

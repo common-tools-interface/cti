@@ -1486,6 +1486,38 @@ char * cti_getSessionFileDir(cti_session_id_t sid);
  */
 char * cti_getSessionTmpDir(cti_session_id_t sid);
 
+typedef enum
+    { CTI_SYMBOLS_YES = 0 // Binary symbol search succeeded
+    , CTI_SYMBOLS_NO = 1 // Binary symbol search failed
+    , CTI_SYMBOLS_ERROR = 2 // Error available in cti_error_str()
+} cti_symbol_result_t;
+
+typedef enum
+    { CTI_SYMBOLS_ALL = 0 // Succeed if all of the provided symbols are found
+    , CTI_SYMBOLS_ANY = 1 // Succeed if any of the provided symbols are found
+} cti_symbol_query_t;
+
+/*
+ * cti_containsSymbols - Determine if binary contains at least one of the provided symbols
+ *
+ * Detail
+ *      Some workload managers such as PALS rely on MPI_Init for proper barrier
+ *      function. This function can be used to check for the presence of MPI_init
+ *      in the target binary if barrier support is required.
+ *
+ * Arguments
+ *      binary_path - Path to the target binary
+ *      symbols - NULL-terminated list of symbols to search
+ *      query - cti_symbol_query_t to select behavior of symbol search
+ *
+ * Returns
+ *      Enum of type cti_symbol_result_t.
+ *
+ */
+cti_symbol_result_t
+cti_containsSymbols(char const* binary_path, char const* const* symbols,
+    cti_symbol_query_t query);
+
 #ifdef __cplusplus
 }
 #endif

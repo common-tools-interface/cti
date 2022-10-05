@@ -45,6 +45,14 @@ using ::testing::_;
 using ::testing::Invoke;
 using ::testing::WithoutArgs;
 
+static std::string getCtiError()
+{
+    if (cti_error_str()) {
+        return cti_error_str();
+    }
+    return "(no CTI error)";
+}
+
 CTIFEUnitTest::CTIFEUnitTest()
 {
     // manually set the frontend to the custom mock frontend
@@ -147,6 +155,46 @@ TEST_F(CTIFEUnitTest, SetAttribute)
 {
     // run the test
     ASSERT_EQ(cti_setAttribute(CTI_ATTR_STAGE_DEPENDENCIES, "1"), SUCCESS);
+}
+
+TEST_F(CTIFEUnitTest, ContainsSymbols)
+{
+    { char const* symbols[] = {"main", "_start", nullptr};
+        EXPECT_EQ(cti_containsSymbols("nonexistent", symbols, CTI_SYMBOLS_ALL),
+            CTI_SYMBOLS_ERROR);
+    }
+
+    { char const* symbols[] = {"main", "_start", nullptr};
+        EXPECT_EQ(cti_containsSymbols("./unit_tests.cpp", symbols, CTI_SYMBOLS_ALL),
+            CTI_SYMBOLS_ERROR);
+    }
+
+    auto binary_path = "../test_support/one_socket";
+
+    { char const* symbols[] = {"main", "_start", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ALL), CTI_SYMBOLS_YES)
+            << getCtiError();
+    }
+
+    { char const* symbols[] = {"main", "_start", "nonexistent", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ALL), CTI_SYMBOLS_NO)
+            << getCtiError();
+    }
+
+    { char const* symbols[] = {"main", "_start", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ANY), CTI_SYMBOLS_YES)
+            << getCtiError();
+    }
+
+    { char const* symbols[] = {"main", "_start", "nonexistent", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ANY), CTI_SYMBOLS_YES)
+            << getCtiError();
+    }
+
+    { char const* symbols[] = {"nonexistent", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ANY), CTI_SYMBOLS_NO)
+            << getCtiError();
+    }
 }
 
 /* running app information query tests */

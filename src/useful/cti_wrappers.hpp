@@ -511,8 +511,14 @@ waitpid(pid_t pid, int* status, int options)
 {
     while (true) {
         auto const rc = ::waitpid(pid, status, options);
-        if ((rc < 0) && (errno == EINTR)) {
-            continue;
+        if (rc < 0) {
+			if (errno == EINTR) {
+	            continue;
+			} else if (errno == ECHILD) {
+				return pid;
+			} else {
+				return rc;
+			}
         } else {
             return rc;
         }

@@ -216,6 +216,9 @@ public: // Public interface to generic WLM-agnostic capabilities
     std::string getBEDaemonPath() { return m_be_daemon_path; }
     const struct passwd& getPwd() { return m_pwd; }
 
+    cti_symbol_result_t containsSymbols(std::string const& binaryPath,
+        std::unordered_set<std::string> const& symbols, cti_symbol_query_t query) const;
+
 protected: // Constructor/destructors
     Frontend();
 public:

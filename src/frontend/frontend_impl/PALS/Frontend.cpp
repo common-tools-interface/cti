@@ -786,7 +786,13 @@ PALSApp::shipPackage(std::string const& tarPath) const
 {
     auto const destinationName = cti::cstr::basename(tarPath);
 
-    auto palscpArgv = cti::ManagedArgv{"palscp", "-L", m_execHost,
+    // Create host list argument
+    auto allHosts = std::stringstream{};
+    for (auto&& host : m_hosts) {
+        allHosts << host << ",";
+    }
+
+    auto palscpArgv = cti::ManagedArgv{"palscp", "-L", allHosts.str().c_str(),
         "-f", tarPath, "-d", destinationName, m_apId};
 
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
