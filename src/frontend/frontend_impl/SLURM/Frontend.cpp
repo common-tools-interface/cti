@@ -258,11 +258,16 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     auto packageName = cti::cstr::basename(tarPath);
     sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName);
 
+    // Add environment setting to disable library detection
+    // Sbcast starting in Slurm 22.05 will fail to ship non-executable if site enables
+    // send-libs in global configuration (SchedMD bug 15132)
+    char const* sbcast_env[] = {"SBCAST_SEND_LIBS=no", nullptr};
+
     // now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
     (void)m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, SBCAST, sbcastArgv.get(),
         -1, -1, -1,
-        nullptr);
+        sbcast_env);
 
     // call to request_ForkExecvpUtil_Sync will wait until the sbcast finishes
     // FIXME: There is no way to error check right now because the sbcast command
