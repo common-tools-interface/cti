@@ -3,7 +3,7 @@
  *                     the common tools interface. Frontend refers to the
  *                     location where applications are launched.
  *
- * Copyright 2011-2021 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -633,7 +633,7 @@ cti_app_id_t cti_launchApp_fd( const char * const  launcher_argv[],
  *
  * Detail
  *      This function will launch and hold an application at its startup barrier
- *      until cti_launchAppBarrier is called with the app_id returned by this
+ *      until cti_releaseAppBarrier is called with the app_id returned by this
  *      call. If the application is not using a programming model like MPI/SHMEM
  *      /UPC/CAF, the application will not be held at the startup barrier and
  *      this function should not be used. Use cti_launchApp instead.
