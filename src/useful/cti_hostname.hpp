@@ -75,45 +75,13 @@ detectFrontendHostname()
         return std::string{ip_addr};
     };
 
-    // Get the hostname of the interface that is accessible from compute nodes
-    // Behavior changes based on XC / Shasta UAI+UAN
-    auto detectAddress = [&make_addrinfo, &resolveHostname]() {
-        // Shasta UAN xname file
-        try {
-            // Try to extract the hostname from the xname file path
-            std::string xnameString;
-            if (std::getline(std::ifstream{CRAY_SHASTA_UAN_XNAME_FILE}, xnameString)) {
-                return xnameString;
-            }
-        } catch (std::exception const& ex) {
-            // continue processing
-        }
-
-        // On Shasta UAI, look up and return IPv4 address instead of hostname
-        // UAI hostnames cannot be resolved on compute node
-        // FIXME: PE-26874 change this once DNS support is added
-        auto const hostname = cti::cstr::gethostname();
-        try {
-            // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
-            // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
-            // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
-            auto const macVlanHostname = hostname + "-nmn";
-            auto info = make_addrinfo(macVlanHostname);
-            // FIXME: Remove this when PE-26874 is fixed
-            auto macVlanIPAddress = resolveHostname(*info);
-            return macVlanIPAddress;
-        }
-        catch (std::exception const& ex) {
-            // continue processing
-        }
-        // Try using normal hostname
+    // Look up and resolve hostname
+    static auto _address = [&make_addrinfo, &resolveHostname]() {
+        auto hostname = cti::cstr::gethostname();
         auto info = make_addrinfo(hostname);
-        return hostname;
-    };
-
-    // Cache the hostname result.
-    static auto hostname = detectAddress();
-    return hostname;
+        return resolveHostname(*info);
+    }();
+    return _address;
 }
 
 static inline std::string
