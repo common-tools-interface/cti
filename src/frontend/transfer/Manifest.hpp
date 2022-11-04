@@ -42,7 +42,7 @@
 #include <unordered_set>
 #include <set>
 using FoldersMap = std::map<std::string, std::set<std::string>>;
-using PathMap = std::unordered_map<std::string, std::string>;
+using PathMap = std::map<std::string, std::string>;
 using FolderFilePair = std::pair<std::string, std::string>;
 
 // Forward declarations

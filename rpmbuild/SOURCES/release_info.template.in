@@ -17,6 +17,12 @@ Product Description:
 Changelog:
 ---------
 [ MANUAL_RELEASE_HISTORY ]
+CTI 2.17.1 (PE 22.12) contains a new feature, file deduplication, for
+Slurm and PALS workload managers. If enabled, CTI will run a check on
+compute nodes to determine if files can be excluded from the shipped
+package. This can significantly improve application startup time.
+To enable, set the environment variable CTI_DEDUPLICATE_FILES=1.
+
 NOTE:
 Race condition workaround for PALS 1.2.3 in CTI 2.17.0 (22.11)
 

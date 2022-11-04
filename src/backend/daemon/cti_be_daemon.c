@@ -65,6 +65,7 @@ const struct option long_opts[] = {
             {"clean",       no_argument,        0, 'c'},
             {"directory",   required_argument,  0, 'd'},
             {"env",         required_argument,  0, 'e'},
+            {"file",        required_argument,  0, 'f'},
             {"inst",        required_argument,  0, 'i'},
             {"manifest",    required_argument,  0, 'm'},
             {"path",        required_argument,  0, 'p'},
@@ -125,6 +126,8 @@ usage(void)
     fprintf(stdout, "\t-e, --env       Specify an environment variable to set\n");
     fprintf(stdout, "\t                The argument provided to this option must be issued\n");
     fprintf(stdout, "\t                with var=val, for example: -e myVar=myVal\n");
+    fprintf(stdout, "\t-f, --file      If this file exists on the node, its path will be\n");
+    fprintf(stdout, "\t                printed to stdout\n");
     fprintf(stdout, "\t-i, --inst      Instance of tool daemon. Used in conjunction with sessions\n");
     fprintf(stdout, "\t-m, --manifest  Manifest tarball to extract/set as CWD if -d omitted\n");
     fprintf(stdout, "\t-p, --path      PWD path where tool daemon should be started\n");
@@ -272,6 +275,7 @@ main(int argc, char **argv)
     struct archive *        ext;
     struct archive_entry *  entry;
     char *                  cwd;
+    int file_check_mode = 0;
 
     // we require at least 1 argument beyond argv[0]
     if (argc < 2)
@@ -363,6 +367,13 @@ main(int argc, char **argv)
 
                 break;
 
+            case 'f':
+                if (access(optarg, F_OK) == 0) {
+                    fprintf(stdout, "%s\n", optarg);
+                }
+                file_check_mode = 1;
+                break;
+
             case 'i':
                 // This is our instance number. We need to wait for all those
                 // before us to finish their work before proceeding.
@@ -433,6 +444,12 @@ main(int argc, char **argv)
                 usage();
                 return 1;
         }
+    }
+
+    // If started in file check mode, don't start daemon
+    if (file_check_mode) {
+        fprintf(stdout, "\n");
+        return 0;
     }
 
     // Start becoming a daemon

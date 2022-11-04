@@ -91,6 +91,11 @@ environment variable to the desired address.
 Ensure that the address can be reached from your system\[cq]s compute
 nodes.
 .IP \[bu] 2
+\f[I]CTI_FILE_DEDUPLICATION\f[R]: CTI can launch a remote check on
+compute nodes to determine whether tool files need to be shipped.
+To enable this check, set \f[B]CTI_FILE_DEDUPLICATION=1\f[R].
+File ship times are likely to decrease if enabled.
+.IP \[bu] 2
 \f[I]CTI_LAUNCHER_WRAPPER\f[R]: Slurm jobs may be launched under the
 control of wrapper utilities, for example the library-loading utility
 Spindle.

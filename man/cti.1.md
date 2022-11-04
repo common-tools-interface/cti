@@ -75,6 +75,11 @@ environment variables for different system workload managers.
   variable to the desired address. Ensure that the address can be reached
   from your system's compute nodes.
 
+- *CTI_FILE_DEDUPLICATION*: CTI can launch a remote check on compute nodes
+  to determine whether tool files need to be shipped. To enable this check,
+  set **CTI_FILE_DEDUPLICATION=1**. File ship times are likely to decrease
+  if enabled.
+
 - *CTI_LAUNCHER_WRAPPER*: Slurm jobs may be launched under the control of
   wrapper utilities, for example the library-loading utility Spindle. To start
   a Slurm job under a specific launcher wrapper, set this variable to the utility command.

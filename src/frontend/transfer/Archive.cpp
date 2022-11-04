@@ -161,6 +161,16 @@ void Archive::addPath(const std::string& entryPath, const std::string& path) {
     }
 }
 
+void Archive::addLink(std::string const& entryPath, std::string const& dest)
+{
+    auto& entryPtr = freshEntry();
+    archive_entry_set_pathname(entryPtr.get(), entryPath.c_str());
+    archive_entry_set_filetype(entryPtr.get(), AE_IFLNK);
+    archive_entry_set_perm(entryPtr.get(), 0755);
+    archive_entry_set_symlink(entryPtr.get(), dest.c_str());
+    archiveWriteRetry(m_archPtr.get(), entryPtr.get());
+}
+
 Archive::Archive(const std::string& archivePath)
     : m_archPtr{archive_write_new(), archive_write_free}
     , m_entryScratchpad{archive_entry_new(), archive_entry_free}

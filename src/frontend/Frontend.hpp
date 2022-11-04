@@ -36,6 +36,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <set>
 #include <unordered_set>
 #include <map>
 #include <vector>
@@ -299,6 +300,12 @@ public: // impl.-specific interface that derived type must implement
 
     // start backend tool daemon
     virtual void startDaemon(CArgArray argv) = 0;
+
+    // Return which file paths exist on all backends
+    virtual std::set<std::string> checkFilesExist(std::set<std::string> const& paths) {
+        // WLMs that are capable of checking this will override and return which paths exist
+        return {};
+    }
 
 protected: // Protected data members that belong to any App
     // Reference to Frontend associated with App

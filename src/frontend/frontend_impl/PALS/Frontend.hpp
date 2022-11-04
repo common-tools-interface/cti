@@ -131,4 +131,5 @@ public:
     void kill(int signal) override;
     void shipPackage(std::string const& tarPath) const override;
     void startDaemon(const char* const args[]) override;
+    std::set<std::string> checkFilesExist(std::set<std::string> const& paths) override;
 };

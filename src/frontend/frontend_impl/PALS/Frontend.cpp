@@ -872,6 +872,65 @@ PALSApp::startDaemon(const char* const args[])
     }
 }
 
+std::set<std::string>
+PALSApp::checkFilesExist(std::set<std::string> const& paths)
+{
+    auto result = std::set<std::string>{};
+
+    // Create arguments for file check launch
+    auto num_nodes = m_hosts.size();
+
+    auto mpiexecArgv = cti::ManagedArgv{
+        "mpiexec", "--mem-bind=none", "--ppn=1", "-n", std::to_string(num_nodes),
+
+        // This is a new PALS application running outside the context of the original,
+        // so it doesn't have access to daemons that were already shipped. However, mpiexec
+        // will ship it automatically during launch.
+        m_frontend.getBEDaemonPath()
+    };
+    for (auto&& path : paths) {
+        mpiexecArgv.add("--file=" + path);
+    }
+
+    auto stdoutPipe = cti::Pipe{};
+
+    // Tell FE Daemon to launch mpiexec
+    m_frontend.Daemon().request_ForkExecvpUtil_Async(
+        m_daemonAppId, "mpiexec",
+        mpiexecArgv.get(),
+        // redirect stdin / stderr / stdout
+        ::open("/dev/null", O_RDONLY), stdoutPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
+        {});
+
+    stdoutPipe.closeWrite();
+    auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
+    auto stdoutStream = std::istream{&stdoutBuf};
+
+    // Track number of present files
+    auto pathCountMap = std::map<std::string, size_t>{};
+
+    // Read out all paths from daemon
+    auto exit_count = num_nodes;
+    auto line = std::string{};
+    while ((exit_count > 0) && std::getline(stdoutStream, line)) {
+
+        // Daemons will print an empty line when output is completed
+        if (line.empty()) {
+            exit_count--;
+
+        // Received path from daemon
+        } else {
+
+            // Increment count for path and add to duplicate list if all nodes have file
+            if (++pathCountMap[line] == num_nodes) {
+                result.emplace(std::move(line));
+            }
+        }
+    }
+
+    return result;
+}
+
 void PALSApp::kill(int signum)
 {
     // create the args for palsig

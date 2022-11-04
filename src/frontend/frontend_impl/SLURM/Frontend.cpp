@@ -226,6 +226,72 @@ SLURMApp::redirectOutput(int stdoutFd, int stderrFd)
         nullptr);
 }
 
+void
+SLURMApp::shipDaemon()
+{
+    // Get the location of the backend daemon
+    if (m_frontend.getBEDaemonPath().empty()) {
+        throw std::runtime_error("Unable to locate backend daemon binary. Load the \
+system default CTI module with `module load cray-cti`, or set the \
+environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
+    }
+
+    // Copy the BE binary to its unique storage name
+    auto const sourcePath = m_frontend.getBEDaemonPath();
+    auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
+
+    // Create the args for copy
+    auto copyArgv = cti::ManagedArgv {
+        "cp", sourcePath.c_str(), destinationPath.c_str()
+    };
+
+    // Run copy command
+    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+        m_daemonAppId, "cp", copyArgv.get(),
+        -1, -1, -1,
+        nullptr)) {
+        throw std::runtime_error("failed to copy " + sourcePath + " to " + destinationPath);
+    }
+
+    // Ship the unique backend daemon
+    shipPackage(destinationPath);
+    // set transfer to true
+    m_beDaemonSent = true;
+}
+
+cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv()
+{
+    // Start adding the args to the launcher argv array
+    //
+    // This corresponds to:
+    //
+    // srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
+    // --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
+    // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
+    // --input=none --output=none --error=none <tool daemon> <args>
+    //
+    auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
+    auto launcherArgv = cti::ManagedArgv {
+        slurmFrontend.getLauncherName()
+        , "--jobid=" + std::to_string(m_jobId)
+        , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
+    };
+    for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
+        launcherArgv.add(arg);
+    }
+
+    // create the hostlist by concatenating all hostnames
+    auto hostlist = std::string{};
+    bool firstHost = true;
+    for (auto const& node : m_stepLayout.nodes) {
+        hostlist += (firstHost ? "" : ",") + node.hostname;
+        firstHost = false;
+    }
+    launcherArgv.add("--nodelist=" + hostlist);
+
+    return launcherArgv;
+}
+
 void SLURMApp::kill(int signum)
 {
     // create the args for scancel
@@ -264,6 +330,7 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     char const* sbcast_env[] = {"SBCAST_SEND_LIBS=no", nullptr};
 
     // now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
+    writeLog("starting sbcast invocation\n");
     (void)m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, SBCAST, sbcastArgv.get(),
         -1, -1, -1,
@@ -275,6 +342,7 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     // directory will only exist on nodes associated with this particular job step, and the
     // sbcast command will exit with error if the directory doesn't exist even if the transfer
     // worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
+    writeLog("sbcast invocation completed\n");
 }
 
 MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
@@ -405,70 +473,13 @@ void SLURMApp::startDaemon(const char* const args[]) {
 
     // Send daemon if not already shipped
     if (!m_beDaemonSent) {
-        // Get the location of the backend daemon
-        if (m_frontend.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Unable to locate backend daemon binary. Load the \
-system default CTI module with `module load cray-cti`, or set the \
-environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
-        }
-
-        // Copy the BE binary to its unique storage name
-        auto const sourcePath = m_frontend.getBEDaemonPath();
-        auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
-
-        // Create the args for copy
-        auto copyArgv = cti::ManagedArgv {
-            "cp", sourcePath.c_str(), destinationPath.c_str()
-        };
-
-        // Run copy command
-        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-            m_daemonAppId, "cp", copyArgv.get(),
-            -1, -1, -1,
-            nullptr)) {
-            throw std::runtime_error("failed to copy " + sourcePath + " to " + destinationPath);
-        }
-
-        // Ship the unique backend daemon
-        shipPackage(destinationPath);
-        // set transfer to true
-        m_beDaemonSent = true;
+        shipDaemon();
     }
 
-    // use existing daemon binary on compute node
-    std::string const remoteBEDaemonPath{m_toolPath + "/" + getBEDaemonName()};
-
-    // Start adding the args to the launchder argv array
-    //
-    // This corresponds to:
-    //
-    // srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
-    // --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
-    // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
-    // --input=none --output=none --error=none <tool daemon> <args>
-    //
-    auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
-    auto launcherArgv = cti::ManagedArgv {
-        slurmFrontend.getLauncherName()
-        , "--jobid=" + std::to_string(m_jobId)
-        , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
-        , "--output=none" // Suppress tool output
-    };
-    for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
-        launcherArgv.add(arg);
-    }
-
-    // create the hostlist by contencating all hostnames
-    { auto hostlist = std::string{};
-        bool firstHost = true;
-        for (auto const& node : m_stepLayout.nodes) {
-            hostlist += (firstHost ? "" : ",") + node.hostname;
-            firstHost = false;
-        }
-        launcherArgv.add("--nodelist=" + hostlist);
-    }
-
-    launcherArgv.add(remoteBEDaemonPath);
+    // Build daemon launcher arguments
+    auto launcherArgv = generateDaemonLauncherArgv();
+    launcherArgv.add("--output=none"); // Suppress tool output
+    launcherArgv.add(m_toolPath + "/" + getBEDaemonName());
 
     // merge in the args array if there is one
     if (args != nullptr) {
@@ -478,18 +489,79 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
     }
 
     // build environment from blacklist
-    cti::ManagedArgv launcherEnv;
+    auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
+    auto launcherEnv = cti::ManagedArgv{};
     for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
         launcherEnv.add(envVar + "=");
     }
 
     // tell FE Daemon to launch srun
     m_frontend.Daemon().request_ForkExecvpUtil_Async(
-        m_daemonAppId, dynamic_cast<SLURMFrontend&>(m_frontend).getLauncherName().c_str(),
+        m_daemonAppId, slurmFrontend.getLauncherName().c_str(),
         launcherArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
         launcherEnv.get() );
+}
+
+std::set<std::string>
+SLURMApp::checkFilesExist(std::set<std::string> const& paths)
+{
+    auto result = std::set<std::string>{};
+
+    // Send daemon if not already shipped
+    if (!m_beDaemonSent) {
+        shipDaemon();
+    }
+
+    // Build daemon launcher arguments
+    auto launcherArgv = generateDaemonLauncherArgv();
+    launcherArgv.add(m_toolPath + "/" + getBEDaemonName());
+    for (auto&& path : paths) {
+        launcherArgv.add("--file=" + path);
+    }
+
+    auto stdoutPipe = cti::Pipe{};
+
+    // Tell FE Daemon to launch srun
+    m_frontend.Daemon().request_ForkExecvpUtil_Async(
+        m_daemonAppId, dynamic_cast<SLURMFrontend&>(m_frontend).getLauncherName().c_str(),
+        launcherArgv.get(),
+        // redirect stdin / stderr / stdout
+        ::open("/dev/null", O_RDONLY), stdoutPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
+        {});
+
+    stdoutPipe.closeWrite();
+    auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
+    auto stdoutStream = std::istream{&stdoutBuf};
+
+    // Track number of present files
+    auto num_nodes = m_stepLayout.nodes.size();
+    auto pathCountMap = std::map<std::string, size_t>{};
+
+    // Read out all paths from daemon
+    auto exit_count = num_nodes;
+    auto line = std::string{};
+    while ((exit_count > 0) && std::getline(stdoutStream, line)) {
+
+        // Daemons will print an empty line when output is completed
+        if (line.empty()) {
+            exit_count--;
+
+        // Received path from daemon
+        } else {
+
+            // Increment count for path
+            pathCountMap[line]++;
+
+            // Add path to duplicate list if all nodes have file
+            if (pathCountMap[line] == num_nodes) {
+                result.emplace(std::move(line));
+            }
+        }
+    }
+
+    return result;
 }
 
 /* SLURM frontend implementation */
