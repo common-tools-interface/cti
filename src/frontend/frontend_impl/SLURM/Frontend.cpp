@@ -33,6 +33,7 @@
 
 #include <algorithm>
 #include <iomanip>
+#include <filesystem>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -88,6 +89,13 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     // Remap proctable if backend wrapper binary was specified in the environment
     if (auto const wrapper_binary = ::getenv(CTI_BACKEND_WRAPPER_ENV_VAR)) {
         mpirData.proctable = reparentProctable(mpirData.proctable, wrapper_binary);
+
+        writeLog("Reparented proctable:\n");
+        for (size_t i = 0; i < mpirData.proctable.size(); i++) {
+            auto&& [pid, hostname, executable] = mpirData.proctable[i];
+            writeLog("[%zu] %d %s %s\n", i, pid, hostname.c_str(), executable.c_str());
+        }
+
         m_binaryRankMap = generateBinaryRankMap(mpirData.proctable);
     }
 
@@ -239,19 +247,8 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
     // Copy the BE binary to its unique storage name
     auto const sourcePath = m_frontend.getBEDaemonPath();
     auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
-
-    // Create the args for copy
-    auto copyArgv = cti::ManagedArgv {
-        "cp", sourcePath.c_str(), destinationPath.c_str()
-    };
-
-    // Run copy command
-    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-        m_daemonAppId, "cp", copyArgv.get(),
-        -1, -1, -1,
-        nullptr)) {
-        throw std::runtime_error("failed to copy " + sourcePath + " to " + destinationPath);
-    }
+    std::filesystem::copy_file(sourcePath, destinationPath,
+        std::filesystem::copy_options::overwrite_existing);
 
     // Ship the unique backend daemon
     shipPackage(destinationPath);
@@ -349,7 +346,8 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
     std::string const& wrapperBinary)
 {
     // Run first child utility on each supplied PID on remote host
-    auto getFirstChildInformation = [this](std::string const& hostname, std::set<pid_t> const& pids) {
+    auto getFirstChildInformation = [this](std::string const& reparentUtilityPath,
+        std::string const& hostname, std::set<pid_t> const& pids) {
 
         // Start adding the args to the launcher argv array
         auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
@@ -368,7 +366,7 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
         }
 
         // Add utility command and each PID
-        launcherArgv.add(m_frontend.getBaseDir() + "/libexec/" CTI_FIRST_SUBPROCESS_BINARY);
+        launcherArgv.add(reparentUtilityPath);
         for (auto&& pid : pids) {
             launcherArgv.add(std::to_string(pid));
         }
@@ -424,6 +422,13 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
     // Copy proctable, will be modifying entries containing the wrapped executable
     auto result = MPIRProctable{procTable};
 
+    // Ship reparenting utility
+    auto const sourcePath = m_frontend.getBaseDir() + "/libexec/" CTI_FIRST_SUBPROCESS_BINARY;
+    auto const destinationPath = std::string(SLURM_TOOL_DIR) + "/" CTI_FIRST_SUBPROCESS_BINARY;
+    std::filesystem::copy_file(sourcePath, destinationPath,
+        std::filesystem::copy_options::overwrite_existing);
+    shipPackage(destinationPath);
+
     // Map hostname to wrapped PIDs on that host
     auto hostSingularityMap = std::map<std::string, std::set<pid_t>>{};
     for (auto&& [pid, hostname, executable] : procTable) {
@@ -445,7 +450,7 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
     for (auto&& [hostname, pids] : hostSingularityMap) {
         writeLog("Querying %lu PIDs on %s\n", pids.size(), hostname.c_str());
 
-        auto pidExeMappings = getFirstChildInformation(hostname, pids);
+        auto pidExeMappings = getFirstChildInformation(destinationPath, hostname, pids);
         for (auto&& [pid, child_pid, executable] : pidExeMappings) {
             singularityChildMap[{hostname, pid}] = {child_pid, std::move(executable)};
         }
@@ -479,6 +484,14 @@ void SLURMApp::startDaemon(const char* const args[]) {
     // Build daemon launcher arguments
     auto launcherArgv = generateDaemonLauncherArgv();
     launcherArgv.add("--output=none"); // Suppress tool output
+
+    // Use container instance if provided
+    if (auto container_instance = ::getenv(CTI_CONTAINER_INSTANCE_ENV_VAR)) {
+        launcherArgv.add("singularity");
+        launcherArgv.add("exec");
+        launcherArgv.add(container_instance);
+    }
+
     launcherArgv.add(m_toolPath + "/" + getBEDaemonName());
 
     // merge in the args array if there is one

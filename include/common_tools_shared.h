@@ -129,6 +129,7 @@
 #define CTI_WLM_IMPL_ENV_VAR         "CTI_WLM_IMPL"
 #define CTI_LAUNCHER_WRAPPER_ENV_VAR "CTI_LAUNCHER_WRAPPER"
 #define CTI_BACKEND_WRAPPER_ENV_VAR  "CTI_BACKEND_WRAPPER"
+#define CTI_CONTAINER_INSTANCE_ENV_VAR "CTI_CONTAINER_INSTANCE"
 // CTI_WLM_TYPE_<type>_STR recognized by CTI_WLM_IMPL_ENV_VAR and corresponds
 // to values in the cti_wlm_type_t enum.
 // Note: users should not manualy set CTI_WLM_IMPL environment variable to

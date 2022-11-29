@@ -101,6 +101,11 @@ environment variables for different system workload managers.
   compute nodes. So, to pass this information to CTI, set
   *CTI_BACKEND_WRAPPER=singularity*.
 
+- *CTI_CONTAINER_INSTANCE*: Set this variable to the Singularity instance
+  URI in which the target job is running for CTI to launch tool helpers
+  inside the instance. This will allow tools such as GDB4hpc to debug
+  jobs running inside Singularity containers.
+
 ## Slurm-specific variables
 
 - *CTI_SLURM_DAEMON_GRES*: Starting with Slurm 21.08, there is a known

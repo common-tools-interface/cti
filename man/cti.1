@@ -126,6 +126,12 @@ daemon on compute nodes.
 So, to pass this information to CTI, set
 \f[I]CTI_BACKEND_WRAPPER=singularity\f[R].
 .RE
+.IP \[bu] 2
+\f[I]CTI_CONTAINER_INSTANCE\f[R]: Set this variable to the Singularity
+instance URI in which the target job is running for CTI to launch tool
+helpers inside the instance.
+This will allow tools such as GDB4hpc to debug jobs running inside
+Singularity containers.
 .SS Slurm-specific variables
 .IP \[bu] 2
 \f[I]CTI_SLURM_DAEMON_GRES\f[R]: Starting with Slurm 21.08, there is a
