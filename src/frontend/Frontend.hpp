@@ -132,6 +132,9 @@ private:
     static std::unique_ptr<cti::Logger>         m_logger;
     static std::unique_ptr<Frontend_cleanup>    m_cleanup;
 
+    // PID of first CTI library instance
+    static pid_t m_original_pid;
+
 private: // Private data members usable only by the base Frontend
     FE_iface            m_iface;
     FE_daemon           m_daemon;
@@ -202,9 +205,6 @@ public: // Public interface to generic WLM-agnostic capabilities
     // Register a cleanup file
     void addFileCleanup(std::string const& file);
 
-    // tell all Apps to finalize their transfer Sessions
-    void finalize();
-
     // Accessors
 
     // Get a list of default env vars to forward to BE daemon
@@ -216,6 +216,7 @@ public: // Public interface to generic WLM-agnostic capabilities
     std::string getFEDaemonPath() { return m_fe_daemon_path; }
     std::string getBEDaemonPath() { return m_be_daemon_path; }
     const struct passwd& getPwd() { return m_pwd; }
+    bool isOriginalInstance() const { return getpid() == m_original_pid; }
 
     cti_symbol_result_t containsSymbols(std::string const& binaryPath,
         std::unordered_set<std::string> const& symbols, cti_symbol_query_t query) const;

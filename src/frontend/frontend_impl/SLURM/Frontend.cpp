@@ -111,6 +111,11 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
 
 SLURMApp::~SLURMApp()
 {
+    if (!Frontend::inst().isOriginalInstance()) {
+        writeLog("~SLURMApp: forked PID %d exiting without cleanup\n", getpid());
+        return;
+    }
+
     try {
         // Delete the staging directory if it exists.
         if (!m_stagePath.empty()) {

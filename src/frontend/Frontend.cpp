@@ -56,6 +56,8 @@ std::atomic<Frontend*>              Frontend::m_instance{nullptr};
 std::mutex                          Frontend::m_mutex;
 std::unique_ptr<cti::Logger>        Frontend::m_logger;  // must be destroyed after m_cleanup
 std::unique_ptr<Frontend_cleanup>   Frontend::m_cleanup{nullptr};
+// Set this library instance as original
+pid_t Frontend::m_original_pid{getpid()};
 
 // This ensures the singleton gets deleted
 Frontend_cleanup::~Frontend_cleanup() {
@@ -307,15 +309,6 @@ Frontend::addFileCleanup(std::string const& file)
     auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
     pid_t pid = getpid();
     cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
-}
-
-void
-Frontend::finalize()
-{
-    // tell all Apps to finalize transfer sessions
-    for (auto&& app : m_apps) {
-        app->finalize();
-    }
 }
 
 // BUG 819725:
@@ -1084,14 +1077,19 @@ Frontend::destroy() {
     // Use sequential consistency here
     if (auto instance = m_instance.exchange(nullptr)) {
 
-        // clean up all App/Sessions before destructors are run
-        for (auto&& app : instance->m_apps) {
-            try {
-                app->finalize();
-            } catch (std::exception const& ex) {
-                // Ignore cleanup exceptions
+        // Skip session cleanup if not running from original instance
+        if (instance->isOriginalInstance()) {
+
+            // clean up all App/Sessions before destructors are run
+            for (auto&& app : instance->m_apps) {
+                try {
+                    app->finalize();
+                } catch (std::exception const& ex) {
+                    // Ignore cleanup exceptions
+                }
             }
         }
+
         delete instance;
     }
 }
@@ -1156,6 +1154,11 @@ Frontend::Frontend()
 
 Frontend::~Frontend()
 {
+    if (!isOriginalInstance()) {
+        writeLog("~Frontend: forked PID %d exiting without cleanup\n", getpid());
+        return;
+    }
+
     // Unlink the cleanup files since we are exiting normally
     for (auto&& file : m_cleanup_files) {
         unlink(file.c_str());

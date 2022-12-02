@@ -835,6 +835,11 @@ std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
 
 FluxApp::~FluxApp()
 {
+    if (!Frontend::inst().isOriginalInstance()) {
+        writeLog("~FluxApp: forked PID %d exiting without cleanup\n", getpid());
+        return;
+    }
+
     try {
         // Terminate utilities launched by CTI
         for (auto&& id : m_daemonJobIds) {

@@ -349,6 +349,40 @@ TEST_F(CTIFEUnitTest, LaunchAppBarrier)
     cti_deregisterApp(appId);
 }
 
+// Tests that a fork of the library can detect that it is a fork
+TEST_F(CTIFEUnitTest, InstanceDestructTest)
+{
+    MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
+
+    // Check subprocess instance logic
+    auto outputPipe = cti::Pipe{};
+    auto forked_pid = fork();
+
+    // Subprocess case
+    if (forked_pid == 0) {
+        outputPipe.closeRead();
+        auto original = Frontend::inst().isOriginalInstance();
+        ::write(outputPipe.getWriteFd(), (original) ? "1" : "0", 2);
+        ::_exit(0);
+    }
+
+    // Read output from subprocess
+    ASSERT_TRUE(forked_pid > 0);
+    outputPipe.closeWrite();
+    auto outputPipeBuf = cti::FdBuf{outputPipe.getReadFd()};
+    auto outputStream = std::istream{&outputPipeBuf};
+    auto line = std::string{};
+    ASSERT_TRUE(std::getline(outputStream, line, '\0'));
+    outputStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for subprocess
+    cti::waitpid(forked_pid, nullptr, 0);
+
+    // Check instances
+    EXPECT_TRUE(Frontend::inst().isOriginalInstance());
+    EXPECT_EQ(line, "0");
+}
+
 // int          cti_releaseAppBarrier(cti_app_id_t);
 // Tests that the interface will call the App's barrier release
 TEST_F(CTIAppUnitTest, ReleaseAppBarrier)

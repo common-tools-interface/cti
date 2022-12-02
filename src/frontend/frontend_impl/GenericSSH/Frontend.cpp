@@ -744,6 +744,11 @@ GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpi
 
 GenericSSHApp::~GenericSSHApp()
 {
+    if (!Frontend::inst().isOriginalInstance()) {
+        writeLog("~GenericSSHApp: forked PID %d exiting without cleanup\n", getpid());
+        return;
+    }
+
     try {
         // Delete the staging directory if it exists.
         if (!m_stagePath.empty()) {
