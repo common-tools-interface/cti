@@ -37,15 +37,10 @@
 
 #include "useful/cti_wrappers.hpp"
 
-std::string
-Session::generateStagePath(FE_prng& charSource) {
-    std::string stageName;
-    // remove placeholder Xs from DEFAULT_STAGE_DIR
-    const std::string stageFormat(DEFAULT_STAGE_DIR);
-    stageName = stageFormat.substr(0, stageFormat.find("X"));
-    // replace 'X' characters in the stage_name string with random characters
-    size_t numChars = stageFormat.length() - stageName.length();
-    for (size_t i = 0; i < numChars; i++) {
+static auto
+generateStagePath(FE_prng& charSource) {
+    auto stageName = std::string{STAGE_DIR_PREFIX};
+    for (size_t i = 0; i < 6; i++) {
         stageName.push_back(charSource.genChar());
     }
     return stageName;

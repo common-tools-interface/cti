@@ -316,14 +316,6 @@ Frontend::addFileCleanup(std::string const& file)
 void
 Frontend::doFileCleanup()
 {
-    // Create stage name
-    std::string stage_name{"." + std::string{DEFAULT_STAGE_DIR}};
-    // get the position of the first 'X'
-    auto found = stage_name.find('X');
-    if (found != std::string::npos) {
-        // Cut the "X" portion out
-        stage_name.erase(found);
-    }
     // Open cfg dir
     auto cfgDir = cti::dir::open(m_cfg_dir);
     // Recurse through each file in the directory
@@ -337,8 +329,8 @@ Frontend::doFileCleanup()
         if ( name.size() == 2 && name.compare("..") == 0 ) {
             continue;
         }
-        // Check this name against the stage_name
-        if ( name.compare(0, stage_name.size(), stage_name) == 0 ) {
+        // Check this name against the stage prefix
+        if (name.rfind(STAGE_DIR_PREFIX, 0) == 0) {
             // pattern matches, check to see if we need to remove
             std::string file{m_cfg_dir + "/" + d->d_name};
             auto fileHandle = cti::file::open(file, "r");

@@ -69,7 +69,7 @@ extern "C" {
 ** Backend defines relating to the compute node
 *******************************************************************************/
 // The following needs the 'X' for random char replacement.
-#define DEFAULT_STAGE_DIR                   "cti_daemonXXXXXX"      // default directory name for the fake root of the tool daemon
+#define STAGE_DIR_PREFIX                    "cti_daemon"            // default directory name for the fake root of the tool daemon
 #define PMI_ATTRIBS_FILE_NAME               "pmi_attribs"           // Name of the pmi_attribs file to find pid info
 #define PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT   60ul                    // default timeout in seconds for trying to open pmi_attribs file
 #define PID_FILE                            ".cti_pids"             // Name of the file containing the pids of the tool daemon processes
