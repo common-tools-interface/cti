@@ -16,4 +16,5 @@
 sle15sp3PEaarch64 {
     timeout = 240
     product = "pe-base"
+    agent = "gcp-aarch64"
 }
