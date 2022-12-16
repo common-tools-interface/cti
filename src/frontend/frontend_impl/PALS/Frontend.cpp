@@ -638,7 +638,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
 
 PALSApp::~PALSApp()
 {
-    if (!Frontend::inst().isOriginalInstance()) {
+    if (!Frontend::isOriginalInstance()) {
         writeLog("~PALSApp: forked PID %d exiting without cleanup\n", getpid());
         return;
     }

@@ -174,6 +174,7 @@ public: // Public static utility methods - Try to keep these to a minimum
     static Frontend& inst();
     // Used to destroy the singleton
     static void destroy();
+    static bool isOriginalInstance() { return getpid() == m_original_pid; }
 
 private: // Private utility methods used by the generic frontend
     static bool isRunningOnBackend() { return (getenv(BE_GUARD_ENV_VAR) != nullptr); }
@@ -216,7 +217,6 @@ public: // Public interface to generic WLM-agnostic capabilities
     std::string getFEDaemonPath() { return m_fe_daemon_path; }
     std::string getBEDaemonPath() { return m_be_daemon_path; }
     const struct passwd& getPwd() { return m_pwd; }
-    bool isOriginalInstance() const { return getpid() == m_original_pid; }
 
     cti_symbol_result_t containsSymbols(std::string const& binaryPath,
         std::unordered_set<std::string> const& symbols, cti_symbol_query_t query) const;

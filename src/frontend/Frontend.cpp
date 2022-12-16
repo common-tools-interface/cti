@@ -56,6 +56,7 @@ std::atomic<Frontend*>              Frontend::m_instance{nullptr};
 std::mutex                          Frontend::m_mutex;
 std::unique_ptr<cti::Logger>        Frontend::m_logger;  // must be destroyed after m_cleanup
 std::unique_ptr<Frontend_cleanup>   Frontend::m_cleanup{nullptr};
+
 // Set this library instance as original
 pid_t Frontend::m_original_pid{getpid()};
 
@@ -608,7 +609,7 @@ Ensure that the " + launcherName + " binary not wrapped by a script \
 
     // Check that the launcher binary supports MPIR launch
     { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
-        "nm -D " + launcherPath + " | grep MPIR_Breakpoint$"};
+        "nm -a " + launcherPath + " | grep MPIR_Breakpoint$"};
         if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
             throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not appear to support MPIR launch \
 (function MPIR_Breakpoint was not found). Tool launch is \
@@ -620,7 +621,7 @@ Please contact your system administrator with a bug report \
 
     // Check that the launcher binary contains MPIR symbols
     { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
-        "nm -D " + launcherPath + " | grep MPIR_being_debugged$"};
+        "nm -a " + launcherPath + " | grep MPIR_being_debugged$"};
         if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
             throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not contain debug symbols. \
 Tool launch is coordinated through reading information at these symbols. \
@@ -1014,7 +1015,7 @@ Frontend::inst()
         inst = m_instance.load(std::memory_order_relaxed);
 
         if (!inst) {
-            // We were the first one here, create the cleanup handle
+            // Create the cleanup handle if needed
             m_cleanup = std::make_unique<Frontend_cleanup>();
 
             // Read launcher name setting

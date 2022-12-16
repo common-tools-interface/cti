@@ -55,6 +55,9 @@ main(int argc, char **argv)
 
     printf("Current be workload manager: %s\n", cti_be_wlm_type_toString(mybewlm));
 
+    // emit "Launch complete" for test harness timeout detection
+    fprintf(stderr, "Safe from launch timeout.\n");
+
     return 0;
 }
 

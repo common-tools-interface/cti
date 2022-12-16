@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
     assert_true(job_stdout != nullptr, "Failed to open pipe for reading.");
 
     // set up launch arguments
-    std::vector<std::string> appArgv = createSystemArgv(argc, argv, {"./support/mpi_wrapper", "/usr/bin/cat"});
+    std::vector<std::string> appArgv = createSystemArgv(argc, argv, {"./src/support/mpi_wrapper", "/usr/bin/cat"});
     auto const  stdoutFd = stdout_pipe[1];
     auto const  stderrFd = -1;
     auto const  stdinFd  = stdin_pipe[0];
@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
     auto const appId = app.watchApp(cti_launchAppBarrier_fd(cstrVector(appArgv).data(), stdoutFd, stderrFd, stdinFd, chdirPath, envList));
     assert_true(appId > 0, cti_error_str());
     assert_true(cti_appIsValid(appId) == true, cti_error_str());
+    std::cerr << "Safe from launch timeout.\n";
 
     assert_true(cti_releaseAppBarrier(appId) == SUCCESS, cti_error_str());
 

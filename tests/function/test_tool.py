@@ -4,6 +4,9 @@
 
 import sys, os
 
+if "CDST_TESTS_CHDIR" in os.environ:
+    os.chdir(os.environ["CDST_TESTS_CHDIR"])
+
 if __name__ == "__main__":
     # load up cdst test library
     sys.path.insert(0, os.getcwd() + "/cdst-test")

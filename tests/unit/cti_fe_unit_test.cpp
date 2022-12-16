@@ -361,7 +361,7 @@ TEST_F(CTIFEUnitTest, InstanceDestructTest)
     // Subprocess case
     if (forked_pid == 0) {
         outputPipe.closeRead();
-        auto original = Frontend::inst().isOriginalInstance();
+        auto original = Frontend::isOriginalInstance();
         ::write(outputPipe.getWriteFd(), (original) ? "1" : "0", 2);
         ::_exit(0);
     }
@@ -379,7 +379,7 @@ TEST_F(CTIFEUnitTest, InstanceDestructTest)
     cti::waitpid(forked_pid, nullptr, 0);
 
     // Check instances
-    EXPECT_TRUE(Frontend::inst().isOriginalInstance());
+    EXPECT_TRUE(Frontend::isOriginalInstance());
     EXPECT_EQ(line, "0");
 }
 

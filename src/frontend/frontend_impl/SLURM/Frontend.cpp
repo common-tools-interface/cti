@@ -111,7 +111,7 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
 
 SLURMApp::~SLURMApp()
 {
-    if (!Frontend::inst().isOriginalInstance()) {
+    if (!Frontend::isOriginalInstance()) {
         writeLog("~SLURMApp: forked PID %d exiting without cleanup\n", getpid());
         return;
     }

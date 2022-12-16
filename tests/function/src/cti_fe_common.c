@@ -49,12 +49,19 @@ cti_test_fe(cti_app_id_t appId)
     char ** i;
     int     j;
 
+    // set stdout to non-buffering so testing harness can read without
+    // waiting for a flush
+    if (setvbuf(stdout, NULL, _IONBF, 0)) {
+        fprintf(stderr, "Warning: Failed to set buffering\n");
+    }
+
     // Sanity of passed in arg
     assert(cti_appIsValid(appId) != 0);
 
     // test cti_error_str
     assert(cti_error_str() != NULL);
 
+    printf("Safe from launch timeout.\n");
     printf("\nThe following is information about your application that the tool interface gathered:\n\n");
 
     /*

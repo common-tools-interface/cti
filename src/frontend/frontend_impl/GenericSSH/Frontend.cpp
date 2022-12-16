@@ -744,7 +744,7 @@ GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpi
 
 GenericSSHApp::~GenericSSHApp()
 {
-    if (!Frontend::inst().isOriginalInstance()) {
+    if (!Frontend::isOriginalInstance()) {
         writeLog("~GenericSSHApp: forked PID %d exiting without cleanup\n", getpid());
         return;
     }
