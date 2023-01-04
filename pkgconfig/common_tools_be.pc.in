@@ -29,10 +29,22 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
+# The linking strategy for CTI changes depending on if the CTI rpm is installed system wide
+# in /opt/cray/pe or installed elsewhere ("relocated"). The CTI rpm .spec file has logic that
+# fills in the "Libs:" line with the appropriate choice depending on the installation style.
+
+# The system wide installation is linked in /opt/cray/pe/lib64, so programs built with the
+# system wide version should get their libraries from there.
+system_libdir=-L/opt/cray/pe/lib64 -Wl,--enable-new-dtags -Wl,-rpath,/opt/cray/pe/lib64 -Wl,-rpath,/opt/cray/pe/cti/default/lib
+
+# When installed as a relocated rpm, there is no system wide behavior and the programs
+# get their libraries directly from the installation directory.
+relocated_libdir=-L${libdir}
+
 Name: cti_be
 URL: http://www.cray.com
 Description: The backend component of the common tools interface (CTI). Exposes a useful API to tool programs.
 Version: @VERSION@
 Requires:
-Libs: -L/opt/cray/pe/lib64 -Wl,--enable-new-dtags -Wl,-rpath,/opt/cray/pe/lib64 -Wl,-rpath,/opt/cray/pe/cti/default/lib -lcommontools_be
+Libs: ${&libdir&} -lcommontools_be
 Cflags: -I${includedir}
