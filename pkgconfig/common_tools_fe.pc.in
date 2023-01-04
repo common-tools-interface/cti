@@ -47,5 +47,5 @@ Description: The frontend component of the common tools interface (CTI). Exposes
 Version: @VERSION@
 Requires:
 # libdir is replaced with either system_libdir or relocated_libdir at rpm install time.
-Libs: ${&libdir&} -lcommon_tools_fe
+Libs: ${&libdir&} -lcommontools_fe
 Cflags: -I${includedir}
