@@ -211,13 +211,8 @@ Test files for Cray Common Tools Interface
 # Libraries static
 # pkg-config
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
-%{__cp} -a %{external_build_dir}/lib/pkgconfig/common_tools_be.pc ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
-%{__cp} -a %{external_build_dir}/lib/pkgconfig/common_tools_fe.pc ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
-
-# Update .pc copyrights
-%{__sed} 's|<COPYRIGHT>|%{copyright}|g' ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig/common_tools_be.pc
-%{__sed} 's|<COPYRIGHT>|%{copyright}|g' ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig/common_tools_fe.pc
-
+%{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{external_build_dir}/lib/pkgconfig/common_tools_be.pc > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig/common_tools_be.pc
+%{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{external_build_dir}/lib/pkgconfig/common_tools_fe.pc > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig/common_tools_fe.pc
 
 # Headers
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
