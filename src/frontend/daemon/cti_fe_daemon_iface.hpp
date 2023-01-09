@@ -258,6 +258,7 @@ public: // type definitions
     /*
         send path to shim binary, temporary shim link directory, launcher path to shim
         send launch parameters as in LaunchMPIR
+        launcher script will be sent in MPIR launch filepath
     */
 
     // Shutdown
@@ -417,7 +418,7 @@ public:
     void request_TerminateMPIR(DaemonAppId mpir_id);
 
     // fe_daemon will launch the provided wrapper script, masquerading the MPIR shim utility
-    // as the provided launcher name in path. the launch is completed under MPIR control
+    // as the shimmed launcher path. the launch is completed under MPIR control
     // and proctable is extraced. Provide path to mpir_shim binary and the temporary link location.
     // Write an mpir launch request and parameters to pipe, return MPIR data including proctable
     MPIRResult request_LaunchMPIRShim(

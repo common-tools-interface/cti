@@ -49,6 +49,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <memory>
+#include <filesystem>
 
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
@@ -674,8 +675,13 @@ static pid_t forkExec(LaunchData const& launchData)
         }
 
         // exec srun
+        getLogger().write("execvp %s\n", launchData.filepath.c_str());
+        for (auto arg = argv.get(); *arg != nullptr; arg++) {
+            getLogger().write("%s\n", *arg);
+        }
         execvp(launchData.filepath.c_str(), argv.get());
-        fprintf(stderr, "execvp: %s", strerror(errno));
+        getLogger().write("execvp: %s\n", strerror(errno));
+        fprintf(stderr, "execvp: %s\n", strerror(errno));
         _exit(1);
     }
 }
@@ -857,13 +863,55 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     auto const shimBinDir = cti::dir_handle{shimData.temporaryShimBinDir + shimToken};
     auto const shimBinLink = cti::softlink_handle{shimData.shimBinaryPath,
         shimBinDir.m_path + "/" + shimmedLauncherName};
+    getLogger().write("link %s to %s\n",
+        shimData.shimBinaryPath.c_str(),
+        (shimBinDir.m_path + "/" + shimmedLauncherName).c_str());
+
+    // Save original PATH
+    auto const rawPath = ::getenv("PATH");
+    auto const originalPath = (rawPath != nullptr) ? std::string{rawPath} : "";
 
     // Modify PATH in launchData
-    auto const rawPath = ::getenv("PATH");
-    auto const originalPath = (rawPath != nullptr)
-        ? std::string{rawPath}
-        : "";
-    modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.m_path + (originalPath.empty() ? "" : (":" + originalPath)));
+    {
+        // Most launcher scripts such as Xalt will look for the first srun after its location
+        // in PATH, ignoring any before. So the shim path must be placed after the location
+        // of the launcher script in PATH.
+        auto launcherScriptDirectory = std::string{std::filesystem::path{launchData.filepath}.parent_path()};
+        auto shimmedPath = std::stringstream{};
+        auto found_directory = false;
+        for (auto restPath = originalPath; !restPath.empty(); ) {
+
+            // Split into directory and rest of path
+            auto path_delim = restPath.find(":");
+            auto directory = restPath.substr(0, path_delim);
+            restPath = (path_delim != std::string::npos)
+                ? restPath.substr(path_delim + 1)
+                : std::string{};
+
+            // Add entry to shimmed path
+            shimmedPath << directory << ":";
+
+            // If this was the directory for the launcher script, add shim directory
+            if (directory == launcherScriptDirectory) {
+                shimmedPath << shimBinDir.m_path << ":";
+                shimmedPath << restPath;
+                found_directory = true;
+                break;
+            }
+        }
+
+        if (found_directory) {
+            auto shimmedPathSetting = "PATH=" + shimmedPath.str();
+            getLogger().write("Modifying shimmed %s\n", shimmedPathSetting.c_str());
+            modifiedLaunchData.envList.emplace_back(shimmedPathSetting);
+
+        // Launcher directory not in path, fall back to prepending
+        } else {
+            getLogger().write("Couldn't find %s in path, prepending shim directory\n",
+                launcherScriptDirectory.c_str());
+            modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.m_path + (originalPath.empty() ? "" : (":" + originalPath)));
+        }
+    }
 
     // Communicate output pipe and real launcher path to shim
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_INPUT_FD="  + std::to_string(shimPipe[0]));
@@ -953,6 +1001,7 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
         if (runMode == FE_daemon::Synchronous) {
             int status;
             if (cti::waitpid(utilPid, &status, 0) < 0) {
+                getLogger().write("waitpid returned %s\n", strerror(errno));
                 return false;
             }
 

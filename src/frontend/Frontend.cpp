@@ -578,8 +578,58 @@ static bool detect_Flux(std::string const& launcherName)
     }
 }
 
+enum class MPIRSymbolStatus
+    { Ok
+    , LauncherNotFound
+    , NotBinaryFile
+    , NoMPIRBreakpoint
+    , NoMPIRSymbols
+};
+
+static auto format_MPIRSymbolError(MPIRSymbolStatus const& mpirSymbolStatus,
+    std::string const& launcherName, std::string const& launcherPath,
+    System const& system, WLM const& wlm)
+{
+    auto result = std::stringstream{};
+
+    if (mpirSymbolStatus == MPIRSymbolStatus::LauncherNotFound) {
+        result << launcherName << " was not found in PATH (tried "
+            << format_System_WLM(system, wlm) << "). If your system is "
+            "not configured with this workload manager, try setting the environment "
+            "variable " CTI_WLM_IMPL_ENV_VAR " to one of 'slurm', 'pals', 'flux', or "
+            "'alps'. For more information, run `man cti` and review "
+            CTI_WLM_IMPL_ENV_VAR ".";
+
+    } else if (mpirSymbolStatus == MPIRSymbolStatus::NotBinaryFile) {
+        result << launcherName << " was found at " << launcherPath
+            << ", but it is not a binary file. Tool launch requires "
+            "direct access to the " << launcherName << " binary. "
+            "Ensure that the " << launcherName << " binary not wrapped by a script "
+            "(tried " << format_System_WLM(system, wlm) << ")";
+
+    } else if (mpirSymbolStatus == MPIRSymbolStatus::NoMPIRBreakpoint) {
+        result << launcherName << " was found at " << launcherPath
+            << ", but it does not appear to support MPIR launch "
+            "(function MPIR_Breakpoint was not found). Tool launch is "
+            "coordinated through setting a breakpoint at this function. "
+            "Please contact your system administrator with a bug report "
+            "(tried " << format_System_WLM(system, wlm) << ")";
+
+    } else if (mpirSymbolStatus == MPIRSymbolStatus::NoMPIRSymbols) {
+        result << launcherName << " was found at " << launcherPath
+            << ", but it does not contain debug symbols. "
+            "Tool launch is coordinated through reading information at these symbols. "
+            "Please contact your system administrator with a bug report "
+            "(tried " << format_System_WLM(system, wlm) << ")";
+    }
+
+    return result.str();
+}
+
 // Verify that the provided launcher is a binary and contains MPIR symbols
-static bool verify_MPIR_symbols(System const& system, WLM const& wlm, std::string const& launcherName)
+// Return tuple of {status, detected launcher path}
+static auto verify_MPIR_symbols(System const& system, WLM const& wlm,
+    std::string launcherName)
 {
     assert(!launcherName.empty());
 
@@ -588,22 +638,14 @@ static bool verify_MPIR_symbols(System const& system, WLM const& wlm, std::strin
     try {
         launcherPath = cti::findPath(launcherName);
     } catch (...) {
-        throw std::runtime_error(launcherName + " was not found in PATH. "
-            "(tried " + format_System_WLM(system, wlm) + "). If your system is "
-            "not configured with this workload manager, try setting the environment "
-            "variable " CTI_WLM_IMPL_ENV_VAR " to one of 'slurm', 'pals', 'flux', or "
-            "'alps'. For more information, run `man cti` and review "
-            CTI_WLM_IMPL_ENV_VAR ".");
+        return std::make_tuple(MPIRSymbolStatus::LauncherNotFound, std::string{});
     }
 
     // Check that the launcher is a binary and not a script
     { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
         "file --mime -L " + launcherPath + " | grep -E 'application/x-(executable|sharedlib)'"};
         if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
-            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it is not a binary file. \
-Tool launch requires direct access to the " + launcherName + " binary. \
-Ensure that the " + launcherName + " binary not wrapped by a script \
-(tried " + format_System_WLM(system, wlm) + ")");
+            return std::make_tuple(MPIRSymbolStatus::NotBinaryFile, launcherPath);
         }
     }
 
@@ -611,11 +653,7 @@ Ensure that the " + launcherName + " binary not wrapped by a script \
     { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
         "nm -a " + launcherPath + " | grep MPIR_Breakpoint$"};
         if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
-            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not appear to support MPIR launch \
-(function MPIR_Breakpoint was not found). Tool launch is \
-coordinated through setting a breakpoint at this function. \
-Please contact your system administrator with a bug report \
-(tried " + format_System_WLM(system, wlm) + ")");
+            return std::make_tuple(MPIRSymbolStatus::NoMPIRBreakpoint, launcherPath);
         }
     }
 
@@ -623,20 +661,29 @@ Please contact your system administrator with a bug report \
     { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
         "nm -a " + launcherPath + " | grep MPIR_being_debugged$"};
         if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
-            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not contain debug symbols. \
-Tool launch is coordinated through reading information at these symbols. \
-Please contact your system administrator with a bug report \
-(tried " + format_System_WLM(system, wlm) + ")");
+            return std::make_tuple(MPIRSymbolStatus::NoMPIRSymbols, launcherPath);
         }
     }
 
-    return true;
+    return std::make_tuple(MPIRSymbolStatus::Ok, launcherPath);;
 }
 
-static bool verify_PALS_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+static bool verify_PALS_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
 {
+    // Default to `mpiexec`
+    if (launcherName.empty()) {
+        launcherName = "mpiexec";
+    }
+
     // Check for MPIR symbols in launcher
-    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "mpiexec");
+    auto [status, launcherPath] = verify_MPIR_symbols(system, wlm, launcherName);
+
+    // Throw error on failure
+    if (status != MPIRSymbolStatus::Ok) {
+        throw std::runtime_error(format_MPIRSymbolError(status, launcherName,
+            launcherPath, system, wlm));
+    }
 
     // Check that the cray-pals software module is loaded
     try {
@@ -668,9 +715,22 @@ You may need to run `module load cray-pals`" + detail);
     return true;
 }
 
-static bool verify_XC_ALPS_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+static bool verify_XC_ALPS_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
 {
-    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "aprun");
+    // Default to `aprun`
+    if (launcherName.empty()) {
+        launcherName = "aprun";
+    }
+
+    // Check for MPIR symbols in launcher
+    auto [status, launcherPath] = verify_MPIR_symbols(system, wlm, launcherName);
+
+    // Throw error on failure
+    if (status != MPIRSymbolStatus::Ok) {
+        throw std::runtime_error(format_MPIRSymbolError(status, launcherName,
+            launcherPath, system, wlm));
+    }
 
     return true;
 }
@@ -715,9 +775,28 @@ static bool detect_Slurm_allocation()
     return false;
 }
 
-static bool verify_Slurm_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+static bool verify_Slurm_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
 {
-    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "srun");
+    // Default to `srun`
+    if (launcherName.empty()) {
+        launcherName = "srun";
+    }
+
+    // Check for MPIR symbols in launcher
+    auto [status, launcherPath] = verify_MPIR_symbols(system, wlm, launcherName);
+
+    // Set launcher wrapper path if launcher was detected to be a wrapper script
+    if (status == MPIRSymbolStatus::NotBinaryFile) {
+
+        // Don't override user setting
+        ::setenv(CTI_LAUNCHER_SCRIPT_ENV_VAR, launcherPath.c_str(), 0);
+
+    // Throw error on other failure
+    } else if (status != MPIRSymbolStatus::Ok) {
+        throw std::runtime_error(format_MPIRSymbolError(status, launcherName,
+            launcherPath, system, wlm));
+    }
 
     // Check for multi-cluster system and allocation
     if (::getenv(SLURM_OVERRIDE_MC_ENV_VAR) == nullptr) {
@@ -739,9 +818,22 @@ static bool verify_Slurm_configured(System const& system, WLM const& wlm, std::s
     return true;
 }
 
-static bool verify_SSH_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+static bool verify_SSH_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
 {
-    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "mpiexec");
+    // Default to `mpiexec`
+    if (launcherName.empty()) {
+        launcherName = "mpiexec";
+    }
+
+    // Check for MPIR symbols in launcher
+    auto [status, launcherPath] = verify_MPIR_symbols(system, wlm, launcherName);
+
+    // Throw error on failure
+    if (status != MPIRSymbolStatus::Ok) {
+        throw std::runtime_error(format_MPIRSymbolError(status, launcherName,
+            launcherPath, system, wlm));
+    }
 
     // Passwordless SSH must also be configured, but there is no way to verify this
     // before extracting MPIR information and attempting to launch a command on a

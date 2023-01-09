@@ -952,124 +952,145 @@ static auto read_timeout(int fd, int64_t usec)
     return result;
 }
 
+static void add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs)
+{
+    const auto view = std::string_view{quotedArgs};
+
+    // The only escaping/special character handling we do is double
+    // quotes. We want to get the arguments to the wrapper just like
+    // bash would, so we don't do any fancy escaping of \n etc. here.
+    bool inQuote = false;
+    std::string pending;
+    for (size_t i = 0; i < view.size(); i++) {
+        if (std::isspace(view[i]) && !inQuote && !pending.empty()) {
+            args.add(pending);
+            pending.clear();
+        } else if (view[i] == '\\' && i < view.size() - 1) {
+            if (view[++i] == '"') {
+                pending += '"';
+            } else {
+                pending += '\\';
+                pending += view[i];
+            }
+        } else if (view[i] == '"') {
+            inQuote = !inQuote;
+        } else if (inQuote || !std::isspace(view[i])) {
+            pending += view[i];
+        }
+    }
+
+    if (inQuote) {
+        throw std::runtime_error("Unclosed quote in " + quotedArgs);
+    }
+
+    if (!pending.empty()) args.add(pending);
+}
+
 FE_daemon::MPIRResult
 SLURMFrontend::launchApp(const char * const launcher_argv[],
         const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
         const char * const env_list[])
 {
-    // Get the launcher path from CTI environment variable / default.
-    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
-        // set up arguments and FDs
-        if (inputFile == nullptr) { inputFile = "/dev/null"; }
-        if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
-        if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
-        auto const stdoutPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stdoutFd);
-        auto const stderrPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stderrFd);
-
-        // construct argv array & instance
-        cti::ManagedArgv launcherArgv
-            { launcher_path.get()
-            , "--input="  + std::string{inputFile}
-            , "--output=" + stdoutPath
-            , "--error="  + stderrPath
-        };
-        for (auto&& arg : getSrunAppArgs()) {
-            launcherArgv.add(arg);
-        }
-        for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-            launcherArgv.add(*arg);
-        }
-
-        if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR); launcherWrapper == nullptr) {
-
-            auto result = FE_daemon::MPIRResult{};
-
-            // Capture srun error output
-            auto srunPipe = cti::Pipe{};
-
-            try {
-
-                // Launch program under MPIR control.
-                result = Daemon().request_LaunchMPIR(
-                    launcher_path.get(), launcherArgv.get(),
-                    // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
-                    // Capture stderr output in case launch fails
-                    ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
-                    env_list);
-
-            } catch (std::exception const& ex) {
-
-                // Get stderr output from srun and add to error message
-                auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
-                throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
-            }
-
-            // Re-ignore srun stderr output after successful launch to avoid blockages
-            if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
-                fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
-            }
-
-            return result;
-
-        } else {
-            // Use MPIR shim to launch program
-
-            // Change launcher path to basename so it is looked up in PATH by 
-            // the wrapper, launching the shim instead
-            launcherArgv.replace(0, ::basename(launcher_path.get()));
-            
-            // Parse launcher wrapper string into arguments
-            cti::ManagedArgv wrapperArgv = [&](){
-                cti::ManagedArgv ret;
-                const auto view = std::string_view{launcherWrapper};
-
-                // The only escaping/special character handling we do is double
-                // quotes. We want to get the arguments to the wrapper just like
-                // bash would, so we don't do any fancy escaping of \n etc. here.
-                bool inQuote = false;
-                std::string pending;
-                for (size_t i = 0; i < view.size(); i++) {
-                    if (std::isspace(view[i]) && !inQuote && !pending.empty()) {
-                        ret.add(pending);
-                        pending.clear();
-                    } else if (view[i] == '\\' && i < view.size() - 1) {
-                        if (view[++i] == '"') {
-                            pending += '"';
-                        } else {
-                            pending += '\\';
-                            pending += view[i];
-                        }
-                    } else if (view[i] == '"') {
-                        inQuote = !inQuote;
-                    } else if (inQuote || !std::isspace(view[i])) {
-                        pending += view[i];
-                    }
-                }
-
-                if (inQuote) {
-                    throw std::runtime_error("Unclosed quote in " CTI_LAUNCHER_WRAPPER_ENV_VAR " environment variable.");
-                }
-
-                if (!pending.empty()) ret.add(pending);
-
-                return ret;
-            }();
-
-            wrapperArgv.add(launcherArgv);
-
-            auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
-            auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
-
-            // If CTI_DEBUG is enabled, show wrapper output
-            auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
-
-            return Daemon().request_LaunchMPIRShim(
-                shimBinaryPath.c_str(), temporaryShimBinDir.c_str(), launcher_path.get(),
-                wrapperArgv.get()[0], wrapperArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
-            );
-        }
-    } else {
+    // Find the path to the launcher
+    auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free);
+    if (launcherPath == nullptr) {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
+    }
+
+    // set up arguments and FDs
+    if (inputFile == nullptr) { inputFile = "/dev/null"; }
+    if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
+    if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
+    auto const stdoutPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stdoutFd);
+    auto const stderrPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stderrFd);
+
+    // construct argv array & instance
+    auto use_shim = false;
+    auto launcherArgv = cti::ManagedArgv{};
+
+    // Check for launcher wrapper
+    if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR)) {
+        add_quoted_args(launcherArgv, launcherWrapper);
+        use_shim = true;
+    }
+
+    // Check for launcher script
+    if (auto launcherScript = getenv(CTI_LAUNCHER_SCRIPT_ENV_VAR)) {
+        // Use provided launcher script
+        launcherArgv.add(launcherScript);
+        use_shim = true;
+
+    // Use normal launcher from PATH
+    } else {
+        launcherArgv.add(launcherPath.get());
+    }
+
+    // Construct rest of argv array
+    launcherArgv.add("--input="  + std::string{inputFile});
+    launcherArgv.add("--output=" + stdoutPath);
+    launcherArgv.add("--error="  + stderrPath);
+    for (auto&& arg : getSrunAppArgs()) {
+        launcherArgv.add(arg);
+    }
+    for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+        launcherArgv.add(*arg);
+    }
+
+    if (!use_shim) {
+
+        auto result = FE_daemon::MPIRResult{};
+
+        // Capture srun error output
+        auto srunPipe = cti::Pipe{};
+
+        try {
+
+            // Launch program under MPIR control.
+            result = Daemon().request_LaunchMPIR(
+                launcherPath.get(), launcherArgv.get(),
+                // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
+                // Capture stderr output in case launch fails
+                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
+                env_list);
+
+        } catch (std::exception const& ex) {
+
+            // Get stderr output from srun and add to error message
+            auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
+            throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
+        }
+
+        // Re-ignore srun stderr output after successful launch to avoid blockages
+        if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
+            fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
+        }
+
+        return result;
+
+    // Use MPIR shim to launch program
+    } else {
+
+        // launcherPath is path of wrapper script, use sattach to find path of
+        // real srun binary.
+        // An alternative would be to search PATH for the first srun binary with MPIR
+        // symbols.
+        auto sattachPath = cti::take_pointer_ownership(_cti_pathFind("sattach", nullptr), std::free);
+        if (sattachPath == nullptr) {
+            throw std::runtime_error("Failed to find sattach in path: ");
+        }
+        auto slurmDirectory = std::filesystem::path{sattachPath.get()}.parent_path();
+        auto srunPath = std::string{slurmDirectory / "srun"};
+
+        auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
+        auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
+
+        // If CTI_DEBUG is enabled, show wrapper output
+        auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
+
+        return Daemon().request_LaunchMPIRShim(
+            shimBinaryPath.c_str(), temporaryShimBinDir.c_str(),
+            srunPath.c_str(), launcherPath.get(), launcherArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
+        );
     }
 }
 

@@ -80,6 +80,13 @@ environment variables for different system workload managers.
   set **CTI_FILE_DEDUPLICATION=1**. File ship times are likely to decrease
   if enabled.
 
+- *CTI_LAUNCHER_SCRIPT*: If set, CTI will assume on Slurm systems
+  that `srun` is overridden by a shell script at this path. This is
+  commonly used with analysis tools such as Xalt. CTI will attempt to
+  automatically detect and apply this case, but if it is not recognizing
+  that `srun` is wrapped in a script, set this value to manually enable
+  script launch mode.
+
 - *CTI_LAUNCHER_WRAPPER*: Slurm jobs may be launched under the control of
   wrapper utilities, for example the library-loading utility Spindle. To start
   a Slurm job under a specific launcher wrapper, set this variable to the utility command.
