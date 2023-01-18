@@ -27,7 +27,7 @@ launch:
 meta:
   keep:
   - Makefile
-  avocado-version: latest
+  avocado-version: "100.0"
 
 horizon:
   test:
