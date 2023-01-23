@@ -69,7 +69,7 @@ private: // helper functions
         const PathMap& paths);
     // Finalize and package manifest into archive. Ship to compute nodes.
     // This is a helper function to be used by sendManifest and startDaemon
-    std::string shipManifest(std::shared_ptr<Manifest> const& mani);
+    std::string shipManifest(std::shared_ptr<Manifest> mani);
     // drop reference to an existing manifest. This invalidates the manifest
     // and prevents it from being shipped.
     void removeManifest(std::shared_ptr<Manifest> const& mani);
