@@ -247,51 +247,45 @@ session_files_in_use(char const* directory)
     int rc = 1;
 
     char *lsof_cmd = NULL;
-    pid_t bash_pid = -1;
+    pid_t lsof_pid = -1;
 
-    // Create lsof command with wildcards
-    if (asprintf(&lsof_cmd, "lsof -t %s/bin/""* %s/lib/""*",
-        directory, directory) <= 0) {
-        perror("asprintf");
-        goto cleanup_session_files_in_use;
-    }
+    // Create lsof command
+    char const* lsof_argv[] = {"lsof", "-t", directory, NULL};
 
-    // Create bash lsof arguments
-    char const* bash_argv[] = {"bash", "-c", lsof_cmd, NULL};
-
-    // Fork / exec bash lsof
-    bash_pid = fork();
-    if (bash_pid < 0) {
+    // Fork / exec lsof
+    lsof_pid = fork();
+    if (lsof_pid < 0) {
         perror("fork");
         goto cleanup_session_files_in_use;
     }
 
-    // Subprocess case, exec bash lsof
-    if (bash_pid == 0) {
-        execvp("bash", (char* const*)bash_argv);
+    // Subprocess case, exec lsof
+    if (lsof_pid == 0) {
+        execvp("lsof", (char* const*)lsof_argv);
         perror("execvp");
         _exit(-1);
     }
 
 cleanup_session_files_in_use:
 
-    // Wait for bash / lsof and set return code
-    if (bash_pid > 0) {
-        int bash_status;
+    // Wait for lsof and set return code
+    if (lsof_pid > 0) {
+
+        int lsof_status;
         while (1) {
-            int waitpid_rc = waitpid(bash_pid, &bash_status, 0);
+            int waitpid_rc = waitpid(lsof_pid, &lsof_status, 0);
             if (waitpid_rc < 0) {
                 if (errno == EINTR) { continue; }
                 else if (errno == ECHILD) { break; }
                 perror("waitpid");
                 break;
             }
-            if (WIFEXITED(bash_status) && (WEXITSTATUS(bash_status) == 1)) {
+            if (WIFEXITED(lsof_status) && (WEXITSTATUS(lsof_status) == 1)) {
                 rc = 0;
             }
             break;
         }
-        bash_pid = -1;
+        lsof_pid = -1;
     }
 
     // Free generated lsof command
