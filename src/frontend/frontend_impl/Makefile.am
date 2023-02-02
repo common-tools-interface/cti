@@ -1,7 +1,7 @@
 #
 # Makefile.am for the frontend impl components of the common tools interface
 #
-# Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2019-2023 Hewlett Packard Enterprise Development LP.
 #
 
 SUBDIRS				= SLURM GenericSSH
@@ -13,6 +13,9 @@ SUBDIRS += PALS
 endif
 if ENABLE_FLUX
 SUBDIRS += Flux
+endif
+if ENABLE_LOCALHOST
+SUBDIRS += Localhost
 endif
 
 AM_LIBTOOLFLAGS 	= --quiet
@@ -29,6 +32,9 @@ libfrontend_impl_la_LIBADD += PALS/libpals.la
 endif
 if ENABLE_FLUX
 libfrontend_impl_la_LIBADD += Flux/libflux.la
+endif
+if ENABLE_LOCALHOST
+libfrontend_impl_la_LIBADD += Localhost/liblocalhost.la
 endif
 
 libfrontend_impl_la_LIBADD += $(CODE_COVERAGE_LIBS)

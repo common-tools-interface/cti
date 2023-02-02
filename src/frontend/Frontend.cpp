@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * Frontend.cpp - define workload manager frontend interface and common base class
  *
- * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2014-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -383,6 +383,7 @@ enum class WLM : int
     , ALPS
     , SSH
     , Flux
+    , Localhost
 };
 
 static std::string WLM_to_string(WLM const& wlm)
@@ -394,6 +395,7 @@ static std::string WLM_to_string(WLM const& wlm)
         case WLM::ALPS:    return "ALPS";
         case WLM::SSH:     return "SSH";
         case WLM::Flux:    return "Flux";
+        case WLM::Localhost: return "Localhost";
         default: assert(false);
     }
 }
@@ -951,6 +953,8 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
             return WLM::PALS;
         } else if (wlmSetting == "flux") {
             return WLM::Flux;
+        } else if (wlmSetting == "localhost") {
+            return WLM::Localhost;
         } else {
             throw std::runtime_error("invalid WLM setting for " CTI_WLM_IMPL_ENV_VAR ": '"
                 + wlmSetting + "'");
@@ -1047,6 +1051,9 @@ static void verify_System_WLM_configured(System const& system, WLM const& wlm, s
         verify_Flux_configured(system, wlm, launcherName);
         break;
 
+    case WLM::Localhost:
+        break;
+
     default:
         // TODO: write instructions on how to use the CTI diagnostic utility
         throw std::runtime_error("Could not detect either a PALS, Slurm, ALPS, Flux, or generic MPIR-compliant WLM. Manually set " CTI_WLM_IMPL_ENV_VAR" env var \
@@ -1087,6 +1094,15 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
         return new FluxFrontend{};
 #else
         throw std::runtime_error("Flux support was not configured for this build of CTI \
+(tried " + format_System_WLM(system, wlm) + ")");
+
+#endif
+
+    } else if (wlm == WLM::Localhost) {
+#if HAVE_LOCALHOST
+        return new LocalhostFrontend{};
+#else
+        throw std::runtime_error("Localhost support was not configured for this build of CTI \
 (tried " + format_System_WLM(system, wlm) + ")");
 
 #endif

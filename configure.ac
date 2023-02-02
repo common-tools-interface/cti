@@ -1,7 +1,7 @@
 #
 # configure.ac script for the common tools interface.
 #
-# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2011-2023 Hewlett Packard Enterprise Development LP.
 #
 
 AC_PREREQ([2.63])
@@ -131,6 +131,23 @@ AM_COND_IF([ENABLE_FLUX], [
   [AC_MSG_ERROR([Couldn't find libflux headers in external/libalps_headers. Try configuring with --enable-flux=no])],
   [AC_INCLUDES_DEFAULT])
 ])
+
+dnl Enable lcoal support
+AC_ARG_ENABLE([localhost],
+  [AS_HELP_STRING([--enable-localhost], [Enable support for the local WLM.])],,
+  [enable_localhost=yes])
+enable_localhost=`echo $enable_localhost`
+case $enable_localhost in
+  yes | no) ;;
+  *) AC_MSG_ERROR([Unknown option '$enable_localhost' for --enable-localhost, expected 'yes' or 'no']) ;;
+esac
+AM_CONDITIONAL([ENABLE_LOCALHOST], [test x$enable_localhost = xyes])
+
+dnl Set external directory for libflux headers (library will be dlopened at runtime)
+AM_COND_IF([ENABLE_LOCALHOST], [
+  AC_DEFINE([HAVE_LOCALHOST], [1], [CTI configured with Localhost support])
+])
+
 
 ############################
 ### Check for libraries. ###
@@ -307,6 +324,7 @@ AC_CONFIG_FILES([
     src/frontend/frontend_impl/Makefile
     src/frontend/frontend_impl/SLURM/Makefile
     src/frontend/frontend_impl/GenericSSH/Makefile
+    src/frontend/frontend_impl/Localhost/Makefile
     src/frontend/mpir_iface/Makefile
     src/useful/Makefile
     src/useful/ld_val/Makefile

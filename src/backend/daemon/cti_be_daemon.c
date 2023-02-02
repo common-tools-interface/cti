@@ -5,7 +5,7 @@
  *           and allows users to specify environment variable settings
  *           that a tool daemon should inherit.
  *
- * Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -101,6 +101,11 @@ extern cti_wlm_proto_t	_cti_pals_wlmProto;
 #ifdef HAVE_FLUX
 extern cti_wlm_proto_t  _cti_flux_wlmProto;
 #endif
+
+#ifdef HAVE_LOCALHOST
+extern cti_wlm_proto_t  _cti_localhost_wlmProto;
+#endif
+
 
 /* noneness wlm proto object */
 static cti_wlm_proto_t  _cti_nonenessProto =
@@ -580,7 +585,12 @@ main(int argc, char **argv)
             _cti_wlmProto = &_cti_flux_wlmProto;
             break;
 #endif
-
+#ifdef HAVE_LOCALHOST
+        case CTI_WLM_LOCALHOST:
+            _cti_wlmProto = &_cti_localhost_wlmProto;
+            break;
+#endif            
+            
         case CTI_WLM_NONE:
         default:
             // the wlmProto defaults to noneness, so break
@@ -680,6 +690,7 @@ main(int argc, char **argv)
         case CTI_WLM_SLURM:
         case CTI_WLM_SSH:
         case CTI_WLM_FLUX:
+        case CTI_WLM_LOCALHOST:
             // These wlm are valid
             break;
 

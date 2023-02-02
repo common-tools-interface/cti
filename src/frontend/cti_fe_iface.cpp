@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_fe_iface.cpp - C interface layer for the cti frontend.
  *
- * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2014-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -200,7 +200,12 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
 #else
             return "Flux support was not configured for this build of CTI.";
 #endif
-
+        case CTI_WLM_LOCALHOST:
+#if HAVE_LOCALHOST
+            return LocalhostFrontend::getName();
+#else
+            return "Localhost support was not configured for this build of CTI.";
+#endif
         // Internal / testing types
         case CTI_WLM_MOCK:
             return "Test WLM frontend";
@@ -611,6 +616,10 @@ cti_open_ops(void **ops) {
             case CTI_WLM_FLUX:
                 *ops = reinterpret_cast<void *>(&_cti_flux_ops);
                 break;
+            case CTI_WLM_LOCALHOST:
+                *ops = nullptr;
+                break;
+    
             case CTI_WLM_NONE:
             case CTI_WLM_MOCK:
                 *ops = nullptr;

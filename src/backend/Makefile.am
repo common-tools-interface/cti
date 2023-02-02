@@ -1,7 +1,7 @@
 #
 # Makefile.am for the backend components of the common tools interface
 #
-# Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2014-2023 Hewlett Packard Enterprise Development LP.
 #
 
 SUBDIRS = daemon
@@ -15,7 +15,7 @@ AM_LIBTOOLFLAGS = --quiet
 lib_LTLIBRARIES = libcommontools_be.la
 
 libcommontools_be_la_SOURCES	= cti_be.c slurm_be.c pmi_attribs_parser.c generic_ssh_be.c \
-								pmi_attribs_parser.h
+					pmi_attribs_parser.h
 if ENABLE_ALPS
 libcommontools_be_la_SOURCES += alps_be.c
 endif
@@ -25,6 +25,10 @@ endif
 if ENABLE_FLUX
 libcommontools_be_la_SOURCES += flux_be.c
 endif
+if ENABLE_LOCALHOST
+libcommontools_be_la_SOURCES += localhost_be.c
+endif
+
 
 libcommontools_be_la_CFLAGS		= -I$(SRC) -I$(INCLUDE) -fPIC $(CODE_COVERAGE_CFLAGS) $(AM_CFLAGS) -I$(LIBALPS_HEADERS)
 

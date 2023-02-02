@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * Frontend_impl.h - Common includes for derived frontend implementations.
  *
- * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -41,4 +41,7 @@
 #include "GenericSSH/Frontend.hpp"
 #if HAVE_FLUX
 #include "Flux/Frontend.hpp"
+#endif
+#if HAVE_LOCALHOST
+#include "Localhost/Frontend.hpp"
 #endif
