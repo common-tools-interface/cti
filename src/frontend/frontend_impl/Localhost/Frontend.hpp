@@ -48,6 +48,7 @@ private:
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE
     std::string m_lockFile;    // Lockfile for enabling app barrier with the fake MPI
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
+    mutable std::vector<std::string> m_cleanupFiles;  // Files to clean-up on exit
     bool m_beDaemonSent = false;
 
 

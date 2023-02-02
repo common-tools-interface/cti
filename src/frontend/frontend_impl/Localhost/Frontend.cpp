@@ -21,6 +21,7 @@ LocalhostApp::LocalhostApp(LocalhostFrontend& fe, CArgArray launcher_argv,
     , m_toolPath    { LOCALHOST_TOOL_DIR }
     , m_attribsPath { LOCALHOST_TOOL_DIR }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR}) }
+    , m_cleanupFiles { 1, m_stagePath }
 {
     auto numPEs = 1;
     auto appArgs = launcher_argv;
@@ -88,11 +89,20 @@ LocalhostApp::LocalhostApp(LocalhostFrontend& fe, CArgArray launcher_argv,
 
 LocalhostApp::~LocalhostApp()
 {
-    fprintf(stderr, "don't forget to clean up the temp directory!\n");
+    for (auto&& file : m_cleanupFiles) {
+        std::error_code ec;
+        std::filesystem::remove_all(file, ec);
+        
+        if (auto loc = file.find("1.tar"); loc == file.size()-5) {
+            // normally the tar file is expanded.   Assuming just one
+            // tar file was sent
+            file.erase(loc);
+            std::filesystem::remove_all(file, ec);
+        }
+    }
 }
 
 /* running app info accessors */
-
 std::string
 LocalhostApp::getJobId() const
 {
@@ -168,6 +178,8 @@ LocalhostApp::shipPackage(std::string const& tarPath) const
     to /= from.filename();
 
     std::filesystem::rename(from, to);
+
+    m_cleanupFiles.push_back(to);
 }
 
 void
@@ -191,6 +203,7 @@ LocalhostApp::startDaemon(const char* const args[])
 
         try {
             std::filesystem::create_symlink( sourcePath, daemonPath);
+            m_cleanupFiles.push_back(daemonPath);
         } catch (std::exception& err) {
             throw std::runtime_error("failed to link " + sourcePath + " to " + daemonPath);
         }
