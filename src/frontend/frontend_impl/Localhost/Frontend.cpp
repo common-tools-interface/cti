@@ -10,11 +10,14 @@
 #include "useful/cti_wrappers.hpp"
 #include <filesystem>
 
+int LocalhostApp::m_nextId = 0;
+
 LocalhostApp::LocalhostApp(LocalhostFrontend& fe, CArgArray launcher_argv,
                            int stdout_fd, int stderr_fd,
                            CStr inputFile, CStr chdirPath, CArgArray env_list,
                            bool stopAtBarrier)
     : App(fe, 0)
+    , m_id(m_nextId++)
     , m_toolPath    { LOCALHOST_TOOL_DIR }
     , m_attribsPath { LOCALHOST_TOOL_DIR }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR}) }
@@ -67,8 +70,13 @@ LocalhostApp::~LocalhostApp()
 std::string
 LocalhostApp::getJobId() const
 {
-    //return std::to_string(m_launcherPid);
-    return "getJobId-unimplemented";
+    // In the future, the jobId could include a reference to the pidFile
+    // which could work like bone simple MPIR file, but you'd have to
+    // launch via cti_launch.   It could be done, but at the moment there
+    // isn't much call to work with a fake attach workflow.  So just
+    // do enough so parallel launches get unique ids.
+    auto id = std::to_string(getpid()) + "." + std::to_string(m_id);
+    return id;
 }
 
 std::string

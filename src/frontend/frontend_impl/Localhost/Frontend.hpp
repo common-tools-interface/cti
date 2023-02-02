@@ -39,6 +39,8 @@ public:
 class LocalhostApp : public App
 {
 private:
+    int m_id;
+    static int m_nextId;
     std::vector<int> m_appPEs;
     std::vector<int> m_toolPEs;
     std::string m_toolPath;    // Backend path where files are unpacked
@@ -46,6 +48,7 @@ private:
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
     bool m_beDaemonSent = false;
+
 
 public: // app interaction interface
     std::string getJobId()            const override;
