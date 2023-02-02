@@ -17,7 +17,7 @@ LocalhostApp::LocalhostApp(LocalhostFrontend& fe, CArgArray launcher_argv,
                            CStr inputFile, CStr chdirPath, CArgArray env_list,
                            bool stopAtBarrier)
     : App(fe, 0)
-    , m_id(m_nextId++)
+    , m_id          { std::to_string(getpid()) + "." + std::to_string(m_nextId++) }
     , m_toolPath    { LOCALHOST_TOOL_DIR }
     , m_attribsPath { LOCALHOST_TOOL_DIR }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR}) }
@@ -32,21 +32,47 @@ LocalhostApp::LocalhostApp(LocalhostFrontend& fe, CArgArray launcher_argv,
         }
     }
 
+    auto lockFileEnv = std::string{};
+    if (stopAtBarrier) {
+        // This is meant to work with a faked mpi which implements a startup barrier by
+        // waiting for the lock file to be delete in releaseBarrier.   Crude, but
+        // hopefully effective.
+        auto lockFile = m_toolPath + "/cti.lock." + m_id;
+        if (auto lock = fopen(lockFile.c_str(), "w")) {
+            lockFileEnv = std::string{"CTI_LOCALHOST_LOCK_FILE="} + lockFile.c_str();
+            m_lockFile = lockFile;
+            fclose(lock);
+        }
+    }
+
+    // Pass the rank information and possibly barrier lock to the application via
+    // the environment.   This will allow a very basic form of ersatz mpi to work.
+    std::vector<char*> env;
+    for (auto envIt = environ; *envIt; ++envIt) {
+        env.push_back(*envIt);
+    }
+    if (!lockFileEnv.empty()) {
+        env.push_back(const_cast<char*>(lockFileEnv.c_str()));
+    }
+    env.push_back(nullptr); // place holder for rank
+    env.push_back(nullptr); // terminator
+    auto rankLoc = env.end()-2;
+
     for (int i=0; i<numPEs; ++i) {
+        auto rankEnv = std::string{"CTI_LOCALHOST_RANK="} + std::to_string(i);
+        *rankLoc = const_cast<char*>(rankEnv.c_str());
         auto pid = fork();
         if (pid == 0) {
-            ::execvp(appArgs[0], const_cast<char* const*>(appArgs));
+            ::execvpe(appArgs[0], const_cast<char* const*>(appArgs), &env[0]);
         } else if (pid > 0) {
-            if (false && stopAtBarrier) {
-                ::kill(pid, SIGSTOP);
-            }
             m_appPEs.push_back(pid);
         } else {
             throw std::runtime_error("fork failed");
         }
     }
 
-    // write the application pes to a file for the back-end
+    // write the application pes to a file for the back-end, like a mini-MPIR proc
+    // table.
     auto pidPath = m_stagePath + "/" + LOCALHOST_PID_FILE;
     if (auto const pidFile = cti::file::open(pidPath, "w")) {
         fprintf(pidFile.get(), "%zu\n", m_appPEs.size());
@@ -75,8 +101,7 @@ LocalhostApp::getJobId() const
     // launch via cti_launch.   It could be done, but at the moment there
     // isn't much call to work with a fake attach workflow.  So just
     // do enough so parallel launches get unique ids.
-    auto id = std::to_string(getpid()) + "." + std::to_string(m_id);
-    return id;
+    return m_id;
 }
 
 std::string
@@ -117,10 +142,13 @@ LocalhostApp::getHostsPlacement() const
 void
 LocalhostApp::releaseBarrier()
 {
-    fprintf(stderr, "appBarrier is disabled\n");
-    return;
-    fprintf(stderr, "releaseBarrier\n");
-    kill(SIGCONT);
+    if (!m_lockFile.empty()) {
+        // the fake startup barrier in the fake mpi is watching for this file to
+        // cease to exist.
+        std::error_code ec;
+        std::filesystem::remove(m_lockFile, ec);
+        m_lockFile.clear();
+    }
 }
 
 void
@@ -139,7 +167,6 @@ LocalhostApp::shipPackage(std::string const& tarPath) const
     auto to = std::filesystem::path{m_toolPath};
     to /= from.filename();
 
-    fprintf(stderr, "shipPackage %s to %s\n", from.c_str(), to.c_str());
     std::filesystem::rename(from, to);
 }
 
@@ -149,12 +176,6 @@ LocalhostApp::startDaemon(const char* const args[])
     // sanity check
     if (args == nullptr) {
         throw std::runtime_error("args array is empty!");
-    }
-
-        // need to set env FILE_DIR_VAR
-    fprintf(stderr, "in LocalhostApp::startDaemon\n");
-    for (auto arg = args; *arg; ++arg) {
-        fprintf(stderr, "startDaemon: %s\n", *arg);
     }
 
     // Send daemon if not already shipped
@@ -171,7 +192,6 @@ LocalhostApp::startDaemon(const char* const args[])
         try {
             std::filesystem::create_symlink( sourcePath, daemonPath);
         } catch (std::exception& err) {
-            fprintf(stderr, "failed to line: %s\n", err.what());
             throw std::runtime_error("failed to link " + sourcePath + " to " + daemonPath);
         }
 
@@ -188,12 +208,6 @@ LocalhostApp::startDaemon(const char* const args[])
 
     // Copy provided launcher arguments
     launcherArgv.add(args);
-
-    for (auto arg = launcherArgv.get(); *arg; ++arg) {
-        fprintf(stderr, "launcher argv: %s\n", *arg);
-    }
-
-    fprintf(stderr, "trying to launch\n");
 
     // Execute the launcher
     if ( auto pid = ::fork(); pid == 0) {
@@ -233,7 +247,7 @@ LocalhostFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int std
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto appPtr = std::make_shared<LocalhostApp>(*this, launcher_argv, stdout_fd, stderr_fd,
-                                                 inputFile, chdirPath, env_list, false);
+                                                 inputFile, chdirPath, env_list, true);
 
     // Register with frontend application set
     auto resultInsertedPair = m_apps.emplace(std::move(appPtr));

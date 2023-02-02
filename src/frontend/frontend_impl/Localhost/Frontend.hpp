@@ -39,13 +39,14 @@ public:
 class LocalhostApp : public App
 {
 private:
-    int m_id;
     static int m_nextId;
+    std::string m_id;
     std::vector<int> m_appPEs;
     std::vector<int> m_toolPEs;
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE
+    std::string m_lockFile;    // Lockfile for enabling app barrier with the fake MPI
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
     bool m_beDaemonSent = false;
 
