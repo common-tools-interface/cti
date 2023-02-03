@@ -1099,7 +1099,13 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 #endif
 
     } else if (wlm == WLM::Localhost) {
+#if HAVE_LOCALHOST
         return new LocalhostFrontend{};
+#else
+        throw std::runtime_error("Localhost support was not configured for this build of CTI \
+(tried " + format_System_WLM(system, wlm) + ")");
+
+#endif
 
     } else {
         assert(false);

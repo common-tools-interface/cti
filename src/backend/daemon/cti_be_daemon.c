@@ -89,7 +89,6 @@ struct cti_pids
 /* wlm specific proto objects defined elsewhere */
 extern cti_wlm_proto_t  _cti_slurm_wlmProto;
 extern cti_wlm_proto_t  _cti_generic_ssh_wlmProto;
-extern cti_wlm_proto_t  _cti_localhost_wlmProto;
 
 #ifdef HAVE_ALPS
 extern cti_wlm_proto_t	_cti_alps_wlmProto;
@@ -101,6 +100,10 @@ extern cti_wlm_proto_t	_cti_pals_wlmProto;
 
 #ifdef HAVE_FLUX
 extern cti_wlm_proto_t  _cti_flux_wlmProto;
+#endif
+
+#ifdef HAVE_LOCALHOST
+extern cti_wlm_proto_t  _cti_localhost_wlmProto;
 #endif
 
 
@@ -582,10 +585,11 @@ main(int argc, char **argv)
             _cti_wlmProto = &_cti_flux_wlmProto;
             break;
 #endif
-
+#ifdef HAVE_LOCALHOST
         case CTI_WLM_LOCALHOST:
             _cti_wlmProto = &_cti_localhost_wlmProto;
             break;
+#endif            
             
         case CTI_WLM_NONE:
         default:

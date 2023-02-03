@@ -200,10 +200,12 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
 #else
             return "Flux support was not configured for this build of CTI.";
 #endif
-                
         case CTI_WLM_LOCALHOST:
+#if HAVE_LOCALHOST
             return LocalhostFrontend::getName();
-
+#else
+            return "Localhost support was not configured for this build of CTI.";
+#endif
         // Internal / testing types
         case CTI_WLM_MOCK:
             return "Test WLM frontend";

@@ -132,7 +132,7 @@ AM_COND_IF([ENABLE_FLUX], [
   [AC_INCLUDES_DEFAULT])
 ])
 
-dnl Enable localhost support
+dnl Enable lcoal support
 AC_ARG_ENABLE([localhost],
   [AS_HELP_STRING([--enable-localhost], [Enable support for the local WLM.])],,
   [enable_localhost=yes])
