@@ -42,6 +42,4 @@
 #if HAVE_FLUX
 #include "Flux/Frontend.hpp"
 #endif
-#if HAVE_LOCALHOST
 #include "Localhost/Frontend.hpp"
-#endif
