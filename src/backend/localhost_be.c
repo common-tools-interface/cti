@@ -1,7 +1,7 @@
 /*********************************************************************************\
- * localhost_be.c - SSH based workload manager specific backend library
- *                    functions.
-*
+ * localhost_be.c - Non-WLM backend implementation set up to run frontends and 
+ *          backends on single VM.
+ *
  * Copyright 2016-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
