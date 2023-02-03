@@ -34,8 +34,6 @@
 #ifndef _CTI_DEFS_H
 #define _CTI_DEFS_H
 
-#include "common_tools_shared.h"
-
 // We use macros defined by configure in this file. So we need to get access to
 // config.h. Since that doesn't have good macro guards, and this file does, it
 // is important to include cti_defs.h in every source file. This ensures configure
@@ -43,6 +41,11 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
+#ifdef HAVE_LOCALHOST
+#define CTI_ENABLE_LOCALHOST
+#endif
+
+#include "common_tools_shared.h"
 
 #include <limits.h>
 #include <stdint.h>
