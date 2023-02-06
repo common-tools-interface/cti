@@ -591,8 +591,8 @@ static cti_flux_ops_t _cti_flux_ops = {
 static cti_app_id_t
 _cti_localhost_registerJob(char const* job_id) {
     return FE_iface::runSafely(__func__, [&](){
-        auto&& fe = downcastFE<SLURMFrontend>();
-        auto wp = fe.registerJob(2, job_id);
+        auto&& fe = downcastFE<LocalhostFrontend>();
+        auto wp = fe.registerJob(1, job_id);
         return fe.Iface().trackApp(wp);
     }, APP_ERROR);
 }
