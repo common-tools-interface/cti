@@ -13,7 +13,7 @@ AM_LIBTOOLFLAGS 	= --quiet
 
 libexec_PROGRAMS	= cti_be_daemon@COMMONTOOL_RELEASE_VERSION@
 
-cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES	= cti_be_daemon.c slurm_dl.c generic_ssh_dl.c cti_daemon.h
+cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES	= cti_be_daemon.c slurm_dl.c generic_ssh_dl.c localhost_dl.c cti_daemon.h 
 cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_CFLAGS	= -I$(SRC) -I$(INCLUDE) -I$(USEFUL) $(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CFLAGS) $(AM_CFLAGS)
 
 if ENABLE_ALPS
@@ -25,10 +25,6 @@ endif
 if ENABLE_FLUX
 cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES += flux_dl.c
 endif
-if ENABLE_LOCALHOST
-cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES += localhost_dl.c
-endif
-
 
 cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_LDADD		= $(USEFUL)/libuseful.la $(CODE_COVERAGE_LIBS) ${CRAY_CDST_SUPPORT_INSTALL_DIR}/lib/libarchive.a -ldl
 cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_LDFLAGS	= -all-static -Wl,--no-undefined $(CDST_SUP_LIBS) $(AM_LDFLAGS)

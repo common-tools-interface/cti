@@ -4,7 +4,7 @@
 # Copyright 2019-2023 Hewlett Packard Enterprise Development LP.
 #
 
-SUBDIRS				= SLURM GenericSSH
+SUBDIRS				= SLURM GenericSSH Localhost
 if ENABLE_ALPS
 SUBDIRS += ALPS
 endif
@@ -13,9 +13,6 @@ SUBDIRS += PALS
 endif
 if ENABLE_FLUX
 SUBDIRS += Flux
-endif
-if ENABLE_LOCALHOST
-SUBDIRS += Localhost
 endif
 
 AM_LIBTOOLFLAGS 	= --quiet
@@ -33,9 +30,9 @@ endif
 if ENABLE_FLUX
 libfrontend_impl_la_LIBADD += Flux/libflux.la
 endif
-if ENABLE_LOCALHOST
+
 libfrontend_impl_la_LIBADD += Localhost/liblocalhost.la
-endif
+
 
 libfrontend_impl_la_LIBADD += $(CODE_COVERAGE_LIBS)
 libfrontend_impl_la_LDFLAGS		= -Wl,--no-undefined $(AM_LDFLAGS)
