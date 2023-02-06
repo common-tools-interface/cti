@@ -11,6 +11,7 @@
 # used, reproduced or disclosed in any form.
 #
 
+set -x
 source ./external/cdst_build_library/build_lib
 
 echo "############################################"
