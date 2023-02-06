@@ -51,6 +51,7 @@ private:
     mutable std::vector<std::string> m_cleanupFiles;  // Files to clean-up on exit
     bool m_beDaemonSent = false;
 
+    void writeAppPEs();
 
 public: // app interaction interface
     std::string getJobId()            const override;
@@ -75,6 +76,7 @@ public: // app interaction interface
 public: // constructor / destructor interface
     LocalhostApp(LocalhostFrontend& fe, CArgArray launcher_argv, int stdout_fd, int stderr_fd,
                  CStr inputFile, CStr chdirPath, CArgArray env_list, bool stopAtBarrier);
+    LocalhostApp(LocalhostFrontend& fe, const std::vector<int>& appPEs);
     ~LocalhostApp();
     LocalhostApp(const LocalhostApp&) = delete;
     LocalhostApp& operator=(const LocalhostApp&) = delete;

@@ -590,6 +590,19 @@ static cti_flux_ops_t _cti_flux_ops = {
     .registerJob = _cti_flux_registerJob,
 };
 
+static cti_app_id_t
+_cti_localhost_registerJob(char const* job_id) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<SLURMFrontend>();
+        auto wp = fe.registerJob(2, job_id);
+        return fe.Iface().trackApp(wp);
+    }, APP_ERROR);
+}
+
+static cti_localhost_ops_t _cti_localhost_ops = {
+    .registerJob = _cti_localhost_registerJob,
+};
+
 // WLM specific extension ops accessor
 cti_wlm_type_t
 cti_open_ops(void **ops) {
@@ -617,7 +630,7 @@ cti_open_ops(void **ops) {
                 *ops = reinterpret_cast<void *>(&_cti_flux_ops);
                 break;
             case CTI_WLM_LOCALHOST:
-                *ops = nullptr;
+                *ops = reinterpret_cast<void *>(&_cti_localhost_ops);
                 break;
     
             case CTI_WLM_NONE:

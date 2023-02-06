@@ -9,6 +9,7 @@
 #include "useful/cti_argv.hpp"
 #include "useful/cti_wrappers.hpp"
 #include <filesystem>
+#include <fstream>
 
 int LocalhostApp::m_nextId = 0;
 
@@ -72,19 +73,19 @@ LocalhostApp::LocalhostApp(LocalhostFrontend& fe, CArgArray launcher_argv,
         }
     }
 
-    // write the application pes to a file for the back-end, like a mini-MPIR proc
-    // table.
-    auto pidPath = m_stagePath + "/" + LOCALHOST_PID_FILE;
-    if (auto const pidFile = cti::file::open(pidPath, "w")) {
-        fprintf(pidFile.get(), "%zu\n", m_appPEs.size());
-        for (auto pid : m_appPEs) {
-            fprintf(pidFile.get(), "%d\n", pid);
-        }
-    } else {
-        throw std::runtime_error("failed to open PID file path " + pidPath);
-    }
+    writeAppPEs();
+}
 
-    m_extraFiles.push_back(pidPath);
+LocalhostApp::LocalhostApp(LocalhostFrontend& fe, const std::vector<int>& appPEs)
+    : App(fe, 0)
+    , m_id          { std::to_string(getpid()) + "." + std::to_string(m_nextId++) }
+    , m_appPEs      { appPEs }
+    , m_toolPath    { LOCALHOST_TOOL_DIR }
+    , m_attribsPath { LOCALHOST_TOOL_DIR }
+    , m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR})}
+    , m_cleanupFiles { 1, m_stagePath }
+{
+   writeAppPEs();
 }
 
 LocalhostApp::~LocalhostApp()
@@ -100,6 +101,23 @@ LocalhostApp::~LocalhostApp()
             std::filesystem::remove_all(file, ec);
         }
     }
+}
+
+void LocalhostApp::writeAppPEs()
+{
+    // write the application pes to a file for the back-end, like a mini-MPIR proc
+    // table.
+    auto pidPath = m_stagePath + "/" + LOCALHOST_PID_FILE;
+    if (auto const pidFile = cti::file::open(pidPath, "w")) {
+        fprintf(pidFile.get(), "%zu\n", m_appPEs.size());
+        for (auto pid : m_appPEs) {
+            fprintf(pidFile.get(), "%d\n", pid);
+        }
+    } else {
+        throw std::runtime_error("failed to open PID file path " + pidPath);
+    }
+
+    m_extraFiles.push_back(pidPath);
 }
 
 /* running app info accessors */
@@ -274,7 +292,63 @@ LocalhostFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int std
 std::weak_ptr<App>
 LocalhostFrontend::registerJob(size_t numIds, ...)
 {
-    throw std::runtime_error("Localhost register job is not implemented");
+    if (numIds != 1) {
+        throw std::logic_error("expecting single pid argument to register app");
+    }
+
+
+    auto jobId = std::string{};
+    va_list idArgs;
+    va_start(idArgs, numIds);
+    jobId = va_arg(idArgs, const char*);
+    va_end(idArgs);
+
+    // expecting <parent-pid>.<executable>
+    auto launcher = std::string{jobId};
+    auto exe = std::string{"dbgsrv"};
+    if (auto dot = launcher.find('.'); dot != std::string::npos) {
+        exe = launcher.substr(dot+1);
+        launcher = launcher.substr(0,dot);
+    }
+
+    std::vector<int> appIds;
+    std::vector<std::string> pids{launcher};
+    while (!pids.empty()) {
+        auto pid = std::move(pids.back());
+        pids.pop_back();
+
+        auto pdir = std::filesystem::path{"/proc/" +  pid};
+        auto comm = pdir / "comm";
+        if (auto is = std::ifstream(comm.c_str())) {
+            auto line = std::string{};
+            std::getline(is, line);
+            if (line == exe) {
+                appIds.push_back(std::stoi(pid));
+                continue;
+            }
+        }
+        auto children = pdir / "task" / pid / "children";
+        if (auto cis = std::ifstream{children}) {
+            auto childPid = std::string{};
+            while (cis >> childPid) {
+                pids.push_back(childPid);
+            }
+        }
+    }
+
+    if (appIds.empty()) {
+        throw std::runtime_error("Could not find processes in job");
+    }
+
+    auto appPtr = std::make_shared<LocalhostApp>(*this, appIds);
+
+    // Register with frontend application set
+    auto resultInsertedPair = m_apps.emplace(std::move(appPtr));
+    if (!resultInsertedPair.second) {
+        throw std::runtime_error("Failed to insert new App object.");
+    }
+
+    return *resultInsertedPair.first;
 }
 
 std::string
