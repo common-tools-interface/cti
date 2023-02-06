@@ -166,10 +166,8 @@ typedef enum
     CTI_WLM_SSH,    // Direct SSH implementation
     CTI_WLM_ALPS,   // ALPS implementation
     CTI_WLM_PALS,   // PALS implementation
-    CTI_WLM_FLUX   // Flux implementation
-#ifdef CTI_ENABLE_LOCALHOST
-    , CTI_WLM_LOCALHOST = 99  // Localhost implementation for tool development
-#endif    
+    CTI_WLM_FLUX,   // Flux implementation
+    CTI_WLM_LOCALHOST  // Localhost implementation
 } cti_wlm_type_t;
 
 #ifdef __cplusplus
