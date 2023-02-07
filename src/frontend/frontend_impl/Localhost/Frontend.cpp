@@ -56,6 +56,9 @@ LocalhostApp::LocalhostApp(LocalhostFrontend& fe, CArgArray launcher_argv,
     if (!lockFileEnv.empty()) {
         env.push_back(const_cast<char*>(lockFileEnv.c_str()));
     }
+    auto numRanks = "CTI_LOCALHOST_NUM_RANKS=" + std::to_string(numPEs);
+    env.push_back(const_cast<char*>(numRanks.c_str()));
+
     env.push_back(nullptr); // place holder for rank
     env.push_back(nullptr); // terminator
     auto rankLoc = env.end()-2;
