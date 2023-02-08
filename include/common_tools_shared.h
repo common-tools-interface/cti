@@ -149,6 +149,7 @@
 #define CTI_WLM_TYPE_SSH_STR   		"generic"
 #define CTI_WLM_TYPE_PALS_STR       "pals"
 #define CTI_WLM_TYPE_FLUX_STR       "flux"
+#define CTI_WLM_TYPE_LOCALHOST_STR  "localhost"
 
 #ifdef __cplusplus
 extern "C" {
@@ -165,7 +166,8 @@ typedef enum
     CTI_WLM_SSH,    // Direct SSH implementation
     CTI_WLM_ALPS,   // ALPS implementation
     CTI_WLM_PALS,   // PALS implementation
-    CTI_WLM_FLUX    // Flux implementation
+    CTI_WLM_FLUX,   // Flux implementation
+    CTI_WLM_LOCALHOST  // Localhost implementation
 } cti_wlm_type_t;
 
 #ifdef __cplusplus
