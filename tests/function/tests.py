@@ -639,12 +639,27 @@ class CtiTest(Test):
     def test_MPIRShim(self):
         name = "MPIRShim"
         argv = ["./src/cti_mpir_shim", *LAUNCHER_ARGS.split()]
+        shim_log_path = f"{os.getcwd()}/tmp/shim.out"
         env = {
-            "CTI_DEBUG": "1"
+            "CTI_DEBUG": "1",
+            "CTI_MPIR_SHIM_LOG_PATH": shim_log_path
         }
 
+        # Ensure that CTI was able to launch shimmed job
         rc = run_cti_test(self, name, argv, env)
         self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+        # Ensure that shim ran and exited correctly
+        shim_started = False
+        shim_child_exited_cleanly = False
+        with open(shim_log_path) as shim_log:
+            for line in shim_log:
+                if "cti shim token detected" in line:
+                    shim_started = True
+                elif "child exited" in line:
+                    shim_child_exited_cleanly = True
+        self.assertTrue(shim_started, f"MPIR shim was not started correctly")
+        self.assertTrue(shim_child_exited_cleanly, f"MPIR shim did not exit cleanly")
 
     def test_Redirect(self):
         name = "Redirect"
