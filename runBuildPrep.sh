@@ -39,6 +39,12 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
         rpm-build \
         zlib-devel
     check_exit_status
+
+    if [[ "$target_os" == "$cdst_os_sles15sp4" || "$target_os" == "$cdst_os_sles15sp3" ]]; then
+      zypper --non-interactive install libopenssl-1_1-devel
+      check_exit_status
+    fi
+
 elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
     if [[ "$target_os" == "$cdst_os_centos8" ]]; then 
       # Note the following will be different on build VMs vs DST. Errors are okay.
@@ -76,9 +82,11 @@ fi
 
 # Install the common PE components
 install_common_pe
+check_exit_status
 
 # Install cdst_support
 install_cdst_support
+check_exit_status
 
 capture_jenkins_build
 check_exit_status

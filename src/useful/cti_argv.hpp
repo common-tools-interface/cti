@@ -120,7 +120,7 @@ public:
         std::ostringstream r;
         std::string delim = "";
         for (size_t i = 0; i < argv.size() - 1; i++) {
-            r << delim << '\'' << argv[i] << '\'';
+            r << delim << argv[i];
             delim = " ";
         }
         return r.str();

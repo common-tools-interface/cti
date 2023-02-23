@@ -57,6 +57,9 @@ std::mutex                          Frontend::m_mutex;
 std::unique_ptr<cti::Logger>        Frontend::m_logger;  // must be destroyed after m_cleanup
 std::unique_ptr<Frontend_cleanup>   Frontend::m_cleanup{nullptr};
 
+// Set this library instance as original
+pid_t Frontend::m_original_pid{getpid()};
+
 // This ensures the singleton gets deleted
 Frontend_cleanup::~Frontend_cleanup() {
     Frontend::destroy();
@@ -282,6 +285,13 @@ Frontend::findBaseDir(void)
     return baseDir;
 }
 
+void
+Frontend::removeApp(std::shared_ptr<App> app)
+{
+    // drop the shared_ptr
+    m_apps.erase(app);
+}
+
 // BUG 819725:
 // create the hidden name for the cleanup file. This will be checked by future
 // runs to try assisting in cleanup if we get killed unexpectedly. This is cludge
@@ -302,28 +312,11 @@ Frontend::addFileCleanup(std::string const& file)
     cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
 }
 
-void
-Frontend::finalize()
-{
-    // tell all Apps to finalize transfer sessions
-    for (auto&& app : m_apps) {
-        app->finalize();
-    }
-}
-
 // BUG 819725:
 // Attempt to cleanup old files in the cfg dir
 void
 Frontend::doFileCleanup()
 {
-    // Create stage name
-    std::string stage_name{"." + std::string{DEFAULT_STAGE_DIR}};
-    // get the position of the first 'X'
-    auto found = stage_name.find('X');
-    if (found != std::string::npos) {
-        // Cut the "X" portion out
-        stage_name.erase(found);
-    }
     // Open cfg dir
     auto cfgDir = cti::dir::open(m_cfg_dir);
     // Recurse through each file in the directory
@@ -337,8 +330,8 @@ Frontend::doFileCleanup()
         if ( name.size() == 2 && name.compare("..") == 0 ) {
             continue;
         }
-        // Check this name against the stage_name
-        if ( name.compare(0, stage_name.size(), stage_name) == 0 ) {
+        // Check this name against the stage prefix
+        if (name.rfind(STAGE_DIR_PREFIX, 0) == 0) {
             // pattern matches, check to see if we need to remove
             std::string file{m_cfg_dir + "/" + d->d_name};
             auto fileHandle = cti::file::open(file, "r");
@@ -465,11 +458,6 @@ static bool detect_CS()
 // HPCM / Shasta
 static bool detect_PALS(std::string const& /* unused */)
 {
-    // Check manual PALS debug mode flag
-    if (::getenv(PALS_DEBUG)) {
-        return true;
-    }
-
     try {
 
         // Check that PBS is installed (required for PALS)
@@ -590,8 +578,58 @@ static bool detect_Flux(std::string const& launcherName)
     }
 }
 
+enum class MPIRSymbolStatus
+    { Ok
+    , LauncherNotFound
+    , NotBinaryFile
+    , NoMPIRBreakpoint
+    , NoMPIRSymbols
+};
+
+static auto format_MPIRSymbolError(MPIRSymbolStatus const& mpirSymbolStatus,
+    std::string const& launcherName, std::string const& launcherPath,
+    System const& system, WLM const& wlm)
+{
+    auto result = std::stringstream{};
+
+    if (mpirSymbolStatus == MPIRSymbolStatus::LauncherNotFound) {
+        result << launcherName << " was not found in PATH (tried "
+            << format_System_WLM(system, wlm) << "). If your system is "
+            "not configured with this workload manager, try setting the environment "
+            "variable " CTI_WLM_IMPL_ENV_VAR " to one of 'slurm', 'pals', 'flux', or "
+            "'alps'. For more information, run `man cti` and review "
+            CTI_WLM_IMPL_ENV_VAR ".";
+
+    } else if (mpirSymbolStatus == MPIRSymbolStatus::NotBinaryFile) {
+        result << launcherName << " was found at " << launcherPath
+            << ", but it is not a binary file. Tool launch requires "
+            "direct access to the " << launcherName << " binary. "
+            "Ensure that the " << launcherName << " binary not wrapped by a script "
+            "(tried " << format_System_WLM(system, wlm) << ")";
+
+    } else if (mpirSymbolStatus == MPIRSymbolStatus::NoMPIRBreakpoint) {
+        result << launcherName << " was found at " << launcherPath
+            << ", but it does not appear to support MPIR launch "
+            "(function MPIR_Breakpoint was not found). Tool launch is "
+            "coordinated through setting a breakpoint at this function. "
+            "Please contact your system administrator with a bug report "
+            "(tried " << format_System_WLM(system, wlm) << ")";
+
+    } else if (mpirSymbolStatus == MPIRSymbolStatus::NoMPIRSymbols) {
+        result << launcherName << " was found at " << launcherPath
+            << ", but it does not contain debug symbols. "
+            "Tool launch is coordinated through reading information at these symbols. "
+            "Please contact your system administrator with a bug report "
+            "(tried " << format_System_WLM(system, wlm) << ")";
+    }
+
+    return result.str();
+}
+
 // Verify that the provided launcher is a binary and contains MPIR symbols
-static bool verify_MPIR_symbols(System const& system, WLM const& wlm, std::string const& launcherName)
+// Return tuple of {status, detected launcher path}
+static auto verify_MPIR_symbols(System const& system, WLM const& wlm,
+    std::string launcherName)
 {
     assert(!launcherName.empty());
 
@@ -600,51 +638,52 @@ static bool verify_MPIR_symbols(System const& system, WLM const& wlm, std::strin
     try {
         launcherPath = cti::findPath(launcherName);
     } catch (...) {
-        throw std::runtime_error(launcherName + " was not found in PATH. \
-(tried " + format_System_WLM(system, wlm) + ")");
+        return std::make_tuple(MPIRSymbolStatus::LauncherNotFound, std::string{});
     }
 
     // Check that the launcher is a binary and not a script
     { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
         "file --mime -L " + launcherPath + " | grep -E 'application/x-(executable|sharedlib)'"};
         if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
-            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it is not a binary file. \
-Tool launch requires direct access to the " + launcherName + " binary. \
-Ensure that the " + launcherName + " binary not wrapped by a script \
-(tried " + format_System_WLM(system, wlm) + ")");
+            return std::make_tuple(MPIRSymbolStatus::NotBinaryFile, launcherPath);
         }
     }
 
     // Check that the launcher binary supports MPIR launch
     { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
-        "nm " + launcherPath + " | grep MPIR_Breakpoint$"};
+        "nm -a " + launcherPath + " | grep MPIR_Breakpoint$"};
         if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
-            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not appear to support MPIR launch \
-(function MPIR_Breakpoint was not found). Tool launch is \
-coordinated through setting a breakpoint at this function. \
-Please contact your system administrator with a bug report \
-(tried " + format_System_WLM(system, wlm) + ")");
+            return std::make_tuple(MPIRSymbolStatus::NoMPIRBreakpoint, launcherPath);
         }
     }
 
     // Check that the launcher binary contains MPIR symbols
     { auto symbolTestArgv = cti::ManagedArgv{"sh", "-c",
-        "nm " + launcherPath + " | grep MPIR_being_debugged$"};
+        "nm -a " + launcherPath + " | grep MPIR_being_debugged$"};
         if (cti::Execvp::runExitStatus("sh", symbolTestArgv.get())) {
-            throw std::runtime_error(launcherName + " was found at " + launcherPath + ", but it does not contain debug symbols. \
-Tool launch is coordinated through reading information at these symbols. \
-Please contact your system administrator with a bug report \
-(tried " + format_System_WLM(system, wlm) + ")");
+            return std::make_tuple(MPIRSymbolStatus::NoMPIRSymbols, launcherPath);
         }
     }
 
-    return true;
+    return std::make_tuple(MPIRSymbolStatus::Ok, launcherPath);;
 }
 
-static bool verify_PALS_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+static bool verify_PALS_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
 {
+    // Default to `mpiexec`
+    if (launcherName.empty()) {
+        launcherName = "mpiexec";
+    }
+
     // Check for MPIR symbols in launcher
-    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "mpiexec");
+    auto [status, launcherPath] = verify_MPIR_symbols(system, wlm, launcherName);
+
+    // Throw error on failure
+    if (status != MPIRSymbolStatus::Ok) {
+        throw std::runtime_error(format_MPIRSymbolError(status, launcherName,
+            launcherPath, system, wlm));
+    }
 
     // Check that the cray-pals software module is loaded
     try {
@@ -676,23 +715,125 @@ You may need to run `module load cray-pals`" + detail);
     return true;
 }
 
-static bool verify_XC_ALPS_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+static bool verify_XC_ALPS_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
 {
-    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "aprun");
+    // Default to `aprun`
+    if (launcherName.empty()) {
+        launcherName = "aprun";
+    }
+
+    // Check for MPIR symbols in launcher
+    auto [status, launcherPath] = verify_MPIR_symbols(system, wlm, launcherName);
+
+    // Throw error on failure
+    if (status != MPIRSymbolStatus::Ok) {
+        throw std::runtime_error(format_MPIRSymbolError(status, launcherName,
+            launcherPath, system, wlm));
+    }
 
     return true;
 }
 
-static bool verify_Slurm_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+static bool detect_Slurm_multicluster()
 {
-    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "srun");
+    try {
+        char const* sacctmgrArgv[] = { SACCTMGR, "-P", "-n", "show", "clusters", nullptr };
+
+        // Start sacctmgr
+        auto sacctmgrOutput = cti::Execvp{SACCTMGR, (char* const*)sacctmgrArgv, cti::Execvp::stderr::Ignore};
+
+        // Count number of clusters
+        auto num_clusters = int{0};
+        auto& sacctmgrStream = sacctmgrOutput.stream();
+        auto clusterLine = std::string{};
+        while (std::getline(sacctmgrStream, clusterLine)) {
+            num_clusters++;
+        }
+
+        // Check return code
+        if (sacctmgrOutput.getExitStatus() != 0) {
+            return false;
+        }
+
+        return (num_clusters > 1);
+
+    } catch(...) {
+        return false;
+    }
+}
+
+static bool detect_Slurm_allocation()
+{
+    // Interactive allocations have job name of "interactive"
+    // Additionally, when launched outside of an allocation,
+    // this environment variable is not set in the environment.
+    if (auto slurm_job_name = ::getenv(SLURM_JOB_NAME)) {
+        return strcmp(slurm_job_name, "interactive") == 0;
+    }
+
+    return false;
+}
+
+static bool verify_Slurm_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
+{
+    // Default to `srun`
+    if (launcherName.empty()) {
+        launcherName = "srun";
+    }
+
+    // Check for MPIR symbols in launcher
+    auto [status, launcherPath] = verify_MPIR_symbols(system, wlm, launcherName);
+
+    // Set launcher wrapper path if launcher was detected to be a wrapper script
+    if (status == MPIRSymbolStatus::NotBinaryFile) {
+
+        // Don't override user setting
+        ::setenv(CTI_LAUNCHER_SCRIPT_ENV_VAR, launcherPath.c_str(), 0);
+
+    // Throw error on other failure
+    } else if (status != MPIRSymbolStatus::Ok) {
+        throw std::runtime_error(format_MPIRSymbolError(status, launcherName,
+            launcherPath, system, wlm));
+    }
+
+    // Check for multi-cluster system and allocation
+    if (::getenv(SLURM_OVERRIDE_MC_ENV_VAR) == nullptr) {
+
+        if (detect_Slurm_multicluster()) {
+
+            if (!detect_Slurm_allocation()) {
+                throw std::runtime_error(
+                    "CTI uses several Slurm utilities to set up job launches. "
+                    "Your system was detected to be a multi-cluster system; some of "
+                    "these Slurm utilities do not support multi-cluster systems.\n"
+                    "To continue with launch, please run your job inside a Slurm allocation. "
+                    "To bypass this check, set the environment variable "
+                    SLURM_OVERRIDE_MC_ENV_VAR);
+            }
+        }
+    }
 
     return true;
 }
 
-static bool verify_SSH_configured(System const& system, WLM const& wlm, std::string const& launcherName)
+static bool verify_SSH_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
 {
-    verify_MPIR_symbols(system, wlm, !launcherName.empty() ? launcherName : "mpiexec");
+    // Default to `mpiexec`
+    if (launcherName.empty()) {
+        launcherName = "mpiexec";
+    }
+
+    // Check for MPIR symbols in launcher
+    auto [status, launcherPath] = verify_MPIR_symbols(system, wlm, launcherName);
+
+    // Throw error on failure
+    if (status != MPIRSymbolStatus::Ok) {
+        throw std::runtime_error(format_MPIRSymbolError(status, launcherName,
+            launcherPath, system, wlm));
+    }
 
     // Passwordless SSH must also be configured, but there is no way to verify this
     // before extracting MPIR information and attempting to launch a command on a
@@ -849,42 +990,8 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
         // during construction, as it depends on Frontend state and will deadlock.
     }
 
-    // Run WLM detection heuristics that may depend on system type
-    switch (system) {
-
-    case System::Unknown:
-    case System::Linux:
-        if (detect_PALS(launcherName)) {
-            return WLM::PALS;
-        } else if (detect_Flux(launcherName)) {
-            return WLM::Flux;
-        } else {
-            return WLM::SSH;
-        }
-
-    case System::HPCM:
-        if (detect_PALS(launcherName)) {
-            return WLM::PALS;
-        } else if (detect_Slurm(launcherName)) {
-            return WLM::Slurm;
-        } else if (detect_Flux(launcherName)) {
-            return WLM::Flux;
-        } else {
-            return WLM::Unknown;
-        }
-
-    case System::Shasta:
-        if (detect_PALS(launcherName)) {
-            return WLM::PALS;
-        } else if (detect_Slurm(launcherName)) {
-            return WLM::Slurm;
-        } else if (detect_Flux(launcherName)) {
-            return WLM::Flux;
-        } else {
-            return WLM::Unknown;
-        }
-
-    case System::XC:
+    // Run XC WLM detection heuristics if detected XC
+    if (system == System::XC) {
         if (detect_Slurm(launcherName)) {
             return WLM::Slurm;
         } else if (detect_XC_ALPS(launcherName)) {
@@ -892,26 +999,22 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
         } else {
             return WLM::Unknown;
         }
-
-    case System::CS:
-        if (detect_Slurm(launcherName)) {
-            return WLM::Slurm;
-        } else {
-            return WLM::SSH;
-        }
-
-    default:
-        break;
     }
 
-    // Run WLM detection heuristics that do not depend on system type
-    if (detect_PALS(launcherName)) {
-        return WLM::PALS;
-    } else if (detect_Slurm(launcherName)) {
+    // Run general WLM detection heuristics
+    if (detect_Slurm(launcherName)) {
         return WLM::Slurm;
+
+    } else if (detect_PALS(launcherName)) {
+        return WLM::PALS;
+
+    } else if (detect_Flux(launcherName)) {
+        return WLM::Flux;
+
     }
 
-    return WLM::Unknown;
+    // Could not detect WLM, try SSH
+    return WLM::SSH;
 }
 
 static void verify_System_WLM_configured(System const& system, WLM const& wlm, std::string const& launcherName)
@@ -1004,7 +1107,7 @@ Frontend::inst()
         inst = m_instance.load(std::memory_order_relaxed);
 
         if (!inst) {
-            // We were the first one here, create the cleanup handle
+            // Create the cleanup handle if needed
             m_cleanup = std::make_unique<Frontend_cleanup>();
 
             // Read launcher name setting
@@ -1053,17 +1156,22 @@ Frontend::inst()
     return *inst;
 }
 
+
 void
 Frontend::destroy() {
     // Use sequential consistency here
     if (auto instance = m_instance.exchange(nullptr)) {
 
-        // clean up all App/Sessions before destructors are run
-        for (auto&& app : instance->m_apps) {
-            try {
-                app->finalize();
-            } catch (std::exception const& ex) {
-                // Ignore cleanup exceptions
+        // Skip session cleanup if not running from original instance
+        if (instance->isOriginalInstance()) {
+
+            // clean up all App/Sessions before destructors are run
+            for (auto&& app : instance->m_apps) {
+                try {
+                    app->finalize();
+                } catch (std::exception const& ex) {
+                    // Ignore cleanup exceptions
+                }
             }
         }
 
@@ -1131,10 +1239,99 @@ Frontend::Frontend()
 
 Frontend::~Frontend()
 {
+    if (!isOriginalInstance()) {
+        writeLog("~Frontend: forked PID %d exiting without cleanup\n", getpid());
+        return;
+    }
+
     // Unlink the cleanup files since we are exiting normally
     for (auto&& file : m_cleanup_files) {
         unlink(file.c_str());
     }
+}
+
+cti_symbol_result_t Frontend::containsSymbols(std::string const& binaryPath,
+    std::unordered_set<std::string> const& symbols, cti_symbol_query_t query) const
+{
+    // Check file exists
+    struct stat buf = {};
+    if (::stat(binaryPath.c_str(), &buf) < 0) {
+        throw std::runtime_error("no file found at " + binaryPath);
+    }
+
+    // Check file executable
+    if (!(buf.st_mode & S_IXUSR)) {
+        throw std::runtime_error(binaryPath + " is not executable");
+    }
+
+    // Use nm to list symbols
+    auto result = CTI_SYMBOLS_NO;
+    char const* nm_argv[] = {"nm", binaryPath.c_str(), nullptr};
+    auto nmOutput = cti::Execvp{"nm", (char* const*)nm_argv, cti::Execvp::stderr::Ignore};
+    auto& nmStream = nmOutput.stream();
+    auto nmLine = std::string{};
+
+    if (query == CTI_SYMBOLS_ANY) {
+
+        // Determine if any symbols match provided
+        while (std::getline(nmStream, nmLine)) {
+            nmLine = cti::split::removeLeadingWhitespace(std::move(nmLine));
+            auto [addr, label, symbol] = cti::split::string<3>(nmLine, ' ');
+
+            // Undefined symbols won't have an address
+            if (symbol.empty()) {
+                symbol = label;
+            }
+
+            if (symbols.count(symbol) > 0) {
+                result = CTI_SYMBOLS_YES;
+                break;
+            }
+        }
+
+    } else if (query == CTI_SYMBOLS_ALL) {
+        auto remainingSymbols = symbols;
+
+        // Determine if all symbols match provided
+        while (std::getline(nmStream, nmLine)) {
+            auto [addr, label, symbol] = cti::split::string<3>(nmLine, ' ');
+            auto symbolIter = remainingSymbols.find(symbol);
+            if (symbolIter != remainingSymbols.end()) {
+                remainingSymbols.erase(symbolIter);
+            }
+
+            // Exit if found all
+            if (remainingSymbols.empty()) {
+                result = CTI_SYMBOLS_YES;
+                break;
+            }
+        }
+    }
+
+    // Wait for nm exit
+    nmStream.ignore(std::numeric_limits<std::streamsize>::max());
+    (void)nmOutput.getExitStatus();
+
+    return result;
+}
+
+App::App(Frontend& fe, FE_daemon::DaemonAppId daemonAppId)
+    : m_frontend{fe}
+    , m_daemonAppId{daemonAppId}
+    , m_sessions{}
+    , m_uniqueBEDaemonName{CTI_BE_DAEMON_BINARY}
+{
+    // Generate the unique BE daemon name
+    for (size_t i = 0; i < 6; i++) {
+        m_uniqueBEDaemonName.push_back(m_frontend.Prng().genChar());
+    }
+}
+
+App::App(Frontend& fe)
+    : App{fe, -1}
+{
+    // Create new daemon app ID
+    m_daemonAppId = Frontend::inst().Daemon().request_RegisterApp();
 }
 
 std::weak_ptr<Session>

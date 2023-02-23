@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "ld_val_defs.h"
 
@@ -58,7 +59,8 @@ unsigned int
 la_objopen(struct link_map *map, Lmid_t lmid, uintptr_t *cookie)
 {
     // Ensure the library name has a length, otherwise return
-    if (strlen(map->l_name) != 0)
+    if (map->l_name && (strlen(map->l_name) != 0)
+     && (access(map->l_name, F_OK) == 0))
     {
         // write the lib string followed by a null terminator
         fprintf(stderr, "%s%c", map->l_name, '\0');

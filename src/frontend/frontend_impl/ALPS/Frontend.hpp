@@ -139,7 +139,6 @@ private: // variables
 
     ALPSFrontend::LibAlps& m_libAlpsRef;
 
-    FE_daemon::DaemonAppId m_daemonAppId; // used for util registry and MPIR release
     std::unique_ptr<appInfo_t> m_alpsAppInfo;
     std::vector<cmdDetail_t> m_alpsCmdDetail;
     std::vector<placeNodeList_t> m_alpsPlaceNodeList;
@@ -152,6 +151,7 @@ private: // variables
     std::string m_attribsPath; // Backend Cray-specific directory
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
+    std::weak_ptr<Session> m_internalSession; // Internal session used for some operations
 
 public: // app interaction interface
     std::string getJobId()            const override;

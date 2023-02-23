@@ -76,7 +76,7 @@ private: // variables
 public: // constructor / destructor interface
     // register case
     MockApp(MockFrontend& fe, pid_t launcherPid, MockFrontend::LaunchBarrierMode const launchBarrierMode);
-    virtual ~MockApp() = default;
+    virtual ~MockApp();
 
 public: // inherited interface
     std::string getJobId() const { return m_jobId; }

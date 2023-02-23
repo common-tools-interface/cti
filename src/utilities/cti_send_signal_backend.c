@@ -1,8 +1,6 @@
 /******************************************************************************\
- * cti_linking_test.c - An example program that tests linking in both FE and BE
- *                      libraries at the same time
  *
- * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2022 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -28,36 +26,40 @@
  *
  ******************************************************************************/
 
-#include <stdio.h>
+#include <stdlib.h>
+#include <signal.h>
 
-#include "common_tools_fe.h"
 #include "common_tools_be.h"
 
-int
-main(int argc, char **argv)
-{
-    cti_wlm_type_t  mywlm;
-    cti_wlm_type_t  mybewlm;
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        return -1;
+    }
 
-    /*
-     * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
-     *                   system.
-     */
-    mywlm = cti_current_wlm();
+    // parse signal
+    int signal = strtol(argv[1], NULL, 10);
+    if (signal <= 0 || signal > 64) {
+        return -1;
+    }
 
-    printf("Current fe workload manager: %s\n", cti_wlm_type_toString(mywlm));
+    // get node pids
+    cti_pidList_t* app_pids = cti_be_findAppPids();
 
-    /*
-     * cti_be_current_wlm - Obtain the current workload manager (WLM) in use on
-     *                      the system.
-     */
-    mybewlm = cti_be_current_wlm();
+    if (!app_pids) {
+        return -1;
+    }
 
-    printf("Current be workload manager: %s\n", cti_be_wlm_type_toString(mybewlm));
+    // send the specified signal to each pid
+    int failed = 0;
 
-    // emit "Launch complete" for test harness timeout detection
-    fprintf(stderr, "Safe from launch timeout.\n");
+    for (int i = 0; i < app_pids->numPids; i++) {
+        if (kill(app_pids->pids[i].pid, signal)) {
+            failed = 1;
+        }
+    }
 
-    return 0;
+    // clean up
+    cti_be_destroyPidList(app_pids);
+
+    return failed;
 }
-

@@ -8,7 +8,7 @@ AC_PREREQ([2.63])
 
 dnl We need to use the m4_esyscmd here because the Cray macro extensions are
 dnl not pulled in until after AC_INIT. This is not portable...
-AC_INIT([common_tool_interface], m4_esyscmd([source $PWD/release_versioning; echo $common_tool_major.$common_tool_minor | tr -d '\n']), [andrewg@cray.com])
+AC_INIT([common_tool_interface], m4_esyscmd(. ${PWD}/release_versioning; echo $common_tool_major.$common_tool_minor | tr -d '\n']), [andrewg@cray.com])
 AC_COPYRIGHT([Copyright 2011-2020 Hewlett Packard Enterprise Development LP.])
 
 AC_CONFIG_SRCDIR([src/cti_defs.h])
@@ -281,6 +281,10 @@ AC_SUBST([COMMONTOOL_FE_DAEMON_BINARY], ["cti_fe_daemon$COMMONTOOL_RELEASE_VERSI
 AC_DEFINE_UNQUOTED([CTI_FE_DAEMON_BINARY], ["$COMMONTOOL_FE_DAEMON_BINARY"], [Name of CTI frontend daemon binary.])
 AC_SUBST([COMMONTOOL_MPIR_SHIM_BINARY], ["mpir_shim$COMMONTOOL_RELEASE_VERSION"])
 AC_DEFINE_UNQUOTED([CTI_MPIR_SHIM_BINARY], ["$COMMONTOOL_MPIR_SHIM_BINARY"], [Name of CTI MPIR shim binary.])
+AC_SUBST([COMMONTOOL_SLURM_STOP_BINARY], ["cti_slurm_stop$COMMONTOOL_RELEASE_VERSION"])
+AC_DEFINE_UNQUOTED([CTI_SLURM_STOP_BINARY], ["$COMMONTOOL_SLURM_STOP_BINARY"], [Name of CTI Slurm stop binary.])
+AC_SUBST([COMMONTOOL_STOP_LIBRARY], ["libctistop.so"])
+AC_DEFINE_UNQUOTED([CTI_STOP_LIBRARY], ["$COMMONTOOL_STOP_LIBRARY"], [Name of CTI stop library.])
 
 dnl Define names of helper utilities
 AC_SUBST([COMMONTOOL_FIRST_SUBPROCESS_BINARY], ["cti_first_subprocess$COMMONTOOL_RELEASE_VERSION"])

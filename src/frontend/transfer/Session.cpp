@@ -37,15 +37,10 @@
 
 #include "useful/cti_wrappers.hpp"
 
-std::string
-Session::generateStagePath(FE_prng& charSource) {
-    std::string stageName;
-    // remove placeholder Xs from DEFAULT_STAGE_DIR
-    const std::string stageFormat(DEFAULT_STAGE_DIR);
-    stageName = stageFormat.substr(0, stageFormat.find("X"));
-    // replace 'X' characters in the stage_name string with random characters
-    size_t numChars = stageFormat.length() - stageName.length();
-    for (size_t i = 0; i < numChars; i++) {
+static auto
+generateStagePath(FE_prng& charSource) {
+    auto stageName = std::string{STAGE_DIR_PREFIX};
+    for (size_t i = 0; i < 6; i++) {
         stageName.push_back(charSource.genChar());
     }
     return stageName;
@@ -165,6 +160,29 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
         std::string const remoteLibDirPath{m_stagePath + "/" + libPath};
         m_ldLibraryPath = remoteLibDirPath + ":" + m_ldLibraryPath;
     }
+
+    // Find duplicate files that are available on the backend
+    auto duplicateSourcePaths = std::set<std::string>{};
+    if (auto deduplicate_files = ::getenv(CTI_DEDUPLICATE_FILES_ENV_VAR)) {
+        try {
+            if (strcmp(deduplicate_files, "1") == 0) {
+
+                auto sourcePaths = std::set<std::string>{};
+
+                // Build list of source paths
+                for (auto&& [name, sourcePath] : sources) {
+                    sourcePaths.insert(sourcePath);
+                }
+
+                // Remove paths that exist on all backends
+                duplicateSourcePaths = app->checkFilesExist(sourcePaths);
+            }
+
+        } catch (std::exception const& ex) {
+            writeLog("Deduplication failed: %s\n", ex.what());
+        }
+    }
+
     // todo: block signals handle race with file creation
     // create and fill archive
     // Register the cleanup file with the frontend for this archive
@@ -178,10 +196,32 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
     // add the unique files to archive
     for (auto&& folderIt : folders) {
         for (auto&& fileIt : folderIt.second) {
-            const std::string destPath(m_stageName + "/" + folderIt.first +
-                "/" + fileIt);
-            writeLog("shipManifest %d: addPath(%s, %s)\n", inst, destPath.c_str(), sources.at(fileIt).c_str());
-            archive.addPath(destPath, sources.at(fileIt));
+
+            // Find file source path
+            auto&& namePathPair = sources.find(fileIt);
+            if (namePathPair == sources.end()) {
+                continue;
+            }
+
+            // Construct destination path from folder and file name
+            auto&& [name, sourcePath] = *namePathPair;
+            auto destPath = m_stageName + "/" + folderIt.first + "/" + name;
+
+            // Determine if path is available on node
+            if (duplicateSourcePaths.count(sourcePath) > 0) {
+
+                // Add link to archive
+                writeLog("shipManifest %d: addLink(%s, %s)\n",
+                    inst, destPath.c_str(), sourcePath.c_str());
+                archive.addLink(destPath, sourcePath);
+
+            } else {
+
+                // Add file via source path to archive
+                writeLog("shipManifest %d: addPath(%s, %s)\n",
+                    inst, destPath.c_str(), sourcePath.c_str());
+                archive.addPath(destPath, sourcePath);
+            }
         }
     }
     // ship package

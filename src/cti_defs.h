@@ -69,7 +69,7 @@ extern "C" {
 ** Backend defines relating to the compute node
 *******************************************************************************/
 // The following needs the 'X' for random char replacement.
-#define DEFAULT_STAGE_DIR                   "cti_daemonXXXXXX"      // default directory name for the fake root of the tool daemon
+#define STAGE_DIR_PREFIX                    "cti_daemon"            // default directory name for the fake root of the tool daemon
 #define PMI_ATTRIBS_FILE_NAME               "pmi_attribs"           // Name of the pmi_attribs file to find pid info
 #define PMI_ATTRIBS_DEFAULT_FOPEN_TIMEOUT   60ul                    // default timeout in seconds for trying to open pmi_attribs file
 #define PID_FILE                            ".cti_pids"             // Name of the file containing the pids of the tool daemon processes
@@ -114,6 +114,8 @@ typedef struct
 #define SATTACH                 "sattach"                           // name of slurm io redirect binary
 #define SCANCEL                 "scancel"                           // name of slurm job signal binary
 #define SBCAST                  "sbcast"                            // name of slurm transfer binary
+#define SACCTMGR                "sacctmgr"                          // name of slurm configuration binary
+#define SLURM_JOB_NAME          "SLURM_JOB_NAME"                    // Environment variable for Slurm job name
 #define SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid) // formula for creating Cray apid from SLURM jobid.stepid
 #define SLURM_TOOL_DIR          "/tmp"                              // SLURM staging path on compute node
 #define SLURM_CRAY_DIR          "/var/opt/cray/alps/spool/%llu"     // Location of cray specific directory on compute node
@@ -121,6 +123,7 @@ typedef struct
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
 #define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
 #define SLURM_DAEMON_GRES_ENV_VAR "CTI_SLURM_DAEMON_GRES"           // Set to specify `--gres` argument for tool daemon launches (or leave blank to disable)
+#define SLURM_OVERRIDE_MC_ENV_VAR "CTI_SLURM_OVERRIDE_MC"                 // Set to disable Slurm multi-cluster check
 
 /*******************************************************************************
 ** SSH specific information
@@ -169,7 +172,16 @@ typedef slurmPidFile_t          cti_pidFile_t;
 
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
 #define PALS_BE_LIB_DEFAULT_PATH "/opt/cray/pe/pals/default/lib" // Location of default PALS library
-#define PALS_DEBUG "CTI_PALS_DEBUG" // Manually enables PALS frontend and uses localhost as API server without authentication
+#define PALS_EXEC_HOST "CTI_PALS_EXEC_HOST" // To use PALS application ID for attaching outside of job's PBS allocation
+// In PALS 1.2.3, there is a race condition between the tool launcher
+// releasing a job from the startup barrier and the job actually getting to the
+// startup barrier. This can result in the job receiving the startup barrier
+// release signal before it actually arrives there, resulting in the job getting
+// stuck in the barrier. As a workaround, this environment variable can be set
+// to add a delay between job startup and barrier release. If set to a positve
+// integer n, CTI will wait n seconds between starting a job and releasing it
+// from the barrier on PALS. A delay as small as one second can work.
+#define PALS_BARRIER_RELEASE_DELAY "CTI_PALS_BARRIER_RELEASE_DELAY"
 
 /*******************************************************************************
 ** Flux specific information
@@ -197,6 +209,7 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SRUN_OVERRIDE_ARGS_ENV_VAR   "CTI_SRUN_OVERRIDE"    // Frontend: replace variable SRUN arguments with these given arguments (read)
 #define SRUN_APPEND_ARGS_ENV_VAR     "CTI_SRUN_APPEND"      // Frontend: append these arguments to the variable list of SRUN arguments (read)
 #define CTI_HOST_ADDRESS_ENV_VAR     "CTI_HOST_ADDRESS"     // Frontend: override detection of host IP address
+#define CTI_DEDUPLICATE_FILES_ENV_VAR "CTI_DEDUPLICATE_FILES" // Frontend: ship all files to backends, even if available
 
 // Backend related env vars
 #define BE_GUARD_ENV_VAR    "CTI_IAMBACKEND"        //Backend: Set by the daemon launcher to ensure proper setup

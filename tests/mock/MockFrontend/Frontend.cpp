@@ -146,3 +146,10 @@ MockApp::MockApp(MockFrontend& fe, pid_t launcherPid, MockFrontend::LaunchBarrie
             }
         })));
 }
+
+MockApp::~MockApp()
+{
+    if (!Frontend::inst().isOriginalInstance()) {
+        return;
+    }
+}

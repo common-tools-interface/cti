@@ -458,10 +458,25 @@ _cti_slurm_getSrunInfo(cti_app_id_t appId) {
     }, (cti_srunProc_t*)nullptr);
 }
 
+static cti_srunProc_t*
+_cti_slurm_submitBatchScript(char const* script_path, char const* const* launcher_args,
+    char const* const* env_list) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<SLURMFrontend>();
+        if (auto result = (cti_srunProc_t*)malloc(sizeof(cti_srunProc_t))) {
+            *result = fe.submitBatchScript(script_path, launcher_args, env_list);
+            return result;
+        } else {
+            throw std::runtime_error("malloc failed.");
+        }
+    }, (cti_srunProc_t*)nullptr);
+}
+
 static cti_slurm_ops_t _cti_slurm_ops = {
     .getJobInfo         = _cti_slurm_getJobInfo,
     .registerJobStep    = _cti_slurm_registerJobStep,
-    .getSrunInfo        = _cti_slurm_getSrunInfo
+    .getSrunInfo        = _cti_slurm_getSrunInfo,
+    .submitBatchScript  = _cti_slurm_submitBatchScript
 };
 
 // PALS WLM extensions
@@ -486,17 +501,27 @@ _cti_pals_getApid(pid_t launcherPid) {
 }
 
 static cti_app_id_t
-_cti_pals_registerApid(char const* apid) {
+_cti_pals_registerApid(char const* job_or_apid) {
     CHECK_PALS_RUN_SAFELY(APP_ERROR,
         auto&& fe = downcastFE<PALSFrontend>();
-        auto wp = fe.registerJob(1, apid);
+        auto wp = fe.registerJob(1, job_or_apid);
         return fe.Iface().trackApp(wp);
+    )
+}
+
+static char*
+_cti_pals_submitJobScript(char const* script_path, char const* const* launcher_args,
+    char const* const* env_list) {
+    CHECK_PALS_RUN_SAFELY((char*)nullptr,
+        auto&& fe = downcastFE<PALSFrontend>();
+        return strdup(fe.submitJobScript(script_path, launcher_args, env_list).c_str());
     )
 }
 
 static cti_pals_ops_t _cti_pals_ops = {
     .getApid      = _cti_pals_getApid,
-    .registerApid = _cti_pals_registerApid
+    .registerApid = _cti_pals_registerApid,
+    .submitJobScript = _cti_pals_submitJobScript
 };
 
 // SSH WLM extensions
@@ -634,6 +659,18 @@ cti_deregisterApp(cti_app_id_t appId) {
         fe.Iface().removeApp(appId);
         return true;
     }, false);
+}
+
+int
+cti_releaseApp(cti_app_id_t appId) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+
+        // Release and remove the app
+        fe.Daemon().request_ReleaseApp(appId);
+        fe.Iface().removeApp(appId);
+        return 0;
+    }, 1);
 }
 
 namespace
@@ -1103,4 +1140,18 @@ cti_getAttribute(cti_attr_type_t attrib)
         // Shouldn't get here
         return (const char *)nullptr;
     }, (const char*)nullptr);
+}
+
+cti_symbol_result_t
+cti_containsSymbols(char const* binary_path, char const* const* symbols,
+    cti_symbol_query_t query)
+{
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = Frontend::inst();
+        auto symbolsSet = std::unordered_set<std::string>{};
+        for (auto symbol = symbols; *symbol != nullptr; symbol++) {
+            symbolsSet.emplace(*symbol);
+        }
+        return fe.containsSymbols(binary_path, symbolsSet, query);
+    }, CTI_SYMBOLS_ERROR);
 }

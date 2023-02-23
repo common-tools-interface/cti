@@ -101,7 +101,6 @@ void MPIRInstance::setupMPIRStandard() {
     m_inferior.writeVariable("MPIR_being_debugged", 1);
 }
 
-
 /* instance implementations */
 
 void MPIRInstance::runToMPIRBreakpoint() {
@@ -138,6 +137,11 @@ static T readArrayElem(Inferior& inf, std::string const& symName, size_t idx) {
         elem_addr = array_start + idx * sizeof(T);
     }
     return inf.readMemory<T>(elem_addr);
+}
+
+void MPIRInstance::readAt(std::string const& symName, char* buf, size_t len)
+{
+    m_inferior.readToBuf(buf, symName, len);
 }
 
 std::string MPIRInstance::readStringAt(MPIRInstance::Address strAddress) {

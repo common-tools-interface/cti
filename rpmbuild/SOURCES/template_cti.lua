@@ -2,7 +2,7 @@
 
     Module cray-cti
 
-    Copyright 2010-2021 Hewlett Packard Enterprise Development LP.
+    <COPYRIGHT>
     UNPUBLISHED PROPRIETARY INFORMATION.
     ALL RIGHTS RESERVED.
 

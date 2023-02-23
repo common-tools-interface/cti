@@ -313,6 +313,7 @@ main(int argc, char **argv)
         fprintf(stderr, "CTI error: %s\n", cti_error_str());
         return 1;
     }
+    fprintf(stderr, "Safe from launch timeout.\n");
 
     // get number of allocated nodes in app
     if ((app_nodes = cti_getNumAppNodes(myapp)) == 0) {
@@ -407,11 +408,6 @@ main(int argc, char **argv)
         cti_killApp(myapp, 9);
         return 1;
     }
-
-    printf("Hit return to release the application from the startup barrier...");
-
-    // just read a single character from stdin then release the app/exit
-    (void)getchar();
 
     // release barrier
     if (cti_releaseAppBarrier(myapp)) {

@@ -49,6 +49,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <memory>
+#include <filesystem>
 
 #include "cti_defs.h"
 #include "useful/cti_argv.hpp"
@@ -153,6 +154,11 @@ struct ProcSet
     void insert(pid_t const pid)   { m_pids.insert(pid); }
     void erase(pid_t const pid)    { m_pids.erase(pid);  }
     bool contains(pid_t const pid) { return (m_pids.find(pid) != m_pids.end()); }
+
+    // Remove PID from list without ending child process
+    void release(pid_t const pid) {
+        m_pids.erase(pid);
+    }
 };
 
 /* global variables */
@@ -221,12 +227,6 @@ terminate_main_loop()
 static void
 sigchld_handler(pid_t const exitedPid)
 {
-    // Reap zombie
-    { auto const saved_errno = errno;
-        while (::waitpid(exitedPid, 0, WNOHANG) > 0) {}
-        errno = saved_errno;
-    }
-
     // If main loop is not running, allow main thread to clean up instead
     if (!main_loop_running) {
         return;
@@ -234,6 +234,13 @@ sigchld_handler(pid_t const exitedPid)
 
     // regular app termination
     if (appCleanupList.contains(exitedPid)) {
+
+        // Reap zombie if available
+        { auto const saved_errno = errno;
+            ::waitpid(exitedPid, 0, WNOHANG);
+            errno = saved_errno;
+        }
+
         // app already terminated
         appCleanupList.erase(exitedPid);
     }
@@ -329,6 +336,28 @@ static void deregisterAppID(DAppId const app_id)
 
         // finish util termination
         utilTermFuture.wait();
+    } else {
+        throw std::runtime_error("invalid app id: " + std::to_string(app_id));
+    }
+}
+
+static void releaseAppID(DAppId const app_id)
+{
+    auto const idPidPair = idPidMap.find(app_id);
+    if (idPidPair != idPidMap.end()) {
+        auto const app_pid = idPidPair->second;
+
+        // remove from ID list
+        idPidMap.erase(idPidPair);
+        if (app_pid > 0) {
+            pidIdMap.erase(app_pid);
+        }
+
+        // Application child process will reparent on CTI exit,
+        // utilities launched by CTI for application will be terminated
+        appCleanupList.release(app_pid);
+        utilMap.erase(app_id);
+
     } else {
         throw std::runtime_error("invalid app id: " + std::to_string(app_id));
     }
@@ -646,8 +675,13 @@ static pid_t forkExec(LaunchData const& launchData)
         }
 
         // exec srun
+        getLogger().write("execvp %s\n", launchData.filepath.c_str());
+        for (auto arg = argv.get(); *arg != nullptr; arg++) {
+            getLogger().write("%s\n", *arg);
+        }
         execvp(launchData.filepath.c_str(), argv.get());
-        fprintf(stderr, "execvp: %s", strerror(errno));
+        getLogger().write("execvp: %s\n", strerror(errno));
+        fprintf(stderr, "execvp: %s\n", strerror(errno));
         _exit(1);
     }
 }
@@ -829,13 +863,55 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     auto const shimBinDir = cti::dir_handle{shimData.temporaryShimBinDir + shimToken};
     auto const shimBinLink = cti::softlink_handle{shimData.shimBinaryPath,
         shimBinDir.m_path + "/" + shimmedLauncherName};
+    getLogger().write("link %s to %s\n",
+        shimData.shimBinaryPath.c_str(),
+        (shimBinDir.m_path + "/" + shimmedLauncherName).c_str());
+
+    // Save original PATH
+    auto const rawPath = ::getenv("PATH");
+    auto const originalPath = (rawPath != nullptr) ? std::string{rawPath} : "";
 
     // Modify PATH in launchData
-    auto const rawPath = ::getenv("PATH");
-    auto const originalPath = (rawPath != nullptr)
-        ? std::string{rawPath}
-        : "";
-    modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.m_path + (originalPath.empty() ? "" : (":" + originalPath)));
+    {
+        // Most launcher scripts such as Xalt will look for the first srun after its location
+        // in PATH, ignoring any before. So the shim path must be placed after the location
+        // of the launcher script in PATH.
+        auto launcherScriptDirectory = std::string{std::filesystem::path{launchData.filepath}.parent_path()};
+        auto shimmedPath = std::stringstream{};
+        auto found_directory = false;
+        for (auto restPath = originalPath; !restPath.empty(); ) {
+
+            // Split into directory and rest of path
+            auto path_delim = restPath.find(":");
+            auto directory = restPath.substr(0, path_delim);
+            restPath = (path_delim != std::string::npos)
+                ? restPath.substr(path_delim + 1)
+                : std::string{};
+
+            // Add entry to shimmed path
+            shimmedPath << directory << ":";
+
+            // If this was the directory for the launcher script, add shim directory
+            if (directory == launcherScriptDirectory) {
+                shimmedPath << shimBinDir.m_path << ":";
+                shimmedPath << restPath;
+                found_directory = true;
+                break;
+            }
+        }
+
+        if (found_directory) {
+            auto shimmedPathSetting = "PATH=" + shimmedPath.str();
+            getLogger().write("Modifying shimmed %s\n", shimmedPathSetting.c_str());
+            modifiedLaunchData.envList.emplace_back(shimmedPathSetting);
+
+        // Launcher directory not in path, fall back to prepending
+        } else {
+            getLogger().write("Couldn't find %s in path, prepending shim directory\n",
+                launcherScriptDirectory.c_str());
+            modifiedLaunchData.envList.emplace_back("PATH=" + shimBinDir.m_path + (originalPath.empty() ? "" : (":" + originalPath)));
+        }
+    }
 
     // Communicate output pipe and real launcher path to shim
     modifiedLaunchData.envList.emplace_back("CTI_MPIR_SHIM_INPUT_FD="  + std::to_string(shimPipe[0]));
@@ -925,6 +1001,7 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
         if (runMode == FE_daemon::Synchronous) {
             int status;
             if (cti::waitpid(utilPid, &status, 0) < 0) {
+                getLogger().write("waitpid returned %s\n", strerror(errno));
                 return false;
             }
 
@@ -1076,6 +1153,17 @@ static void handle_DeregisterApp(int const reqFd, int const respFd)
     });
 }
 
+static void handle_ReleaseApp(int const reqFd, int const respFd)
+{
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
+        auto const appId = fdReadLoop<DAppId>(reqFd);
+
+        releaseAppID(appId);
+
+        return true;
+    });
+}
+
 static void handle_CheckApp(int const reqFd, int const respFd)
 {
     tryWriteOKResp(respFd, [reqFd, respFd]() {
@@ -1107,6 +1195,7 @@ static auto reqTypeString(ReqType const reqType)
         case ReqType::TerminateMPIR:  return "TerminateMPIR";
         case ReqType::LaunchMPIRShim: return "LaunchMPIRShim";
         case ReqType::RegisterApp:    return "RegisterApp";
+        case ReqType::ReleaseApp:     return "ReleaseApp";
         case ReqType::RegisterUtil:   return "RegisterUtil";
         case ReqType::DeregisterApp:  return "DeregisterApp";
         case ReqType::CheckApp:       return "CheckApp";
@@ -1278,6 +1367,10 @@ main(int argc, char *argv[])
 
             case ReqType::DeregisterApp:
                 handle_DeregisterApp(reqFd, respFd);
+                break;
+
+            case ReqType::ReleaseApp:
+                handle_ReleaseApp(reqFd, respFd);
                 break;
 
             case ReqType::CheckApp:

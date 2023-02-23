@@ -69,6 +69,8 @@ public: // interface
     void addDirEntry(const std::string& dirPath);
     // set up archive entry and call addDir / addFile based on stat
     void addPath(const std::string& entryPath, const std::string& path);
+    // Create symbolic link in archive
+    void addLink(const std::string& entryPath, const std::string& dest);
 
 public: // Constructor/destructors
     // create archive on disk and set format

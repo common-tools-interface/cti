@@ -37,7 +37,9 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#include "useful/cti_execvp.hpp"
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_split.hpp"
 
 namespace cti
 {
@@ -73,45 +75,82 @@ detectFrontendHostname()
         return std::string{ip_addr};
     };
 
-    // Get the hostname of the interface that is accessible from compute nodes
-    // Behavior changes based on XC / Shasta UAI+UAN
-    auto detectAddress = [&make_addrinfo, &resolveHostname]() {
-        // Shasta UAN xname file
+    // Look up and resolve hostname
+    static auto _address = [&make_addrinfo, &resolveHostname]() {
+        auto hostname = cti::cstr::gethostname();
+        auto info = make_addrinfo(hostname);
+        return resolveHostname(*info);
+    }();
+    return _address;
+}
+
+static inline std::string
+detectHpcmAddress()
+{
+    // Run cminfo query
+    auto const cminfo_query = [](char const* option) {
+         char const* cminfoArgv[] = { "cminfo", option, nullptr };
+
+        // Start cminfo
         try {
-            // Try to extract the hostname from the xname file path
-            std::string xnameString;
-            if (std::getline(std::ifstream{CRAY_SHASTA_UAN_XNAME_FILE}, xnameString)) {
-                return xnameString;
+            auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
+
+            // Return last line of query
+            auto& cminfoStream = cminfoOutput.stream();
+            std::string line;
+            while (std::getline(cminfoStream, line)) {
+                // Read line
             }
-        } catch (std::exception const& ex) {
-            // continue processing
+            return line;
+
+        } catch (...) {
+            return std::string{};
         }
 
-        // On Shasta UAI, look up and return IPv4 address instead of hostname
-        // UAI hostnames cannot be resolved on compute node
-        // FIXME: PE-26874 change this once DNS support is added
-        auto const hostname = cti::cstr::gethostname();
-        try {
-            // Compute-accessible macVLAN hostname is UAI hostname appended with '-nmn'
-            // See https://connect.us.cray.com/jira/browse/CASMUSER-1391
-            // https://stash.us.cray.com/projects/UAN/repos/uan-img/pull-requests/51/diff#entrypoint.sh
-            auto const macVlanHostname = hostname + "-nmn";
-            auto info = make_addrinfo(macVlanHostname);
-            // FIXME: Remove this when PE-26874 is fixed
-            auto macVlanIPAddress = resolveHostname(*info);
-            return macVlanIPAddress;
-        }
-        catch (std::exception const& ex) {
-            // continue processing
-        }
-        // Try using normal hostname
-        auto info = make_addrinfo(hostname);
-        return hostname;
+        return std::string{};
     };
 
-    // Cache the hostname result.
-    static auto hostname = detectAddress();
-    return hostname;
+    // Get names of high speed networks
+    auto networkNames = cminfo_query("--data_net_names");
+
+    // Default to `hsn` as network name if it is listed
+    auto has_hsn = false;
+    auto nonHsnNetworkNames = std::vector<std::string>{};
+
+    // Check all reported names
+    while (!networkNames.empty()) {
+
+        // Extract first HSN name in comma-separated list
+        auto [networkName, rest] = cti::split::string<2>(std::move(networkNames), ',');
+
+        // Store non-HSN network names for next query
+        if (networkName == "hsn") {
+            has_hsn = true;
+        } else {
+            nonHsnNetworkNames.emplace_back(std::move(networkName));
+        }
+
+        // Retry with next name
+        networkNames = std::move(rest);
+    }
+
+    // Check HSN first
+    if (has_hsn) {
+        if (auto address = cminfo_query("--hsn_ip"); !address.empty()) {
+            return address;
+        }
+    }
+
+    // Query other network addresses
+    for (auto&& networkName : nonHsnNetworkNames) {
+        auto const addressOption = "--" + networkName + "_ip";
+        if (auto address = cminfo_query(addressOption.c_str()); !address.empty()) {
+            return address;
+        }
+    }
+
+    // Delegate to shared implementation supporting both XC and Shasta
+    return cti::detectFrontendHostname();
 }
 
 } // namespace cti

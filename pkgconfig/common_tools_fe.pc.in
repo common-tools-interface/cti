@@ -1,5 +1,5 @@
 #==============================================================================
-# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+# <COPYRIGHT>
 #
 #     Redistribution and use in source and binary forms, with or
 #     without modification, are permitted provided that the following
@@ -29,10 +29,23 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
+# The linking strategy for CTI changes depending on if the CTI rpm is installed system wide
+# in /opt/cray/pe or installed elsewhere ("relocated"). The CTI rpm .spec file has logic that
+# fills in the "Libs:" line with the appropriate choice depending on the installation style.
+
+# The system wide installation is linked in /opt/cray/pe/lib64, so programs built with the
+# system wide version should get their libraries from there.
+system_libdir=-L/opt/cray/pe/lib64 -Wl,--enable-new-dtags -Wl,-rpath,/opt/cray/pe/lib64 -Wl,-rpath,/opt/cray/pe/cti/default/lib
+
+# When installed as a relocated rpm, there is no system wide behavior and the programs
+# get their libraries directly from the installation directory.
+relocated_libdir=-L${libdir}
+
 Name: cti_fe
 URL: http://www.cray.com
 Description: The frontend component of the common tools interface (CTI). Exposes a useful API to tool programs.
 Version: @VERSION@
 Requires:
-Libs: -L/opt/cray/pe/lib64 -Wl,--enable-new-dtags -Wl,-rpath,/opt/cray/pe/lib64 -Wl,-rpath,/opt/cray/pe/cti/default/lib -lcommontools_fe
+# libdir is replaced with either system_libdir or relocated_libdir at rpm install time.
+Libs: ${&libdir&} -lcommontools_fe
 Cflags: -I${includedir}

@@ -352,8 +352,11 @@ FE_daemon::initialize(std::string const& fe_daemon_bin)
 
         // remap standard FDs
         dup2(open("/dev/null", O_RDONLY), STDIN_FILENO);
-        dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
-        dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+
+        if (::getenv("CTI_DEBUG") == nullptr) {
+            dup2(open("/dev/null", O_WRONLY), STDOUT_FILENO);
+            dup2(open("/dev/null", O_WRONLY), STDERR_FILENO);
+        }
 
         // close FDs above pipe FDs
         auto max_fd = size_t{};
@@ -499,6 +502,14 @@ void
 FE_daemon::request_DeregisterApp(DaemonAppId app_id)
 {
     fdWriteLoop(m_req_sock.getWriteFd(), ReqType::DeregisterApp);
+    fdWriteLoop(m_req_sock.getWriteFd(), app_id);
+    verifyOKResp(m_resp_sock.getReadFd());
+}
+
+void
+FE_daemon::request_ReleaseApp(DaemonAppId app_id)
+{
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::ReleaseApp);
     fdWriteLoop(m_req_sock.getWriteFd(), app_id);
     verifyOKResp(m_resp_sock.getReadFd());
 }

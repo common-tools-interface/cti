@@ -37,6 +37,7 @@
 #include "frontend/Frontend.hpp"
 
 #include "useful/cti_wrappers.hpp"
+#include "useful/cti_argv.hpp"
 
 // cti_srunProc_t extended to performs sanity checking upon construction
 struct SrunInfo : public cti_srunProc_t {
@@ -130,6 +131,10 @@ public: // slurm specific interface
     // attach and read srun info
     SrunInfo getSrunInfo(pid_t srunPid);
 
+    // Submit batch script with sbatch
+    SrunInfo submitBatchScript(std::string const& scriptPath,
+        char const* const* sbatch_args, char const* const* env_list);
+
 public: // constructor / destructor interface
     SLURMFrontend();
     ~SLURMFrontend() = default;
@@ -142,7 +147,6 @@ public: // constructor / destructor interface
 class SLURMApp final : public App
 {
 private: // variables
-    FE_daemon::DaemonAppId const m_daemonAppId; // used for util registry and MPIR release
     uint32_t m_jobId;
     uint32_t m_stepId;
     std::map<std::string, std::vector<int>> m_binaryRankMap; // Binary to rank ID map
@@ -158,6 +162,8 @@ private: // variables
 
 private: // member helpers
     void redirectOutput(int stdoutFd, int stderrFd);
+    void shipDaemon();
+    cti::ManagedArgv generateDaemonLauncherArgv();
 
 public: // app interaction interface
     std::string getJobId()            const override;
@@ -178,6 +184,7 @@ public: // app interaction interface
     void kill(int signal) override;
     void shipPackage(std::string const& tarPath) const override;
     void startDaemon(const char* const args[]) override;
+    std::set<std::string> checkFilesExist(std::set<std::string> const& paths) override;
 
 public: // slurm specific interface
     uint64_t getApid() const { return SLURM_APID(m_jobId, m_stepId); }

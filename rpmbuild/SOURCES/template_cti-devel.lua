@@ -2,19 +2,18 @@
 
     Module cray-cti-devel
 
-    Copyright 2010-2020 Hewlett Packard Enterprise Development LP.
+    <COPYRIGHT>
     UNPUBLISHED PROPRIETARY INFORMATION.
     ALL RIGHTS RESERVED.
 
 ]]--
 
--- local vars: define & assign --
-load("cray-cti")
-
 -- template variables ----------------------------------------------------------
 local INSTALL_ROOT       = "[@%PREFIX_PATH%@]"
 local MOD_LEVEL          = "[@%MODULE_VERSION%@]"
 --------------------------------------------------------------------------------
+
+load("cray-cti/" .. MOD_LEVEL)
 
 local NICKNAME  = "cti"
 local PE_DIR    = INSTALL_ROOT .. "/" .. NICKNAME .. "/" .. MOD_LEVEL

@@ -3,7 +3,7 @@
  *                     the common tools interface. Frontend refers to the
  *                     location where applications are launched.
  *
- * Copyright 2011-2021 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -318,16 +318,6 @@ int cti_appIsValid(cti_app_id_t app_id);
  *      with the app_id of the registered application. The app_id will no longer
  *      be valid for future use.
  *
- *      If the cti_launchApp or cti_launchAppBarrier functions were used to
- *      start the application, the caller must call cti_deregisterApp before
- *      exiting. Failing to do so will cause the application process to be
- *      force killed with SIGKILL.
- *
- *      Any tool daemons started on the compute nodes will continue executing
- *      after calling this function. If the tool daemons need to be killed,
- *      the cti_destroySession function needs to be called before calling this
- *      function.
- *
  * Arguments
  *      app_id - The cti_app_id_t of the previously registered application.
  *
@@ -336,6 +326,25 @@ int cti_appIsValid(cti_app_id_t app_id);
  *
  */
 void cti_deregisterApp(cti_app_id_t app_id);
+
+/*
+ * cti_releaseApp - Release the launched application from CTI control.
+ *                  Application will no longer be terminated once tool ends.
+ *
+ * Detail
+ *      If the cti_launchApp or cti_launchAppBarrier functions were used to
+ *      start the application, the caller must call cti_releaseApp before
+ *      exiting. Failing to do so will cause the application process to be
+ *      force killed with SIGKILL.
+ *
+ * Arguments
+ *      app_id - The cti_app_id_t of the previously registered application.
+ *
+ * Returns
+ *      Returns 0 upon success, 1 if failed to release application.
+ *
+ */
+int cti_releaseApp(cti_app_id_t app_id);
 
 /*
  * cti_getLauncherHostName - Returns the hostname of the login node where the
@@ -624,7 +633,7 @@ cti_app_id_t cti_launchApp_fd( const char * const  launcher_argv[],
  *
  * Detail
  *      This function will launch and hold an application at its startup barrier
- *      until cti_launchAppBarrier is called with the app_id returned by this
+ *      until cti_releaseAppBarrier is called with the app_id returned by this
  *      call. If the application is not using a programming model like MPI/SHMEM
  *      /UPC/CAF, the application will not be held at the startup barrier and
  *      this function should not be used. Use cti_launchApp instead.
@@ -869,6 +878,25 @@ typedef struct {
  *      NULL is returned on error. The caller should free() the returned pointer
  *      when finished using it.
  *-----------------------------------------------------------------------------
+ * submitBatchScript - Submit Slurm batch script to launch and attach to new job
+ *
+ * Detail
+ *      Use this function to submit an existing Slurm job script using `sbatch`.
+ *      The job script must launch the target application using the
+ *      Slurm launcher for successful registration to complete.
+ *      Job will be started in a stopped state and should be continued after
+ *      attach using cti_releaseAppBarrier(app_id)
+ *
+ * Arguments
+ *      script_path - The Slurm job script path
+ *      sbatch_args - Additional arguments to add to `sbatch`
+ *      env_list - Additional environment options to add to the job launch
+ *
+ * Returns
+ *      A cti_srunProc_t pointer that contains the jobid and stepid.
+ *      NULL is returned on error. The caller should free() the returned pointer
+ *      when finished using it.
+ *-----------------------------------------------------------------------------
  */
 
 typedef struct
@@ -881,6 +909,8 @@ typedef struct {
     cti_srunProc_t* (*getJobInfo)(pid_t srunPid);
     cti_app_id_t    (*registerJobStep)(uint32_t job_id,uint32_t step_id);
     cti_srunProc_t* (*getSrunInfo)(cti_app_id_t appId);
+    cti_srunProc_t* (*submitBatchScript)(char const* script_path,
+        char const* const* sbatch_args, char const* const* env_list);
 } cti_slurm_ops_t;
 
 /*-----------------------------------------------------------------------------
@@ -914,17 +944,43 @@ typedef struct {
  *      applications.
  *
  * Arguments
- *      apid - The application ID of the PALS application to register.
+ *      job_or_apid - The PBS job ID or PALS application ID of the job to
+ *                    register. PBS job ID can be used on any node of the
+ *                    system. PALS application ID can only be used when
+ *                    the tool has been launched in the same allocation as
+ *                    the target job. Alternatively, CTI_PALS_EXEC_HOST can
+ *                    be set to the execution host for the target PALS job
+ *                    to use a PALS application ID outside of the allocation.
  *
  * Returns
  *      A cti_app_id_t that contains the id registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
  *-----------------------------------------------------------------------------
+ * submitJobScript - Submit PALS job script to launch and attach to new job
+ *
+ * Detail
+ *      Use this function to submit an existing PBS job script using `qsub`.
+ *      The job script must launch the target application using the
+ *      PALS launcher for successful registration to complete.
+ *      Job will be started in a stopped state and should be continued after
+ *      attach using cti_killApp(app_id, SIGCONT);
+ *
+ * Arguments
+ *      script_path - The PBS job script path
+ *      launcher_args - Additional arguments to add to `qsub`
+ *      env_list - Additional environment options to add to the job launch
+ *
+ * Returns
+ *      A string that contains the PBS job ID for use with registerApid
+ *      to be freed by the caller. NULL is returned on error.
+ *-----------------------------------------------------------------------------
  */
 
 typedef struct {
     char*            (*getApid)(pid_t craycliPid);
-    cti_app_id_t     (*registerApid)(char const* apid);
+    cti_app_id_t     (*registerApid)(char const* job_or_apid);
+    char*            (*submitJobScript)(char const* script_path,
+        char const* const* launcher_args, char const* const* env_list);
 } cti_pals_ops_t;
 
 /*-----------------------------------------------------------------------------
@@ -1429,6 +1485,38 @@ char * cti_getSessionFileDir(cti_session_id_t sid);
  *
  */
 char * cti_getSessionTmpDir(cti_session_id_t sid);
+
+typedef enum
+    { CTI_SYMBOLS_YES = 0 // Binary symbol search succeeded
+    , CTI_SYMBOLS_NO = 1 // Binary symbol search failed
+    , CTI_SYMBOLS_ERROR = 2 // Error available in cti_error_str()
+} cti_symbol_result_t;
+
+typedef enum
+    { CTI_SYMBOLS_ALL = 0 // Succeed if all of the provided symbols are found
+    , CTI_SYMBOLS_ANY = 1 // Succeed if any of the provided symbols are found
+} cti_symbol_query_t;
+
+/*
+ * cti_containsSymbols - Determine if binary contains at least one of the provided symbols
+ *
+ * Detail
+ *      Some workload managers such as PALS rely on MPI_Init for proper barrier
+ *      function. This function can be used to check for the presence of MPI_init
+ *      in the target binary if barrier support is required.
+ *
+ * Arguments
+ *      binary_path - Path to the target binary
+ *      symbols - NULL-terminated list of symbols to search
+ *      query - cti_symbol_query_t to select behavior of symbol search
+ *
+ * Returns
+ *      Enum of type cti_symbol_result_t.
+ *
+ */
+cti_symbol_result_t
+cti_containsSymbols(char const* binary_path, char const* const* symbols,
+    cti_symbol_query_t query);
 
 #ifdef __cplusplus
 }

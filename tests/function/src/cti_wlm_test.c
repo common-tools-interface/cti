@@ -87,5 +87,8 @@ main(int argc, char **argv)
             assert(0);
             return 1;
     }
+    // emit "Launch complete" for test harness timeout detection
+    fprintf(stderr, "Safe from launch timeout.\n");
+
     return 0;
 }

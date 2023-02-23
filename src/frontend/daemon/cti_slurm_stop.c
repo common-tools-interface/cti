@@ -1,8 +1,5 @@
 /******************************************************************************\
- * cti_linking_test.c - An example program that tests linking in both FE and BE
- *                      libraries at the same time
- *
- * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2022 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -28,36 +25,35 @@
  *
  ******************************************************************************/
 
+#include "config.h"
+
+#include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <string.h>
 
-#include "common_tools_fe.h"
-#include "common_tools_be.h"
-
-int
-main(int argc, char **argv)
+int main(int argc, char** argv)
 {
-    cti_wlm_type_t  mywlm;
-    cti_wlm_type_t  mybewlm;
+	char const* cti_install_dir = getenv("CTI_INSTALL_DIR");
+	if (cti_install_dir == NULL) {
+		exit(1);
+	}
 
-    /*
-     * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
-     *                   system.
-     */
-    mywlm = cti_current_wlm();
+	char* stop_library_path = NULL;
+	asprintf(&stop_library_path, "%s/lib/%s", cti_install_dir,
+		CTI_STOP_LIBRARY);
+	if (stop_library_path == NULL) {
+		exit(2);
+	}
 
-    printf("Current fe workload manager: %s\n", cti_wlm_type_toString(mywlm));
+	char const* ld_preload = getenv("LD_PRELOAD");
+	if (ld_preload != NULL) {
+		fprintf(stdout, "export LD_PRELOAD=%s:%s\n",
+			ld_preload, stop_library_path);
+	} else {
+		fprintf(stdout, "export LD_PRELOAD=%s\n",
+			stop_library_path);
+	}
 
-    /*
-     * cti_be_current_wlm - Obtain the current workload manager (WLM) in use on
-     *                      the system.
-     */
-    mybewlm = cti_be_current_wlm();
-
-    printf("Current be workload manager: %s\n", cti_be_wlm_type_toString(mybewlm));
-
-    // emit "Launch complete" for test harness timeout detection
-    fprintf(stderr, "Safe from launch timeout.\n");
-
-    return 0;
+	free(stop_library_path);
 }
-

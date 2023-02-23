@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
     std::string cwd = std::string(cwd_cstr);
 
     // Get program and library paths
-    auto const testSupportPath = cwd + "/support";
+    auto const testSupportPath = cwd + "/src/support";
     auto const oneSocketPath = testSupportPath + "/one_socket";
     auto const messageTwoPath = testSupportPath + "/message_two/libmessage.so";
     auto const ldPreload = "LD_PRELOAD=" + messageTwoPath;
@@ -53,8 +53,7 @@ int main(int argc, char* argv[])
 
     { // Launch application without preload, expect response of 1
         // set up app
-        auto const  appArgv = createSystemArgv(argc, argv, {"./support/mpi_wrapper", oneSocketPath, address, port});
-        auto const  stdoutFd = -1;
+        auto const  appArgv = createSystemArgv(argc, argv, {"./src/support/mpi_wrapper", oneSocketPath, address, port}); auto const  stdoutFd = -1;
         auto const  stderrFd = -1;
         char const* inputFile = nullptr;
         char const* chdirPath = nullptr;
@@ -64,6 +63,8 @@ int main(int argc, char* argv[])
 
         // create app
         auto const appId = app.watchApp(cti_launchAppBarrier(cstrVector(appArgv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
+        // don't emit safe from launch timeout until second launch is completed
+        // std::cerr << "Safe from launch timeout.\n";
         assert_true(appId > 0, cti_error_str());
         assert_true(cti_appIsValid(appId) == true, cti_error_str());
 
@@ -99,9 +100,13 @@ int main(int argc, char* argv[])
         }
     }
 
+    std::cout << "Finished part 1\n";
+    std::cout << "Lib path is: " << ldLibPath << std::endl;
+    std::cout << "ldPreload path is: " << ldPreload << std::endl;
+
     { // Launch application with preload, expect response of 2
         // set up app
-        auto const  appArgv = createSystemArgv(argc, argv, {"./support/mpi_wrapper", oneSocketPath.c_str(), address.c_str(), port.c_str()});
+        auto const  appArgv = createSystemArgv(argc, argv, {"./src/support/mpi_wrapper", oneSocketPath.c_str(), address.c_str(), port.c_str()});
         auto const  stdoutFd = -1;
         auto const  stderrFd = -1;
         char const* inputFile = nullptr;
@@ -114,6 +119,7 @@ int main(int argc, char* argv[])
         auto const appId = app.watchApp(cti_launchAppBarrier(cstrVector(appArgv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
         assert_true(appId > 0, cti_error_str());
         assert_true(cti_appIsValid(appId) == true, cti_error_str());
+        std::cerr << "Safe from launch timeout.\n";
 
         assert_true(cti_releaseAppBarrier(appId) == SUCCESS, cti_error_str());
 

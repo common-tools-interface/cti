@@ -5,7 +5,7 @@
  *           and allows users to specify environment variable settings
  *           that a tool daemon should inherit.
  *
- * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -32,6 +32,7 @@
  ******************************************************************************/
 
 // This pulls in config.h
+#define _GNU_SOURCE
 #include "cti_defs.h"
 
 #include <dirent.h>
@@ -44,11 +45,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
+#include <sys/wait.h>
 
 #include <archive.h>
 #include <archive_entry.h>
@@ -64,6 +67,7 @@ const struct option long_opts[] = {
             {"clean",       no_argument,        0, 'c'},
             {"directory",   required_argument,  0, 'd'},
             {"env",         required_argument,  0, 'e'},
+            {"file",        required_argument,  0, 'f'},
             {"inst",        required_argument,  0, 'i'},
             {"manifest",    required_argument,  0, 'm'},
             {"path",        required_argument,  0, 'p'},
@@ -124,6 +128,8 @@ usage(void)
     fprintf(stdout, "\t-e, --env       Specify an environment variable to set\n");
     fprintf(stdout, "\t                The argument provided to this option must be issued\n");
     fprintf(stdout, "\t                with var=val, for example: -e myVar=myVal\n");
+    fprintf(stdout, "\t-f, --file      If this file exists on the node, its path will be\n");
+    fprintf(stdout, "\t                printed to stdout\n");
     fprintf(stdout, "\t-i, --inst      Instance of tool daemon. Used in conjunction with sessions\n");
     fprintf(stdout, "\t-m, --manifest  Manifest tarball to extract/set as CWD if -d omitted\n");
     fprintf(stdout, "\t-p, --path      PWD path where tool daemon should be started\n");
@@ -233,6 +239,70 @@ remove_dir(char *path)
     remove(path);
 }
 
+// Check directory bin and lib files for any in use
+// On failure, assume directory is in use
+static int
+session_files_in_use(char const* directory)
+{
+    int rc = 1;
+
+    char *lsof_cmd = NULL;
+    pid_t bash_pid = -1;
+
+    // Create lsof command with wildcards
+    if (asprintf(&lsof_cmd, "lsof -t %s/bin/""* %s/lib/""*",
+        directory, directory) <= 0) {
+        perror("asprintf");
+        goto cleanup_session_files_in_use;
+    }
+
+    // Create bash lsof arguments
+    char const* bash_argv[] = {"bash", "-c", lsof_cmd, NULL};
+
+    // Fork / exec bash lsof
+    bash_pid = fork();
+    if (bash_pid < 0) {
+        perror("fork");
+        goto cleanup_session_files_in_use;
+    }
+
+    // Subprocess case, exec bash lsof
+    if (bash_pid == 0) {
+        execvp("bash", (char* const*)bash_argv);
+        perror("execvp");
+        _exit(-1);
+    }
+
+cleanup_session_files_in_use:
+
+    // Wait for bash / lsof and set return code
+    if (bash_pid > 0) {
+        int bash_status;
+        while (1) {
+            int waitpid_rc = waitpid(bash_pid, &bash_status, 0);
+            if (waitpid_rc < 0) {
+                if (errno == EINTR) { continue; }
+                else if (errno == ECHILD) { break; }
+                perror("waitpid");
+                break;
+            }
+            if (WIFEXITED(bash_status) && (WEXITSTATUS(bash_status) == 1)) {
+                rc = 0;
+            }
+            break;
+        }
+        bash_pid = -1;
+    }
+
+    // Free generated lsof command
+    if (lsof_cmd != NULL) {
+        free(lsof_cmd);
+        lsof_cmd = NULL;
+    }
+
+    return rc;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -271,6 +341,7 @@ main(int argc, char **argv)
     struct archive *        ext;
     struct archive_entry *  entry;
     char *                  cwd;
+    int file_check_mode = 0;
 
     // we require at least 1 argument beyond argv[0]
     if (argc < 2)
@@ -362,6 +433,13 @@ main(int argc, char **argv)
 
                 break;
 
+            case 'f':
+                if (access(optarg, F_OK) == 0) {
+                    fprintf(stdout, "%s\n", optarg);
+                }
+                file_check_mode = 1;
+                break;
+
             case 'i':
                 // This is our instance number. We need to wait for all those
                 // before us to finish their work before proceeding.
@@ -432,6 +510,12 @@ main(int argc, char **argv)
                 usage();
                 return 1;
         }
+    }
+
+    // If started in file check mode, don't start daemon
+    if (file_check_mode) {
+        fprintf(stdout, "\n");
+        return 0;
     }
 
     // Start becoming a daemon
@@ -589,8 +673,9 @@ main(int argc, char **argv)
     {
         for (i=0; i < argc; ++i)
         {
-            _cti_write_log(log, "%s: argv[%d] = \"%s\"\n", CTI_BE_DAEMON_BINARY, i, argv[i]);
+            fprintf(log, "%s ", argv[i]);
         }
+        fprintf(log, "\n");
     }
 
     // Now ensure the user provided a valid wlm argument.
@@ -964,24 +1049,6 @@ main(int argc, char **argv)
             }
         } while (nr != 0);
 
-        // send a SIGTERM to each pid
-        pid_ptr = &tool_pid;
-        while (pid_ptr != NULL)
-        {
-            for (i=0; i < pid_ptr->idx; ++i)
-            {
-                if (kill(pid_ptr->pids[i], 0))
-                    continue;
-                fprintf(stderr, "%s: inst %d: Sending SIGTERM to %d\n", CTI_BE_DAEMON_BINARY, inst, pid_ptr->pids[i]);
-                kill(pid_ptr->pids[i], SIGTERM);
-            }
-            pid_ptr = pid_ptr->next;
-        }
-
-        // sleep for 10 seconds
-        fprintf(stderr, "%s: inst %d: Sleeping for 10 seconds...\n", CTI_BE_DAEMON_BINARY, inst);
-        sleep(10);
-
         // send a SIGKILL to each pid
         pid_ptr = &tool_pid;
         while (pid_ptr != NULL)
@@ -1015,6 +1082,54 @@ main(int argc, char **argv)
 
             unlink(lock_path);
             free(lock_path);
+        }
+
+        // Run directory cleanup for possible past sessions
+        { struct dirent *dir_ent = NULL;
+            DIR *dir_ptr = NULL;
+            size_t prefix_len = strlen(STAGE_DIR_PREFIX);
+            char* full_path = NULL;
+
+            // Check all cti_daemon directories in tool_path for usage
+            dir_ptr = opendir(tool_path);
+            while ((dir_ent = readdir(dir_ptr)) != NULL) {
+
+                // Check to see if directory starts with session prefix
+                if (strncmp(dir_ent->d_name, STAGE_DIR_PREFIX, prefix_len)) {
+                    continue;
+                }
+
+                // Free directory entry if set
+                if (full_path != NULL) {
+                    free(full_path);
+                    full_path = NULL;
+                }
+
+                // Create full directory path
+                if (asprintf(&full_path, "%s/%s", tool_path, dir_ent->d_name) <= 0) {
+                    perror("asprintf");
+                    continue;
+                }
+
+                // Check to see if user has write access to directory
+                if (access(full_path, W_OK)) {
+                    continue;
+                }
+
+                // Check to see if directory is in use
+                if (session_files_in_use(full_path)) {
+                    continue;
+                }
+
+                // Remove unused directory
+                fprintf(stderr, "%s: inst %d: Removing unused directory %s.\n", CTI_BE_DAEMON_BINARY, inst, full_path);
+                remove_dir(full_path);
+            }
+
+            if (full_path != NULL) {
+                free(full_path);
+                full_path = NULL;
+            }
         }
 
         fprintf(stderr, "%s: inst %d: Cleanup complete.\n", CTI_BE_DAEMON_BINARY, inst);

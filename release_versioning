@@ -1,7 +1,7 @@
 #==============================================================================
 # Release and shared library version control for the common tools interface.
 #
-# Copyright 2011-2021 Hewlett Packard Enterprise Development LP.
+# Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
 #
 #     Redistribution and use in source and binary forms, with or
 #     without modification, are permitted provided that the following
@@ -89,20 +89,23 @@
 #     increment common_tool_minor, be_current, be_age, fe_current and fe_age
 # else:
 #     leave the versions alone
+# 
+# NOTE: If you bump the manor number then reset the minor and revision to 0
+#       If you bump the minor number then reset the revision to 0
 #==============================================================================
 
 common_tool_major="2"
-common_tool_minor="15"
+common_tool_minor="17"
 
-be_current="3"
-be_age="1"
+be_current="4"
+be_age="2"
 be_revision="0"
 
-fe_current="3"
-fe_age="1"
+fe_current="4"
+fe_age="2"
 fe_revision="0"
 
-revision="12"
+revision="2"
 
 # Jenkins will override this
 build_number=""

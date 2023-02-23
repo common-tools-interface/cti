@@ -45,6 +45,14 @@ using ::testing::_;
 using ::testing::Invoke;
 using ::testing::WithoutArgs;
 
+static std::string getCtiError()
+{
+    if (cti_error_str()) {
+        return cti_error_str();
+    }
+    return "(no CTI error)";
+}
+
 CTIFEUnitTest::CTIFEUnitTest()
 {
     // manually set the frontend to the custom mock frontend
@@ -147,6 +155,46 @@ TEST_F(CTIFEUnitTest, SetAttribute)
 {
     // run the test
     ASSERT_EQ(cti_setAttribute(CTI_ATTR_STAGE_DEPENDENCIES, "1"), SUCCESS);
+}
+
+TEST_F(CTIFEUnitTest, ContainsSymbols)
+{
+    { char const* symbols[] = {"main", "_start", nullptr};
+        EXPECT_EQ(cti_containsSymbols("nonexistent", symbols, CTI_SYMBOLS_ALL),
+            CTI_SYMBOLS_ERROR);
+    }
+
+    { char const* symbols[] = {"main", "_start", nullptr};
+        EXPECT_EQ(cti_containsSymbols("./unit_tests.cpp", symbols, CTI_SYMBOLS_ALL),
+            CTI_SYMBOLS_ERROR);
+    }
+
+    auto binary_path = "../test_support/one_socket";
+
+    { char const* symbols[] = {"main", "_start", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ALL), CTI_SYMBOLS_YES)
+            << getCtiError();
+    }
+
+    { char const* symbols[] = {"main", "_start", "nonexistent", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ALL), CTI_SYMBOLS_NO)
+            << getCtiError();
+    }
+
+    { char const* symbols[] = {"main", "_start", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ANY), CTI_SYMBOLS_YES)
+            << getCtiError();
+    }
+
+    { char const* symbols[] = {"main", "_start", "nonexistent", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ANY), CTI_SYMBOLS_YES)
+            << getCtiError();
+    }
+
+    { char const* symbols[] = {"nonexistent", nullptr};
+        EXPECT_EQ(cti_containsSymbols(binary_path, symbols, CTI_SYMBOLS_ANY), CTI_SYMBOLS_NO)
+            << getCtiError();
+    }
 }
 
 /* running app information query tests */
@@ -299,6 +347,40 @@ TEST_F(CTIFEUnitTest, LaunchAppBarrier)
 
     // clean up app launch
     cti_deregisterApp(appId);
+}
+
+// Tests that a fork of the library can detect that it is a fork
+TEST_F(CTIFEUnitTest, InstanceDestructTest)
+{
+    MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
+
+    // Check subprocess instance logic
+    auto outputPipe = cti::Pipe{};
+    auto forked_pid = fork();
+
+    // Subprocess case
+    if (forked_pid == 0) {
+        outputPipe.closeRead();
+        auto original = Frontend::isOriginalInstance();
+        ::write(outputPipe.getWriteFd(), (original) ? "1" : "0", 2);
+        ::_exit(0);
+    }
+
+    // Read output from subprocess
+    ASSERT_TRUE(forked_pid > 0);
+    outputPipe.closeWrite();
+    auto outputPipeBuf = cti::FdBuf{outputPipe.getReadFd()};
+    auto outputStream = std::istream{&outputPipeBuf};
+    auto line = std::string{};
+    ASSERT_TRUE(std::getline(outputStream, line, '\0'));
+    outputStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for subprocess
+    cti::waitpid(forked_pid, nullptr, 0);
+
+    // Check instances
+    EXPECT_TRUE(Frontend::isOriginalInstance());
+    EXPECT_EQ(line, "0");
 }
 
 // int          cti_releaseAppBarrier(cti_app_id_t);

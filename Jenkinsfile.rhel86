@@ -1,5 +1,5 @@
 /******************************************************************************\
- * Jenkinsfile.rhel85 - DST Jenkins pipeline for RHEL 8.5
+ * Jenkinsfile.rhel86 - DST Jenkins pipeline for RHEL 8.6
  *
  * Copyright 2007-2022 Hewlett Packard Enterprise Development LP
  *
@@ -13,7 +13,7 @@
 
 @Library("dst-shared@master") _
 
-rhel8_5PE {
+rhel8_6PE {
     timeout = 240
     agent = 'dst-big-build'
     product = "pe-base"

@@ -37,7 +37,10 @@
 #include <signal.h>
 
 // dyninst symtab
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
 #include <Symtab.h>
+#pragma GCC diagnostic pop
 // dyninst processcontrol
 #include <PCProcess.h>
 #include <Event.h>
@@ -67,12 +70,6 @@ private: // variables
     Process::ptr m_proc;
     Address m_module_base;
 
-    void writeFromBuf(std::string const& destName, const char* buf, size_t len);
-    void writeFromBuf(Address destAddr,            const char* buf, size_t len);
-
-    void readToBuf(char* buf, std::string const& sourceName, size_t len);
-    void readToBuf(char* buf, Address sourceAddr,            size_t len);
-
 public: // interface
 
     /* process interaction */
@@ -80,6 +77,12 @@ public: // interface
     void continueRun();
     bool isTerminated() { return !m_proc || m_proc->isTerminated(); }
     void terminate();
+
+    void writeFromBuf(std::string const& destName, const char* buf, size_t len);
+    void writeFromBuf(Address destAddr,            const char* buf, size_t len);
+
+    void readToBuf(char* buf, std::string const& sourceName, size_t len);
+    void readToBuf(char* buf, Address sourceAddr,            size_t len);
 
     /* templated over char buf source / dest functions */
     template <typename T>

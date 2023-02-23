@@ -1,7 +1,7 @@
 /******************************************************************************\
  * Frontend.cpp -  Frontend library functions for SSH based workload manager.
  *
- * Copyright 2017-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2017-2022 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -522,6 +522,23 @@ contact your system adminstrator.");
     SSHSession& operator=(SSHSession&&) = delete;
 
     /*
+     * setRemoveEnvironment - send the current environment to the remote host via 
+     * an ssh channel.
+     */
+    void setRemoteEnvironment(LIBSSH2_CHANNEL *channel)
+    {
+        extern char** environ;
+        for (auto it = environ; *it; ++it) {
+            auto var = *it;
+            auto len = strlen(var);
+            if (auto eq = strchr(var, '=')) {
+                auto vlen = eq-var;
+                libssh2_channel_setenv_ex(channel, var, vlen, eq+1, len-vlen-1);
+            }
+        }
+    }
+
+    /*
      * executeRemoteCommand - Execute a command on a remote host through an ssh session
      *
      * Detail
@@ -543,6 +560,8 @@ contact your system adminstrator.");
         if (channel_ptr == nullptr) {
             throw std::runtime_error("Failure opening SSH channel on session");
         }
+
+        setRemoteEnvironment(channel_ptr.get());
 
         // Create the command string
         std::string argvString {args[0]};
@@ -574,6 +593,8 @@ contact your system adminstrator.");
             throw std::runtime_error("Failure opening SSH channel on session");
         }
 
+        setRemoteEnvironment(channel_ptr.get());
+
         // Create the command string
         auto const ldLibraryPath = std::string{::getenv("LD_LIBRARY_PATH")};
         auto argvString = std::string{"LD_LIBRARY_PATH="} + ldLibraryPath;
@@ -588,7 +609,7 @@ contact your system adminstrator.");
             throw std::runtime_error("Execution of ssh command failed: " + std::to_string(rc));
         }
 
-        return std::move(channel_ptr);
+        return channel_ptr;
     }
 
     /*
@@ -665,7 +686,7 @@ contact your system adminstrator.");
         };
 
         // Read FE daemon initialization message
-        auto const remote_pid = readLoop<pid_t>(channel_reader);
+        [[maybe_unused]] auto const remote_pid = readLoop<pid_t>(channel_reader);
 
         // Determine path to launcher
         auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(launcherName.c_str(), nullptr), std::free);
@@ -697,8 +718,7 @@ contact your system adminstrator.");
 };
 
 GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpirData)
-    : App(fe)
-    , m_daemonAppId { mpirData.mpir_id }
+    : App(fe, mpirData.mpir_id)
     , m_launcherPid { mpirData.launcher_pid }
     , m_binaryRankMap { std::move(mpirData.binaryRankMap) }
     , m_stepLayout  { fe.fetchStepLayout(mpirData.proctable) }
@@ -724,13 +744,22 @@ GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpi
 
 GenericSSHApp::~GenericSSHApp()
 {
-    // Delete the staging directory if it exists.
-    if (!m_stagePath.empty()) {
-        _cti_removeDirectory(m_stagePath.c_str());
+    if (!Frontend::isOriginalInstance()) {
+        writeLog("~GenericSSHApp: forked PID %d exiting without cleanup\n", getpid());
+        return;
     }
 
-    // Inform the FE daemon that this App is going away
-    m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
+    try {
+        // Delete the staging directory if it exists.
+        if (!m_stagePath.empty()) {
+            _cti_removeDirectory(m_stagePath.c_str());
+        }
+
+        // Inform the FE daemon that this App is going away
+        m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
+    } catch (std::exception const& ex) {
+        writeLog("~GenericSSHApp: %s\n", ex.what());
+    }
 }
 
 /* running app info accessors */

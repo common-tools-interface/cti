@@ -32,6 +32,8 @@
 #include "cti_argv_defs.hpp"
 
 #include <algorithm>
+#include <iomanip>
+#include <filesystem>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -61,8 +63,7 @@
 /* constructors / destructors */
 
 SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
-    : App(fe)
-    , m_daemonAppId     { mpirData.mpir_id }
+    : App{fe, mpirData.mpir_id}
     , m_jobId           { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_jobid")) }
     , m_stepId          { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_stepid")) }
     , m_binaryRankMap   { std::move(mpirData.binaryRankMap) }
@@ -88,6 +89,13 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     // Remap proctable if backend wrapper binary was specified in the environment
     if (auto const wrapper_binary = ::getenv(CTI_BACKEND_WRAPPER_ENV_VAR)) {
         mpirData.proctable = reparentProctable(mpirData.proctable, wrapper_binary);
+
+        writeLog("Reparented proctable:\n");
+        for (size_t i = 0; i < mpirData.proctable.size(); i++) {
+            auto&& [pid, hostname, executable] = mpirData.proctable[i];
+            writeLog("[%zu] %d %s %s\n", i, pid, hostname.c_str(), executable.c_str());
+        }
+
         m_binaryRankMap = generateBinaryRankMap(mpirData.proctable);
     }
 
@@ -103,13 +111,22 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
 
 SLURMApp::~SLURMApp()
 {
-    // Delete the staging directory if it exists.
-    if (!m_stagePath.empty()) {
-        _cti_removeDirectory(m_stagePath.c_str());
+    if (!Frontend::isOriginalInstance()) {
+        writeLog("~SLURMApp: forked PID %d exiting without cleanup\n", getpid());
+        return;
     }
 
-    // Inform the FE daemon that this App is going away
-    m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
+    try {
+        // Delete the staging directory if it exists.
+        if (!m_stagePath.empty()) {
+            _cti_removeDirectory(m_stagePath.c_str());
+        }
+
+        // Inform the FE daemon that this App is going away
+        m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
+    } catch (std::exception const& ex) {
+        writeLog("~SLURMApp: %s\n", ex.what());
+    }
 }
 
 /* app instance creation */
@@ -191,7 +208,8 @@ SLURMApp::getBinaryRankMap() const
 
 /* running app interaction interface */
 
-void SLURMApp::releaseBarrier() {
+void SLURMApp::releaseBarrier()
+{
     // release MPIR barrier
     m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
 }
@@ -219,6 +237,61 @@ SLURMApp::redirectOutput(int stdoutFd, int stderrFd)
         // redirect stdin / stderr / stdout
         open("/dev/null", O_RDONLY), stdoutFd, stderrFd,
         nullptr);
+}
+
+void
+SLURMApp::shipDaemon()
+{
+    // Get the location of the backend daemon
+    if (m_frontend.getBEDaemonPath().empty()) {
+        throw std::runtime_error("Unable to locate backend daemon binary. Load the \
+system default CTI module with `module load cray-cti`, or set the \
+environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
+    }
+
+    // Copy the BE binary to its unique storage name
+    auto const sourcePath = m_frontend.getBEDaemonPath();
+    auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
+    std::filesystem::copy_file(sourcePath, destinationPath,
+        std::filesystem::copy_options::overwrite_existing);
+
+    // Ship the unique backend daemon
+    shipPackage(destinationPath);
+    // set transfer to true
+    m_beDaemonSent = true;
+}
+
+cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv()
+{
+    // Start adding the args to the launcher argv array
+    //
+    // This corresponds to:
+    //
+    // srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
+    // --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
+    // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
+    // --input=none --output=none --error=none <tool daemon> <args>
+    //
+    auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
+    auto launcherArgv = cti::ManagedArgv {
+        slurmFrontend.getLauncherName()
+        , "--jobid=" + std::to_string(m_jobId)
+        , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
+    };
+    for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
+        launcherArgv.add(arg);
+    }
+
+    // create the hostlist by concatenating all hostnames
+    auto hostlist = std::string{};
+    bool firstHost = true;
+    for (auto const& node : m_stepLayout.nodes) {
+        hostlist += (firstHost ? "" : ",") + node.hostname;
+        firstHost = false;
+    }
+    launcherArgv.add("--nodelist=" + hostlist);
+
+    return launcherArgv;
 }
 
 void SLURMApp::kill(int signum)
@@ -253,11 +326,17 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     auto packageName = cti::cstr::basename(tarPath);
     sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName);
 
+    // Add environment setting to disable library detection
+    // Sbcast starting in Slurm 22.05 will fail to ship non-executable if site enables
+    // send-libs in global configuration (SchedMD bug 15132)
+    char const* sbcast_env[] = {"SBCAST_SEND_LIBS=no", nullptr};
+
     // now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
+    writeLog("starting sbcast invocation\n");
     (void)m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, SBCAST, sbcastArgv.get(),
         -1, -1, -1,
-        nullptr);
+        sbcast_env);
 
     // call to request_ForkExecvpUtil_Sync will wait until the sbcast finishes
     // FIXME: There is no way to error check right now because the sbcast command
@@ -265,13 +344,15 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     // directory will only exist on nodes associated with this particular job step, and the
     // sbcast command will exit with error if the directory doesn't exist even if the transfer
     // worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
+    writeLog("sbcast invocation completed\n");
 }
 
 MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
     std::string const& wrapperBinary)
 {
     // Run first child utility on each supplied PID on remote host
-    auto getFirstChildInformation = [this](std::string const& hostname, std::set<pid_t> const& pids) {
+    auto getFirstChildInformation = [this](std::string const& reparentUtilityPath,
+        std::string const& hostname, std::set<pid_t> const& pids) {
 
         // Start adding the args to the launcher argv array
         auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
@@ -290,7 +371,7 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
         }
 
         // Add utility command and each PID
-        launcherArgv.add(m_frontend.getBaseDir() + "/libexec/" CTI_FIRST_SUBPROCESS_BINARY);
+        launcherArgv.add(reparentUtilityPath);
         for (auto&& pid : pids) {
             launcherArgv.add(std::to_string(pid));
         }
@@ -346,6 +427,13 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
     // Copy proctable, will be modifying entries containing the wrapped executable
     auto result = MPIRProctable{procTable};
 
+    // Ship reparenting utility
+    auto const sourcePath = m_frontend.getBaseDir() + "/libexec/" CTI_FIRST_SUBPROCESS_BINARY;
+    auto const destinationPath = std::string(SLURM_TOOL_DIR) + "/" CTI_FIRST_SUBPROCESS_BINARY;
+    std::filesystem::copy_file(sourcePath, destinationPath,
+        std::filesystem::copy_options::overwrite_existing);
+    shipPackage(destinationPath);
+
     // Map hostname to wrapped PIDs on that host
     auto hostSingularityMap = std::map<std::string, std::set<pid_t>>{};
     for (auto&& [pid, hostname, executable] : procTable) {
@@ -367,7 +455,7 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
     for (auto&& [hostname, pids] : hostSingularityMap) {
         writeLog("Querying %lu PIDs on %s\n", pids.size(), hostname.c_str());
 
-        auto pidExeMappings = getFirstChildInformation(hostname, pids);
+        auto pidExeMappings = getFirstChildInformation(destinationPath, hostname, pids);
         for (auto&& [pid, child_pid, executable] : pidExeMappings) {
             singularityChildMap[{hostname, pid}] = {child_pid, std::move(executable)};
         }
@@ -395,70 +483,21 @@ void SLURMApp::startDaemon(const char* const args[]) {
 
     // Send daemon if not already shipped
     if (!m_beDaemonSent) {
-        // Get the location of the backend daemon
-        if (m_frontend.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Unable to locate backend daemon binary. Load the \
-system default CTI module with `module load cray-cti`, or set the \
-environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
-        }
-
-        // Copy the BE binary to its unique storage name
-        auto const sourcePath = m_frontend.getBEDaemonPath();
-        auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
-
-        // Create the args for link
-        auto linkArgv = cti::ManagedArgv {
-            "ln", "-s", sourcePath.c_str(), destinationPath.c_str()
-        };
-
-        // Run link command
-        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-            m_daemonAppId, "ln", linkArgv.get(),
-            -1, -1, -1,
-            nullptr)) {
-            throw std::runtime_error("failed to link " + sourcePath + " to " + destinationPath);
-        }
-
-        // Ship the unique backend daemon
-        shipPackage(destinationPath);
-        // set transfer to true
-        m_beDaemonSent = true;
+        shipDaemon();
     }
 
-    // use existing daemon binary on compute node
-    std::string const remoteBEDaemonPath{m_toolPath + "/" + getBEDaemonName()};
+    // Build daemon launcher arguments
+    auto launcherArgv = generateDaemonLauncherArgv();
+    launcherArgv.add("--output=none"); // Suppress tool output
 
-    // Start adding the args to the launchder argv array
-    //
-    // This corresponds to:
-    //
-    // srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
-    // --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
-    // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
-    // --input=none --output=none --error=none <tool daemon> <args>
-    //
-    auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
-    auto launcherArgv = cti::ManagedArgv {
-        slurmFrontend.getLauncherName()
-        , "--jobid=" + std::to_string(m_jobId)
-        , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
-        , "--output=none" // Suppress tool output
-    };
-    for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
-        launcherArgv.add(arg);
+    // Use container instance if provided
+    if (auto container_instance = ::getenv(CTI_CONTAINER_INSTANCE_ENV_VAR)) {
+        launcherArgv.add("singularity");
+        launcherArgv.add("exec");
+        launcherArgv.add(container_instance);
     }
 
-    // create the hostlist by contencating all hostnames
-    { auto hostlist = std::string{};
-        bool firstHost = true;
-        for (auto const& node : m_stepLayout.nodes) {
-            hostlist += (firstHost ? "" : ",") + node.hostname;
-            firstHost = false;
-        }
-        launcherArgv.add("--nodelist=" + hostlist);
-    }
-
-    launcherArgv.add(remoteBEDaemonPath);
+    launcherArgv.add(m_toolPath + "/" + getBEDaemonName());
 
     // merge in the args array if there is one
     if (args != nullptr) {
@@ -468,18 +507,79 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
     }
 
     // build environment from blacklist
-    cti::ManagedArgv launcherEnv;
+    auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
+    auto launcherEnv = cti::ManagedArgv{};
     for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
         launcherEnv.add(envVar + "=");
     }
 
     // tell FE Daemon to launch srun
     m_frontend.Daemon().request_ForkExecvpUtil_Async(
-        m_daemonAppId, dynamic_cast<SLURMFrontend&>(m_frontend).getLauncherName().c_str(),
+        m_daemonAppId, slurmFrontend.getLauncherName().c_str(),
         launcherArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
         launcherEnv.get() );
+}
+
+std::set<std::string>
+SLURMApp::checkFilesExist(std::set<std::string> const& paths)
+{
+    auto result = std::set<std::string>{};
+
+    // Send daemon if not already shipped
+    if (!m_beDaemonSent) {
+        shipDaemon();
+    }
+
+    // Build daemon launcher arguments
+    auto launcherArgv = generateDaemonLauncherArgv();
+    launcherArgv.add(m_toolPath + "/" + getBEDaemonName());
+    for (auto&& path : paths) {
+        launcherArgv.add("--file=" + path);
+    }
+
+    auto stdoutPipe = cti::Pipe{};
+
+    // Tell FE Daemon to launch srun
+    m_frontend.Daemon().request_ForkExecvpUtil_Async(
+        m_daemonAppId, dynamic_cast<SLURMFrontend&>(m_frontend).getLauncherName().c_str(),
+        launcherArgv.get(),
+        // redirect stdin / stderr / stdout
+        ::open("/dev/null", O_RDONLY), stdoutPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
+        {});
+
+    stdoutPipe.closeWrite();
+    auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
+    auto stdoutStream = std::istream{&stdoutBuf};
+
+    // Track number of present files
+    auto num_nodes = m_stepLayout.nodes.size();
+    auto pathCountMap = std::map<std::string, size_t>{};
+
+    // Read out all paths from daemon
+    auto exit_count = num_nodes;
+    auto line = std::string{};
+    while ((exit_count > 0) && std::getline(stdoutStream, line)) {
+
+        // Daemons will print an empty line when output is completed
+        if (line.empty()) {
+            exit_count--;
+
+        // Received path from daemon
+        } else {
+
+            // Increment count for path
+            pathCountMap[line]++;
+
+            // Add path to duplicate list if all nodes have file
+            if (pathCountMap[line] == num_nodes) {
+                result.emplace(std::move(line));
+            }
+        }
+    }
+
+    return result;
 }
 
 /* SLURM frontend implementation */
@@ -807,100 +907,190 @@ SLURMFrontend::createPIDListFile(MPIRProctable const& procTable, std::string con
     }
 }
 
+// Read string from file descriptor, break if timeout is hit during read wait
+static auto read_timeout(int fd, int64_t usec)
+{
+    auto result = std::string{};
+
+    // File descriptor select set
+    auto select_set = fd_set{};
+    FD_ZERO(&select_set);
+    FD_SET(fd, &select_set);
+
+    // Set up timeout
+    auto timeout = timeval
+        { .tv_sec = 0
+        , .tv_usec = usec
+    };
+
+    // Select loop
+    while (auto select_rc = ::select(fd + 1, &select_set, nullptr, nullptr, &timeout)) {
+        if (select_rc < 0) {
+            break;
+        }
+
+        // Read string into buffer
+        char buf[1024];
+        if (auto read_rc = ::read(fd, buf, sizeof(buf) - 1)) {
+
+            // Retry if interrupted
+            if ((read_rc < 0) && (errno == EINTR)) {
+                continue;
+
+            // Bytes read, add to result
+            } else if (read_rc > 0) {
+                buf[read_rc] = '\0';
+                result += buf;
+
+            // Otherwise exit loop
+            } else {
+                break;
+            }
+        }
+    }
+
+    return result;
+}
+
+static void add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs)
+{
+    const auto view = std::string_view{quotedArgs};
+
+    // The only escaping/special character handling we do is double
+    // quotes. We want to get the arguments to the wrapper just like
+    // bash would, so we don't do any fancy escaping of \n etc. here.
+    bool inQuote = false;
+    std::string pending;
+    for (size_t i = 0; i < view.size(); i++) {
+        if (std::isspace(view[i]) && !inQuote && !pending.empty()) {
+            args.add(pending);
+            pending.clear();
+        } else if (view[i] == '\\' && i < view.size() - 1) {
+            if (view[++i] == '"') {
+                pending += '"';
+            } else {
+                pending += '\\';
+                pending += view[i];
+            }
+        } else if (view[i] == '"') {
+            inQuote = !inQuote;
+        } else if (inQuote || !std::isspace(view[i])) {
+            pending += view[i];
+        }
+    }
+
+    if (inQuote) {
+        throw std::runtime_error("Unclosed quote in " + quotedArgs);
+    }
+
+    if (!pending.empty()) args.add(pending);
+}
+
 FE_daemon::MPIRResult
 SLURMFrontend::launchApp(const char * const launcher_argv[],
         const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
         const char * const env_list[])
 {
-    // Get the launcher path from CTI environment variable / default.
-    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
-        // set up arguments and FDs
-        if (inputFile == nullptr) { inputFile = "/dev/null"; }
-        if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
-        if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
-        auto const stdoutPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stdoutFd);
-        auto const stderrPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stderrFd);
-
-        // construct argv array & instance
-        cti::ManagedArgv launcherArgv
-            { launcher_path.get()
-            , "--input="  + std::string{inputFile}
-            , "--output=" + stdoutPath
-            , "--error="  + stderrPath
-        };
-        for (auto&& arg : getSrunAppArgs()) {
-            launcherArgv.add(arg);
-        }
-        for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-            launcherArgv.add(*arg);
-        }
-
-        if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR); launcherWrapper == nullptr) {
-            // Launch program under MPIR control.
-            return Daemon().request_LaunchMPIR(
-                launcher_path.get(), launcherArgv.get(),
-                // redirect stdin/out/err to /dev/null, use SRUN arguments for in/output instead
-                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR),
-                env_list);
-        } else {
-            // Use MPIR shim to launch program
-
-            // Change launcher path to basename so it is looked up in PATH by 
-            // the wrapper, launching the shim instead
-            launcherArgv.replace(0, ::basename(launcher_path.get()));
-            
-            // Parse launcher wrapper string into arguments
-            cti::ManagedArgv wrapperArgv = [&](){
-                cti::ManagedArgv ret;
-                const auto view = std::string_view{launcherWrapper};
-
-                // The only escaping/special character handling we do is double
-                // quotes. We want to get the arguments to the wrapper just like
-                // bash would, so we don't do any fancy escaping of \n etc. here.
-                bool inQuote = false;
-                std::string pending;
-                for (size_t i = 0; i < view.size(); i++) {
-                    if (std::isspace(view[i]) && !inQuote && !pending.empty()) {
-                        ret.add(pending);
-                        pending.clear();
-                    } else if (view[i] == '\\' && i < view.size() - 1) {
-                        if (view[++i] == '"') {
-                            pending += '"';
-                        } else {
-                            pending += '\\';
-                            pending += view[i];
-                        }
-                    } else if (view[i] == '"') {
-                        inQuote = !inQuote;
-                    } else if (inQuote || !std::isspace(view[i])) {
-                        pending += view[i];
-                    }
-                }
-
-                if (inQuote) {
-                    throw std::runtime_error("Unclosed quote in " CTI_LAUNCHER_WRAPPER_ENV_VAR " environment variable.");
-                }
-
-                if (!pending.empty()) ret.add(pending);
-
-                return ret;
-            }();
-
-            wrapperArgv.add(launcherArgv);
-
-            auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
-            auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
-
-            // If CTI_DEBUG is enabled, show wrapper output
-            auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
-
-            return Daemon().request_LaunchMPIRShim(
-                shimBinaryPath.c_str(), temporaryShimBinDir.c_str(), launcher_path.get(),
-                wrapperArgv.get()[0], wrapperArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
-            );
-        }
-    } else {
+    // Find the path to the launcher
+    auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free);
+    if (launcherPath == nullptr) {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
+    }
+
+    // set up arguments and FDs
+    if (inputFile == nullptr) { inputFile = "/dev/null"; }
+    if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
+    if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
+    auto const stdoutPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stdoutFd);
+    auto const stderrPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stderrFd);
+
+    // construct argv array & instance
+    auto use_shim = false;
+    auto launcherArgv = cti::ManagedArgv{};
+
+    // Check for launcher wrapper
+    if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR)) {
+        add_quoted_args(launcherArgv, launcherWrapper);
+        use_shim = true;
+    }
+
+    // Check for launcher script
+    if (auto launcherScript = getenv(CTI_LAUNCHER_SCRIPT_ENV_VAR)) {
+        // Use provided launcher script
+        launcherArgv.add(launcherScript);
+        use_shim = true;
+
+    // Use normal launcher from PATH
+    } else {
+        launcherArgv.add(launcherPath.get());
+    }
+
+    // Construct rest of argv array
+    launcherArgv.add("--input="  + std::string{inputFile});
+    launcherArgv.add("--output=" + stdoutPath);
+    launcherArgv.add("--error="  + stderrPath);
+    for (auto&& arg : getSrunAppArgs()) {
+        launcherArgv.add(arg);
+    }
+    for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+        launcherArgv.add(*arg);
+    }
+
+    if (!use_shim) {
+
+        auto result = FE_daemon::MPIRResult{};
+
+        // Capture srun error output
+        auto srunPipe = cti::Pipe{};
+
+        try {
+
+            // Launch program under MPIR control.
+            result = Daemon().request_LaunchMPIR(
+                launcherPath.get(), launcherArgv.get(),
+                // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
+                // Capture stderr output in case launch fails
+                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
+                env_list);
+
+        } catch (std::exception const& ex) {
+
+            // Get stderr output from srun and add to error message
+            auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
+            throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
+        }
+
+        // Re-ignore srun stderr output after successful launch to avoid blockages
+        if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
+            fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
+        }
+
+        return result;
+
+    // Use MPIR shim to launch program
+    } else {
+
+        // launcherPath is path of wrapper script, use sattach to find path of
+        // real srun binary.
+        // An alternative would be to search PATH for the first srun binary with MPIR
+        // symbols.
+        auto sattachPath = cti::take_pointer_ownership(_cti_pathFind("sattach", nullptr), std::free);
+        if (sattachPath == nullptr) {
+            throw std::runtime_error("Failed to find sattach in path: ");
+        }
+        auto slurmDirectory = std::filesystem::path{sattachPath.get()}.parent_path();
+        auto srunPath = std::string{slurmDirectory / "srun"};
+
+        auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
+        auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
+
+        // If CTI_DEBUG is enabled, show wrapper output
+        auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
+
+        return Daemon().request_LaunchMPIRShim(
+            shimBinaryPath.c_str(), temporaryShimBinDir.c_str(),
+            srunPath.c_str(), launcherPath.get(), launcherArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
+        );
     }
 }
 
@@ -928,6 +1118,167 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
     }
 }
 
+// Use squeue to check if job is running
+static bool
+job_running(std::string const& jobId)
+{
+    auto squeueArgv = cti::ManagedArgv{"squeue"};
+
+    // Print job status only
+    squeueArgv.add("-o");
+    squeueArgv.add("%t");
+
+    // Add job ID
+    squeueArgv.add("-j");
+    squeueArgv.add(jobId);
+
+    // Run squeue
+    auto squeueOutput = cti::Execvp{"squeue", (char* const*)squeueArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Read squeue output
+    auto& squeueStream = squeueOutput.stream();
+    auto squeueLine = std::string{};
+    auto getline_failed = false;
+
+    // First line should be "ST" header
+    if (!std::getline(squeueStream, squeueLine)) {
+        getline_failed = true;
+    }
+    if (getline_failed || squeueLine != "ST") {
+        throw std::runtime_error("failed to parse squeue output");
+    }
+
+    // Next line is job status
+    if (!std::getline(squeueStream, squeueLine)) {
+        throw std::runtime_error("failed to read squeue output: " + squeueLine);
+    }
+
+    // Consume rest of squeue output and check output status
+    squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
+    if (squeueOutput.getExitStatus() != 0) {
+        throw std::runtime_error("squeue failed using command\n"
+            + squeueArgv.string());
+    }
+
+    // Job status of "R" indicates job is running
+    return squeueLine == "R";
+}
+
+SrunInfo
+SLURMFrontend::submitBatchScript(std::string const& scriptPath,
+    char const* const* sbatch_args, char const* const* env_list)
+{
+    // Check for existing Slurm task prolog
+    if (auto slurm_task_prolog = ::getenv("SLURM_TASK_PROLOG")) {
+        throw std::runtime_error("CTI uses a task prolog to hold the launched job at "
+            "startup. Slurm user task prologs are not supported with sbatch submission "
+            "(SLURM_TASK_PROLOG was set to " + std::string{slurm_task_prolog} + " in "
+            "the launch environment)");
+    }
+
+    Frontend::inst().writeLog("Submitting Slurm job script %s\n", scriptPath.c_str());
+
+    // Build sbatch arguments
+    auto sbatchArgv = cti::ManagedArgv{"sbatch"};
+    if (sbatch_args != nullptr) {
+        for (auto arg = sbatch_args; *arg != nullptr; arg++) {
+            sbatchArgv.add(*arg);
+        }
+    }
+
+    // Sbatch will output <jobid>; <cluster name>
+    sbatchArgv.add("--parsable");
+
+    // Add custom environment arguments
+    auto jobEnvArg = std::stringstream{};
+
+    // Add startup barrier environment setting
+    auto ctiSlurmStopBinary = Frontend::inst().getBaseDir() + "/libexec/"
+        + CTI_SLURM_STOP_BINARY;
+
+    // Inherit current environment and ensure CTI_INSTALL_DIR is avaliable to stop job
+    jobEnvArg << "ALL,CTI_INSTALL_DIR=" << Frontend::inst().getBaseDir() << ","
+        << "SLURM_TASK_PROLOG=" << ctiSlurmStopBinary << ",";
+    if (env_list != nullptr) {
+        for (auto env_setting = env_list; *env_setting != nullptr; env_setting++) {
+            // Escape commas in setting
+            jobEnvArg << std::quoted(*env_setting, ',') << ',';
+        }
+    }
+    sbatchArgv.add("--export");
+    sbatchArgv.add(jobEnvArg.str());
+
+    // Add script argument
+    sbatchArgv.add(scriptPath);
+
+    // Submit batch file to Slurm
+    auto sbatchOutput = cti::Execvp{"sbatch", (char* const*)sbatchArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Read sbatch output
+    auto& sbatchStream = sbatchOutput.stream();
+    auto sbatchLine = std::string{};
+    auto getline_failed = false;
+    if (!std::getline(sbatchStream, sbatchLine)) {
+        getline_failed = true;
+    }
+    sbatchStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for completion and check exit status
+    if ((sbatchOutput.getExitStatus() != 0) || getline_failed) {
+        throw std::runtime_error("failed to submit Slurm job using command\n"
+            + sbatchArgv.string());
+    }
+
+    // Split job ID from sbatch output
+    auto [jobId, clusterName] = cti::split::string<2>(sbatchLine, ';');
+    if (jobId.empty()) {
+        throw std::runtime_error("Failed to extract job ID from sbatch output: "
+            + sbatchLine);
+    }
+
+    // Parse job ID
+    auto result = SrunInfo{ .jobid = 1, .stepid = {} };
+    try {
+        result = SrunInfo { .jobid = (uint32_t)std::stoul(jobId), .stepid = 0 };
+    } catch (std::exception const&) {
+        throw std::runtime_error("Failed to parse job ID from sbatch output: "
+            + jobId);
+    }
+
+    // Wait until Slurm application has started
+    int retry = 0;
+    int max_retry = 3;
+    while (retry < max_retry) {
+        Frontend::inst().writeLog("Slurm job %s submitted, waiting for Slurm application "
+            "to launch (attempt %d/%d)\n", jobId.c_str(), retry + 1,
+            max_retry);
+        ::sleep(3);
+
+        try {
+
+            // Check if Slurm job has launched
+            if (job_running(jobId)) {
+                Frontend::inst().writeLog("Successfully launched Slurm application %s\n",
+                    jobId.c_str());
+
+                return result;
+            }
+
+            // PALS application not started yet
+            retry++;
+
+        } catch (...) {
+            retry++;
+        }
+    }
+
+    throw std::runtime_error("Timed out waiting for Slurm application to launch. "
+        "Application may still be waiting for job resources (check using `squeue -j "
+        + jobId + "`). Once launched, job can be attached using its job ID");
+}
+
 // HPCM SLURM specializations
 
 
@@ -935,44 +1286,7 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
 std::string
 HPCMSLURMFrontend::getHostname() const
 {
-    static auto const nodeAddress = []() {
-
-        // Run cminfo query
-        auto const cminfo_query = [](char const* option) {
-            char const* cminfoArgv[] = { "cminfo", option, nullptr };
-
-            // Start cminfo
-            try {
-                auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
-
-                // Return first line of query
-                auto& cminfoStream = cminfoOutput.stream();
-                std::string line;
-                if (std::getline(cminfoStream, line)) {
-                    return line;
-                }
-            } catch (...) {
-                return std::string{};
-            }
-
-            return std::string{};
-        };
-
-        // Get name of management network
-        auto const managementNetwork = cminfo_query("--mgmt_net_name");
-        if (!managementNetwork.empty()) {
-
-            // Query management IP address
-            auto const addressOption = "--" + managementNetwork + "_ip";
-            auto const managementAddress = cminfo_query(addressOption.c_str());
-            if (!managementAddress.empty()) {
-                return managementAddress;
-            }
-        }
-
-        // Fall back to `gethostname`
-        return cti::cstr::gethostname();
-    }();
+    static auto const nodeAddress = cti::detectHpcmAddress();
 
     return nodeAddress;
 }

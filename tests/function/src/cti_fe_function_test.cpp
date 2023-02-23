@@ -127,6 +127,76 @@ int bindAny(std::string const& address)
     return socketFd;
 }
 
+std::tuple<cti_app_id_t, int>
+launchSocketApp(char const* appPath, std::vector<char const*> extra_argv) {
+    // Wait for any previous cleanups to finish (see PE-26018)
+    sleep(5);
+
+    std::cout << "Getting address and starting to listen...\n";
+    // Get address accessible from compute node
+    auto const address = getExternalAddress();
+
+    // build 'server' socket
+    auto const test_socket = bindAny(address);
+
+    // Begin listening on socket
+    assert_true(listen(test_socket, 1) == 0, "Failed to listen on test_socket socket");
+
+    // get my sockets info
+    struct sockaddr_in sa;
+    socklen_t sa_len = sizeof(sa);
+    memset(&sa, 0, sizeof(sa));
+    assert_true(getsockname(test_socket, (struct sockaddr*) &sa, &sa_len) == 0, "getsockname");
+
+    // build required parameters for launching external app
+    std::cout << "Launching app...\n";
+    std::vector<char const*> v_argv = {appPath, address.c_str(), std::to_string(ntohs(sa.sin_port)).c_str()};
+    v_argv.insert(v_argv.end(), extra_argv.begin(), extra_argv.end());
+    v_argv.push_back(nullptr);
+
+    for (const auto &arg : v_argv) {
+        if (arg != nullptr) {
+            std::cout << arg << std::endl;
+        }
+    }
+
+    // launch app
+    auto app_id = cti_launchAppBarrier(v_argv.data(), -1, -1, nullptr, nullptr, nullptr);
+    assert_true(app_id > 0, cti_error_str());
+    std::cout << "App launched. Net info: " << address << " " << std::to_string(ntohs(sa.sin_port)) << "\n";
+    return std::make_tuple(app_id, test_socket);
+}
+
+void testSocketApp(cti_app_id_t app_id, int test_socket, std::string const& expecting, int times) {
+    // accept recently launched applications connection
+    std::cout << "Waiting for communication from app...\n";
+    int app_socket;
+    struct sockaddr_in wa;
+    socklen_t wa_len = sizeof(wa);
+
+    for (int i = 0; i < times; ++i) {
+        app_socket = accept(test_socket, (struct sockaddr*) &wa, &wa_len);
+        assert_true(app_socket >= 0, "accept");
+
+        // read data returned from app
+        std::cout << "Reading data...\n";
+        char buffer[16] = {0};
+        int length = read(app_socket, buffer, 16);
+        assert_true(length < 16, "length >= 16");
+        buffer[length] = '\0';
+
+        // check for correctness
+        std::cout << "Checking for correctness...\n";
+        assert_true(strcmp(buffer, expecting.c_str()) == 0, "strcmp");
+    }
+
+    // close socket
+    std::cout << "Closing socket...\n";
+    close(test_socket);
+
+    std::cout << "Done!\n";
+}
+
 void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector<char const*> extra_argv, std::string const& expecting, int times) {
     // Wait for any previous cleanups to finish (see PE-26018)
     sleep(5);

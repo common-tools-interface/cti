@@ -1,2 +1,2 @@
-timeout: 100
-run_daemon_tests: 1
+timeout: 600 # this is a backup timeout for pipelines. actual test
+             # timeouts are set per-test in tests.py.

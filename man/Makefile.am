@@ -11,3 +11,9 @@
 
 man1_MANS = cti.1
 man3_MANS = cti.3
+
+cti.1: cti.1.md
+	../external/cdst_build_library/doc/generate.sh
+
+cti.3: cti.3.md
+	../external/cdst_build_library/doc/generate.sh

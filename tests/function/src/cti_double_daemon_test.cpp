@@ -3,7 +3,7 @@
 // Test that an app can launch two tool daemons using different libraries with the same name
 int main(int argc, char* argv[]) {
     // set up app
-    auto const  appArgv = createSystemArgv(argc, argv, {"./support/hello_mpi"});
+    auto const  appArgv = createSystemArgv(argc, argv, {"./src/support/hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
@@ -16,14 +16,15 @@ int main(int argc, char* argv[]) {
     auto const appId = app.watchApp(cti_launchAppBarrier(cstrVector(appArgv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     assert_true(appId > 0, cti_error_str());
     assert_true(cti_appIsValid(appId) == true, cti_error_str());
+    std::cerr << "Safe from launch timeout.\n";
 
     // create app's session
     auto const sessionId = cti_createSession(appId);
     assert_true(cti_sessionIsValid(sessionId) == true, cti_error_str());
 
     // run printing daemons
-    testSocketDaemon(sessionId, "./support/one_socket", {}, "1");
-    testSocketDaemon(sessionId, "./support/two_socket", {}, "2");
+    testSocketDaemon(sessionId, "./src/support/one_socket", {}, "1");
+    testSocketDaemon(sessionId, "./src/support/two_socket", {}, "2");
 
     // cleanup
     assert_true(cti_destroySession(sessionId) == SUCCESS, cti_error_str());

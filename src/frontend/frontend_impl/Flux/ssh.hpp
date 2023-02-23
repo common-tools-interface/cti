@@ -590,7 +590,7 @@ contact your system adminstrator.");
             throw std::runtime_error("Execution of ssh command failed: " + std::to_string(rc));
         }
 
-        return std::move(channel_ptr);
+        return channel_ptr;
     }
 
     /*
