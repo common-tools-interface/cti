@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <filesystem>
+#include <regex>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -296,20 +297,67 @@ cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv()
 
 void SLURMApp::kill(int signum)
 {
-    // create the args for scancel
-    auto scancelArgv = cti::ManagedArgv {
-        SCANCEL // first argument should be "scancel"
-        , "-Q"  // second argument is quiet
-        , "-s", std::to_string(signum)    // third argument is signal number
-        , getJobId() // fourth argument is the jobid.stepid
-    };
+    // 22.05.7 and above have a correct return code for scancel for successful signal
+    if (!dynamic_cast<SLURMFrontend&>(m_frontend).getCheckScancelOutput()) {
 
-    // tell frontend daemon to launch scancel, wait for it to finish
-    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-        m_daemonAppId, SCANCEL, scancelArgv.get(),
-        -1, -1, -1,
-        nullptr)) {
-        throw std::runtime_error("failed to send signal to job ID " + getJobId());
+        // create the args for scancel
+        auto scancelArgv = cti::ManagedArgv
+            { SCANCEL
+            , "-Q" // Quiet
+            , "-s", std::to_string(signum) // Signal number
+            , getJobId()
+        };
+
+        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, SCANCEL, scancelArgv.get(),
+            -1, -1, -1,
+            nullptr)) {
+            throw std::runtime_error("failed to send signal to job ID " + getJobId());
+        }
+
+    // Check verbose output from scancel to work around PE-45572
+    } else {
+
+        // create the args for scancel
+        auto scancelArgv = cti::ManagedArgv
+            { SCANCEL
+            , "-v" // Verbose output to check that signal was sent
+            , "-s", std::to_string(signum) // Signal number
+            , getJobId()
+        };
+
+        // Set up pipe to read scancel output
+        auto stderrPipe = cti::Pipe{};
+        auto stderrPipeBuf = cti::FdBuf{stderrPipe.getReadFd()};
+        auto stderrStream = std::istream{&stderrPipeBuf};
+
+        // Request daemon launch scancel
+        m_frontend.Daemon().request_ForkExecvpUtil_Async(
+            m_daemonAppId, SCANCEL, scancelArgv.get(),
+            -1, -1, stderrPipe.getWriteFd(),
+            nullptr);
+
+        // Match line "Signal <sig> to step <jobid>"
+        auto scancel_succeeded = false;
+        static const auto signalSentRegex = std::regex{R"(Signal [[:digit:]]+ to step)"};
+
+        // Parse scancel output
+        stderrPipe.closeWrite();
+        auto line = std::string{};
+        while (std::getline(stderrStream, line)) {
+            if (std::regex_search(line, signalSentRegex)) {
+                scancel_succeeded = true;
+                break;
+            }
+        }
+
+        // Consume rest of squeue output
+        stderrStream.ignore(std::numeric_limits<std::streamsize>::max());
+        stderrPipe.closeRead();
+
+        if (!scancel_succeeded) {
+            throw std::runtime_error("failed to send signal to job ID " + getJobId());
+        }
     }
 }
 
@@ -598,18 +646,25 @@ static auto getSlurmVersion()
 
     // major.minor.patch
     slurmVersion = slurmVersion.substr(slurmVersion.find(" ") + 1);
-    auto const [major, minor, patch] = cti::split::string<3>(slurmVersion, ' ');
+    auto const [major, minor, patch] = cti::split::string<3>(slurmVersion, '.');
 
-    if (major.empty()) {
+    auto stoi_or_zero = [](std::string const& str) {
+        if (str.empty()) { return 0; }
+        try {
+            return std::stoi(str);
+        } catch (...) {
+            return 0;
+        }
+    };
+
+    // Fail if at least major version could not be determined
+    if (auto parsed_major = stoi_or_zero(major)) {
+        return std::make_tuple(parsed_major, stoi_or_zero(minor), stoi_or_zero(patch));
+
+    } else {
         throw std::runtime_error("Failed to parse SRUN version '"
-            + slurmVersion +"'. Try running `srun --version`");
+            + slurmVersion + "'. Try running `srun --version`");
     }
-
-    return std::make_tuple(
-        std::stoi(major),
-        (minor.empty()) ? 0 : std::stoi(minor),
-        (patch.empty()) ? 0 : std::stoi(patch)
-    );
 }
 
 SLURMFrontend::SLURMFrontend()
@@ -622,6 +677,7 @@ SLURMFrontend::SLURMFrontend()
         , "--mpi=none"
         , "--error=none"
         }
+    , m_checkScancelOutput{false}
     {
 
     // Detect SLURM version and set SRUN arguments accordingly
@@ -647,6 +703,17 @@ SLURMFrontend::SLURMFrontend()
             m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
                 { "--overlap"
             });
+        }
+
+        // Before Slurm 22.05.7, scanel will report that it failed to
+        // send signal even if it was successful. This can be correctly
+        // determined via parsing verbose output rather than using
+        // return code (PE-45772, see SLURMApp::kill implementation)
+        auto below_22 = (major < 22);
+        auto below_22_05 = (major == 22) && (minor < 5);
+        auto below_22_05_7 = (major == 22) && (minor == 5) && (patch < 7);
+        if (below_22 || below_22_05 || below_22_05_7) {
+            m_checkScancelOutput = true;
         }
     }
 
