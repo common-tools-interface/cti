@@ -2,3 +2,4 @@
 *   @karen-glaser @zuzanna-kasper @josh-chandler @andrew-dangelo @john-leroy-vogt
 /rpmbuild/ @karen-glaser
 release_versioning @karen-glaser
+.github/workflows/ @hpe/hpc_de-devops

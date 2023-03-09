@@ -184,8 +184,9 @@ Test files for Cray Common Tools Interface
 %build
 # external build
 %{__sed} 's|<RELEASE_DATE>|%{release_date}|g;s|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{release}|g;s|<date>\.<REVISION>|%{version}|g;s|<COPYRIGHT>|%{copyright}|g;s|<CRAY_NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<DIST>|%{dist}.%{_target_cpu}|g;s|<ARCH>|%{_target_cpu}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_info_name}
-%{__cp} -a %{SOURCE5} ${RPM_BUILD_DIR}/%{copyright_name}
-%{__cp} -a %{SOURCE6} ${RPM_BUILD_DIR}/%{attributions_name}
+%{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE5} > ${RPM_BUILD_DIR}/%{copyright_name}
+%{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE6} > ${RPM_BUILD_DIR}/%{attributions_name}
+
 
 %install
 # copy files from external install
@@ -195,6 +196,8 @@ Test files for Cray Common Tools Interface
 
 # Information files
 %{__cp} -a ${RPM_BUILD_DIR}/%{release_info_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
+
+
 %{__cp} -a ${RPM_BUILD_DIR}/%{copyright_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
 %{__cp} -a ${RPM_BUILD_DIR}/%{attributions_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
 
@@ -208,8 +211,8 @@ Test files for Cray Common Tools Interface
 # Libraries static
 # pkg-config
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
-%{__cp} -a %{external_build_dir}/lib/pkgconfig/common_tools_be.pc ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
-%{__cp} -a %{external_build_dir}/lib/pkgconfig/common_tools_fe.pc ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig
+%{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{external_build_dir}/lib/pkgconfig/common_tools_be.pc > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig/common_tools_be.pc
+%{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{external_build_dir}/lib/pkgconfig/common_tools_fe.pc > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib/pkgconfig/common_tools_fe.pc
 
 # Headers
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/include
@@ -240,11 +243,11 @@ Test files for Cray Common Tools Interface
 
 # modulefile
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{modulefile_name}
-%{__sed} 's|<PREFIX>|%{external_build_dir}|g;s|<CRAY_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g' %{SOURCE0} > ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{modulefile_name}/%{pkgversion}
+%{__sed} 's|<PREFIX>|%{external_build_dir}|g;s|<CRAY_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<COPYRIGHT>|%{copyright}|g' %{SOURCE0} > ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{modulefile_name}/%{pkgversion}
 
 # devel modulefile
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{devel_modulefile_name}
-%{__sed} 's|<PREFIX>|%{external_build_dir}|g;s|<CRAY_NAME>|%{devel_modulefile_name}|g;s|<CRAY_BASE_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g' %{SOURCE1} > ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
+%{__sed} 's|<PREFIX>|%{external_build_dir}|g;s|<CRAY_NAME>|%{devel_modulefile_name}|g;s|<CRAY_BASE_NAME>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<COPYRIGHT>|%{copyright}|g' %{SOURCE1} > ${RPM_BUILD_ROOT}/%{prefix}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
 
 # Cray PE dependency resolver
 %{__sed} 's|<CRAY_PREFIX>|%{cray_prefix}|g;s|<PKG_VERSION>|%{pkgversion}|g;s|<PE_PRODUCT>|%{cray_product}|g' %{SOURCE3} > ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
@@ -262,12 +265,12 @@ Test files for Cray Common Tools Interface
 
 # lmod modulefile
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{cray_name}
-%{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE7} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
+%{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g;s|<COPYRIGHT>|%{copyright}|g' %{SOURCE7} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}
-%{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
+%{__sed} 's|\[@%PREFIX_PATH%@\]|%{prefix}|g;s|\[@%MODULE_VERSION%@\]|%{pkgversion}|g;s|<COPYRIGHT>|%{copyright}|g' %{SOURCE8} > ${RPM_BUILD_ROOT}/%{prefix}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
 
-%{__mkdir} -p %{_rpmdir}/%{_arch}
 # yaml file - cray-cti
+%{__mkdir} -p %{_rpmdir}/%{_arch}
 %global start_rmLine %(sed -n /section-3/= %{SOURCE9})
 %global end_rmLine %(sed -n /admin-pe/= %{SOURCE9} | tail -1)
 %global devel_rpm_name %{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}
@@ -293,7 +296,9 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/README_config.md            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README_config.md
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/README_textcheck.md         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README_textcheck.md
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/__init__.py                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/__init__.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/requirements.txt            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/requirements.txt
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/artifactory.py              ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/artifactory.py
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/bootstrap.py                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/bootstrap.py
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/config.py                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config.py
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/config_default.py           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config_default.py
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/config_nodes.py             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config_nodes.py
@@ -396,7 +401,7 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/src/support/one_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/one_socket.c
 %{__cp} -a %{tests_source_dir}/function/src/support/remote_filecheck.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/remote_filecheck.c
 %{__cp} -a %{tests_source_dir}/function/src/support/two_socket.c       ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/two_socket.c
-%{__cp} -a %{tests_source_dir}/function/src/support/wrapper_script.sh  ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/wrapper_script.sh
+%{__cp} -a %{tests_source_dir}/function/src/support/srun               ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/srun
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one
 %{__cp} -a %{tests_source_dir}/function/src/support/message_one/message.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one/message.c
@@ -425,8 +430,10 @@ fi
 # Process relocations
 if [ "${RPM_INSTALL_PREFIX}" != "%{prefix}" ]
 then
-    # Modulefile
+    # tcl modulefile
     %{__sed} -i "s|^\([[:space:]]*set CTI_BASEDIR[[:space:]]*\)\(.*\)|\1${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}|" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
+    # lua modulefile
+    %{__sed} -i "s|^\([[:space:]]*local INSTALL_ROOT[[:space:]]=*\)\(.*\)|\1= \"${RPM_INSTALL_PREFIX}\"|" ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{modulefile_name}/%{pkgversion}.lua
     # set default command
     %{__sed} -i "s|^\(export CRAY_inst_dir=\).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{cray_name}_%{pkgversion}
 else
@@ -440,7 +447,7 @@ else
     # tcl module
     %{__sed} -i "/^ prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/modulefiles/%{modulefile_name}/%{pkgversion}
     # lua module
-    %{__sed} -i "/^prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
+    %{__sed} -i "/^prepend-path[[:space:]]*LD_LIBRARY_PATH.*/d" ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{modulefile_name}/%{pkgversion}.lua
 fi
 
 # run ldconfig for good measure
@@ -463,10 +470,17 @@ fi
 # Process relocations
 if [ "${RPM_INSTALL_PREFIX}" != "%{prefix}" ]
 then
-    # Modulefile for the devel package
+    # tcl modulefile for the devel package
     %{__sed} -i "s|^\([[:space:]]*set CTI_BASEDIR[[:space:]]*\)\(.*\)|\1${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}|" ${RPM_INSTALL_PREFIX}/modulefiles/%{devel_modulefile_name}/%{pkgversion}
-    # pkg-config pc files
-    find ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/lib/pkgconfig -name '*.pc' -exec %{__sed} -i "s|%{prefix}|${RPM_INSTALL_PREFIX}|g" {} \;
+    # lua modulefile
+    %{__sed} -i "s|^\([[:space:]]*local INSTALL_ROOT[[:space:]]=*\)\(.*\)|\1= \"${RPM_INSTALL_PREFIX}\"|" ${RPM_INSTALL_PREFIX}/lmod/modulefiles/core/%{devel_modulefile_name}/%{pkgversion}.lua
+
+    # pkg-config pc files.
+    # 1. fix "prefix=..." line
+    find ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/lib/pkgconfig -name '*.pc' -exec %{__sed} -i "s|^prefix=%{prefix}|prefix=${RPM_INSTALL_PREFIX}|" {} \;
+    # 2. set "Libs:" line
+    find ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/lib/pkgconfig -name '*.pc' -exec %{__sed} -i "s|&libdir&|relocated_libdir|" {} \;
+
     # set default command
     %{__sed} -i "s|^\(export CRAY_inst_dir=\).*|\1${RPM_INSTALL_PREFIX}|" ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
 
@@ -479,6 +493,10 @@ else
         # set default
         ${RPM_INSTALL_PREFIX}/%{set_default_path}/%{set_default_command}_%{devel_modulefile_name}_%{pkgversion}
     fi
+
+    # pkg-config pc files
+    # set "Libs:" line
+    find ${RPM_INSTALL_PREFIX}/%{cray_product}/%{pkgversion}/lib/pkgconfig -name '*.pc' -exec %{__sed} -i "s|&libdir&|system_libdir|" {} \;
 fi
 
 %preun
@@ -637,6 +655,8 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README.md
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README_config.md
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/README_textcheck.md
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/requirements.txt
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/bootstrap.py
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/__init__.py
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/artifactory.py
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/config.py
@@ -741,7 +761,7 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/one_socket.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/remote_filecheck.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/two_socket.c
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/wrapper_script.sh
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/srun
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_one/message.c

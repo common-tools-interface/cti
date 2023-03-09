@@ -1,0 +1,21 @@
+name: Build pipeline / workflow
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  # pull_request:
+  #   branches: [ main, master ]
+  #   types: [opened, reopened, edited, synchronize, closed]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  bpt_rhel8_6:
+    uses: hpe/hpc-de-shared-actions/.github/workflows/full_workflow.yaml@main
+    with:
+      build_env_docker: arti.dev.cray.com/dstbuildenv-docker-master-local/cray-rhel8_6_build_environment
+    secrets:
+      GH_PAT: ${{ secrets.GH_PAT }}
+      ARTI_URL: ${{ secrets.ARTI_URL }}
+      ARTI_USER: ${{ secrets.ARTI_USER }}
+      ARTI_PAT: ${{ secrets.ARTI_PAT }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

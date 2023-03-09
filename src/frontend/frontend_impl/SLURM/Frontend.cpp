@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <filesystem>
+#include <regex>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -111,7 +112,7 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
 
 SLURMApp::~SLURMApp()
 {
-    if (!Frontend::inst().isOriginalInstance()) {
+    if (!Frontend::isOriginalInstance()) {
         writeLog("~SLURMApp: forked PID %d exiting without cleanup\n", getpid());
         return;
     }
@@ -296,20 +297,67 @@ cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv()
 
 void SLURMApp::kill(int signum)
 {
-    // create the args for scancel
-    auto scancelArgv = cti::ManagedArgv {
-        SCANCEL // first argument should be "scancel"
-        , "-Q"  // second argument is quiet
-        , "-s", std::to_string(signum)    // third argument is signal number
-        , getJobId() // fourth argument is the jobid.stepid
-    };
+    // 22.05.7 and above have a correct return code for scancel for successful signal
+    if (!dynamic_cast<SLURMFrontend&>(m_frontend).getCheckScancelOutput()) {
 
-    // tell frontend daemon to launch scancel, wait for it to finish
-    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-        m_daemonAppId, SCANCEL, scancelArgv.get(),
-        -1, -1, -1,
-        nullptr)) {
-        throw std::runtime_error("failed to send signal to job ID " + getJobId());
+        // create the args for scancel
+        auto scancelArgv = cti::ManagedArgv
+            { SCANCEL
+            , "-Q" // Quiet
+            , "-s", std::to_string(signum) // Signal number
+            , getJobId()
+        };
+
+        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, SCANCEL, scancelArgv.get(),
+            -1, -1, -1,
+            nullptr)) {
+            throw std::runtime_error("failed to send signal to job ID " + getJobId());
+        }
+
+    // Check verbose output from scancel to work around PE-45572
+    } else {
+
+        // create the args for scancel
+        auto scancelArgv = cti::ManagedArgv
+            { SCANCEL
+            , "-v" // Verbose output to check that signal was sent
+            , "-s", std::to_string(signum) // Signal number
+            , getJobId()
+        };
+
+        // Set up pipe to read scancel output
+        auto stderrPipe = cti::Pipe{};
+        auto stderrPipeBuf = cti::FdBuf{stderrPipe.getReadFd()};
+        auto stderrStream = std::istream{&stderrPipeBuf};
+
+        // Request daemon launch scancel
+        m_frontend.Daemon().request_ForkExecvpUtil_Async(
+            m_daemonAppId, SCANCEL, scancelArgv.get(),
+            -1, -1, stderrPipe.getWriteFd(),
+            nullptr);
+
+        // Match line "Signal <sig> to step <jobid>"
+        auto scancel_succeeded = false;
+        static const auto signalSentRegex = std::regex{R"(Signal [[:digit:]]+ to step)"};
+
+        // Parse scancel output
+        stderrPipe.closeWrite();
+        auto line = std::string{};
+        while (std::getline(stderrStream, line)) {
+            if (std::regex_search(line, signalSentRegex)) {
+                scancel_succeeded = true;
+                break;
+            }
+        }
+
+        // Consume rest of squeue output
+        stderrStream.ignore(std::numeric_limits<std::streamsize>::max());
+        stderrPipe.closeRead();
+
+        if (!scancel_succeeded) {
+            throw std::runtime_error("failed to send signal to job ID " + getJobId());
+        }
     }
 }
 
@@ -598,18 +646,25 @@ static auto getSlurmVersion()
 
     // major.minor.patch
     slurmVersion = slurmVersion.substr(slurmVersion.find(" ") + 1);
-    auto const [major, minor, patch] = cti::split::string<3>(slurmVersion, ' ');
+    auto const [major, minor, patch] = cti::split::string<3>(slurmVersion, '.');
 
-    if (major.empty()) {
+    auto stoi_or_zero = [](std::string const& str) {
+        if (str.empty()) { return 0; }
+        try {
+            return std::stoi(str);
+        } catch (...) {
+            return 0;
+        }
+    };
+
+    // Fail if at least major version could not be determined
+    if (auto parsed_major = stoi_or_zero(major)) {
+        return std::make_tuple(parsed_major, stoi_or_zero(minor), stoi_or_zero(patch));
+
+    } else {
         throw std::runtime_error("Failed to parse SRUN version '"
-            + slurmVersion +"'. Try running `srun --version`");
+            + slurmVersion + "'. Try running `srun --version`");
     }
-
-    return std::make_tuple(
-        std::stoi(major),
-        (minor.empty()) ? 0 : std::stoi(minor),
-        (patch.empty()) ? 0 : std::stoi(patch)
-    );
 }
 
 SLURMFrontend::SLURMFrontend()
@@ -622,6 +677,7 @@ SLURMFrontend::SLURMFrontend()
         , "--mpi=none"
         , "--error=none"
         }
+    , m_checkScancelOutput{false}
     {
 
     // Detect SLURM version and set SRUN arguments accordingly
@@ -647,6 +703,17 @@ SLURMFrontend::SLURMFrontend()
             m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
                 { "--overlap"
             });
+        }
+
+        // Before Slurm 22.05.7, scanel will report that it failed to
+        // send signal even if it was successful. This can be correctly
+        // determined via parsing verbose output rather than using
+        // return code (PE-45772, see SLURMApp::kill implementation)
+        auto below_22 = (major < 22);
+        auto below_22_05 = (major == 22) && (minor < 5);
+        auto below_22_05_7 = (major == 22) && (minor == 5) && (patch < 7);
+        if (below_22 || below_22_05 || below_22_05_7) {
+            m_checkScancelOutput = true;
         }
     }
 
@@ -952,124 +1019,145 @@ static auto read_timeout(int fd, int64_t usec)
     return result;
 }
 
+static void add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs)
+{
+    const auto view = std::string_view{quotedArgs};
+
+    // The only escaping/special character handling we do is double
+    // quotes. We want to get the arguments to the wrapper just like
+    // bash would, so we don't do any fancy escaping of \n etc. here.
+    bool inQuote = false;
+    std::string pending;
+    for (size_t i = 0; i < view.size(); i++) {
+        if (std::isspace(view[i]) && !inQuote && !pending.empty()) {
+            args.add(pending);
+            pending.clear();
+        } else if (view[i] == '\\' && i < view.size() - 1) {
+            if (view[++i] == '"') {
+                pending += '"';
+            } else {
+                pending += '\\';
+                pending += view[i];
+            }
+        } else if (view[i] == '"') {
+            inQuote = !inQuote;
+        } else if (inQuote || !std::isspace(view[i])) {
+            pending += view[i];
+        }
+    }
+
+    if (inQuote) {
+        throw std::runtime_error("Unclosed quote in " + quotedArgs);
+    }
+
+    if (!pending.empty()) args.add(pending);
+}
+
 FE_daemon::MPIRResult
 SLURMFrontend::launchApp(const char * const launcher_argv[],
         const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
         const char * const env_list[])
 {
-    // Get the launcher path from CTI environment variable / default.
-    if (auto const launcher_path = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
-        // set up arguments and FDs
-        if (inputFile == nullptr) { inputFile = "/dev/null"; }
-        if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
-        if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
-        auto const stdoutPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stdoutFd);
-        auto const stderrPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stderrFd);
-
-        // construct argv array & instance
-        cti::ManagedArgv launcherArgv
-            { launcher_path.get()
-            , "--input="  + std::string{inputFile}
-            , "--output=" + stdoutPath
-            , "--error="  + stderrPath
-        };
-        for (auto&& arg : getSrunAppArgs()) {
-            launcherArgv.add(arg);
-        }
-        for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
-            launcherArgv.add(*arg);
-        }
-
-        if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR); launcherWrapper == nullptr) {
-
-            auto result = FE_daemon::MPIRResult{};
-
-            // Capture srun error output
-            auto srunPipe = cti::Pipe{};
-
-            try {
-
-                // Launch program under MPIR control.
-                result = Daemon().request_LaunchMPIR(
-                    launcher_path.get(), launcherArgv.get(),
-                    // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
-                    // Capture stderr output in case launch fails
-                    ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
-                    env_list);
-
-            } catch (std::exception const& ex) {
-
-                // Get stderr output from srun and add to error message
-                auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
-                throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
-            }
-
-            // Re-ignore srun stderr output after successful launch to avoid blockages
-            if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
-                fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
-            }
-
-            return result;
-
-        } else {
-            // Use MPIR shim to launch program
-
-            // Change launcher path to basename so it is looked up in PATH by 
-            // the wrapper, launching the shim instead
-            launcherArgv.replace(0, ::basename(launcher_path.get()));
-            
-            // Parse launcher wrapper string into arguments
-            cti::ManagedArgv wrapperArgv = [&](){
-                cti::ManagedArgv ret;
-                const auto view = std::string_view{launcherWrapper};
-
-                // The only escaping/special character handling we do is double
-                // quotes. We want to get the arguments to the wrapper just like
-                // bash would, so we don't do any fancy escaping of \n etc. here.
-                bool inQuote = false;
-                std::string pending;
-                for (size_t i = 0; i < view.size(); i++) {
-                    if (std::isspace(view[i]) && !inQuote && !pending.empty()) {
-                        ret.add(pending);
-                        pending.clear();
-                    } else if (view[i] == '\\' && i < view.size() - 1) {
-                        if (view[++i] == '"') {
-                            pending += '"';
-                        } else {
-                            pending += '\\';
-                            pending += view[i];
-                        }
-                    } else if (view[i] == '"') {
-                        inQuote = !inQuote;
-                    } else if (inQuote || !std::isspace(view[i])) {
-                        pending += view[i];
-                    }
-                }
-
-                if (inQuote) {
-                    throw std::runtime_error("Unclosed quote in " CTI_LAUNCHER_WRAPPER_ENV_VAR " environment variable.");
-                }
-
-                if (!pending.empty()) ret.add(pending);
-
-                return ret;
-            }();
-
-            wrapperArgv.add(launcherArgv);
-
-            auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
-            auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
-
-            // If CTI_DEBUG is enabled, show wrapper output
-            auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
-
-            return Daemon().request_LaunchMPIRShim(
-                shimBinaryPath.c_str(), temporaryShimBinDir.c_str(), launcher_path.get(),
-                wrapperArgv.get()[0], wrapperArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
-            );
-        }
-    } else {
+    // Find the path to the launcher
+    auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free);
+    if (launcherPath == nullptr) {
         throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
+    }
+
+    // set up arguments and FDs
+    if (inputFile == nullptr) { inputFile = "/dev/null"; }
+    if (stdoutFd < 0) { stdoutFd = STDOUT_FILENO; }
+    if (stderrFd < 0) { stderrFd = STDERR_FILENO; }
+    auto const stdoutPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stdoutFd);
+    auto const stderrPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stderrFd);
+
+    // construct argv array & instance
+    auto use_shim = false;
+    auto launcherArgv = cti::ManagedArgv{};
+
+    // Check for launcher wrapper
+    if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR)) {
+        add_quoted_args(launcherArgv, launcherWrapper);
+        use_shim = true;
+    }
+
+    // Check for launcher script
+    if (auto launcherScript = getenv(CTI_LAUNCHER_SCRIPT_ENV_VAR)) {
+        // Use provided launcher script
+        launcherArgv.add(launcherScript);
+        use_shim = true;
+
+    // Use normal launcher from PATH
+    } else {
+        launcherArgv.add(launcherPath.get());
+    }
+
+    // Construct rest of argv array
+    launcherArgv.add("--input="  + std::string{inputFile});
+    launcherArgv.add("--output=" + stdoutPath);
+    launcherArgv.add("--error="  + stderrPath);
+    for (auto&& arg : getSrunAppArgs()) {
+        launcherArgv.add(arg);
+    }
+    for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+        launcherArgv.add(*arg);
+    }
+
+    if (!use_shim) {
+
+        auto result = FE_daemon::MPIRResult{};
+
+        // Capture srun error output
+        auto srunPipe = cti::Pipe{};
+
+        try {
+
+            // Launch program under MPIR control.
+            result = Daemon().request_LaunchMPIR(
+                launcherPath.get(), launcherArgv.get(),
+                // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
+                // Capture stderr output in case launch fails
+                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
+                env_list);
+
+        } catch (std::exception const& ex) {
+
+            // Get stderr output from srun and add to error message
+            auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
+            throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
+        }
+
+        // Re-ignore srun stderr output after successful launch to avoid blockages
+        if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
+            fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
+        }
+
+        return result;
+
+    // Use MPIR shim to launch program
+    } else {
+
+        // launcherPath is path of wrapper script, use sattach to find path of
+        // real srun binary.
+        // An alternative would be to search PATH for the first srun binary with MPIR
+        // symbols.
+        auto sattachPath = cti::take_pointer_ownership(_cti_pathFind("sattach", nullptr), std::free);
+        if (sattachPath == nullptr) {
+            throw std::runtime_error("Failed to find sattach in path: ");
+        }
+        auto slurmDirectory = std::filesystem::path{sattachPath.get()}.parent_path();
+        auto srunPath = std::string{slurmDirectory / "srun"};
+
+        auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
+        auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
+
+        // If CTI_DEBUG is enabled, show wrapper output
+        auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
+
+        return Daemon().request_LaunchMPIRShim(
+            shimBinaryPath.c_str(), temporaryShimBinDir.c_str(),
+            srunPath.c_str(), launcherPath.get(), launcherArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
+        );
     }
 }
 

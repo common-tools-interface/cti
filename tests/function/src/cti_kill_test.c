@@ -81,6 +81,7 @@ main(int argc, char **argv)
         fprintf(stderr, "Error: cti_killApp failed!\n");
         fprintf(stderr, "CTI error: %s\n", cti_error_str());
     }
+    // TODO: This is a weak assert. It should check that the job is actually dead.
     assert(r == 0);
 
     /*

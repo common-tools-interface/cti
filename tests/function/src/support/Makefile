@@ -9,6 +9,7 @@ all : $(EXECS)
 
 clean:
 	rm -f $(EXECS)
+	rm -f ./message_one/libmessage.so ./message_two/libmessage.so
 
 hello_mpi : hello_mpi.c
 	cc $(CFLAGS) $^ -o $@
@@ -31,9 +32,11 @@ two_socket : two_socket.c message_two/libmessage.so
 one_print : one_print.c message_one/libmessage.so
 	cc $(CFLAGS) $< -o $@ -I./message_one -L./message_one -lmessage -Wl,-rpath,${PWD}/message_one
 
+# XXX: using gcc on these libraries because the cray compiler automatically links
+#      extra libraries that won't be found when this library is LD_PRELOAD'd
 message_one/libmessage.so: message_one/message.c
-	cc -fPIC -shared $^ -o $@
+	gcc -fPIC -shared $^ -o $@
 
 message_two/libmessage.so: message_two/message.c
-	cc -fPIC -shared $^ -o $@
+	gcc -fPIC -shared $^ -o $@
 

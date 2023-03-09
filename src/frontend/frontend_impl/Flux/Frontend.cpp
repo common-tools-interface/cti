@@ -835,7 +835,7 @@ std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
 
 FluxApp::~FluxApp()
 {
-    if (!Frontend::inst().isOriginalInstance()) {
+    if (!Frontend::isOriginalInstance()) {
         writeLog("~FluxApp: forked PID %d exiting without cleanup\n", getpid());
         return;
     }

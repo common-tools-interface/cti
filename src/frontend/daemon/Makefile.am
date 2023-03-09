@@ -44,8 +44,7 @@ mpir_shim@COMMONTOOL_RELEASE_VERSION@_LDFLAGS  = -Wl,--no-undefined -Wl,--as-nee
 cti_slurm_stop@COMMONTOOL_RELEASE_VERSION@_SOURCES = cti_slurm_stop.c
 
 libctistop_la_SOURCES = libctistop.c
-libctistop_la_LDFLAGS = -fPIC $(AM_CFLAGS)
-libctistop_la_LDFLAGS = -Wl,--no-undefined -Wl,--as-needed -avoid-version $(AM_LDFLAGS)
+libctistop_la_LDFLAGS = -fPIC $(AM_CFLAGS) -Wl,--no-undefined -Wl,--as-needed -avoid-version $(AM_LDFLAGS)
 
 if CODE_COVERAGE_ENABLED
 clean-local: code-coverage-clean

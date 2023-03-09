@@ -3,18 +3,19 @@
 // Test transferring a file in a manifest
 
 int main(int argc, char* argv[]) {
-    auto const  appArgv = createSystemArgv(argc, argv, {"./support/hello_mpi"});
+    auto const  appArgv = createSystemArgv(argc, argv, {"./src/support/hello_mpi"});
     auto const  stdoutFd = -1;
     auto const  stderrFd = -1;
     char const* inputFile = nullptr;
     char const* chdirPath = nullptr;
     char const* const* envList  = nullptr;
-    char const* filename = "./static/testing.info";
+    char const* filename = "./src/static/testing.info";
     char * file_loc;
     int r;
 
     auto const myapp = cti_launchAppBarrier(cstrVector(appArgv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList);
     assert_true(myapp != 0, cti_error_str());
+    std::cerr << "Safe from launch timeout.\n";
 
     // Ensure app is valid
     assert_true(cti_appIsValid(myapp) == 1, "appIsValid");
@@ -55,7 +56,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Sent testing.info to " << file << " on the compute node(s).\n";
 
-    testSocketDaemon(mysid, "./support/remote_filecheck", {file.c_str()}, "1");
+    testSocketDaemon(mysid, "./src/support/remote_filecheck", {file.c_str()}, "1");
 
     assert_true(cti_destroySession(mysid) == SUCCESS, cti_error_str());
     assert_true(cti_releaseAppBarrier(myapp) == SUCCESS, cti_error_str());

@@ -79,10 +79,9 @@ main(int argc, char **argv)
     // call the common FE tests
     cti_test_fe(myapp);
 
-    printf("\nHit return to release the application from the startup barrier...");
-
-    // just read a single character from stdin then release the app/exit
-    (void)getchar();
+    printf("Press enter to release app\n");
+    getchar();
+    printf("App released\n");
 
     /*
      * cti_releaseAppBarrier - Release the application launcher launched with the
@@ -96,9 +95,6 @@ main(int argc, char **argv)
         cti_killApp(myapp, SIGKILL);
     }
     assert(rtn == 0);
-
-    // give program time to run before it gets killed by deregister
-    sleep(5);
 
     /*
      * cti_deregisterApp - Assists in cleaning up internal allocated memory

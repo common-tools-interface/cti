@@ -87,6 +87,8 @@ private: // slurm specific members
     std::vector<std::string> m_srunAppArgs;
     // Also contains version-specific SRUN arguments
     std::vector<std::string> m_srunDaemonArgs;
+    // Whether scancel needs output parsed to check for successful signal (PE-45772)
+    bool m_checkScancelOutput;
 
 public: // slurm specific types
     struct NodeLayout {
@@ -104,6 +106,7 @@ public: // slurm specific interface
     auto const& getSrunAppArgs()    const { return m_srunAppArgs;    }
     auto const& getSrunDaemonArgs() const { return m_srunDaemonArgs; }
     auto const& getSrunEnvBlacklist() const { return srunEnvBlacklist; }
+    auto const& getCheckScancelOutput() const { return m_checkScancelOutput; }
 
     // Get the default launcher binary name, or, if provided, from the environment.
     std::string getLauncherName();

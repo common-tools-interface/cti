@@ -1,5 +1,5 @@
 '''
- * Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+ * Copyright 2019-2022 Hewlett Packard Enterprise Development LP
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -10,67 +10,46 @@
 
 import avocado
 from avocado import Test
-from avocado.utils import process
+from avocado.utils import process as avproc
 
 import subprocess
 import os
 import time
 import logging
+import signal
+import fcntl
 
 # these are set in readVariablesFromEnv during test setup
-TESTS_BIN_PATH        = ""
-TESTS_SRC_PATH        = ""
-SUPPORT_PATH          = ""
 CTI_INST_DIR          = ""
 LIBEXEC_PATH          = ""
 DAEMON_VER            = ""
 LAUNCHER_ARGS         = ""
-WLM                   = ""
 
 def readVariablesFromEnv(test):
-    global TESTS_BIN_PATH
-    global TESTS_SRC_PATH
-    global SUPPORT_PATH
     global CTI_INST_DIR
     global LIBEXEC_PATH
     global DAEMON_VER
     global LAUNCHER_ARGS
 
-    TESTS_BIN_PATH  = "%s/src" % os.path.dirname(os.path.realpath(__file__))
-    TESTS_SRC_PATH  = "%s/src/support" % os.path.dirname(os.path.realpath(__file__))
-    SUPPORT_PATH   = "%s/src/support" % os.path.dirname(os.path.realpath(__file__))
-
     try:
         CTI_INST_DIR = os.environ['CTI_INSTALL_DIR']
     except KeyError as e:
-        test.error("Couldn't read %s from environment. Is the CTI module loaded?" % e)
+        test.fail("Couldn't read %s from environment. Is the CTI module loaded?" % e)
 
     LIBEXEC_PATH   = "%s/libexec" % CTI_INST_DIR
 
     try:
         DAEMON_VER = os.environ['CTI_VERSION']
     except KeyError as e:
-        test.error("Couldn't read %s from environment. Is the CTI module loaded?" % e)
+        test.fail("Couldn't read %s from environment. Is the CTI module loaded?" % e)
 
     try:
         LAUNCHER_ARGS = os.environ["CDST_TESTS_LAUNCHER_ARGS"]
     except KeyError as e:
-        test.error("Couldn't read %s from environment." % e)
+        test.fail("Couldn't read %s from environment." % e)
 
-
-# depends on TESTS_BIN_PATH being set first first
 def detectWLM(test = None):
-    global WLM
-
-    if WLM != "":
-        return WLM
-
-    if test:
-        test.assertTrue(TESTS_BIN_PATH != "", "No TESTS_BIN_PATH when detecting WLM. Did you call readVariablesFromEnv?")
-    else:
-        assert(TESTS_BIN_PATH != "", "No TESTS_BIN_PATH when detecting WLM. Did you call readVariablesFromEnv?")
-
-    launch = ["stdbuf", "-oL", "%s/cti_wlm" % TESTS_BIN_PATH]
+    launch = ["src/cti_wlm"]
     print("Launching: " + " ".join(launch))
     proc = subprocess.Popen(launch,
         stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
@@ -102,782 +81,610 @@ def detectWLM(test = None):
     if test:
         test.assertTrue(wlm != "", "Didn't dectect a WLM in detectWLM.")
     else:
-        assert(wlm != "", "Didn't dectect a WLM in detectWLM.")
+        assert wlm != "", "Didn't dectect a WLM in detectWLM."
 
-    WLM = wlm
-    return WLM
+    return wlm
 
-#Note: if you want to skip a test but run the suite, add the folloing line at the top of the class definition:
-#       @avocado.skip("<optional comment here>")
+def kill_popen(p):
+    if p.poll() != None:
+        return # already dead
 
-'''
-cti_barrier launches a binary, holds it at the startup barrier until
-the user presses enter.
-to automate: pipe from `yes`
-'''
-class CtiBarrierTest(Test):
+    descs = avproc.kill_process_tree(p.pid, signal.SIGTERM)
+    time.sleep(3)
+    for pid in descs:
+        avproc.safe_kill(pid, signal.SIGKILL)
+
+def run_cti_test(test, testname, launch_argv, env = {}, timeout_seconds=90, stdin_bytes=None):
+    for key, value in env.items():
+        os.environ[key] = str(value)
+
+    tmpout = f"{os.getcwd()}/tmp/{testname}.out"
+
+    with open(tmpout, "wb") as outf:
+        p = subprocess.Popen(launch_argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+
+        try:
+            out, _ = p.communicate(input=stdin_bytes, timeout=timeout_seconds)
+            outf.write(out)
+        except subprocess.TimeoutExpired:
+            kill_popen(p)
+            out, _ = p.communicate()
+            outf.write(out)
+
+            if "Safe from launch timeout" in out.decode():
+                # timed out after successfully launching
+                test.fail("Timed out after sucessful job launch")
+            else:
+                # timed out without successfully launching
+                test.cancel("Timed out while launching job")
+
+        return p.poll()
+
+class EndTestError(Exception):
+    def __init__(self, cancel_reason=None, fail_reason=None):
+        self.cancel_reason = cancel_reason
+        self.fail_reason = fail_reason if fail_reason is not None else "Unspecified"
+
+class CtiTest(Test):
     def setUp(self):
         readVariablesFromEnv(self)
+        try:
+            os.mkdir(os.getcwd() + "/tmp")
+        except OSError:
+            pass
 
-    def test(self):
-        process.run("yes | %s/cti_barrier %s %s/hello_mpi"
-            % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
+    def test_DetectWLM(self):
+        name = "DetectWLM"
+        argv = ["./src/cti_wlm"]
 
-'''
-cti_callback launches a binary and holds it at startup. meanwhile, it launches
-the tool daemon cti_callback_daemon from PATH and ensures it that it can
-communicate over a socket.
-to automate: pipe from `yes` and launch with custom PATH
-'''
-class CtiCallbackTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
-    def test(self):
-        process.run("yes | PATH=%s:$PATH %s/cti_callback %s %s/hello_mpi"
-            % (TESTS_BIN_PATH, TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
+    '''
+    cti_launch launches a binary and prints out various information about the job.
+    '''
+    def test_CtiLaunch(self):
+        name = "CtiLaunch"
+        argv = ["./src/cti_launch", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi_wait"]
 
-class CtiDoubleDeamonTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
-    def test_DoubleDeamon(self):
-        p = subprocess.run(["./cti_double_daemon", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_double_daemon failed")
+    def test_CtiBarrier(self):
+        name = "CtiBarrier"
+        argv = ["./src/cti_barrier", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi"]
 
-class CtiEnvironmentTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+        rc = run_cti_test(self, name, argv, stdin_bytes=b"\n")
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+    '''
+    cti_callback launches a binary and holds it at startup. meanwhile, it launches
+    the tool daemon cti_callback_daemon from PATH and ensures it that it can
+    communicate over a socket.
+    '''
+    def test_CtiCallback(self):
+        name = "CtiCallback"
+        argv = ["./src/cti_callback", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi"]
+        env = {
+            "PATH": f"./src/:{os.getenv('PATH', default='')}"
+        }
+
+        rc = run_cti_test(self, name, argv, env)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+    def test_DoubleDaemon(self):
+        name = "DoubleDaemon"
+        argv = ["./src/cti_double_daemon", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
     def test_Environment(self):
-        p = subprocess.run(["./cti_environment", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_environment failed")
+        name = "Environment"
+        argv = ["./src/cti_environment", *LAUNCHER_ARGS.split()]
 
-class CtiFdInTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
     def test_FdIn(self):
-        p = subprocess.run(["./cti_fd_in", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_fd_in failed")
+        name = "FdIn"
+        argv = ["./src/cti_fd_in", *LAUNCHER_ARGS.split()]
 
-class CtiFileInTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
     def test_FileIn(self):
-        p = subprocess.run(["./cti_file_in", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_file_in failed")
+        name = "FileIn"
+        argv = ["./src/cti_file_in", *LAUNCHER_ARGS.split()]
 
-class CtiFileTransferTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
     def test_Transfer(self):
-        p = subprocess.run(["./cti_file_transfer", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_file_transfer failed")
+        name = "Transfer"
+        argv = ["./src/cti_file_transfer", *LAUNCHER_ARGS.split()]
 
-'''
-    cti_info fetches information about a running job. There are two versions
-    of the test, one which uses the SLURM wlm, and launches a hello world test
-    via the cti_barrier test; and another that uses the generic (SSH) wlm, and
-    launches a hello world program that sleeps for 100 seconds or until the
-    info test kills the mpi call.
-'''
-class CtiInfoTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
-    def test(self):
-        wlm = detectWLM(self)
-        if wlm == "slurm":
-            self.infoTestSLURM()
-        elif wlm == "alps":
-            self.infoTestALPS()
-        elif wlm == "pals":
-            self.infoTestPALS()
-        elif wlm == "flux":
-            self.infoTestFlux()
-        elif wlm == "generic":
-            self.infoTestSSH()
-        else:
-            self.error("Unsupported WLM!")
+    def getIds(self, popen, wlm, outf):
+        # set the process' stdout to be non-blocking so that iter()
+        # below will exit before the process itself exits
+        current_flags = fcntl.fcntl(popen.stdout.fileno(), fcntl.F_GETFL)
+        fcntl.fcntl(popen.stdout.fileno(), fcntl.F_SETFL, current_flags | os.O_NONBLOCK)
 
-    def infoTestSLURM(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
-            "%s/hello_mpi" % TESTS_SRC_PATH],
-            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc.pid
-        self.assertTrue(proc_pid is not None)
-        jobid = None
-        stepid = None
-        print("infoTestSLURM, cti_barrier proc_pid %d" % proc_pid)
-        for line in iter(proc.stdout.readline, b''):
-            print(line)
-            line = line.decode('utf-8').rstrip()
-            if line[:5] == 'jobid':
-                jobid = line.split()[-1]
-                print("jobid:", jobid)
-            elif line[:6] == 'stepid':
-                stepid = line.split()[-1]
-                print("stepid:", stepid)
-            if jobid is not None and stepid is not None:
-                print("running cti_info...")
-                # run cti_info
-                process.run("%s/cti_info --jobid=%s --stepid=%s" %
-                (TESTS_BIN_PATH, jobid, stepid), shell = True)
-                # release barrier
-                proc.stdin.write(b'\n')
-                proc.stdin.flush()
-                proc.stdin.close()
-                proc.wait()
-                break
-        self.assertTrue(jobid is not None, "Couldn't determine jobid")
-        self.assertTrue(stepid is not None, "Couldn't determine stepid")
+        # the usage of these can differ between wlm implementations:
+        #   slurm: jobid, stepid
+        #   alps:  apid,  unused
+        #   TODO:  support other wlms
+        #
+        # on wlms that only need one number, set id_two to a dummy value other
+        # than None so checks like "if id_two == None then cancel" don't trigger
+        id_one = None
+        id_two = None
 
-    def infoTestALPS(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
-            "%s/hello_mpi" % TESTS_SRC_PATH],
-            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc.pid
-        self.assertTrue(proc_pid is not None)
-        apid = None
-        for line in iter(proc.stdout.readline, b''):
-            print(line)
-            line = line.decode('utf-8').rstrip()
-            if line[:4] == 'apid':
-                apid = line.split()[-1]
-                print("apid:", apid)
+        seconds_waited = 0
 
-            if apid is not None:
-                print("running cti_info...")
-                # run cti_info
-                process.run("%s/cti_info --apid=%s" % (TESTS_BIN_PATH, apid), shell = True)
-                # release barrier
-                proc.stdin.write(b'\n')
-                proc.stdin.flush()
-                proc.stdin.close()
-                proc.wait()
-                break
-        self.assertTrue(apid is not None, "Couldn't determine apid")
+        with open(outf, "wb") as outfd:
+            while True:
+                time.sleep(1)
+                seconds_waited += 1
+                if popen.poll() != None or seconds_waited >= 45:
+                    break
 
-    def infoTestSSH(self):
-        CTI_LNCHR_NAME = None
-        if "CTI_LAUNCHER_NAME" in os.environ:
-            CTI_LNCHR_NAME = os.path.expandvars('$CTI_LAUNCHER_NAME')
-        self.assertTrue(CTI_LNCHR_NAME is not None)
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s" % CTI_LNCHR_NAME,
-            "%s/hello_mpi_wait" % TESTS_SRC_PATH],
-            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc.pid
-        self.assertTrue(proc_pid is not None)
-        print("infoTestSSH, cti launcher is %s with a proc_pid of %d" % (CTI_LNCHR_NAME, proc_pid))
-        if proc_pid is not None:
-            print(proc_pid)
+                for line in iter(popen.stdout.readline, b''):
+                    outfd.write(line)
+                    line = line.decode()
+
+                    if wlm == "slurm":
+                        if line[:5] == 'jobid':
+                            id_one = line.split()[-1]
+                        elif line[:6] == 'stepid':
+                            id_two = line.split()[-1]
+                    elif wlm == "alps":
+                        if line[:4] == "apid":
+                            id_one = line.split()[-1]
+                            id_two = "unused"
+
+                if id_one is not None and id_two is not None:
+                    break
+
+        if id_one is None or id_two is None:
+            raise EndTestError(cancel_reason="Failed to extract ids")
+
+        return id_one, id_two
+
+    def test_CtiInfo(self):
+        try:
+            cti_barrier = None
+            cti_info = None
+
+            wlm = detectWLM(self)
+
+            cti_barrier = subprocess.Popen(
+                ["./src/cti_barrier", "./src/support/hello_mpi"],
+                stdin = subprocess.PIPE,
+                stdout = subprocess.PIPE, stderr = subprocess.STDOUT
+            )
+
+            # get job/step id numbers. some wlms only use the first one,
+            # in which case the second one will be set to a not-None dummy value
+            id_one, id_two = self.getIds(cti_barrier, wlm, "./tmp/CtiInfo_Barrier.out")
+
             # run cti_info
-            process.run("%s/cti_info --pid=%s" % (TESTS_BIN_PATH, proc_pid), shell = True)
+            if wlm == "slurm":
+                cti_info = subprocess.Popen(
+                    ["./src/cti_info", f"--jobid={id_one}", f"--stepid={id_two}"],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
+                )
+            elif wlm == "alps":
+                cti_info = subprocess.Popen(
+                    ["./src/cti_info", f"--apid={id_one}"],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
+                )
+            else:
+                raise EndTestError(cancel_reason=f"Test not implemented for {wlm}")
 
-    def infoTestPALS(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
-            "%s/hello_mpi" % TESTS_SRC_PATH],
-            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc.pid
-        self.assertTrue(proc_pid is not None)
-        apid = None
-        for line in iter(proc.stdout.readline, b''):
-            print(line)
-            line = line.decode('utf-8').rstrip()
-            if line[:4] == 'apid':
-                apid = line.split()[-1]
-                print("apid:", apid)
+            try:
+                # cti_info doesn't launch jobs and should always be fast
+                cti_info.wait(5)
+                if cti_info.poll() != 0:
+                    raise EndTestError(
+                        fail_reason=f"cti_info exited with non-zero return code ({cti_info.poll()})"
+                    )
+            except subprocess.TimeoutExpired:
+                raise EndTestError(fail_reason="cti_info timed out")
+        except EndTestError as ete:
+            if ete.cancel_reason is not None:
+                self.cancel(ete.cancel_reason)
+            if ete.fail_reason is not None:
+                self.fail(ete.fail_reason)
+            self.fail("No reason specified")
+        finally:
+            # release cti_barrier from barrier
+            try:
+                if cti_barrier is not None and cti_barrier.poll() is None:
+                    cti_barrier.stdin.write(b"\n")
+                    cti_barrier.stdin.flush()
+                    cti_barrier.wait(5)
+            except subprocess.TimeoutExpired:
+                # let below code kill it
+                pass
 
-            if apid is not None:
-                print("running cti_info...")
-                # run cti_info
-                process.run("%s/cti_info --apid=%s" % (TESTS_BIN_PATH, apid), shell = True)
-                # release barrier
-                proc.stdin.write(b'\n')
-                proc.stdin.flush()
-                proc.stdin.close()
-                proc.wait()
-                break
-        self.assertTrue(apid is not None, "Couldn't determine apid")
+            # clean up all launched apps
+            if cti_barrier is not None:
+                kill_popen(cti_barrier)
+            if cti_info is not None:
+                kill_popen(cti_info)
 
-    def infoTestFlux(self):
-        proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
-            "%s/hello_mpi" % TESTS_SRC_PATH],
-            stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc.pid
-        self.assertTrue(proc_pid is not None)
-        jobid = None
-        for line in iter(proc.stdout.readline, b''):
-            print(line)
-            line = line.decode('utf-8').rstrip()
-            if line[:5] == 'jobid':
-                jobid = line.split()[-1]
-                print("jobid:", jobid)
+            # log output
+            if cti_barrier is not None:
+                with open("./tmp/CtiInfo_Barrier.out", "ab") as outfd:
+                    out, _ = cti_barrier.communicate()
+                    outfd.write(out)
+            if cti_info is not None:
+                with open("./tmp/CtiInfo_Info.out", "wb") as outfd:
+                    out, _ = cti_info.communicate()
+                    outfd.write(out)
 
-            if jobid is not None:
-                print("running cti_info...")
-                # run cti_info
-                process.run("%s/cti_info --jobid=%s" % (TESTS_BIN_PATH, jobid), shell = True)
-                # release barrier
-                proc.stdin.write(b'\n')
-                proc.stdin.flush()
-                proc.stdin.close()
-                proc.wait()
-                break
-        self.assertTrue(jobid is not None, "Couldn't determine jobid")
+    # old versions of this test kept for reference for when PE-44946 and PE-44947 are worked on
 
-'''
-cti_kill launches a binary and then immediately sends a SIGTERM to it.
-'''
-class CtiKillTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
+    # def infoTestSSH(self):
+    #     CTI_LNCHR_NAME = None
+    #     if "CTI_LAUNCHER_NAME" in os.environ:
+    #         CTI_LNCHR_NAME = os.path.expandvars('$CTI_LAUNCHER_NAME')
+    #     self.assertTrue(CTI_LNCHR_NAME is not None)
+    #     proc = subprocess.Popen(["stdbuf", "-oL", "%s" % CTI_LNCHR_NAME,
+    #         "%s/hello_mpi_wait" % TESTS_SRC_PATH],
+    #         stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+    #     proc_pid = proc.pid
+    #     self.assertTrue(proc_pid is not None)
+    #     print("infoTestSSH, cti launcher is %s with a proc_pid of %d" % (CTI_LNCHR_NAME, proc_pid))
+    #     if proc_pid is not None:
+    #         print(proc_pid)
+    #         # run cti_info
+    #         process.run("%s/cti_info --pid=%s" % (TESTS_BIN_PATH, proc_pid), shell = True)
 
-    def test(self):
-        # test with SIGTERM
-        process.run("%s/cti_kill %s %s/hello_mpi_wait 15"
-            % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
-        # test with SIGKILL
-        process.run("%s/cti_kill %s %s/hello_mpi_wait 9"
-            % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
+    # def infoTestPALS(self):
+    #     proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
+    #         "%s/hello_mpi" % TESTS_SRC_PATH],
+    #         stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+    #     proc_pid = proc.pid
+    #     self.assertTrue(proc_pid is not None)
+    #     apid = None
+    #     for line in iter(proc.stdout.readline, b''):
+    #         print(line)
+    #         line = line.decode('utf-8').rstrip()
+    #         if line[:4] == 'apid':
+    #             apid = line.split()[-1]
+    #             print("apid:", apid)
 
-'''
-cti_launch launches a binary and prints out various information about the job.
-'''
-class CtiLaunchTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
+    #         if apid is not None:
+    #             print("running cti_info...")
+    #             # run cti_info
+    #             process.run("%s/cti_info --apid=%s" % (TESTS_BIN_PATH, apid), shell = True)
+    #             # release barrier
+    #             proc.stdin.write(b'\n')
+    #             proc.stdin.flush()
+    #             proc.stdin.close()
+    #             proc.wait()
+    #             break
+    #     self.assertTrue(apid is not None, "Couldn't determine apid")
 
-    def test(self):
-        process.run("%s/cti_launch %s %s/hello_mpi_wait"
-            % (TESTS_BIN_PATH, LAUNCHER_ARGS, TESTS_SRC_PATH), shell = True)
+    # def infoTestFlux(self):
+    #     proc = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
+    #         "%s/hello_mpi" % TESTS_SRC_PATH],
+    #         stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+    #     proc_pid = proc.pid
+    #     self.assertTrue(proc_pid is not None)
+    #     jobid = None
+    #     for line in iter(proc.stdout.readline, b''):
+    #         print(line)
+    #         line = line.decode('utf-8').rstrip()
+    #         if line[:5] == 'jobid':
+    #             jobid = line.split()[-1]
+    #             print("jobid:", jobid)
 
-class CtiLdPreloadTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+    #         if jobid is not None:
+    #             print("running cti_info...")
+    #             # run cti_info
+    #             process.run("%s/cti_info --jobid=%s" % (TESTS_BIN_PATH, jobid), shell = True)
+    #             # release barrier
+    #             proc.stdin.write(b'\n')
+    #             proc.stdin.flush()
+    #             proc.stdin.close()
+    #             proc.wait()
+    #             break
+    #     self.assertTrue(jobid is not None, "Couldn't determine jobid")
 
-    def test_LdPreload(self):
-        p = subprocess.run(["./cti_ld_preload", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_ld_preload failed")
-
-'''
-cti_link tests that programs can be linked against the FE/BE libraries.
-'''
-class CtiLinkTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test(self):
-        if "LD_LIBRARY_PATH" in os.environ:
-            print("LD_LIBRARY_PATH from os.environ %s" % os.path.expandvars('$LD_LIBRARY_PATH'))
-        else:
-            print("LD_LIBRARY_PATH not defined!")
-        process.run("%s/cti_link"
-            % (TESTS_BIN_PATH), shell = True)
-
-class CtiManifestTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
-
-    def test_Manifest(self):
-        p = subprocess.run(["./cti_manifest", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_manifest failed")
-
-class CtiMPIRShimTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
-
-    def test_MPIRShim(self):
-        # Only supported on slurm
-        if detectWLM(self) != "slurm":
-            self.cancel("MPIR Shim only supported on slurm")
-
-        p = subprocess.run(["./cti_mpir_shim", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_mpir_shim failed")
-
-'''
+    '''
     cti_mpmd is like cti_info, but it calls cti_getBinaryRankList to map binary
     names to rank IDs.
-'''
-class CtiMPMDTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
+    '''
+    def test_MPMD(self):
+        def mpmd_answers(wlm):
+            if wlm == "slurm":
+                return {
+                    "rank   0": " /usr/bin/echo", "rank   1": " /usr/bin/echo",
+                    "rank   2": " /usr/bin/echo", "rank   3": " /usr/bin/echo",
+                    "rank   4": " /usr/bin/echo", "rank   5": " /usr/bin/echo",
+                    "rank   6": " /usr/bin/echo", "rank   7": " /usr/bin/sleep"
+                }
+            elif wlm == "alps":
+                return {
+                    "rank   0": " hello_mpi",      "rank   1": " hello_mpi",
+                    "rank   2": " hello_mpi_wait", "rank   3": " hello_mpi_wait",
+                }
+            raise EndTestError(cancel_reason=f"Test not implemented for {wlm}")
 
-    def test(self):
-        wlm = detectWLM(self)
-        if wlm == "slurm":
-            self.MPMDTestSLURM()
-        elif wlm == "alps":
-            self.MPMDTestALPS()
-        elif wlm == "pals":
-            self.MPMDTestPALS()
-        elif wlm == "flux":
-            self.error("Flux does not support MPMD")
-        else:
-            self.error("Unsupported WLM!")
+        try:
+            cti_barrier = None
+            cti_mpmd = None
 
-    def MPMDTestSLURM(self):
-        answers = {
-            "rank   0": " /usr/bin/echo",
-            "rank   1": " /usr/bin/echo",
-            "rank   2": " /usr/bin/echo",
-            "rank   3": " /usr/bin/echo",
-            "rank   4": " /usr/bin/echo",
-            "rank   5": " /usr/bin/echo",
-            "rank   6": " /usr/bin/echo",
-            "rank   7": " /usr/bin/sleep"
+            wlm = detectWLM(self)
+            answers = mpmd_answers(wlm)
+
+            # run cti_barrier
+            if wlm == "slurm":
+                cti_barrier = subprocess.Popen(
+                    ["./src/cti_barrier", "-n8", "-l", "--multi-prog", "./src/static/mpmd.conf"],
+                    stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT
+                )
+            elif wlm == "alps":
+                cti_barrier = subprocess.Popen(
+                        ["./src/cti_barrier",
+                         "-n2", "./src/support/hello_mpi", ":",
+                         "-n2", "./src/support/hello_mpi_wait"],
+                    stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT
+                )
+            else:
+                raise EndTestError(cancel_reason="Test not implemented for {wlm}")
+
+            # get job/step id numbers. some wlms only use the first one,
+            # in which case the second one will be set to a dummy value
+            # (id_two == None indicates a critical failure in getIds)
+            id_one, id_two = self.getIds(cti_barrier, wlm, "./tmp/CtiMPMD_Barrier.out")
+
+            # run cti_mpmd
+            if wlm == "slurm":
+                cti_mpmd = subprocess.Popen(
+                    ["./src/cti_mpmd", f"--jobid={id_one}", f"--stepid={id_two}"],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
+                )
+            elif wlm == "alps":
+                cti_mpmd = subprocess.Popen(
+                    ["./src/cti_mpmd", f"--apid={id_one}"],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
+                )
+            else:
+                raise EndTestError(cancel_reason="Test not implemented for {wlm}")
+
+            try:
+                with open("./tmp/CtiMPMD_MPMD.out", "wb") as outfd:
+                    # cti_mpmd doesn't launch any jobs and should always be fast
+                    out, _ = cti_mpmd.communicate(timeout=5)
+                    outfd.write(out)
+
+                    # test return code
+                    if cti_mpmd.returncode != 0:
+                        raise EndTestError(fail_reason=
+                            f"cti_mpmd exited with non-zero returncode ({cti_mpmd.returncode})"
+                        )
+
+                    # test answer correctness
+                    for line_ctimpmd in out.decode().split("\n"):
+                        if line_ctimpmd[:4] == "rank":
+                            split = line_ctimpmd.split(":")
+                            lhs = split[0]
+                            rhs = split[1]
+                            if lhs in answers and answers[lhs] != rhs:
+                                raise EndTestError(fail_reason=
+                                    f"Incorrect output: {line_ctimpmd} should be {answers[lhs]}"
+                                )
+                            elif lhs not in answers:
+                                raise EndTestError(fail_reason=
+                                    f"Got an unexpected result from cti_mpmd. ({line_ctimpmd})"
+                                )
+                            # else correct
+
+            except subprocess.TimeoutExpired:
+                cti_mpmd.kill()
+                with open("./tmp/CtiMPMD_MPMD.out", "wb") as outfd:
+                    out, _ = cti_mpmd.communicate()
+                    outfd.write(out)
+
+                raise EndTestError(fail_reason="cti_mpmd timed out")
+        except EndTestError as ete:
+            if ete.cancel_reason is not None:
+                self.cancel(ete.cancel_reason)
+            if ete.fail_reason is not None:
+                self.fail(ete.fail_reason)
+            self.fail("No reason specified")
+        finally:
+            # release cti_barrier app from barrier
+            try:
+                if cti_barrier is not None:
+                    cti_barrier.stdin.write(b"\n")
+                    cti_barrier.stdin.flush()
+                    cti_barrier.wait(5)
+            except subprocess.TimeoutExpired:
+                # let below code kill it
+                pass
+
+            # kill all launched apps
+            if cti_barrier is not None:
+                kill_popen(cti_barrier)
+            if cti_mpmd is not None:
+                kill_popen(cti_mpmd)
+
+            # log output
+            if cti_barrier is not None:
+                with open("./tmp/CtiMPMD_Barrier.out", "ab") as outfd:
+                    out, _ = cti_barrier.communicate()
+                    outfd.write(out)
+
+    # def MPMDTestPALS(self):
+    #     answers = {
+    #         "rank   0": " hello_mpi",
+    #         "rank   1": " hello_mpi",
+    #         "rank   2": " hello_mpi_wait",
+    #         "rank   3": " hello_mpi_wait",
+    #     }
+
+    #     proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
+    #         "-n2", "%s/hello_mpi" % TESTS_SRC_PATH, ":", "-n2", "%s/hello_mpi_wait" % TESTS_SRC_PATH],
+    #         stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.STDOUT)
+    #     proc_pid = proc_barrier.pid
+    #     self.assertTrue(proc_pid is not None, "Couldn't start cti_barrier.")
+    #     apid = None
+    #     for line in iter(proc_barrier.stdout.readline, b''):
+    #         line = line.decode('utf-8').rstrip()
+    #         print(line)
+    #         if line[:4] == 'apid':
+    #             apid = line.split()[-1]
+    #             print("apid:", apid)
+
+    #         if apid is not None:
+    #             print("running cti_mpmd...")
+
+    #             # test for exit code
+    #             process.run("%s/cti_mpmd --apid=%s" % (TESTS_BIN_PATH, apid), shell = True)
+
+    #             # test for correctness
+    #             proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_BIN_PATH,
+    #                 "--apid", apid],
+    #                 stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+
+    #             for line_ctimpmd in iter(proc_ctimpmd.stdout.readline, b''):
+    #                 line_ctimpmd = line_ctimpmd.decode("utf-8").rstrip()
+    #                 print(line_ctimpmd)
+    #                 if line_ctimpmd[:4] == "rank":
+    #                     split = line_ctimpmd.split(":")
+    #                     lhs = split[0]
+    #                     rhs = split[1]
+    #                     print("lhs:", lhs)
+    #                     print("rhs:", rhs)
+    #                     if lhs in answers:
+    #                         self.assertTrue(answers[lhs] == rhs, "Incorrect output: %s, should be %s" % (line_ctimpmd, answers[lhs]))
+    #                     else:
+    #                         self.fail("Got an unexpected result from cti_mpmd.")
+
+    #             # release barrier
+    #             proc_barrier.stdin.write(b'\n')
+    #             proc_barrier.stdin.flush()
+    #             proc_barrier.stdin.close()
+    #             proc_barrier.wait()
+    #             proc_ctimpmd.wait()
+    #             break
+
+    #     self.assertTrue(apid is not None, "Couldn't determine apid")
+
+    def test_CtiKillSIGTERM(self):
+        name = "CtiKillSIGTERM"
+        argv = ["./src/cti_kill", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi_wait", str(int(signal.SIGTERM))]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+    def test_CtiKillSIGKILL(self):
+        name = "CtiKillSIGKILL"
+        argv = ["./src/cti_kill", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi_wait", str(int(signal.SIGKILL))]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+    def test_CtiKillSIGCONT(self):
+        name = "CtiKillSIGCONT"
+        argv = ["./src/cti_kill", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi_wait", str(int(signal.SIGCONT))]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+    def test_CtiKillSIGZERO(self):
+        name = "CtiKillSIGZERO"
+        argv = ["./src/cti_kill", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi_wait", "0"]
+
+        # passing 0 to cti_killApp should emit an error
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc != 0 and rc != None, f"Test binary exited with non-failure returncode ({rc})")
+
+    def test_LdPreload(self):
+        name = "LdPreload"
+        argv = ["./src/cti_ld_preload", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+    '''
+    cti_link tests that programs can be linked against the FE/BE libraries.
+    '''
+    def test_Link(self):
+        name = "Link"
+        argv = ["./src/cti_link"]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+    def test_Manifest(self):
+        name = "Manifest"
+        argv = ["./src/cti_manifest", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+    @avocado.skipIf(lambda t: detectWLM(t) != "slurm", "MPIRShim is only supported on slurm")
+    def test_MPIRShim(self):
+        name = "MPIRShim"
+        argv = ["./src/cti_mpir_shim", *LAUNCHER_ARGS.split()]
+        shim_log_path = f"{os.getcwd()}/tmp/shim.out"
+        env = {
+            "CTI_DEBUG": "1",
+            "CTI_MPIR_SHIM_LOG_PATH": shim_log_path
         }
 
-        proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
-            "-n8", "-l", "--multi-prog", "./src/static/mpmd.conf"],
-            stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc_barrier.pid
-        self.assertTrue(proc_pid is not None, "Couldn't start cti_barrier.")
-        jobid = None
-        stepid = None
-        for line in iter(proc_barrier.stdout.readline, b''):
-            line = line.decode('utf-8').rstrip()
-            print(line)
-            if line[:5] == 'jobid':
-                jobid = line.split()[-1]
-                print("jobid:", jobid)
-            elif line[:6] == 'stepid':
-                stepid = line.split()[-1]
-                print("stepid:", stepid)
-            if jobid is not None and stepid is not None:
-                print("running cti_mpmd...")
+        # Ensure that CTI was able to launch shimmed job
+        rc = run_cti_test(self, name, argv, env)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
-                # test for exit code
-                process.run("%s/cti_mpmd --jobid=%s --stepid=%s" % (TESTS_BIN_PATH, jobid, stepid), shell = True)
-
-                # test for correctness
-                proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_BIN_PATH,
-                    "-j", jobid, "-s", stepid],
-                    stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-
-                for line_ctimpmd in iter(proc_ctimpmd.stdout.readline, b''):
-                    line_ctimpmd = line_ctimpmd.decode("utf-8").rstrip()
-                    print(line_ctimpmd)
-                    if line_ctimpmd[:4] == "rank":
-                        split = line_ctimpmd.split(":")
-                        lhs = split[0]
-                        rhs = split[1]
-                        print("lhs:", lhs)
-                        print("rhs:", rhs)
-                        if lhs in answers:
-                            self.assertTrue(answers[lhs] == rhs, "Incorrect output: %s, should be %s" % (line_ctimpmd, answers[lhs]))
-                        else:
-                            self.error("Got an unexpected result from cti_mpmd.")
-
-                # release barrier
-                proc_barrier.stdin.write(b'\n')
-                proc_barrier.stdin.flush()
-                proc_barrier.stdin.close()
-                proc_barrier.wait()
-                proc_ctimpmd.wait()
-                break
-
-        self.assertTrue(jobid is not None, "Couldn't determine jobid")
-        self.assertTrue(stepid is not None, "Couldn't determine stepid")
-
-    def MPMDTestALPS(self):
-        answers = {
-            "rank   0": " hello_mpi",
-            "rank   1": " hello_mpi",
-            "rank   2": " hello_mpi_wait",
-            "rank   3": " hello_mpi_wait",
-        }
-
-        proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
-            "-n2", "%s/hello_mpi" % TESTS_SRC_PATH, ":", "-n2", "%s/hello_mpi_wait" % TESTS_SRC_PATH],
-            stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc_barrier.pid
-        self.assertTrue(proc_pid is not None, "Couldn't start cti_barrier.")
-        apid = None
-        for line in iter(proc_barrier.stdout.readline, b''):
-            line = line.decode('utf-8').rstrip()
-            print(line)
-            if line[:4] == 'apid':
-                apid = line.split()[-1]
-                print("apid:", apid)
-
-            if apid is not None:
-                print("running cti_mpmd...")
-
-                # test for exit code
-                process.run("%s/cti_mpmd --apid=%s" % (TESTS_BIN_PATH, apid), shell = True)
-
-                # test for correctness
-                proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_BIN_PATH,
-                    "--apid", apid],
-                    stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-
-                for line_ctimpmd in iter(proc_ctimpmd.stdout.readline, b''):
-                    line_ctimpmd = line_ctimpmd.decode("utf-8").rstrip()
-                    print(line_ctimpmd)
-                    if line_ctimpmd[:4] == "rank":
-                        split = line_ctimpmd.split(":")
-                        lhs = split[0]
-                        rhs = split[1]
-                        print("lhs:", lhs)
-                        print("rhs:", rhs)
-                        if lhs in answers:
-                            self.assertTrue(answers[lhs] == rhs, "Incorrect output: %s, should be %s" % (line_ctimpmd, answers[lhs]))
-                        else:
-                            self.error("Got an unexpected result from cti_mpmd.")
-
-                # release barrier
-                proc_barrier.stdin.write(b'\n')
-                proc_barrier.stdin.flush()
-                proc_barrier.stdin.close()
-                proc_barrier.wait()
-                proc_ctimpmd.wait()
-                break
-
-        self.assertTrue(apid is not None, "Couldn't determine apid")
-
-    def MPMDTestPALS(self):
-        answers = {
-            "rank   0": " hello_mpi",
-            "rank   1": " hello_mpi",
-            "rank   2": " hello_mpi_wait",
-            "rank   3": " hello_mpi_wait",
-        }
-
-        proc_barrier = subprocess.Popen(["stdbuf", "-oL", "%s/cti_barrier" % TESTS_BIN_PATH,
-            "-n2", "%s/hello_mpi" % TESTS_SRC_PATH, ":", "-n2", "%s/hello_mpi_wait" % TESTS_SRC_PATH],
-            stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.STDOUT)
-        proc_pid = proc_barrier.pid
-        self.assertTrue(proc_pid is not None, "Couldn't start cti_barrier.")
-        apid = None
-        for line in iter(proc_barrier.stdout.readline, b''):
-            line = line.decode('utf-8').rstrip()
-            print(line)
-            if line[:4] == 'apid':
-                apid = line.split()[-1]
-                print("apid:", apid)
-
-            if apid is not None:
-                print("running cti_mpmd...")
-
-                # test for exit code
-                process.run("%s/cti_mpmd --apid=%s" % (TESTS_BIN_PATH, apid), shell = True)
-
-                # test for correctness
-                proc_ctimpmd = subprocess.Popen(["stdbuf", "-oL", "%s/cti_mpmd" % TESTS_BIN_PATH,
-                    "--apid", apid],
-                    stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-
-                for line_ctimpmd in iter(proc_ctimpmd.stdout.readline, b''):
-                    line_ctimpmd = line_ctimpmd.decode("utf-8").rstrip()
-                    print(line_ctimpmd)
-                    if line_ctimpmd[:4] == "rank":
-                        split = line_ctimpmd.split(":")
-                        lhs = split[0]
-                        rhs = split[1]
-                        print("lhs:", lhs)
-                        print("rhs:", rhs)
-                        if lhs in answers:
-                            self.assertTrue(answers[lhs] == rhs, "Incorrect output: %s, should be %s" % (line_ctimpmd, answers[lhs]))
-                        else:
-                            self.error("Got an unexpected result from cti_mpmd.")
-
-                # release barrier
-                proc_barrier.stdin.write(b'\n')
-                proc_barrier.stdin.flush()
-                proc_barrier.stdin.close()
-                proc_barrier.wait()
-                proc_ctimpmd.wait()
-                break
-
-        self.assertTrue(apid is not None, "Couldn't determine apid")
-
-class CtiRedirectTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+        # Ensure that shim ran and exited correctly
+        shim_started = False
+        shim_child_exited_cleanly = False
+        with open(shim_log_path) as shim_log:
+            for line in shim_log:
+                if "cti shim token detected" in line:
+                    shim_started = True
+                elif "child exited" in line:
+                    shim_child_exited_cleanly = True
+        self.assertTrue(shim_started, f"MPIR shim was not started correctly")
+        self.assertTrue(shim_child_exited_cleanly, f"MPIR shim did not exit cleanly")
 
     def test_Redirect(self):
-        p = subprocess.run(["./cti_redirect", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_redirect failed")
+        name = "Redirect"
+        argv = ["./src/cti_redirect", *LAUNCHER_ARGS.split()]
 
-class CtiReleaseTwiceTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
 
     def test_ReleaseTwice(self):
-        p = subprocess.run(["./cti_release_twice", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_release_twice failed")
+        name = "ReleaseTwice"
+        argv = ["./src/cti_release_twice", *LAUNCHER_ARGS.split()]
 
-class CtiSessionTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
 
     def test_Session(self):
-        p = subprocess.run(["./cti_session", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_session failed")
+        name = "Session"
+        argv = ["./src/cti_session", *LAUNCHER_ARGS.split()]
 
-class CtiToolDaemonTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-        os.chdir("./src")
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
 
     def test_ToolDaemon(self):
-        p = subprocess.run(["./cti_tool_daemon", LAUNCHER_ARGS], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.assertTrue(p.returncode == 0, "cti_tool_daemon failed")
+        name = "ToolDaemon"
+        argv = ["./src/cti_tool_daemon", *LAUNCHER_ARGS.split()]
 
-'''
-cti_wlm fetches the work load manager type about a running job.
-'''
-class CtiWLMTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test(self):
-        detectWLM(self)
-
-class CTIEmptyLaunchTests(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_be(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-
-        try:
-            process.run("%s/cti_be_daemon%s" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-    def test_fe(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-
-        try:
-            process.run("%s/cti_fe_daemon%s" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBEDaemonAPIDTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_ws(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-        try:
-            process.run("%s/cti_be_daemon%s -a '    wspace'" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBEDaemonBinaryTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_ws(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-        try:
-            process.run("%s/cti_be_daemon%s -b '    ../test_support/one_print'" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            print(details)
-            return 0
-
-class CTIBEDaemonDirectoryTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_ws(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-        try:
-            process.run("%s/cti_be_daemon%s -d '    %s'" % (LIBEXEC_PATH, DAEMON_VER, TESTS_BIN_PATH))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBEDaemonEnvTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_arg(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-        try:
-            process.run("%s/cti_be_daemon%s --debug -e '    CTI_LOG_DIR=%s'" % (LIBEXEC_PATH, DAEMON_VER, TESTS_BIN_PATH))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            result=os.path.isfile("%s/dbglog_NOAPID.-1.log" % TESTS_BIN_PATH)
-            os.remove("%s/dbglog_NOAPID.-1.log" % TESTS_BIN_PATH)
-            if result:
-                return 0
-            else:
-                self.fail("Log file not created as expected")
-
-class CTIBEDaemonHelpTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-        try:
-            process.run("%s/cti_be_daemon%s --help" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBEDaemonManifestTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_ws(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-        try:
-            process.run("%s/cti_be_daemon%s -m '    ./'" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBEDaemonPathTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_ws(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-        try:
-            process.run("%s/cti_be_daemon%s -p '    ./'" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBEDaemonAPATHTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_ws(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-        try:
-            process.run("%s/cti_be_daemon%s -t '    ./'" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBEDaemonLDPathTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_ws(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-
-        try:
-            process.run("%s/cti_be_daemon%s -l '    ./'" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBeDaemonWLMTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_WLM_NONE(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-
-        try:
-            process.run("%s/cti_be_daemon%s -w CTI_WLM_NONE" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-    def test_WLM_INVALID(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-
-        try:
-            process.run("%s/cti_be_daemon%s -w 12345" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-    def test_WLM_VALID(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-
-        try:
-            process.run("%s/cti_be_daemon%s -w 3" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBeDaemonInvalidArgTest(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_null(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-
-        try:
-            process.run("%s/cti_be_daemon%s -Z" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-
-class CTIBeDaemonNoDirTool(Test):
-    def setUp(self):
-        readVariablesFromEnv(self)
-
-    def test_no_dir(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-
-        try:
-            process.run("%s/cti_be_daemon%s -w 3 -a 1" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
-    def test_no_tool(self):
-        rdt = self.params.get('run_daemon_tests', None, 1)
-        if rdt == 0:
-            self.cancel('Cancelled due to param run_daemon_tests set to %d' %(rdt))
-
-        try:
-            process.run("%s/cti_be_daemon%s -w 3 -a 1 -d ./test" % (LIBEXEC_PATH, DAEMON_VER))
-            self.fail("Process didn't error as expected")
-        except process.CmdError as details:
-            return 0
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")

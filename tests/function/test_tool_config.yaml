@@ -10,7 +10,7 @@ build:
       directory: .
 
 test:
-  parallel-jobs: 4
+  parallel-jobs: 1
   modules:
     - cray-cti
   env-vars-present:
@@ -20,29 +20,47 @@ test:
 
 launch:
   args:
-    slurm: "-n4 --ntasks-per-node=2"
+    slurm: "-n4 --ntasks-per-node=2 -t 5:00"
     alps: "-n4 -N2"
     ssh: "-n4 --ntasks-per-node=2"
 
 meta:
   keep:
   - Makefile
-  avocado-version: latest
-
-# system specific overides
-cfa6k:
-  launch:
-    modules:
-    - cray-pals
-    args:
-      slurm: "-n4 --ntasks-per-node=2 --mpi=cray_shasta"
+  avocado-version: "100.0"
 
 horizon:
-  build:
-    targets:
-      all:
-        j: 8
-    environment:
-      CRAY_CPU_TARGET: x86-64
   test:
     parallel-jobs: 32
+
+horizon-aarch:
+  test:
+    parallel-jobs: 10
+  launch:
+    args:
+      slurm: "-n4 --ntasks-per-node=2 -t 5:00 -p aarch"
+    environment:
+      SLURM_PARTITION: "aarch"
+
+kay:
+  launch:
+    allocation:
+      nodes: 32
+  test:
+    parallel-jobs: 16
+
+pea2k:
+  test:
+    parallel-jobs: 5
+
+pegasus:
+  launch:
+    args:
+      # Multi-node MPI launches break if they include node007 or node008
+      slurm: "-n4 --ntasks-per-node=2 --exclude=node007,node008 -t 5:00"
+  test:
+    parallel-jobs: 5
+
+pinoak:
+  test:
+    parallel-jobs: 5

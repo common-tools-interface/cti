@@ -89,6 +89,11 @@ main(int argc, char **argv)
         return 1;
     }
 
+    for (int i = 0; i < argc; i++) {
+        printf("\"%s\" ", argv[i]);
+    }
+    printf("\n");
+
     /*
      * cti_current_wlm - Obtain the current workload manager (WLM) in use on the
      *                   system.
@@ -264,7 +269,7 @@ main(int argc, char **argv)
     switch (mywlm) {
         case CTI_WLM_SLURM:
         {
-            if (slurm_job_id == 0 || slurm_step_id == 0) {
+            if (slurm_job_id == 0) {
                 fprintf(stderr, "Error: Missing --jobid and --stepid argument. This is required for the SLURM WLM.\n");
             }
             cti_slurm_ops_t * slurm_ops = NULL;

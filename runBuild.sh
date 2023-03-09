@@ -16,7 +16,7 @@ echo "#            Setup environment.            #"
 echo "############################################"
 
 top_level=$PWD
-source ./external/cdst_build_library/build_lib
+source ./external/cdst_build_library/build_lib_gcc
 
 source $top_level/release_versioning
 cti_version=

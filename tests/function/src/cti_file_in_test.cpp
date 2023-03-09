@@ -13,10 +13,10 @@ int main(int argc, char *argv[]) {
     FILE *piperead = fdopen(pipes[0], "r");
     assert_true(piperead != nullptr, "Failed to open pipe for reading.");
 
-    auto const  appArgv = createSystemArgv(argc, argv, {"./support/mpi_wrapper", "/usr/bin/cat"});
+    auto const  appArgv = createSystemArgv(argc, argv, {"./src/support/mpi_wrapper", "/usr/bin/cat"});
     auto const  stdoutFd = pipes[1];
     auto const  stderrFd = -1;
-    char const* inputFile = "./static/inputFileData.txt";
+    char const* inputFile = "./src/static/inputFileData.txt";
     char const* chdirPath = nullptr;
     char const* const* envList  = nullptr;
 
@@ -26,6 +26,7 @@ int main(int argc, char *argv[]) {
     auto const appId = app.watchApp(cti_launchAppBarrier(cstrVector(appArgv).data(), stdoutFd, stderrFd, inputFile, chdirPath, envList));
     assert_true(appId > 0, cti_error_str());
     assert_true(cti_appIsValid(appId) == true, cti_error_str());
+    std::cerr << "Safe from launch timeout.\n";
 
     assert_true(cti_releaseAppBarrier(appId) == SUCCESS, cti_error_str());
 

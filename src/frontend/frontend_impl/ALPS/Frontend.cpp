@@ -873,8 +873,16 @@ ALPSFrontend::launchAppBarrier(const char * const launcher_argv[], int stdout_fd
             // Wait on pipe read for app to start and get to barrier - once this happens
             // we know the real aprun is up and running
             int syncInt;
-            if (::read(aprunToCtiPipe[ReadEnd], &syncInt, sizeof(syncInt)) <= 0) {
-                throw std::runtime_error("sync pipe read failed");
+            while (true) {
+                auto read_rc = ::read(aprunToCtiPipe[ReadEnd], &syncInt, sizeof(syncInt));
+                if ((read_rc < 0) && (errno != EINTR)) {
+                    throw std::runtime_error("sync pipe read failed: "
+                        + std::string{strerror(errno)});
+                } else if (read_rc == 0) {
+                    throw std::runtime_error("sync pipe read failed: zero bytes read");
+                } else if (read_rc > 0) {
+                    break;
+                }
             }
             ::close(aprunToCtiPipe[ReadEnd]);
 
