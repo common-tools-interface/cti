@@ -360,7 +360,7 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/src/cti_info                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_info
 %{__cp} -a %{tests_source_dir}/function/src/cti_info_test.c            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_info_test.c
 %{__cp} -a %{tests_source_dir}/function/src/cti_kill                   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill
-%{__cp} -a %{tests_source_dir}/function/src/cti_kill_test.c            ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_kill_test.cpp          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill_test.cpp
 %{__cp} -a %{tests_source_dir}/function/src/cti_launch                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_launch
 %{__cp} -a %{tests_source_dir}/function/src/cti_launch_test.c          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_launch_test.c
 %{__cp} -a %{tests_source_dir}/function/src/cti_ld_preload             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ld_preload
@@ -385,6 +385,8 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/src/cti_tool_daemon_test.cpp   ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_tool_daemon_test.cpp
 %{__cp} -a %{tests_source_dir}/function/src/cti_wlm                    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm
 %{__cp} -a %{tests_source_dir}/function/src/cti_wlm_test.c             ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_ops                    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops
+%{__cp} -a %{tests_source_dir}/function/src/cti_ops_test.cpp           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops_test.cpp
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static
 %{__cp} -a %{tests_source_dir}/function/src/static/inputFileData.txt ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/inputFileData.txt
@@ -720,7 +722,7 @@ fi
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_info
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_info_test.c
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill_test.c
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_kill_test.cpp
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_launch
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_launch_test.c
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ld_preload
@@ -745,6 +747,8 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_tool_daemon_test.cpp
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm_test.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops_test.cpp
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/inputFileData.txt

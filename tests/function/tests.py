@@ -415,8 +415,8 @@ class CtiTest(Test):
                 }
             elif wlm == "alps":
                 return {
-                    "rank   0": " hello_mpi",      "rank   1": " hello_mpi",
-                    "rank   2": " hello_mpi_wait", "rank   3": " hello_mpi_wait",
+                    "rank   0": " hello_mpi",     "rank   1": " hello_mpi",
+                    "rank   2": " hello_mpi_alt", "rank   3": " hello_mpi_alt",
                 }
             raise EndTestError(cancel_reason=f"Test not implemented for {wlm}")
 
@@ -437,7 +437,7 @@ class CtiTest(Test):
                 cti_barrier = subprocess.Popen(
                         ["./src/cti_barrier",
                          "-n2", "./src/support/hello_mpi", ":",
-                         "-n2", "./src/support/hello_mpi_wait"],
+                         "-n2", "./src/support/hello_mpi_alt"],
                     stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT
                 )
             else:
@@ -607,9 +607,8 @@ class CtiTest(Test):
         name = "CtiKillSIGZERO"
         argv = ["./src/cti_kill", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi_wait", "0"]
 
-        # passing 0 to cti_killApp should emit an error
         rc = run_cti_test(self, name, argv)
-        self.assertTrue(rc != 0 and rc != None, f"Test binary exited with non-failure returncode ({rc})")
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
     def test_LdPreload(self):
         name = "LdPreload"
@@ -685,6 +684,30 @@ class CtiTest(Test):
     def test_ToolDaemon(self):
         name = "ToolDaemon"
         argv = ["./src/cti_tool_daemon", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    @avocado.skipIf(lambda t: detectWLM(t) != "slurm", "Not slurm")
+    def test_Ops_Slurm_getSrunInfo(self):
+        name = "Ops_Slurm_getSrunInfo"
+        argv = ["./src/cti_ops", "test_name:getSrunInfo", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    @avocado.skipIf(lambda t: detectWLM(t) != "slurm", "Not slurm")
+    def test_Ops_Slurm_getJobInfo_registerJobStep(self):
+        name = "Ops_Slurm_getJobInfoRegisterJobStep"
+        argv = ["./src/cti_ops", "test_name:getJobInfo, registerJobStep", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    @avocado.skipIf(lambda t: detectWLM(t) != "slurm", "Not slurm")
+    def test_Ops_Slurm_submitBatchScript(self):
+        name = "Ops_Slurm_submitBatchScript"
+        argv = ["./src/cti_ops", "test_name:submitBatchScript", *LAUNCHER_ARGS.split()]
 
         rc = run_cti_test(self, name, argv)
         self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
