@@ -742,14 +742,15 @@ SLURMApp::checkFilesExist(std::set<std::string> const& paths)
 
 static auto getSlurmVersion()
 {
-    char const* const srunVersionArgv[] = {"srun", "--version", nullptr};
-    auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv, cti::Execvp::stderr::Ignore};
+    auto const launcherName = SLURMFrontend::getLauncherName();
+    char const* const srunVersionArgv[] = {launcherName.c_str(), "--version", nullptr};
+    auto srunVersionOutput = cti::Execvp{launcherName.c_str(), (char* const*)srunVersionArgv, cti::Execvp::stderr::Ignore};
 
     // slurm major.minor.patch
     auto slurmVersion = std::string{};
     if (!std::getline(srunVersionOutput.stream(), slurmVersion, '\n')) {
-        throw std::runtime_error("Failed to get SRUN version number output. Try running \
-`srun --version`");
+        throw std::runtime_error("Failed to get version number output. Try running "
+            "`" + launcherName + " --version`");
     }
 
     // major.minor.patch

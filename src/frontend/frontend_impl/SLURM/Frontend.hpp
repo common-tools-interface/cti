@@ -109,7 +109,7 @@ public: // slurm specific interface
     auto const& getCheckScancelOutput() const { return m_checkScancelOutput; }
 
     // Get the default launcher binary name, or, if provided, from the environment.
-    std::string getLauncherName();
+    static std::string getLauncherName();
 
     // use sattach to retrieve node / host information about a SLURM job
     /* sattach layout format:
