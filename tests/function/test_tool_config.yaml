@@ -20,8 +20,8 @@ test:
 
 launch:
   args:
-    # take care to use arguments that can also go in a batch script.
-    # for example, use "-n4" instead of "-n 4"
+    # take care to use arguments that can also go on a single
+    # line in a batch script. for example, use "-n4" instead of "-n 4"
     slurm: "-n4 -N2 --ntasks-per-node=2 --time=5:00"
     alps: "-n4 -N2"
   allocation:
@@ -45,7 +45,7 @@ horizon-aarch:
     # parallel-jobs: 5 PE-46699
   launch:
     allocation:
-      slurm: "-n40 -N10 -t 3:00:00"
+      slurm: "-n40 -N10 -t 3:00:00 -p aarch"
 
 kay:
   # test:
