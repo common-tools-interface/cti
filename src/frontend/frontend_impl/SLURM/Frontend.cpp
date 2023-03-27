@@ -35,6 +35,7 @@
 #include <iomanip>
 #include <filesystem>
 #include <regex>
+#include <functional>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -631,7 +632,8 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
     return result;
 }
 
-void SLURMApp::startDaemon(const char* const args[]) {
+void SLURMApp::startDaemon(const char* const args[], bool synchronous)
+{
     // sanity check
     if (args == nullptr) {
         throw std::runtime_error("args array is null!");
@@ -670,12 +672,20 @@ void SLURMApp::startDaemon(const char* const args[]) {
     }
 
     // tell FE Daemon to launch srun
-    m_frontend.Daemon().request_ForkExecvpUtil_Async(
+    auto fork_execvp_args = std::make_tuple(&m_frontend.Daemon(),
         m_daemonAppId, slurmFrontend.getLauncherName().c_str(),
         launcherArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
-        launcherEnv.get() );
+        launcherEnv.get());
+
+    if (synchronous) {
+        std::apply(std::mem_fn(&FE_daemon::request_ForkExecvpUtil_Sync),
+            fork_execvp_args);
+    } else {
+        std::apply(std::mem_fn(&FE_daemon::request_ForkExecvpUtil_Async),
+            fork_execvp_args);
+    }
 }
 
 std::set<std::string>
@@ -742,15 +752,14 @@ SLURMApp::checkFilesExist(std::set<std::string> const& paths)
 
 static auto getSlurmVersion()
 {
-    auto const launcherName = SLURMFrontend::getLauncherName();
-    char const* const srunVersionArgv[] = {launcherName.c_str(), "--version", nullptr};
-    auto srunVersionOutput = cti::Execvp{launcherName.c_str(), (char* const*)srunVersionArgv, cti::Execvp::stderr::Ignore};
+    char const* const srunVersionArgv[] = {"srun", "--version", nullptr};
+    auto srunVersionOutput = cti::Execvp{"srun", (char* const*)srunVersionArgv, cti::Execvp::stderr::Ignore};
 
     // slurm major.minor.patch
     auto slurmVersion = std::string{};
     if (!std::getline(srunVersionOutput.stream(), slurmVersion, '\n')) {
-        throw std::runtime_error("Failed to get version number output. Try running "
-            "`" + launcherName + " --version`");
+        throw std::runtime_error("Failed to get SRUN version number output. Try running \
+`srun --version`");
     }
 
     // major.minor.patch

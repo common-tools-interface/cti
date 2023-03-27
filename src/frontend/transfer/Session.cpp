@@ -101,7 +101,7 @@ void Session::finalize() {
     // call cleanup function with DaemonArgv
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
     writeLog("launchCleanup: launching daemon for cleanup\n");
-    app->startDaemon(daemonArgv.get() + 1);
+    app->startDaemon(daemonArgv.get() + 1, /* synchronous */ true);
 }
 
 std::weak_ptr<Manifest>
@@ -260,7 +260,7 @@ Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     // call transfer function with DaemonArgv
     writeLog("sendManifest %d: starting daemon\n", inst);
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-    app->startDaemon(daemonArgv.get() + 1);
+    app->startDaemon(daemonArgv.get() + 1, /* synchronous */ true);
     // Increment shipped manifests at this point. No exception was thrown.
     ++m_seqNum;
 }
@@ -328,7 +328,7 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
     // call launch function with DaemonArgv
     writeLog("execManifest: starting daemon\n");
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-    app->startDaemon(rawArgVec.get() + 1);
+    app->startDaemon(rawArgVec.get() + 1, /* asynchronous */ false);
     writeLog("execManifest: daemon started\n");
     // Increment shipped manifests at this point. No exception was thrown.
     ++m_seqNum;

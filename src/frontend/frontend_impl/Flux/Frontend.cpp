@@ -89,7 +89,7 @@ static std::string make_jobspec(char const* launcher_name, char const* const lau
     std::map<std::string, std::string> const& jobAttributes)
 {
     // Build Flux dry run arguments
-    auto fluxArgv = cti::ManagedArgv { launcher_name, "mini", "run", "--dry-run" };
+    auto fluxArgv = cti::ManagedArgv { launcher_name, "run", "--dry-run" };
 
     // Add input / output / error files, if provided
     if (!inputPath.empty()) {
@@ -466,8 +466,14 @@ FluxFrontend::FluxFrontend()
     // Flux will read socket information in environment
     , m_fluxHandle{m_libFlux->flux_open(nullptr, 0)}
 {
-    if (m_fluxHandle == nullptr) {
-        throw std::runtime_error{"Flux initialization failed: " + std::string{strerror(errno)}};
+    while (m_fluxHandle == nullptr) {
+        if (errno == EINTR) {
+            m_fluxHandle = m_libFlux->flux_open(nullptr, 0);
+            continue;
+        } else {
+            throw std::runtime_error{"Flux initialization failed: "
+                + std::string{strerror(errno)}};
+        }
     }
 
     // Check that flux runtime version matches header version (check can be removed after
@@ -652,7 +658,7 @@ FluxApp::shipPackage(std::string const& tarPath) const
 }
 
 void
-FluxApp::startDaemon(const char* const args[])
+FluxApp::startDaemon(const char* const args[], bool synchronous)
 {
     // Prepare to start daemon binary on compute node
     auto const remoteBEDaemonPath = m_toolPath + "/" + getBEDaemonName();
@@ -700,12 +706,29 @@ FluxApp::startDaemon(const char* const args[])
         { { "system.alloc-bypass.R", m_resourceSpec } });
 
     // Submit jobspec to API
-    auto daemon_job_future = m_libFluxRef.flux_job_submit(m_fluxHandle, jobspec.c_str(), 16, 0);
+    auto job_submit_flags = (synchronous)
+        ? (int)FluxFrontend::LibFlux::JobSubmitFlags::FluxJobWaitable
+        : int{};
+    auto daemon_job_future = m_libFluxRef.flux_job_submit(m_fluxHandle, jobspec.c_str(), 16,
+        job_submit_flags);
 
     // Wait for job to launch and receive job ID
     auto daemon_job_id = flux_jobid_t{};
     if (m_libFluxRef.flux_job_submit_get_id(daemon_job_future, &daemon_job_id)) {
         throw std::runtime_error("Flux daemon launch failed: " + get_flux_future_error(m_libFluxRef, daemon_job_future));
+    }
+
+    if (synchronous) {
+        auto daemon_wait_future = m_libFluxRef.flux_job_wait(m_fluxHandle, daemon_job_id);
+        auto daemon_succeeded = false;
+        char const* daemon_err_msg = nullptr;
+        if (m_libFluxRef.flux_job_wait_get_status(daemon_wait_future, &daemon_succeeded,
+            &daemon_err_msg) < 0) {
+            throw std::runtime_error("Flux daemon wait failed: " + get_flux_future_error(m_libFluxRef, daemon_wait_future));
+        } else if (!daemon_succeeded) {
+            throw std::runtime_error("Daemon failed: " + std::string{
+                (daemon_err_msg) ? daemon_err_msg : "(no message)"});
+        }
     }
 
     // Add job ID to daemon job IDs

@@ -49,6 +49,10 @@
 #include "useful/cti_split.hpp"
 #include "frontend/mpir_iface/Inferior.hpp"
 
+// PALS application IDs are UUIDs in form 8-4-4-4-12
+static const auto rawUuidRegex = std::string{
+    R"([[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12})"};
+
 std::string
 PALSFrontend::getApid(pid_t launcher_pid)
 {
@@ -296,12 +300,8 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
 // Determine if apid is a valid PALS application ID
 static bool is_pals_apid(std::string const& apid)
 {
-    // PALS application IDs are UUIDs in form 8-4-4-4-12
-    static const auto uuidRegex = std::regex{
-        R"(^[[:alnum:]]{8}\b-[[:alnum:]]{4}\b-[[:alnum:]]{4}\b-[[:alnum:]]{4}\b-[[:alnum:]]{12}$)"};
-
     auto match = std::smatch{};
-
+    static auto uuidRegex = std::regex{rawUuidRegex};
     return std::regex_match(apid, match, uuidRegex);
 }
 
@@ -820,8 +820,48 @@ PALSApp::shipPackage(std::string const& tarPath) const
     }
 }
 
+static bool isToolHelperRunning(std::string const& execHost, std::string const& appId,
+    std::string const& toolHelperId)
+{
+    // Run palstat to query job with apid
+    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", execHost, appId};
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Start parsing palstat output
+    auto& palstatStream = palstatOutput.stream();
+    auto palstatLine = std::string{};
+
+    // Running tool helpers are listed with the label 'Tool ID'
+    auto running = false;
+    while (std::getline(palstatStream, palstatLine)) {
+
+        // Split line on ': '
+        auto const var_end = palstatLine.find(": ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
+        auto const val = palstatLine.substr(var_end + 2);
+        if (var == "Tool ID") {
+            if (toolHelperId == cti::split::removeLeadingWhitespace(std::move(val))) {
+                running = true;
+                break;
+            }
+        }
+    }
+
+    // Consume rest of stream output
+    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Ignore palstat exit status
+    (void)palstatOutput.getExitStatus();
+
+    return running;
+}
+
 void
-PALSApp::startDaemon(const char* const args[])
+PALSApp::startDaemon(const char* const args[], bool synchronous)
 {
     // sanity check
     if (args == nullptr) {
@@ -868,12 +908,64 @@ PALSApp::startDaemon(const char* const args[])
     // Copy provided launcher arguments
     palscmdArgv.add(args);
 
-    // tell frontend daemon to launch palscmd, wait for it to finish
-    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+    auto stderrPipe = cti::Pipe{};
+
+    // tell frontend daemon to launch palscmd
+    m_frontend.Daemon().request_ForkExecvpUtil_Async(
         m_daemonAppId, "palscmd", palscmdArgv.get(),
-        FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
-        nullptr)) {
-        throw std::runtime_error("failed to launch tool daemon for apid " + m_apId);
+        FE_daemon::CloseFd, FE_daemon::CloseFd, stderrPipe.getWriteFd(),
+        nullptr);
+
+    // Parse palstat output to get tool helper ID
+    auto toolHelperId = std::string{};
+    { stderrPipe.closeWrite();
+        auto stderrBuf = cti::FdBuf{stderrPipe.getReadFd()};
+        auto stderrStream = std::istream{&stderrBuf};
+
+        auto line = std::string{};
+        static auto toolHelperIdRegex = std::regex{"Launched tool helper (" + rawUuidRegex + ")"};
+        if (std::getline(stderrStream, line)) {
+            auto matches = std::smatch{};
+            if (std::regex_search(line, matches, toolHelperIdRegex)) {
+                toolHelperId = matches[1];
+                Frontend::inst().writeLog("Found tool helper ID %s\n", toolHelperId.c_str());
+            }
+        }
+
+        // Consume rest of output
+        stderrStream.ignore(std::numeric_limits<std::streamsize>::max());
+        stderrPipe.closeRead();
+    }
+
+    // Ignore parse failure
+    if (toolHelperId.empty()) {
+        Frontend::inst().writeLog("warning: failed to find tool helper ID in palscmd output\n");
+    }
+
+    if (synchronous) {
+
+        // Ignore parse failure, wait a bit and return
+        if (toolHelperId.empty()) {
+            ::sleep(1);
+            return;
+
+        // Query palstat for tool helper status until completed
+        } else {
+            for (int retry = 0; retry < 10; retry++) {
+                if (!isToolHelperRunning(m_execHost, m_apId, toolHelperId)) {
+                    Frontend::inst().writeLog("Tool helper %s completed\n",
+                        toolHelperId.c_str());
+                    return;
+                }
+
+                ::sleep(1);
+                Frontend::inst().writeLog("Tool helper %s probably still running, retry (%d/10)\n",
+                    toolHelperId.c_str(), retry + 1);
+            }
+
+            Frontend::inst().writeLog("Gave up waiting for palstat to complete tool helper %s\n",
+                toolHelperId.c_str());
+        }
     }
 }
 

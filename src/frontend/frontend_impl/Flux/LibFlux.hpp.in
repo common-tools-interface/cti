@@ -17,7 +17,7 @@ flux_msg_create flux_msg_t*(int)
 flux_msg_destroy void(flux_msg_t*)
 
 # Futures
-flux_future_wait_for int(flux_future_t*, int)
+flux_future_wait_for int(flux_future_t*, double)
 flux_future_reset void(flux_future_t*)
 flux_future_destroy void(flux_future_t*)
 flux_future_error_string char const*(flux_future_t*)
@@ -30,6 +30,8 @@ flux_rpc_get int(flux_future_t *, const char **)
 # Jobs
 flux_job_submit flux_future_t*(flux_t*, const char*, int, int)
 flux_job_submit_get_id int(flux_future_t*, flux_jobid_t*)
+flux_job_wait flux_future_t*(flux_t *, flux_jobid_t)
+flux_job_wait_get_status int(flux_future_t *, bool *, const char **)
 flux_job_id_parse int(const char*, flux_jobid_t*)
 flux_job_id_encode int(flux_jobid_t, const char*, char*, size_t)
 flux_job_cancel flux_future_t*(flux_t*, flux_jobid_t, const char *)
@@ -51,3 +53,11 @@ flux_buffer_read_watcher_get_buffer flux_buffer_t*(flux_watcher_t*)
 flux_buffer_write_watcher_get_buffer flux_buffer_t*(flux_watcher_t*)
 flux_job_event_watch flux_future_t*(flux_t*, uint64_t, const char*, int)
 flux_job_event_watch_get int(flux_future_t*, char const**)
+
+# Enums
+enum job_submit_flags int
+FLUX_JOB_PRE_SIGNED 1
+FLUX_JOB_DEBUG 2
+FLUX_JOB_WAITABLE 4
+FLUX_JOB_NOVALIDATE 8
+enum end

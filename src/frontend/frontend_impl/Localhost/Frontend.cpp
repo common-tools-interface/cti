@@ -204,7 +204,7 @@ LocalhostApp::shipPackage(std::string const& tarPath) const
 }
 
 void
-LocalhostApp::startDaemon(const char* const args[])
+LocalhostApp::startDaemon(const char* const args[], bool synchronous)
 {
     // sanity check
     if (args == nullptr) {
@@ -244,11 +244,16 @@ LocalhostApp::startDaemon(const char* const args[])
     launcherArgv.add(args);
 
     // Execute the launcher
-    if ( auto pid = ::fork(); pid == 0) {
+    auto pid = ::fork();
+    if (pid == 0) {
         ::execvp(launcherArgv.get()[0], launcherArgv.get());
         throw std::runtime_error(std::string{"executing "} + launcherArgv.get()[0] + " failed");
     } else if (pid < 0) {
         throw std::runtime_error("fork failed when starting daemon");
+    }
+
+    if (synchronous) {
+        cti::waitpid(pid, nullptr, 0);
     }
 }
 
