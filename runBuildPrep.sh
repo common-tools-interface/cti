@@ -69,7 +69,7 @@ elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
 
     if [[ "$target_arch" == "$cdst_arch_aarch64" && "$target_os" == "$cdst_os_rhel84" ]]; then
       yum --assumeyes install \
-      https://arti.dev.cray.com/artifactory/hpe-rhel-remote/EL8/Update4/GA/CRB/os/Packages/autoconf-archive-2018.03.13-1.el8.noarch.rpm
+      https://arti.hpc.amslabs.hpecorp.net/artifactory/hpe-rhel-remote/EL8/Update4/GA/CRB/os/Packages/autoconf-archive-2018.03.13-1.el8.noarch.rpm
     else
       yum --assumeyes install autoconf-archive
     fi
