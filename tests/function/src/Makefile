@@ -19,7 +19,7 @@ EXECS = cti_barrier cti_launch cti_info cti_link cti_callback \
       cti_callback_daemon cti_kill cti_wlm cti_mpmd cti_file_transfer \
 	  cti_tool_daemon cti_manifest cti_session cti_environment cti_fd_in \
 	  cti_double_daemon cti_ld_preload cti_mpir_shim cti_release_twice \
-	  cti_redirect cti_file_in cti_release_app
+	  cti_redirect cti_file_in cti_release_app cti_ops
 
 all : support tests
 
@@ -39,8 +39,8 @@ check-cti :
 	echo "CTI="$(CTI)
 	@if [ ! -d $(CTI)/include ]; then $(MAKE) no-module-error; fi
 
-cti_kill : cti_kill_test.c cti_fe_common.c
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+cti_kill : cti_kill_test.cpp cti_fe_common.c cti_fe_function_test.cpp
+	$(CXX) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 cti_wlm : cti_wlm_test.c cti_fe_common.c
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
@@ -104,6 +104,9 @@ cti_file_in : cti_file_in_test.cpp
 	$(CXX) $(CFLAGS) $^ -o $@ cti_fe_function_test.cpp $(LDFLAGS)
 
 cti_release_app : cti_release_app_test.cpp
+	$(CXX) $(CFLAGS) -std=c++17 $^ -o $@ cti_fe_function_test.cpp $(LDFLAGS)
+
+cti_ops : cti_ops_test.cpp
 	$(CXX) $(CFLAGS) -std=c++17 $^ -o $@ cti_fe_function_test.cpp $(LDFLAGS)
 
 # dummy rule to force other rules to run every time

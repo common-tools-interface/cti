@@ -5,7 +5,7 @@
  *       placed inside this file to make modifications due to WLM changes
  *       easier.
  *
- * Copyright 2013-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2013-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -144,6 +144,11 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_PASSPHRASE_ENV_VAR      "CTI_SSH_PASSPHRASE"
 #define SSH_PRIKEY_PATH_ENV_VAR     "CTI_SSH_PRIKEY_PATH"
 #define SSH_PUBKEY_PATH_ENV_VAR     "CTI_SSH_PUBKEY_PATH"
+
+#define LOCALHOST_PID_FILE  SLURM_PID_FILE
+#define LOCALHOST_TOOL_DIR  SLURM_TOOL_DIR
+#define LOCALHOST_STAGE_DIR SLURM_STAGE_DIR
+
 
 /*******************************************************************************
 ** ALPS specific information

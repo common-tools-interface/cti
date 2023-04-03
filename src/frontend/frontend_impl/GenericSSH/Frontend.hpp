@@ -133,7 +133,7 @@ public: // app interaction interface
     void releaseBarrier() override;
     void kill(int signal) override;
     void shipPackage(std::string const& tarPath) const override;
-    void startDaemon(const char* const args[]) override;
+    void startDaemon(const char* const args[], bool synchronous) override;
 
 public: // ssh specific interface
     /* none */

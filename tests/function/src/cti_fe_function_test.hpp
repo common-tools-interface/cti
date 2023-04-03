@@ -32,6 +32,7 @@
 #include <iterator>
 #include <memory>
 #include <vector>
+#include <functional>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -39,6 +40,7 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <netdb.h>
+#include <signal.h>
 
 #include <string.h>
 #include <unistd.h>
@@ -49,8 +51,6 @@ static constexpr auto SUCCESS = int{0};
 static constexpr auto FAILURE = int{1};
 
 static constexpr auto APP_ERROR = cti_app_id_t{0};
-
-static constexpr auto SIGKILL = int{9};
 
 // generate a temporary file and remove it on destruction
 class temp_file_handle
@@ -157,3 +157,6 @@ void testSocketApp(cti_app_id_t app_id, int test_socket,
 
 void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath,
     std::vector<char const*> extra_argv, std::string const& expecting, int times=1);
+
+// run `fn` and report how long it took to run. output will be tagged with `name`
+void reportTime(std::string name, std::function<void()> fn);

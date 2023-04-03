@@ -48,11 +48,14 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/select.h>
+#include <sys/types.h>
 
 #include <netdb.h>
 
 #include <unordered_map>
 #include <thread>
+#include <future>
 
 // Pull in manifest to properly define all the forward declarations
 #include "transfer/Manifest.hpp"
@@ -120,6 +123,30 @@ static inline ssize_t channel_write(LIBSSH2_CHANNEL* channel, char const* buf, s
         }
         return bytes_written;
     }
+}
+
+static auto channel_wait(LIBSSH2_SESSION *session, int fd)
+{
+    // Wait up to 10 seconds
+    auto timeout = timeval{ .tv_sec = 10, .tv_usec = 0 };
+
+    // Wait for fd to be ready
+    auto fds = fd_set{};
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+
+    auto block_directions = libssh2_session_block_directions(session);
+    auto select_rc = ::select(fd + 1,
+        (block_directions & LIBSSH2_SESSION_BLOCK_INBOUND) ? &fds : nullptr,
+        (block_directions & LIBSSH2_SESSION_BLOCK_OUTBOUND) ? &fds : nullptr,
+        nullptr, &timeout);
+
+    if ((select_rc < 0) && (errno != EAGAIN)) {
+        throw std::runtime_error("select on SSH socket failed: "
+            + std::string{strerror(errno)});
+    }
+
+    return select_rc;
 }
 
 } // remote
@@ -548,7 +575,7 @@ contact your system adminstrator.");
      * Arguments
      *      args -          null-terminated cstring array which holds the arguments array for the command to be executed
      */
-    void executeRemoteCommand(const char* const args[])
+    void executeRemoteCommand(const char* const args[], bool synchronous)
     {
         // sanity
         assert(args != nullptr);
@@ -571,12 +598,25 @@ contact your system adminstrator.");
         }
 
         // Continue command in background after SSH channel disconnects
-        argvString = "nohup " + argvString + " < /dev/null > /dev/null 2>&1 &";
+        if (!synchronous) {
+            argvString = "nohup " + argvString + " < /dev/null > /dev/null 2>&1 &";
+        } else {
+            argvString += "< /dev/null > /dev/null 2>&1";
+        }
 
         // Request execution of the command on the remote host
-        int rc = libssh2_channel_exec(channel_ptr.get(), argvString.c_str());
-        if ((rc < 0) && (rc != LIBSSH2_ERROR_EAGAIN)) {
-            throw std::runtime_error("Execution of ssh command failed: " + std::to_string(rc));
+        auto exec_rc = libssh2_channel_exec(channel_ptr.get(), argvString.c_str());
+        if ((exec_rc < 0) && (exec_rc != LIBSSH2_ERROR_EAGAIN)) {
+            throw std::runtime_error("Execution of ssh command failed: "
+                + std::to_string(exec_rc));
+        }
+
+        // Wait for synchronous run to complete
+        if (synchronous) {
+            auto close_rc = libssh2_channel_close(channel_ptr.get());
+            while (close_rc == LIBSSH2_ERROR_EAGAIN) {
+                remote::channel_wait(m_session_ptr.get(), m_session_sock.fd());
+            }
         }
     }
 
@@ -832,7 +872,8 @@ GenericSSHApp::kill(int signal)
         }
 
         // run remote kill command
-        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(killArgv.get());
+        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(killArgv.get(),
+            /* synchronous */ true);
     }
 }
 
@@ -850,7 +891,7 @@ GenericSSHApp::shipPackage(std::string const& tarPath) const
 }
 
 void
-GenericSSHApp::startDaemon(const char* const args[])
+GenericSSHApp::startDaemon(const char* const args[], bool synchronous)
 {
     // sanity check
     if (args == nullptr) {
@@ -897,8 +938,32 @@ GenericSSHApp::startDaemon(const char* const args[])
     launcherArgv.add(args);
 
     // Execute the launcher on each of the hosts using SSH
-    for (auto&& node : m_stepLayout.nodes) {
-        SSHSession(node.hostname, m_frontend.getPwd()).executeRemoteCommand(launcherArgv.get());
+    auto executeRemoteCommand = [](std::string const& hostname, const struct passwd& pwd,
+        char const* const* argv, bool synchronous) {
+        auto session = SSHSession{hostname, pwd};
+        session.executeRemoteCommand(argv, synchronous);
+    };
+
+    if (synchronous) {
+
+        // Synchronous launches run in parallel as future tasks
+        auto launchFutures = std::vector<std::future<void>>{};
+        for (auto&& node : m_stepLayout.nodes) {
+            launchFutures.push_back(std::async(std::launch::async, executeRemoteCommand,
+                node.hostname, m_frontend.getPwd(), launcherArgv.get(),
+                /* synchronous */ true));
+        }
+        for (auto&& future : launchFutures) {
+            future.get();
+        }
+
+    } else {
+
+        // Asynchronous launches can be started in parallel and continued to run
+        for (auto&& node : m_stepLayout.nodes) {
+            executeRemoteCommand(node.hostname, m_frontend.getPwd(), launcherArgv.get(),
+                /* asynchronous */ false);
+        }
     }
 }
 

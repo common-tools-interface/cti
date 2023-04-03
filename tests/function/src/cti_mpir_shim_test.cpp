@@ -6,8 +6,7 @@
 int main(int argc, char* argv[]) {
     auto const appArgv = createSystemArgv(argc, argv, {"sleep", "10"});
 
-    // Set env vars to use MPIR shim
-    ::setenv("CTI_LAUNCHER_WRAPPER", "wrapper_script.sh", 1);
+    // Override srun with wrapper script srun
     auto oldPath = std::string{::getenv("PATH") ? ::getenv("PATH") : ""};
     auto newPath = "./src/support" + (oldPath != "" ? ":" + oldPath : "");
     ::setenv("PATH", newPath.c_str(), 1);

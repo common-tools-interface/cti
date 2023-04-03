@@ -1,7 +1,7 @@
 /******************************************************************************\
  * cti_fe_iface.cpp - C interface layer for the cti frontend.
  *
- * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2014-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -200,6 +200,9 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
 #else
             return "Flux support was not configured for this build of CTI.";
 #endif
+                
+        case CTI_WLM_LOCALHOST:
+            return LocalhostFrontend::getName();
 
         // Internal / testing types
         case CTI_WLM_MOCK:
@@ -585,6 +588,19 @@ static cti_flux_ops_t _cti_flux_ops = {
     .registerJob = _cti_flux_registerJob,
 };
 
+static cti_app_id_t
+_cti_localhost_registerJob(char const* job_id) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<LocalhostFrontend>();
+        auto wp = fe.registerJob(1, job_id);
+        return fe.Iface().trackApp(wp);
+    }, APP_ERROR);
+}
+
+static cti_localhost_ops_t _cti_localhost_ops = {
+    .registerJob = _cti_localhost_registerJob,
+};
+
 // WLM specific extension ops accessor
 cti_wlm_type_t
 cti_open_ops(void **ops) {
@@ -611,6 +627,10 @@ cti_open_ops(void **ops) {
             case CTI_WLM_FLUX:
                 *ops = reinterpret_cast<void *>(&_cti_flux_ops);
                 break;
+            case CTI_WLM_LOCALHOST:
+                *ops = reinterpret_cast<void *>(&_cti_localhost_ops);
+                break;
+    
             case CTI_WLM_NONE:
             case CTI_WLM_MOCK:
                 *ops = nullptr;

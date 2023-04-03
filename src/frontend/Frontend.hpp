@@ -299,8 +299,8 @@ public: // impl.-specific interface that derived type must implement
     // ship package to backends
     virtual void shipPackage(std::string const& tarPath) const = 0;
 
-    // start backend tool daemon
-    virtual void startDaemon(CArgArray argv) = 0;
+    // start backend tool daemon, optionally waiting for completion
+    virtual void startDaemon(CArgArray argv, bool synchronous) = 0;
 
     // Return which file paths exist on all backends
     virtual std::set<std::string> checkFilesExist(std::set<std::string> const& paths) {

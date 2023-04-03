@@ -96,7 +96,7 @@ public: // inherited interface
     MOCK_METHOD0(releaseBarrier, void(void));
     MOCK_METHOD1(kill, void(int));
     MOCK_CONST_METHOD1(shipPackage, void(std::string const&));
-    MOCK_METHOD1(startDaemon, void(const char* const []));
+    MOCK_METHOD2(startDaemon, void(const char* const [], bool));
 
 public: // interface
     std::vector<std::string> getShippedFilePaths() const { return m_shippedFilePaths; }

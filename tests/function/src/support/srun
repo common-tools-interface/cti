@@ -1,0 +1,19 @@
+#!/bin/bash
+# Xalt-like wrapper script used to test CTI's MPIR shim
+
+script_path=$0
+launcher_name=$(basename $script_path)
+
+found_this_script=0
+for launcher_path in $(type -p -a $launcher_name); do
+  # Emulate Xalt's behavior of using the next launcher after this one in PATH
+  if [ "$launcher_path" == "$script_path" ]; then
+    found_this_script=1
+  elif [ "$found_this_script" == "1" ]; then
+    REAL_LAUNCHER=$launcher_path
+    break
+  fi
+
+done
+
+$REAL_LAUNCHER "$@"
