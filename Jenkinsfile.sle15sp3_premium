@@ -15,6 +15,6 @@
 
 sle15sp3PE {
     timeout = 240
-    agent = 'dst-big-build'
+    agent = 'gcp-x86_64'
     product = "pe-base"
 }

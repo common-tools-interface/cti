@@ -1,5 +1,5 @@
 /******************************************************************************\
- * Jenkinsfile.sle15sp4_aarch64 - DST Jenkins pipeline for sle15sp4 aarch64
+ * Jenkinsfile.rhel84_aarch64 - DST Jenkins pipeline for rhel84 aarch64
  *
  * Copyright 2022 Hewlett Packard Enterprise Development LP
  *
@@ -13,7 +13,8 @@
 
 @Library("dst-shared@master") _
 
-sle15sp4PEaarch64 {
+rhel8_4PEaarch64 {
     timeout = 240
     product = "pe-base"
+    agent = "gcp-aarch64"
 }

@@ -1,7 +1,7 @@
 #
 # configure.ac script for the common tools interface.
 #
-# Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2011-2023 Hewlett Packard Enterprise Development LP.
 #
 
 AC_PREREQ([2.63])
@@ -307,6 +307,7 @@ AC_CONFIG_FILES([
     src/frontend/frontend_impl/Makefile
     src/frontend/frontend_impl/SLURM/Makefile
     src/frontend/frontend_impl/GenericSSH/Makefile
+    src/frontend/frontend_impl/Localhost/Makefile
     src/frontend/mpir_iface/Makefile
     src/useful/Makefile
     src/useful/ld_val/Makefile

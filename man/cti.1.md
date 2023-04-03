@@ -75,10 +75,10 @@ environment variables for different system workload managers.
   variable to the desired address. Ensure that the address can be reached
   from your system's compute nodes.
 
-- *CTI_FILE_DEDUPLICATION*: CTI can launch a remote check on compute nodes
-  to determine whether tool files need to be shipped. To enable this check,
-  set **CTI_FILE_DEDUPLICATION=1**. File ship times are likely to decrease
-  if enabled.
+- *CTI_FILE_DEDUPLICATION*: CTI will launch a remote check on compute nodes
+  to determine whether tool files need to be shipped. To disable this check,
+  set **CTI_FILE_DEDUPLICATION=0**. File ship times are likely to increase
+  if disabled.
 
 - *CTI_LAUNCHER_SCRIPT*: If set, CTI will assume on Slurm systems
   that `srun` is overridden by a shell script at this path. This is

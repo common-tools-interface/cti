@@ -4,7 +4,7 @@
 # Copyright 2021 Hewlett Packard Enterprise Development LP.
 #
 
-BUILT_SOURCES = LibFlux.hpp
+BUILT_SOURCES = LibFlux.hpp LibFluxCompat.hpp
 SRC             	= @COMMONTOOL_DIR@/src
 INCLUDE				= @COMMONTOOL_DIR@/include
 
@@ -24,6 +24,9 @@ noinst_HEADERS			= Frontend.hpp
 
 LibFlux.hpp: generate_libflux.py LibFlux.hpp.in
 	python3 generate_libflux.py LibFlux.hpp.in > LibFlux.hpp
+
+LibFluxCompat.hpp: generate_libflux.py LibFlux.hpp.in
+	python3 generate_libflux.py --compiler-check LibFlux.hpp.in > LibFluxCompat.hpp
 
 if CODE_COVERAGE_ENABLED
 clean-local: code-coverage-clean

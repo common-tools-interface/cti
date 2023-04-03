@@ -1037,6 +1037,30 @@ typedef struct {
     cti_app_id_t    (*registerJob)(char const* job_id);
 } cti_flux_ops_t;
 
+/*-----------------------------------------------------------------------------
+ * cti_localhost_ops extensions - Extensions for the Localhost mock WLM
+ *-----------------------------------------------------------------------------
+ * registerJob - Registers an already running application for use with the
+ *               common tools interface.
+ *
+ * Detail
+ *      This form of launch is currently only implemented for jobs launched 
+ *      internally via gdb4hpc with CTI_WLM_IMPL=localhost.
+ *
+ * Arguments
+ *      job_id - <gdb4hpc process-id>.<executable name>
+ *
+ * Returns
+ *      A cti_app_id_t that contains the ID registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ *-----------------------------------------------------------------------------
+ */
+
+typedef struct {
+    cti_app_id_t    (*registerJob)(char const* job_id);
+} cti_localhost_ops_t;
+
+
 /*******************************************************************************
  * Transfer functions - Functions related to shipping files, shared libraries,
  *                      and binaries to compute nodes and launching tool

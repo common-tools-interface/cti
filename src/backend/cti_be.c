@@ -4,7 +4,7 @@
  *        to obtain application information for backend tool daemons running on
  *        the compute nodes.
  *
- * Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2011-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -43,6 +43,7 @@
 /* wlm specific proto objects defined elsewhere */
 extern cti_be_wlm_proto_t   _cti_be_slurm_wlmProto;
 extern cti_be_wlm_proto_t   _cti_be_generic_ssh_wlmProto;
+extern cti_be_wlm_proto_t   _cti_be_localhost_wlmProto;
 
 #ifdef HAVE_PALS
 extern cti_be_wlm_proto_t   _cti_be_pals_wlmProto;
@@ -125,6 +126,10 @@ _cti_be_init(void)
             break;
 #endif
 
+        case CTI_WLM_LOCALHOST:
+            _cti_be_wlmProto = &_cti_be_localhost_wlmProto;
+            break;
+
         case CTI_WLM_NONE:
         case CTI_WLM_MOCK:
             // These wlm are not supported
@@ -196,6 +201,9 @@ cti_be_wlm_type_toString(cti_wlm_type_t wlm_type)
 
         case CTI_WLM_FLUX:
             return CTI_WLM_TYPE_FLUX_STR;
+
+        case CTI_WLM_LOCALHOST:
+            return CTI_WLM_TYPE_LOCALHOST_STR;
 
         case CTI_WLM_NONE:
         case CTI_WLM_MOCK:

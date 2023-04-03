@@ -1,29 +1,29 @@
 #include "cti_fe_function_test.hpp"
 
+#include <chrono>
+#include <sstream>
+
 void assert_true(bool condition, std::string error) {
     if (!condition) {
-        std::cerr << error << std::endl;
-        exit(-1);
+        std::cerr << "assert failed: " << error << std::endl;
+        throw std::runtime_error(std::string{"assert failed: "} + error);
     }
 }
 
 // take a vector of strings and prepend the system specific arguements to it
 std::vector<std::string> createSystemArgv(int argc, char* mainArgv[], const std::vector<std::string>& appArgv) {
     auto fullArgv = std::vector<std::string>{};
-    
-    // split system specific args by whitespace and insert into fullArgv
-    if (argc > 1) {
-        std::istringstream iss(mainArgv[1]);
-        std::copy(std::istream_iterator<std::string>(iss), std::istream_iterator<std::string>(), std::back_inserter(fullArgv));
-    }
 
-    // append passed in argv
+    // start with argv from main
+    std::copy(mainArgv + 1, mainArgv + argc, std::back_inserter(fullArgv));
+
+    // append passed in app argv
     std::copy(appArgv.begin(), appArgv.end(), std::back_inserter(fullArgv));
 
     for (const auto &str : fullArgv) {
-        std::cout << str << ", ";
+        std::cerr << str << ", ";
     }
-    std::cout << std::endl;
+    std::cerr << std::endl;
 
     return fullArgv;
 }
@@ -132,7 +132,7 @@ launchSocketApp(char const* appPath, std::vector<char const*> extra_argv) {
     // Wait for any previous cleanups to finish (see PE-26018)
     sleep(5);
 
-    std::cout << "Getting address and starting to listen...\n";
+    std::cerr << "Getting address and starting to listen...\n";
     // Get address accessible from compute node
     auto const address = getExternalAddress();
 
@@ -149,27 +149,27 @@ launchSocketApp(char const* appPath, std::vector<char const*> extra_argv) {
     assert_true(getsockname(test_socket, (struct sockaddr*) &sa, &sa_len) == 0, "getsockname");
 
     // build required parameters for launching external app
-    std::cout << "Launching app...\n";
+    std::cerr << "Launching app...\n";
     std::vector<char const*> v_argv = {appPath, address.c_str(), std::to_string(ntohs(sa.sin_port)).c_str()};
     v_argv.insert(v_argv.end(), extra_argv.begin(), extra_argv.end());
     v_argv.push_back(nullptr);
 
     for (const auto &arg : v_argv) {
         if (arg != nullptr) {
-            std::cout << arg << std::endl;
+            std::cerr << arg << std::endl;
         }
     }
 
     // launch app
     auto app_id = cti_launchAppBarrier(v_argv.data(), -1, -1, nullptr, nullptr, nullptr);
     assert_true(app_id > 0, cti_error_str());
-    std::cout << "App launched. Net info: " << address << " " << std::to_string(ntohs(sa.sin_port)) << "\n";
+    std::cerr << "App launched. Net info: " << address << " " << std::to_string(ntohs(sa.sin_port)) << "\n";
     return std::make_tuple(app_id, test_socket);
 }
 
 void testSocketApp(cti_app_id_t app_id, int test_socket, std::string const& expecting, int times) {
     // accept recently launched applications connection
-    std::cout << "Waiting for communication from app...\n";
+    std::cerr << "Waiting for communication from app...\n";
     int app_socket;
     struct sockaddr_in wa;
     socklen_t wa_len = sizeof(wa);
@@ -179,29 +179,29 @@ void testSocketApp(cti_app_id_t app_id, int test_socket, std::string const& expe
         assert_true(app_socket >= 0, "accept");
 
         // read data returned from app
-        std::cout << "Reading data...\n";
+        std::cerr << "Reading data...\n";
         char buffer[16] = {0};
         int length = read(app_socket, buffer, 16);
         assert_true(length < 16, "length >= 16");
         buffer[length] = '\0';
 
         // check for correctness
-        std::cout << "Checking for correctness...\n";
+        std::cerr << "Checking for correctness...\n";
         assert_true(strcmp(buffer, expecting.c_str()) == 0, "strcmp");
     }
 
     // close socket
-    std::cout << "Closing socket...\n";
+    std::cerr << "Closing socket...\n";
     close(test_socket);
 
-    std::cout << "Done!\n";
+    std::cerr << "Done!\n";
 }
 
 void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector<char const*> extra_argv, std::string const& expecting, int times) {
     // Wait for any previous cleanups to finish (see PE-26018)
     sleep(5);
 
-    std::cout << "Getting address and starting to listen...\n";
+    std::cerr << "Getting address and starting to listen...\n";
     // Get address accessible from compute node
     auto const address = getExternalAddress();
 
@@ -219,7 +219,7 @@ void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::v
 
     // build required parameters for launching external app
     {
-        std::cout << "Launching app...\n";
+        std::cerr << "Launching app...\n";
         // create manifest and args
         auto const manifestId = cti_createManifest(sessionId);
         assert_true(cti_manifestIsValid(manifestId), cti_error_str());
@@ -229,17 +229,17 @@ void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::v
 
         for (const auto &arg : v_argv) {
             if (arg != nullptr) {
-                std::cout << arg << std::endl;
+                std::cerr << arg << std::endl;
             }
         }
 
         // launch app
         assert_true(cti_execToolDaemon(manifestId, daemonPath, v_argv.data(), nullptr) == SUCCESS, cti_error_str());
-        std::cout << "App launched. Net info: " << address << " " << std::to_string(ntohs(sa.sin_port)) << "\n";
+        std::cerr << "App launched. Net info: " << address << " " << std::to_string(ntohs(sa.sin_port)) << "\n";
     }
 
     // accept recently launched applications connection
-    std::cout << "Waiting for communication from app...\n";
+    std::cerr << "Waiting for communication from app...\n";
     int app_socket;
     struct sockaddr_in wa;
     socklen_t wa_len = sizeof(wa);
@@ -249,20 +249,44 @@ void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::v
         assert_true(app_socket >= 0, "accept");
 
         // read data returned from app
-        std::cout << "Reading data...\n";
+        std::cerr << "Reading data...\n";
         char buffer[16] = {0};
         int length = read(app_socket, buffer, 16);
         assert_true(length < 16, "length >= 16");
         buffer[length] = '\0';
 
         // check for correctness
-        std::cout << "Checking for correctness...\n";
+        std::cerr << "Checking for correctness...\n";
         assert_true(strcmp(buffer, expecting.c_str()) == 0, "strcmp");
     }
 
     // close socket
-    std::cout << "Closing socket...\n";
+    std::cerr << "Closing socket...\n";
     close(test_socket);
 
-    std::cout << "Done!\n";
+    std::cerr << "Done!\n";
+}
+
+void reportTime(std::string name, std::function<void()> fn) {
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::milliseconds;
+
+    auto line_len = 80;
+
+    auto header = std::ostringstream{};
+    header << ">-- \"" << name << "\" ";
+    for (int len = header.str().size(); len <= line_len; len++) header << "-";
+    std::cerr << std::endl << header.str() << std::endl;
+
+    auto start = high_resolution_clock::now();
+    fn();
+    auto end = high_resolution_clock::now();
+    auto elapsed = duration_cast<milliseconds>(end - start);
+
+    auto footer = std::ostringstream{};
+    footer << "--- \"" << name << "\" took " << elapsed.count() << " milliseconds. ";
+    for (int len = footer.str().size(); len <= line_len - 1; len++) footer << "-";
+    footer << "<";
+    std::cerr << footer.str() << std::endl << std::endl;
 }

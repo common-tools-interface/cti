@@ -101,7 +101,7 @@ void Session::finalize() {
     // call cleanup function with DaemonArgv
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
     writeLog("launchCleanup: launching daemon for cleanup\n");
-    app->startDaemon(daemonArgv.get() + 1);
+    app->startDaemon(daemonArgv.get() + 1, /* synchronous */ true);
 }
 
 std::weak_ptr<Manifest>
@@ -114,7 +114,7 @@ Session::createManifest() {
 }
 
 std::string
-Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
+Session::shipManifest(std::shared_ptr<Manifest> mani) {
     // Get owning app
     auto app = getOwningApp();
     // Get frontend reference
@@ -163,20 +163,18 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
 
     // Find duplicate files that are available on the backend
     auto duplicateSourcePaths = std::set<std::string>{};
-    if (auto deduplicate_files = ::getenv(CTI_DEDUPLICATE_FILES_ENV_VAR)) {
+    auto deduplicate_files = ::getenv(CTI_DEDUPLICATE_FILES_ENV_VAR);
+    if ((deduplicate_files == nullptr) || (strcmp(deduplicate_files, "0") != 0)) {
         try {
-            if (strcmp(deduplicate_files, "1") == 0) {
+            auto sourcePaths = std::set<std::string>{};
 
-                auto sourcePaths = std::set<std::string>{};
-
-                // Build list of source paths
-                for (auto&& [name, sourcePath] : sources) {
-                    sourcePaths.insert(sourcePath);
-                }
-
-                // Remove paths that exist on all backends
-                duplicateSourcePaths = app->checkFilesExist(sourcePaths);
+            // Build list of source paths
+            for (auto&& [name, sourcePath] : sources) {
+                sourcePaths.insert(sourcePath);
             }
+
+            // Remove paths that exist on all backends
+            duplicateSourcePaths = app->checkFilesExist(sourcePaths);
 
         } catch (std::exception const& ex) {
             writeLog("Deduplication failed: %s\n", ex.what());
@@ -262,7 +260,7 @@ Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     // call transfer function with DaemonArgv
     writeLog("sendManifest %d: starting daemon\n", inst);
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-    app->startDaemon(daemonArgv.get() + 1);
+    app->startDaemon(daemonArgv.get() + 1, /* synchronous */ true);
     // Increment shipped manifests at this point. No exception was thrown.
     ++m_seqNum;
 }
@@ -330,7 +328,7 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
     // call launch function with DaemonArgv
     writeLog("execManifest: starting daemon\n");
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-    app->startDaemon(rawArgVec.get() + 1);
+    app->startDaemon(rawArgVec.get() + 1, /* asynchronous */ false);
     writeLog("execManifest: daemon started\n");
     // Increment shipped manifests at this point. No exception was thrown.
     ++m_seqNum;

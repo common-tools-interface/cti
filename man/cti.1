@@ -91,10 +91,10 @@ environment variable to the desired address.
 Ensure that the address can be reached from your system\[cq]s compute
 nodes.
 .IP \[bu] 2
-\f[I]CTI_FILE_DEDUPLICATION\f[R]: CTI can launch a remote check on
+\f[I]CTI_FILE_DEDUPLICATION\f[R]: CTI will launch a remote check on
 compute nodes to determine whether tool files need to be shipped.
-To enable this check, set \f[B]CTI_FILE_DEDUPLICATION=1\f[R].
-File ship times are likely to decrease if enabled.
+To disable this check, set \f[B]CTI_FILE_DEDUPLICATION=0\f[R].
+File ship times are likely to increase if disabled.
 .IP \[bu] 2
 \f[I]CTI_LAUNCHER_SCRIPT\f[R]: If set, CTI will assume on Slurm systems
 that \f[C]srun\f[R] is overridden by a shell script at this path.

@@ -75,6 +75,9 @@ main(int argc, char **argv)
     // call the common FE tests
     cti_test_fe(myapp);
 
+    // clean up
+    cti_killApp(myapp, SIGKILL);
+
     /*
      * cti_deregisterApp - Assists in cleaning up internal allocated memory
      *                     associated with a previously registered application.

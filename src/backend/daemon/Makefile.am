@@ -1,7 +1,7 @@
 #
 # Makefile.am for the BE daemon components of the common tools interface
 #
-# Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+# Copyright 2014-2023 Hewlett Packard Enterprise Development LP.
 #
 
 SRC                 = @COMMONTOOL_DIR@/src
@@ -13,7 +13,7 @@ AM_LIBTOOLFLAGS 	= --quiet
 
 libexec_PROGRAMS	= cti_be_daemon@COMMONTOOL_RELEASE_VERSION@
 
-cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES	= cti_be_daemon.c slurm_dl.c generic_ssh_dl.c cti_daemon.h
+cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES	= cti_be_daemon.c slurm_dl.c generic_ssh_dl.c localhost_dl.c cti_daemon.h 
 cti_be_daemon@COMMONTOOL_RELEASE_VERSION@_CFLAGS	= -I$(SRC) -I$(INCLUDE) -I$(USEFUL) $(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CFLAGS) $(AM_CFLAGS)
 
 if ENABLE_ALPS

@@ -39,6 +39,7 @@
 #include <errno.h>
 #include <wait.h>
 #include <signal.h>
+#include <ctype.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -747,6 +748,7 @@ _cti_be_slurm_getNodeName(char const* job_id, char const* hostname)
     close(scontrol_pipe[1]);
     scontrol_pipe[1] = -1;
     scontrol_file = fdopen(scontrol_pipe[0], "r");
+    size_t hostname_len = strlen(hostname);
 
     // Read each line of scontrol output
     while (1) {
@@ -766,8 +768,28 @@ _cti_be_slurm_getNodeName(char const* job_id, char const* hostname)
                 goto cleanup__cti_be_slurm_getNodeName;
             }
 
-            // If the provided hostname matches the Slurm node name, this was successful
-            if (strcmp(hostname, current_host_name) == 0) {
+            // Match if hostname is a prefix of Slurm node name, or vice versa
+            // This supports FQDN hostnames / node names
+            size_t current_host_name_len = strlen(current_host_name);
+            int match = 0;
+            if (hostname_len == current_host_name_len) {
+                match = (strncmp(hostname, current_host_name, hostname_len) == 0);
+
+            // Check case where hostnames are not zero-aligned. Accept non-numeric
+            // suffixes (such as delimiters) that wouldn't be a node number
+            } else if (hostname_len < current_host_name_len) {
+                if (strncmp(current_host_name, hostname, hostname_len) == 0) {
+                    match = !isdigit(current_host_name[hostname_len]);
+                }
+
+            // Check case where node names are not zero-aligned
+            } else if (current_host_name_len < hostname_len) {
+                if (strncmp(hostname, current_host_name, current_host_name_len) == 0) {
+                    match = !isdigit(hostname[current_host_name_len]);
+                }
+            }
+
+            if (match) {
                 result = strdup(current_node_name);
                 break;
             }

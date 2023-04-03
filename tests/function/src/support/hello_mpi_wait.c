@@ -1,7 +1,7 @@
 /*
  * Very simple hello-world using C and MPI
  *
- * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    sleep(15);
+    sleep(120);
 
     MPI_Finalize();
 

@@ -459,7 +459,7 @@ ALPSApp::shipPackage(std::string const& tarPath) const
 }
 
 void
-ALPSApp::startDaemon(const char* const args[])
+ALPSApp::startDaemon(const char* const args[], bool synchronous)
 {
     // sanity check
     if (args == nullptr) {
@@ -521,6 +521,11 @@ ALPSApp::startDaemon(const char* const args[])
 
     if (transferDaemon) {
         m_beDaemonSent = true;
+    }
+
+    if (synchronous) {
+        // ALPS does not have any support for synchronous daemons, sleep a bit instead
+        ::sleep(1);
     }
 }
 

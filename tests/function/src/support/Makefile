@@ -2,7 +2,7 @@
 
 CFLAGS = -Wall -g -O0
 
-EXECS =  hello_mpi hello_mpi_wait mpi_wrapper remote_filecheck one_socket \
+EXECS =  hello_mpi hello_mpi_alt hello_mpi_wait mpi_wrapper remote_filecheck one_socket \
 		two_socket one_print
 
 all : $(EXECS)
@@ -13,6 +13,10 @@ clean:
 
 hello_mpi : hello_mpi.c
 	cc $(CFLAGS) $^ -o $@
+
+# hello_mpi_alt is a clone of hello_mpi used in mpmd tests
+hello_mpi_alt: hello_mpi
+	ln -s hello_mpi hello_mpi_alt
 
 hello_mpi_wait : hello_mpi_wait.c
 	cc $(CFLAGS) $^ -o $@
