@@ -37,33 +37,33 @@ horizon:
   launch:
     allocation:
       slurm: "-n128 -N32 -t 3:00:00"
-  # test:
-    # parallel-jobs: 16 PE-46699
+  test:
+    parallel-jobs: 16
 
 horizon-aarch:
-  # test:
-    # parallel-jobs: 5 PE-46699
+  test:
+    parallel-jobs: 5
   launch:
     allocation:
       slurm: "-n40 -N10 -t 3:00:00 -p aarch"
 
 kay:
-  # test:
-    # parallel-jobs: 16 PE-46699
+  test:
+    parallel-jobs: 16
   launch:
     allocation:
       alps: "-l select=32:ncpus=4,place=scatter,walltime=3:00:00"
 
 pea2k:
-  # test:
-    # parallel-jobs: 3 PE-46699
+  test:
+    parallel-jobs: 3
   launch:
     allocation:
       slurm: "-n24 -N6 -t 3:00:00"
 
 pegasus:
-  # test:
-    # parallel-jobs: 3 PE-46699
+  test:
+    parallel-jobs: 3
   launch:
     environment:
       MV2_SUPPRESS_CUDA_USAGE_WARNING: 1
@@ -73,8 +73,8 @@ pegasus:
       slurm: "-n24 -N6 --exclude=node007,node008 -t 3:00:00"
 
 pinoak-login1:
-  # test:
-    # parallel-jobs: 5 PE-46699
+  test:
+    parallel-jobs: 5
   launch:
     allocation:
       slurm: "-n40 -N10 -p allnodes -t 3:00:00"
