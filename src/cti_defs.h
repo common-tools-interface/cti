@@ -123,7 +123,18 @@ typedef struct
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
 #define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
 #define SLURM_DAEMON_GRES_ENV_VAR "CTI_SLURM_DAEMON_GRES"           // Set to specify `--gres` argument for tool daemon launches (or leave blank to disable)
-#define SLURM_OVERRIDE_MC_ENV_VAR "CTI_SLURM_OVERRIDE_MC"                 // Set to disable Slurm multi-cluster check
+#define SLURM_OVERRIDE_MC_ENV_VAR "CTI_SLURM_OVERRIDE_MC"           // Set to disable Slurm multi-cluster check
+#define SLURM_NEVER_PARSE_SCANCEL                                              \
+  "CTI_SLURM_NEVER_PARSE_SCANCEL" // Due to a slurm bug
+                                  // (https://bugs.schedmd.com/show_bug.cgi?id=16551),
+                                  // the return code of the scancel command is
+                                  // not reliable enough to determine if a
+                                  // cti_killApp was successful. A workaround is
+                                  // implemented which parses the verbose output
+                                  // of scancel for confirmation. Set this
+                                  // environment variable to disable the
+                                  // workaround and rely soley on the scancel
+                                  // return code.
 
 /*******************************************************************************
 ** SSH specific information

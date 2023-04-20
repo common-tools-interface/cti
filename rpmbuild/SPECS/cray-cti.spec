@@ -327,6 +327,7 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/sshcopyid.expect     ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/sshcopyid.expect
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/uai.expect           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/uai.expect
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/validate_ssh.sh      ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/validate_ssh.sh
+%{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/scripts/detect_wlm.sh        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/detect_wlm.sh
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src
 %{__cp} -a %{tests_source_dir}/function/cdst-test/cdst_test/src/Makefile    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src/Makefile
@@ -689,6 +690,7 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/sshcopyid.expect
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/uai.expect
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/validate_ssh.sh
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/scripts/detect_wlm.sh
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/cdst_test/src/Makefile

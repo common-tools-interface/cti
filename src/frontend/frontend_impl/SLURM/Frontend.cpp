@@ -405,7 +405,6 @@ cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv()
 
 void SLURMApp::kill(int signum)
 {
-    // 22.05.7 and above have a correct return code for scancel for successful signal
     if (!dynamic_cast<SLURMFrontend&>(m_frontend).getCheckScancelOutput()) {
 
         // create the args for scancel
@@ -823,16 +822,18 @@ SLURMFrontend::SLURMFrontend()
             });
         }
 
-        // Before Slurm 22.05.7, scanel will report that it failed to
-        // send signal even if it was successful. This can be correctly
-        // determined via parsing verbose output rather than using
-        // return code (PE-45772, see SLURMApp::kill implementation)
-        auto below_22 = (major < 22);
-        auto below_22_05 = (major == 22) && (minor < 5);
-        auto below_22_05_7 = (major == 22) && (minor == 5) && (patch < 7);
-        if (below_22 || below_22_05 || below_22_05_7) {
-            m_checkScancelOutput = true;
-        }
+        // Up to (and possibly beyond) Slurm 22.05.8, scancel might report that
+        // it failed to send a signal even if it was successful. This can be
+        // correctly determined via parsing verbose output rather than using
+        // return code (PE-45772, see SLURMApp::kill implementation). This bug
+        // most commonly happens when a CTI app is run while inside an
+        // interactive allocation (salloc). See https://bugs.schedmd.com/show_bug.cgi?id=16551
+        //
+        // We currently don't know if/when this bug is going to be fixed, so we are
+        // leaving the workaround on for all versions, for now. Set
+        // SLURM_NEVER_PARSE_SCANCEL to force the workaround off and rely on scancel's
+        // return code.
+        m_checkScancelOutput = ::getenv(SLURM_NEVER_PARSE_SCANCEL) == nullptr;
     }
 
     // Slurm bug https://bugs.schedmd.com/show_bug.cgi?id=12642

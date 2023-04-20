@@ -27,7 +27,6 @@ launch:
   allocation:
     slurm: "-n16 -N4 -t 3:00:00"
     alps: "-l select=16:ncpus=4,place=scatter,walltime=3:00:00"
-    pals: "-l select=16:ncpus=4,place=scatter,walltime=3:00:00"
 meta:
   keep:
   - Makefile
@@ -36,45 +35,38 @@ meta:
 horizon:
   launch:
     allocation:
-      slurm: "-n128 -N32 -t 3:00:00"
+      slurm: "-n128 -N32 -t 3:00:00 --exclusive"
   test:
-    parallel-jobs: 16
-
-horizon-aarch:
-  test:
-    parallel-jobs: 5
-  launch:
-    allocation:
-      slurm: "-n40 -N10 -t 3:00:00 -p aarch"
+    parallel-jobs: 10
 
 kay:
   test:
-    parallel-jobs: 16
+    parallel-jobs: 10
   launch:
     allocation:
-      alps: "-l select=32:ncpus=4,place=scatter,walltime=3:00:00"
+      alps: "-l place=scatter,select=1:nodetype=mom-x86_64+16:nodetype=BW36+16:nodetype=SK48"
 
 pea2k:
   test:
-    parallel-jobs: 3
+    parallel-jobs: 2
   launch:
     allocation:
-      slurm: "-n24 -N6 -t 3:00:00"
+      slurm: "-n24 -N6 -t 3:00:00 --exclusive"
 
 pegasus:
   test:
-    parallel-jobs: 3
+    parallel-jobs: 2
   launch:
     environment:
       MV2_SUPPRESS_CUDA_USAGE_WARNING: 1
       MV2_SUPPRESS_JOB_STARTUP_PERFORMANCE_WARNING: 1
     allocation:
       # Multi-node MPI launches break if they include node007 or node008
-      slurm: "-n24 -N6 --exclude=node007,node008 -t 3:00:00"
+      slurm: "-n24 -N6 --exclude=node007,node008 -t 3:00:00 --exclusive"
 
 pinoak-login1:
   test:
-    parallel-jobs: 5
+    parallel-jobs: 4
   launch:
     allocation:
-      slurm: "-n40 -N10 -p allnodes -t 3:00:00"
+      slurm: "-n48 -N12 -p allnodes --exclusive -t 3:00:00"
