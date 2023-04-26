@@ -466,13 +466,14 @@ static bool detect_PALS(std::string const& /* unused */)
         char const* rpm_argv[] =
             { "rpm", "-q"
             , "pbspro-server", "pbspro-client", "pbspro-execution"
+            , "openpbs-server", "openpbs-client", "openpbs-execution"
             , nullptr
         };
 
         // PBS is configured if at least one of these packages exists
-        // Return code of 3 means query of all 3 packages failed (not installed)
+        // Return code of 6 means query of all 6 packages failed (not installed)
         auto const failed_packages = cti::Execvp::runExitStatus("rpm", (char* const*)rpm_argv);
-        if (failed_packages == 3) {
+        if (failed_packages == 6) {
             return false;
         }
 
