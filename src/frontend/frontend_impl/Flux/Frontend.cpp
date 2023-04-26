@@ -36,6 +36,7 @@
 #include <variant>
 #include <type_traits>
 #include <numeric>
+#include <filesystem>
 
 #include <sstream>
 #include <fstream>
@@ -89,7 +90,7 @@ static std::string make_jobspec(char const* launcher_name, char const* const lau
     std::map<std::string, std::string> const& jobAttributes)
 {
     // Build Flux dry run arguments
-    auto fluxArgv = cti::ManagedArgv { launcher_name, "run", "--dry-run" };
+    auto fluxArgv = cti::ManagedArgv { launcher_name, "submit", "--dry-run" };
 
     // Add input / output / error files, if provided
     if (!inputPath.empty()) {
@@ -129,7 +130,8 @@ static std::string make_jobspec(char const* launcher_name, char const* const lau
     }
 
     // Run jobspec generator
-    auto fluxOutput = cti::Execvp{launcher_name, (char* const*)fluxArgv.get(), cti::Execvp::stderr::Pipe};
+    auto fluxOutput = cti::Execvp{launcher_name, (char* const*)fluxArgv.get(),
+        cti::Execvp::stderr::Ignore};
     auto result = std::string{std::istreambuf_iterator<char>(fluxOutput.stream()), {}};
 
     // Check output code
@@ -166,7 +168,7 @@ static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t
         auto const eventlog_rc = libFlux.flux_job_event_watch_get(eventlog_future.get(), &eventlog_result);
         if (eventlog_rc == ENODATA) {
             continue;
-        } else if (eventlog_rc) {
+        } else if (eventlog_rc < 0) {
             throw std::runtime_error("Flux job event query failed: " + get_flux_future_error(libFlux, eventlog_future.get()));
         }
 
@@ -207,7 +209,7 @@ static std::string make_rpc_request(FluxFrontend::LibFlux& libFlux, FluxFrontend
     // Block and read until RPC returns response
     char const *result = nullptr;
     auto const rc = libFlux.flux_rpc_get(future.get(), &result);
-    if (rc) {
+    if (rc < 0) {
         throw std::runtime_error("Flux query with topic " + topic + " failed: " + get_flux_future_error(libFlux, future.get()));
     }
 
@@ -450,7 +452,7 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
 
     // Wait for job to launch and receive job ID
     auto job_id = flux_jobid_t{};
-    if (m_libFlux->flux_job_submit_get_id(job_future, &job_id)) {
+    if (m_libFlux->flux_job_submit_get_id(job_future, &job_id) < 0) {
         throw std::runtime_error("Flux job launch failed: " + get_flux_future_error(*m_libFlux, job_future));
     }
 
@@ -558,7 +560,7 @@ FluxApp::isRunning() const
     // Block and read until API returns response
     char const *result = nullptr;
     auto const rc = m_libFluxRef.flux_rpc_get(future.get(), &result);
-    if (rc || (result == nullptr)) {
+    if ((rc < 0) || (result == nullptr)) {
         throw std::runtime_error("Flux query failed: " + get_flux_future_error(m_libFluxRef, future.get()));
     }
 
@@ -651,9 +653,35 @@ FluxApp::shipPackage(std::string const& tarPath) const
     auto const destination = m_toolPath + "/" + packageName;
     writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
-    // Send the package to each of the hosts using SCP
-    for (auto&& ctiHost : m_hostsPlacement) {
-        SSHSession(ctiHost.hostname, m_frontend.getPwd()).sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+    // Send the package to broker rank
+    if (m_hostsPlacement.empty()) {
+        throw std::runtime_error("Empty host placements (need at least one rank)");
+    }
+
+    SSHSession(m_hostsPlacement[0].hostname, m_frontend.getPwd())
+        .sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+
+    if (m_hostsPlacement.size() > 1) {
+        char const* exec_map_argv[] = {"flux", "exec", "-r", "0", "flux", "filemap", "map",
+            "--tags", m_toolPath.c_str(), "-C", m_toolPath.c_str(),
+            packageName.c_str(), nullptr};
+        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_map_argv)) {
+            throw std::runtime_error("failed to map file on rank 0 " + destination);
+        }
+
+        auto mkdirGetCmd = "mkdir -p " + m_toolPath + "; flux filemap get --tags " + m_toolPath
+            + " -C " + m_toolPath + " " + packageName;
+        char const* exec_get_argv[] = {"flux", "exec", "-r", m_nonBrokerRanks.c_str(),
+            "bash", "-c", mkdirGetCmd.c_str(), nullptr};
+        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_get_argv)) {
+            throw std::runtime_error("failed to get mapped file " + destination);
+        }
+
+        char const* exec_unmap_argv[] = {"flux", "exec", "-r", "0", "flux", "filemap", "unmap",
+            "--tags", m_toolPath.c_str(), nullptr};
+        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_unmap_argv)) {
+            throw std::runtime_error("failed to unmap file on rank 0 " + destination);
+        }
     }
 }
 
@@ -665,34 +693,18 @@ FluxApp::startDaemon(const char* const args[], bool synchronous)
 
     // Send daemon if not already shipped
     if (!m_beDaemonSent) {
-        // Get the location of the backend daemon
-        if (m_frontend.getBEDaemonPath().empty()) {
-            throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment varaible to the install location of CTI.");
-        }
-
-        // Ship the BE binary to its unique storage name
-        shipPackage(m_frontend.getBEDaemonPath());
-
-        // Generate and ship attribute files
-        { auto const hostAttribs = generateHostAttribs();
-
-            auto const destination = m_attribsPath + "/pmi_attribs";
-
-            // Ship and remove attribute files
-            for (auto&& [hostname, attribPath] : hostAttribs) {
-                SSHSession(hostname, m_frontend.getPwd()).sendRemoteFile(attribPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-                ::unlink(attribPath.c_str());
-            }
-        }
-
-        // set transfer to true
-        m_beDaemonSent = true;
+        shipDaemon();
     }
 
     // Create daemon argument array
-    auto launcherArgv = cti::ManagedArgv{m_frontend.getBEDaemonPath()};
+    auto launcherArgv = cti::ManagedArgv{};
 
-    // Merge in the args array if there is one
+    // Resource spec provides for number of nodes, match that to number of ranks when
+    // launching the daemon
+    launcherArgv.add("-n" + std::to_string(m_hostsPlacement.size()));
+
+    // Add daemon and arguments if provided
+    launcherArgv.add(remoteBEDaemonPath);
     if (args != nullptr) {
         for (const char* const* arg = args; *arg != nullptr; arg++) {
             launcherArgv.add(*arg);
@@ -706,6 +718,7 @@ FluxApp::startDaemon(const char* const args[], bool synchronous)
         { { "system.alloc-bypass.R", m_resourceSpec } });
 
     // Submit jobspec to API
+    writeLog("Submitting daemon jobspec:\n%s\n", jobspec.c_str());
     auto job_submit_flags = (synchronous)
         ? (int)FluxFrontend::LibFlux::JobSubmitFlags::FluxJobWaitable
         : int{};
@@ -714,7 +727,7 @@ FluxApp::startDaemon(const char* const args[], bool synchronous)
 
     // Wait for job to launch and receive job ID
     auto daemon_job_id = flux_jobid_t{};
-    if (m_libFluxRef.flux_job_submit_get_id(daemon_job_future, &daemon_job_id)) {
+    if (m_libFluxRef.flux_job_submit_get_id(daemon_job_future, &daemon_job_id) < 0) {
         throw std::runtime_error("Flux daemon launch failed: " + get_flux_future_error(m_libFluxRef, daemon_job_future));
     }
 
@@ -735,6 +748,60 @@ FluxApp::startDaemon(const char* const args[], bool synchronous)
     m_daemonJobIds.push_back(daemon_job_id);
 }
 
+std::set<std::string>
+FluxApp::checkFilesExist(std::set<std::string> const& paths)
+{
+    auto result = std::set<std::string>{};
+
+    // Send daemon if not already shipped
+    if (!m_beDaemonSent) {
+        shipDaemon();
+    }
+
+    // Build daemon launcher arguments
+    auto launcherArgv = cti::ManagedArgv{"flux", "exec", m_toolPath + "/" + getBEDaemonName()};
+    for (auto&& path : paths) {
+        launcherArgv.add("--file=" + path);
+    }
+
+    // Launch duplicate checker
+    auto filesOutput = cti::Execvp{"flux", (char* const*)launcherArgv.get(),
+        cti::Execvp::stderr::Ignore};
+    auto& filesStream = filesOutput.stream();
+
+    // Track number of present files
+    auto num_nodes = m_hostsPlacement.size();
+    auto pathCountMap = std::map<std::string, size_t>{};
+
+    // Read out all paths from daemon
+    auto exit_count = num_nodes;
+    auto line = std::string{};
+    while ((exit_count > 0) && std::getline(filesStream, line)) {
+
+        // Daemons will print an empty line when output is completed
+        if (line.empty()) {
+            exit_count--;
+
+        // Ignore library version warning from Flux utility
+        } else if (line.find("no version information") != std::string::npos) {
+            continue;
+
+        // Received path from daemon
+        } else {
+
+            // Increment count for path
+            pathCountMap[line]++;
+
+            // Add path to duplicate list if all nodes have file
+            if (pathCountMap[line] == num_nodes) {
+                result.emplace(std::move(line));
+            }
+        }
+    }
+
+    return result;
+}
+
 FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
     : App{fe}
     , m_fluxHandle{fe.m_fluxHandle}
@@ -748,6 +815,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
     , m_beDaemonSent{false}
     , m_numPEs{}
     , m_hostsPlacement{}
+    , m_nonBrokerRanks{}
     , m_binaryName{}
 
     , m_toolPath{}
@@ -818,10 +886,50 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         // Attribute files will be manually generated and shipped into toolpath
         m_attribsPath = m_toolPath;
     }
+
+    { // Generate list of first ranks for each node that aren't rank 0 (broker)
+        auto hostnameFirstRankMap = std::map<std::string, int>{};
+
+        char const* flux_exec_hostname_argv[] = {"flux", "exec", "-l", "hostname", nullptr};
+        auto hostnameOutput = cti::Execvp{"flux", (char* const*)flux_exec_hostname_argv,
+            cti::Execvp::stderr::Ignore};
+        auto& hostnameStream = hostnameOutput.stream();
+        auto line = std::string{};
+        while (std::getline(hostnameStream, line)) {
+            auto&& [rank, hostname] = cti::split::string<2>(line, ':');
+            auto hostnameFirstRank = hostnameFirstRankMap.find(hostname);
+
+            if (hostnameFirstRank != hostnameFirstRankMap.end()) {
+                hostnameFirstRank->second
+                    = std::min(std::stoi(rank), hostnameFirstRank->second);
+            } else {
+                hostnameFirstRankMap.insert({hostname, std::stoi(rank)});
+            }
+        }
+
+        auto nonBrokerRanks = std::set<int>{};
+        for (auto&& [hostname, rank] : hostnameFirstRankMap) {
+            if (rank != 0) {
+                nonBrokerRanks.insert(rank);
+            }
+        }
+
+        // TODO: make rank ranges
+        for (auto&& rank : nonBrokerRanks) {
+            if (m_nonBrokerRanks.empty()) {
+                m_nonBrokerRanks = std::to_string(rank);
+            } else {
+                m_nonBrokerRanks += "," + std::to_string(rank);
+            }
+        }
+
+        writeLog("Non-broker ranks: %s\n", m_nonBrokerRanks.c_str());
+    }
 }
 
 // Flux does not yet support cray-pmi, so backend information needs to be generated separately
-std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
+std::vector<std::pair<std::string, std::string>>
+FluxApp::generateHostAttribs()
 {
     auto result = std::vector<std::pair<std::string, std::string>>{};
 
@@ -854,6 +962,37 @@ std::vector<std::pair<std::string, std::string>> FluxApp::generateHostAttribs()
     }
 
     return result;
+}
+
+void
+FluxApp::shipDaemon()
+{
+    // Get the location of the backend daemon
+    if (m_frontend.getBEDaemonPath().empty()) {
+        throw std::runtime_error("Unable to locate backend daemon binary. Try setting " + std::string(CTI_BASE_DIR_ENV_VAR) + " environment variable to the install location of CTI.");
+    }
+
+    // Copy the BE binary to its unique storage name and ship
+    auto const sourcePath = m_frontend.getBEDaemonPath();
+    auto const destinationPath = m_frontend.getCfgDir() + "/" + getBEDaemonName();
+    std::filesystem::copy_file(sourcePath, destinationPath,
+    std::filesystem::copy_options::overwrite_existing);
+    shipPackage(destinationPath);
+
+    // Generate and ship attribute files
+    { auto const hostAttribs = generateHostAttribs();
+
+        auto const destination = m_attribsPath + "/pmi_attribs";
+
+        // Ship and remove attribute files
+        for (auto&& [hostname, attribPath] : hostAttribs) {
+            SSHSession(hostname, m_frontend.getPwd()).sendRemoteFile(attribPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+            ::unlink(attribPath.c_str());
+        }
+    }
+
+    // set transfer to true
+    m_beDaemonSent = true;
 }
 
 FluxApp::~FluxApp()

@@ -115,8 +115,8 @@ TEST(for_each_prefixList, SingleEmpty)
 {
     auto const root = parse_json("[[ \"prefix\", [[-1, -1]] ]]");
     auto values = std::unordered_set<std::string>{};
-    flux::for_each_prefixList(root, [&values](std::string value) {
-        values.emplace(std::move(value));
+    flux::for_each_prefixList(root, [&values](std::string const& prefix, std::string const& suffix) {
+        values.emplace(prefix + suffix);
     });
     auto const rhs = decltype(values){"prefix"};
     EXPECT_EQ(values.size(), rhs.size());
@@ -127,8 +127,8 @@ TEST(for_each_prefixList, SingleRange)
 {
     auto const root = parse_json("[[ \"prefix\", [[2, 3]] ]]");
     auto values = std::unordered_set<std::string>{};
-    flux::for_each_prefixList(root, [&values](std::string value) {
-        values.emplace(std::move(value));
+    flux::for_each_prefixList(root, [&values](std::string const& prefix, std::string const& suffix) {
+        values.emplace(prefix + suffix);
     });
     auto const rhs = decltype(values){"prefix2", "prefix3", "prefix4", "prefix5"};
     EXPECT_EQ(values.size(), rhs.size());
@@ -139,8 +139,8 @@ TEST(for_each_prefixList, SingleRLE)
 {
     auto const root = parse_json("[[ \"prefix\", [[2, -2]] ]]");
     auto values = std::unordered_set<std::string>{};
-    flux::for_each_prefixList(root, [&values](std::string value) {
-        values.emplace(std::move(value));
+    flux::for_each_prefixList(root, [&values](std::string const& prefix, std::string const& suffix) {
+        values.emplace(prefix + suffix);
     });
     auto const rhs = decltype(values){"prefix2"};
     EXPECT_EQ(values.size(), rhs.size());
@@ -151,8 +151,8 @@ TEST(for_each_prefixList, SingleMulti)
 {
     auto const root = parse_json("[[ \"prefix\", [[2, 3], [2, -2]] ]]");
     auto values = std::unordered_set<std::string>{};
-    flux::for_each_prefixList(root, [&values](std::string value) {
-        values.emplace(std::move(value));
+    flux::for_each_prefixList(root, [&values](std::string const& prefix, std::string const& suffix) {
+        values.emplace(prefix + suffix);
     });
     auto const rhs = decltype(values){"prefix2", "prefix3", "prefix4", "prefix5", "prefix7", "prefix7"};
     EXPECT_EQ(values.size(), rhs.size());
@@ -163,8 +163,8 @@ TEST(for_each_prefixList, Multi)
 {
     auto const root = parse_json("[ [ \"a\", [[2, 3], [2, -2]] ], [ \"b\", [[3, 2], [1, -1]] ] ]");
     auto values = std::unordered_set<std::string>{};
-    flux::for_each_prefixList(root, [&values](std::string value) {
-        values.emplace(std::move(value));
+    flux::for_each_prefixList(root, [&values](std::string const& prefix, std::string const& suffix) {
+        values.emplace(prefix + suffix);
     });
     auto const rhs = decltype(values){"a2", "a3", "a4", "a5", "a7", "a7", "b3", "b4", "b5", "b6", "b6"};
     EXPECT_EQ(values.size(), rhs.size());
@@ -175,8 +175,8 @@ TEST(flatten_prefixList, SingleRLE)
 {
     auto const root = parse_json("[[ \"prefix\", [[2, -2]] ]]");
     auto values = std::unordered_set<std::string>{};
-    flux::for_each_prefixList(root, [&values](std::string value) {
-        values.emplace(std::move(value));
+    flux::for_each_prefixList(root, [&values](std::string const& prefix, std::string const& suffix) {
+        values.emplace(prefix + suffix);
     });
     auto const rhs = decltype(values){"prefix2", "prefix2", "prefix2"};
     EXPECT_EQ(values.size(), rhs.size());
@@ -207,7 +207,7 @@ TEST(make_hostsPlacement, MultiRank)
         "{ \"hosts\": [[ \"node\", [[15,-1]] ]]"
         ", \"executables\": [[ \"/path/to/a.out\", [[-1,-1]] ]]"
         ", \"ids\": [[0,1]]"
-        ", \"pids\": [[7991,1]]"
+        ", \"pids\": [7991,1]"
         "}");
     auto const hostsPlacement = flux::make_hostsPlacement(root);
     ASSERT_EQ(hostsPlacement.size(), 1);

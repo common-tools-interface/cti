@@ -134,6 +134,7 @@ private: // variables
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
     size_t m_numPEs;
     std::vector<FluxFrontend::HostPlacement> m_hostsPlacement;
+    std::string m_nonBrokerRanks; // For file shipping, run file get command on these ranks
     std::string m_binaryName; // Flux does not support MPMD, so only need to store a single binary
 
     std::string m_toolPath;    // Backend path where files are unpacked
@@ -146,6 +147,7 @@ private: // variables
 
 private: // member helpers
     std::vector<std::pair<std::string, std::string>> generateHostAttribs();
+    void shipDaemon();
 
 public: // app interaction interface
     std::string getJobId()            const override;
@@ -166,6 +168,7 @@ public: // app interaction interface
     void kill(int signal) override;
     void shipPackage(std::string const& tarPath) const override;
     void startDaemon(const char* const args[], bool synchronous) override;
+    std::set<std::string> checkFilesExist(std::set<std::string> const& paths) override;
 
 public: // flux specific interface
 
