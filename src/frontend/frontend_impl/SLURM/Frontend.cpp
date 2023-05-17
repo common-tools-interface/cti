@@ -489,17 +489,28 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
 
     // now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
     writeLog("starting sbcast invocation\n");
-    (void)m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+
+    auto success = m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, SBCAST, sbcastArgv.get(),
         -1, -1, -1,
         sbcast_env);
 
-    // call to request_ForkExecvpUtil_Sync will wait until the sbcast finishes
-    // FIXME: There is no way to error check right now because the sbcast command
-    // can only send to an entire job, not individual job steps. The /var/spool/alps/<apid>
-    // directory will only exist on nodes associated with this particular job step, and the
-    // sbcast command will exit with error if the directory doesn't exist even if the transfer
-    // worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
+    // sbcast can randomly fail under high load, so try again a few times if it does.
+    for (auto tries_left = 2; !success && tries_left > 0; tries_left--) {
+        writeLog("sbcast failed, trying again (%d)\n", tries_left);
+
+        ::sleep(1);
+
+        success = m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, SBCAST, sbcastArgv.get(),
+            -1, -1, -1,
+            sbcast_env);
+    }
+
+    if (!success) {
+        throw std::runtime_error("sbcast failure: Failed to ship " + tarPath + " package to compute node");
+    }
+
     writeLog("sbcast invocation completed\n");
 }
 

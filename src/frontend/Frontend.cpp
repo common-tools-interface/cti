@@ -292,65 +292,6 @@ Frontend::removeApp(std::shared_ptr<App> app)
     m_apps.erase(app);
 }
 
-// BUG 819725:
-// create the hidden name for the cleanup file. This will be checked by future
-// runs to try assisting in cleanup if we get killed unexpectedly. This is cludge
-// in an attempt to cleanup. The ideal situation is to be able to tell the kernel
-// to remove a tarball if the process exits, but no mechanism exists today that
-// I know about that allows us to share the file with other processes later on.
-void
-Frontend::addFileCleanup(std::string const& file)
-{
-    // track file itself
-    m_cleanup_files.push_back(file);
-
-    // track cleanup file that stores this app's PID
-    std::string const cleanupFilePath{m_cfg_dir + "/." + file};
-    m_cleanup_files.push_back(std::move(cleanupFilePath));
-    auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
-    pid_t pid = getpid();
-    cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
-}
-
-// BUG 819725:
-// Attempt to cleanup old files in the cfg dir
-void
-Frontend::doFileCleanup()
-{
-    // Open cfg dir
-    auto cfgDir = cti::dir::open(m_cfg_dir);
-    // Recurse through each file in the directory
-    struct dirent *d;
-    while ((d = readdir(cfgDir.get())) != nullptr) {
-        std::string name{d->d_name};
-        // Skip the . and .. files
-        if ( name.size() == 1 && name.compare(".") == 0 ) {
-            continue;
-        }
-        if ( name.size() == 2 && name.compare("..") == 0 ) {
-            continue;
-        }
-        // Check this name against the stage prefix
-        if (name.rfind(STAGE_DIR_PREFIX, 0) == 0) {
-            // pattern matches, check to see if we need to remove
-            std::string file{m_cfg_dir + "/" + d->d_name};
-            auto fileHandle = cti::file::open(file, "r");
-            // read the pid from the file
-            pid_t pid = cti::file::readT<pid_t>(fileHandle.get());
-            // ping the process
-            if (kill(pid,0) == 0) {
-                // process is still alive
-                continue;
-            }
-            // process is dead we need to remove the tarball
-            std::string tarball_name{m_cfg_dir + "/" + (d->d_name+1)};
-            // unlink the files
-            unlink(tarball_name.c_str());
-            unlink(file.c_str());
-        }
-    }
-}
-
 namespace
 {
 
@@ -1244,8 +1185,6 @@ Frontend::Frontend()
     m_be_daemon_path = cti::accessiblePath(m_base_dir + "/libexec/" + CTI_BE_DAEMON_BINARY);
     // init the frontend daemon now that we have the path to the binary
     m_daemon.initialize(m_fe_daemon_path);
-    // Try to conduct cleanup of the cfg dir to prevent forest fires
-    doFileCleanup();
 }
 
 Frontend::~Frontend()

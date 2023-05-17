@@ -182,8 +182,6 @@ private: // Private utility methods used by the generic frontend
     std::string findCfgDir();
     // find the base CTI directory from the environment and verify its permissions
     std::string findBaseDir();
-    // Try to cleanup old files left in the cfg dir during the ctor.
-    void doFileCleanup();
 
 public: // Public interface to generic WLM-agnostic capabilities
     // Write to the log file associated with the Frontend
@@ -202,9 +200,6 @@ public: // Public interface to generic WLM-agnostic capabilities
 
     // Remove an app object
     void removeApp(std::shared_ptr<App> app);
-
-    // Register a cleanup file
-    void addFileCleanup(std::string const& file);
 
     // Accessors
 
