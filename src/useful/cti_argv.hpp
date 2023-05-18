@@ -118,11 +118,17 @@ public:
 
     std::string string() const {
         std::ostringstream r;
-        std::string delim = "";
-        for (size_t i = 0; i < argv.size() - 1; i++) {
-            r << delim << argv[i];
-            delim = " ";
+
+        if (argv.size() > 0)
+            r << argv[0];
+
+        // quote the arguments to ensure that anything with special characters
+        // ("'&,...) is copy-pastable into a terminal
+        for (size_t i = 1; i < argv.size() - 1; i++) {
+            const std::string delim = " ";
+            r << delim << '"' << argv[i] << '"';
         }
+
         return r.str();
     }
 };

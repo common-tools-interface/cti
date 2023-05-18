@@ -69,18 +69,25 @@ static bool job_registered(std::string const& jobId)
     return cti::Execvp::runExitStatus("squeue", (char* const*)squeueArgv.get()) == 0;
 }
 
-// Use squeue to check if job is in started state
-static bool job_started(std::string const& jobId)
+// Use squeue to check if job has a step 0 in started state. We assume that the
+// job is already registered and treat an invalid jobId as an error instead of
+// waiting for it to appear.
+static bool job_step_zero_started(std::string const& jobId)
 {
     auto squeueArgv = cti::ManagedArgv{"squeue"};
 
-    // Print job status only
-    squeueArgv.add("-o");
-    squeueArgv.add("%t");
+    // Print step info
+    squeueArgv.add("--steps");
+
+    // The step state truncated to 7 characters, followed by '|', followed by the step id.
+    // This option is case sensitive and the capital F is required for the long form format.
+    squeueArgv.add("--Format=StepState:7|,StepID");
 
     // Add job ID
-    squeueArgv.add("-j");
-    squeueArgv.add(jobId);
+    squeueArgv.add(std::string{"--jobs="} + jobId);
+
+    // Don't print header
+    squeueArgv.add("--noheader");
 
     // Run squeue
     auto squeueOutput = cti::Execvp{"squeue", (char* const*)squeueArgv.get(),
@@ -89,34 +96,75 @@ static bool job_started(std::string const& jobId)
     // Read squeue output
     auto& squeueStream = squeueOutput.stream();
     auto squeueLine = std::string{};
-    auto getline_failed = false;
+    auto gotOutput = false;
 
-    // First line should be "ST" header
-    if (!std::getline(squeueStream, squeueLine)) {
-        getline_failed = true;
-    }
-    if (getline_failed || squeueLine != "ST") {
-        throw std::runtime_error("failed to parse squeue output");
-    }
+    // Search for "RUNNING|<jobid>.0"
+    auto needle = std::string{"RUNNING|"} + jobId + ".0";
 
-    // Next line is job status
-    if (!std::getline(squeueStream, squeueLine)) {
-        throw std::runtime_error("failed to read squeue output: " + squeueLine);
+    while (std::getline(squeueStream, squeueLine)) {
+        gotOutput = true;
+        // squeue will add extra whitespace.
+        if (squeueLine.rfind(needle, 0) == 0) break;
     }
 
-    // Consume rest of squeue output and check output status
+    // Consume rest of squeue output
     squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
-    if (squeueOutput.getExitStatus() != 0) {
-        throw std::runtime_error("squeue failed using command\n"
-            + squeueArgv.string());
+
+    // Check for fatal errors
+
+    if (const auto exitStatus = squeueOutput.getExitStatus(); exitStatus != 0) {
+        throw std::runtime_error("checking status of job step " + jobId + ".0 failed using command:\n"
+            + squeueArgv.string() + "\n" + "(bad exit status: " + std::to_string(exitStatus) +")\n");
     }
 
-    // Job status of "R" indicates job is running
-    return squeueLine == "R";
+    // Passing --steps to squeue changes its API. It doesn't check if the job id
+    // passed with --jobs is valid. With an invalid job id, it will just produce
+    // empty output and a successful exit code. This means that we can't assume
+    // the exit status check above will catch an invalid job id.
+    //
+    // On the other hand, it's possible for a job id to be valid but not have
+    // any steps yet (waiting in queue), which also produces empty output. So we
+    // have to do another squeue call (job_registered) to distinguish the "job
+    // id is invalid" empty output case from the "job id is valid but waiting"
+    // empty output case.
+    if (!gotOutput && !job_registered(jobId)) {
+        throw std::runtime_error("checking status of job step " + jobId + ".0 failed using command:\n"
+            + squeueArgv.string() + "\n" + "(job id is invalid)\n");
+    }
+
+    return squeueLine.rfind(needle, 0) == 0;
 }
 
+// Wait forever for `func`to return true. If `func` ever throws an exception,
+// stop waiting and rethrow it.
 template <typename Func>
-static void wait_for_application_state(Func&& func, std::string const& jobId)
+static void wait_forever_for_application_state(Func&& func, std::string const& jobId)
+{
+    // Wait forever for application state
+    while (true) {
+        Frontend::inst().writeLog("Slurm job %s submitted, waiting forever for Slurm application "
+            "to launch...\n", jobId.c_str());
+
+        try {
+            // Check if Slurm job has entered desired state
+            if (func(jobId)) {
+                Frontend::inst().writeLog("Successfully launched Slurm application %s\n",
+                    jobId.c_str());
+                return;
+            }
+        } catch (std::exception const& ex) {
+            Frontend::inst().writeLog("State check failed: %s, bailing out.\n", ex.what());
+            throw;
+        }
+
+        ::sleep(1);
+    }
+}
+
+// If the application state isn't arrived at within a few seconds, this will throw a
+// std::runtime_error.
+template <typename Func>
+static void wait_briefly_for_application_state(Func&& func, std::string const& jobId)
 {
     // Wait until Slurm application has started
     int retry = 0;
@@ -152,16 +200,17 @@ static void wait_for_application_state(Func&& func, std::string const& jobId)
         + jobId + "`). Once launched, job can be attached using its job ID");
 }
 
-// Wait for Slurm job to register with central daemon as a valid job
-static void wait_for_application_registered(std::string const& jobId)
+// Wait for Slurm job to register with central daemon as a valid job. Throws
+// std::runtime_error after a few seconds of waiting. Note that `jobId` might be provided
+// as <jobId> or <jobId>.<stepId>.
+static void wait_briefly_for_application_registered(std::string const& jobId)
 {
-    wait_for_application_state(job_registered, jobId);
+    wait_briefly_for_application_state(job_registered, jobId);
 }
 
-// Wait for Slurm to place job in Started state, after job submission
-static void wait_for_application_started(std::string const& jobId)
+static void wait_forever_for_application_started(std::string const& jobId)
 {
-    wait_for_application_state(job_started, jobId);
+    wait_forever_for_application_state(job_step_zero_started, jobId);
 }
 
 /* constructors / destructors */
@@ -215,7 +264,7 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     // Wait for application to be registered with Slurmd
     // This may be initially false while srun has just launched the application during
     // multiple concurrent launches
-    wait_for_application_registered(getJobId());
+    wait_briefly_for_application_registered(getJobId());
 }
 
 SLURMApp::~SLURMApp()
@@ -1405,8 +1454,20 @@ SLURMFrontend::submitBatchScript(std::string const& scriptPath,
             + jobId);
     }
 
-    // Wait for application to enter started state
-    wait_for_application_started(jobId);
+    // Wait a short time for slurm to register our requested job. Job
+    // registration should be more or less instant.
+    wait_briefly_for_application_registered(jobId);
+
+    // Now wait again for slurm to actually run the binary. The above wait check
+    // will pass as soon as the job is queued, but we can't return at that
+    // point.
+    //
+    // Since this function launches the job without registering it with CTI, we
+    // expect the user to call registerJob to finish the registration, then
+    // finally call releaseAppBarrier to start running the binary. registerJob
+    // uses sattach to get MPIR info, and sattach requires a valid stepId. A
+    // valid stepId won't exist until the application actually starts.
+    wait_forever_for_application_started(jobId);
 
     return result;
 }

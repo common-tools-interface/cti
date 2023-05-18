@@ -107,6 +107,11 @@ void testSlurm_submitBatchScript(cti_slurm_ops_t* slurm_ops, int argc, char* arg
     assert_true(appId != 0, "reigsterJobStep returned 0");
     assert_true(cti_appIsValid(appId), "cti_appIsValid returned 0");
 
+    if (cti_releaseAppBarrier(appId)) {
+        cti_killApp(appId, SIGKILL);
+        assert_true(false, "releaseAppBarrier failed");
+    }
+
     // try to clean up. don't check result of this, it's not part of what we're testing
     cti_killApp(appId, SIGKILL);
 }

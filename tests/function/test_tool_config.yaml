@@ -22,7 +22,7 @@ launch:
   args:
     # take care to use arguments that can also go on a single
     # line in a batch script. for example, use "-n4" instead of "-n 4"
-    slurm: "-n4 -N2 --ntasks-per-node=2 --time=5:00"
+    slurm: "-n4 -N2 --ntasks-per-node=2 --time=5:00 --exclusive"
     alps: "-n4 -N2"
   allocation:
     slurm: "-n16 -N4 -t 3:00:00"
@@ -64,9 +64,10 @@ pegasus:
       # Multi-node MPI launches break if they include node007 or node008
       slurm: "-n24 -N6 --exclude=node007,node008 -t 3:00:00 --exclusive"
 
-pinoak-login1:
+pinoak*:
   test:
     parallel-jobs: 4
   launch:
     allocation:
-      slurm: "-n48 -N12 -p allnodes --exclusive -t 3:00:00"
+      # pinoak only allows 1 hour allocations
+      slurm: "-n48 -N12 -p allnodes --exclusive -t 1:00:00"
