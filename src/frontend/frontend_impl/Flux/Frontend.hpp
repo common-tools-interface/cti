@@ -134,11 +134,12 @@ private: // variables
     bool m_beDaemonSent; // Have we already shipped over the backend daemon?
     size_t m_numPEs;
     std::vector<FluxFrontend::HostPlacement> m_hostsPlacement;
+
+    bool m_runningOnBroker; // Whether the tool was launched from the broker rank or not
     std::string m_nonBrokerRanks; // For file shipping, run file get command on these ranks
     std::string m_binaryName; // Flux does not support MPMD, so only need to store a single binary
 
     std::string m_toolPath;    // Backend path where files are unpacked
-    std::string m_attribsPath; // Backend Cray-specific directory
     std::string m_stagePath;   // Local directory where files are staged before transfer to BE
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
     bool m_atBarrier; // Flag that the application is at the startup barrier.
@@ -153,7 +154,7 @@ public: // app interaction interface
     std::string getJobId()            const override;
     std::string getLauncherHostname() const override;
     std::string getToolPath()         const override { return m_toolPath; }
-    std::string getAttribsPath()      const override { return m_attribsPath; }
+    std::string getAttribsPath()      const override { return m_toolPath; }
 
     std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 

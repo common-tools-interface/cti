@@ -66,8 +66,6 @@
 #include "LibFlux.hpp"
 #include "FluxAPI.hpp"
 
-#include "ssh.hpp"
-
 namespace pt = boost::property_tree;
 
 /* helper functions */
@@ -649,34 +647,81 @@ FluxApp::kill(int signal)
 void
 FluxApp::shipPackage(std::string const& tarPath) const
 {
+    auto const dirName = cti::cstr::dirname(tarPath);
     auto const packageName = cti::cstr::basename(tarPath);
     auto const destination = m_toolPath + "/" + packageName;
-    writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
+    writeLog("Flux shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
-    // Send the package to broker rank
-    if (m_hostsPlacement.empty()) {
-        throw std::runtime_error("Empty host placements (need at least one rank)");
+    if (!m_runningOnBroker) {
+
+        // Make remote directory on broker
+        writeLog("Broker: mkdir %s\n", m_toolPath.c_str());
+        char const* exec_mkdir_argv[] = {"flux", "exec", "-r", "0", "mkdir", "-p",
+            m_toolPath.c_str(), nullptr};
+        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_mkdir_argv)) {
+            throw std::runtime_error("failed to make directory on rank 0 " + m_toolPath);
+        }
+
+        // Send file to broker
+        writeLog("Broker: piping %s to %s\n", tarPath.c_str(), destination.c_str());
+        { auto catCommand = "cat " + tarPath + " | flux exec -r 0 sed -n 'w " + destination + "'";
+            char const* exec_cat_argv[] = {"bash", "-c", catCommand.c_str(), nullptr};
+
+            // Input piping for large files can still fail on the first invocation,
+            // but an immediate retry is usually successful. Deduplicated manifests
+            // are small enough to not run into this issue for CDST products.
+            // https://github.com/flux-framework/flux-core/issues/4572
+            auto const max_retry = 5;
+            for (int retry = 1; retry <= max_retry; retry++) {
+                fprintf(stderr, "trying ship %s\n", destination.c_str());
+                if (cti::Execvp::runExitStatus("bash", (char* const*)exec_cat_argv)) {
+                    if (retry == max_retry) {
+                        throw std::runtime_error("failed to send file to rank 0 " + destination);
+                    }
+                    writeLog("Broker: failed to pipe file (retry %d/%d)\n", retry, max_retry);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Make file executable
+        writeLog("Broker: chmod +x %s\n", destination.c_str());
+        char const* exec_chmod_argv[] = {"flux", "exec", "-r", "0", "chmod", "+x",
+            destination.c_str(), nullptr};
+        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_chmod_argv)) {
+            throw std::runtime_error("failed to make directory on rank 0 " + m_toolPath);
+        }
     }
 
-    SSHSession(m_hostsPlacement[0].hostname, m_frontend.getPwd())
-        .sendRemoteFile(tarPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+    // Broadcast file from broker to other nodes
+    if (m_runningOnBroker || (m_hostsPlacement.size() > 1)) {
 
-    if (m_hostsPlacement.size() > 1) {
+        // Map file on broker node to central store
+        writeLog("Broker: adding to filemap\n");
         char const* exec_map_argv[] = {"flux", "exec", "-r", "0", "flux", "filemap", "map",
-            "--tags", m_toolPath.c_str(), "-C", m_toolPath.c_str(),
+            "--tags", m_toolPath.c_str(), "-C",
+            (m_runningOnBroker) ? dirName.c_str() : m_toolPath.c_str(),
             packageName.c_str(), nullptr};
         if (cti::Execvp::runExitStatus("flux", (char* const*)exec_map_argv)) {
             throw std::runtime_error("failed to map file on rank 0 " + destination);
         }
 
-        auto mkdirGetCmd = "mkdir -p " + m_toolPath + "; flux filemap get --tags " + m_toolPath
-            + " -C " + m_toolPath + " " + packageName;
-        char const* exec_get_argv[] = {"flux", "exec", "-r", m_nonBrokerRanks.c_str(),
+        // Make remote directories and pull from filemap
+        writeLog("%s: mkdir %s and pull %s\n",
+            (m_runningOnBroker) ? "All ranks" : "Non-broker",
+            m_toolPath.c_str(), packageName.c_str());
+        auto mkdirGetCmd = "mkdir -p " + m_toolPath + "; flux filemap get --tags "
+            + m_toolPath + " -C " + m_toolPath + " " + packageName;
+        char const* exec_get_argv[] = {"flux", "exec", "-r",
+            (m_runningOnBroker) ? "all" : m_nonBrokerRanks.c_str(),
             "bash", "-c", mkdirGetCmd.c_str(), nullptr};
         if (cti::Execvp::runExitStatus("flux", (char* const*)exec_get_argv)) {
             throw std::runtime_error("failed to get mapped file " + destination);
         }
 
+        // Unmap file on broker node
+        writeLog("Broker: unmapping file\n");
         char const* exec_unmap_argv[] = {"flux", "exec", "-r", "0", "flux", "filemap", "unmap",
             "--tags", m_toolPath.c_str(), nullptr};
         if (cti::Execvp::runExitStatus("flux", (char* const*)exec_unmap_argv)) {
@@ -815,11 +860,11 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
     , m_beDaemonSent{false}
     , m_numPEs{}
     , m_hostsPlacement{}
+    , m_runningOnBroker{true} // Currently only support running from same Flux instance
     , m_nonBrokerRanks{}
     , m_binaryName{}
 
     , m_toolPath{}
-    , m_attribsPath{} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/fluxXXXXXX"})}
     , m_extraFiles{}
 
@@ -882,9 +927,6 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         auto const jobIdF58 = encode_job_id(m_libFluxRef, m_jobId);
         m_toolPath = std::string{rundir} + "/jobtmp-" + std::to_string(m_leaderRank) + "-" + jobIdF58;
         writeLog("tmpdir: %s\n", m_toolPath.c_str());
-
-        // Attribute files will be manually generated and shipped into toolpath
-        m_attribsPath = m_toolPath;
     }
 
     { // Generate list of first ranks for each node that aren't rank 0 (broker)
@@ -938,9 +980,18 @@ FluxApp::generateHostAttribs()
     // Create attribs file for each hostname
     for (auto&& placement : m_hostsPlacement) {
 
-        auto const attribsPath = cfgDir + "/attribs_" + placement.hostname;
+        // Create placement directory
+        auto placementDir = cfgDir + "/" + placement.hostname;
+        { struct stat st;
+            if (::stat(placementDir.c_str(), &st)) {
+                if (::mkdir(placementDir.c_str(), 0700)) {
+                    throw std::runtime_error("failed to create directory at " + placementDir);
+                }
+            }
+        }
 
         // Open attribute file for writing
+        auto const attribsPath = placementDir + "/pmi_attribs";
         auto attribs_file = cti::take_pointer_ownership(::fopen(attribsPath.c_str(), "w"), ::fclose);
         if (!attribs_file) {
             throw std::runtime_error("failed to create file at " + attribsPath);
@@ -964,6 +1015,22 @@ FluxApp::generateHostAttribs()
     return result;
 }
 
+static void
+cleanupHostAttribs(std::string const& cfgDir,
+    std::vector<std::pair<std::string, std::string>> const& hostnameAttribsPairs)
+{
+    // Create attribs file for each hostname
+    for (auto&& [hostname, attribsPath] : hostnameAttribsPairs) {
+
+        // Remove placement file
+        ::unlink(attribsPath.c_str());
+
+        // Remove placement directory
+        auto placementDir = cfgDir + "/" + hostname;
+        ::rmdir(placementDir.c_str());
+    }
+}
+
 void
 FluxApp::shipDaemon()
 {
@@ -979,17 +1046,17 @@ FluxApp::shipDaemon()
     std::filesystem::copy_options::overwrite_existing);
     shipPackage(destinationPath);
 
-    // Generate and ship attribute files
-    { auto const hostAttribs = generateHostAttribs();
+    // Generate attribute files
+    auto const hostAttribs = generateHostAttribs();
 
-        auto const destination = m_attribsPath + "/pmi_attribs";
-
-        // Ship and remove attribute files
-        for (auto&& [hostname, attribPath] : hostAttribs) {
-            SSHSession(hostname, m_frontend.getPwd()).sendRemoteFile(attribPath.c_str(), destination.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-            ::unlink(attribPath.c_str());
-        }
+    // Ship attribute files
+    for (auto&& [hostname, attribPath] : hostAttribs) {
+        // pmi_attribs file will be expected in m_toolPath/pmi_attribs
+        shipPackage(attribPath);
     }
+
+    // Remove attribute files
+    cleanupHostAttribs(m_frontend.getCfgDir(), hostAttribs);
 
     // set transfer to true
     m_beDaemonSent = true;
