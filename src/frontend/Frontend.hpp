@@ -145,8 +145,6 @@ private: // Private data members usable only by the base Frontend
     std::string         m_ld_audit_path;
     std::string         m_fe_daemon_path;
     std::string         m_be_daemon_path;
-    // Cleanup files
-    std::vector<std::string>    m_cleanup_files;
     // Saved env vars
     std::string         m_ld_preload;
 
@@ -178,8 +176,8 @@ public: // Public static utility methods - Try to keep these to a minimum
 
 private: // Private utility methods used by the generic frontend
     static bool isRunningOnBackend() { return (getenv(BE_GUARD_ENV_VAR) != nullptr); }
-    // use user info to build unique staging path; optionally create the staging direcotry
-    std::string findCfgDir();
+    // use username and pid info to build unique staging path; optionally create the staging direcotry
+    std::string setupCfgDir();
     // find the base CTI directory from the environment and verify its permissions
     std::string findBaseDir();
 

@@ -711,3 +711,43 @@ class CtiTest(Test):
 
         rc = run_cti_test(self, name, argv)
         self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    def test_CfgCleanup(self):
+        # Test that CTI properly cleans up temporary files when it exits
+        name = "CfgCleanup"
+        argv = ["./src/cti_tool_daemon", *LAUNCHER_ARGS.split()]
+
+        top_dir = os.getcwd() + "/tmp"
+        try:
+            os.mkdir(top_dir)
+        except FileExistsError:
+            pass
+
+        base_dir = f"{top_dir}/cti-{os.getlogin()}"
+        try:
+            os.mkdir(base_dir)
+        except FileExistsError:
+            pass
+        # CTI requires 0700 permissions
+        os.chmod(base_dir, 0o700)
+
+        if len(os.listdir(base_dir)) != 0:
+            self.cancel(f"{base_dir} not empty before starting test")
+
+        # Create fake leftover directory
+        old_cfg_dir = f"{base_dir}/1"
+        try:
+            os.mkdir(old_cfg_dir)
+        except FileExistsError:
+            pass
+        os.chmod(old_cfg_dir, 0o700)
+        # Make the directory older than 5 minutes
+        os.utime(old_cfg_dir, (0, 0))
+
+        if run_cti_test(self, name, argv, {"CTI_CFG_DIR": top_dir}) != 0:
+            self.cancel(f"Test binary returned with nonzero returncode ({rc}), can't reliably test cleanup")
+
+        self.assertTrue(
+            len(os.listdir(base_dir)) == 0,
+            f"{base_dir} not empty"
+        )
