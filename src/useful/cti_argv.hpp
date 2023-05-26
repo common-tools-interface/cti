@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * cti_argv.hpp: Interface for handling argv.
  *
- * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2019-2023 Hewlett Packard Enterprise Development LP.
  *
  *     Redistribution and use in source and binary forms, with or
  *     without modification, are permitted provided that the following
@@ -37,6 +37,17 @@
 #include <string.h>
 
 namespace cti {
+
+// Check that the nullptr-terminated `env` list contains only valid strings for
+// specifying environment variables with a function like putenv. (NAME=VALUE).
+// If an invalid string is found, throws std::runtime_error.
+inline void enforceValidEnvStrings(const char* const env[]) {
+    for (const char* const* var = env; *var != nullptr; var++) {
+        const auto eq = ::strchr(*var, '=');
+        if (!eq || eq == *var)
+            throw std::runtime_error(std::string("Bad environment variable string: \"") + *var + "\"");
+    }
+}
 
 class ManagedArgv {
 private:

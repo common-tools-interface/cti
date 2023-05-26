@@ -613,7 +613,7 @@ main(int argc, char **argv)
             }
 
             // ensure the user didn't pass us something stupid i.e. non-conforming
-            if ((*env == '\0') || (*val == '\0'))
+            if ((*env == '\0') || (val == NULL))
             {
                 // they passed us something stupid
                 fprintf(stderr, "%s: Unrecognized env argument.\n", CTI_BE_DAEMON_BINARY);

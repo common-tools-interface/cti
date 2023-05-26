@@ -308,12 +308,15 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
     for (auto i : env_vars) {
         daemonArgv.add(DaemonArgv::EnvVariable, i);
     }
+
     // add env vars
     if (envVars != nullptr) {
+        cti::enforceValidEnvStrings(envVars);
         for (const char* const* var = envVars; *var != nullptr; var++) {
             daemonArgv.add(DaemonArgv::EnvVariable, *var);
         }
     }
+
     // add daemon arguments
     cti::ManagedArgv rawArgVec(daemonArgv.eject());
     if (daemonArgs != nullptr) {

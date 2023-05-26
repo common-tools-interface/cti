@@ -40,7 +40,7 @@
 #include "message_one/message.h"
 
 int main(int argc, char* argv[]) {
-    if (argc != 3) {
+    if (argc < 3) {
         fprintf(stderr, "Invalid parameters\nExpected: SocketIP, SocketPort\n");
         return 1;
     }

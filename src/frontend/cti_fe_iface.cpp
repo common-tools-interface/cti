@@ -795,6 +795,9 @@ launchAppImplementation(const char * const launcher_argv[], int stdout_fd, int s
         env_list = (const char * const *)fixedEnvVars.get();
     }
 
+    if (env_list)
+        cti::enforceValidEnvStrings(env_list);
+
     // If using barrier mode, call the barrier launch implementation
     auto wp = (launchBarrierMode == LaunchBarrierMode::Disabled)
         ? fe.launch(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list)

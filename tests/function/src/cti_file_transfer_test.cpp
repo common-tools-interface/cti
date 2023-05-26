@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Sent testing.info to " << file << " on the compute node(s).\n";
 
-    testSocketDaemon(mysid, "./src/support/remote_filecheck", {file.c_str()}, "1");
+    testSocketDaemon(mysid, "./src/support/remote_filecheck", {file.c_str()}, {}, "1");
 
     assert_true(cti_destroySession(mysid) == SUCCESS, cti_error_str());
     assert_true(cti_releaseAppBarrier(myapp) == SUCCESS, cti_error_str());

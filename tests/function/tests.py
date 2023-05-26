@@ -153,6 +153,13 @@ class CtiTest(Test):
         rc = run_cti_test(self, name, argv)
         self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
+    def test_CtiLaunchBadenv(self):
+        name = "CtiLaunchBadenv"
+        argv = ["./src/cti_launch_badenv", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
     def test_CtiBarrier(self):
         name = "CtiBarrier"
         argv = ["./src/cti_barrier", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi"]
@@ -684,6 +691,20 @@ class CtiTest(Test):
     def test_ToolDaemon(self):
         name = "ToolDaemon"
         argv = ["./src/cti_tool_daemon", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    def test_ToolDaemonArgv(self):
+        name = "ToolDaemonArgv"
+        argv = ["./src/cti_tool_daemon_argv", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    def test_ToolDaemonBadenv(self):
+        name = "ToolDaemonBadenv"
+        argv = ["./src/cti_tool_daemon_badenv", *LAUNCHER_ARGS.split()]
 
         rc = run_cti_test(self, name, argv)
         self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")

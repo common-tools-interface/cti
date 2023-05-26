@@ -1,6 +1,9 @@
 #include "cti_fe_function_test.hpp"
 
-// Test that an app can run a tool daemon
+// Test edge cases in tool daemon argv
+// - PE-48156
+
+using namespace std::string_literals;
 
 int main(int argc, char *argv[]) {
     // set up app
@@ -24,7 +27,15 @@ int main(int argc, char *argv[]) {
     assert_true(cti_sessionIsValid(sessionId) == true, cti_error_str());
 
     // run printing daemons
-    testSocketDaemon(sessionId, "./src/support/one_socket", {}, {}, "1");
+    // Pass empty string before final arg to excercise PE-48156
+    // Mix in an env list to test out more possible serialization situations
+    // testSocketDamon will append nullptr on the end of these as needed
+    const auto extra_argv = std::vector<const char*>{"", "", "", "PE-48156", "", "", ""};
+    const auto extra_env = std::vector<const char*>{"FOO=BAR", "ZIG=ZAG", "EMPTY_VALUE_IS_VALID="};
+
+    testSocketDaemon(sessionId, "./src/support/one_socket", extra_argv, {}, "1");
+    testSocketDaemon(sessionId, "./src/support/one_socket", extra_argv, extra_env, "1");
+    testSocketDaemon(sessionId, "./src/support/one_socket", {}, extra_env, "1");
 
     // cleanup
     assert_true(cti_destroySession(sessionId) == SUCCESS, cti_error_str());

@@ -122,18 +122,31 @@ static void writeLaunchData(int const reqFd, char const* file, char const* const
 
     // write filepath string
     fdWriteLoop(reqFd, file, strlen(file) + 1);
-    // write null-terminated argument array
-    for (auto arg = argv; *arg != nullptr; arg++) {
-        fdWriteLoop(reqFd, *arg, strlen(*arg) + 1);
+
+    // write argument array length and contents
+    auto argc = size_t{0};
+    for (auto arg = argv; *arg != nullptr; arg++) {argc++;};
+
+    auto argc_str = std::to_string(argc);
+    fdWriteLoop(reqFd, argc_str.c_str(), argc_str.size() + 1);
+
+    for (size_t i = 0; i < argc; i++) {
+        fdWriteLoop(reqFd, argv[i], strlen(argv[i]) + 1);
     }
-    fdWriteLoop(reqFd, '\0');
-    // write null-terminated environment array
+
+    // write environment array length and contents
+    auto envc = size_t{0};
+    if (env)
+        for (auto var = env; *var != nullptr; var++) {envc++;};
+
+    auto envc_str = std::to_string(envc);
+    fdWriteLoop(reqFd, envc_str.c_str(), envc_str.size() + 1);
+
     if (env) {
-        for (auto var = env; *var != nullptr; var++) {
-            fdWriteLoop(reqFd, *var, strlen(*var) + 1);
+        for (size_t i = 0; i < envc; i++) {
+            fdWriteLoop(reqFd, env[i], strlen(env[i]) + 1);
         }
     }
-    fdWriteLoop(reqFd, '\0');
 }
 
 // return boolean response from pipe

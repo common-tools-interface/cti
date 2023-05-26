@@ -129,9 +129,6 @@ int bindAny(std::string const& address)
 
 std::tuple<cti_app_id_t, int>
 launchSocketApp(char const* appPath, std::vector<char const*> extra_argv) {
-    // Wait for any previous cleanups to finish (see PE-26018)
-    sleep(5);
-
     std::cerr << "Getting address and starting to listen...\n";
     // Get address accessible from compute node
     auto const address = getExternalAddress();
@@ -197,10 +194,7 @@ void testSocketApp(cti_app_id_t app_id, int test_socket, std::string const& expe
     std::cerr << "Done!\n";
 }
 
-void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector<char const*> extra_argv, std::string const& expecting, int times) {
-    // Wait for any previous cleanups to finish (see PE-26018)
-    sleep(5);
-
+void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::vector<char const*> extra_argv, std::vector<char const*> extra_env, std::string const& expecting, int times) {
     std::cerr << "Getting address and starting to listen...\n";
     // Get address accessible from compute node
     auto const address = getExternalAddress();
@@ -233,8 +227,14 @@ void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::v
             }
         }
 
+	const char** env_ptr = nullptr;
+	if (!extra_env.empty()) {
+	    extra_env.push_back(nullptr);
+	    env_ptr = extra_env.data();
+	}
+
         // launch app
-        assert_true(cti_execToolDaemon(manifestId, daemonPath, v_argv.data(), nullptr) == SUCCESS, cti_error_str());
+        assert_true(cti_execToolDaemon(manifestId, daemonPath, v_argv.data(), env_ptr) == SUCCESS, cti_error_str());
         std::cerr << "App launched. Net info: " << address << " " << std::to_string(ntohs(sa.sin_port)) << "\n";
     }
 

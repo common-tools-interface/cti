@@ -156,7 +156,8 @@ void testSocketApp(cti_app_id_t app_id, int test_socket,
     std::string const& expecting, int times);
 
 void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath,
-    std::vector<char const*> extra_argv, std::string const& expecting, int times=1);
+    std::vector<char const*> extra_argv, std::vector<char const*> extra_env,
+    std::string const& expecting, int times=1);
 
 // run `fn` and report how long it took to run. output will be tagged with `name`
 void reportTime(std::string name, std::function<void()> fn);

@@ -474,26 +474,39 @@ static LaunchData readLaunchData(int const reqFd)
     getLogger().write("got file: %s\n", result.filepath.c_str());
 
     // read arguments
-    { std::stringstream argvLog;
-        while (true) {
+    {
+        std::stringstream argvLog;
+        const auto argc_str = receiveString(reqStream);
+        size_t end = 0;
+        const auto argc = std::stoi(argc_str, &end, 10);
+
+        if (end != argc_str.size()) {
+            getLogger().write("failed to parse argc %s\n", argc_str.c_str());
+            throw std::runtime_error(std::string("failed to parse argc: ") + argc_str);
+        }
+
+        for (int i = 0; i < argc; i++) {
             auto const arg = receiveString(reqStream);
-            if (arg.empty()) {
-                break;
-            } else {
-                argvLog << arg << " ";
-                result.argvList.emplace_back(std::move(arg));
-            }
+            argvLog << arg << " ";
+            result.argvList.emplace_back(std::move(arg));
         }
         auto const argvString = argvLog.str();
         getLogger().write("%s\n", argvString.c_str());
     }
 
     // read env
-    while (true) {
-        auto const envVarVal = receiveString(reqStream);
-        if (envVarVal.empty()) {
-            break;
-        } else {
+    {
+        const auto envc_str = receiveString(reqStream);
+        size_t end = 0;
+        const auto envc = std::stoi(envc_str, &end, 10);
+
+        if (end != envc_str.size()) {
+            getLogger().write("failed to parse envc %s\n", envc_str.c_str());
+            throw std::runtime_error(std::string("failed to parse envc: ") + envc_str);
+        }
+
+        for (int i = 0; i < envc; i++) {
+            auto const envVarVal = receiveString(reqStream);
             getLogger().write("got envvar: %s\n", envVarVal.c_str());
             result.envList.emplace_back(std::move(envVarVal));
         }

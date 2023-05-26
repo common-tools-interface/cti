@@ -217,10 +217,10 @@ public: // type definitions
         - array of stdin, stdout, stderr FDs
         then send list of null-terminated strings:
         - file path string
-        - each argument string
-        - EMPTY STRING
-        - each environment variable string (format VAR=VAL)
-        - EMPTY STRING
+        - length of argv
+        - each argv string separated by \0
+        - length of environment variables list
+        - each environment variable string (format VAR=VAL) separated by \0
     */
 
     // ForkExecvpUtil
