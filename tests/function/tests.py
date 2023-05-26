@@ -18,6 +18,7 @@ import time
 import logging
 import signal
 import fcntl
+import getpass
 
 # these are set in readVariablesFromEnv during test setup
 CTI_INST_DIR          = ""
@@ -744,7 +745,7 @@ class CtiTest(Test):
         except FileExistsError:
             pass
 
-        base_dir = f"{top_dir}/cti-{os.getlogin()}"
+        base_dir = f"{top_dir}/cti-{getpass.getuser()}"
         try:
             os.mkdir(base_dir)
         except FileExistsError:
@@ -765,7 +766,8 @@ class CtiTest(Test):
         # Make the directory older than 5 minutes
         os.utime(old_cfg_dir, (0, 0))
 
-        if run_cti_test(self, name, argv, {"CTI_CFG_DIR": top_dir}) != 0:
+        rc = run_cti_test(self, name, argv, {"CTI_CFG_DIR": top_dir})
+        if rc != 0:
             self.cancel(f"Test binary returned with nonzero returncode ({rc}), can't reliably test cleanup")
 
         self.assertTrue(
