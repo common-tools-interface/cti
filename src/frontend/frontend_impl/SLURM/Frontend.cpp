@@ -1446,9 +1446,9 @@ SLURMFrontend::submitBatchScript(std::string const& scriptPath,
     }
 
     // Parse job ID
-    auto result = SrunInfo{ .jobid = 1, .stepid = {} };
+    auto result = SrunInfo{ 1, 0 };
     try {
-        result = SrunInfo { .jobid = (uint32_t)std::stoul(jobId), .stepid = 0 };
+        result = SrunInfo { static_cast<uint32_t>(std::stoul(jobId)), 0 };
     } catch (std::exception const&) {
         throw std::runtime_error("Failed to parse job ID from sbatch output: "
             + jobId);

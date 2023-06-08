@@ -1,20 +1,20 @@
 [submodule "external/cdst_build_library"]
 	path = external/cdst_build_library
-	url = git@github.hpe.com:hpe/hpc-pe-cdst-cdst_build_library.git
+	url = git@github.hpe.com:/hpcde/cdst-cdst_build_library.git
 [submodule "rpmbuild/SOURCES/set_default"]
 	path = rpmbuild/SOURCES/set_default
 	url = git@github.hpe.com:hpe/hpc-pe-cenv-set_default.git
 [submodule "tests/test_support/googletest"]
 	path = tests/test_support/googletest
-	url = git@github.hpe.com:hpe/hpc-pe-cdst-googletest.git
+	url = git@github.hpe.com:/hpcde/cdst-googletest.git
 	branch = cdst_external
 [submodule "external/libalps_headers"]
 	path = external/libalps_headers
-	url = git@github.hpe.com:hpe/hpc-pe-cdst-libalps_headers.git
+	url = git@github.hpe.com:/hpcde/cdst-libalps_headers.git
 	branch = master
 [submodule "tests/function/cdst-test"]
 	path = tests/function/cdst-test
-	url = git@github.hpe.com:hpe/hpc-pe-cdst-cdst-test.git
+	url = git@github.hpe.com:/hpcde/cdst-cdst-test.git
 [submodule "external/changelog"]
 	path = external/changelog
-	url = git@github.hpe.com:hpe/hpc-pe-cdst-changelog.git
+	url = git@github.hpe.com:/hpcde/cdst-changelog.git
