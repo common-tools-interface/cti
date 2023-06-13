@@ -511,14 +511,43 @@ variable " CTI_FLUX_DEBUG_ENV_VAR " and relaunch this application.");
         "job-manager.jobtap", "{\"remove\": \"all\"}");
 
     // Load alloc-bypass jobtap plugin to allow oversubscription
-    { auto const alloc_bypass = findFluxInstallDir(getLauncherName()) + "/lib/flux/job-manager/plugins/alloc-bypass.so";
-        try {
-           (void)make_rpc_request(*m_libFlux, m_fluxHandle, FLUX_NODEID_ANY,
-               "job-manager.jobtap", "{\"load\": \"" + alloc_bypass + "\"}");
-        } catch (std::exception const& ex) {
-            throw std::runtime_error("failed to load Flux jobtap plugin from " + alloc_bypass + " \
-. Ensure the plugin is present at that path, or set " FLUX_INSTALL_DIR_ENV_VAR " to the root of \
-your Flux installation (" + ex.what() + ")");
+    { auto const fluxInstallDir = findFluxInstallDir(getLauncherName());
+        auto allocBypassPaths = std::vector<std::string>
+            { fluxInstallDir + "/lib64/flux/job-manager/plugins/alloc-bypass.so"
+            , fluxInstallDir + "/lib/flux/job-manager/plugins/alloc-bypass.so"
+        };
+
+        // Try loading from potential alloc bypass library paths
+        auto load_successful = false;
+        for (auto&& allocBypassPath : allocBypassPaths) {
+            auto loadRequest = R"({"load": ")" + allocBypassPath + R"("})";
+
+            // Make load RPC request
+            try {
+                (void)make_rpc_request(*m_libFlux, m_fluxHandle, FLUX_NODEID_ANY,
+                    "job-manager.jobtap", loadRequest);
+
+                load_successful = true;
+                break;
+
+            // Try next path if failed
+            } catch (std::exception const& ex) {
+                continue;
+            }
+        }
+
+        if (!load_successful) {
+
+            // Build error message with different paths tried
+            auto errorMsgStream = std::stringstream{};
+            errorMsgStream << "failed to load Flux jobtap plugin from: \n";
+            for (auto&& allocBypassPath : allocBypassPaths) {
+                errorMsgStream << allocBypassPath << "\n";
+            }
+            errorMsgStream << "Set " FLUX_INSTALL_DIR_ENV_VAR " to the root of "
+                "your Flux installation";
+
+            throw std::runtime_error(errorMsgStream.str());
         }
     }
 }
