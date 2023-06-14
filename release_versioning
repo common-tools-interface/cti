@@ -98,7 +98,7 @@ common_tool_major="2"
 common_tool_minor="18"
 revision="1"
 # Jenkins will override this
-build_number=""
+build_number="2"
 
 be_current="4"
 be_age="2"

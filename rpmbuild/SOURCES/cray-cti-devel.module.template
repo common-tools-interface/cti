@@ -11,7 +11,7 @@
  set CTI_BASEDIR   <PREFIX>
 
  if { [ file exists ${CTI_BASEDIR}/release_info ] } {
-       set REL_INFO [ exec cat ${CTI_BASEDIR}/release_info ]
+       set REL_INFO [ exec cat ${CTI_BASEDIR}/release_notes.md ]
     } else {
        set REL_INFO ""
     }

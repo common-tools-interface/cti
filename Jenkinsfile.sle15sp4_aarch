@@ -1,12 +1,12 @@
 /******************************************************************************\
- * Jenkinsfile.sle15sp4_aarch64 - DST Jenkins pipeline for sle15sp4 aarch64
+ * Jenkinsfile.sle15sp4_aarch - DST Jenkins pipeline for Sles 15 SP4 Shasta
  *
- * Copyright 2022 Hewlett Packard Enterprise Development LP
+ * Copyright 2023 Hewlett Packard Enterprise Development LP
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Hewlett
- * Packard Enterprise Development LP., no part of this work or its content may be 
+ * Packard Enterprise Development LP., no part of this work or its content may be
  * used, reproduced or disclosed in any form.
  *
  ******************************************************************************/

@@ -19,7 +19,7 @@ local NICKNAME  = "cti"
 local PE_DIR    = INSTALL_ROOT .. "/" .. NICKNAME .. "/" .. MOD_LEVEL
 
  -- module release info variables
-local REL_FILE            = PE_DIR .. "/release_info"
+local REL_FILE            = PE_DIR .. "/release_notes.md"
 local rel_info            = ""
 if isFile(REL_FILE) then
     local f = io.open(REL_FILE, "r")

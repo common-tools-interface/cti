@@ -2,7 +2,7 @@
 #
 # runBuildPackage.sh - Package steps for CTI
 #
-# Copyright 2019-2022 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2023 Hewlett Packard Enterprise Development LP
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -17,6 +17,18 @@ setup_modules
 module load cray-cdst-support
 check_exit_status
 
+echo "############################################"
+echo "#          Updating Changelog              #"
+echo "############################################"
+# Generate the release notes from DE template
+pip install -r external/changelog/requirements.txt
+
+rpmbuilddir=$PWD/rpmbuild
+/usr/bin/python3 ./external/changelog/generate_release_notes.py \
+   -t $PWD/external/changelog/release-notes-template.md.j2 \
+   -y ${rpmbuilddir}/SOURCES/release_notes_data.yaml \
+   -d ${rpmbuilddir}/SOURCES
+
 # Update the changelog & release notes
 source ./external/changelog/manage_release_notes.sh -c -r
 check_exit_status
@@ -24,17 +36,16 @@ check_exit_status
 echo "############################################"
 echo "#             Creating rpm                 #"
 echo "############################################"
-rpmbuilddir=$PWD/rpmbuild
 cd ${rpmbuilddir}
 check_exit_status
 rpmbuild -bb -D "_topdir ${rpmbuilddir}" SPECS/cray-cti.spec
 check_exit_status
 
-if [ -f $PWD/rpmbuild/BUILD/release_info ]; then
+if [ -f $PWD/rpmbuild/BUILD/release_notes.md ]; then
   echo
   echo
-  echo "Release Info in rpmbuild/BUILD:"
-  cat $PWD/BUILD/release_info
+  echo "Release Notes in rpmbuild/BUILD:"
+  cat $PWD/BUILD/release_notes.md
 fi
 
 echo "############################################"

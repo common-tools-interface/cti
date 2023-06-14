@@ -3,7 +3,7 @@
 %global branch               %(%{_sourcedir}/get_package_data --branch)
 %global pkgversion_separator -
 %global copyright_date       %(date +%%Y)
-%global copyright            Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.
+%global copyright            Certain components, files or programs contained within this package or product are Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.
 
 # RPM build time
 %global release_date %(date +%%B\\ %%Y)
@@ -41,9 +41,8 @@
 %global lmod_template_cti template_%{product}.lua
 %global lmod_template_cti_devel template_%{product}-devel.lua
 
-# release info
-%global release_info_name release_info
-%global release_info_template_name %{release_info_name}.template
+# release notes
+%global release_notes_file release_notes.md
 
 # yaml file
 %global yaml_template yaml.template
@@ -102,11 +101,6 @@
 
 # Dist tags for SuSE need to be manually set
 %if 0%{?suse_version}
-%if 0%{?sle_version} == 150100
-%global dist .sles15sp1
-%global OS_HW_TAG 7.0
-%global OS_WB_TAG sles15
-%endif
 %if 0%{?sle_version} == 150300
 %global dist .sles15sp3
 %global OS_HW_TAG 7.0
@@ -150,7 +144,7 @@ Requires:   set_default_3, cray-cdst-support >= %{cdst_support_pkgversion_min}, 
 Source0:    %{module_template_name}
 Source1:    %{devel_module_template_name}
 Source3:    %{cray_dependency_resolver_template_name}
-Source4:    %{release_info_template_name}
+Source4:    %{release_notes_file}
 Source5:    %{copyright_name}
 Source6:    %{attributions_name}
 Source7:    %{lmod_template_cti}
@@ -183,7 +177,8 @@ Test files for Cray Common Tools Interface
 %setup -q -n %{name} -c -T
 %build
 # external build
-%{__sed} 's|<RELEASE_DATE>|%{release_date}|g;s|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{release}|g;s|<date>\.<REVISION>|%{version}|g;s|<COPYRIGHT>|%{copyright}|g;s|<CRAY_NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<DIST>|%{dist}.%{_target_cpu}|g;s|<ARCH>|%{_target_cpu}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_info_name}
+%{__sed} 's|<RELEASE_DATE>|%{release_date}|g;s|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{version}-%{release}|g;s|<COPYRIGHT>|%{copyright}|g;s|<NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<ARCH>|%{_target_cpu}|g;s|<ATTRIBUTIONS_FILE_PATH>|%{cray_prefix}/%{product}/%{pkgversion}/%{attributions_name}|g;s|<cdst_version_range>|>= %{cdst_support_pkgversion_min}, < %{cdst_support_pkgversion_max}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_notes_file}
+
 %{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE5} > ${RPM_BUILD_DIR}/%{copyright_name}
 %{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE6} > ${RPM_BUILD_DIR}/%{attributions_name}
 
@@ -195,7 +190,7 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}
 
 # Information files
-%{__cp} -a ${RPM_BUILD_DIR}/%{release_info_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
+%{__cp} -a ${RPM_BUILD_DIR}/%{release_notes_file} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{release_notes_file}
 
 
 %{__cp} -a ${RPM_BUILD_DIR}/%{copyright_name} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
@@ -608,7 +603,7 @@ fi
 %dir %{prefix}/%{cray_product}/%{pkgversion}/share/man
 %dir %{prefix}/%{cray_product}/%{pkgversion}/share/man/man1
 %dir %{prefix}/%{cray_product}/%{pkgversion}/share/man/man3
-%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{release_info_name}
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{release_notes_file}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{copyright_name}
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libctiaudit.so

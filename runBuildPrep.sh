@@ -37,6 +37,7 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
         mksh \
         libtool \
         rpm-build \
+        python3-pip \
         zlib-devel
     check_exit_status
 
@@ -64,6 +65,7 @@ elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
         rpm-build \
         zlib-devel \
         tcl \
+        python3-pip \
         wget
     check_exit_status
 
