@@ -57,9 +57,6 @@ setenv (           "PE_CTI_MODULE_NAME",       myModuleName()                )
 
 append_path   (    "PE_PRODUCT_LIST",          "CRAY-CTI"                    )
 
-prepend_path  (    "PE_PKGCONFIG_PRODUCTS",    "PE_CTI"                      )
-prepend_path  (    "PKG_CONFIG_PATH",          PE_DIR .. "/lib/pkgconfig"    )
-prepend_path  (    "PE_PKG_CONFIG_PATH",       PE_DIR .. "/lib/pkgconfig"    )
 prepend_path  (    "MANPATH",                  PE_DIR .. "/share/man"        )
 
  -- set LD_LIBRARY_PATH only if non-default version
