@@ -18,6 +18,17 @@ module load cray-cdst-support
 check_exit_status
 
 echo "############################################"
+echo "#          Generating Cpedocs              #"
+echo "############################################"
+
+# This doesn't deliver any documentation anywhere, it only tests the
+# low bar that collect_cpedocs.sh still runs without an error.
+pushd doc/cpedocs
+./collect_cpedocs.sh
+check_exit_status
+popd
+
+echo "############################################"
 echo "#          Updating Changelog              #"
 echo "############################################"
 # Generate the release notes from DE template

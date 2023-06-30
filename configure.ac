@@ -314,7 +314,7 @@ AC_CONFIG_FILES([
     src/utilities/Makefile
     tests/mock/Makefile
     tests/unit/Makefile
-    man/Makefile
+    doc/man/Makefile
 ])
 
 AM_COND_IF([ENABLE_PALS], [
