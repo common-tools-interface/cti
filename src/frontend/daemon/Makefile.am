@@ -28,17 +28,17 @@ lib_LTLIBRARIES = libctistop.la
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES	= 	cti_fe_daemon.cpp
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_CPPFLAGS	=	$(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_CXXFLAGS	=	-I$(SRC) -I. -I$(INCLUDE) \
-														$(CDST_SUP_CFLAGS) \
+														$(MPIR_CFLAGS) \
 														$(CODE_COVERAGE_CXXFLAGS) \
 														$(AM_CXXFLAGS)
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDFLAGS	=	-Wl,--no-undefined -Wl,--as-needed \
-														-pthread $(CDST_SUP_LIBS)
+														-pthread $(MPIR_LIBS)
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDADD		=	libfe_daemon_iface.la ../mpir_iface/libmpir_iface.la $(SRC)/useful/libuseful.la \
 														$(CODE_COVERAGE_LIBS)
 
 mpir_shim@COMMONTOOL_RELEASE_VERSION@_SOURCES  = mpir_shim.cpp
-mpir_shim@COMMONTOOL_RELEASE_VERSION@_CXXFLAGS = -I$(SRC) -I$(INCLUDE) $(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS)
-mpir_shim@COMMONTOOL_RELEASE_VERSION@_LDADD    = ../mpir_iface/libmpir_iface.la $(CDST_SUP_LIBS)
+mpir_shim@COMMONTOOL_RELEASE_VERSION@_CXXFLAGS = -I$(SRC) -I$(INCLUDE) $(MPIR_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS)
+mpir_shim@COMMONTOOL_RELEASE_VERSION@_LDADD    = ../mpir_iface/libmpir_iface.la $(MPIR_LIBS)
 mpir_shim@COMMONTOOL_RELEASE_VERSION@_LDFLAGS  = -Wl,--no-undefined -Wl,--as-needed -Wl,-z,origin $(AM_LDFLAGS)
 
 cti_slurm_stop@COMMONTOOL_RELEASE_VERSION@_SOURCES = cti_slurm_stop.c

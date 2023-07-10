@@ -14,10 +14,10 @@ noinst_LTLIBRARIES = libgenericssh.la
 
 libgenericssh_la_SOURCES    = Frontend.cpp
 libgenericssh_la_CXXFLAGS   = -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl -I$(INCLUDE) -fPIC \
-							$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS)
+							$(MPIR_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS)
 libgenericssh_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 libgenericssh_la_LDFLAGS	= -Wl,--no-undefined \
-							$(CDST_SUP_LIBS) $(AM_LDFLAGS)
+							$(MPIR_LIBS) $(AM_LDFLAGS)
 libgenericssh_la_LIBADD		= $(SSH2_LIBS) $(CODE_COVERAGE_LIBS)
 noinst_HEADERS				= Frontend.hpp
 

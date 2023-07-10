@@ -90,6 +90,10 @@ check_exit_status
 install_cdst_support
 check_exit_status
 
+# Install Dyninst
+install_dyninst
+check_exit_status
+
 capture_jenkins_build
 check_exit_status
 

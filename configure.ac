@@ -62,6 +62,7 @@ dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENAB
 AX_CODE_COVERAGE
 
 PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
+PKG_CHECK_MODULES([DYNINST], [cray-dyninst])
 
 dnl Enable ALPS support
 AC_ARG_ENABLE([alps],
@@ -189,7 +190,7 @@ LDFLAGS="$save_LDFLAGS"
 dnl Check for dyninst
 AC_LANG_PUSH([C++])
 save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $CDST_SUP_LIBS"
+LDFLAGS="$LDFLAGS $DYNINST_LIBS"
 AX_CXX_CHECK_LIB(   [symtabAPI],
                     [Dyninst::SymtabAPI::Symbol],
                     [AC_DEFINE( [HAVE_SYMTABAPI],
@@ -209,7 +210,8 @@ AX_CXX_CHECK_LIB(   [pcontrol],
                     [AC_MSG_ERROR([libpcontrol not found.])]
                     )
 AC_LANG_POP([C++])
-AC_SUBST([DYNINST_LIBS], ["-lsymtabAPI -lpcontrol"])
+AC_SUBST([MPIR_LIBS], ["$CDST_SUP_LIBS $DYNINST_LIBS -lsymtabAPI -lpcontrol"])
+AC_SUBST([MPIR_CFLAGS], ["$CDST_SUP_CFLAGS $DYNINST_CFLAGS"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 

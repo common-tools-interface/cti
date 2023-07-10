@@ -54,7 +54,8 @@ notes: |
     can be excluded from the shipped package. This can significantly improve application startup 
     time. To enable, set the environment variable CTI_DEDUPLICATE_FILES=1.
 product_dependencies:
- - cdst-support <cdst_version_range> installed
+ - cray-cdst-support <cdst_version_range> installed
+ - cray-dyninst 12.3.0 or later installed
 os_dependencies:
  - HPE/Cray Shasta systems with SLES 15 SP3 and SP4
  - HPE Apollo systems with Slurm and RH 8.6
