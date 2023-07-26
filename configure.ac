@@ -2,6 +2,7 @@
 # configure.ac script for the common tools interface.
 #
 # Copyright 2011-2023 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 AC_PREREQ([2.63])

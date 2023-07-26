@@ -3,7 +3,7 @@
 %global branch               %(%{_sourcedir}/get_package_data --branch)
 %global pkgversion_separator -
 %global copyright_date       %(date +%%Y)
-%global copyright            Certain components, files or programs contained within this package or product are Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.
+%global copyright            Certain components, files or programs contained within this package or product are Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.  SPDX-License-Identifier: Linux-OpenIB
 
 # RPM build time
 %global release_date %(date +%%B\\ %%Y)
@@ -136,7 +136,7 @@ Release:    %(echo ${BUILD_NUMBER})%{dist}
 Release:    1%{dist}
 %endif
 Prefix:     %{cray_prefix}
-License:    Dual BSD or GPLv2
+License:    Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.  SPDX-License-Identifier: Linux-OpenIB
 Vendor:     Hewlett Packard Enterprise Development LP
 Group:      Development/System
 Provides:   %{cray_name} = %{pkgversion}

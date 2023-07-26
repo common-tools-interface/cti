@@ -2,6 +2,7 @@
 # Makefile.am for the Flux frontend implementation.
 #
 # Copyright 2021 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 BUILT_SOURCES = LibFlux.hpp LibFluxCompat.hpp

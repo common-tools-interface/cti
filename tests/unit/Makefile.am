@@ -2,6 +2,7 @@
 # Makefile.am for the CTI unit tests
 #
 # Copyright 2019-2021 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 SRC             = @COMMONTOOL_DIR@/src

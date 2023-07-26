@@ -2,6 +2,7 @@
 # Makefile.am for the frontend components of the common tools interface
 #
 # Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 SUBDIRS				= checksum transfer frontend_impl mpir_iface daemon

@@ -2,6 +2,7 @@
 # Makefile.am for the MPIR interface components of the common tools interface
 #
 # Copyright 2018-2020 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 SRC             = @COMMONTOOL_DIR@/src

@@ -2,6 +2,7 @@
 # Makefile.am for the ldval and libctiaudit components of the common tools interface
 #
 # Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 AM_CFLAGS				= -Wall

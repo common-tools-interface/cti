@@ -1,4 +1,5 @@
 // Copyright 2023 Hewlett Packard Enterprise Development LP.
+// SPDX-License-Identifier: Linux-OpenIB
 
 #include "cti_defs.h"
 #include "cti_argv_defs.hpp"

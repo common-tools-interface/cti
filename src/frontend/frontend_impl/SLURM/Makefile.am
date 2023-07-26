@@ -2,7 +2,7 @@
 # Makefile.am for the Slurm frontend implementation.
 #
 # Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
-#
+# SPDX-License-Identifier: Linux-OpenIB
 
 SRC             	= @COMMONTOOL_DIR@/src
 INCLUDE				= @COMMONTOOL_DIR@/include

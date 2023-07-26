@@ -3,6 +3,7 @@
 # runBuildPackage.sh - Package steps for CTI
 #
 # Copyright 2019-2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: Linux-OpenIB
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.

@@ -1,5 +1,6 @@
 ---
 # Copyright 2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: Linux-OpenIB
 
 # FORMATTING CONVENTION FOR THIS YAML
 ## <VARIABLE> - Leave as is. It is automatically updated via spec file.

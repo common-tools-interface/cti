@@ -2,6 +2,7 @@
 # Makefile.am for the frontend components of the common tools interface.
 #
 # Copyright 2014-2021 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 SRC             = @COMMONTOOL_DIR@/src

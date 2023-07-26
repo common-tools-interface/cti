@@ -2,6 +2,7 @@
 # Makefile.am for user-facing CTI utilities
 #
 # Copyright 2021 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 SRC = @COMMONTOOL_DIR@/src

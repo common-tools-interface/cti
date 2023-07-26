@@ -2,6 +2,7 @@
 # Makefile.am for the useful components of the common tools interface
 #
 # Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 SUBDIRS			= ld_val

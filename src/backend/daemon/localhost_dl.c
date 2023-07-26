@@ -3,6 +3,7 @@
  *              daemon launcher.
  *
  * Copyright 2023 Hewlett Packard Enterprise Development LP.
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 // This pulls in config.h

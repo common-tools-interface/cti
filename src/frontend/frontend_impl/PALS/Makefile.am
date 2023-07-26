@@ -2,6 +2,7 @@
 # Makefile.am for the PALS frontend implementation.
 #
 # Copyright 2020 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 SRC             	= @COMMONTOOL_DIR@/src

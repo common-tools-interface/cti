@@ -2,7 +2,7 @@
 # Makefile.am for the frontend impl components of the common tools interface
 #
 # Copyright 2019-2023 Hewlett Packard Enterprise Development LP.
-#
+# SPDX-License-Identifier: Linux-OpenIB
 
 SUBDIRS				= SLURM GenericSSH Localhost
 if ENABLE_ALPS

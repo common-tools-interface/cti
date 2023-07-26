@@ -2,6 +2,7 @@
 # Makefile.am for manpage.
 #
 # Copyright 2021 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.

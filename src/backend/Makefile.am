@@ -2,6 +2,7 @@
 # Makefile.am for the backend components of the common tools interface
 #
 # Copyright 2014-2023 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 SUBDIRS = daemon
