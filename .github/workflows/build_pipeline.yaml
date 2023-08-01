@@ -12,7 +12,7 @@ jobs:
   bpt_rhel8_6:
     uses: hpe/hpc-de-shared-actions/.github/workflows/full_workflow.yaml@main
     with:
-      build_env_docker: arti.dev.cray.com/dstbuildenv-docker-master-local/cray-rhel8_6_build_environment
+      build_env_docker: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-rhel8_6_build_environment
     secrets:
       GH_PAT: ${{ secrets.GH_PAT }}
       ARTI_URL: ${{ secrets.ARTI_URL }}
