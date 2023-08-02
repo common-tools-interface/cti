@@ -61,6 +61,10 @@
 %global cdst_support_pkgversion_min %(%{_sourcedir}/get_package_data --cdstversionmin)
 %global cdst_support_pkgversion_max %(%{_sourcedir}/get_package_data --cdstversionmax)
 
+# dyninst version
+%global dyninst_pkgversion_min %(%{_sourcedir}/get_package_data --dyninstversionmin)
+%global dyninst_pkgversion_max %(%{_sourcedir}/get_package_data --dyninstversionmax)
+
 # Disable debug package
 %global debug_package %{nil}
 
@@ -101,16 +105,14 @@
 
 # Dist tags for SuSE need to be manually set
 %if 0%{?suse_version}
-%if 0%{?sle_version} == 150300
-%global dist .sles15sp3
-%global OS_HW_TAG 7.0
-%global OS_WB_TAG sles15
-%endif
 %if 0%{?sle_version} == 150400
 %global dist .sles15sp4
+%endif
+%if 0%{?sle_version} == 150500
+%global dist .sles15sp5
+%endif
 %global OS_HW_TAG 7.0
 %global OS_WB_TAG sles15
-%endif
 %endif
 
 %if %{_arch} == aarch64
@@ -136,11 +138,11 @@ Release:    %(echo ${BUILD_NUMBER})%{dist}
 Release:    1%{dist}
 %endif
 Prefix:     %{cray_prefix}
-License:    Copyright 2010-%{copyright_date} Hewlett Packard Enterprise Development LP.  SPDX-License-Identifier: Linux-OpenIB
+License:    Linux-OpenIB
 Vendor:     Hewlett Packard Enterprise Development LP
 Group:      Development/System
 Provides:   %{cray_name} = %{pkgversion}
-Requires:   set_default_3, cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < %{cdst_support_pkgversion_max}, cray-dyninst >= 12.3.0
+Requires:   set_default_3, cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < %{cdst_support_pkgversion_max}, cray-dyninst >= %{dyninst_pkgversion_min}, cray-dyninst < %{dyninst_pkgversion_max}
 Source0:    %{module_template_name}
 Source1:    %{devel_module_template_name}
 Source3:    %{cray_dependency_resolver_template_name}
@@ -151,8 +153,7 @@ Source7:    %{lmod_template_cti}
 Source9:    %{yaml_template}
 
 %description
-Cray Common Tools Interface %{pkgversion}
-Certain components, files or programs contained within this package or product are %{copyright}
+Cray Common Tools Interface (CTI) is a library that abstracts debugger tool support to a common interface regardless of the underlying work load manager.
 
 %package -n %{cray_name}-devel-%{pkgversion}
 Summary:    Cray Common Tools Interface development files

@@ -16,6 +16,8 @@ target_arch=$(get_arch)
 if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
     if [[ "$target_arch" == "$cdst_arch_x86_64" ]]; then
       sudo zypper refresh -f
+    elif [[ "$target_arch" == "$cdst_arch_aarch64" && "$target_os" == "$cdst_os_sles15sp5" ]]; then
+      sudo zypper --non-interactive install libopenssl-devel
     fi
     # Install zypper based dependencies
     zypper --non-interactive install \
