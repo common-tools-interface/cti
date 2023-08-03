@@ -25,17 +25,18 @@ echo "############################################"
 
 # libssh2 make check requires USER to be set
 USER=${USER:-root} make $cdst_j_flags check
-check_exit_status
+TESTS_EXIT_CODE=$?
 
 # Dump test log if make check fails
-get_exit_status
-if [[ $? -ne 0 ]]; then
+if [[ $TESTS_EXIT_CODE -ne 0 ]]; then
     if [[ -f tests/unit/test-suite.log ]]; then
         echo "############################################"
         echo "#              Unit Test Log               #"
         echo "############################################"
         cat tests/unit/test-suite.log
     fi
+
+    exit $TESTS_EXIT_CODE
 fi
 
 echo "############################################"

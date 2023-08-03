@@ -60,10 +60,100 @@ AX_CXX_COMPILE_STDCXX_17([noext])
 LT_INIT
 
 dnl This macro runs check for --enable-code-coverage and sets CODE_COVERAGE_ENABLED, CODE_COVERAGE_CFLAGS, etc.
-AX_CODE_COVERAGE
+m4_ifdef([AX_CODE_COVERAGE], [
+  AX_CODE_COVERAGE
+])
 
-PKG_CHECK_MODULES([CDST_SUP], [cray-cdst-support])
-PKG_CHECK_MODULES([DYNINST], [cray-dyninst])
+dnl Detect CDST support path if loaded
+AS_IF([test -d "$CRAY_CDST_SUPPORT_INSTALL_DIR"], [
+  with_libarchive="$CRAY_CDST_SUPPORT_INSTALL_DIR"
+  with_libssh2="$CRAY_CDST_SUPPORT_INSTALL_DIR"
+  with_boost="$CRAY_CDST_SUPPORT_INSTALL_DIR"
+])
+
+dnl Get libarchive path
+AC_ARG_WITH([libarchive],
+  [AS_HELP_STRING[--with-libarchive=<path>],
+    [The top-level directory to the libarchive installation])],
+  [AS_IF([test -d "$with_libarchive"],
+    [AC_MSG_NOTICE([Using libarchive from "$with_libarchive"])],
+    [AC_MSG_ERROR([--with-libarchive directory "$with_libarchive" not found])])],
+  [AC_MSG_ERROR([Use --with-libarchive=<path> to specify the path to libarchive])])
+
+dnl Set libarchive path and get pkg-config flags
+LIBARCHIVE_INSTALL_DIR="$with_libarchive"
+AC_SUBST([LIBARCHIVE_INSTALL_DIR])
+PKG_CHECK_MODULES([LIBARCHIVE], [$LIBARCHIVE_INSTALL_DIR/lib/pkgconfig/libarchive.pc])
+
+dnl Get libssh2 path
+AC_ARG_WITH([libssh2],
+  [AS_HELP_STRING[--with-libssh2=<path>],
+    [The top-level directory to the libssh2 installation])],
+  [AS_IF([test -d "$with_libssh2"],
+    [AC_MSG_NOTICE([Using libssh2 from "$with_libssh2"])],
+    [AC_MSG_ERROR([--with-libssh2 directory "$with_libssh2" not found])])],
+  [AC_MSG_ERROR([Use --with-libssh2=<path> to specify the path to libssh2])])
+
+dnl Set libssh2 path and get pkg-config flags
+LIBSSH2_INSTALL_DIR="$with_libssh2"
+AC_SUBST([LIBSSH2_INSTALL_DIR])
+PKG_CHECK_MODULES([LIBSSH2], [$LIBSSH2_INSTALL_DIR/lib/pkgconfig/libssh2.pc])
+
+dnl Use CDST support rpath from pkg-config
+AS_IF([test -d "$CRAY_CDST_SUPPORT_INSTALL_DIR"], [
+  PKG_CHECK_MODULES([CDST_SUPPORT], [$CRAY_CDST_SUPPORT_INSTALL_DIR/lib/pkgconfig/cray-cdst-support.pc],
+    [LIBSSH2_LIBS="$LIBSSH2_LIBS $CDST_SUPPORT_LIBS"],
+    [AC_MSG_NOTICE([warning: detected CDST support, but failed to run pkg-config script])]
+  )
+])
+
+dnl Get Boost path
+AC_ARG_WITH([boost],
+  [AS_HELP_STRING[--with-boost=<path>],
+    [The top-level directory to the Boost installation])],
+  [AS_IF([test -d "$with_boost"],
+    [AC_MSG_NOTICE([Using Boost from "$with_boost"])],
+    [AC_MSG_ERROR([--with-boost directory "$with_boost" not found])])],
+  [AC_MSG_ERROR([Use --with-boost=<path> to specify the path to boost])])
+
+dnl Set Boost path and include flags
+BOOST_INSTALL_DIR="$with_boost"
+AC_SUBST([BOOST_INSTALL_DIR])
+BOOST_CFLAGS="-I$with_boost/include"
+AC_SUBST([BOOST_CFLAGS])
+
+dnl Detect Cray Dyninst path if loaded
+AS_IF([test -d "$CRAY_DYNINST_INSTALL_DIR"], [
+  with_cray_dyninst="$CRAY_DYNINST_INSTALL_DIR"
+])
+
+dnl Get cray-dyninst path
+AC_ARG_WITH([cray-dyninst],
+  [AS_HELP_STRING[--with-cray-dyninst=<path>],
+    [The top-level directory to the cray-dyninst installation])],
+  [AS_IF([test -d "$with_cray_dyninst"],
+    [AC_MSG_NOTICE([Using cray-dyninst from "$with_cray_dyninst"])
+      PKG_CHECK_MODULES([DYNINST], [$with_cray_dyninst/lib/pkgconfig/cray-dyninst.pc])],
+    [AC_MSG_ERROR([--with-cray-dyninst directory "$with_cray_dyninst" not found])])],
+  [with_cray_dyninst="no"])
+
+dnl Get dyninst path
+AC_ARG_WITH([dyninst],
+  [AS_HELP_STRING[--with-dyninst=<path>],
+    [The top-level directory to the dyninst installation])],
+  [AS_IF([test -d "$with_dyninst"],
+    [AC_MSG_NOTICE([Using dyninst from "$with_dyninst"])
+      PKG_CHECK_MODULES([DYNINST], [$with_dyninst/lib/pkgconfig/dyninst.pc])],
+    [AC_MSG_ERROR([--with-dyninst directory "$with_dyninst" not found])])],
+  [with_dyninst="no"])
+
+dnl Check if either cray-dyninst or dyninst was provided
+AS_IF([test "x$DYNINST_LIBS" = x],
+  AC_MSG_ERROR([Use --with-cray-dyninst or --with-dyninst to specify the path to dyninst])
+)
+
+dnl Add Boost headers to Dyninst flags
+DYNINST_CFLAGS="$DYNINST_CFLAGS $BOOST_CFLAGS"
 
 dnl Enable ALPS support
 AC_ARG_ENABLE([alps],
@@ -158,7 +248,7 @@ AC_CHECK_LIB(   [rt],
 
 dnl Check for libarchive
 save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $CDST_SUP_LIBS"
+LDFLAGS="$LDFLAGS $LIBARCHIVE_LIBS"
 AC_CHECK_LIB(   [archive],
                 [archive_read_new],
                 [AC_DEFINE( [HAVE_ARCHIVE],
@@ -168,13 +258,12 @@ AC_CHECK_LIB(   [archive],
                 ],
                 [AC_MSG_ERROR([libarchive not found.])]
                 )
-AC_SUBST([ARCHIVE_LIBS], ["-larchive"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
 dnl Check for libssh2
 save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS $CDST_SUP_LIBS"
+LDFLAGS="$LDFLAGS $LIBSSH2_LIBS"
 AC_CHECK_LIB(   [ssh2],
                 [libssh2_init],
                 [AC_DEFINE( [HAVE_SSH2],
@@ -184,7 +273,6 @@ AC_CHECK_LIB(   [ssh2],
                 ],
                 [AC_MSG_ERROR([libssh2 not found.])]
                 )
-AC_SUBST([SSH2_LIBS], ["-lssh2"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
@@ -211,8 +299,8 @@ AX_CXX_CHECK_LIB(   [pcontrol],
                     [AC_MSG_ERROR([libpcontrol not found.])]
                     )
 AC_LANG_POP([C++])
-AC_SUBST([MPIR_LIBS], ["$CDST_SUP_LIBS $DYNINST_LIBS -lsymtabAPI -lpcontrol"])
-AC_SUBST([MPIR_CFLAGS], ["$CDST_SUP_CFLAGS $DYNINST_CFLAGS"])
+AC_SUBST([MPIR_LIBS], ["$DYNINST_LIBS -lsymtabAPI -lpcontrol"])
+AC_SUBST([MPIR_CFLAGS], ["$DYNINST_CFLAGS"])
 dnl restore flags
 LDFLAGS="$save_LDFLAGS"
 
@@ -225,7 +313,7 @@ AC_HEADER_STDBOOL
 
 dnl Check for libarchive headers
 save_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS $CDST_SUP_CFLAGS"
+CFLAGS="$CFLAGS $LIBARCHIVE_CFLAGS"
 AC_CHECK_HEADER([archive.h],
         [],
         [AC_MSG_FAILURE([archive.h not found.])],
@@ -236,7 +324,7 @@ CFLAGS="$save_CFLAGS"
 
 dnl Check for libssh2 headers
 save_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS $CDST_SUP_CFLAGS"
+CFLAGS="$CFLAGS $LIBSSH2_CFLAGS"
 AC_CHECK_HEADER([libssh2.h],
                 [],
                 [AC_MSG_FAILURE([libssh2.h not found.])],
@@ -244,6 +332,19 @@ AC_CHECK_HEADER([libssh2.h],
                 )
 dnl restore flags
 CFLAGS="$save_CFLAGS"
+
+dnl Check for Boost headers
+AC_LANG_PUSH([C++])
+save_CXXFLAGS="$CXXFLAGS"
+CXXFLAGS="$CXXFLAGS $BOOST_CFLAGS"
+AC_CHECK_HEADER([boost/property_tree/ptree.hpp],
+                [],
+                [AC_MSG_FAILURE([boost/property_tree/ptree.hpp not found.])],
+                []
+                )
+dnl restore flags
+CXXFLAGS="$save_CXXFLAGS"
+AC_LANG_POP([C++])
 
 #####################################################################
 ### Check for typedefs, structures, and compiler characteristics. ###

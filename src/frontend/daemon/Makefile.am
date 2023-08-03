@@ -15,10 +15,10 @@ noinst_LTLIBRARIES = libfe_daemon_iface.la
 
 libfe_daemon_iface_la_SOURCES	= cti_fe_daemon_iface.cpp
 libfe_daemon_iface_la_CXXFLAGS	= -I$(SRC) -I. -I$(INCLUDE) -fPIC \
-								$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) \
+								$(CODE_COVERAGE_CXXFLAGS) \
 								$(AM_CXXFLAGS)
 libfe_daemon_iface_la_LDFLAGS	= -Wl,--no-undefined \
-								$(CDST_SUP_LIBS) $(AM_LDFLAGS)
+								$(AM_LDFLAGS)
 libfe_daemon_iface_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 libfe_daemon_iface_la_LIBADD	= $(CODE_COVERAGE_LIBS)
 noinst_HEADERS					= cti_fe_daemon_iface.hpp
@@ -29,7 +29,7 @@ lib_LTLIBRARIES = libctistop.la
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES	= 	cti_fe_daemon.cpp
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_CPPFLAGS	=	$(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_CXXFLAGS	=	-I$(SRC) -I. -I$(INCLUDE) \
-														$(MPIR_CFLAGS) \
+														$(MPIR_CFLAGS) $(BOOST_CFLAGS) \
 														$(CODE_COVERAGE_CXXFLAGS) \
 														$(AM_CXXFLAGS)
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_LDFLAGS	=	-Wl,--no-undefined -Wl,--as-needed \
