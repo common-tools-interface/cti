@@ -2,6 +2,7 @@
 # Makefile.am for the frontend components of the common tools interface
 #
 # Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 
 SUBDIRS				= checksum transfer frontend_impl mpir_iface daemon
@@ -16,7 +17,8 @@ lib_LTLIBRARIES = libcommontools_fe.la
 
 libcommontools_fe_la_SOURCES	= Frontend.cpp cti_fe_iface.cpp
 libcommontools_fe_la_CXXFLAGS	= -I$(SRC) -I. -I$(SRC)/frontend/frontend_impl -I$(INCLUDE) -fPIC \
-								$(CODE_COVERAGE_CXXFLAGS) $(CDST_SUP_CFLAGS) $(AM_CXXFLAGS)
+								$(CODE_COVERAGE_CXXFLAGS) $(LIBARCHIVE_CFLAGS) $(LIBSSH2_CFLAGS) \
+                                $(AM_CXXFLAGS)
 libcommontools_fe_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 libcommontools_fe_la_LIBADD		= $(SRC)/useful/libuseful.la \
 								daemon/libfe_daemon_iface.la \
@@ -28,7 +30,8 @@ libcommontools_fe_la_LIBADD		= $(SRC)/useful/libuseful.la \
 								$(CODE_COVERAGE_LIBS)
 libcommontools_fe_la_LDFLAGS	= -shared -Wl,--no-undefined -Wl,--as-needed \
 								-version-info $(COMMONTOOL_FE_VERSION) \
-								$(CDST_SUP_LIBS) $(AM_LDFLAGS) -lssl -lcrypto
+								$(LIBARCHIVE_LIBS) $(LIBSSH2_LIBS) $(DYNINST_LIBS) $(AM_LDFLAGS) \
+                                -lssl -lcrypto
 noinst_HEADERS					= cti_fe_iface.hpp Frontend.hpp
 
 if CODE_COVERAGE_ENABLED

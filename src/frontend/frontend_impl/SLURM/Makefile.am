@@ -2,7 +2,7 @@
 # Makefile.am for the Slurm frontend implementation.
 #
 # Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
-#
+# SPDX-License-Identifier: Linux-OpenIB
 
 SRC             	= @COMMONTOOL_DIR@/src
 INCLUDE				= @COMMONTOOL_DIR@/include
@@ -14,10 +14,10 @@ noinst_LTLIBRARIES = libslurm.la
 
 libslurm_la_SOURCES		= Frontend.cpp
 libslurm_la_CXXFLAGS	= -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl -I$(INCLUDE) -fPIC \
-						$(CDST_SUP_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS)
+						$(MPIR_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS)
 libslurm_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 libslurm_la_LDFLAGS		= -Wl,--no-undefined \
-						$(CDST_SUP_LIBS) $(AM_LDFLAGS)
+						$(MPIR_LIBS) $(AM_LDFLAGS)
 libslurm_la_LIBADD		= $(CODE_COVERAGE_LIBS)
 noinst_HEADERS			= Frontend.hpp
 

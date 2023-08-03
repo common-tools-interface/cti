@@ -5,30 +5,8 @@
  *           and allows users to specify environment variable settings
  *           that a tool daemon should inherit.
  *
- * Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Copyright 2011-2023 Hewlett Packard Enterprise Development LP.
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 // This pulls in config.h
@@ -89,6 +67,7 @@ struct cti_pids
 /* wlm specific proto objects defined elsewhere */
 extern cti_wlm_proto_t  _cti_slurm_wlmProto;
 extern cti_wlm_proto_t  _cti_generic_ssh_wlmProto;
+extern cti_wlm_proto_t  _cti_localhost_wlmProto;
 
 #ifdef HAVE_ALPS
 extern cti_wlm_proto_t	_cti_alps_wlmProto;
@@ -101,6 +80,7 @@ extern cti_wlm_proto_t	_cti_pals_wlmProto;
 #ifdef HAVE_FLUX
 extern cti_wlm_proto_t  _cti_flux_wlmProto;
 #endif
+
 
 /* noneness wlm proto object */
 static cti_wlm_proto_t  _cti_nonenessProto =
@@ -247,51 +227,45 @@ session_files_in_use(char const* directory)
     int rc = 1;
 
     char *lsof_cmd = NULL;
-    pid_t bash_pid = -1;
+    pid_t lsof_pid = -1;
 
-    // Create lsof command with wildcards
-    if (asprintf(&lsof_cmd, "lsof -t %s/bin/""* %s/lib/""*",
-        directory, directory) <= 0) {
-        perror("asprintf");
-        goto cleanup_session_files_in_use;
-    }
+    // Create lsof command
+    char const* lsof_argv[] = {"lsof", "-t", directory, NULL};
 
-    // Create bash lsof arguments
-    char const* bash_argv[] = {"bash", "-c", lsof_cmd, NULL};
-
-    // Fork / exec bash lsof
-    bash_pid = fork();
-    if (bash_pid < 0) {
+    // Fork / exec lsof
+    lsof_pid = fork();
+    if (lsof_pid < 0) {
         perror("fork");
         goto cleanup_session_files_in_use;
     }
 
-    // Subprocess case, exec bash lsof
-    if (bash_pid == 0) {
-        execvp("bash", (char* const*)bash_argv);
+    // Subprocess case, exec lsof
+    if (lsof_pid == 0) {
+        execvp("lsof", (char* const*)lsof_argv);
         perror("execvp");
         _exit(-1);
     }
 
 cleanup_session_files_in_use:
 
-    // Wait for bash / lsof and set return code
-    if (bash_pid > 0) {
-        int bash_status;
+    // Wait for lsof and set return code
+    if (lsof_pid > 0) {
+
+        int lsof_status;
         while (1) {
-            int waitpid_rc = waitpid(bash_pid, &bash_status, 0);
+            int waitpid_rc = waitpid(lsof_pid, &lsof_status, 0);
             if (waitpid_rc < 0) {
                 if (errno == EINTR) { continue; }
                 else if (errno == ECHILD) { break; }
                 perror("waitpid");
                 break;
             }
-            if (WIFEXITED(bash_status) && (WEXITSTATUS(bash_status) == 1)) {
+            if (WIFEXITED(lsof_status) && (WEXITSTATUS(lsof_status) == 1)) {
                 rc = 0;
             }
             break;
         }
-        bash_pid = -1;
+        lsof_pid = -1;
     }
 
     // Free generated lsof command
@@ -587,6 +561,10 @@ main(int argc, char **argv)
             break;
 #endif
 
+        case CTI_WLM_LOCALHOST:
+            _cti_wlmProto = &_cti_localhost_wlmProto;
+            break;
+            
         case CTI_WLM_NONE:
         default:
             // the wlmProto defaults to noneness, so break
@@ -613,7 +591,7 @@ main(int argc, char **argv)
             }
 
             // ensure the user didn't pass us something stupid i.e. non-conforming
-            if ((*env == '\0') || (*val == '\0'))
+            if ((*env == '\0') || (val == NULL))
             {
                 // they passed us something stupid
                 fprintf(stderr, "%s: Unrecognized env argument.\n", CTI_BE_DAEMON_BINARY);
@@ -686,6 +664,7 @@ main(int argc, char **argv)
         case CTI_WLM_SLURM:
         case CTI_WLM_SSH:
         case CTI_WLM_FLUX:
+        case CTI_WLM_LOCALHOST:
             // These wlm are valid
             break;
 

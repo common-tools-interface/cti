@@ -18,6 +18,8 @@ config.status
 
 libtool
 
+release_versioning.bak
+
 m4/libtool.m4
 m4/ltoptions.m4
 m4/ltsugar.m4
@@ -58,4 +60,30 @@ scripts/tmp
 *.gcda
 *.gcno
 
-rpmbuild/SOURCES/release_info.template
+rpmbuild/SOURCES/release_notes.md*
+
+src/frontend/daemon/cti_slurm_stop[1-9]*
+src/frontend/daemon/mpir_shim[1-9]*
+src/utilities/cti_first_subprocess[1-9]*
+src/utilities/cti_send_signal_backend
+
+tests/function/src/cti_double_daemon
+tests/function/src/cti_environment
+tests/function/src/cti_fd_in
+tests/function/src/cti_file_in
+tests/function/src/cti_file_transfer
+tests/function/src/cti_ld_preload
+tests/function/src/cti_manifest
+tests/function/src/cti_mpir_shim
+tests/function/src/cti_redirect
+tests/function/src/cti_release_app
+tests/function/src/cti_release_twice
+tests/function/src/cti_session
+tests/function/src/cti_tool_daemon
+
+tests/test_support/libgmock.so
+tests/test_support/libgtest.so
+
+TAGS
+tagslist
+

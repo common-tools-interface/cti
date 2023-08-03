@@ -3,6 +3,7 @@
 # runUnitTest.sh - Build steps for CTI
 #
 # Copyright 2019-2021 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: Linux-OpenIB
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -11,7 +12,7 @@
 # used, reproduced or disclosed in any form.
 #
 
-source ./external/cdst_build_library/build_lib
+source ./external/cdst_build_library/build_lib_gcc
 
 setup_modules
 
@@ -24,17 +25,18 @@ echo "############################################"
 
 # libssh2 make check requires USER to be set
 USER=${USER:-root} make $cdst_j_flags check
-check_exit_status
+TESTS_EXIT_CODE=$?
 
 # Dump test log if make check fails
-get_exit_status
-if [[ $? -ne 0 ]]; then
+if [[ $TESTS_EXIT_CODE -ne 0 ]]; then
     if [[ -f tests/unit/test-suite.log ]]; then
         echo "############################################"
         echo "#              Unit Test Log               #"
         echo "############################################"
         cat tests/unit/test-suite.log
     fi
+
+    exit $TESTS_EXIT_CODE
 fi
 
 echo "############################################"

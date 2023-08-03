@@ -1,30 +1,8 @@
 /******************************************************************************\
  * cti_fe_iface.cpp - C interface layer for the cti frontend.
  *
- * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Copyright 2014-2023 Hewlett Packard Enterprise Development LP.
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 // This pulls in config.h
@@ -200,6 +178,9 @@ cti_wlm_type_toString(cti_wlm_type_t wlm_type) {
 #else
             return "Flux support was not configured for this build of CTI.";
 #endif
+                
+        case CTI_WLM_LOCALHOST:
+            return LocalhostFrontend::getName();
 
         // Internal / testing types
         case CTI_WLM_MOCK:
@@ -585,6 +566,19 @@ static cti_flux_ops_t _cti_flux_ops = {
     .registerJob = _cti_flux_registerJob,
 };
 
+static cti_app_id_t
+_cti_localhost_registerJob(char const* job_id) {
+    return FE_iface::runSafely(__func__, [&](){
+        auto&& fe = downcastFE<LocalhostFrontend>();
+        auto wp = fe.registerJob(1, job_id);
+        return fe.Iface().trackApp(wp);
+    }, APP_ERROR);
+}
+
+static cti_localhost_ops_t _cti_localhost_ops = {
+    .registerJob = _cti_localhost_registerJob,
+};
+
 // WLM specific extension ops accessor
 cti_wlm_type_t
 cti_open_ops(void **ops) {
@@ -611,6 +605,10 @@ cti_open_ops(void **ops) {
             case CTI_WLM_FLUX:
                 *ops = reinterpret_cast<void *>(&_cti_flux_ops);
                 break;
+            case CTI_WLM_LOCALHOST:
+                *ops = reinterpret_cast<void *>(&_cti_localhost_ops);
+                break;
+    
             case CTI_WLM_NONE:
             case CTI_WLM_MOCK:
                 *ops = nullptr;
@@ -774,6 +772,9 @@ launchAppImplementation(const char * const launcher_argv[], int stdout_fd, int s
         // Set job environment list to the fixed list containing the global LD_PRELOAD value
         env_list = (const char * const *)fixedEnvVars.get();
     }
+
+    if (env_list)
+        cti::enforceValidEnvStrings(env_list);
 
     // If using barrier mode, call the barrier launch implementation
     auto wp = (launchBarrierMode == LaunchBarrierMode::Disabled)

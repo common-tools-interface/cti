@@ -2,29 +2,7 @@
  * mpir_shim.cpp - cti fe_daemon utility to extract MPIR proctable information
  *
  * Copyright 2019-2021 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 #include <unistd.h>
@@ -47,12 +25,17 @@ static bool debug_enabled() {
 	return enabled;
 }
 
+namespace globals
+{
+	static auto logfile = std::unique_ptr<FILE, decltype(&::fclose)>{nullptr, ::fclose};
+}
+
 static void log(const char* format, ...)
 {
-	if (debug_enabled()) {
+	if (globals::logfile || debug_enabled()) {
 		va_list argptr;
 		va_start(argptr, format);
-		vfprintf(stderr, format, argptr);
+		vfprintf((globals::logfile) ? globals::logfile.get() : stderr, format, argptr);
 		va_end(argptr);
 	}
 }
@@ -92,8 +75,11 @@ static auto parse_from_env(int argc, char const* argv[])
 	if (auto const rawShimToken = ::getenv("CTI_MPIR_SHIM_TOKEN")) {
 		shimToken = std::string{rawShimToken};
 	}
+	if (auto const logPath = ::getenv("CTI_MPIR_SHIM_LOG_PATH")) {
+		globals::logfile = {::fopen(logPath, "a"), ::fclose};
+	}
 
-	// Remap stdin / out /err
+	// Remap stdin / out / err
 	if (auto const rawStdinFd = ::getenv("CTI_MPIR_STDIN_FD")) {
 		::dup2(std::stoi(rawStdinFd), STDIN_FILENO);
 	}
@@ -103,6 +89,8 @@ static auto parse_from_env(int argc, char const* argv[])
 	if (auto const rawStderrFd = ::getenv("CTI_MPIR_STDERR_FD")) {
 		::dup2(std::stoi(rawStderrFd), STDERR_FILENO);
 	}
+
+	log("started shim, pid is %d\n", getpid());
 
 	// Check for the shim activation token; some wrappers make their own calls
 	// to the job launcher and we should only activate the shim on the true job launch.

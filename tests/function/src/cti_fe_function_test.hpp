@@ -1,27 +1,6 @@
 /*
  * Copyright 2019-2021 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * SPDX-License-Identifier: Linux-OpenIB
  */
 
 #pragma once
@@ -32,6 +11,7 @@
 #include <iterator>
 #include <memory>
 #include <vector>
+#include <functional>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -39,6 +19,7 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <netdb.h>
+#include <signal.h>
 
 #include <string.h>
 #include <unistd.h>
@@ -49,8 +30,6 @@ static constexpr auto SUCCESS = int{0};
 static constexpr auto FAILURE = int{1};
 
 static constexpr auto APP_ERROR = cti_app_id_t{0};
-
-static constexpr auto SIGKILL = int{9};
 
 // generate a temporary file and remove it on destruction
 class temp_file_handle
@@ -156,4 +135,8 @@ void testSocketApp(cti_app_id_t app_id, int test_socket,
     std::string const& expecting, int times);
 
 void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath,
-    std::vector<char const*> extra_argv, std::string const& expecting, int times=1);
+    std::vector<char const*> extra_argv, std::vector<char const*> extra_env,
+    std::string const& expecting, int times=1);
+
+// run `fn` and report how long it took to run. output will be tagged with `name`
+void reportTime(std::string name, std::function<void()> fn);

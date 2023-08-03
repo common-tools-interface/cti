@@ -3,29 +3,7 @@
  *                     processes will be cleaned up on unexpected exit.
  *
  * Copyright 2019-2020 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 // This pulls in config.h
@@ -474,26 +452,39 @@ static LaunchData readLaunchData(int const reqFd)
     getLogger().write("got file: %s\n", result.filepath.c_str());
 
     // read arguments
-    { std::stringstream argvLog;
-        while (true) {
+    {
+        std::stringstream argvLog;
+        const auto argc_str = receiveString(reqStream);
+        size_t end = 0;
+        const auto argc = std::stoi(argc_str, &end, 10);
+
+        if (end != argc_str.size()) {
+            getLogger().write("failed to parse argc %s\n", argc_str.c_str());
+            throw std::runtime_error(std::string("failed to parse argc: ") + argc_str);
+        }
+
+        for (int i = 0; i < argc; i++) {
             auto const arg = receiveString(reqStream);
-            if (arg.empty()) {
-                break;
-            } else {
-                argvLog << arg << " ";
-                result.argvList.emplace_back(std::move(arg));
-            }
+            argvLog << arg << " ";
+            result.argvList.emplace_back(std::move(arg));
         }
         auto const argvString = argvLog.str();
         getLogger().write("%s\n", argvString.c_str());
     }
 
     // read env
-    while (true) {
-        auto const envVarVal = receiveString(reqStream);
-        if (envVarVal.empty()) {
-            break;
-        } else {
+    {
+        const auto envc_str = receiveString(reqStream);
+        size_t end = 0;
+        const auto envc = std::stoi(envc_str, &end, 10);
+
+        if (end != envc_str.size()) {
+            getLogger().write("failed to parse envc %s\n", envc_str.c_str());
+            throw std::runtime_error(std::string("failed to parse envc: ") + envc_str);
+        }
+
+        for (int i = 0; i < envc; i++) {
+            auto const envVarVal = receiveString(reqStream);
             getLogger().write("got envvar: %s\n", envVarVal.c_str());
             result.envList.emplace_back(std::move(envVarVal));
         }
@@ -679,9 +670,9 @@ static pid_t forkExec(LaunchData const& launchData)
         for (auto arg = argv.get(); *arg != nullptr; arg++) {
             getLogger().write("%s\n", *arg);
         }
+
         execvp(launchData.filepath.c_str(), argv.get());
         getLogger().write("execvp: %s\n", strerror(errno));
-        fprintf(stderr, "execvp: %s\n", strerror(errno));
         _exit(1);
     }
 }
@@ -1013,6 +1004,13 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
 
         // Otherwise, report successful
         } else {
+
+            // File descriptors are at this point inherited by the launched process
+            // Close them here so files are properly closed when process exits
+            ::close(launchData.stdin_fd);
+            ::close(launchData.stdout_fd);
+            ::close(launchData.stderr_fd);
+
             return true;
         }
     });

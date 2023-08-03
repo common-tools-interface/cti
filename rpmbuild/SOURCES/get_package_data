@@ -19,7 +19,11 @@ cdstsupportversionmin=$(echo ${CRAY_CDST_SUPPORT_VERSION} | awk -F . '{ print $1
 tmpver=$(echo ${CRAY_CDST_SUPPORT_VERSION} | awk -F . '{ print $1 }')
 cdstsupportversionmax=$(($tmpver+1))
 
-arguments=$(getopt -o csm --long crayversion,cdstversionmin,cdstversionmax,branch -n ${0} -- "$@")
+dyninstversionmin=$(echo ${CRAY_DYNINST_VERSION} | awk -F . '{ print $1"."$2 }')
+tmpver=$(echo ${CRAY_DYNINST_VERSION} | awk -F . '{ print $1 }')
+dyninstversionmax=$(($tmpver+1))
+
+arguments=$(getopt -o csm --long crayversion,cdstversionmin,cdstversionmax,cdstsupportversionmin,dyninstversionmin,dyninstversionmax,branch -n ${0} -- "$@")
 
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 
@@ -28,6 +32,8 @@ while true ; do
         -c|--crayversion) echo "${crayversion}" ; shift ;;
         -s|--cdstversionmin) echo "${cdstsupportversionmin}" ; shift ;;
         -m|--cdstversionmax) echo "${cdstsupportversionmax}" ; shift ;;
+        -d|--dyninstversionmin) echo "${dyninstversionmin}" ; shift ;;
+        -f|--dyninstversionmax) echo "${dyninstversionmax}" ; shift ;;
         -b|--branch) echo "${branch}" ; shift ;;
         *) break ;;
     esac

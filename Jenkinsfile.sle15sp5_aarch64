@@ -1,7 +1,7 @@
 /******************************************************************************\
- * Jenkinsfile.sle15sp1_aarch64- DST Jenkins pipeline for Sles 15 SP1 aarch64
+ * Jenkinsfile.sle15sp5_aarch64 - DST Jenkins pipeline for Sles 15 SP5 Shasta aarch64
  *
- * Copyright 2007-2022 Hewlett Packard Enterprise Development LP
+ * Copyright 2007-2023 Hewlett Packard Enterprise Development LP
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
@@ -13,7 +13,8 @@
 
 @Library("dst-shared@master") _
 
-sle15sp1PEaarch64 {
+sle15sp5PEaarch64 {
     timeout = 240
     product = "pe-base"
+    agent = "gcp-aarch64"
 }

@@ -2,29 +2,7 @@
  * Frontend.hpp - define workload manager frontend interface and common base class
  *
  * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 #pragma once
@@ -145,8 +123,6 @@ private: // Private data members usable only by the base Frontend
     std::string         m_ld_audit_path;
     std::string         m_fe_daemon_path;
     std::string         m_be_daemon_path;
-    // Cleanup files
-    std::vector<std::string>    m_cleanup_files;
     // Saved env vars
     std::string         m_ld_preload;
 
@@ -178,12 +154,10 @@ public: // Public static utility methods - Try to keep these to a minimum
 
 private: // Private utility methods used by the generic frontend
     static bool isRunningOnBackend() { return (getenv(BE_GUARD_ENV_VAR) != nullptr); }
-    // use user info to build unique staging path; optionally create the staging direcotry
-    std::string findCfgDir();
+    // use username and pid info to build unique staging path; optionally create the staging direcotry
+    std::string setupCfgDir();
     // find the base CTI directory from the environment and verify its permissions
     std::string findBaseDir();
-    // Try to cleanup old files left in the cfg dir during the ctor.
-    void doFileCleanup();
 
 public: // Public interface to generic WLM-agnostic capabilities
     // Write to the log file associated with the Frontend
@@ -202,9 +176,6 @@ public: // Public interface to generic WLM-agnostic capabilities
 
     // Remove an app object
     void removeApp(std::shared_ptr<App> app);
-
-    // Register a cleanup file
-    void addFileCleanup(std::string const& file);
 
     // Accessors
 
@@ -299,8 +270,8 @@ public: // impl.-specific interface that derived type must implement
     // ship package to backends
     virtual void shipPackage(std::string const& tarPath) const = 0;
 
-    // start backend tool daemon
-    virtual void startDaemon(CArgArray argv) = 0;
+    // start backend tool daemon, optionally waiting for completion
+    virtual void startDaemon(CArgArray argv, bool synchronous) = 0;
 
     // Return which file paths exist on all backends
     virtual std::set<std::string> checkFilesExist(std::set<std::string> const& paths) {

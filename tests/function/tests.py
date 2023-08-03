@@ -1,11 +1,6 @@
 '''
  * Copyright 2019-2022 Hewlett Packard Enterprise Development LP
- *
- * Unpublished Proprietary Information.
- * This unpublished work is protected to trade secret, copyright and other laws.
- * Except as permitted by contract or express written permission of Hewlett
- * Packard Enterprise Development LP., no part of this work or its content may be
- * used, reproduced or disclosed in any form.
+ * SPDX-License-Identifier: Linux-OpenIB
 '''
 
 import avocado
@@ -18,6 +13,7 @@ import time
 import logging
 import signal
 import fcntl
+import getpass
 
 # these are set in readVariablesFromEnv during test setup
 CTI_INST_DIR          = ""
@@ -149,6 +145,13 @@ class CtiTest(Test):
     def test_CtiLaunch(self):
         name = "CtiLaunch"
         argv = ["./src/cti_launch", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi_wait"]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+    def test_CtiLaunchBadenv(self):
+        name = "CtiLaunchBadenv"
+        argv = ["./src/cti_launch_badenv", *LAUNCHER_ARGS.split()]
 
         rc = run_cti_test(self, name, argv)
         self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
@@ -415,8 +418,8 @@ class CtiTest(Test):
                 }
             elif wlm == "alps":
                 return {
-                    "rank   0": " hello_mpi",      "rank   1": " hello_mpi",
-                    "rank   2": " hello_mpi_wait", "rank   3": " hello_mpi_wait",
+                    "rank   0": " hello_mpi",     "rank   1": " hello_mpi",
+                    "rank   2": " hello_mpi_alt", "rank   3": " hello_mpi_alt",
                 }
             raise EndTestError(cancel_reason=f"Test not implemented for {wlm}")
 
@@ -437,7 +440,7 @@ class CtiTest(Test):
                 cti_barrier = subprocess.Popen(
                         ["./src/cti_barrier",
                          "-n2", "./src/support/hello_mpi", ":",
-                         "-n2", "./src/support/hello_mpi_wait"],
+                         "-n2", "./src/support/hello_mpi_alt"],
                     stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.STDOUT
                 )
             else:
@@ -607,9 +610,8 @@ class CtiTest(Test):
         name = "CtiKillSIGZERO"
         argv = ["./src/cti_kill", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi_wait", "0"]
 
-        # passing 0 to cti_killApp should emit an error
         rc = run_cti_test(self, name, argv)
-        self.assertTrue(rc != 0 and rc != None, f"Test binary exited with non-failure returncode ({rc})")
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
     def test_LdPreload(self):
         name = "LdPreload"
@@ -639,12 +641,27 @@ class CtiTest(Test):
     def test_MPIRShim(self):
         name = "MPIRShim"
         argv = ["./src/cti_mpir_shim", *LAUNCHER_ARGS.split()]
+        shim_log_path = f"{os.getcwd()}/tmp/shim.out"
         env = {
-            "CTI_DEBUG": "1"
+            "CTI_DEBUG": "1",
+            "CTI_MPIR_SHIM_LOG_PATH": shim_log_path
         }
 
+        # Ensure that CTI was able to launch shimmed job
         rc = run_cti_test(self, name, argv, env)
         self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
+        # Ensure that shim ran and exited correctly
+        shim_started = False
+        shim_child_exited_cleanly = False
+        with open(shim_log_path) as shim_log:
+            for line in shim_log:
+                if "cti shim token detected" in line:
+                    shim_started = True
+                elif "child exited" in line:
+                    shim_child_exited_cleanly = True
+        self.assertTrue(shim_started, f"MPIR shim was not started correctly")
+        self.assertTrue(shim_child_exited_cleanly, f"MPIR shim did not exit cleanly")
 
     def test_Redirect(self):
         name = "Redirect"
@@ -673,3 +690,82 @@ class CtiTest(Test):
 
         rc = run_cti_test(self, name, argv)
         self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    def test_ToolDaemonArgv(self):
+        name = "ToolDaemonArgv"
+        argv = ["./src/cti_tool_daemon_argv", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    def test_ToolDaemonBadenv(self):
+        name = "ToolDaemonBadenv"
+        argv = ["./src/cti_tool_daemon_badenv", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    @avocado.skipIf(lambda t: detectWLM(t) != "slurm", "Not slurm")
+    def test_Ops_Slurm_getSrunInfo(self):
+        name = "Ops_Slurm_getSrunInfo"
+        argv = ["./src/cti_ops", "test_name:getSrunInfo", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    @avocado.skipIf(lambda t: detectWLM(t) != "slurm", "Not slurm")
+    def test_Ops_Slurm_getJobInfo_registerJobStep(self):
+        name = "Ops_Slurm_getJobInfoRegisterJobStep"
+        argv = ["./src/cti_ops", "test_name:getJobInfo, registerJobStep", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    @avocado.skipIf(lambda t: detectWLM(t) != "slurm", "Not slurm")
+    def test_Ops_Slurm_submitBatchScript(self):
+        name = "Ops_Slurm_submitBatchScript"
+        argv = ["./src/cti_ops", "test_name:submitBatchScript", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    def test_CfgCleanup(self):
+        # Test that CTI properly cleans up temporary files when it exits
+        name = "CfgCleanup"
+        argv = ["./src/cti_tool_daemon", *LAUNCHER_ARGS.split()]
+
+        top_dir = os.getcwd() + "/tmp"
+        try:
+            os.mkdir(top_dir)
+        except FileExistsError:
+            pass
+
+        base_dir = f"{top_dir}/cti-{getpass.getuser()}"
+        try:
+            os.mkdir(base_dir)
+        except FileExistsError:
+            pass
+        # CTI requires 0700 permissions
+        os.chmod(base_dir, 0o700)
+
+        if len(os.listdir(base_dir)) != 0:
+            self.cancel(f"{base_dir} not empty before starting test")
+
+        # Create fake leftover directory
+        old_cfg_dir = f"{base_dir}/1"
+        try:
+            os.mkdir(old_cfg_dir)
+        except FileExistsError:
+            pass
+        os.chmod(old_cfg_dir, 0o700)
+        # Make the directory older than 5 minutes
+        os.utime(old_cfg_dir, (0, 0))
+
+        rc = run_cti_test(self, name, argv, {"CTI_CFG_DIR": top_dir})
+        if rc != 0:
+            self.cancel(f"Test binary returned with nonzero returncode ({rc}), can't reliably test cleanup")
+
+        self.assertTrue(
+            len(os.listdir(base_dir)) == 0,
+            f"{base_dir} not empty"
+        )

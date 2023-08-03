@@ -2,29 +2,7 @@
  * Session.cpp - Session object impl
  *
  * Copyright 2013-2020 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 // This pulls in config.h
@@ -101,7 +79,7 @@ void Session::finalize() {
     // call cleanup function with DaemonArgv
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
     writeLog("launchCleanup: launching daemon for cleanup\n");
-    app->startDaemon(daemonArgv.get() + 1);
+    app->startDaemon(daemonArgv.get() + 1, /* synchronous */ true);
 }
 
 std::weak_ptr<Manifest>
@@ -114,7 +92,7 @@ Session::createManifest() {
 }
 
 std::string
-Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
+Session::shipManifest(std::shared_ptr<Manifest> mani) {
     // Get owning app
     auto app = getOwningApp();
     // Get frontend reference
@@ -163,30 +141,25 @@ Session::shipManifest(std::shared_ptr<Manifest> const& mani) {
 
     // Find duplicate files that are available on the backend
     auto duplicateSourcePaths = std::set<std::string>{};
-    if (auto deduplicate_files = ::getenv(CTI_DEDUPLICATE_FILES_ENV_VAR)) {
+    auto deduplicate_files = ::getenv(CTI_DEDUPLICATE_FILES_ENV_VAR);
+    if ((deduplicate_files == nullptr) || (strcmp(deduplicate_files, "0") != 0)) {
         try {
-            if (strcmp(deduplicate_files, "1") == 0) {
+            auto sourcePaths = std::set<std::string>{};
 
-                auto sourcePaths = std::set<std::string>{};
-
-                // Build list of source paths
-                for (auto&& [name, sourcePath] : sources) {
-                    sourcePaths.insert(sourcePath);
-                }
-
-                // Remove paths that exist on all backends
-                duplicateSourcePaths = app->checkFilesExist(sourcePaths);
+            // Build list of source paths
+            for (auto&& [name, sourcePath] : sources) {
+                sourcePaths.insert(sourcePath);
             }
+
+            // Remove paths that exist on all backends
+            duplicateSourcePaths = app->checkFilesExist(sourcePaths);
 
         } catch (std::exception const& ex) {
             writeLog("Deduplication failed: %s\n", ex.what());
         }
     }
 
-    // todo: block signals handle race with file creation
     // create and fill archive
-    // Register the cleanup file with the frontend for this archive
-    fe.addFileCleanup(archiveName);
     Archive archive(fe.getCfgDir() + "/" + archiveName);
     // setup basic archive entries
     archive.addDirEntry(m_stageName);
@@ -262,7 +235,7 @@ Session::sendManifest(std::shared_ptr<Manifest> const& mani) {
     // call transfer function with DaemonArgv
     writeLog("sendManifest %d: starting daemon\n", inst);
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-    app->startDaemon(daemonArgv.get() + 1);
+    app->startDaemon(daemonArgv.get() + 1, /* synchronous */ true);
     // Increment shipped manifests at this point. No exception was thrown.
     ++m_seqNum;
 }
@@ -313,12 +286,15 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
     for (auto i : env_vars) {
         daemonArgv.add(DaemonArgv::EnvVariable, i);
     }
+
     // add env vars
     if (envVars != nullptr) {
+        cti::enforceValidEnvStrings(envVars);
         for (const char* const* var = envVars; *var != nullptr; var++) {
             daemonArgv.add(DaemonArgv::EnvVariable, *var);
         }
     }
+
     // add daemon arguments
     cti::ManagedArgv rawArgVec(daemonArgv.eject());
     if (daemonArgs != nullptr) {
@@ -330,7 +306,7 @@ Session::execManifest(std::shared_ptr<Manifest> const& mani, const char * const 
     // call launch function with DaemonArgv
     writeLog("execManifest: starting daemon\n");
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
-    app->startDaemon(rawArgVec.get() + 1);
+    app->startDaemon(rawArgVec.get() + 1, /* asynchronous */ false);
     writeLog("execManifest: daemon started\n");
     // Increment shipped manifests at this point. No exception was thrown.
     ++m_seqNum;

@@ -2,29 +2,7 @@
  * FluxAPI.hpp - Flux API response parsing functions
  *
  * Copyright 2021 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 // This pulls in config.h
@@ -187,7 +165,7 @@ static void for_each_prefixList(pt::ptree const& root, Func&& func)
 
         // If element has data, it is a plain string instead of a prefix list
         if (!prefixListArrayPair.second.data().empty()) {
-            func(prefixListArrayPair.second.data());
+            func(prefixListArrayPair.second.data(), "");
             continue;
         }
 
@@ -196,30 +174,70 @@ static void for_each_prefixList(pt::ptree const& root, Func&& func)
         auto const prefix = (cursor++)->second.get_value<std::string>();
         auto const rangeListObjectArray = (cursor++)->second;
 
-        auto hostnamePostfixes = flatten_rangeList(rangeListObjectArray);
+        auto hostnameSuffixes = flatten_rangeList(rangeListObjectArray);
 
         // Empty: there is a single string consisting solely of the prefix
-        if (hostnamePostfixes.empty()) {
-                func(prefix);
+        if (hostnameSuffixes.empty()) {
+                func(prefix, "");
 
         // Run function on every generated string
         } else {
-            for (auto&& postfix : hostnamePostfixes) {
-                func(prefix + std::to_string(postfix));
+            for (auto&& suffix : hostnameSuffixes) {
+                func(prefix, std::to_string(suffix));
             }
         }
     }
 }
 
-static inline auto const flatten_prefixList(pt::ptree const& root)
+static inline auto flatten_prefixList(pt::ptree const& root)
 {
     auto result = std::vector<std::string>{};
 
-    for_each_prefixList(root, [&](std::string hostname) {
-        result.emplace_back(std::move(hostname));
+    for_each_prefixList(root, [&](std::string const& prefix, std::string const& suffix) {
+        result.emplace_back(prefix + suffix);
     });
 
     return result;
+}
+
+static inline auto gethostname_str()
+{
+    char buf[HOST_NAME_MAX + 1];
+    if (::gethostname(buf, HOST_NAME_MAX) < 0) {
+        throw std::runtime_error("gethostname failed");
+    }
+    return std::string{buf};
+}
+
+// Flux will un-zero pad the node number, so try and figure out the correct padding
+static inline auto re_zero_pad_nid(std::string const& prefix, std::string const& suffix)
+{
+    auto split_at_nid = [](std::string const& hostname) {
+        auto last_before_nid = hostname.find_last_not_of("0123456789");
+
+        // May not be running on node, hope Flux gets it right
+        if (last_before_nid == std::string::npos) {
+            return std::make_pair(hostname, std::string{});
+        }
+
+        return std::make_pair(hostname.substr(0, last_before_nid + 1), hostname.substr(last_before_nid + 1));
+    };
+
+    auto [gethostname_prefix, gethostname_nid] = split_at_nid(gethostname_str());
+
+    // Recombine and split at NID
+    auto [hostname_prefix, hostname_nid] = split_at_nid(prefix + suffix);
+
+    if (hostname_prefix.length() == gethostname_prefix.length()) {
+
+        // Re-zero pad the hostname
+        if (gethostname_nid.length() > hostname_nid.length()) {
+            return hostname_prefix + std::string(gethostname_nid.length() - hostname_nid.length(), '0') + hostname_nid;
+        }
+    }
+
+    // No match on prefix, hope Flux gets it right
+    return prefix + suffix;
 }
 
 static inline auto make_hostsPlacement(pt::ptree const& root)
@@ -252,7 +270,10 @@ static inline auto make_hostsPlacement(pt::ptree const& root)
     auto hostname_entries = size_t{0};
 
     // Add count for every hostname
-    for_each_prefixList(root.get_child("hosts"), [&](std::string const& hostname) {
+    for_each_prefixList(root.get_child("hosts"), [&](std::string const& hostnamePrefix,
+        std::string const& hostnameSuffix) {
+
+        auto hostname = re_zero_pad_nid(hostnamePrefix, hostnameSuffix);
         auto& hostPECountPair = hostPlacementMap[hostname];
         hostPECountPair.hostname = hostname;
         hostPECountPair.numPEs++;
@@ -261,7 +282,8 @@ static inline auto make_hostsPlacement(pt::ptree const& root)
 
     // Get list of all ranks and PIDs
     auto const ranks = flatten_rangeList(root.get_child("ids"));
-    auto const pids = flatten_rangeList(root.get_child("pids"));
+    // Proctable PIDs are delta-encoded
+    auto const pid_deltas = flatten_rangeList(root.get_child("pids"));
 
     // Each hostname occurrence corresponds to a single rank and PID
     if (ranks.size() != hostname_entries) {
@@ -269,20 +291,22 @@ static inline auto make_hostsPlacement(pt::ptree const& root)
             + std::to_string(ranks.size()) + " ranks and " + std::to_string(hostname_entries)
             + " hostname entries");
     }
-    if (pids.size() != hostname_entries) {
+    if (pid_deltas.size() != hostname_entries) {
         throw std::runtime_error("mismatch between PID and hostname count from Flux API ("
-            + std::to_string(pids.size()) + " PIDs and " + std::to_string(hostname_entries)
+            + std::to_string(pid_deltas.size()) + " PIDs and " + std::to_string(hostname_entries)
             + " hostname entries");
     }
 
     // Host with N ranks will have the next N PIDs from rank list
     auto rank_cursor = ranks.begin();
-    auto pid_cursor = pids.begin();
+    auto pid_delta_cursor = pid_deltas.begin();
+    auto last_pid = pid_t{0};
     for (auto&& [hostname, placement] : hostPlacementMap) {
         for (size_t i = 0; i < placement.numPEs; i++) {
-            placement.rankPidPairs.emplace_back(*rank_cursor, *pid_cursor);
+            last_pid = last_pid + *pid_delta_cursor;
+            placement.rankPidPairs.emplace_back(*rank_cursor, last_pid);
             rank_cursor++;
-            pid_cursor++;
+            pid_delta_cursor++;
         }
     }
 

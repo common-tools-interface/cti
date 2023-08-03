@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
     assert_true(cti_sessionIsValid(sessionId) == true, cti_error_str());
 
     // run printing daemons
-    testSocketDaemon(sessionId, "./src/support/one_socket", {}, "1");
+    testSocketDaemon(sessionId, "./src/support/one_socket", {}, {}, "1");
 
     // cleanup
     assert_true(cti_destroySession(sessionId) == SUCCESS, cti_error_str());

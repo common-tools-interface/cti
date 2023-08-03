@@ -2,29 +2,7 @@
  * Frontend.cpp - SLURM specific frontend library functions.
  *
  * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 // This pulls in config.h
@@ -34,6 +12,8 @@
 #include <algorithm>
 #include <iomanip>
 #include <filesystem>
+#include <regex>
+#include <functional>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -59,6 +39,157 @@
 #include "useful/cti_split.hpp"
 #include "useful/cti_hostname.hpp"
 #include "useful/cti_wrappers.hpp"
+
+// Use squeue to check if job is registered with slurmd
+static bool job_registered(std::string const& jobId)
+{
+    auto squeueArgv = cti::ManagedArgv{"squeue", "--job", jobId};
+    return cti::Execvp::runExitStatus("squeue", (char* const*)squeueArgv.get()) == 0;
+}
+
+// Use squeue to check if job has a step 0 in started state. We assume that the
+// job is already registered and treat an invalid jobId as an error instead of
+// waiting for it to appear.
+static bool job_step_zero_started(std::string const& jobId)
+{
+    auto squeueArgv = cti::ManagedArgv{"squeue"};
+
+    // Print step info
+    squeueArgv.add("--steps");
+
+    // The step state truncated to 7 characters, followed by '|', followed by the step id.
+    // This option is case sensitive and the capital F is required for the long form format.
+    squeueArgv.add("--Format=StepState:7|,StepID");
+
+    // Add job ID
+    squeueArgv.add(std::string{"--jobs="} + jobId);
+
+    // Don't print header
+    squeueArgv.add("--noheader");
+
+    // Run squeue
+    auto squeueOutput = cti::Execvp{"squeue", (char* const*)squeueArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Read squeue output
+    auto& squeueStream = squeueOutput.stream();
+    auto squeueLine = std::string{};
+    auto gotOutput = false;
+
+    // Search for "RUNNING|<jobid>.0"
+    auto needle = std::string{"RUNNING|"} + jobId + ".0";
+
+    while (std::getline(squeueStream, squeueLine)) {
+        gotOutput = true;
+        // squeue will add extra whitespace.
+        if (squeueLine.rfind(needle, 0) == 0) break;
+    }
+
+    // Consume rest of squeue output
+    squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Check for fatal errors
+
+    if (const auto exitStatus = squeueOutput.getExitStatus(); exitStatus != 0) {
+        throw std::runtime_error("checking status of job step " + jobId + ".0 failed using command:\n"
+            + squeueArgv.string() + "\n" + "(bad exit status: " + std::to_string(exitStatus) +")\n");
+    }
+
+    // Passing --steps to squeue changes its API. It doesn't check if the job id
+    // passed with --jobs is valid. With an invalid job id, it will just produce
+    // empty output and a successful exit code. This means that we can't assume
+    // the exit status check above will catch an invalid job id.
+    //
+    // On the other hand, it's possible for a job id to be valid but not have
+    // any steps yet (waiting in queue), which also produces empty output. So we
+    // have to do another squeue call (job_registered) to distinguish the "job
+    // id is invalid" empty output case from the "job id is valid but waiting"
+    // empty output case.
+    if (!gotOutput && !job_registered(jobId)) {
+        throw std::runtime_error("checking status of job step " + jobId + ".0 failed using command:\n"
+            + squeueArgv.string() + "\n" + "(job id is invalid)\n");
+    }
+
+    return squeueLine.rfind(needle, 0) == 0;
+}
+
+// Wait forever for `func`to return true. If `func` ever throws an exception,
+// stop waiting and rethrow it.
+template <typename Func>
+static void wait_forever_for_application_state(Func&& func, std::string const& jobId)
+{
+    // Wait forever for application state
+    while (true) {
+        Frontend::inst().writeLog("Slurm job %s submitted, waiting forever for Slurm application "
+            "to launch...\n", jobId.c_str());
+
+        try {
+            // Check if Slurm job has entered desired state
+            if (func(jobId)) {
+                Frontend::inst().writeLog("Successfully launched Slurm application %s\n",
+                    jobId.c_str());
+                return;
+            }
+        } catch (std::exception const& ex) {
+            Frontend::inst().writeLog("State check failed: %s, bailing out.\n", ex.what());
+            throw;
+        }
+
+        ::sleep(1);
+    }
+}
+
+// If the application state isn't arrived at within a few seconds, this will throw a
+// std::runtime_error.
+template <typename Func>
+static void wait_briefly_for_application_state(Func&& func, std::string const& jobId)
+{
+    // Wait until Slurm application has started
+    int retry = 0;
+    int wait_seconds = 1;
+    int max_retry = 3;
+    while (retry < max_retry) {
+        Frontend::inst().writeLog("Slurm job %s submitted, waiting for Slurm application "
+            "to launch (attempt %d/%d)\n", jobId.c_str(), retry + 1, max_retry);
+
+        try {
+
+            // Check if Slurm job has entered desired state
+            if (func(jobId)) {
+                Frontend::inst().writeLog("Successfully launched Slurm application %s\n",
+                    jobId.c_str());
+
+                return;
+            }
+
+        } catch (std::exception const& ex) {
+            Frontend::inst().writeLog("State check failed: %s, %s\n",
+                ex.what(), (retry + 1 < max_retry) ? "retrying" : "giving up");
+        }
+
+        // Application not in state yet
+        ::sleep(wait_seconds);
+        retry++;
+        wait_seconds *= 2;
+    }
+
+    throw std::runtime_error("Timed out waiting for Slurm application to launch. "
+        "Application may still be waiting for job resources (check using `squeue -j "
+        + jobId + "`). Once launched, job can be attached using its job ID");
+}
+
+// Wait for Slurm job to register with central daemon as a valid job. Throws
+// std::runtime_error after a few seconds of waiting. Note that `jobId` might be provided
+// as <jobId> or <jobId>.<stepId>.
+static void wait_briefly_for_application_registered(std::string const& jobId)
+{
+    wait_briefly_for_application_state(job_registered, jobId);
+}
+
+static void wait_forever_for_application_started(std::string const& jobId)
+{
+    wait_forever_for_application_state(job_step_zero_started, jobId);
+}
 
 /* constructors / destructors */
 
@@ -107,6 +238,11 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     // yet be created when launching. So we need to send over a file containing
     // the information to the compute nodes.
     m_extraFiles.push_back(fe.createPIDListFile(mpirData.proctable, m_stagePath));
+
+    // Wait for application to be registered with Slurmd
+    // This may be initially false while srun has just launched the application during
+    // multiple concurrent launches
+    wait_briefly_for_application_registered(getJobId());
 }
 
 SLURMApp::~SLURMApp()
@@ -296,20 +432,67 @@ cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv()
 
 void SLURMApp::kill(int signum)
 {
-    // create the args for scancel
-    auto scancelArgv = cti::ManagedArgv {
-        SCANCEL // first argument should be "scancel"
-        , "-Q"  // second argument is quiet
-        , "-s", std::to_string(signum)    // third argument is signal number
-        , getJobId() // fourth argument is the jobid.stepid
-    };
+    if (!dynamic_cast<SLURMFrontend&>(m_frontend).getCheckScancelOutput()) {
 
-    // tell frontend daemon to launch scancel, wait for it to finish
-    if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
-        m_daemonAppId, SCANCEL, scancelArgv.get(),
-        -1, -1, -1,
-        nullptr)) {
-        throw std::runtime_error("failed to send signal to job ID " + getJobId());
+        // create the args for scancel
+        auto scancelArgv = cti::ManagedArgv
+            { SCANCEL
+            , "-Q" // Quiet
+            , "-s", std::to_string(signum) // Signal number
+            , getJobId()
+        };
+
+        if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, SCANCEL, scancelArgv.get(),
+            -1, -1, -1,
+            nullptr)) {
+            throw std::runtime_error("failed to send signal to job ID " + getJobId());
+        }
+
+    // Check verbose output from scancel to work around PE-45572
+    } else {
+
+        // create the args for scancel
+        auto scancelArgv = cti::ManagedArgv
+            { SCANCEL
+            , "-v" // Verbose output to check that signal was sent
+            , "-s", std::to_string(signum) // Signal number
+            , getJobId()
+        };
+
+        // Set up pipe to read scancel output
+        auto stderrPipe = cti::Pipe{};
+        auto stderrPipeBuf = cti::FdBuf{stderrPipe.getReadFd()};
+        auto stderrStream = std::istream{&stderrPipeBuf};
+
+        // Request daemon launch scancel
+        m_frontend.Daemon().request_ForkExecvpUtil_Async(
+            m_daemonAppId, SCANCEL, scancelArgv.get(),
+            -1, -1, stderrPipe.getWriteFd(),
+            nullptr);
+
+        // Match line "Signal <sig> to step <jobid>"
+        auto scancel_succeeded = false;
+        static const auto signalSentRegex = std::regex{
+            R"((Signal [[:digit:]]+ to step)|(Terminating step))"};
+
+        // Parse scancel output
+        stderrPipe.closeWrite();
+        auto line = std::string{};
+        while (std::getline(stderrStream, line)) {
+            if (std::regex_search(line, signalSentRegex)) {
+                scancel_succeeded = true;
+                break;
+            }
+        }
+
+        // Consume rest of squeue output
+        stderrStream.ignore(std::numeric_limits<std::streamsize>::max());
+        stderrPipe.closeRead();
+
+        if (!scancel_succeeded) {
+            throw std::runtime_error("failed to send signal to job ID " + getJobId());
+        }
     }
 }
 
@@ -333,17 +516,28 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
 
     // now ship the tarball to the compute nodes. tell overwatch to launch sbcast, wait to complete
     writeLog("starting sbcast invocation\n");
-    (void)m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+
+    auto success = m_frontend.Daemon().request_ForkExecvpUtil_Sync(
         m_daemonAppId, SBCAST, sbcastArgv.get(),
         -1, -1, -1,
         sbcast_env);
 
-    // call to request_ForkExecvpUtil_Sync will wait until the sbcast finishes
-    // FIXME: There is no way to error check right now because the sbcast command
-    // can only send to an entire job, not individual job steps. The /var/spool/alps/<apid>
-    // directory will only exist on nodes associated with this particular job step, and the
-    // sbcast command will exit with error if the directory doesn't exist even if the transfer
-    // worked on the nodes associated with the step. I opened schedmd BUG 1151 for this issue.
+    // sbcast can randomly fail under high load, so try again a few times if it does.
+    for (auto tries_left = 2; !success && tries_left > 0; tries_left--) {
+        writeLog("sbcast failed, trying again (%d)\n", tries_left);
+
+        ::sleep(1);
+
+        success = m_frontend.Daemon().request_ForkExecvpUtil_Sync(
+            m_daemonAppId, SBCAST, sbcastArgv.get(),
+            -1, -1, -1,
+            sbcast_env);
+    }
+
+    if (!success) {
+        throw std::runtime_error("sbcast failure: Failed to ship " + tarPath + " package to compute node");
+    }
+
     writeLog("sbcast invocation completed\n");
 }
 
@@ -475,7 +669,8 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
     return result;
 }
 
-void SLURMApp::startDaemon(const char* const args[]) {
+void SLURMApp::startDaemon(const char* const args[], bool synchronous)
+{
     // sanity check
     if (args == nullptr) {
         throw std::runtime_error("args array is null!");
@@ -514,12 +709,20 @@ void SLURMApp::startDaemon(const char* const args[]) {
     }
 
     // tell FE Daemon to launch srun
-    m_frontend.Daemon().request_ForkExecvpUtil_Async(
+    auto fork_execvp_args = std::make_tuple(&m_frontend.Daemon(),
         m_daemonAppId, slurmFrontend.getLauncherName().c_str(),
         launcherArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
-        launcherEnv.get() );
+        launcherEnv.get());
+
+    if (synchronous) {
+        std::apply(std::mem_fn(&FE_daemon::request_ForkExecvpUtil_Sync),
+            fork_execvp_args);
+    } else {
+        std::apply(std::mem_fn(&FE_daemon::request_ForkExecvpUtil_Async),
+            fork_execvp_args);
+    }
 }
 
 std::set<std::string>
@@ -598,18 +801,25 @@ static auto getSlurmVersion()
 
     // major.minor.patch
     slurmVersion = slurmVersion.substr(slurmVersion.find(" ") + 1);
-    auto const [major, minor, patch] = cti::split::string<3>(slurmVersion, ' ');
+    auto const [major, minor, patch] = cti::split::string<3>(slurmVersion, '.');
 
-    if (major.empty()) {
+    auto stoi_or_zero = [](std::string const& str) {
+        if (str.empty()) { return 0; }
+        try {
+            return std::stoi(str);
+        } catch (...) {
+            return 0;
+        }
+    };
+
+    // Fail if at least major version could not be determined
+    if (auto parsed_major = stoi_or_zero(major)) {
+        return std::make_tuple(parsed_major, stoi_or_zero(minor), stoi_or_zero(patch));
+
+    } else {
         throw std::runtime_error("Failed to parse SRUN version '"
-            + slurmVersion +"'. Try running `srun --version`");
+            + slurmVersion + "'. Try running `srun --version`");
     }
-
-    return std::make_tuple(
-        std::stoi(major),
-        (minor.empty()) ? 0 : std::stoi(minor),
-        (patch.empty()) ? 0 : std::stoi(patch)
-    );
 }
 
 SLURMFrontend::SLURMFrontend()
@@ -622,6 +832,7 @@ SLURMFrontend::SLURMFrontend()
         , "--mpi=none"
         , "--error=none"
         }
+    , m_checkScancelOutput{false}
     {
 
     // Detect SLURM version and set SRUN arguments accordingly
@@ -648,6 +859,19 @@ SLURMFrontend::SLURMFrontend()
                 { "--overlap"
             });
         }
+
+        // Up to (and possibly beyond) Slurm 22.05.8, scancel might report that
+        // it failed to send a signal even if it was successful. This can be
+        // correctly determined via parsing verbose output rather than using
+        // return code (PE-45772, see SLURMApp::kill implementation). This bug
+        // most commonly happens when a CTI app is run while inside an
+        // interactive allocation (salloc). See https://bugs.schedmd.com/show_bug.cgi?id=16551
+        //
+        // We currently don't know if/when this bug is going to be fixed, so we are
+        // leaving the workaround on for all versions, for now. Set
+        // SLURM_NEVER_PARSE_SCANCEL to force the workaround off and rely on scancel's
+        // return code.
+        m_checkScancelOutput = ::getenv(SLURM_NEVER_PARSE_SCANCEL) == nullptr;
     }
 
     // Slurm bug https://bugs.schedmd.com/show_bug.cgi?id=12642
@@ -775,7 +999,7 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     sattachArgv.add(SattachArgv::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
 
     // create sattach output capture object
-    cti::Execvp sattachOutput(SATTACH, sattachArgv.get(), cti::Execvp::stderr::Ignore);
+    cti::Execvp sattachOutput(SATTACH, sattachArgv.get(), cti::Execvp::stderr::Pipe);
     auto& sattachStream = sattachOutput.stream();
     std::string sattachLine;
 
@@ -784,12 +1008,16 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
     // "Job step layout:"
     if (std::getline(sattachStream, sattachLine)) {
         if (sattachLine.compare("Job step layout:")) {
-            throw std::runtime_error("Unexpected layout output from SATTACH: '" + sattachLine + "'\
-Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+            throw std::runtime_error(
+                "Unexpected layout output from SATTACH: '" + sattachLine + "'. "
+                "Try running `" SATTACH " --layout "
+                + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
         }
     } else {
-        throw std::runtime_error("Unexpected layout output from SATTACH (expected header)\
-Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+        throw std::runtime_error(
+            "End of layout output from SATTACH (expected header). "
+            "Try running `" SATTACH " --layout "
+            + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
     }
 
     StepLayout layout;
@@ -807,8 +1035,10 @@ Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_str
         numNodes = std::stoi(rawNumNodes);
         layout.nodes.reserve(numNodes);
     } else {
-        throw std::runtime_error("Unexpected layout output from SATTACH (expected summary)\
-Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+        throw std::runtime_error(
+            "End of layout output from SATTACH (expected summary). "
+            "Try running `" SATTACH " --layout "
+            + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
     }
 
     // seperator line
@@ -817,8 +1047,10 @@ Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_str
     // "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
     for (auto i = int{0}; std::getline(sattachStream, sattachLine); i++) {
         if (i >= numNodes) {
-            throw std::runtime_error("Target job has " + std::to_string(numNodes) + " nodes, but received extra layout information from SATTACH.\
-Try running `" SATTACH " --layout " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+            throw std::runtime_error(
+                "Target job has " + std::to_string(numNodes) + " nodes, but received "
+                "extra layout information from SATTACH. Try running `" SATTACH " --layout "
+                + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
         }
 
         // split the summary line
@@ -1118,53 +1350,6 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
     }
 }
 
-// Use squeue to check if job is running
-static bool
-job_running(std::string const& jobId)
-{
-    auto squeueArgv = cti::ManagedArgv{"squeue"};
-
-    // Print job status only
-    squeueArgv.add("-o");
-    squeueArgv.add("%t");
-
-    // Add job ID
-    squeueArgv.add("-j");
-    squeueArgv.add(jobId);
-
-    // Run squeue
-    auto squeueOutput = cti::Execvp{"squeue", (char* const*)squeueArgv.get(),
-        cti::Execvp::stderr::Ignore};
-
-    // Read squeue output
-    auto& squeueStream = squeueOutput.stream();
-    auto squeueLine = std::string{};
-    auto getline_failed = false;
-
-    // First line should be "ST" header
-    if (!std::getline(squeueStream, squeueLine)) {
-        getline_failed = true;
-    }
-    if (getline_failed || squeueLine != "ST") {
-        throw std::runtime_error("failed to parse squeue output");
-    }
-
-    // Next line is job status
-    if (!std::getline(squeueStream, squeueLine)) {
-        throw std::runtime_error("failed to read squeue output: " + squeueLine);
-    }
-
-    // Consume rest of squeue output and check output status
-    squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
-    if (squeueOutput.getExitStatus() != 0) {
-        throw std::runtime_error("squeue failed using command\n"
-            + squeueArgv.string());
-    }
-
-    // Job status of "R" indicates job is running
-    return squeueLine == "R";
-}
-
 SrunInfo
 SLURMFrontend::submitBatchScript(std::string const& scriptPath,
     char const* const* sbatch_args, char const* const* env_list)
@@ -1239,44 +1424,30 @@ SLURMFrontend::submitBatchScript(std::string const& scriptPath,
     }
 
     // Parse job ID
-    auto result = SrunInfo{ .jobid = 1, .stepid = {} };
+    auto result = SrunInfo{ 1, 0 };
     try {
-        result = SrunInfo { .jobid = (uint32_t)std::stoul(jobId), .stepid = 0 };
+        result = SrunInfo { static_cast<uint32_t>(std::stoul(jobId)), 0 };
     } catch (std::exception const&) {
         throw std::runtime_error("Failed to parse job ID from sbatch output: "
             + jobId);
     }
 
-    // Wait until Slurm application has started
-    int retry = 0;
-    int max_retry = 3;
-    while (retry < max_retry) {
-        Frontend::inst().writeLog("Slurm job %s submitted, waiting for Slurm application "
-            "to launch (attempt %d/%d)\n", jobId.c_str(), retry + 1,
-            max_retry);
-        ::sleep(3);
+    // Wait a short time for slurm to register our requested job. Job
+    // registration should be more or less instant.
+    wait_briefly_for_application_registered(jobId);
 
-        try {
+    // Now wait again for slurm to actually run the binary. The above wait check
+    // will pass as soon as the job is queued, but we can't return at that
+    // point.
+    //
+    // Since this function launches the job without registering it with CTI, we
+    // expect the user to call registerJob to finish the registration, then
+    // finally call releaseAppBarrier to start running the binary. registerJob
+    // uses sattach to get MPIR info, and sattach requires a valid stepId. A
+    // valid stepId won't exist until the application actually starts.
+    wait_forever_for_application_started(jobId);
 
-            // Check if Slurm job has launched
-            if (job_running(jobId)) {
-                Frontend::inst().writeLog("Successfully launched Slurm application %s\n",
-                    jobId.c_str());
-
-                return result;
-            }
-
-            // PALS application not started yet
-            retry++;
-
-        } catch (...) {
-            retry++;
-        }
-    }
-
-    throw std::runtime_error("Timed out waiting for Slurm application to launch. "
-        "Application may still be waiting for job resources (check using `squeue -j "
-        + jobId + "`). Once launched, job can be attached using its job ID");
+    return result;
 }
 
 // HPCM SLURM specializations

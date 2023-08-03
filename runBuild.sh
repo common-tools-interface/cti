@@ -16,7 +16,7 @@ echo "#            Setup environment.            #"
 echo "############################################"
 
 top_level=$PWD
-source ./external/cdst_build_library/build_lib
+source ./external/cdst_build_library/build_lib_gcc
 
 source $top_level/release_versioning
 cti_version=
@@ -37,6 +37,9 @@ fi
 setup_modules
 
 module load cray-cdst-support
+check_exit_status
+
+module load cray-dyninst
 check_exit_status
 
 module list

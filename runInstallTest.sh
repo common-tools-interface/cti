@@ -2,7 +2,7 @@
 #
 # runInstallTest.sh - Install Test step for the CTI
 #
-# Copyright 2021 Hewlett Packard Enterprise Development LP
+# Copyright 2021-2023 Hewlett Packard Enterprise Development LP
 #
 # Unpublished Proprietary Information.
 # This unpublished work is protected to trade secret, copyright and other laws.
@@ -46,13 +46,13 @@ elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
 fi
 
 echo "############################################"
-echo "#               Release Info               #"
+echo "#              Release Notes               #"
 echo "############################################"
-# Print release info file to stdout
-if [ -f $install_dir/release_info ]; then
-  cat $install_dir/release_info
+# Print release notes file to stdout
+if [ -f $install_dir/release_notes.md ]; then
+  cat $install_dir/release_notes.md
 else
-  echo "$install_dir/release_info was not generated."
+  echo "$install_dir/release_notes.md was not generated."
   exit 1
 fi
 

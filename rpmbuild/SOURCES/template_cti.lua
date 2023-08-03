@@ -19,7 +19,7 @@ local NICKNAME  = "cti"
 local PE_DIR    = INSTALL_ROOT .. "/" .. NICKNAME .. "/" .. MOD_LEVEL
 
  -- module release info variables
-local REL_FILE            = PE_DIR .. "/release_info"
+local REL_FILE            = PE_DIR .. "/release_notes.md"
 local rel_info            = ""
 if isFile(REL_FILE) then
     local f = io.open(REL_FILE, "r")
@@ -57,13 +57,10 @@ setenv (           "PE_CTI_MODULE_NAME",       myModuleName()                )
 
 append_path   (    "PE_PRODUCT_LIST",          "CRAY-CTI"                    )
 
-prepend_path  (    "PE_PKGCONFIG_PRODUCTS",    "PE_CTI"                      )
-prepend_path  (    "PKG_CONFIG_PATH",          PE_DIR .. "/lib/pkgconfig"    )
-prepend_path  (    "PE_PKG_CONFIG_PATH",       PE_DIR .. "/lib/pkgconfig"    )
 prepend_path  (    "MANPATH",                  PE_DIR .. "/share/man"        )
 
  -- set LD_LIBRARY_PATH only if non-default version
-local DEFAULT_VER_FILE = INSTALL_ROOT .. "/lmod/modulefiles/core/cray-cti/.version"
+local DEFAULT_VER_FILE = "/opt/cray/pe/lmod/modulefiles/core/cray-cti/.version"
 local default_ver      = nil
 if isFile(DEFAULT_VER_FILE) then
     local f = io.open(DEFAULT_VER_FILE, "r")

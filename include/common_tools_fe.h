@@ -4,29 +4,7 @@
  *                     location where applications are launched.
  *
  * Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * SPDX-License-Identifier: Linux-OpenIB
  *****************************************************************************/
 
 #ifndef _COMMON_TOOLS_FE_H
@@ -1036,6 +1014,30 @@ typedef struct {
 typedef struct {
     cti_app_id_t    (*registerJob)(char const* job_id);
 } cti_flux_ops_t;
+
+/*-----------------------------------------------------------------------------
+ * cti_localhost_ops extensions - Extensions for the Localhost mock WLM
+ *-----------------------------------------------------------------------------
+ * registerJob - Registers an already running application for use with the
+ *               common tools interface.
+ *
+ * Detail
+ *      This form of launch is currently only implemented for jobs launched 
+ *      internally via gdb4hpc with CTI_WLM_IMPL=localhost.
+ *
+ * Arguments
+ *      job_id - <gdb4hpc process-id>.<executable name>
+ *
+ * Returns
+ *      A cti_app_id_t that contains the ID registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ *-----------------------------------------------------------------------------
+ */
+
+typedef struct {
+    cti_app_id_t    (*registerJob)(char const* job_id);
+} cti_localhost_ops_t;
+
 
 /*******************************************************************************
  * Transfer functions - Functions related to shipping files, shared libraries,

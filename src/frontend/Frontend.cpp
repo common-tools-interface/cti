@@ -1,35 +1,17 @@
 /*********************************************************************************\
  * Frontend.cpp - define workload manager frontend interface and common base class
  *
- * Copyright 2014-2020 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Copyright 2014-2023 Hewlett Packard Enterprise Development LP.
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 // This pulls in config.h
 #include "cti_defs.h"
 #include "cti_argv_defs.hpp"
+
+#include <filesystem>
+#include <algorithm>
+#include <chrono>
 
 #include <sys/types.h>
 #include <assert.h>
@@ -140,107 +122,121 @@ Frontend::getLogger(void)
     return _cti_init.get();
 }
 
-std::string
-Frontend::findCfgDir()
-{
-    // Get the pw info, this is used in the unique name part of cfg directories
-    // and when doing the final ownership check
-    std::string username;
-    decltype(passwd::pw_uid) uid;
-
-    // FIXME: How to ensure sane pwd?
-    assert(m_pwd.pw_name != nullptr);
-
-    username = std::string(m_pwd.pw_name);
-    uid = m_pwd.pw_uid;
-
-    // get the cfg dir settings
-    std::string customCfgDir, cfgDir;
-    if (const char* cfg_dir_env = getenv(CTI_CFG_DIR_ENV_VAR)) {
-        customCfgDir = std::string(cfg_dir_env);
-    }
-    else {
-        // look in this order: $TMPDIR, /tmp, $HOME
-        for (auto&& dir_var : { const_cast<const char *>(getenv("TMPDIR")), "/tmp", const_cast<const char *>(getenv("HOME")) }) {
-            if ((dir_var != nullptr) && cti::dirHasPerms(dir_var, R_OK | W_OK | X_OK)) {
-                cfgDir = std::string(dir_var);
-                break;
-            }
+static void createCfgDir(const std::string& path) {
+    if (::mkdir(path.c_str(), S_IRWXU)) {
+        switch (errno) {
+            case EEXIST:
+                // Something already exists at path. verifyCfgDir will make sure
+                // that it's a directory with the right permissions. Our job here is done.
+                return;
+            default:
+                throw std::runtime_error(std::string("mkdir(") + path + ") " + strerror(errno));
         }
     }
+}
 
-    // Create the directory name string - we default this to have the name cti-<username>
-    std::string cfgPath;
-    if (!customCfgDir.empty()) {
-        cfgPath = customCfgDir + "/cti-" + username;
-    }
-    else if (!cfgDir.empty()) {
-        cfgPath = cfgDir + "/cti-" + username;
-    }
-    else {
-        // We have no where to create a temporary directory...
-        throw std::runtime_error(std::string("Cannot find suitable config directory. Try setting the env variable ") + CTI_CFG_DIR_ENV_VAR);
+static std::string verifyAndExpandCfgDir(const std::string& path, uid_t uid) {
+    // verify that path is a directory and that we can access it
+    if (!cti::dirHasPerms(path.data(), R_OK | W_OK | X_OK)) {
+        throw std::runtime_error(std::string{"Bad directory: "} + path + ": bad permissions (needs rwx)");
     }
 
-    if (customCfgDir.empty()) {
-        // default cfgdir behavior: create if not exist, chmod if bad perms
-        // try to stat the directory
+    // verify that it has *no more* permissions than expected
+    {
         struct stat st;
-        if (stat(cfgPath.c_str(), &st)) {
-            // the directory doesn't exist so we need to create it using perms 700
-            if (mkdir(cfgPath.c_str(), S_IRWXU)) {
-                throw std::runtime_error(std::string("mkdir() ") + strerror(errno));
-            }
+        if (stat(path.data(), &st)) {
+            // could not stat the directory
+            throw std::runtime_error(std::string("stat(") + path + ") " + strerror(errno));
         }
-        else {
-            // directory already exists, so chmod it if has bad permissions.
-            // We created this directory previously.
-            if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU) {
-                if (chmod(cfgPath.c_str(), S_IRWXU)) {
-                    throw std::runtime_error(std::string("chmod() ") + strerror(errno));
+
+        if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU) {
+            // bits other than S_IRWXU are set
+            throw std::runtime_error(std::string("Bad permissions (Only 0700 allowed) for ") + path);
+        }
+    }
+
+    // expand to real path
+    auto real_path = std::filesystem::canonical(path);
+
+    // Ensure we have ownership of this directory, otherwise it is untrusted
+    {
+        struct stat st;
+        memset(&st, 0, sizeof(st));
+        if (stat(path.c_str(), &st)) {
+            throw std::runtime_error(std::string("stat(") + path + ") " + strerror(errno));
+        }
+        if (st.st_uid != uid) {
+            throw std::runtime_error(std::string("Directory already exists: ") + path);
+        }
+    }
+
+    return real_path;
+}
+
+std::string
+Frontend::setupCfgDir()
+{
+    // Create a config directory for this specific instance of the CTI frontend. The
+    // config directory is used to store temporary files.
+    //
+    // It will be created at <top path>/<base path>/<config path>:
+    //   <top path>: some generic, already existing, directory that the user has write access to (e.g. /tmp),
+    //   <base path>: a special directory we create for CTI files (e.g. /tmp/cti-username),
+    //   <config path>: the directory we create for *this* CTI instance (e.g. /tmp/cti-username/<pid>)
+    //
+    // CTI_CFG_DIR_ENV_VAR allows a user to specify the <top path>.
+
+    // top path
+    std::string top_path;
+    {
+        if (const char* cfg_dir_env = getenv(CTI_CFG_DIR_ENV_VAR)) {
+            top_path = cfg_dir_env;
+        } else {
+            const auto strGetEnv = [](const char* key) -> std::string {
+                const char* value = ::getenv(key);
+                return value ? value : "";
+            };
+
+            // look in this order: $TMPDIR, /tmp, $HOME
+            const auto search_dirs = std::vector<std::string> {
+                strGetEnv("TMPDIR"),
+                "/tmp",
+                strGetEnv("HOME"),
+            };
+
+            for (auto&& dir_var : search_dirs) {
+                if (!dir_var.empty() && cti::dirHasPerms(dir_var.c_str(), R_OK | W_OK | X_OK)) {
+                    top_path = dir_var;
+                    break;
                 }
             }
         }
-    }
-    else {
-        // The user set CTI_CFG_DIR_ENV_VAR, we *ALWAYS* want to use that
-        // custom cfgdir behavior: error if not exist or bad perms
-        // Check to see if we can write to this directory
-        if (!cti::dirHasPerms(cfgPath.c_str(), R_OK | W_OK | X_OK)) {
-            throw std::runtime_error(std::string("Bad directory specified by environment variable ") + CTI_CFG_DIR_ENV_VAR);
-        }
-        // verify that it has the permissions we expect
-        struct stat st;
-        if (stat(cfgPath.c_str(), &st)) {
-            // could not stat the directory
-            throw std::runtime_error(std::string("stat() ") + strerror(errno));
-        }
-        if ((st.st_mode & (S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO)) & ~S_IRWXU) {
-            // bits other than S_IRWXU are set
-            throw std::runtime_error(std::string("Bad permissions (Only 0700 allowed) for directory specified by environment variable ") + CTI_CFG_DIR_ENV_VAR);
+
+        if (top_path.empty()) {
+            // We have no where to create a temporary directory...
+            throw std::runtime_error(
+                std::string("Cannot find suitable config directory. Try setting "
+                            "the env variable ") + CTI_CFG_DIR_ENV_VAR);
         }
     }
 
-    // make sure we have a good path string
-    if (char *realCfgPath = realpath(cfgPath.c_str(), nullptr)) {
-        cfgPath = std::string(realCfgPath);
-        free(realCfgPath);
-    }
-    else {
-        throw std::runtime_error(std::string("realpath() ") + strerror(errno));
+    // base path
+    std::string base_path;
+    {
+        // FIXME: How to ensure sane pwd?
+        if (!m_pwd.pw_name)
+            throw std::runtime_error("Unable to determine username");
+
+        base_path = top_path + "/cti-" + std::string(m_pwd.pw_name);
+        createCfgDir(base_path);
+        // expands to full path
+        base_path = verifyAndExpandCfgDir(base_path, m_pwd.pw_uid);
     }
 
-    // Ensure we have ownership of this directory, otherwise it is untrusted
-    struct stat st;
-    memset(&st, 0, sizeof(st));
-    if (stat(cfgPath.c_str(), &st)) {
-        throw std::runtime_error(std::string("stat() ") + strerror(errno));
-    }
-    if (st.st_uid != uid) {
-        throw std::runtime_error(std::string("Directory already exists: ") + cfgPath);
-    }
-
-    return cfgPath;
+    // config path
+    auto cfg_dir = base_path + "/" + std::to_string(::getpid());
+    createCfgDir(cfg_dir);
+    return verifyAndExpandCfgDir(cfg_dir, m_pwd.pw_uid);
 }
 
 std::string
@@ -292,65 +288,6 @@ Frontend::removeApp(std::shared_ptr<App> app)
     m_apps.erase(app);
 }
 
-// BUG 819725:
-// create the hidden name for the cleanup file. This will be checked by future
-// runs to try assisting in cleanup if we get killed unexpectedly. This is cludge
-// in an attempt to cleanup. The ideal situation is to be able to tell the kernel
-// to remove a tarball if the process exits, but no mechanism exists today that
-// I know about that allows us to share the file with other processes later on.
-void
-Frontend::addFileCleanup(std::string const& file)
-{
-    // track file itself
-    m_cleanup_files.push_back(file);
-
-    // track cleanup file that stores this app's PID
-    std::string const cleanupFilePath{m_cfg_dir + "/." + file};
-    m_cleanup_files.push_back(std::move(cleanupFilePath));
-    auto cleanupFileHandle = cti::file::open(cleanupFilePath, "w");
-    pid_t pid = getpid();
-    cti::file::writeT<pid_t>(cleanupFileHandle.get(), pid);
-}
-
-// BUG 819725:
-// Attempt to cleanup old files in the cfg dir
-void
-Frontend::doFileCleanup()
-{
-    // Open cfg dir
-    auto cfgDir = cti::dir::open(m_cfg_dir);
-    // Recurse through each file in the directory
-    struct dirent *d;
-    while ((d = readdir(cfgDir.get())) != nullptr) {
-        std::string name{d->d_name};
-        // Skip the . and .. files
-        if ( name.size() == 1 && name.compare(".") == 0 ) {
-            continue;
-        }
-        if ( name.size() == 2 && name.compare("..") == 0 ) {
-            continue;
-        }
-        // Check this name against the stage prefix
-        if (name.rfind(STAGE_DIR_PREFIX, 0) == 0) {
-            // pattern matches, check to see if we need to remove
-            std::string file{m_cfg_dir + "/" + d->d_name};
-            auto fileHandle = cti::file::open(file, "r");
-            // read the pid from the file
-            pid_t pid = cti::file::readT<pid_t>(fileHandle.get());
-            // ping the process
-            if (kill(pid,0) == 0) {
-                // process is still alive
-                continue;
-            }
-            // process is dead we need to remove the tarball
-            std::string tarball_name{m_cfg_dir + "/" + (d->d_name+1)};
-            // unlink the files
-            unlink(tarball_name.c_str());
-            unlink(file.c_str());
-        }
-    }
-}
-
 namespace
 {
 
@@ -383,6 +320,7 @@ enum class WLM : int
     , ALPS
     , SSH
     , Flux
+    , Localhost
 };
 
 static std::string WLM_to_string(WLM const& wlm)
@@ -394,6 +332,7 @@ static std::string WLM_to_string(WLM const& wlm)
         case WLM::ALPS:    return "ALPS";
         case WLM::SSH:     return "SSH";
         case WLM::Flux:    return "Flux";
+        case WLM::Localhost: return "Localhost";
         default: assert(false);
     }
 }
@@ -464,13 +403,14 @@ static bool detect_PALS(std::string const& /* unused */)
         char const* rpm_argv[] =
             { "rpm", "-q"
             , "pbspro-server", "pbspro-client", "pbspro-execution"
+            , "openpbs-server", "openpbs-client", "openpbs-execution"
             , nullptr
         };
 
         // PBS is configured if at least one of these packages exists
-        // Return code of 3 means query of all 3 packages failed (not installed)
+        // Return code of 6 means query of all 6 packages failed (not installed)
         auto const failed_packages = cti::Execvp::runExitStatus("rpm", (char* const*)rpm_argv);
-        if (failed_packages == 3) {
+        if (failed_packages == 6) {
             return false;
         }
 
@@ -951,6 +891,8 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
             return WLM::PALS;
         } else if (wlmSetting == "flux") {
             return WLM::Flux;
+        } else if (wlmSetting == "localhost") {
+            return WLM::Localhost;
         } else {
             throw std::runtime_error("invalid WLM setting for " CTI_WLM_IMPL_ENV_VAR ": '"
                 + wlmSetting + "'");
@@ -1047,6 +989,9 @@ static void verify_System_WLM_configured(System const& system, WLM const& wlm, s
         verify_Flux_configured(system, wlm, launcherName);
         break;
 
+    case WLM::Localhost:
+        break;
+
     default:
         // TODO: write instructions on how to use the CTI diagnostic utility
         throw std::runtime_error("Could not detect either a PALS, Slurm, ALPS, Flux, or generic MPIR-compliant WLM. Manually set " CTI_WLM_IMPL_ENV_VAR" env var \
@@ -1090,6 +1035,9 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 (tried " + format_System_WLM(system, wlm) + ")");
 
 #endif
+
+    } else if (wlm == WLM::Localhost) {
+        return new LocalhostFrontend{};
 
     } else {
         assert(false);
@@ -1225,7 +1173,7 @@ Frontend::Frontend()
 
     // Setup the directories. We break these out into private static methods
     // to avoid pollution in the constructor.
-    m_cfg_dir = findCfgDir();
+    m_cfg_dir = setupCfgDir();
     m_base_dir = findBaseDir();
     // Following strings depend on m_base_dir
     m_ld_audit_path = cti::accessiblePath(m_base_dir + "/lib/" + LD_AUDIT_LIB_NAME);
@@ -1233,8 +1181,6 @@ Frontend::Frontend()
     m_be_daemon_path = cti::accessiblePath(m_base_dir + "/libexec/" + CTI_BE_DAEMON_BINARY);
     // init the frontend daemon now that we have the path to the binary
     m_daemon.initialize(m_fe_daemon_path);
-    // Try to conduct cleanup of the cfg dir to prevent forest fires
-    doFileCleanup();
 }
 
 Frontend::~Frontend()
@@ -1244,9 +1190,55 @@ Frontend::~Frontend()
         return;
     }
 
-    // Unlink the cleanup files since we are exiting normally
-    for (auto&& file : m_cleanup_files) {
-        unlink(file.c_str());
+    // Clean up temporary files.
+    std::filesystem::remove_all(getCfgDir());
+
+    // Sometimes, previous CTI frontends die and can't clean up. Try to clean up
+    // leftover temporary directories that are no longer in use.
+    try {
+        const auto base_path = std::filesystem::path(getCfgDir()).parent_path();
+
+        // Clean up an old directory if:
+        // - It is older than 5 minutes
+        // - Its name matches the format of a pid
+        // - And there is no process running that we control which matches the pid
+        auto to_remove = std::vector<std::filesystem::path>{};
+        for (const auto& dir_entr : std::filesystem::directory_iterator(base_path)) {
+            if (!dir_entr.is_directory()) continue;
+
+            // verify that the directory is at least 5 minutes old
+            using namespace std::chrono_literals;
+            auto last_write_time = std::filesystem::last_write_time(dir_entr.path());
+            auto age = std::filesystem::file_time_type::clock::now() - last_write_time;
+            if (age < 5min) continue;
+
+            // verify that the directory name could possibly be a pid
+            const auto filename = dir_entr.path().filename().string();
+            char* end = nullptr;
+            auto pid = ::strtol(filename.c_str(), &end, 10);
+
+            if (end != filename.c_str() + filename.size())
+                // directory name not exclusively digits
+                continue;
+
+            if (pid <= 0 || pid > std::numeric_limits<pid_t>::max())
+                // directory name is too small/too big to be a valid pid
+                continue;
+
+            // verify that the owning process is gone
+            if (!::kill(pid, 0)) continue;
+
+            to_remove.push_back(dir_entr.path());
+        }
+
+        for (const auto& path : to_remove) {
+            std::filesystem::remove_all(path);
+        }
+    } catch (const std::exception& e) {
+        writeLog("~Frontend: exception thrown while attempting to clean up old directories, skipping (%s).\n",
+            e.what());
+    } catch (...) {
+        writeLog("~Frontend: unknown exception thrown while attempting to clean up old directories, skipping.\n");
     }
 }
 

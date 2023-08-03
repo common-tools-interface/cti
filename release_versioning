@@ -1,29 +1,8 @@
 #==============================================================================
 # Release and shared library version control for the common tools interface.
 #
-# Copyright 2011-2022 Hewlett Packard Enterprise Development LP.
-#
-#     Redistribution and use in source and binary forms, with or
-#     without modification, are permitted provided that the following
-#     conditions are met:
-#
-#      - Redistributions of source code must retain the above
-#        copyright notice, this list of conditions and the following
-#        disclaimer.
-#
-#      - Redistributions in binary form must reproduce the above
-#        copyright notice, this list of conditions and the following
-#        disclaimer in the documentation and/or other materials
-#        provided with the distribution.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
-# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright 2011-2023 Hewlett Packard Enterprise Development LP.
+# SPDX-License-Identifier: Linux-OpenIB
 #
 # Note: After changing this file one must 'autoreconf -ifv' AND 'configure'
 #       needs to be committed.
@@ -90,12 +69,15 @@
 # else:
 #     leave the versions alone
 # 
-# NOTE: If you bump the manor number then reset the minor and revision to 0
+# NOTE: If you bump the major number then reset the minor and revision to 0
 #       If you bump the minor number then reset the revision to 0
 #==============================================================================
 
 common_tool_major="2"
-common_tool_minor="17"
+common_tool_minor="18"
+revision="2"
+# Jenkins will override this
+build_number=""
 
 be_current="4"
 be_age="2"
@@ -105,8 +87,6 @@ fe_current="4"
 fe_age="2"
 fe_revision="0"
 
-revision="2"
 
-# Jenkins will override this
-build_number=""
+
 

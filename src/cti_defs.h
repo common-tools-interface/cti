@@ -5,30 +5,8 @@
  *       placed inside this file to make modifications due to WLM changes
  *       easier.
  *
- * Copyright 2013-2020 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * Copyright 2013-2023 Hewlett Packard Enterprise Development LP.
+ * SPDX-License-Identifier: Linux-OpenIB
  ******************************************************************************/
 
 #ifndef _CTI_DEFS_H
@@ -123,7 +101,18 @@ typedef struct
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
 #define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
 #define SLURM_DAEMON_GRES_ENV_VAR "CTI_SLURM_DAEMON_GRES"           // Set to specify `--gres` argument for tool daemon launches (or leave blank to disable)
-#define SLURM_OVERRIDE_MC_ENV_VAR "CTI_SLURM_OVERRIDE_MC"                 // Set to disable Slurm multi-cluster check
+#define SLURM_OVERRIDE_MC_ENV_VAR "CTI_SLURM_OVERRIDE_MC"           // Set to disable Slurm multi-cluster check
+#define SLURM_NEVER_PARSE_SCANCEL                                              \
+  "CTI_SLURM_NEVER_PARSE_SCANCEL" // Due to a slurm bug
+                                  // (https://bugs.schedmd.com/show_bug.cgi?id=16551),
+                                  // the return code of the scancel command is
+                                  // not reliable enough to determine if a
+                                  // cti_killApp was successful. A workaround is
+                                  // implemented which parses the verbose output
+                                  // of scancel for confirmation. Set this
+                                  // environment variable to disable the
+                                  // workaround and rely soley on the scancel
+                                  // return code.
 
 /*******************************************************************************
 ** SSH specific information
@@ -144,6 +133,11 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_PASSPHRASE_ENV_VAR      "CTI_SSH_PASSPHRASE"
 #define SSH_PRIKEY_PATH_ENV_VAR     "CTI_SSH_PRIKEY_PATH"
 #define SSH_PUBKEY_PATH_ENV_VAR     "CTI_SSH_PUBKEY_PATH"
+
+#define LOCALHOST_PID_FILE  SLURM_PID_FILE
+#define LOCALHOST_TOOL_DIR  SLURM_TOOL_DIR
+#define LOCALHOST_STAGE_DIR SLURM_STAGE_DIR
+
 
 /*******************************************************************************
 ** ALPS specific information
@@ -171,7 +165,6 @@ typedef slurmPidFile_t          cti_pidFile_t;
 */
 
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
-#define PALS_BE_LIB_DEFAULT_PATH "/opt/cray/pe/pals/default/lib" // Location of default PALS library
 #define PALS_EXEC_HOST "CTI_PALS_EXEC_HOST" // To use PALS application ID for attaching outside of job's PBS allocation
 // In PALS 1.2.3, there is a race condition between the tool launcher
 // releasing a job from the startup barrier and the job actually getting to the

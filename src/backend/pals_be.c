@@ -2,29 +2,7 @@
  * pals_be.c - pals specific backend library functions.
  *
  * Copyright 2020 Hewlett Packard Enterprise Development LP.
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * SPDX-License-Identifier: Linux-OpenIB
  *********************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -405,20 +383,55 @@ cleanup__cti_be_pals_detect_libpals:
 		}
 	}
 
-	// If failed, use system default library path
-	if (detected_path == NULL) {
-		detected_path = PALS_BE_LIB_DEFAULT_PATH;
+	// Format detected path with libpals library and check for existence
+	if (detected_path != NULL) {
+
+		// Format path
+		int snprintf_rc = snprintf(path, path_cap,
+			"%s/%s", detected_path, PALS_BE_LIB_NAME);
+		if ((snprintf_rc < 0) || (snprintf_rc >= path_cap)) {
+			perror("snprintf");
+			return 1;
+		}
+
+		// Check for libpals library at path
+		fprintf(stderr, "Checking at %s... ", path);
+		if (access(path, R_OK) == 0) {
+			fprintf(stderr, "succeeded\n");
+			return 0;
+		}
+		fprintf(stderr, "failed\n");
 	}
 
-	// Format detected path with libpals library
-	int snprintf_rc = snprintf(path, path_cap,
-		"%s/%s", detected_path, PALS_BE_LIB_NAME);
-	if ((snprintf_rc < 0) || (snprintf_rc >= path_cap)) {
-		perror("snprintf");
-		return 1;
+	// Detection failed or libpals was not in detected directory
+	// Check in default paths
+	char const* pals_default_paths[] = {
+		"/opt/cray/pe/pals/default/lib",
+		"/opt/cray/pals/default/lib",
+		"/usr/lib64",
+		NULL
+	};
+	for (char const** default_path = pals_default_paths; *default_path != NULL; default_path++) {
+
+		// Format path
+		int snprintf_rc = snprintf(path, path_cap,
+			"%s/%s", *default_path, PALS_BE_LIB_NAME);
+		if ((snprintf_rc < 0) || (snprintf_rc >= path_cap)) {
+			perror("snprintf");
+			return 1;
+		}
+
+		// Check for libpals library at path
+		fprintf(stderr, "Checking at %s... ", path);
+		if (access(path, R_OK) == 0) {
+			fprintf(stderr, "succeeded\n");
+			return 0;
+		}
+		fprintf(stderr, "failed\n");
 	}
 
-	return 0;
+	// Failed to automatically detect
+	return 1;
 }
 
 /* Constructor/Destructor functions */
@@ -445,9 +458,14 @@ _cti_be_pals_init(void)
 
 	// Detect location of libpals
 	char libpals_path[PATH_MAX];
+	libpals_path[0] = '\0';
 	if (_cti_be_pals_detect_libpals(libpals_path, sizeof(libpals_path))) {
+
+		// Failed to automatically detect using pkg-config and in default paths
 		fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " failed to detect libpals path\n");
 		goto cleanup__cti_be_pals_init;
+
+	// Successfully detected path
 	} else {
 		fprintf(stderr, "Using detected libpals at: %s\n", libpals_path);
 	}

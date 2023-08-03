@@ -2,14 +2,8 @@
 #
 # runBuildPrep.sh - Preps the build environment
 #
-# Copyright 2019-2021 Hewlett Packard Enterprise Development LP
-#
-# Unpublished Proprietary Information.
-# This unpublished work is protected to trade secret, copyright and other laws.
-# Except as permitted by contract or express written permission of Hewlett
-# Packard Enterprise Development LP., no part of this work or its content may be
-# used, reproduced or disclosed in any form.
-#
+# Copyright 2019-2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: Linux-OpenIB
 
 source ./external/cdst_build_library/build_lib
 
@@ -22,6 +16,8 @@ target_arch=$(get_arch)
 if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
     if [[ "$target_arch" == "$cdst_arch_x86_64" ]]; then
       sudo zypper refresh -f
+    elif [[ "$target_arch" == "$cdst_arch_aarch64" && "$target_os" == "$cdst_os_sles15sp5" ]]; then
+      sudo zypper --non-interactive install libopenssl-devel
     fi
     # Install zypper based dependencies
     zypper --non-interactive install \
@@ -37,6 +33,7 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
         mksh \
         libtool \
         rpm-build \
+        python3-pip \
         zlib-devel
     check_exit_status
 
@@ -64,12 +61,13 @@ elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
         rpm-build \
         zlib-devel \
         tcl \
+        python3-pip \
         wget
     check_exit_status
 
     if [[ "$target_arch" == "$cdst_arch_aarch64" && "$target_os" == "$cdst_os_rhel84" ]]; then
       yum --assumeyes install \
-      https://arti.dev.cray.com/artifactory/hpe-rhel-remote/EL8/Update4/GA/CRB/os/Packages/autoconf-archive-2018.03.13-1.el8.noarch.rpm
+      https://arti.hpc.amslabs.hpecorp.net/artifactory/hpe-rhel-remote/EL8/Update4/GA/CRB/os/Packages/autoconf-archive-2018.03.13-1.el8.noarch.rpm
     else
       yum --assumeyes install autoconf-archive
     fi
@@ -86,6 +84,10 @@ check_exit_status
 
 # Install cdst_support
 install_cdst_support
+check_exit_status
+
+# Install Dyninst
+install_dyninst
 check_exit_status
 
 capture_jenkins_build

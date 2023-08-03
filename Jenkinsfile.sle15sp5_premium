@@ -1,19 +1,20 @@
 /******************************************************************************\
- * Jenkinsfile.rhel84_aarch64 - DST Jenkins pipeline for rhel84 aarch64
+ * Jenkinsfile.sle15sp5_premium - DST Jenkins pipeline for Sles 15 SP5 Shasta
  *
- * Copyright 2022 Hewlett Packard Enterprise Development LP
+ * Copyright 2007-2023 Hewlett Packard Enterprise Development LP
  *
  * Unpublished Proprietary Information.
  * This unpublished work is protected to trade secret, copyright and other laws.
  * Except as permitted by contract or express written permission of Hewlett
- * Packard Enterprise Development LP., no part of this work or its content may be 
+ * Packard Enterprise Development LP., no part of this work or its content may be
  * used, reproduced or disclosed in any form.
  *
  ******************************************************************************/
 
 @Library("dst-shared@master") _
 
-rhel8_4PEaarch64 {
+sle15sp5PE {
     timeout = 240
+    agent = 'gcp-x86_64'
     product = "pe-base"
 }
