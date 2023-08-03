@@ -67,9 +67,26 @@ m4_ifdef([AX_CODE_COVERAGE], [
 dnl Detect CDST support path if loaded
 AS_IF([test -d "$CRAY_CDST_SUPPORT_INSTALL_DIR"], [
   with_libarchive="$CRAY_CDST_SUPPORT_INSTALL_DIR"
-  with_libssh2="$CRAY_CDST_SUPPORT_INSTALL_DIR"
+  with_libiconv=""
+  with_libssh2_pc="$CRAY_CDST_SUPPORT_INSTALL_DIR/lib/pkgconfig/libssh2.pc"
   with_boost="$CRAY_CDST_SUPPORT_INSTALL_DIR"
 ])
+
+dnl Get libiconv
+AC_ARG_WITH([libiconv],
+  [AS_HELP_STRING[--with-libiconv=<path>],
+    [The top-level directory to the libiconv installation])],
+  [AS_IF([test -d "$with_libiconv"],
+    [LIBICONV_PKG_CONFIG_PATH="$with_libiconv/lib/pkgconfig"])],
+  [])
+
+dnl Set libarchive path and get pkg-config flags
+LIBARCHIVE_INSTALL_DIR="$with_libarchive"
+AC_SUBST([LIBARCHIVE_INSTALL_DIR])
+pkg_config_path_SAVE="$PKG_CONFIG_PATH"
+PKG_CONFIG_PATH="$LIBICONV_PKG_CONFIG_PATH:$PKG_CONFIG_PATH"
+PKG_CHECK_MODULES([LIBARCHIVE], [$LIBARCHIVE_INSTALL_DIR/lib/pkgconfig/libarchive.pc])
+PKG_CONFIG_PATH="$pkg_config_path_SAVE"
 
 dnl Get libarchive path
 AC_ARG_WITH([libarchive],
@@ -85,19 +102,17 @@ LIBARCHIVE_INSTALL_DIR="$with_libarchive"
 AC_SUBST([LIBARCHIVE_INSTALL_DIR])
 PKG_CHECK_MODULES([LIBARCHIVE], [$LIBARCHIVE_INSTALL_DIR/lib/pkgconfig/libarchive.pc])
 
-dnl Get libssh2 path
-AC_ARG_WITH([libssh2],
-  [AS_HELP_STRING[--with-libssh2=<path>],
-    [The top-level directory to the libssh2 installation])],
-  [AS_IF([test -d "$with_libssh2"],
-    [AC_MSG_NOTICE([Using libssh2 from "$with_libssh2"])],
-    [AC_MSG_ERROR([--with-libssh2 directory "$with_libssh2" not found])])],
-  [AC_MSG_ERROR([Use --with-libssh2=<path> to specify the path to libssh2])])
+dnl Get libssh2 pkgconfig script path
+AC_ARG_WITH([libssh2_pc],
+  [AS_HELP_STRING[--with-libssh2-pc=<path>],
+    [The path to the libssh2 pkg-config script])],
+  [AS_IF([test -f "$with_libssh2_pc"],
+    [AC_MSG_NOTICE([Using libssh2 script "$with_libssh2_pc"])],
+    [AC_MSG_ERROR([--with-libssh2-pc file "$with_libssh2_pc" not found])])],
+  [AC_MSG_ERROR([Use --with-libssh2-pc=<path> to specify the libssh2 pkg-config script path])])
 
 dnl Set libssh2 path and get pkg-config flags
-LIBSSH2_INSTALL_DIR="$with_libssh2"
-AC_SUBST([LIBSSH2_INSTALL_DIR])
-PKG_CHECK_MODULES([LIBSSH2], [$LIBSSH2_INSTALL_DIR/lib/pkgconfig/libssh2.pc])
+PKG_CHECK_MODULES([LIBSSH2], [$with_libssh2_pc])
 
 dnl Use CDST support rpath from pkg-config
 AS_IF([test -d "$CRAY_CDST_SUPPORT_INSTALL_DIR"], [
