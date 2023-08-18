@@ -113,6 +113,9 @@ typedef struct
                                   // environment variable to disable the
                                   // workaround and rely soley on the scancel
                                   // return code.
+// Set by the Slurm daemon in job environment,
+// Can be used to detect nodename instead of querying scontrol
+#define SLURMD_NODENAME "SLURMD_NODENAME"
 
 /*******************************************************************************
 ** SSH specific information

@@ -73,13 +73,12 @@ detectHpcmAddress()
         try {
             auto cminfoOutput = cti::Execvp{"cminfo", (char* const*)cminfoArgv, cti::Execvp::stderr::Ignore};
 
-            // Return last line of query
+            // Return first line of query
             auto& cminfoStream = cminfoOutput.stream();
             std::string line;
-            while (std::getline(cminfoStream, line)) {
-                // Read line
+            if (std::getline(cminfoStream, line)) {
+                return line;
             }
-            return line;
 
         } catch (...) {
             return std::string{};
