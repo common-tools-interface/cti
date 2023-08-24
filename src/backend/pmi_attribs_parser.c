@@ -18,8 +18,8 @@
 #include "cti_be.h"
 #include "pmi_attribs_parser.h"
 
-pmi_attribs_t *
-_cti_be_getPmiAttribsInfo(void)
+static pmi_attribs_t *
+_getPmiAttribsInfo(int retry)
 {
     int                 i;
     FILE *              fp;
@@ -64,6 +64,11 @@ _cti_be_getPmiAttribsInfo(void)
     // try to open the pmi_attribs file
     while ((fp = fopen(fileName, "r")) == 0)
     {
+        // If retry was disabled, return immediately
+        if (retry == 0) {
+            return NULL;
+	}
+
         // If we failed to open the file, sleep for timer nsecs. Keep track of
         // the count and make sure that this does not equal the timeout value
         // in seconds.
@@ -213,6 +218,18 @@ _cti_be_getPmiAttribsInfo(void)
     fclose(fp);
 
     return rtn;
+}
+
+pmi_attribs_t *
+_cti_be_getPmiAttribsInfo(void)
+{
+    return _getPmiAttribsInfo(1);
+}
+
+pmi_attribs_t *
+_cti_be_getPmiAttribsInfoNoRetry(void)
+{
+    return _getPmiAttribsInfo(0);
 }
 
 void

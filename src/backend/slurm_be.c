@@ -144,6 +144,7 @@ _cti_be_slurm_getLayout(void)
     slurmLayoutFileHeader_t layout_hdr;
     slurmLayoutFile_t *     layout;
     int                     i;
+    size_t                  hostname_len;
 
     // sanity
     if (_cti_layout != NULL)
@@ -155,6 +156,7 @@ _cti_be_slurm_getLayout(void)
         fprintf(stderr, "_cti_be_slurm_getNodeHostname failed.\n");
         return 1;
     }
+    hostname_len = strlen(hostname);
 
     // allocate the slurmLayout_t object
     if ((my_layout = malloc(sizeof(slurmLayout_t))) == NULL)
@@ -232,6 +234,13 @@ _cti_be_slurm_getLayout(void)
         // check if this entry corresponds to our nid
         if (strncmp(layout[i].host, hostname, strlen(hostname)) == 0)
         {
+
+            // Hostname is a prefix of the entry, allow if entry is exactly equal,
+            // or if entry is a full domain name (next character is not alphanumeric)
+            if (isalnum(layout[i].host[hostname_len])) {
+                continue;
+            }
+
             // found it
             my_layout->PEsHere = layout[i].PEsHere;
             my_layout->firstPE = layout[i].firstPE;

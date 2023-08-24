@@ -579,6 +579,86 @@ PALSFrontend::getLauncherName()
     return launcherName;
 }
 
+static std::string
+createNodeLayoutFile(MPIRProctable const& mpirProctable, std::string const& stagePath)
+{
+    auto hostRankPEs = std::map<std::string, std::pair<int, int>>{};
+    int rank = 0;
+
+    for (auto&& [pid, hostname, executable] : mpirProctable) {
+
+        // Try to insert new host / first rank pair
+        auto [hostRankPair, added] = hostRankPEs.insert({hostname, {rank, 1}});
+
+        // Already exists, increment number of ranks instead
+        if (!added) {
+            hostRankPair->second.second++;
+        }
+
+        rank++;
+    }
+
+    auto make_layoutFileEntry = [](std::string const& hostname, int firstPE, int numPEs) {
+        // Ensure we have good hostname information.
+        auto const hostname_len = hostname.size() + 1;
+        if (hostname_len > sizeof(slurmLayoutFile_t::host)) {
+            throw std::runtime_error("hostname too large for layout buffer");
+        }
+
+        // Extract PE and node information from Node Layout.
+        auto layout_entry    = slurmLayoutFile_t{};
+        layout_entry.PEsHere = numPEs;
+        layout_entry.firstPE = firstPE;
+        memcpy(layout_entry.host, hostname.c_str(), hostname_len);
+
+        return layout_entry;
+    };
+
+    // Create the file path, write the file using the Step Layout
+    auto const layoutPath = std::string{stagePath + "/" + SLURM_LAYOUT_FILE};
+    if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
+
+        // Write the Layout header.
+        cti::file::writeT(layoutFile.get(), slurmLayoutFileHeader_t
+            { .numNodes = (int)hostRankPEs.size()
+        });
+
+        // Write a Layout entry using node information from each Slurm Node Layout entry.
+        for (auto const& [hostname, firstNumPEPair] : hostRankPEs) {
+            cti::file::writeT(layoutFile.get(), make_layoutFileEntry(hostname,
+                firstNumPEPair.first, firstNumPEPair.second));
+        }
+
+        return layoutPath;
+    } else {
+        throw std::runtime_error("failed to open layout file path " + layoutPath);
+    }
+}
+
+static std::string
+createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath)
+{
+    auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
+    if (auto const pidFile = cti::file::open(pidPath, "wb")) {
+
+        // Write the PID List header.
+        cti::file::writeT(pidFile.get(), slurmPidFileHeader_t
+            { .numPids = (int)procTable.size()
+        });
+
+        // Write a PID entry using information from each MPIR ProcTable entry.
+        for (auto&& elem : procTable) {
+            cti::file::writeT(pidFile.get(), slurmPidFile_t
+                { .pid = elem.pid
+            });
+        }
+
+        return pidPath;
+    } else {
+        throw std::runtime_error("failed to open PID file path " + pidPath);
+    }
+}
+
 PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo)
     : App{fe, palsLaunchInfo.daemonAppId}
     , m_execHost{std::move(palsLaunchInfo.execHost)}
@@ -592,13 +672,13 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_toolPath{"/tmp/cti-" + m_apId}
     , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
-    , m_extraFiles{}
+    , m_extraFiles{createNodeLayoutFile(m_procTable, m_stagePath), createPIDListFile(m_procTable, m_stagePath)}
 
     , m_atBarrier{palsLaunchInfo.atBarrier}
 {
     // Get set of hosts for application
     for (auto&& [pid, hostname, executable] : m_procTable) {
-        m_hosts.emplace(hostname);
+        m_hosts.insert(hostname);
     }
 
     // Create remote toolpath directory
@@ -769,13 +849,52 @@ PALSApp::shipPackage(std::string const& tarPath) const
 {
     auto const destinationName = cti::cstr::basename(tarPath);
 
-    // Create host list argument
-    auto allHosts = std::stringstream{};
-    for (auto&& host : m_hosts) {
-        allHosts << host << ",";
+    // Create host list file
+    auto hostFileHandle = cti::temp_file_handle{m_stagePath + "/hostsXXXXXX"};
+    auto hostFile = std::ofstream{hostFileHandle.get()};
+
+    // PALS bug PE-49724, `palscp` will silently skip the execution host
+    // unless it is placed first in the host list
+
+    // Determine the hostname for the execution host
+    auto firstHost = [](std::set<std::string> const& hosts, std::string const& execHost) {
+
+        // Match on first part of exec host domain
+        auto first_dot = execHost.find(".");
+        auto full_match = (first_dot == std::string::npos);
+        auto execHostPrefix = (full_match)
+            ? execHost
+            : execHost.substr(0, first_dot + 1);
+
+        // Find hostname whose prefix matches that of the execution host
+        auto host = std::find_if(hosts.begin(), hosts.end(),
+            [&execHostPrefix](auto&& host) { return host.rfind(execHostPrefix, 0) == 0; });
+        if (host != hosts.end()) {
+            Frontend::inst().writeLog("PE-49724: Found hostname for exec host: %s\n", host->c_str());
+            return std::string{*host};
+        }
+
+        // Fall back to original host list ordering
+        Frontend::inst().writeLog("PE-49724: Failed to find hostname for exec host: %s\n", execHost.c_str());
+        return std::string{};
+    }(m_hosts, m_execHost);
+
+    // Write execution hostname as first entry
+    if (!firstHost.empty()) {
+        hostFile << firstHost << "\n";
     }
 
-    auto palscpArgv = cti::ManagedArgv{"palscp", "-L", allHosts.str().c_str(),
+    // Write the rest of the hostnames
+    for (auto&& host : m_hosts) {
+        if (host != firstHost) {
+            hostFile << host;
+        }
+    }
+
+    // Host file generation completed
+    hostFile.close();
+
+    auto palscpArgv = cti::ManagedArgv{"palscp", "-l", hostFileHandle.get(),
         "-f", tarPath, "-d", destinationName, m_apId};
 
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
