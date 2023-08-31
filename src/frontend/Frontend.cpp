@@ -675,20 +675,34 @@ static bool verify_XC_ALPS_configured(System const& system, WLM const& wlm,
     return true;
 }
 
-static bool detect_Slurm_multicluster()
+// A Slurm cluster launch / attach can be in one of three situations:
+// 1) One cluster (default) or multi-cluster where only one cluster has valid nodes
+// 2) Multi-cluster running from a cluster-unique node (usually compute or partitioned login nodes)
+// 3) Multi-cluster running from a node shared between multiple clusters or otherwise unassigned
+// Case 2 is identical to the default case 1 from our perspective, as long as the user
+//   is not attempting to attach to a job running on a different cluster. `sbcast` and `sattach`
+//   will function normally in this case. If the user does attempt to attach between clusters,
+//   Slurm will report the job ID as invalid. We can't detect this case without querying every
+//   cluster in the system.
+// Case 3 is not supported, as `sbcast` and `sattach` do not support selecting the target
+// cluster for the command.
+static bool detect_Slurm_shared_multicluster()
 {
     try {
-        char const* sacctmgrArgv[] = { SACCTMGR, "-P", "-n", "show", "clusters", nullptr };
+        char const* sacctmgrArgv[] = { SACCTMGR, "-P", "-n", "show", "cluster", "format=Cluster,ClusterNodes", nullptr };
 
         // Start sacctmgr
         auto sacctmgrOutput = cti::Execvp{SACCTMGR, (char* const*)sacctmgrArgv, cti::Execvp::stderr::Ignore};
 
-        // Count number of clusters
-        auto num_clusters = int{0};
+        // Count number of clusters that contain nodes
+        auto num_active_clusters = int{0};
         auto& sacctmgrStream = sacctmgrOutput.stream();
         auto clusterLine = std::string{};
         while (std::getline(sacctmgrStream, clusterLine)) {
-            num_clusters++;
+            auto&& [cluster, nodes] = cti::split::string<2>(clusterLine, '|');
+            if (!nodes.empty()) {
+                num_active_clusters++;
+            }
         }
 
         // Check return code
@@ -696,7 +710,22 @@ static bool detect_Slurm_multicluster()
             return false;
         }
 
-        return (num_clusters > 1);
+        // Multi-cluster systems where only one cluster has active nodes can be treated as
+        // a normal single cluster system
+        if (num_active_clusters <= 1) {
+            return false;
+        }
+
+        // Detect running from shared node (no cluster name specified in Slurm configuration)
+        { auto clusterNameArgv = cti::ManagedArgv{"sh", "-c",
+            "scontrol show config | grep ClusterName"};
+            if (cti::Execvp::runExitStatus("sh", clusterNameArgv.get())) {
+                return true;
+            }
+        }
+
+        // Running from a node within a defined cluster
+        return false;
 
     } catch(...) {
         return false;
@@ -741,14 +770,14 @@ static bool verify_Slurm_configured(System const& system, WLM const& wlm,
     // Check for multi-cluster system and allocation
     if (::getenv(SLURM_OVERRIDE_MC_ENV_VAR) == nullptr) {
 
-        if (detect_Slurm_multicluster()) {
+        if (detect_Slurm_shared_multicluster()) {
 
             if (!detect_Slurm_allocation()) {
                 throw std::runtime_error(
-                    "CTI uses several Slurm utilities to set up job launches. "
-                    "Your system was detected to be a multi-cluster system; some of "
-                    "these Slurm utilities do not support multi-cluster systems.\n"
-                    "To continue with launch, please run your job inside a Slurm allocation. "
+                    "CTI uses several Slurm utilities to set up job launches, some of which "
+                    "do not support specifying the target cluster within a multi-cluster system.\n"
+                    "To continue with launch, please start this tool inside a Slurm allocation "
+                    "or on a node within the same cluster as your target job.\n"
                     "To bypass this check, set the environment variable "
                     SLURM_OVERRIDE_MC_ENV_VAR);
             }
