@@ -34,6 +34,7 @@
 #include <sys/types.h>
 
 #include <stdexcept>
+#include <optional>
 
 #include "frontend/Frontend.hpp"
 
@@ -103,6 +104,31 @@ public: // slurm specific types
         std::vector<NodeLayout> nodes; // array of hosts
     };
 
+    struct HetJobId {
+        uint32_t job_id;
+        uint32_t step_id;
+        std::optional<uint32_t> het_offset;
+
+        // sattach requires adding the hetjob offset to the base job ID
+        auto get_sattach_id() const {
+            return (het_offset)
+                ? std::to_string(job_id + *het_offset) + "." + std::to_string(step_id)
+                : std::to_string(job_id) + "." + std::to_string(step_id);
+        }
+
+        // srun for tool daemon launch requires manually specifying the hetjob offset
+        auto get_srun_id() const {
+            return (het_offset)
+                ? std::to_string(job_id) + "+" + std::to_string(*het_offset) + "." + std::to_string(step_id)
+                : std::to_string(job_id) + "." + std::to_string(step_id);
+        }
+
+        // sbcast and scancel will handle hetjob topology when passed the base job ID
+        auto get_sbcast_scancel_id() const {
+            return std::to_string(job_id) + "." + std::to_string(step_id);
+        }
+    };
+
 public: // slurm specific interface
     auto const& getSrunAppArgs()    const { return m_srunAppArgs;    }
     auto const& getSrunDaemonArgs() const { return m_srunDaemonArgs; }
@@ -119,10 +145,11 @@ public: // slurm specific interface
       <newline>
       Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }...
     */
-    StepLayout fetchStepLayout(uint32_t job_id, uint32_t step_id);
+    std::map<std::string, StepLayout> fetchStepLayout(std::vector<HetJobId> const& jobIds);
 
     // Use a Slurm Step Layout to create the SLURM Node Layout file inside the staging directory, return the new path.
-    std::string createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath);
+    std::string createNodeLayoutFile(std::map<std::string, StepLayout> const& idLayout,
+        std::string const& stagePath);
 
     // Use an MPIR ProcTable to create the SLURM PID List file inside the staging directory, return the new path.
     std::string createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath);
@@ -154,7 +181,8 @@ private: // variables
     uint32_t m_jobId;
     uint32_t m_stepId;
     std::map<std::string, std::vector<int>> m_binaryRankMap; // Binary to rank ID map
-    SLURMFrontend::StepLayout m_stepLayout; // SLURM Layout of job step
+    std::vector<SLURMFrontend::HetJobId> m_allJobIds; // Extended list of job IDs including hetjob offsets
+    std::map<std::string, SLURMFrontend::StepLayout> m_stepLayout; // Map job ID to layout
     int      m_queuedOutFd; // Where to redirect stdout after barrier release
     int      m_queuedErrFd; // Where to redirect stderr after barrier release
     bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
@@ -165,9 +193,8 @@ private: // variables
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
 
 private: // member helpers
-    void redirectOutput(int stdoutFd, int stderrFd);
     void shipDaemon();
-    cti::ManagedArgv generateDaemonLauncherArgv();
+    cti::ManagedArgv generateDaemonLauncherArgv(char const* const* launcher_args);
 
 public: // app interaction interface
     std::string getJobId()            const override;
@@ -178,8 +205,8 @@ public: // app interaction interface
     std::vector<std::string> getExtraFiles() const override { return m_extraFiles; }
 
     bool   isRunning()       const override;
-    size_t getNumPEs()       const override { return m_stepLayout.numPEs;       }
-    size_t getNumHosts()     const override { return m_stepLayout.nodes.size(); }
+    size_t getNumPEs()       const override;
+    size_t getNumHosts()     const override;
     std::vector<std::string> getHostnameList()   const override;
     std::vector<CTIHost>     getHostsPlacement() const override;
     std::map<std::string, std::vector<int>> getBinaryRankMap() const override;

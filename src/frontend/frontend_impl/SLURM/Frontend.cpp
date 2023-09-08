@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <regex>
 #include <functional>
+#include <numeric>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -191,6 +192,70 @@ static void wait_forever_for_application_started(std::string const& jobId)
     wait_forever_for_application_state(job_step_zero_started, jobId);
 }
 
+// Heterogeneous jobs have multiple job IDs that include a hetjob offset
+// Get all real job IDs associated with the provided ID
+static std::vector<SLURMFrontend::HetJobId>
+get_all_job_ids(uint32_t job_id, uint32_t step_id)
+{
+    auto result = std::vector<SLURMFrontend::HetJobId>{};
+
+    // Query all job / step IDs associated with this job ID
+    auto jobId = std::to_string(job_id) + "." + std::to_string(step_id);
+    auto squeueArgv = cti::ManagedArgv{SQUEUE, "-h", "-o", "%i", "--job", jobId.c_str()};
+
+    // Create squeue output stream
+    auto squeueOutput = cti::Execvp(SQUEUE, squeueArgv.get(), cti::Execvp::stderr::Ignore);
+    auto& squeueStream = squeueOutput.stream();
+
+    // Read all IDs output by squeue
+    auto squeueLine = std::string{};
+    while (std::getline(squeueStream, squeueLine)) {
+
+        // Convert possible heterogeneous job ID to regular job ID
+        auto [baseId, hetjobOffset] = cti::split::string<2>(squeueLine, '+');
+
+        try {
+
+            // Job ID contained hetjob offset
+            if (!hetjobOffset.empty()) {
+
+                // Parse ID and offset
+                auto base_id = (uint32_t)std::stoul(baseId);
+                auto offset = (uint32_t)std::stoul(hetjobOffset);
+
+                // Add offset job ID to result list
+                result.push_back( SLURMFrontend::HetJobId
+                    { .job_id = base_id
+                    , .step_id = step_id
+                    , .het_offset = offset
+                });
+
+            // Nonheterogeneous job ID
+            } else {
+
+                // Parse ID and offset
+                auto base_id = (uint32_t)std::stoul(squeueLine);
+
+                // Add job ID to result list
+                result.push_back( SLURMFrontend::HetJobId
+                    { .job_id = base_id
+                    , .step_id = step_id
+                });
+            }
+
+        } catch (std::exception const&) {
+            throw std::runtime_error("Failed to parse job ID " + squeueLine + " from squeue " + jobId);
+        }
+    }
+
+    // wait for squeue to complete
+    if (squeueOutput.getExitStatus()) {
+        throw std::runtime_error("squeue " + jobId + " failed");
+    }
+
+    return result;
+}
+
 /* constructors / destructors */
 
 SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
@@ -198,7 +263,8 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     , m_jobId           { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_jobid")) }
     , m_stepId          { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_stepid")) }
     , m_binaryRankMap   { std::move(mpirData.binaryRankMap) }
-    , m_stepLayout      { fe.fetchStepLayout(m_jobId, m_stepId) }
+    , m_allJobIds       { get_all_job_ids(m_jobId, m_stepId) }
+    , m_stepLayout      { fe.fetchStepLayout(m_allJobIds) }
     , m_beDaemonSent    { false }
 
     , m_toolPath    { SLURM_TOOL_DIR }
@@ -208,8 +274,10 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
 
 {
     // Ensure there are running nodes in the job.
-    if (m_stepLayout.nodes.empty()) {
-        throw std::runtime_error("Application " + getJobId() + " does not have any nodes.");
+    for (auto&& [jobId, layout] : m_stepLayout) {
+        if (layout.nodes.empty()) {
+            throw std::runtime_error("Application " + jobId + " does not have any nodes.");
+        }
     }
 
     // Ensure application has been registered with daemon
@@ -267,28 +335,58 @@ SLURMApp::~SLURMApp()
 
 /* app instance creation */
 
-static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t jobId, uint32_t stepId)
+static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t job_id, uint32_t step_id)
 {
-    cti::OutgoingArgv<SattachArgv> sattachArgv(SATTACH);
-    sattachArgv.add(SattachArgv::Argument("-Q"));
-    sattachArgv.add(SattachArgv::Argument(std::to_string(jobId) + "." + std::to_string(stepId)));
+    auto result = FE_daemon::MPIRResult
+        { .mpir_id = -1
+        , .launcher_pid = -1
+    };
 
-    // get path to SATTACH binary for MPIR control
-    if (auto const sattachPath = cti::take_pointer_ownership(_cti_pathFind(SATTACH, nullptr), std::free)) {
-        try {
-            // request an MPIR session to extract proctable
-            auto const mpirResult = fe.Daemon().request_LaunchMPIR(
-                sattachPath.get(), sattachArgv.get(), -1, -1, -1, nullptr);
+    // Get all real job and step IDs
+    auto jobIds = get_all_job_ids(job_id, step_id);
 
-            return mpirResult;
+    for (auto&& hetJobId : jobIds) {
 
-        } catch (std::exception const& ex) {
-            throw std::runtime_error("Failed to attach to job using SATTACH. Try running `\
-" SATTACH " -Q " + std::to_string(jobId) + "." + std::to_string(stepId) + "`");
+        auto sattachArgv = cti::OutgoingArgv<SattachArgv>(SATTACH);
+        sattachArgv.add(SattachArgv::Argument("-Q"));
+        sattachArgv.add(SattachArgv::Argument(hetJobId.get_sattach_id()));
+
+        // get path to SATTACH binary for MPIR control
+        if (auto const sattachPath = cti::take_pointer_ownership(_cti_pathFind(SATTACH, nullptr), std::free)) {
+            try {
+
+                // request an MPIR session to extract proctable
+                auto mpirResult = fe.Daemon().request_LaunchMPIR(
+                    sattachPath.get(), sattachArgv.get(), -1, -1, -1, nullptr);
+
+                // Add to result table
+                if (result.mpir_id < 0) {
+                    result.mpir_id = mpirResult.mpir_id;
+                } else {
+                    fe.Daemon().request_ReleaseMPIR(mpirResult.mpir_id);
+                }
+                if (result.launcher_pid < 0) {
+                    result.launcher_pid = mpirResult.launcher_pid;
+                }
+                result.proctable.reserve(result.proctable.size() + mpirResult.proctable.size());
+                std::move(mpirResult.proctable.begin(), mpirResult.proctable.end(),
+                    std::back_inserter(result.proctable));
+                for (auto&& [binary, srcRanks] : mpirResult.binaryRankMap) {
+                    auto dstRanks = result.binaryRankMap[binary];
+                    dstRanks.reserve(dstRanks.size() + srcRanks.size());
+                    std::move(srcRanks.begin(), srcRanks.end(), std::back_inserter(dstRanks));
+                }
+
+            } catch (std::exception const& ex) {
+                throw std::runtime_error("Failed to attach to job using SATTACH. Try running `"
+                    SATTACH " -Q " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+            }
+        } else {
+            throw std::runtime_error("Failed to find SATTACH in path");
         }
-    } else {
-        throw std::runtime_error("Failed to find SATTACH in path");
     }
+
+    return result;
 }
 
 /* running app info accessors */
@@ -314,13 +412,29 @@ SLURMApp::isRunning() const
     return m_frontend.Daemon().request_CheckApp(m_daemonAppId);
 }
 
+size_t
+SLURMApp::getNumPEs() const
+{
+    return std::accumulate(m_stepLayout.begin(), m_stepLayout.end(), 0,
+        [](size_t sum, auto const& idLayoutPair) { return sum + idLayoutPair.second.numPEs; });
+}
+
+size_t
+SLURMApp::getNumHosts() const
+{
+    return std::accumulate(m_stepLayout.begin(), m_stepLayout.end(), 0,
+        [](size_t sum, auto const& idLayoutPair) { return sum + idLayoutPair.second.nodes.size(); });
+}
+
 std::vector<std::string>
 SLURMApp::getHostnameList() const
 {
     std::vector<std::string> result;
     // extract hostnames from each NodeLayout
-    std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-        [](SLURMFrontend::NodeLayout const& node) { return node.hostname; });
+    for (auto&& [id, layout] : m_stepLayout) {
+        std::transform(layout.nodes.begin(), layout.nodes.end(), std::back_inserter(result),
+            [](SLURMFrontend::NodeLayout const& node) { return node.hostname; });
+    }
     return result;
 }
 
@@ -329,10 +443,12 @@ SLURMApp::getHostsPlacement() const
 {
     std::vector<CTIHost> result;
     // construct a CTIHost from each NodeLayout
-    std::transform(m_stepLayout.nodes.begin(), m_stepLayout.nodes.end(), std::back_inserter(result),
-        [](SLURMFrontend::NodeLayout const& node) {
-            return CTIHost{node.hostname, node.numPEs};
-        });
+    for (auto&& [id, layout] : m_stepLayout) {
+        std::transform(layout.nodes.begin(), layout.nodes.end(), std::back_inserter(result),
+            [](SLURMFrontend::NodeLayout const& node) {
+                return CTIHost{node.hostname, node.numPEs};
+            });
+    }
     return result;
 }
 
@@ -348,31 +464,6 @@ void SLURMApp::releaseBarrier()
 {
     // release MPIR barrier
     m_frontend.Daemon().request_ReleaseMPIR(m_daemonAppId);
-}
-
-void
-SLURMApp::redirectOutput(int stdoutFd, int stderrFd)
-{
-    // create sattach argv
-    auto sattachArgv = cti::ManagedArgv {
-        SATTACH // first argument should be "sattach"
-        , "-Q"    // second argument is quiet
-        , getJobId() // third argument is the jobid.stepid
-    };
-
-    // redirect stdin / stderr / stdout
-    if (stdoutFd < 0) {
-        stdoutFd = STDOUT_FILENO;
-    }
-    if (stderrFd < 0) {
-        stderrFd = STDERR_FILENO;
-    }
-
-    m_frontend.Daemon().request_ForkExecvpUtil_Async(
-        m_daemonAppId, SATTACH, sattachArgv.get(),
-        // redirect stdin / stderr / stdout
-        open("/dev/null", O_RDONLY), stdoutFd, stderrFd,
-        nullptr);
 }
 
 void
@@ -397,37 +488,54 @@ environment variable " CTI_BASE_DIR_ENV_VAR " to the CTI install location.");
     m_beDaemonSent = true;
 }
 
-cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv()
+cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv(char const* const* launcher_args)
 {
+    auto result = cti::ManagedArgv{};
+
+    auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
+
     // Start adding the args to the launcher argv array
-    //
-    // This corresponds to:
-    //
-    // srun --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
+    result.add(slurmFrontend.getLauncherName());
+
+    // For each job ID, add 
+    // --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
     // --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
     // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
     // --input=none --output=none --error=none <tool daemon> <args>
-    //
-    auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
-    auto launcherArgv = cti::ManagedArgv {
-        slurmFrontend.getLauncherName()
-        , "--jobid=" + std::to_string(m_jobId)
-        , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
-    };
-    for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
-        launcherArgv.add(arg);
+
+    auto first = true;
+    for (auto&& [id, layout] : m_stepLayout) {
+
+        // Hetjob launch separator
+        if (first) {
+            first = false;
+        } else {
+            result.add(":");
+        }
+
+        result.add("--jobid=" + id);
+        result.add("--nodes=" + std::to_string(layout.nodes.size()));
+
+        for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
+            result.add(arg);
+        }
+
+        // create the hostlist by concatenating all hostnames
+        auto hostlist = std::string{};
+        bool firstHost = true;
+        for (auto const& node : layout.nodes) {
+            hostlist += (firstHost ? "" : ",") + node.hostname;
+            firstHost = false;
+        }
+        result.add("--nodelist=" + hostlist);
+
+        // Add the supplied launcher arguments
+        for (auto arg = launcher_args; *arg != nullptr; arg++) {
+            result.add(*arg);
+        }
     }
 
-    // create the hostlist by concatenating all hostnames
-    auto hostlist = std::string{};
-    bool firstHost = true;
-    for (auto const& node : m_stepLayout.nodes) {
-        hostlist += (firstHost ? "" : ",") + node.hostname;
-        firstHost = false;
-    }
-    launcherArgv.add("--nodelist=" + hostlist);
-
-    return launcherArgv;
+    return result;
 }
 
 void SLURMApp::kill(int signum)
@@ -550,24 +658,35 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
 
         // Start adding the args to the launcher argv array
         auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
-        auto launcherArgv = cti::ManagedArgv {
-            slurmFrontend.getLauncherName()
-            , "--jobid=" + std::to_string(m_jobId)
-            , "--nodes=" + std::to_string(m_stepLayout.nodes.size())
-            , "--nodelist=" + hostname
-        };
 
-        // Add daemon launch arguments, except for output redirection
-        for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
-            if (arg != "--output=none") {
-                launcherArgv.add(arg);
+        auto launcherArgv = cti::ManagedArgv{slurmFrontend.getLauncherName()};
+
+        auto first = true;
+        for (auto&& [id, layout] : m_stepLayout) {
+
+            // Hetjob launch separator
+            if (first) {
+                first = false;
+            } else {
+                launcherArgv.add(":");
             }
-        }
 
-        // Add utility command and each PID
-        launcherArgv.add(reparentUtilityPath);
-        for (auto&& pid : pids) {
-            launcherArgv.add(std::to_string(pid));
+            launcherArgv.add("--jobid=" + id);
+            launcherArgv.add("--nodes=" + std::to_string(layout.nodes.size()));
+            launcherArgv.add("--nodelist=" + hostname);
+
+            // Add daemon launch arguments, except for output redirection
+            for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
+                if (arg != "--output=none") {
+                    launcherArgv.add(arg);
+                }
+            }
+
+            // Add utility command and each PID
+            launcherArgv.add(reparentUtilityPath);
+            for (auto&& pid : pids) {
+                launcherArgv.add(std::to_string(pid));
+            }
         }
 
         // Build environment from blacklist
@@ -682,24 +801,27 @@ void SLURMApp::startDaemon(const char* const args[], bool synchronous)
     }
 
     // Build daemon launcher arguments
-    auto launcherArgv = generateDaemonLauncherArgv();
-    launcherArgv.add("--output=none"); // Suppress tool output
+    auto launcherArgs = cti::ManagedArgv{};
+    launcherArgs.add("--output=none"); // Suppress tool output
 
     // Use container instance if provided
     if (auto container_instance = ::getenv(CTI_CONTAINER_INSTANCE_ENV_VAR)) {
-        launcherArgv.add("singularity");
-        launcherArgv.add("exec");
-        launcherArgv.add(container_instance);
+        launcherArgs.add("singularity");
+        launcherArgs.add("exec");
+        launcherArgs.add(container_instance);
     }
 
-    launcherArgv.add(m_toolPath + "/" + getBEDaemonName());
+    launcherArgs.add(m_toolPath + "/" + getBEDaemonName());
 
     // merge in the args array if there is one
     if (args != nullptr) {
         for (const char* const* arg = args; *arg != nullptr; arg++) {
-            launcherArgv.add(*arg);
+            launcherArgs.add(*arg);
         }
     }
+
+    // Generate the final launcher argv array
+    auto launcherArgv = generateDaemonLauncherArgv(launcherArgs.get());
 
     // build environment from blacklist
     auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
@@ -736,11 +858,14 @@ SLURMApp::checkFilesExist(std::set<std::string> const& paths)
     }
 
     // Build daemon launcher arguments
-    auto launcherArgv = generateDaemonLauncherArgv();
-    launcherArgv.add(m_toolPath + "/" + getBEDaemonName());
+    auto launcherArgs = cti::ManagedArgv{};
+    launcherArgs.add(m_toolPath + "/" + getBEDaemonName());
     for (auto&& path : paths) {
-        launcherArgv.add("--file=" + path);
+        launcherArgs.add("--file=" + path);
     }
+
+    // Generate the final launcher argv array
+    auto launcherArgv = generateDaemonLauncherArgv(launcherArgs.get());
 
     auto stdoutPipe = cti::Pipe{};
 
@@ -757,7 +882,7 @@ SLURMApp::checkFilesExist(std::set<std::string> const& paths)
     auto stdoutStream = std::istream{&stdoutBuf};
 
     // Track number of present files
-    auto num_nodes = m_stepLayout.nodes.size();
+    auto num_nodes = getNumHosts();
     auto pathCountMap = std::map<std::string, size_t>{};
 
     // Read out all paths from daemon
@@ -989,14 +1114,18 @@ SLURMFrontend::getLauncherName()
     return launcherName;
 }
 
-SLURMFrontend::StepLayout
-SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
+// For heterogeneous jobs, this is invoked multiple times. Each invocation will start
+// the PE number at 0. Track the proper PE number and pass it as `pe_offset`
+static auto
+getStepLayout(std::string const& jobId, size_t pe_offset)
 {
+    auto result = SLURMFrontend::StepLayout{};
+
     // create sattach instance
     cti::OutgoingArgv<SattachArgv> sattachArgv(SATTACH);
     sattachArgv.add(SattachArgv::DisplayLayout);
     sattachArgv.add(SattachArgv::Argument("-Q"));
-    sattachArgv.add(SattachArgv::Argument(std::to_string(job_id) + "." + std::to_string(step_id)));
+    sattachArgv.add(SattachArgv::Argument(jobId));
 
     // create sattach output capture object
     cti::Execvp sattachOutput(SATTACH, sattachArgv.get(), cti::Execvp::stderr::Pipe);
@@ -1010,20 +1139,17 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
         if (sattachLine.compare("Job step layout:")) {
             throw std::runtime_error(
                 "Unexpected layout output from SATTACH: '" + sattachLine + "'. "
-                "Try running `" SATTACH " --layout "
-                + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+                "Try running `" SATTACH " --layout " + jobId + "`");
         }
     } else {
         throw std::runtime_error(
             "End of layout output from SATTACH (expected header). "
-            "Try running `" SATTACH " --layout "
-            + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+            "Try running `" SATTACH " --layout " + jobId + "`");
     }
 
-    StepLayout layout;
-    auto numNodes = int{0};
+    auto num_nodes = int{0};
 
-    // "  {numPEs} tasks, {numNodes} nodes ({hostname}...)"
+    // "  {numPEs} tasks, {num_nodes} nodes ({hostname}...)"
     if (std::getline(sattachStream, sattachLine)) {
         // split the summary line
         std::string rawNumPEs, rawNumNodes;
@@ -1031,14 +1157,14 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
             cti::split::string<3>(cti::split::removeLeadingWhitespace(sattachLine));
 
         // fill out sattach layout
-        layout.numPEs = std::stoul(rawNumPEs);
-        numNodes = std::stoi(rawNumNodes);
-        layout.nodes.reserve(numNodes);
+        result.numPEs += std::stoul(rawNumPEs);
+        num_nodes = std::stoi(rawNumNodes);
+        result.nodes.reserve(result.nodes.size() + num_nodes);
+
     } else {
         throw std::runtime_error(
             "End of layout output from SATTACH (expected summary). "
-            "Try running `" SATTACH " --layout "
-            + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+            "Try running `" SATTACH " --layout " + jobId + "`");
     }
 
     // seperator line
@@ -1046,11 +1172,11 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
 
     // "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
     for (auto i = int{0}; std::getline(sattachStream, sattachLine); i++) {
-        if (i >= numNodes) {
+        if (i >= num_nodes) {
             throw std::runtime_error(
-                "Target job has " + std::to_string(numNodes) + " nodes, but received "
-                "extra layout information from SATTACH. Try running `" SATTACH " --layout "
-                + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+                "Target job has " + std::to_string(num_nodes) + " nodes, but received "
+                "extra layout information from SATTACH. "
+                "Try running `" SATTACH " --layout " + jobId + "`");
         }
 
         // split the summary line
@@ -1059,24 +1185,42 @@ SLURMFrontend::fetchStepLayout(uint32_t job_id, uint32_t step_id)
             cti::split::string<6>(cti::split::removeLeadingWhitespace(sattachLine));
 
         // fill out node layout
-        layout.nodes.push_back(NodeLayout
+        result.nodes.push_back(SLURMFrontend::NodeLayout
             { hostname.substr(1, hostname.length() - 3) // remove parens and comma from hostname
             , std::stoul(numPEs)
-            , std::stoul(pe_0)
+            , std::stoul(pe_0) + pe_offset
         });
     }
 
     // wait for sattach to complete
     auto const sattachCode = sattachOutput.getExitStatus();
     if (sattachCode > 0) {
-        throw std::runtime_error("invalid job id " + std::to_string(job_id));
+        throw std::runtime_error("SATTACH failed. Try running `" SATTACH " --layout " + jobId + "`");
     }
 
-    return layout;
+    return result;
+}
+
+std::map<std::string, SLURMFrontend::StepLayout>
+SLURMFrontend::fetchStepLayout(std::vector<HetJobId> const& jobIds)
+{
+    auto result = std::map<std::string, SLURMFrontend::StepLayout>{};
+
+    auto next_pe_start = size_t{0};
+    for (auto&& hetJobId : jobIds) {
+
+        // Query sattach to get layout for job
+        auto layout = getStepLayout(hetJobId.get_sattach_id(), next_pe_start);
+        next_pe_start += layout.numPEs;
+        result[hetJobId.get_srun_id()] = std::move(layout);
+    }
+
+    return result;
 }
 
 std::string
-SLURMFrontend::createNodeLayoutFile(StepLayout const& stepLayout, std::string const& stagePath)
+SLURMFrontend::createNodeLayoutFile(std::map<std::string, StepLayout> const& idLayouts,
+    std::string const& stagePath)
 {
     // How a SLURM Node Layout File entry is created from a Slurm Node Layout entry:
     auto make_layoutFileEntry = [](NodeLayout const& node) {
@@ -1095,18 +1239,24 @@ SLURMFrontend::createNodeLayoutFile(StepLayout const& stepLayout, std::string co
         return layout_entry;
     };
 
+    // Get total number of nodes across all jobs
+    auto total_nodes = std::accumulate(idLayouts.begin(), idLayouts.end(), 0, 
+        [](size_t sum, auto const& idLayoutPair) { return sum + idLayoutPair.second.nodes.size(); });
+
     // Create the file path, write the file using the Step Layout
     auto const layoutPath = std::string{stagePath + "/" + SLURM_LAYOUT_FILE};
     if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
 
         // Write the Layout header.
         cti::file::writeT(layoutFile.get(), slurmLayoutFileHeader_t
-            { .numNodes = (int)stepLayout.nodes.size()
+            { .numNodes = (int)total_nodes
         });
 
         // Write a Layout entry using node information from each Slurm Node Layout entry.
-        for (auto const& node : stepLayout.nodes) {
-            cti::file::writeT(layoutFile.get(), make_layoutFileEntry(node));
+        for (auto&& [id, layout] : idLayouts) {
+            for (auto const& node : layout.nodes) {
+                cti::file::writeT(layoutFile.get(), make_layoutFileEntry(node));
+            }
         }
 
         return layoutPath;

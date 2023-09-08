@@ -93,6 +93,7 @@ typedef struct
 #define SCANCEL                 "scancel"                           // name of slurm job signal binary
 #define SBCAST                  "sbcast"                            // name of slurm transfer binary
 #define SACCTMGR                "sacctmgr"                          // name of slurm configuration binary
+#define SQUEUE                  "squeue"                            // name of slurm job queue binary
 #define SLURM_JOB_NAME          "SLURM_JOB_NAME"                    // Environment variable for Slurm job name
 #define SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid) // formula for creating Cray apid from SLURM jobid.stepid
 #define SLURM_TOOL_DIR          "/tmp"                              // SLURM staging path on compute node
