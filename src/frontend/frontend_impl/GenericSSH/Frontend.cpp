@@ -237,9 +237,9 @@ public: // Constructor/destructor
 
         // FIXME: This should be using a service name instead of hardcoded port number.
         //        Adjust ai_flags above for this fix.
-        // FIXME: How to handle containers with non-default SSH port numbers?
         struct addrinfo *host;
-        if ((rc = getaddrinfo(hostname.c_str(), "22", &hints, &host)) != 0) {
+        auto ssh_port = (getenv(SSH_PORT_ENV_VAR)) ? getenv(SSH_PORT_ENV_VAR) : "22";
+        if ((rc = getaddrinfo(hostname.c_str(), ssh_port, &hints, &host)) != 0) {
             throw std::runtime_error("getaddrinfo failed: " + std::string{gai_strerror(rc)});
         }
         // Take ownership of the host addrinfo into the unique_ptr.
