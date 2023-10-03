@@ -1073,9 +1073,10 @@ PALSApp::checkFilesExist(std::set<std::string> const& paths)
 
     // Create arguments for file check launch
     auto num_nodes = m_hosts.size();
+    writeLog("Checking for duplicate files on %zu nodes\n", num_nodes);
 
     auto mpiexecArgv = cti::ManagedArgv{
-        "mpiexec", "--mem-bind=none", "--ppn=1", "-n", std::to_string(num_nodes),
+        "mpiexec", "--envnone", "--mem-bind=none", "--ppn=1", "-n", std::to_string(num_nodes),
 
         // This is a new PALS application running outside the context of the original,
         // so it doesn't have access to daemons that were already shipped. However, mpiexec
@@ -1110,6 +1111,7 @@ PALSApp::checkFilesExist(std::set<std::string> const& paths)
 
         // Daemons will print an empty line when output is completed
         if (line.empty()) {
+            writeLog("Nodes left to check: %zu\n", exit_count);
             exit_count--;
 
         // Received path from daemon
@@ -1121,6 +1123,8 @@ PALSApp::checkFilesExist(std::set<std::string> const& paths)
             }
         }
     }
+
+    writeLog("Finished checking all nodes\n");
 
     return result;
 }
