@@ -266,6 +266,7 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
     , m_allJobIds       { get_all_job_ids(m_jobId, m_stepId) }
     , m_stepLayout      { fe.fetchStepLayout(m_allJobIds) }
     , m_beDaemonSent    { false }
+    , m_gresSetting {}
 
     , m_toolPath    { SLURM_TOOL_DIR }
     , m_attribsPath { cti::cstr::asprintf(SLURM_CRAY_DIR, SLURM_APID(m_jobId, m_stepId)) }
@@ -498,7 +499,7 @@ cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv(char const* const* launche
     result.add(slurmFrontend.getLauncherName());
 
     // For each job ID, add 
-    // --jobid=<job_id> --gres=none --mem-per-cpu=0 --mem_bind=no
+    // --jobid=<job_id> --mem-per-cpu=0 --mem_bind=no
     // --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
     // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
     // --input=none --output=none --error=none <tool daemon> <args>
@@ -515,9 +516,17 @@ cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv(char const* const* launche
 
         result.add("--jobid=" + id);
         result.add("--nodes=" + std::to_string(layout.nodes.size()));
+        if (!m_gresSetting.empty()) {
+            result.add("--gres=" + m_gresSetting);
+        }
 
         for (auto&& arg : slurmFrontend.getSrunDaemonArgs()) {
             result.add(arg);
+        }
+
+        // Add any extra from environment
+        if (auto slurm_daemon_args = getenv(SLURM_DAEMON_ARGS_ENV_VAR)) {
+            SLURMFrontend::detail::add_quoted_args(result, slurm_daemon_args);
         }
 
         // create the hostlist by concatenating all hostnames
@@ -947,6 +956,58 @@ static auto getSlurmVersion()
     }
 }
 
+std::string SLURMFrontend::detail::get_gres_setting(char const* const* launcher_argv)
+{
+    // Slurm bug https://bugs.schedmd.com/show_bug.cgi?id=12642 breaks gres=none setting
+    // Allow user to specify or clear this argument via environment variable
+    if (auto const slurm_gres = ::getenv(SLURM_DAEMON_GRES_ENV_VAR)) {
+        return slurm_gres;
+    }
+
+    // Inherit GPU GRES setting if provided
+    for (auto&& arg = launcher_argv; *arg != nullptr; arg++) {
+        if (::strncmp(*arg, "--gres", 6) == 0) {
+
+            // Get the inherited GRES setting
+            auto gresSetting = [](auto&& arg_ptr) {
+
+                // --gres setting
+                auto separate_arg = ((*arg_ptr)[6] == '\0');
+                auto has_next_arg = (*(arg_ptr + 1) != nullptr);
+                if (separate_arg && has_next_arg) {
+                    return std::string{*(arg_ptr + 1)};
+                }
+
+                // --gres=setting
+                auto equals_arg = ((*arg_ptr)[6] == '=');
+                if (equals_arg) {
+                    return std::string{(*arg_ptr) + 7};
+                }
+
+                return std::string{};
+            }(arg);
+
+            // Inherit GPU setting
+            while (!gresSetting.empty()) {
+
+                // Search GRES for GPU
+                auto&& [head, tail] = cti::split::string<2>(std::move(gresSetting), ',');
+
+                // Search for GPU GRES setting
+                if (head.rfind("gpu:", 0) == 0) {
+                    return head;
+                }
+
+                // Try next part of GRES
+                gresSetting = std::move(tail);
+            }
+        }
+    }
+
+    // If GRES argument is not specified, use gres=none
+    return "none";
+}
+
 SLURMFrontend::SLURMFrontend()
     : m_srunAppArgs {}
     , m_srunDaemonArgs
@@ -999,19 +1060,6 @@ SLURMFrontend::SLURMFrontend()
         m_checkScancelOutput = ::getenv(SLURM_NEVER_PARSE_SCANCEL) == nullptr;
     }
 
-    // Slurm bug https://bugs.schedmd.com/show_bug.cgi?id=12642
-    // breaks gres=none setting
-    // Allow user to specify or this argument via environment variable
-    if (auto const slurm_gres = ::getenv(SLURM_DAEMON_GRES_ENV_VAR)) {
-        if (slurm_gres[0] != '\0') {
-            m_srunDaemonArgs.emplace_back("--gres=" + std::string{slurm_gres});
-        }
-
-    // If GRES argument is not specified, use gres=none
-    } else {
-        m_srunDaemonArgs.emplace_back("--gres=none");
-    }
-
     // Add / override SRUN arguments from environment variables
     auto addArgsFromRaw = [](std::vector<std::string>& toVec, char const* fromStr) {
         auto argStr = std::string{fromStr};
@@ -1051,6 +1099,9 @@ SLURMFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     auto appPtr = std::make_shared<SLURMApp>(*this,
         launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list));
 
+    // Set tool daemon GRES based on launcher argument
+    appPtr->setGres(detail::get_gres_setting(launcher_argv));
+
     // Release barrier and continue launch
     appPtr->releaseBarrier();
 
@@ -1067,13 +1118,19 @@ std::weak_ptr<App>
 SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this,
-        launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list)));
+    auto appPtr = std::make_shared<SLURMApp>(*this,
+        launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list));
 
-    if (!ret.second) {
-        throw std::runtime_error("Failed to insert new SLURMApp.");
+    // Set tool daemon GRES based on launcher argument
+    appPtr->setGres(detail::get_gres_setting(launcher_argv));
+
+    // Register with frontend application set
+    auto resultInsertedPair = m_apps.emplace(std::move(appPtr));
+    if (!resultInsertedPair.second) {
+        throw std::runtime_error("Failed to insert new App object.");
     }
-    return *ret.first;
+
+    return *resultInsertedPair.first;
 }
 
 std::string
@@ -1334,7 +1391,7 @@ static auto read_timeout(int fd, int64_t usec)
     return result;
 }
 
-static void add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs)
+void SLURMFrontend::detail::add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs)
 {
     const auto view = std::string_view{quotedArgs};
 
@@ -1392,7 +1449,7 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
 
     // Check for launcher wrapper
     if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR)) {
-        add_quoted_args(launcherArgv, launcherWrapper);
+        detail::add_quoted_args(launcherArgv, launcherWrapper);
         use_shim = true;
     }
 

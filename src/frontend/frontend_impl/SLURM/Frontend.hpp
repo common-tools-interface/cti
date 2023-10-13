@@ -173,6 +173,14 @@ public: // constructor / destructor interface
     SLURMFrontend& operator=(const SLURMFrontend&) = delete;
     SLURMFrontend(SLURMFrontend&&) = delete;
     SLURMFrontend& operator=(SLURMFrontend&&) = delete;
+
+public: // unit testable
+struct detail
+{
+    static std::string get_gres_setting(char const* const* launcher_argv);
+    static void add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs);
+};
+
 };
 
 class SLURMApp final : public App
@@ -185,7 +193,9 @@ private: // variables
     std::map<std::string, SLURMFrontend::StepLayout> m_stepLayout; // Map job ID to layout
     int      m_queuedOutFd; // Where to redirect stdout after barrier release
     int      m_queuedErrFd; // Where to redirect stderr after barrier release
+
     bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
+    std::string m_gresSetting; // Tool daemon GRES
 
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
@@ -224,6 +234,9 @@ public: // slurm specific interface
     // Regenerate MPIR proctable where each job binary is running under the provided
     // wrapper binary (e.g. running inside Singulary container)
     MPIRProctable reparentProctable(MPIRProctable const& procTable, std::string const& wrapperBinary);
+
+    // Set GRES for subsequent tool daemon launches
+    void setGres(std::string const& gresSetting) { m_gresSetting = gresSetting; }
 
 public: // constructor / destructor interface
     SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);

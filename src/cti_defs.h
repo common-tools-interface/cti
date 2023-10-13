@@ -102,6 +102,7 @@ typedef struct
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
 #define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
 #define SLURM_DAEMON_GRES_ENV_VAR "CTI_SLURM_DAEMON_GRES"           // Set to specify `--gres` argument for tool daemon launches (or leave blank to disable)
+#define SLURM_DAEMON_ARGS_ENV_VAR "CTI_SLURM_DAEMON_ARGS"           // Set to specify extra tool daemon launch arguments
 #define SLURM_OVERRIDE_MC_ENV_VAR "CTI_SLURM_OVERRIDE_MC"           // Set to disable Slurm multi-cluster check
 #define SLURM_NEVER_PARSE_SCANCEL                                              \
   "CTI_SLURM_NEVER_PARSE_SCANCEL" // Due to a slurm bug
