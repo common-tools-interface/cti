@@ -298,6 +298,7 @@ enum class System : int
     , Shasta
     , XC
     , CS
+    , Eproxy
 };
 
 static std::string System_to_string(System const& system)
@@ -309,6 +310,7 @@ static std::string System_to_string(System const& system)
         case System::Shasta:  return "Cray Shasta";
         case System::XC:      return "Cray XC";
         case System::CS:      return "Cray CS";
+        case System::Eproxy:  return "Eproxy";
         default: assert(false);
     }
 }
@@ -392,6 +394,35 @@ static bool detect_CS()
     }
 
     return false;
+}
+
+// Check if this is an elogin node with eproxy configured
+static bool detect_Eproxy()
+{
+    // Check for Eproxy binary and configuration file
+    try {
+        char const* eproxyArgv[] = { "eproxy", "--check", nullptr };
+
+        // Start eproxy check
+        if (cti::Execvp::runExitStatus("eproxy", (char* const*)eproxyArgv)) {
+            return false;
+        }
+
+        // Look for Eproxy configuration
+        auto eproxy_keyfile = (::getenv("EPROXY_KEYFILE"))
+            ? ::getenv("EPROXY_KEYFILE")
+            : "/opt/cray/elogin/eproxy/etc/eproxy.ini";
+        if (!cti::fileHasPerms(eproxy_keyfile, R_OK)) {
+            return false;
+        }
+
+        // All Eproxy checks passed
+        return true;
+
+    } catch (...) {
+        // eproxy not installed
+        return false;
+    }
 }
 
 // HPCM / Shasta
@@ -744,7 +775,7 @@ static bool detect_Slurm_allocation()
     return false;
 }
 
-static bool verify_Slurm_configured(System const& system, WLM const& wlm,
+static void verify_Slurm_configured(System const& system, WLM const& wlm,
     std::string launcherName)
 {
     // Default to `srun`
@@ -784,7 +815,62 @@ static bool verify_Slurm_configured(System const& system, WLM const& wlm,
         }
     }
 
-    return true;
+    return;
+}
+
+// Check if this is an elogin node with eproxy configured
+static void verify_Eproxy_Slurm_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
+{
+    // Skip check if disabled in environment
+    if (::getenv(SLURM_OVERRIDE_EPROXY_ENV_VAR) != nullptr) {
+        return;
+    }
+
+    try {
+        char const* eproxyArgv[] = { "eproxy", "--check", nullptr };
+
+        // Start eproxy
+        auto eproxyOutput = cti::Execvp{"eproxy", (char* const*)eproxyArgv, cti::Execvp::stderr::Ignore};
+
+        // Ensure Eproxy is satisfied with the state of the Slurm utility links
+        auto& eproxyStream = eproxyOutput.stream();
+        auto utilityNames = std::set<std::string> { "srun", "squeue", "scancel", "sbcast" };
+        auto line = std::string{};
+        while (std::getline(eproxyStream, line)) {
+
+            // Looking for `<utility> is correct`
+            if ((line.length() > 11) && (line.compare(line.length() - 11, 11, "is correct.") == 0)) {
+                auto utility_start = line.rfind(' ', line.length() - 13) + 1;
+
+                if (utility_start < std::string::npos) {
+                    auto utility_end = line.find(' ', utility_start);
+                    if (utility_end < std::string::npos) {
+
+                        // Remove utility from required set
+                        auto utility = line.substr(utility_start, utility_end - utility_start);
+                        utilityNames.erase(utility);
+                    }
+                }
+            }
+        }
+
+        // Ignore return code
+        (void)eproxyOutput.getExitStatus();
+
+        // All Eproxy utilities configured if seen
+        if (!utilityNames.empty()) {
+            throw std::runtime_error("Eproxy reported Slurm utilities not configured ("
+                + cti::joinStr(utilityNames.begin(), utilityNames.end(), ", ")
+                + ")");
+        }
+
+    } catch (std::exception const& ex) {
+
+        throw std::runtime_error("Eproxy detected as not configured: "
+            + std::string{ex.what()}
+            + ". To disable this check, set " SLURM_OVERRIDE_EPROXY_ENV_VAR);
+    }
 }
 
 static bool verify_SSH_configured(System const& system, WLM const& wlm,
@@ -889,6 +975,8 @@ static auto detect_System(std::string const& systemSetting)
             return System::XC;
         } else if (systemSetting == "cs") {
             return System::CS;
+        } else if (systemSetting == "eproxy") {
+            return System::Eproxy;
         } else {
             throw std::runtime_error("invalid system setting for " CTI_WLM_IMPL_ENV_VAR ": '"
                 + systemSetting + "'");
@@ -896,7 +984,9 @@ static auto detect_System(std::string const& systemSetting)
     }
 
     // Run available system detection heuristics
-    if (detect_HPCM()) {
+    if (detect_Eproxy()) {
+        return System::Eproxy;
+    } else if (detect_HPCM()) {
         return System::HPCM;
     } else if (detect_CS()) {
         return System::CS;
@@ -990,6 +1080,13 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
 
 static void verify_System_WLM_configured(System const& system, WLM const& wlm, std::string const& launcherName)
 {
+    // Eproxy is only valid with Slurm WLM
+    if ((system == System::Eproxy) && (wlm != WLM::Slurm)) {
+        throw std::runtime_error("System was detected as Eproxy, but WLM was not detected as Slurm."
+            "CTI only supports Eproxy mode on Slurm systems. Please run this tool directly on a login "
+            "or compute node (tried " + format_System_WLM(system, wlm) + ")");
+    }
+
     switch (wlm) {
 
     case WLM::PALS:
@@ -997,7 +1094,11 @@ static void verify_System_WLM_configured(System const& system, WLM const& wlm, s
         break;
 
     case WLM::Slurm:
-        verify_Slurm_configured(system, wlm, launcherName);
+        if (system == System::Eproxy) {
+            verify_Eproxy_Slurm_configured(system, wlm, launcherName);
+        } else {
+            verify_Slurm_configured(system, wlm, launcherName);
+        }
         break;
 
     case WLM::ALPS:
@@ -1038,6 +1139,8 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
     if (wlm == WLM::Slurm) {
         if (system == System::HPCM) {
             return new HPCMSLURMFrontend{};
+        } else if (system == System::Eproxy) {
+            return new EproxySLURMFrontend{};
         } else {
             return new SLURMFrontend{};
         }

@@ -19,9 +19,10 @@
 
 #include "frontend/mpir_iface/Inferior.hpp"
 #include "cti_fe_daemon_iface.hpp"
+#include "useful/cti_wrappers.hpp"
 
 static bool debug_enabled() {
-	static const auto enabled = bool{::getenv("CTI_DEBUG")};
+	static const auto enabled = (::getenv("CTI_DEBUG") != nullptr);
 	return enabled;
 }
 
@@ -60,11 +61,11 @@ static auto parse_from_env(int argc, char const* argv[])
 	auto shimToken = std::string{};
 	auto hasShimToken = false;
 
-	if (auto const rawInputFd      = ::getenv("CTI_MPIR_SHIM_INPUT_FD")) {
-		inputFd = std::stoi(rawInputFd);
+	if (auto const rawInputFd = ::getenv("CTI_MPIR_SHIM_INPUT_FD")) {
+		inputFd = cti::stoi(rawInputFd, "CTI_MPIR_SHIM_INPUT_FD");
 	}
-	if (auto const rawOutputFd     = ::getenv("CTI_MPIR_SHIM_OUTPUT_FD")) {
-		outputFd = std::stoi(rawOutputFd);
+	if (auto const rawOutputFd = ::getenv("CTI_MPIR_SHIM_OUTPUT_FD")) {
+		outputFd = cti::stoi(rawOutputFd, "CTI_MPIR_SHIM_OUTPUT_FD");
 	}
 	if (auto const rawLauncherPath = ::getenv("CTI_MPIR_LAUNCHER_PATH")) {
 		launcherPath = std::string{rawLauncherPath};
@@ -81,13 +82,13 @@ static auto parse_from_env(int argc, char const* argv[])
 
 	// Remap stdin / out / err
 	if (auto const rawStdinFd = ::getenv("CTI_MPIR_STDIN_FD")) {
-		::dup2(std::stoi(rawStdinFd), STDIN_FILENO);
+		::dup2(cti::stoi(rawStdinFd, "CTI_MPIR_STDIN_FD"), STDIN_FILENO);
 	}
 	if (auto const rawStdoutFd = ::getenv("CTI_MPIR_STDOUT_FD")) {
-		::dup2(std::stoi(rawStdoutFd), STDOUT_FILENO);
+		::dup2(cti::stoi(rawStdoutFd, "CTI_MPIR_STDOUT_FD"), STDOUT_FILENO);
 	}
 	if (auto const rawStderrFd = ::getenv("CTI_MPIR_STDERR_FD")) {
-		::dup2(std::stoi(rawStderrFd), STDERR_FILENO);
+		::dup2(cti::stoi(rawStderrFd, "CTI_MPIR_STDERR_FD"), STDERR_FILENO);
 	}
 
 	log("started shim, pid is %d\n", getpid());
@@ -138,7 +139,7 @@ int main(int argc, char const* argv[], char const* env[])
 		// Create MPIR launch instance based on arguments
 		log("launcher: %s\n", launcherPath.c_str());
 		log("argv:\n");
-		for (const auto arg : launcherArgv) {
+		for (auto&& arg : launcherArgv) {
 			log("\t%s\n", arg.c_str());
 		}
 

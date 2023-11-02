@@ -911,3 +911,41 @@ TEST(SlurmFrontendTest, AddQuotedArgs)
         EXPECT_STREQ(args.get()[2], "three 3.5");
     }
 }
+
+TEST(EproxySlurmFrontendTest, EnvSpec)
+{
+    { auto envSpec = EproxySLURMFrontend::EproxyEnvSpec{};
+
+        auto envStream = std::stringstream{};
+        envStream << "# Comment\n"
+            << "\n"
+            << "!PATH\n"
+            << "!MODULE*\n"
+            << "INCLUDETHIS\n"
+            << "INCLUDEALL*\n";
+        envSpec.readFrom(envStream);
+
+        EXPECT_FALSE(envSpec.included("VAR"));
+        EXPECT_FALSE(envSpec.included("PATH"));
+        EXPECT_FALSE(envSpec.included("MODULE"));
+        EXPECT_FALSE(envSpec.included("MODULEVAR"));
+        EXPECT_TRUE(envSpec.included("INCLUDETHIS"));
+        EXPECT_FALSE(envSpec.included("INCLUDETHIS1"));
+        EXPECT_TRUE(envSpec.included("INCLUDEALL"));
+        EXPECT_TRUE(envSpec.included("INCLUDEALL1"));
+    }
+
+    { auto envSpec = EproxySLURMFrontend::EproxyEnvSpec{};
+    
+        auto envStream = std::stringstream{};
+        envStream << "!PATH\n"
+            << "!MODULE*\n"
+            << "*\n";
+        envSpec.readFrom(envStream);
+
+        EXPECT_TRUE(envSpec.included("VAR"));
+        EXPECT_FALSE(envSpec.included("PATH"));
+        EXPECT_FALSE(envSpec.included("MODULE"));
+        EXPECT_FALSE(envSpec.included("MODULEVAR"));
+    }
+}

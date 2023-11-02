@@ -4,6 +4,6 @@
 # Copyright 2011-2020 Hewlett Packard Enterprise Development LP.
 #
 
-SUBDIRS			= useful backend frontend utilities
+SUBDIRS			= useful SSHSession backend frontend utilities
 
 noinst_HEADERS	= cti_defs.h cti_argv_defs.hpp

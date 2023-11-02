@@ -41,6 +41,8 @@
 #include "useful/cti_hostname.hpp"
 #include "useful/cti_wrappers.hpp"
 
+#include "SSHSession/SSHSession.hpp"
+
 // Use squeue to check if job is registered with slurmd
 static bool job_registered(std::string const& jobId)
 {
@@ -258,10 +260,14 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
 
 /* constructors / destructors */
 
-SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData)
+SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData, std::string jobId, std::string stepId)
     : App{fe, mpirData.mpir_id}
-    , m_jobId           { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_jobid")) }
-    , m_stepId          { (uint32_t)std::stoi(fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_stepid")) }
+    , m_jobId           { (uint32_t)cti::stoi(
+        (jobId.empty()) ? fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_jobid") : jobId,
+        "totalview_jobid from launcher") }
+    , m_stepId          { (uint32_t)cti::stoi(
+        (stepId.empty()) ? fe.Daemon().request_ReadStringMPIR(m_daemonAppId, "totalview_stepid") : stepId,
+        "totalview_stepid from launcher") }
     , m_binaryRankMap   { std::move(mpirData.binaryRankMap) }
     , m_allJobIds       { get_all_job_ids(m_jobId, m_stepId) }
     , m_stepLayout      { fe.fetchStepLayout(m_allJobIds) }
@@ -336,7 +342,9 @@ SLURMApp::~SLURMApp()
 
 /* app instance creation */
 
-static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t job_id, uint32_t step_id)
+template <typename LaunchFunc, typename ReleaseFunc>
+static FE_daemon::MPIRResult sattachMPIR(LaunchFunc&& launchFunc, ReleaseFunc&& releaseFunc,
+    uint32_t job_id, uint32_t step_id)
 {
     auto result = FE_daemon::MPIRResult
         { .mpir_id = -1
@@ -346,48 +354,77 @@ static FE_daemon::MPIRResult sattachMPIR(SLURMFrontend& fe, uint32_t job_id, uin
     // Get all real job and step IDs
     auto jobIds = get_all_job_ids(job_id, step_id);
 
+    // get path to SATTACH binary for MPIR control
+    auto sattachPath = cti::findPath(SATTACH);
+
     for (auto&& hetJobId : jobIds) {
 
-        auto sattachArgv = cti::OutgoingArgv<SattachArgv>(SATTACH);
+        auto sattachArgv = cti::OutgoingArgv<SattachArgv>(sattachPath);
         sattachArgv.add(SattachArgv::Argument("-Q"));
         sattachArgv.add(SattachArgv::Argument(hetJobId.get_sattach_id()));
 
-        // get path to SATTACH binary for MPIR control
-        if (auto const sattachPath = cti::take_pointer_ownership(_cti_pathFind(SATTACH, nullptr), std::free)) {
-            try {
+        try {
 
-                // request an MPIR session to extract proctable
-                auto mpirResult = fe.Daemon().request_LaunchMPIR(
-                    sattachPath.get(), sattachArgv.get(), -1, -1, -1, nullptr);
+            // request an MPIR session to extract proctable
+            auto mpirResult = launchFunc(sattachPath.c_str(), sattachArgv.get());
 
-                // Add to result table
-                if (result.mpir_id < 0) {
-                    result.mpir_id = mpirResult.mpir_id;
-                } else {
-                    fe.Daemon().request_ReleaseMPIR(mpirResult.mpir_id);
-                }
-                if (result.launcher_pid < 0) {
-                    result.launcher_pid = mpirResult.launcher_pid;
-                }
-                result.proctable.reserve(result.proctable.size() + mpirResult.proctable.size());
-                std::move(mpirResult.proctable.begin(), mpirResult.proctable.end(),
-                    std::back_inserter(result.proctable));
-                for (auto&& [binary, srcRanks] : mpirResult.binaryRankMap) {
-                    auto dstRanks = result.binaryRankMap[binary];
-                    dstRanks.reserve(dstRanks.size() + srcRanks.size());
-                    std::move(srcRanks.begin(), srcRanks.end(), std::back_inserter(dstRanks));
-                }
-
-            } catch (std::exception const& ex) {
-                throw std::runtime_error("Failed to attach to job using SATTACH. Try running `"
-                    SATTACH " -Q " + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
+            // Add to result table
+            if (result.mpir_id < 0) {
+                result.mpir_id = mpirResult.mpir_id;
+            } else {
+                releaseFunc(mpirResult.mpir_id);
             }
-        } else {
-            throw std::runtime_error("Failed to find SATTACH in path");
+            if (result.launcher_pid < 0) {
+                result.launcher_pid = mpirResult.launcher_pid;
+            }
+            result.proctable.reserve(result.proctable.size() + mpirResult.proctable.size());
+            std::move(mpirResult.proctable.begin(), mpirResult.proctable.end(),
+                std::back_inserter(result.proctable));
+            for (auto&& [binary, srcRanks] : mpirResult.binaryRankMap) {
+                auto dstRanks = result.binaryRankMap[binary];
+                dstRanks.reserve(dstRanks.size() + srcRanks.size());
+                std::move(srcRanks.begin(), srcRanks.end(), std::back_inserter(dstRanks));
+            }
+
+        } catch (std::exception const& ex) {
+            throw std::runtime_error("Failed to attach to job using SATTACH ("
+                + std::string{ex.what()} + "). Try running `" SATTACH " -Q "
+                + std::to_string(job_id) + "." + std::to_string(step_id) + "`");
         }
     }
 
     return result;
+}
+
+static auto sattachMPIRLocal(SLURMFrontend& fe, uint32_t job_id, uint32_t step_id)
+{
+    auto launch = [&fe](char const* sattach_path, char const* const* sattach_argv) {
+        return fe.Daemon().request_LaunchMPIR(
+            sattach_path, sattach_argv, -1, -1, -1, nullptr);
+    };
+
+    auto release = [&fe](int mpir_id) {
+        fe.Daemon().request_ReleaseMPIR(mpir_id);
+    };
+
+    return sattachMPIR(launch, release, job_id, step_id);
+}
+
+static auto sattachMPIRRemote(RemoteDaemon& daemon, uint32_t job_id, uint32_t step_id)
+{
+    auto launch = [&daemon](char const* sattach_path, char const* const* sattach_argv) {
+        // Keep only the name so that it is resolved using remote PATH
+        auto sattachArgv = cti::ManagedArgv{};
+        sattachArgv.add(cti::cstr::basename(sattach_argv[0]));
+        sattachArgv.add(sattach_argv + 1);
+        return daemon.launchMPIR(sattachArgv.get(), nullptr);
+    };
+
+    auto release = [&daemon](int mpir_id) {
+        daemon.releaseMPIR(mpir_id);
+    };
+
+    return sattachMPIR(launch, release, job_id, step_id);
 }
 
 /* running app info accessors */
@@ -585,7 +622,9 @@ void SLURMApp::kill(int signum)
         // Request daemon launch scancel
         m_frontend.Daemon().request_ForkExecvpUtil_Async(
             m_daemonAppId, SCANCEL, scancelArgv.get(),
-            -1, -1, stderrPipe.getWriteFd(),
+            -1,
+            stderrPipe.getWriteFd(), // eproxy scancel prints all output to stdout
+            stderrPipe.getWriteFd(), // normal scancel prints all output to stderr
             nullptr);
 
         // Match line "Signal <sig> to step <jobid>"
@@ -1091,16 +1130,16 @@ SLURMFrontend::SLURMFrontend()
 }
 
 std::weak_ptr<App>
-SLURMFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+SLURMFrontend::launch(CArgArray launcher_args, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     // Slurm calls the launch barrier correctly even when the program is not an MPI application.
     // Delegating to barrier implementation works properly even for serial applications.
     auto appPtr = std::make_shared<SLURMApp>(*this,
-        launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list));
+        launchApp(launcher_args, inputFile, stdout_fd, stderr_fd, chdirPath, env_list));
 
     // Set tool daemon GRES based on launcher argument
-    appPtr->setGres(detail::get_gres_setting(launcher_argv));
+    appPtr->setGres(detail::get_gres_setting(launcher_args));
 
     // Release barrier and continue launch
     appPtr->releaseBarrier();
@@ -1115,14 +1154,14 @@ SLURMFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
 }
 
 std::weak_ptr<App>
-SLURMFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+SLURMFrontend::launchBarrier(CArgArray launcher_args, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
     auto appPtr = std::make_shared<SLURMApp>(*this,
-        launchApp(launcher_argv, inputFile, stdout_fd, stderr_fd, chdirPath, env_list));
+        launchApp(launcher_args, inputFile, stdout_fd, stderr_fd, chdirPath, env_list));
 
     // Set tool daemon GRES based on launcher argument
-    appPtr->setGres(detail::get_gres_setting(launcher_argv));
+    appPtr->setGres(detail::get_gres_setting(launcher_args));
 
     // Register with frontend application set
     auto resultInsertedPair = m_apps.emplace(std::move(appPtr));
@@ -1156,7 +1195,7 @@ SLURMFrontend::registerJob(size_t numIds, ...) {
 
     va_end(idArgs);
 
-    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this, sattachMPIR(*this, jobId, stepId)));
+    auto ret = m_apps.emplace(std::make_shared<SLURMApp>(*this, sattachMPIRLocal(*this, jobId, stepId)));
     if (!ret.second) {
         throw std::runtime_error("Failed to insert new SLURMApp.");
     }
@@ -1215,7 +1254,7 @@ getStepLayout(std::string const& jobId, size_t pe_offset)
 
         // fill out sattach layout
         result.numPEs += std::stoul(rawNumPEs);
-        num_nodes = std::stoi(rawNumNodes);
+        num_nodes = cti::stoi(rawNumNodes, "number of nodes from sattach");
         result.nodes.reserve(result.nodes.size() + num_nodes);
 
     } else {
@@ -1426,15 +1465,12 @@ void SLURMFrontend::detail::add_quoted_args(cti::ManagedArgv& args, std::string 
 }
 
 FE_daemon::MPIRResult
-SLURMFrontend::launchApp(const char * const launcher_argv[],
+SLURMFrontend::launchApp(const char * const launcher_args[],
         const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
         const char * const env_list[])
 {
     // Find the path to the launcher
-    auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free);
-    if (launcherPath == nullptr) {
-        throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
-    }
+    auto launcherPath = cti::findPath(getLauncherName());
 
     // set up arguments and FDs
     if (inputFile == nullptr) { inputFile = "/dev/null"; }
@@ -1461,7 +1497,7 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
 
     // Use normal launcher from PATH
     } else {
-        launcherArgv.add(launcherPath.get());
+        launcherArgv.add(launcherPath);
     }
 
     // Construct rest of argv array
@@ -1471,7 +1507,7 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
     for (auto&& arg : getSrunAppArgs()) {
         launcherArgv.add(arg);
     }
-    for (const char* const* arg = launcher_argv; *arg != nullptr; arg++) {
+    for (const char* const* arg = launcher_args; *arg != nullptr; arg++) {
         launcherArgv.add(*arg);
     }
 
@@ -1486,7 +1522,7 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
 
             // Launch program under MPIR control.
             result = Daemon().request_LaunchMPIR(
-                launcherPath.get(), launcherArgv.get(),
+                launcherPath.c_str(), launcherArgv.get(),
                 // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
                 // Capture stderr output in case launch fails
                 ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
@@ -1513,11 +1549,8 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
         // real srun binary.
         // An alternative would be to search PATH for the first srun binary with MPIR
         // symbols.
-        auto sattachPath = cti::take_pointer_ownership(_cti_pathFind("sattach", nullptr), std::free);
-        if (sattachPath == nullptr) {
-            throw std::runtime_error("Failed to find sattach in path: ");
-        }
-        auto slurmDirectory = std::filesystem::path{sattachPath.get()}.parent_path();
+        auto sattachPath = cti::findPath(SATTACH);
+        auto slurmDirectory = std::filesystem::path{sattachPath}.parent_path();
         auto srunPath = std::string{slurmDirectory / "srun"};
 
         auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
@@ -1528,7 +1561,7 @@ SLURMFrontend::launchApp(const char * const launcher_argv[],
 
         return Daemon().request_LaunchMPIRShim(
             shimBinaryPath.c_str(), temporaryShimBinDir.c_str(),
-            srunPath.c_str(), launcherPath.get(), launcherArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
+            srunPath.c_str(), launcherPath.c_str(), launcherArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
         );
     }
 }
@@ -1540,21 +1573,23 @@ SLURMFrontend::getSrunInfo(pid_t srunPid) {
         throw std::runtime_error("Invalid srunPid " + std::to_string(srunPid));
     }
 
-    if (auto const launcherPath = cti::take_pointer_ownership(_cti_pathFind(getLauncherName().c_str(), nullptr), std::free)) {
-        // tell overwatch to extract information using MPIR attach
-        auto const mpirData = Daemon().request_AttachMPIR(launcherPath.get(), srunPid);
+    auto launcherPath = cti::findPath(getLauncherName());
 
-        // Get job and step ID via memory read
-        auto const jobId  = (uint32_t)std::stoi(Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_jobid"));
-        auto const stepId = (uint32_t)std::stoi(Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_stepid"));
+    // tell overwatch to extract information using MPIR attach
+    auto const mpirData = Daemon().request_AttachMPIR(launcherPath.c_str(), srunPid);
 
-        // Release MPIR control
-        Daemon().request_ReleaseMPIR(mpirData.mpir_id);
+    // Get job and step ID via memory read
+    auto const jobId  = (uint32_t)cti::stoi(
+        Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_jobid"),
+        "totalview_jobid from launcher");
+    auto const stepId = (uint32_t)cti::stoi(
+        Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_stepid"),
+        "totalview_stepid from launcher");
 
-        return SrunInfo { jobId, stepId };
-    } else {
-        throw std::runtime_error("Failed to find launcher in path: " + getLauncherName());
-    }
+    // Release MPIR control
+    Daemon().request_ReleaseMPIR(mpirData.mpir_id);
+
+    return SrunInfo { jobId, stepId };
 }
 
 SrunInfo
@@ -1659,7 +1694,6 @@ SLURMFrontend::submitBatchScript(std::string const& scriptPath,
 
 // HPCM SLURM specializations
 
-
 // Current address can now be obtained using the `cminfo` tool.
 std::string
 HPCMSLURMFrontend::getHostname() const
@@ -1667,4 +1701,290 @@ HPCMSLURMFrontend::getHostname() const
     static auto const nodeAddress = cti::detectHpcmAddress();
 
     return nodeAddress;
+}
+
+// Eproxy SLURM specializations
+
+static char const* getenv_default(char const* key, char const* default_val)
+{
+    if (auto val = ::getenv(key)) {
+        return val;
+    }
+    return default_val;
+}
+
+EproxySLURMFrontend::EproxyEnvSpec::EproxyEnvSpec()
+    : m_includeAll{false}
+{}
+
+EproxySLURMFrontend::EproxyEnvSpec::EproxyEnvSpec(std::string const& path)
+    : m_includeAll{false}
+{
+    auto envStream = std::ifstream{path};
+    readFrom(envStream);
+}
+
+void
+EproxySLURMFrontend::EproxyEnvSpec::readFrom(std::istream& envStream)
+{
+    auto line = std::string{};
+    while (std::getline(envStream, line)) {
+
+        // Skip empty lines or comments
+        if (line.empty() || (line[0] == '#')) {
+            continue;
+        }
+
+        // Sole '*' means include all variables
+        if (line == "*") {
+            m_includeAll = true;
+
+        // Line may start with either ! or otherwise names a variable
+        } else if (line[0] == '!') {
+
+            // Wildcards end in '*', not allowed in middle of variable
+            if (line.back() == '*') {
+                m_excludePrefixes.insert(line.substr(1, line.length() - 2));
+            } else {
+                m_excludeVars.insert(line.substr(1, line.length() - 1));
+            }
+
+        } else {
+            // Wildcards end in '*', not allowed in middle of variable
+            if (line.back() == '*') {
+                m_includePrefixes.insert(line.substr(0, line.length() - 1));
+            } else {
+                m_includeVars.insert(std::move(line));
+            }
+        }
+    }
+}
+
+static bool matchesAnyPrefix(std::set<std::string> const& prefixes, std::string const& str)
+{
+    for (auto&& prefix : prefixes) {
+        if (str.rfind(prefix, 0) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
+EproxySLURMFrontend::EproxyEnvSpec::included(std::string const& var)
+{
+    if ((m_excludeVars.count(var) > 0) || matchesAnyPrefix(m_excludePrefixes, var)) {
+        return false;
+    }
+
+    // Include all by default
+    if (m_includeAll) {
+        return true;
+
+    } else {
+        return (m_includeVars.count(var) > 0)
+             || matchesAnyPrefix(m_includePrefixes, var);
+    }
+}
+
+EproxySLURMFrontend::EproxySLURMFrontend()
+    : SLURMFrontend{}
+
+    // These defaults are hardcoded into the Eproxy scripts
+    , m_eproxyLogin{getenv_default("EPROXY_LOGIN", "login")}
+    , m_eproxyKeyfile{getenv_default("EPROXY_KEYFILE", "/opt/cray/elogin/eproxy/etc/eproxy.ini")}
+    , m_eproxyEnvfile{getenv_default("EPROXY_ENVFILE", "/opt/cray/elogin/eproxy/etc/eproxy.env")}
+    , m_eproxyUser{getenv_default("EPROXY_USER", getPwd().pw_name)}
+    , m_eproxyPrefix{getenv_default("EPROXY_ENVFILE", "/opt/cray/elogin/eproxy/etc/eproxy.env")}
+
+    , m_homeDir{getPwd().pw_dir}
+
+    , m_envSpec{m_eproxyEnvfile}
+{}
+
+EproxySLURMFrontend::~EproxySLURMFrontend()
+{}
+
+std::tuple<std::unique_ptr<RemoteDaemon>, FE_daemon::MPIRResult>
+EproxySLURMFrontend::launchApp(const char * const launcher_args[],
+    const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
+    const char * const env_list[])
+{
+    // Build launcher argv
+    auto launcherArgv = cti::ManagedArgv{"srun"};
+    for (auto arg = launcher_args; *arg != nullptr; arg++) {
+        launcherArgv.add(*arg);
+    }
+
+    // Build new environment list
+    auto finalEnv = cti::ManagedArgv{};
+
+    // Add from environment if included in eproxy environment configuration
+    extern char** environ;
+    for (auto it = environ; *it != nullptr; ++it) {
+        auto [var, val] = cti::split::string<2>(*it, '=');
+        if (m_envSpec.included(var)) {
+            finalEnv.add(*it);
+        }
+    }
+
+    // Add from provided environment settings
+    if (env_list) {
+        for (auto it = env_list; *it != nullptr; ++it) {
+            finalEnv.add(*it);
+        }
+    }
+
+    auto sshSession = SSHSession{m_eproxyLogin, m_eproxyUser, m_homeDir};
+    auto remoteDaemon = std::make_unique<RemoteDaemon>(std::move(sshSession), Frontend::inst().getFEDaemonPath());
+    auto mpirData = remoteDaemon->launchMPIR(launcherArgv.get(), finalEnv.get());
+
+    return std::make_tuple(std::move(remoteDaemon), std::move(mpirData));
+}
+
+static auto format_launch_error(std::string const& error, std::string const& hostname)
+{
+    return "Failed to launch tool remotely from this Elogin node:\n    " + error + "\n"
+        "You can retry the tool launch directly on the login node `" + hostname + "`.\n"
+        "This will allow direct access to the Slurm utilities.";
+}
+
+std::weak_ptr<App>
+EproxySLURMFrontend::launch(CArgArray launcher_args, int stdout_fd, int stderr_fd,
+    CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    try {
+
+        // Start remote MPIR launch
+        // Slurm calls the launch barrier correctly even when the program is not an MPI application.
+        // Delegating to barrier implementation works properly even for serial applications.
+        auto&& [remoteDaemon, mpirData]
+            = launchApp(launcher_args, inputFile, stdout_fd, stderr_fd, chdirPath, env_list);
+        auto jobId = remoteDaemon->readStringMPIR(mpirData.mpir_id, "totalview_jobid");
+        auto stepId = remoteDaemon->readStringMPIR(mpirData.mpir_id, "totalview_stepid");
+        auto appPtr = std::make_shared<EproxySLURMApp>(*this, std::move(remoteDaemon), std::move(mpirData),
+            jobId, stepId);
+
+        // Set tool daemon GRES based on launcher argument
+        appPtr->setGres(detail::get_gres_setting(launcher_args));
+
+        // Release barrier and continue launch
+        appPtr->releaseBarrier();
+
+        return appPtr;
+
+        // Register with frontend application set
+        auto resultInsertedPair = m_apps.emplace(std::move(appPtr));
+        return *resultInsertedPair.first;
+
+    } catch (std::exception const& ex) {
+        throw std::runtime_error(format_launch_error(ex.what(), m_eproxyLogin));
+    }
+}
+
+std::weak_ptr<App>
+EproxySLURMFrontend::launchBarrier(CArgArray launcher_args, int stdout_fd, int stderr_fd,
+    CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+    try {
+
+        // Start remote MPIR launch
+        auto&& [remoteDaemon, mpirData]
+            = launchApp(launcher_args, inputFile, stdout_fd, stderr_fd, chdirPath, env_list);
+        auto jobId = remoteDaemon->readStringMPIR(mpirData.mpir_id, "totalview_jobid");
+        auto stepId = remoteDaemon->readStringMPIR(mpirData.mpir_id, "totalview_stepid");
+        auto appPtr = std::make_shared<EproxySLURMApp>(*this, std::move(remoteDaemon), std::move(mpirData),
+            jobId, stepId);
+
+        // Set tool daemon GRES based on launcher argument
+        appPtr->setGres(detail::get_gres_setting(launcher_args));
+
+        // Register with frontend application set
+        auto resultInsertedPair = m_apps.emplace(std::move(appPtr));
+        return *resultInsertedPair.first;
+
+    } catch (std::exception const& ex) {
+        throw std::runtime_error(format_launch_error(ex.what(), m_eproxyLogin));
+    }
+}
+
+std::weak_ptr<App>
+EproxySLURMFrontend::registerJob(size_t numIds, ...)
+{
+    if (numIds != 2) {
+        throw std::logic_error("expecting job and step ID pair to register app");
+    }
+
+    try {
+
+        va_list idArgs;
+        va_start(idArgs, numIds);
+
+        auto job_id  = va_arg(idArgs, uint32_t);
+        auto step_id = va_arg(idArgs, uint32_t);
+
+        va_end(idArgs);
+
+        // TODO: run sattach MPIR remotely
+        auto sshSession = SSHSession{m_eproxyLogin, m_eproxyUser, m_homeDir};
+        auto remoteDaemon = std::make_unique<RemoteDaemon>(std::move(sshSession), Frontend::inst().getFEDaemonPath());
+        auto mpirData = sattachMPIRRemote(*remoteDaemon, job_id, step_id);
+
+        auto resultInsertedPair = m_apps.emplace(std::make_shared<EproxySLURMApp>(*this,
+            std::move(remoteDaemon), std::move(mpirData), std::to_string(job_id), std::to_string(step_id)));
+        return *resultInsertedPair.first;
+
+    } catch (std::exception const& ex) {
+        throw std::runtime_error(format_launch_error(ex.what(), m_eproxyLogin));
+    }
+}
+
+EproxySLURMApp::EproxySLURMApp(EproxySLURMFrontend& fe, std::unique_ptr<RemoteDaemon>&& remoteDaemon,
+    FE_daemon::MPIRResult&& mpirData, std::string const& jobId, std::string const& stepId)
+    : SLURMApp{fe, std::move(mpirData), jobId, stepId}
+    , m_remoteDaemon{std::move(remoteDaemon)}
+    , m_remoteMpirId{mpirData.mpir_id}
+    , m_eproxyLogin{fe.m_eproxyLogin}
+    , m_eproxyUser{fe.m_eproxyUser}
+    , m_homeDir{fe.m_homeDir}
+{
+    // Create local daemon app ID for tool daemon launches
+    // Remote daemon ID is stored in m_remoteMpirId
+    m_daemonAppId = fe.Daemon().request_RegisterApp();
+}
+
+EproxySLURMApp::~EproxySLURMApp()
+{
+    if (m_remoteMpirId > 0) {
+        m_remoteDaemon->deregisterApp(m_remoteMpirId);
+    }
+}
+
+void EproxySLURMApp::releaseBarrier()
+{
+    if (m_remoteMpirId > 0) {
+        m_remoteDaemon->releaseMPIR(m_remoteMpirId);
+    }
+}
+
+bool
+EproxySLURMApp::isRunning() const
+{
+    return m_remoteDaemon->checkApp(m_daemonAppId);
+}
+
+void
+EproxySLURMApp::shipPackage(std::string const& tarPath) const
+{
+    auto packageName = cti::cstr::basename(tarPath);
+    auto const destination = std::string{SSH_TOOL_DIR} + "/" + packageName;
+    writeLog("EproxySLURMApp shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
+
+    // Send the package to the login node
+    SSHSession(m_eproxyLogin, m_eproxyUser, m_homeDir).sendRemoteFile(tarPath.c_str(), destination.c_str(),
+        S_IRWXU | S_IRWXG | S_IRWXO);
+
+    // Invoke eproxy sbcast
+    SLURMApp::shipPackage(destination);
 }

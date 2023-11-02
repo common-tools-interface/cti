@@ -60,10 +60,10 @@ public: // inherited interface
 
     cti_wlm_type_t getWLMType() const override { return CTI_WLM_SLURM; }
 
-    std::weak_ptr<App> launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+    std::weak_ptr<App> launch(CArgArray launcher_args, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
-    std::weak_ptr<App> launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+    std::weak_ptr<App> launchBarrier(CArgArray launcher_args, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list) override;
 
     std::weak_ptr<App> registerJob(size_t numIds, ...) override;
@@ -155,7 +155,7 @@ public: // slurm specific interface
     std::string createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath);
 
     // Launch a SLURM app under MPIR control and hold at SRUN barrier.
-    FE_daemon::MPIRResult launchApp(const char * const launcher_argv[],
+    FE_daemon::MPIRResult launchApp(const char * const launcher_args[],
         const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
         const char * const env_list[]);
 
@@ -183,7 +183,7 @@ struct detail
 
 };
 
-class SLURMApp final : public App
+class SLURMApp : public App
 {
 private: // variables
     uint32_t m_jobId;
@@ -239,7 +239,8 @@ public: // slurm specific interface
     void setGres(std::string const& gresSetting) { m_gresSetting = gresSetting; }
 
 public: // constructor / destructor interface
-    SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData);
+    SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData,
+        std::string jobId = {}, std::string stepId = {});
     ~SLURMApp();
     SLURMApp(const SLURMApp&) = delete;
     SLURMApp& operator=(const SLURMApp&) = delete;
@@ -247,8 +248,78 @@ public: // constructor / destructor interface
     SLURMApp& operator=(SLURMApp&&) = delete;
 };
 
-class HPCMSLURMFrontend : public SLURMFrontend {
+class HPCMSLURMFrontend : public SLURMFrontend
+{
 public: // interface
-    static bool isSupported();
     std::string getHostname() const override;
+};
+
+// Forward declare from SSHSession
+class RemoteDaemon;
+class EproxySLURMApp;
+
+class EproxySLURMFrontend : public SLURMFrontend
+{
+public: // types
+friend EproxySLURMApp;
+
+struct EproxyEnvSpec
+{
+    std::set<std::string> m_includeVars, m_includePrefixes;
+    std::set<std::string> m_excludeVars, m_excludePrefixes;
+    bool m_includeAll;
+
+    EproxyEnvSpec();
+    EproxyEnvSpec(std::string const& path);
+    void readFrom(std::istream& envStream);
+    bool included(std::string const& var);
+};
+
+private: // members
+    std::string m_eproxyLogin, m_eproxyKeyfile, m_eproxyEnvfile, m_eproxyUser, m_eproxyPrefix;
+    std::string m_homeDir;
+    EproxyEnvSpec m_envSpec;
+
+private: // helpers
+    std::tuple<std::unique_ptr<RemoteDaemon>, FE_daemon::MPIRResult>
+    launchApp(const char * const launcher_args[],
+        const char *inputFile, int stdoutFd, int stderrFd, const char *chdirPath,
+        const char * const env_list[]);
+
+public: // interface
+    EproxySLURMFrontend();
+    ~EproxySLURMFrontend();
+
+    std::weak_ptr<App> launch(CArgArray launcher_args, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
+    std::weak_ptr<App> launchBarrier(CArgArray launcher_args, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list) override;
+
+    std::weak_ptr<App> registerJob(size_t numIds, ...) override;
+};
+
+class EproxySLURMApp : public SLURMApp
+{
+private: // members
+    std::unique_ptr<RemoteDaemon> m_remoteDaemon;
+    int m_remoteMpirId;
+    std::string m_eproxyLogin;
+    std::string m_eproxyUser;
+    std::string m_homeDir;
+
+public: // interface
+    void releaseBarrier() override;
+    bool isRunning() const override;
+    void shipPackage(std::string const& tarPath) const override;
+
+public: // constructor / destructor interface
+    EproxySLURMApp(EproxySLURMFrontend& fe,
+        std::unique_ptr<RemoteDaemon>&& remoteDaemon, FE_daemon::MPIRResult&& mpirData,
+        std::string const& jobId, std::string const& stepId);
+    ~EproxySLURMApp();
+    EproxySLURMApp(const EproxySLURMApp&) = delete;
+    EproxySLURMApp& operator=(const EproxySLURMApp&) = delete;
+    EproxySLURMApp(EproxySLURMApp&&) = delete;
+    EproxySLURMApp& operator=(EproxySLURMApp&&) = delete;
 };

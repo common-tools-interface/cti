@@ -104,6 +104,7 @@ typedef struct
 #define SLURM_DAEMON_GRES_ENV_VAR "CTI_SLURM_DAEMON_GRES"           // Set to specify `--gres` argument for tool daemon launches (or leave blank to disable)
 #define SLURM_DAEMON_ARGS_ENV_VAR "CTI_SLURM_DAEMON_ARGS"           // Set to specify extra tool daemon launch arguments
 #define SLURM_OVERRIDE_MC_ENV_VAR "CTI_SLURM_OVERRIDE_MC"           // Set to disable Slurm multi-cluster check
+#define SLURM_OVERRIDE_EPROXY_ENV_VAR "CTI_SLURM_OVERRIDE_EPROXY"       // Set to disable Slurm eproxy configuration check
 #define SLURM_NEVER_PARSE_SCANCEL                                              \
   "CTI_SLURM_NEVER_PARSE_SCANCEL" // Due to a slurm bug
                                   // (https://bugs.schedmd.com/show_bug.cgi?id=16551),

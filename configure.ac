@@ -428,6 +428,7 @@ AC_CONFIG_FILES([
     src/frontend/frontend_impl/GenericSSH/Makefile
     src/frontend/frontend_impl/Localhost/Makefile
     src/frontend/mpir_iface/Makefile
+    src/SSHSession/Makefile
     src/useful/Makefile
     src/useful/ld_val/Makefile
     src/utilities/Makefile
