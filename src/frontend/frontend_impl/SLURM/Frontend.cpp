@@ -380,8 +380,9 @@ static FE_daemon::MPIRResult sattachMPIR(LaunchFunc&& launchFunc, ReleaseFunc&& 
             result.proctable.reserve(result.proctable.size() + mpirResult.proctable.size());
             std::move(mpirResult.proctable.begin(), mpirResult.proctable.end(),
                 std::back_inserter(result.proctable));
+
             for (auto&& [binary, srcRanks] : mpirResult.binaryRankMap) {
-                auto dstRanks = result.binaryRankMap[binary];
+                auto& dstRanks = result.binaryRankMap[binary];
                 dstRanks.reserve(dstRanks.size() + srcRanks.size());
                 std::move(srcRanks.begin(), srcRanks.end(), std::back_inserter(dstRanks));
             }
