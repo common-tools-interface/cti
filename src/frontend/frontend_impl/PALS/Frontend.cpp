@@ -582,33 +582,31 @@ PALSFrontend::getLauncherName()
 static std::string
 createNodeLayoutFile(MPIRProctable const& mpirProctable, std::string const& stagePath)
 {
-    auto hostRankPEs = std::map<std::string, std::pair<int, int>>{};
-    int rank = 0;
+    auto hostLayouts = std::map<std::string, std::vector<cti_rankPidPair_t>>{};
 
-    for (auto&& [pid, hostname, executable] : mpirProctable) {
+    for (size_t rank = 0; rank < mpirProctable.size(); rank++) {
+
+        auto rankPidPair = cti_rankPidPair_t { .pid = mpirProctable[rank].pid, .rank = (int)rank };
 
         // Try to insert new host / first rank pair
-        auto [hostRankPair, added] = hostRankPEs.insert({hostname, {rank, 1}});
+        auto [hostLayoutPair, added] = hostLayouts.insert({mpirProctable[rank].hostname, {rankPidPair}});
 
-        // Already exists, increment number of ranks instead
+        // Already exists, add instead
         if (!added) {
-            hostRankPair->second.second++;
+            hostLayoutPair->second.push_back(rankPidPair);
         }
-
-        rank++;
     }
 
-    auto make_layoutFileEntry = [](std::string const& hostname, int firstPE, int numPEs) {
+    auto make_layoutFileEntry = [](std::string const& hostname, std::vector<cti_rankPidPair_t> const& rankPidPairs) {
         // Ensure we have good hostname information.
         auto const hostname_len = hostname.size() + 1;
-        if (hostname_len > sizeof(slurmLayoutFile_t::host)) {
+        if (hostname_len > sizeof(palsLayoutEntry_t::host)) {
             throw std::runtime_error("hostname too large for layout buffer");
         }
 
         // Extract PE and node information from Node Layout.
-        auto layout_entry    = slurmLayoutFile_t{};
-        layout_entry.PEsHere = numPEs;
-        layout_entry.firstPE = firstPE;
+        auto layout_entry = palsLayoutEntry_t{};
+        layout_entry.numRanks = rankPidPairs.size();
         memcpy(layout_entry.host, hostname.c_str(), hostname_len);
 
         return layout_entry;
@@ -619,43 +617,21 @@ createNodeLayoutFile(MPIRProctable const& mpirProctable, std::string const& stag
     if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
 
         // Write the Layout header.
-        cti::file::writeT(layoutFile.get(), slurmLayoutFileHeader_t
-            { .numNodes = (int)hostRankPEs.size()
+        cti::file::writeT(layoutFile.get(), palsLayoutFileHeader_t
+            { .numNodes = (int)hostLayouts.size()
         });
 
         // Write a Layout entry using node information from each Slurm Node Layout entry.
-        for (auto const& [hostname, firstNumPEPair] : hostRankPEs) {
-            cti::file::writeT(layoutFile.get(), make_layoutFileEntry(hostname,
-                firstNumPEPair.first, firstNumPEPair.second));
+        for (auto const& [hostname, rankPidPairs] : hostLayouts) {
+            cti::file::writeT(layoutFile.get(), make_layoutFileEntry(hostname, rankPidPairs));
+            for (auto&& rankPidPair : rankPidPairs) {
+                cti::file::writeT(layoutFile.get(), rankPidPair);
+            }
         }
 
         return layoutPath;
     } else {
         throw std::runtime_error("failed to open layout file path " + layoutPath);
-    }
-}
-
-static std::string
-createPIDListFile(MPIRProctable const& procTable, std::string const& stagePath)
-{
-    auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
-    if (auto const pidFile = cti::file::open(pidPath, "wb")) {
-
-        // Write the PID List header.
-        cti::file::writeT(pidFile.get(), slurmPidFileHeader_t
-            { .numPids = (int)procTable.size()
-        });
-
-        // Write a PID entry using information from each MPIR ProcTable entry.
-        for (auto&& elem : procTable) {
-            cti::file::writeT(pidFile.get(), slurmPidFile_t
-                { .pid = elem.pid
-            });
-        }
-
-        return pidPath;
-    } else {
-        throw std::runtime_error("failed to open PID file path " + pidPath);
     }
 }
 
@@ -672,7 +648,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_toolPath{"/tmp/cti-" + m_apId}
     , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
-    , m_extraFiles{createNodeLayoutFile(m_procTable, m_stagePath), createPIDListFile(m_procTable, m_stagePath)}
+    , m_extraFiles{createNodeLayoutFile(m_procTable, m_stagePath)}
 
     , m_atBarrier{palsLaunchInfo.atBarrier}
 {

@@ -13,6 +13,7 @@
 #define _CTI_DEFS_H
 
 #include "common_tools_shared.h"
+#include "common_tools_be.h"
 
 // We use macros defined by configure in this file. So we need to get access to
 // config.h. Since that doesn't have good macro guards, and this file does, it
@@ -170,6 +171,20 @@ typedef slurmPidFile_t          cti_pidFile_t;
 /*
 ** PALS specific information
 */
+// Used when reading/writing layout file - used on FE and BE
+// File will begin with the following header
+typedef struct
+{
+    int numNodes;
+}   palsLayoutFileHeader_t;
+// Followed by numNodes of the following:
+typedef struct
+{
+    char    host[HOST_NAME_MAX];    // hostname of this node
+    int     numRanks; // Number of PEs placed on this node
+    cti_rankPidPair_t rankPidPairs[];
+}   palsLayoutEntry_t;
+// Each entry is folllowed by numRanks cti_rankPidPair_t for rank list
 
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
 #define PALS_EXEC_HOST "CTI_PALS_EXEC_HOST" // To use PALS application ID for attaching outside of job's PBS allocation

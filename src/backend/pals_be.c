@@ -38,12 +38,6 @@ typedef struct {
 	pals_rc_t (*pals_get_pes)(pals_state_t *state, pals_pe_t **pes, int *npes);
 } cti_libpals_funcs_t;
 
-typedef struct
-{
-    int     PEsHere;    // Number of PEs placed on this node
-    int     firstPE;    // first PE on this node
-} slurmLayout_t;
-
 /* static prototypes */
 static int            _cti_be_pals_init(void);
 static void           _cti_be_pals_fini(void);
@@ -573,103 +567,107 @@ _cti_be_pals_fini(void)
 }
 
 
-static slurmLayout_t*
-_cti_be_pals_getLayoutFromFile(void)
+static cti_pidList_t*
+_cti_be_pals_getRanksFromFile(void)
 {
-    slurmLayout_t *result = NULL;
+    cti_pidList_t *result = NULL;
 
-    slurmLayout_t *layout = NULL;
     char *hostname = NULL;
     char *file_dir = NULL;
     char *layout_path = NULL;
     FILE *layout_file = NULL;
-    slurmLayoutFile_t *layout_contents = NULL;
-    slurmLayoutFileHeader_t layout_header;
+    palsLayoutEntry_t layout_entry;
+    palsLayoutFileHeader_t layout_header;
     int i;
     size_t hostname_len;
-
-    // Allocate layout storage
-    if ((layout = malloc(sizeof(slurmLayout_t))) == NULL) {
-        fprintf(stderr, "malloc failed.\n");
-        goto cleanup_getLayoutFromFile;
-    }
 
     // Get hostname to look up
     if ((hostname = _cti_be_pals_getNodeHostname()) == NULL) {
         fprintf(stderr, "_cti_be_slurm_getNodeHostname failed.\n");
-        goto cleanup_getLayoutFromFile;
+        goto cleanup_getRanksFromFile;
     }
     hostname_len = strlen(hostname);
 
     // Get the file directory were we can find the layout file
     if ((file_dir = cti_be_getFileDir()) == NULL) {
         fprintf(stderr, "cti_be_getFileDir failed.\n");
-        goto cleanup_getLayoutFromFile;
+        goto cleanup_getRanksFromFile;
     }
 
     // Create the path to the layout file
     if (asprintf(&layout_path, "%s/%s", file_dir, SLURM_LAYOUT_FILE) <= 0) {
         fprintf(stderr, "asprintf failed.\n");
-        goto cleanup_getLayoutFromFile;
+        goto cleanup_getRanksFromFile;
     }
 
     // Open the layout file for reading
     if ((layout_file = fopen(layout_path, "rb")) == NULL) {
         fprintf(stderr, "Could not open %s for reading\n", layout_path);
-        goto cleanup_getLayoutFromFile;
+        goto cleanup_getRanksFromFile;
     }
 
     // Read the header from the file
-    if (fread(&layout_header, sizeof(slurmLayoutFileHeader_t), 1, layout_file) != 1) {
+    if (fread(&layout_header, sizeof(palsLayoutFileHeader_t), 1, layout_file) != 1) {
         fprintf(stderr, "Could not read header from %s\n", layout_path);
-        goto cleanup_getLayoutFromFile;
-    }
-
-    // allocate the layout contents based on the header
-    if ((layout_contents = calloc(layout_header.numNodes, sizeof(slurmLayoutFile_t))) == NULL) {
-        fprintf(stderr, "calloc failed.\n");
-        goto cleanup_getLayoutFromFile;
-    }
-
-    // Read the layout file into contents
-    if (fread(layout_contents, sizeof(slurmLayoutFile_t), layout_header.numNodes, layout_file)
-        != layout_header.numNodes) {
-        fprintf(stderr, "Couldn't read entire layout file at %s\n", layout_path);
-        goto cleanup_getLayoutFromFile;
+        goto cleanup_getRanksFromFile;
     }
 
     // Find the entry for this nid
     for (i = 0; i < layout_header.numNodes; ++i) {
 
+        // Read the layout entry
+        if (fread(&layout_entry, sizeof(palsLayoutEntry_t), 1, layout_file) != 1) {
+            fprintf(stderr, "Could not read layout entry %d from %s\n", i, layout_path);
+            goto cleanup_getRanksFromFile;
+        }
+
+        // Get size of rank / pid array
+        size_t rankPidSize = sizeof(cti_rankPidPair_t) * layout_entry.numRanks;
+
         // Check if this entry corresponds to our nid
-        if (strncmp(layout_contents[i].host, hostname, hostname_len) == 0) {
+        if (strncmp(layout_entry.host, hostname, hostname_len) == 0) {
 
             // Hostname is a prefix of the entry, allow if entry is exactly equal,
             // or if entry is a full domain name (next character is not alphanumeric)
-            if (isalnum(layout_contents[i].host[hostname_len])) {
+            if (isalnum(layout_entry.host[hostname_len])) {
+
+                // Advance to next entry
+                fseek(layout_file, rankPidSize, SEEK_CUR);
+
                 continue;
             }
 
             // Found it
-            layout->PEsHere = layout_contents[i].PEsHere;
-            layout->firstPE = layout_contents[i].firstPE;
 
-            result = layout;
+            // Allocate rank list
+           if (((result = malloc(sizeof(cti_pidList_t))) == NULL)
+            || ((result->pids = malloc(rankPidSize)) == NULL)) {
 
-            goto cleanup_getLayoutFromFile;
+               fprintf(stderr, "malloc failed.\n");
+               goto cleanup_getRanksFromFile;
+            }
+
+            // Read rank list
+            result->numPids = layout_entry.numRanks;
+            if (fread(result->pids, sizeof(cti_rankPidPair_t), layout_entry.numRanks, layout_file) != layout_entry.numRanks) {
+                fprintf(stderr, "Could not read PID list %d of size %d from %s\n", i, layout_entry.numRanks, layout_path);
+                goto cleanup_getRanksFromFile;
+            }
+
+            goto cleanup_getRanksFromFile;
         }
+
+        // Advance to next entry
+        fseek(layout_file, rankPidSize, SEEK_CUR);
     }
 
     // Didn't find the host in the layout list!
     fprintf(stderr, "Could not find layout entry for hostname %s\n", hostname);
-    for (i = 0; i < layout_header.numNodes; ++i) {
-        fprintf(stderr, "%2d: %s\n", i, layout_contents[i].host);
-    }
 
-cleanup_getLayoutFromFile:
-    if (layout_contents != NULL) {
-        free(layout_contents);
-        layout_contents = NULL;
+cleanup_getRanksFromFile:
+    if (result && (result->pids == NULL)) {
+        free(result);
+        result = NULL;
     }
     if (layout_file != NULL) {
         fclose(layout_file);
@@ -688,111 +686,6 @@ cleanup_getLayoutFromFile:
         hostname = NULL;
     }
 
-    if ((result == NULL) && (layout != NULL)) {
-        free(layout);
-        layout = NULL;
-    }
-
-    return result;
-}
-
-static pid_t*
-_cti_be_pals_getPidsFromFile(slurmLayout_t const* layout)
-{
-    pid_t *result = NULL;
-
-    pid_t *pids = NULL;
-    char *file_dir = NULL;
-    char *pid_path = NULL;
-    FILE *pid_file = NULL;
-    slurmPidFile_t *pid_contents = NULL;
-    slurmPidFileHeader_t pid_header;
-
-    int i;
-
-    // Get the file directory were we can find the PID file
-    if ((file_dir = cti_be_getFileDir()) == NULL) {
-        fprintf(stderr, "cti_be_getFileDir failed.\n");
-        goto cleanup_getPidsFromFile;
-    }
-
-    // Create the path to the PID file
-    if (asprintf(&pid_path, "%s/%s", file_dir, SLURM_PID_FILE) <= 0) {
-        fprintf(stderr, "asprintf failed.\n");
-        goto cleanup_getPidsFromFile;
-    }
-
-    // Open the PID file for reading
-    if ((pid_file = fopen(pid_path, "rb")) == NULL) {
-        fprintf(stderr, "Could not open %s for reading\n", pid_path);
-    }
-
-    // read the header from the file
-    if (fread(&pid_header, sizeof(slurmPidFileHeader_t), 1, pid_file) != 1) {
-        fprintf(stderr, "Could not read header from %s\n", pid_path);
-        goto cleanup_getPidsFromFile;
-    }
-
-    // Ensure the file data is completely written
-    if ((layout->firstPE + layout->PEsHere) > pid_header.numPids) {
-        fprintf(stderr, "PID file %s is short\n", pid_path);
-        goto cleanup_getPidsFromFile;
-    }
-
-    // Allocate the PID contents array
-    if ((pid_contents = calloc(layout->PEsHere, sizeof(slurmPidFile_t))) == NULL) {
-        fprintf(stderr, "calloc failed.\n");
-        goto cleanup_getPidsFromFile;
-    }
-
-    // fseek to the start of the PID info for this compute node
-    if (fseek(pid_file, layout->firstPE * sizeof(slurmPidFile_t), SEEK_CUR)) {
-        fprintf(stderr, "fseek failed.\n");
-        goto cleanup_getPidsFromFile;
-    }
-
-    // Read the pid info
-    if (fread(pid_contents, sizeof(slurmPidFile_t), layout->PEsHere, pid_file) != layout->PEsHere) {
-        fprintf(stderr, "Failed to read all PIDs from %s\n", pid_path);
-        goto cleanup_getPidsFromFile;
-    }
-
-    // Allocate PID array
-    if ((pids = calloc(layout->PEsHere, sizeof(pid_t))) == NULL) {
-        fprintf(stderr, "calloc failed.\n");
-        goto cleanup_getPidsFromFile;
-    }
-
-    // Set the pids
-    for (i = 0; i < layout->PEsHere; ++i) {
-        pids[i] = pid_contents[i].pid;
-    }
-
-    result = pids;
-
-cleanup_getPidsFromFile:
-    if (pid_contents != NULL) {
-        free(pid_contents);
-        pid_contents = NULL;
-    }
-    if (pid_file != NULL) {
-        fclose(pid_file);
-        pid_file = NULL;
-    }
-    if (pid_path != NULL) {
-        free(pid_path);
-        pid_path = NULL;
-    }
-    if (file_dir != NULL) {
-        free(file_dir);
-        file_dir = NULL;
-    }
-
-    if ((result == NULL) && (pids != NULL)) {
-        free(pids);
-        pids = NULL;
-    }
-
     return result;
 }
 
@@ -804,8 +697,6 @@ _cti_be_pals_findAppPids()
 	cti_pidList_t *result = NULL;
 
 	pmi_attribs_t *cti_pmi_attrs = NULL; // Copy of global pointer, don't free
-	slurmLayout_t *layout = NULL;
-	pid_t *pids = NULL;
 	int i;
 
 	// Try to get PMI attribs from system file
@@ -840,35 +731,13 @@ _cti_be_pals_findAppPids()
                 fprintf(stderr, "Didn't find PMI attribs file, falling back to shipped layout\n");
 
 		// Get the global layout information
-		if ((layout = _cti_be_pals_getLayoutFromFile()) == NULL) {
-			goto cleanup__cti_be_pals_findAppPids;
-		}
-
-		// Get the PIDs on this node
-		if ((pids = _cti_be_pals_getPidsFromFile(layout)) == NULL) {
-			goto cleanup__cti_be_pals_findAppPids;
-		}
-
-		// Fill in the result structure
-		result = (cti_pidList_t*)malloc(sizeof(cti_pidList_t));
-		result->numPids = layout->PEsHere;
-		result->pids = (cti_rankPidPair_t*)malloc(result->numPids * sizeof(cti_rankPidPair_t));
-
-		for (i = 0; i < result->numPids; i++) {
-			result->pids[i].pid = pids[i];
-			result->pids[i].rank = layout->firstPE + i;
-		}
-
+                result = _cti_be_pals_getRanksFromFile();
 	}
 
 cleanup__cti_be_pals_findAppPids:
-	if (pids) {
-		free(pids);
-		pids = NULL;
-	}
-	if (layout) {
-		free(layout);
-		layout = NULL;
+	if (result && (result->pids == NULL)) {
+		free(result);
+		result = NULL;
 	}
 
 	return result;
