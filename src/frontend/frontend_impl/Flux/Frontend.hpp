@@ -114,7 +114,6 @@ private: // variables
     std::vector<FluxFrontend::HostPlacement> m_hostsPlacement;
 
     bool m_runningOnBroker; // Whether the tool was launched from the broker rank or not
-    std::string m_nonBrokerRanks; // For file shipping, run file get command on these ranks
     std::string m_binaryName; // Flux does not support MPMD, so only need to store a single binary
 
     std::string m_toolPath;    // Backend path where files are unpacked
@@ -125,7 +124,6 @@ private: // variables
     std::vector<uint64_t> m_daemonJobIds; // Daemon IDs to be cleaned up on exit
 
 private: // member helpers
-    std::vector<std::pair<std::string, std::string>> generateHostAttribs();
     void shipDaemon();
 
 public: // app interaction interface

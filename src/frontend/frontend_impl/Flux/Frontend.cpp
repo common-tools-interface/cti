@@ -258,6 +258,83 @@ static int cancel_job(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* flux
     return libFlux.flux_future_wait_for(future.get(), 0);
 }
 
+// Flux does not yet support cray-pmi, so backend information needs to be generated separately
+static std::string
+createNodeLayoutFile(std::vector<FluxFrontend::HostPlacement> const& hostsPlacement,
+    std::string const& stagePath)
+{
+    auto make_layoutFileEntry = [](std::string const& hostname, int firstPE, int numPEs) {
+        // Ensure we have good hostname information.
+        auto const hostname_len = hostname.size() + 1;
+        if (hostname_len > sizeof(slurmLayoutFile_t::host)) {
+            throw std::runtime_error("hostname too large for layout buffer");
+        }
+
+        // Extract PE and node information from Node Layout.
+        auto layout_entry    = slurmLayoutFile_t{};
+        layout_entry.PEsHere = numPEs;
+        layout_entry.firstPE = firstPE;
+        memcpy(layout_entry.host, hostname.c_str(), hostname_len);
+
+        return layout_entry;
+    };
+
+    // Create the file path, write the file using the Step Layout
+    auto const layoutPath = std::string{stagePath + "/" + SLURM_LAYOUT_FILE};
+    if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
+
+        // Write the Layout header.
+        cti::file::writeT(layoutFile.get(), slurmLayoutFileHeader_t
+            { .numNodes = (int)hostsPlacement.size()
+        });
+
+        // Write a Layout entry using node information from each Slurm Node Layout entry.
+        auto first_pe = 0;
+        for (auto&& placement : hostsPlacement) {
+            cti::file::writeT(layoutFile.get(), make_layoutFileEntry(placement.hostname,
+                first_pe, placement.numPEs));
+            first_pe += placement.numPEs;
+        }
+
+        return layoutPath;
+    } else {
+        throw std::runtime_error("failed to open layout file path " + layoutPath);
+    }
+}
+
+static std::string
+createPIDListFile(std::vector<FluxFrontend::HostPlacement> const& hostsPlacement,
+    std::string const& stagePath)
+{
+    auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
+    if (auto const pidFile = cti::file::open(pidPath, "wb")) {
+
+        // Sum up the number of PIDs
+        auto num_pids = std::accumulate(hostsPlacement.begin(), hostsPlacement.end(), 0,
+            [](size_t count, FluxFrontend::HostPlacement const& placement) {
+                return count + placement.rankPidPairs.size();
+            });
+
+        // Write the PID List header.
+        cti::file::writeT(pidFile.get(), slurmPidFileHeader_t
+            { .numPids = (int)num_pids
+        });
+
+        // Write a PID entry using information from each MPIR ProcTable entry.
+        for (auto&& placement : hostsPlacement) {
+            for (auto&& [rank, pid] : placement.rankPidPairs) {
+                cti::file::writeT(pidFile.get(), slurmPidFile_t
+                    { .pid = pid
+                });
+            }
+        }
+
+        return pidPath;
+    } else {
+        throw std::runtime_error("failed to open PID file path " + pidPath);
+    }
+}
+
 /* FluxFrontend implementation */
 
 std::weak_ptr<App>
@@ -659,6 +736,27 @@ FluxApp::shipPackage(std::string const& tarPath) const
     auto const destination = m_toolPath + "/" + packageName;
     writeLog("Flux shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
+    auto execvp_throw_stderr = [](char const* argv0, char const* const* argv, std::string const& ex) {
+
+        // Launch subprocess
+        auto output = cti::Execvp{argv0, (char* const*)argv, cti::Execvp::stderr::Pipe};
+        auto& stream = output.stream();
+        auto lines = std::stringstream{};
+        lines << ex << ": ";
+
+        // Read and save output
+        auto line = std::string{};
+        while (std::getline(stream, line)) {
+            lines << line << '\n';
+        }
+
+        // Check output status
+        if (output.getExitStatus()) {
+            throw std::runtime_error(lines.str());
+        }
+    };
+
+    // Ship file to destination on broker
     if (!m_runningOnBroker) {
 
         // Make remote directory on broker
@@ -680,7 +778,7 @@ FluxApp::shipPackage(std::string const& tarPath) const
             // https://github.com/flux-framework/flux-core/issues/4572
             auto const max_retry = 5;
             for (int retry = 1; retry <= max_retry; retry++) {
-                fprintf(stderr, "trying ship %s\n", destination.c_str());
+                writeLog("Broker: trying ship %s\n", destination.c_str());
                 if (cti::Execvp::runExitStatus("bash", (char* const*)exec_cat_argv)) {
                     if (retry == max_retry) {
                         throw std::runtime_error("failed to send file to rank 0 " + destination);
@@ -699,41 +797,53 @@ FluxApp::shipPackage(std::string const& tarPath) const
         if (cti::Execvp::runExitStatus("flux", (char* const*)exec_chmod_argv)) {
             throw std::runtime_error("failed to make directory on rank 0 " + m_toolPath);
         }
+
+    // Copy source to destination, mapping onto the same node is broken
+    // https://github.com/flux-framework/flux-core/issues/5655
+    } else {
+        char const* mkdir_argv[] = {"mkdir", "-p", m_toolPath.c_str(), nullptr};
+        if (cti::Execvp::runExitStatus("mkdir", (char* const*)mkdir_argv)) {
+            throw std::runtime_error("failed to mkdir " + m_toolPath);
+        }
+        char const* cp_argv[] = {"cp", tarPath.c_str(), destination.c_str(), nullptr};
+        if (cti::Execvp::runExitStatus("cp", (char* const*)cp_argv)) {
+            throw std::runtime_error("failed to copy " + tarPath + " to " + destination);
+        }
     }
 
+    // If running on broker, source directory is dirname of source file
+    // If not running on broker, file was shipped manually to m_toolPath
+    auto mapSourceDir = (m_runningOnBroker) ? dirName : m_toolPath;
+
     // Broadcast file from broker to other nodes
-    if (m_runningOnBroker || (m_hostsPlacement.size() > 1)) {
+    if (!m_runningOnBroker || (m_hostsPlacement.size() > 1)) {
 
         // Map file on broker node to central store
-        writeLog("Broker: adding to filemap\n");
+        writeLog("Broker: adding %s to filemap\n", tarPath.c_str());
         char const* exec_map_argv[] = {"flux", "exec", "-r", "0", "flux", "filemap", "map",
-            "--tags", m_toolPath.c_str(), "-C",
-            (m_runningOnBroker) ? dirName.c_str() : m_toolPath.c_str(),
+            "--tags", m_toolPath.c_str(), "-C", dirName.c_str(),
             packageName.c_str(), nullptr};
-        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_map_argv)) {
-            throw std::runtime_error("failed to map file on rank 0 " + destination);
-        }
+        execvp_throw_stderr("flux", exec_map_argv, "failed to map file on rank 0");
 
         // Make remote directories and pull from filemap
-        writeLog("%s: mkdir %s and pull %s\n",
-            (m_runningOnBroker) ? "All ranks" : "Non-broker",
-            m_toolPath.c_str(), packageName.c_str());
-        auto mkdirGetCmd = "mkdir -p " + m_toolPath + "; flux filemap get --tags "
-            + m_toolPath + " -C " + m_toolPath + " " + packageName;
-        char const* exec_get_argv[] = {"flux", "exec", "-r",
-            (m_runningOnBroker) ? "all" : m_nonBrokerRanks.c_str(),
+        auto pull_on_broker = false; // Pulling on broker is broken, see
+        // https://github.com/flux-framework/flux-core/issues/5655
+        writeLog("%s: pull %s -> %s\n",
+            (pull_on_broker) ? "All ranks" : "Non-broker",
+            tarPath.c_str(), destination.c_str());
+        auto mkdirGetCmd = "mkdir -p " + m_toolPath + "; "
+            "flux filemap get --tags " + m_toolPath + " -C " + m_toolPath + " " + packageName;
+        char const* exec_get_argv[] = {"flux", "exec",
+            (pull_on_broker) ?  "-r" : "-x", // `-r all` runs on all ranks
+            (pull_on_broker) ? "all" : "0",  // `-x 0` excludes broker rank
             "bash", "-c", mkdirGetCmd.c_str(), nullptr};
-        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_get_argv)) {
-            throw std::runtime_error("failed to get mapped file " + destination);
-        }
+        execvp_throw_stderr("flux", exec_get_argv, "failed to get mapped file");
 
         // Unmap file on broker node
         writeLog("Broker: unmapping file\n");
         char const* exec_unmap_argv[] = {"flux", "exec", "-r", "0", "flux", "filemap", "unmap",
             "--tags", m_toolPath.c_str(), nullptr};
-        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_unmap_argv)) {
-            throw std::runtime_error("failed to unmap file on rank 0 " + destination);
-        }
+        execvp_throw_stderr("flux", exec_unmap_argv, "failed to unmap file on rank 0");
     }
 }
 
@@ -868,7 +978,6 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
     , m_numPEs{}
     , m_hostsPlacement{}
     , m_runningOnBroker{true} // Currently only support running from same Flux instance
-    , m_nonBrokerRanks{}
     , m_binaryName{}
 
     , m_toolPath{}
@@ -905,6 +1014,10 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
 
         // Fill in hosts placement, PEs per node
         m_hostsPlacement = flux::make_hostsPlacement(proctable);
+
+        // Generate backend layout
+        m_extraFiles.push_back(createNodeLayoutFile(m_hostsPlacement, m_stagePath));
+        m_extraFiles.push_back(createPIDListFile(m_hostsPlacement, m_stagePath));
 
         // Sum up number of PEs
         m_numPEs = std::accumulate(
@@ -955,86 +1068,6 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
                 hostnameFirstRankMap.insert({hostname, std::stoi(rank)});
             }
         }
-
-        auto nonBrokerRanks = std::set<int>{};
-        for (auto&& [hostname, rank] : hostnameFirstRankMap) {
-            if (rank != 0) {
-                nonBrokerRanks.insert(rank);
-            }
-        }
-
-        // TODO: make rank ranges
-        for (auto&& rank : nonBrokerRanks) {
-            if (m_nonBrokerRanks.empty()) {
-                m_nonBrokerRanks = std::to_string(rank);
-            } else {
-                m_nonBrokerRanks += "," + std::to_string(rank);
-            }
-        }
-
-        writeLog("Non-broker ranks: %s\n", m_nonBrokerRanks.c_str());
-    }
-}
-
-// Flux does not yet support cray-pmi, so backend information needs to be generated separately
-std::vector<std::pair<std::string, std::string>>
-FluxApp::generateHostAttribs()
-{
-    auto result = std::vector<std::pair<std::string, std::string>>{};
-
-    auto const cfgDir = m_frontend.getCfgDir();
-
-    // Create attribs file for each hostname
-    for (auto&& placement : m_hostsPlacement) {
-
-        // Create placement directory
-        auto placementDir = cfgDir + "/" + placement.hostname;
-        { struct stat st;
-            if (::stat(placementDir.c_str(), &st)) {
-                if (::mkdir(placementDir.c_str(), 0700)) {
-                    throw std::runtime_error("failed to create directory at " + placementDir);
-                }
-            }
-        }
-
-        // Open attribute file for writing
-        auto const attribsPath = placementDir + "/pmi_attribs";
-        auto attribs_file = cti::take_pointer_ownership(::fopen(attribsPath.c_str(), "w"), ::fclose);
-        if (!attribs_file) {
-            throw std::runtime_error("failed to create file at " + attribsPath);
-        }
-
-        // Write attribs information to file
-        fprintf(attribs_file.get(), "%d\n%d\n%d\n%ld\n",
-            1, // PMI version 1
-            0, // Node ID disabled
-            0, // Flux does not support MPMD
-            placement.numPEs); // Ranks on node
-
-        for (auto&& [rank, pid] : placement.rankPidPairs) {
-            fprintf(attribs_file.get(), "%d %d\n", rank, pid);
-        }
-
-        // Add PMI file to list
-        result.emplace_back(placement.hostname, attribsPath);
-    }
-
-    return result;
-}
-
-static void
-cleanupHostAttribs(std::string const& cfgDir,
-    std::vector<std::pair<std::string, std::string>> const& hostnameAttribsPairs)
-{
-    // Create attribs file for each hostname
-    for (auto&& [hostname, attribsPath] : hostnameAttribsPairs) {
-
-        // Remove placement file
-        ::unlink(attribsPath.c_str());
-
-        // Remove placement directory
-        auto placementDir = cfgDir + "/" + hostname;
-        ::rmdir(placementDir.c_str());
     }
 }
 
@@ -1052,18 +1085,6 @@ FluxApp::shipDaemon()
     std::filesystem::copy_file(sourcePath, destinationPath,
     std::filesystem::copy_options::overwrite_existing);
     shipPackage(destinationPath);
-
-    // Generate attribute files
-    auto const hostAttribs = generateHostAttribs();
-
-    // Ship attribute files
-    for (auto&& [hostname, attribPath] : hostAttribs) {
-        // pmi_attribs file will be expected in m_toolPath/pmi_attribs
-        shipPackage(attribPath);
-    }
-
-    // Remove attribute files
-    cleanupHostAttribs(m_frontend.getCfgDir(), hostAttribs);
 
     // set transfer to true
     m_beDaemonSent = true;

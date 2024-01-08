@@ -35,9 +35,9 @@ TEST(parse_rangeList, Single)
     auto const rangeList = flux::parse_rangeList(root, base);
     ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList));
     auto const [value, count] = std::get<flux::RLE>(rangeList);
-    EXPECT_TRUE(value == 3);
-    EXPECT_TRUE(count == 1);
-    EXPECT_TRUE(base == 3);
+    EXPECT_EQ(value, 3);
+    EXPECT_EQ(count, 1);
+    EXPECT_EQ(base, 3);
 }
 
 TEST(parse_rangeList, Range)
@@ -47,9 +47,9 @@ TEST(parse_rangeList, Range)
     auto const rangeList = flux::parse_rangeList(root, base);
     ASSERT_TRUE(std::holds_alternative<flux::Range>(rangeList));
     auto const [start, end] = std::get<flux::Range>(rangeList);
-    EXPECT_TRUE(start == 2);
-    EXPECT_TRUE(end == 5);
-    EXPECT_TRUE(base == 5);
+    EXPECT_EQ(start, 2);
+    EXPECT_EQ(end, 5);
+    EXPECT_EQ(base, 5);
 }
 
 TEST(parse_rangeList, RLE)
@@ -59,9 +59,9 @@ TEST(parse_rangeList, RLE)
     auto const rangeList = flux::parse_rangeList(root, base);
     ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList));
     auto const [value, count] = std::get<flux::RLE>(rangeList);
-    EXPECT_TRUE(value == 2);
-    EXPECT_TRUE(count == 4);
-    EXPECT_TRUE(base == 2);
+    EXPECT_EQ(value, 2);
+    EXPECT_EQ(count, 4);
+    EXPECT_EQ(base, 2);
 }
 
 TEST(flatten_rangeList, Empty)
@@ -144,7 +144,7 @@ TEST(for_each_prefixList, Multi)
     flux::for_each_prefixList(root, [&values](std::string const& prefix, std::string const& suffix) {
         values.emplace(prefix + suffix);
     });
-    auto const rhs = decltype(values){"a2", "a3", "a4", "a5", "a7", "a7", "b3", "b4", "b5", "b6", "b6"};
+    auto const rhs = decltype(values){"a2", "a3", "a4", "a5", "a7", "a7", "b3", "b4", "b5", "b6"};
     EXPECT_EQ(values.size(), rhs.size());
     EXPECT_EQ(values, rhs);
 }
@@ -182,21 +182,27 @@ TEST(make_hostsPlacement, SingleRank)
 TEST(make_hostsPlacement, MultiRank)
 {
     auto const root = parse_json(
-        "{ \"hosts\": [[ \"node\", [[15,-1]] ]]"
-        ", \"executables\": [[ \"/path/to/a.out\", [[-1,-1]] ]]"
-        ", \"ids\": [[0,1]]"
-        ", \"pids\": [7991,1]"
+        "{ \"hosts\": [[\"tioga\",[[29,-2],[3,-2]]]]"
+        ", \"executables\": [[\"/g/g11/dangelo3/signals\",[[-1,-5]]]]"
+        ", \"ids\":[[0,5]]"
+        ", \"pids\":[[2736905,2],[1381418,2]]"
         "}");
     auto const hostsPlacement = flux::make_hostsPlacement(root);
-    ASSERT_EQ(hostsPlacement.size(), 1);
+    ASSERT_EQ(hostsPlacement.size(), 2);
 
-    EXPECT_EQ(hostsPlacement[0].hostname, "node15");
-    EXPECT_EQ(hostsPlacement[0].numPEs, 2);
-    { auto const rhs = decltype(hostsPlacement[0].rankPidPairs){{0, 7991}, {1, 7992}};
+    EXPECT_EQ(hostsPlacement[0].hostname, "tioga29");
+    EXPECT_EQ(hostsPlacement[0].numPEs, 3);
+    { auto const rhs = decltype(hostsPlacement[0].rankPidPairs){
+            {0, 2736905}, {1, 2736906}, {2, 2736907}};
         EXPECT_EQ(hostsPlacement[0].rankPidPairs, rhs);
     }
+    EXPECT_EQ(hostsPlacement[1].hostname, "tioga32");
+    EXPECT_EQ(hostsPlacement[1].numPEs, 3);
+    { auto const rhs = decltype(hostsPlacement[1].rankPidPairs){
+            {3, 4118325}, {4, 4118326}, {5, 4118327}};
+        EXPECT_EQ(hostsPlacement[1].rankPidPairs, rhs);
+    }
 }
-
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
