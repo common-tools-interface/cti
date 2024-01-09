@@ -172,6 +172,11 @@ Requires:   cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst
 %description -n %{cray_name}-tests-%{pkgversion}
 Test files for Cray Common Tools Interface
 
+%package -n %{cray_name}-dst-tests-%{pkgversion}
+Summary:    Cray Common Tools Interface dst automated test materials
+Group:      Development
+%description -n %{cray_name}-dst-tests-%{pkgversion}
+Test files for DST automated post install pipelines
 
 %prep
 # Run q(uiet) with build directory name, c(reate) subdirectory, disable T(arball) unpacking
@@ -415,6 +420,18 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two
 %{__cp} -a %{tests_source_dir}/function/src/support/message_two/message.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.c
 %{__cp} -a %{tests_source_dir}/function/src/support/message_two/message.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.h
+
+# DST post install automated testing materials
+# The directory structure should follow conventions outlined here:
+# https://rndwiki-pro.its.hpecorp.net/pages/viewpage.action?pageId=270152112
+%{__install} -d                                                                   ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti
+%{__cp} -avr %{tests_source_dir}/pipeline/opt/cray/tests/cdst/resources/cti/smoke ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti/smoke
+%{__cp} -avr %{tests_source_dir}/function/cdst-test                               ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti/cdst-test
+%{__rm} -r ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti/cdst-test/.git
+%{__rm} -r ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti/cdst-test/.gitignore
+
+%{__install} -d                                                                      ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/shasta/smoke/uan/cti
+%{__cp} -avr %{tests_source_dir}/pipeline/opt/cray/tests/cdst/shasta/smoke/uan/cti/* ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/shasta/smoke/uan/cti/
 
 # Touch the cray dynamic file list which will be populated/updated post-install
 touch ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
@@ -784,3 +801,13 @@ fi
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.h
+
+%files -n %{cray_name}-dst-tests-%{pkgversion}
+%defattr(-,root,root)
+
+%dir /opt/cray/tests/cdst/resources/cti
+/opt/cray/tests/cdst/resources/cti/smoke
+/opt/cray/tests/cdst/resources/cti/cdst-test
+
+%dir /opt/cray/tests/cdst/shasta/smoke/uan/cti
+/opt/cray/tests/cdst/shasta/smoke/uan/cti/*
