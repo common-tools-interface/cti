@@ -377,6 +377,8 @@ Test files for DST automated post install pipelines
 %{__cp} -a %{tests_source_dir}/function/src/cti_mpir_shim_test.cpp          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpir_shim_test.cpp
 %{__cp} -a %{tests_source_dir}/function/src/cti_mpmd                        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd
 %{__cp} -a %{tests_source_dir}/function/src/cti_mpmd_test.c                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_mpmd_daemon                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_daemon
+%{__cp} -a %{tests_source_dir}/function/src/cti_mpmd_daemon_test.cpp        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_daemon_test.cpp
 %{__cp} -a %{tests_source_dir}/function/src/cti_redirect                    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect
 %{__cp} -a %{tests_source_dir}/function/src/cti_redirect_test.cpp           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect_test.cpp
 %{__cp} -a %{tests_source_dir}/function/src/cti_release_app                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_release_app
@@ -758,6 +760,8 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpir_shim_test.cpp
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_test.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_daemon
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_daemon_test.cpp
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect_test.cpp
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_release_app

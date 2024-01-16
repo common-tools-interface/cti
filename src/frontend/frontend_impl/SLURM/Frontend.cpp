@@ -50,10 +50,17 @@ static bool job_registered(std::string const& jobId)
     return cti::Execvp::runExitStatus("squeue", (char* const*)squeueArgv.get()) == 0;
 }
 
-// Use squeue to check if job has a step 0 in started state. We assume that the
-// job is already registered and treat an invalid jobId as an error instead of
-// waiting for it to appear.
-static bool job_step_zero_started(std::string const& jobId)
+enum class JobStepStatus
+    { Running
+    , NotRunning
+    , Error
+};
+
+// Whether jobid.stepid is in the RUNNING state
+// Determining if job is running by checking if srun / sattach is live is not accurate
+// When attached to a SIGSTOP srun, or a backgrounded sattach, the srun / sattach process can
+// outlive the job
+static JobStepStatus job_step_running(std::string const& jobId, std::string const& stepId)
 {
     auto squeueArgv = cti::ManagedArgv{"squeue"};
 
@@ -79,8 +86,8 @@ static bool job_step_zero_started(std::string const& jobId)
     auto squeueLine = std::string{};
     auto gotOutput = false;
 
-    // Search for "RUNNING|<jobid>.0"
-    auto needle = std::string{"RUNNING|"} + jobId + ".0";
+    // Search for "RUNNING|<jobid>.<stepid>"
+    auto needle = std::string{"RUNNING|"} + jobId + "." + stepId;
 
     while (std::getline(squeueStream, squeueLine)) {
         gotOutput = true;
@@ -92,10 +99,8 @@ static bool job_step_zero_started(std::string const& jobId)
     squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
 
     // Check for fatal errors
-
     if (const auto exitStatus = squeueOutput.getExitStatus(); exitStatus != 0) {
-        throw std::runtime_error("checking status of job step " + jobId + ".0 failed using command:\n"
-            + squeueArgv.string() + "\n" + "(bad exit status: " + std::to_string(exitStatus) +")\n");
+        return JobStepStatus::Error;
     }
 
     // Passing --steps to squeue changes its API. It doesn't check if the job id
@@ -109,11 +114,26 @@ static bool job_step_zero_started(std::string const& jobId)
     // id is invalid" empty output case from the "job id is valid but waiting"
     // empty output case.
     if (!gotOutput && !job_registered(jobId)) {
-        throw std::runtime_error("checking status of job step " + jobId + ".0 failed using command:\n"
-            + squeueArgv.string() + "\n" + "(job id is invalid)\n");
+        return JobStepStatus::Error;
     }
 
-    return squeueLine.rfind(needle, 0) == 0;
+    return (squeueLine.rfind(needle, 0) == 0)
+        ? JobStepStatus::Running
+        : JobStepStatus::NotRunning;
+}
+
+// Use squeue to check if job is in started state. We assume that the
+// job is already registered and treat an invalid jobId as an error instead of
+// waiting for it to appear.
+static bool job_step_zero_started(std::string const& jobId)
+{
+    auto status = job_step_running(jobId, "0");
+
+    if (status == JobStepStatus::Error) {
+        throw std::runtime_error("checking status of job " + jobId + ".0 failed\n");
+    }
+
+    return (status == JobStepStatus::Running);
 }
 
 // Wait forever for `func`to return true. If `func` ever throws an exception,
@@ -448,7 +468,16 @@ SLURMApp::getLauncherHostname() const
 bool
 SLURMApp::isRunning() const
 {
-    return m_frontend.Daemon().request_CheckApp(m_daemonAppId);
+    for (auto&& hetJobId : m_allJobIds) {
+        auto&& [jobId, stepId] = hetJobId.strs();
+
+        // Check job and step ID with squeue
+        if (job_step_running(jobId, stepId) != JobStepStatus::Running) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 size_t

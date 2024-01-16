@@ -127,6 +127,10 @@ public: // slurm specific types
         auto get_sbcast_scancel_id() const {
             return std::to_string(job_id) + "." + std::to_string(step_id);
         }
+
+        auto strs() const {
+            return std::make_pair(std::to_string(job_id), std::to_string(step_id));
+        }
     };
 
 public: // slurm specific interface
