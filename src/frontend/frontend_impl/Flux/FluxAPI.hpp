@@ -70,7 +70,7 @@ static inline auto parse_rangeList(pt::ptree const& root, int64_t& base)
 
     // Single element will be interpreted as a range of size 1
     if (!root.data().empty()) {
-        base = root.get_value<int64_t>();
+        base = base + root.get_value<int64_t>();
         return RangeList { RLE
             { .value = base
             , .count = 1

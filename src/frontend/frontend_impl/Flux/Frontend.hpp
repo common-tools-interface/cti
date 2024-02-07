@@ -113,7 +113,7 @@ private: // variables
     size_t m_numPEs;
     std::vector<FluxFrontend::HostPlacement> m_hostsPlacement;
 
-    bool m_runningOnBroker; // Whether the tool was launched from the broker rank or not
+    bool m_allocBypassLoaded;
     std::string m_binaryName; // Flux does not support MPMD, so only need to store a single binary
 
     std::string m_toolPath;    // Backend path where files are unpacked

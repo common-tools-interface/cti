@@ -168,7 +168,14 @@ detectFrontendHostname()
     static auto _address = []() {
         auto hostname = cti::cstr::gethostname();
         auto info = make_addrinfo(hostname);
-        return resolve_hostname(*info);
+        try {
+            return resolve_hostname(*info);
+        } catch (std::exception const& ex) {
+            if (::getenv(CTI_DBG_ENV_VAR) != nullptr) {
+                fprintf(stderr, "warning: %s, using system hostname\n", ex.what());
+            }
+            return hostname;
+        }
     }();
     return _address;
 }

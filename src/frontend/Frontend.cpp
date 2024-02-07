@@ -526,14 +526,10 @@ static bool detect_XC_ALPS(std::string const& launcherName)
 static bool detect_Flux(std::string const& launcherName)
 {
     auto const launcher_name = !launcherName.empty() ? launcherName.c_str() : "flux";
-
     try {
         // Check that flux version succeeds
         auto fluxArgv = cti::ManagedArgv{launcher_name, "--version"};
-        auto fluxOutput = cti::Execvp{launcher_name, fluxArgv.get(), cti::Execvp::stderr::Ignore};
-
-        // Wait for flux to complete
-        if (fluxOutput.getExitStatus()) {
+        if (cti::Execvp::runExitStatus(launcher_name, fluxArgv.get())) {
             return false;
         }
 
@@ -544,7 +540,7 @@ static bool detect_Flux(std::string const& launcherName)
         } else {
             return false;
         }
-    } catch (...) {
+    } catch (std::exception const& ex) {
         return false;
     }
 }

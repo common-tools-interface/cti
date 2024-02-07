@@ -89,6 +89,38 @@ TEST(flatten_rangeList, Multi)
     EXPECT_EQ(values, rhs);
 }
 
+TEST(flatten_rangeList, Mixed)
+{
+    auto const root = parse_json("[[1108964,31],[5,22],4,[6,1],2,3]");
+    auto const values = flux::flatten_rangeList(root);
+    auto const rhs = decltype(values){
+        // [1108964,31] -> 1108964 - 1108995
+        1108964, 1108965, 1108966, 1108967, 1108968, 1108969, 1108970, 1108971, 1108972,
+        1108973, 1108974, 1108975, 1108976, 1108977, 1108978, 1108979, 1108980, 1108981,
+        1108982, 1108983, 1108984, 1108985, 1108986, 1108987, 1108988, 1108989, 1108990,
+        1108991, 1108992, 1108993, 1108994, 1108995,
+
+        // 1108995 + [5,22] -> 1109000 - 11090022
+        1109000, 1109001, 1109002, 1109003, 1109004, 1109005, 1109006, 1109007, 1109008,
+        1109009, 1109010, 1109011, 1109012, 1109013, 1109014, 1109015, 1109016, 1109017,
+        1109018, 1109019, 1109020, 1109021, 1109022,
+
+        // 11090022 + 4 -> 110900026
+        1109026,
+
+        // 1109026 + [6,1] -> 1109032 - 1109033
+        1109032, 1109033,
+
+        // 1109033 + 2 -> 1109035
+        1109035,
+
+        // 1109035 + 3 -> 1109038
+        1109038
+    };
+    EXPECT_EQ(values.size(), rhs.size());
+    EXPECT_EQ(values, rhs);
+}
+
 TEST(for_each_prefixList, SingleEmpty)
 {
     auto const root = parse_json("[[ \"prefix\", [[-1, -1]] ]]");
@@ -203,6 +235,7 @@ TEST(make_hostsPlacement, MultiRank)
         EXPECT_EQ(hostsPlacement[1].rankPidPairs, rhs);
     }
 }
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

@@ -61,7 +61,7 @@ _cti_cleanup_be_globals(void)
 /* Layout helper functions */
 
 static slurmLayout_t*
-_cti_be_pals_getLayoutFromFile(void)
+_cti_be_flux_getLayoutFromFile(void)
 {
     slurmLayout_t *result = NULL;
 
@@ -83,7 +83,7 @@ _cti_be_pals_getLayoutFromFile(void)
 
     // Get hostname to look up
     if ((hostname = _cti_be_flux_getNodeHostname()) == NULL) {
-        fprintf(stderr, "_cti_be_slurm_getNodeHostname failed.\n");
+        fprintf(stderr, "_cti_be_flux_getNodeHostname failed.\n");
         goto cleanup_getLayoutFromFile;
     }
     hostname_len = strlen(hostname);
@@ -186,7 +186,7 @@ cleanup_getLayoutFromFile:
 }
 
 static pid_t*
-_cti_be_pals_getPidsFromFile(slurmLayout_t const* layout)
+_cti_be_flux_getPidsFromFile(slurmLayout_t const* layout)
 {
     pid_t *result = NULL;
 
@@ -296,7 +296,7 @@ _cti_be_flux_init(void)
         goto cleanup__cti_be_flux_init;
     }
 
-    g_layout = _cti_be_pals_getLayoutFromFile();
+    g_layout = _cti_be_flux_getLayoutFromFile();
     if (g_layout == NULL) {
         rc = 1;
         goto cleanup__cti_be_flux_init;
@@ -336,7 +336,7 @@ _cti_be_flux_findAppPids()
     }
 
     // Get the PIDs on this node
-    if ((pids = _cti_be_pals_getPidsFromFile(g_layout)) == NULL) {
+    if ((pids = _cti_be_flux_getPidsFromFile(g_layout)) == NULL) {
         goto cleanup__cti_be_flux_findAppPids;
     }
 
