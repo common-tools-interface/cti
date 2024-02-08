@@ -218,6 +218,7 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
     }
 
     // Add startup barrier environment setting
+    jobEnvArg << "PALS_LOCAL_LAUNCH=0";
     jobEnvArg << "PALS_STARTUP_BARRIER=1";
     qsubArgv.add("-v");
     qsubArgv.add(jobEnvArg.str());
@@ -479,17 +480,23 @@ PALSFrontend::launchApp(const char * const launcher_argv[],
     }
 }
 
-// Add the launcher's timeout environment variable to provided environment list
-// Set timeout to five minutes
-static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgArray env_list)
+// Add necessary launch environment arguments to the provided list
+static inline auto fixLaunchEnvironment(std::string const& launcherName, CArgArray env_list)
 {
     // Determine the timeout environment variable for PALS `mpiexec` or PALS `aprun` command
+    // Set timeout to five minutes
     // https://connect.us.cray.com/jira/browse/PE-34329
     auto const timeout_env = (launcherName == "aprun")
         ? "APRUN_RPC_TIMEOUT=300"
         : "PALS_RPC_TIMEOUT=300";
 
-    // Add the launcher's timeout disable environment variable to a new environment list
+    // Always send launch events to the PALS service
+    // https://jira-pro.it.hpe.com:8443/browse/ALT-764
+    auto const local_launch_env = (launcherName == "aprun")
+        ? "APRUN_LOCAL_LAUNCH=0"
+        : "PALS_LOCAL_LAUNCH=0";
+
+    // Add the new variables to a new environment list
     auto fixedEnvVars = cti::ManagedArgv{};
 
     // Copy provided environment list
@@ -497,8 +504,9 @@ static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgAr
         fixedEnvVars.add(env_list);
     }
 
-    // Append timeout disable environment variable
+    // Append new environment variable
     fixedEnvVars.add(timeout_env);
+    fixedEnvVars.add(local_launch_env);
 
     return fixedEnvVars;
 }
@@ -507,7 +515,7 @@ std::weak_ptr<App>
 PALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
+    auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto appPtr = std::make_shared<PALSApp>(*this,
         launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get()));
@@ -528,7 +536,7 @@ std::weak_ptr<App>
 PALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
+    auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
         launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));

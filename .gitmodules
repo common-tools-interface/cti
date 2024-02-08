@@ -20,6 +20,6 @@
 	branch = master
 [submodule "external/changelog"]
 	path = external/changelog
-	url = git@github.hpe.com:hpcde/devops-changlog.git
+	url = git@github.hpe.com:hpcde/devops-changelog.git
 	branch = master
 
