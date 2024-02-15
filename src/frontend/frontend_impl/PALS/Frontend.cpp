@@ -1074,12 +1074,13 @@ PALSApp::checkFilesExist(std::set<std::string> const& paths)
     auto stdoutPipe = cti::Pipe{};
 
     // Tell FE Daemon to launch mpiexec
+    char const *local_launch_env[] = {"PALS_LOCAL_LAUNCH=0", nullptr};
     m_frontend.Daemon().request_ForkExecvpUtil_Async(
         m_daemonAppId, "mpiexec",
         mpiexecArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), stdoutPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
-        {});
+        local_launch_env);
 
     stdoutPipe.closeWrite();
     auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
