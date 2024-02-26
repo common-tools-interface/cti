@@ -533,13 +533,11 @@ static bool detect_Flux(std::string const& launcherName)
             return false;
         }
 
-        // Look for Flux socket information in environment
-        if (auto const flux_uri = ::getenv(FLUX_URI)) {
-            return true;
+        // Remove check for FLUX_URI, as this is only available in allocations
+        // Still want to be able to present a diganostic to run in an allocation
 
-        } else {
-            return false;
-        }
+        return true;
+
     } catch (std::exception const& ex) {
         return false;
     }

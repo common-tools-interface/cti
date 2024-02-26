@@ -61,3 +61,7 @@ FLUX_JOB_DEBUG 2
 FLUX_JOB_WAITABLE 4
 FLUX_JOB_NOVALIDATE 8
 enum end
+
+enum job_event_watch_flags int
+FLUX_JOB_EVENT_WATCH_WAITCREATE 1
+enum end

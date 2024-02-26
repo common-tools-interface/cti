@@ -207,6 +207,7 @@ typedef struct
 #define LIBFLUX_PATH_ENV_VAR "LIBFLUX_PATH"
 #define LIBFLUX_NAME "libflux-core.so.2"
 #define CTI_FLUX_DEBUG_ENV_VAR "CTI_FLUX_DEBUG" // Bypass version mismatch errors
+#define CTI_FLUX_REQUIRE_RANK0_ENV_VAR "CTI_FLUX_REQUIRE_RANK0" // Add --require=rank:0
 
 /*
 ** HPCM specific information

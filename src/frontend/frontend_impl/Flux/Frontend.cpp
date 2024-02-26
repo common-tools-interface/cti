@@ -68,6 +68,17 @@ static std::string make_jobspec(char const* launcher_name, char const* const lau
     // Build Flux dry run arguments
     auto fluxArgv = cti::ManagedArgv { launcher_name, "submit", "--dry-run" };
 
+    // If have input / output / error paths, enforce broker rank to be on rank 0
+    // This ensures that in an allocation, local paths for input
+    // and output will be available to the broker node
+    if (!inputPath.empty() || !outputPath.empty() || !errorPath.empty()) {
+
+        auto require_rank0 = ::getenv(CTI_FLUX_REQUIRE_RANK0_ENV_VAR);
+        if ((require_rank0 == nullptr) || (require_rank0[0] != '0')) {
+            fluxArgv.add("--requires=rank:0");
+        }
+    }
+
     // Add input / output / error files, if provided
     if (!inputPath.empty()) {
         fluxArgv.add("--input=" + inputPath);
@@ -132,7 +143,8 @@ static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t
     uint64_t job_id)
 {
     auto eventlog_future = make_unique_del(
-        libFlux.flux_job_event_watch(fluxHandle, job_id, "guest.exec.eventlog", 0),
+        libFlux.flux_job_event_watch(fluxHandle, job_id, "guest.exec.eventlog",
+            (int)libFlux.JobEventWatchFlags::FluxJobEventWatchWaitcreate),
         libFlux.flux_future_destroy);
     if (eventlog_future == nullptr) {
         throw std::runtime_error("Flux job event query failed");
@@ -140,19 +152,19 @@ static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t
 
     // Read event log responses
     while (true) {
+
+        // Unpack event data
         char const *eventlog_result = nullptr;
-        auto const eventlog_rc = libFlux.flux_job_event_watch_get(eventlog_future.get(), &eventlog_result);
-        if (eventlog_rc == ENODATA) {
-            continue;
-        } else if (eventlog_rc < 0) {
-            throw std::runtime_error("Flux job event query failed: " + get_flux_future_error(libFlux, eventlog_future.get()));
+        if (libFlux.flux_job_event_watch_get(eventlog_future.get(), &eventlog_result) < 0) {
+            throw std::runtime_error("Flux failed to get startup event");
         }
 
         // Received a new event log result, parse it as JSON
         auto root = parse_json(eventlog_result);
+        auto eventName = root.get<std::string>("name");
 
         // Looking for shell.init event, will contain leader rank and service key
-        if (root.get<std::string>("name") == "shell.init") {
+        if (eventName == "shell.init") {
 
             // Got shell.init, extract the job information
             auto context = root.get_child("context");
@@ -163,7 +175,11 @@ static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t
                 throw std::runtime_error("Flux API returned empty RPC service key");
             }
 
-            return std::make_pair(leaderRank, std::move(rpcService));
+        return std::make_pair(leaderRank, std::move(rpcService));
+
+        // Job exited prematurely
+        } else if (eventName == "shell.exit") {
+            throw std::runtime_error("Flux reported job completion before job start");
         }
 
         // Reset and wait for next event log result

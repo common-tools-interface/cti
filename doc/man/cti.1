@@ -201,6 +201,14 @@ active development and its interface is subject to change.
 CTI will verify at runtime if your system is running a different version
 of Flux; this check can be bypassed by setting
 \f[I]CTI_FLUX_DEBUG=1\f[R].
+.IP \[bu] 2
+\f[I]CTI_FLUX_REQUIRE_RANK0\f[R]: CTI uses the Flux \f[C]--output\f[R]
+and \f[C]--error\f[R] options to redirect job output.
+These files need to be available to the broker node, not necessarily
+where the tool is running.
+To ensure that these files are available to the job launch, CTI supplies
+the job option \f[C]--require=rank:0\f[R] when submitting jobs.
+To disable this, set \f[I]CTI_FLUX_REQUIRE_RANK0=0\f[R].
 .SS ALPS-specific variables
 .IP \[bu] 2
 \f[I]CTI_APRUN_PATH\f[R]: By default, the \f[B]aprun\f[R] launcher is
