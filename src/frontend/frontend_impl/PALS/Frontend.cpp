@@ -194,6 +194,52 @@ static auto find_apid_from_jobid(std::string const& execHost, std::string const&
     return parsedApid;
 }
 
+static bool is_apid_running(std::string const& execHost, std::string const& apId)
+{
+    // Run palstat to query job with apid
+    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", execHost, apId};
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Start parsing palstat output
+    auto& palstatStream = palstatOutput.stream();
+    auto palstatLine = std::string{};
+
+    // APID / JobID lines are in the format `Var: Val`
+    // APID appears before JobID
+    auto running = false;
+    while (std::getline(palstatStream, palstatLine)) {
+
+        // Split line on ': '
+        auto const var_end = palstatLine.find(": ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
+        auto const val = palstatLine.substr(var_end + 2);
+        if (var == "State") {
+            auto appState = cti::split::removeLeadingWhitespace(std::move(val));
+
+            // Running / launched states
+            if ((appState == "pending") || (appState == "startup")
+             || (appState == "running")) {
+                running = true;
+                break;
+            }
+        }
+    }
+
+    // Consume rest of stream output
+    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for completion and check exit status
+    if (auto const palstat_rc = palstatOutput.getExitStatus()) {
+        running = false;
+    }
+
+    return running;
+}
+
 std::string
 PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* launcher_args,
     char const* const* env_list)
@@ -325,8 +371,19 @@ PALSFrontend::attachApp(std::string const& jobOrApId)
     auto execHost = std::string{};
     auto apId = std::string{};
 
+    // Can supply both exec host and PALS app ID separated by :
+    auto colon_at = jobOrApId.rfind(":");
+    if (colon_at != std::string::npos) {
+
+        // Split on colon
+        auto jobId = jobOrApId.substr(0, colon_at);
+        apId = jobOrApId.substr(colon_at + 1);
+
+        // Find execution host from job ID
+        execHost = find_job_host_outside_allocation(jobId);
+
     // Determine if ID is PBS job ID or PALS job ID
-    if (is_pals_apid(jobOrApId)) {
+    } else if (is_pals_apid(jobOrApId)) {
 
         // If execution host was manually supplied, can attach outside
         // of job's allocation
@@ -365,6 +422,22 @@ PALSFrontend::attachApp(std::string const& jobOrApId)
 
         // Find PALS app ID from PBS job ID and exec host
         apId = find_apid_from_jobid(execHost, jobOrApId);
+    }
+
+    // Ensure application still running
+    if (!is_apid_running(execHost, apId)) {
+
+        // Running in allocation
+        if (::getenv(PALS_EXEC_HOST)) {
+            throw std::runtime_error("Attempted to attach to PALS application "
+                + apId + ", but PALS reported that it was not running");
+
+        // Execution host manually supplied
+        } else {
+            throw std::runtime_error("Attempted to attach to PALS application "
+                + apId + " running on host " + execHost + ", but PALS reported "
+                "that it was not running");
+        }
     }
 
     // Create daemon ID for new application
@@ -710,48 +783,7 @@ PALSApp::getLauncherHostname() const
 bool
 PALSApp::isRunning() const
 {
-    // Run palstat to query job with apid
-    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", m_execHost, m_apId};
-    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
-        cti::Execvp::stderr::Ignore};
-
-    // Start parsing palstat output
-    auto& palstatStream = palstatOutput.stream();
-    auto palstatLine = std::string{};
-
-    // APID / JobID lines are in the format `Var: Val`
-    // APID appears before JobID
-    auto running = false;
-    while (std::getline(palstatStream, palstatLine)) {
-
-        // Split line on ': '
-        auto const var_end = palstatLine.find(": ");
-        if (var_end == std::string::npos) {
-            continue;
-        }
-        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
-        auto const val = palstatLine.substr(var_end + 2);
-        if (var == "State") {
-            auto appState = cti::split::removeLeadingWhitespace(std::move(val));
-
-            // Running / launched states
-            if ((appState == "pending") || (appState == "startup")
-             || (appState == "running")) {
-                running = true;
-                break;
-            }
-        }
-    }
-
-    // Consume rest of stream output
-    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
-
-    // Wait for completion and check exit status
-    if (auto const palstat_rc = palstatOutput.getExitStatus()) {
-        running = false;
-    }
-
-    return running;
+    return is_apid_running(m_execHost, m_apId);
 }
 
 size_t
