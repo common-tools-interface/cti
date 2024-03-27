@@ -25,7 +25,8 @@ TEST(parse_rangeList, Empty)
     auto const root = parse_json("[-1, -1]");
     auto base = int64_t{};
     auto const rangeList = flux::parse_rangeList(root, base);
-    ASSERT_TRUE(std::holds_alternative<flux::Empty>(rangeList));
+    ASSERT_EQ(rangeList.size(), 1);
+    ASSERT_TRUE(std::holds_alternative<flux::Empty>(rangeList[0]));
 }
 
 TEST(parse_rangeList, Single)
@@ -33,8 +34,9 @@ TEST(parse_rangeList, Single)
     auto const root = parse_json("3");
     auto base = int64_t{};
     auto const rangeList = flux::parse_rangeList(root, base);
-    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList));
-    auto const [value, count] = std::get<flux::RLE>(rangeList);
+    ASSERT_EQ(rangeList.size(), 1);
+    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList[0]));
+    auto const [value, count] = std::get<flux::RLE>(rangeList[0]);
     EXPECT_EQ(value, 3);
     EXPECT_EQ(count, 1);
     EXPECT_EQ(base, 3);
@@ -45,8 +47,9 @@ TEST(parse_rangeList, Range)
     auto const root = parse_json("[2,3]");
     auto base = int64_t{};
     auto const rangeList = flux::parse_rangeList(root, base);
-    ASSERT_TRUE(std::holds_alternative<flux::Range>(rangeList));
-    auto const [start, end] = std::get<flux::Range>(rangeList);
+    ASSERT_EQ(rangeList.size(), 1);
+    ASSERT_TRUE(std::holds_alternative<flux::Range>(rangeList[0]));
+    auto const [start, end] = std::get<flux::Range>(rangeList[0]);
     EXPECT_EQ(start, 2);
     EXPECT_EQ(end, 5);
     EXPECT_EQ(base, 5);
@@ -57,8 +60,9 @@ TEST(parse_rangeList, RLE)
     auto const root = parse_json("[2,-3]");
     auto base = int64_t{};
     auto const rangeList = flux::parse_rangeList(root, base);
-    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList));
-    auto const [value, count] = std::get<flux::RLE>(rangeList);
+    ASSERT_EQ(rangeList.size(), 1);
+    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList[0]));
+    auto const [value, count] = std::get<flux::RLE>(rangeList[0]);
     EXPECT_EQ(value, 2);
     EXPECT_EQ(count, 4);
     EXPECT_EQ(base, 2);
@@ -80,11 +84,20 @@ TEST(flatten_rangeList, Single)
     EXPECT_EQ(values, rhs);
 }
 
+TEST(flatten_rangeList, Two)
+{
+    auto const root = parse_json("[[21875, 1], [-21342, 1]]");
+    auto const values = flux::flatten_rangeList(root);
+    auto const rhs = decltype(values){21875, 21876, 534, 535};
+    EXPECT_EQ(values.size(), rhs.size());
+    EXPECT_EQ(values, rhs);
+}
+
 TEST(flatten_rangeList, Multi)
 {
-    auto const root = parse_json("[[2, 3], [2, -2]]");
+    auto const root = parse_json("[[2, 3], [2, -2], [2, -1, 2]]");
     auto const values = flux::flatten_rangeList(root);
-    auto const rhs = decltype(values){2, 3, 4, 5, 7, 7, 7};
+    auto const rhs = decltype(values){2, 3, 4, 5, 7, 7, 7, 9, 9, 11, 11, 13, 13};
     EXPECT_EQ(values.size(), rhs.size());
     EXPECT_EQ(values, rhs);
 }

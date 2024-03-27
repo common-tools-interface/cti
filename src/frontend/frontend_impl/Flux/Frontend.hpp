@@ -51,6 +51,8 @@ public: // flux specific types
     struct LaunchInfo {
         uint64_t jobId;
         bool atBarrier;
+        char const* input_file;
+        int stdout_fd; int stderr_fd;
     };
 
     struct HostPlacement {

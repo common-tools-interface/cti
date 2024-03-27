@@ -35,7 +35,7 @@ def readVariablesFromEnv(test):
     LIBEXEC_PATH   = "%s/libexec" % CTI_INST_DIR
 
     try:
-        DAEMON_VER = os.environ['CTI_VERSION']
+        DAEMON_VER = os.environ['CRAY_CTI_VERSION']
     except KeyError as e:
         test.fail("Couldn't read %s from environment. Is the CTI module loaded?" % e)
 

@@ -61,34 +61,11 @@ static auto make_unique_del(T*&& expiring, Destr&& destr)
 
 // Leverage Flux's dry-run mode to generate jobspec for API
 static std::string make_jobspec(char const* launcher_name, char const* const launcher_args[],
-    std::string const& inputPath, std::string const& outputPath, std::string const& errorPath,
     std::string const& chdirPath, char const* const env_list[],
     std::map<std::string, std::string> const& jobAttributes)
 {
     // Build Flux dry run arguments
     auto fluxArgv = cti::ManagedArgv { launcher_name, "submit", "--dry-run" };
-
-    // If have input / output / error paths, enforce broker rank to be on rank 0
-    // This ensures that in an allocation, local paths for input
-    // and output will be available to the broker node
-    if (!inputPath.empty() || !outputPath.empty() || !errorPath.empty()) {
-
-        auto require_rank0 = ::getenv(CTI_FLUX_REQUIRE_RANK0_ENV_VAR);
-        if ((require_rank0 == nullptr) || (require_rank0[0] != '0')) {
-            fluxArgv.add("--requires=rank:0");
-        }
-    }
-
-    // Add input / output / error files, if provided
-    if (!inputPath.empty()) {
-        fluxArgv.add("--input=" + inputPath);
-    }
-    if (!outputPath.empty()) {
-        fluxArgv.add("--output=" + outputPath);
-    }
-    if (!errorPath.empty()) {
-        fluxArgv.add("--error=" + errorPath);
-    }
 
     // Add cwd attribute for working directory, if provided
     if (!chdirPath.empty()) {
@@ -274,21 +251,6 @@ static int cancel_job(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* flux
     // Block and wait until canceled
     // TODO: this waiting process can be chained for multiple cancellations
     return libFlux.flux_future_wait_for(future.get(), 0);
-}
-
-// Use Flux URI endpoint to get absolute node ID in allocation
-// Broker has node ID 0
-static auto running_on_broker()
-{
-	if (auto flux_uri = ::getenv("FLUX_URI")) {
-		auto flux_uri_len = ::strlen(flux_uri);
-		return (flux_uri_len >= 2)
-		    && (flux_uri[flux_uri_len - 2] == '-')
-		    && (flux_uri[flux_uri_len - 1] == '0');
-
-	} else {
-		throw std::runtime_error("Could not read FLUX_URI from environment");
-	}
 }
 
 // Flux does not yet support cray-pmi, so backend information needs to be generated separately
@@ -511,14 +473,6 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
     const char* input_file, int stdout_fd, int stderr_fd, const char *chdir_path,
     const char * const env_list[], FluxFrontend::LaunchBarrierMode const launchBarrierMode)
 {
-    // Get output, and error files from file descriptors
-    auto const outputPath = (stdout_fd >= 0)
-        ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stdout_fd)
-        : std::string{};
-    auto const errorPath = (stderr_fd >= 0)
-        ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stderr_fd)
-        : std::string{};
-
     // Add barrier option if enabled
     auto jobAttributes = std::map<std::string, std::string>{};
     if (launchBarrierMode == LaunchBarrierMode::Enabled) {
@@ -527,10 +481,7 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
 
     // Generate jobspec string
     auto const jobspec = make_jobspec(getLauncherName().c_str(), launcher_args,
-        (input_file != nullptr) ? input_file : "",
-        outputPath, errorPath,
-        (chdir_path != nullptr) ? chdir_path : "",
-        env_list,
+        (chdir_path != nullptr) ? chdir_path : "", env_list,
         jobAttributes);
 
     // Submit jobspec to API
@@ -545,6 +496,8 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
     return LaunchInfo
         { .jobId = job_id
         , .atBarrier = (launchBarrierMode == LaunchBarrierMode::Enabled)
+        , .input_file = input_file
+        , .stdout_fd = stdout_fd, .stderr_fd = stderr_fd
     };
 }
 
@@ -716,20 +669,16 @@ FluxApp::kill(int signal)
     m_libFluxRef.flux_future_wait_for(future.get(), 0);
 }
 
-void
-FluxApp::shipPackage(std::string const& tarPath) const
+class FluxArchive
 {
-    auto const dirName = cti::cstr::dirname(tarPath);
-    auto const packageName = cti::cstr::basename(tarPath);
-    auto const destination = m_toolPath + "/" + packageName;
-    writeLog("Flux shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
-
-    auto execvp_throw_stderr = [](char const* argv0, char const* const* argv, std::string const& ex) {
+public: // helper functions
+    static void execvp_throw_stderr(char const* argv0, char const* const* argv,
+        std::string const& ex) {
 
         // Launch subprocess
         auto output = cti::Execvp{argv0, (char* const*)argv, cti::Execvp::stderr::Pipe};
         auto& stream = output.stream();
-        auto lines = std::stringstream{};
+        auto lines = std::ostringstream{};
         lines << ex << ": ";
 
         // Read and save output
@@ -742,7 +691,57 @@ FluxApp::shipPackage(std::string const& tarPath) const
         if (output.getExitStatus()) {
             throw std::runtime_error(lines.str());
         }
-    };
+    }
+
+private: // members
+    std::string m_toolPath;
+    std::string m_mkdirExtractCmd;
+
+public: // interface
+    FluxArchive(std::string toolPath, std::string const& dirName,
+        std::string const& packageName)
+        : m_toolPath{std::move(toolPath)}
+    {
+        // Create extract command
+        m_mkdirExtractCmd = "mkdir -p " + m_toolPath + "; "
+            "flux archive extract --overwrite -n " + m_toolPath + " -C " + m_toolPath + " " + packageName;
+
+        // Map file on broker node to central store
+        char const* archive_create_argv[] = {"flux", "archive", "create", "-n", m_toolPath.c_str(),
+            "-C", dirName.c_str(), packageName.c_str(), nullptr};
+        execvp_throw_stderr("flux", archive_create_argv, "failed to add file to archive");
+    }
+
+    ~FluxArchive()
+    {
+        char const* archive_remove_argv[] = {"flux", "archive", "remove",
+            "-n", m_toolPath.c_str(), nullptr};
+        try {
+            (void)cti::Execvp::runExitStatus("flux", (char* const*)archive_remove_argv);
+        } catch (...) {}
+    }
+
+    void pullAllRanks() {
+        char const* exec_extract_argv[] = {"flux", "exec", "-r", "all",
+            "bash", "-c", m_mkdirExtractCmd.c_str(), nullptr};
+        execvp_throw_stderr("flux", exec_extract_argv, "failed to get archive file (all ranks)");
+    }
+
+    void pullNonBrokerRanks() {
+        char const* exec_extract_argv[] = {"flux", "exec", "-x", "0",
+            "bash", "-c", m_mkdirExtractCmd.c_str(), nullptr};
+        execvp_throw_stderr("flux", exec_extract_argv, "failed to get archive file (non-broker ranks)");
+    }
+
+};
+
+void
+FluxApp::shipPackage(std::string const& tarPath) const
+{
+    auto const dirName = cti::cstr::dirname(tarPath);
+    auto const packageName = cti::cstr::basename(tarPath);
+    auto const destination = m_toolPath + "/" + packageName;
+    writeLog("Flux shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
     // Copy source to destination, mapping onto the same node is broken
     // https://github.com/flux-framework/flux-core/issues/5655
@@ -755,39 +754,23 @@ FluxApp::shipPackage(std::string const& tarPath) const
         throw std::runtime_error("failed to copy " + tarPath + " to " + destination);
     }
 
-    // Map file on broker node to central store
-    writeLog("Broker: adding %s to filemap\n", tarPath.c_str());
-    char const* exec_map_argv[] = {"flux", "filemap", "map", "--chunksize=0",
-        "--tags", m_toolPath.c_str(), "-C", dirName.c_str(),
-        packageName.c_str(), nullptr};
-    execvp_throw_stderr("flux", exec_map_argv, "failed to map file on rank 0");
+    writeLog("Broker: adding %s to archive\n", tarPath.c_str());
+    auto fluxArchive = FluxArchive(m_toolPath, dirName, packageName);
 
-    // Make remote directories and pull from filemap
+    // Make remote directories and pull from archive
     auto pull_on_broker = false; // Pulling on broker is broken, see
     // https://github.com/flux-framework/flux-core/issues/5655
-    auto mkdirGetCmd = "mkdir -p " + m_toolPath + "; "
-        "flux filemap get --tags " + m_toolPath + " -C " + m_toolPath + " " + packageName;
 
    if (pull_on_broker) {
         writeLog("Broker: pull on all ranks %s -> %s\n",
             tarPath.c_str(), destination.c_str());
-        char const* exec_get_argv[] = {"flux", "exec", "-r", "all",
-            "bash", "-c", mkdirGetCmd.c_str(), nullptr};
-        execvp_throw_stderr("flux", exec_get_argv, "failed to get mapped file");
+        fluxArchive.pullAllRanks();
 
     } else {
         writeLog("Broker: pull on non-broker ranks %s -> %s\n",
             tarPath.c_str(), destination.c_str());
-        char const* exec_get_argv[] = {"flux", "exec", "-x", "0",
-            "bash", "-c", mkdirGetCmd.c_str(), nullptr};
-        execvp_throw_stderr("flux", exec_get_argv, "failed to get mapped file");
+        fluxArchive.pullNonBrokerRanks();
     }
-
-    // Unmap file on broker node
-    writeLog("Broker: unmapping file\n");
-    char const* exec_unmap_argv[] = {"flux", "filemap", "unmap",
-        "--tags", m_toolPath.c_str(), nullptr};
-    execvp_throw_stderr("flux", exec_unmap_argv, "failed to unmap file on rank 0");
 }
 
 void
@@ -832,7 +815,7 @@ FluxApp::startDaemon(const char* const args[], bool synchronous)
     // Generate daemon jobspec string
     auto& fluxFrontend = dynamic_cast<FluxFrontend&>(m_frontend);
     auto const jobspec = make_jobspec(fluxFrontend.getLauncherName().c_str(), launcherArgv.get(),
-        "", "", "", "", {}, // No input, output, error, chdir, environment settings
+        "", {}, // No chdir, environment settings
         { { "system.alloc-bypass.R", m_resourceSpec } });
 
     // Submit jobspec to API
@@ -954,12 +937,6 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
 
     , m_daemonJobIds{}
 {
-    // Ensure running on braker node
-    if (!running_on_broker()) {
-        throw std::runtime_error("CTI must be started on the Flux broker node. Ensure you "
-            "started this tool on the job's first node (ID 0)");
-    }
-
     // Get API access information for this job
     std::tie(m_leaderRank, m_rpcService) = get_rpc_service(m_libFluxRef, m_fluxHandle, m_jobId);
     writeLog("extracted job info: leader rank %d, service key %s\n", m_leaderRank, m_rpcService.c_str());
@@ -974,6 +951,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         auto root = parse_json(make_rpc_request(m_libFluxRef, m_fluxHandle, m_leaderRank,
             "job-info.lookup", lookupRequest.str()));
         m_resourceSpec = root.get<std::string>("R");
+        writeLog("resource spec: %s\n", m_resourceSpec.c_str());
     }
 
     // Start new proctable query
@@ -1040,6 +1018,19 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
                 hostnameFirstRankMap.insert({hostname, std::stoi(rank)});
             }
         }
+    }
+
+    // Open input file if provided
+    auto stdin_fd = (launchInfo.input_file != nullptr)
+        ? ::open(launchInfo.input_file, O_RDONLY)
+        : -1;
+
+    // Start output redirection subprocess
+    { auto jobId = getJobId();
+        char const* flux_job_attach_argv[] = {"flux", "job", "attach", "-q", "-u", jobId.c_str(), nullptr};
+        m_frontend.Daemon().request_ForkExecvpUtil_Async(
+            m_daemonAppId, "flux", flux_job_attach_argv,
+            stdin_fd, launchInfo.stdout_fd, launchInfo.stderr_fd, nullptr);
     }
 }
 

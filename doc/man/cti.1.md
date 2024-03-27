@@ -192,12 +192,6 @@ paths to the required SSH files:
   development and its interface is subject to change. CTI will verify
   at runtime if your system is running a different version of Flux; this
   check can be bypassed by setting *CTI_FLUX_DEBUG=1*.
-- *CTI_FLUX_REQUIRE_RANK0*: CTI uses the Flux `--output` and `--error`
-  options to redirect job output. These files need to be available to
-  the broker node, not necessarily where the tool is running. To ensure
-  that these files are available to the job launch, CTI supplies the
-  job option `--require=rank:0` when submitting jobs. To disable this,
-  set *CTI_FLUX_REQUIRE_RANK0=0*.
 
 ## ALPS-specific variables
 

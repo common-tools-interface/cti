@@ -71,46 +71,54 @@ static inline auto parse_rangeList(pt::ptree const& root, int64_t& base)
     // Single element will be interpreted as a range of size 1
     if (!root.data().empty()) {
         base = base + root.get_value<int64_t>();
-        return RangeList { RLE
+        return std::vector<RangeList>{ RLE
             { .value = base
             , .count = 1
         } };
     }
 
-    // Multiple elements must be size 2 for range
-    if (root.size() != 2) {
-        throw std::runtime_error("Flux API rangelist must have size 2");
+    // Multiple elements must be size 2 or 3 for range
+    if ((root.size() != 2) && (root.size() != 3)) {
+        throw std::runtime_error("Flux API rangelist must have size 2 or 3");
     }
 
+    auto result = std::vector<RangeList>{};
     auto cursor = root.begin();
 
     // Add base offset to range start / RLE value
-    auto const first = base + (cursor++)->second.get_value<int>();
+    auto const first = (cursor++)->second.get_value<int>();
     auto const second = (cursor++)->second.get_value<int>();
+    auto count = (root.size() == 3) ? (cursor++)->second.get_value<int>() + 1 : 1;
 
-    // Negative first element indicates empty range
-    if (first < 0) {
-        base = 0;
-        return RangeList { Empty{} };
+    for (; count > 0; count--) {
+
+        // Add first entry to base to get value
+        auto value = first + base;
+
+        // Negative value indicates empty range
+        if (value < 0) {
+            base = 0;
+            result.push_back(RangeList { Empty{} });
+
+        // Negative second element indicates run length encoding
+        } else if (second < 0) {
+            base = value;
+            result.push_back(RangeList { RLE
+                { .value = value
+                , .count = -second + 1
+            } });
+
+        // Otherwise, traditional range
+        } else {
+            base = value + second;
+            result.push_back(RangeList { Range
+                { .start = value
+                , .end = value + second
+            } });
+        }
     }
 
-    // Negative second element indicates run length encoding
-    if (second < 0) {
-        auto value = base = first;
-        base = value;
-        return RangeList { RLE
-            { .value = value
-            , .count = -second + 1
-        } };
-
-    // Otherwise, traditional range
-    } else {
-        base = first + second;
-        return RangeList { Range
-            { .start = first
-            , .end = first + second
-        } };
-    }
+    return result;
 }
 
 static inline auto flatten_rangeList(pt::ptree const& root)
@@ -126,24 +134,27 @@ static inline auto flatten_rangeList(pt::ptree const& root)
         // `base` is updated by `parse_rangeList`
         auto const rangeList = parse_rangeList(rangeListObjectPair.second, base);
 
-        // Empty: no element
-        if (std::holds_alternative<Empty>(rangeList)) {
-            continue;
+        for (auto&& elem : rangeList) {
 
-        // Range: add entire range to result
-        } else if (std::holds_alternative<Range>(rangeList)) {
+            // Empty: no element
+            if (std::holds_alternative<Empty>(elem)) {
+                continue;
 
-            auto const [start, end] = std::get<Range>(rangeList);
-            result.reserve(result.size() + (end - start));
-            for (auto i = start; i <= end; i++) {
-                result.push_back(i);
+            // Range: add entire range to result
+            } else if (std::holds_alternative<Range>(elem)) {
+
+                auto const [start, end] = std::get<Range>(elem);
+                result.reserve(result.size() + (end - start));
+                for (auto i = start; i <= end; i++) {
+                   result.push_back(i);
+                }
+
+            // RLE: add run length to result
+            } else if (std::holds_alternative<RLE>(elem)) {
+
+                auto const [value, count] = std::get<RLE>(elem);
+                std::fill_n(std::back_inserter(result), count, value);
             }
-
-        // RLE: add run length to result
-        } else if (std::holds_alternative<RLE>(rangeList)) {
-
-            auto const [value, count] = std::get<RLE>(rangeList);
-            std::fill_n(std::back_inserter(result), count, value);
         }
     }
 
