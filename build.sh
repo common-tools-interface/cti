@@ -2,7 +2,7 @@
 
 set -e
 
-export PRODUCT=${PRODUCT:-pe}
+export PRODUCT=${PRODUCT:-pe-base}
 export BUILD_TARGETS=""
 export LOCAL_BUILD="yes"
 
