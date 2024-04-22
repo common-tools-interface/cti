@@ -15,6 +15,7 @@ elif len(sys.argv) == 3:
   compiler_check = sys.argv[1] == "--compiler-check"
   template_file = sys.argv[2]
 
+minimum_version = ""
 namespace_name = ""
 struct_name = ""
 path_name = ""
@@ -34,7 +35,9 @@ with open(template_file) as file:
   if not line or line[0] == '#':
     continue
 
-  if not namespace_name:
+  if not minimum_version:
+    minimum_version = line
+  elif not namespace_name:
     namespace_name = line
   elif not struct_name:
     struct_name = line
@@ -78,6 +81,10 @@ else:
     print('#pragma once')
 
 print(f'struct {namespace_name}::{struct_name}\n{{')
+
+[minimum_major, minimum_minor] = minimum_version.split('.')
+print(f'    static auto constexpr minimum_version_major={minimum_major};')
+print(f'    static auto constexpr minimum_version_minor={minimum_minor};')
 
 for function_type in function_types:
     print(f'    {function_type};')

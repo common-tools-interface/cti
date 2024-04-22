@@ -192,23 +192,43 @@ static const char utf8_prefix[] = u8"\u0192";
 // Parse raw job ID string (f58 or otherwise) into numeric job ID
 static inline auto parse_job_id(FluxFrontend::LibFlux& libFluxRef, char const* raw_job_id)
 {
-    // Determine if job ID is f58-formatted by checking for f58 prefix
-    auto const f58_formatted = (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0);
-
-    // Convert F58-formatted job ID to internal job ID
-    auto job_id = flux_jobid_t{};
-    if (f58_formatted) {
-
-        if (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) < 0) {
-            throw std::runtime_error("failed to parse Flux job ID: " + std::string{raw_job_id});
-        }
-
-    // Job ID was provided in numeric format
-    } else {
-        job_id = std::stol(raw_job_id);
+    if (raw_job_id[0] == '\0') {
+        throw std::runtime_error("provided empty job ID");
     }
 
-    return job_id;
+    auto job_id = flux_jobid_t{};
+
+    // Determine if job ID is f58-formatted by checking for f58 prefix
+    if (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0) {
+        if (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) == 0) {
+            return job_id;
+        }
+    }
+
+    // Try to replace first character with 'f'
+    // Flux UTF-8 prefix can be corrupted into 'F' on some systems
+    if (raw_job_id[0] == 'F') {
+        auto fixedId = std::string{raw_job_id};
+        fixedId[0] = 'f';
+        if (libFluxRef.flux_job_id_parse(fixedId.c_str(), &job_id) == 0) {
+            return job_id;
+        }
+    }
+
+    // Try to prepend 'f'
+    // Flux UTF-8 prefix can be erased on other systems
+    auto printable_job_id = raw_job_id;
+    while (!::isalnum(*printable_job_id) && (*printable_job_id != '\0')) {
+        printable_job_id++;
+    }
+    if (*printable_job_id != '\0') {
+        auto fixedId = 'f' + std::string{raw_job_id};
+        if (libFluxRef.flux_job_id_parse(fixedId.c_str(), &job_id) == 0) {
+            return job_id;
+        }
+    }
+
+    throw std::runtime_error("failed to parse Flux job ID: " + std::string{raw_job_id});
 }
 
 // Convert numerical job ID to compact F58 encoding
@@ -501,6 +521,36 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
     };
 }
 
+static auto parse_flux_version(std::string const& version)
+{
+    try {
+        auto [major, minor, rev] = cti::split::string<3>(version, '.');
+        return std::pair(std::stoi(major), std::stoi(minor));
+    } catch (std::exception const& ex) {
+        throw std::runtime_error("Failed to parse Flux version (" + version + ")");
+    }
+}
+
+static auto get_system_flux_version(std::string const& launcher)
+{
+    auto fluxArgv = cti::ManagedArgv{launcher, "--version"};
+    auto fluxOutput = cti::Execvp{launcher.c_str(), fluxArgv.get(), cti::Execvp::stderr::Ignore};
+
+    // Read libflux-core version line
+    auto& fluxStream = fluxOutput.stream();
+    auto versionLine = std::string{};
+    while (std::getline(fluxStream, versionLine)) {
+
+        // Split line into each word
+        auto const [key, value] = cti::split::string<2>(versionLine, ':');
+        if (key == "libflux-core") {
+            return parse_flux_version(cti::split::removeLeadingWhitespace(value));
+        }
+    }
+
+    throw std::runtime_error("Could not parse Flux version (tried `flux --version`)");
+}
+
 FluxFrontend::FluxFrontend()
     : m_libFluxPath{findLibFluxPath(cti::getenvOrDefault(CTI_LAUNCHER_NAME_ENV_VAR, "flux"))}
     , m_libFlux{std::make_unique<LibFlux>(m_libFluxPath)}
@@ -521,29 +571,29 @@ FluxFrontend::FluxFrontend()
     // libflux-core interface stabilizes in Flux 1.0 release)
     // Can be bypassed by setting environment variable
     if (::getenv(CTI_FLUX_DEBUG_ENV_VAR) == nullptr) {
-        auto fluxArgv = cti::ManagedArgv{getLauncherName(), "--version"};
-        auto fluxOutput = cti::Execvp{getLauncherName().c_str(), fluxArgv.get(), cti::Execvp::stderr::Ignore};
 
-        // Read libflux-core version line
-        auto& fluxStream = fluxOutput.stream();
-        auto versionLine = std::string{};
-        while (std::getline(fluxStream, versionLine)) {
+        auto [internal_version, hash] = cti::split::string<2>(FLUX_CORE_VERSION_STRING, '-');
+        auto [internal_major, internal_minor] = parse_flux_version(std::move(internal_version));
+        auto [system_major, system_minor] = get_system_flux_version(getLauncherName());
 
-            // Split line into each word
-            auto const [key, value] = cti::split::string<2>(versionLine, ':');
-            if (key == "libflux-core") {
-                auto const runtime_version = cti::split::removeLeadingWhitespace(value);
-                auto const [version, hash] = cti::split::string<2>(FLUX_CORE_VERSION_STRING, '-');
+        // Check minimum version
+        if ((LibFlux::minimum_version_major > system_major)
+         || ((LibFlux::minimum_version_major == system_major)
+          && (LibFlux::minimum_version_minor > system_minor))) {
+            auto err = std::ostringstream{};
+            err << "Mismatch between system's libflux-core version ("
+                << system_major << "." << system_minor << ") and CTI's minimum supported version ("
+                << LibFlux::minimum_version_major << "." << LibFlux::minimum_version_minor << "). "
+                << "To attempt to continue, set the environment variable " CTI_FLUX_DEBUG_ENV_VAR
+                << " and relaunch this application.";
+            throw std::runtime_error(err.str());
+         }
 
-                if (runtime_version == version) {
-                    break;
-                } else {
-                    throw std::runtime_error("Mismatch between system's libflux-core version (" +
-runtime_version + ") and CTI's built version (" + version + "). libflux-core is still in \
-development, and its interface is subject to change. To attempt to continue, set the environment \
-variable " CTI_FLUX_DEBUG_ENV_VAR " and relaunch this application.");
-                }
-            }
+        if ((internal_major != system_major) || (internal_minor != system_minor)) {
+            fprintf(stderr, "warning: system is running Flux %d.%d, and CTI was built against %d.%d\n"
+                "libflux-core is still in development, you may encounter launch errors.\n"
+                "To suppress this message, set the environment variable " CTI_FLUX_DEBUG_ENV_VAR "=1\n",
+                system_major, system_minor, internal_major, internal_minor);
         }
     }
 }
@@ -657,6 +707,10 @@ FluxApp::releaseBarrier()
 void
 FluxApp::kill(int signal)
 {
+    if (signal == 0) {
+        throw std::runtime_error("invalid signal number: 0");
+    }
+
     // Create signal future
     auto future = make_unique_del(
         m_libFluxRef.flux_job_kill(m_fluxHandle, m_jobId, signal),
@@ -1065,6 +1119,14 @@ FluxApp::~FluxApp()
         for (auto&& id : m_daemonJobIds) {
             (void)cancel_job(m_libFluxRef, m_fluxHandle, id, "controlling application is terminating");
         }
+
+        // Delete the staging directory if it exists.
+        if (!m_stagePath.empty()) {
+            _cti_removeDirectory(m_stagePath.c_str());
+        }
+
+        // Inform the FE daemon that this App is going away
+        m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
 
     } catch (std::exception const& ex) {
         writeLog("~FluxApp: %s\n", ex.what());
