@@ -123,7 +123,7 @@
 %global SYS_HW_TAG HARDWARE
 %global SYS_WB_TAG WHITEBOX
 %endif
-%if "0%{?rhel}" == "8"
+%if 0%{?rhel} == 8
 %global OS_HW_TAG el8
 %global OS_WB_TAG el8
 %endif
@@ -277,7 +277,7 @@ Test files for DST automated post install pipelines
 %global devel_rpm_name %{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}
 %global tests_rpm_name %{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}
 %global rpm_list %{devel_rpm_name}.rpm,%{tests_rpm_name}.rpm
-%if "0%{?rhel}" == "8"
+%if 0%{?rhel} == 8
 %if "%{branch}" == "release"
 %{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;s|<RPM_LST>|%{rpm_list}|g;s|<DEVEL_RPM_NAME>|%{devel_rpm_name}|g;s|<TESTS_RPM_NAME>|%{tests_rpm_name}|g;s|<SET_DEFAULT_VALUE>|1|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 %else
