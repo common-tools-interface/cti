@@ -35,7 +35,7 @@ def readVariablesFromEnv(test):
     LIBEXEC_PATH   = "%s/libexec" % CTI_INST_DIR
 
     try:
-        DAEMON_VER = os.environ['CRAY_CTI_VERSION']
+        DAEMON_VER = os.environ['CTI_VERSION']
     except KeyError as e:
         test.fail("Couldn't read %s from environment. Is the CTI module loaded?" % e)
 
@@ -778,3 +778,10 @@ class CtiTest(Test):
             len(os.listdir(base_dir)) == 0,
             f"{base_dir} not empty"
         )
+
+    def test_Multithread(self):
+        name = "Multithread"
+        argv = ["./src/cti_multithread", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
