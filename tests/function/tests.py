@@ -585,6 +585,15 @@ class CtiTest(Test):
 
     #     self.assertTrue(apid is not None, "Couldn't determine apid")
 
+    @avocado.skipIf(lambda t: detectWLM(t) != "slurm", "MPMDDaemon is only supported on slurm")
+    def test_MPMDDaemon(self):
+        name = "MPMDDaemon"
+        argv = ["./src/cti_mpmd_daemon", *LAUNCHER_ARGS.split()]
+
+        # Ensure that CTI was able to launch MPMD job
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
     def test_CtiKillSIGTERM(self):
         name = "CtiKillSIGTERM"
         argv = ["./src/cti_kill", *LAUNCHER_ARGS.split(), "./src/support/hello_mpi_wait", str(int(signal.SIGTERM))]
@@ -769,3 +778,10 @@ class CtiTest(Test):
             len(os.listdir(base_dir)) == 0,
             f"{base_dir} not empty"
         )
+
+    def test_Multithread(self):
+        name = "Multithread"
+        argv = ["./src/cti_multithread", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")

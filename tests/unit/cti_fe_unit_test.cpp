@@ -10,6 +10,8 @@
 #include <memory>
 #include <unordered_set>
 
+#include "frontend/frontend_impl/Frontend_impl.hpp"
+
 // CTI Transfer includes
 #include "frontend/transfer/Manifest.hpp"
 #include "frontend/transfer/Session.hpp"
@@ -59,6 +61,7 @@ CTIAppUnitTest::~CTIAppUnitTest()
         cti_deregisterApp(appId);
     }
 }
+
 
 /* current frontend information query tests */
 
@@ -818,4 +821,131 @@ TEST_F(CTIAppUnitTest, ManifestLibraryConflict)
 
     // cleanup
     EXPECT_EQ(cti_destroySession(sessionId), SUCCESS) << cti_error_str();
+}
+
+// Frontend specific unit tests
+
+TEST(SlurmFrontendTest, GetGresSetting)
+{
+    { char const* launcher_argv[] = {"srun", "--arg", "--gres=gpu:8", nullptr};
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "gpu:8");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", "--gres", "gpu:8", nullptr};
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "gpu:8");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", "--gres=gpu:8", "a.out", "--gres", "user_arg", nullptr};
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "gpu:8");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", "--gres", nullptr};
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "none");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", "--gres=", nullptr};
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "none");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", "--gres=nongpu", "--arg2", nullptr};
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "none");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", "--gres", "nongpu", "--arg2", nullptr};
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "none");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", nullptr};
+        ::setenv("CTI_SLURM_DAEMON_GRES", "gpu:8", 1);
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "gpu:8");
+        ::unsetenv("CTI_SLURM_DAEMON_GRES");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", nullptr};
+        ::setenv("CTI_SLURM_DAEMON_GRES", "", 1);
+        EXPECT_TRUE(SLURMFrontend::detail::get_gres_setting(launcher_argv).empty());
+        ::unsetenv("CTI_SLURM_DAEMON_GRES");
+    }
+}
+
+TEST(SlurmFrontendTest, AddQuotedArgs)
+{
+    { auto args = cti::ManagedArgv{};
+        SLURMFrontend::detail::add_quoted_args(args, "");
+        ASSERT_EQ(args.size(), 1);
+    }
+
+    { auto args = cti::ManagedArgv{};
+        SLURMFrontend::detail::add_quoted_args(args, "one");
+        ASSERT_EQ(args.size(), 2);
+        EXPECT_STREQ(args.get()[0], "one");
+    }
+
+    { auto args = cti::ManagedArgv{};
+        SLURMFrontend::detail::add_quoted_args(args, "\"one 1.5\"");
+        ASSERT_EQ(args.size(), 2);
+        EXPECT_STREQ(args.get()[0], "one 1.5");
+    }
+
+    { auto args = cti::ManagedArgv{};
+        SLURMFrontend::detail::add_quoted_args(args, "one two three");
+        ASSERT_EQ(args.size(), 4);
+        EXPECT_STREQ(args.get()[0], "one");
+        EXPECT_STREQ(args.get()[1], "two");
+        EXPECT_STREQ(args.get()[2], "three");
+    }
+
+    { auto args = cti::ManagedArgv{};
+        SLURMFrontend::detail::add_quoted_args(args, "one \"two 2.5\" three");
+        ASSERT_EQ(args.size(), 4);
+        EXPECT_STREQ(args.get()[0], "one");
+        EXPECT_STREQ(args.get()[1], "two 2.5");
+        EXPECT_STREQ(args.get()[2], "three");
+    }
+
+    { auto args = cti::ManagedArgv{};
+        SLURMFrontend::detail::add_quoted_args(args, "\"one 1.5\" \"two 2.5 2.75\" \"three 3.5\"");
+        ASSERT_EQ(args.size(), 4);
+        EXPECT_STREQ(args.get()[0], "one 1.5");
+        EXPECT_STREQ(args.get()[1], "two 2.5 2.75");
+        EXPECT_STREQ(args.get()[2], "three 3.5");
+    }
+}
+
+TEST(EproxySlurmFrontendTest, EnvSpec)
+{
+    { auto envSpec = EproxySLURMFrontend::EproxyEnvSpec{};
+
+        auto envStream = std::stringstream{};
+        envStream << "# Comment\n"
+            << "\n"
+            << "!PATH\n"
+            << "!MODULE*\n"
+            << "INCLUDETHIS\n"
+            << "INCLUDEALL*\n";
+        envSpec.readFrom(envStream);
+
+        EXPECT_FALSE(envSpec.included("VAR"));
+        EXPECT_FALSE(envSpec.included("PATH"));
+        EXPECT_FALSE(envSpec.included("MODULE"));
+        EXPECT_FALSE(envSpec.included("MODULEVAR"));
+        EXPECT_TRUE(envSpec.included("INCLUDETHIS"));
+        EXPECT_FALSE(envSpec.included("INCLUDETHIS1"));
+        EXPECT_TRUE(envSpec.included("INCLUDEALL"));
+        EXPECT_TRUE(envSpec.included("INCLUDEALL1"));
+    }
+
+    { auto envSpec = EproxySLURMFrontend::EproxyEnvSpec{};
+    
+        auto envStream = std::stringstream{};
+        envStream << "!PATH\n"
+            << "!MODULE*\n"
+            << "*\n";
+        envSpec.readFrom(envStream);
+
+        EXPECT_TRUE(envSpec.included("VAR"));
+        EXPECT_FALSE(envSpec.included("PATH"));
+        EXPECT_FALSE(envSpec.included("MODULE"));
+        EXPECT_FALSE(envSpec.included("MODULEVAR"));
+    }
 }

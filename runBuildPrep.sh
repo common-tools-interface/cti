@@ -2,7 +2,7 @@
 #
 # runBuildPrep.sh - Preps the build environment
 #
-# Copyright 2019-2023 Hewlett Packard Enterprise Development LP
+# Copyright 2019-2024 Hewlett Packard Enterprise Development LP
 # SPDX-License-Identifier: Linux-OpenIB
 
 source ./external/cdst_build_library/build_lib
@@ -37,7 +37,7 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
         zlib-devel
     check_exit_status
 
-    if [[ "$target_os" == "$cdst_os_sles15sp4" || "$target_os" == "$cdst_os_sles15sp3" ]]; then
+    if [[ "$target_os" == "$cdst_os_sles15sp4" ]]; then
       zypper --non-interactive install libopenssl-1_1-devel
       check_exit_status
     fi
@@ -62,16 +62,10 @@ elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
         zlib-devel \
         tcl \
         python3-pip \
-        wget
+        wget \
+        autoconf-archive
     check_exit_status
 
-    if [[ "$target_arch" == "$cdst_arch_aarch64" && "$target_os" == "$cdst_os_rhel84" ]]; then
-      yum --assumeyes install \
-      https://arti.hpc.amslabs.hpecorp.net/artifactory/hpe-rhel-remote/EL8/Update4/GA/CRB/os/Packages/autoconf-archive-2018.03.13-1.el8.noarch.rpm
-    else
-      yum --assumeyes install autoconf-archive
-    fi
-    check_exit_status
 else
     # Unknown OS! Exit with error.
     echo "Unsupported Package Manager detected!"
@@ -82,11 +76,7 @@ fi
 install_common_pe
 check_exit_status
 
-# Install cdst_support
-install_cdst_support
-check_exit_status
-
-# Install Dyninst
+# Install cdst-support & Dyninst
 install_dyninst
 check_exit_status
 

@@ -19,7 +19,8 @@ EXECS = cti_barrier cti_launch cti_launch_badenv cti_info cti_link cti_callback 
       cti_callback_daemon cti_kill cti_wlm cti_mpmd cti_file_transfer \
 	  cti_tool_daemon cti_tool_daemon_argv cti_tool_daemon_badenv \
 	  cti_manifest cti_session cti_environment cti_fd_in cti_double_daemon cti_ld_preload \
-	  cti_mpir_shim cti_release_twice cti_redirect cti_file_in cti_release_app cti_ops
+	  cti_mpir_shim cti_release_twice cti_redirect cti_file_in cti_release_app cti_ops \
+	  cti_mpmd_daemon cti_multithread
 
 all : support tests
 
@@ -59,6 +60,9 @@ cti_info : cti_info_test.c cti_fe_common.c
 
 cti_mpmd : cti_mpmd_test.c cti_fe_common.c
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+cti_mpmd_daemon : cti_mpmd_daemon_test.cpp cti_fe_common.c
+	$(CXX) $(CFLAGS) $^ -o $@ cti_fe_function_test.cpp $(LDFLAGS)
 
 cti_link : cti_linking_test.c
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(CRAY_CTI_BE_LIBS)
@@ -117,6 +121,9 @@ cti_release_app : cti_release_app_test.cpp
 
 cti_ops : cti_ops_test.cpp
 	$(CXX) $(CFLAGS) -std=c++17 $^ -o $@ cti_fe_function_test.cpp $(LDFLAGS)
+
+cti_multithread : cti_multithread_test.cpp
+	$(CXX) $(CFLAGS) -std=c++17 $^ -o $@ cti_fe_function_test.cpp $(LDFLAGS) $(PTHREAD_FLAGS)
 
 # dummy rule to force other rules to run every time
 FORCE: ;

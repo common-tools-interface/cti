@@ -55,6 +55,8 @@ using RangeList = std::variant<Empty, Range, RLE>;
 
 // Read next rangelist object and return new Range / RLE state
 // Updates `base` state by reference
+// See `https://github.com/grondo/flux-core/blob/master/src/shell/mpir/rangelist.c`
+// for delta encoding
 static inline auto parse_rangeList(pt::ptree const& root, int64_t& base)
 {
     /* The rangelists [ 1, 3 ], [ 5, -1 ] will be parsed as the following:
@@ -68,45 +70,55 @@ static inline auto parse_rangeList(pt::ptree const& root, int64_t& base)
 
     // Single element will be interpreted as a range of size 1
     if (!root.data().empty()) {
-        base = root.get_value<int64_t>();
-        return RangeList { RLE
+        base = base + root.get_value<int64_t>();
+        return std::vector<RangeList>{ RLE
             { .value = base
             , .count = 1
         } };
     }
 
-    // Multiple elements must be size 2 for range
-    if (root.size() != 2) {
-        throw std::runtime_error("Flux API rangelist must have size 2");
+    // Multiple elements must be size 2 or 3 for range
+    if ((root.size() != 2) && (root.size() != 3)) {
+        throw std::runtime_error("Flux API rangelist must have size 2 or 3");
     }
 
+    auto result = std::vector<RangeList>{};
     auto cursor = root.begin();
 
     // Add base offset to range start / RLE value
-    auto const first = base + (cursor++)->second.get_value<int>();
+    auto const first = (cursor++)->second.get_value<int>();
     auto const second = (cursor++)->second.get_value<int>();
+    auto count = (root.size() == 3) ? (cursor++)->second.get_value<int>() + 1 : 1;
 
-    // Negative first element indicates empty range
-    if (first < 0) {
-        return RangeList { Empty{} };
+    for (; count > 0; count--) {
+
+        // Add first entry to base to get value
+        auto value = first + base;
+
+        // Negative value indicates empty range
+        if (value < 0) {
+            base = 0;
+            result.push_back(RangeList { Empty{} });
+
+        // Negative second element indicates run length encoding
+        } else if (second < 0) {
+            base = value;
+            result.push_back(RangeList { RLE
+                { .value = value
+                , .count = -second + 1
+            } });
+
+        // Otherwise, traditional range
+        } else {
+            base = value + second;
+            result.push_back(RangeList { Range
+                { .start = value
+                , .end = value + second
+            } });
+        }
     }
 
-    // Negative second element indicates run length encoding
-    if (second < 0) {
-        base = first;
-        return RangeList { RLE
-            { .value = base
-            , .count = -second + 1
-        } };
-
-    // Otherwise, traditional range
-    } else {
-        base = first + second;
-        return RangeList { Range
-            { .start = first
-            , .end = base
-        } };
-    }
+    return result;
 }
 
 static inline auto flatten_rangeList(pt::ptree const& root)
@@ -122,24 +134,27 @@ static inline auto flatten_rangeList(pt::ptree const& root)
         // `base` is updated by `parse_rangeList`
         auto const rangeList = parse_rangeList(rangeListObjectPair.second, base);
 
-        // Empty: no element
-        if (std::holds_alternative<Empty>(rangeList)) {
-            continue;
+        for (auto&& elem : rangeList) {
 
-        // Range: add entire range to result
-        } else if (std::holds_alternative<Range>(rangeList)) {
+            // Empty: no element
+            if (std::holds_alternative<Empty>(elem)) {
+                continue;
 
-            auto const [start, end] = std::get<Range>(rangeList);
-            result.reserve(result.size() + (end - start));
-            for (auto i = start; i <= end; i++) {
-                result.push_back(i);
+            // Range: add entire range to result
+            } else if (std::holds_alternative<Range>(elem)) {
+
+                auto const [start, end] = std::get<Range>(elem);
+                result.reserve(result.size() + (end - start));
+                for (auto i = start; i <= end; i++) {
+                   result.push_back(i);
+                }
+
+            // RLE: add run length to result
+            } else if (std::holds_alternative<RLE>(elem)) {
+
+                auto const [value, count] = std::get<RLE>(elem);
+                std::fill_n(std::back_inserter(result), count, value);
             }
-
-        // RLE: add run length to result
-        } else if (std::holds_alternative<RLE>(rangeList)) {
-
-            auto const [value, count] = std::get<RLE>(rangeList);
-            std::fill_n(std::back_inserter(result), count, value);
         }
     }
 
@@ -282,8 +297,7 @@ static inline auto make_hostsPlacement(pt::ptree const& root)
 
     // Get list of all ranks and PIDs
     auto const ranks = flatten_rangeList(root.get_child("ids"));
-    // Proctable PIDs are delta-encoded
-    auto const pid_deltas = flatten_rangeList(root.get_child("pids"));
+    auto const pids = flatten_rangeList(root.get_child("pids"));
 
     // Each hostname occurrence corresponds to a single rank and PID
     if (ranks.size() != hostname_entries) {
@@ -291,22 +305,20 @@ static inline auto make_hostsPlacement(pt::ptree const& root)
             + std::to_string(ranks.size()) + " ranks and " + std::to_string(hostname_entries)
             + " hostname entries");
     }
-    if (pid_deltas.size() != hostname_entries) {
+    if (pids.size() != hostname_entries) {
         throw std::runtime_error("mismatch between PID and hostname count from Flux API ("
-            + std::to_string(pid_deltas.size()) + " PIDs and " + std::to_string(hostname_entries)
+            + std::to_string(pids.size()) + " PIDs and " + std::to_string(hostname_entries)
             + " hostname entries");
     }
 
     // Host with N ranks will have the next N PIDs from rank list
     auto rank_cursor = ranks.begin();
-    auto pid_delta_cursor = pid_deltas.begin();
-    auto last_pid = pid_t{0};
+    auto pid_cursor = pids.begin();
     for (auto&& [hostname, placement] : hostPlacementMap) {
         for (size_t i = 0; i < placement.numPEs; i++) {
-            last_pid = last_pid + *pid_delta_cursor;
-            placement.rankPidPairs.emplace_back(*rank_cursor, last_pid);
+            placement.rankPidPairs.emplace_back(*rank_cursor, *pid_cursor);
             rank_cursor++;
-            pid_delta_cursor++;
+            pid_cursor++;
         }
     }
 

@@ -22,6 +22,7 @@ include_HEADERS = include/common_tools_be.h include/common_tools_fe.h \
 
 install-data-hook:
 	export PKG_CONFIG_PATH=$(libdir)/pkgconfig:$(PKG_CONFIG_PATH); \
-        export CTI_INSTALL_DIR=$(prefix); \
-        $(MAKE) -C ./tests/test_support all; \
-	$(MAKE) -C ./tests/function/src tests
+	export CTI_INSTALL_DIR=$(prefix); \
+	$(MAKE) -C ./tests/test_support all; \
+	$(MAKE) -C ./tests/function/src tests; \
+	$(MAKE) -C ./tests/pipeline/opt/cray/tests/cdst/resources/cti/smoke prebuilt

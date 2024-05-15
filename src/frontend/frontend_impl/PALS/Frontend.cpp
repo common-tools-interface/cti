@@ -194,6 +194,52 @@ static auto find_apid_from_jobid(std::string const& execHost, std::string const&
     return parsedApid;
 }
 
+static bool is_apid_running(std::string const& execHost, std::string const& apId)
+{
+    // Run palstat to query job with apid
+    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", execHost, apId};
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Start parsing palstat output
+    auto& palstatStream = palstatOutput.stream();
+    auto palstatLine = std::string{};
+
+    // APID / JobID lines are in the format `Var: Val`
+    // APID appears before JobID
+    auto running = false;
+    while (std::getline(palstatStream, palstatLine)) {
+
+        // Split line on ': '
+        auto const var_end = palstatLine.find(": ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
+        auto const val = palstatLine.substr(var_end + 2);
+        if (var == "State") {
+            auto appState = cti::split::removeLeadingWhitespace(std::move(val));
+
+            // Running / launched states
+            if ((appState == "pending") || (appState == "startup")
+             || (appState == "running")) {
+                running = true;
+                break;
+            }
+        }
+    }
+
+    // Consume rest of stream output
+    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Wait for completion and check exit status
+    if (auto const palstat_rc = palstatOutput.getExitStatus()) {
+        running = false;
+    }
+
+    return running;
+}
+
 std::string
 PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* launcher_args,
     char const* const* env_list)
@@ -218,6 +264,7 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
     }
 
     // Add startup barrier environment setting
+    jobEnvArg << "PALS_LOCAL_LAUNCH=0";
     jobEnvArg << "PALS_STARTUP_BARRIER=1";
     qsubArgv.add("-v");
     qsubArgv.add(jobEnvArg.str());
@@ -324,8 +371,19 @@ PALSFrontend::attachApp(std::string const& jobOrApId)
     auto execHost = std::string{};
     auto apId = std::string{};
 
+    // Can supply both exec host and PALS app ID separated by :
+    auto colon_at = jobOrApId.rfind(":");
+    if (colon_at != std::string::npos) {
+
+        // Split on colon
+        auto jobId = jobOrApId.substr(0, colon_at);
+        apId = jobOrApId.substr(colon_at + 1);
+
+        // Find execution host from job ID
+        execHost = find_job_host_outside_allocation(jobId);
+
     // Determine if ID is PBS job ID or PALS job ID
-    if (is_pals_apid(jobOrApId)) {
+    } else if (is_pals_apid(jobOrApId)) {
 
         // If execution host was manually supplied, can attach outside
         // of job's allocation
@@ -364,6 +422,22 @@ PALSFrontend::attachApp(std::string const& jobOrApId)
 
         // Find PALS app ID from PBS job ID and exec host
         apId = find_apid_from_jobid(execHost, jobOrApId);
+    }
+
+    // Ensure application still running
+    if (!is_apid_running(execHost, apId)) {
+
+        // Running in allocation
+        if (::getenv(PALS_EXEC_HOST)) {
+            throw std::runtime_error("Attempted to attach to PALS application "
+                + apId + ", but PALS reported that it was not running");
+
+        // Execution host manually supplied
+        } else {
+            throw std::runtime_error("Attempted to attach to PALS application "
+                + apId + " running on host " + execHost + ", but PALS reported "
+                "that it was not running");
+        }
     }
 
     // Create daemon ID for new application
@@ -479,17 +553,23 @@ PALSFrontend::launchApp(const char * const launcher_argv[],
     }
 }
 
-// Add the launcher's timeout environment variable to provided environment list
-// Set timeout to five minutes
-static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgArray env_list)
+// Add necessary launch environment arguments to the provided list
+static inline auto fixLaunchEnvironment(std::string const& launcherName, CArgArray env_list)
 {
     // Determine the timeout environment variable for PALS `mpiexec` or PALS `aprun` command
+    // Set timeout to five minutes
     // https://connect.us.cray.com/jira/browse/PE-34329
     auto const timeout_env = (launcherName == "aprun")
         ? "APRUN_RPC_TIMEOUT=300"
         : "PALS_RPC_TIMEOUT=300";
 
-    // Add the launcher's timeout disable environment variable to a new environment list
+    // Always send launch events to the PALS service
+    // https://jira-pro.it.hpe.com:8443/browse/ALT-764
+    auto const local_launch_env = (launcherName == "aprun")
+        ? "APRUN_LOCAL_LAUNCH=0"
+        : "PALS_LOCAL_LAUNCH=0";
+
+    // Add the new variables to a new environment list
     auto fixedEnvVars = cti::ManagedArgv{};
 
     // Copy provided environment list
@@ -497,8 +577,9 @@ static inline auto setTimeoutEnvironment(std::string const& launcherName, CArgAr
         fixedEnvVars.add(env_list);
     }
 
-    // Append timeout disable environment variable
+    // Append new environment variable
     fixedEnvVars.add(timeout_env);
+    fixedEnvVars.add(local_launch_env);
 
     return fixedEnvVars;
 }
@@ -507,7 +588,7 @@ std::weak_ptr<App>
 PALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
+    auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto appPtr = std::make_shared<PALSApp>(*this,
         launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get()));
@@ -528,7 +609,7 @@ std::weak_ptr<App>
 PALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-    auto fixedEnvVars = setTimeoutEnvironment(getLauncherName(), env_list);
+    auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
         launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
@@ -579,6 +660,62 @@ PALSFrontend::getLauncherName()
     return launcherName;
 }
 
+static std::string
+createNodeLayoutFile(MPIRProctable const& mpirProctable, std::string const& stagePath)
+{
+    auto hostLayouts = std::map<std::string, std::vector<cti_rankPidPair_t>>{};
+
+    for (size_t rank = 0; rank < mpirProctable.size(); rank++) {
+
+        auto rankPidPair = cti_rankPidPair_t { .pid = mpirProctable[rank].pid, .rank = (int)rank };
+
+        // Try to insert new host / first rank pair
+        auto [hostLayoutPair, added] = hostLayouts.insert({mpirProctable[rank].hostname, {rankPidPair}});
+
+        // Already exists, add instead
+        if (!added) {
+            hostLayoutPair->second.push_back(rankPidPair);
+        }
+    }
+
+    auto make_layoutFileEntry = [](std::string const& hostname, std::vector<cti_rankPidPair_t> const& rankPidPairs) {
+        // Ensure we have good hostname information.
+        auto const hostname_len = hostname.size() + 1;
+        if (hostname_len > sizeof(palsLayoutEntry_t::host)) {
+            throw std::runtime_error("hostname too large for layout buffer");
+        }
+
+        // Extract PE and node information from Node Layout.
+        auto layout_entry = palsLayoutEntry_t{};
+        layout_entry.numRanks = rankPidPairs.size();
+        memcpy(layout_entry.host, hostname.c_str(), hostname_len);
+
+        return layout_entry;
+    };
+
+    // Create the file path, write the file using the Step Layout
+    auto const layoutPath = std::string{stagePath + "/" + SLURM_LAYOUT_FILE};
+    if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
+
+        // Write the Layout header.
+        cti::file::writeT(layoutFile.get(), palsLayoutFileHeader_t
+            { .numNodes = (int)hostLayouts.size()
+        });
+
+        // Write a Layout entry using node information from each Slurm Node Layout entry.
+        for (auto const& [hostname, rankPidPairs] : hostLayouts) {
+            cti::file::writeT(layoutFile.get(), make_layoutFileEntry(hostname, rankPidPairs));
+            for (auto&& rankPidPair : rankPidPairs) {
+                cti::file::writeT(layoutFile.get(), rankPidPair);
+            }
+        }
+
+        return layoutPath;
+    } else {
+        throw std::runtime_error("failed to open layout file path " + layoutPath);
+    }
+}
+
 PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo)
     : App{fe, palsLaunchInfo.daemonAppId}
     , m_execHost{std::move(palsLaunchInfo.execHost)}
@@ -592,13 +729,13 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_toolPath{"/tmp/cti-" + m_apId}
     , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
-    , m_extraFiles{}
+    , m_extraFiles{createNodeLayoutFile(m_procTable, m_stagePath)}
 
     , m_atBarrier{palsLaunchInfo.atBarrier}
 {
     // Get set of hosts for application
     for (auto&& [pid, hostname, executable] : m_procTable) {
-        m_hosts.emplace(hostname);
+        m_hosts.insert(hostname);
     }
 
     // Create remote toolpath directory
@@ -646,48 +783,7 @@ PALSApp::getLauncherHostname() const
 bool
 PALSApp::isRunning() const
 {
-    // Run palstat to query job with apid
-    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", m_execHost, m_apId};
-    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
-        cti::Execvp::stderr::Ignore};
-
-    // Start parsing palstat output
-    auto& palstatStream = palstatOutput.stream();
-    auto palstatLine = std::string{};
-
-    // APID / JobID lines are in the format `Var: Val`
-    // APID appears before JobID
-    auto running = false;
-    while (std::getline(palstatStream, palstatLine)) {
-
-        // Split line on ': '
-        auto const var_end = palstatLine.find(": ");
-        if (var_end == std::string::npos) {
-            continue;
-        }
-        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
-        auto const val = palstatLine.substr(var_end + 2);
-        if (var == "State") {
-            auto appState = cti::split::removeLeadingWhitespace(std::move(val));
-
-            // Running / launched states
-            if ((appState == "pending") || (appState == "startup")
-             || (appState == "running")) {
-                running = true;
-                break;
-            }
-        }
-    }
-
-    // Consume rest of stream output
-    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
-
-    // Wait for completion and check exit status
-    if (auto const palstat_rc = palstatOutput.getExitStatus()) {
-        running = false;
-    }
-
-    return running;
+    return is_apid_running(m_execHost, m_apId);
 }
 
 size_t
@@ -769,13 +865,52 @@ PALSApp::shipPackage(std::string const& tarPath) const
 {
     auto const destinationName = cti::cstr::basename(tarPath);
 
-    // Create host list argument
-    auto allHosts = std::stringstream{};
-    for (auto&& host : m_hosts) {
-        allHosts << host << ",";
+    // Create host list file
+    auto hostFileHandle = cti::temp_file_handle{m_stagePath + "/hostsXXXXXX"};
+    auto hostFile = std::ofstream{hostFileHandle.get()};
+
+    // PALS bug PE-49724, `palscp` will silently skip the execution host
+    // unless it is placed first in the host list
+
+    // Determine the hostname for the execution host
+    auto firstHost = [](std::set<std::string> const& hosts, std::string const& execHost) {
+
+        // Match on first part of exec host domain
+        auto first_dot = execHost.find(".");
+        auto full_match = (first_dot == std::string::npos);
+        auto execHostPrefix = (full_match)
+            ? execHost
+            : execHost.substr(0, first_dot + 1);
+
+        // Find hostname whose prefix matches that of the execution host
+        auto host = std::find_if(hosts.begin(), hosts.end(),
+            [&execHostPrefix](auto&& host) { return host.rfind(execHostPrefix, 0) == 0; });
+        if (host != hosts.end()) {
+            Frontend::inst().writeLog("PE-49724: Found hostname for exec host: %s\n", host->c_str());
+            return std::string{*host};
+        }
+
+        // Fall back to original host list ordering
+        Frontend::inst().writeLog("PE-49724: Failed to find hostname for exec host: %s\n", execHost.c_str());
+        return std::string{};
+    }(m_hosts, m_execHost);
+
+    // Write execution hostname as first entry
+    if (!firstHost.empty()) {
+        hostFile << firstHost << "\n";
     }
 
-    auto palscpArgv = cti::ManagedArgv{"palscp", "-L", allHosts.str().c_str(),
+    // Write the rest of the hostnames
+    for (auto&& host : m_hosts) {
+        if (host != firstHost) {
+            hostFile << host;
+        }
+    }
+
+    // Host file generation completed
+    hostFile.close();
+
+    auto palscpArgv = cti::ManagedArgv{"palscp", "-l", hostFileHandle.get(),
         "-f", tarPath, "-d", destinationName, m_apId};
 
     if (!m_frontend.Daemon().request_ForkExecvpUtil_Sync(
@@ -954,9 +1089,10 @@ PALSApp::checkFilesExist(std::set<std::string> const& paths)
 
     // Create arguments for file check launch
     auto num_nodes = m_hosts.size();
+    writeLog("Checking for duplicate files on %zu nodes\n", num_nodes);
 
     auto mpiexecArgv = cti::ManagedArgv{
-        "mpiexec", "--mem-bind=none", "--ppn=1", "-n", std::to_string(num_nodes),
+        "mpiexec", "--envnone", "--mem-bind=none", "--ppn=1", "-n", std::to_string(num_nodes),
 
         // This is a new PALS application running outside the context of the original,
         // so it doesn't have access to daemons that were already shipped. However, mpiexec
@@ -970,12 +1106,13 @@ PALSApp::checkFilesExist(std::set<std::string> const& paths)
     auto stdoutPipe = cti::Pipe{};
 
     // Tell FE Daemon to launch mpiexec
+    char const *local_launch_env[] = {"PALS_LOCAL_LAUNCH=0", nullptr};
     m_frontend.Daemon().request_ForkExecvpUtil_Async(
         m_daemonAppId, "mpiexec",
         mpiexecArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), stdoutPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
-        {});
+        local_launch_env);
 
     stdoutPipe.closeWrite();
     auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
@@ -991,6 +1128,7 @@ PALSApp::checkFilesExist(std::set<std::string> const& paths)
 
         // Daemons will print an empty line when output is completed
         if (line.empty()) {
+            writeLog("Nodes left to check: %zu\n", exit_count);
             exit_count--;
 
         // Received path from daemon
@@ -1002,6 +1140,8 @@ PALSApp::checkFilesExist(std::set<std::string> const& paths)
             }
         }
     }
+
+    writeLog("Finished checking all nodes\n");
 
     return result;
 }

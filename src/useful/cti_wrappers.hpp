@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <type_traits>
+#include <sstream>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -501,6 +502,40 @@ waitpid(pid_t pid, int* status, int options)
             return rc;
         }
     }
+}
+
+// Join with delimiter
+template <typename Iter>
+static inline auto
+joinStr(Iter begin, Iter end, std::string const& delim)
+{
+	if (begin == end) {
+		return std::string{};
+	}
+
+	auto result = std::stringstream{};
+	result << *begin;
+	begin++;
+
+	while (begin != end) {
+		result << delim;
+		result << *begin;
+		begin++;
+	}
+
+	return result.str();
+}
+
+// Descriptive stoi
+static inline auto
+stoi(std::string const& str, std::string_view name)
+{
+	try {
+		return std::stoi(str);
+	} catch (...) {
+		throw std::runtime_error("Failed to parse " + std::string{name}
+			+ " (was '" + str + "')");
+	}
 }
 
 } /* namespace cti */

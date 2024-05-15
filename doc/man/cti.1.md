@@ -24,6 +24,32 @@ when running PE debugger tools.
 Note that there are both general environment variables, as well as specific
 environment variables for different system workload managers.
 
+## Attaching to applications
+
+When tools such as GDB4hpc attach to a running application, CTI coordinates
+this attach with the workload manager running on the system. Each
+workload manager has different forms of job or application IDs that must be
+supplied to start the attach process.
+
+- *Slurm*: `<jobid>.<stepid>` Include both the job ID and step ID, separated
+  by a dot.
+- *PALS*: Supply one of the following forms, depending on where the tool is run:
+  - `<pals_apid>` A single UUID-type string. For this form, the tool should be
+    ran inside the same PBS allocation as the job. Alternatively, set the
+    environment variable **CTI_PALS_EXEC_HOST** to the execution host of the
+    PBS job hosting the PALS application, as reported by `qstat -f`.
+  - `<pbs_job_id>` If the PBS job ID is supplied, the tool will attach
+    to the first PALS application running inside that PBS job. In this form, the
+    tool does not have to be launched inside the same PBS allocation as the host.
+  - `<pbs_job_id>:<pals_apid>` If the PBS job ID is known, it can
+    be supplied before the job ID separated by a colon. In this form, the
+    tool does not have to be launched inside the same PBS allocation as the host.
+- *Flux*: `<flux_jobid>` Can be either the **f58**-style job ID reported by most
+  Flux utilities, or the numeric job ID reported by Flux API functions.
+- *ALPS*: `<aprun_id>` Supply the ALPS application ID
+- *SSH*: `<launcher_pid>` Supply the PID of the MPIR-compliant launcher to which
+  to attach.
+
 # ENVIRONMENT VARIABLES
 
 ## General variables

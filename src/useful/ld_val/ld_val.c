@@ -405,6 +405,9 @@ save_str:
                         waitpid(pid, &status, 0);
                         return NULL;
                     }
+                } else {
+                    free(libstr);
+                    libstr = NULL;
                 }
             }
 

@@ -61,23 +61,11 @@ static auto make_unique_del(T*&& expiring, Destr&& destr)
 
 // Leverage Flux's dry-run mode to generate jobspec for API
 static std::string make_jobspec(char const* launcher_name, char const* const launcher_args[],
-    std::string const& inputPath, std::string const& outputPath, std::string const& errorPath,
     std::string const& chdirPath, char const* const env_list[],
     std::map<std::string, std::string> const& jobAttributes)
 {
     // Build Flux dry run arguments
     auto fluxArgv = cti::ManagedArgv { launcher_name, "submit", "--dry-run" };
-
-    // Add input / output / error files, if provided
-    if (!inputPath.empty()) {
-        fluxArgv.add("--input=" + inputPath);
-    }
-    if (!outputPath.empty()) {
-        fluxArgv.add("--output=" + outputPath);
-    }
-    if (!errorPath.empty()) {
-        fluxArgv.add("--error=" + errorPath);
-    }
 
     // Add cwd attribute for working directory, if provided
     if (!chdirPath.empty()) {
@@ -127,12 +115,52 @@ static auto get_flux_future_error(FluxFrontend::LibFlux& libFluxRef, flux_future
         : "(no error provided)"};
 }
 
+static auto get_eventlog_exception(std::string const& jobId)
+{
+    auto result = std::string{"(no error provided)"};
+
+    try {
+        char const* flux_argv[] = {"flux", "job", "eventlog", "-f", "json", jobId.c_str(), nullptr};
+        auto fluxOutput = cti::Execvp{"flux", (char* const*)flux_argv, cti::Execvp::stderr::Ignore};
+        auto& fluxStream = fluxOutput.stream();
+
+        // Parse eventlog output
+        // Flux eventlog formatter writes a single complete JSON object to each line,
+        // rather than one big object. Parsing multiple lines at once would fail.
+        auto line = std::string{};
+        while (std::getline(fluxStream, line)) {
+            auto root = parse_json(line);
+            auto eventName = root.get<std::string>("name");
+
+            // Found exception event, get reason
+            if (eventName == "exception") {
+                auto context = root.get_child("context");
+                auto note = context.get<std::string>("note");
+                if (!note.empty()) {
+                    result = std::move(note);
+                    break;
+                }
+            }
+        }
+
+        // Consume rest of output
+        fluxStream.ignore(std::numeric_limits<std::streamsize>::max());
+        (void)fluxOutput.getExitStatus();
+
+    } catch (...) {
+        // Ignore parse failure
+    }
+
+    return result;
+}
+
 // Query event log for job leader rank and service key for RPC
 static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* fluxHandle,
     uint64_t job_id)
 {
     auto eventlog_future = make_unique_del(
-        libFlux.flux_job_event_watch(fluxHandle, job_id, "guest.exec.eventlog", 0),
+        libFlux.flux_job_event_watch(fluxHandle, job_id, "guest.exec.eventlog",
+            (int)libFlux.JobEventWatchFlags::FluxJobEventWatchWaitcreate),
         libFlux.flux_future_destroy);
     if (eventlog_future == nullptr) {
         throw std::runtime_error("Flux job event query failed");
@@ -140,19 +168,20 @@ static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t
 
     // Read event log responses
     while (true) {
+
+        // Unpack event data
         char const *eventlog_result = nullptr;
-        auto const eventlog_rc = libFlux.flux_job_event_watch_get(eventlog_future.get(), &eventlog_result);
-        if (eventlog_rc == ENODATA) {
-            continue;
-        } else if (eventlog_rc < 0) {
-            throw std::runtime_error("Flux job event query failed: " + get_flux_future_error(libFlux, eventlog_future.get()));
+        if (libFlux.flux_job_event_watch_get(eventlog_future.get(), &eventlog_result) < 0) {
+            auto reason = get_eventlog_exception(std::to_string(job_id));
+            throw std::runtime_error("Flux launch failed: " + reason);
         }
 
         // Received a new event log result, parse it as JSON
         auto root = parse_json(eventlog_result);
+        auto eventName = root.get<std::string>("name");
 
         // Looking for shell.init event, will contain leader rank and service key
-        if (root.get<std::string>("name") == "shell.init") {
+        if (eventName == "shell.init") {
 
             // Got shell.init, extract the job information
             auto context = root.get_child("context");
@@ -163,7 +192,11 @@ static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t
                 throw std::runtime_error("Flux API returned empty RPC service key");
             }
 
-            return std::make_pair(leaderRank, std::move(rpcService));
+        return std::make_pair(leaderRank, std::move(rpcService));
+
+        // Job exited prematurely
+        } else if (eventName == "shell.exit") {
+            throw std::runtime_error("Flux reported job completion before job start");
         }
 
         // Reset and wait for next event log result
@@ -176,7 +209,8 @@ static std::string make_rpc_request(FluxFrontend::LibFlux& libFlux, FluxFrontend
 {
     // Create request future
     auto future = make_unique_del(
-        libFlux.flux_rpc_raw(fluxHandle, topic.c_str(), content.c_str(), content.length() + 1, leader_rank, 0),
+        libFlux.flux_rpc_raw(fluxHandle, topic.c_str(), content.c_str(), content.length() + 1,
+		leader_rank, 0),
         libFlux.flux_future_destroy);
     if (future == nullptr) {
         throw std::runtime_error("Flux query failed");
@@ -186,7 +220,8 @@ static std::string make_rpc_request(FluxFrontend::LibFlux& libFlux, FluxFrontend
     char const *result = nullptr;
     auto const rc = libFlux.flux_rpc_get(future.get(), &result);
     if (rc < 0) {
-        throw std::runtime_error("Flux query with topic " + topic + " failed: " + get_flux_future_error(libFlux, future.get()));
+        throw std::runtime_error("Flux query with topic " + topic + " failed: "
+		+ get_flux_future_error(libFlux, future.get()));
     }
 
     return std::string{(result) ? result : ""};
@@ -197,23 +232,43 @@ static const char utf8_prefix[] = u8"\u0192";
 // Parse raw job ID string (f58 or otherwise) into numeric job ID
 static inline auto parse_job_id(FluxFrontend::LibFlux& libFluxRef, char const* raw_job_id)
 {
-    // Determine if job ID is f58-formatted by checking for f58 prefix
-    auto const f58_formatted = (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0);
-
-    // Convert F58-formatted job ID to internal job ID
-    auto job_id = flux_jobid_t{};
-    if (f58_formatted) {
-
-        if (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) < 0) {
-            throw std::runtime_error("failed to parse Flux job ID: " + std::string{raw_job_id});
-        }
-
-    // Job ID was provided in numeric format
-    } else {
-        job_id = std::stol(raw_job_id);
+    if (raw_job_id[0] == '\0') {
+        throw std::runtime_error("provided empty job ID");
     }
 
-    return job_id;
+    auto job_id = flux_jobid_t{};
+
+    // Determine if job ID is f58-formatted by checking for f58 prefix
+    if (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0) {
+        if (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) == 0) {
+            return job_id;
+        }
+    }
+
+    // Try to replace first character with 'f'
+    // Flux UTF-8 prefix can be corrupted into 'F' on some systems
+    if (raw_job_id[0] == 'F') {
+        auto fixedId = std::string{raw_job_id};
+        fixedId[0] = 'f';
+        if (libFluxRef.flux_job_id_parse(fixedId.c_str(), &job_id) == 0) {
+            return job_id;
+        }
+    }
+
+    // Try to prepend 'f'
+    // Flux UTF-8 prefix can be erased on other systems
+    auto printable_job_id = raw_job_id;
+    while (!::isalnum(*printable_job_id) && (*printable_job_id != '\0')) {
+        printable_job_id++;
+    }
+    if (*printable_job_id != '\0') {
+        auto fixedId = 'f' + std::string{raw_job_id};
+        if (libFluxRef.flux_job_id_parse(fixedId.c_str(), &job_id) == 0) {
+            return job_id;
+        }
+    }
+
+    throw std::runtime_error("failed to parse Flux job ID: " + std::string{raw_job_id});
 }
 
 // Convert numerical job ID to compact F58 encoding
@@ -256,6 +311,83 @@ static int cancel_job(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* flux
     // Block and wait until canceled
     // TODO: this waiting process can be chained for multiple cancellations
     return libFlux.flux_future_wait_for(future.get(), 0);
+}
+
+// Flux does not yet support cray-pmi, so backend information needs to be generated separately
+static std::string
+createNodeLayoutFile(std::vector<FluxFrontend::HostPlacement> const& hostsPlacement,
+    std::string const& stagePath)
+{
+    auto make_layoutFileEntry = [](std::string const& hostname, int firstPE, int numPEs) {
+        // Ensure we have good hostname information.
+        auto const hostname_len = hostname.size() + 1;
+        if (hostname_len > sizeof(slurmLayoutFile_t::host)) {
+            throw std::runtime_error("hostname too large for layout buffer");
+        }
+
+        // Extract PE and node information from Node Layout.
+        auto layout_entry    = slurmLayoutFile_t{};
+        layout_entry.PEsHere = numPEs;
+        layout_entry.firstPE = firstPE;
+        memcpy(layout_entry.host, hostname.c_str(), hostname_len);
+
+        return layout_entry;
+    };
+
+    // Create the file path, write the file using the Step Layout
+    auto const layoutPath = std::string{stagePath + "/" + SLURM_LAYOUT_FILE};
+    if (auto const layoutFile = cti::file::open(layoutPath, "wb")) {
+
+        // Write the Layout header.
+        cti::file::writeT(layoutFile.get(), slurmLayoutFileHeader_t
+            { .numNodes = (int)hostsPlacement.size()
+        });
+
+        // Write a Layout entry using node information from each Slurm Node Layout entry.
+        auto first_pe = 0;
+        for (auto&& placement : hostsPlacement) {
+            cti::file::writeT(layoutFile.get(), make_layoutFileEntry(placement.hostname,
+                first_pe, placement.numPEs));
+            first_pe += placement.numPEs;
+        }
+
+        return layoutPath;
+    } else {
+        throw std::runtime_error("failed to open layout file path " + layoutPath);
+    }
+}
+
+static std::string
+createPIDListFile(std::vector<FluxFrontend::HostPlacement> const& hostsPlacement,
+    std::string const& stagePath)
+{
+    auto const pidPath = std::string{stagePath + "/" + SLURM_PID_FILE};
+    if (auto const pidFile = cti::file::open(pidPath, "wb")) {
+
+        // Sum up the number of PIDs
+        auto num_pids = std::accumulate(hostsPlacement.begin(), hostsPlacement.end(), 0,
+            [](size_t count, FluxFrontend::HostPlacement const& placement) {
+                return count + placement.rankPidPairs.size();
+            });
+
+        // Write the PID List header.
+        cti::file::writeT(pidFile.get(), slurmPidFileHeader_t
+            { .numPids = (int)num_pids
+        });
+
+        // Write a PID entry using information from each MPIR ProcTable entry.
+        for (auto&& placement : hostsPlacement) {
+            for (auto&& [rank, pid] : placement.rankPidPairs) {
+                cti::file::writeT(pidFile.get(), slurmPidFile_t
+                    { .pid = pid
+                });
+            }
+        }
+
+        return pidPath;
+    } else {
+        throw std::runtime_error("failed to open PID file path " + pidPath);
+    }
 }
 
 /* FluxFrontend implementation */
@@ -401,14 +533,6 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
     const char* input_file, int stdout_fd, int stderr_fd, const char *chdir_path,
     const char * const env_list[], FluxFrontend::LaunchBarrierMode const launchBarrierMode)
 {
-    // Get output, and error files from file descriptors
-    auto const outputPath = (stdout_fd >= 0)
-        ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stdout_fd)
-        : std::string{};
-    auto const errorPath = (stderr_fd >= 0)
-        ? "/proc/" + std::to_string(getpid()) + "/fd/" + std::to_string(stderr_fd)
-        : std::string{};
-
     // Add barrier option if enabled
     auto jobAttributes = std::map<std::string, std::string>{};
     if (launchBarrierMode == LaunchBarrierMode::Enabled) {
@@ -417,10 +541,7 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
 
     // Generate jobspec string
     auto const jobspec = make_jobspec(getLauncherName().c_str(), launcher_args,
-        (input_file != nullptr) ? input_file : "",
-        outputPath, errorPath,
-        (chdir_path != nullptr) ? chdir_path : "",
-        env_list,
+        (chdir_path != nullptr) ? chdir_path : "", env_list,
         jobAttributes);
 
     // Submit jobspec to API
@@ -435,7 +556,39 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
     return LaunchInfo
         { .jobId = job_id
         , .atBarrier = (launchBarrierMode == LaunchBarrierMode::Enabled)
+        , .input_file = input_file
+        , .stdout_fd = stdout_fd, .stderr_fd = stderr_fd
     };
+}
+
+static auto parse_flux_version(std::string const& version)
+{
+    try {
+        auto [major, minor, rev] = cti::split::string<3>(version, '.');
+        return std::pair(std::stoi(major), std::stoi(minor));
+    } catch (std::exception const& ex) {
+        throw std::runtime_error("Failed to parse Flux version (" + version + ")");
+    }
+}
+
+static auto get_system_flux_version(std::string const& launcher)
+{
+    auto fluxArgv = cti::ManagedArgv{launcher, "--version"};
+    auto fluxOutput = cti::Execvp{launcher.c_str(), fluxArgv.get(), cti::Execvp::stderr::Ignore};
+
+    // Read libflux-core version line
+    auto& fluxStream = fluxOutput.stream();
+    auto versionLine = std::string{};
+    while (std::getline(fluxStream, versionLine)) {
+
+        // Split line into each word
+        auto const [key, value] = cti::split::string<2>(versionLine, ':');
+        if (key == "libflux-core") {
+            return parse_flux_version(cti::split::removeLeadingWhitespace(value));
+        }
+    }
+
+    throw std::runtime_error("Could not parse Flux version (tried `flux --version`)");
 }
 
 FluxFrontend::FluxFrontend()
@@ -458,74 +611,29 @@ FluxFrontend::FluxFrontend()
     // libflux-core interface stabilizes in Flux 1.0 release)
     // Can be bypassed by setting environment variable
     if (::getenv(CTI_FLUX_DEBUG_ENV_VAR) == nullptr) {
-        auto fluxArgv = cti::ManagedArgv{getLauncherName(), "--version"};
-        auto fluxOutput = cti::Execvp{getLauncherName().c_str(), fluxArgv.get(), cti::Execvp::stderr::Ignore};
 
-        // Read libflux-core version line
-        auto& fluxStream = fluxOutput.stream();
-        auto versionLine = std::string{};
-        while (std::getline(fluxStream, versionLine)) {
+        auto [internal_version, hash] = cti::split::string<2>(FLUX_CORE_VERSION_STRING, '-');
+        auto [internal_major, internal_minor] = parse_flux_version(std::move(internal_version));
+        auto [system_major, system_minor] = get_system_flux_version(getLauncherName());
 
-            // Split line into each word
-            auto const [key, value] = cti::split::string<2>(versionLine, ':');
-            if (key == "libflux-core") {
-                auto const runtime_version = cti::split::removeLeadingWhitespace(value);
-                auto const [version, hash] = cti::split::string<2>(FLUX_CORE_VERSION_STRING, '-');
+        // Check minimum version
+        if ((LibFlux::minimum_version_major > system_major)
+         || ((LibFlux::minimum_version_major == system_major)
+          && (LibFlux::minimum_version_minor > system_minor))) {
+            auto err = std::ostringstream{};
+            err << "Mismatch between system's libflux-core version ("
+                << system_major << "." << system_minor << ") and CTI's minimum supported version ("
+                << LibFlux::minimum_version_major << "." << LibFlux::minimum_version_minor << "). "
+                << "To attempt to continue, set the environment variable " CTI_FLUX_DEBUG_ENV_VAR
+                << " and relaunch this application.";
+            throw std::runtime_error(err.str());
+         }
 
-                if (runtime_version == version) {
-                    break;
-                } else {
-                    throw std::runtime_error("Mismatch between system's libflux-core version (" +
-runtime_version + ") and CTI's built version (" + version + "). libflux-core is still in \
-development, and its interface is subject to change. To attempt to continue, set the environment \
-variable " CTI_FLUX_DEBUG_ENV_VAR " and relaunch this application.");
-                }
-            }
-        }
-    }
-
-    // Remove any existing jobtap plugins
-    (void)make_rpc_request(*m_libFlux, m_fluxHandle, FLUX_NODEID_ANY,
-        "job-manager.jobtap", "{\"remove\": \"all\"}");
-
-    // Load alloc-bypass jobtap plugin to allow oversubscription
-    { auto const fluxInstallDir = findFluxInstallDir(getLauncherName());
-        auto allocBypassPaths = std::vector<std::string>
-            { fluxInstallDir + "/lib64/flux/job-manager/plugins/alloc-bypass.so"
-            , fluxInstallDir + "/lib/flux/job-manager/plugins/alloc-bypass.so"
-        };
-
-        // Try loading from potential alloc bypass library paths
-        auto load_successful = false;
-        for (auto&& allocBypassPath : allocBypassPaths) {
-            auto loadRequest = R"({"load": ")" + allocBypassPath + R"("})";
-
-            // Make load RPC request
-            try {
-                (void)make_rpc_request(*m_libFlux, m_fluxHandle, FLUX_NODEID_ANY,
-                    "job-manager.jobtap", loadRequest);
-
-                load_successful = true;
-                break;
-
-            // Try next path if failed
-            } catch (std::exception const& ex) {
-                continue;
-            }
-        }
-
-        if (!load_successful) {
-
-            // Build error message with different paths tried
-            auto errorMsgStream = std::stringstream{};
-            errorMsgStream << "failed to load Flux jobtap plugin from: \n";
-            for (auto&& allocBypassPath : allocBypassPaths) {
-                errorMsgStream << allocBypassPath << "\n";
-            }
-            errorMsgStream << "Set " FLUX_INSTALL_DIR_ENV_VAR " to the root of "
-                "your Flux installation";
-
-            throw std::runtime_error(errorMsgStream.str());
+        if ((internal_major != system_major) || (internal_minor != system_minor)) {
+            fprintf(stderr, "warning: system is running Flux %d.%d, and CTI was built against %d.%d\n"
+                "libflux-core is still in development, you may encounter launch errors.\n"
+                "To suppress this message, set the environment variable " CTI_FLUX_DEBUG_ENV_VAR "=1\n",
+                system_major, system_minor, internal_major, internal_minor);
         }
     }
 }
@@ -639,6 +747,10 @@ FluxApp::releaseBarrier()
 void
 FluxApp::kill(int signal)
 {
+    if (signal == 0) {
+        throw std::runtime_error("invalid signal number: 0");
+    }
+
     // Create signal future
     auto future = make_unique_del(
         m_libFluxRef.flux_job_kill(m_fluxHandle, m_jobId, signal),
@@ -651,6 +763,72 @@ FluxApp::kill(int signal)
     m_libFluxRef.flux_future_wait_for(future.get(), 0);
 }
 
+class FluxArchive
+{
+public: // helper functions
+    static void execvp_throw_stderr(char const* argv0, char const* const* argv,
+        std::string const& ex) {
+
+        // Launch subprocess
+        auto output = cti::Execvp{argv0, (char* const*)argv, cti::Execvp::stderr::Pipe};
+        auto& stream = output.stream();
+        auto lines = std::ostringstream{};
+        lines << ex << ": ";
+
+        // Read and save output
+        auto line = std::string{};
+        while (std::getline(stream, line)) {
+            lines << line << '\n';
+        }
+
+        // Check output status
+        if (output.getExitStatus()) {
+            throw std::runtime_error(lines.str());
+        }
+    }
+
+private: // members
+    std::string m_toolPath;
+    std::string m_mkdirExtractCmd;
+
+public: // interface
+    FluxArchive(std::string toolPath, std::string const& dirName,
+        std::string const& packageName)
+        : m_toolPath{std::move(toolPath)}
+    {
+        // Create extract command
+        m_mkdirExtractCmd = "mkdir -p " + m_toolPath + "; "
+            "flux archive extract --overwrite -n " + m_toolPath + " -C " + m_toolPath + " " + packageName;
+
+        // Map file on broker node to central store
+        char const* archive_create_argv[] = {"flux", "archive", "create", "-n", m_toolPath.c_str(),
+            "-C", dirName.c_str(), packageName.c_str(), nullptr};
+        execvp_throw_stderr("flux", archive_create_argv, "failed to add file to archive");
+    }
+
+    ~FluxArchive()
+    {
+        char const* archive_remove_argv[] = {"flux", "archive", "remove",
+            "-n", m_toolPath.c_str(), nullptr};
+        try {
+            (void)cti::Execvp::runExitStatus("flux", (char* const*)archive_remove_argv);
+        } catch (...) {}
+    }
+
+    void pullAllRanks() {
+        char const* exec_extract_argv[] = {"flux", "exec", "-r", "all",
+            "bash", "-c", m_mkdirExtractCmd.c_str(), nullptr};
+        execvp_throw_stderr("flux", exec_extract_argv, "failed to get archive file (all ranks)");
+    }
+
+    void pullNonBrokerRanks() {
+        char const* exec_extract_argv[] = {"flux", "exec", "-x", "0",
+            "bash", "-c", m_mkdirExtractCmd.c_str(), nullptr};
+        execvp_throw_stderr("flux", exec_extract_argv, "failed to get archive file (non-broker ranks)");
+    }
+
+};
+
 void
 FluxApp::shipPackage(std::string const& tarPath) const
 {
@@ -659,87 +837,42 @@ FluxApp::shipPackage(std::string const& tarPath) const
     auto const destination = m_toolPath + "/" + packageName;
     writeLog("Flux shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
-    if (!m_runningOnBroker) {
-
-        // Make remote directory on broker
-        writeLog("Broker: mkdir %s\n", m_toolPath.c_str());
-        char const* exec_mkdir_argv[] = {"flux", "exec", "-r", "0", "mkdir", "-p",
-            m_toolPath.c_str(), nullptr};
-        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_mkdir_argv)) {
-            throw std::runtime_error("failed to make directory on rank 0 " + m_toolPath);
-        }
-
-        // Send file to broker
-        writeLog("Broker: piping %s to %s\n", tarPath.c_str(), destination.c_str());
-        { auto catCommand = "cat " + tarPath + " | flux exec -r 0 sed -n 'w " + destination + "'";
-            char const* exec_cat_argv[] = {"bash", "-c", catCommand.c_str(), nullptr};
-
-            // Input piping for large files can still fail on the first invocation,
-            // but an immediate retry is usually successful. Deduplicated manifests
-            // are small enough to not run into this issue for CDST products.
-            // https://github.com/flux-framework/flux-core/issues/4572
-            auto const max_retry = 5;
-            for (int retry = 1; retry <= max_retry; retry++) {
-                fprintf(stderr, "trying ship %s\n", destination.c_str());
-                if (cti::Execvp::runExitStatus("bash", (char* const*)exec_cat_argv)) {
-                    if (retry == max_retry) {
-                        throw std::runtime_error("failed to send file to rank 0 " + destination);
-                    }
-                    writeLog("Broker: failed to pipe file (retry %d/%d)\n", retry, max_retry);
-                } else {
-                    break;
-                }
-            }
-        }
-
-        // Make file executable
-        writeLog("Broker: chmod +x %s\n", destination.c_str());
-        char const* exec_chmod_argv[] = {"flux", "exec", "-r", "0", "chmod", "+x",
-            destination.c_str(), nullptr};
-        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_chmod_argv)) {
-            throw std::runtime_error("failed to make directory on rank 0 " + m_toolPath);
-        }
+    // Copy source to destination, mapping onto the same node is broken
+    // https://github.com/flux-framework/flux-core/issues/5655
+    char const* mkdir_argv[] = {"mkdir", "-p", m_toolPath.c_str(), nullptr};
+    if (cti::Execvp::runExitStatus("mkdir", (char* const*)mkdir_argv)) {
+        throw std::runtime_error("failed to mkdir " + m_toolPath);
+    }
+    char const* cp_argv[] = {"cp", tarPath.c_str(), destination.c_str(), nullptr};
+    if (cti::Execvp::runExitStatus("cp", (char* const*)cp_argv)) {
+        throw std::runtime_error("failed to copy " + tarPath + " to " + destination);
     }
 
-    // Broadcast file from broker to other nodes
-    if (m_runningOnBroker || (m_hostsPlacement.size() > 1)) {
+    writeLog("Broker: adding %s to archive\n", tarPath.c_str());
+    auto fluxArchive = FluxArchive(m_toolPath, dirName, packageName);
 
-        // Map file on broker node to central store
-        writeLog("Broker: adding to filemap\n");
-        char const* exec_map_argv[] = {"flux", "exec", "-r", "0", "flux", "filemap", "map",
-            "--tags", m_toolPath.c_str(), "-C",
-            (m_runningOnBroker) ? dirName.c_str() : m_toolPath.c_str(),
-            packageName.c_str(), nullptr};
-        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_map_argv)) {
-            throw std::runtime_error("failed to map file on rank 0 " + destination);
-        }
-
-        // Make remote directories and pull from filemap
-        writeLog("%s: mkdir %s and pull %s\n",
-            (m_runningOnBroker) ? "All ranks" : "Non-broker",
-            m_toolPath.c_str(), packageName.c_str());
-        auto mkdirGetCmd = "mkdir -p " + m_toolPath + "; flux filemap get --tags "
-            + m_toolPath + " -C " + m_toolPath + " " + packageName;
-        char const* exec_get_argv[] = {"flux", "exec", "-r",
-            (m_runningOnBroker) ? "all" : m_nonBrokerRanks.c_str(),
-            "bash", "-c", mkdirGetCmd.c_str(), nullptr};
-        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_get_argv)) {
-            throw std::runtime_error("failed to get mapped file " + destination);
-        }
-
-        // Unmap file on broker node
-        writeLog("Broker: unmapping file\n");
-        char const* exec_unmap_argv[] = {"flux", "exec", "-r", "0", "flux", "filemap", "unmap",
-            "--tags", m_toolPath.c_str(), nullptr};
-        if (cti::Execvp::runExitStatus("flux", (char* const*)exec_unmap_argv)) {
-            throw std::runtime_error("failed to unmap file on rank 0 " + destination);
-        }
-    }
+    // Make remote directories and pull from archive
+    writeLog("Broker: pull on all ranks %s -> %s\n",
+        tarPath.c_str(), destination.c_str());
+    fluxArchive.pullAllRanks();
 }
 
 void
 FluxApp::startDaemon(const char* const args[], bool synchronous)
 {
+    // Load alloc-bypass jobtap plugin to allow oversubscription
+    if (!m_allocBypassLoaded) {
+        try {
+            (void)make_rpc_request(m_libFluxRef, m_fluxHandle, FLUX_NODEID_ANY,
+                "job-manager.jobtap", R"({"load": "alloc-bypass.so"})");
+
+        } catch (std::exception const& ex) {
+            // Assume already loaded
+        }
+
+        m_allocBypassLoaded = true;
+    }
+
     // Prepare to start daemon binary on compute node
     auto const remoteBEDaemonPath = m_toolPath + "/" + getBEDaemonName();
 
@@ -766,7 +899,7 @@ FluxApp::startDaemon(const char* const args[], bool synchronous)
     // Generate daemon jobspec string
     auto& fluxFrontend = dynamic_cast<FluxFrontend&>(m_frontend);
     auto const jobspec = make_jobspec(fluxFrontend.getLauncherName().c_str(), launcherArgv.get(),
-        "", "", "", "", {}, // No input, output, error, chdir, environment settings
+        "", {}, // No chdir, environment settings
         { { "system.alloc-bypass.R", m_resourceSpec } });
 
     // Submit jobspec to API
@@ -780,7 +913,8 @@ FluxApp::startDaemon(const char* const args[], bool synchronous)
     // Wait for job to launch and receive job ID
     auto daemon_job_id = flux_jobid_t{};
     if (m_libFluxRef.flux_job_submit_get_id(daemon_job_future, &daemon_job_id) < 0) {
-        throw std::runtime_error("Flux daemon launch failed: " + get_flux_future_error(m_libFluxRef, daemon_job_future));
+        throw std::runtime_error("Flux daemon launch failed: "
+		+ get_flux_future_error(m_libFluxRef, daemon_job_future));
     }
 
     if (synchronous) {
@@ -810,8 +944,9 @@ FluxApp::checkFilesExist(std::set<std::string> const& paths)
         shipDaemon();
     }
 
-    // Build daemon launcher arguments
-    auto launcherArgv = cti::ManagedArgv{"flux", "exec", m_toolPath + "/" + getBEDaemonName()};
+    // Build daemon launcher arguments, exclude broker node
+    auto launcherArgv = cti::ManagedArgv{"flux", "exec", "-x", "0",
+        m_toolPath + "/" + getBEDaemonName()};
     for (auto&& path : paths) {
         launcherArgv.add("--file=" + path);
     }
@@ -821,8 +956,16 @@ FluxApp::checkFilesExist(std::set<std::string> const& paths)
         cti::Execvp::stderr::Ignore};
     auto& filesStream = filesOutput.stream();
 
-    // Track number of present files
+    // Track number of present files on non-broker nodes
     auto num_nodes = m_hostsPlacement.size();
+    if (num_nodes > 1) {
+        for (auto&& placement : m_hostsPlacement) {
+            // Broker node part of job, not checking there
+            if (placement.node_id == 0) {
+                num_nodes--;
+            }
+        }
+    }
     auto pathCountMap = std::map<std::string, size_t>{};
 
     // Read out all paths from daemon
@@ -867,8 +1010,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
     , m_beDaemonSent{false}
     , m_numPEs{}
     , m_hostsPlacement{}
-    , m_runningOnBroker{true} // Currently only support running from same Flux instance
-    , m_nonBrokerRanks{}
+    , m_allocBypassLoaded{false}
     , m_binaryName{}
 
     , m_toolPath{}
@@ -893,6 +1035,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         auto root = parse_json(make_rpc_request(m_libFluxRef, m_fluxHandle, m_leaderRank,
             "job-info.lookup", lookupRequest.str()));
         m_resourceSpec = root.get<std::string>("R");
+        writeLog("resource spec: %s\n", m_resourceSpec.c_str());
     }
 
     // Start new proctable query
@@ -905,6 +1048,10 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
 
         // Fill in hosts placement, PEs per node
         m_hostsPlacement = flux::make_hostsPlacement(proctable);
+
+        // Generate backend layout
+        m_extraFiles.push_back(createNodeLayoutFile(m_hostsPlacement, m_stagePath));
+        m_extraFiles.push_back(createPIDListFile(m_hostsPlacement, m_stagePath));
 
         // Sum up number of PEs
         m_numPEs = std::accumulate(
@@ -955,86 +1102,39 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
                 hostnameFirstRankMap.insert({hostname, std::stoi(rank)});
             }
         }
-
-        auto nonBrokerRanks = std::set<int>{};
-        for (auto&& [hostname, rank] : hostnameFirstRankMap) {
-            if (rank != 0) {
-                nonBrokerRanks.insert(rank);
-            }
-        }
-
-        // TODO: make rank ranges
-        for (auto&& rank : nonBrokerRanks) {
-            if (m_nonBrokerRanks.empty()) {
-                m_nonBrokerRanks = std::to_string(rank);
-            } else {
-                m_nonBrokerRanks += "," + std::to_string(rank);
-            }
-        }
-
-        writeLog("Non-broker ranks: %s\n", m_nonBrokerRanks.c_str());
-    }
-}
-
-// Flux does not yet support cray-pmi, so backend information needs to be generated separately
-std::vector<std::pair<std::string, std::string>>
-FluxApp::generateHostAttribs()
-{
-    auto result = std::vector<std::pair<std::string, std::string>>{};
-
-    auto const cfgDir = m_frontend.getCfgDir();
-
-    // Create attribs file for each hostname
-    for (auto&& placement : m_hostsPlacement) {
-
-        // Create placement directory
-        auto placementDir = cfgDir + "/" + placement.hostname;
-        { struct stat st;
-            if (::stat(placementDir.c_str(), &st)) {
-                if (::mkdir(placementDir.c_str(), 0700)) {
-                    throw std::runtime_error("failed to create directory at " + placementDir);
-                }
-            }
-        }
-
-        // Open attribute file for writing
-        auto const attribsPath = placementDir + "/pmi_attribs";
-        auto attribs_file = cti::take_pointer_ownership(::fopen(attribsPath.c_str(), "w"), ::fclose);
-        if (!attribs_file) {
-            throw std::runtime_error("failed to create file at " + attribsPath);
-        }
-
-        // Write attribs information to file
-        fprintf(attribs_file.get(), "%d\n%d\n%d\n%ld\n",
-            1, // PMI version 1
-            0, // Node ID disabled
-            0, // Flux does not support MPMD
-            placement.numPEs); // Ranks on node
-
-        for (auto&& [rank, pid] : placement.rankPidPairs) {
-            fprintf(attribs_file.get(), "%d %d\n", rank, pid);
-        }
-
-        // Add PMI file to list
-        result.emplace_back(placement.hostname, attribsPath);
     }
 
-    return result;
-}
+    // Open input file if provided
+    auto stdin_fd = (launchInfo.input_file != nullptr)
+        ? ::open(launchInfo.input_file, O_RDONLY)
+        : -1;
 
-static void
-cleanupHostAttribs(std::string const& cfgDir,
-    std::vector<std::pair<std::string, std::string>> const& hostnameAttribsPairs)
-{
-    // Create attribs file for each hostname
-    for (auto&& [hostname, attribsPath] : hostnameAttribsPairs) {
+    // Start output redirection subprocess
+	// `flux job attach` running under request_ForkExecvpUtil_Async does not reliably
+    // capture job output. It can output its own logging, but not job output.
+    { auto jobId = getJobId();
+        char const* flux_job_attach_argv[] = {"flux", "job", "attach", "-q", "-u", jobId.c_str(), nullptr};
 
-        // Remove placement file
-        ::unlink(attribsPath.c_str());
+        // Register PID with daemon for cleanup
+        if (auto attach_pid = fork()) {
+            if (attach_pid < 0) {
+                throw std::runtime_error("fork failed: " + std::string{strerror(errno)});
+            }
+            m_frontend.Daemon().request_RegisterUtil(m_daemonAppId, attach_pid);
 
-        // Remove placement directory
-        auto placementDir = cfgDir + "/" + hostname;
-        ::rmdir(placementDir.c_str());
+        // Launch flux attach
+        } else {
+
+            // Redirect input and output descriptors
+            ::dup2(stdin_fd, STDIN_FILENO);
+            ::dup2(launchInfo.stdout_fd, STDOUT_FILENO);
+            ::dup2(launchInfo.stderr_fd, STDERR_FILENO);
+
+            // Start flux attach
+            ::execvp("flux", (char* const*)flux_job_attach_argv);
+            ::perror("execvp");
+            ::exit(-1);
+        }
     }
 }
 
@@ -1053,18 +1153,6 @@ FluxApp::shipDaemon()
     std::filesystem::copy_options::overwrite_existing);
     shipPackage(destinationPath);
 
-    // Generate attribute files
-    auto const hostAttribs = generateHostAttribs();
-
-    // Ship attribute files
-    for (auto&& [hostname, attribPath] : hostAttribs) {
-        // pmi_attribs file will be expected in m_toolPath/pmi_attribs
-        shipPackage(attribPath);
-    }
-
-    // Remove attribute files
-    cleanupHostAttribs(m_frontend.getCfgDir(), hostAttribs);
-
     // set transfer to true
     m_beDaemonSent = true;
 }
@@ -1081,6 +1169,14 @@ FluxApp::~FluxApp()
         for (auto&& id : m_daemonJobIds) {
             (void)cancel_job(m_libFluxRef, m_fluxHandle, id, "controlling application is terminating");
         }
+
+        // Delete the staging directory if it exists.
+        if (!m_stagePath.empty()) {
+            _cti_removeDirectory(m_stagePath.c_str());
+        }
+
+        // Inform the FE daemon that this App is going away
+        m_frontend.Daemon().request_DeregisterApp(m_daemonAppId);
 
     } catch (std::exception const& ex) {
         writeLog("~FluxApp: %s\n", ex.what());

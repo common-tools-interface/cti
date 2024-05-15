@@ -18,6 +18,7 @@
 #include <string>
 #include <stdexcept>
 #include <unordered_map>
+#include <mutex>
 
 // Forward declarations
 class App;
@@ -160,8 +161,9 @@ public:
     // A C api should never allow an exception to escape the runtime.
     template <typename FuncType, typename ReturnType>
     static ReturnType
-    runSafely(std::string const& caller, FuncType&& func, ReturnType const onError) {
+    runSafely(std::mutex& mtx, std::string const& caller, FuncType&& func, ReturnType const onError) {
         auto sigchldBlocker = SigchldBlocker{};
+        auto lck = std::unique_lock{mtx};
 
         try {
             return std::forward<FuncType>(func)();

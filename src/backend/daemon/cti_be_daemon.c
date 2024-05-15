@@ -277,6 +277,43 @@ cleanup_session_files_in_use:
     return rc;
 }
 
+// Return 0 if directory exists, 1 if succeeded, -1 on error
+int recursive_mkdir(char const* path)
+{
+    if (path == NULL) {
+        return -1;
+    }
+
+    // Check directory
+    struct stat st;
+    if ((stat(path, &st) == 0) && S_ISDIR(st.st_mode)) {
+        return 0;
+    }
+
+    // Run mkdir command
+    char const* mkdir_argv[] = {"mkdir", "-p", path, NULL};
+    pid_t mkdir_pid = fork();
+    if (mkdir_pid < 0) {
+        return -1;
+    } else if (mkdir_pid == 0) {
+        execvp("mkdir", (char* const*)mkdir_argv);
+        exit(-1);
+    }
+    int mkdir_status = -1;
+    while (1) {
+        int waitpid_rc = waitpid(mkdir_pid, &mkdir_status, 0);
+        if (waitpid_rc < 0) {
+            if (errno == EINTR) {
+                continue;
+            } else {
+                return waitpid_rc;
+            }
+        } else {
+            return (mkdir_status == 0) ? 1 : -1;
+        }
+    }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -632,9 +669,13 @@ main(int argc, char **argv)
         // Get the log dir env var
         char *envDir = getenv(CTI_LOG_DIR_ENV_VAR);
 
-        // setup the log
-        log = _cti_create_log(envDir, apid_str, _cti_wlmProto->wlm_getNodeID());
-        _cti_hook_stdoe(log);
+        // Create the logging directory
+        if (recursive_mkdir(envDir) >= 0) {
+
+            // setup the log
+            log = _cti_create_log(envDir, apid_str, _cti_wlmProto->wlm_getNodeID());
+            _cti_hook_stdoe(log);
+        }
 
         // cleanup the apid string if it was missing
         if (null_apid)

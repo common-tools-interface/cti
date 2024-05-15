@@ -435,12 +435,25 @@ static LaunchData readLaunchData(int const reqFd)
 
     // receive remap FD message
     if (::recvmsg(reqFd, &msg_hdr, 0) < 0) {
-        throw std::runtime_error("failed to receive fds: " + std::string{strerror(errno)});
+
+        // reqFd may not have been a domain socket
+        if (errno == ENOTSOCK) {
+            result.stdin_fd = ::open("/dev/null", O_RDONLY);
+            result.stdout_fd = ::open("/dev/null", O_WRONLY);
+            result.stderr_fd = ::open("/dev/null", O_WRONLY);
+        
+        // Other recvmsg failure
+        } else {
+            throw std::runtime_error("failed to receive fds: " + std::string{strerror(errno)});
+        }
+
+    // Successfully read file descriptors
+    } else {
+        auto const fds = (int *)CMSG_DATA(cmsg);
+        result.stdin_fd  = fds[0];
+        result.stdout_fd = fds[1];
+        result.stderr_fd = fds[2];
     }
-    auto const fds = (int *)CMSG_DATA(cmsg);
-    result.stdin_fd  = fds[0];
-    result.stdout_fd = fds[1];
-    result.stderr_fd = fds[2];
 
     // set up pipe stream
     cti::FdBuf reqBuf{dup(reqFd)};
@@ -620,6 +633,9 @@ static pid_t forkExec(LaunchData const& launchData)
         argv.add(arg);
     }
 
+    // Look up binary in path (will use absolute path if provided)
+    auto binaryPath = cti::findPath(launchData.filepath);
+
     // parse env
     std::unordered_map<std::string, std::string> envMap;
     for (auto&& envVarVal : launchData.envList) {
@@ -666,12 +682,12 @@ static pid_t forkExec(LaunchData const& launchData)
         }
 
         // exec srun
-        getLogger().write("execvp %s\n", launchData.filepath.c_str());
+        getLogger().write("execvp %s\n", binaryPath.c_str());
         for (auto arg = argv.get(); *arg != nullptr; arg++) {
             getLogger().write("%s\n", *arg);
         }
 
-        execvp(launchData.filepath.c_str(), argv.get());
+        execvp(binaryPath.c_str(), argv.get());
         getLogger().write("execvp: %s\n", strerror(errno));
         _exit(1);
     }
@@ -746,8 +762,13 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
     // Then, an error message that the user can interpret will be sent back to the
     // main CTI process.
     launchingInstance = [](LaunchData const& launchData, std::map<int, int> const& remapFds) {
+
+        // Look up launcher in path (will use absolute path if provided)
+        auto launcherPath = cti::findPath(launchData.filepath);
+        getLogger().write("Starting launcher %s\n", launcherPath.c_str());
+
         try {
-            return std::make_unique<MPIRInstance>(launchData.filepath,
+            return std::make_unique<MPIRInstance>(launcherPath,
                 launchData.argvList, std::vector<std::string>{}, remapFds);
         } catch (std::exception const& ex) {
             auto errorMsg = std::stringstream{};
@@ -757,9 +778,9 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
             for (auto&& arg : launchData.argvList) {
                 errorMsg << " " << arg;
             }
-            errorMsg << "\nEnsure that the launcher binary exists and \
-that all arguments (such as job constraints or project accounts) required \
-by your system are provided to the tool's launch command (" << ex.what() << ")";
+            errorMsg << "\nEnsure that the launcher binary exists and "
+                "that all arguments (such as job constraints or project accounts) required "
+                "by your system are provided to the tool's launch command (" << ex.what() << ")";
 
             throw std::runtime_error{errorMsg.str()};
         }
@@ -858,6 +879,10 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
         shimData.shimBinaryPath.c_str(),
         (shimBinDir.m_path + "/" + shimmedLauncherName).c_str());
 
+    // Look up launcher in path (will use absolute path if provided)
+    auto launcherPath = cti::findPath(launchData.filepath);
+    getLogger().write("shimming %s\n", launcherPath.c_str());
+
     // Save original PATH
     auto const rawPath = ::getenv("PATH");
     auto const originalPath = (rawPath != nullptr) ? std::string{rawPath} : "";
@@ -867,7 +892,7 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
         // Most launcher scripts such as Xalt will look for the first srun after its location
         // in PATH, ignoring any before. So the shim path must be placed after the location
         // of the launcher script in PATH.
-        auto launcherScriptDirectory = std::string{std::filesystem::path{launchData.filepath}.parent_path()};
+        auto launcherScriptDirectory = std::string{std::filesystem::path{launcherPath}.parent_path()};
         auto shimmedPath = std::stringstream{};
         auto found_directory = false;
         for (auto restPath = originalPath; !restPath.empty(); ) {
@@ -1034,12 +1059,16 @@ static void handle_AttachMPIR(int const reqFd, int const respFd)
         cti::FdBuf reqBuf{dup(reqFd)};
         std::istream reqStream{&reqBuf};
 
-        // read launcher path and pid
-        std::string launcherPath;
-        if (!std::getline(reqStream, launcherPath, '\0')) {
+        // read launcher name and pid
+        std::string launcherName;
+        if (!std::getline(reqStream, launcherName, '\0')) {
             throw std::runtime_error("failed to read launcher path");
         }
         auto const launcherPid = fdReadLoop<pid_t>(reqFd);
+
+        // Look up launcher in path (will use absolute path if provided)
+        auto launcherPath = cti::findPath(launcherName);
+        getLogger().write("Attaching to launcher %s with PID %d\n", launcherPath.c_str(), launcherPid);
 
         auto const mpirData = attachMPIR(launcherPath, launcherPid);
 
@@ -1219,7 +1248,6 @@ int
 main(int argc, char *argv[])
 {
     // Set up logging
-    getLogger().hook();
     std::set_terminate(log_terminate);
 
     // parse incoming argv for request and response FDs
@@ -1258,6 +1286,11 @@ main(int argc, char *argv[])
     if ((reqFd < 0) || (respFd < 0)) {
         usage(argv[0]);
         exit(1);
+    }
+
+    // If response FD is not stdout, hook stdout
+    if (respFd != STDOUT_FILENO) {
+        getLogger().hook();
     }
 
     // block all signals except noted

@@ -1,3 +1,4 @@
+0.60
 FluxFrontend
 LibFlux
 libFluxName
@@ -46,11 +47,6 @@ flux_watcher_stop void(flux_watcher_t*)
 flux_watcher_destroy void(flux_watcher_t*)
 flux_handle_watcher_create flux_watcher_t*(flux_reactor_t*, flux_t*, int, flux_watcher_f, void*)
 flux_fd_watcher_create flux_watcher_t*(flux_reactor_t*, int, int, flux_watcher_f, void*)
-flux_buffer_read_watcher_create flux_watcher_t*(flux_reactor_t*, int, int, flux_watcher_f, int, void*)
-flux_buffer_write_watcher_create flux_watcher_t*(flux_reactor_t*, int, int, flux_watcher_f, int, void*)
-flux_buffer_write_watcher_close int(flux_watcher_t*)
-flux_buffer_read_watcher_get_buffer flux_buffer_t*(flux_watcher_t*)
-flux_buffer_write_watcher_get_buffer flux_buffer_t*(flux_watcher_t*)
 flux_job_event_watch flux_future_t*(flux_t*, uint64_t, const char*, int)
 flux_job_event_watch_get int(flux_future_t*, char const**)
 
@@ -60,4 +56,8 @@ FLUX_JOB_PRE_SIGNED 1
 FLUX_JOB_DEBUG 2
 FLUX_JOB_WAITABLE 4
 FLUX_JOB_NOVALIDATE 8
+enum end
+
+enum job_event_watch_flags int
+FLUX_JOB_EVENT_WATCH_WAITCREATE 1
 enum end

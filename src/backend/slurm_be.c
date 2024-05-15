@@ -144,6 +144,7 @@ _cti_be_slurm_getLayout(void)
     slurmLayoutFileHeader_t layout_hdr;
     slurmLayoutFile_t *     layout;
     int                     i;
+    size_t                  hostname_len;
 
     // sanity
     if (_cti_layout != NULL)
@@ -155,6 +156,7 @@ _cti_be_slurm_getLayout(void)
         fprintf(stderr, "_cti_be_slurm_getNodeHostname failed.\n");
         return 1;
     }
+    hostname_len = strlen(hostname);
 
     // allocate the slurmLayout_t object
     if ((my_layout = malloc(sizeof(slurmLayout_t))) == NULL)
@@ -232,6 +234,13 @@ _cti_be_slurm_getLayout(void)
         // check if this entry corresponds to our nid
         if (strncmp(layout[i].host, hostname, strlen(hostname)) == 0)
         {
+
+            // Hostname is a prefix of the entry, allow if entry is exactly equal,
+            // or if entry is a full domain name (next character is not alphanumeric)
+            if (isalnum(layout[i].host[hostname_len])) {
+                continue;
+            }
+
             // found it
             my_layout->PEsHere = layout[i].PEsHere;
             my_layout->firstPE = layout[i].firstPE;
@@ -656,6 +665,8 @@ _cti_be_slurm_getNodeName(char const* job_id, char const* hostname)
     FILE* scontrol_file = NULL;
     pid_t scontrol_pid = -1;
 
+    // Fall back to querying scontrol
+
     // Set up squeue pipe
     if (pipe(squeue_pipe) < 0) {
         perror("pipe");
@@ -884,11 +895,22 @@ _cti_be_slurm_getNodeHostname()
         return strdup(hostname);    // return cached value
     }
 
-    // Allocate and get hostname
+    // If SLURMD_NODENAME is set, use that
+    // All Slurm-generated layout information uses the node name instead of the hostname
+    char const *slurmd_nodename = getenv(SLURMD_NODENAME);
+    if (slurmd_nodename != NULL) {
+        hostname = strdup(slurmd_nodename);
+
+        return strdup(hostname);
+    }
+
+    // Allocate hostname
     if ((hostname = malloc(HOST_NAME_MAX)) == NULL) {
         fprintf(stderr, "_cti_be_slurm_getNodeHostname: malloc failed.\n");
         return NULL;
     }
+
+    // Get hostname
     if (gethostname(hostname, HOST_NAME_MAX) < 0) {
         fprintf(stderr, "%s", "_cti_be_slurm_getNodeHostname: gethostname() failed!\n");
         free(hostname);
@@ -896,7 +918,7 @@ _cti_be_slurm_getNodeHostname()
         return NULL;
     }
 
-    // If job ID is available, query Slurm for current node
+    // If job ID is available, query Slurm for current node name
     char const *slurm_job_id = getenv("SLURM_JOB_ID");
     if (slurm_job_id != NULL) {
 
@@ -909,13 +931,10 @@ _cti_be_slurm_getNodeHostname()
         // Store and return node name in cached hostname if successful
         if (nodename != NULL) {
             free(hostname);
-            hostname = nodename;
-
-            return strdup(hostname);
+            hostname = strdup(nodename);
         }
     }
 
-    // Fallback to standard hostname
     return strdup(hostname);
 }
 

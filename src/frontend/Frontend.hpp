@@ -69,14 +69,6 @@ class App;
 class Frontend {
 public: // impl.-specific interface that derived type must implement
 
-
-    // Frontend implementations must implement the following static functions:
-
-    // static bool isSupported()
-    //   determines in an implementation-specific manner if the Frontend is supported
-    //   on the current system.
-
-
     // Frontend implementations must implement the following virtual functions:
 
     // wlm type
