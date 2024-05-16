@@ -17,9 +17,9 @@
 
 class GenericSSHFrontend : public Frontend
 {
-private: // Global state
-    struct passwd       m_pwd;
-    std::vector<char>   m_pwd_buf;
+public: // members
+    std::string m_username;
+    std::string m_homeDir;
 
 public: // inherited interface
     static char const* getName()        { return CTI_WLM_TYPE_SSH_STR; }
@@ -83,6 +83,9 @@ public: // constructor / destructor interface
 class GenericSSHApp : public App
 {
 private: // variables
+    std::string m_username;
+    std::string m_homeDir;
+
     pid_t      m_launcherPid; // job launcher PID
     std::map<std::string, std::vector<int>> m_binaryRankMap; // Binary to rank ID map
     GenericSSHFrontend::StepLayout m_stepLayout; // SSH Layout of job step

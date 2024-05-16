@@ -25,7 +25,8 @@ TEST(parse_rangeList, Empty)
     auto const root = parse_json("[-1, -1]");
     auto base = int64_t{};
     auto const rangeList = flux::parse_rangeList(root, base);
-    ASSERT_TRUE(std::holds_alternative<flux::Empty>(rangeList));
+    ASSERT_EQ(rangeList.size(), 1);
+    ASSERT_TRUE(std::holds_alternative<flux::Empty>(rangeList[0]));
 }
 
 TEST(parse_rangeList, Single)
@@ -33,11 +34,12 @@ TEST(parse_rangeList, Single)
     auto const root = parse_json("3");
     auto base = int64_t{};
     auto const rangeList = flux::parse_rangeList(root, base);
-    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList));
-    auto const [value, count] = std::get<flux::RLE>(rangeList);
-    EXPECT_TRUE(value == 3);
-    EXPECT_TRUE(count == 1);
-    EXPECT_TRUE(base == 3);
+    ASSERT_EQ(rangeList.size(), 1);
+    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList[0]));
+    auto const [value, count] = std::get<flux::RLE>(rangeList[0]);
+    EXPECT_EQ(value, 3);
+    EXPECT_EQ(count, 1);
+    EXPECT_EQ(base, 3);
 }
 
 TEST(parse_rangeList, Range)
@@ -45,11 +47,12 @@ TEST(parse_rangeList, Range)
     auto const root = parse_json("[2,3]");
     auto base = int64_t{};
     auto const rangeList = flux::parse_rangeList(root, base);
-    ASSERT_TRUE(std::holds_alternative<flux::Range>(rangeList));
-    auto const [start, end] = std::get<flux::Range>(rangeList);
-    EXPECT_TRUE(start == 2);
-    EXPECT_TRUE(end == 5);
-    EXPECT_TRUE(base == 5);
+    ASSERT_EQ(rangeList.size(), 1);
+    ASSERT_TRUE(std::holds_alternative<flux::Range>(rangeList[0]));
+    auto const [start, end] = std::get<flux::Range>(rangeList[0]);
+    EXPECT_EQ(start, 2);
+    EXPECT_EQ(end, 5);
+    EXPECT_EQ(base, 5);
 }
 
 TEST(parse_rangeList, RLE)
@@ -57,11 +60,12 @@ TEST(parse_rangeList, RLE)
     auto const root = parse_json("[2,-3]");
     auto base = int64_t{};
     auto const rangeList = flux::parse_rangeList(root, base);
-    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList));
-    auto const [value, count] = std::get<flux::RLE>(rangeList);
-    EXPECT_TRUE(value == 2);
-    EXPECT_TRUE(count == 4);
-    EXPECT_TRUE(base == 2);
+    ASSERT_EQ(rangeList.size(), 1);
+    ASSERT_TRUE(std::holds_alternative<flux::RLE>(rangeList[0]));
+    auto const [value, count] = std::get<flux::RLE>(rangeList[0]);
+    EXPECT_EQ(value, 2);
+    EXPECT_EQ(count, 4);
+    EXPECT_EQ(base, 2);
 }
 
 TEST(flatten_rangeList, Empty)
@@ -80,11 +84,52 @@ TEST(flatten_rangeList, Single)
     EXPECT_EQ(values, rhs);
 }
 
+TEST(flatten_rangeList, Two)
+{
+    auto const root = parse_json("[[21875, 1], [-21342, 1]]");
+    auto const values = flux::flatten_rangeList(root);
+    auto const rhs = decltype(values){21875, 21876, 534, 535};
+    EXPECT_EQ(values.size(), rhs.size());
+    EXPECT_EQ(values, rhs);
+}
+
 TEST(flatten_rangeList, Multi)
 {
-    auto const root = parse_json("[[2, 3], [2, -2]]");
+    auto const root = parse_json("[[2, 3], [2, -2], [2, -1, 2]]");
     auto const values = flux::flatten_rangeList(root);
-    auto const rhs = decltype(values){2, 3, 4, 5, 7, 7, 7};
+    auto const rhs = decltype(values){2, 3, 4, 5, 7, 7, 7, 9, 9, 11, 11, 13, 13};
+    EXPECT_EQ(values.size(), rhs.size());
+    EXPECT_EQ(values, rhs);
+}
+
+TEST(flatten_rangeList, Mixed)
+{
+    auto const root = parse_json("[[1108964,31],[5,22],4,[6,1],2,3]");
+    auto const values = flux::flatten_rangeList(root);
+    auto const rhs = decltype(values){
+        // [1108964,31] -> 1108964 - 1108995
+        1108964, 1108965, 1108966, 1108967, 1108968, 1108969, 1108970, 1108971, 1108972,
+        1108973, 1108974, 1108975, 1108976, 1108977, 1108978, 1108979, 1108980, 1108981,
+        1108982, 1108983, 1108984, 1108985, 1108986, 1108987, 1108988, 1108989, 1108990,
+        1108991, 1108992, 1108993, 1108994, 1108995,
+
+        // 1108995 + [5,22] -> 1109000 - 11090022
+        1109000, 1109001, 1109002, 1109003, 1109004, 1109005, 1109006, 1109007, 1109008,
+        1109009, 1109010, 1109011, 1109012, 1109013, 1109014, 1109015, 1109016, 1109017,
+        1109018, 1109019, 1109020, 1109021, 1109022,
+
+        // 11090022 + 4 -> 110900026
+        1109026,
+
+        // 1109026 + [6,1] -> 1109032 - 1109033
+        1109032, 1109033,
+
+        // 1109033 + 2 -> 1109035
+        1109035,
+
+        // 1109035 + 3 -> 1109038
+        1109038
+    };
     EXPECT_EQ(values.size(), rhs.size());
     EXPECT_EQ(values, rhs);
 }
@@ -144,7 +189,7 @@ TEST(for_each_prefixList, Multi)
     flux::for_each_prefixList(root, [&values](std::string const& prefix, std::string const& suffix) {
         values.emplace(prefix + suffix);
     });
-    auto const rhs = decltype(values){"a2", "a3", "a4", "a5", "a7", "a7", "b3", "b4", "b5", "b6", "b6"};
+    auto const rhs = decltype(values){"a2", "a3", "a4", "a5", "a7", "a7", "b3", "b4", "b5", "b6"};
     EXPECT_EQ(values.size(), rhs.size());
     EXPECT_EQ(values, rhs);
 }
@@ -182,18 +227,25 @@ TEST(make_hostsPlacement, SingleRank)
 TEST(make_hostsPlacement, MultiRank)
 {
     auto const root = parse_json(
-        "{ \"hosts\": [[ \"node\", [[15,-1]] ]]"
-        ", \"executables\": [[ \"/path/to/a.out\", [[-1,-1]] ]]"
-        ", \"ids\": [[0,1]]"
-        ", \"pids\": [7991,1]"
+        "{ \"hosts\": [[\"tioga\",[[29,-2],[3,-2]]]]"
+        ", \"executables\": [[\"/g/g11/dangelo3/signals\",[[-1,-5]]]]"
+        ", \"ids\":[[0,5]]"
+        ", \"pids\":[[2736905,2],[1381418,2]]"
         "}");
     auto const hostsPlacement = flux::make_hostsPlacement(root);
-    ASSERT_EQ(hostsPlacement.size(), 1);
+    ASSERT_EQ(hostsPlacement.size(), 2);
 
-    EXPECT_EQ(hostsPlacement[0].hostname, "node15");
-    EXPECT_EQ(hostsPlacement[0].numPEs, 2);
-    { auto const rhs = decltype(hostsPlacement[0].rankPidPairs){{0, 7991}, {1, 7992}};
+    EXPECT_EQ(hostsPlacement[0].hostname, "tioga29");
+    EXPECT_EQ(hostsPlacement[0].numPEs, 3);
+    { auto const rhs = decltype(hostsPlacement[0].rankPidPairs){
+            {0, 2736905}, {1, 2736906}, {2, 2736907}};
         EXPECT_EQ(hostsPlacement[0].rankPidPairs, rhs);
+    }
+    EXPECT_EQ(hostsPlacement[1].hostname, "tioga32");
+    EXPECT_EQ(hostsPlacement[1].numPEs, 3);
+    { auto const rhs = decltype(hostsPlacement[1].rankPidPairs){
+            {3, 4118325}, {4, 4118326}, {5, 4118327}};
+        EXPECT_EQ(hostsPlacement[1].rankPidPairs, rhs);
     }
 }
 

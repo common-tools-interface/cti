@@ -24,6 +24,7 @@ launch:
     # line in a batch script. for example, use "-n4" instead of "-n 4"
     slurm: "-n4 -N2 --ntasks-per-node=2 --time=5:00 --exclusive"
     alps: "-n4 -N2"
+    flux: "-n4 -N2 -t 2m"
   allocation:
     slurm: "-n16 -N4 -t 3:00:00"
     alps: "-l select=16:ncpus=4,place=scatter,walltime=3:00:00"

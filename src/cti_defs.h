@@ -13,6 +13,7 @@
 #define _CTI_DEFS_H
 
 #include "common_tools_shared.h"
+#include "common_tools_be.h"
 
 // We use macros defined by configure in this file. So we need to get access to
 // config.h. Since that doesn't have good macro guards, and this file does, it
@@ -93,6 +94,7 @@ typedef struct
 #define SCANCEL                 "scancel"                           // name of slurm job signal binary
 #define SBCAST                  "sbcast"                            // name of slurm transfer binary
 #define SACCTMGR                "sacctmgr"                          // name of slurm configuration binary
+#define SQUEUE                  "squeue"                            // name of slurm job queue binary
 #define SLURM_JOB_NAME          "SLURM_JOB_NAME"                    // Environment variable for Slurm job name
 #define SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid) // formula for creating Cray apid from SLURM jobid.stepid
 #define SLURM_TOOL_DIR          "/tmp"                              // SLURM staging path on compute node
@@ -101,7 +103,9 @@ typedef struct
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
 #define SLURM_PID_FILE          "slurm_pid"                         // name of file containing pid information
 #define SLURM_DAEMON_GRES_ENV_VAR "CTI_SLURM_DAEMON_GRES"           // Set to specify `--gres` argument for tool daemon launches (or leave blank to disable)
+#define SLURM_DAEMON_ARGS_ENV_VAR "CTI_SLURM_DAEMON_ARGS"           // Set to specify extra tool daemon launch arguments
 #define SLURM_OVERRIDE_MC_ENV_VAR "CTI_SLURM_OVERRIDE_MC"           // Set to disable Slurm multi-cluster check
+#define SLURM_OVERRIDE_EPROXY_ENV_VAR "CTI_SLURM_OVERRIDE_EPROXY"       // Set to disable Slurm eproxy configuration check
 #define SLURM_NEVER_PARSE_SCANCEL                                              \
   "CTI_SLURM_NEVER_PARSE_SCANCEL" // Due to a slurm bug
                                   // (https://bugs.schedmd.com/show_bug.cgi?id=16551),
@@ -113,6 +117,9 @@ typedef struct
                                   // environment variable to disable the
                                   // workaround and rely soley on the scancel
                                   // return code.
+// Set by the Slurm daemon in job environment,
+// Can be used to detect nodename instead of querying scontrol
+#define SLURMD_NODENAME "SLURMD_NODENAME"
 
 /*******************************************************************************
 ** SSH specific information
@@ -130,6 +137,7 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_TOOL_DIR        SLURM_TOOL_DIR
 #define SSH_DIR_ENV_VAR     "CTI_SSH_DIR"
 #define SSH_KNOWNHOSTS_PATH_ENV_VAR     "CTI_SSH_KNOWNHOSTS_PATH"
+#define SSH_PORT_ENV_VAR            "CTI_SSH_PORT"
 #define SSH_PASSPHRASE_ENV_VAR      "CTI_SSH_PASSPHRASE"
 #define SSH_PRIKEY_PATH_ENV_VAR     "CTI_SSH_PRIKEY_PATH"
 #define SSH_PUBKEY_PATH_ENV_VAR     "CTI_SSH_PUBKEY_PATH"
@@ -163,6 +171,20 @@ typedef slurmPidFile_t          cti_pidFile_t;
 /*
 ** PALS specific information
 */
+// Used when reading/writing layout file - used on FE and BE
+// File will begin with the following header
+typedef struct
+{
+    int numNodes;
+}   palsLayoutFileHeader_t;
+// Followed by numNodes of the following:
+typedef struct
+{
+    char    host[HOST_NAME_MAX];    // hostname of this node
+    int     numRanks; // Number of PEs placed on this node
+    cti_rankPidPair_t rankPidPairs[];
+}   palsLayoutEntry_t;
+// Each entry is folllowed by numRanks cti_rankPidPair_t for rank list
 
 #define PALS_BE_LIB_NAME "libpals.so" // name of the PALS library used on the backend
 #define PALS_EXEC_HOST "CTI_PALS_EXEC_HOST" // To use PALS application ID for attaching outside of job's PBS allocation

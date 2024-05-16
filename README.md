@@ -1,3 +1,5 @@
+![build](https://github.hpe.com/hpcde/cdst-cti/actions/workflows/build_pipeline.yaml/badge.svg)
+
 # Common Tools Interface
 
 Contents

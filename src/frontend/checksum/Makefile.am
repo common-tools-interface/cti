@@ -17,23 +17,17 @@ libchecksum_la_CXXFLAGS = -Wall -I$(SRC) -fPIC $(AM_CXXFLAGS)
 
 CS_FILE_NAME_PAIRS = @CHECKSUM_FILES@
 CS_FILES = $(basename $(subst @,.,$(CS_FILE_NAME_PAIRS)))
-CS_TARGETS = $(patsubst %, %_CHECKSUM, $(CS_FILE_NAME_PAIRS))
-#.PHONY: $(CS_TARGETS)
 
 clean-local:
-	rm -f checksums.h checksums.h.sums
+	rm -f checksums.h
 
-checksums.h: checksums.h.sums
+checksums.h: $(CS_FILES)
 	cp checksums.h.in checksums.h
-	cat checksums.h.sums >> checksums.h
+	for path_target in $(CS_FILE_NAME_PAIRS); do \
+		printf "#define %s_CHECKSUM \"%s\"\n" \
+		$$(cut -d '@' -f 2 <<< "$$path_target") \
+		$$(@CHECKSUM_PROG@ $$(cut -d '@' -f 1 <<< "$$path_target") | cut -d ' ' -f 1) \
+		>> checksums.h; \
+	done
 	printf "\n#endif\n" >> checksums.h
-	rm checksums.h.sums
 
-checksums.h.sums: $(CS_FILES) $(CS_TARGETS)
-	touch checksums.h.sums
-
-%_CHECKSUM:
-	printf "#define %s \"%s\"\n" \
-	$(subst .,,$(suffix $(subst @,.,$@))) \
-	$(firstword $(shell @CHECKSUM_PROG@ $(basename $(subst @,.,$@)))) \
-	>> checksums.h.sums

@@ -22,6 +22,46 @@ necessary for their specific system when running PE debugger tools.
 .PP
 Note that there are both general environment variables, as well as
 specific environment variables for different system workload managers.
+.SS Attaching to applications
+.PP
+When tools such as GDB4hpc attach to a running application, CTI
+coordinates this attach with the workload manager running on the system.
+Each workload manager has different forms of job or application IDs that
+must be supplied to start the attach process.
+.IP \[bu] 2
+\f[I]Slurm\f[R]: \f[C]<jobid>.<stepid>\f[R] Include both the job ID and
+step ID, separated by a dot.
+.IP \[bu] 2
+\f[I]PALS\f[R]: Supply one of the following forms, depending on where
+the tool is run:
+.RS 2
+.IP \[bu] 2
+\f[C]<pals_apid>\f[R] A single UUID-type string.
+For this form, the tool should be ran inside the same PBS allocation as
+the job.
+Alternatively, set the environment variable \f[B]CTI_PALS_EXEC_HOST\f[R]
+to the execution host of the PBS job hosting the PALS application, as
+reported by \f[C]qstat -f\f[R].
+.IP \[bu] 2
+\f[C]<pbs_job_id>\f[R] If the PBS job ID is supplied, the tool will
+attach to the first PALS application running inside that PBS job.
+In this form, the tool does not have to be launched inside the same PBS
+allocation as the host.
+.IP \[bu] 2
+\f[C]<pbs_job_id>:<pals_apid>\f[R] If the PBS job ID is known, it can be
+supplied before the job ID separated by a colon.
+In this form, the tool does not have to be launched inside the same PBS
+allocation as the host.
+.RE
+.IP \[bu] 2
+\f[I]Flux\f[R]: \f[C]<flux_jobid>\f[R] Can be either the
+\f[B]f58\f[R]-style job ID reported by most Flux utilities, or the
+numeric job ID reported by Flux API functions.
+.IP \[bu] 2
+\f[I]ALPS\f[R]: \f[C]<aprun_id>\f[R] Supply the ALPS application ID
+.IP \[bu] 2
+\f[I]SSH\f[R]: \f[C]<launcher_pid>\f[R] Supply the PID of the
+MPIR-compliant launcher to which to attach.
 .SH ENVIRONMENT VARIABLES
 .SS General variables
 .IP \[bu] 2

@@ -217,27 +217,21 @@ AM_COND_IF([ENABLE_PALS], [
 ])
 
 dnl Enable Flux support
-AC_ARG_ENABLE([flux],
-  [AS_HELP_STRING([--enable-flux], [Enable support for the Flux WLM. Must have Flux headers available.])],,
-  [enable_flux=yes])
-enable_flux=`echo $enable_flux`
-case $enable_flux in
-  yes | no) ;;
-  *) AC_MSG_ERROR([Unknown option '$enable_flux' for --enable-flux, expected 'yes' or 'no']) ;;
-esac
-AM_CONDITIONAL([ENABLE_FLUX], [test x$enable_flux = xyes])
-
-dnl Set external directory for libflux headers (library will be dlopened at runtime)
-AM_COND_IF([ENABLE_FLUX], [
-  LIBFLUX_CPPFLAGS="-I$COMMONTOOL_DIR/external/libalps_headers"
+AC_ARG_WITH([flux],
+  [AS_HELP_STRING([--with-flux], [Enable support for the Flux WLM. Must have Flux headers available.])],,
+  [with_flux="$COMMONTOOL_DIR/external/libalps_headers"])
+LIBFLUX_CPPFLAGS=
+AS_IF([test "x$with_flux" != xno], [
+  LIBFLUX_CPPFLAGS="-I$with_flux"
   AC_SUBST([LIBFLUX_CPPFLAGS], [$LIBFLUX_CPPFLAGS])
   SAVE_CPPFLAGS=$CPPFLAGS
   CPPFLAGS="$LIBFLUX_CPPFLAGS $CPPFLAGS"
   AC_CHECK_HEADERS([flux/core.h],
-  [AC_DEFINE([HAVE_FLUX], [1], [CTI configured with Flux support])],
-  [AC_MSG_ERROR([Couldn't find libflux headers in external/libalps_headers. Try configuring with --enable-flux=no])],
-  [AC_INCLUDES_DEFAULT])
+    [AC_DEFINE([HAVE_FLUX], [1], [CTI configured with Flux support])],
+    [AC_MSG_ERROR([Couldn't find libflux headers in $with_flux. Set --with-flux option])],
+    [AC_INCLUDES_DEFAULT])
 ])
+AM_CONDITIONAL([ENABLE_FLUX], [test x$enable_flux != xno])
 
 ############################
 ### Check for libraries. ###
@@ -428,6 +422,7 @@ AC_CONFIG_FILES([
     src/frontend/frontend_impl/GenericSSH/Makefile
     src/frontend/frontend_impl/Localhost/Makefile
     src/frontend/mpir_iface/Makefile
+    src/SSHSession/Makefile
     src/useful/Makefile
     src/useful/ld_val/Makefile
     src/utilities/Makefile

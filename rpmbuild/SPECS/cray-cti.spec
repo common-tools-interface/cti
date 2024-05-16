@@ -115,11 +115,11 @@
 %global OS_WB_TAG sles15
 %endif
 
-%if %{_arch} == aarch64
+%if "%{_arch}" == "aarch64"
 %global SYS_HW_TAG AARCH64
 %global SYS_WB_TAG AARCH64
 %endif
-%if %{_arch} == x86_64
+%if "%{_arch}" == "x86_64"
 %global SYS_HW_TAG HARDWARE
 %global SYS_WB_TAG WHITEBOX
 %endif
@@ -132,7 +132,7 @@ Summary:    Cray Common Tools Interface
 Name:       %{cray_name}%{pkgversion_separator}%{pkgversion}
 # BUILD_METADATA is set by Jenkins
 Version:    %(echo ${BUILD_METADATA})
-%if %{branch} == "release"
+%if "%{branch}" == "release"
 Release:    %(echo ${BUILD_NUMBER})%{dist}
 %else
 Release:    1%{dist}
@@ -172,13 +172,18 @@ Requires:   cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst
 %description -n %{cray_name}-tests-%{pkgversion}
 Test files for Cray Common Tools Interface
 
+%package -n %{cray_name}-dst-tests-%{pkgversion}
+Summary:    Cray Common Tools Interface dst automated test materials
+Group:      Development
+%description -n %{cray_name}-dst-tests-%{pkgversion}
+Test files for DST automated post install pipelines
 
 %prep
 # Run q(uiet) with build directory name, c(reate) subdirectory, disable T(arball) unpacking
 %setup -q -n %{name} -c -T
 %build
 # external build
-%{__sed} 's|<RELEASE_DATE>|%{release_date}|g;s|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{version}-%{release}|g;s|<COPYRIGHT>|%{copyright}|g;s|<NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<ARCH>|%{_target_cpu}|g;s|<ATTRIBUTIONS_FILE_PATH>|%{cray_prefix}/%{product}/%{pkgversion}/%{attributions_name}|g;s|<cdst_version_range>|>= %{cdst_support_pkgversion_min}, < %{cdst_support_pkgversion_max}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_notes_file}
+%{__sed} 's|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{version}-%{release}|g;s|<COPYRIGHT>|%{copyright}|g;s|<NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<ARCH>|%{_target_cpu}|g;s|<ATTRIBUTIONS_FILE_PATH>|%{cray_prefix}/%{product}/%{pkgversion}/%{attributions_name}|g;s|<cdst_version_range>|>= %{cdst_support_pkgversion_min}, < %{cdst_support_pkgversion_max}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_notes_file}
 
 %{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE5} > ${RPM_BUILD_DIR}/%{copyright_name}
 %{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE6} > ${RPM_BUILD_DIR}/%{attributions_name}
@@ -272,10 +277,12 @@ Test files for Cray Common Tools Interface
 %global devel_rpm_name %{cray_name}-devel-%{pkgversion}-%{version}-%{release}.%{_arch}
 %global tests_rpm_name %{cray_name}-tests-%{pkgversion}-%{version}-%{release}.%{_arch}
 %global rpm_list %{devel_rpm_name}.rpm,%{tests_rpm_name}.rpm
-%if %{branch} == "release"
+%if 0%{?rhel} == 8
+%if "%{branch}" == "release"
 %{__sed} 's|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;s|<RPM_LST>|%{rpm_list}|g;s|<DEVEL_RPM_NAME>|%{devel_rpm_name}|g;s|<TESTS_RPM_NAME>|%{tests_rpm_name}|g;s|<SET_DEFAULT_VALUE>|1|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
 %else
 %{__sed} '%{start_rmLine},%{end_rmLine}d;s|section-5|section-3|g;s|<PRODUCT>|%{cray_name}|g;s|<VERSION>|%{pkgversion}|g;s|<BUILD_METADATA>|%{version}|g;s|<RELEASE>|%{release}|g;s|<ARCH>|%{_arch}|g;s|<REMOVAL_DATE>|%{removal_date}|g;s|<SYS_HW_TAG>|%{SYS_HW_TAG}|g;s|<SYS_WB_TAG>|%{SYS_WB_TAG}|g;s|<OS_HW_TAG>|%{OS_HW_TAG}|g;s|<OS_WB_TAG>|%{OS_WB_TAG}|g;s|<RPM_LST>|%{rpm_list}|g;s|<DEVEL_RPM_NAME>|%{devel_rpm_name}|g;s|<TESTS_RPM_NAME>|%{tests_rpm_name}|g;s|<SET_DEFAULT_VALUE>|0|g' %{SOURCE9} > %{_rpmdir}/%{_arch}/%{cray_name}-%{pkgversion}-%{version}-%{release}.%{_arch}.rpm.yaml
+%endif
 %endif
 
 # Test files
@@ -372,6 +379,8 @@ Test files for Cray Common Tools Interface
 %{__cp} -a %{tests_source_dir}/function/src/cti_mpir_shim_test.cpp          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpir_shim_test.cpp
 %{__cp} -a %{tests_source_dir}/function/src/cti_mpmd                        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd
 %{__cp} -a %{tests_source_dir}/function/src/cti_mpmd_test.c                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_test.c
+%{__cp} -a %{tests_source_dir}/function/src/cti_mpmd_daemon                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_daemon
+%{__cp} -a %{tests_source_dir}/function/src/cti_mpmd_daemon_test.cpp        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_daemon_test.cpp
 %{__cp} -a %{tests_source_dir}/function/src/cti_redirect                    ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect
 %{__cp} -a %{tests_source_dir}/function/src/cti_redirect_test.cpp           ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect_test.cpp
 %{__cp} -a %{tests_source_dir}/function/src/cti_release_app                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_release_app
@@ -415,6 +424,18 @@ Test files for Cray Common Tools Interface
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two
 %{__cp} -a %{tests_source_dir}/function/src/support/message_two/message.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.c
 %{__cp} -a %{tests_source_dir}/function/src/support/message_two/message.h ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.h
+
+# DST post install automated testing materials
+# The directory structure should follow conventions outlined here:
+# https://rndwiki-pro.its.hpecorp.net/pages/viewpage.action?pageId=270152112
+%{__install} -d                                                                   ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti
+%{__cp} -avr %{tests_source_dir}/pipeline/opt/cray/tests/cdst/resources/cti/smoke ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti/smoke
+%{__cp} -avr %{tests_source_dir}/function/cdst-test                               ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti/cdst-test
+%{__rm} -r ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti/cdst-test/.git
+%{__rm} -r ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/resources/cti/cdst-test/.gitignore
+
+%{__install} -d                                                                      ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/shasta/smoke/uan/cti
+%{__cp} -avr %{tests_source_dir}/pipeline/opt/cray/tests/cdst/shasta/smoke/uan/cti/* ${RPM_BUILD_ROOT}/opt/cray/tests/cdst/shasta/smoke/uan/cti/
 
 # Touch the cray dynamic file list which will be populated/updated post-install
 touch ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
@@ -741,6 +762,8 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpir_shim_test.cpp
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_test.c
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_daemon
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_mpmd_daemon_test.cpp
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_redirect_test.cpp
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_release_app
@@ -784,3 +807,13 @@ fi
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.c
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/support/message_two/message.h
+
+%files -n %{cray_name}-dst-tests-%{pkgversion}
+%defattr(-,root,root)
+
+%dir /opt/cray/tests/cdst/resources/cti
+/opt/cray/tests/cdst/resources/cti/smoke
+/opt/cray/tests/cdst/resources/cti/cdst-test
+
+%dir /opt/cray/tests/cdst/shasta/smoke/uan/cti
+/opt/cray/tests/cdst/shasta/smoke/uan/cti/*

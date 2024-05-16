@@ -298,6 +298,7 @@ enum class System : int
     , Shasta
     , XC
     , CS
+    , Eproxy
 };
 
 static std::string System_to_string(System const& system)
@@ -309,6 +310,7 @@ static std::string System_to_string(System const& system)
         case System::Shasta:  return "Cray Shasta";
         case System::XC:      return "Cray XC";
         case System::CS:      return "Cray CS";
+        case System::Eproxy:  return "Eproxy";
         default: assert(false);
     }
 }
@@ -392,6 +394,35 @@ static bool detect_CS()
     }
 
     return false;
+}
+
+// Check if this is an elogin node with eproxy configured
+static bool detect_Eproxy()
+{
+    // Check for Eproxy binary and configuration file
+    try {
+        char const* eproxyArgv[] = { "eproxy", "--check", nullptr };
+
+        // Start eproxy check
+        if (cti::Execvp::runExitStatus("eproxy", (char* const*)eproxyArgv)) {
+            return false;
+        }
+
+        // Look for Eproxy configuration
+        auto eproxy_keyfile = (::getenv("EPROXY_KEYFILE"))
+            ? ::getenv("EPROXY_KEYFILE")
+            : "/opt/cray/elogin/eproxy/etc/eproxy.ini";
+        if (!cti::fileHasPerms(eproxy_keyfile, R_OK)) {
+            return false;
+        }
+
+        // All Eproxy checks passed
+        return true;
+
+    } catch (...) {
+        // eproxy not installed
+        return false;
+    }
 }
 
 // HPCM / Shasta
@@ -495,25 +526,19 @@ static bool detect_XC_ALPS(std::string const& launcherName)
 static bool detect_Flux(std::string const& launcherName)
 {
     auto const launcher_name = !launcherName.empty() ? launcherName.c_str() : "flux";
-
     try {
         // Check that flux version succeeds
         auto fluxArgv = cti::ManagedArgv{launcher_name, "--version"};
-        auto fluxOutput = cti::Execvp{launcher_name, fluxArgv.get(), cti::Execvp::stderr::Ignore};
-
-        // Wait for flux to complete
-        if (fluxOutput.getExitStatus()) {
+        if (cti::Execvp::runExitStatus(launcher_name, fluxArgv.get())) {
             return false;
         }
 
-        // Look for Flux socket information in environment
-        if (auto const flux_uri = ::getenv(FLUX_URI)) {
-            return true;
+        // Remove check for FLUX_URI, as this is only available in allocations
+        // Still want to be able to present a diganostic to run in an allocation
 
-        } else {
-            return false;
-        }
-    } catch (...) {
+        return true;
+
+    } catch (std::exception const& ex) {
         return false;
     }
 }
@@ -675,20 +700,34 @@ static bool verify_XC_ALPS_configured(System const& system, WLM const& wlm,
     return true;
 }
 
-static bool detect_Slurm_multicluster()
+// A Slurm cluster launch / attach can be in one of three situations:
+// 1) One cluster (default) or multi-cluster where only one cluster has valid nodes
+// 2) Multi-cluster running from a cluster-unique node (usually compute or partitioned login nodes)
+// 3) Multi-cluster running from a node shared between multiple clusters or otherwise unassigned
+// Case 2 is identical to the default case 1 from our perspective, as long as the user
+//   is not attempting to attach to a job running on a different cluster. `sbcast` and `sattach`
+//   will function normally in this case. If the user does attempt to attach between clusters,
+//   Slurm will report the job ID as invalid. We can't detect this case without querying every
+//   cluster in the system.
+// Case 3 is not supported, as `sbcast` and `sattach` do not support selecting the target
+// cluster for the command.
+static bool detect_Slurm_shared_multicluster()
 {
     try {
-        char const* sacctmgrArgv[] = { SACCTMGR, "-P", "-n", "show", "clusters", nullptr };
+        char const* sacctmgrArgv[] = { SACCTMGR, "-P", "-n", "show", "cluster", "format=Cluster,ClusterNodes", nullptr };
 
         // Start sacctmgr
         auto sacctmgrOutput = cti::Execvp{SACCTMGR, (char* const*)sacctmgrArgv, cti::Execvp::stderr::Ignore};
 
-        // Count number of clusters
-        auto num_clusters = int{0};
+        // Count number of clusters that contain nodes
+        auto num_active_clusters = int{0};
         auto& sacctmgrStream = sacctmgrOutput.stream();
         auto clusterLine = std::string{};
         while (std::getline(sacctmgrStream, clusterLine)) {
-            num_clusters++;
+            auto&& [cluster, nodes] = cti::split::string<2>(clusterLine, '|');
+            if (!nodes.empty()) {
+                num_active_clusters++;
+            }
         }
 
         // Check return code
@@ -696,7 +735,22 @@ static bool detect_Slurm_multicluster()
             return false;
         }
 
-        return (num_clusters > 1);
+        // Multi-cluster systems where only one cluster has active nodes can be treated as
+        // a normal single cluster system
+        if (num_active_clusters <= 1) {
+            return false;
+        }
+
+        // Detect running from shared node (no cluster name specified in Slurm configuration)
+        { auto clusterNameArgv = cti::ManagedArgv{"sh", "-c",
+            "scontrol show config | grep ClusterName"};
+            if (cti::Execvp::runExitStatus("sh", clusterNameArgv.get())) {
+                return true;
+            }
+        }
+
+        // Running from a node within a defined cluster
+        return false;
 
     } catch(...) {
         return false;
@@ -715,7 +769,7 @@ static bool detect_Slurm_allocation()
     return false;
 }
 
-static bool verify_Slurm_configured(System const& system, WLM const& wlm,
+static void verify_Slurm_configured(System const& system, WLM const& wlm,
     std::string launcherName)
 {
     // Default to `srun`
@@ -741,21 +795,76 @@ static bool verify_Slurm_configured(System const& system, WLM const& wlm,
     // Check for multi-cluster system and allocation
     if (::getenv(SLURM_OVERRIDE_MC_ENV_VAR) == nullptr) {
 
-        if (detect_Slurm_multicluster()) {
+        if (detect_Slurm_shared_multicluster()) {
 
             if (!detect_Slurm_allocation()) {
                 throw std::runtime_error(
-                    "CTI uses several Slurm utilities to set up job launches. "
-                    "Your system was detected to be a multi-cluster system; some of "
-                    "these Slurm utilities do not support multi-cluster systems.\n"
-                    "To continue with launch, please run your job inside a Slurm allocation. "
+                    "CTI uses several Slurm utilities to set up job launches, some of which "
+                    "do not support specifying the target cluster within a multi-cluster system.\n"
+                    "To continue with launch, please start this tool inside a Slurm allocation "
+                    "or on a node within the same cluster as your target job.\n"
                     "To bypass this check, set the environment variable "
                     SLURM_OVERRIDE_MC_ENV_VAR);
             }
         }
     }
 
-    return true;
+    return;
+}
+
+// Check if this is an elogin node with eproxy configured
+static void verify_Eproxy_Slurm_configured(System const& system, WLM const& wlm,
+    std::string launcherName)
+{
+    // Skip check if disabled in environment
+    if (::getenv(SLURM_OVERRIDE_EPROXY_ENV_VAR) != nullptr) {
+        return;
+    }
+
+    try {
+        char const* eproxyArgv[] = { "eproxy", "--check", nullptr };
+
+        // Start eproxy
+        auto eproxyOutput = cti::Execvp{"eproxy", (char* const*)eproxyArgv, cti::Execvp::stderr::Ignore};
+
+        // Ensure Eproxy is satisfied with the state of the Slurm utility links
+        auto& eproxyStream = eproxyOutput.stream();
+        auto utilityNames = std::set<std::string> { "srun", "squeue", "scancel", "sbcast" };
+        auto line = std::string{};
+        while (std::getline(eproxyStream, line)) {
+
+            // Looking for `<utility> is correct`
+            if ((line.length() > 11) && (line.compare(line.length() - 11, 11, "is correct.") == 0)) {
+                auto utility_start = line.rfind(' ', line.length() - 13) + 1;
+
+                if (utility_start < std::string::npos) {
+                    auto utility_end = line.find(' ', utility_start);
+                    if (utility_end < std::string::npos) {
+
+                        // Remove utility from required set
+                        auto utility = line.substr(utility_start, utility_end - utility_start);
+                        utilityNames.erase(utility);
+                    }
+                }
+            }
+        }
+
+        // Ignore return code
+        (void)eproxyOutput.getExitStatus();
+
+        // All Eproxy utilities configured if seen
+        if (!utilityNames.empty()) {
+            throw std::runtime_error("Eproxy reported Slurm utilities not configured ("
+                + cti::joinStr(utilityNames.begin(), utilityNames.end(), ", ")
+                + ")");
+        }
+
+    } catch (std::exception const& ex) {
+
+        throw std::runtime_error("Eproxy detected as not configured: "
+            + std::string{ex.what()}
+            + ". To disable this check, set " SLURM_OVERRIDE_EPROXY_ENV_VAR);
+    }
 }
 
 static bool verify_SSH_configured(System const& system, WLM const& wlm,
@@ -860,6 +969,8 @@ static auto detect_System(std::string const& systemSetting)
             return System::XC;
         } else if (systemSetting == "cs") {
             return System::CS;
+        } else if (systemSetting == "eproxy") {
+            return System::Eproxy;
         } else {
             throw std::runtime_error("invalid system setting for " CTI_WLM_IMPL_ENV_VAR ": '"
                 + systemSetting + "'");
@@ -867,7 +978,9 @@ static auto detect_System(std::string const& systemSetting)
     }
 
     // Run available system detection heuristics
-    if (detect_HPCM()) {
+    if (detect_Eproxy()) {
+        return System::Eproxy;
+    } else if (detect_HPCM()) {
         return System::HPCM;
     } else if (detect_CS()) {
         return System::CS;
@@ -961,6 +1074,13 @@ static auto detect_WLM(System const& system, std::string const& wlmSetting, std:
 
 static void verify_System_WLM_configured(System const& system, WLM const& wlm, std::string const& launcherName)
 {
+    // Eproxy is only valid with Slurm WLM
+    if ((system == System::Eproxy) && (wlm != WLM::Slurm)) {
+        throw std::runtime_error("System was detected as Eproxy, but WLM was not detected as Slurm."
+            "CTI only supports Eproxy mode on Slurm systems. Please run this tool directly on a login "
+            "or compute node (tried " + format_System_WLM(system, wlm) + ")");
+    }
+
     switch (wlm) {
 
     case WLM::PALS:
@@ -968,7 +1088,11 @@ static void verify_System_WLM_configured(System const& system, WLM const& wlm, s
         break;
 
     case WLM::Slurm:
-        verify_Slurm_configured(system, wlm, launcherName);
+        if (system == System::Eproxy) {
+            verify_Eproxy_Slurm_configured(system, wlm, launcherName);
+        } else {
+            verify_Slurm_configured(system, wlm, launcherName);
+        }
         break;
 
     case WLM::ALPS:
@@ -1009,6 +1133,8 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
     if (wlm == WLM::Slurm) {
         if (system == System::HPCM) {
             return new HPCMSLURMFrontend{};
+        } else if (system == System::Eproxy) {
+            return new EproxySLURMFrontend{};
         } else {
             return new SLURMFrontend{};
         }
@@ -1022,7 +1148,12 @@ static Frontend* make_Frontend(System const& system, WLM const& wlm)
 #endif
 
     } else if (wlm == WLM::PALS) {
+#if HAVE_PALS
         return new PALSFrontend{};
+#else
+        throw std::runtime_error("PALS support was not configured for this build of CTI \
+(tried " + format_System_WLM(system, wlm) + ")");
+#endif
 
     } else if (wlm == WLM::SSH) {
         return new GenericSSHFrontend{};

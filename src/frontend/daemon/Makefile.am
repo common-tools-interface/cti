@@ -23,7 +23,8 @@ libfe_daemon_iface_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
 libfe_daemon_iface_la_LIBADD	= $(CODE_COVERAGE_LIBS)
 noinst_HEADERS					= cti_fe_daemon_iface.hpp
 
-libexec_PROGRAMS = cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@ mpir_shim@COMMONTOOL_RELEASE_VERSION@ cti_slurm_stop@COMMONTOOL_RELEASE_VERSION@
+libexec_PROGRAMS = cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@ mpir_shim@COMMONTOOL_RELEASE_VERSION@ \
+	cti_slurm_stop@COMMONTOOL_RELEASE_VERSION@
 lib_LTLIBRARIES = libctistop.la
 
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES	= 	cti_fe_daemon.cpp

@@ -87,3 +87,8 @@ tests/test_support/libgtest.so
 TAGS
 tagslist
 
+dstlibvenv
+workspaces
+environment_variables.txt
+*.log
+
