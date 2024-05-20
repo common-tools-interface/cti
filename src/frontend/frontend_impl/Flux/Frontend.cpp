@@ -115,6 +115,45 @@ static auto get_flux_future_error(FluxFrontend::LibFlux& libFluxRef, flux_future
         : "(no error provided)"};
 }
 
+static auto get_eventlog_exception(std::string const& jobId)
+{
+    auto result = std::string{"(no error provided)"};
+
+    try {
+        char const* flux_argv[] = {"flux", "job", "eventlog", "-f", "json", jobId.c_str(), nullptr};
+        auto fluxOutput = cti::Execvp{"flux", (char* const*)flux_argv, cti::Execvp::stderr::Ignore};
+        auto& fluxStream = fluxOutput.stream();
+
+        // Parse eventlog output
+        // Flux eventlog formatter writes a single complete JSON object to each line,
+        // rather than one big object. Parsing multiple lines at once would fail.
+        auto line = std::string{};
+        while (std::getline(fluxStream, line)) {
+            auto root = parse_json(line);
+            auto eventName = root.get<std::string>("name");
+
+            // Found exception event, get reason
+            if (eventName == "exception") {
+                auto context = root.get_child("context");
+                auto note = context.get<std::string>("note");
+                if (!note.empty()) {
+                    result = std::move(note);
+                    break;
+                }
+            }
+        }
+
+        // Consume rest of output
+        fluxStream.ignore(std::numeric_limits<std::streamsize>::max());
+        (void)fluxOutput.getExitStatus();
+
+    } catch (...) {
+        // Ignore parse failure
+    }
+
+    return result;
+}
+
 // Query event log for job leader rank and service key for RPC
 static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t* fluxHandle,
     uint64_t job_id)
@@ -133,7 +172,8 @@ static auto get_rpc_service(FluxFrontend::LibFlux& libFlux, FluxFrontend::flux_t
         // Unpack event data
         char const *eventlog_result = nullptr;
         if (libFlux.flux_job_event_watch_get(eventlog_future.get(), &eventlog_result) < 0) {
-            throw std::runtime_error("Flux failed to get startup event");
+            auto reason = get_eventlog_exception(std::to_string(job_id));
+            throw std::runtime_error("Flux launch failed: " + reason);
         }
 
         // Received a new event log result, parse it as JSON
@@ -812,19 +852,9 @@ FluxApp::shipPackage(std::string const& tarPath) const
     auto fluxArchive = FluxArchive(m_toolPath, dirName, packageName);
 
     // Make remote directories and pull from archive
-    auto pull_on_broker = false; // Pulling on broker is broken, see
-    // https://github.com/flux-framework/flux-core/issues/5655
-
-   if (pull_on_broker) {
-        writeLog("Broker: pull on all ranks %s -> %s\n",
-            tarPath.c_str(), destination.c_str());
-        fluxArchive.pullAllRanks();
-
-    } else {
-        writeLog("Broker: pull on non-broker ranks %s -> %s\n",
-            tarPath.c_str(), destination.c_str());
-        fluxArchive.pullNonBrokerRanks();
-    }
+    writeLog("Broker: pull on all ranks %s -> %s\n",
+        tarPath.c_str(), destination.c_str());
+    fluxArchive.pullAllRanks();
 }
 
 void
@@ -1080,11 +1110,31 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         : -1;
 
     // Start output redirection subprocess
+	// `flux job attach` running under request_ForkExecvpUtil_Async does not reliably
+    // capture job output. It can output its own logging, but not job output.
     { auto jobId = getJobId();
         char const* flux_job_attach_argv[] = {"flux", "job", "attach", "-q", "-u", jobId.c_str(), nullptr};
-        m_frontend.Daemon().request_ForkExecvpUtil_Async(
-            m_daemonAppId, "flux", flux_job_attach_argv,
-            stdin_fd, launchInfo.stdout_fd, launchInfo.stderr_fd, nullptr);
+
+        // Register PID with daemon for cleanup
+        if (auto attach_pid = fork()) {
+            if (attach_pid < 0) {
+                throw std::runtime_error("fork failed: " + std::string{strerror(errno)});
+            }
+            m_frontend.Daemon().request_RegisterUtil(m_daemonAppId, attach_pid);
+
+        // Launch flux attach
+        } else {
+
+            // Redirect input and output descriptors
+            ::dup2(stdin_fd, STDIN_FILENO);
+            ::dup2(launchInfo.stdout_fd, STDOUT_FILENO);
+            ::dup2(launchInfo.stderr_fd, STDERR_FILENO);
+
+            // Start flux attach
+            ::execvp("flux", (char* const*)flux_job_attach_argv);
+            ::perror("execvp");
+            ::exit(-1);
+        }
     }
 }
 
