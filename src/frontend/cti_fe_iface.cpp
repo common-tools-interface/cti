@@ -715,7 +715,7 @@ launchAppImplementation(const char * const launcher_argv[], int stdout_fd, int s
             auto ldPreloadAdded = false;
             for (int i=0; env_list[i] != nullptr; ++i) {
 
-                if (strcmp(env_list[i], "LD_PRELOAD") == 0) {
+                if (strncmp(env_list[i], "LD_PRELOAD", 10) == 0) {
                     // Find separator '='
                     const char * sub_ptr = strrchr(env_list[i], '=');
                     if (sub_ptr == nullptr) {
@@ -726,32 +726,7 @@ launchAppImplementation(const char * const launcher_argv[], int stdout_fd, int s
                     // Advance past '='
                     ++sub_ptr;
 
-                    // Remove beginning / trailing quotation marks
-
-                    // Conditionally advance past beginning quotation mark
-                    if (*sub_ptr == '"') {
-                        ++sub_ptr;
-                    }
-
-                    // Determine if trailing quote is present
-                    auto trailingQuotePresent = false;
-                    for (char const* cursor = sub_ptr; *cursor != '\0'; cursor++) {
-                        if (cursor[0] == '"') {
-
-                            // Ensure that the quote is trailing
-                            if (cursor[1] != '\0') {
-                                throw std::runtime_error("Invalid environment variable set: '" +
-                                    std::string{env_list[i]} + "'");
-                            }
-
-                            trailingQuotePresent = true;
-                        }
-                    }
-
-                    // Prepend global LD_PRELOAD value to job environment LD_PRELOAD
-                    fixedEnvVars.add(std::string{"LD_PRELOAD=\""}
-                        + globalLdPreload + ":" + sub_ptr
-                        + (trailingQuotePresent ? "" : "\""));
+                    fixedEnvVars.add("LD_PRELOAD=" + globalLdPreload + ":" + sub_ptr);
 
                     ldPreloadAdded = true;
 
@@ -763,12 +738,12 @@ launchAppImplementation(const char * const launcher_argv[], int stdout_fd, int s
 
             // If LD_PRELOAD was not set in the job environment, add the global LD_PRELOAD value
             if (!ldPreloadAdded) {
-                fixedEnvVars.add(std::string{"LD_PRELOAD=\""} + globalLdPreload + "\"");
+                fixedEnvVars.add("LD_PRELOAD=" + globalLdPreload);
             }
 
         } else {
             // No job-specific environment provided
-            fixedEnvVars.add(std::string{"LD_PRELOAD=\""} + globalLdPreload + "\"");
+            fixedEnvVars.add("LD_PRELOAD=" + globalLdPreload);
         }
 
         // Set job environment list to the fixed list containing the global LD_PRELOAD value
