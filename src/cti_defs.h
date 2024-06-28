@@ -197,6 +197,11 @@ typedef struct
 // integer n, CTI will wait n seconds between starting a job and releasing it
 // from the barrier on PALS. A delay as small as one second can work.
 #define PALS_BARRIER_RELEASE_DELAY "CTI_PALS_BARRIER_RELEASE_DELAY"
+// In addition to the PALS-specific launchAppBarrierNonMpi function, can set
+// this variable to manually enable or disable the PALS non-MPI barrier preload library
+#define PALS_BARRIER_NON_MPI "CTI_PALS_BARRIER_NON_MPI"
+// Store original LD_PRELOAD to be restored after applying PALS preload
+#define SAVE_LD_PRELOAD "CTI_SAVE_LD_PRELOAD"
 
 /*******************************************************************************
 ** Flux specific information

@@ -952,6 +952,20 @@ typedef struct {
  *      A string that contains the PBS job ID for use with registerApid
  *      to be freed by the caller. NULL is returned on error.
  *-----------------------------------------------------------------------------
+ * launchAppBarrierNonMpi - Hold a non-MPI application at startup barrier
+ *
+ * Detail
+ *      PALS runtime hooks MPI_Init to hold application at startup barrier.
+ *      This function will inject a call to the PALS barrier function to
+ *      allow barrier launches for non-MPI applications.
+ *
+ * Arguments
+ *      See the cti_launchApp description for more information.
+ *
+ * Returns
+ *      A cti_app_id_t that contains the id registered in this interface. This
+ *      app_id should be used in subsequent calls. 0 is returned on error.
+ *-----------------------------------------------------------------------------
  */
 
 typedef struct {
@@ -959,6 +973,9 @@ typedef struct {
     cti_app_id_t     (*registerApid)(char const* job_or_apid);
     char*            (*submitJobScript)(char const* script_path,
         char const* const* launcher_args, char const* const* env_list);
+    cti_app_id_t     (*launchAppBarrierNonMpi)(const char * const launcher_argv[],
+        int stdout_fd, int stderr_fd, const char* inputFile,
+        const char* chdirPath, const char * const env_list[]);
 } cti_pals_ops_t;
 
 /*-----------------------------------------------------------------------------

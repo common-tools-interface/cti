@@ -85,6 +85,9 @@ public: // PALS-specific interface
     // Launch an app under MPIR control and hold at barrier.
     PalsLaunchInfo launchApp(const char * const launcher_argv[],
         int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+
+    std::weak_ptr<App> launchBarrierNonMpi(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list);
 };
 
 class PALSApp : public App

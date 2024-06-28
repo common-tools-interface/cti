@@ -457,26 +457,32 @@ _cti_be_pals_init(void)
 
 	char const* dl_err = NULL;
 
-	// Detect location of libpals
-	char libpals_path[PATH_MAX];
-	libpals_path[0] = '\0';
-	if (_cti_be_pals_detect_libpals(libpals_path, sizeof(libpals_path))) {
-
-		// Failed to automatically detect using pkg-config and in default paths
-		fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " failed to detect libpals path\n");
-		goto cleanup__cti_be_pals_init;
-
-	// Successfully detected path
-	} else {
-		fprintf(stderr, "Using detected libpals at: %s\n", libpals_path);
-	}
-
-	// dlopen libpals
-	_cti_libpals_funcs->handle = dlopen(libpals_path, RTLD_LAZY);
+	// Try to dlopen default libpals
+	_cti_libpals_funcs->handle = dlopen(PALS_BE_LIB_NAME, RTLD_LAZY);
 	dl_err = dlerror();
 	if (_cti_libpals_funcs == NULL) {
-		fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " dlopen: %s\n", dl_err);
-		goto cleanup__cti_be_pals_init;
+
+		// Detect location of libpals
+		char libpals_path[PATH_MAX];
+		libpals_path[0] = '\0';
+		if (_cti_be_pals_detect_libpals(libpals_path, sizeof(libpals_path))) {
+
+			// Failed to automatically detect using pkg-config and in default paths
+			fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " failed to detect libpals path\n");
+			goto cleanup__cti_be_pals_init;
+
+		// Successfully detected path
+		} else {
+			fprintf(stderr, "Using detected libpals at: %s\n", libpals_path);
+		}
+
+		// dlopen libpals
+		_cti_libpals_funcs->handle = dlopen(libpals_path, RTLD_LAZY);
+		dl_err = dlerror();
+		if (_cti_libpals_funcs == NULL) {
+			fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " dlopen: %s\n", dl_err);
+			goto cleanup__cti_be_pals_init;
+		}
 	}
 
 	// Load functions from libpals

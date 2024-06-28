@@ -163,6 +163,16 @@ class CtiTest(Test):
         rc = run_cti_test(self, name, argv, stdin_bytes=b"\n")
         self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
+    def test_CtiBarrierNonMpi(self):
+        name = "CtiBarrierNonMpi"
+        argv = ["./src/cti_barrier", *LAUNCHER_ARGS.split(), "/usr/bin/hostname"]
+        env = {
+            "CTI_PALS_BARRIER_NON_MPI": "1"
+        }
+
+        rc = run_cti_test(self, name, argv, env, stdin_bytes=b"\n")
+        self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
+
     '''
     cti_callback launches a binary and holds it at startup. meanwhile, it launches
     the tool daemon cti_callback_daemon from PATH and ensures it that it can

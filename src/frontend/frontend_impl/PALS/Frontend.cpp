@@ -497,7 +497,8 @@ PALSFrontend::attachApp(std::string const& jobOrApId)
 
 PALSFrontend::PalsLaunchInfo
 PALSFrontend::launchApp(const char * const launcher_argv[],
-        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[])
+        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath,
+		const char * const env_list[])
 {
     // Inside allocation, get first line of PBS_NODEFILE
     auto execHost = std::string{};
@@ -584,14 +585,87 @@ static inline auto fixLaunchEnvironment(std::string const& launcherName, CArgArr
     return fixedEnvVars;
 }
 
+// Add necessary launch arguments to the provided list
+static inline auto fixLaunchArguments(std::string const& launcherName, CArgArray launcher_argv,
+	bool preload_pals)
+{
+    // Add the new variables to a new environment list
+    auto fixedArgs = cti::ManagedArgv{};
+
+	if (launcher_argv == nullptr) {
+		return fixedArgs;
+	}
+
+	// If PALS preload library is to be added, save previous LD_PRELOAD
+	auto preloadPalsPath = std::string{};
+	if (preload_pals) {
+
+		// Get path to PALS preload library
+		try {
+			preloadPalsPath = cti::accessiblePath(Frontend::inst().getBaseDir()
+				+ "/lib/libctipreloadpals.so");
+		} catch (std::exception const& ex) {
+			Frontend::inst().writeLog("failed to get PALS preload library path: %s\n", ex.what());
+		}
+	}
+
+	if (!preloadPalsPath.empty()) {
+
+		// Find existing LD_PRELOAD argument
+		auto found_ld_preload = false;
+		for (size_t i = 0; launcher_argv[i] != nullptr; i++) {
+
+			// Multiple --env=LD_PRELOAD arguments will add multiple fixed LD_PRELOAD values,
+			// which follow regular behavior of using the last --env=LD_PRELOAD setting
+
+			// --env=LD_PRELOAD=<value>
+			if (::strncmp(launcher_argv[i], "--env=LD_PRELOAD=", 17) == 0) {
+				auto ldPreload = std::get<2>(cti::split::string<3>(launcher_argv[i], '='));
+				fixedArgs.add("--env=LD_PRELOAD=" + preloadPalsPath + ":" + ldPreload);
+				fixedArgs.add("--env=" SAVE_LD_PRELOAD "=" + ldPreload);
+				found_ld_preload = true;
+
+			// --env LD_PRELOAD=<value>
+			} else if ((::strncmp(launcher_argv[i], "--env", 4) == 0)
+			        && (launcher_argv[i + 1] != nullptr)
+                    && (::strncmp(launcher_argv[i + 1], "LD_PRELOAD=", 11) == 0)) {
+				auto ldPreload = std::get<1>(cti::split::string<2>(launcher_argv[i + 1], '='));
+				fixedArgs.add("--env=LD_PRELOAD=" + preloadPalsPath + ":" + ldPreload);
+				fixedArgs.add("--env=" SAVE_LD_PRELOAD "=" + ldPreload);
+				found_ld_preload = true;
+
+				// Skip --env
+				i++;
+
+			// Copy argument
+			} else {
+				fixedArgs.add(launcher_argv[i]);
+			}
+		}
+
+		// Add LD_PRELOAD value if it wasn't already found
+		if (!found_ld_preload) {
+			fixedArgs.add_front("--env=LD_PRELOAD=" + preloadPalsPath);
+		}
+
+	// Copy arguments
+	} else {
+		fixedArgs.add(launcher_argv);
+	}
+
+    return fixedArgs;
+}
+
 std::weak_ptr<App>
 PALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
+	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv,
+		false /* no MPI library preload */);
     auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto appPtr = std::make_shared<PALSApp>(*this,
-        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get()));
+        launchApp(fixedLaunchArgs.get(), stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get()));
 
     // Release barrier and continue launch
     appPtr->releaseBarrier();
@@ -609,10 +683,33 @@ std::weak_ptr<App>
 PALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
+	// Disable non-MPI barrier unless env. var. enabled
+	auto barrier_non_mpi = (::getenv(PALS_BARRIER_NON_MPI)
+		&& (::getenv(PALS_BARRIER_NON_MPI)[0] != '0'));
+	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv, barrier_non_mpi);
     auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
-        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
+        launchApp(fixedLaunchArgs.get(), stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+
+    return *ret.first;
+}
+
+std::weak_ptr<App>
+PALSFrontend::launchBarrierNonMpi(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+	// Enable non-MPI barrier unless env. var. disabled
+	auto barrier_non_mpi = ((::getenv(PALS_BARRIER_NON_MPI) == nullptr)
+		|| (::getenv(PALS_BARRIER_NON_MPI)[0] != '0'));
+	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv, barrier_non_mpi);
+    auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
+
+    auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
+        launchApp(fixedLaunchArgs.get(), stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
