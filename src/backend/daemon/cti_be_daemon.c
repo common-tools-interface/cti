@@ -692,9 +692,9 @@ main(int argc, char **argv)
     {
         for (i=0; i < argc; ++i)
         {
-            fprintf(log, "%s ", argv[i]);
+            fprintf(stderr, "%s ", argv[i]);
         }
-        fprintf(log, "\n");
+        fprintf(stderr, "\n");
     }
 
     // Now ensure the user provided a valid wlm argument.
