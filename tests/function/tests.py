@@ -539,6 +539,72 @@ class CtiTest(Test):
                     out, _ = cti_barrier.communicate()
                     outfd.write(out)
 
+    @avocado.skipIf(lambda t: detectWLM(t) != "slurm", "MPMDAttach is only supported on slurm")
+    def test_MPMDAttach(self):
+        try:
+            cti_barrier = None
+            cti_info = None
+
+            wlm = detectWLM(self)
+
+            cti_barrier = subprocess.Popen(
+                ["./src/cti_barrier", "-n2", "./src/support/hello_mpi",
+                    ":", "-n2", "./src/support/hello_mpi_wait"],
+                stdin = subprocess.PIPE,
+                stdout = subprocess.PIPE, stderr = subprocess.STDOUT
+            )
+
+            # get job/step id numbers
+            id_one, id_two = self.getIds(cti_barrier, wlm, "./tmp/CtiInfo_Barrier.out")
+
+            # run cti_info
+            cti_info = subprocess.Popen(
+                ["./src/cti_info", f"--jobid={id_one}", f"--stepid={id_two}"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
+            )
+
+            try:
+                # cti_info doesn't launch jobs and should always be fast
+                cti_info.wait(5)
+                if cti_info.poll() != 0:
+                    raise EndTestError(
+                        fail_reason=f"cti_info exited with non-zero return code ({cti_info.poll()})"
+                    )
+            except subprocess.TimeoutExpired:
+                raise EndTestError(fail_reason="cti_info timed out")
+        except EndTestError as ete:
+            if ete.cancel_reason is not None:
+                self.cancel(ete.cancel_reason)
+            if ete.fail_reason is not None:
+                self.fail(ete.fail_reason)
+            self.fail("No reason specified")
+        finally:
+            # release cti_barrier from barrier
+            try:
+                if cti_barrier is not None and cti_barrier.poll() is None:
+                    cti_barrier.stdin.write(b"\n")
+                    cti_barrier.stdin.flush()
+                    cti_barrier.wait(5)
+            except subprocess.TimeoutExpired:
+                # let below code kill it
+                pass
+
+            # clean up all launched apps
+            if cti_barrier is not None:
+                kill_popen(cti_barrier)
+            if cti_info is not None:
+                kill_popen(cti_info)
+
+            # log output
+            if cti_barrier is not None:
+                with open("./tmp/CtiInfo_Barrier.out", "ab") as outfd:
+                    out, _ = cti_barrier.communicate()
+                    outfd.write(out)
+            if cti_info is not None:
+                with open("./tmp/CtiInfo_Info.out", "wb") as outfd:
+                    out, _ = cti_info.communicate()
+                    outfd.write(out)
+
     # def MPMDTestPALS(self):
     #     answers = {
     #         "rank   0": " hello_mpi",

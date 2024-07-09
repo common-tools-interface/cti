@@ -222,57 +222,86 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
     auto result = std::vector<SLURMFrontend::HetJobId>{};
 
     // Query all job / step IDs associated with this job ID
+    // Inside salloc, squeue does not return hetjob IDs, so need to use sacct
     auto jobId = std::to_string(job_id) + "." + std::to_string(step_id);
-    auto squeueArgv = cti::ManagedArgv{SQUEUE, "-h", "-o", "%i", "--job", jobId.c_str()};
+    auto sacctArgv = cti::ManagedArgv{"sacct", "-o", "jobid", "-n", "-j", jobId.c_str()};
 
-    // Create squeue output stream
-    auto squeueOutput = cti::Execvp(SQUEUE, squeueArgv.get(), cti::Execvp::stderr::Ignore);
-    auto& squeueStream = squeueOutput.stream();
+    // Create sacct output stream
+    auto sacctOutput = cti::Execvp("sacct", sacctArgv.get(), cti::Execvp::stderr::Ignore);
+    auto& sacctStream = sacctOutput.stream();
 
-    // Read all IDs output by squeue
-    auto squeueLine = std::string{};
-    while (std::getline(squeueStream, squeueLine)) {
+    // Read all IDs output by sacct
+    auto sacctLine = std::string{};
+    while (std::getline(sacctStream, sacctLine)) {
 
-        // Convert possible heterogeneous job ID to regular job ID
-        auto [baseId, hetjobOffset] = cti::split::string<2>(squeueLine, '+');
+        // sacct may print a global job ID in some cases, without the .<stepid> suffix
+        if (sacctLine.find(".") == std::string::npos) {
+            continue;
+        }
+
+        // Outside salloc, sacct will print job IDs in format <jobid>+<hetjob>.<stepid>
+        // Inside salloc, sacct will print job IDs in format <jobid>.<stepid>+<hetjob>
+
+        // Split IDs
+        auto jobId = std::string{};
+        auto stepId = std::string{};
+        auto hetOffset = std::string{};
+        auto in_salloc = false;
+        auto [first, second] = cti::split::string<2>(sacctLine, '.');
+
+        // Hetjob outside salloc
+        if (first.find("+") != std::string::npos) {
+            std::tie(jobId, hetOffset) = cti::split::string<2>(first, '+');
+            stepId = std::move(second);
+
+        // Hetjob inside salloc
+        } else if (second.find("+") != std::string::npos) {
+            jobId = std::move(first);
+            std::tie(stepId, hetOffset) = cti::split::string<2>(second, '+');
+            in_salloc = true;
+
+        // No hetjob
+        } else {
+            jobId = std::move(first);
+            stepId = std::move(second);
+        }
 
         try {
 
-            // Job ID contained hetjob offset
-            if (!hetjobOffset.empty()) {
+            // Parse ID and offset
+            auto job_id = (uint32_t)std::stoul(jobId);
+            auto step_id = (uint32_t)std::stoul(stepId);
 
-                // Parse ID and offset
-                auto base_id = (uint32_t)std::stoul(baseId);
-                auto offset = (uint32_t)std::stoul(hetjobOffset);
+            if (!hetOffset.empty()) {
+
+                auto offset = (uint32_t)std::stoul(hetOffset);
 
                 // Add offset job ID to result list
                 result.push_back( SLURMFrontend::HetJobId
-                    { .job_id = base_id
+                    { .job_id = job_id
                     , .step_id = step_id
                     , .het_offset = offset
+                    , .in_salloc = in_salloc
                 });
 
             // Nonheterogeneous job ID
             } else {
 
-                // Parse ID and offset
-                auto base_id = (uint32_t)std::stoul(squeueLine);
-
                 // Add job ID to result list
                 result.push_back( SLURMFrontend::HetJobId
-                    { .job_id = base_id
+                    { .job_id = job_id
                     , .step_id = step_id
                 });
             }
 
         } catch (std::exception const&) {
-            throw std::runtime_error("Failed to parse job ID " + squeueLine + " from squeue " + jobId);
+            throw std::runtime_error("Failed to parse job ID " + sacctLine + " from sacct " + jobId);
         }
     }
 
-    // wait for squeue to complete
-    if (squeueOutput.getExitStatus()) {
-        throw std::runtime_error("squeue " + jobId + " failed");
+    // wait for sacct to complete
+    if (sacctOutput.getExitStatus()) {
+        throw std::runtime_error("sacct " + jobId + " failed");
     }
 
     return result;

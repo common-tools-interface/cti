@@ -108,12 +108,19 @@ public: // slurm specific types
         uint32_t job_id;
         uint32_t step_id;
         std::optional<uint32_t> het_offset;
+        bool in_salloc;
 
-        // sattach requires adding the hetjob offset to the base job ID
+        // sattach requires appending the hetjob offset to the base job ID
         auto get_sattach_id() const {
-            return (het_offset)
-                ? std::to_string(job_id + *het_offset) + "." + std::to_string(step_id)
-                : std::to_string(job_id) + "." + std::to_string(step_id);
+            if (het_offset) {
+                if (in_salloc) {
+                    return std::to_string(job_id) + "." + std::to_string(step_id) + "+" + std::to_string(*het_offset);
+                } else {
+                    return std::to_string(job_id + *het_offset) + "." + std::to_string(step_id);
+                }
+            } else {
+                return std::to_string(job_id) + "." + std::to_string(step_id);
+            }
         }
 
         // srun for tool daemon launch requires manually specifying the hetjob offset
