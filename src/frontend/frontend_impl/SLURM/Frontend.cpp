@@ -974,6 +974,12 @@ SLURMApp::checkFilesExist(std::set<std::string> const& paths)
     // Generate the final launcher argv array
     auto launcherArgv = generateDaemonLauncherArgv(launcherArgs.get());
 
+    // Build environment from blacklist
+    cti::ManagedArgv launcherEnv;
+    for (auto&& envVar : dynamic_cast<SLURMFrontend&>(m_frontend).getSrunEnvBlacklist()) {
+        launcherEnv.add(envVar + "=");
+    }
+
     auto stdoutPipe = cti::Pipe{};
 
     // Tell FE Daemon to launch srun
@@ -982,7 +988,7 @@ SLURMApp::checkFilesExist(std::set<std::string> const& paths)
         launcherArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), stdoutPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
-        {});
+        launcherEnv.get());
 
     stdoutPipe.closeWrite();
     auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};

@@ -82,7 +82,7 @@ private: // slurm specific members
         "SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
         "SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
         "SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
-        "SLURM_WORKING_DIR"
+        "SLURM_WORKING_DIR",     "SLURM_BCAST",             "SLURM_SEND_LIBS"
     };
 
     // Arguments specified by CTI_SLURM_OVERRIDE / _APPEND for SRUN launches
