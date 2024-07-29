@@ -12,15 +12,11 @@
 # Stop immediately if anything unexpected happens
 set -ex
 
-echo "Creating output directory structure..."
-
-OUTPUT_DIR="cpedocs_cti"
+OUTPUT_DIR="cti"
 mkdir -p "$OUTPUT_DIR/man"
 
-echo "Collecting files..."
-
 # Collect index
-cp ./cpedocs_index_chunk.md "$OUTPUT_DIR"
+cp ./index.md "$OUTPUT_DIR"
 
 # Collect man pages
 # Intentionally using a for loop instead of `cp ./man/*.md` for a more verbose output
@@ -37,6 +33,8 @@ confirm_and_replace() {
 
 confirm_and_replace "# NAME" "# CTI User Reference" "$OUTPUT_DIR/man/cti.1.md"
 confirm_and_replace "# NAME" "# CTI Developer Reference" "$OUTPUT_DIR/man/cti.3.md"
+
+set +x
 
 echo "Done. Output directory is $OUTPUT_DIR."
 echo "Now copy $OUTPUT_DIR to /CPEDocs/doc/debugging-tools."
