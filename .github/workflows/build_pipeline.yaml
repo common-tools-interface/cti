@@ -20,9 +20,9 @@ on:
           - rhel8_9
           - rhel9_3
           - rhel9_3-aarch64
-          - sles15sp4
-          - sles15sp5
-          - sles15sp5-aarch64
+          - sles15_sp4
+          - sles15_sp5
+          - sles15_sp5-aarch64
 
 jobs:
   build_rhel8_9_x86_64:
