@@ -200,6 +200,8 @@ typedef struct
 // In addition to the PALS-specific launchAppBarrierNonMpi function, can set
 // this variable to manually enable or disable the PALS non-MPI barrier preload library
 #define PALS_BARRIER_NON_MPI "CTI_PALS_BARRIER_NON_MPI"
+// Disable timeout for PALS application launch (after PBS job submission)
+#define PALS_DISABLE_TIMEOUT "CTI_PALS_DISABLE_TIMEOUT"
 // Store original LD_PRELOAD to be restored after applying PALS preload
 #define SAVE_LD_PRELOAD "CTI_SAVE_LD_PRELOAD"
 

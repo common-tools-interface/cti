@@ -76,10 +76,14 @@ static auto find_job_host_in_allocation()
     }
 }
 
-// Use PBS job ID and qstat to find job execution host
-static auto find_job_host_outside_allocation(std::string const& jobId)
+// Find job details that CTI uses
+static auto get_job_details(std::string const& jobId)
 {
-    Frontend::inst().writeLog("Looking for job host for %s\n", jobId.c_str());
+    Frontend::inst().writeLog("Getting job details for %s\n", jobId.c_str());
+
+    auto jobState = std::string{};
+    auto execHost = std::string{};
+    auto comment = std::string{};
 
     // Run qstat with machine-parseable format
     char const* qstat_argv[] = {"qstat", "-f", jobId.c_str(), nullptr};
@@ -90,7 +94,6 @@ static auto find_job_host_outside_allocation(std::string const& jobId)
     auto qstatLine = std::string{};
 
     // Each line is in the format `    Var = Val`
-    auto execHost = std::string{};
     while (std::getline(qstatStream, qstatLine)) {
 
         // Split line on ' = '
@@ -100,9 +103,13 @@ static auto find_job_host_outside_allocation(std::string const& jobId)
         }
         auto const var = cti::split::removeLeadingWhitespace(qstatLine.substr(0, var_end));
         auto const val = qstatLine.substr(var_end + 3);
-        if (var == "exec_host") {
+
+        if (var == "job_state") {
+            jobState = cti::split::removeLeadingWhitespace(std::move(val));
+        } else if (var == "exec_host") {
             execHost = cti::split::removeLeadingWhitespace(std::move(val));
-            break;
+        } else if (var == "comment") {
+            comment = cti::split::removeLeadingWhitespace(std::move(val));
         }
     }
 
@@ -113,12 +120,28 @@ static auto find_job_host_outside_allocation(std::string const& jobId)
 
     // Wait for completion and check exit status
     if (auto const qstat_rc = qstatOutput.getExitStatus()) {
-        throw std::runtime_error("`qstat -f " + jobId + "` failed with code " + std::to_string(qstat_rc));
+        throw std::runtime_error("`qstat -f " + jobId + "` failed, is the job running?");
     }
+
+    return std::make_tuple(std::move(jobState), std::move(execHost), std::move(comment));
+}
+
+// Use PBS job ID and qstat to find job execution host
+static auto find_job_host_outside_allocation(std::string const& jobId)
+{
+    Frontend::inst().writeLog("Looking for job host for %s\n", jobId.c_str());
+
+    // Get exec_host
+    auto&& [jobState, execHost, comment] = get_job_details(jobId);
 
     // Reached end of qstat output without finding `exec_host`
     if (execHost.empty()) {
-        throw std::runtime_error("invalid job id " + jobId);
+        if (comment.empty()) {
+            throw std::runtime_error("Failed to find exec_host for " + jobId + ", is the job running?");
+        } else {
+            throw std::runtime_error("Failed to find exec_host for " + jobId + ". PBS reported: \n"
+                + comment + "\nThe job may still be queued.");
+        }
     }
 
     // Extract main hostname from exec_host
@@ -264,8 +287,7 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
     }
 
     // Add startup barrier environment setting
-    jobEnvArg << "PALS_LOCAL_LAUNCH=0";
-    jobEnvArg << "PALS_STARTUP_BARRIER=1";
+    jobEnvArg << "PALS_LOCAL_LAUNCH=0,PALS_STARTUP_BARRIER=1";
     qsubArgv.add("-v");
     qsubArgv.add(jobEnvArg.str());
 
@@ -273,7 +295,7 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
     qsubArgv.add(scriptPath);
 
     // Submit batch file to PBS
-    auto qsubOutput = cti::Execvp{"qsub", (char* const*)qsubArgv.get(), cti::Execvp::stderr::Ignore};
+    auto qsubOutput = cti::Execvp{"qsub", (char* const*)qsubArgv.get(), cti::Execvp::stderr::Pipe};
 
     // Read qsub output
     auto& qsubStream = qsubOutput.stream();
@@ -286,14 +308,24 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
 
     // Wait for completion and check exit status
     if ((qsubOutput.getExitStatus() != 0) || getline_failed) {
-        throw std::runtime_error("failed to submit PBS job using command\n"
-            + qsubArgv.string());
+        if (pbsJobId.empty()) {
+            throw std::runtime_error("failed to submit PBS job using command\n    "
+                + qsubArgv.string());
+        } else {
+            // pbsJobId contains the error output for qsub
+            throw std::runtime_error("failed to submit PBS job using command\n    "
+                + qsubArgv.string() + "\n" + pbsJobId);
+        }
     }
 
     // Wait until PALS application has started
+    // When launching a job, CTI will submit the job to PBS, then wait for PALS
+    // to start the job on the execution host.
     int retry = 0;
-    int max_retry = 3;
-    while (retry < max_retry) {
+    int max_retry = 10;
+    auto disable_timeout = (::getenv(PALS_DISABLE_TIMEOUT)
+        && (::getenv(PALS_DISABLE_TIMEOUT)[0] != '0'));
+    while ((retry < max_retry) || disable_timeout) {
         Frontend::inst().writeLog("PBS job %s submitted, waiting for PALS application "
             "to launch (attempt %d/%d)\n", pbsJobId.c_str(), retry + 1,
             max_retry);
@@ -318,8 +350,7 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
         }
     }
 
-    throw std::runtime_error("Timed out waiting for PALS "
-        "application to launch");
+    throw std::runtime_error("Timed out waiting for PALS application to launch");
 }
 
 // Determine if apid is a valid PALS application ID
