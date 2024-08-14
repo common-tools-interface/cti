@@ -1126,9 +1126,9 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         } else {
 
             // Redirect input and output descriptors
-            ::dup2(stdin_fd, STDIN_FILENO);
-            ::dup2(launchInfo.stdout_fd, STDOUT_FILENO);
-            ::dup2(launchInfo.stderr_fd, STDERR_FILENO);
+            cti::dup2_or_close(stdin_fd, STDIN_FILENO);
+            if (launchInfo.stdout_fd >= 0) { ::dup2(launchInfo.stdout_fd, STDOUT_FILENO); }
+            if (launchInfo.stderr_fd >= 0) { ::dup2(launchInfo.stderr_fd, STDERR_FILENO); }
 
             // Start flux attach
             ::execvp("flux", (char* const*)flux_job_attach_argv);

@@ -668,7 +668,7 @@ static pid_t forkExec(LaunchData const& launchData)
         close(respFd);
 
         // dup2 all stdin/out/err to provided FDs
-        dup2(launchData.stdin_fd,  STDIN_FILENO);
+        cti::dup2_or_close(launchData.stdin_fd,  STDIN_FILENO);
         dup2(launchData.stdout_fd, STDOUT_FILENO);
         dup2(launchData.stderr_fd, STDERR_FILENO);
 
