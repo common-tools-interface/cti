@@ -18,6 +18,7 @@ on:
         options:
           - all
           - rhel8_9
+          - rhel8_10
           - rhel9_4
           - rhel9_4-aarch64
           - sles15sp4
@@ -33,6 +34,14 @@ jobs:
     with:
       runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_rhel8_9_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
       build_targets: "rhel_8_9_x86_64"
+    secrets: inherit
+
+  build_rhel8_10_x86_64:
+    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'rhel8_10' }}
+    uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
+    with:
+      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_rhel8_10_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
+      build_targets: "rhel_8_10_x86_64"
     secrets: inherit
 
   build_rhel9_4_x86_64:
@@ -76,7 +85,7 @@ jobs:
     secrets: inherit
 
   build_sles15sp6_x86_64:
-    if: ${{ inputs.to_build == 'all' || inputs.to_build == 'sles15sp6' }}
+    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'sles15sp6' }}
     uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
     with:
       runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_sles15sp6_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
@@ -84,7 +93,7 @@ jobs:
     secrets: inherit
 
   build_sles15sp6_aarch64:
-    if: ${{ inputs.to_build == 'all' || inputs.to_build == 'sles15sp6-aarch64' }}
+    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'sles15sp6-aarch64' }}
     uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
     with:
       runs-on-str: '["self-hosted", "vmSize:S", "arch:arm", "provider:gcp", "team:cdst", "build_sles15sp6_aarch64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
