@@ -541,8 +541,12 @@ stoi(std::string const& str, std::string_view name)
 // Duplicate or close target descriptor. If an input file descriptor is not
 //  closed in a subprocess, then it can contest with the parent process.
 static inline auto
-dup2_or_close(int sourcefd, int targetfd)
+dup2_or_dev_null(int sourcefd, int targetfd)
 {
+	if (sourcefd < 0) {
+		sourcefd = ::open("/dev/null", O_RDONLY);
+    }
+
 	if (sourcefd >= 0) {
 		return ::dup2(sourcefd, targetfd);
 	} else {

@@ -1126,7 +1126,11 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         } else {
 
             // Redirect input and output descriptors
-            cti::dup2_or_close(stdin_fd, STDIN_FILENO);
+            // `flux attach` stdin must take input from /dev/null.
+            // If it is closed, it can fail to redirect output as well.
+            // If it is not closed or redirected to /dev/ null, it can contest standard
+            // input from the client application.
+            cti::dup2_or_dev_null(stdin_fd, STDIN_FILENO);
             if (launchInfo.stdout_fd >= 0) { ::dup2(launchInfo.stdout_fd, STDOUT_FILENO); }
             if (launchInfo.stderr_fd >= 0) { ::dup2(launchInfo.stderr_fd, STDERR_FILENO); }
 
