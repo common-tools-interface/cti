@@ -1026,10 +1026,25 @@ typedef struct {
  *      A cti_app_id_t that contains the ID registered in this interface. This
  *      app_id should be used in subsequent calls. 0 is returned on error.
  *-----------------------------------------------------------------------------
+ * getJobid - Obtain Flux application ID running in `flux attach` process
+ *
+ * Detail
+ *      This function is used to obtain the job ID from an instance of
+ *      `flux attach --debug <job_id>`. Useful for client applications
+ *      only support attaching via PID and not job ID.
+ *
+ * Arguments
+ *      fluxAttachPid - The PID of the `flux attach --debug` process.
+ *
+ * Returns
+ *      A job ID string to be freed by user.
+ *      NULL is returned on error.
+ *-----------------------------------------------------------------------------
  */
 
 typedef struct {
     cti_app_id_t    (*registerJob)(char const* job_id);
+    char*           (*getJobid)(pid_t fluxAttachPid);
 } cti_flux_ops_t;
 
 /*-----------------------------------------------------------------------------

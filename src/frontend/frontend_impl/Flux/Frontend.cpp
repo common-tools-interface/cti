@@ -238,6 +238,19 @@ static inline auto parse_job_id(FluxFrontend::LibFlux& libFluxRef, char const* r
 
     auto job_id = flux_jobid_t{};
 
+    // All numbers: pass to parse directly
+    { auto all_numeric = true;
+        for (auto c = raw_job_id; *c != '\0'; c++) {
+            if (!::isdigit(*c)) {
+                all_numeric = false;
+                break;
+            }
+        }
+        if (all_numeric && (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) == 0)) {
+            return job_id;
+        }
+    }
+
     // Determine if job ID is f58-formatted by checking for f58 prefix
     if (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0) {
         if (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) == 0) {
@@ -559,6 +572,31 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
         , .input_file = input_file
         , .stdout_fd = stdout_fd, .stderr_fd = stderr_fd
     };
+}
+
+std::string
+FluxFrontend::getJobid(pid_t pid)
+{
+    // Get real path to `flux job` helper
+    // Flux launcher does not have MPIR symbols, only the helper
+    auto realExePath = [](pid_t pid) {
+        try {
+            return cti::cstr::readlink("/proc/" + std::to_string(pid) + "/exe");
+        } catch (...) {
+            throw std::runtime_error("failed to find executable for PID " + std::to_string(pid));
+        }
+    }(pid);
+
+    // MPIR attach to `flux job attach --debug`
+    auto const mpirData = Daemon().request_AttachMPIR(realExePath.c_str(), pid);
+
+    // Extract job ID string from launcher
+    auto result = Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_jobid");
+
+    // Release MPIR control
+    Daemon().request_ReleaseMPIR(mpirData.mpir_id);
+
+    return result;
 }
 
 static auto parse_flux_version(std::string const& version)

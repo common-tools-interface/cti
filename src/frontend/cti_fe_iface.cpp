@@ -570,8 +570,17 @@ _cti_flux_registerJob(char const* job_id) {
     )
 }
 
+static char*
+_cti_flux_getJobid(pid_t launcher_pid) {
+    CHECK_FLUX_RUN_SAFELY((char*)nullptr,
+        auto&& fe = downcastFE<FluxFrontend>();
+        return strdup(fe.getJobid(launcher_pid).c_str());
+    )
+}
+
 static cti_flux_ops_t _cti_flux_ops = {
     .registerJob = _cti_flux_registerJob,
+    .getJobid = _cti_flux_getJobid
 };
 
 static cti_app_id_t

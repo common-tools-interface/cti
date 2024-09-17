@@ -91,6 +91,9 @@ public: // flux specific interface
         const char* const env_list[],
         LaunchBarrierMode const launchBarrierMode);
 
+    // Use MPIR to get job ID from `flux attach --debug`
+    std::string getJobid(pid_t pid);
+
 public: // constructor / destructor interface
     FluxFrontend();
     ~FluxFrontend();
