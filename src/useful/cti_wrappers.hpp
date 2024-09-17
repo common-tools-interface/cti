@@ -100,9 +100,11 @@ namespace cstr {
     // lifted readlink
     static inline std::string readlink(std::string const& path) {
         char buf[PATH_MAX + 1];
-        if (::readlink(path.c_str(), buf, PATH_MAX) < 0) {
+        auto readlink_rc = ::readlink(path.c_str(), buf, PATH_MAX);
+        if (readlink_rc < 0) {
             throw std::runtime_error("readlink failed");
         }
+        buf[readlink_rc] = '\0';
         return std::string{buf};
     }
 
