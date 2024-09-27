@@ -561,10 +561,25 @@ PALSFrontend::launchApp(const char * const launcher_argv[],
         launcherArgv.add(launcher_argv);
 
         // Launch program under MPIR control.
-        auto mpirData = Daemon().request_LaunchMPIR(
-            launcher_path.get(), launcherArgv.get(),
-            ::open(inputFile, O_RDONLY), stdoutFd, stderrFd,
-            env_list);
+        auto mpirData = [&]() {
+            try {
+                return Daemon().request_LaunchMPIR(
+                    launcher_path.get(), launcherArgv.get(),
+                    ::open(inputFile, O_RDONLY), stdoutFd, stderrFd,
+                    env_list);
+
+            } catch (std::exception const& ex) {
+                // PALS checks the following locations for host lists
+                // Defined in hpc-rm-pals:src/util/palsutil.c
+                if (!::getenv("PALS_HOSTLIST") && !::getenv("PALS_HOSTFILE")
+                 && !::getenv("PBS_NODEFILE")) {
+                    throw std::runtime_error("Launcher failed to start application. "
+                        "PALS_HOSTLIST, PALS_HOSTFILE, and PBS_NODEFILE were not set. "
+                        "Ensure you are launching inside an active PBS allocation");
+                }
+                throw;
+            }
+        }();
 
         // Get application ID from launcher
         auto apid = Daemon().request_ReadStringMPIR(mpirData.mpir_id,
