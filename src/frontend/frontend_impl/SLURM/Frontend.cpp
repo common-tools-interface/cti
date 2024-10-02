@@ -307,6 +307,109 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
     return result;
 }
 
+// Query architecture for each node allocated to job, and login node.
+// Ensure all architectures match. If Slurm does not know about a node or a nodespec
+// is otherwise invalid, scontrol will ignore that node.
+static void
+verify_matching_architectures(std::vector<SLURMFrontend::HetJobId> const& jobIds)
+{
+    auto archCounts = std::unordered_map<std::string, int>{};
+
+    try {
+        auto nodeSpecs = std::unordered_set<std::string>{};
+
+        // Add this node hostname
+        nodeSpecs.insert(cti::cstr::gethostname());
+
+        for (auto&& jobId : jobIds) {
+            auto jobArg = jobId.get_sbcast_scancel_id();
+            char const* squeue_argv[] = {"squeue", "--json", "--job", jobArg.c_str(), nullptr};
+
+            // Run squeue
+            auto squeueOutput = cti::Execvp{"squeue", (char* const*)squeue_argv,
+                cti::Execvp::stderr::Ignore};
+
+            // Read squeue output
+            auto& squeueStream = squeueOutput.stream();
+            auto squeueLine = std::string{};
+
+            while (std::getline(squeueStream, squeueLine)) {
+                auto&& [key, value] = cti::split::string<2>(
+                    cti::split::removeLeadingWhitespace(std::move(squeueLine)), ':');
+
+                // Get nodespec from squeue
+                if (key == "\"nodes\"") {
+
+                    // Trim quotes
+                    if (value.length() > 3) {
+                        if (value.rfind(" \"") == 0) {
+                            value = value.substr(2);
+                        }
+                        if (value.back() == ',') {
+                            value = value.substr(0, value.length() - 1);
+                        }
+                        if (value.back() == '"') {
+                            value = value.substr(0, value.length() - 1);
+                        }
+                    }
+
+                    nodeSpecs.insert(value);
+                }
+            }
+
+            // Consume rest of squeue output and ignore errors
+            squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
+            (void)squeueOutput.getExitStatus();
+        }
+
+        auto nodeSpecArg = std::stringstream{};
+        for (auto&& nodeSpec : nodeSpecs) {
+            // Trailing comma is accepted by scontrol
+            nodeSpecArg << nodeSpec << ",";
+        }
+
+        auto nodeSpecStr = nodeSpecArg.str();
+        char const* scontrol_argv[] = {"scontrol", "show", "node", "--json", nodeSpecStr.c_str(), nullptr};
+
+        // Run scontrol
+        auto scontrolOutput = cti::Execvp{"scontrol", (char* const*)scontrol_argv,
+            cti::Execvp::stderr::Ignore};
+
+        // Read scontrol output
+        auto& scontrolStream = scontrolOutput.stream();
+        auto scontrolLine = std::string{};
+
+        while (std::getline(scontrolStream, scontrolLine)) {
+            auto&& [key, value] = cti::split::string<2>(
+                cti::split::removeLeadingWhitespace(std::move(scontrolLine)), ':');
+
+            // Get architecture and update count
+            if (key == "\"architecture\"") {
+                auto& count = archCounts[value];
+                count++;
+            }
+        }
+
+        // Consume rest of scontrol output and ignore errors
+        scontrolStream.ignore(std::numeric_limits<std::streamsize>::max());
+        (void)scontrolOutput.getExitStatus();
+
+    } catch (std::exception const& ex) {
+        Frontend::inst().writeLog("Architecture check failed: %s\n", ex.what());
+    }
+
+    if (archCounts.size() > 1) {
+        auto archList = std::stringstream{};
+        for (auto&& [arch, count] : archCounts) {
+            archList << arch << " ";
+        }
+        throw std::runtime_error("Launched job had nodes with different architectures: \n"
+            + archList.str() + "\nTool launch does not support targeting nodes with different "
+            "architectures. This check can be disabled by setting the environment variable "
+            SLURM_CHECK_ARCH "=0");
+    }
+}
+
 /* constructors / destructors */
 
 SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData, std::string jobId, std::string stepId)
@@ -1298,6 +1401,12 @@ getStepLayout(std::string const& jobId, size_t pe_offset)
     // "Job step layout:"
     if (std::getline(sattachStream, sattachLine)) {
         if (sattachLine.compare("Job step layout:")) {
+
+            // sattach itself had an error
+            if (sattachLine.rfind("sattach: error:", 0) == 0) {
+                throw std::runtime_error(sattachLine);
+            }
+
             throw std::runtime_error(
                 "Unexpected layout output from SATTACH: '" + sattachLine + "'. "
                 "Try running `" SATTACH " --layout " + jobId + "`");
@@ -1367,13 +1476,38 @@ SLURMFrontend::fetchStepLayout(std::vector<HetJobId> const& jobIds)
 {
     auto result = std::map<std::string, SLURMFrontend::StepLayout>{};
 
+    // Ensure job has matching architectures
+    if ((::getenv(SLURM_CHECK_ARCH) == nullptr) || (::getenv(SLURM_CHECK_ARCH)[0] != '0')) {
+        verify_matching_architectures(jobIds);
+    }
+
+    auto failed_layouts = size_t{0};
+    auto exceptionMessage = std::string{};
+
     auto next_pe_start = size_t{0};
     for (auto&& hetJobId : jobIds) {
 
         // Query sattach to get layout for job
-        auto layout = getStepLayout(hetJobId.get_sattach_id(), next_pe_start);
-        next_pe_start += layout.numPEs;
-        result[hetJobId.get_srun_id()] = std::move(layout);
+        try {
+            auto layout = getStepLayout(hetJobId.get_sattach_id(), next_pe_start);
+            next_pe_start += layout.numPEs;
+            result[hetJobId.get_srun_id()] = std::move(layout);
+
+        } catch (std::exception const& ex) {
+            failed_layouts++;
+            exceptionMessage = ex.what();
+        }
+    }
+
+    if (failed_layouts > 0) {
+        if (failed_layouts == jobIds.size()) {
+            throw std::runtime_error(exceptionMessage);
+        } else if (failed_layouts < jobIds.size()) {
+            throw std::runtime_error(std::to_string(failed_layouts) + " of "
+                + std::to_string(jobIds.size()) + " MPMD job steps failed to launch. "
+                "Ensure your MPMD job can be launched successfully outside of this tool ("
+                + exceptionMessage + ")");
+        }
     }
 
     return result;

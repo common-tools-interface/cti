@@ -117,6 +117,7 @@ typedef struct
                                   // environment variable to disable the
                                   // workaround and rely soley on the scancel
                                   // return code.
+#define SLURM_CHECK_ARCH "CTI_SLURM_CHECK_ARCH" // Whether CTI should run automatic check to match architectures for job
 // Set by the Slurm daemon in job environment,
 // Can be used to detect nodename instead of querying scontrol
 #define SLURMD_NODENAME "SLURMD_NODENAME"
