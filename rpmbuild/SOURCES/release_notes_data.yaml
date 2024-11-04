@@ -30,7 +30,6 @@
 
 name: <NAME>
 version: <VERSION>
-release_date: <RELEASE_DATE>
 copyright: <COPYRIGHT>
 product_description: |
   - Cray Common Tools Interface (CTI) is a library that abstracts debugger tool support
@@ -58,8 +57,8 @@ product_dependencies:
  - cray-cdst-support <cdst_version_range> installed
  - cray-dyninst 12.3.0 or later installed
 os_dependencies:
- - HPE CSM systems with SLES 15 SP4
- - HPE HPCM systems with SLES 15 SP5 and RHEL 8.8
+ - HPE CSM systems with SLES 15 SP6
+ - HPE HPCM systems with SLES 15 SP4 - SP6 and RHEL 8.9 - 9.4
  - HPE Apollo systems with RHEL 8.8
 documentation: |
   - Currently the only documentation available is found in common_tools_fe.h, common_tools_be.h, 
