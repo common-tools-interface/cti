@@ -837,7 +837,9 @@ class CtiTest(Test):
             self.cancel(f"{base_dir} not empty before starting test")
 
         # Create fake leftover directory
-        old_cfg_dir = f"{base_dir}/1"
+        with open("/proc/sys/kernel/pid_max", 'r') as f:
+            max_pid = [int(x) for x in f.read().split()][0]
+            old_cfg_dir = f"{base_dir}/{max_pid + 1}"
         try:
             os.mkdir(old_cfg_dir)
         except FileExistsError:

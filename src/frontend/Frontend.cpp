@@ -1357,7 +1357,8 @@ Frontend::~Frontend()
                 continue;
 
             // verify that the owning process is gone
-            if (!::kill(pid, 0)) continue;
+            auto kill_rc = ::kill(pid, 0);
+            if ((kill_rc == 0) || (kill_rc == EPERM)) continue;
 
             to_remove.push_back(dir_entr.path());
         }

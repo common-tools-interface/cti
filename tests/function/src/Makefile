@@ -12,8 +12,8 @@ PTHREAD_FLAGS = -pthread
 CC  := cc
 CXX := $(shell echo $(shell which CC || echo g++))
 
-CFLAGS = -Wall -g -O0 -I$(CTI)/include
-LDFLAGS = -Wl,-rpath,$(CTI)/lib $(CRAY_CTI_FE_LIBS)
+CFLAGS := -Wall -g -O0 -I$(CTI)/include $(CFLAGS)
+LDFLAGS := -Wl,-rpath,$(CTI)/lib $(CRAY_CTI_FE_LIBS) $(LDFLAGS)
 
 EXECS = cti_barrier cti_launch cti_launch_badenv cti_info cti_link cti_callback \
       cti_callback_daemon cti_kill cti_wlm cti_mpmd cti_file_transfer \

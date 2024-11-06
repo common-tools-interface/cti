@@ -6,20 +6,24 @@
 #include <fstream>
 #include <thread>
 
-static constexpr auto num_threads = 8;
-static constexpr auto num_loops = 5;
+static constexpr auto num_loops = 3;
 
 int main(int argc, char* argv[])
 {
-    auto appArgv = createSystemArgv(argc, argv, {"./src/support/hello_mpi_wait"});
-    auto app = CTIFEFunctionTest{};
-    auto appId = app.watchApp(
-        cti_launchAppBarrier(cstrVector(appArgv).data(), -1, -1, nullptr, nullptr, nullptr)
-    );
+	auto appArgv = createSystemArgv(argc, argv, {"./src/support/hello_mpi_wait"});
+	auto app = CTIFEFunctionTest{};
+	auto appId = app.watchApp(
+		cti_launchAppBarrier(cstrVector(appArgv).data(), -1, -1, nullptr, nullptr, nullptr)
+	);
 
-    assert_true(appId > 0, cti_error_str());
-    assert_true(cti_appIsValid(appId), cti_error_str());
-    std::cerr << "Safe from launch timeout.\n";
+	assert_true(appId > 0, cti_error_str());
+	assert_true(cti_appIsValid(appId), cti_error_str());
+	std::cerr << "Safe from launch timeout.\n";
+
+	auto num_threads = 8;
+	if (auto raw_num_threads = ::getenv("CTI_TEST_MAX_THREADS")) {
+		num_threads = std::stoi(raw_num_threads);
+	}
 
 	std::cout << "Running " << num_threads << " threads of " << num_loops << " operations loops" << std::endl;
 

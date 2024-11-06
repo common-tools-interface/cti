@@ -1,6 +1,6 @@
 # make sure this is run from the directory it lives in
 
-CFLAGS = -Wall -g -O0
+CFLAGS := -Wall -g -O0 $(CFLAGS)
 
 EXECS =  hello_mpi hello_mpi_alt hello_mpi_wait mpi_wrapper remote_filecheck one_socket \
 		two_socket one_print
