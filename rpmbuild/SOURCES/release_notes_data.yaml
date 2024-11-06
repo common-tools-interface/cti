@@ -57,7 +57,7 @@ product_dependencies:
  - cray-cdst-support <cdst_version_range> installed
  - cray-dyninst 12.3.0 or later installed
 os_dependencies:
- - HPE CSM systems with SLES 15 SP5 - SP6 or RHEL 8.10 - 9.4
+ - HPE CSM systems with SLES 15 SP5 - SP6
  - HPE HPCM systems with SLES 15 SP5 - SP6 or RHEL 8.10 - 9.4
  - HPE Apollo systems with RHEL 8.10
 documentation: |
