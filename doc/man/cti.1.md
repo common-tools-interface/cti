@@ -3,6 +3,7 @@
 % 2022-09-06
 
 # NAME
+
 **cti** --- *Common Tools Interface* User Reference
 
 # DESCRIPTION
@@ -151,6 +152,10 @@ supplied to start the attach process.
   these arguments.
 
 - *CTI_SRUN_APPEND*: Add these arguments to all generated **srun** commands.
+
+- *CTI_SLURM_DISABLE_SACCT*: Set to `1` to disable the use of `sacct` for
+  finding MPMD job information. Use this if the Slurm database service is not
+  available on your system. MPMD jobs are not supported with this option.
 
 ## SSH-specific variables
 

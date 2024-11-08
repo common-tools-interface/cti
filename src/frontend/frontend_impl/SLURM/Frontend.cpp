@@ -221,6 +221,22 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
 {
     auto result = std::vector<SLURMFrontend::HetJobId>{};
 
+    // If sacct usage was disabled, use only this job ID. Disables MPMD support
+    if (auto disable_sacct = ::getenv(SLURM_DISABLE_SACCT)) {
+        if (disable_sacct[0] != '0') {
+
+            // Whether the application isr unning in salloc only matters for MPMD launches
+            // MPMD is not supported in this case, so the salloc-specific formatting
+            // for sattach etc. don't need to be generated.
+            return { SLURMFrontend::HetJobId
+                { .job_id = job_id
+                , .step_id = step_id
+                , .het_offset = 0
+                , .in_salloc = false
+            } };
+        }
+    }
+
     // Query all job / step IDs associated with this job ID
     // Inside salloc, squeue does not return hetjob IDs, so need to use sacct
     auto jobId = std::to_string(job_id) + "." + std::to_string(step_id);
@@ -295,13 +311,25 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
             }
 
         } catch (std::exception const&) {
-            throw std::runtime_error("Failed to parse job ID " + sacctLine + " from sacct " + jobId);
+            throw std::runtime_error("Failed to parse job ID " + sacctLine + " from sacct. Ensure that "
+                "the job is valid and `sacct -o jobid -n -j " + jobId + "` produces an ID list. If "
+                "`salloc` is not working, set environment " SLURM_DISABLE_SACCT "=1 (this will also "
+                "disable MPMD support)");
         }
     }
 
     // wait for sacct to complete
     if (sacctOutput.getExitStatus()) {
-        throw std::runtime_error("sacct " + jobId + " failed");
+        throw std::runtime_error("sacct failed. Ensure that the job is valid and "
+            "`sacct -o jobid -n -j " + jobId + "` produces an ID list. If `salloc` is not working, set "
+            "environment " SLURM_DISABLE_SACCT "=1 (this will also disable MPMD support)");
+    }
+
+    // Check for empty output
+    if (result.empty()) {
+        throw std::runtime_error("No job IDs found for " + jobId + ". Ensure that the job is valid and "
+            "`sacct -o jobid -n -j " + jobId + "` produces an ID list. If `salloc` is not working, set "
+            "environment " SLURM_DISABLE_SACCT "=1 (this will also disable MPMD support)");
     }
 
     return result;

@@ -95,6 +95,7 @@ typedef struct
 #define SBCAST                  "sbcast"                            // name of slurm transfer binary
 #define SACCTMGR                "sacctmgr"                          // name of slurm configuration binary
 #define SQUEUE                  "squeue"                            // name of slurm job queue binary
+#define SCONTROL                "scontrol"                          // name of slurm management binary
 #define SLURM_JOB_NAME          "SLURM_JOB_NAME"                    // Environment variable for Slurm job name
 #define SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid) // formula for creating Cray apid from SLURM jobid.stepid
 #define SLURM_TOOL_DIR          "/tmp"                              // SLURM staging path on compute node
@@ -121,6 +122,8 @@ typedef struct
 // Set by the Slurm daemon in job environment,
 // Can be used to detect nodename instead of querying scontrol
 #define SLURMD_NODENAME "SLURMD_NODENAME"
+// Bypass automatic sacct job ID check for MPMD job information
+#define SLURM_DISABLE_SACCT "CTI_SLURM_DISABLE_SACCT"
 
 /*******************************************************************************
 ** SSH specific information

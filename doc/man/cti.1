@@ -193,6 +193,11 @@ arguments with these arguments.
 .IP \[bu] 2
 \f[I]CTI_SRUN_APPEND\f[R]: Add these arguments to all generated
 \f[B]srun\f[R] commands.
+.IP \[bu] 2
+\f[I]CTI_SLURM_DISABLE_SACCT\f[R]: Set to \f[C]1\f[R] to disable the use
+of \f[C]sacct\f[R] for finding MPMD job information.
+Use this if the Slurm database service is not available on your system.
+MPMD jobs are not supported with this option.
 .SS SSH-specific variables
 .PP
 For workload managers that do not natively provide a file-shipping or

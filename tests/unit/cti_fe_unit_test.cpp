@@ -299,7 +299,7 @@ TEST_F(CTIFEUnitTest, LaunchApp)
     MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
 
     // describe behavior of mock launch
-    EXPECT_CALL(mockFrontend, launch(mockArgv, -1, -1, nullptr, nullptr, nullptr))
+    EXPECT_CALL(mockFrontend, launch(mockArgv, -1, -1, nullptr, nullptr, _))
         .Times(1);
 
     // run the test
@@ -318,7 +318,7 @@ TEST_F(CTIFEUnitTest, LaunchAppBarrier)
     MockFrontend& mockFrontend = dynamic_cast<MockFrontend&>(Frontend::inst());
 
     // describe behavior of mock launchBarrier
-    EXPECT_CALL(mockFrontend, launchBarrier(mockArgv, -1, -1, nullptr, nullptr, nullptr))
+    EXPECT_CALL(mockFrontend, launchBarrier(mockArgv, -1, -1, nullptr, nullptr, _))
         .Times(1);
 
     // run the test
