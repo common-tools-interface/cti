@@ -21,6 +21,9 @@ hello_mpi_alt: hello_mpi
 hello_mpi_wait : hello_mpi_wait.c
 	cc $(CFLAGS) $^ -o $@
 
+hello_mpi_stop : hello_mpi_stop.c
+	cc $(CFLAGS) $^ -o $@
+
 mpi_wrapper : mpi_wrapper.c
 	cc $(CFLAGS) $^ -o $@
 

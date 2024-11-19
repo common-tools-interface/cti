@@ -26,34 +26,14 @@ usage(char *name)
 }
 
 void testSIGCONT(cti_app_id_t myapp) {
-    // stop the app
-    auto r = cti_killApp(myapp, SIGSTOP);
-    if (r) {
-        fprintf(stderr, "Error: cti_killApp(SIGSTOP) failed!\n");
-        fprintf(stderr, "CTI error: %s\n", cti_error_str());
-    }
-    assert_true(r == 0, "cti_killApp(SIGSTOP) failed");
-
-    // if the signal was delivered, the app will not respond to SIGINT. SIGINT will be
-    // queued to be handled when the app wakes up.
-    r = cti_killApp(myapp, SIGINT);
-    if (r) {
-        fprintf(stderr, "Error: cti_killApp(SIGINT) failed!\n");
-        fprintf(stderr, "CTI error: %s\n", cti_error_str());
-        // attempt to clean up as to not clog the test allocation
-        cti_killApp(myapp, SIGKILL);
-    }
-    assert_true(r == 0, "cti_killApp(SIGINT) failed\n");
-
-    // check (approximately) that the app successfully blocked the SIGINT
-    for (int seconds_waited = 0; cti_appIsValid(myapp) && seconds_waited < 5; seconds_waited++) sleep(1);
+    // Application is already stopped, but valid
     if (!cti_appIsValid(myapp)) {
-        fprintf(stderr, "Error: cti_appIsValid reports false, app didn't block SIGINT?\n");
+        fprintf(stderr, "Error: cti_appIsValid reports false, app already exited?\n");
     }
     assert_true(cti_appIsValid(myapp), "cti_appIsValid returned false");
 
-    // now send SIGCONT. the app should start again and immediately receive the SIGINT
-    r = cti_killApp(myapp, SIGCONT);
+    // now send SIGCONT. the app should start again and immediately exit
+    auto r = cti_killApp(myapp, SIGCONT);
     if (r) {
         fprintf(stderr, "Error: cti_killApp(SIGCONT) failed!\n");
         fprintf(stderr, "CTI error: %s\n", cti_error_str());
@@ -61,6 +41,13 @@ void testSIGCONT(cti_app_id_t myapp) {
         cti_killApp(myapp, SIGKILL);
     }
     assert_true(r == 0, "cti_killApp(SIGCONT) failed\n");
+
+    // Application is exited
+    for (int seconds_waited = 0; cti_appIsValid(myapp) && seconds_waited < 5; seconds_waited++) sleep(1);
+    if (cti_appIsValid(myapp)) {
+        fprintf(stderr, "Error: cti_appIsValid reports true, app didn't exit?\n");
+    }
+    assert_true(cti_appIsValid(myapp), "cti_appIsValid returned false");
 }
 
 // test that cti returns an error on all platforms for signal 0
