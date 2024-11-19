@@ -33,7 +33,16 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // CPE-6976: Cray MPI will close standard in for ranks other than rank 0
+    // "Hide" standard in here so that we can test redirection to all ranks
+    int stdin2 = dup(STDIN_FILENO);
+    close(STDIN_FILENO);
+
     MPI_Init(&argc,&argv);
+
+    // Restore standard in
+    dup2(stdin2, STDIN_FILENO);
+    close(stdin2);
 
     pid_t pid = fork();
 
