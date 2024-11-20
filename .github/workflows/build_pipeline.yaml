@@ -17,30 +17,22 @@ on:
         default: 'all'
         options:
           - all
-          - rhel8_9
           - rhel8_10
           - rhel9_4
           - rhel9_4-aarch64
-          - sles15sp4
+          - rhel9_5
+          - rhel9_5-aarch64
           - sles15sp5
           - sles15sp5-aarch64
           - sles15sp6
           - sles15sp6-aarch64
 
 jobs:
-  build_rhel8_9_x86_64:
-    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'rhel8_9' }}
-    uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
-    with:
-      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_rhel8_9_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
-      build_targets: "rhel_8_9_x86_64"
-    secrets: inherit
-
   build_rhel8_10_x86_64:
     if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'rhel8_10' }}
     uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
     with:
-      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_rhel8_10_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
+      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_rhel8_9_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
       build_targets: "rhel_8_10_x86_64"
     secrets: inherit
 
@@ -52,7 +44,7 @@ jobs:
       build_targets: "rhel_9_4_x86_64"
     secrets: inherit
 
-  build_rhel9_4_x86_64_aarch64:
+  build_rhel9_4_aarch64:
     if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'rhel9_4-aarch64' }}
     uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
     with:
@@ -60,43 +52,51 @@ jobs:
       build_targets: "rhel_9_4_aarch64"
     secrets: inherit
 
-  build_sles15sp4_x86_64:
-    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'sles15sp4' }}
+  build_rhel9_5_x86_64:
+    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'rhel9_5' }}
     uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
     with:
-      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_sles15sp4_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
-      build_targets: "sles15sp4_x86_64"
+      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_rhel9_5_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
+      build_targets: "rhel_9_5_x86_64"
     secrets: inherit
 
-  build_sles15sp5_x86_64:
-    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'sles15sp5' }}
+  build_rhel9_5_aarch64:
+    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'rhel9_5-aarch64' }}
     uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
     with:
-      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_sles15sp5_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
-      build_targets: "sles15sp5_x86_64"
+      runs-on-str: '["self-hosted", "vmSize:S", "arch:arm", "provider:gcp", "team:cdst", "build_rhel9_5_aarch64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
+      build_targets: "rhel_9_5_aarch64"
     secrets: inherit
 
-  build_sles15sp5_aarch64:
-    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'sles15sp5-aarch64' }}
+  build_sles15_sp5_x86_64:
+    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'sles15_sp5' }}
     uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
     with:
-      runs-on-str: '["self-hosted", "vmSize:S", "arch:arm", "provider:gcp", "team:cdst", "build_sles15sp5_aarch64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
-      build_targets: "sles15sp5_aarch64"
+      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_sles15_sp5_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
+      build_targets: "sles15_sp5_x86_64"
     secrets: inherit
 
-  build_sles15sp6_x86_64:
+  build_sles15_sp5_aarch64:
+    if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'sles15_sp5-aarch64' }}
+    uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
+    with:
+      runs-on-str: '["self-hosted", "vmSize:S", "arch:arm", "provider:gcp", "team:cdst", "build_sles15_sp5_aarch64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
+      build_targets: "sles15_sp5_aarch64"
+    secrets: inherit
+
+  build_sles15_sp6_x86_64:
     if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'sles15sp6' }}
     uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
     with:
-      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_sles15sp6_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
-      build_targets: "sles15sp6_x86_64"
+      runs-on-str: '["self-hosted", "vmSize:S", "arch:x86", "provider:gcp", "team:cdst", "build_sles15_sp6_x86_64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
+      build_targets: "sles15_sp6_x86_64"
     secrets: inherit
 
-  build_sles15sp6_aarch64:
+  build_sles15_sp6_aarch64:
     if: ${{ inputs.to_build == '' || inputs.to_build == 'all' || inputs.to_build == 'sles15sp6-aarch64' }}
     uses: hpcde/devops-shared-workflows/.github/workflows/full_workflow.yaml@main
     with:
-      runs-on-str: '["self-hosted", "vmSize:S", "arch:arm", "provider:gcp", "team:cdst", "build_sles15sp6_aarch64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
-      build_targets: "sles15sp6_aarch64"
+      runs-on-str: '["self-hosted", "vmSize:S", "arch:arm", "provider:gcp", "team:cdst", "build_sles15_sp6_aarch64_${{github.run_id}}_${{github.run_attempt}}_${{github.actor}}_${{github.ref_name}}"]'
+      build_targets: "sles15_sp6_aarch64"
     secrets: inherit
 

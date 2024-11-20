@@ -1,11 +1,4 @@
 ---
-- name: rhel_8_9_x86_64
-  os: rhel_8_9_pe
-  arch: x86_64
-  image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-rhel8_9_build_environment:latest
-  spec_file: fake.specfile
-  build: rpmBuild.sh
-
 - name: rhel_8_10_x86_64
   os: rhel_8_10_pe
   arch: x86_64
@@ -27,35 +20,42 @@
   spec_file: fake.specfile
   build: rpmBuild.sh
 
-- name: sles15sp4_x86_64
-  os: sles15_sp4_pe
+- name: rhel_9_5_x86_64
+  os: rhel_9_5_pe
   arch: x86_64
-  image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-sle15sp4_build_environment:latest
+  image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-rhel9_5_build_environment:latest
   spec_file: fake.specfile
   build: rpmBuild.sh
 
-- name: sles15sp5_x86_64
+- name: rhel_9_5_aarch64
+  os: rhel_9_5_pe
+  arch: aarch64
+  image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-rhel9_5_aarch64_build_environment:latest
+  spec_file: fake.specfile
+  build: rpmBuild.sh
+
+- name: sles15_sp5_x86_64
   os: sles15_sp5_pe
   arch: x86_64
   image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-sle15sp5_build_environment:latest
   spec_file: fake.specfile
   build: rpmBuild.sh
 
-- name: sles15sp5_aarch64
+- name: sles15_sp5_aarch64
   os: sles15_sp5_pe
   arch: aarch64
   image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-sle15sp5_aarch64_build_environment:latest
   spec_file: fake.specfile
   build: rpmBuild.sh
 
-- name: sles15sp6_x86_64
+- name: sles15_sp6_x86_64
   os: sles15_sp6_pe
   arch: x86_64
   image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-sle15sp6_build_environment:latest
   spec_file: fake.specfile
   build: rpmBuild.sh
 
-- name: sles15sp6_aarch64
+- name: sles15_sp6_aarch64
   os: sles15_sp6_pe
   arch: aarch64
   image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-sle15sp6_aarch64_build_environment:latest
