@@ -1446,6 +1446,7 @@ getStepLayout(std::string const& jobId, size_t pe_offset)
     }
 
     auto num_nodes = int{0};
+    auto running_rank_total = int{0};
 
     // "  {numPEs} tasks, {num_nodes} nodes ({hostname}...)"
     if (std::getline(sattachStream, sattachLine)) {
@@ -1470,6 +1471,7 @@ getStepLayout(std::string const& jobId, size_t pe_offset)
 
     // "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
     for (auto i = int{0}; std::getline(sattachStream, sattachLine); i++) {
+
         if (i >= num_nodes) {
             throw std::runtime_error(
                 "Target job has " + std::to_string(num_nodes) + " nodes, but received "
@@ -1478,16 +1480,29 @@ getStepLayout(std::string const& jobId, size_t pe_offset)
         }
 
         // split the summary line
-        std::string nodeNum, hostname, numPEs, pe_0;
-        std::tie(std::ignore, nodeNum, hostname, numPEs, std::ignore, pe_0) =
+        std::string nodeNum, hostname, rawNumPEs, rawPE0;
+        std::tie(std::ignore, nodeNum, hostname, rawNumPEs, std::ignore, rawPE0) =
             cti::split::string<6>(cti::split::removeLeadingWhitespace(sattachLine));
 
+        auto pe_0 = std::stoul(rawPE0);
+
+        // Inside an allocation, all MPMD steps will have their rank number start at 0
+        // Keep track of the rank total and add it to offset if rank number was reset
+        if ((running_rank_total > 0) && (pe_0 == 0)) {
+           pe_0 += running_rank_total;
+        }
+       // Add global MPMD rank offset
+        pe_0 += pe_offset;
+
         // fill out node layout
+        auto num_pes = std::stoul(rawNumPEs);
         result.nodes.push_back(SLURMFrontend::NodeLayout
             { hostname.substr(1, hostname.length() - 3) // remove parens and comma from hostname
-            , std::stoul(numPEs)
-            , std::stoul(pe_0) + pe_offset
+            , num_pes, pe_0
         });
+
+        // Update rank tototal for MPMD jobs in allocation
+        running_rank_total += num_pes;
     }
 
     // wait for sattach to complete
