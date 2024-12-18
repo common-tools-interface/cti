@@ -31,6 +31,56 @@
 static const auto rawUuidRegex = std::string{
     R"([[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12})"};
 
+static auto getPalsVersion()
+{
+    char const* const palstat_argv[] = {"palstat", "--version", nullptr};
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstat_argv, cti::Execvp::stderr::Ignore};
+
+    // palstat version major.minor.revision
+    auto palstatVersion = std::string{};
+    if (!std::getline(palstatOutput.stream(), palstatVersion, '\n')) {
+        throw std::runtime_error("Failed: `palstat --version`. Ensure the `cray-pals` module is loaded");
+    }
+
+    // major.minor.revision
+    std::tie(std::ignore, std::ignore, palstatVersion, std::ignore)
+        = cti::split::string<4>(std::move(palstatVersion), ' ');
+    auto [major, minor, revision] = cti::split::string<3>(palstatVersion, '.');
+
+    auto stoi_or_zero = [](std::string const& str) {
+        if (str.empty()) { return 0; }
+        try {
+            return std::stoi(str);
+        } catch (...) {
+            return 0;
+        }
+    };
+
+    // Parse major and minor version
+    auto parsed_major = stoi_or_zero(major);
+    auto parsed_minor = stoi_or_zero(minor);
+    auto parsed_revision = stoi_or_zero(revision);
+
+    return std::tuple(parsed_major, parsed_minor, parsed_revision);
+}
+
+PALSFrontend::PALSFrontend()
+    : m_preloadMpirShim{false}
+{
+    // PALS version 1.6.0 improved attach process, where startup barrier triggers
+    // before main instead of during MPI_Init
+    // Disable non-MPI barrier unless env. var. enabled
+    if ((::getenv(PALS_BARRIER_NON_MPI) == nullptr)
+     || (::getenv(PALS_BARRIER_NON_MPI)[0] != '0')) {
+
+        // Check for version below 1.6.0
+        auto [major, minor, revision] = getPalsVersion();
+        if ((major < 1) || ((major == 1) && (minor < 6))) {
+            m_preloadMpirShim = true;
+        }
+    }
+}
+
 std::string
 PALSFrontend::getApid(pid_t launcher_pid)
 {
@@ -729,10 +779,7 @@ std::weak_ptr<App>
 PALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-	// Disable non-MPI barrier unless env. var. enabled
-	auto barrier_non_mpi = (::getenv(PALS_BARRIER_NON_MPI)
-		&& (::getenv(PALS_BARRIER_NON_MPI)[0] != '0'));
-	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv, barrier_non_mpi);
+	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv, m_preloadMpirShim);
     auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
@@ -748,10 +795,7 @@ std::weak_ptr<App>
 PALSFrontend::launchBarrierNonMpi(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
-	// Enable non-MPI barrier unless env. var. disabled
-	auto barrier_non_mpi = ((::getenv(PALS_BARRIER_NON_MPI) == nullptr)
-		|| (::getenv(PALS_BARRIER_NON_MPI)[0] != '0'));
-	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv, barrier_non_mpi);
+	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv, m_preloadMpirShim);
     auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,

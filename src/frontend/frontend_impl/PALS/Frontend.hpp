@@ -52,6 +52,9 @@ public: // types
         bool atBarrier;
     };
 
+private: // members
+    bool m_preloadMpirShim;
+
 public: // inherited interface
     static char const* getName() { return CTI_WLM_TYPE_PALS_STR; }
 
@@ -68,6 +71,8 @@ public: // inherited interface
     std::string getHostname() const override;
 
 public: // PALS-specific interface
+    PALSFrontend();
+
     // Get the default launcher binary name, or, if provided, from the environment.
     static std::string getLauncherName();
 
