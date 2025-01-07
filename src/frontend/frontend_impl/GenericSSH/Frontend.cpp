@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <thread>
 #include <future>
+#include <algorithm>
 
 // Pull in manifest to properly define all the forward declarations
 #include "transfer/Manifest.hpp"

@@ -90,7 +90,7 @@ void testSlurm_submitBatchScript(cti_slurm_ops_t* slurm_ops, int argc, char* arg
     batch << "#!/bin/bash" << std::endl;
 
     // #SBATCH options skip "srun" and "./src/support/hello_mpi_wait"
-    for (int i = 1; i < appArgv.size() - 1; i++)
+    for (size_t i = 1; i+1 < appArgv.size(); i++)
         batch << "#SBATCH " << appArgv[i] << std::endl;
 
     // launch line
