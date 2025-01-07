@@ -295,6 +295,7 @@ main(int argc, char **argv)
             return 1;
 
         case CTI_WLM_MOCK:
+        case CTI_WLM_LOCALHOST:
         case CTI_WLM_NONE:
             fprintf(stderr, "Error: Unsupported WLM in use!\n");
             assert(0);
