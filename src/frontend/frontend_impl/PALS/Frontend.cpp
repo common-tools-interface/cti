@@ -313,6 +313,41 @@ static bool is_apid_running(std::string const& execHost, std::string const& apId
     return running;
 }
 
+template <typename Func>
+static bool palstat_search(std::string const& execHost, std::string const& appId, Func&& callback)
+{
+    // Run palstat to query job with apid
+    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", execHost, appId};
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Start parsing palstat output
+    auto& palstatStream = palstatOutput.stream();
+    auto palstatLine = std::string{};
+
+    while (std::getline(palstatStream, palstatLine)) {
+
+        // Split line on ': '
+        auto const var_end = palstatLine.find(": ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
+        auto const val = palstatLine.substr(var_end + 2);
+        if (callback(var, cti::split::removeLeadingWhitespace(std::move(val)))) {
+            return true;
+        }
+    }
+
+    // Consume rest of stream output
+    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Ignore palstat exit status
+    (void)palstatOutput.getExitStatus();
+
+    return false;
+}
+
 std::string
 PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* launcher_args,
     char const* const* env_list)
@@ -807,6 +842,59 @@ PALSFrontend::launchBarrierNonMpi(CArgArray launcher_argv, int stdout_fd, int st
     return *ret.first;
 }
 
+std::string
+PALSFrontend::getPMIxUtilPath()
+{
+    // Path provided in environment
+    if (auto pals_pmix = ::getenv(PALS_PMIX)) {
+        if (!cti::fileHasPerms(pals_pmix, R_OK | X_OK)) {
+            throw std::runtime_error("PMIx utility set in " PALS_PMIX " was not accesible: "
+                + std::string{pals_pmix});
+        }
+
+        return pals_pmix;
+    }
+
+    auto result = Frontend::inst().getCfgDir() + "/cti_pmix_util";
+
+    // Utility already built
+    if (cti::fileHasPerms(result.c_str(), R_OK | X_OK)) {
+        return result;
+    }
+
+    // Check utility source
+    auto pmixSource = Frontend::inst().getBaseDir() + "/pals/" PALS_PMIX_SRC;
+    if (!cti::fileHasPerms(pmixSource.c_str(), R_OK)) {
+        throw std::runtime_error("Could not find PMIx utility source at " + pmixSource);
+    }
+
+    // Construct build arguments
+    auto bashArgv = cti::ManagedArgv{"bash", "-c"};
+    auto ccCmd = std::stringstream{};
+    ccCmd << "cc ";
+    if (auto pals_pmix_cflags = ::getenv(PALS_PMIX_CFLAGS)) {
+        ccCmd << pals_pmix_cflags << " ";
+    } else {
+        ccCmd << "-g -lpmix ";
+    }
+    ccCmd << pmixSource << " -o " << result;
+    auto ccCmdStr = ccCmd.str();
+    bashArgv.add(ccCmdStr);
+
+    // Run build
+    writeLog("Running PMIx utility build with\n%s\n", ccCmdStr.c_str());
+    auto bashOutput = cti::Execvp{"bash", bashArgv.get(), cti::Execvp::stderr::Pipe};
+    auto stderrStream = std::stringstream{};
+    stderrStream << bashOutput.stream().rdbuf();
+    if (bashOutput.getExitStatus()) {
+        throw std::runtime_error("Failed to build PMIx helper utility: \n"
+            + ccCmdStr + "\nBuild the source file at " + pmixSource + " and set "
+            PALS_PMIX " to the path to the built binary. Build output: \n" + stderrStream.str());
+    }
+
+    return result;
+}
+
 std::weak_ptr<App>
 PALSFrontend::registerJob(size_t numIds, ...)
 {
@@ -919,6 +1007,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_extraFiles{createNodeLayoutFile(m_procTable, m_stagePath)}
 
     , m_atBarrier{palsLaunchInfo.atBarrier}
+    , m_pmix{false}
 {
     // Get set of hosts for application
     for (auto&& [pid, hostname, executable] : m_procTable) {
@@ -934,6 +1023,23 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
             FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
             nullptr)) {
             throw std::runtime_error("failed to create remote toolpath directory for apid " + m_apId);
+        }
+    }
+
+    // Add PMIx utility if running with PMIx
+    if (palstat_search(m_execHost, m_apId, [&](std::string const& key, std::string const& val) {
+        return (key == "PMI") && (val == "pmix");
+    })) {
+        m_pmix = true;
+        m_extraFiles.push_back(fe.getPMIxUtilPath());
+
+        // PMIx tool support is projected to release in PALS 1.7.0 (USS-3013)
+        auto [major, minor, revision] = getPalsVersion();
+        if ((major < 1) || ((major == 1) && (minor < 7))) {
+            fprintf(stderr, "warning: detected PALS version %d.%d.%d and targeting a PMIx application.\n"
+                "PMIx tool support is projected to release in PALS 1.7.0. Launch will continue, but "
+                "you may encounter a tool failure\n",
+                major, minor, revision);
         }
     }
 }
@@ -1120,46 +1226,6 @@ PALSApp::shipPackage(std::string const& tarPath) const
     }
 }
 
-static bool isToolHelperRunning(std::string const& execHost, std::string const& appId,
-    std::string const& toolHelperId)
-{
-    // Run palstat to query job with apid
-    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", execHost, appId};
-    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
-        cti::Execvp::stderr::Ignore};
-
-    // Start parsing palstat output
-    auto& palstatStream = palstatOutput.stream();
-    auto palstatLine = std::string{};
-
-    // Running tool helpers are listed with the label 'Tool ID'
-    auto running = false;
-    while (std::getline(palstatStream, palstatLine)) {
-
-        // Split line on ': '
-        auto const var_end = palstatLine.find(": ");
-        if (var_end == std::string::npos) {
-            continue;
-        }
-        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
-        auto const val = palstatLine.substr(var_end + 2);
-        if (var == "Tool ID") {
-            if (toolHelperId == cti::split::removeLeadingWhitespace(std::move(val))) {
-                running = true;
-                break;
-            }
-        }
-    }
-
-    // Consume rest of stream output
-    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
-
-    // Ignore palstat exit status
-    (void)palstatOutput.getExitStatus();
-
-    return running;
-}
-
 void
 PALSApp::startDaemon(const char* const args[], bool synchronous)
 {
@@ -1208,13 +1274,21 @@ PALSApp::startDaemon(const char* const args[], bool synchronous)
     // Copy provided launcher arguments
     palscmdArgv.add(args);
 
+    // If PMIx mode, add PMIx environment setting
+    auto daemonEnv = cti::ManagedArgv{};
+    if (m_pmix) {
+        auto& palsFrontend = dynamic_cast<PALSFrontend&>(m_frontend);
+        auto backendPmixPath = m_frontend.getCfgDir() + "/" + cti::cstr::basename(palsFrontend.getPMIxUtilPath());
+        daemonEnv.add(std::string{PALS_PMIX_BE_PATH} + "=" + backendPmixPath);
+    }
+
     auto stderrPipe = cti::Pipe{};
 
     // tell frontend daemon to launch palscmd
     m_frontend.Daemon().request_ForkExecvpUtil_Async(
         m_daemonAppId, "palscmd", palscmdArgv.get(),
         FE_daemon::CloseFd, FE_daemon::CloseFd, stderrPipe.getWriteFd(),
-        nullptr);
+        (daemonEnv.size() == 0) ? nullptr : daemonEnv.get());
 
     // Parse palstat output to get tool helper ID
     auto toolHelperId = std::string{};
@@ -1251,8 +1325,11 @@ PALSApp::startDaemon(const char* const args[], bool synchronous)
 
         // Query palstat for tool helper status until completed
         } else {
+
             for (int retry = 0; retry < 10; retry++) {
-                if (!isToolHelperRunning(m_execHost, m_apId, toolHelperId)) {
+                if (!palstat_search(m_execHost, m_apId, [&](std::string const& key, std::string const& val) {
+                    return (key == "Tool ID") && (val == toolHelperId);
+                })) {
                     Frontend::inst().writeLog("Tool helper %s completed\n",
                         toolHelperId.c_str());
                     return;

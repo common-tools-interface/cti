@@ -930,10 +930,12 @@ inaccessible, or lacks permissions for reading and writing by the current user \
         }
 
     } else {
-        throw std::runtime_error("No Flux API socket information was found in the environment \
-(FLUX_URI was empty). Ensure that a Flux session has been started, and that tool launch was \
-initiated inside the Flux session. \
-(tried " + format_System_WLM(system, wlm) + ")");
+
+        char const* flux_argv[] = {"flux", "jobs", nullptr};
+        if (cti::Execvp::runExitStatus("flux", (char* const*)flux_argv)) {
+            throw std::runtime_error("Failed to run `flux jobs`. Ensure Flux is properly configured "
+                "and accessible on your system\n (tried " + format_System_WLM(system, wlm) + ")");
+        }
     }
 
     // Find path to libflux

@@ -93,6 +93,9 @@ public: // PALS-specific interface
 
     std::weak_ptr<App> launchBarrierNonMpi(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list);
+
+    // Return path to PMIx helper utility to ship to backend
+    std::string getPMIxUtilPath();
 };
 
 class PALSApp : public App
@@ -112,6 +115,7 @@ class PALSApp : public App
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
 
     bool m_atBarrier; // At startup barrier or not
+    bool m_pmix; // Using PMIx mode
 
 
 public:

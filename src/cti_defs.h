@@ -208,6 +208,11 @@ typedef struct
 #define PALS_DISABLE_TIMEOUT "CTI_PALS_DISABLE_TIMEOUT"
 // Store original LD_PRELOAD to be restored after applying PALS preload
 #define SAVE_LD_PRELOAD "CTI_SAVE_LD_PRELOAD"
+// PMIx helper utility
+#define PALS_PMIX "CTI_PALS_PMIX"
+#define PALS_PMIX_SRC "cti_pmix_util.c"
+#define PALS_PMIX_CFLAGS "CTI_PALS_PMIX_CFLAGS"
+#define PALS_PMIX_BE_PATH "CTI_PALS_PMIX_BE_PATH"
 
 /*******************************************************************************
 ** Flux specific information
