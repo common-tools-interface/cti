@@ -158,16 +158,18 @@ namespace cstr {
 } /* namespace cti::cstr */
 
 namespace file {
+    struct FClose { int operator()(FILE* f) { return std::fclose(f); } };
+
     // open a file path and return a unique FILE* or nullptr
     static inline auto try_open(std::string const& path, char const* mode) ->
-        std::unique_ptr<FILE, decltype(&std::fclose)>
+        std::unique_ptr<FILE, FClose>
     {
-        return take_pointer_ownership(fopen(path.c_str(), mode), std::fclose);
+        return std::unique_ptr<FILE,FClose>(fopen(path.c_str(), mode), FClose());
     }
 
     // open a file path and return a unique FILE* or throw
     static inline auto open(std::string const& path, char const* mode) ->
-        std::unique_ptr<FILE, decltype(&std::fclose)>
+        std::unique_ptr<FILE, FClose>
     {
         if (auto ufp = try_open(path, mode)) {
             return ufp;

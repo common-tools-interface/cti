@@ -1069,8 +1069,9 @@ void SLURMApp::startDaemon(const char* const args[], bool synchronous)
     }
 
     // tell FE Daemon to launch srun
+    auto launcherName = slurmFrontend.getLauncherName();
     auto fork_execvp_args = std::make_tuple(&m_frontend.Daemon(),
-        m_daemonAppId, slurmFrontend.getLauncherName().c_str(),
+        m_daemonAppId, launcherName.c_str(),
         launcherArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
