@@ -140,6 +140,11 @@ supplied to start the attach process.
   inside the instance. This will allow tools such as GDB4hpc to debug
   jobs running inside Singularity containers.
 
+- *CTI_SKIP_LAUNCHER_CHECK*: By default, CTI will check the launcher binary
+  to ensure it is a binary and that MPIR debug symbols are present.
+  These symbols are required for proper startup, but this check can be
+  bypassed by setting *CTI_SKIP_LAUNCHER_CHECK=1*.
+
 ## Slurm-specific variables
 
 - *CTI_SLURM_DAEMON_GRES*: Starting with Slurm 21.08, there is a known

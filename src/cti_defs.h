@@ -241,6 +241,7 @@ typedef struct
 #define SRUN_APPEND_ARGS_ENV_VAR     "CTI_SRUN_APPEND"      // Frontend: append these arguments to the variable list of SRUN arguments (read)
 #define CTI_HOST_ADDRESS_ENV_VAR     "CTI_HOST_ADDRESS"     // Frontend: override detection of host IP address
 #define CTI_DEDUPLICATE_FILES_ENV_VAR "CTI_DEDUPLICATE_FILES" // Frontend: ship all files to backends, even if available
+#define CTI_SKIP_LAUNCHER_CHECK_ENV_VAR "CTI_SKIP_LAUNCHER_CHECK" // Frontend: don't try to verify MPIR symbols
 
 // Backend related env vars
 #define BE_GUARD_ENV_VAR    "CTI_IAMBACKEND"        //Backend: Set by the daemon launcher to ensure proper setup

@@ -606,9 +606,16 @@ static auto verify_MPIR_symbols(System const& system, WLM const& wlm,
         return std::make_tuple(MPIRSymbolStatus::LauncherNotFound, std::string{});
     }
 
+    // Skip check if disabled
+    if (auto skip_launcher_check = ::getenv(CTI_SKIP_LAUNCHER_CHECK_ENV_VAR)) {
+        if (skip_launcher_check[0] == '1') {
+            return std::make_tuple(MPIRSymbolStatus::Ok, launcherPath);
+        }
+    }
+
     // Check that the launcher is a binary and not a script
     { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
-        "file --mime -L " + launcherPath + " | grep -E 'application/x-(executable|sharedlib)'"};
+        "file --mime -L " + launcherPath + " | grep -E 'application/x-(executable|pie-executable|sharedlib|object|elf)'"};
         if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
             return std::make_tuple(MPIRSymbolStatus::NotBinaryFile, launcherPath);
         }
@@ -630,7 +637,7 @@ static auto verify_MPIR_symbols(System const& system, WLM const& wlm,
         }
     }
 
-    return std::make_tuple(MPIRSymbolStatus::Ok, launcherPath);;
+    return std::make_tuple(MPIRSymbolStatus::Ok, launcherPath);
 }
 
 static bool verify_PALS_configured(System const& system, WLM const& wlm,
