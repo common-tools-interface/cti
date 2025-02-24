@@ -124,6 +124,8 @@ typedef struct
 #define SLURMD_NODENAME "SLURMD_NODENAME"
 // Bypass automatic sacct job ID check for MPMD job information
 #define SLURM_DISABLE_SACCT "CTI_SLURM_DISABLE_SACCT"
+// Cassini maximum job limit
+#define SLURM_CASSINI_JOB_LIMIT 3
 
 /*******************************************************************************
 ** SSH specific information

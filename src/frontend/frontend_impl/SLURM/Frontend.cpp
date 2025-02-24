@@ -43,6 +43,19 @@
 
 #include "SSHSession/SSHSession.hpp"
 
+// These environment variables are blacklisted to ensure that tool daemon launches
+// inherit the Slurm job settings from its associated job
+static const inline std::vector<std::string> srunEnvBlacklist = {
+    "SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
+    "SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
+    "SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
+    "SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
+    "SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
+    "SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
+    "SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
+    "SLURM_WORKING_DIR",     "SLURM_BCAST",             "SLURM_SEND_LIBS"
+};
+
 // Use squeue to check if job is registered with slurmd
 static bool job_registered(std::string const& jobId)
 {
@@ -435,6 +448,257 @@ verify_matching_architectures(std::vector<SLURMFrontend::HetJobId> const& jobIds
             + archList.str() + "\nTool launch does not support targeting nodes with different "
             "architectures. This check can be disabled by setting the environment variable "
             SLURM_CHECK_ARCH "=0");
+    }
+}
+
+static auto
+scontrol_get_config(std::string const& key)
+{
+    auto result = std::string{};
+
+    char const* scontrol_argv[] = {"scontrol", "show", "config", nullptr};
+
+    // Run scontrol
+    auto scontrolOutput = cti::Execvp{"scontrol", (char* const*)scontrol_argv,
+        cti::Execvp::stderr::Ignore};
+
+    // Read scontrol output
+    auto& scontrolStream = scontrolOutput.stream();
+    auto scontrolLine = std::string{};
+
+    while (std::getline(scontrolStream, scontrolLine)) {
+        auto&& [lineKey, value] = cti::split::string<2>(scontrolLine, '=');
+        lineKey = cti::split::removeLeadingWhitespace(std::move(lineKey));
+
+        // Get architecture and update count
+        if (lineKey == key) {
+            result = cti::split::removeLeadingWhitespace(std::move(value));
+        }
+    }
+
+    // Consume rest of scontrol output and ignore errors
+    scontrolStream.ignore(std::numeric_limits<std::streamsize>::max());
+    (void)scontrolOutput.getExitStatus();
+
+    return result;
+}
+
+static auto
+find_jobs_on_nodes(std::set<std::string> const& nodes)
+{
+    auto result = std::map<std::string, int>{};
+
+    for (auto&& node : nodes) {
+
+        auto count = int{0};
+
+        char const* squeue_argv[] = {"squeue", "-s", "-h", "--nodelist", node.c_str(), nullptr};
+
+        // Run squeue
+        auto squeueOutput = cti::Execvp{"squeue", (char* const*)squeue_argv,
+            cti::Execvp::stderr::Ignore};
+
+        // Read squeue output
+        auto& squeueStream = squeueOutput.stream();
+        auto squeueLine = std::string{};
+
+        // Count number of jobs on node
+        while (std::getline(squeueStream, squeueLine)) {
+            count++;
+        }
+        result[node] = count;
+
+        // Consume rest of squeue output and ignore errors
+        squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
+        (void)squeueOutput.getExitStatus();
+    }
+
+    return result;
+}
+
+// Read string from file descriptor, break if timeout is hit during read wait
+static auto read_timeout(int fd, int64_t usec)
+{
+    auto result = std::string{};
+
+    // File descriptor select set
+    auto select_set = fd_set{};
+    FD_ZERO(&select_set);
+    FD_SET(fd, &select_set);
+
+    // Set up timeout
+    auto timeout = timeval
+        { .tv_sec = 0
+        , .tv_usec = usec
+    };
+
+    // Select loop
+    while (auto select_rc = ::select(fd + 1, &select_set, nullptr, nullptr, &timeout)) {
+        if (select_rc < 0) {
+            break;
+        }
+
+        // Read string into buffer
+        char buf[1024];
+        if (auto read_rc = ::read(fd, buf, sizeof(buf) - 1)) {
+
+            // Retry if interrupted
+            if ((read_rc < 0) && (errno == EINTR)) {
+                continue;
+
+            // Bytes read, add to result
+            } else if (read_rc > 0) {
+                buf[read_rc] = '\0';
+                result += buf;
+
+            // Otherwise exit loop
+            } else {
+                break;
+            }
+        }
+    }
+
+    return result;
+}
+
+template <typename Func>
+static auto srunMPIR(FE_daemon& daemon, char const* launcher_path, char const* const* launcher_argv,
+    char const* const* env_list, Func&& cassiniJobLimitCallback)
+{
+    auto result = FE_daemon::MPIRResult{};
+
+    // Capture srun error output
+    auto srunPipe = cti::Pipe{};
+
+    try {
+
+        // Launch program under MPIR control.
+        result = daemon.request_LaunchMPIR(
+            launcher_path, launcher_argv,
+            // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
+            // Capture stderr output in case launch fails
+            ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
+            env_list);
+
+        if (result.proctable.empty()) {
+            throw std::runtime_error("Launcher provided empty proctable");
+        } else if (std::any_of(result.proctable.begin(), result.proctable.end(),
+            [](auto&& elem) { return elem.pid < 0; })) {
+            throw std::runtime_error("Launcher proctable had negative PID");
+        }
+
+    } catch (std::exception const& ex) {
+
+        // Get stderr output from srun and add to error message
+        auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
+
+        auto jobsOnNode = std::map<std::string, int>{};
+        auto attemptedNodes = std::set<std::string>{};
+
+        try {
+
+            // Check if interconnect error
+            if (stderrOutput.find("Error configuring interconnect") != std::string::npos) {
+
+                // Check if using Cassini switch
+                auto switchType = scontrol_get_config("SwitchType");
+                if (switchType.find("hpe_slingshot") != std::string::npos) {
+
+                    // Get list of attempted nodes for the job
+                    std::transform(result.proctable.begin(), result.proctable.end(),
+                        std::inserter(attemptedNodes, attemptedNodes.begin()),
+                        [](auto&& elem){ return elem.hostname; });
+
+                    // Find other jobs running on these nodes
+                    jobsOnNode = find_jobs_on_nodes(attemptedNodes);
+                }
+            }
+        } catch (...) {
+            // Ignore exception
+        }
+
+        // Check if it hit the limit
+        for (auto&& [node, count] : jobsOnNode) {
+            if (count >= SLURM_CASSINI_JOB_LIMIT) {
+                auto nodes = std::vector<std::string>{};
+                std::copy(attemptedNodes.begin(), attemptedNodes.end(), std::back_inserter(nodes));
+                return cassiniJobLimitCallback(node, count, nodes, stderrOutput);
+            }
+        }
+
+        throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
+    }
+
+    // Re-ignore srun stderr output after successful launch to avoid blockages
+    if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
+        fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
+    }
+
+    return result;
+}
+
+static void
+launch_daemon_remote(char const* const* argv, char const* const* env,
+    std::vector<std::string> const& nodes, std::string const& username, std::string const& homeDir,
+    bool synchronous)
+{
+    // LibSSH2 initialization and cleanup
+    struct LibSSH2Init
+    {
+        bool initialized;
+
+        LibSSH2Init()
+            : initialized{false}
+        {
+            if (libssh2_init(0)) {
+                throw std::runtime_error("Failed to initaialize libssh2");
+            }
+        }
+
+        LibSSH2Init(LibSSH2Init&& expiring)
+            : initialized{expiring.initialized}
+        {
+            expiring.initialized = false;
+        }
+
+        ~LibSSH2Init()
+        {
+            if (initialized) {
+                libssh2_exit();
+            }
+        }
+    };
+
+    auto libSSH2Init = LibSSH2Init{};
+
+    // Execute the launcher on each of the hosts using SSH
+    auto executeRemoteCommand = [](std::string const& hostname, std::string const& username,
+        std::string const& homeDir, char const* const* argv, char const* const* env, bool synchronous) {
+
+        auto session = SSHSession{hostname, username, homeDir};
+        session.executeRemoteCommand(argv, env, synchronous);
+    };
+
+    if (synchronous) {
+
+        // Synchronous launches run in parallel as future tasks
+        auto launchFutures = std::vector<std::future<void>>{};
+        for (auto&& node : nodes) {
+            launchFutures.push_back(std::async(std::launch::async, executeRemoteCommand,
+                node, username, homeDir, argv, env,
+                /* synchronous */ true));
+        }
+        for (auto&& future : launchFutures) {
+            future.get();
+        }
+
+    } else {
+
+        // Asynchronous launches can be started in parallel and continued to run
+        for (auto&& node : nodes) {
+            executeRemoteCommand(node, username, homeDir, argv, env,
+                /* asynchronous */ false);
+        }
     }
 }
 
@@ -930,7 +1194,7 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
         // Build environment from blacklist
         cti::ManagedArgv launcherEnv;
         for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
-            launcherEnv.add(envVar + "=");
+            launcherEnv.add("CTIBLACKLIST_" + envVar + "=");
         }
 
         // Capture lines of output from srun
@@ -1065,24 +1329,64 @@ void SLURMApp::startDaemon(const char* const args[], bool synchronous)
     auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
     auto launcherEnv = cti::ManagedArgv{};
     for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
-        launcherEnv.add(envVar + "=");
+        launcherEnv.add("CTIBLACKLIST_" + envVar + "=");
     }
 
+    // Find the path to the launcher
+    auto launcherPath = cti::findPath(slurmFrontend.getLauncherName());
+
     // tell FE Daemon to launch srun
-    auto launcherName = slurmFrontend.getLauncherName();
-    auto fork_execvp_args = std::make_tuple(&m_frontend.Daemon(),
-        m_daemonAppId, launcherName.c_str(),
-        launcherArgv.get(),
-        // redirect stdin / stderr / stdout
-        ::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
-        launcherEnv.get());
+    auto used_ssh = false;
+    auto result = srunMPIR(m_frontend.Daemon(), launcherPath.c_str(), launcherArgv.get(), launcherEnv.get(),
+        [&](std::string const& node, int count, std::vector<std::string> const& nodes,
+        std::string const& stderrOutput) -> FE_daemon::MPIRResult {
+
+            // Failure case due to oversubscription
+
+            // Try SSH connection
+            try {
+
+                // Get SSH connection information
+                auto username = m_frontend.getPwd().pw_name;
+                auto home_dir = m_frontend.getPwd().pw_dir;
+
+                // Build daemon arguments
+                auto daemonArgv = cti::ManagedArgv{};
+                daemonArgv.add(m_toolPath + "/" + getBEDaemonName());
+                if (args != nullptr) {
+                    for (const char* const* arg = args; *arg != nullptr; arg++) {
+                        daemonArgv.add(*arg);
+                    }
+                }
+
+                // Use SSH to launch daemon onto nodes
+                launch_daemon_remote(daemonArgv.get(), launcherEnv.get(),
+                    nodes, username, home_dir, synchronous);
+                used_ssh = true;
+
+                return FE_daemon::MPIRResult{ .mpir_id = -1 };
+
+            } catch (std::exception const& ex) {
+                Frontend::inst().writeLog("SSH failed: %s\n", ex.what());
+            }
+
+            throw std::runtime_error("Attempted to launch more than "
+                + std::to_string(count) + " jobs on node " + node + ".\n"
+                + "The interconnect limits the active number of jobs per node. Please "
+                + "wait until `squeue -s --nodelist=" + node + "` returns less than "
+                + std::to_string(SLURM_CASSINI_JOB_LIMIT - 1) + " jobs. srun output:\n"
+                + stderrOutput);
+        });
+
+    // SSH handled completion and release of daemon
+    if (used_ssh) {
+        return;
+    }
 
     if (synchronous) {
-        std::apply(std::mem_fn(&FE_daemon::request_ForkExecvpUtil_Sync),
-            fork_execvp_args);
+        m_frontend.Daemon().request_WaitMPIR(result.mpir_id);
     } else {
-        std::apply(std::mem_fn(&FE_daemon::request_ForkExecvpUtil_Async),
-            fork_execvp_args);
+        m_frontend.Daemon().request_ReleaseMPIR(result.mpir_id);
     }
 }
 
@@ -1109,7 +1413,7 @@ SLURMApp::checkFilesExist(std::set<std::string> const& paths)
     // Build environment from blacklist
     cti::ManagedArgv launcherEnv;
     for (auto&& envVar : dynamic_cast<SLURMFrontend&>(m_frontend).getSrunEnvBlacklist()) {
-        launcherEnv.add(envVar + "=");
+        launcherEnv.add("CTIBLACKLIST_" + envVar + "=");
     }
 
     auto stdoutPipe = cti::Pipe{};
@@ -1399,6 +1703,12 @@ SLURMFrontend::registerJob(size_t numIds, ...) {
     return *ret.first;
 }
 
+std::vector<std::string> const&
+SLURMFrontend::getSrunEnvBlacklist() const
+{
+    return srunEnvBlacklist;
+}
+
 std::string
 SLURMFrontend::getLauncherName()
 {
@@ -1628,51 +1938,6 @@ SLURMFrontend::createPIDListFile(MPIRProctable const& procTable, std::string con
     }
 }
 
-// Read string from file descriptor, break if timeout is hit during read wait
-static auto read_timeout(int fd, int64_t usec)
-{
-    auto result = std::string{};
-
-    // File descriptor select set
-    auto select_set = fd_set{};
-    FD_ZERO(&select_set);
-    FD_SET(fd, &select_set);
-
-    // Set up timeout
-    auto timeout = timeval
-        { .tv_sec = 0
-        , .tv_usec = usec
-    };
-
-    // Select loop
-    while (auto select_rc = ::select(fd + 1, &select_set, nullptr, nullptr, &timeout)) {
-        if (select_rc < 0) {
-            break;
-        }
-
-        // Read string into buffer
-        char buf[1024];
-        if (auto read_rc = ::read(fd, buf, sizeof(buf) - 1)) {
-
-            // Retry if interrupted
-            if ((read_rc < 0) && (errno == EINTR)) {
-                continue;
-
-            // Bytes read, add to result
-            } else if (read_rc > 0) {
-                buf[read_rc] = '\0';
-                result += buf;
-
-            // Otherwise exit loop
-            } else {
-                break;
-            }
-        }
-    }
-
-    return result;
-}
-
 void SLURMFrontend::detail::add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs)
 {
     const auto view = std::string_view{quotedArgs};
@@ -1756,34 +2021,18 @@ SLURMFrontend::launchApp(const char * const launcher_args[],
 
     if (!use_shim) {
 
-        auto result = FE_daemon::MPIRResult{};
+        // Launch srun under MPIR control
+        return srunMPIR(Daemon(), launcherPath.c_str(), launcherArgv.get(), env_list,
+            [](std::string const& node, int count, std::vector<std::string> const& nodes,
+                std::string const& stderrOutput) -> FE_daemon::MPIRResult {
 
-        // Capture srun error output
-        auto srunPipe = cti::Pipe{};
-
-        try {
-
-            // Launch program under MPIR control.
-            result = Daemon().request_LaunchMPIR(
-                launcherPath.c_str(), launcherArgv.get(),
-                // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
-                // Capture stderr output in case launch fails
-                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
-                env_list);
-
-        } catch (std::exception const& ex) {
-
-            // Get stderr output from srun and add to error message
-            auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
-            throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
-        }
-
-        // Re-ignore srun stderr output after successful launch to avoid blockages
-        if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
-            fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
-        }
-
-        return result;
+                // Failure case due to oversubscription
+                throw std::runtime_error("Attempted to launch more than "
+                    + std::to_string(count) + " jobs on node " + node + ".\n"
+                    + "The interconnect limits the active number of jobs per node. Please "
+                    + "try to launch on a different set of nodes. srun output:\n"
+                    + stderrOutput);
+            });
 
     // Use MPIR shim to launch program
     } else {

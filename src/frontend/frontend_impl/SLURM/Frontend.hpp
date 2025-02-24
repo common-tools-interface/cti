@@ -71,20 +71,6 @@ public: // inherited interface
     std::string getHostname() const override;
 
 private: // slurm specific members
-
-    // These environment variables are blacklisted to ensure that tool daemon launches
-    // inherit the Slurm job settings from its associated job
-    static const inline std::vector<std::string> srunEnvBlacklist = {
-        "SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
-        "SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
-        "SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
-        "SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
-        "SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
-        "SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
-        "SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
-        "SLURM_WORKING_DIR",     "SLURM_BCAST",             "SLURM_SEND_LIBS"
-    };
-
     // Arguments specified by CTI_SLURM_OVERRIDE / _APPEND for SRUN launches
     std::vector<std::string> m_srunAppArgs;
     // Also contains version-specific SRUN arguments
@@ -143,7 +129,7 @@ public: // slurm specific types
 public: // slurm specific interface
     auto const& getSrunAppArgs()    const { return m_srunAppArgs;    }
     auto const& getSrunDaemonArgs() const { return m_srunDaemonArgs; }
-    auto const& getSrunEnvBlacklist() const { return srunEnvBlacklist; }
+    std::vector<std::string> const& getSrunEnvBlacklist() const;
     auto const& getCheckScancelOutput() const { return m_checkScancelOutput; }
 
     // Get the default launcher binary name, or, if provided, from the environment.

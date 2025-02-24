@@ -81,7 +81,7 @@ public: // interface
      * Arguments
      *      args -          null-terminated cstring array which holds the arguments array for the command to be executed
      */
-    void executeRemoteCommand(const char* const args[], bool synchronous);
+    void executeRemoteCommand(char const* const* args, char const* const* env, bool synchronous);
     UniqueChannel startRemoteCommand(const char* const argv[]);
     void waitCloseChannel(UniqueChannel&& channel);
 
@@ -108,6 +108,7 @@ public: // interface
         char const* const* launcher_argv, char const* const* env);
     std::string readStringMPIR(LIBSSH2_CHANNEL* channel, FE_daemon::DaemonAppId mpir_id, std::string const& var);
     void releaseMPIR(LIBSSH2_CHANNEL* channel, FE_daemon::DaemonAppId mpir_id);
+    bool waitMPIR(LIBSSH2_CHANNEL* channel, FE_daemon::DaemonAppId mpir_id);
     bool checkApp(LIBSSH2_CHANNEL* channel, FE_daemon::DaemonAppId mpir_id);
     void deregisterApp(LIBSSH2_CHANNEL* channel, FE_daemon::DaemonAppId mpir_id);
     void stopRemoteDaemon(UniqueChannel&& channel, pid_t daemon_pid);

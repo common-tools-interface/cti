@@ -52,6 +52,7 @@ public: // interface
     /* inferior access functions */
     pid_t getLauncherPid() { return m_inferior.getPid(); }
     void terminate() { m_inferior.terminate(); }
+    int waitExit();
 
     /* memory access */
 

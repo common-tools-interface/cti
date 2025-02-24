@@ -108,6 +108,20 @@ void MPIRInstance::runToMPIRBreakpoint() {
     log("MPIR_debug_state: exited loop\n");
 }
 
+int MPIRInstance::waitExit() {
+    log("running inferior til exit\n");
+
+    while (true) {
+        m_inferior.continueRun();
+
+        if (m_inferior.isExited()) {
+            return m_inferior.getExitCode();
+        } else if (m_inferior.isTerminated()) {
+            return -1;
+        }
+    }
+}
+
 template <typename T>
 static T readArrayElem(Inferior& inf, std::string const& symName, size_t idx) {
     Inferior::Address elem_addr;
