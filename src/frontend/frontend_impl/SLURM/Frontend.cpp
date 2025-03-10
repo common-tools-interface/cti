@@ -227,6 +227,76 @@ static void wait_forever_for_application_started(std::string const& jobId)
     wait_forever_for_application_state(job_step_zero_started, jobId);
 }
 
+static auto parse_sacct_hetjobid(std::string const& sacctJobId)
+{
+    // Outside salloc, sacct will print job IDs in format <jobid>+<hetjob>.<stepid>
+    // Inside salloc, sacct will print job IDs in format <jobid>.<stepid>+<hetjob>
+
+    // Split IDs
+    auto jobId = std::string{};
+    auto stepId = std::string{};
+    auto hetOffset = std::string{};
+    auto in_salloc = false;
+    auto [first, second] = cti::split::string<2>(sacctJobId, '.');
+
+    // No step ID
+    if (second.empty()) {
+        throw std::runtime_error("Failed to parse sacct output: `" + sacctJobId + "`");
+    }
+
+    // Hetjob outside salloc
+    if (first.find("+") != std::string::npos) {
+        std::tie(jobId, hetOffset) = cti::split::string<2>(first, '+');
+        stepId = std::move(second);
+
+    // Hetjob inside salloc
+    } else if (second.find("+") != std::string::npos) {
+        jobId = std::move(first);
+        std::tie(stepId, hetOffset) = cti::split::string<2>(second, '+');
+        in_salloc = true;
+
+    // No hetjob
+    } else {
+        jobId = std::move(first);
+        stepId = std::move(second);
+    }
+
+    try {
+
+        // Parse ID and offset
+        auto job_id = (uint32_t)std::stoul(jobId);
+        auto step_id = (uint32_t)std::stoul(stepId);
+
+        if (!hetOffset.empty()) {
+
+            auto offset = (uint32_t)std::stoul(hetOffset);
+
+            // Add offset job ID to result list
+            return SLURMFrontend::HetJobId
+                { .job_id = job_id
+                , .step_id = step_id
+                , .het_offset = offset
+                , .in_salloc = in_salloc
+            };
+
+        // Nonheterogeneous job ID
+        } else {
+
+            // Add job ID to result list
+            return SLURMFrontend::HetJobId
+                { .job_id = job_id
+                , .step_id = step_id
+            };
+        }
+
+    } catch (std::exception const&) {
+        throw std::runtime_error("Failed to parse job ID " + sacctJobId + " from sacct. Ensure that "
+            "the job is valid and `sacct -o jobid -n -j " + jobId + "." + stepId + "` produces an ID list. "
+            "If `salloc` is not working, set environment " SLURM_DISABLE_SACCT "=1 (this will also "
+            "disable MPMD support)");
+    }
+};
+
 // Heterogeneous jobs have multiple job IDs that include a hetjob offset
 // Get all real job IDs associated with the provided ID
 static std::vector<SLURMFrontend::HetJobId>
@@ -252,96 +322,148 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
 
     // Query all job / step IDs associated with this job ID
     // Inside salloc, squeue does not return hetjob IDs, so need to use sacct
-    auto jobId = std::to_string(job_id) + "." + std::to_string(step_id);
-    auto sacctArgv = cti::ManagedArgv{"sacct", "-o", "jobid", "-n", "-j", jobId.c_str()};
+    auto jobStepId = std::to_string(job_id) + "." + std::to_string(step_id);
+    auto sacctArgv = cti::ManagedArgv{"sacct", "-o", "jobid", "-n", "-j", jobStepId.c_str()};
 
-    // Create sacct output stream
-    auto sacctOutput = cti::Execvp("sacct", sacctArgv.get(), cti::Execvp::stderr::Ignore);
-    auto& sacctStream = sacctOutput.stream();
+    // Use JSON output
+    { auto sacctJsonArgv = cti::ManagedArgv{};
+        sacctJsonArgv.add(sacctArgv.get());
+        sacctJsonArgv.add("--json");
 
-    // Read all IDs output by sacct
-    auto sacctLine = std::string{};
-    while (std::getline(sacctStream, sacctLine)) {
+        try {
 
-        // sacct may print a global job ID in some cases, without the .<stepid> suffix
-        if (sacctLine.find(".") == std::string::npos) {
-            continue;
+            // Create sacct output stream
+            auto sacctOutput = cti::Execvp("sacct", sacctJsonArgv.get(), cti::Execvp::stderr::Ignore);
+            auto& sacctStream = sacctOutput.stream();
+
+            // Read all IDs output by sacct
+            auto sacctLine = std::string{};
+            while (std::getline(sacctStream, sacctLine)) {
+
+                // sacct may print a global job ID in some cases, without the .<stepid> suffix
+                if (sacctLine.find(".") == std::string::npos) {
+                    continue;
+                }
+
+                // "id": "hetjobid",
+                // "id"s that are not the job ID are numeric and not quoted
+                auto&& [key, value] = cti::split::string<2>(
+                    cti::split::removeLeadingWhitespace(std::move(sacctLine)), ':');
+
+                // Trim delimiters from value
+                value = cti::split::removeLeadingWhitespace(std::move(value));
+                if (!value.empty() && (value.back() == ',')) {
+                    value.pop_back();
+                }
+
+                if ((key != "\"id\"") || (value.length() < 2)
+                     || (value.front() != '"') || (value.back() != '"')) {
+                    continue;
+                }
+
+                value = value.substr(1, value.length() - 2);
+                Frontend::inst().writeLog("Found hetjobid from json: '%s'\n", value.c_str());
+                result.push_back(parse_sacct_hetjobid(value));
+            }
+
+            if (auto sacct_rc = sacctOutput.getExitStatus()) {
+                Frontend::inst().writeLog("sacct --json failed with code %d\n", sacct_rc);
+                result.clear();
+            }
+
+        } catch (std::exception const& ex) {
+            Frontend::inst().writeLog("sacct --json failed: %s\n", ex.what());
+            result.clear();
         }
+    }
 
-        // Outside salloc, sacct will print job IDs in format <jobid>+<hetjob>.<stepid>
-        // Inside salloc, sacct will print job IDs in format <jobid>.<stepid>+<hetjob>
+    // Use YAML output
+    if (result.empty()) {
+        auto sacctYamlArgv = cti::ManagedArgv{};
+        sacctYamlArgv.add(sacctArgv.get());
+        sacctYamlArgv.add("--yaml");
 
-        // Split IDs
-        auto jobId = std::string{};
-        auto stepId = std::string{};
-        auto hetOffset = std::string{};
-        auto in_salloc = false;
-        auto [first, second] = cti::split::string<2>(sacctLine, '.');
+        try {
 
-        // Hetjob outside salloc
-        if (first.find("+") != std::string::npos) {
-            std::tie(jobId, hetOffset) = cti::split::string<2>(first, '+');
-            stepId = std::move(second);
+            // Create sacct output stream
+            auto sacctOutput = cti::Execvp("sacct", sacctYamlArgv.get(), cti::Execvp::stderr::Ignore);
+            auto& sacctStream = sacctOutput.stream();
 
-        // Hetjob inside salloc
-        } else if (second.find("+") != std::string::npos) {
-            jobId = std::move(first);
-            std::tie(stepId, hetOffset) = cti::split::string<2>(second, '+');
-            in_salloc = true;
+            // Read all IDs output by sacct
+            auto sacctLine = std::string{};
+            while (std::getline(sacctStream, sacctLine)) {
 
-        // No hetjob
-        } else {
-            jobId = std::move(first);
-            stepId = std::move(second);
+                // sacct may print a global job ID in some cases, without the .<stepid> suffix
+                if (sacctLine.find(".") == std::string::npos) {
+                    continue;
+                }
+
+                // !!str id: !!str hetjobid
+                auto&& [str1, key, str2, value] = cti::split::string<4>(
+                    cti::split::removeLeadingWhitespace(std::move(sacctLine)), ' ');
+
+                if ((str1 != "!!str") || (key != "id:") || (str2 != "!!str")) {
+                    continue;
+                }
+
+                Frontend::inst().writeLog("Found hetjobid from yaml: '%s'\n", value.c_str());
+                result.push_back(parse_sacct_hetjobid(value));
+            }
+
+            if (auto sacct_rc = sacctOutput.getExitStatus()) {
+                Frontend::inst().writeLog("sacct --yaml failed with code %d\n", sacct_rc);
+                result.clear();
+            }
+
+        } catch (std::exception const& ex) {
+            Frontend::inst().writeLog("sacct --yaml failed: %s\n", ex.what());
+            result.clear();
+        }
+    }
+
+    // Use regular output
+    if (result.empty()) {
+
+        if (step_id > 9) {
+            fprintf(stderr, "warning: failed to parse JSON and YAML output for hetjob ID.\n"
+                "Attempting to fall back to unformatted output, which may be truncated as "
+                "step ID is %u\n", step_id);
         }
 
         try {
 
-            // Parse ID and offset
-            auto job_id = (uint32_t)std::stoul(jobId);
-            auto step_id = (uint32_t)std::stoul(stepId);
+            // Create sacct output stream
+            auto sacctOutput = cti::Execvp("sacct", sacctArgv.get(), cti::Execvp::stderr::Ignore);
+            auto& sacctStream = sacctOutput.stream();
 
-            if (!hetOffset.empty()) {
+            // Read all IDs output by sacct
+            auto sacctLine = std::string{};
+            while (std::getline(sacctStream, sacctLine)) {
 
-                auto offset = (uint32_t)std::stoul(hetOffset);
+                // sacct may print a global job ID in some cases, without the .<stepid> suffix
+                if (sacctLine.find(".") == std::string::npos) {
+                    continue;
+                }
 
-                // Add offset job ID to result list
-                result.push_back( SLURMFrontend::HetJobId
-                    { .job_id = job_id
-                    , .step_id = step_id
-                    , .het_offset = offset
-                    , .in_salloc = in_salloc
-                });
-
-            // Nonheterogeneous job ID
-            } else {
-
-                // Add job ID to result list
-                result.push_back( SLURMFrontend::HetJobId
-                    { .job_id = job_id
-                    , .step_id = step_id
-                });
+                Frontend::inst().writeLog("Found hetjobid from sacct: '%s'\n", sacctLine.c_str());
+                result.push_back(parse_sacct_hetjobid(sacctLine));
             }
 
-        } catch (std::exception const&) {
-            throw std::runtime_error("Failed to parse job ID " + sacctLine + " from sacct. Ensure that "
-                "the job is valid and `sacct -o jobid -n -j " + jobId + "` produces an ID list. If "
-                "`salloc` is not working, set environment " SLURM_DISABLE_SACCT "=1 (this will also "
-                "disable MPMD support)");
-        }
-    }
+            if (auto sacct_rc = sacctOutput.getExitStatus()) {
+                Frontend::inst().writeLog("sacct failed with code %d\n", sacct_rc);
+                result.clear();
+            }
 
-    // wait for sacct to complete
-    if (sacctOutput.getExitStatus()) {
-        throw std::runtime_error("sacct failed. Ensure that the job is valid and "
-            "`sacct -o jobid -n -j " + jobId + "` produces an ID list. If `salloc` is not working, set "
-            "environment " SLURM_DISABLE_SACCT "=1 (this will also disable MPMD support)");
+        } catch (std::exception const& ex) {
+            Frontend::inst().writeLog("sacct failed: %s\n", ex.what());
+            result.clear();
+        }
     }
 
     // Check for empty output
     if (result.empty()) {
-        throw std::runtime_error("No job IDs found for " + jobId + ". Ensure that the job is valid and "
-            "`sacct -o jobid -n -j " + jobId + "` produces an ID list. If `salloc` is not working, set "
+        throw std::runtime_error("No job IDs found for " + jobStepId + ". Ensure that the job is valid and "
+            "`sacct -o jobid -n -j " + jobStepId + "` produces an ID list. If `salloc` is not working, set "
             "environment " SLURM_DISABLE_SACCT "=1 (this will also disable MPMD support)");
     }
 
