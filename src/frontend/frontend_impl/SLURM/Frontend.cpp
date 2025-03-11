@@ -760,7 +760,7 @@ static auto srunMPIR(FE_daemon& daemon, char const* launcher_path, char const* c
 }
 
 static void
-launch_daemon_remote(char const* const* argv, char const* const* env,
+launch_daemon_remote(cti::ManagedArgv&& argv, char const* const* env,
     std::vector<std::string> const& nodes, std::string const& username, std::string const& homeDir,
     bool synchronous)
 {
@@ -773,7 +773,7 @@ launch_daemon_remote(char const* const* argv, char const* const* env,
             : initialized{false}
         {
             if (libssh2_init(0)) {
-                throw std::runtime_error("Failed to initaialize libssh2");
+                throw std::runtime_error("Failed to initialize libssh2");
             }
         }
 
@@ -795,10 +795,13 @@ launch_daemon_remote(char const* const* argv, char const* const* env,
 
     // Execute the launcher on each of the hosts using SSH
     auto executeRemoteCommand = [](std::string const& hostname, std::string const& username,
-        std::string const& homeDir, char const* const* argv, char const* const* env, bool synchronous) {
+        std::string const& homeDir, cti::ManagedArgv argv, char const* const* env, bool synchronous) {
+
+        Frontend::inst().writeLog("Executing remote command on %s: %s\n",
+            hostname.c_str(), argv.string().c_str());
 
         auto session = SSHSession{hostname, username, homeDir};
-        session.executeRemoteCommand(argv, env, synchronous);
+        session.executeRemoteCommand(argv.get(), env, synchronous);
     };
 
     if (synchronous) {
@@ -807,20 +810,24 @@ launch_daemon_remote(char const* const* argv, char const* const* env,
         auto launchFutures = std::vector<std::future<void>>{};
         for (auto&& node : nodes) {
             launchFutures.push_back(std::async(std::launch::async, executeRemoteCommand,
-                node, username, homeDir, argv, env,
+                node, username, homeDir, argv.clone(), env,
                 /* synchronous */ true));
         }
         for (auto&& future : launchFutures) {
             future.get();
         }
 
+        Frontend::inst().writeLog("Synchronous remote command completed\n");
+
     } else {
 
         // Asynchronous launches can be started in parallel and continued to run
         for (auto&& node : nodes) {
-            executeRemoteCommand(node, username, homeDir, argv, env,
+            executeRemoteCommand(node, username, homeDir, argv.clone(), env,
                 /* asynchronous */ false);
         }
+
+        Frontend::inst().writeLog("Async command launched\n");
     }
 }
 
@@ -1482,7 +1489,7 @@ void SLURMApp::startDaemon(const char* const args[], bool synchronous)
                 }
 
                 // Use SSH to launch daemon onto nodes
-                launch_daemon_remote(daemonArgv.get(), launcherEnv.get(),
+                launch_daemon_remote(std::move(daemonArgv), launcherEnv.get(),
                     nodes, username, home_dir, synchronous);
                 used_ssh = true;
 

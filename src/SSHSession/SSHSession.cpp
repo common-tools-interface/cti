@@ -457,6 +457,9 @@ SSHSession::SSHSession(std::string const& hostname, std::string const& username,
         } else if (tryAuthKeyfilePair(m_session_ptr.get(), username,
             sshDir + "/id_dsa.pub", sshDir + "/id_dsa")) {
             return;
+        } else if (tryAuthKeyfilePair(m_session_ptr.get(), username,
+            sshDir + "/id_ed25519.pub", sshDir + "/id_ed25519")) {
+            return;
         }
 
         throw std::runtime_error("Failed to detect SSH key files in " + sshDir +
