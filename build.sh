@@ -93,7 +93,7 @@ while [ -n "$1" ]; do
         if [ "$1" != "${1#-}" ] ; then
           echo "Unknown option: $1"
           usage
-          exit 1 
+          exit 1
         else
           break
         fi
