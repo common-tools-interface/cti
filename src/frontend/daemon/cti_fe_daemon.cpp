@@ -868,7 +868,11 @@ static bool waitMPIR(DAppId const mpir_id)
         mpirMap.erase(idInstPair);
 
         // Wait for completion and check return code
-        return idInstPair->second->waitExit() == 0;
+        if (auto rc = idInstPair->second->waitExit()) {
+            getLogger().write("mpir id %d exited with rc %d\n", mpir_id, rc);
+            return false;
+        }
+        return true;
 
     } else {
         throw std::runtime_error("release mpir id not found: " + std::to_string(mpir_id));
@@ -1267,15 +1271,16 @@ static auto reqTypeString(ReqType const reqType)
         case ReqType::ForkExecvpApp:  return "ForkExecvpApp";
         case ReqType::ForkExecvpUtil: return "ForkExecvpUtil";
         case ReqType::LaunchMPIR:     return "LaunchMPIR";
-        case ReqType::AttachMPIR:     return "AttachMPIR";
-        case ReqType::ReleaseMPIR:    return "ReleaseMPIR";
-        case ReqType::ReadStringMPIR: return "ReadStringMPIR";
-        case ReqType::TerminateMPIR:  return "TerminateMPIR";
         case ReqType::LaunchMPIRShim: return "LaunchMPIRShim";
+        case ReqType::AttachMPIR:     return "AttachMPIR";
+        case ReqType::ReadStringMPIR: return "ReadStringMPIR";
+        case ReqType::ReleaseMPIR:    return "ReleaseMPIR";
+        case ReqType::WaitMPIR:       return "WaitMPIR";
+        case ReqType::TerminateMPIR:  return "TerminateMPIR";
         case ReqType::RegisterApp:    return "RegisterApp";
-        case ReqType::ReleaseApp:     return "ReleaseApp";
         case ReqType::RegisterUtil:   return "RegisterUtil";
         case ReqType::DeregisterApp:  return "DeregisterApp";
+        case ReqType::ReleaseApp:     return "ReleaseApp";
         case ReqType::CheckApp:       return "CheckApp";
         case ReqType::Shutdown:       return "Shutdown";
         default: return "(unknown)";

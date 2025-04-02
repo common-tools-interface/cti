@@ -234,7 +234,15 @@ void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::v
 	}
 
         // launch app
-        assert_true(cti_execToolDaemon(manifestId, daemonPath, v_argv.data(), env_ptr) == SUCCESS, cti_error_str());
+        if (auto rc = cti_execToolDaemon(manifestId, daemonPath, v_argv.data(), env_ptr)) {
+            if (auto err = cti_error_str()) {
+                if (::strstr(err, "Requested node configuration is not available")) {
+                    std::cerr << "Canceling, requested node configuration is not available" << std::endl;
+                    ::exit(127);
+                }
+            }
+            assert_true(rc == SUCCESS, cti_error_str());
+        }
         std::cerr << "App launched. Net info: " << address << " " << std::to_string(ntohs(sa.sin_port)) << "\n";
     }
 

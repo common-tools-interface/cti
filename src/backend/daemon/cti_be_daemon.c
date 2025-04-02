@@ -516,7 +516,7 @@ main(int argc, char **argv)
 
             case 'h':
                 usage();
-                return 1;
+                return 0;
             default:
                 usage();
                 return 1;
@@ -1027,7 +1027,7 @@ main(int argc, char **argv)
         return 1;
     }
 
-    // TODO: Terminate here
+    // Run cleanup and terminate
     if (cleanup)
     {
         struct cti_pids tool_pid = {{0}};

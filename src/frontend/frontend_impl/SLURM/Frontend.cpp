@@ -691,16 +691,40 @@ static auto srunMPIR(FE_daemon& daemon, char const* launcher_path, char const* c
 
     // Capture srun error output
     auto srunPipe = cti::Pipe{};
+    auto use_shim = ::getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR) || ::getenv(CTI_LAUNCHER_SCRIPT_ENV_VAR);
 
     try {
+        if (!use_shim) {
 
-        // Launch program under MPIR control.
-        result = daemon.request_LaunchMPIR(
-            launcher_path, launcher_argv,
-            // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
-            // Capture stderr output in case launch fails
-            ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
-            env_list);
+            // Launch program under MPIR control.
+            result = daemon.request_LaunchMPIR(
+                launcher_path, launcher_argv,
+                // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
+                // Capture stderr output in case launch fails
+                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
+                env_list);
+
+        } else {
+            // launcherPath is path of wrapper script, use sattach to find path of
+            // real srun binary.
+            // An alternative would be to search PATH for the first srun binary with MPIR
+            // symbols.
+            auto sattachPath = cti::findPath(SATTACH);
+            auto slurmDirectory = std::filesystem::path{sattachPath}.parent_path();
+            auto srunPath = std::string{slurmDirectory / "srun"};
+
+            auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
+            auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
+
+            // If CTI_DEBUG is enabled, show wrapper output
+            auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? srunPipe.getWriteFd() : ::open("/dev/null", O_RDWR);
+
+            return daemon.request_LaunchMPIRShim(
+                shimBinaryPath.c_str(), temporaryShimBinDir.c_str(),
+                srunPath.c_str(), launcher_path, launcher_argv,
+                ::open("/dev/null", O_RDWR), outputFd, srunPipe.getWriteFd(),
+                env_list);
+        }
 
         if (result.proctable.empty()) {
             throw std::runtime_error("Launcher provided empty proctable");
@@ -1115,8 +1139,19 @@ cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv(char const* const* launche
 
     auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
 
-    // Start adding the args to the launcher argv array
-    result.add(slurmFrontend.getLauncherName());
+    // Check for launcher wrapper
+    if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR)) {
+        SLURMFrontend::detail::add_quoted_args(result, launcherWrapper);
+    }
+
+    // Check for launcher script
+    if (auto launcherScript = getenv(CTI_LAUNCHER_SCRIPT_ENV_VAR)) {
+        result.add(launcherScript);
+
+    // Use normal launcher from PATH
+    } else {
+        result.add(slurmFrontend.getLauncherName());
+    }
 
     // For each job ID, add 
     // --jobid=<job_id> --mem-per-cpu=0 --mem_bind=no
@@ -2117,20 +2152,17 @@ SLURMFrontend::launchApp(const char * const launcher_args[],
     auto const stderrPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stderrFd);
 
     // construct argv array & instance
-    auto use_shim = false;
     auto launcherArgv = cti::ManagedArgv{};
 
     // Check for launcher wrapper
     if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR)) {
         detail::add_quoted_args(launcherArgv, launcherWrapper);
-        use_shim = true;
     }
 
     // Check for launcher script
     if (auto launcherScript = getenv(CTI_LAUNCHER_SCRIPT_ENV_VAR)) {
         // Use provided launcher script
         launcherArgv.add(launcherScript);
-        use_shim = true;
 
     // Use normal launcher from PATH
     } else {
@@ -2148,43 +2180,18 @@ SLURMFrontend::launchApp(const char * const launcher_args[],
         launcherArgv.add(*arg);
     }
 
-    if (!use_shim) {
+    // Launch srun under MPIR control
+    return srunMPIR(Daemon(), launcherPath.c_str(), launcherArgv.get(), env_list,
+        [](std::string const& node, int count, std::vector<std::string> const& nodes,
+            std::string const& stderrOutput) -> FE_daemon::MPIRResult {
 
-        // Launch srun under MPIR control
-        return srunMPIR(Daemon(), launcherPath.c_str(), launcherArgv.get(), env_list,
-            [](std::string const& node, int count, std::vector<std::string> const& nodes,
-                std::string const& stderrOutput) -> FE_daemon::MPIRResult {
-
-                // Failure case due to oversubscription
-                throw std::runtime_error("Attempted to launch more than "
-                    + std::to_string(count) + " jobs on node " + node + ".\n"
-                    + "The interconnect limits the active number of jobs per node. Please "
-                    + "try to launch on a different set of nodes. srun output:\n"
-                    + stderrOutput);
-            });
-
-    // Use MPIR shim to launch program
-    } else {
-
-        // launcherPath is path of wrapper script, use sattach to find path of
-        // real srun binary.
-        // An alternative would be to search PATH for the first srun binary with MPIR
-        // symbols.
-        auto sattachPath = cti::findPath(SATTACH);
-        auto slurmDirectory = std::filesystem::path{sattachPath}.parent_path();
-        auto srunPath = std::string{slurmDirectory / "srun"};
-
-        auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
-        auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
-
-        // If CTI_DEBUG is enabled, show wrapper output
-        auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
-
-        return Daemon().request_LaunchMPIRShim(
-            shimBinaryPath.c_str(), temporaryShimBinDir.c_str(),
-            srunPath.c_str(), launcherPath.c_str(), launcherArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
-        );
-    }
+            // Failure case due to oversubscription
+            throw std::runtime_error("Attempted to launch more than "
+                + std::to_string(count) + " jobs on node " + node + ".\n"
+                + "The interconnect limits the active number of jobs per node. Please "
+                + "try to launch on a different set of nodes. srun output:\n"
+                + stderrOutput);
+        });
 }
 
 SrunInfo

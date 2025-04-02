@@ -54,6 +54,7 @@ public: // interface
     pid_t getPid();
     void continueRun();
     bool isTerminated() { return !m_proc || m_proc->isTerminated(); }
+    bool isCrashed() { return m_proc && m_proc->isCrashed(); }
     bool isExited() { return m_proc && m_proc->isExited(); }
     int getExitCode() { return m_proc->getExitCode(); }
     void terminate();

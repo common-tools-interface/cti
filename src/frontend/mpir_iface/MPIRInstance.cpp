@@ -114,10 +114,22 @@ int MPIRInstance::waitExit() {
     while (true) {
         m_inferior.continueRun();
 
+        // Exited normally
         if (m_inferior.isExited()) {
             return m_inferior.getExitCode();
-        } else if (m_inferior.isTerminated()) {
+
+        // Exited due to signal
+        } else if (m_inferior.isCrashed()) {
+            log("inferior terminated due to crash\n");
             return -1;
+
+        // According to ProcControlAPI documentation, if process didn't exit
+        // normally or due to crash, it will be considered "terminated",
+        // but actually be detached, not necessarily exited.
+        // Consider it successfully exited in this case.
+        } else if (m_inferior.isTerminated()) {
+            log("inferior considered terminated due to detach\n");
+            return 0;
         }
     }
 }

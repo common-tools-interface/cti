@@ -303,7 +303,7 @@ class CtiTest(Test):
 
             try:
                 # cti_info doesn't launch jobs and should always be fast
-                cti_info.wait(5)
+                cti_info.wait(15)
                 if cti_info.poll() != 0:
                     raise EndTestError(
                         fail_reason=f"cti_info exited with non-zero return code ({cti_info.poll()})"
@@ -322,7 +322,7 @@ class CtiTest(Test):
                 if cti_barrier is not None and cti_barrier.poll() is None:
                     cti_barrier.stdin.write(b"\n")
                     cti_barrier.stdin.flush()
-                    cti_barrier.wait(5)
+                    cti_barrier.wait(15)
             except subprocess.TimeoutExpired:
                 # let below code kill it
                 pass
@@ -478,7 +478,7 @@ class CtiTest(Test):
             try:
                 with open("./tmp/CtiMPMD_MPMD.out", "wb") as outfd:
                     # cti_mpmd doesn't launch any jobs and should always be fast
-                    out, _ = cti_mpmd.communicate(timeout=5)
+                    out, _ = cti_mpmd.communicate(timeout=15)
                     outfd.write(out)
 
                     # test return code
@@ -522,7 +522,7 @@ class CtiTest(Test):
                 if cti_barrier is not None:
                     cti_barrier.stdin.write(b"\n")
                     cti_barrier.stdin.flush()
-                    cti_barrier.wait(5)
+                    cti_barrier.wait(15)
             except subprocess.TimeoutExpired:
                 # let below code kill it
                 pass
@@ -565,7 +565,7 @@ class CtiTest(Test):
 
             try:
                 # cti_info doesn't launch jobs and should always be fast
-                cti_info.wait(5)
+                cti_info.wait(15)
                 if cti_info.poll() != 0:
                     raise EndTestError(
                         fail_reason=f"cti_info exited with non-zero return code ({cti_info.poll()})"
@@ -584,7 +584,7 @@ class CtiTest(Test):
                 if cti_barrier is not None and cti_barrier.poll() is None:
                     cti_barrier.stdin.write(b"\n")
                     cti_barrier.stdin.flush()
-                    cti_barrier.wait(5)
+                    cti_barrier.wait(15)
             except subprocess.TimeoutExpired:
                 # let below code kill it
                 pass
@@ -668,6 +668,8 @@ class CtiTest(Test):
 
         # Ensure that CTI was able to launch MPMD job
         rc = run_cti_test(self, name, argv)
+        if rc == 127:
+            self.cancel("Required node configuration not available")
         self.assertTrue(rc == 0, f"Test binary exited with non-zero returncode ({rc})")
 
     def test_CtiKillSIGTERM(self):

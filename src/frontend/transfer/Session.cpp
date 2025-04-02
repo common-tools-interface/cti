@@ -79,7 +79,12 @@ void Session::finalize() {
     // call cleanup function with DaemonArgv
     // wlm_startDaemon adds the argv[0] automatically, so argv.get() + 1 for arguments.
     writeLog("launchCleanup: launching daemon for cleanup\n");
-    app->startDaemon(daemonArgv.get() + 1, /* synchronous */ true);
+    try {
+        app->startDaemon(daemonArgv.get() + 1, /* synchronous */ true);
+    } catch (std::exception const& ex) {
+        writeLog("launchCleanup: failed to launch daemon: %s\n", ex.what());
+        throw;
+    }
 }
 
 std::weak_ptr<Manifest>
