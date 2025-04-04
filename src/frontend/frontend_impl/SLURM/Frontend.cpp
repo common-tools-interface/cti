@@ -1153,23 +1153,25 @@ cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv(char const* const* launche
         result.add(slurmFrontend.getLauncherName());
     }
 
-    // For each job ID, add 
-    // --jobid=<job_id> --mem-per-cpu=0 --mem_bind=no
+    // For each job ID, add
+    // --jobid=<leader_job_id> --mem-per-cpu=0 --mem_bind=no
     // --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
     // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
     // --input=none --output=none --error=none <tool daemon> <args>
 
     auto first = true;
+    auto leaderId = std::string{};
     for (auto&& [id, layout] : m_stepLayout) {
 
         // Hetjob launch separator
         if (first) {
             first = false;
+            leaderId = id;
         } else {
             result.add(":");
         }
 
-        result.add("--jobid=" + id);
+        result.add("--jobid=" + leaderId);
         result.add("--nodes=" + std::to_string(layout.nodes.size()));
         if (!m_gresSetting.empty()) {
             result.add("--gres=" + m_gresSetting);
