@@ -231,12 +231,15 @@ static auto parse_sacct_hetjobid(std::string const& sacctJobId)
 {
     // Outside salloc, sacct will print job IDs in format <jobid>+<hetjob>.<stepid>
     // Inside salloc, sacct will print job IDs in format <jobid>.<stepid>+<hetjob>
+    // In extern or batch step, stepid will be `extern` or `batch`
 
     // Split IDs
     auto jobId = std::string{};
     auto stepId = std::string{};
     auto hetOffset = std::string{};
     auto in_salloc = false;
+    auto is_batch_step = false;
+    auto is_extern_step = false;
     auto [first, second] = cti::split::string<2>(sacctJobId, '.');
 
     // No step ID
@@ -266,6 +269,11 @@ static auto parse_sacct_hetjobid(std::string const& sacctJobId)
         // Parse ID and offset
         auto job_id = (uint32_t)std::stoul(jobId);
         auto step_id = (uint32_t)std::stoul(stepId);
+        if (stepId == "batch") {
+            is_batch_step = true;
+        } else if (stepId == "extern") {
+            is_extern_step = true;
+        }
 
         if (!hetOffset.empty()) {
 
@@ -277,6 +285,8 @@ static auto parse_sacct_hetjobid(std::string const& sacctJobId)
                 , .step_id = step_id
                 , .het_offset = offset
                 , .in_salloc = in_salloc
+                , .is_batch_step = is_batch_step
+                , .is_extern_step = is_extern_step
             };
 
         // Nonheterogeneous job ID
@@ -286,6 +296,8 @@ static auto parse_sacct_hetjobid(std::string const& sacctJobId)
             return SLURMFrontend::HetJobId
                 { .job_id = job_id
                 , .step_id = step_id
+                , .is_batch_step = is_batch_step
+                , .is_extern_step = is_extern_step
             };
         }
 
@@ -304,7 +316,7 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
 {
     auto result = std::vector<SLURMFrontend::HetJobId>{};
 
-    // If sacct usage was disabled, use only this job ID. Disables MPMD support
+    // If sacct usage was disabled, use only this job ID. Disables MPMD, PrologFlag=contain support
     if (auto disable_sacct = ::getenv(SLURM_DISABLE_SACCT)) {
         if (disable_sacct[0] != '0') {
 
@@ -316,6 +328,8 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
                 , .step_id = step_id
                 , .het_offset = 0
                 , .in_salloc = false
+                , .is_batch_step = false
+                , .is_extern_step = false
             } };
         }
     }
@@ -326,7 +340,8 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
     auto sacctArgv = cti::ManagedArgv{"sacct", "-o", "jobid", "-n", "-j", jobStepId.c_str()};
 
     // Use JSON output
-    { auto sacctJsonArgv = cti::ManagedArgv{};
+    auto run_sacct_json = [&]() {
+        auto sacctJsonArgv = cti::ManagedArgv{};
         sacctJsonArgv.add(sacctArgv.get());
         sacctJsonArgv.add("--json");
 
@@ -375,10 +390,10 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
             Frontend::inst().writeLog("sacct --json failed: %s\n", ex.what());
             result.clear();
         }
-    }
+    };
 
     // Use YAML output
-    if (result.empty()) {
+    auto run_sacct_yaml = [&]() {
         auto sacctYamlArgv = cti::ManagedArgv{};
         sacctYamlArgv.add(sacctArgv.get());
         sacctYamlArgv.add("--yaml");
@@ -419,11 +434,10 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
             Frontend::inst().writeLog("sacct --yaml failed: %s\n", ex.what());
             result.clear();
         }
-    }
+    };
 
     // Use regular output
-    if (result.empty()) {
-
+    auto run_sacct_plaintext = [&]() {
         if (step_id > 9) {
             fprintf(stderr, "warning: failed to parse JSON and YAML output for hetjob ID.\n"
                 "Attempting to fall back to unformatted output, which may be truncated as "
@@ -458,6 +472,78 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
             Frontend::inst().writeLog("sacct failed: %s\n", ex.what());
             result.clear();
         }
+    };
+
+    // Job step may have been launched with PrologFlag contain
+    // This starts a "wrapper" step called `batch` or `extern`, there is a delay before the
+    // real job is registered
+    int retry = 0;
+    int wait_seconds = 5;
+    int max_retry = 24; // Wait up to 2 minutes for contain prolog to complete
+    while (retry < max_retry) {
+
+        // Log and adjust next wait time
+        Frontend::inst().writeLog("%s (%d/%d)\n",
+            (retry == 0) ? "Checking for hetjob IDs" : "Retrying contain prolog wait",
+            retry + 1, max_retry);
+        retry++;
+
+        // Try all sacct variants
+        run_sacct_json();
+        if (result.empty()) {
+            run_sacct_yaml();
+        }
+        if (result.empty()) {
+            run_sacct_plaintext();
+        }
+
+        // Could not parse any job IDs
+        if (result.empty()) {
+
+            // extern steps are registered with squeue before sacct. When the extern step is running,
+            // but before the real step has started, sacct may returns empty.
+            // Check that squeue -j <jobid> -h returns successfully before trying sacct
+            if (job_registered(jobStepId)) {
+                ::sleep(wait_seconds);
+                continue;
+            }
+
+            // Job wasn't registered, break into exception
+            break;
+        }
+
+        for (auto&& hetjobid : result) {
+            auto ss = std::stringstream{};
+            ss << job_id << ".";
+            if (hetjobid.is_batch_step) {
+                ss << "batch";
+            } else if (hetjobid.is_extern_step) {
+                ss << "extern";
+            } else {
+                ss << step_id;
+            }
+            if (hetjobid.het_offset) {
+                ss << "+" << *(hetjobid.het_offset);
+            }
+            if (hetjobid.in_salloc) {
+                ss << " (salloc)";
+            }
+            Frontend::inst().writeLog("%s\n", ss.str().c_str());
+        }
+
+        // Remove wrapper steps
+        result.erase(std::remove_if(result.begin(), result.end(), [](auto&& hetjobid) {
+            return hetjobid.is_batch_step || hetjobid.is_extern_step;
+        }), result.end());
+
+        // Done if have non-wrapper steps
+        if (!result.empty()) {
+            Frontend::inst().writeLog("Found %zu hetjob IDs from %u.%u\n", result.size(), job_id, step_id);
+            break;
+        }
+
+        // Contain prolog not completed yet
+        ::sleep(wait_seconds);
     }
 
     // Check for empty output

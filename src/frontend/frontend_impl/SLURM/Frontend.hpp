@@ -95,6 +95,7 @@ public: // slurm specific types
         uint32_t step_id;
         std::optional<uint32_t> het_offset;
         bool in_salloc;
+        bool is_batch_step, is_extern_step;
 
         // sattach requires appending the hetjob offset to the base job ID
         auto get_sattach_id() const {
