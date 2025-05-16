@@ -206,6 +206,27 @@ TEST(flatten_prefixList, SingleRLE)
     EXPECT_EQ(values, rhs);
 }
 
+TEST(flatten_prefixList, PrefixExecutable)
+{
+    auto const root = parse_json(
+        "{ \"hosts\": [[\"pinoak-login\",[[1,-1]]]]"
+        ", \"executables\": [[\"/signals\",[[2,-1]]]]"
+        ", \"ids\": [[0,1]]"
+        ", \"pids\": [[2581544,1]]"
+        ", \"ranks\": [[1,-1]]"
+        "}");
+    { auto hostList = flux::flatten_prefixList(root.get_child("hosts"));
+        ASSERT_EQ(hostList.size(), 2);
+        EXPECT_EQ(hostList[0], "pinoak-login1");
+        EXPECT_EQ(hostList[0], hostList[1]);
+    }
+    { auto binaryList = flux::flatten_prefixList(root.get_child("executables"));
+        ASSERT_EQ(binaryList.size(), 2);
+        EXPECT_EQ(binaryList[0], "/signals2");
+        EXPECT_EQ(binaryList[0], binaryList[1]);
+    }
+}
+
 TEST(make_hostsPlacement, SingleRank)
 {
     auto const root = parse_json(

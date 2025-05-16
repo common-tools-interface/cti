@@ -1101,8 +1101,20 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         // Get list of binaries. As Flux does not support MPMD, this should only ever
         // be a single binary.
         auto binaryList = flux::flatten_prefixList(proctable.get_child("executables"));
-        if (binaryList.size() != 1) {
-            throw std::runtime_error("expected a single binary launched with Flux. Got " + std::to_string(binaryList.size()));
+
+        // Need at least one binary
+        if (binaryList.empty()) {
+            throw std::runtime_error("Could not extract binary name from proctable response (executables was empty)");
+
+        // Ensure all listed are the same
+        } else if (binaryList.size() > 1) {
+            auto const& firstBinary = binaryList[0];
+            for (size_t i = 1 ; i < binaryList.size(); i++) {
+                if (binaryList[i] != firstBinary) {
+                    throw std::runtime_error("expected a single binary launched with Flux. Got "
+                        + firstBinary + " and " + binaryList[i]);
+                }
+            }
         }
         m_binaryName = std::move(binaryList[0]);
 
