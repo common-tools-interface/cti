@@ -57,10 +57,6 @@
 # dso list of files added to pe cache
 %global cray_dso_list .cray_dynamic_file_list
 
-# cdst-support version
-%global cdst_support_pkgversion_min %(%{_sourcedir}/get_package_data --cdstversionmin)
-%global cdst_support_pkgversion_max %(%{_sourcedir}/get_package_data --cdstversionmax)
-
 # dyninst version
 %global dyninst_pkgversion_min %(%{_sourcedir}/get_package_data --dyninstversionmin)
 %global dyninst_pkgversion_max %(%{_sourcedir}/get_package_data --dyninstversionmax)
@@ -79,8 +75,8 @@
 # System strip command may be too old, use current path
 %global __strip strip
 
-# Filter requires - these all come from the cdst-support rpm
-# These should match what is excluded in the cdst-support rpm specfile!
+# Filter requires - these all come the cray-dyninst rpm
+# These should match what is excluded in the cdst-dyninst rpm specfile!
 %global privlibs             libboost.*
 %global privlibs %{privlibs}|libarchive
 %global privlibs %{privlibs}|libasm
@@ -142,7 +138,7 @@ License:    Linux-OpenIB
 Vendor:     Hewlett Packard Enterprise Development LP
 Group:      Development/System
 Provides:   %{cray_name} = %{pkgversion}
-Requires:   set_default_3, cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < %{cdst_support_pkgversion_max}, cray-dyninst >= %{dyninst_pkgversion_min}, cray-dyninst < %{dyninst_pkgversion_max}
+Requires:   set_default_3, cray-dyninst >= %{dyninst_pkgversion_min}, cray-dyninst < %{dyninst_pkgversion_max}
 Source0:    %{module_template_name}
 Source1:    %{devel_module_template_name}
 Source3:    %{cray_dependency_resolver_template_name}
@@ -168,7 +164,7 @@ Development files for Cray Common Tools Interface
 Summary:    Cray Common Tools Interface test binariess
 Group:      Development
 Provides:   %{cray_name}-tests = %{pkgversion}
-Requires:   cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst-support-devel < %{cdst_support_pkgversion_max}, %{cray_name} = %{pkgversion}, %{cray_name}-devel = %{pkgversion}
+Requires:   %{cray_name} = %{pkgversion}, %{cray_name}-devel = %{pkgversion}
 %description -n %{cray_name}-tests-%{pkgversion}
 Test files for Cray Common Tools Interface
 
@@ -183,7 +179,7 @@ Test files for DST automated post install pipelines
 %setup -q -n %{name} -c -T
 %build
 # external build
-%{__sed} 's|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{version}-%{release}|g;s|<COPYRIGHT>|%{copyright}|g;s|<NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<ARCH>|%{_target_cpu}|g;s|<ATTRIBUTIONS_FILE_PATH>|%{cray_prefix}/%{product}/%{pkgversion}/%{attributions_name}|g;s|<cdst_version_range>|>= %{cdst_support_pkgversion_min}, < %{cdst_support_pkgversion_max}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_notes_file}
+%{__sed} 's|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{version}-%{release}|g;s|<COPYRIGHT>|%{copyright}|g;s|<NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<ARCH>|%{_target_cpu}|g;s|<ATTRIBUTIONS_FILE_PATH>|%{cray_prefix}/%{product}/%{pkgversion}/%{attributions_name}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_notes_file}
 
 %{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE5} > ${RPM_BUILD_DIR}/%{copyright_name}
 %{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE6} > ${RPM_BUILD_DIR}/%{attributions_name}

@@ -65,12 +65,19 @@ m4_ifdef([AX_CODE_COVERAGE], [
 ])
 
 dnl Detect CDST support path if loaded
-AS_IF([test -d "$CRAY_CDST_SUPPORT_INSTALL_DIR"], [
-  with_libarchive="$CRAY_CDST_SUPPORT_INSTALL_DIR"
-  with_libiconv=""
-  with_libssh2_pc="$CRAY_CDST_SUPPORT_INSTALL_DIR/lib/pkgconfig/libssh2.pc"
-  with_boost="$CRAY_CDST_SUPPORT_INSTALL_DIR"
-])
+#AS_IF([test -d "$CRAY_CDST_SUPPORT_INSTALL_DIR"], [
+#  with_libarchive="$CRAY_CDST_SUPPORT_INSTALL_DIR"
+#  with_libiconv=""
+#  with_libssh2_pc="$CRAY_CDST_SUPPORT_INSTALL_DIR/lib/pkgconfig/libssh2.pc"
+#  with_boost="$CRAY_CDST_SUPPORT_INSTALL_DIR"
+#])
+
+dnl Detect dyninst if path is loaded
+AS_IF([test -d "$CRAY_DYNINST_INSTALL_DIR"], [
+  with_boost="$ac_pwd/external/boost"
+  with_libssh2_pc="${prefix}/lib/pkgconfig/libssh2.pc"
+  with_libarchive_pc="${prefix}/lib/pkgconfig/libarchive.pc"
+  ])
 
 dnl Get libiconv
 AC_ARG_WITH([libiconv],
@@ -80,27 +87,16 @@ AC_ARG_WITH([libiconv],
     [LIBICONV_PKG_CONFIG_PATH="$with_libiconv/lib/pkgconfig"])],
   [])
 
-dnl Set libarchive path and get pkg-config flags
-LIBARCHIVE_INSTALL_DIR="$with_libarchive"
-AC_SUBST([LIBARCHIVE_INSTALL_DIR])
-pkg_config_path_SAVE="$PKG_CONFIG_PATH"
-PKG_CONFIG_PATH="$LIBICONV_PKG_CONFIG_PATH:$PKG_CONFIG_PATH"
-PKG_CHECK_MODULES([LIBARCHIVE], [$LIBARCHIVE_INSTALL_DIR/lib/pkgconfig/libarchive.pc])
-PKG_CONFIG_PATH="$pkg_config_path_SAVE"
-
 dnl Get libarchive path
-AC_ARG_WITH([libarchive],
-  [AS_HELP_STRING[--with-libarchive=<path>],
-    [The top-level directory to the libarchive installation])],
-  [AS_IF([test -d "$with_libarchive"],
-    [AC_MSG_NOTICE([Using libarchive from "$with_libarchive"])],
-    [AC_MSG_ERROR([--with-libarchive directory "$with_libarchive" not found])])],
-  [AC_MSG_ERROR([Use --with-libarchive=<path> to specify the path to libarchive])])
+AC_ARG_WITH([libarchive_pc],
+  [AS_HELP_STRING[--with-libarchive-pc=<path>],
+    [The path to the libarchive pkg-config script])],
+  [AS_IF([test -f "$with_libarchive_pc"],
+    [AC_MSG_NOTICE([Using libarchive script "$with_libarchive_pc"])],
+    [AC_MSG_ERROR([--with-libarchive-pc file "$with_libarchive_pc" not found])])],
+  [AC_MSG_ERROR([Use --with-libarchive-pc=<path> to specify the libarchive pkg-config script path])])
 
-dnl Set libarchive path and get pkg-config flags
-LIBARCHIVE_INSTALL_DIR="$with_libarchive"
-AC_SUBST([LIBARCHIVE_INSTALL_DIR])
-PKG_CHECK_MODULES([LIBARCHIVE], [$LIBARCHIVE_INSTALL_DIR/lib/pkgconfig/libarchive.pc])
+PKG_CHECK_MODULES([LIBARCHIVE], [$with_libarchive_pc])
 
 dnl Get libssh2 pkgconfig script path
 AC_ARG_WITH([libssh2_pc],
@@ -114,14 +110,6 @@ AC_ARG_WITH([libssh2_pc],
 dnl Set libssh2 path and get pkg-config flags
 PKG_CHECK_MODULES([LIBSSH2], [$with_libssh2_pc])
 
-dnl Use CDST support rpath from pkg-config
-AS_IF([test -d "$CRAY_CDST_SUPPORT_INSTALL_DIR"], [
-  PKG_CHECK_MODULES([CDST_SUPPORT], [$CRAY_CDST_SUPPORT_INSTALL_DIR/lib/pkgconfig/cray-cdst-support.pc],
-    [LIBSSH2_LIBS="$LIBSSH2_LIBS $CDST_SUPPORT_LIBS"],
-    [AC_MSG_NOTICE([warning: detected CDST support, but failed to run pkg-config script])]
-  )
-])
-
 dnl Get Boost path
 AC_ARG_WITH([boost],
   [AS_HELP_STRING[--with-boost=<path>],
@@ -134,8 +122,9 @@ AC_ARG_WITH([boost],
 dnl Set Boost path and include flags
 BOOST_INSTALL_DIR="$with_boost"
 AC_SUBST([BOOST_INSTALL_DIR])
-BOOST_CFLAGS="-I$with_boost/include"
+BOOST_CFLAGS="-I$with_boost"
 AC_SUBST([BOOST_CFLAGS])
+AC_MSG_NOTICE([BOOST_CFLAGS ${BOOST_CFLAGS}])
 
 dnl Detect Cray Dyninst path if loaded
 AS_IF([test -d "$CRAY_DYNINST_INSTALL_DIR"], [

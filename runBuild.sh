@@ -11,6 +11,13 @@
 # used, reproduced or disclosed in any form.
 #
 
+nodeps=
+for arg in "$@"; do
+    if [ $arg == "--nodeps" ]; then
+	nodeps=1
+    fi
+done
+
 echo "############################################"
 echo "#            Setup environment.            #"
 echo "############################################"
@@ -36,13 +43,72 @@ fi
 
 setup_modules
 
-module load cray-cdst-support
-check_exit_status
-
 module load cray-dyninst
 check_exit_status
 
 module list
+
+if [ -z "$nodeps" ]; then 
+    echo "############################################"
+    echo "#             Building libssh2             #"
+    echo "############################################"
+
+    # ensure submodule is checked out
+    if [[ ! -f $top_level/external/libssh2/README.md ]]; then
+	echo "libssh2 submodule not checked out..."
+	exit 1
+    fi
+
+    cd $top_level/external/libssh2
+    check_exit_status
+
+    ./buildconf
+    check_exit_status
+
+    ./configure --prefix=$install_dir
+    check_exit_status
+
+    make $cdst_j_flags
+    check_exit_status
+
+    make $cdst_j_flags install
+    check_exit_status
+
+    cd $top_level
+
+    echo "############################################"
+    echo "#            Building libarchive           #"
+    echo "############################################"
+
+    # ensure submodule is checked out
+    if [[ ! -f $top_level/external/libarchive/README.md ]]; then
+	echo "libarchive submodule not checked out..."
+	exit 1
+    fi
+
+    cd $top_level/external/libarchive
+    check_exit_status
+
+    autoreconf -ifv
+    check_exit_status
+
+    ./configure --prefix=$install_dir --with-pic --without-expat --without-xml2 \
+		--without-openssl --without-nettle --without-lzo2 --without-lzma --without-libiconv-prefix --without-iconv \
+		--without-lzmadec --without-bz2lib --disable-bsdtar --disable-bsdcpio --disable-acl
+    check_exit_status
+
+    make $cdst_j_flags
+    check_exit_status
+
+    make $cdst_j_flags install
+    check_exit_status
+
+    # the .la file interferes with the static build for the cti backend
+    rm $install_dir/lib/libarchive.la 
+
+    cd $top_level
+
+fi
 
 echo "############################################"
 echo "#      Generating configure files          #"
@@ -54,6 +120,9 @@ check_exit_status
 echo "############################################"
 echo "#            Calling Configure             #"
 echo "############################################"
+
+echo "CRAY_DYNINST_INSTALL_DIR = $CRAY_DYNINST_INSTALL_DIR"
+
 # Create the make files
 ./configure --prefix="$install_dir"
 check_exit_status

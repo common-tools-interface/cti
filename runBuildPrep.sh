@@ -34,13 +34,9 @@ if [[ "$target_pm" == "$cdst_pm_zypper" ]]; then
         libtool \
         rpm-build \
         python3-pip \
-        zlib-devel
+        zlib-devel \
+	libarchive-devel
     check_exit_status
-
-    if [[ "$target_os" == "$cdst_os_sles15sp4" ]]; then
-      zypper --non-interactive install libopenssl-1_1-devel
-      check_exit_status
-    fi
 
 elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
     if [[ "$target_os" == "$cdst_os_centos8" ]]; then 
@@ -63,7 +59,8 @@ elif [[ "$target_pm" == "$cdst_pm_yum" ]]; then
         tcl \
         python3-pip \
         wget \
-        autoconf-archive
+        autoconf-archive \
+	libarchive-devel
     check_exit_status
 
 else

@@ -15,9 +15,6 @@ source ./external/cdst_build_library/build_lib
 
 setup_modules
 
-module load cray-cdst-support
-check_exit_status
-
 module load cray-dyninst
 check_exit_status
 

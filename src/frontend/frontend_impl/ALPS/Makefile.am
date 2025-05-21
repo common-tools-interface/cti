@@ -15,7 +15,8 @@ noinst_LTLIBRARIES = libalps.la
 
 libalps_la_SOURCES		= Frontend.cpp
 libalps_la_CXXFLAGS	= -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl -I$(INCLUDE) -fPIC \
-						$(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS) -I$(LIBALPS_HEADERS)
+						$(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS) -I$(LIBALPS_HEADERS) \
+					$(BOOST_CFLAGS)
 libalps_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS) $(BOOST_CFLAGS)
 libalps_la_LDFLAGS		= -Wl,--no-undefined \
 						$(AM_LDFLAGS)
