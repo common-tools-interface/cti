@@ -205,6 +205,8 @@ Test files for DST automated post install pipelines
 %{__cp} -a %{external_build_dir}/lib/libctipreloadpals.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_be.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_fe.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
+%{__cp} -a %{external_build_dir}/lib/libssh2.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
+%{__cp} -a %{external_build_dir}/lib/libarchive.so*          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 
 # Libraries static
 # pkg-config
@@ -632,6 +634,8 @@ fi
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libctipreloadpals.so
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_be.so*
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_fe.so*
+%{prefix}/%{cray_product}/%{pkgversion}/lib/libssh2.so*
+%{prefix}/%{cray_product}/%{pkgversion}/lib/libarchive.so*
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_be_daemon%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_fe_daemon%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/mpir_shim%{pkgversion}
