@@ -74,7 +74,7 @@ dnl Detect CDST support path if loaded
 
 dnl Detect dyninst if path is loaded
 AS_IF([test -d "$CRAY_DYNINST_INSTALL_DIR"], [
-  with_boost="$ac_pwd/external/boost"
+  with_boost="$CRAY_DYNINST_INSTALL_DIR"
   with_libssh2_pc="${prefix}/lib/pkgconfig/libssh2.pc"
   with_libarchive_pc="${prefix}/lib/pkgconfig/libarchive.pc"
   ])
@@ -122,7 +122,7 @@ AC_ARG_WITH([boost],
 dnl Set Boost path and include flags
 BOOST_INSTALL_DIR="$with_boost"
 AC_SUBST([BOOST_INSTALL_DIR])
-BOOST_CFLAGS="-I$with_boost"
+BOOST_CFLAGS="-I$with_boost/include"
 AC_SUBST([BOOST_CFLAGS])
 AC_MSG_NOTICE([BOOST_CFLAGS ${BOOST_CFLAGS}])
 

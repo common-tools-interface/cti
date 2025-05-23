@@ -27,10 +27,6 @@
 	path = external/libssh2
 	url = git@github.hpe.com:hpcde/hpc-cdst-mirror-github-libssh2.git
 	branch = hpe
-[submodule "external/boost"]
-	path = external/boost
-	url = git@github.hpe.com:hpcde/cdst-boost.git
-	branch = hpe
 [submodule "external/libarchive"]
 	path = external/libarchive
 	url = git@github.hpe.com:hpcde/hpc-cdst-mirror-github-libarchive.git

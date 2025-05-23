@@ -125,6 +125,9 @@ echo "CRAY_DYNINST_INSTALL_DIR = $CRAY_DYNINST_INSTALL_DIR"
 
 # Create the make files
 ./configure --prefix="$install_dir"
+if [ "$?" -ne 0 ]; then
+    cat config.log
+fi
 check_exit_status
 
 # Dump config.log if configure fails
