@@ -6,20 +6,6 @@
   spec_file: fake.specfile
   build: rpmBuild.sh
 
-- name: rhel_9_4_x86_64
-  os: rhel_9_4_pe
-  arch: x86_64
-  image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-rhel9_4_build_environment:latest
-  spec_file: fake.specfile
-  build: rpmBuild.sh
-
-- name: rhel_9_4_aarch64
-  os: rhel_9_4_pe
-  arch: aarch64
-  image: arti.hpc.amslabs.hpecorp.net/dstbuildenv-docker-master-local/cray-rhel9_4_aarch64_build_environment:latest
-  spec_file: fake.specfile
-  build: rpmBuild.sh
-
 - name: rhel_9_5_x86_64
   os: rhel_9_5_pe
   arch: x86_64
