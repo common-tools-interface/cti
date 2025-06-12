@@ -819,6 +819,15 @@ static auto srunMPIR(FE_daemon& daemon, char const* launcher_path, char const* c
             throw std::runtime_error("Launcher proctable had negative PID");
         }
 
+        // Check for node slurmstepd failure
+        if (result.job_id > 0) {
+            auto state = job_step_running(std::to_string(result.job_id),
+                std::to_string(result.step_id));
+            if (state != JobStepStatus::Running) {
+                throw std::runtime_error("Task launch failure");
+            }
+        }
+
     } catch (std::exception const& ex) {
 
         // Get stderr output from srun and add to error message

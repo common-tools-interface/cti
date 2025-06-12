@@ -140,6 +140,7 @@ public: // type definitions
     {
         DaemonAppId mpir_id;
         pid_t launcher_pid;
+        uint32_t job_id, step_id;
         MPIRProctable proctable;
         BinaryRankMap binaryRankMap;
     };
@@ -285,6 +286,7 @@ public: // type definitions
         RespType type;
         DaemonAppId mpir_id;
         pid_t launcher_pid;
+        uint32_t job_id, step_id;
         int num_pids;
         // after sending this struct, send `num_pids` elements of:
         // - pid, null-terminated hostname, null-terminated executable name

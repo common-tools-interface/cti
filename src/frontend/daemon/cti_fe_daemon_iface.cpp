@@ -241,6 +241,8 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<ssize_t(char*, size_
     FE_daemon::MPIRResult result
         { .mpir_id = mpirResp.mpir_id
         , .launcher_pid = mpirResp.launcher_pid
+        , .job_id = mpirResp.job_id
+        , .step_id = mpirResp.step_id
         , .proctable = {}
         , .binaryRankMap = {}
     };
