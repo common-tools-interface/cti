@@ -546,13 +546,17 @@ PALSFrontend::attachApp(std::string const& jobOrApId)
         // Running in allocation
         if (::getenv(PALS_EXEC_HOST)) {
             throw std::runtime_error("Attempted to attach to PALS application "
-                + apId + ", but PALS reported that it was not running");
+                + apId + ", but PALS reported that it was not running.\n"
+                "If the application is running on a single node, try relaunching it "
+                "with the environment setting PALS_LOCAL_LAUNCH=0");
 
         // Execution host manually supplied
         } else {
             throw std::runtime_error("Attempted to attach to PALS application "
                 + apId + " running on host " + execHost + ", but PALS reported "
-                "that it was not running");
+                "that it was not running.\n"
+                "If the application is running on a single node, try relaunching it "
+                "with the environment setting PALS_LOCAL_LAUNCH=0");
         }
     }
 

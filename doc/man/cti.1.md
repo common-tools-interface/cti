@@ -45,6 +45,9 @@ supplied to start the attach process.
   - `<pbs_job_id>:<pals_apid>` If the PBS job ID is known, it can
     be supplied before the job ID separated by a colon. In this form, the
     tool does not have to be launched inside the same PBS allocation as the host.
+  - Note: PALS has a launch optimization for single-node runs that hosts the
+    application locally and does not report it to the PALS service. To enable
+    attaching, launch single-node applications with **PALS_LOCAL_LAUNCH=0**.
 - *Flux*: `<flux_jobid>` Can be either the **f58**-style job ID reported by most
   Flux utilities, or the numeric job ID reported by Flux API functions.
 - *ALPS*: `<aprun_id>` Supply the ALPS application ID

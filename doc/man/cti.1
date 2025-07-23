@@ -52,6 +52,11 @@ allocation as the host.
 supplied before the job ID separated by a colon.
 In this form, the tool does not have to be launched inside the same PBS
 allocation as the host.
+.IP \[bu] 2
+Note: PALS has a launch optimization for single-node runs that hosts the
+application locally and does not report it to the PALS service.
+To enable attaching, launch single-node applications with
+\f[B]PALS_LOCAL_LAUNCH=0\f[R].
 .RE
 .IP \[bu] 2
 \f[I]Flux\f[R]: \f[C]<flux_jobid>\f[R] Can be either the
