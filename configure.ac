@@ -64,21 +64,6 @@ m4_ifdef([AX_CODE_COVERAGE], [
   AX_CODE_COVERAGE
 ])
 
-dnl Detect CDST support path if loaded
-#AS_IF([test -d "$CRAY_CDST_SUPPORT_INSTALL_DIR"], [
-#  with_libarchive="$CRAY_CDST_SUPPORT_INSTALL_DIR"
-#  with_libiconv=""
-#  with_libssh2_pc="$CRAY_CDST_SUPPORT_INSTALL_DIR/lib/pkgconfig/libssh2.pc"
-#  with_boost="$CRAY_CDST_SUPPORT_INSTALL_DIR"
-#])
-
-dnl Detect dyninst if path is loaded
-AS_IF([test -d "$CRAY_DYNINST_INSTALL_DIR"], [
-  with_boost="$CRAY_DYNINST_INSTALL_DIR"
-  with_libssh2_pc="${prefix}/lib/pkgconfig/libssh2.pc"
-  with_libarchive_pc="${prefix}/lib/pkgconfig/libarchive.pc"
-  ])
-
 dnl Get libiconv
 AC_ARG_WITH([libiconv],
   [AS_HELP_STRING[--with-libiconv=<path>],
@@ -126,21 +111,6 @@ BOOST_CFLAGS="-I$with_boost/include"
 AC_SUBST([BOOST_CFLAGS])
 AC_MSG_NOTICE([BOOST_CFLAGS ${BOOST_CFLAGS}])
 
-dnl Detect Cray Dyninst path if loaded
-AS_IF([test -d "$CRAY_DYNINST_INSTALL_DIR"], [
-  with_cray_dyninst="$CRAY_DYNINST_INSTALL_DIR"
-])
-
-dnl Get cray-dyninst path
-AC_ARG_WITH([cray-dyninst],
-  [AS_HELP_STRING[--with-cray-dyninst=<path>],
-    [The top-level directory to the cray-dyninst installation])],
-  [AS_IF([test -d "$with_cray_dyninst"],
-    [AC_MSG_NOTICE([Using cray-dyninst from "$with_cray_dyninst"])
-      PKG_CHECK_MODULES([DYNINST], [$with_cray_dyninst/lib/pkgconfig/cray-dyninst.pc])],
-    [AC_MSG_ERROR([--with-cray-dyninst directory "$with_cray_dyninst" not found])])],
-  [with_cray_dyninst="no"])
-
 dnl Get dyninst path
 AC_ARG_WITH([dyninst],
   [AS_HELP_STRING[--with-dyninst=<path>],
@@ -151,9 +121,9 @@ AC_ARG_WITH([dyninst],
     [AC_MSG_ERROR([--with-dyninst directory "$with_dyninst" not found])])],
   [with_dyninst="no"])
 
-dnl Check if either cray-dyninst or dyninst was provided
+dnl Check if cray-dyninst or dyninst was provided
 AS_IF([test "x$DYNINST_LIBS" = x],
-  AC_MSG_ERROR([Use --with-cray-dyninst or --with-dyninst to specify the path to dyninst])
+  AC_MSG_ERROR([Use --with-dyninst to specify the path to dyninst])
 )
 
 dnl Add Boost headers to Dyninst flags
