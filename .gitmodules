@@ -1,33 +1,9 @@
-[submodule "external/cdst_build_library"]
-	path = external/cdst_build_library
-	url = git@github.hpe.com:hpcde/cdst-cdst-build-library.git
-	branch = master
-[submodule "rpmbuild/SOURCES/set_default"]
-	path = rpmbuild/SOURCES/set_default
-	url = git@github.hpe.com:hpcde/cdeux-set-default.git
-	branch = master
-[submodule "tests/test_support/googletest"]
-	path = tests/test_support/googletest
-	url = git@github.hpe.com:hpcde/cdst-googletest.git
-	branch = hpe
-[submodule "external/libalps_headers"]
-	path = external/libalps_headers
-	url = git@github.hpe.com:hpcde/cdst-libalps-headers.git
-	branch = master
-[submodule "tests/function/cdst-test"]
-	path = tests/function/cdst-test
-	url = git@github.hpe.com:hpcde/cdst-cdst-test.git
-	branch = master
-[submodule "external/changelog"]
-	path = external/changelog
-	url = git@github.hpe.com:hpcde/devops-changelog.git
-	branch = master
-
 [submodule "external/libssh2"]
 	path = external/libssh2
-	url = git@github.hpe.com:hpcde/hpc-cdst-mirror-github-libssh2.git
-	branch = hpe
+	url = https://github.com/libssh2/libssh2.git
+	branch = master
+
 [submodule "external/libarchive"]
 	path = external/libarchive
-	url = git@github.hpe.com:hpcde/hpc-cdst-mirror-github-libarchive.git
-	branch = hpe
+	url = git@github.com:libarchive/libarchive.git
+	branch = release
