@@ -606,9 +606,16 @@ static auto verify_MPIR_symbols(System const& system, WLM const& wlm,
         return std::make_tuple(MPIRSymbolStatus::LauncherNotFound, std::string{});
     }
 
+    // Skip check if disabled
+    if (auto skip_launcher_check = ::getenv(CTI_SKIP_LAUNCHER_CHECK_ENV_VAR)) {
+        if (skip_launcher_check[0] == '1') {
+            return std::make_tuple(MPIRSymbolStatus::Ok, launcherPath);
+        }
+    }
+
     // Check that the launcher is a binary and not a script
     { auto binaryTestArgv = cti::ManagedArgv{"sh", "-c",
-        "file --mime -L " + launcherPath + " | grep -E 'application/x-(executable|sharedlib)'"};
+        "file --mime -L " + launcherPath + " | grep -E 'application/x-(executable|pie-executable|sharedlib|object|elf)'"};
         if (cti::Execvp::runExitStatus("sh", binaryTestArgv.get())) {
             return std::make_tuple(MPIRSymbolStatus::NotBinaryFile, launcherPath);
         }
@@ -630,7 +637,7 @@ static auto verify_MPIR_symbols(System const& system, WLM const& wlm,
         }
     }
 
-    return std::make_tuple(MPIRSymbolStatus::Ok, launcherPath);;
+    return std::make_tuple(MPIRSymbolStatus::Ok, launcherPath);
 }
 
 static bool verify_PALS_configured(System const& system, WLM const& wlm,
@@ -930,10 +937,12 @@ inaccessible, or lacks permissions for reading and writing by the current user \
         }
 
     } else {
-        throw std::runtime_error("No Flux API socket information was found in the environment \
-(FLUX_URI was empty). Ensure that a Flux session has been started, and that tool launch was \
-initiated inside the Flux session. \
-(tried " + format_System_WLM(system, wlm) + ")");
+
+        char const* flux_argv[] = {"flux", "jobs", nullptr};
+        if (cti::Execvp::runExitStatus("flux", (char* const*)flux_argv)) {
+            throw std::runtime_error("Failed to run `flux jobs`. Ensure Flux is properly configured "
+                "and accessible on your system\n (tried " + format_System_WLM(system, wlm) + ")");
+        }
     }
 
     // Find path to libflux
@@ -1357,7 +1366,8 @@ Frontend::~Frontend()
                 continue;
 
             // verify that the owning process is gone
-            if (!::kill(pid, 0)) continue;
+            auto kill_rc = ::kill(pid, 0);
+            if ((kill_rc == 0) || (kill_rc == EPERM)) continue;
 
             to_remove.push_back(dir_entr.path());
         }

@@ -501,10 +501,16 @@ _cti_pals_submitJobScript(char const* script_path, char const* const* launcher_a
     )
 }
 
+static cti_app_id_t
+_cti_pals_launchAppBarrierNonMpi(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    char const* input_file, const char *chdir_path, const char * const env_list[]);
+// Implementation at end of file
+
 static cti_pals_ops_t _cti_pals_ops = {
     .getApid      = _cti_pals_getApid,
     .registerApid = _cti_pals_registerApid,
-    .submitJobScript = _cti_pals_submitJobScript
+    .submitJobScript = _cti_pals_submitJobScript,
+    .launchAppBarrierNonMpi = _cti_pals_launchAppBarrierNonMpi
 };
 
 // SSH WLM extensions
@@ -564,8 +570,17 @@ _cti_flux_registerJob(char const* job_id) {
     )
 }
 
+static char*
+_cti_flux_getJobid(pid_t launcher_pid) {
+    CHECK_FLUX_RUN_SAFELY((char*)nullptr,
+        auto&& fe = downcastFE<FluxFrontend>();
+        return strdup(fe.getJobid(launcher_pid).c_str());
+    )
+}
+
 static cti_flux_ops_t _cti_flux_ops = {
     .registerJob = _cti_flux_registerJob,
+    .getJobid = _cti_flux_getJobid
 };
 
 static cti_app_id_t
@@ -673,21 +688,64 @@ cti_releaseApp(cti_app_id_t appId) {
     }, 1);
 }
 
-namespace
-{
-    enum class LaunchBarrierMode
-        { Disabled = 0
-        , Enabled  = 1
-    };
-}
-
-static cti_app_id_t
-launchAppImplementation(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
-    const char *input_file, const char *chdir_path, const char * const env_list[],
-    LaunchBarrierMode const launchBarrierMode)
+static auto
+fixLaunchEnvironment(const char * const env_list[])
 {
     auto&& fe = Frontend::inst();
 
+    // If LD_PRELOAD was set globally, ensure that the global value gets added to the job environment
+    auto fixedEnvVars = cti::ManagedArgv{};
+    auto const globalLdPreload = fe.getGlobalLdPreload();
+    if (!globalLdPreload.empty()) {
+
+        // If LD_PRELOAD is set in the job environment, the global LD_PRELOAD will be prepended
+        if (env_list != nullptr) {
+            auto ldPreloadAdded = false;
+            for (int i=0; env_list[i] != nullptr; ++i) {
+
+                if (strncmp(env_list[i], "LD_PRELOAD", 10) == 0) {
+                    // Find separator '='
+                    const char * sub_ptr = strrchr(env_list[i], '=');
+                    if (sub_ptr == nullptr) {
+                        throw std::runtime_error("Invalid environment variable set: '" +
+                            std::string{env_list[i]} + "'");
+                    }
+
+                    // Advance past '='
+                    ++sub_ptr;
+
+                    fixedEnvVars.add("LD_PRELOAD=" + globalLdPreload + ":" + sub_ptr);
+
+                    ldPreloadAdded = true;
+
+                } else {
+                    // Environment variable is not LD_PRELOAD, add unchanged to job environment
+                    fixedEnvVars.add(env_list[i]);
+                }
+            }
+
+            // If LD_PRELOAD was not set in the job environment, add the global LD_PRELOAD value
+            if (!ldPreloadAdded) {
+                fixedEnvVars.add("LD_PRELOAD=" + globalLdPreload);
+            }
+
+        } else {
+            // No job-specific environment provided
+            fixedEnvVars.add("LD_PRELOAD=" + globalLdPreload);
+        }
+
+    // No LD_PRELOAD to rewrite
+    } else if (env_list != nullptr) {
+        fixedEnvVars.add(env_list);
+    }
+
+	return fixedEnvVars;
+}
+
+static void
+checkLaunchArguments(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    const char *input_file, const char *chdir_path, const char * const env_list[])
+{
     // If stdout or stderr FDs are provided, ensure that they are writable
     if ((stdout_fd > 0) && !cti::canWriteFd(stdout_fd)) {
         throw std::runtime_error("Invalid stdoutFd argument. No write access.");
@@ -705,86 +763,9 @@ launchAppImplementation(const char * const launcher_argv[], int stdout_fd, int s
         throw std::runtime_error("Invalid chdirPath argument. No RWX access.");
     }
 
-    // If LD_PRELOAD was set globally, ensure that the global value gets added to the job environment
-    auto fixedEnvVars = cti::ManagedArgv{};
-    auto const globalLdPreload = fe.getGlobalLdPreload();
-    if (!globalLdPreload.empty()) {
-
-        // If LD_PRELOAD is set in the job environment, the global LD_PRELOAD will be prepended
-        if (env_list != nullptr) {
-            auto ldPreloadAdded = false;
-            for (int i=0; env_list[i] != nullptr; ++i) {
-
-                if (strcmp(env_list[i], "LD_PRELOAD") == 0) {
-                    // Find separator '='
-                    const char * sub_ptr = strrchr(env_list[i], '=');
-                    if (sub_ptr == nullptr) {
-                        throw std::runtime_error("Invalid environment variable set: '" +
-                            std::string{env_list[i]} + "'");
-                    }
-
-                    // Advance past '='
-                    ++sub_ptr;
-
-                    // Remove beginning / trailing quotation marks
-
-                    // Conditionally advance past beginning quotation mark
-                    if (*sub_ptr == '"') {
-                        ++sub_ptr;
-                    }
-
-                    // Determine if trailing quote is present
-                    auto trailingQuotePresent = false;
-                    for (char const* cursor = sub_ptr; *cursor != '\0'; cursor++) {
-                        if (cursor[0] == '"') {
-
-                            // Ensure that the quote is trailing
-                            if (cursor[1] != '\0') {
-                                throw std::runtime_error("Invalid environment variable set: '" +
-                                    std::string{env_list[i]} + "'");
-                            }
-
-                            trailingQuotePresent = true;
-                        }
-                    }
-
-                    // Prepend global LD_PRELOAD value to job environment LD_PRELOAD
-                    fixedEnvVars.add(std::string{"LD_PRELOAD=\""}
-                        + globalLdPreload + ":" + sub_ptr
-                        + (trailingQuotePresent ? "" : "\""));
-
-                    ldPreloadAdded = true;
-
-                } else {
-                    // Environment variable is not LD_PRELOAD, add unchanged to job environment
-                    fixedEnvVars.add(env_list[i]);
-                }
-            }
-
-            // If LD_PRELOAD was not set in the job environment, add the global LD_PRELOAD value
-            if (!ldPreloadAdded) {
-                fixedEnvVars.add(std::string{"LD_PRELOAD=\""} + globalLdPreload + "\"");
-            }
-
-        } else {
-            // No job-specific environment provided
-            fixedEnvVars.add(std::string{"LD_PRELOAD=\""} + globalLdPreload + "\"");
-        }
-
-        // Set job environment list to the fixed list containing the global LD_PRELOAD value
-        env_list = (const char * const *)fixedEnvVars.get();
-    }
-
-    if (env_list)
+    if (env_list) {
         cti::enforceValidEnvStrings(env_list);
-
-    // If using barrier mode, call the barrier launch implementation
-    auto wp = (launchBarrierMode == LaunchBarrierMode::Disabled)
-        ? fe.launch(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list)
-        : fe.launchBarrier(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list);
-
-    // Assign a CTI application ID to the newly launched application
-    return fe.Iface().trackApp(wp);
+	}
 }
 
 cti_app_id_t
@@ -792,10 +773,14 @@ cti_launchApp(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
     const char *input_file, const char *chdir_path, const char * const env_list[])
 {
     return FE_iface::runSafely(g_iface_mtx, __func__, [&](){
+        auto&& fe = Frontend::inst();
 
-        // Delegate to common launch implementation
-        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list,
-            LaunchBarrierMode::Disabled);
+        auto fixedEnvList = fixLaunchEnvironment(env_list);
+        checkLaunchArguments(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+        auto wp = fe.launch(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+
+        // Assign a CTI application ID to the newly launched application
+        return fe.Iface().trackApp(wp);
 
     }, APP_ERROR);
 }
@@ -805,6 +790,7 @@ cti_launchApp_fd(const char * const launcher_argv[], int stdout_fd, int stderr_f
     int stdin_fd, const char *chdir_path, const char * const env_list[])
 {
     return FE_iface::runSafely(g_iface_mtx, __func__, [&](){
+        auto&& fe = Frontend::inst();
 
         // Build path to file descriptor, if provided
         auto inputFile = std::string{};
@@ -812,11 +798,14 @@ cti_launchApp_fd(const char * const launcher_argv[], int stdout_fd, int stderr_f
             inputFile = "/proc/self/fd/" + std::to_string(stdin_fd);
         }
 
-        // Delegate to common launch implementation
-        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd,
-            (!inputFile.empty()) ? inputFile.c_str() : nullptr,
-            chdir_path, env_list,
-            LaunchBarrierMode::Disabled);
+        auto input_file = (!inputFile.empty()) ? inputFile.c_str() : nullptr;
+
+        auto fixedEnvList = fixLaunchEnvironment(env_list);
+        checkLaunchArguments(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+        auto wp = fe.launch(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+
+        // Assign a CTI application ID to the newly launched application
+        return fe.Iface().trackApp(wp);
 
     }, APP_ERROR);
 }
@@ -826,10 +815,14 @@ cti_launchAppBarrier(const char * const launcher_argv[], int stdout_fd, int stde
     const char *input_file, const char *chdir_path, const char * const env_list[])
 {
     return FE_iface::runSafely(g_iface_mtx, __func__, [&](){
+        auto&& fe = Frontend::inst();
 
-        // Delegate to common launch implementation
-        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, env_list,
-            LaunchBarrierMode::Enabled);
+        auto fixedEnvList = fixLaunchEnvironment(env_list);
+        checkLaunchArguments(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+        auto wp = fe.launchBarrier(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+
+        // Assign a CTI application ID to the newly launched application
+        return fe.Iface().trackApp(wp);
 
     }, APP_ERROR);
 }
@@ -839,6 +832,7 @@ cti_launchAppBarrier_fd(const char * const launcher_argv[], int stdout_fd, int s
     int stdin_fd, const char *chdir_path, const char * const env_list[])
 {
     return FE_iface::runSafely(g_iface_mtx, __func__, [&](){
+        auto&& fe = Frontend::inst();
 
         // Build path to file descriptor, if provided
         auto inputFile = std::string{};
@@ -846,11 +840,14 @@ cti_launchAppBarrier_fd(const char * const launcher_argv[], int stdout_fd, int s
             inputFile = "/proc/self/fd/" + std::to_string(stdin_fd);
         }
 
-        // Delegate to common launch implementation
-        return launchAppImplementation(launcher_argv, stdout_fd, stderr_fd,
-            (!inputFile.empty()) ? inputFile.c_str() : nullptr,
-            chdir_path, env_list,
-            LaunchBarrierMode::Enabled);
+        auto input_file = (!inputFile.empty()) ? inputFile.c_str() : nullptr;
+
+        auto fixedEnvList = fixLaunchEnvironment(env_list);
+        checkLaunchArguments(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+        auto wp = fe.launchBarrier(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+
+        // Assign a CTI application ID to the newly launched application
+        return fe.Iface().trackApp(wp);
 
     }, APP_ERROR);
 }
@@ -1158,3 +1155,22 @@ cti_containsSymbols(char const* binary_path, char const* const* symbols,
         return fe.containsSymbols(binary_path, symbolsSet, query);
     }, CTI_SYMBOLS_ERROR);
 }
+
+// Additonal WLM-specific functions
+
+static cti_app_id_t
+_cti_pals_launchAppBarrierNonMpi(const char * const launcher_argv[], int stdout_fd, int stderr_fd,
+    char const* input_file, const char *chdir_path, const char * const env_list[])
+{
+    CHECK_PALS_RUN_SAFELY(APP_ERROR,
+        auto&& fe = downcastFE<PALSFrontend>();
+
+        auto fixedEnvList = fixLaunchEnvironment(env_list);
+        checkLaunchArguments(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+        auto wp = fe.launchBarrierNonMpi(launcher_argv, stdout_fd, stderr_fd, input_file, chdir_path, fixedEnvList.get());
+
+        // Assign a CTI application ID to the newly launched application
+        return fe.Iface().trackApp(wp);
+	);
+}
+

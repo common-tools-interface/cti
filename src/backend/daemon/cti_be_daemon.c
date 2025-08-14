@@ -516,7 +516,7 @@ main(int argc, char **argv)
 
             case 'h':
                 usage();
-                return 1;
+                return 0;
             default:
                 usage();
                 return 1;
@@ -692,9 +692,9 @@ main(int argc, char **argv)
     {
         for (i=0; i < argc; ++i)
         {
-            fprintf(log, "%s ", argv[i]);
+            fprintf(stderr, "%s ", argv[i]);
         }
-        fprintf(log, "\n");
+        fprintf(stderr, "\n");
     }
 
     // Now ensure the user provided a valid wlm argument.
@@ -1027,11 +1027,12 @@ main(int argc, char **argv)
         return 1;
     }
 
-    // TODO: Terminate here
+    // Run cleanup and terminate
     if (cleanup)
     {
         struct cti_pids tool_pid = {{0}};
         struct cti_pids * pid_ptr = &tool_pid;
+        pid_t pid;
         ssize_t nr;
 
         if ((o_fd = open(pid_path, O_RDONLY)) < 0)
@@ -1045,7 +1046,7 @@ main(int argc, char **argv)
         FLOCK(o_fd);
 
         do {
-            nr = read(o_fd, &pid_ptr->pids[pid_ptr->idx], sizeof(pid_ptr->pids) - ((sizeof(pid_ptr->pids)/sizeof(pid_ptr->pids[0])) * pid_ptr->idx));
+            nr = read(o_fd, &pid, sizeof(pid));
             if (nr < 0)
             {
                 fprintf(stderr, "%s: read failed\n", CTI_BE_DAEMON_BINARY);
@@ -1054,6 +1055,8 @@ main(int argc, char **argv)
             }
             if (nr > 0)
             {
+                pid_ptr->pids[pid_ptr->idx] = pid;
+
                 pid_ptr->idx = nr / sizeof(pid_ptr->pids[0]);
                 if (pid_ptr->idx >= sizeof(pid_ptr->pids)/sizeof(pid_ptr->pids[0]))
                 {

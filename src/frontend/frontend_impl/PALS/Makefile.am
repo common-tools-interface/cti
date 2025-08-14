@@ -11,6 +11,9 @@ INCLUDE				= @COMMONTOOL_DIR@/include
 AM_LIBTOOLFLAGS 	= --quiet
 AM_CXXFLAGS			= -Wall
 
+palsdir = ${prefix}/pals/
+pals_DATA = cti_pmix_util.c
+
 noinst_LTLIBRARIES = libpals.la
 
 libpals_la_SOURCES		= Frontend.cpp

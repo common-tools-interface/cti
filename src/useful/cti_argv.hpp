@@ -64,6 +64,14 @@ public:
     /* member methods */
     size_t size() const { return argv.size(); }
     char** get() { return argv.data(); }
+    char const* const* get() const { return argv.data(); }
+
+    ManagedArgv clone() const
+    {
+        auto result = ManagedArgv{};
+        result.add(get());
+        return result;
+    }
 
     void add(std::string const& str) {
         argv.insert(argv.end() - 1, strdup(str.c_str()));
@@ -76,7 +84,7 @@ public:
         argv.insert(argv.end() - 1, strdup(str));
     }
 
-    void add(const char* const args[]) {
+    void add(const char* const* args) {
         if (args == nullptr) {
             throw std::logic_error("attempted to add null argument array");
         }

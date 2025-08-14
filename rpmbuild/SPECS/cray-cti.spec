@@ -57,10 +57,6 @@
 # dso list of files added to pe cache
 %global cray_dso_list .cray_dynamic_file_list
 
-# cdst-support version
-%global cdst_support_pkgversion_min %(%{_sourcedir}/get_package_data --cdstversionmin)
-%global cdst_support_pkgversion_max %(%{_sourcedir}/get_package_data --cdstversionmax)
-
 # dyninst version
 %global dyninst_pkgversion_min %(%{_sourcedir}/get_package_data --dyninstversionmin)
 %global dyninst_pkgversion_max %(%{_sourcedir}/get_package_data --dyninstversionmax)
@@ -79,8 +75,8 @@
 # System strip command may be too old, use current path
 %global __strip strip
 
-# Filter requires - these all come from the cdst-support rpm
-# These should match what is excluded in the cdst-support rpm specfile!
+# Filter requires - these all come the cray-dyninst rpm
+# These should match what is excluded in the cdst-dyninst rpm specfile!
 %global privlibs             libboost.*
 %global privlibs %{privlibs}|libarchive
 %global privlibs %{privlibs}|libasm
@@ -105,11 +101,11 @@
 
 # Dist tags for SuSE need to be manually set
 %if 0%{?suse_version}
-%if 0%{?sle_version} == 150400
-%global dist .sles15sp4
+%if 0%{?sle_version} == 150600
+%global dist .sles15sp6
 %endif
-%if 0%{?sle_version} == 150500
-%global dist .sles15sp5
+%if 0%{?sle_version} == 150700
+%global dist .sles15sp7
 %endif
 %global OS_HW_TAG 7.0
 %global OS_WB_TAG sles15
@@ -142,7 +138,7 @@ License:    Linux-OpenIB
 Vendor:     Hewlett Packard Enterprise Development LP
 Group:      Development/System
 Provides:   %{cray_name} = %{pkgversion}
-Requires:   set_default_3, cray-cdst-support >= %{cdst_support_pkgversion_min}, cray-cdst-support < %{cdst_support_pkgversion_max}, cray-dyninst >= %{dyninst_pkgversion_min}, cray-dyninst < %{dyninst_pkgversion_max}
+Requires:   set_default_3, cray-dyninst >= %{dyninst_pkgversion_min}, cray-dyninst < %{dyninst_pkgversion_max}
 Source0:    %{module_template_name}
 Source1:    %{devel_module_template_name}
 Source3:    %{cray_dependency_resolver_template_name}
@@ -168,7 +164,7 @@ Development files for Cray Common Tools Interface
 Summary:    Cray Common Tools Interface test binariess
 Group:      Development
 Provides:   %{cray_name}-tests = %{pkgversion}
-Requires:   cray-cdst-support-devel >= %{cdst_support_pkgversion_min}, cray-cdst-support-devel < %{cdst_support_pkgversion_max}, %{cray_name} = %{pkgversion}, %{cray_name}-devel = %{pkgversion}
+Requires:   %{cray_name} = %{pkgversion}, %{cray_name}-devel = %{pkgversion}
 %description -n %{cray_name}-tests-%{pkgversion}
 Test files for Cray Common Tools Interface
 
@@ -183,7 +179,7 @@ Test files for DST automated post install pipelines
 %setup -q -n %{name} -c -T
 %build
 # external build
-%{__sed} 's|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{version}-%{release}|g;s|<COPYRIGHT>|%{copyright}|g;s|<NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<ARCH>|%{_target_cpu}|g;s|<ATTRIBUTIONS_FILE_PATH>|%{cray_prefix}/%{product}/%{pkgversion}/%{attributions_name}|g;s|<cdst_version_range>|>= %{cdst_support_pkgversion_min}, < %{cdst_support_pkgversion_max}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_notes_file}
+%{__sed} 's|<VERSION>|%{pkgversion}|g;s|<RELEASE>|%{version}-%{release}|g;s|<COPYRIGHT>|%{copyright}|g;s|<NAME>|%{cray_name}|g;s|<CRAY_PREFIX>|%{cray_prefix}|g;s|<ARCH>|%{_target_cpu}|g;s|<ATTRIBUTIONS_FILE_PATH>|%{cray_prefix}/%{product}/%{pkgversion}/%{attributions_name}|g' %{SOURCE4} > ${RPM_BUILD_DIR}/%{release_notes_file}
 
 %{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE5} > ${RPM_BUILD_DIR}/%{copyright_name}
 %{__sed} 's|<COPYRIGHT>|%{copyright}|g' %{SOURCE6} > ${RPM_BUILD_DIR}/%{attributions_name}
@@ -206,8 +202,11 @@ Test files for DST automated post install pipelines
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libctiaudit.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libctistop.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
+%{__cp} -a %{external_build_dir}/lib/libctipreloadpals.so ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_be.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 %{__cp} -a %{external_build_dir}/lib/libcommontools_fe.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
+%{__cp} -a %{external_build_dir}/lib/libssh2.so* ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
+%{__cp} -a %{external_build_dir}/lib/libarchive.so*          ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/lib
 
 # Libraries static
 # pkg-config
@@ -399,6 +398,8 @@ Test files for DST automated post install pipelines
 %{__cp} -a %{tests_source_dir}/function/src/cti_wlm_test.c                  ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm_test.c
 %{__cp} -a %{tests_source_dir}/function/src/cti_ops                         ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops
 %{__cp} -a %{tests_source_dir}/function/src/cti_ops_test.cpp                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_multithread                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_multithread
+%{__cp} -a %{tests_source_dir}/function/src/cti_multithread_test.cpp        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_multithread_test.cpp
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static
 %{__cp} -a %{tests_source_dir}/function/src/static/inputFileData.txt ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/inputFileData.txt
@@ -630,8 +631,11 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{attributions_name}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libctiaudit.so
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libctistop.so
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/lib/libctipreloadpals.so
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_be.so*
 %{prefix}/%{cray_product}/%{pkgversion}/lib/libcommontools_fe.so*
+%{prefix}/%{cray_product}/%{pkgversion}/lib/libssh2.so*
+%{prefix}/%{cray_product}/%{pkgversion}/lib/libarchive.so*
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_be_daemon%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/cti_fe_daemon%{pkgversion}
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/libexec/mpir_shim%{pkgversion}
@@ -782,6 +786,8 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_wlm_test.c
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_multithread
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_multithread_test.cpp
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/inputFileData.txt

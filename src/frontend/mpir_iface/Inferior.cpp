@@ -20,7 +20,7 @@
 static inline bool debug_enabled()
 {
     static const auto _enabled = []() {
-        return bool{::getenv("CTI_DEBUG")};
+        return (::getenv("CTI_DEBUG") != nullptr);
     }();
     return _enabled;
 }

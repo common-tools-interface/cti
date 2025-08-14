@@ -36,6 +36,40 @@ static void archiveWriteRetry(struct archive* arch, struct archive_entry* entry)
     }
 }
 
+const std::string& Archive::finalize() {
+
+    // Close archive with error checking before freeing in-progress archive
+    if (archive_write_close(m_archPtr.get()) == ARCHIVE_FATAL) {
+        if (auto error_str = archive_error_string(m_archPtr.get())) {
+            throw std::runtime_error("failed to finalize archive at " + m_archivePath
+                + ": " + std::string{error_str});
+        } else {
+            throw std::runtime_error("failed to finalize archive at " + m_archivePath);
+        }
+    }
+
+    m_archPtr.reset();
+    m_entryScratchpad.reset();
+    m_readBuf.reset();
+
+    // Ensure archive is available on disk
+    int retry = 0;
+    int wait_seconds = 1;
+    int const MAX_RETRY = 3;
+    while (retry < MAX_RETRY) {
+        if (cti::pathExists(m_archivePath.c_str())) {
+            return m_archivePath;
+        }
+
+        // Archive not on disk yet
+        ::sleep(wait_seconds);
+        retry++;
+        wait_seconds *= 2;
+    }
+
+    throw std::runtime_error("archive finalized, but not available on disk at " + m_archivePath);
+}
+
 void Archive::addDirEntry(const std::string& entryPath) {
     auto& entryPtr = freshEntry();
 

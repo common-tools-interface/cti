@@ -19,7 +19,14 @@ cdstsupportversionmin=$(echo ${CRAY_CDST_SUPPORT_VERSION} | awk -F . '{ print $1
 tmpver=$(echo ${CRAY_CDST_SUPPORT_VERSION} | awk -F . '{ print $1 }')
 cdstsupportversionmax=$(($tmpver+1))
 
+dyninstrev=$(echo ${CRAY_DYNINST_VERSION} | awk -F . '{ print $3 }')
 dyninstversionmin=$(echo ${CRAY_DYNINST_VERSION} | awk -F . '{ print $1"."$2 }')
+if [ "$dyninstversionmin" = 12.3 -a "$dyninstrev" -ge 6 ]; then
+    # cray-dyninst 12.3.6 moved dependent libraries out of cdst-support into dyninst
+    # 12.3 matches the upstream version, so we need to use the rev for 12.3.x
+    dyninstversionmin=12.3.6
+fi
+
 tmpver=$(echo ${CRAY_DYNINST_VERSION} | awk -F . '{ print $1 }')
 dyninstversionmax=$(($tmpver+1))
 

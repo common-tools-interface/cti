@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 		ssize_t child_exe_path_len = 0;
 
 		// Allocate path to child's executable
-		child_exe_path = (char*)malloc(PATH_MAX);
+		child_exe_path = (char*)malloc(PATH_MAX + 1);
 		if (child_exe_path == NULL) {
 			perror("malloc");
 			goto cleanup_iteration;
@@ -71,6 +71,7 @@ int main(int argc, char* argv[])
 				perror("readlink");
 				// Proceed on to print a blank line for child executable
 			}
+			child_exe_path[child_exe_path_len] = '\0';
 		}
 
 		// Output parent, child PIDs, and executable for consumption

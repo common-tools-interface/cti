@@ -15,7 +15,7 @@ noinst_LTLIBRARIES = libslurm.la
 libslurm_la_SOURCES		= Frontend.cpp
 libslurm_la_CXXFLAGS	= -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl -I$(INCLUDE) -fPIC \
 						$(MPIR_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS)
-libslurm_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
+libslurm_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS) $(LIBSSH2_CFLAGS)
 libslurm_la_LDFLAGS		= -Wl,--no-undefined \
 						$(MPIR_LIBS) $(AM_LDFLAGS)
 libslurm_la_LIBADD		= $(CODE_COVERAGE_LIBS)

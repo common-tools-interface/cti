@@ -31,6 +31,56 @@
 static const auto rawUuidRegex = std::string{
     R"([[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12})"};
 
+static auto getPalsVersion()
+{
+    char const* const palstat_argv[] = {"palstat", "--version", nullptr};
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstat_argv, cti::Execvp::stderr::Ignore};
+
+    // palstat version major.minor.revision
+    auto palstatVersion = std::string{};
+    if (!std::getline(palstatOutput.stream(), palstatVersion, '\n')) {
+        throw std::runtime_error("Failed: `palstat --version`. Ensure the `cray-pals` module is loaded");
+    }
+
+    // major.minor.revision
+    std::tie(std::ignore, std::ignore, palstatVersion, std::ignore)
+        = cti::split::string<4>(std::move(palstatVersion), ' ');
+    auto [major, minor, revision] = cti::split::string<3>(palstatVersion, '.');
+
+    auto stoi_or_zero = [](std::string const& str) {
+        if (str.empty()) { return 0; }
+        try {
+            return std::stoi(str);
+        } catch (...) {
+            return 0;
+        }
+    };
+
+    // Parse major and minor version
+    auto parsed_major = stoi_or_zero(major);
+    auto parsed_minor = stoi_or_zero(minor);
+    auto parsed_revision = stoi_or_zero(revision);
+
+    return std::tuple(parsed_major, parsed_minor, parsed_revision);
+}
+
+PALSFrontend::PALSFrontend()
+    : m_preloadMpirShim{false}
+{
+    // PALS version 1.6.0 improved attach process, where startup barrier triggers
+    // before main instead of during MPI_Init
+    // Disable non-MPI barrier unless env. var. enabled
+    if ((::getenv(PALS_BARRIER_NON_MPI) == nullptr)
+     || (::getenv(PALS_BARRIER_NON_MPI)[0] != '0')) {
+
+        // Check for version below 1.6.0
+        auto [major, minor, revision] = getPalsVersion();
+        if ((major < 1) || ((major == 1) && (minor < 6))) {
+            m_preloadMpirShim = true;
+        }
+    }
+}
+
 std::string
 PALSFrontend::getApid(pid_t launcher_pid)
 {
@@ -76,10 +126,14 @@ static auto find_job_host_in_allocation()
     }
 }
 
-// Use PBS job ID and qstat to find job execution host
-static auto find_job_host_outside_allocation(std::string const& jobId)
+// Find job details that CTI uses
+static auto get_job_details(std::string const& jobId)
 {
-    Frontend::inst().writeLog("Looking for job host for %s\n", jobId.c_str());
+    Frontend::inst().writeLog("Getting job details for %s\n", jobId.c_str());
+
+    auto jobState = std::string{};
+    auto execHost = std::string{};
+    auto comment = std::string{};
 
     // Run qstat with machine-parseable format
     char const* qstat_argv[] = {"qstat", "-f", jobId.c_str(), nullptr};
@@ -90,7 +144,6 @@ static auto find_job_host_outside_allocation(std::string const& jobId)
     auto qstatLine = std::string{};
 
     // Each line is in the format `    Var = Val`
-    auto execHost = std::string{};
     while (std::getline(qstatStream, qstatLine)) {
 
         // Split line on ' = '
@@ -100,9 +153,13 @@ static auto find_job_host_outside_allocation(std::string const& jobId)
         }
         auto const var = cti::split::removeLeadingWhitespace(qstatLine.substr(0, var_end));
         auto const val = qstatLine.substr(var_end + 3);
-        if (var == "exec_host") {
+
+        if (var == "job_state") {
+            jobState = cti::split::removeLeadingWhitespace(std::move(val));
+        } else if (var == "exec_host") {
             execHost = cti::split::removeLeadingWhitespace(std::move(val));
-            break;
+        } else if (var == "comment") {
+            comment = cti::split::removeLeadingWhitespace(std::move(val));
         }
     }
 
@@ -113,12 +170,28 @@ static auto find_job_host_outside_allocation(std::string const& jobId)
 
     // Wait for completion and check exit status
     if (auto const qstat_rc = qstatOutput.getExitStatus()) {
-        throw std::runtime_error("`qstat -f " + jobId + "` failed with code " + std::to_string(qstat_rc));
+        throw std::runtime_error("`qstat -f " + jobId + "` failed, is the job running?");
     }
+
+    return std::make_tuple(std::move(jobState), std::move(execHost), std::move(comment));
+}
+
+// Use PBS job ID and qstat to find job execution host
+static auto find_job_host_outside_allocation(std::string const& jobId)
+{
+    Frontend::inst().writeLog("Looking for job host for %s\n", jobId.c_str());
+
+    // Get exec_host
+    auto&& [jobState, execHost, comment] = get_job_details(jobId);
 
     // Reached end of qstat output without finding `exec_host`
     if (execHost.empty()) {
-        throw std::runtime_error("invalid job id " + jobId);
+        if (comment.empty()) {
+            throw std::runtime_error("Failed to find exec_host for " + jobId + ", is the job running?");
+        } else {
+            throw std::runtime_error("Failed to find exec_host for " + jobId + ". PBS reported: \n"
+                + comment + "\nThe job may still be queued.");
+        }
     }
 
     // Extract main hostname from exec_host
@@ -240,6 +313,41 @@ static bool is_apid_running(std::string const& execHost, std::string const& apId
     return running;
 }
 
+template <typename Func>
+static bool palstat_search(std::string const& execHost, std::string const& appId, Func&& callback)
+{
+    // Run palstat to query job with apid
+    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", execHost, appId};
+    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
+        cti::Execvp::stderr::Ignore};
+
+    // Start parsing palstat output
+    auto& palstatStream = palstatOutput.stream();
+    auto palstatLine = std::string{};
+
+    while (std::getline(palstatStream, palstatLine)) {
+
+        // Split line on ': '
+        auto const var_end = palstatLine.find(": ");
+        if (var_end == std::string::npos) {
+            continue;
+        }
+        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
+        auto const val = palstatLine.substr(var_end + 2);
+        if (callback(var, cti::split::removeLeadingWhitespace(std::move(val)))) {
+            return true;
+        }
+    }
+
+    // Consume rest of stream output
+    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    // Ignore palstat exit status
+    (void)palstatOutput.getExitStatus();
+
+    return false;
+}
+
 std::string
 PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* launcher_args,
     char const* const* env_list)
@@ -264,8 +372,7 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
     }
 
     // Add startup barrier environment setting
-    jobEnvArg << "PALS_LOCAL_LAUNCH=0";
-    jobEnvArg << "PALS_STARTUP_BARRIER=1";
+    jobEnvArg << "PALS_LOCAL_LAUNCH=0,PALS_STARTUP_BARRIER=1";
     qsubArgv.add("-v");
     qsubArgv.add(jobEnvArg.str());
 
@@ -273,7 +380,7 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
     qsubArgv.add(scriptPath);
 
     // Submit batch file to PBS
-    auto qsubOutput = cti::Execvp{"qsub", (char* const*)qsubArgv.get(), cti::Execvp::stderr::Ignore};
+    auto qsubOutput = cti::Execvp{"qsub", (char* const*)qsubArgv.get(), cti::Execvp::stderr::Pipe};
 
     // Read qsub output
     auto& qsubStream = qsubOutput.stream();
@@ -286,14 +393,24 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
 
     // Wait for completion and check exit status
     if ((qsubOutput.getExitStatus() != 0) || getline_failed) {
-        throw std::runtime_error("failed to submit PBS job using command\n"
-            + qsubArgv.string());
+        if (pbsJobId.empty()) {
+            throw std::runtime_error("failed to submit PBS job using command\n    "
+                + qsubArgv.string());
+        } else {
+            // pbsJobId contains the error output for qsub
+            throw std::runtime_error("failed to submit PBS job using command\n    "
+                + qsubArgv.string() + "\n" + pbsJobId);
+        }
     }
 
     // Wait until PALS application has started
+    // When launching a job, CTI will submit the job to PBS, then wait for PALS
+    // to start the job on the execution host.
     int retry = 0;
-    int max_retry = 3;
-    while (retry < max_retry) {
+    int max_retry = 10;
+    auto disable_timeout = (::getenv(PALS_DISABLE_TIMEOUT)
+        && (::getenv(PALS_DISABLE_TIMEOUT)[0] != '0'));
+    while ((retry < max_retry) || disable_timeout) {
         Frontend::inst().writeLog("PBS job %s submitted, waiting for PALS application "
             "to launch (attempt %d/%d)\n", pbsJobId.c_str(), retry + 1,
             max_retry);
@@ -318,8 +435,7 @@ PALSFrontend::submitJobScript(std::string const& scriptPath, char const* const* 
         }
     }
 
-    throw std::runtime_error("Timed out waiting for PALS "
-        "application to launch");
+    throw std::runtime_error("Timed out waiting for PALS application to launch");
 }
 
 // Determine if apid is a valid PALS application ID
@@ -497,7 +613,8 @@ PALSFrontend::attachApp(std::string const& jobOrApId)
 
 PALSFrontend::PalsLaunchInfo
 PALSFrontend::launchApp(const char * const launcher_argv[],
-        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[])
+        int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath,
+		const char * const env_list[])
 {
     // Inside allocation, get first line of PBS_NODEFILE
     auto execHost = std::string{};
@@ -529,10 +646,25 @@ PALSFrontend::launchApp(const char * const launcher_argv[],
         launcherArgv.add(launcher_argv);
 
         // Launch program under MPIR control.
-        auto mpirData = Daemon().request_LaunchMPIR(
-            launcher_path.get(), launcherArgv.get(),
-            ::open(inputFile, O_RDONLY), stdoutFd, stderrFd,
-            env_list);
+        auto mpirData = [&]() {
+            try {
+                return Daemon().request_LaunchMPIR(
+                    launcher_path.get(), launcherArgv.get(),
+                    ::open(inputFile, O_RDONLY), stdoutFd, stderrFd,
+                    env_list);
+
+            } catch (std::exception const& ex) {
+                // PALS checks the following locations for host lists
+                // Defined in hpc-rm-pals:src/util/palsutil.c
+                if (!::getenv("PALS_HOSTLIST") && !::getenv("PALS_HOSTFILE")
+                 && !::getenv("PBS_NODEFILE")) {
+                    throw std::runtime_error("Launcher failed to start application. "
+                        "PALS_HOSTLIST, PALS_HOSTFILE, and PBS_NODEFILE were not set. "
+                        "Ensure you are launching inside an active PBS allocation");
+                }
+                throw;
+            }
+        }();
 
         // Get application ID from launcher
         auto apid = Daemon().request_ReadStringMPIR(mpirData.mpir_id,
@@ -584,14 +716,87 @@ static inline auto fixLaunchEnvironment(std::string const& launcherName, CArgArr
     return fixedEnvVars;
 }
 
+// Add necessary launch arguments to the provided list
+static inline auto fixLaunchArguments(std::string const& launcherName, CArgArray launcher_argv,
+	bool preload_pals)
+{
+    // Add the new variables to a new environment list
+    auto fixedArgs = cti::ManagedArgv{};
+
+	if (launcher_argv == nullptr) {
+		return fixedArgs;
+	}
+
+	// If PALS preload library is to be added, save previous LD_PRELOAD
+	auto preloadPalsPath = std::string{};
+	if (preload_pals) {
+
+		// Get path to PALS preload library
+		try {
+			preloadPalsPath = cti::accessiblePath(Frontend::inst().getBaseDir()
+				+ "/lib/libctipreloadpals.so");
+		} catch (std::exception const& ex) {
+			Frontend::inst().writeLog("failed to get PALS preload library path: %s\n", ex.what());
+		}
+	}
+
+	if (!preloadPalsPath.empty()) {
+
+		// Find existing LD_PRELOAD argument
+		auto found_ld_preload = false;
+		for (size_t i = 0; launcher_argv[i] != nullptr; i++) {
+
+			// Multiple --env=LD_PRELOAD arguments will add multiple fixed LD_PRELOAD values,
+			// which follow regular behavior of using the last --env=LD_PRELOAD setting
+
+			// --env=LD_PRELOAD=<value>
+			if (::strncmp(launcher_argv[i], "--env=LD_PRELOAD=", 17) == 0) {
+				auto ldPreload = std::get<2>(cti::split::string<3>(launcher_argv[i], '='));
+				fixedArgs.add("--env=LD_PRELOAD=" + preloadPalsPath + ":" + ldPreload);
+				fixedArgs.add("--env=" SAVE_LD_PRELOAD "=" + ldPreload);
+				found_ld_preload = true;
+
+			// --env LD_PRELOAD=<value>
+			} else if ((::strncmp(launcher_argv[i], "--env", 4) == 0)
+			        && (launcher_argv[i + 1] != nullptr)
+                    && (::strncmp(launcher_argv[i + 1], "LD_PRELOAD=", 11) == 0)) {
+				auto ldPreload = std::get<1>(cti::split::string<2>(launcher_argv[i + 1], '='));
+				fixedArgs.add("--env=LD_PRELOAD=" + preloadPalsPath + ":" + ldPreload);
+				fixedArgs.add("--env=" SAVE_LD_PRELOAD "=" + ldPreload);
+				found_ld_preload = true;
+
+				// Skip --env
+				i++;
+
+			// Copy argument
+			} else {
+				fixedArgs.add(launcher_argv[i]);
+			}
+		}
+
+		// Add LD_PRELOAD value if it wasn't already found
+		if (!found_ld_preload) {
+			fixedArgs.add_front("--env=LD_PRELOAD=" + preloadPalsPath);
+		}
+
+	// Copy arguments
+	} else {
+		fixedArgs.add(launcher_argv);
+	}
+
+    return fixedArgs;
+}
+
 std::weak_ptr<App>
 PALSFrontend::launch(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
     CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
+	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv,
+		false /* no MPI library preload */);
     auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto appPtr = std::make_shared<PALSApp>(*this,
-        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get()));
+        launchApp(fixedLaunchArgs.get(), stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get()));
 
     // Release barrier and continue launch
     appPtr->releaseBarrier();
@@ -609,15 +814,85 @@ std::weak_ptr<App>
 PALSFrontend::launchBarrier(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
         CStr inputFile, CStr chdirPath, CArgArray env_list)
 {
+	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv, m_preloadMpirShim);
     auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
 
     auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
-        launchApp(launcher_argv, stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
+        launchApp(fixedLaunchArgs.get(), stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
     if (!ret.second) {
         throw std::runtime_error("Failed to create new App object.");
     }
 
     return *ret.first;
+}
+
+std::weak_ptr<App>
+PALSFrontend::launchBarrierNonMpi(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list)
+{
+	auto fixedLaunchArgs = fixLaunchArguments(getLauncherName(), launcher_argv, m_preloadMpirShim);
+    auto fixedEnvVars = fixLaunchEnvironment(getLauncherName(), env_list);
+
+    auto ret = m_apps.emplace(std::make_shared<PALSApp>(*this,
+        launchApp(fixedLaunchArgs.get(), stdout_fd, stderr_fd, inputFile, chdirPath, fixedEnvVars.get())));
+    if (!ret.second) {
+        throw std::runtime_error("Failed to create new App object.");
+    }
+
+    return *ret.first;
+}
+
+std::string
+PALSFrontend::getPMIxUtilPath()
+{
+    // Path provided in environment
+    if (auto pals_pmix = ::getenv(PALS_PMIX)) {
+        if (!cti::fileHasPerms(pals_pmix, R_OK | X_OK)) {
+            throw std::runtime_error("PMIx utility set in " PALS_PMIX " was not accesible: "
+                + std::string{pals_pmix});
+        }
+
+        return pals_pmix;
+    }
+
+    auto result = Frontend::inst().getCfgDir() + "/cti_pmix_util";
+
+    // Utility already built
+    if (cti::fileHasPerms(result.c_str(), R_OK | X_OK)) {
+        return result;
+    }
+
+    // Check utility source
+    auto pmixSource = Frontend::inst().getBaseDir() + "/pals/" PALS_PMIX_SRC;
+    if (!cti::fileHasPerms(pmixSource.c_str(), R_OK)) {
+        throw std::runtime_error("Could not find PMIx utility source at " + pmixSource);
+    }
+
+    // Construct build arguments
+    auto bashArgv = cti::ManagedArgv{"bash", "-c"};
+    auto ccCmd = std::stringstream{};
+    ccCmd << "cc ";
+    if (auto pals_pmix_cflags = ::getenv(PALS_PMIX_CFLAGS)) {
+        ccCmd << pals_pmix_cflags << " ";
+    } else {
+        ccCmd << "-g -lpmix ";
+    }
+    ccCmd << pmixSource << " -o " << result;
+    auto ccCmdStr = ccCmd.str();
+    bashArgv.add(ccCmdStr);
+
+    // Run build
+    writeLog("Running PMIx utility build with\n%s\n", ccCmdStr.c_str());
+    auto bashOutput = cti::Execvp{"bash", bashArgv.get(), cti::Execvp::stderr::Pipe};
+    auto stderrStream = std::stringstream{};
+    stderrStream << bashOutput.stream().rdbuf();
+    if (bashOutput.getExitStatus()) {
+        throw std::runtime_error("Failed to build PMIx helper utility: \n"
+            + ccCmdStr + "\nBuild the source file at " + pmixSource + " and set "
+            PALS_PMIX " to the path to the built binary. Build output: \n" + stderrStream.str());
+    }
+
+    return result;
 }
 
 std::weak_ptr<App>
@@ -732,6 +1007,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_extraFiles{createNodeLayoutFile(m_procTable, m_stagePath)}
 
     , m_atBarrier{palsLaunchInfo.atBarrier}
+    , m_pmix{false}
 {
     // Get set of hosts for application
     for (auto&& [pid, hostname, executable] : m_procTable) {
@@ -747,6 +1023,23 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
             FE_daemon::CloseFd, FE_daemon::CloseFd, FE_daemon::CloseFd,
             nullptr)) {
             throw std::runtime_error("failed to create remote toolpath directory for apid " + m_apId);
+        }
+    }
+
+    // Add PMIx utility if running with PMIx
+    if (palstat_search(m_execHost, m_apId, [&](std::string const& key, std::string const& val) {
+        return (key == "PMI") && (val == "pmix");
+    })) {
+        m_pmix = true;
+        m_extraFiles.push_back(fe.getPMIxUtilPath());
+
+        // PMIx tool support is projected to release in PALS 1.7.0 (USS-3013)
+        auto [major, minor, revision] = getPalsVersion();
+        if ((major < 1) || ((major == 1) && (minor < 7))) {
+            fprintf(stderr, "warning: detected PALS version %d.%d.%d and targeting a PMIx application.\n"
+                "PMIx tool support is projected to release in PALS 1.7.0. Launch will continue, but "
+                "you may encounter a tool failure\n",
+                major, minor, revision);
         }
     }
 }
@@ -933,46 +1226,6 @@ PALSApp::shipPackage(std::string const& tarPath) const
     }
 }
 
-static bool isToolHelperRunning(std::string const& execHost, std::string const& appId,
-    std::string const& toolHelperId)
-{
-    // Run palstat to query job with apid
-    auto palstatArgv = cti::ManagedArgv{"palstat", "-n", execHost, appId};
-    auto palstatOutput = cti::Execvp{"palstat", (char* const*)palstatArgv.get(),
-        cti::Execvp::stderr::Ignore};
-
-    // Start parsing palstat output
-    auto& palstatStream = palstatOutput.stream();
-    auto palstatLine = std::string{};
-
-    // Running tool helpers are listed with the label 'Tool ID'
-    auto running = false;
-    while (std::getline(palstatStream, palstatLine)) {
-
-        // Split line on ': '
-        auto const var_end = palstatLine.find(": ");
-        if (var_end == std::string::npos) {
-            continue;
-        }
-        auto const var = cti::split::removeLeadingWhitespace(palstatLine.substr(0, var_end));
-        auto const val = palstatLine.substr(var_end + 2);
-        if (var == "Tool ID") {
-            if (toolHelperId == cti::split::removeLeadingWhitespace(std::move(val))) {
-                running = true;
-                break;
-            }
-        }
-    }
-
-    // Consume rest of stream output
-    palstatStream.ignore(std::numeric_limits<std::streamsize>::max());
-
-    // Ignore palstat exit status
-    (void)palstatOutput.getExitStatus();
-
-    return running;
-}
-
 void
 PALSApp::startDaemon(const char* const args[], bool synchronous)
 {
@@ -1021,13 +1274,21 @@ PALSApp::startDaemon(const char* const args[], bool synchronous)
     // Copy provided launcher arguments
     palscmdArgv.add(args);
 
+    // If PMIx mode, add PMIx environment setting
+    auto daemonEnv = cti::ManagedArgv{};
+    if (m_pmix) {
+        auto& palsFrontend = dynamic_cast<PALSFrontend&>(m_frontend);
+        auto backendPmixPath = m_frontend.getCfgDir() + "/" + cti::cstr::basename(palsFrontend.getPMIxUtilPath());
+        daemonEnv.add(std::string{PALS_PMIX_BE_PATH} + "=" + backendPmixPath);
+    }
+
     auto stderrPipe = cti::Pipe{};
 
     // tell frontend daemon to launch palscmd
     m_frontend.Daemon().request_ForkExecvpUtil_Async(
         m_daemonAppId, "palscmd", palscmdArgv.get(),
         FE_daemon::CloseFd, FE_daemon::CloseFd, stderrPipe.getWriteFd(),
-        nullptr);
+        (daemonEnv.size() == 0) ? nullptr : daemonEnv.get());
 
     // Parse palstat output to get tool helper ID
     auto toolHelperId = std::string{};
@@ -1064,8 +1325,11 @@ PALSApp::startDaemon(const char* const args[], bool synchronous)
 
         // Query palstat for tool helper status until completed
         } else {
+
             for (int retry = 0; retry < 10; retry++) {
-                if (!isToolHelperRunning(m_execHost, m_apId, toolHelperId)) {
+                if (!palstat_search(m_execHost, m_apId, [&](std::string const& key, std::string const& val) {
+                    return (key == "Tool ID") && (val == toolHelperId);
+                })) {
                     Frontend::inst().writeLog("Tool helper %s completed\n",
                         toolHelperId.c_str());
                     return;

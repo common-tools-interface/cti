@@ -95,6 +95,7 @@ typedef struct
 #define SBCAST                  "sbcast"                            // name of slurm transfer binary
 #define SACCTMGR                "sacctmgr"                          // name of slurm configuration binary
 #define SQUEUE                  "squeue"                            // name of slurm job queue binary
+#define SCONTROL                "scontrol"                          // name of slurm management binary
 #define SLURM_JOB_NAME          "SLURM_JOB_NAME"                    // Environment variable for Slurm job name
 #define SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid) // formula for creating Cray apid from SLURM jobid.stepid
 #define SLURM_TOOL_DIR          "/tmp"                              // SLURM staging path on compute node
@@ -117,9 +118,14 @@ typedef struct
                                   // environment variable to disable the
                                   // workaround and rely soley on the scancel
                                   // return code.
+#define SLURM_CHECK_ARCH "CTI_SLURM_CHECK_ARCH" // Whether CTI should run automatic check to match architectures for job
 // Set by the Slurm daemon in job environment,
 // Can be used to detect nodename instead of querying scontrol
 #define SLURMD_NODENAME "SLURMD_NODENAME"
+// Bypass automatic sacct job ID check for MPMD job information
+#define SLURM_DISABLE_SACCT "CTI_SLURM_DISABLE_SACCT"
+// Cassini maximum job limit
+#define SLURM_CASSINI_JOB_LIMIT 3
 
 /*******************************************************************************
 ** SSH specific information
@@ -197,6 +203,18 @@ typedef struct
 // integer n, CTI will wait n seconds between starting a job and releasing it
 // from the barrier on PALS. A delay as small as one second can work.
 #define PALS_BARRIER_RELEASE_DELAY "CTI_PALS_BARRIER_RELEASE_DELAY"
+// In addition to the PALS-specific launchAppBarrierNonMpi function, can set
+// this variable to manually enable or disable the PALS non-MPI barrier preload library
+#define PALS_BARRIER_NON_MPI "CTI_PALS_BARRIER_NON_MPI"
+// Disable timeout for PALS application launch (after PBS job submission)
+#define PALS_DISABLE_TIMEOUT "CTI_PALS_DISABLE_TIMEOUT"
+// Store original LD_PRELOAD to be restored after applying PALS preload
+#define SAVE_LD_PRELOAD "CTI_SAVE_LD_PRELOAD"
+// PMIx helper utility
+#define PALS_PMIX "CTI_PALS_PMIX"
+#define PALS_PMIX_SRC "cti_pmix_util.c"
+#define PALS_PMIX_CFLAGS "CTI_PALS_PMIX_CFLAGS"
+#define PALS_PMIX_BE_PATH "CTI_PALS_PMIX_BE_PATH"
 
 /*******************************************************************************
 ** Flux specific information
@@ -225,6 +243,7 @@ typedef struct
 #define SRUN_APPEND_ARGS_ENV_VAR     "CTI_SRUN_APPEND"      // Frontend: append these arguments to the variable list of SRUN arguments (read)
 #define CTI_HOST_ADDRESS_ENV_VAR     "CTI_HOST_ADDRESS"     // Frontend: override detection of host IP address
 #define CTI_DEDUPLICATE_FILES_ENV_VAR "CTI_DEDUPLICATE_FILES" // Frontend: ship all files to backends, even if available
+#define CTI_SKIP_LAUNCHER_CHECK_ENV_VAR "CTI_SKIP_LAUNCHER_CHECK" // Frontend: don't try to verify MPIR symbols
 
 // Backend related env vars
 #define BE_GUARD_ENV_VAR    "CTI_IAMBACKEND"        //Backend: Set by the daemon launcher to ensure proper setup

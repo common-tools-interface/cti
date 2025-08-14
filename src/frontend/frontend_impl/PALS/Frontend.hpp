@@ -52,6 +52,9 @@ public: // types
         bool atBarrier;
     };
 
+private: // members
+    bool m_preloadMpirShim;
+
 public: // inherited interface
     static char const* getName() { return CTI_WLM_TYPE_PALS_STR; }
 
@@ -68,6 +71,8 @@ public: // inherited interface
     std::string getHostname() const override;
 
 public: // PALS-specific interface
+    PALSFrontend();
+
     // Get the default launcher binary name, or, if provided, from the environment.
     static std::string getLauncherName();
 
@@ -85,6 +90,12 @@ public: // PALS-specific interface
     // Launch an app under MPIR control and hold at barrier.
     PalsLaunchInfo launchApp(const char * const launcher_argv[],
         int stdoutFd, int stderrFd, const char *inputFile, const char *chdirPath, const char * const env_list[]);
+
+    std::weak_ptr<App> launchBarrierNonMpi(CArgArray launcher_argv, int stdout_fd, int stderr_fd,
+        CStr inputFile, CStr chdirPath, CArgArray env_list);
+
+    // Return path to PMIx helper utility to ship to backend
+    std::string getPMIxUtilPath();
 };
 
 class PALSApp : public App
@@ -104,6 +115,7 @@ class PALSApp : public App
     std::vector<std::string> m_extraFiles; // List of extra support files to transfer to BE
 
     bool m_atBarrier; // At startup barrier or not
+    bool m_pmix; // Using PMIx mode
 
 
 public:

@@ -37,12 +37,7 @@ private: // functions
 
 public: // interface
     // finalize and return path to tarball; after, only valid operations are to destruct
-    const std::string& finalize() {
-        m_archPtr.reset();
-        m_entryScratchpad.reset();
-        m_readBuf.reset();
-        return m_archivePath;
-    }
+    const std::string& finalize();
     // create archive directory entry
     void addDirEntry(const std::string& dirPath);
     // set up archive entry and call addDir / addFile based on stat

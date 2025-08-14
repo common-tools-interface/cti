@@ -385,6 +385,7 @@ struct LaunchData {
     std::string filepath;
     std::vector<std::string> argvList;
     std::vector<std::string> envList;
+    std::vector<std::string> envBlacklist;
 };
 
 struct ShimData {
@@ -498,8 +499,18 @@ static LaunchData readLaunchData(int const reqFd)
 
         for (int i = 0; i < envc; i++) {
             auto const envVarVal = receiveString(reqStream);
-            getLogger().write("got envvar: %s\n", envVarVal.c_str());
-            result.envList.emplace_back(std::move(envVarVal));
+
+            if (envVarVal.rfind("CTIBLACKLIST_", 0) == 0) {
+                auto&& [blacklistTag, val] = cti::split::string<2>(std::move(envVarVal), '_');
+                if ((val.length() > 0) && (val.back() == '=')) {
+                    val.pop_back();
+                }
+                result.envBlacklist.emplace_back(std::move(val));
+
+            } else {
+                getLogger().write("got envvar: %s\n", envVarVal.c_str());
+                result.envList.emplace_back(std::move(envVarVal));
+            }
         }
     }
 
@@ -668,7 +679,7 @@ static pid_t forkExec(LaunchData const& launchData)
         close(respFd);
 
         // dup2 all stdin/out/err to provided FDs
-        dup2(launchData.stdin_fd,  STDIN_FILENO);
+        cti::dup2_or_dev_null(launchData.stdin_fd, STDIN_FILENO);
         dup2(launchData.stdout_fd, STDOUT_FILENO);
         dup2(launchData.stderr_fd, STDERR_FILENO);
 
@@ -679,6 +690,11 @@ static pid_t forkExec(LaunchData const& launchData)
             } else {
                 unsetenv(envVarVal.first.c_str());
             }
+        }
+
+        // unset blacklisted environment variables
+        for (auto const& var : launchData.envBlacklist) {
+            unsetenv(var.c_str());
         }
 
         // exec srun
@@ -757,6 +773,14 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
         ::setenv(var.c_str(), val.c_str(), true);
     }
 
+    // unset blacklisted environment variables
+    for (auto const& var : launchData.envBlacklist) {
+        if (auto const oldVal = ::getenv(var.c_str())) {
+            overwrittenEnv.emplace_back(var, oldVal);
+        }
+        unsetenv(var.c_str());
+    }
+
     // Start launcher under MPIR control and run to breakpoint
     // If there are any problems with launcher arguments, they will occur at this point.
     // Then, an error message that the user can interpret will be sent back to the
@@ -828,6 +852,28 @@ static void releaseMPIR(DAppId const mpir_id)
 
         // Release from MPIR breakpoint
         mpirMap.erase(idInstPair);
+    } else {
+        throw std::runtime_error("release mpir id not found: " + std::to_string(mpir_id));
+    }
+
+    getLogger().write("successfully released mpir id %d\n", mpir_id);
+}
+
+static bool waitMPIR(DAppId const mpir_id)
+{
+    auto const idInstPair = mpirMap.find(mpir_id);
+    if (idInstPair != mpirMap.end()) {
+
+        // Release from MPIR breakpoint
+        mpirMap.erase(idInstPair);
+
+        // Wait for completion and check return code
+        if (auto rc = idInstPair->second->waitExit()) {
+            getLogger().write("mpir id %d exited with rc %d\n", mpir_id, rc);
+            return false;
+        }
+        return true;
+
     } else {
         throw std::runtime_error("release mpir id not found: " + std::to_string(mpir_id));
     }
@@ -1087,6 +1133,15 @@ static void handle_ReleaseMPIR(int const reqFd, int const respFd)
     });
 }
 
+static void handle_WaitMPIR(int const reqFd, int const respFd)
+{
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
+        auto const mpirId = fdReadLoop<DAppId>(reqFd);
+
+        return waitMPIR(mpirId);
+    });
+}
+
 static void handle_LaunchMPIRShim(int const reqFd, int const respFd)
 {
     tryWriteMPIRResp(respFd, [reqFd, respFd]() {
@@ -1216,15 +1271,16 @@ static auto reqTypeString(ReqType const reqType)
         case ReqType::ForkExecvpApp:  return "ForkExecvpApp";
         case ReqType::ForkExecvpUtil: return "ForkExecvpUtil";
         case ReqType::LaunchMPIR:     return "LaunchMPIR";
-        case ReqType::AttachMPIR:     return "AttachMPIR";
-        case ReqType::ReleaseMPIR:    return "ReleaseMPIR";
-        case ReqType::ReadStringMPIR: return "ReadStringMPIR";
-        case ReqType::TerminateMPIR:  return "TerminateMPIR";
         case ReqType::LaunchMPIRShim: return "LaunchMPIRShim";
+        case ReqType::AttachMPIR:     return "AttachMPIR";
+        case ReqType::ReadStringMPIR: return "ReadStringMPIR";
+        case ReqType::ReleaseMPIR:    return "ReleaseMPIR";
+        case ReqType::WaitMPIR:       return "WaitMPIR";
+        case ReqType::TerminateMPIR:  return "TerminateMPIR";
         case ReqType::RegisterApp:    return "RegisterApp";
-        case ReqType::ReleaseApp:     return "ReleaseApp";
         case ReqType::RegisterUtil:   return "RegisterUtil";
         case ReqType::DeregisterApp:  return "DeregisterApp";
+        case ReqType::ReleaseApp:     return "ReleaseApp";
         case ReqType::CheckApp:       return "CheckApp";
         case ReqType::Shutdown:       return "Shutdown";
         default: return "(unknown)";
@@ -1374,6 +1430,10 @@ main(int argc, char *argv[])
 
             case ReqType::ReleaseMPIR:
                 handle_ReleaseMPIR(reqFd, respFd);
+                break;
+
+            case ReqType::WaitMPIR:
+                handle_WaitMPIR(reqFd, respFd);
                 break;
 
             case ReqType::ReadStringMPIR:

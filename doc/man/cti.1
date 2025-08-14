@@ -179,6 +179,12 @@ instance URI in which the target job is running for CTI to launch tool
 helpers inside the instance.
 This will allow tools such as GDB4hpc to debug jobs running inside
 Singularity containers.
+.IP \[bu] 2
+\f[I]CTI_SKIP_LAUNCHER_CHECK\f[R]: By default, CTI will check the
+launcher binary to ensure it is a binary and that MPIR debug symbols are
+present.
+These symbols are required for proper startup, but this check can be
+bypassed by setting \f[I]CTI_SKIP_LAUNCHER_CHECK=1\f[R].
 .SS Slurm-specific variables
 .IP \[bu] 2
 \f[I]CTI_SLURM_DAEMON_GRES\f[R]: Starting with Slurm 21.08, there is a
@@ -193,6 +199,11 @@ arguments with these arguments.
 .IP \[bu] 2
 \f[I]CTI_SRUN_APPEND\f[R]: Add these arguments to all generated
 \f[B]srun\f[R] commands.
+.IP \[bu] 2
+\f[I]CTI_SLURM_DISABLE_SACCT\f[R]: Set to \f[C]1\f[R] to disable the use
+of \f[C]sacct\f[R] for finding MPMD job information.
+Use this if the Slurm database service is not available on your system.
+MPMD jobs are not supported with this option.
 .SS SSH-specific variables
 .PP
 For workload managers that do not natively provide a file-shipping or
@@ -267,5 +278,19 @@ between job startup and barrier release.
 If set to a positve integer n, CTI will wait n seconds between starting
 a job and releasing it from the barrier on PALS.
 A delay as small as one second works in most cases.
+.IP \[bu] 2
+\f[I]CTI_PALS_EXEC_HOST\f[R]: To use a PALS application ID instead of a
+PBS job ID for attaching to running jobs, set this variable to the
+execution host (usually the hostname) of the node hosting the PBS job.
+This can be found in the \[lq]Nodes\[rq] field when running
+\f[B]palstat\f[R] inside the PBS reservation, or the \[lq]exec_host\[rq]
+field when running \f[B]qstat -f\f[R].
+.IP \[bu] 2
+\f[I]CTI_PALS_DISABLE_TIMEOUT\f[R]: When launching a job, CTI will
+submit the job to PBS, then wait for PALS to start the job on the
+execution host.
+By default, this will time out in 30 seconds.
+Set this variable to \f[B]1\f[R] to disable this timeout and wait
+indefinitely.
 .SH AUTHORS
 Hewlett Packard Enterprise Development LP..

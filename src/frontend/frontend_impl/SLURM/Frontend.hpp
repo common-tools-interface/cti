@@ -71,20 +71,6 @@ public: // inherited interface
     std::string getHostname() const override;
 
 private: // slurm specific members
-
-    // These environment variables are blacklisted to ensure that tool daemon launches
-    // inherit the Slurm job settings from its associated job
-    static const inline std::vector<std::string> srunEnvBlacklist = {
-        "SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
-        "SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
-        "SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
-        "SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
-        "SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
-        "SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
-        "SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
-        "SLURM_WORKING_DIR"
-    };
-
     // Arguments specified by CTI_SLURM_OVERRIDE / _APPEND for SRUN launches
     std::vector<std::string> m_srunAppArgs;
     // Also contains version-specific SRUN arguments
@@ -108,12 +94,20 @@ public: // slurm specific types
         uint32_t job_id;
         uint32_t step_id;
         std::optional<uint32_t> het_offset;
+        bool in_salloc;
+        bool is_batch_step, is_extern_step;
 
-        // sattach requires adding the hetjob offset to the base job ID
+        // sattach requires appending the hetjob offset to the base job ID
         auto get_sattach_id() const {
-            return (het_offset)
-                ? std::to_string(job_id + *het_offset) + "." + std::to_string(step_id)
-                : std::to_string(job_id) + "." + std::to_string(step_id);
+            if (het_offset) {
+                if (in_salloc) {
+                    return std::to_string(job_id) + "." + std::to_string(step_id) + "+" + std::to_string(*het_offset);
+                } else {
+                    return std::to_string(job_id + *het_offset) + "." + std::to_string(step_id);
+                }
+            } else {
+                return std::to_string(job_id) + "." + std::to_string(step_id);
+            }
         }
 
         // srun for tool daemon launch requires manually specifying the hetjob offset
@@ -136,7 +130,7 @@ public: // slurm specific types
 public: // slurm specific interface
     auto const& getSrunAppArgs()    const { return m_srunAppArgs;    }
     auto const& getSrunDaemonArgs() const { return m_srunDaemonArgs; }
-    auto const& getSrunEnvBlacklist() const { return srunEnvBlacklist; }
+    std::vector<std::string> const& getSrunEnvBlacklist() const;
     auto const& getCheckScancelOutput() const { return m_checkScancelOutput; }
 
     // Get the default launcher binary name, or, if provided, from the environment.

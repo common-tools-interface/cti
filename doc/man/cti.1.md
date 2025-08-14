@@ -3,6 +3,7 @@
 % 2022-09-06
 
 # NAME
+
 **cti** --- *Common Tools Interface* User Reference
 
 # DESCRIPTION
@@ -139,6 +140,11 @@ supplied to start the attach process.
   inside the instance. This will allow tools such as GDB4hpc to debug
   jobs running inside Singularity containers.
 
+- *CTI_SKIP_LAUNCHER_CHECK*: By default, CTI will check the launcher binary
+  to ensure it is a binary and that MPIR debug symbols are present.
+  These symbols are required for proper startup, but this check can be
+  bypassed by setting *CTI_SKIP_LAUNCHER_CHECK=1*.
+
 ## Slurm-specific variables
 
 - *CTI_SLURM_DAEMON_GRES*: Starting with Slurm 21.08, there is a known
@@ -151,6 +157,10 @@ supplied to start the attach process.
   these arguments.
 
 - *CTI_SRUN_APPEND*: Add these arguments to all generated **srun** commands.
+
+- *CTI_SLURM_DISABLE_SACCT*: Set to `1` to disable the use of `sacct` for
+  finding MPMD job information. Use this if the Slurm database service is not
+  available on your system. MPMD jobs are not supported with this option.
 
 ## SSH-specific variables
 
@@ -208,12 +218,22 @@ paths to the required SSH files:
   the PBS reservation, or the "exec_host" field when running **qstat -f**.
 
 - *CTI_PALS_BARRIER_RELEASE_DELAY*: In PALS 1.2.3, there is a race condition
-between the tool launcher releasing a job from the startup barrier and the job
-actually getting to the startup barrier. This can result in the job receiving
-the startup barrier release signal before it actually arrives there, resulting
-in the job getting stuck in the barrier. As a workaround, this environment
-variable can be set to add a delay between job startup and barrier release. If
-set to a positve integer n, CTI will wait n seconds between starting a job and
-releasing it from the barrier on PALS. A delay as small as one second works in
-most cases.
+  between the tool launcher releasing a job from the startup barrier and the job
+  actually getting to the startup barrier. This can result in the job receiving
+  the startup barrier release signal before it actually arrives there, resulting
+  in the job getting stuck in the barrier. As a workaround, this environment
+  variable can be set to add a delay between job startup and barrier release. If
+  set to a positve integer n, CTI will wait n seconds between starting a job and
+  releasing it from the barrier on PALS. A delay as small as one second works in
+  most cases.
 
+- *CTI_PALS_EXEC_HOST*: To use a PALS application ID instead of a
+  PBS job ID for attaching to running jobs, set this variable to the
+  execution host (usually the hostname) of the node hosting the PBS job.
+  This can be found in the "Nodes" field when running **palstat** inside
+  the PBS reservation, or the "exec_host" field when running **qstat -f**.
+
+- *CTI_PALS_DISABLE_TIMEOUT*: When launching a job, CTI will submit the job to
+  PBS, then wait for PALS to start the job on the execution host. By default,
+  this will time out in 30 seconds. Set this variable to **1** to disable this
+  timeout and wait indefinitely.

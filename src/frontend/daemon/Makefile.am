@@ -25,7 +25,7 @@ noinst_HEADERS					= cti_fe_daemon_iface.hpp
 
 libexec_PROGRAMS = cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@ mpir_shim@COMMONTOOL_RELEASE_VERSION@ \
 	cti_slurm_stop@COMMONTOOL_RELEASE_VERSION@
-lib_LTLIBRARIES = libctistop.la
+lib_LTLIBRARIES = libctistop.la libctipreloadpals.la
 
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_SOURCES	= 	cti_fe_daemon.cpp
 cti_fe_daemon@COMMONTOOL_RELEASE_VERSION@_CPPFLAGS	=	$(CODE_COVERAGE_CPPFLAGS) $(AM_CPPFLAGS)
@@ -47,6 +47,9 @@ cti_slurm_stop@COMMONTOOL_RELEASE_VERSION@_SOURCES = cti_slurm_stop.c
 
 libctistop_la_SOURCES = libctistop.c
 libctistop_la_LDFLAGS = -fPIC $(AM_CFLAGS) -Wl,--no-undefined -Wl,--as-needed -avoid-version $(AM_LDFLAGS)
+
+libctipreloadpals_la_SOURCES = libctipreloadpals.c
+libctipreloadpals_la_LDFLAGS = -fPIC $(AM_CFLAGS) -Wl,--no-undefined -Wl,--as-needed -avoid-version $(AM_LDFLAGS) -ldl
 
 if CODE_COVERAGE_ENABLED
 clean-local: code-coverage-clean

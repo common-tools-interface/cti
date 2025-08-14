@@ -15,6 +15,7 @@
 #include "SSHSession.hpp"
 
 #include "useful/cti_argv.hpp"
+#include "useful/cti_split.hpp"
 #include "useful/cti_log.h"
 
 #include <libssh2.h>
@@ -456,6 +457,9 @@ SSHSession::SSHSession(std::string const& hostname, std::string const& username,
         } else if (tryAuthKeyfilePair(m_session_ptr.get(), username,
             sshDir + "/id_dsa.pub", sshDir + "/id_dsa")) {
             return;
+        } else if (tryAuthKeyfilePair(m_session_ptr.get(), username,
+            sshDir + "/id_ed25519.pub", sshDir + "/id_ed25519")) {
+            return;
         }
 
         throw std::runtime_error("Failed to detect SSH key files in " + sshDir +
@@ -491,7 +495,7 @@ SSHSession& SSHSession::operator=(SSHSession&& expiring)
     return *this;
 }
 
-void SSHSession::executeRemoteCommand(const char* const args[], bool synchronous)
+void SSHSession::executeRemoteCommand(char const* const* args, char const* const* env, bool synchronous)
 {
     // sanity
     assert(args != nullptr);
@@ -514,6 +518,18 @@ void SSHSession::executeRemoteCommand(const char* const args[], bool synchronous
     for (const char* const* arg = &args[1]; *arg != nullptr; arg++) {
         argvString.push_back(' ');
         argvString += std::string(*arg);
+    }
+
+    // Set remote environment variables
+    if (env) {
+        for (auto setting = env; *setting != nullptr; setting++) {
+            auto&& [var, val] = cti::split::string<2>(*setting, '=');
+            if (val.empty()) {
+                continue;
+            }
+            libssh2_channel_setenv_ex(channel_ptr.get(), var.c_str(), var.length(),
+                val.c_str(), val.length());
+        }
     }
 
     // Continue command in background after SSH channel disconnects
@@ -786,6 +802,14 @@ void SSHSession::releaseMPIR(LIBSSH2_CHANNEL* channel, FE_daemon::DaemonAppId mp
     if (okResp.type != FE_daemon::RespType::OK) {
         throw std::runtime_error("warning: remote daemon failed to release from barrier");
     }
+}
+
+bool SSHSession::waitMPIR(LIBSSH2_CHANNEL* channel, FE_daemon::DaemonAppId mpir_id)
+{
+    writeLoop(channel_writer(channel), FE_daemon::ReqType::WaitMPIR);
+    writeLoop(channel_writer(channel), mpir_id);
+    auto okResp = readLoop<FE_daemon::OKResp>(channel_reader(channel));
+    return (okResp.type == FE_daemon::RespType::OK);
 }
 
 bool SSHSession::checkApp(LIBSSH2_CHANNEL* channel, FE_daemon::DaemonAppId mpir_id)

@@ -9,23 +9,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include "mpi.h"
-
-void sigusr1_handler(int signum)
-{
-	exit(0);
-}
 
 int main(int argc, char* argv[]) {
     int myRank, numProcs;
     int source, dest=0, tag=0;
     char message[100];
     MPI_Status status;
-
-    signal(SIGUSR1, sigusr1_handler);
 
     MPI_Init(&argc,&argv);
 

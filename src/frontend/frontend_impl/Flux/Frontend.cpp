@@ -238,6 +238,19 @@ static inline auto parse_job_id(FluxFrontend::LibFlux& libFluxRef, char const* r
 
     auto job_id = flux_jobid_t{};
 
+    // All numbers: pass to parse directly
+    { auto all_numeric = true;
+        for (auto c = raw_job_id; *c != '\0'; c++) {
+            if (!::isdigit(*c)) {
+                all_numeric = false;
+                break;
+            }
+        }
+        if (all_numeric && (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) == 0)) {
+            return job_id;
+        }
+    }
+
     // Determine if job ID is f58-formatted by checking for f58 prefix
     if (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0) {
         if (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) == 0) {
@@ -559,6 +572,31 @@ FluxFrontend::LaunchInfo FluxFrontend::launchApp(const char* const launcher_args
         , .input_file = input_file
         , .stdout_fd = stdout_fd, .stderr_fd = stderr_fd
     };
+}
+
+std::string
+FluxFrontend::getJobid(pid_t pid)
+{
+    // Get real path to `flux job` helper
+    // Flux launcher does not have MPIR symbols, only the helper
+    auto realExePath = [](pid_t pid) {
+        try {
+            return cti::cstr::readlink("/proc/" + std::to_string(pid) + "/exe");
+        } catch (...) {
+            throw std::runtime_error("failed to find executable for PID " + std::to_string(pid));
+        }
+    }(pid);
+
+    // MPIR attach to `flux job attach --debug`
+    auto const mpirData = Daemon().request_AttachMPIR(realExePath.c_str(), pid);
+
+    // Extract job ID string from launcher
+    auto result = Daemon().request_ReadStringMPIR(mpirData.mpir_id, "totalview_jobid");
+
+    // Release MPIR control
+    Daemon().request_ReleaseMPIR(mpirData.mpir_id);
+
+    return result;
 }
 
 static auto parse_flux_version(std::string const& version)
@@ -1063,8 +1101,20 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         // Get list of binaries. As Flux does not support MPMD, this should only ever
         // be a single binary.
         auto binaryList = flux::flatten_prefixList(proctable.get_child("executables"));
-        if (binaryList.size() != 1) {
-            throw std::runtime_error("expected a single binary launched with Flux. Got " + std::to_string(binaryList.size()));
+
+        // Need at least one binary
+        if (binaryList.empty()) {
+            throw std::runtime_error("Could not extract binary name from proctable response (executables was empty)");
+
+        // Ensure all listed are the same
+        } else if (binaryList.size() > 1) {
+            auto const& firstBinary = binaryList[0];
+            for (size_t i = 1 ; i < binaryList.size(); i++) {
+                if (binaryList[i] != firstBinary) {
+                    throw std::runtime_error("expected a single binary launched with Flux. Got "
+                        + firstBinary + " and " + binaryList[i]);
+                }
+            }
         }
         m_binaryName = std::move(binaryList[0]);
 
@@ -1126,9 +1176,13 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
         } else {
 
             // Redirect input and output descriptors
-            ::dup2(stdin_fd, STDIN_FILENO);
-            ::dup2(launchInfo.stdout_fd, STDOUT_FILENO);
-            ::dup2(launchInfo.stderr_fd, STDERR_FILENO);
+            // `flux attach` stdin must take input from /dev/null.
+            // If it is closed, it can fail to redirect output as well.
+            // If it is not closed or redirected to /dev/ null, it can contest standard
+            // input from the client application.
+            cti::dup2_or_dev_null(stdin_fd, STDIN_FILENO);
+            if (launchInfo.stdout_fd >= 0) { ::dup2(launchInfo.stdout_fd, STDOUT_FILENO); }
+            if (launchInfo.stderr_fd >= 0) { ::dup2(launchInfo.stderr_fd, STDERR_FILENO); }
 
             // Start flux attach
             ::execvp("flux", (char* const*)flux_job_attach_argv);

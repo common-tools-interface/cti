@@ -166,6 +166,7 @@ public: // type definitions
         AttachMPIR,
         ReadStringMPIR,
         ReleaseMPIR,
+        WaitMPIR,
         TerminateMPIR,
 
         RegisterApp,
@@ -228,6 +229,7 @@ public: // type definitions
     */
 
     // ReleaseMPIR
+    // WaitMPIR
     /*
         send ID provided by LaunchMPIR request
     */
@@ -245,7 +247,7 @@ public: // type definitions
     // Response types
 
     enum RespType : long {
-        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR, ForkExecvpUtil
+        // Shutdown, RegisterApp, RegisterUtil, CheckApp, ReleaseMPIR, WaitMPIR, ForkExecvpUtil
         // ReleaseApp
         OK,
 
@@ -386,6 +388,11 @@ public:
     // fe_daemon will release a binary under mpir control from its breakpoint.
     // Write an mpir release request to pipe, verify response
     void request_ReleaseMPIR(DaemonAppId mpir_id);
+
+    // fe_daemon will release a binary under mpir control from its breakpoint
+    // and wait for completion.
+    // Write an mpir release request to pipe, verify response
+    void request_WaitMPIR(DaemonAppId mpir_id);
 
     // fe_daemon will read the value of a variable from memory under MPIR control.
     // Write an mpir string read request to pipe, return value

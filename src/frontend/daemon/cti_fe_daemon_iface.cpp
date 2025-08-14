@@ -433,6 +433,14 @@ FE_daemon::request_ReleaseMPIR(DaemonAppId mpir_id)
     verifyOKResp(m_resp_sock.getReadFd());
 }
 
+void
+FE_daemon::request_WaitMPIR(DaemonAppId mpir_id)
+{
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::WaitMPIR);
+    fdWriteLoop(m_req_sock.getWriteFd(), mpir_id);
+    verifyOKResp(m_resp_sock.getReadFd());
+}
+
 std::string
 FE_daemon::request_ReadStringMPIR(DaemonAppId mpir_id, char const* variable)
 {

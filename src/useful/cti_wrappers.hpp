@@ -100,9 +100,11 @@ namespace cstr {
     // lifted readlink
     static inline std::string readlink(std::string const& path) {
         char buf[PATH_MAX + 1];
-        if (::readlink(path.c_str(), buf, PATH_MAX) < 0) {
+        auto readlink_rc = ::readlink(path.c_str(), buf, PATH_MAX);
+        if (readlink_rc < 0) {
             throw std::runtime_error("readlink failed");
         }
+        buf[readlink_rc] = '\0';
         return std::string{buf};
     }
 
@@ -156,16 +158,18 @@ namespace cstr {
 } /* namespace cti::cstr */
 
 namespace file {
+    struct FClose { int operator()(FILE* f) { return std::fclose(f); } };
+
     // open a file path and return a unique FILE* or nullptr
     static inline auto try_open(std::string const& path, char const* mode) ->
-        std::unique_ptr<FILE, decltype(&std::fclose)>
+        std::unique_ptr<FILE, FClose>
     {
-        return take_pointer_ownership(fopen(path.c_str(), mode), std::fclose);
+        return std::unique_ptr<FILE,FClose>(fopen(path.c_str(), mode), FClose());
     }
 
     // open a file path and return a unique FILE* or throw
     static inline auto open(std::string const& path, char const* mode) ->
-        std::unique_ptr<FILE, decltype(&std::fclose)>
+        std::unique_ptr<FILE, FClose>
     {
         if (auto ufp = try_open(path, mode)) {
             return ufp;
@@ -535,6 +539,22 @@ stoi(std::string const& str, std::string_view name)
 	} catch (...) {
 		throw std::runtime_error("Failed to parse " + std::string{name}
 			+ " (was '" + str + "')");
+	}
+}
+
+// Duplicate or close target descriptor. If an input file descriptor is not
+//  closed in a subprocess, then it can contest with the parent process.
+static inline auto
+dup2_or_dev_null(int sourcefd, int targetfd)
+{
+	if (sourcefd < 0) {
+		sourcefd = ::open("/dev/null", O_RDONLY);
+    }
+
+	if (sourcefd >= 0) {
+		return ::dup2(sourcefd, targetfd);
+	} else {
+		return ::close(targetfd);
 	}
 }
 

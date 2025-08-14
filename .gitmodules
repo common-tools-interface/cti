@@ -1,0 +1,9 @@
+[submodule "external/libssh2"]
+	path = external/libssh2
+	url = https://github.com/libssh2/libssh2.git
+	branch = master
+
+[submodule "external/libarchive"]
+	path = external/libarchive
+	url = git@github.com:libarchive/libarchive.git
+	branch = release

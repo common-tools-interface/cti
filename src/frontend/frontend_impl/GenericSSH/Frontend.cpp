@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <thread>
 #include <future>
+#include <algorithm>
 
 // Pull in manifest to properly define all the forward declarations
 #include "transfer/Manifest.hpp"
@@ -139,7 +140,7 @@ GenericSSHApp::kill(int signal)
         }
 
         // run remote kill command
-        SSHSession(node.hostname, m_username, m_homeDir).executeRemoteCommand(killArgv.get(),
+        SSHSession(node.hostname, m_username, m_homeDir).executeRemoteCommand(killArgv.get(), nullptr,
             /* synchronous */ true);
     }
 }
@@ -208,7 +209,7 @@ GenericSSHApp::startDaemon(const char* const args[], bool synchronous)
     auto executeRemoteCommand = [](std::string const& hostname, std::string const& username,
         std::string const& homeDir, char const* const* argv, bool synchronous) {
         auto session = SSHSession{hostname, username, homeDir};
-        session.executeRemoteCommand(argv, synchronous);
+        session.executeRemoteCommand(argv, nullptr, synchronous);
     };
 
     if (synchronous) {

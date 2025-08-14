@@ -1,7 +1,7 @@
 /*********************************************************************************\
  * pals_be.c - pals specific backend library functions.
  *
- * Copyright 2020 Hewlett Packard Enterprise Development LP.
+ * Copyright 2020-2025 Hewlett Packard Enterprise Development LP.
  * SPDX-License-Identifier: Linux-OpenIB
  *********************************************************************************/
 
@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <wait.h>
 #include <ctype.h>
+#include <dirent.h>
 
 #include "cti_defs.h"
 #include "cti_be.h"
@@ -62,6 +63,7 @@ cti_be_wlm_proto_t _cti_be_pals_wlmProto =
 // Initialized in _cti_be_pals_init
 static cti_libpals_funcs_t* _cti_libpals_funcs = NULL; // libpals wrappers
 static pals_state_t *_cti_pals_state = NULL; // libpals state
+static char *_cti_pmix_file_path = NULL; // PMIx info file
 
 // node pmi_attribs information
 static pmi_attribs_t *_cti_pmi_attrs = NULL;
@@ -187,6 +189,12 @@ cleanup__cti_get_pals_pes:
 static void
 _cti_cleanup_be_globals(void)
 {
+	// Cleanup PMIx info file path
+	if (_cti_pmix_file_path != NULL) {
+		free(_cti_pmix_file_path);
+		_cti_pmix_file_path = NULL;
+	}
+
 	// Cleanup PEs list
 	if (_cti_pals_pes != NULL) {
 		free(_cti_pals_pes);
@@ -435,14 +443,90 @@ cleanup__cti_be_pals_detect_libpals:
 	return 1;
 }
 
+static char*
+find_first_pmix_file(char const* path)
+{
+	DIR *dir = opendir(path);
+	if (dir == NULL) {
+		perror("opendir");
+		return NULL;
+	}
+
+	struct dirent *entry = NULL;
+	while ((entry = readdir(dir)) != NULL) {
+		if ((entry->d_type == DT_REG) && (strncmp(entry->d_name, "pmix.", 5) == 0)) {
+			closedir(dir);
+			return strdup(entry->d_name);
+		}
+	}
+
+	closedir(dir);
+	return NULL;
+}
+
+static char* get_pmix_file_path()
+{
+	char *result = NULL;
+	char *spool_tmp_dir = NULL;
+	char *pmix_filename = NULL;
+
+	// Get directory containing PMIx info file
+	{ char const* spool_dir = getenv("PALS_SPOOL_DIR");
+		if (spool_dir == NULL) {
+			fprintf(stderr, "PALS_SPOOL_DIR not set in environment\n");
+			goto cleanup_get_pmix_file_path;
+		}
+		if (asprintf(&spool_tmp_dir, "%s/tmp/", spool_dir) <= 0) {
+			perror("asprintf");
+			goto cleanup_get_pmix_file_path;
+		}
+	}
+
+	// Find PMIx info filename in directory
+	pmix_filename = find_first_pmix_file(spool_tmp_dir);
+	if (pmix_filename == NULL) {
+		fprintf(stderr, "Failed to find PMIx tool file in %s\n", spool_tmp_dir);
+		goto cleanup_get_pmix_file_path;
+	}
+
+	// Build info file path
+	if (asprintf(&result, "%s/%s", spool_tmp_dir, pmix_filename) <= 0) {
+		perror("asprintf");
+		goto cleanup_get_pmix_file_path;
+	}
+
+cleanup_get_pmix_file_path:
+	if (spool_tmp_dir) {
+		free(spool_tmp_dir);
+		spool_tmp_dir = NULL;
+	}
+	if (pmix_filename) {
+		free(pmix_filename);
+		pmix_filename = NULL;
+	}
+
+	return result;
+}
+
 /* Constructor/Destructor functions */
 
 static int
 _cti_be_pals_init(void)
 {
 	// Only init once.
-	if (_cti_libpals_funcs != NULL) {
+	if ((_cti_libpals_funcs != NULL) || (_cti_pmix_file_path != NULL)) {
 		return 0;
+	}
+
+	// Initialize PMIx if set
+	if (getenv(PALS_PMIX_BE_PATH)) {
+		_cti_pmix_file_path = get_pmix_file_path();
+		if (_cti_pmix_file_path == NULL) {
+			fprintf(stderr, "Failed to initialize in PMIx mode, trying PALS\n");
+		} else {
+			fprintf(stderr, "Found PMIx info file at %s\n", _cti_pmix_file_path);
+			return 0;
+		}
 	}
 
 	int rc = 1;
@@ -457,26 +541,32 @@ _cti_be_pals_init(void)
 
 	char const* dl_err = NULL;
 
-	// Detect location of libpals
-	char libpals_path[PATH_MAX];
-	libpals_path[0] = '\0';
-	if (_cti_be_pals_detect_libpals(libpals_path, sizeof(libpals_path))) {
-
-		// Failed to automatically detect using pkg-config and in default paths
-		fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " failed to detect libpals path\n");
-		goto cleanup__cti_be_pals_init;
-
-	// Successfully detected path
-	} else {
-		fprintf(stderr, "Using detected libpals at: %s\n", libpals_path);
-	}
-
-	// dlopen libpals
-	_cti_libpals_funcs->handle = dlopen(libpals_path, RTLD_LAZY);
+	// Try to dlopen default libpals
+	_cti_libpals_funcs->handle = dlopen(PALS_BE_LIB_NAME, RTLD_LAZY);
 	dl_err = dlerror();
 	if (_cti_libpals_funcs == NULL) {
-		fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " dlopen: %s\n", dl_err);
-		goto cleanup__cti_be_pals_init;
+
+		// Detect location of libpals
+		char libpals_path[PATH_MAX];
+		libpals_path[0] = '\0';
+		if (_cti_be_pals_detect_libpals(libpals_path, sizeof(libpals_path))) {
+
+			// Failed to automatically detect using pkg-config and in default paths
+			fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " failed to detect libpals path\n");
+			goto cleanup__cti_be_pals_init;
+
+		// Successfully detected path
+		} else {
+			fprintf(stderr, "Using detected libpals at: %s\n", libpals_path);
+		}
+
+		// dlopen libpals
+		_cti_libpals_funcs->handle = dlopen(libpals_path, RTLD_LAZY);
+		dl_err = dlerror();
+		if (_cti_libpals_funcs == NULL) {
+			fprintf(stderr, "pals_be " PALS_BE_LIB_NAME " dlopen: %s\n", dl_err);
+			goto cleanup__cti_be_pals_init;
+		}
 	}
 
 	// Load functions from libpals
@@ -570,123 +660,335 @@ _cti_be_pals_fini(void)
 static cti_pidList_t*
 _cti_be_pals_getRanksFromFile(void)
 {
-    cti_pidList_t *result = NULL;
+	cti_pidList_t *result = NULL;
 
-    char *hostname = NULL;
-    char *file_dir = NULL;
-    char *layout_path = NULL;
-    FILE *layout_file = NULL;
-    palsLayoutEntry_t layout_entry;
-    palsLayoutFileHeader_t layout_header;
-    int i;
-    size_t hostname_len;
+	char *hostname = NULL;
+	char *file_dir = NULL;
+	char *layout_path = NULL;
+	FILE *layout_file = NULL;
+	palsLayoutEntry_t layout_entry;
+	palsLayoutFileHeader_t layout_header;
+	int i;
+	size_t hostname_len;
 
-    // Get hostname to look up
-    if ((hostname = _cti_be_pals_getNodeHostname()) == NULL) {
-        fprintf(stderr, "_cti_be_slurm_getNodeHostname failed.\n");
-        goto cleanup_getRanksFromFile;
-    }
-    hostname_len = strlen(hostname);
+	// Get hostname to look up
+	if ((hostname = _cti_be_pals_getNodeHostname()) == NULL) {
+		fprintf(stderr, "_cti_be_pals_getNodeHostname failed.\n");
+		goto cleanup_getRanksFromFile;
+	}
+	hostname_len = strlen(hostname);
 
-    // Get the file directory were we can find the layout file
-    if ((file_dir = cti_be_getFileDir()) == NULL) {
-        fprintf(stderr, "cti_be_getFileDir failed.\n");
-        goto cleanup_getRanksFromFile;
-    }
+	// Get the file directory were we can find the layout file
+	if ((file_dir = cti_be_getFileDir()) == NULL) {
+		fprintf(stderr, "cti_be_getFileDir failed.\n");
+		goto cleanup_getRanksFromFile;
+	}
 
-    // Create the path to the layout file
-    if (asprintf(&layout_path, "%s/%s", file_dir, SLURM_LAYOUT_FILE) <= 0) {
-        fprintf(stderr, "asprintf failed.\n");
-        goto cleanup_getRanksFromFile;
-    }
+	// Create the path to the layout file
+	if (asprintf(&layout_path, "%s/%s", file_dir, SLURM_LAYOUT_FILE) <= 0) {
+		fprintf(stderr, "asprintf failed.\n");
+		goto cleanup_getRanksFromFile;
+	}
 
-    // Open the layout file for reading
-    if ((layout_file = fopen(layout_path, "rb")) == NULL) {
-        fprintf(stderr, "Could not open %s for reading\n", layout_path);
-        goto cleanup_getRanksFromFile;
-    }
+	// Open the layout file for reading
+	if ((layout_file = fopen(layout_path, "rb")) == NULL) {
+		fprintf(stderr, "Could not open %s for reading\n", layout_path);
+		goto cleanup_getRanksFromFile;
+	}
 
-    // Read the header from the file
-    if (fread(&layout_header, sizeof(palsLayoutFileHeader_t), 1, layout_file) != 1) {
-        fprintf(stderr, "Could not read header from %s\n", layout_path);
-        goto cleanup_getRanksFromFile;
-    }
+	// Read the header from the file
+	if (fread(&layout_header, sizeof(palsLayoutFileHeader_t), 1, layout_file) != 1) {
+		fprintf(stderr, "Could not read header from %s\n", layout_path);
+		goto cleanup_getRanksFromFile;
+	}
 
-    // Find the entry for this nid
-    for (i = 0; i < layout_header.numNodes; ++i) {
+	// Find the entry for this nid
+	for (i = 0; i < layout_header.numNodes; ++i) {
 
-        // Read the layout entry
-        if (fread(&layout_entry, sizeof(palsLayoutEntry_t), 1, layout_file) != 1) {
-            fprintf(stderr, "Could not read layout entry %d from %s\n", i, layout_path);
-            goto cleanup_getRanksFromFile;
-        }
+		// Read the layout entry
+		if (fread(&layout_entry, sizeof(palsLayoutEntry_t), 1, layout_file) != 1) {
+			fprintf(stderr, "Could not read layout entry %d from %s\n", i, layout_path);
+			goto cleanup_getRanksFromFile;
+		}
 
-        // Get size of rank / pid array
-        size_t rankPidSize = sizeof(cti_rankPidPair_t) * layout_entry.numRanks;
+		// Get size of rank / pid array
+		if (layout_entry.numRanks <= 0) {
+			fprintf(stderr, "Invalid number of ranks: %d\n", layout_entry.numRanks);
+		}
+		size_t rankPidSize = sizeof(cti_rankPidPair_t) * layout_entry.numRanks;
 
-        // Check if this entry corresponds to our nid
-        if (strncmp(layout_entry.host, hostname, hostname_len) == 0) {
+		// Check if this entry corresponds to our nid
+		if (strncmp(layout_entry.host, hostname, hostname_len) == 0) {
 
-            // Hostname is a prefix of the entry, allow if entry is exactly equal,
-            // or if entry is a full domain name (next character is not alphanumeric)
-            if (isalnum(layout_entry.host[hostname_len])) {
+			// Hostname is a prefix of the entry, allow if entry is exactly equal,
+			// or if entry is a full domain name (next character is not alphanumeric)
+			if (isalnum(layout_entry.host[hostname_len])) {
 
-                // Advance to next entry
-                fseek(layout_file, rankPidSize, SEEK_CUR);
+				// Advance to next entry
+				fseek(layout_file, rankPidSize, SEEK_CUR);
 
-                continue;
-            }
+				continue;
+			}
 
-            // Found it
+			// Found it
 
-            // Allocate rank list
-           if (((result = malloc(sizeof(cti_pidList_t))) == NULL)
-            || ((result->pids = malloc(rankPidSize)) == NULL)) {
+			// Allocate rank list
+			if (((result = malloc(sizeof(cti_pidList_t))) == NULL)
+			|| ((result->pids = malloc(rankPidSize)) == NULL)) {
 
-               fprintf(stderr, "malloc failed.\n");
-               goto cleanup_getRanksFromFile;
-            }
+				fprintf(stderr, "malloc failed.\n");
+				goto cleanup_getRanksFromFile;
+			}
 
-            // Read rank list
-            result->numPids = layout_entry.numRanks;
-            if (fread(result->pids, sizeof(cti_rankPidPair_t), layout_entry.numRanks, layout_file) != layout_entry.numRanks) {
-                fprintf(stderr, "Could not read PID list %d of size %d from %s\n", i, layout_entry.numRanks, layout_path);
-                goto cleanup_getRanksFromFile;
-            }
+			// Read rank list
+			result->numPids = layout_entry.numRanks;
+			if (fread(result->pids, sizeof(cti_rankPidPair_t), layout_entry.numRanks, layout_file) != layout_entry.numRanks) {
+				fprintf(stderr, "Could not read PID list %d of size %d from %s\n", i, layout_entry.numRanks, layout_path);
 
-            goto cleanup_getRanksFromFile;
-        }
+				// Free invalid PID array
+				if (result->pids) {
+					free(result->pids);
+					result->pids = NULL;
+				}
 
-        // Advance to next entry
-        fseek(layout_file, rankPidSize, SEEK_CUR);
-    }
+				goto cleanup_getRanksFromFile;
+			}
 
-    // Didn't find the host in the layout list!
-    fprintf(stderr, "Could not find layout entry for hostname %s\n", hostname);
+			goto cleanup_getRanksFromFile;
+		}
+
+		// Advance to next entry
+		fseek(layout_file, rankPidSize, SEEK_CUR);
+	}
+
+	// Didn't find the host in the layout list!
+	fprintf(stderr, "Could not find layout entry for hostname %s\n", hostname);
 
 cleanup_getRanksFromFile:
-    if (result && (result->pids == NULL)) {
-        free(result);
-        result = NULL;
-    }
-    if (layout_file != NULL) {
-        fclose(layout_file);
-        layout_file = NULL;
-    }
-    if (layout_path != NULL) {
-        free(layout_path);
-        layout_path = NULL;
-    }
-    if (file_dir != NULL) {
-        free(file_dir);
-        file_dir = NULL;
-    }
-    if (hostname != NULL) {
-        free(hostname);
-        hostname = NULL;
-    }
+	if (result && (result->pids == NULL)) {
+		free(result);
+		result = NULL;
+	}
+	if (layout_file != NULL) {
+		fclose(layout_file);
+		layout_file = NULL;
+	}
+	if (layout_path != NULL) {
+		free(layout_path);
+		layout_path = NULL;
+	}
+	if (file_dir != NULL) {
+		free(file_dir);
+		file_dir = NULL;
+	}
+	if (hostname != NULL) {
+		free(hostname);
+		hostname = NULL;
+	}
 
-    return result;
+	return result;
+}
+
+// PMIx functions
+
+static char*
+_cti_pmix_get(char const* pmix_util_path, char const* key)
+{
+	char *result = NULL;
+	pid_t util_pid = -1;
+
+	if (_cti_pmix_file_path == NULL) {
+		// Error output will have printed in initialization
+		return NULL;
+	}
+
+	// Set up stdout pipe
+	int util_pipe[2];
+	if (pipe(util_pipe) < 0) {
+		perror("pipe");
+		goto cleanup__cti_invoke_pmix_util;
+	}
+
+	// Set up arguments
+	char const* util_argv[] = {"cti_pmix_util", _cti_pmix_file_path, key, NULL};
+	fprintf(stderr, "%s %s %s\n", pmix_util_path, _cti_pmix_file_path, key);
+
+	// Run utility subprocess
+	util_pid = fork();
+	if (util_pid == 0) {
+		close(util_pipe[0]);
+		util_pipe[0] = -1;
+		dup2(util_pipe[1], STDOUT_FILENO);
+
+		execvp(pmix_util_path, (char* const*)util_argv);
+		perror("execvp");
+		exit(-1);
+
+	} else if (util_pid < 0) {
+		perror("fork");
+		goto cleanup__cti_invoke_pmix_util;
+	}
+
+	// Read output
+	close(util_pipe[1]);
+	util_pipe[1] = -1;
+	char buf[PATH_MAX];
+	ssize_t read_cursor = 0;
+	while (1) {
+		errno = 0;
+		int read_rc = read(util_pipe[0], buf + read_cursor,
+			sizeof(buf) - read_cursor - 1);
+
+		if (read_rc < 0) {
+
+			// Retry if applicable
+			if (errno == EINTR) {
+				continue;
+
+			} else {
+				perror("read");
+				goto cleanup__cti_invoke_pmix_util;
+			}
+
+		// Return result if EOF
+		} else if (read_rc == 0) {
+
+			// No data was read
+			if (read_cursor == 0) {
+				fprintf(stderr, "cti_pmix_util: no output\n");
+				break;
+			}
+
+			// Remove trailing newline
+			buf[read_cursor - 1] = '\0';
+
+			result = strdup(buf);
+			fprintf(stderr, "cti_pmix_util: %s\n", result);
+			break;
+
+		// Update cursor with number of bytes read
+		} else {
+			read_cursor += read_rc;
+
+			// Output is larger than buffer
+			if (read_cursor >= (sizeof(buf) - 1)) {
+				fprintf(stderr, "cti_pmix_util: output larger than PATH_MAX\n");
+				goto cleanup__cti_invoke_pmix_util;
+			}
+		}
+	}
+
+cleanup__cti_invoke_pmix_util:
+
+	// Wait for utility to exit
+	if (util_pid > 0) {
+
+		while (1) {
+			int status;
+
+			// Get exit code
+			errno = 0;
+			if (waitpid(util_pid, &status, 0) < 0) {
+
+				// Retry wait if applicable
+				if (errno == EAGAIN) {
+					continue;
+
+				// pkgconfig failed, use system default
+				} else if (errno != ECHILD) {
+					perror("waitpid");
+					break;
+
+				} else {
+					break;
+				}
+			}
+
+			// Check exit code
+			if (WEXITSTATUS(status)) {
+				fprintf(stderr, "pmix_util failed with status %d\n", WEXITSTATUS(status));
+				if (result) {
+					free(result);
+				}
+				result = NULL;
+				break;
+			}
+		}
+
+		util_pid = -1;
+	}
+
+	if (result) {
+		fprintf(stderr, "pmix_get %s: %s\n", key, result);
+	}
+
+	return result;
+}
+
+static char*
+_cti_pmix_get_hostname(char const* pmix_util_path)
+{
+	return _cti_pmix_get(pmix_util_path, "pmix.hname");
+}
+
+static int
+_cti_pmix_get_first_pe(char const* pmix_util_path)
+{
+	int result = -1;
+	char *lldr = NULL;
+
+	// Get local leader
+	lldr = _cti_pmix_get(pmix_util_path, "pmix.lldr");
+	if (lldr == NULL) {
+		goto cleanup__cti_pmix_get_first_pe;
+	}
+
+	// Parse result
+	result = atoi(lldr);
+	if (result == 0) {
+		fprintf(stderr, "Failed to parse lldr: '%s'\n", lldr);
+		goto cleanup__cti_pmix_get_first_pe;
+	}
+
+	fprintf(stderr, "Parsed lldr: %d\n", result);
+
+cleanup__cti_pmix_get_first_pe:
+	if (lldr) {
+		free(lldr);
+		lldr = NULL;
+	}
+
+	return result;
+}
+
+int
+_cti_pmix_get_num_pes(char const* pmix_util_path)
+{
+	int result = -1;
+	char *local_size = NULL;
+
+	// Get local leader
+	local_size = _cti_pmix_get(pmix_util_path, "pmix.local.size");
+	if (local_size == NULL) {
+		goto cleanup__cti_pmix_get_num_pes;
+	}
+
+	// Parse result
+	result = atoi(local_size);
+	if (result == 0) {
+		fprintf(stderr, "Failed to parse local.size: '%s'\n", local_size);
+		goto cleanup__cti_pmix_get_num_pes;
+	}
+
+	fprintf(stderr, "Parsed local.size: %d\n", result);
+
+cleanup__cti_pmix_get_num_pes:
+	if (local_size) {
+		free(local_size);
+		local_size = NULL;
+	}
+
+	return result;
 }
 
 /* API related calls start here */
@@ -702,7 +1004,7 @@ _cti_be_pals_findAppPids()
 	// Try to get PMI attribs from system file
 	if ((cti_pmi_attrs = _cti_get_pmi_attrs_no_retry())) {
 
-                fprintf(stderr, "Found PMI attribs file\n");
+		fprintf(stderr, "Found PMI attribs file\n");
 
 		// Allocate result struct
 		result = (cti_pidList_t*)malloc(sizeof(cti_pidList_t));
@@ -727,11 +1029,9 @@ _cti_be_pals_findAppPids()
 
 	// No PMI attributes, use the shipped layout files
 	} else {
-
-                fprintf(stderr, "Didn't find PMI attribs file, falling back to shipped layout\n");
-
 		// Get the global layout information
-                result = _cti_be_pals_getRanksFromFile();
+		fprintf(stderr, "Didn't find PMI attribs file, falling back to shipped layout\n");
+		result = _cti_be_pals_getRanksFromFile();
 	}
 
 cleanup__cti_be_pals_findAppPids:
@@ -748,30 +1048,39 @@ _cti_be_pals_getNodeHostname()
 {
 	int failed = 1;
 	char *result = NULL;
+	
+	char const* pals_pmix_be_path = getenv(PALS_PMIX_BE_PATH);
+	if (pals_pmix_be_path == NULL) {
 
-	// Get and check nodes information
-	pals_node_t *pals_nodes = NULL;
-	int num_nodes = -1;
-	if ((_cti_get_pals_nodes(&pals_nodes, &num_nodes) < 0)
-	 || (pals_nodes == NULL) || (num_nodes < 0)) {
-		goto cleanup__cti_be_pals_getNodeHostname;
+		// Get and check nodes information
+		pals_node_t *pals_nodes = NULL;
+		int num_nodes = -1;
+		if ((_cti_get_pals_nodes(&pals_nodes, &num_nodes) < 0)
+		|| (pals_nodes == NULL) || (num_nodes < 0)) {
+			goto cleanup__cti_be_pals_getNodeHostname;
+		}
+
+		// Get and check node index
+		int cti_node_idx = _cti_get_node_idx();
+		if (cti_node_idx < 0) {
+			goto cleanup__cti_be_pals_getNodeHostname;
+		}
+
+		// Ensure information for current node is available
+		if (num_nodes <= cti_node_idx) {
+			fprintf(stderr, "libpals reported current node index %d, but only have %d entries\n",
+				cti_node_idx, num_nodes);
+			goto cleanup__cti_be_pals_getNodeHostname;
+		}
+
+		// Get hostname of node
+		result = strdup(pals_nodes[cti_node_idx].hostname);
+
+	} else {
+		char *env_var_copy = strdup(pals_pmix_be_path);
+		result = _cti_pmix_get_hostname(env_var_copy);
+		free(env_var_copy);
 	}
-
-	// Get and check node index
-	int cti_node_idx = _cti_get_node_idx();
-	if (cti_node_idx < 0) {
-		goto cleanup__cti_be_pals_getNodeHostname;
-	}
-
-	// Ensure information for current node is available
-	if (num_nodes <= cti_node_idx) {
-		fprintf(stderr, "libpals reported current node index %d, but only have %d entries\n",
-			cti_node_idx, num_nodes);
-		goto cleanup__cti_be_pals_getNodeHostname;
-	}
-
-	// Get hostname of node
-	result = strdup(pals_nodes[cti_node_idx].hostname);
 
 	// Successfully obtained hostname
 	failed = 0;
@@ -792,26 +1101,35 @@ _cti_be_pals_getNodeFirstPE()
 {
 	int result = -1;
 
-	// Get and check PEs information
-	pals_pe_t *pals_pes = NULL;
-	int num_pes = -1;
-	if ((_cti_get_pals_pes(&pals_pes, &num_pes) < 0)
-	 || (pals_pes == NULL) || (num_pes < 0)) {
-		goto cleanup__cti_be_pals_getNodeFirstPE;
-	}
+	char const* pals_pmix_be_path = getenv(PALS_PMIX_BE_PATH);
+	if (pals_pmix_be_path == NULL) {
 
-	// Get and check node index
-	int cti_node_idx = _cti_get_node_idx();
-	if (cti_node_idx < 0) {
-		goto cleanup__cti_be_pals_getNodeFirstPE;
-	}
-
-	// Find first PE index that is running on this node
-	for (int i = 0; i < num_pes; i++) {
-		if (pals_pes[i].nodeidx == cti_node_idx) {
-			result = i;
-			break;
+		// Get and check PEs information
+		pals_pe_t *pals_pes = NULL;
+		int num_pes = -1;
+		if ((_cti_get_pals_pes(&pals_pes, &num_pes) < 0)
+		|| (pals_pes == NULL) || (num_pes < 0)) {
+			goto cleanup__cti_be_pals_getNodeFirstPE;
 		}
+
+		// Get and check node index
+		int cti_node_idx = _cti_get_node_idx();
+		if (cti_node_idx < 0) {
+			goto cleanup__cti_be_pals_getNodeFirstPE;
+		}
+
+		// Find first PE index that is running on this node
+		for (int i = 0; i < num_pes; i++) {
+			if (pals_pes[i].nodeidx == cti_node_idx) {
+				result = i;
+				break;
+			}
+		}
+
+	} else {
+		char *env_var_copy = strdup(pals_pmix_be_path);
+		result = _cti_pmix_get_first_pe(pals_pmix_be_path);
+		free(env_var_copy);
 	}
 
 cleanup__cti_be_pals_getNodeFirstPE:
@@ -824,29 +1142,38 @@ _cti_be_pals_getNodePEs()
 	int failed = 1;
 	int num_node_pes = 0;
 
-	// Get and check PEs information
-	pals_pe_t *pals_pes = NULL;
-	int num_pes = -1;
-	if ((_cti_get_pals_pes(&pals_pes, &num_pes) < 0)
-	 || (pals_pes == NULL) || (num_pes < 0)) {
-		goto cleanup__cti_be_pals_getNodePEs;
-	}
+	char const* pals_pmix_be_path = getenv(PALS_PMIX_BE_PATH);
+	if (pals_pmix_be_path == NULL) {
 
-	// Get and check node index
-	int cti_node_idx = _cti_get_node_idx();
-	if (cti_node_idx < 0) {
-		goto cleanup__cti_be_pals_getNodePEs;
-	}
-
-	// Count all PEs running on this node
-	for (int i = 0; i < num_pes; i++) {
-		if (pals_pes[i].nodeidx == cti_node_idx) {
-			num_node_pes++;
+		// Get and check PEs information
+		pals_pe_t *pals_pes = NULL;
+		int num_pes = -1;
+		if ((_cti_get_pals_pes(&pals_pes, &num_pes) < 0)
+		|| (pals_pes == NULL) || (num_pes < 0)) {
+			goto cleanup__cti_be_pals_getNodePEs;
 		}
-	}
 
-	// Successfully counted PEs
-	failed = 0;
+		// Get and check node index
+		int cti_node_idx = _cti_get_node_idx();
+		if (cti_node_idx < 0) {
+			goto cleanup__cti_be_pals_getNodePEs;
+		}
+
+		// Count all PEs running on this node
+		for (int i = 0; i < num_pes; i++) {
+			if (pals_pes[i].nodeidx == cti_node_idx) {
+				num_node_pes++;
+			}
+		}
+
+		// Successfully counted PEs
+		failed = 0;
+
+	} else {
+		char *env_var_copy = strdup(pals_pmix_be_path);
+		num_node_pes = _cti_pmix_get_num_pes(pals_pmix_be_path);
+		free(env_var_copy);
+	}
 
 cleanup__cti_be_pals_getNodePEs:
 	if (failed) {

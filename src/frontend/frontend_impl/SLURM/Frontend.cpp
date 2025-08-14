@@ -43,6 +43,19 @@
 
 #include "SSHSession/SSHSession.hpp"
 
+// These environment variables are blacklisted to ensure that tool daemon launches
+// inherit the Slurm job settings from its associated job
+static const inline std::vector<std::string> srunEnvBlacklist = {
+    "SLURM_CHECKPOINT",      "SLURM_CONN_TYPE",         "SLURM_CPUS_PER_TASK",
+    "SLURM_DEPENDENCY",      "SLURM_DIST_PLANESIZE",    "SLURM_DISTRIBUTION",
+    "SLURM_EPILOG",          "SLURM_GEOMETRY",          "SLURM_NETWORK",
+    "SLURM_NPROCS",          "SLURM_NTASKS",            "SLURM_NTASKS_PER_CORE",
+    "SLURM_NTASKS_PER_NODE", "SLURM_NTASKS_PER_SOCKET", "SLURM_PARTITION",
+    "SLURM_PROLOG",          "SLURM_REMOTE_CWD",        "SLURM_REQ_SWITCH",
+    "SLURM_RESV_PORTS",      "SLURM_TASK_EPILOG",       "SLURM_TASK_PROLOG",
+    "SLURM_WORKING_DIR",     "SLURM_BCAST",             "SLURM_SEND_LIBS"
+};
+
 // Use squeue to check if job is registered with slurmd
 static bool job_registered(std::string const& jobId)
 {
@@ -214,6 +227,88 @@ static void wait_forever_for_application_started(std::string const& jobId)
     wait_forever_for_application_state(job_step_zero_started, jobId);
 }
 
+static auto parse_sacct_hetjobid(std::string const& sacctJobId)
+{
+    // Outside salloc, sacct will print job IDs in format <jobid>+<hetjob>.<stepid>
+    // Inside salloc, sacct will print job IDs in format <jobid>.<stepid>+<hetjob>
+    // In extern or batch step, stepid will be `extern` or `batch`
+
+    // Split IDs
+    auto jobId = std::string{};
+    auto stepId = std::string{};
+    auto hetOffset = std::string{};
+    auto in_salloc = false;
+    auto is_batch_step = false;
+    auto is_extern_step = false;
+    auto [first, second] = cti::split::string<2>(sacctJobId, '.');
+
+    // No step ID
+    if (second.empty()) {
+        throw std::runtime_error("Failed to parse sacct output: `" + sacctJobId + "`");
+    }
+
+    // Hetjob outside salloc
+    if (first.find("+") != std::string::npos) {
+        std::tie(jobId, hetOffset) = cti::split::string<2>(first, '+');
+        stepId = std::move(second);
+
+    // Hetjob inside salloc
+    } else if (second.find("+") != std::string::npos) {
+        jobId = std::move(first);
+        std::tie(stepId, hetOffset) = cti::split::string<2>(second, '+');
+        in_salloc = true;
+
+    // No hetjob
+    } else {
+        jobId = std::move(first);
+        stepId = std::move(second);
+    }
+
+    try {
+
+        // Parse ID and offset
+        auto job_id = (uint32_t)std::stoul(jobId);
+        auto step_id = (uint32_t)std::stoul(stepId);
+        if (stepId == "batch") {
+            is_batch_step = true;
+        } else if (stepId == "extern") {
+            is_extern_step = true;
+        }
+
+        if (!hetOffset.empty()) {
+
+            auto offset = (uint32_t)std::stoul(hetOffset);
+
+            // Add offset job ID to result list
+            return SLURMFrontend::HetJobId
+                { .job_id = job_id
+                , .step_id = step_id
+                , .het_offset = offset
+                , .in_salloc = in_salloc
+                , .is_batch_step = is_batch_step
+                , .is_extern_step = is_extern_step
+            };
+
+        // Nonheterogeneous job ID
+        } else {
+
+            // Add job ID to result list
+            return SLURMFrontend::HetJobId
+                { .job_id = job_id
+                , .step_id = step_id
+                , .is_batch_step = is_batch_step
+                , .is_extern_step = is_extern_step
+            };
+        }
+
+    } catch (std::exception const&) {
+        throw std::runtime_error("Failed to parse job ID " + sacctJobId + " from sacct. Ensure that "
+            "the job is valid and `sacct -o jobid -n -j " + jobId + "." + stepId + "` produces an ID list. "
+            "If `salloc` is not working, set environment " SLURM_DISABLE_SACCT "=1 (this will also "
+            "disable MPMD support)");
+    }
+};
+
 // Heterogeneous jobs have multiple job IDs that include a hetjob offset
 // Get all real job IDs associated with the provided ID
 static std::vector<SLURMFrontend::HetJobId>
@@ -221,61 +316,629 @@ get_all_job_ids(uint32_t job_id, uint32_t step_id)
 {
     auto result = std::vector<SLURMFrontend::HetJobId>{};
 
-    // Query all job / step IDs associated with this job ID
-    auto jobId = std::to_string(job_id) + "." + std::to_string(step_id);
-    auto squeueArgv = cti::ManagedArgv{SQUEUE, "-h", "-o", "%i", "--job", jobId.c_str()};
+    // If sacct usage was disabled, use only this job ID. Disables MPMD, PrologFlag=contain support
+    if (auto disable_sacct = ::getenv(SLURM_DISABLE_SACCT)) {
+        if (disable_sacct[0] != '0') {
 
-    // Create squeue output stream
-    auto squeueOutput = cti::Execvp(SQUEUE, squeueArgv.get(), cti::Execvp::stderr::Ignore);
-    auto& squeueStream = squeueOutput.stream();
-
-    // Read all IDs output by squeue
-    auto squeueLine = std::string{};
-    while (std::getline(squeueStream, squeueLine)) {
-
-        // Convert possible heterogeneous job ID to regular job ID
-        auto [baseId, hetjobOffset] = cti::split::string<2>(squeueLine, '+');
-
-        try {
-
-            // Job ID contained hetjob offset
-            if (!hetjobOffset.empty()) {
-
-                // Parse ID and offset
-                auto base_id = (uint32_t)std::stoul(baseId);
-                auto offset = (uint32_t)std::stoul(hetjobOffset);
-
-                // Add offset job ID to result list
-                result.push_back( SLURMFrontend::HetJobId
-                    { .job_id = base_id
-                    , .step_id = step_id
-                    , .het_offset = offset
-                });
-
-            // Nonheterogeneous job ID
-            } else {
-
-                // Parse ID and offset
-                auto base_id = (uint32_t)std::stoul(squeueLine);
-
-                // Add job ID to result list
-                result.push_back( SLURMFrontend::HetJobId
-                    { .job_id = base_id
-                    , .step_id = step_id
-                });
-            }
-
-        } catch (std::exception const&) {
-            throw std::runtime_error("Failed to parse job ID " + squeueLine + " from squeue " + jobId);
+            // Whether the application isr unning in salloc only matters for MPMD launches
+            // MPMD is not supported in this case, so the salloc-specific formatting
+            // for sattach etc. don't need to be generated.
+            return { SLURMFrontend::HetJobId
+                { .job_id = job_id
+                , .step_id = step_id
+                , .het_offset = 0
+                , .in_salloc = false
+                , .is_batch_step = false
+                , .is_extern_step = false
+            } };
         }
     }
 
-    // wait for squeue to complete
-    if (squeueOutput.getExitStatus()) {
-        throw std::runtime_error("squeue " + jobId + " failed");
+    // Query all job / step IDs associated with this job ID
+    // Inside salloc, squeue does not return hetjob IDs, so need to use sacct
+    auto jobStepId = std::to_string(job_id) + "." + std::to_string(step_id);
+    auto sacctArgv = cti::ManagedArgv{"sacct", "-o", "jobid", "-n", "-j", jobStepId.c_str()};
+
+    // Use JSON output
+    auto run_sacct_json = [&]() {
+        auto sacctJsonArgv = cti::ManagedArgv{};
+        sacctJsonArgv.add(sacctArgv.get());
+        sacctJsonArgv.add("--json");
+
+        try {
+
+            // Create sacct output stream
+            auto sacctOutput = cti::Execvp("sacct", sacctJsonArgv.get(), cti::Execvp::stderr::Ignore);
+            auto& sacctStream = sacctOutput.stream();
+
+            // Read all IDs output by sacct
+            auto sacctLine = std::string{};
+            while (std::getline(sacctStream, sacctLine)) {
+
+                // sacct may print a global job ID in some cases, without the .<stepid> suffix
+                if (sacctLine.find(".") == std::string::npos) {
+                    continue;
+                }
+
+                // "id": "hetjobid",
+                // "id"s that are not the job ID are numeric and not quoted
+                auto&& [key, value] = cti::split::string<2>(
+                    cti::split::removeLeadingWhitespace(std::move(sacctLine)), ':');
+
+                // Trim delimiters from value
+                value = cti::split::removeLeadingWhitespace(std::move(value));
+                if (!value.empty() && (value.back() == ',')) {
+                    value.pop_back();
+                }
+
+                if ((key != "\"id\"") || (value.length() < 2)
+                     || (value.front() != '"') || (value.back() != '"')) {
+                    continue;
+                }
+
+                value = value.substr(1, value.length() - 2);
+                Frontend::inst().writeLog("Found hetjobid from json: '%s'\n", value.c_str());
+                result.push_back(parse_sacct_hetjobid(value));
+            }
+
+            if (auto sacct_rc = sacctOutput.getExitStatus()) {
+                Frontend::inst().writeLog("sacct --json failed with code %d\n", sacct_rc);
+                result.clear();
+            }
+
+        } catch (std::exception const& ex) {
+            Frontend::inst().writeLog("sacct --json failed: %s\n", ex.what());
+            result.clear();
+        }
+    };
+
+    // Use YAML output
+    auto run_sacct_yaml = [&]() {
+        auto sacctYamlArgv = cti::ManagedArgv{};
+        sacctYamlArgv.add(sacctArgv.get());
+        sacctYamlArgv.add("--yaml");
+
+        try {
+
+            // Create sacct output stream
+            auto sacctOutput = cti::Execvp("sacct", sacctYamlArgv.get(), cti::Execvp::stderr::Ignore);
+            auto& sacctStream = sacctOutput.stream();
+
+            // Read all IDs output by sacct
+            auto sacctLine = std::string{};
+            while (std::getline(sacctStream, sacctLine)) {
+
+                // sacct may print a global job ID in some cases, without the .<stepid> suffix
+                if (sacctLine.find(".") == std::string::npos) {
+                    continue;
+                }
+
+                // !!str id: !!str hetjobid
+                auto&& [str1, key, str2, value] = cti::split::string<4>(
+                    cti::split::removeLeadingWhitespace(std::move(sacctLine)), ' ');
+
+                if ((str1 != "!!str") || (key != "id:") || (str2 != "!!str")) {
+                    continue;
+                }
+
+                Frontend::inst().writeLog("Found hetjobid from yaml: '%s'\n", value.c_str());
+                result.push_back(parse_sacct_hetjobid(value));
+            }
+
+            if (auto sacct_rc = sacctOutput.getExitStatus()) {
+                Frontend::inst().writeLog("sacct --yaml failed with code %d\n", sacct_rc);
+                result.clear();
+            }
+
+        } catch (std::exception const& ex) {
+            Frontend::inst().writeLog("sacct --yaml failed: %s\n", ex.what());
+            result.clear();
+        }
+    };
+
+    // Use regular output
+    auto run_sacct_plaintext = [&]() {
+        if (step_id > 9) {
+            fprintf(stderr, "warning: failed to parse JSON and YAML output for hetjob ID.\n"
+                "Attempting to fall back to unformatted output, which may be truncated as "
+                "step ID is %u\n", step_id);
+        }
+
+        try {
+
+            // Create sacct output stream
+            auto sacctOutput = cti::Execvp("sacct", sacctArgv.get(), cti::Execvp::stderr::Ignore);
+            auto& sacctStream = sacctOutput.stream();
+
+            // Read all IDs output by sacct
+            auto sacctLine = std::string{};
+            while (std::getline(sacctStream, sacctLine)) {
+
+                // sacct may print a global job ID in some cases, without the .<stepid> suffix
+                if (sacctLine.find(".") == std::string::npos) {
+                    continue;
+                }
+
+                Frontend::inst().writeLog("Found hetjobid from sacct: '%s'\n", sacctLine.c_str());
+                result.push_back(parse_sacct_hetjobid(sacctLine));
+            }
+
+            if (auto sacct_rc = sacctOutput.getExitStatus()) {
+                Frontend::inst().writeLog("sacct failed with code %d\n", sacct_rc);
+                result.clear();
+            }
+
+        } catch (std::exception const& ex) {
+            Frontend::inst().writeLog("sacct failed: %s\n", ex.what());
+            result.clear();
+        }
+    };
+
+    // Job step may have been launched with PrologFlag contain
+    // This starts a "wrapper" step called `batch` or `extern`, there is a delay before the
+    // real job is registered
+    int retry = 0;
+    int wait_seconds = 5;
+    int max_retry = 24; // Wait up to 2 minutes for contain prolog to complete
+    while (retry < max_retry) {
+
+        // Log and adjust next wait time
+        Frontend::inst().writeLog("%s (%d/%d)\n",
+            (retry == 0) ? "Checking for hetjob IDs" : "Retrying contain prolog wait",
+            retry + 1, max_retry);
+        retry++;
+
+        // Try all sacct variants
+        run_sacct_json();
+        if (result.empty()) {
+            run_sacct_yaml();
+        }
+        if (result.empty()) {
+            run_sacct_plaintext();
+        }
+
+        // Could not parse any job IDs
+        if (result.empty()) {
+
+            // extern steps are registered with squeue before sacct. When the extern step is running,
+            // but before the real step has started, sacct may returns empty.
+            // Check that squeue -j <jobid> -h returns successfully before trying sacct
+            if (job_registered(jobStepId)) {
+                ::sleep(wait_seconds);
+                continue;
+            }
+
+            // Job wasn't registered, break into exception
+            break;
+        }
+
+        for (auto&& hetjobid : result) {
+            auto ss = std::stringstream{};
+            ss << job_id << ".";
+            if (hetjobid.is_batch_step) {
+                ss << "batch";
+            } else if (hetjobid.is_extern_step) {
+                ss << "extern";
+            } else {
+                ss << step_id;
+            }
+            if (hetjobid.het_offset) {
+                ss << "+" << *(hetjobid.het_offset);
+            }
+            if (hetjobid.in_salloc) {
+                ss << " (salloc)";
+            }
+            Frontend::inst().writeLog("%s\n", ss.str().c_str());
+        }
+
+        // Remove wrapper steps
+        result.erase(std::remove_if(result.begin(), result.end(), [](auto&& hetjobid) {
+            return hetjobid.is_batch_step || hetjobid.is_extern_step;
+        }), result.end());
+
+        // Done if have non-wrapper steps
+        if (!result.empty()) {
+            Frontend::inst().writeLog("Found %zu hetjob IDs from %u.%u\n", result.size(), job_id, step_id);
+            break;
+        }
+
+        // Contain prolog not completed yet
+        ::sleep(wait_seconds);
+    }
+
+    // Check for empty output
+    if (result.empty()) {
+        throw std::runtime_error("No job IDs found for " + jobStepId + ". Ensure that the job is valid and "
+            "`sacct -o jobid -n -j " + jobStepId + "` produces an ID list. If `salloc` is not working, set "
+            "environment " SLURM_DISABLE_SACCT "=1 (this will also disable MPMD support)");
     }
 
     return result;
+}
+
+// Query architecture for each node allocated to job, and login node.
+// Ensure all architectures match. If Slurm does not know about a node or a nodespec
+// is otherwise invalid, scontrol will ignore that node.
+static void
+verify_matching_architectures(std::vector<SLURMFrontend::HetJobId> const& jobIds)
+{
+    auto archCounts = std::unordered_map<std::string, int>{};
+
+    try {
+        auto nodeSpecs = std::unordered_set<std::string>{};
+
+        // Add this node hostname
+        nodeSpecs.insert(cti::cstr::gethostname());
+
+        for (auto&& jobId : jobIds) {
+            auto jobArg = jobId.get_sbcast_scancel_id();
+            char const* squeue_argv[] = {"squeue", "--json", "--job", jobArg.c_str(), nullptr};
+
+            // Run squeue
+            auto squeueOutput = cti::Execvp{"squeue", (char* const*)squeue_argv,
+                cti::Execvp::stderr::Ignore};
+
+            // Read squeue output
+            auto& squeueStream = squeueOutput.stream();
+            auto squeueLine = std::string{};
+
+            while (std::getline(squeueStream, squeueLine)) {
+                auto&& [key, value] = cti::split::string<2>(
+                    cti::split::removeLeadingWhitespace(std::move(squeueLine)), ':');
+
+                // Get nodespec from squeue
+                if (key == "\"nodes\"") {
+
+                    // Trim quotes
+                    if (value.length() > 3) {
+                        if (value.rfind(" \"") == 0) {
+                            value = value.substr(2);
+                        }
+                        if (value.back() == ',') {
+                            value = value.substr(0, value.length() - 1);
+                        }
+                        if (value.back() == '"') {
+                            value = value.substr(0, value.length() - 1);
+                        }
+                    }
+
+                    nodeSpecs.insert(value);
+                }
+            }
+
+            // Consume rest of squeue output and ignore errors
+            squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
+            (void)squeueOutput.getExitStatus();
+        }
+
+        auto nodeSpecArg = std::stringstream{};
+        for (auto&& nodeSpec : nodeSpecs) {
+            // Trailing comma is accepted by scontrol
+            nodeSpecArg << nodeSpec << ",";
+        }
+
+        auto nodeSpecStr = nodeSpecArg.str();
+        char const* scontrol_argv[] = {"scontrol", "show", "node", "--json", nodeSpecStr.c_str(), nullptr};
+
+        // Run scontrol
+        auto scontrolOutput = cti::Execvp{"scontrol", (char* const*)scontrol_argv,
+            cti::Execvp::stderr::Ignore};
+
+        // Read scontrol output
+        auto& scontrolStream = scontrolOutput.stream();
+        auto scontrolLine = std::string{};
+
+        while (std::getline(scontrolStream, scontrolLine)) {
+            auto&& [key, value] = cti::split::string<2>(
+                cti::split::removeLeadingWhitespace(std::move(scontrolLine)), ':');
+
+            // Get architecture and update count
+            if (key == "\"architecture\"") {
+                auto& count = archCounts[value];
+                count++;
+            }
+        }
+
+        // Consume rest of scontrol output and ignore errors
+        scontrolStream.ignore(std::numeric_limits<std::streamsize>::max());
+        (void)scontrolOutput.getExitStatus();
+
+    } catch (std::exception const& ex) {
+        Frontend::inst().writeLog("Architecture check failed: %s\n", ex.what());
+    }
+
+    if (archCounts.size() > 1) {
+        auto archList = std::stringstream{};
+        for (auto&& [arch, count] : archCounts) {
+            archList << arch << " ";
+        }
+        throw std::runtime_error("Launched job had nodes with different architectures: \n"
+            + archList.str() + "\nTool launch does not support targeting nodes with different "
+            "architectures. This check can be disabled by setting the environment variable "
+            SLURM_CHECK_ARCH "=0");
+    }
+}
+
+static auto
+scontrol_get_config(std::string const& key)
+{
+    auto result = std::string{};
+
+    char const* scontrol_argv[] = {"scontrol", "show", "config", nullptr};
+
+    // Run scontrol
+    auto scontrolOutput = cti::Execvp{"scontrol", (char* const*)scontrol_argv,
+        cti::Execvp::stderr::Ignore};
+
+    // Read scontrol output
+    auto& scontrolStream = scontrolOutput.stream();
+    auto scontrolLine = std::string{};
+
+    while (std::getline(scontrolStream, scontrolLine)) {
+        auto&& [lineKey, value] = cti::split::string<2>(scontrolLine, '=');
+        lineKey = cti::split::removeLeadingWhitespace(std::move(lineKey));
+
+        // Get architecture and update count
+        if (lineKey == key) {
+            result = cti::split::removeLeadingWhitespace(std::move(value));
+        }
+    }
+
+    // Consume rest of scontrol output and ignore errors
+    scontrolStream.ignore(std::numeric_limits<std::streamsize>::max());
+    (void)scontrolOutput.getExitStatus();
+
+    return result;
+}
+
+static auto
+find_jobs_on_nodes(std::set<std::string> const& nodes)
+{
+    auto result = std::map<std::string, int>{};
+
+    for (auto&& node : nodes) {
+
+        auto count = int{0};
+
+        char const* squeue_argv[] = {"squeue", "-s", "-h", "--nodelist", node.c_str(), nullptr};
+
+        // Run squeue
+        auto squeueOutput = cti::Execvp{"squeue", (char* const*)squeue_argv,
+            cti::Execvp::stderr::Ignore};
+
+        // Read squeue output
+        auto& squeueStream = squeueOutput.stream();
+        auto squeueLine = std::string{};
+
+        // Count number of jobs on node
+        while (std::getline(squeueStream, squeueLine)) {
+            count++;
+        }
+        result[node] = count;
+
+        // Consume rest of squeue output and ignore errors
+        squeueStream.ignore(std::numeric_limits<std::streamsize>::max());
+        (void)squeueOutput.getExitStatus();
+    }
+
+    return result;
+}
+
+// Read string from file descriptor, break if timeout is hit during read wait
+static auto read_timeout(int fd, int64_t usec)
+{
+    auto result = std::string{};
+
+    // File descriptor select set
+    auto select_set = fd_set{};
+    FD_ZERO(&select_set);
+    FD_SET(fd, &select_set);
+
+    // Set up timeout
+    auto timeout = timeval
+        { .tv_sec = 0
+        , .tv_usec = usec
+    };
+
+    // Select loop
+    while (auto select_rc = ::select(fd + 1, &select_set, nullptr, nullptr, &timeout)) {
+        if (select_rc < 0) {
+            break;
+        }
+
+        // Read string into buffer
+        char buf[1024];
+        if (auto read_rc = ::read(fd, buf, sizeof(buf) - 1)) {
+
+            // Retry if interrupted
+            if ((read_rc < 0) && (errno == EINTR)) {
+                continue;
+
+            // Bytes read, add to result
+            } else if (read_rc > 0) {
+                buf[read_rc] = '\0';
+                result += buf;
+
+            // Otherwise exit loop
+            } else {
+                break;
+            }
+        }
+    }
+
+    return result;
+}
+
+template <typename Func>
+static auto srunMPIR(FE_daemon& daemon, char const* launcher_path, char const* const* launcher_argv,
+    char const* const* env_list, Func&& cassiniJobLimitCallback)
+{
+    auto result = FE_daemon::MPIRResult{};
+
+    // Capture srun error output
+    auto srunPipe = cti::Pipe{};
+    auto use_shim = ::getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR) || ::getenv(CTI_LAUNCHER_SCRIPT_ENV_VAR);
+
+    try {
+        if (!use_shim) {
+
+            // Launch program under MPIR control.
+            result = daemon.request_LaunchMPIR(
+                launcher_path, launcher_argv,
+                // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
+                // Capture stderr output in case launch fails
+                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
+                env_list);
+
+        } else {
+            // launcherPath is path of wrapper script, use sattach to find path of
+            // real srun binary.
+            // An alternative would be to search PATH for the first srun binary with MPIR
+            // symbols.
+            auto sattachPath = cti::findPath(SATTACH);
+            auto slurmDirectory = std::filesystem::path{sattachPath}.parent_path();
+            auto srunPath = std::string{slurmDirectory / "srun"};
+
+            auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
+            auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
+
+            // If CTI_DEBUG is enabled, show wrapper output
+            auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? srunPipe.getWriteFd() : ::open("/dev/null", O_RDWR);
+
+            return daemon.request_LaunchMPIRShim(
+                shimBinaryPath.c_str(), temporaryShimBinDir.c_str(),
+                srunPath.c_str(), launcher_path, launcher_argv,
+                ::open("/dev/null", O_RDWR), outputFd, srunPipe.getWriteFd(),
+                env_list);
+        }
+
+        if (result.proctable.empty()) {
+            throw std::runtime_error("Launcher provided empty proctable");
+        } else if (std::any_of(result.proctable.begin(), result.proctable.end(),
+            [](auto&& elem) { return elem.pid < 0; })) {
+            throw std::runtime_error("Launcher proctable had negative PID");
+        }
+
+    } catch (std::exception const& ex) {
+
+        // Get stderr output from srun and add to error message
+        auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
+
+        auto jobsOnNode = std::map<std::string, int>{};
+        auto attemptedNodes = std::set<std::string>{};
+
+        try {
+
+            // Check if interconnect error
+            if (stderrOutput.find("Error configuring interconnect") != std::string::npos) {
+
+                // Check if using Cassini switch
+                auto switchType = scontrol_get_config("SwitchType");
+                if (switchType.find("hpe_slingshot") != std::string::npos) {
+
+                    // Get list of attempted nodes for the job
+                    std::transform(result.proctable.begin(), result.proctable.end(),
+                        std::inserter(attemptedNodes, attemptedNodes.begin()),
+                        [](auto&& elem){ return elem.hostname; });
+
+                    // Find other jobs running on these nodes
+                    jobsOnNode = find_jobs_on_nodes(attemptedNodes);
+                }
+            }
+        } catch (...) {
+            // Ignore exception
+        }
+
+        // Check if it hit the limit
+        for (auto&& [node, count] : jobsOnNode) {
+            if (count >= SLURM_CASSINI_JOB_LIMIT) {
+                auto nodes = std::vector<std::string>{};
+                std::copy(attemptedNodes.begin(), attemptedNodes.end(), std::back_inserter(nodes));
+                return cassiniJobLimitCallback(node, count, nodes, stderrOutput);
+            }
+        }
+
+        throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
+    }
+
+    // Re-ignore srun stderr output after successful launch to avoid blockages
+    if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
+        fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
+    }
+
+    return result;
+}
+
+static void
+launch_daemon_remote(cti::ManagedArgv&& argv, char const* const* env,
+    std::vector<std::string> const& nodes, std::string const& username, std::string const& homeDir,
+    bool synchronous)
+{
+    // LibSSH2 initialization and cleanup
+    struct LibSSH2Init
+    {
+        bool initialized;
+
+        LibSSH2Init()
+            : initialized{false}
+        {
+            if (libssh2_init(0)) {
+                throw std::runtime_error("Failed to initialize libssh2");
+            }
+        }
+
+        LibSSH2Init(LibSSH2Init&& expiring)
+            : initialized{expiring.initialized}
+        {
+            expiring.initialized = false;
+        }
+
+        ~LibSSH2Init()
+        {
+            if (initialized) {
+                libssh2_exit();
+            }
+        }
+    };
+
+    auto libSSH2Init = LibSSH2Init{};
+
+    // Execute the launcher on each of the hosts using SSH
+    auto executeRemoteCommand = [](std::string const& hostname, std::string const& username,
+        std::string const& homeDir, cti::ManagedArgv argv, char const* const* env, bool synchronous) {
+
+        Frontend::inst().writeLog("Executing remote command on %s: %s\n",
+            hostname.c_str(), argv.string().c_str());
+
+        auto session = SSHSession{hostname, username, homeDir};
+        session.executeRemoteCommand(argv.get(), env, synchronous);
+    };
+
+    if (synchronous) {
+
+        // Synchronous launches run in parallel as future tasks
+        auto launchFutures = std::vector<std::future<void>>{};
+        for (auto&& node : nodes) {
+            launchFutures.push_back(std::async(std::launch::async, executeRemoteCommand,
+                node, username, homeDir, argv.clone(), env,
+                /* synchronous */ true));
+        }
+        for (auto&& future : launchFutures) {
+            future.get();
+        }
+
+        Frontend::inst().writeLog("Synchronous remote command completed\n");
+
+    } else {
+
+        // Asynchronous launches can be started in parallel and continued to run
+        for (auto&& node : nodes) {
+            executeRemoteCommand(node, username, homeDir, argv.clone(), env,
+                /* asynchronous */ false);
+        }
+
+        Frontend::inst().writeLog("Async command launched\n");
+    }
 }
 
 /* constructors / destructors */
@@ -562,26 +1225,39 @@ cti::ManagedArgv SLURMApp::generateDaemonLauncherArgv(char const* const* launche
 
     auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
 
-    // Start adding the args to the launcher argv array
-    result.add(slurmFrontend.getLauncherName());
+    // Check for launcher wrapper
+    if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR)) {
+        SLURMFrontend::detail::add_quoted_args(result, launcherWrapper);
+    }
 
-    // For each job ID, add 
-    // --jobid=<job_id> --mem-per-cpu=0 --mem_bind=no
+    // Check for launcher script
+    if (auto launcherScript = getenv(CTI_LAUNCHER_SCRIPT_ENV_VAR)) {
+        result.add(launcherScript);
+
+    // Use normal launcher from PATH
+    } else {
+        result.add(slurmFrontend.getLauncherName());
+    }
+
+    // For each job ID, add
+    // --jobid=<leader_job_id> --mem-per-cpu=0 --mem_bind=no
     // --cpu_bind=no --share --ntasks-per-node=1 --nodes=<numNodes>
     // --nodelist=<host1,host2,...> --disable-status --quiet --mpi=none
     // --input=none --output=none --error=none <tool daemon> <args>
 
     auto first = true;
+    auto leaderId = std::string{};
     for (auto&& [id, layout] : m_stepLayout) {
 
         // Hetjob launch separator
         if (first) {
             first = false;
+            leaderId = id;
         } else {
             result.add(":");
         }
 
-        result.add("--jobid=" + id);
+        result.add("--jobid=" + leaderId);
         result.add("--nodes=" + std::to_string(layout.nodes.size()));
         if (!m_gresSetting.empty()) {
             result.add("--gres=" + m_gresSetting);
@@ -770,7 +1446,7 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
         // Build environment from blacklist
         cti::ManagedArgv launcherEnv;
         for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
-            launcherEnv.add(envVar + "=");
+            launcherEnv.add("CTIBLACKLIST_" + envVar + "=");
         }
 
         // Capture lines of output from srun
@@ -905,23 +1581,64 @@ void SLURMApp::startDaemon(const char* const args[], bool synchronous)
     auto& slurmFrontend = dynamic_cast<SLURMFrontend&>(m_frontend);
     auto launcherEnv = cti::ManagedArgv{};
     for (auto&& envVar : slurmFrontend.getSrunEnvBlacklist()) {
-        launcherEnv.add(envVar + "=");
+        launcherEnv.add("CTIBLACKLIST_" + envVar + "=");
     }
 
+    // Find the path to the launcher
+    auto launcherPath = cti::findPath(slurmFrontend.getLauncherName());
+
     // tell FE Daemon to launch srun
-    auto fork_execvp_args = std::make_tuple(&m_frontend.Daemon(),
-        m_daemonAppId, slurmFrontend.getLauncherName().c_str(),
-        launcherArgv.get(),
-        // redirect stdin / stderr / stdout
-        ::open("/dev/null", O_RDONLY), ::open("/dev/null", O_WRONLY), ::open("/dev/null", O_WRONLY),
-        launcherEnv.get());
+    auto used_ssh = false;
+    auto result = srunMPIR(m_frontend.Daemon(), launcherPath.c_str(), launcherArgv.get(), launcherEnv.get(),
+        [&](std::string const& node, int count, std::vector<std::string> const& nodes,
+        std::string const& stderrOutput) -> FE_daemon::MPIRResult {
+
+            // Failure case due to oversubscription
+
+            // Try SSH connection
+            try {
+
+                // Get SSH connection information
+                auto username = m_frontend.getPwd().pw_name;
+                auto home_dir = m_frontend.getPwd().pw_dir;
+
+                // Build daemon arguments
+                auto daemonArgv = cti::ManagedArgv{};
+                daemonArgv.add(m_toolPath + "/" + getBEDaemonName());
+                if (args != nullptr) {
+                    for (const char* const* arg = args; *arg != nullptr; arg++) {
+                        daemonArgv.add(*arg);
+                    }
+                }
+
+                // Use SSH to launch daemon onto nodes
+                launch_daemon_remote(std::move(daemonArgv), launcherEnv.get(),
+                    nodes, username, home_dir, synchronous);
+                used_ssh = true;
+
+                return FE_daemon::MPIRResult{ .mpir_id = -1 };
+
+            } catch (std::exception const& ex) {
+                Frontend::inst().writeLog("SSH failed: %s\n", ex.what());
+            }
+
+            throw std::runtime_error("Attempted to launch more than "
+                + std::to_string(count) + " jobs on node " + node + ".\n"
+                + "The interconnect limits the active number of jobs per node. Please "
+                + "wait until `squeue -s --nodelist=" + node + "` returns less than "
+                + std::to_string(SLURM_CASSINI_JOB_LIMIT - 1) + " jobs. srun output:\n"
+                + stderrOutput);
+        });
+
+    // SSH handled completion and release of daemon
+    if (used_ssh) {
+        return;
+    }
 
     if (synchronous) {
-        std::apply(std::mem_fn(&FE_daemon::request_ForkExecvpUtil_Sync),
-            fork_execvp_args);
+        m_frontend.Daemon().request_WaitMPIR(result.mpir_id);
     } else {
-        std::apply(std::mem_fn(&FE_daemon::request_ForkExecvpUtil_Async),
-            fork_execvp_args);
+        m_frontend.Daemon().request_ReleaseMPIR(result.mpir_id);
     }
 }
 
@@ -945,6 +1662,12 @@ SLURMApp::checkFilesExist(std::set<std::string> const& paths)
     // Generate the final launcher argv array
     auto launcherArgv = generateDaemonLauncherArgv(launcherArgs.get());
 
+    // Build environment from blacklist
+    cti::ManagedArgv launcherEnv;
+    for (auto&& envVar : dynamic_cast<SLURMFrontend&>(m_frontend).getSrunEnvBlacklist()) {
+        launcherEnv.add("CTIBLACKLIST_" + envVar + "=");
+    }
+
     auto stdoutPipe = cti::Pipe{};
 
     // Tell FE Daemon to launch srun
@@ -953,7 +1676,7 @@ SLURMApp::checkFilesExist(std::set<std::string> const& paths)
         launcherArgv.get(),
         // redirect stdin / stderr / stdout
         ::open("/dev/null", O_RDONLY), stdoutPipe.getWriteFd(), ::open("/dev/null", O_WRONLY),
-        {});
+        launcherEnv.get());
 
     stdoutPipe.closeWrite();
     auto stdoutBuf = cti::FdBuf{stdoutPipe.getReadFd()};
@@ -1232,6 +1955,12 @@ SLURMFrontend::registerJob(size_t numIds, ...) {
     return *ret.first;
 }
 
+std::vector<std::string> const&
+SLURMFrontend::getSrunEnvBlacklist() const
+{
+    return srunEnvBlacklist;
+}
+
 std::string
 SLURMFrontend::getLauncherName()
 {
@@ -1263,6 +1992,12 @@ getStepLayout(std::string const& jobId, size_t pe_offset)
     // "Job step layout:"
     if (std::getline(sattachStream, sattachLine)) {
         if (sattachLine.compare("Job step layout:")) {
+
+            // sattach itself had an error
+            if (sattachLine.rfind("sattach: error:", 0) == 0) {
+                throw std::runtime_error(sattachLine);
+            }
+
             throw std::runtime_error(
                 "Unexpected layout output from SATTACH: '" + sattachLine + "'. "
                 "Try running `" SATTACH " --layout " + jobId + "`");
@@ -1274,6 +2009,7 @@ getStepLayout(std::string const& jobId, size_t pe_offset)
     }
 
     auto num_nodes = int{0};
+    auto running_rank_total = int{0};
 
     // "  {numPEs} tasks, {num_nodes} nodes ({hostname}...)"
     if (std::getline(sattachStream, sattachLine)) {
@@ -1298,6 +2034,7 @@ getStepLayout(std::string const& jobId, size_t pe_offset)
 
     // "  Node {nodeNum} ({hostname}), {numPEs} task(s): PE_0 {PE_i }..."
     for (auto i = int{0}; std::getline(sattachStream, sattachLine); i++) {
+
         if (i >= num_nodes) {
             throw std::runtime_error(
                 "Target job has " + std::to_string(num_nodes) + " nodes, but received "
@@ -1306,16 +2043,29 @@ getStepLayout(std::string const& jobId, size_t pe_offset)
         }
 
         // split the summary line
-        std::string nodeNum, hostname, numPEs, pe_0;
-        std::tie(std::ignore, nodeNum, hostname, numPEs, std::ignore, pe_0) =
+        std::string nodeNum, hostname, rawNumPEs, rawPE0;
+        std::tie(std::ignore, nodeNum, hostname, rawNumPEs, std::ignore, rawPE0) =
             cti::split::string<6>(cti::split::removeLeadingWhitespace(sattachLine));
 
+        auto pe_0 = std::stoul(rawPE0);
+
+        // Inside an allocation, all MPMD steps will have their rank number start at 0
+        // Keep track of the rank total and add it to offset if rank number was reset
+        if ((running_rank_total > 0) && (pe_0 == 0)) {
+           pe_0 += running_rank_total;
+        }
+       // Add global MPMD rank offset
+        pe_0 += pe_offset;
+
         // fill out node layout
+        auto num_pes = std::stoul(rawNumPEs);
         result.nodes.push_back(SLURMFrontend::NodeLayout
             { hostname.substr(1, hostname.length() - 3) // remove parens and comma from hostname
-            , std::stoul(numPEs)
-            , std::stoul(pe_0) + pe_offset
+            , num_pes, pe_0
         });
+
+        // Update rank tototal for MPMD jobs in allocation
+        running_rank_total += num_pes;
     }
 
     // wait for sattach to complete
@@ -1332,13 +2082,38 @@ SLURMFrontend::fetchStepLayout(std::vector<HetJobId> const& jobIds)
 {
     auto result = std::map<std::string, SLURMFrontend::StepLayout>{};
 
+    // Ensure job has matching architectures
+    if ((::getenv(SLURM_CHECK_ARCH) == nullptr) || (::getenv(SLURM_CHECK_ARCH)[0] != '0')) {
+        verify_matching_architectures(jobIds);
+    }
+
+    auto failed_layouts = size_t{0};
+    auto exceptionMessage = std::string{};
+
     auto next_pe_start = size_t{0};
     for (auto&& hetJobId : jobIds) {
 
         // Query sattach to get layout for job
-        auto layout = getStepLayout(hetJobId.get_sattach_id(), next_pe_start);
-        next_pe_start += layout.numPEs;
-        result[hetJobId.get_srun_id()] = std::move(layout);
+        try {
+            auto layout = getStepLayout(hetJobId.get_sattach_id(), next_pe_start);
+            next_pe_start += layout.numPEs;
+            result[hetJobId.get_srun_id()] = std::move(layout);
+
+        } catch (std::exception const& ex) {
+            failed_layouts++;
+            exceptionMessage = ex.what();
+        }
+    }
+
+    if (failed_layouts > 0) {
+        if (failed_layouts == jobIds.size()) {
+            throw std::runtime_error(exceptionMessage);
+        } else if (failed_layouts < jobIds.size()) {
+            throw std::runtime_error(std::to_string(failed_layouts) + " of "
+                + std::to_string(jobIds.size()) + " MPMD job steps failed to launch. "
+                "Ensure your MPMD job can be launched successfully outside of this tool ("
+                + exceptionMessage + ")");
+        }
     }
 
     return result;
@@ -1415,51 +2190,6 @@ SLURMFrontend::createPIDListFile(MPIRProctable const& procTable, std::string con
     }
 }
 
-// Read string from file descriptor, break if timeout is hit during read wait
-static auto read_timeout(int fd, int64_t usec)
-{
-    auto result = std::string{};
-
-    // File descriptor select set
-    auto select_set = fd_set{};
-    FD_ZERO(&select_set);
-    FD_SET(fd, &select_set);
-
-    // Set up timeout
-    auto timeout = timeval
-        { .tv_sec = 0
-        , .tv_usec = usec
-    };
-
-    // Select loop
-    while (auto select_rc = ::select(fd + 1, &select_set, nullptr, nullptr, &timeout)) {
-        if (select_rc < 0) {
-            break;
-        }
-
-        // Read string into buffer
-        char buf[1024];
-        if (auto read_rc = ::read(fd, buf, sizeof(buf) - 1)) {
-
-            // Retry if interrupted
-            if ((read_rc < 0) && (errno == EINTR)) {
-                continue;
-
-            // Bytes read, add to result
-            } else if (read_rc > 0) {
-                buf[read_rc] = '\0';
-                result += buf;
-
-            // Otherwise exit loop
-            } else {
-                break;
-            }
-        }
-    }
-
-    return result;
-}
-
 void SLURMFrontend::detail::add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs)
 {
     const auto view = std::string_view{quotedArgs};
@@ -1510,20 +2240,17 @@ SLURMFrontend::launchApp(const char * const launcher_args[],
     auto const stderrPath = "/proc/" + std::to_string(::getpid()) + "/fd/" + std::to_string(stderrFd);
 
     // construct argv array & instance
-    auto use_shim = false;
     auto launcherArgv = cti::ManagedArgv{};
 
     // Check for launcher wrapper
     if (auto launcherWrapper = getenv(CTI_LAUNCHER_WRAPPER_ENV_VAR)) {
         detail::add_quoted_args(launcherArgv, launcherWrapper);
-        use_shim = true;
     }
 
     // Check for launcher script
     if (auto launcherScript = getenv(CTI_LAUNCHER_SCRIPT_ENV_VAR)) {
         // Use provided launcher script
         launcherArgv.add(launcherScript);
-        use_shim = true;
 
     // Use normal launcher from PATH
     } else {
@@ -1541,59 +2268,18 @@ SLURMFrontend::launchApp(const char * const launcher_args[],
         launcherArgv.add(*arg);
     }
 
-    if (!use_shim) {
+    // Launch srun under MPIR control
+    return srunMPIR(Daemon(), launcherPath.c_str(), launcherArgv.get(), env_list,
+        [](std::string const& node, int count, std::vector<std::string> const& nodes,
+            std::string const& stderrOutput) -> FE_daemon::MPIRResult {
 
-        auto result = FE_daemon::MPIRResult{};
-
-        // Capture srun error output
-        auto srunPipe = cti::Pipe{};
-
-        try {
-
-            // Launch program under MPIR control.
-            result = Daemon().request_LaunchMPIR(
-                launcherPath.c_str(), launcherArgv.get(),
-                // Redirect stdin/out to /dev/null, use SRUN arguments for in/output instead
-                // Capture stderr output in case launch fails
-                ::open("/dev/null", O_RDWR), ::open("/dev/null", O_RDWR), srunPipe.getWriteFd(),
-                env_list);
-
-        } catch (std::exception const& ex) {
-
-            // Get stderr output from srun and add to error message
-            auto stderrOutput = read_timeout(srunPipe.getReadFd(), 10000);
-            throw std::runtime_error(std::string{ex.what()} + "\n" + stderrOutput);
-        }
-
-        // Re-ignore srun stderr output after successful launch to avoid blockages
-        if (::dup2(::open("/dev/null", O_RDWR), srunPipe.getWriteFd()) < 0) {
-            fprintf(stderr, "warning: failed to ignore Slurm stderr output\n");
-        }
-
-        return result;
-
-    // Use MPIR shim to launch program
-    } else {
-
-        // launcherPath is path of wrapper script, use sattach to find path of
-        // real srun binary.
-        // An alternative would be to search PATH for the first srun binary with MPIR
-        // symbols.
-        auto sattachPath = cti::findPath(SATTACH);
-        auto slurmDirectory = std::filesystem::path{sattachPath}.parent_path();
-        auto srunPath = std::string{slurmDirectory / "srun"};
-
-        auto const shimBinaryPath = Frontend::inst().getBaseDir() + "/libexec/" + CTI_MPIR_SHIM_BINARY;
-        auto const temporaryShimBinDir = Frontend::inst().getCfgDir() + "/shim";
-
-        // If CTI_DEBUG is enabled, show wrapper output
-        auto outputFd = ::getenv(CTI_DBG_ENV_VAR) ? ::open(stderrPath.c_str(), O_RDWR) : ::open("/dev/null", O_RDWR);
-
-        return Daemon().request_LaunchMPIRShim(
-            shimBinaryPath.c_str(), temporaryShimBinDir.c_str(),
-            srunPath.c_str(), launcherPath.c_str(), launcherArgv.get(), ::open("/dev/null", O_RDWR), outputFd, outputFd, env_list
-        );
-    }
+            // Failure case due to oversubscription
+            throw std::runtime_error("Attempted to launch more than "
+                + std::to_string(count) + " jobs on node " + node + ".\n"
+                + "The interconnect limits the active number of jobs per node. Please "
+                + "try to launch on a different set of nodes. srun output:\n"
+                + stderrOutput);
+        });
 }
 
 SrunInfo
