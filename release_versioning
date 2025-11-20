@@ -75,7 +75,7 @@
 
 common_tool_major="2"
 common_tool_minor="20"
-revision="1"
+revision="2"
 # Jenkins will override this
 build_number=""
 
