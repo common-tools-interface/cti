@@ -31,8 +31,8 @@ GenericSSHApp::GenericSSHApp(GenericSSHFrontend& fe, FE_daemon::MPIRResult&& mpi
     , m_binaryRankMap { std::move(mpirData.binaryRankMap) }
     , m_stepLayout  { fe.fetchStepLayout(mpirData.proctable) }
     , m_beDaemonSent { false }
-    , m_toolPath    { SSH_TOOL_DIR }
-    , m_attribsPath { SSH_TOOL_DIR }
+    , m_toolPath    { fe.findToolPath(std::to_string(m_launcherPid)) }
+    , m_attribsPath { m_toolPath }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR}) }
     , m_extraFiles  { fe.createNodeLayoutFile(m_stepLayout, m_stagePath) }
 {
@@ -149,7 +149,7 @@ void
 GenericSSHApp::shipPackage(std::string const& tarPath) const
 {
     auto packageName = cti::cstr::basename(tarPath);
-    auto const destination = std::string{SSH_TOOL_DIR} + "/" + packageName;
+    auto const destination = m_toolPath + "/" + packageName;
     writeLog("GenericSSH shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
     // Send the package to each of the hosts using SCP

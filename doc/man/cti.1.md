@@ -148,6 +148,12 @@ supplied to start the attach process.
   These symbols are required for proper startup, but this check can be
   bypassed by setting *CTI_SKIP_LAUNCHER_CHECK=1*.
 
+- *CTI_BACKEND_TMPDIR*: Each workload manager has a default location to place
+  temporary tool files such as tool daemons. This location can be overridden
+  by setting this environment variable to a location that exists
+  on the compute nodes. Note that the filesystem should be mounted
+  such that binaries can execute from that location i.e. not *noexec*.
+
 ## Slurm-specific variables
 
 - *CTI_SLURM_DAEMON_GRES*: Starting with Slurm 21.08, there is a known

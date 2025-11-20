@@ -1005,7 +1005,7 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
     , m_binaryRankMap{std::move(palsLaunchInfo.binaryRankMap)}
 
     , m_apinfoPath{"/var/run/palsd/" + m_apId + "/apinfo"}
-    , m_toolPath{"/tmp/cti-" + m_apId}
+    , m_toolPath{fe.findToolPath(m_apId)}
     , m_attribsPath{"/var/run/palsd/" + m_apId} // BE daemon looks for <m_attribsPath>/pmi_attribs
     , m_stagePath{cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/palsXXXXXX"})}
     , m_extraFiles{createNodeLayoutFile(m_procTable, m_stagePath)}

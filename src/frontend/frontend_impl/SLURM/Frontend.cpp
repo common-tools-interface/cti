@@ -966,7 +966,7 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData, std::str
     , m_beDaemonSent    { false }
     , m_gresSetting {}
 
-    , m_toolPath    { SLURM_TOOL_DIR }
+    , m_toolPath    { fe.findToolPath(std::to_string(m_jobId)) }
     , m_attribsPath { cti::cstr::asprintf(SLURM_CRAY_DIR, SLURM_APID(m_jobId, m_stepId)) }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/" + SLURM_STAGE_DIR}) }
     , m_extraFiles  { fe.createNodeLayoutFile(m_stepLayout, m_stagePath) }
@@ -1378,7 +1378,7 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     };
 
     auto packageName = cti::cstr::basename(tarPath);
-    sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName);
+    sbcastArgv.add(m_toolPath + "/" + packageName);
 
     // Add environment setting to disable library detection
     // Sbcast starting in Slurm 22.05 will fail to ship non-executable if site enables
@@ -1505,7 +1505,7 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
 
     // Ship reparenting utility
     auto const sourcePath = m_frontend.getBaseDir() + "/libexec/" CTI_FIRST_SUBPROCESS_BINARY;
-    auto const destinationPath = std::string(SLURM_TOOL_DIR) + "/" CTI_FIRST_SUBPROCESS_BINARY;
+    auto const destinationPath = m_toolPath + "/" CTI_FIRST_SUBPROCESS_BINARY;
     std::filesystem::copy_file(sourcePath, destinationPath,
         std::filesystem::copy_options::overwrite_existing);
     shipPackage(destinationPath);
@@ -2703,7 +2703,7 @@ void
 EproxySLURMApp::shipPackage(std::string const& tarPath) const
 {
     auto packageName = cti::cstr::basename(tarPath);
-    auto const destination = std::string{SSH_TOOL_DIR} + "/" + packageName;
+    auto const destination = getToolPath() + "/" + packageName;
     writeLog("EproxySLURMApp shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
     // Send the package to the login node

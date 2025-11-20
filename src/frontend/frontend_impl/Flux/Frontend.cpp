@@ -1127,9 +1127,14 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
             throw std::runtime_error("Flux getattr failed");
         }
 
+        // Override rundir if set
+        auto backend_tmpdir = (::getenv(CTI_BACKEND_TMPDIR_ENV_VAR))
+            ? ::getenv(CTI_BACKEND_TMPDIR_ENV_VAR)
+            : rundir;
+
         // Encode job ID and build toolpath
         auto const jobIdF58 = encode_job_id(m_libFluxRef, m_jobId);
-        m_toolPath = std::string{rundir} + "/jobtmp-" + std::to_string(m_leaderRank) + "-" + jobIdF58;
+        m_toolPath = std::string{backend_tmpdir} + "/jobtmp-" + std::to_string(m_leaderRank) + "-" + jobIdF58;
         writeLog("tmpdir: %s\n", m_toolPath.c_str());
     }
 

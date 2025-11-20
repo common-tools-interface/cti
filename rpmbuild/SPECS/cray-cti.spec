@@ -234,6 +234,10 @@ Test files for DST automated post install pipelines
 %{__cp} -a %{external_build_dir}/libexec/cti_first_subprocess%{pkgversion} ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/libexec
 # Binaries
 
+# PALS
+%{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/pals
+%{__cp} -a %{external_build_dir}/pals/cti_pmix_util.c ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/pals
+
 # Share
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/share/man/man1
@@ -651,6 +655,9 @@ fi
 %attr(644, root, root) %{prefix}/lmod/modulefiles/core/%{cray_name}/%{pkgversion}.lua
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dependency_resolver}
 %attr(644, root, root) %verify(not md5 size mtime) %{prefix}/%{cray_product}/%{pkgversion}/%{cray_dso_list}
+
+%dir %{prefix}/%{cray_product}/%{pkgversion}/pals
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/pals/cti_pmix_util.c
 
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/share/man/man1/cti.1
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/share/man/man3/cti.3

@@ -184,6 +184,9 @@ public: // Public interface to generic WLM-agnostic capabilities
     cti_symbol_result_t containsSymbols(std::string const& binaryPath,
         std::unordered_set<std::string> const& symbols, cti_symbol_query_t query) const;
 
+    // Generate remote toolpath
+    std::string findToolPath(std::string const& apId);
+
 protected: // Constructor/destructors
     Frontend();
 public:
