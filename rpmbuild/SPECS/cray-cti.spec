@@ -404,6 +404,8 @@ Test files for DST automated post install pipelines
 %{__cp} -a %{tests_source_dir}/function/src/cti_ops_test.cpp                ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops_test.cpp
 %{__cp} -a %{tests_source_dir}/function/src/cti_multithread                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_multithread
 %{__cp} -a %{tests_source_dir}/function/src/cti_multithread_test.cpp        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_multithread_test.cpp
+%{__cp} -a %{tests_source_dir}/function/src/cti_attach_wait                 ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_attach_wait
+%{__cp} -a %{tests_source_dir}/function/src/cti_attach_wait_test.cpp        ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_attach_wait_test.cpp
 
 %{__install} -d ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static
 %{__cp} -a %{tests_source_dir}/function/src/static/inputFileData.txt ${RPM_BUILD_ROOT}/%{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/inputFileData.txt
@@ -795,6 +797,8 @@ fi
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_ops_test.cpp
 %attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_multithread
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_multithread_test.cpp
+%attr(755, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_attach_wait
+%attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/cti_attach_wait_test.cpp
 
 %dir %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static
 %attr(644, root, root) %{prefix}/%{cray_product}/%{pkgversion}/tests/src/static/inputFileData.txt
