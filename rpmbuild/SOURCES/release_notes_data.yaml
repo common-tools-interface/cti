@@ -39,30 +39,18 @@ product_description: |
     manpages.
 
 known_issues: |
-  - Race condition workaround for PALS 1.2.3 in CTI 2.17.0 (22.11). In PALS 1.2.3, there 
-    is a race condition between the tool launcher releasing a job from the startup barrier 
-    and the job actually getting to the startup barrier. This can result in the job receiving 
-    the startup barrier release signal before it actually arrives there, resulting in the job 
-    getting stuck in the barrier. As a workaround, the environment variable 
-    CTI_PALS_BARRIER_RELEASE_DELAY can be set to add a delay between job startup and barrier 
-    release. If set to a positve integer n, CTI will wait n seconds between starting a 
-    job and releasing it from the barrier on PALS. A delay as small as one second works in 
-    most cases.
 notes: |
-  - CTI 2.17.1 (PE 22.12) contains a new feature, file deduplication, for Slurm and PALS 
-    workload managers. If enabled, CTI will run a check on compute nodes to determine if files 
-    can be excluded from the shipped package. This can significantly improve application startup 
-    time. To enable, set the environment variable CTI_DEDUPLICATE_FILES=1.
+  - CPE-13288: Contains a workaround for an issue where PALS tool daemon launches will fail if
+    /tmp is mounted noexec. In this case, set CTI_BACKEND_TMPDIR to a backend directory on
+    an executable filesystem.
 product_dependencies:
- - cray-cdst-support <cdst_version_range> installed
- - cray-dyninst 12.3.0 or later installed
+ - cray-dyninst 12.3.6 or later installed
 os_dependencies:
- - HPE CSM systems with SLES 15 SP5 - SP6
- - HPE HPCM systems with SLES 15 SP5 - SP6 or RHEL 8.10 - 9.4
+ - HPE CSM systems with SLES 15 SP6 - SP7
+ - HPE HPCM systems with SLES 15 SP6 - SP7 or RHEL 8.10, RHEL 9.5 - 9.6
  - HPE Apollo systems with RHEL 8.10
 documentation: |
-  - Currently the only documentation available is found in common_tools_fe.h, common_tools_be.h, 
-    and the tests in the 'tests' directory.
+  - See manpages cti.1 and cti.3 for user and developer documentation respectively
 installation_instructions: |
   - rpm -ivh <NAME>-<VERSION>-<RELEASE>.<ARCH>.rpm
   
