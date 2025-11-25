@@ -40,7 +40,6 @@ product_description: |
 
 known_issues: |
 notes: |
-  - This is a preview release of CTI for CPE 26.03.
   - CPE-13288: Contains a workaround for an issue where PALS tool daemon launches will fail if
     /tmp is mounted noexec. In this case, set CTI_BACKEND_TMPDIR to a backend directory on
     an executable filesystem.
