@@ -40,11 +40,12 @@ product_description: |
 
 known_issues: |
 notes: |
-  - This version contains a workaround for an issue where PALS tool daemon launches will fail if
+  - This is a preview release of CTI for CPE 26.03.
+  - CPE-13288: Contains a workaround for an issue where PALS tool daemon launches will fail if
     /tmp is mounted noexec. In this case, set CTI_BACKEND_TMPDIR to a backend directory on
     an executable filesystem.
 product_dependencies:
- - cray-dyninst 12.3.0 or later installed
+ - cray-dyninst 12.3.6 or later installed
 os_dependencies:
  - HPE CSM systems with SLES 15 SP6 - SP7
  - HPE HPCM systems with SLES 15 SP6 - SP7 or RHEL 8.10, RHEL 9.5 - 9.6
