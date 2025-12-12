@@ -1282,7 +1282,8 @@ PALSApp::startDaemon(const char* const args[], bool synchronous)
     auto daemonEnv = cti::ManagedArgv{};
     if (m_pmix) {
         auto& palsFrontend = dynamic_cast<PALSFrontend&>(m_frontend);
-        auto backendPmixPath = m_frontend.getCfgDir() + "/" + cti::cstr::basename(palsFrontend.getPMIxUtilPath());
+        // Absolute path to PMIx utility is constructed on backend inside manifest root
+        auto backendPmixPath = cti::cstr::basename(palsFrontend.getPMIxUtilPath());
         daemonEnv.add(std::string{PALS_PMIX_BE_PATH} + "=" + backendPmixPath);
     }
 

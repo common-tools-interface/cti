@@ -64,6 +64,7 @@ cti_be_wlm_proto_t _cti_be_pals_wlmProto =
 static cti_libpals_funcs_t* _cti_libpals_funcs = NULL; // libpals wrappers
 static pals_state_t *_cti_pals_state = NULL; // libpals state
 static char *_cti_pmix_file_path = NULL; // PMIx info file
+static char *_cti_pmix_util_path = NULL; // PMIx query utility
 
 // node pmi_attribs information
 static pmi_attribs_t *_cti_pmi_attrs = NULL;
@@ -189,6 +190,12 @@ cleanup__cti_get_pals_pes:
 static void
 _cti_cleanup_be_globals(void)
 {
+	// Cleanup PMIx util path
+	if (_cti_pmix_util_path != NULL) {
+		free(_cti_pmix_util_path);
+		_cti_pmix_util_path = NULL;
+	}
+
 	// Cleanup PMIx info file path
 	if (_cti_pmix_file_path != NULL) {
 		free(_cti_pmix_file_path);
@@ -508,6 +515,42 @@ cleanup_get_pmix_file_path:
 	return result;
 }
 
+static char* get_pmix_util_path()
+{
+	char *result = NULL;
+	char *manifest_root = NULL;
+	char *pmix_util_path = NULL;
+
+	// Get manifest root directory
+	manifest_root = cti_be_getRootDir();
+	if (manifest_root == NULL) {
+		fprintf(stderr, "Failed to get manifest root from CTI\n");
+		goto cleanup_get_pmix_util_path;
+	}
+
+	// Create utility path
+	if (asprintf(&pmix_util_path, "%s/cti_pmix_util", manifest_root) <= 0) {
+		perror("asprintf");
+		goto cleanup_get_pmix_util_path;
+	}
+
+	// Success
+	result = pmix_util_path;
+	pmix_util_path = NULL;
+
+cleanup_get_pmix_util_path:
+	if (pmix_util_path) {
+		free(pmix_util_path);
+		pmix_util_path = NULL;
+	}
+	if (manifest_root) {
+		free(manifest_root);
+		manifest_root = NULL;
+	}
+
+	return result;
+}
+
 /* Constructor/Destructor functions */
 
 static int
@@ -520,11 +563,26 @@ _cti_be_pals_init(void)
 
 	// Initialize PMIx if set
 	if (getenv(PALS_PMIX_BE_PATH)) {
+
+		// Find PMIx info file
 		_cti_pmix_file_path = get_pmix_file_path();
 		if (_cti_pmix_file_path == NULL) {
-			fprintf(stderr, "Failed to initialize in PMIx mode, trying PALS\n");
+			fprintf(stderr, "Failed to find PMIx info file\n");
 		} else {
 			fprintf(stderr, "Found PMIx info file at %s\n", _cti_pmix_file_path);
+		}
+
+		// Find PMIx query utility
+		_cti_pmix_util_path = get_pmix_util_path();
+		if (_cti_pmix_util_path == NULL) {
+			fprintf(stderr, "Failed to find PMIx utility\n");
+		} else {
+			fprintf(stderr, "Found PMIx query util at %s\n", _cti_pmix_util_path);
+		}
+
+		if ((_cti_pmix_file_path == NULL) || (_cti_pmix_util_path == NULL)) {
+			fprintf(stderr, "Failed to initialize in PMIx mode, trying PALS\n");
+		} else {
 			return 0;
 		}
 	}
@@ -928,7 +986,26 @@ cleanup__cti_invoke_pmix_util:
 static char*
 _cti_pmix_get_hostname(char const* pmix_util_path)
 {
-	return _cti_pmix_get(pmix_util_path, "pmix.hname");
+	char *result = NULL;
+
+	// Try PMIx hostname
+	result = _cti_pmix_get(pmix_util_path, "pmix.hname");
+	if (result == NULL) {
+
+		// Fall back to gethostname, some hosts do not have it available
+		char hostname[PATH_MAX];
+		if (gethostname(hostname, sizeof(hostname) - 1) < 0) {
+			perror("gethostname");
+			return NULL;
+		}
+
+		hostname[sizeof(hostname) - 1] = '\0';
+		result = strdup(hostname);
+
+		fprintf(stderr, "fell back to gethostname: %s\n", result);
+	}
+
+	return result;
 }
 
 static int
@@ -936,6 +1013,7 @@ _cti_pmix_get_first_pe(char const* pmix_util_path)
 {
 	int result = -1;
 	char *lldr = NULL;
+	char *endptr = NULL;
 
 	// Get local leader
 	lldr = _cti_pmix_get(pmix_util_path, "pmix.lldr");
@@ -944,8 +1022,8 @@ _cti_pmix_get_first_pe(char const* pmix_util_path)
 	}
 
 	// Parse result
-	result = atoi(lldr);
-	if (result == 0) {
+	result = strtol(lldr, &endptr, 10);
+	if (endptr == lldr) {
 		fprintf(stderr, "Failed to parse lldr: '%s'\n", lldr);
 		goto cleanup__cti_pmix_get_first_pe;
 	}
@@ -966,6 +1044,7 @@ _cti_pmix_get_num_pes(char const* pmix_util_path)
 {
 	int result = -1;
 	char *local_size = NULL;
+	char *endptr = NULL;
 
 	// Get local leader
 	local_size = _cti_pmix_get(pmix_util_path, "pmix.local.size");
@@ -974,8 +1053,8 @@ _cti_pmix_get_num_pes(char const* pmix_util_path)
 	}
 
 	// Parse result
-	result = atoi(local_size);
-	if (result == 0) {
+	result = strtol(local_size, &endptr, 10);
+	if (endptr == local_size) {
 		fprintf(stderr, "Failed to parse local.size: '%s'\n", local_size);
 		goto cleanup__cti_pmix_get_num_pes;
 	}
@@ -1048,7 +1127,7 @@ _cti_be_pals_getNodeHostname()
 {
 	int failed = 1;
 	char *result = NULL;
-	
+
 	char const* pals_pmix_be_path = getenv(PALS_PMIX_BE_PATH);
 	if (pals_pmix_be_path == NULL) {
 
@@ -1077,9 +1156,7 @@ _cti_be_pals_getNodeHostname()
 		result = strdup(pals_nodes[cti_node_idx].hostname);
 
 	} else {
-		char *env_var_copy = strdup(pals_pmix_be_path);
-		result = _cti_pmix_get_hostname(env_var_copy);
-		free(env_var_copy);
+		result = _cti_pmix_get_hostname(_cti_pmix_util_path);
 	}
 
 	// Successfully obtained hostname
@@ -1127,9 +1204,7 @@ _cti_be_pals_getNodeFirstPE()
 		}
 
 	} else {
-		char *env_var_copy = strdup(pals_pmix_be_path);
-		result = _cti_pmix_get_first_pe(pals_pmix_be_path);
-		free(env_var_copy);
+		result = _cti_pmix_get_first_pe(_cti_pmix_util_path);
 	}
 
 cleanup__cti_be_pals_getNodeFirstPE:
@@ -1170,9 +1245,8 @@ _cti_be_pals_getNodePEs()
 		failed = 0;
 
 	} else {
-		char *env_var_copy = strdup(pals_pmix_be_path);
-		num_node_pes = _cti_pmix_get_num_pes(pals_pmix_be_path);
-		free(env_var_copy);
+		num_node_pes = _cti_pmix_get_num_pes(_cti_pmix_util_path);
+		failed = 0;
 	}
 
 cleanup__cti_be_pals_getNodePEs:
