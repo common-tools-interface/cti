@@ -77,9 +77,9 @@ getLogger(void)
 }
 
 static void
-tryTerm(pid_t const pid)
+tryTerm(pid_t const pid, int terminate_signum)
 {
-    if (::kill(pid, SIGTERM)) {
+    if (::kill(pid, terminate_signum)) {
         return;
     }
     ::sleep(3);
@@ -91,29 +91,29 @@ tryTerm(pid_t const pid)
 
 struct ProcSet
 {
-    std::unordered_set<pid_t> m_pids;
+    std::unordered_map<pid_t, int> m_pidSignals;
 
     ProcSet() {}
 
     ProcSet(ProcSet&& moved)
-        : m_pids{std::move(moved.m_pids)}
+        : m_pidSignals{std::move(moved.m_pidSignals)}
     {
-        moved.m_pids.clear();
+        moved.m_pidSignals.clear();
     }
 
     void clear()
     {
         // copy and clear member
-        auto const pids = m_pids;
-        m_pids.clear();
+        auto const pidSignals = m_pidSignals;
+        m_pidSignals.clear();
 
         // create futures
         std::vector<std::future<void>> termFutures;
-        termFutures.reserve(m_pids.size());
+        termFutures.reserve(m_pidSignals.size());
 
         // terminate in parallel
-        for (auto&& pid : pids) {
-            termFutures.emplace_back(std::async(std::launch::async, tryTerm, pid));
+        for (auto&& [pid, terminate_signum] : pidSignals) {
+            termFutures.emplace_back(std::async(std::launch::async, tryTerm, pid, terminate_signum));
         }
 
         // collect
@@ -124,18 +124,20 @@ struct ProcSet
 
     ~ProcSet()
     {
-        if (!m_pids.empty()) {
+        if (!m_pidSignals.empty()) {
             clear();
         }
     }
 
-    void insert(pid_t const pid)   { m_pids.insert(pid); }
-    void erase(pid_t const pid)    { m_pids.erase(pid);  }
-    bool contains(pid_t const pid) { return (m_pids.find(pid) != m_pids.end()); }
+    void insert(pid_t const pid, int terminate_signum) {
+        m_pidSignals[pid] = terminate_signum;
+    }
+    void erase(pid_t const pid)    { m_pidSignals.erase(pid);  }
+    bool contains(pid_t const pid) { return (m_pidSignals.find(pid) != m_pidSignals.end()); }
 
     // Remove PID from list without ending child process
     void release(pid_t const pid) {
-        m_pids.erase(pid);
+        m_pidSignals.erase(pid);
     }
 };
 
@@ -272,7 +274,7 @@ static DAppId registerAppPID(pid_t const app_pid)
     }
 }
 
-static void registerUtilPID(DAppId const app_id, pid_t const util_pid)
+static void registerUtilPID(DAppId const app_id, pid_t const util_pid, int terminate_signum)
 {
     // verify app pid
     if (idPidMap.find(app_id) == idPidMap.end()) {
@@ -281,7 +283,7 @@ static void registerUtilPID(DAppId const app_id, pid_t const util_pid)
 
     // register utility pid to app
     if (util_pid > 0) {
-        utilMap[app_id].insert(util_pid);
+        utilMap[app_id].insert(util_pid, terminate_signum);
     } else {
         throw std::runtime_error("invalid util pid: " + std::to_string(util_pid));
     }
@@ -306,7 +308,7 @@ static void deregisterAppID(DAppId const app_id)
         // ensure app is terminated
         if (appCleanupList.contains(app_pid)) {
             auto appTermFuture = std::async(std::launch::async, [app_pid](){
-                tryTerm(app_pid);
+                tryTerm(app_pid, SIGTERM);
             });
             appCleanupList.erase(app_pid);
             appTermFuture.wait();
@@ -833,7 +835,7 @@ static FE_daemon::MPIRResult launchMPIR(LaunchData const& launchData)
     auto mpirResult = extractMPIRResult(std::move(launchingInstance));
 
     // Terminate launched application on daemon exit
-    appCleanupList.insert(mpirResult.launcher_pid);
+    appCleanupList.insert(mpirResult.launcher_pid, SIGTERM);
 
     return mpirResult;
 }
@@ -1037,7 +1039,7 @@ static FE_daemon::MPIRResult launchMPIRShim(ShimData const& shimData, LaunchData
     auto mpirResult = extractMPIRResult(std::move(mpirInstance));
 
     // Terminate launched application on daemon exit
-    appCleanupList.insert(mpirResult.launcher_pid);
+    appCleanupList.insert(mpirResult.launcher_pid, SIGTERM);
 
     // MPIR shim stops the launcher with SIGSTOP. The launcher won't start 
     // again, even after ProcControl detaches, unless a SIGCONT is sent at some 
@@ -1072,7 +1074,7 @@ static void handle_ForkExecvpUtil(int const reqFd, int const respFd)
 
         auto const utilPid = forkExec(launchData);
 
-        registerUtilPID(appId, utilPid);
+        registerUtilPID(appId, utilPid, SIGTERM);
 
         // If synchronous, wait for return code
         if (runMode == FE_daemon::Synchronous) {
@@ -1233,7 +1235,19 @@ static void handle_RegisterUtil(int const reqFd, int const respFd)
         auto const appId   = fdReadLoop<DAppId>(reqFd);
         auto const utilPid = fdReadLoop<pid_t>(reqFd);
 
-        registerUtilPID(appId, utilPid);
+        registerUtilPID(appId, utilPid, SIGTERM);
+
+        return true;
+    });
+}
+
+static void handle_RegisterUtilWithSigkill(int const reqFd, int const respFd)
+{
+    tryWriteOKResp(respFd, [reqFd, respFd]() {
+        auto const appId   = fdReadLoop<DAppId>(reqFd);
+        auto const utilPid = fdReadLoop<pid_t>(reqFd);
+
+        registerUtilPID(appId, utilPid, SIGKILL);
 
         return true;
     });
@@ -1294,6 +1308,7 @@ static auto reqTypeString(ReqType const reqType)
         case ReqType::TerminateMPIR:  return "TerminateMPIR";
         case ReqType::RegisterApp:    return "RegisterApp";
         case ReqType::RegisterUtil:   return "RegisterUtil";
+        case ReqType::RegisterUtilWithSigkill: return "RegisterUtilWithSigkill";
         case ReqType::DeregisterApp:  return "DeregisterApp";
         case ReqType::ReleaseApp:     return "ReleaseApp";
         case ReqType::CheckApp:       return "CheckApp";
@@ -1469,6 +1484,10 @@ main(int argc, char *argv[])
 
             case ReqType::RegisterUtil:
                 handle_RegisterUtil(reqFd, respFd);
+                break;
+
+            case ReqType::RegisterUtilWithSigkill:
+                handle_RegisterUtilWithSigkill(reqFd, respFd);
                 break;
 
             case ReqType::DeregisterApp:

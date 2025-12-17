@@ -1175,7 +1175,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
             if (attach_pid < 0) {
                 throw std::runtime_error("fork failed: " + std::string{strerror(errno)});
             }
-            m_frontend.Daemon().request_RegisterUtil(m_daemonAppId, attach_pid);
+            m_frontend.Daemon().request_RegisterUtilWithSigkill(m_daemonAppId, attach_pid);
 
         // Launch flux attach
         } else {

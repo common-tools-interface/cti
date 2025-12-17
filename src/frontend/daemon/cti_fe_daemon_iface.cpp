@@ -500,6 +500,15 @@ FE_daemon::request_RegisterUtil(DaemonAppId app_id, pid_t util_pid)
 }
 
 void
+FE_daemon::request_RegisterUtilWithSigkill(DaemonAppId app_id, pid_t util_pid)
+{
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterUtilWithSigkill);
+    fdWriteLoop(m_req_sock.getWriteFd(), app_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), util_pid);
+    verifyOKResp(m_resp_sock.getReadFd());
+}
+
+void
 FE_daemon::request_DeregisterApp(DaemonAppId app_id)
 {
     fdWriteLoop(m_req_sock.getWriteFd(), ReqType::DeregisterApp);
