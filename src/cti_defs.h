@@ -212,6 +212,7 @@ typedef struct
 #define PALS_PMIX_SRC "cti_pmix_util.c"
 #define PALS_PMIX_CFLAGS "CTI_PALS_PMIX_CFLAGS"
 #define PALS_PMIX_BE_PATH "CTI_PALS_PMIX_BE_PATH"
+#define PALS_PMIX_RANKINFO "CTI_PALS_PMIX_RANKINFO"
 
 /*******************************************************************************
 ** Flux specific information

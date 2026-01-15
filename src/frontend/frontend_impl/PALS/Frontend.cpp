@@ -64,6 +64,51 @@ static auto getPalsVersion()
     return std::tuple(parsed_major, parsed_minor, parsed_revision);
 }
 
+static auto getPmixVersion()
+{
+    char const* const pmix_info_argv[] = {"pmix_info", "--parsable", nullptr};
+    auto pmixInfoOutput = cti::Execvp{"pmix_info", (char* const*)pmix_info_argv, cti::Execvp::stderr::Ignore};
+
+    auto& pmixInfoStream = pmixInfoOutput.stream();
+    auto pmixInfoLine = std::string{};
+    auto pmixVersion = std::string{};
+
+    while (std::getline(pmixInfoStream, pmixInfoLine)) {
+
+        auto const versionLabel = std::string{"pmix:version:full:"};
+        if (pmixInfoLine.rfind(versionLabel, 0) == 0) {
+            pmixVersion = pmixInfoLine.substr(versionLabel.length());
+            break;
+        }
+    }
+    pmixInfoStream.ignore(std::numeric_limits<std::streamsize>::max());
+
+    if (pmixVersion.empty()) {
+        throw std::runtime_error("failed to find version in output");
+    }
+
+    // major.minor.revision
+    auto const [major, minor, revision] = cti::split::string<3>(pmixVersion, '.');
+
+    auto stoi_or_zero = [](std::string const& str) {
+        if (str.empty()) { return 0; }
+        try {
+            return std::stoi(str);
+        } catch (...) {
+            return 0;
+        }
+    };
+
+    // Fail if at least major version could not be determined
+    if (auto parsed_major = stoi_or_zero(major)) {
+        return std::make_tuple(parsed_major, stoi_or_zero(minor), stoi_or_zero(revision));
+
+    } else {
+        throw std::runtime_error("Failed to parse PMIx version '"
+            + pmixVersion);
+    }
+}
+
 PALSFrontend::PALSFrontend()
     : m_preloadMpirShim{false}
 {
@@ -346,6 +391,41 @@ static bool palstat_search(std::string const& execHost, std::string const& appId
     (void)palstatOutput.getExitStatus();
 
     return false;
+}
+
+static auto
+create_pmix_first_rank_file(MPIRProctable const& mpirProctable, std::string const& stagePath)
+{
+    // Determine first rank for each hostname
+    auto rankInfoByHost = std::map<std::string, std::pair<size_t, int>>{};
+    for (size_t rank = 0; rank < mpirProctable.size(); rank++) {
+        auto const& host = mpirProctable[rank].hostname;
+
+        auto [it, inserted] = rankInfoByHost.emplace(host, std::make_pair(rank, 1));
+        if (!inserted) {
+            it->second.first = std::min(it->second.first, rank);
+            it->second.second += 1;
+        }
+    }
+
+    auto const outPath = stagePath + "/pmix_ranks";
+    auto out = std::ofstream{outPath};
+    if (!out) {
+        throw std::runtime_error("failed to open " + outPath);
+    }
+
+    // Format: "<hostname> <first rank> <num ranks>"
+    for (auto const& [host, firstNumRanks] : rankInfoByHost) {
+        auto&& [first, num] = firstNumRanks;
+        out << host << " " << first << " " << num << "\n";
+    }
+
+    out.close();
+    if (!out) {
+        throw std::runtime_error("failed to write " + outPath);
+    }
+
+    return outPath;
 }
 
 std::string
@@ -1045,6 +1125,38 @@ PALSApp::PALSApp(PALSFrontend& fe, PALSFrontend::PalsLaunchInfo&& palsLaunchInfo
                 "you may encounter a tool failure\n",
                 major, minor, revision);
         }
+
+        // PMIx 5.0.9 and older have broken first-rank info when hostname contains a dot
+        try {
+            auto [major, minor, revision] = getPmixVersion();
+            auto older_version = (major < 5) || ((major == 5) && (minor == 0) && (revision < 10));
+            auto parse_minor_failed = (major == 5) && (minor == 0) && (revision == 0);
+            auto disable_fallback = (::getenv(PALS_PMIX_RANKINFO))
+                ? (::getenv(PALS_PMIX_RANKINFO)[0] == '0')
+                : false;
+            auto enable_fallback = (::getenv(PALS_PMIX_RANKINFO))
+                ? (::getenv(PALS_PMIX_RANKINFO)[0] == '1')
+                : false;
+            if (enable_fallback || (!disable_fallback && older_version && !parse_minor_failed)) {
+
+                // Fallback: ship rank information generated from MPIR proctable
+                // so the backend can avoid relying on broken PMIx first-rank queries.
+                try {
+                    m_extraFiles.push_back(create_pmix_first_rank_file(m_procTable, m_stagePath));
+
+                } catch (std::exception const& ex) {
+                    writeLog("failed to create pmix first rank file: %s\n", ex.what());
+
+                    fprintf(stderr, "warning: application is detected to be running using PMIx %d.%d.%d\n"
+                       "PMIx 5.0.10 fixes a bug where node rank information queries will return "
+                       "incorrect values\n(see https://github.com/openpmix/openpmix/issues/3652)\n"
+                        "The tool may fail to launch or return incorrect results\n",
+                    major, minor, revision);
+                }
+            }
+        } catch (std::exception const& ex) {
+            writeLog("failed to check PMIx version: %s\n", ex.what());
+        }
     }
 }
 
@@ -1060,7 +1172,7 @@ PALSApp::~PALSApp()
 
         // Remove remote toolpath directory
         auto palscmdArgv = cti::ManagedArgv{"palscmd", "-n", m_execHost, m_apId,
-            "rm", "-rf", m_toolPath};
+            "rm", "-rf", m_toolPath + "/cti_*"};
 
         m_frontend.Daemon().request_ForkExecvpUtil_Sync(
             m_daemonAppId, "palscmd", palscmdArgv.get(),

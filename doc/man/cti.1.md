@@ -246,3 +246,10 @@ paths to the required SSH files:
   PBS, then wait for PALS to start the job on the execution host. By default,
   this will time out in 30 seconds. Set this variable to **1** to disable this
   timeout and wait indefinitely.
+
+- *CTI_PALS_PMIX_RANKINFO*: PMIx 5.0.10 fixes a bug where node rank information
+  queries will return incorrect values
+  (see https://github.com/openpmix/openpmix/issues/3652)
+  A workaround is automatically applied if PMIx is detected to be older than
+  5.0.10. To disable this workaround, set this variable to **0**. To manually
+  enable this workaround, set it to **1**.
