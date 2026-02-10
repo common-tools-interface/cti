@@ -98,7 +98,6 @@ typedef struct
 #define SCONTROL                "scontrol"                          // name of slurm management binary
 #define SLURM_JOB_NAME          "SLURM_JOB_NAME"                    // Environment variable for Slurm job name
 #define SLURM_APID(jobid, stepid)  ((stepid * 10000000000) + jobid) // formula for creating Cray apid from SLURM jobid.stepid
-#define SLURM_TOOL_DIR          "/tmp"                              // SLURM staging path on compute node
 #define SLURM_CRAY_DIR          "/var/opt/cray/alps/spool/%llu"     // Location of cray specific directory on compute node
 #define SLURM_STAGE_DIR         "slurmXXXXXX"                       // directory name for staging slurm specific files to transfer
 #define SLURM_LAYOUT_FILE       "slurm_layout"                      // name of file containing layout information
@@ -140,7 +139,6 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_STAGE_DIR       SLURM_STAGE_DIR
 #define SSH_LAYOUT_FILE     SLURM_LAYOUT_FILE
 #define SSH_PID_FILE        SLURM_PID_FILE
-#define SSH_TOOL_DIR        SLURM_TOOL_DIR
 #define SSH_DIR_ENV_VAR     "CTI_SSH_DIR"
 #define SSH_KNOWNHOSTS_PATH_ENV_VAR     "CTI_SSH_KNOWNHOSTS_PATH"
 #define SSH_PORT_ENV_VAR            "CTI_SSH_PORT"
@@ -149,7 +147,6 @@ typedef slurmPidFile_t          cti_pidFile_t;
 #define SSH_PUBKEY_PATH_ENV_VAR     "CTI_SSH_PUBKEY_PATH"
 
 #define LOCALHOST_PID_FILE  SLURM_PID_FILE
-#define LOCALHOST_TOOL_DIR  SLURM_TOOL_DIR
 #define LOCALHOST_STAGE_DIR SLURM_STAGE_DIR
 
 
@@ -215,6 +212,7 @@ typedef struct
 #define PALS_PMIX_SRC "cti_pmix_util.c"
 #define PALS_PMIX_CFLAGS "CTI_PALS_PMIX_CFLAGS"
 #define PALS_PMIX_BE_PATH "CTI_PALS_PMIX_BE_PATH"
+#define PALS_PMIX_RANKINFO "CTI_PALS_PMIX_RANKINFO"
 
 /*******************************************************************************
 ** Flux specific information

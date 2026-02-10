@@ -18,7 +18,7 @@ noinst_LTLIBRARIES = libpals.la
 
 libpals_la_SOURCES		= Frontend.cpp
 libpals_la_CXXFLAGS	= -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl -I$(INCLUDE) -fPIC \
-						$(MPIR_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(BOOST_CXXFLAGS) $(AM_CXXFLAGS)
+						$(MPIR_CFLAGS) $(CODE_COVERAGE_CXXFLAGS) $(AM_CXXFLAGS)
 libpals_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(BOOST_CPPFLAGS) $(AM_CPPFLAGS)
 libpals_la_LDFLAGS		= -Wl,--no-undefined \
 						$(MPIR_LIBS) $(AM_LDFLAGS) -pthread

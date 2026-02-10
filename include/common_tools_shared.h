@@ -107,6 +107,14 @@
  *     the wrapper binary will not be changed.
  *     Note: currently supported only for the Slurm WLM.
  *
+ * CTI_BACKEND_TMPDIR_ENV_VAR (optional)
+ *
+ *     Each workload manager has a default location to place temporary
+ *     tool files such as tool daemons. This location can be overridden
+ *     by setting this environment variable to a location that exists
+ *     on the compute nodes. Note that the filesystem should be mounted
+ *     such that binaries can execute from that location i.e. not noexec.
+ *
  */
 #define CTI_BASE_DIR_ENV_VAR         "CTI_INSTALL_DIR"
 #define CTI_LOG_DIR_ENV_VAR          "CTI_LOG_DIR"
@@ -117,6 +125,7 @@
 #define CTI_WLM_IMPL_ENV_VAR         "CTI_WLM_IMPL"
 #define CTI_LAUNCHER_WRAPPER_ENV_VAR "CTI_LAUNCHER_WRAPPER"
 #define CTI_BACKEND_WRAPPER_ENV_VAR  "CTI_BACKEND_WRAPPER"
+#define CTI_BACKEND_TMPDIR_ENV_VAR   "CTI_BACKEND_TMPDIR"
 #define CTI_CONTAINER_INSTANCE_ENV_VAR "CTI_CONTAINER_INSTANCE"
 // CTI_WLM_TYPE_<type>_STR recognized by CTI_WLM_IMPL_ENV_VAR and corresponds
 // to values in the cti_wlm_type_t enum.

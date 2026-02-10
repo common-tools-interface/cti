@@ -77,6 +77,8 @@ private: // slurm specific members
     std::vector<std::string> m_srunDaemonArgs;
     // Whether scancel needs output parsed to check for successful signal (PE-45772)
     bool m_checkScancelOutput;
+    // Whether job status should be queried after launch (CPE-14234)
+    bool m_checkTaskPrologStatus;
 
 public: // slurm specific types
     struct NodeLayout {
@@ -132,6 +134,7 @@ public: // slurm specific interface
     auto const& getSrunDaemonArgs() const { return m_srunDaemonArgs; }
     std::vector<std::string> const& getSrunEnvBlacklist() const;
     auto const& getCheckScancelOutput() const { return m_checkScancelOutput; }
+    auto const& getCheckTaskPrologStatus() const { return m_checkTaskPrologStatus; }
 
     // Get the default launcher binary name, or, if provided, from the environment.
     std::string getLauncherName();

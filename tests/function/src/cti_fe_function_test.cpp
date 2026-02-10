@@ -147,7 +147,8 @@ launchSocketApp(char const* appPath, std::vector<char const*> extra_argv) {
 
     // build required parameters for launching external app
     std::cerr << "Launching app...\n";
-    std::vector<char const*> v_argv = {appPath, address.c_str(), std::to_string(ntohs(sa.sin_port)).c_str()};
+    auto portStr = std::to_string(ntohs(sa.sin_port));
+    std::vector<char const*> v_argv = {appPath, address.c_str(), portStr.c_str()};
     v_argv.insert(v_argv.end(), extra_argv.begin(), extra_argv.end());
     v_argv.push_back(nullptr);
 
@@ -217,7 +218,8 @@ void testSocketDaemon(cti_session_id_t sessionId, char const* daemonPath, std::v
         // create manifest and args
         auto const manifestId = cti_createManifest(sessionId);
         assert_true(cti_manifestIsValid(manifestId), cti_error_str());
-        std::vector<char const*> v_argv = {address.c_str(), std::to_string(ntohs(sa.sin_port)).c_str()};
+        auto portStr = std::to_string(ntohs(sa.sin_port));
+        std::vector<char const*> v_argv = {address.c_str(), portStr.c_str()};
         v_argv.insert(v_argv.end(), extra_argv.begin(), extra_argv.end());
         v_argv.push_back(nullptr);
 

@@ -140,6 +140,7 @@ public: // type definitions
     {
         DaemonAppId mpir_id;
         pid_t launcher_pid;
+        uint32_t job_id, step_id;
         MPIRProctable proctable;
         BinaryRankMap binaryRankMap;
     };
@@ -171,6 +172,7 @@ public: // type definitions
 
         RegisterApp,
         RegisterUtil,
+        RegisterUtilWithSigkill,
         DeregisterApp,
         ReleaseApp,
         CheckApp,
@@ -217,6 +219,7 @@ public: // type definitions
     */
 
     // RegisterUtil
+    // RegisterUtilWithSigkill
     /*
         send ID of owning application
         send PID of target utility
@@ -285,6 +288,7 @@ public: // type definitions
         RespType type;
         DaemonAppId mpir_id;
         pid_t launcher_pid;
+        uint32_t job_id, step_id;
         int num_pids;
         // after sending this struct, send `num_pids` elements of:
         // - pid, null-terminated hostname, null-terminated executable name
@@ -424,8 +428,14 @@ public:
     void request_ReleaseApp(DaemonAppId app_id);
 
     // fe_daemon will register an already-forked process as a utility belonging to app_pid.
+    // util_pid will be terminated using SIGTERM
     // Write utility register request to pipe, verify response
     void request_RegisterUtil(DaemonAppId app_id, pid_t util_pid);
+
+    // fe_daemon will register an already-forked process as a utility belonging to app_pid.
+    // util_pid will be terminated using SIGKILL
+    // Write utility register request to pipe, verify response
+    void request_RegisterUtilWithSigkill(DaemonAppId app_id, pid_t util_pid);
 
     // fe_daemon will terminate all utilities belonging to app_pid and deregister app_pid.
     // Write an app deregister request to pipe, verify response

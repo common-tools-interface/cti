@@ -39,6 +39,8 @@ constexpr auto APP_ERROR      = FE_iface::APP_ERROR;
 constexpr auto SESSION_ERROR  = FE_iface::SESSION_ERROR;
 constexpr auto MANIFEST_ERROR = FE_iface::MANIFEST_ERROR;
 
+constexpr auto ATTACH_TIMEOUT_STEP_SEC = uint32_t{5};
+
 static auto g_iface_mtx = std::mutex{};
 
 /* Frontend utility functions */
@@ -427,6 +429,22 @@ _cti_slurm_registerJobStep(uint32_t job_id, uint32_t step_id) {
     }, APP_ERROR);
 }
 
+static cti_app_id_t
+_cti_slurm_registerJobStepWait(uint32_t job_id, uint32_t step_id, uint32_t timeout_sec) {
+    auto elapsed_sec = uint32_t{0};
+
+    do {
+        auto app_id = _cti_slurm_registerJobStep(job_id, step_id);
+        if (app_id != APP_ERROR) {
+            return app_id;
+        }
+        ::sleep(ATTACH_TIMEOUT_STEP_SEC);
+        elapsed_sec += ATTACH_TIMEOUT_STEP_SEC;
+    } while ((timeout_sec == 0) || (elapsed_sec < timeout_sec));
+
+    return APP_ERROR;
+}
+
 static cti_srunProc_t*
 _cti_slurm_getSrunInfo(cti_app_id_t appId) {
     return FE_iface::runSafely(g_iface_mtx, __func__, [&](){
@@ -459,7 +477,8 @@ static cti_slurm_ops_t _cti_slurm_ops = {
     .getJobInfo         = _cti_slurm_getJobInfo,
     .registerJobStep    = _cti_slurm_registerJobStep,
     .getSrunInfo        = _cti_slurm_getSrunInfo,
-    .submitBatchScript  = _cti_slurm_submitBatchScript
+    .submitBatchScript  = _cti_slurm_submitBatchScript,
+    .registerJobStepWait = _cti_slurm_registerJobStepWait,
 };
 
 // PALS WLM extensions
@@ -492,6 +511,22 @@ _cti_pals_registerApid(char const* job_or_apid) {
     )
 }
 
+static cti_app_id_t
+_cti_pals_registerApidWait(char const* job_or_apid, uint32_t timeout_sec) {
+    auto elapsed_sec = uint32_t{0};
+
+    do {
+        auto app_id = _cti_pals_registerApid(job_or_apid);
+        if (app_id != APP_ERROR) {
+            return app_id;
+        }
+        ::sleep(ATTACH_TIMEOUT_STEP_SEC);
+        elapsed_sec += ATTACH_TIMEOUT_STEP_SEC;
+    } while ((timeout_sec == 0) || (elapsed_sec < timeout_sec));
+
+    return APP_ERROR;
+}
+
 static char*
 _cti_pals_submitJobScript(char const* script_path, char const* const* launcher_args,
     char const* const* env_list) {
@@ -510,7 +545,8 @@ static cti_pals_ops_t _cti_pals_ops = {
     .getApid      = _cti_pals_getApid,
     .registerApid = _cti_pals_registerApid,
     .submitJobScript = _cti_pals_submitJobScript,
-    .launchAppBarrierNonMpi = _cti_pals_launchAppBarrierNonMpi
+    .launchAppBarrierNonMpi = _cti_pals_launchAppBarrierNonMpi,
+    .registerApidWait = _cti_pals_registerApidWait,
 };
 
 // SSH WLM extensions
@@ -570,6 +606,22 @@ _cti_flux_registerJob(char const* job_id) {
     )
 }
 
+static cti_app_id_t
+_cti_flux_registerJobWait(char const* job_id, uint32_t timeout_sec) {
+    auto elapsed_sec = uint32_t{0};
+
+    do {
+        auto app_id = _cti_flux_registerJob(job_id);
+        if (app_id != APP_ERROR) {
+            return app_id;
+        }
+        ::sleep(ATTACH_TIMEOUT_STEP_SEC);
+        elapsed_sec += ATTACH_TIMEOUT_STEP_SEC;
+    } while ((timeout_sec == 0) || (elapsed_sec < timeout_sec));
+
+    return APP_ERROR;
+}
+
 static char*
 _cti_flux_getJobid(pid_t launcher_pid) {
     CHECK_FLUX_RUN_SAFELY((char*)nullptr,
@@ -580,7 +632,8 @@ _cti_flux_getJobid(pid_t launcher_pid) {
 
 static cti_flux_ops_t _cti_flux_ops = {
     .registerJob = _cti_flux_registerJob,
-    .getJobid = _cti_flux_getJobid
+    .getJobid = _cti_flux_getJobid,
+    .registerJobWait = _cti_flux_registerJobWait,
 };
 
 static cti_app_id_t

@@ -832,6 +832,9 @@ typedef struct {
  *      in this interface, the jobid and stepid of the srun application must be
  *      registered. This is done automatically when using the built-in functions
  *      to launch applications. The jobid/stepid can be obtained from qstat.
+ *      A blocking variant registerJobStepWait is also available. This call will
+ *      block until the specified timeout is reached. A timeout of 0 will block
+ *      indefinitely.
  *
  * Arguments
  *      job_id - The job id of the srun application to register.
@@ -889,6 +892,7 @@ typedef struct {
     cti_srunProc_t* (*getSrunInfo)(cti_app_id_t appId);
     cti_srunProc_t* (*submitBatchScript)(char const* script_path,
         char const* const* sbatch_args, char const* const* env_list);
+    cti_app_id_t    (*registerJobStepWait)(uint32_t job_id,uint32_t step_id, uint32_t timeout_sec);
 } cti_slurm_ops_t;
 
 /*-----------------------------------------------------------------------------
@@ -920,6 +924,9 @@ typedef struct {
  *      in this interface, the application ID must be registered. This is done
  *      automatically when using the built-in CTI functions to launch
  *      applications.
+ *      A blocking variant registerApidWait is also available. This call will
+ *      block until the specified timeout is reached. A timeout of 0 will block
+ *      indefinitely.
  *
  * Arguments
  *      job_or_apid - The PBS job ID or PALS application ID of the job to
@@ -976,6 +983,7 @@ typedef struct {
     cti_app_id_t     (*launchAppBarrierNonMpi)(const char * const launcher_argv[],
         int stdout_fd, int stderr_fd, const char* inputFile,
         const char* chdirPath, const char * const env_list[]);
+    cti_app_id_t     (*registerApidWait)(char const* job_or_apid, uint32_t timeout_sec);
 } cti_pals_ops_t;
 
 /*-----------------------------------------------------------------------------
@@ -1018,6 +1026,9 @@ typedef struct {
  *      interface. It is recommended to use the built-in functions to launch
  *      applications, however sometimes this is impossible (such is the case for
  *      a debug attach scenario).
+ *      A blocking variant registerJobWait is also available. This call will
+ *      block until the specified timeout is reached. A timeout of 0 will block
+ *      indefinitely.
  *
  * Arguments
  *      job_id - The ID string of the Flux job to which to attach
@@ -1045,6 +1056,7 @@ typedef struct {
 typedef struct {
     cti_app_id_t    (*registerJob)(char const* job_id);
     char*           (*getJobid)(pid_t fluxAttachPid);
+    cti_app_id_t    (*registerJobWait)(char const* job_id, uint32_t timeout_sec);
 } cti_flux_ops_t;
 
 /*-----------------------------------------------------------------------------

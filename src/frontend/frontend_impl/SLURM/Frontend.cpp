@@ -97,15 +97,33 @@ static JobStepStatus job_step_running(std::string const& jobId, std::string cons
     // Read squeue output
     auto& squeueStream = squeueOutput.stream();
     auto squeueLine = std::string{};
-    auto gotOutput = false;
+    auto got_output = false;
+    auto got_jobstep = false;
 
-    // Search for "RUNNING|<jobid>.<stepid>"
-    auto needle = std::string{"RUNNING|"} + jobId + "." + stepId;
+    // Search for "RUNNING|<jobid>."
+    auto needle = std::string{"RUNNING|"} + jobId + ".";
 
     while (std::getline(squeueStream, squeueLine)) {
-        gotOutput = true;
+        got_output = true;
+
         // squeue will add extra whitespace.
-        if (squeueLine.rfind(needle, 0) == 0) break;
+        if (squeueLine.rfind(needle, 0) == 0) {
+
+            // Accept either the provided stepId or nonnumeric step ID
+            // e.g. 'extern' or 'batch'
+            auto lineView = std::string_view{squeueLine};
+            auto potentialStepId = lineView.substr(needle.length());
+            if (potentialStepId.rfind(stepId) == 0) {
+                got_jobstep = true;
+                break;
+
+            // Check for nonnumeric step label
+            } else if (!std::all_of(potentialStepId.begin(), potentialStepId.end(),
+                [](unsigned char c){ return std::isdigit(c) || (c == ' '); })) {
+                got_jobstep = true;
+                break;
+            }
+        }
     }
 
     // Consume rest of squeue output
@@ -126,11 +144,11 @@ static JobStepStatus job_step_running(std::string const& jobId, std::string cons
     // have to do another squeue call (job_registered) to distinguish the "job
     // id is invalid" empty output case from the "job id is valid but waiting"
     // empty output case.
-    if (!gotOutput && !job_registered(jobId)) {
+    if (!got_output && !job_registered(jobId)) {
         return JobStepStatus::Error;
     }
 
-    return (squeueLine.rfind(needle, 0) == 0)
+    return (got_jobstep)
         ? JobStepStatus::Running
         : JobStepStatus::NotRunning;
 }
@@ -771,7 +789,7 @@ static auto read_timeout(int fd, int64_t usec)
 
 template <typename Func>
 static auto srunMPIR(FE_daemon& daemon, char const* launcher_path, char const* const* launcher_argv,
-    char const* const* env_list, Func&& cassiniJobLimitCallback)
+    char const* const* env_list, bool checkTaskPrologStatus, Func&& cassiniJobLimitCallback)
 {
     auto result = FE_daemon::MPIRResult{};
 
@@ -817,6 +835,17 @@ static auto srunMPIR(FE_daemon& daemon, char const* launcher_path, char const* c
         } else if (std::any_of(result.proctable.begin(), result.proctable.end(),
             [](auto&& elem) { return elem.pid < 0; })) {
             throw std::runtime_error("Launcher proctable had negative PID");
+        }
+
+        // Check for node slurmstepd failure
+        if (checkTaskPrologStatus && (result.job_id > 0)) {
+            auto state = job_step_running(std::to_string(result.job_id),
+                std::to_string(result.step_id));
+            if (state != JobStepStatus::Running) {
+                fprintf(stderr, "In Slurm 25.05.1 and earlier, Slurm jobs may silently fail to "
+                    "launch if slurmstepd exits during the task prolog (Job was "
+                    "detected as exited, check your task prolog setting)\n");
+            }
         }
 
     } catch (std::exception const& ex) {
@@ -957,7 +986,7 @@ SLURMApp::SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData, std::str
     , m_beDaemonSent    { false }
     , m_gresSetting {}
 
-    , m_toolPath    { SLURM_TOOL_DIR }
+    , m_toolPath    { fe.findToolPath(std::to_string(m_jobId)) }
     , m_attribsPath { cti::cstr::asprintf(SLURM_CRAY_DIR, SLURM_APID(m_jobId, m_stepId)) }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{m_frontend.getCfgDir() + "/" + SLURM_STAGE_DIR}) }
     , m_extraFiles  { fe.createNodeLayoutFile(m_stepLayout, m_stagePath) }
@@ -1369,7 +1398,7 @@ void SLURMApp::shipPackage(std::string const& tarPath) const {
     };
 
     auto packageName = cti::cstr::basename(tarPath);
-    sbcastArgv.add(std::string(SLURM_TOOL_DIR) + "/" + packageName);
+    sbcastArgv.add(m_toolPath + "/" + packageName);
 
     // Add environment setting to disable library detection
     // Sbcast starting in Slurm 22.05 will fail to ship non-executable if site enables
@@ -1496,7 +1525,7 @@ MPIRProctable SLURMApp::reparentProctable(MPIRProctable const& procTable,
 
     // Ship reparenting utility
     auto const sourcePath = m_frontend.getBaseDir() + "/libexec/" CTI_FIRST_SUBPROCESS_BINARY;
-    auto const destinationPath = std::string(SLURM_TOOL_DIR) + "/" CTI_FIRST_SUBPROCESS_BINARY;
+    auto const destinationPath = m_toolPath + "/" CTI_FIRST_SUBPROCESS_BINARY;
     std::filesystem::copy_file(sourcePath, destinationPath,
         std::filesystem::copy_options::overwrite_existing);
     shipPackage(destinationPath);
@@ -1590,6 +1619,7 @@ void SLURMApp::startDaemon(const char* const args[], bool synchronous)
     // tell FE Daemon to launch srun
     auto used_ssh = false;
     auto result = srunMPIR(m_frontend.Daemon(), launcherPath.c_str(), launcherArgv.get(), launcherEnv.get(),
+        slurmFrontend.getCheckTaskPrologStatus(),
         [&](std::string const& node, int count, std::vector<std::string> const& nodes,
         std::string const& stderrOutput) -> FE_daemon::MPIRResult {
 
@@ -1811,6 +1841,7 @@ SLURMFrontend::SLURMFrontend()
         , "--error=none"
         }
     , m_checkScancelOutput{false}
+    , m_checkTaskPrologStatus{false}
     {
 
     // Detect SLURM version and set SRUN arguments accordingly
@@ -1836,6 +1867,19 @@ SLURMFrontend::SLURMFrontend()
             m_srunDaemonArgs.insert(m_srunDaemonArgs.end(),
                 { "--overlap"
             });
+        }
+
+        // CPE-10692 addressed a bug where jobs may silently fail when task prologs are
+        // inacessible on node, or job otherwise exits during task prolog. In this case,
+        // an exception is raised. In Slurm 25.05.2, the check for this state is no
+        // longer reliable. From CPE-14234, change this check to only occur on 25.05.1 and
+        // then to display a warning.
+        { auto less_than_25 = (major < 25);
+            auto less_than_25_05 = (major == 25) && (minor < 5);
+            auto less_than_25_05_02 = (major == 25) && (minor == 5) && (patch < 2);
+            if (less_than_25 || less_than_25_05 || less_than_25_05_02) {
+                m_checkTaskPrologStatus = true;
+            }
         }
 
         // Up to (and possibly beyond) Slurm 22.05.8, scancel might report that
@@ -2270,6 +2314,7 @@ SLURMFrontend::launchApp(const char * const launcher_args[],
 
     // Launch srun under MPIR control
     return srunMPIR(Daemon(), launcherPath.c_str(), launcherArgv.get(), env_list,
+        getCheckTaskPrologStatus(),
         [](std::string const& node, int count, std::vector<std::string> const& nodes,
             std::string const& stderrOutput) -> FE_daemon::MPIRResult {
 
@@ -2694,7 +2739,7 @@ void
 EproxySLURMApp::shipPackage(std::string const& tarPath) const
 {
     auto packageName = cti::cstr::basename(tarPath);
-    auto const destination = std::string{SSH_TOOL_DIR} + "/" + packageName;
+    auto const destination = getToolPath() + "/" + packageName;
     writeLog("EproxySLURMApp shipping %s to '%s'\n", tarPath.c_str(), destination.c_str());
 
     // Send the package to the login node

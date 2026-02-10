@@ -241,6 +241,8 @@ FE_daemon::MPIRResult FE_daemon::readMPIRResp(std::function<ssize_t(char*, size_
     FE_daemon::MPIRResult result
         { .mpir_id = mpirResp.mpir_id
         , .launcher_pid = mpirResp.launcher_pid
+        , .job_id = mpirResp.job_id
+        , .step_id = mpirResp.step_id
         , .proctable = {}
         , .binaryRankMap = {}
     };
@@ -492,6 +494,15 @@ void
 FE_daemon::request_RegisterUtil(DaemonAppId app_id, pid_t util_pid)
 {
     fdWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterUtil);
+    fdWriteLoop(m_req_sock.getWriteFd(), app_id);
+    fdWriteLoop(m_req_sock.getWriteFd(), util_pid);
+    verifyOKResp(m_resp_sock.getReadFd());
+}
+
+void
+FE_daemon::request_RegisterUtilWithSigkill(DaemonAppId app_id, pid_t util_pid)
+{
+    fdWriteLoop(m_req_sock.getWriteFd(), ReqType::RegisterUtilWithSigkill);
     fdWriteLoop(m_req_sock.getWriteFd(), app_id);
     fdWriteLoop(m_req_sock.getWriteFd(), util_pid);
     verifyOKResp(m_resp_sock.getReadFd());

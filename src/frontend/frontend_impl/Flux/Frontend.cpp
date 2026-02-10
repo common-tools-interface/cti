@@ -252,7 +252,9 @@ static inline auto parse_job_id(FluxFrontend::LibFlux& libFluxRef, char const* r
     }
 
     // Determine if job ID is f58-formatted by checking for f58 prefix
-    if (::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0) {
+    auto const utf8_enabled = (!getenv("FLUX_F58_FORCE_ASCII"));
+    if ((utf8_enabled && ::strncmp(utf8_prefix, raw_job_id, ::strlen(utf8_prefix)) == 0)
+      || (raw_job_id[0] == 'f')) {
         if (libFluxRef.flux_job_id_parse(raw_job_id, &job_id) == 0) {
             return job_id;
         }
@@ -804,7 +806,7 @@ FluxApp::kill(int signal)
 class FluxArchive
 {
 public: // helper functions
-    static void execvp_throw_stderr(char const* argv0, char const* const* argv,
+    static auto execvp_return_stderr(char const* argv0, char const* const* argv,
         std::string const& ex) {
 
         // Launch subprocess
@@ -820,8 +822,18 @@ public: // helper functions
         }
 
         // Check output status
-        if (output.getExitStatus()) {
-            throw std::runtime_error(lines.str());
+        if (auto rc = output.getExitStatus()) {
+            return std::make_pair(rc, lines.str());
+        }
+        return std::make_pair(0, std::string{});
+    }
+
+    static void execvp_throw_stderr(char const* argv0, char const* const* argv,
+        std::string const& ex) {
+
+        auto [rc, err] = execvp_return_stderr(argv0, argv, ex);
+        if (rc) {
+            throw std::runtime_error(err);
         }
     }
 
@@ -841,7 +853,17 @@ public: // interface
         // Map file on broker node to central store
         char const* archive_create_argv[] = {"flux", "archive", "create", "-n", m_toolPath.c_str(),
             "-C", dirName.c_str(), packageName.c_str(), nullptr};
-        execvp_throw_stderr("flux", archive_create_argv, "failed to add file to archive");
+        auto [rc, err] = execvp_return_stderr("flux", archive_create_argv,
+            "failed to add file to archive");
+
+        if (rc) {
+            if (err.find("Request requires owner credentials") != std::string::npos) {
+                err += "\nThis system is not configured to allow `flux archive` file management "
+                    "from the global Flux instance. You must run this tool in the same batch "
+                    "or allocation as the target Flux job";
+            }
+            throw std::runtime_error(err);
+        }
     }
 
     ~FluxArchive()
@@ -1122,14 +1144,32 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
     }
 
     // Flux generates job's tmpdir as <handle_rundir>/jobtmp-<shellrank>-<jobidf58>
-    { auto const rundir = m_libFluxRef.flux_attr_get(m_fluxHandle, "rundir");
-        if (rundir == nullptr) {
-            throw std::runtime_error("Flux getattr failed");
+    { auto backendTmpdir = std::string{};
+
+        // Override rundir if set
+        if (auto backend_tmpdir = ::getenv(CTI_BACKEND_TMPDIR_ENV_VAR)) {
+            backendTmpdir = backend_tmpdir;
+
+        } else {
+
+            // Get rundir for backend tmpdir location
+            auto const rundir = m_libFluxRef.flux_attr_get(m_fluxHandle, "rundir");
+
+            // Check writable. (Some systems have the rundir not writable, check from frontend
+            // and assume compute nodes are the same)
+            if ((rundir != nullptr) && cti::dirHasPerms(rundir, W_OK)) {
+                backendTmpdir = rundir;
+
+            // flux-core src/shell/tmpdir.c also falls back to /tmp if rundir is not writable
+            } else {
+                backendTmpdir = "/tmp";
+            }
         }
 
         // Encode job ID and build toolpath
         auto const jobIdF58 = encode_job_id(m_libFluxRef, m_jobId);
-        m_toolPath = std::string{rundir} + "/jobtmp-" + std::to_string(m_leaderRank) + "-" + jobIdF58;
+        m_toolPath = backendTmpdir + "/jobtmp-" + std::to_string(m_leaderRank) + "-" + jobIdF58;
+
         writeLog("tmpdir: %s\n", m_toolPath.c_str());
     }
 
@@ -1170,7 +1210,7 @@ FluxApp::FluxApp(FluxFrontend& fe, FluxFrontend::LaunchInfo&& launchInfo)
             if (attach_pid < 0) {
                 throw std::runtime_error("fork failed: " + std::string{strerror(errno)});
             }
-            m_frontend.Daemon().request_RegisterUtil(m_daemonAppId, attach_pid);
+            m_frontend.Daemon().request_RegisterUtilWithSigkill(m_daemonAppId, attach_pid);
 
         // Launch flux attach
         } else {

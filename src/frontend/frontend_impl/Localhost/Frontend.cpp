@@ -20,8 +20,8 @@ LocalhostApp::LocalhostApp(LocalhostFrontend& fe, CArgArray launcher_argv,
                            bool stopAtBarrier)
     : App(fe, 0)
     , m_id          { std::to_string(getpid()) + "." + std::to_string(m_nextId++) }
-    , m_toolPath    { LOCALHOST_TOOL_DIR }
-    , m_attribsPath { LOCALHOST_TOOL_DIR }
+    , m_toolPath    { fe.findToolPath(m_id) }
+    , m_attribsPath { m_toolPath }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR}) }
     , m_cleanupFiles { 1, m_stagePath }
 {
@@ -84,8 +84,8 @@ LocalhostApp::LocalhostApp(LocalhostFrontend& fe, const std::vector<int>& appPEs
     : App(fe, 0)
     , m_id          { std::to_string(getpid()) + "." + std::to_string(m_nextId++) }
     , m_appPEs      { appPEs }
-    , m_toolPath    { LOCALHOST_TOOL_DIR }
-    , m_attribsPath { LOCALHOST_TOOL_DIR }
+    , m_toolPath    { fe.findToolPath(m_id) }
+    , m_attribsPath { m_toolPath }
     , m_stagePath   { cti::cstr::mkdtemp(std::string{fe.getCfgDir() + "/" + SSH_STAGE_DIR})}
     , m_cleanupFiles { 1, m_stagePath }
 {
