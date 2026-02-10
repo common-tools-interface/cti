@@ -865,3 +865,10 @@ class CtiTest(Test):
 
         rc = run_cti_test(self, name, argv)
         self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")
+
+    def test_AttachWait(self):
+        name = "AttachWait"
+        argv = ["./src/cti_attach_wait", *LAUNCHER_ARGS.split()]
+
+        rc = run_cti_test(self, name, argv)
+        self.assertTrue(rc == 0, f"Test binary returned with nonzero returncode ({rc})")

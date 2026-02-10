@@ -16,11 +16,12 @@ noinst_LTLIBRARIES = libflux.la
 
 libflux_la_SOURCES		= Frontend.cpp LibFlux.hpp ssh.hpp
 libflux_la_CXXFLAGS	= -I$(SRC) -I$(SRC)/frontend -I$(SRC)/frontend/frontend_impl -I$(INCLUDE) -fPIC \
-						$(CODE_COVERAGE_CXXFLAGS) $(FLUX_CORE_CFLAGS) $(AM_CXXFLAGS) $(BOOST_CFLAGS)
-libflux_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(BOOST_CPPFLAGS) $(AM_CPPFLAGS)
+	$(CODE_COVERAGE_CXXFLAGS) $(FLUX_CORE_CFLAGS) $(AM_CXXFLAGS) $(BOOST_CFLAGS) \
+	$(LIBARCHIVE_CFLAGS)
+libflux_la_CPPFLAGS	= $(CODE_COVERAGE_CPPFLAGS) $(BOOST_CPPFLAGS) $(AM_CPPFLAGS) $(LIBARCHIVE_CFLAGS)
 libflux_la_LDFLAGS		= -Wl,--no-undefined \
-						$(AM_LDFLAGS) -pthread
-libflux_la_LIBADD		= $(CODE_COVERAGE_LIBS) $(BOOST_LIBS) -lpthread
+	$(AM_LDFLAGS) -pthread
+libflux_la_LIBADD		= $(CODE_COVERAGE_LIBS) $(BOOST_LIBS) $(LIBARCHIVE_LIBS) -lpthread
 noinst_HEADERS			= Frontend.hpp
 
 LibFlux.hpp: generate_libflux.py LibFlux.hpp.in

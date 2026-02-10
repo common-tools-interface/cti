@@ -49,7 +49,21 @@ int main(int argc, char** argv)
         exit(1);
     }
 
-    fprintf(stdout, "%s\n", val->data.string);
+    switch (val->type) {
+
+        case PMIX_UINT32:
+            fprintf(stdout, "%zu\n", val->data.uint32);
+            break;
+
+        case PMIX_STRING:
+            fprintf(stdout, "%s\n", val->data.string);
+            break;
+
+        default:
+            fprintf(stderr, "Unsupported PMIx type: %hu\n", val->type);
+            PMIx_tool_finalize();
+            return -1;
+    }
 
     PMIx_tool_finalize();
 

@@ -52,6 +52,11 @@ allocation as the host.
 supplied before the job ID separated by a colon.
 In this form, the tool does not have to be launched inside the same PBS
 allocation as the host.
+.IP \[bu] 2
+Note: PALS has a launch optimization for single-node runs that hosts the
+application locally and does not report it to the PALS service.
+To enable attaching, launch single-node applications with
+\f[B]PALS_LOCAL_LAUNCH=0\f[R].
 .RE
 .IP \[bu] 2
 \f[I]Flux\f[R]: \f[C]<flux_jobid>\f[R] Can be either the
@@ -185,6 +190,13 @@ launcher binary to ensure it is a binary and that MPIR debug symbols are
 present.
 These symbols are required for proper startup, but this check can be
 bypassed by setting \f[I]CTI_SKIP_LAUNCHER_CHECK=1\f[R].
+.IP \[bu] 2
+\f[I]CTI_BACKEND_TMPDIR\f[R]: Each workload manager has a default
+location to place temporary tool files such as tool daemons.
+This location can be overridden by setting this environment variable to
+a location that exists on the compute nodes.
+Note that the filesystem should be mounted such that binaries can
+execute from that location i.e.\ not \f[I]noexec\f[R].
 .SS Slurm-specific variables
 .IP \[bu] 2
 \f[I]CTI_SLURM_DAEMON_GRES\f[R]: Starting with Slurm 21.08, there is a
@@ -292,5 +304,12 @@ execution host.
 By default, this will time out in 30 seconds.
 Set this variable to \f[B]1\f[R] to disable this timeout and wait
 indefinitely.
+.IP \[bu] 2
+\f[I]CTI_PALS_PMIX_RANKINFO\f[R]: PMIx 5.0.10 fixes a bug where node
+rank information queries will return incorrect values (see
+https://github.com/openpmix/openpmix/issues/3652) A workaround is
+automatically applied if PMIx is detected to be older than 5.0.10.
+To disable this workaround, set this variable to \f[B]0\f[R].
+To manually enable this workaround, set it to \f[B]1\f[R].
 .SH AUTHORS
 Hewlett Packard Enterprise Development LP..

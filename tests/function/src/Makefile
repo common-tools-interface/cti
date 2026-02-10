@@ -20,7 +20,7 @@ EXECS = cti_barrier cti_launch cti_launch_badenv cti_info cti_link cti_callback 
 	  cti_tool_daemon cti_tool_daemon_argv cti_tool_daemon_badenv \
 	  cti_manifest cti_session cti_environment cti_fd_in cti_double_daemon cti_ld_preload \
 	  cti_mpir_shim cti_release_twice cti_redirect cti_file_in cti_release_app cti_ops \
-	  cti_mpmd_daemon cti_multithread
+	  cti_mpmd_daemon cti_multithread cti_attach_wait
 
 all : support tests
 
@@ -120,6 +120,9 @@ cti_release_app : cti_release_app_test.cpp
 	$(CXX) $(CFLAGS) -std=c++17 $^ -o $@ cti_fe_function_test.cpp $(LDFLAGS)
 
 cti_ops : cti_ops_test.cpp
+	$(CXX) $(CFLAGS) -std=c++17 $^ -o $@ cti_fe_function_test.cpp $(LDFLAGS)
+
+cti_attach_wait : cti_attach_wait_test.cpp cti_fe_common.c
 	$(CXX) $(CFLAGS) -std=c++17 $^ -o $@ cti_fe_function_test.cpp $(LDFLAGS)
 
 cti_multithread : cti_multithread_test.cpp

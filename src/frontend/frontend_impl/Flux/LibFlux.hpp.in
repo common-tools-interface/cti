@@ -25,7 +25,7 @@ flux_future_error_string char const*(flux_future_t*)
 
 # RPC
 flux_rpc flux_future_t*(flux_t *, const char *, const char *, uint32_t, int)
-flux_rpc_raw flux_future_t*(flux_t *, const char *, const void *, int, uint32_t, int)
+flux_rpc_raw flux_future_t*(flux_t *, const char *, const void *, size_t, uint32_t, int)
 flux_rpc_get int(flux_future_t *, const char **)
 
 # Jobs

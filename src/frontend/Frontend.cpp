@@ -18,6 +18,10 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include <sys/statvfs.h>
+#include <sys/mount.h>
+#include <errno.h>
+
 // CTI Transfer includes
 #include "transfer/Manifest.hpp"
 #include "transfer/Session.hpp"
@@ -281,9 +285,66 @@ Frontend::findBaseDir(void)
     return baseDir;
 }
 
+static auto
+is_executable_filesystem(const char *path)
+{
+    struct statvfs fs_info;
+
+    // Ignore failure if directory does not exist on frontend
+    if (::statvfs(path, &fs_info) != 0) {
+        return true;
+    }
+
+    if (fs_info.f_flag & ST_NOEXEC) {
+        return false;
+    }
+
+    return true;
+}
+
+// Using environment settings, detect remote tool directory base path
+std::string
+Frontend::findToolPath(std::string const& apId)
+{
+    if (auto cti_backend_tmpdir = ::getenv(CTI_BACKEND_TMPDIR_ENV_VAR)) {
+
+        if (!is_executable_filesystem(cti_backend_tmpdir)) {
+            fprintf(stderr, "warning: directory set in " CTI_BACKEND_TMPDIR_ENV_VAR " was detected "
+                "as being mounted noexec.\nYou may need to change this value for proper tool launch\n");
+        }
+
+        return std::string{cti_backend_tmpdir};
+
+    } else if (auto tmpdir = ::getenv("TMPDIR")) {
+
+        if (!is_executable_filesystem(tmpdir)) {
+            fprintf(stderr, "warning: TMPDIR setting %s was detected "
+                "as being mounted noexec.\nYou may need to set " CTI_BACKEND_TMPDIR_ENV_VAR " to a "
+                "directory accessible on compute nodes that is mounted executable\n",
+            tmpdir);
+        }
+
+        return std::string{tmpdir};
+    }
+
+    if (!is_executable_filesystem("/tmp")) {
+        fprintf(stderr, "warning: /tmp was detected "
+            "as being mounted noexec.\nYou may need to set " CTI_BACKEND_TMPDIR_ENV_VAR " to a "
+            "directory accessible on compute nodes that is mounted executable\n");
+    }
+
+    return std::string{"/tmp"};
+}
+
 void
 Frontend::removeApp(std::shared_ptr<App> app)
 {
+    try {
+        app->finalize();
+    } catch (std::exception const& ex) {
+        writeLog("Frontend::removeApp finalize failed: %s\n", ex.what());
+    }
+
     // drop the shared_ptr
     m_apps.erase(app);
 }
@@ -1493,4 +1554,5 @@ App::finalize()
     for (auto&& session : m_sessions) {
         session->finalize();
     }
+    m_sessions.clear();
 }

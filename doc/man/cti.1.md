@@ -45,6 +45,9 @@ supplied to start the attach process.
   - `<pbs_job_id>:<pals_apid>` If the PBS job ID is known, it can
     be supplied before the job ID separated by a colon. In this form, the
     tool does not have to be launched inside the same PBS allocation as the host.
+  - Note: PALS has a launch optimization for single-node runs that hosts the
+    application locally and does not report it to the PALS service. To enable
+    attaching, launch single-node applications with **PALS_LOCAL_LAUNCH=0**.
 - *Flux*: `<flux_jobid>` Can be either the **f58**-style job ID reported by most
   Flux utilities, or the numeric job ID reported by Flux API functions.
 - *ALPS*: `<aprun_id>` Supply the ALPS application ID
@@ -145,6 +148,12 @@ supplied to start the attach process.
   These symbols are required for proper startup, but this check can be
   bypassed by setting *CTI_SKIP_LAUNCHER_CHECK=1*.
 
+- *CTI_BACKEND_TMPDIR*: Each workload manager has a default location to place
+  temporary tool files such as tool daemons. This location can be overridden
+  by setting this environment variable to a location that exists
+  on the compute nodes. Note that the filesystem should be mounted
+  such that binaries can execute from that location i.e. not *noexec*.
+
 ## Slurm-specific variables
 
 - *CTI_SLURM_DAEMON_GRES*: Starting with Slurm 21.08, there is a known
@@ -237,3 +246,10 @@ paths to the required SSH files:
   PBS, then wait for PALS to start the job on the execution host. By default,
   this will time out in 30 seconds. Set this variable to **1** to disable this
   timeout and wait indefinitely.
+
+- *CTI_PALS_PMIX_RANKINFO*: PMIx 5.0.10 fixes a bug where node rank information
+  queries will return incorrect values
+  (see https://github.com/openpmix/openpmix/issues/3652)
+  A workaround is automatically applied if PMIx is detected to be older than
+  5.0.10. To disable this workaround, set this variable to **0**. To manually
+  enable this workaround, set it to **1**.

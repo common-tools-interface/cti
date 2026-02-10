@@ -86,7 +86,7 @@ _cti_pals_getNodeID(void)
 
 	// pals_fini
 	dlerror();
-	_cti_libpals_funcs.pals_fini = dlsym(_cti_libpals_funcs.handle, "pals_init");
+	_cti_libpals_funcs.pals_fini = dlsym(_cti_libpals_funcs.handle, "pals_fini");
 	dl_err = dlerror();
 	if (dl_err != NULL) {
 		fprintf(stderr, "pals_dl " PALS_BE_LIB_NAME " dlsym: %s\n", dl_err);
