@@ -186,12 +186,26 @@ struct detail
         int gpus;
     };
 
+    // GPU allocation of a job from `scontrol show job -d`
+    struct JobGpus
+    {
+        std::vector<NodeGpus> nodeGpus;
+        bool hetJob = false; // Job is a heterogeneous job
+    };
+
+    // --gres value for tool daemon launches and whether it came from the job allocation
+    struct GresSetting
+    {
+        std::string gres;
+        bool fromAllocation;
+    };
+
     // --gres value for tool daemon launches: CTI_SLURM_DAEMON_GRES, else a GPU GRES from
     // launcher_argv, else allocationGres (see get_allocation_gres), else "none"
-    static std::string get_gres_setting(char const* const* launcher_argv,
+    static GresSetting get_gres_setting(char const* const* launcher_argv,
         std::string const& allocationGres);
     // Parse `scontrol show job -d` output into GPUs per node group
-    static std::vector<NodeGpus> get_job_node_gpus(std::istream& scontrolJobDetail);
+    static JobGpus parse_job_gpus(std::istream& scontrolJobDetail);
     // Per-node --gres value: "gpu:<N>" with N the fewest GPUs on any node, "none" if some
     // node has none, or empty if the job has no GPUs
     static std::string get_allocation_gres(std::vector<NodeGpus> const& nodeGpus);
@@ -199,6 +213,12 @@ struct detail
     // tool daemons use; empty for any other setting
     static std::vector<NodeGpus> get_limited_nodes(std::vector<NodeGpus> const& nodeGpus,
         std::string const& gresSetting);
+    // Application node names per GPU count
+    using GpuNodeGroups = std::map<int, std::vector<std::string>>;
+    // Group stepNodes (Slurm node names from the step layout) by their GPU count in
+    // nodeGpuCounts. Empty if a node has no count
+    static GpuNodeGroups get_gpu_node_groups(std::vector<std::string> const& stepNodes,
+        std::map<std::string, int> const& nodeGpuCounts);
     static void add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs);
 };
 
@@ -216,9 +236,13 @@ private: // variables
     int      m_queuedErrFd; // Where to redirect stderr after barrier release
 
     bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
-    std::vector<SLURMFrontend::detail::NodeGpus> m_jobNodeGpus; // Job GPUs per node group, empty if not queried
+    SLURMFrontend::detail::JobGpus m_jobGpus; // Job GPU allocation, empty if not queried
+    SLURMFrontend::detail::GpuNodeGroups m_appGpuGroups; // Application nodes per GPU count, only for uneven allocations
+    std::vector<SLURMFrontend::detail::NodeGpus> m_requestNodeGpus; // Node GPUs the per-node request is sized for
     std::string m_gresSetting; // Tool daemon GRES
+    bool     m_gresFromAllocation; // m_gresSetting is CTI's allocation-based request
     bool     m_gresWarned; // Warned that tool daemons can't use all job GPUs
+    std::optional<SLURMFrontend::detail::GpuNodeGroups> m_daemonGpuGroups; // Cached daemonGpuGroups() result
 
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
@@ -228,6 +252,12 @@ private: // variables
 private: // member helpers
     void shipDaemon();
     void warnLimitedGpus();
+    // Whether a per-GPU-count daemon step could give every application node all its GPUs
+    bool canSplitDaemonGres() const;
+    // Hostnames per GPU count when daemon steps use one component per count, else empty
+    SLURMFrontend::detail::GpuNodeGroups const& daemonGpuGroups();
+    // Environment changes for daemon launches (CTIBLACKLIST_ entries)
+    cti::ManagedArgv daemonLauncherEnv() const;
     cti::ManagedArgv generateDaemonLauncherArgv(char const* const* launcher_args);
 
 public: // app interaction interface
@@ -260,7 +290,11 @@ public: // slurm specific interface
     MPIRProctable reparentProctable(MPIRProctable const& procTable, std::string const& wrapperBinary);
 
     // Set GRES for subsequent tool daemon launches
-    void setGres(std::string const& gresSetting) { m_gresSetting = gresSetting; }
+    void setGres(SLURMFrontend::detail::GresSetting const& gresSetting)
+    {
+        m_gresSetting = gresSetting.gres;
+        m_gresFromAllocation = gresSetting.fromAllocation;
+    }
     std::string const& getGres() const { return m_gresSetting; }
 
 public: // constructor / destructor interface

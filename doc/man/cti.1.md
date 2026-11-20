@@ -158,10 +158,11 @@ supplied to start the attach process.
 
 - *CTI_SLURM_DAEMON_GRES*: The `--gres` argument for tool daemon job steps.
   By default, CTI requests the GPUs of the job allocation per node
-  (`gpu:<N>`, where N is the smallest number of GPUs allocated on any job
-  node). If CTI launched the application with a `--gres` GPU request, CTI
-  uses that request instead. Set this variable to an empty string to omit
-  `--gres`, or to a GRES specification to use instead. Starting with Slurm
+  (`gpu:<N>`, where N is the smallest number of GPUs allocated on the
+  application's nodes, or on any job node if CTI can't determine the GPU counts
+  of the application's nodes). If CTI launched the application with a `--gres` GPU
+  request, CTI uses that request instead. Set this variable to an empty string
+  to omit `--gres`, or to a GRES specification to use instead. Starting with Slurm
   21.08, there is a known bug that may result in hanging job launches
   (https://bugs.schedmd.com/show_bug.cgi?id=12642). If you are experiencing
   job hangs with this Slurm version, try setting this variable to an empty
@@ -179,6 +180,14 @@ supplied to start the attach process.
 - *CTI_SLURM_DAEMON_GPUS_PER_NODE*: Set to add `--gpus-per-node` with this
   value to tool daemon job steps instead of the default per-node GPU GRES
   request described for *CTI_SLURM_DAEMON_GRES*.
+
+- *CTI_SLURM_DAEMON_GRES_SPLIT*: Set to `1` when the job's nodes have
+  different numbers of GPUs, to give tool daemons all of the GPUs on each
+  node. CTI then starts tool daemons as a heterogeneous job step with one
+  component per GPU count, each requesting that count with `--gres`. Without
+  it, tool daemons get the smallest per-node count on every node and CTI
+  prints a warning. Only applies to the default per-node GPU request in
+  non-heterogeneous jobs.
 
 ## SSH-specific variables
 

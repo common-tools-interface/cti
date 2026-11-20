@@ -203,7 +203,8 @@ execute from that location i.e.\ not \f[I]noexec\f[R].
 tool daemon job steps.
 By default, CTI requests the GPUs of the job allocation per node
 (\f[C]gpu:<N>\f[R], where N is the smallest number of GPUs allocated on
-any job node).
+the application\[cq]s nodes, or on any job node if CTI can\[cq]t determine
+the GPU counts of the application\[cq]s nodes).
 If CTI launched the application with a \f[C]--gres\f[R] GPU request,
 CTI uses that request instead.
 Set this variable to an empty string to omit \f[C]--gres\f[R], or to a
@@ -229,6 +230,17 @@ MPMD jobs are not supported with this option.
 \f[C]--gpus-per-node\f[R] with this value to tool daemon job steps
 instead of the default per-node GPU GRES request described for
 \f[I]CTI_SLURM_DAEMON_GRES\f[R].
+.IP \[bu] 2
+\f[I]CTI_SLURM_DAEMON_GRES_SPLIT\f[R]: Set to \f[C]1\f[R] when the
+job\[cq]s nodes have different numbers of GPUs, to give tool daemons all
+of the GPUs on each node.
+CTI then starts tool daemons as a heterogeneous job step with one
+component per GPU count, each requesting that count with
+\f[C]--gres\f[R].
+Without it, tool daemons get the smallest per-node count on every node
+and CTI prints a warning.
+Only applies to the default per-node GPU request in non-heterogeneous
+jobs.
 .SS SSH-specific variables
 .PP
 For workload managers that do not natively provide a file-shipping or
