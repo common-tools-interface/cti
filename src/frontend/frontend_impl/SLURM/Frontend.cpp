@@ -2091,6 +2091,12 @@ SLURMFrontend::detail::get_gres_setting(char const* const* launcher_argv,
         return {slurm_gres, false};
     }
 
+    // CTI_SLURM_DAEMON_GPUS_PER_NODE already adds --gpus-per-node to the daemon arguments;
+    // an added --gres=none would take the GPUs away again
+    if (::getenv(SLURM_DAEMON_GPUS_PER_NODE)) {
+        return {{}, false};
+    }
+
     // Inherit GPU GRES setting if provided
     for (auto&& arg = launcher_argv; *arg != nullptr; arg++) {
         if (::strncmp(*arg, "--gres", 6) == 0) {

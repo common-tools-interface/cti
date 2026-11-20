@@ -178,8 +178,9 @@ supplied to start the attach process.
   available on your system. MPMD jobs are not supported with this option.
 
 - *CTI_SLURM_DAEMON_GPUS_PER_NODE*: Set to add `--gpus-per-node` with this
-  value to tool daemon job steps instead of the default per-node GPU GRES
-  request described for *CTI_SLURM_DAEMON_GRES*.
+  value to tool daemon job steps instead of the `--gres` GPU request described
+  for *CTI_SLURM_DAEMON_GRES*, including one taken from the application's
+  **srun** command. If *CTI_SLURM_DAEMON_GRES* is also set, both are passed.
 
 - *CTI_SLURM_DAEMON_GRES_SPLIT*: Set to `1` when the job's nodes have
   different numbers of GPUs, to give tool daemons all of the GPUs on each

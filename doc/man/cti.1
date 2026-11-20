@@ -228,8 +228,10 @@ MPMD jobs are not supported with this option.
 .IP \[bu] 2
 \f[I]CTI_SLURM_DAEMON_GPUS_PER_NODE\f[R]: Set to add
 \f[C]--gpus-per-node\f[R] with this value to tool daemon job steps
-instead of the default per-node GPU GRES request described for
-\f[I]CTI_SLURM_DAEMON_GRES\f[R].
+instead of the \f[C]--gres\f[R] GPU request described for
+\f[I]CTI_SLURM_DAEMON_GRES\f[R], including one taken from the
+application\[cq]s \f[B]srun\f[R] command.
+If \f[I]CTI_SLURM_DAEMON_GRES\f[R] is also set, both are passed.
 .IP \[bu] 2
 \f[I]CTI_SLURM_DAEMON_GRES_SPLIT\f[R]: Set to \f[C]1\f[R] when the
 job\[cq]s nodes have different numbers of GPUs, to give tool daemons all

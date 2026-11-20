@@ -888,6 +888,20 @@ TEST(SlurmFrontendTest, GetGresSetting)
         EXPECT_TRUE(gres(launcher_argv, "gpu:4").empty());
         ::unsetenv("CTI_SLURM_DAEMON_GRES");
     }
+
+    // --gpus-per-node from CTI_SLURM_DAEMON_GPUS_PER_NODE replaces any --gres, which would
+    // otherwise be "none" for launches without allocation or launcher GPUs
+    { char const* launcher_argv[] = {"srun", "--arg", nullptr};
+        ::setenv("CTI_SLURM_DAEMON_GPUS_PER_NODE", "2", 1);
+        EXPECT_TRUE(gres(launcher_argv, "").empty());
+        ::unsetenv("CTI_SLURM_DAEMON_GPUS_PER_NODE");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", "--gres=gpu:4", nullptr};
+        ::setenv("CTI_SLURM_DAEMON_GPUS_PER_NODE", "2", 1);
+        EXPECT_TRUE(gres(launcher_argv, "").empty());
+        ::unsetenv("CTI_SLURM_DAEMON_GPUS_PER_NODE");
+    }
 }
 
 TEST(SlurmFrontendTest, GetAllocationGres)

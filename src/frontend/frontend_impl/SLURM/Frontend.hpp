@@ -200,8 +200,9 @@ struct detail
         bool fromAllocation;
     };
 
-    // --gres value for tool daemon launches: CTI_SLURM_DAEMON_GRES, else a GPU GRES from
-    // launcher_argv, else allocationGres (see get_allocation_gres), else "none"
+    // --gres value for tool daemon launches: CTI_SLURM_DAEMON_GRES, else none if
+    // CTI_SLURM_DAEMON_GPUS_PER_NODE is set, else a GPU GRES from launcher_argv, else
+    // allocationGres (see get_allocation_gres), else "none"
     static GresSetting get_gres_setting(char const* const* launcher_argv,
         std::string const& allocationGres);
     // Parse `scontrol show job -d` output into GPUs per node group
