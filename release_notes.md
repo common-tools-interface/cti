@@ -33,6 +33,8 @@ Changelog
 * Slurm: request GPUs per node from the job allocation for tool daemon steps, including
   for attach. Fixes "Insufficient GRES available in allocation" when a multi-node job
   is allocated with `-G` / `--gpus`.
+  If nodes have different GPU counts, tool daemons get the smallest count on every node,
+  and CTI prints a warning naming the nodes where tools can't use all GPUs.
 
 =======================================================================
 ## 2.22.0

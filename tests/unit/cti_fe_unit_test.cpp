@@ -882,7 +882,8 @@ TEST(SlurmFrontendTest, GetAllocationGres)
 {
     auto allocationGres = [](std::string const& scontrolOutput) {
         auto stream = std::istringstream{scontrolOutput};
-        return SLURMFrontend::detail::get_allocation_gres(stream);
+        return SLURMFrontend::detail::get_allocation_gres(
+            SLURMFrontend::detail::get_job_node_gpus(stream));
     };
 
     // Uniform allocation from salloc -G 8 on two 4-GPU nodes
@@ -917,6 +918,50 @@ TEST(SlurmFrontendTest, GetAllocationGres)
     EXPECT_EQ(allocationGres(
         "     Nodes=nid[001-002] CPU_IDs=0-63 Mem=0\n"), "");
     EXPECT_EQ(allocationGres(""), "");
+}
+
+TEST(SlurmFrontendTest, GetJobNodeGpus)
+{
+    auto stream = std::istringstream{
+        "JobId=11 JobName=interactive\n"
+        "   NumNodes=3 NumCPUs=3 NumTasks=3 CPUs/Task=1 ReqB:S:C:T=0:0:*:*\n"
+        "     Nodes=nid[001-002] CPU_IDs=0 Mem=0 GRES=gpu:a100:4(IDX:0-3)\n"
+        "     Nodes=nid003 CPU_IDs=0 Mem=0 GRES=gpu:a100:2(IDX:0,2)\n"
+        "   NodeList=nid[001-003]\n"};
+    auto const nodeGpus = SLURMFrontend::detail::get_job_node_gpus(stream);
+
+    ASSERT_EQ(nodeGpus.size(), 2);
+    EXPECT_EQ(nodeGpus[0].nodes, "nid[001-002]");
+    EXPECT_EQ(nodeGpus[0].gpus, 4);
+    EXPECT_EQ(nodeGpus[1].nodes, "nid003");
+    EXPECT_EQ(nodeGpus[1].gpus, 2);
+}
+
+TEST(SlurmFrontendTest, GetLimitedNodes)
+{
+    using NodeGpus = SLURMFrontend::detail::NodeGpus;
+    auto limitedNodes = [](std::vector<NodeGpus> const& nodeGpus, std::string const& gres) {
+        auto result = std::vector<std::string>{};
+        for (auto&& group : SLURMFrontend::detail::get_limited_nodes(nodeGpus, gres)) {
+            result.push_back(group.nodes);
+        }
+        return result;
+    };
+    auto const uneven = std::vector<NodeGpus>{{"nid001", 4}, {"nid002", 2}, {"nid003", 0}};
+    auto const even = std::vector<NodeGpus>{{"nid[001-002]", 4}};
+
+    // Nodes with more GPUs than the per-node request
+    EXPECT_EQ(limitedNodes(uneven, "gpu:2"), (std::vector<std::string>{"nid001"}));
+    EXPECT_EQ(limitedNodes(uneven, "none"), (std::vector<std::string>{"nid001", "nid002"}));
+    EXPECT_EQ(limitedNodes(even, "gpu:a100:2"), (std::vector<std::string>{"nid[001-002]"}));
+
+    // Request covers every node
+    EXPECT_TRUE(limitedNodes(even, "gpu:4").empty());
+
+    // Not a per-node GPU count: no GPU request, or a user setting CTI can't interpret
+    EXPECT_TRUE(limitedNodes(uneven, "").empty());
+    EXPECT_TRUE(limitedNodes(uneven, "gpu:a100").empty());
+    EXPECT_TRUE(limitedNodes(uneven, "nic:1").empty());
 }
 
 TEST(SlurmFrontendTest, AddQuotedArgs)

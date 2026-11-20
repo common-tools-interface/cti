@@ -179,13 +179,26 @@ public: // constructor / destructor interface
 public: // unit testable
 struct detail
 {
+    // GPUs allocated to a job on each node of one node group from `scontrol show job -d`
+    struct NodeGpus
+    {
+        std::string nodes; // Slurm node list, e.g. nid[001-002]
+        int gpus;
+    };
+
     // --gres value for tool daemon launches: CTI_SLURM_DAEMON_GRES, else a GPU GRES from
     // launcher_argv, else allocationGres (see get_allocation_gres), else "none"
     static std::string get_gres_setting(char const* const* launcher_argv,
         std::string const& allocationGres);
-    // Parse `scontrol show job -d` output into a per-node --gres value: "gpu:<N>" with N the
-    // fewest GPUs on any node, "none" if some node has none, or empty if the job has no GPUs
-    static std::string get_allocation_gres(std::istream& scontrolJobDetail);
+    // Parse `scontrol show job -d` output into GPUs per node group
+    static std::vector<NodeGpus> get_job_node_gpus(std::istream& scontrolJobDetail);
+    // Per-node --gres value: "gpu:<N>" with N the fewest GPUs on any node, "none" if some
+    // node has none, or empty if the job has no GPUs
+    static std::string get_allocation_gres(std::vector<NodeGpus> const& nodeGpus);
+    // Node groups with more GPUs than a per-node gresSetting ("gpu:<N>" or "none") lets
+    // tool daemons use; empty for any other setting
+    static std::vector<NodeGpus> get_limited_nodes(std::vector<NodeGpus> const& nodeGpus,
+        std::string const& gresSetting);
     static void add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs);
 };
 
@@ -203,7 +216,9 @@ private: // variables
     int      m_queuedErrFd; // Where to redirect stderr after barrier release
 
     bool     m_beDaemonSent; // Have we already shipped over the backend daemon?
+    std::vector<SLURMFrontend::detail::NodeGpus> m_jobNodeGpus; // Job GPUs per node group, empty if not queried
     std::string m_gresSetting; // Tool daemon GRES
+    bool     m_gresWarned; // Warned that tool daemons can't use all job GPUs
 
     std::string m_toolPath;    // Backend path where files are unpacked
     std::string m_attribsPath; // Backend Cray-specific directory
@@ -212,6 +227,7 @@ private: // variables
 
 private: // member helpers
     void shipDaemon();
+    void warnLimitedGpus();
     cti::ManagedArgv generateDaemonLauncherArgv(char const* const* launcher_args);
 
 public: // app interaction interface
