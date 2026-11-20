@@ -199,9 +199,17 @@ Note that the filesystem should be mounted such that binaries can
 execute from that location i.e.\ not \f[I]noexec\f[R].
 .SS Slurm-specific variables
 .IP \[bu] 2
-\f[I]CTI_SLURM_DAEMON_GRES\f[R]: Starting with Slurm 21.08, there is a
-known bug that may result in hanging job launches
-(https://bugs.schedmd.com/show_bug.cgi?id=12642).
+\f[I]CTI_SLURM_DAEMON_GRES\f[R]: The \f[C]--gres\f[R] argument for
+tool daemon job steps.
+By default, CTI requests the GPUs of the job allocation per node
+(\f[C]gpu:<N>\f[R], where N is the smallest number of GPUs allocated on
+any job node).
+If CTI launched the application with a \f[C]--gres\f[R] GPU request,
+CTI uses that request instead.
+Set this variable to an empty string to omit \f[C]--gres\f[R], or to a
+GRES specification to use instead.
+Starting with Slurm 21.08, there is a known bug that may result in
+hanging job launches (https://bugs.schedmd.com/show_bug.cgi?id=12642).
 If you are experiencing job hangs with this Slurm version, try setting
 this variable to an empty string, or to your system\[cq]s required job
 GRES parameter, if one is needed.
@@ -217,12 +225,10 @@ of \f[C]sacct\f[R] for finding MPMD job information.
 Use this if the Slurm database service is not available on your system.
 MPMD jobs are not supported with this option.
 .IP \[bu] 2
-\f[I]CTI_SLURM_DAEMON_GPUS_PER_NODE\f[R]: Slurm 25.11.1 / 26.05.0 fixed
-a bug fixed a bug where GPUs specified via \f[C]-G\f[R]
-(\f[C]SLURM_GPUS\f[R]) can cause GRES calculations to fail.
-(https://bugs.schedmd.com/show_bug.cgi?id=23832) CTI will use the total
-GPU count and node count to calculate GPUs per node.
-Set this environment variable to override this workaround.
+\f[I]CTI_SLURM_DAEMON_GPUS_PER_NODE\f[R]: Set to add
+\f[C]--gpus-per-node\f[R] with this value to tool daemon job steps
+instead of the default per-node GPU GRES request described for
+\f[I]CTI_SLURM_DAEMON_GRES\f[R].
 .SS SSH-specific variables
 .PP
 For workload managers that do not natively provide a file-shipping or

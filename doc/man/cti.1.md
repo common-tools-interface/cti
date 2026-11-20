@@ -156,8 +156,13 @@ supplied to start the attach process.
 
 ## Slurm-specific variables
 
-- *CTI_SLURM_DAEMON_GRES*: Starting with Slurm 21.08, there is a known
-  bug that may result in hanging job launches
+- *CTI_SLURM_DAEMON_GRES*: The `--gres` argument for tool daemon job steps.
+  By default, CTI requests the GPUs of the job allocation per node
+  (`gpu:<N>`, where N is the smallest number of GPUs allocated on any job
+  node). If CTI launched the application with a `--gres` GPU request, CTI
+  uses that request instead. Set this variable to an empty string to omit
+  `--gres`, or to a GRES specification to use instead. Starting with Slurm
+  21.08, there is a known bug that may result in hanging job launches
   (https://bugs.schedmd.com/show_bug.cgi?id=12642). If you are experiencing
   job hangs with this Slurm version, try setting this variable to an empty
   string, or to your system's required job GRES parameter, if one is needed.
@@ -171,11 +176,9 @@ supplied to start the attach process.
   finding MPMD job information. Use this if the Slurm database service is not
   available on your system. MPMD jobs are not supported with this option.
 
-- *CTI_SLURM_DAEMON_GPUS_PER_NODE*: Slurm 25.11.1 / 26.05.0 fixed a bug
-  fixed a bug where GPUs specified via `-G` (`SLURM_GPUS`) can cause GRES
-  calculations to fail. (https://bugs.schedmd.com/show_bug.cgi?id=23832)
-  CTI will use the total GPU count and node count to calculate GPUs per node.
-  Set this environment variable to override this workaround.
+- *CTI_SLURM_DAEMON_GPUS_PER_NODE*: Set to add `--gpus-per-node` with this
+  value to tool daemon job steps instead of the default per-node GPU GRES
+  request described for *CTI_SLURM_DAEMON_GRES*.
 
 ## SSH-specific variables
 

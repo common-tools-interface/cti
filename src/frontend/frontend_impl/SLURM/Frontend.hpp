@@ -34,6 +34,7 @@
 #include <sys/types.h>
 
 #include <stdexcept>
+#include <iosfwd>
 #include <optional>
 
 #include "frontend/Frontend.hpp"
@@ -178,7 +179,13 @@ public: // constructor / destructor interface
 public: // unit testable
 struct detail
 {
-    static std::string get_gres_setting(char const* const* launcher_argv);
+    // --gres value for tool daemon launches: CTI_SLURM_DAEMON_GRES, else a GPU GRES from
+    // launcher_argv, else allocationGres (see get_allocation_gres), else "none"
+    static std::string get_gres_setting(char const* const* launcher_argv,
+        std::string const& allocationGres);
+    // Parse `scontrol show job -d` output into a per-node --gres value: "gpu:<N>" with N the
+    // fewest GPUs on any node, "none" if some node has none, or empty if the job has no GPUs
+    static std::string get_allocation_gres(std::istream& scontrolJobDetail);
     static void add_quoted_args(cti::ManagedArgv& args, std::string const& quotedArgs);
 };
 
@@ -238,6 +245,7 @@ public: // slurm specific interface
 
     // Set GRES for subsequent tool daemon launches
     void setGres(std::string const& gresSetting) { m_gresSetting = gresSetting; }
+    std::string const& getGres() const { return m_gresSetting; }
 
 public: // constructor / destructor interface
     SLURMApp(SLURMFrontend& fe, FE_daemon::MPIRResult&& mpirData,

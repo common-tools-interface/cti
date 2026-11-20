@@ -28,6 +28,12 @@ Changelog
 * PALS and flux support available as a optional configurations.
 * First version committed to be buildable outside of an HPE environment.
 
+### Bug Fixes
+
+* Slurm: request GPUs per node from the job allocation for tool daemon steps, including
+  for attach. Fixes "Insufficient GRES available in allocation" when a multi-node job
+  is allocated with `-G` / `--gpus`.
+
 =======================================================================
 ## 2.22.0
 =======================================================================

@@ -8,6 +8,7 @@
 #include "cti_defs.h"
 
 #include <memory>
+#include <sstream>
 #include <unordered_set>
 
 #include "frontend/frontend_impl/Frontend_impl.hpp"
@@ -828,44 +829,94 @@ TEST_F(CTIAppUnitTest, ManifestLibraryConflict)
 TEST(SlurmFrontendTest, GetGresSetting)
 {
     { char const* launcher_argv[] = {"srun", "--arg", "--gres=gpu:8", nullptr};
-        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "gpu:8");
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "").c_str(), "gpu:8");
     }
 
     { char const* launcher_argv[] = {"srun", "--arg", "--gres", "gpu:8", nullptr};
-        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "gpu:8");
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "").c_str(), "gpu:8");
     }
 
     { char const* launcher_argv[] = {"srun", "--arg", "--gres=gpu:8", "a.out", "--gres", "user_arg", nullptr};
-        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "gpu:8");
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "").c_str(), "gpu:8");
     }
 
     { char const* launcher_argv[] = {"srun", "--arg", "--gres", nullptr};
-        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "none");
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "").c_str(), "none");
     }
 
     { char const* launcher_argv[] = {"srun", "--arg", "--gres=", nullptr};
-        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "none");
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "").c_str(), "none");
     }
 
     { char const* launcher_argv[] = {"srun", "--arg", "--gres=nongpu", "--arg2", nullptr};
-        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "none");
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "").c_str(), "none");
     }
 
     { char const* launcher_argv[] = {"srun", "--arg", "--gres", "nongpu", "--arg2", nullptr};
-        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "none");
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "").c_str(), "none");
+    }
+
+    // Job allocation is used when the launcher requested no GPU GRES
+    { char const* launcher_argv[] = {"srun", "--arg", nullptr};
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "gpu:4").c_str(), "gpu:4");
+    }
+
+    { char const* launcher_argv[] = {"srun", "--arg", "--gres=gpu:2", nullptr};
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "gpu:4").c_str(), "gpu:2");
     }
 
     { char const* launcher_argv[] = {"srun", "--arg", nullptr};
         ::setenv("CTI_SLURM_DAEMON_GRES", "gpu:8", 1);
-        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv).c_str(), "gpu:8");
+        EXPECT_STREQ(SLURMFrontend::detail::get_gres_setting(launcher_argv, "gpu:4").c_str(), "gpu:8");
         ::unsetenv("CTI_SLURM_DAEMON_GRES");
     }
 
     { char const* launcher_argv[] = {"srun", "--arg", nullptr};
         ::setenv("CTI_SLURM_DAEMON_GRES", "", 1);
-        EXPECT_TRUE(SLURMFrontend::detail::get_gres_setting(launcher_argv).empty());
+        EXPECT_TRUE(SLURMFrontend::detail::get_gres_setting(launcher_argv, "gpu:4").empty());
         ::unsetenv("CTI_SLURM_DAEMON_GRES");
     }
+}
+
+TEST(SlurmFrontendTest, GetAllocationGres)
+{
+    auto allocationGres = [](std::string const& scontrolOutput) {
+        auto stream = std::istringstream{scontrolOutput};
+        return SLURMFrontend::detail::get_allocation_gres(stream);
+    };
+
+    // Uniform allocation from salloc -G 8 on two 4-GPU nodes
+    EXPECT_EQ(allocationGres(
+        "JobId=11 JobName=interactive\n"
+        "   NumNodes=2 NumCPUs=128 NumTasks=2 CPUs/Task=1 ReqB:S:C:T=0:0:*:*\n"
+        "   ReqTRES=cpu=2,mem=3400M,node=2,billing=2,gres/gpu=8\n"
+        "     Nodes=nid[001-002] CPU_IDs=0-63 Mem=0 GRES=gpu:a100:4(IDX:0-3)\n"
+        "   NodeList=nid[001-002]\n"
+        "   TresPerJob=gres/gpu:8\n"), "gpu:4");
+
+    // Uneven allocation: a per-node request must fit the smallest node
+    EXPECT_EQ(allocationGres(
+        "     Nodes=nid001 CPU_IDs=0 Mem=0 GRES=gpu:4(IDX:0-3)\n"
+        "     Nodes=nid002 CPU_IDs=0 Mem=0 GRES=gpu:2(IDX:0,2)\n"), "gpu:2");
+
+    // Commas inside index lists, multiple GPU types, and non-GPU GRES
+    EXPECT_EQ(allocationGres(
+        "     Nodes=nid001 CPU_IDs=0 Mem=0 GRES=gpu:a100:1(IDX:0),gpu:v100:2(IDX:1,3),nic:1(IDX:0)\n"), "gpu:3");
+
+    // Some node holds no GPUs
+    EXPECT_EQ(allocationGres(
+        "     Nodes=nid001 CPU_IDs=0 Mem=0 GRES=gpu:4(IDX:0-3)\n"
+        "     Nodes=nid002 CPU_IDs=0 Mem=0 GRES=\n"), "none");
+    EXPECT_EQ(allocationGres(
+        "     Nodes=nid001 CPU_IDs=0 Mem=0 GRES=gpu:4(IDX:0-3)\n"
+        "     Nodes=nid002 CPU_IDs=0 Mem=0\n"), "none");
+
+    // Job without GPUs
+    EXPECT_EQ(allocationGres(
+        "     Nodes=nid[001-002] CPU_IDs=0-63 Mem=0 GRES=nic:1(IDX:0)\n"), "");
+    EXPECT_EQ(allocationGres(
+        "     Nodes=nid[001-002] CPU_IDs=0-63 Mem=0\n"), "");
+    EXPECT_EQ(allocationGres(""), "");
 }
 
 TEST(SlurmFrontendTest, AddQuotedArgs)
